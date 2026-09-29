@@ -7,7 +7,6 @@ public struct GoView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
     /// 出ている「パス」の札（#664）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
@@ -28,28 +27,24 @@ public struct GoView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
-            HowToPlayHint(.go, playLog: services.playLog)
             controlArea
+            HowToPlayHint(.go, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "囲碁", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameOver || model.moveCount == 0 {
-                        showNewGame = true
-                    } else {
-                        showConfirmNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "囲碁", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.gameOver || model.moveCount == 0 {
+                            showNewGame = true
+                        } else {
+                            showConfirmNewGame = true
+                        }
+                    })
         .howToPlay(.go) { GoRuleDetails() }
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
                 level: model.aiLevel,
@@ -332,7 +327,7 @@ public struct GoView: View {
     // MARK: - ステータスバー
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             switch model.phase {
             case .finished:
                 Label(resultText, systemImage: "flag.checkered")
@@ -343,28 +338,20 @@ public struct GoView: View {
                     .themeBody(15).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .playing:
-                let isMine = model.state.sideToMove == model.humanSide
-                Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
+                TurnBadge(isYourTurn: model.state.sideToMove == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
             passBanner
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
         }
-        .frame(minHeight: 32)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(GoAccessibility.statusLabel(
             phase: model.phase,
@@ -412,28 +399,15 @@ public struct GoView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。囲碁だけ間に「パス」を挟む。
-            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 10)) { showResignConfirm = true }
-                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
-
-            Spacer(minLength: 0)
-
-            Button { model.pass() } label: {
-                Label("パス", systemImage: "forward.fill")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.fillMuted))
-            }
-            .disabled(model.isAITurn || model.isThinking)
-
-            Spacer(minLength: 0)
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通。囲碁だけ「パス」も「⋯」に入る（#1421・#1468）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            extraItems: [
+                GameControlMenuItem(id: "pass", title: "パス", systemImage: "forward.fill",
+                                    isEnabled: !(model.isAITurn || model.isThinking)) { model.pass() }
+            ],
+            onResign: { model.resign() }
+        )
     }
 }
 
@@ -617,28 +591,9 @@ struct GoRuleDetails: View {
     ]
 
     var body: some View {
-        // 他ゲームのルールシート（大富豪・ポーカー）と同じ包み: スクロール + 左右余白 + 共通背景
-        // （会長指摘 2026-09-02: 全面白地・余白なしで見た目が他と違う）。
-        ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(sections, id: \.0) { title, lines in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title).themeBody(15).foregroundStyle(Theme.coral)
-                    ForEach(lines, id: \.self) { line in
-                        Text("・\(line)")
-                            .font(.system(size: 13, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.pad)
-        }
-        .popBackground()
+        RuleListSheet(rules: sections.map { title, lines in
+            (title, lines.map { "・\($0)" }.joined(separator: "\n"))
+        })
     }
 }
 
@@ -672,9 +627,9 @@ struct GoNewGameSheet: View {
 
     var body: some View {
         // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
-        // ハンデ以降がはみ出て操作できない）。`.scrolling` は常に `.large` で開く。
+        // ハンデ以降がはみ出て操作できない）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", spacing: 20, layout: .scrolling,
+            kind: .versus, spacing: 20,
             onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
         ) {
             Text("9路盤・中国ルール（面積計算）")

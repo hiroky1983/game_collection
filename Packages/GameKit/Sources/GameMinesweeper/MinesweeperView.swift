@@ -15,7 +15,14 @@ public struct MinesweeperView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: MinesweeperModel(services: services))
-        _showNewGame = State(initialValue: !services.snapshots.exists(for: "minesweeper"))
+        var startsWithNewGameSheet = !services.snapshots.exists(for: "minesweeper")
+        #if DEBUG
+        // 撮影用フックは `.task` の中で畳んでいるが、開始シートは init の時点で既に
+        // 表示アニメーションへ入っているため、`.task` での取り消しが間に合わず下端に
+        // 残ることがある（#1486）。地雷ヒットの撮影では最初から畳んでおく。
+        if ProcessInfo.processInfo.arguments.contains("-simulateMineHit") { startsWithNewGameSheet = false }
+        #endif
+        _showNewGame = State(initialValue: startsWithNewGameSheet)
     }
 
     public var body: some View {
@@ -25,26 +32,26 @@ public struct MinesweeperView: View {
             statusBar
             board
                 .layoutPriority(1)
-            HowToPlayHint(.minesweeper, playLog: services.playLog)
+                // 重ねる範囲は盤だけ（画面全体は暗くしない・#1486）。
+                .overlay {
+                    if showContinue { continueOverlay }
+                }
             controlArea
+            HowToPlayHint(.minesweeper, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "マインスイーパー", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameState == .playing {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "マインスイーパー", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        if model.gameState == .playing {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.minesweeper)
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet { rows, cols, mines in
@@ -61,7 +68,7 @@ public struct MinesweeperView: View {
             Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("途中で終了すると対局データが失われます。")
+            Text("途中で終了するとゲームのデータが失われます。")
         }
         .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
             Button("諦める", role: .destructive) { model.giveUp() }
@@ -69,9 +76,8 @@ public struct MinesweeperView: View {
         } message: {
             Text("全ての地雷が公開されゲームオーバーになります。")
         }
-        .overlay {
-            if showContinue { continueOverlay }
-        }
+        .rewardOffer(continueRescue, for: .continue, isPresented: showContinue,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             continueRescue,
             notEarned: "コンティニューできませんでした",
@@ -106,44 +112,70 @@ public struct MinesweeperView: View {
                 showNewGame = false
                 model.tap(row: row, col: col)
             }
+            // 同じく撮影・動作確認用: `-simulateMineHit` で地雷を踏み、コンティニューの提案幕
+            // （盤だけに重ねるパネル・#1486）を出す。地雷はタップ起点でしか配られない
+            // （初手までは配置が確定しない）ため、まず安全な初手を打ってから地雷を探して踏む。
+            if args.contains("-simulateMineHit") {
+                showNewGame = false
+                model.tap(row: 0, col: 0)
+                if model.gameState == .playing {
+                    outer: for r in 0..<model.rows {
+                        for c in 0..<model.cols where model.cell(atRow: r, col: c)?.isMine == true {
+                            model.tap(row: r, col: c)
+                            break outer
+                        }
+                    }
+                }
+            }
             #endif
         }
         .onChange(of: model.gameState) { _, state in
             // 使用済みの局では提案を出さず、そのまま終局後の表示にする（1局1回・#657）。
-            if state == .lost && model.canContinue { showContinue = true }
+            if state == .lost && model.canContinue {
+                // 盤だけに重ねるパネルなので、拡大表示中は先に等倍へ戻す（#1486）。
+                zoomMode = false
+                showContinue = true
+            }
         }
     }
 
     // MARK: - Game Controls
 
     private var gameControls: some View {
-        HStack {
-            Button { showGiveUpConfirm = true } label: {
-                Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer()
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        // 旗モード・拡大・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
+        GameOverflowBar(menuItems: [
+            // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
+            GameControlMenuItem(
+                id: "flag", title: "旗モード", systemImage: "flag.fill", isChecked: model.flagMode,
+                accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
+            ) { model.toggleFlagMode() },
+            GameControlMenuItem(
+                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
+                accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
+            ) { zoomMode.toggle() },
+            GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
+                showGiveUpConfirm = true
+            },
+        ])
     }
 
     // MARK: - Continue Overlay
 
     private var continueOverlay: some View {
         ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
+            Color.black.opacity(0.6)
+            VStack(spacing: 12) {
                 Text("💥")
                     .font(.system(size: 52))
                 Text("地雷を踏んだ！")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(.white)
 
-                Button {
+                GameDeadEndActionButton(
+                    "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
+                    tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
+                ) {
                     // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
                     // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
                     let game = model.gameSerial
@@ -155,31 +187,15 @@ public struct MinesweeperView: View {
                         showContinue = false
                         return true
                     }
-                } label: {
-                    Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.plain)
-                .disabled(continueRescue.isWatching)
 
                 // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
                 // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
-                Button { showContinue = false } label: {
-                    Text("あきらめる")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
+                GameDeadEndDismissButton("諦める", isDisabled: continueRescue.isWatching) {
+                    showContinue = false
                 }
-                .buttonStyle(.plain)
-                .disabled(continueRescue.isWatching)
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+            .padding(20)
         }
     }
 
@@ -243,7 +259,8 @@ public struct MinesweeperView: View {
     /// 幅は固定値で決め打ちせず、各グループの内容幅（`fixedSize`）で決める。
     /// 左右を `maxWidth: .infinity` の等分フレームに載せることで絵文字が常に中央に来る。
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        // 帯には表示だけを置く（残り地雷・状態・タイマー）。旗・拡大の切り替えは右下の「⋯」へ（#1468）。
+        GameStatusBar {
             Group {
                 if model.gameOver {
                     // 終局後の結果は行を増やさずここに同居させる（#148）。残り地雷数は
@@ -266,67 +283,23 @@ public struct MinesweeperView: View {
                 }
             }
             .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(stateEmoji)
-                .font(.system(size: 28))
-                .fixedSize(horizontal: true, vertical: false)
-
-            HStack(spacing: 8) {
-                Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
-                      systemImage: "clock")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.teal)
-
-                // 旗・拡大の切り替えはどちらも実測 29×23pt しかなく Apple HIG の 44pt を
-                // 下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ形に揃える（#203）。
-                //
-                // #203 で移植できていたのは 44pt のタップ標的だけで、アイコン 13pt・角丸 8・
-                // 枠線なしと面の作りは一回り小さいままだった。同じ形を 2 ヶ所に手書きしていたのが
-                // 原因なので、共通の `BoardToggleButton`（Core）へ寄せて揃える（#641）。
-                //
-                // 文字ラベルも麻雀ソリティアと同じく付ける（会長 QA 2026-09-13「同じ見た目になっていない」。
-                // #641 では寸法だけ揃えて文字は見送っていた）。幅は iPhone SE でも足りる（両方に文字を
-                // 付けても帯の余りは 49.5pt 残る・#641 で実測）。旗は 2 状態の言い分けが無いので「旗」固定。
-                //
-                // 読み上げ文は `MinesweeperAccessibility` に置く（#761）。旗はマスのタップ結果を
-                // 左右するので状態込み（オン/オフ）で読み、拡大はフリーセルと同じくヒントも状態で切り替える。
-                BoardToggleButton(
-                    isOn: model.flagMode,
-                    systemImage: "flag.fill",
-                    title: "旗",
-                    fill: Theme.Fill.coral,
-                    accent: Theme.coral,
-                    label: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
-                ) {
-                    model.toggleFlagMode()
-                }
-                BoardToggleButton(
-                    isOn: zoomMode,
-                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
-                    title: zoomMode ? "全体" : "拡大",
-                    fill: Theme.Fill.teal,
-                    accent: Theme.teal,
-                    label: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode)
-                ) {
-                    zoomMode.toggle()
-                }
-                .accessibilityHint(MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode))
+            // 旗モードは切り替えが「⋯」に移ったので、いまオンかどうかは帯に表示だけ出す（ボタンではない・#1468）。
+            if model.flagMode && !model.gameOver {
+                Text("旗モード")
+                    .themeCaption(11)
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.Fill.coral))
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityHidden(true)
             }
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        // 縦の余白は 4。もとは 8 だったが、44pt になった切り替えボタンが帯の高さを決めるように
-        // なったぶんここを詰め、#148 で盤に捻出した高さをほぼ据え置きにしている（#203・#197 と同じ手当て）。
-        .padding(.horizontal, 12).padding(.vertical, MinesweeperMetrics.statusBarVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    private var stateEmoji: String {
-        switch model.gameState {
-        case .won:  return "😎"
-        case .lost: return "😵"
-        default:    return "🙂"
+        } trailing: {
+            Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
+                  systemImage: "clock")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.teal)
+                .fixedSize(horizontal: true, vertical: false)
         }
     }
 
@@ -557,28 +530,18 @@ struct MinesweeperNewGameSheet: View {
     /// ここに数値を直書きすると記録区分のラベルと二重管理になる。
     @State private var level: MinesweeperDifficulty = .beginner
 
-    /// 難易度ごとの差し色。色だけは Theme に依存するのでここに置く（enum は SwiftUI を持ち込まない）。
-    private static let accents: [MinesweeperDifficulty: Color] = [
-        .beginner: Theme.Fill.teal,
-        .intermediate: Theme.Fill.yellow,
-        .advanced: Theme.Fill.coral,
-    ]
-
-    /// 副題（「9×9・地雷10」など）が横3つに並ぶので、標準より小さい字で入れる。
-    private static let metrics = GameSetupChooser.Metrics(subtitleSize: 11)
-
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "スタート",
+            kind: .solo,
             onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {
-                HStack(spacing: 12) {
-                    ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
+                HStack(spacing: 6) {
+                    ForEach(Array(MinesweeperDifficulty.allCases.enumerated()), id: \.element) { step, difficulty in
                         GameSetupChooser(title: difficulty.label, subtitle: difficulty.subtitle,
                                          selected: level == difficulty,
-                                         accent: Self.accents[difficulty] ?? Theme.Fill.teal,
-                                         metrics: Self.metrics) {
+                                         accent: DifficultyTile.accent(step: step, of: MinesweeperDifficulty.allCases.count),
+                                         metrics: DifficultyTile.metrics) {
                             level = difficulty
                         }
                     }

@@ -4,6 +4,7 @@ import Core
 public struct ShiritoriView: View {
     @State private var model: ShiritoriModel
     @State private var showSetup = false
+    @State private var showConfirmNewGame = false
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -30,16 +31,28 @@ public struct ShiritoriView: View {
             HowToPlayHint(.shiritori, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
+            // 札の盤は札の枚数ぶんの高さしか取らないため、余りをここで吸って広告を画面の下端に置く。
+            // 吸わないと画面全体が縦に伸びず、背景色が中身の範囲にしか塗られない（ヘッダーまわりと広告の下が白く残る）
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "カードしりとり", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { model.pause(); showSetup = true } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-            }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .gameChrome(title: "カードしりとり", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        model.pause()
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            showSetup = true
+                        }
+                    })
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると、いまの対局が失われます。")
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
@@ -83,11 +96,17 @@ public struct ShiritoriView: View {
 
     private var statusBar: some View {
         VStack(spacing: 6) {
-            HStack(spacing: 8) {
+            GameStatusBar {
+                switch model.phase {
+                case .idle: EmptyView()
+                case .playing: TurnBadge(isYourTurn: model.isPlayerTurn)
+                default: TurnBadge("終了", kind: .finished)
+                }
                 Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
-                Spacer()
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } trailing: {
                 Text(model.quota.label)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.onAccent)
@@ -95,9 +114,8 @@ public struct ShiritoriView: View {
                     .background(Capsule().fill(Theme.Fill.purple))
             }
             timeBar
+                .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var timeBar: some View {
@@ -212,25 +230,25 @@ public struct ShiritoriView: View {
     private var actionArea: some View {
         switch model.phase {
         case .idle:
-            actionButton("ゲームを始める", color: Theme.Fill.coral) { showSetup = true }
+            actionButton("ゲームを始める", role: .primary) { showSetup = true }
         case .playing:
             EmptyView()
         case .result:
-            actionButton("もう一度", color: Theme.Fill.coral) { showSetup = true }
+            actionButton("もう一度", role: .primary) { showSetup = true }
         }
     }
 
-    private func actionButton(_ title: String, color: Color, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
-                .lineLimit(1).minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(color, in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(Theme.onAccent)
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -380,17 +398,18 @@ struct ShiritoriSetupSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "スタート",
+            kind: .versus,
             onStart: { onStart(quota) }, onCancel: onCancel
         ) {
             GameSetupSection("むずかしさ") {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        ForEach(ShiritoriQuota.allCases, id: \.rawValue) { level in
+                    HStack(spacing: 6) {
+                        ForEach(Array(ShiritoriQuota.allCases.enumerated()), id: \.element) { step, level in
                             GameSetupChooser(
                                 title: level.label, subtitle: "",
-                                selected: quota == level, accent: Theme.Fill.purple,
-                                metrics: .init(title: .body(15), verticalPadding: 14, titleMinimumScale: 0.6)
+                                selected: quota == level,
+                                accent: DifficultyTile.accent(step: step, of: ShiritoriQuota.allCases.count),
+                                metrics: DifficultyTile.metrics
                             ) { quota = level }
                         }
                     }
@@ -414,10 +433,10 @@ struct ShiritoriRuleSheet: View {
         ("制限時間", "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります"),
         ("「ん」で終わると負け", "「ん」で終わる読みの札を選んだ人は、その場で負けです"),
         ("勝ち負け", "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです"),
-        ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。やさしい=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),
+        ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: rules)
+        RuleListSheet(rules: rules)
     }
 }

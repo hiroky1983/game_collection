@@ -7,9 +7,10 @@ public struct ChessView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
+    @State private var hintRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（将棋 #200 と同じ）。
     @State private var pieceLayout: ChessPieceLayout
     /// 表示中の「チェック」の合図の契機 ID。nil なら出していない。
@@ -44,30 +45,26 @@ public struct ChessView: View {
             board
                 .layoutPriority(1)
             CapturedAreaView(model: model, owner: model.humanSide, style: pieceStyle)
-            HowToPlayHint(.chess, playLog: services.playLog)
             controlArea
+            HowToPlayHint(.chess, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "チェス", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.phase == .playing && !model.moves.isEmpty {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "チェス", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.phase == .playing && !model.moves.isEmpty {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.chess) {
             ChessRuleDetail(style: pieceStyle)
         }
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             ChessNewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel,
                               initialStyle: pieceStyle) { side, level, style in
                 // 意匠は局の外の設定なので、開始と同時に保存して次回起動へ持ち越す。
@@ -131,12 +128,7 @@ public struct ChessView: View {
     private var checkOverlay: some View {
         ZStack {
             if checkBannerID != nil {
-                Text("チェック")
-                    .font(.system(size: 38, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28).padding(.vertical, 12)
-                    .background(Capsule().fill(ChessBoardStyle.check))
-                    .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+                BoardGameCheckBanner("チェック")
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
         }
@@ -156,7 +148,7 @@ public struct ChessView: View {
                     .onTapGesture { model.cancelPromotion() }
                 VStack(spacing: 18) {
                     Text("何に成りますか？")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .themeBody(18, weight: .bold)
                         .foregroundStyle(Theme.ink)
                     HStack(spacing: 12) {
                         // クイーンを先頭に置く。実戦のほぼ全てがクイーン成りなので、
@@ -403,19 +395,13 @@ public struct ChessView: View {
     // MARK: - ステータス
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
                     .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text(model.position.sideToMove == .white ? "白番" : "黒番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    // 面色が白番＝差し色 / 黒番＝濃色と大きく違うので、文字色も面に合わせる（#220）。
-                    .foregroundStyle(model.position.sideToMove == .white ? Theme.onAccent : .white)
-                    .padding(.horizontal, 12).padding(.vertical, 2)
-                    .background(Capsule().fill(
-                        model.position.sideToMove == .white ? Theme.Fill.teal : Theme.fillStrong))
+                TurnBadge(isYourTurn: model.position.sideToMove == model.humanSide)
                     .gameAnimation(ChessMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
@@ -424,7 +410,7 @@ public struct ChessView: View {
                     Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -432,9 +418,6 @@ public struct ChessView: View {
                 Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
-        .frame(minHeight: 36)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 盤の下の操作エリア
@@ -452,25 +435,12 @@ public struct ChessView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
-            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
-                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
-
-            Spacer()
-
-            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。44pt の枠は検討ナビの ◀ ▶ と同じ手で
-            // レイアウト上だけ詰め、対局中の操作列が高くならないようにする（詰めないと盤が縮む・#139）。
-            BoardHintButton(model: model)
-                .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
-        }
-        .themeBody(14)
-        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める（将棋と同じ）。
-        .lineLimit(1).minimumScaleFactor(0.8)
-        .padding(.horizontal, 16).padding(.vertical, 5)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moves.count, model.selectedSquare ?? -1]),
+            onResign: { model.resign() }
+        )
     }
 
     /// 検討ナビと「もう一度」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
@@ -506,7 +476,9 @@ private struct CapturedAreaView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isYou ? "あなた" : "CPU")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .themeCaption(11, weight: .bold, maxScale: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(owner.name)
                     .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
@@ -517,7 +489,7 @@ private struct CapturedAreaView: View {
             ZStack(alignment: .leading) {
                 if lost.isEmpty {
                     Text("取られた駒なし")
-                        .font(.system(size: 12, design: .rounded))
+                        .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
                     // **少し重ねて並べる**。取られた駒は片側で最大 15 枚まで増えるので、
@@ -570,7 +542,7 @@ struct ChessNewGameSheet: View {
         // 節が 3 つあり `.medium` に収まらないので、囲碁・五目並べと同じくスクロールで開く
         // （`GameSetupSheet` の注記。取り違えると開始ボタンがはみ出して押せなくなる）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {
@@ -647,7 +619,7 @@ struct ChessRuleDetail: View {
     var style: ChessPieceStyle = .flat
 
     private let pieces: [(ChessPieceType, String)] = [
-        (.king, "たて・よこ・ななめに1マス。取られたら負け"),
+        (.king, "たて・よこ・ななめに1マス。逃げ場のない王手（チェックメイト）で負け"),
         (.queen, "たて・よこ・ななめに何マスでも"),
         (.rook, "たて・よこに何マスでも"),
         (.bishop, "ななめに何マスでも"),
@@ -655,13 +627,18 @@ struct ChessRuleDetail: View {
         (.pawn, "前へ1マス（最初だけ2マス）。取るときだけ斜め前"),
     ]
 
+    private let rules: [(String, String)] = [
+        ("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。"),
+        ("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。間に駒があるとき、王手されているとき、通り道か着地のマスが攻撃されているときは使えません。"),
+        ("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。"),
+        ("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。"),
+        ("自動の引き分け", "同じ局面が3回くり返される・50手のあいだポーンも駒取りも無い・駒が足りずチェックメイトできない、のいずれかで引き分けになります。"),
+    ]
+
     var body: some View {
-        // 他ゲームのルールシート（大富豪・花札）と同じ包み: スクロール + セクションごとのカード背景
-        // （会長指摘 2026-09-21: ScrollView 自体が無く下が切れて読めなかった）。
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        RuleListSheet(rules: rules) {
+            RuleFigureCard(title: "駒の動き") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("駒の動き").themeBody(16).foregroundStyle(Theme.ink)
                     ForEach(pieces, id: \.0.rawValue) { type, movement in
                         HStack(alignment: .center, spacing: 10) {
                             ChessPieceView(piece: ChessPiece(type: type, color: .white), size: 30,
@@ -669,41 +646,18 @@ struct ChessRuleDetail: View {
                                 .frame(width: 30, height: 30)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(type.japaneseName)
-                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .themeCaption(13, weight: .bold, maxScale: 1.5)
                                     .foregroundStyle(Theme.ink)
                                 Text(movement)
-                                    .font(.system(size: 12, design: .rounded))
+                                    .themeCaption(12, weight: .regular, maxScale: 1.5)
                                     .foregroundStyle(Theme.inkSub)
                             }
                         }
                         .accessibilityElement(children: .combine)
                     }
                 }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("特別なルール").themeBody(16).foregroundStyle(Theme.ink)
-                    ruleLine("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。")
-                    ruleLine("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。")
-                    ruleLine("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。")
-                    ruleLine("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。")
-                }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-    }
-
-    private func ruleLine(_ title: String, _ body: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.ink)
-            Text(body).font(.system(size: 12, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-        }
-        .accessibilityElement(children: .combine)
     }
 }
 

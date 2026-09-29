@@ -21,6 +21,13 @@ import GameRunner
 import GameHanafuda
 import GameShiritori
 import GameFifteen
+import GameRoulette
+import GameFruits
+import GameColorRelay
+import GameAnzan
+import GameBackgammon
+import GameSpeed
+import GameHomerun
 import GameSpider
 import GameChess
 import GameBlocks
@@ -37,6 +44,13 @@ private let registeredModules: [GameModule] = [
     ConcentrationModule(),
     ShiritoriModule(),
     FifteenModule(),
+    RouletteModule(),
+    FruitsModule(),
+    ColorRelayModule(),
+    AnzanModule(),
+    BackgammonModule(),
+    SpeedModule(),
+    HomerunModule(),
     BlackjackModule(),
     DaifugoModule(),
     MahjongSolitaireModule(),

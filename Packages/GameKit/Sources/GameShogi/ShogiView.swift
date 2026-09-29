@@ -7,9 +7,10 @@ public struct ShogiView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
+    @State private var hintRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
     /// 表示局面が変わるたびに更新し、駒の層はこれだけを見て描く。
     @State private var pieceLayout: ShogiPieceLayout
@@ -43,28 +44,24 @@ public struct ShogiView: View {
             board
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
-            HowToPlayHint(.shogi, playLog: services.playLog)
             controlArea
+            HowToPlayHint(.shogi, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "将棋", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.phase == .playing && !model.moves.isEmpty {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "将棋", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.phase == .playing && !model.moves.isEmpty {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.shogi)
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
                 showNewGame = false
@@ -123,12 +120,7 @@ public struct ShogiView: View {
     private var checkOverlay: some View {
         ZStack {
             if checkBannerID != nil {
-                Text("王手")
-                    .font(.system(size: 44, weight: .black, design: .serif))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 32).padding(.vertical, 14)
-                    .background(Capsule().fill(BoardStyle.check))
-                    .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+                BoardGameCheckBanner("王手")
                     // 札は中央にあり `offset` を持たないので、拡大の基準は札の中心になる。
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
@@ -152,7 +144,7 @@ public struct ShogiView: View {
                     .onTapGesture { model.cancelPromotion() }
                 VStack(spacing: 20) {
                     Text("成りますか？")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .themeBody(18, weight: .bold)
                         .foregroundStyle(Theme.ink)
                     HStack(spacing: 16) {
                         Button {
@@ -432,18 +424,13 @@ public struct ShogiView: View {
     // MARK: - ステータス
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
                     .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text(model.position.sideToMove == .black ? "先手番" : "後手番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    // 面色が先手＝濃色 / 後手＝差し色と大きく違うので、文字色も面に合わせて変える（#220）。
-                    .foregroundStyle(model.position.sideToMove == .black ? .white : Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 2)
-                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.Fill.teal))
+                TurnBadge(isYourTurn: model.position.sideToMove == model.humanSide)
                     // 手番が移ったことを色の移り変わりで見せる（#201）。文字は差し替わるだけなので、
                     // 目に留まるのは色の変化。着手そのものを待たせないよう短く取る。
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
@@ -454,7 +441,7 @@ public struct ShogiView: View {
                     Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 // 終局後の記録は行を増やさずここに同居させる（#139）。手数は検討ナビが
                 // 「n/N手」で出しているため、入れ替えても情報は失われない。
@@ -464,9 +451,6 @@ public struct ShogiView: View {
                 Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
-        .frame(minHeight: 36)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 盤の下の操作エリア
@@ -488,26 +472,12 @@ public struct ShogiView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
-            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
-                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
-
-            Spacer()
-
-            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。44pt の枠は検討ナビの ◀ ▶ と同じ手で
-            // レイアウト上だけ詰め、対局中の操作列が高くならないようにする（詰めないと盤が縮む・#139）。
-            BoardHintButton(model: model)
-                .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
-        }
-        .themeBody(14)
-        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める
-        // （ナンプレが #1118 以前に同じ詰まり方で「ヒント」を改行させていた）。
-        .lineLimit(1).minimumScaleFactor(0.8)
-        .padding(.horizontal, 16).padding(.vertical, 5)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moves.count, model.selectedSquare ?? -1, model.selectedHand?.hashValue ?? -1]),
+            onResign: { model.resign() }
+        )
     }
 
     /// 検討ナビと「もう一度」の帯。実体はチェスと共通の `ReviewNavBar`（#139・#530）。
@@ -541,7 +511,7 @@ struct NewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {
@@ -616,7 +586,9 @@ private struct HandAreaView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isYou ? "あなた" : "CPU")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .themeCaption(11, weight: .bold, maxScale: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(color == .black ? "☗" : "☖")
                     .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
@@ -627,7 +599,7 @@ private struct HandAreaView: View {
             ZStack(alignment: .leading) {
                 if owned.isEmpty {
                     Text("持ち駒なし")
-                        .font(.system(size: 12, design: .rounded))
+                        .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
                     HStack(spacing: 6) {
@@ -644,7 +616,7 @@ private struct HandAreaView: View {
                                                 .fill(selected ? Theme.yellow : BoardStyle.komaWoodLight)
                                         )
                                     Text("×\(count)")
-                                        .font(.system(size: 10, weight: .black, design: .rounded))
+                                        .themeCaption(10, weight: .black, maxScale: 1.5)
                                         .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
                                 }
                             }

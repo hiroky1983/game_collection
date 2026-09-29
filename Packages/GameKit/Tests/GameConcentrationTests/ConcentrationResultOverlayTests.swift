@@ -27,4 +27,18 @@ struct ConcentrationResultOverlayTests {
                 "枠が resultOverlay の中に無い（本体に置くと暗幕の下で押せない）")
         #expect(source.contains("ladder: ladder"), "階段の提案を枠へ渡していない")
     }
+
+    /// 結果カードは白地（`popCard()`）なので、記録の行を白字にすると読めない（#1370）。
+    @Test("記録の行は白字を渡さず既定の文字色で描く")
+    func recordLabelKeepsDefaultTextColorOnWhiteCard() throws {
+        let source = try SourceScan.packageSource("Sources/GameConcentration/ConcentrationView.swift")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+
+        #expect(SourceScan.matchCount(of: #"RecordLabel\("#, in: source) == 1,
+                "記録の行が 1 か所だけに置かれていない")
+        #expect(SourceScan.matchCount(of: #"RecordLabel\([^)]*textColor"#, in: source) == 0,
+                "白いカードの上の記録の行に textColor を渡している（白字で読めない）")
+    }
 }

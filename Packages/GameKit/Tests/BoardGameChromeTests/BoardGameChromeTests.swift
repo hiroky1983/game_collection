@@ -43,6 +43,15 @@ struct BoardGameMotionTests {
         #expect(BoardGameCheckColor.hex == 0xB3261E)
         #expect(BoardGameCheckColor.color == Color(hex: BoardGameCheckColor.hex))
     }
+
+    /// 将棋の「王手」とチェスの「チェック」は同じ部品（`BoardGameCheckBanner`）で描く（#1011）。
+    /// 文字の大きさ・余白を個別に持つと、並べたときに札の大きさが食い違う。
+    @Test("王手の札の書式は将棋側（44pt・32×14）に揃えてある")
+    func checkBannerStyleMatchesShogi() {
+        #expect(BoardGameCheckBannerStyle.fontSize == 44)
+        #expect(BoardGameCheckBannerStyle.horizontalPadding == 32)
+        #expect(BoardGameCheckBannerStyle.verticalPadding == 14)
+    }
 }
 
 /// 盤の下の操作列のカプセル（オセロ・五目並べの「投了」「待った」・#711）。
@@ -340,19 +349,28 @@ struct ReviewNavBarTapTargetTests {
 /// 約 8% の確率で食い違った（verifier 実測）。見た目の一致はシミュレータの撮影比較で確かめた（PR #965）。
 extension BoardGameChromeSourceTests {
 
-    @Test("待ったは修飾子の前に何も挟まず、押せない状態 → 確認 → 失敗のアラートの順に付ける")
-    func undoButtonWiresDisabledBeforeAlerts() throws {
+    @Test("待ったは修飾子の前に何も挟まず、押せない状態 → 共通の流れの順に付ける")
+    func undoButtonWiresDisabledBeforeFlow() throws {
         let body = try Self.lines(ofFunction: "public var body: some View {", inside: "public struct BoardUndoButton")
         guard body.count > 1,
               let disabled = body.firstIndex(of: ".disabled(!model.canUndo)"),
-              let confirm = body.firstIndex(where: { $0.hasPrefix(".alert(\"待った確認\"") }),
-              let failure = body.firstIndex(of: ".rewardedRescueAlerts(") else {
-            Issue.record("押せない状態 / 確認 / 失敗のアラートが見つからない:\n\(body.joined(separator: "\n"))")
+              let flow = body.firstIndex(where: { $0.hasPrefix(".boardUndoFlow(") }) else {
+            Issue.record("押せない状態 / 共通の流れが見つからない:\n\(body.joined(separator: "\n"))")
             return
         }
         #expect(body[1] == "button", "ボタンと修飾子のあいだに別の指定が入っている")
-        #expect(disabled < confirm)
-        #expect(confirm < failure)
+        #expect(disabled < flow)
+    }
+
+    /// 確認 → 失敗のアラートの順は共通の流れ（`boardUndoFlow`）が持つ。ボタン（`BoardUndoButton`）と
+    /// 「⋯」の項目（`BoardGameControlBar`・#1468）の両方が同じ流れを通る。
+    @Test("待ったの共通の流れは確認 → 失敗のアラートの順に付ける")
+    func undoFlowWiresConfirmBeforeFailureAlerts() throws {
+        let all = try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
+        _ = try #require(all.range(of: "func boardUndoFlow<Model: BoardUndoModel>("))
+        let confirm = try #require(all.range(of: ".alert(\"待った確認\""))
+        let failure = try #require(all.range(of: ".rewardedRescueAlerts("))
+        #expect(confirm.lowerBound < failure.lowerBound)
     }
 
     @Test("待ったの共通カプセルは teal で、素の文字の枝にはスタイルを付けない")

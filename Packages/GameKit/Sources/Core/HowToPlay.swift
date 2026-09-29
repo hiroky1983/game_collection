@@ -52,7 +52,7 @@ public extension HowToPlayGuide {
         lines: [
             "自分の駒をタップすると、動けるマスが光ります。行きたいマスをタップで移動します。",
             "相手陣（奥から 3 段）に入ると駒を成れて、動きが強くなります。",
-            "相手の玉将を追いつめたら勝ちです。",
+            "相手の王将（王）を追いつめたら勝ちです。",
         ],
         hint: "駒をタップ → 移動先をタップ"
     )
@@ -134,7 +134,7 @@ public extension HowToPlayGuide {
         gameID: "concentration",
         title: "神経衰弱の遊び方",
         lines: [
-            "カードを 2 枚めくり、同じ数字ならペアを取れて、もう一度めくれます。",
+            "カードを 2 枚めくり、同じ絵柄ならペアを取れて、もう一度めくれます。",
             "ちがったらカードは伏せられ、CPU の番になります。",
             "多くペアを取ったほうが勝ちです。",
         ],
@@ -159,7 +159,7 @@ public extension HowToPlayGuide {
         lines: [
             "場の札の読みの最後の字から始まる読みの札を選んで取ります。取った札が新しい場の札になり、CPUの番です。",
             "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶと-5秒。「ん」で終わる読みを選ぶとその場で負けです。",
-            "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（やさしい4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。",
+            "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。",
         ],
         hint: "最後の字から始まる札を取ろう",
         hintIcon: "textformat.abc"
@@ -324,11 +324,96 @@ public extension HowToPlayGuide {
         hintIcon: "square.grid.4x3.fill"
     )
 
+    static let roulette = HowToPlayGuide(
+        gameID: "roulette",
+        title: "ルーレットの遊び方",
+        lines: [
+            "チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。",
+            "「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。",
+            "配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。",
+        ],
+        hint: "賭ける場所をタップしてスピン",
+        hintIcon: "circle.circle.fill"
+    )
+
+    static let fruits = HowToPlayGuide(
+        gameID: "fruits",
+        title: "くっつきフルーツの遊び方",
+        lines: [
+            "箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。",
+            "同じ果物どうしが触れるとくっついて、1 つ大きい果物になります。いちばん大きいのはメロンです。",
+            "上の点線より上に果物がとどまるとゲームオーバー。大きく育てて高得点を狙いましょう。",
+        ],
+        hint: "左右に動かして、離すと落ちる",
+        hintIcon: "hand.draw.fill"
+    )
+
+    static let colorRelay = HowToPlayGuide(
+        gameID: "colorrelay",
+        title: "いろリレーの遊び方",
+        lines: [
+            "場の札と同じ色か、同じ数字・記号の札を出します。手札を先になくした人が勝ちです。",
+            "出せる札がなければ山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。",
+            "とばし・ぎゃく・+2・いろがえ・いろがえ+4 の特殊札で流れを変えましょう。",
+        ],
+        hint: "同じ色か同じ数字の札を出そう",
+        hintIcon: "rectangle.on.rectangle.angled"
+    )
+
+    static let anzan = HowToPlayGuide(
+        gameID: "anzan",
+        title: "ぱっと暗算の遊び方",
+        lines: [
+            "数が 1 つずつ、パッと出ては消えます。出た数を頭の中でぜんぶ足していきましょう。",
+            "最後の数が消えたら、合計をテンキーで入力して「決定」。正解すると連続正解が伸びます。",
+            "右上の「難易度」で桁数・個数・速さをそれぞれ選べます。まずは 1 桁・5 個から。",
+        ],
+        hint: "出た数をぜんぶ足そう",
+        hintIcon: "sum"
+    )
+
+    static let backgammon = HowToPlayGuide(
+        gameID: "backgammon",
+        title: "バックギャモンの遊び方",
+        lines: [
+            "あなたは白。サイコロは自動で振られ、出た目のぶんだけ駒を右下の自陣へ向けて進めます。動かす駒 → 行き先の順にタップ。",
+            "相手の駒が 2 個以上あるポイントには止まれません。1 個だけなら叩いてバー（中央）へ送れます。バーの駒は先に戻さないと他の駒を動かせません。",
+            "15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。先に全部あげたほうの勝ちです。",
+        ],
+        hint: "動かす駒 → 行き先の順にタップ",
+        hintIcon: "dice.fill"
+    )
+
+    static let speed = HowToPlayGuide(
+        gameID: "speed",
+        title: "スピードの遊び方",
+        lines: [
+            "台札は真ん中の2山。手札から、台札の数字と1つ違い（A と K もつながる）の札を、どちらかの台札に重ねます。順番はなく、CPU も同時に出してきます。",
+            "出した札のぶん、山札から手札に補充されます。手札も山札も先に出し切ったほうの勝ちです。",
+            "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。",
+        ],
+        hint: "台札と1つ違いの札を重ねよう",
+        hintIcon: "hare.fill"
+    )
+
+    static let homerun = HowToPlayGuide(
+        gameID: "homerun",
+        title: "柵越えおじさんの遊び方",
+        lines: [
+            "1回の挑戦は10球。画面の下のほうを押したままずらすと、水色のミートカーソルが指の動きだけ動きます。",
+            "縮む輪が白い的に重なった瞬間に指を離すとスイング。カーソルをボールの少し下に置くと打球が上がり、左右と離す早さで方向が決まります。",
+            "合計飛距離を伸ばそう。挑戦は1日3回で、打席に立った時点で1回減ります（0:00 に戻ります）。",
+        ],
+        hint: "押したままずらし、輪が的に重なった瞬間に離す",
+        hintIcon: "figure.baseball"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
+        .homerun,
     ]
 }
 
@@ -417,20 +502,23 @@ public struct HowToPlaySheet<Extra: View>: View {
 
 /// `HowToPlaySheet` の `extra` から開く「くわしいルール」ページ。見出しと本文の組をカードで縦に並べる（#829）。
 ///
-/// ソリティア・フリーセル・スパイダー・大富豪・麻雀ソリティア・麻雀が同じ body を写しで持っていたので、
-/// 組み方はここに 1 つだけ置く。**文言は各ゲームの `rules` に残す**（テストが文言そのものを検証するため）。
-public struct RuleListSheet: View {
-    private let title: LocalizedStringKey
+/// 全ゲームの「くわしいルール」はこの 1 つに揃える（#1414）。**題名は「くわしいルール」に固定**で、
+/// ゲームごとに変えられない。駒の動き・札の見かたのような図が要るゲームは、`figures` に
+/// `RuleFigureCard` を並べる（ルールの行より上に出る）。
+/// **文言は各ゲームの `rules` に残す**（テストが文言そのものを検証するため）。
+public struct RuleListSheet<Figures: View>: View {
     private let rules: [(String, String)]
+    private let figures: Figures
 
-    public init(title: LocalizedStringKey, rules: [(String, String)]) {
-        self.title = title
+    public init(rules: [(String, String)], @ViewBuilder figures: () -> Figures) {
         self.rules = rules
+        self.figures = figures()
     }
 
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
+                figures
                 ForEach(rules, id: \.0) { rule in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(rule.0)
@@ -442,9 +530,107 @@ public struct RuleListSheet: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+                    .background(RuleCardBackground())
                 }
+            }
+            .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle("くわしいルール")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+}
+
+public extension RuleListSheet where Figures == EmptyView {
+    init(rules: [(String, String)]) {
+        self.init(rules: rules) { EmptyView() }
+    }
+}
+
+/// 「くわしいルール」と役の早見表で共通の、1 枚のカード背景。
+private struct RuleCardBackground: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+            .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
+    }
+}
+
+/// `RuleListSheet` の `figures` に置く、図の枠。見出し（任意）の下に好きな図を入れられる。
+public struct RuleFigureCard<Content: View>: View {
+    private let title: String?
+    private let detail: String?
+    private let content: Content
+
+    public init(title: String? = nil, detail: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.detail = detail
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if title != nil || detail != nil {
+                HStack(spacing: 6) {
+                    if let title {
+                        Text(title)
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.coral)
+                    }
+                    if let detail {
+                        Text(detail)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.inkSub)
+                    }
+                }
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(RuleCardBackground())
+    }
+}
+
+// MARK: - 役の早見表
+
+/// 麻雀・花札・ポーカーの役の早見表の共通枠（#1414）。クリーム色の背景（`popBackground`）にカードを並べる。
+///
+/// 以前は麻雀・花札がシステム標準の `List`（灰色背景）、ポーカーが `ScrollView` と3通りだった。
+/// `standalone` が true のときは `NavigationStack` と「閉じる」ボタンごと持つ（単体のシート用）。
+/// false のときは、呼び出し側の `NavigationStack` に積まれるページとして振る舞う。
+public struct YakuTableSheet<Content: View>: View {
+    private let title: LocalizedStringKey
+    private let standalone: Bool
+    private let content: Content
+    @Environment(\.dismiss) private var dismiss
+
+    public init(title: LocalizedStringKey, standalone: Bool = false, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.standalone = standalone
+        self.content = content()
+    }
+
+    public var body: some View {
+        if standalone {
+            NavigationStack {
+                page.toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("閉じる") { dismiss() }
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+        } else {
+            page
+        }
+    }
+
+    private var page: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                content
             }
             .padding(Theme.pad)
         }
@@ -456,28 +642,78 @@ public struct RuleListSheet: View {
     }
 }
 
+/// `YakuTableSheet` の中の 1 まとまり。見出し・カードに入った行・注記を縦に並べる。
+public struct YakuTableSection<Content: View>: View {
+    private let header: String?
+    private let footer: String?
+    private let content: Content
+
+    public init(header: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.header = header
+        self.footer = footer
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let header {
+                Text(header)
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .padding(.horizontal, 4)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(RuleCardBackground())
+            if let footer {
+                Text(footer)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - ツールバーの `?` ボタン
+
+/// 「遊び方」シートを開く操作。`.howToPlay` が環境へ入れ、`gameChrome` がヘッダー右の所定の位置に
+/// `?` ボタンとして置く（#1418。ボタンを各自のツールバーに足す形だと、役の早見表・新規ボタンとの
+/// 並びが宣言順しだいになる）。
+struct HowToPlayTrigger {
+    let present: () -> Void
+}
+
+private struct HowToPlayTriggerKey: EnvironmentKey {
+    nonisolated(unsafe) static var defaultValue: HowToPlayTrigger? = nil
+}
+
+extension EnvironmentValues {
+    var howToPlayTrigger: HowToPlayTrigger? {
+        get { self[HowToPlayTriggerKey.self] }
+        set { self[HowToPlayTriggerKey.self] = newValue }
+    }
+}
 
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
     var onPresent: (() -> Void)?
+    var onDismiss: (() -> Void)?
     @State private var isPresented = false
 
     func body(content: Content) -> some View {
         content
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        onPresent?()
-                        isPresented = true
-                    } label: {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .accessibilityLabel("遊び方")
-                }
-            }
-            .sheet(isPresented: $isPresented) {
+            .environment(\.howToPlayTrigger, HowToPlayTrigger {
+                onPresent?()
+                isPresented = true
+            })
+            .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
                 if let extra {
                     HowToPlaySheet(guide: guide, extra: extra)
                 } else {
@@ -492,8 +728,12 @@ public extension View {
     ///
     /// `onPresent` はシートを開く直前に呼ばれる。リアルタイム進行のゲームは
     /// ここで一時停止する（読んでいる間に落球する、を防ぐ。#510）。
-    func howToPlay(_ guide: HowToPlayGuide, onPresent: (() -> Void)? = nil) -> some View {
-        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil, onPresent: onPresent))
+    func howToPlay(
+        _ guide: HowToPlayGuide,
+        onPresent: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
+    ) -> some View {
+        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil, onPresent: onPresent, onDismiss: onDismiss))
     }
 
     /// 詳細ページ付きの `?` ボタン（ポーカーの役一覧・大富豪のルール）。
@@ -503,9 +743,10 @@ public extension View {
     func howToPlay<Extra: View>(
         _ guide: HowToPlayGuide,
         onPresent: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil,
         @ViewBuilder extra: @escaping () -> Extra
     ) -> some View {
-        modifier(HowToPlayToolbar(guide: guide, extra: extra, onPresent: onPresent))
+        modifier(HowToPlayToolbar(guide: guide, extra: extra, onPresent: onPresent, onDismiss: onDismiss))
     }
 }
 

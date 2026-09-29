@@ -22,8 +22,6 @@ public enum SpiderMetrics {
 
     /// HIG の最小タップ標的。
     public static let minimumTapTarget: CGFloat = 44
-    /// 拡大トグルの一辺（#604）。共通の `BoardToggleButton` と同じ値。
-    public static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
     /// 拡大モードで画面幅に収める列の数。10 列を 7 列ぶんの幅で描くので札は約 1.43 倍になり、
     /// **はみ出す 3 列は横スクロールで見る**。
     public static let zoomedVisibleColumns = 7

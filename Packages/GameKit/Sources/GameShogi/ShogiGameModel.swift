@@ -40,16 +40,42 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public let gameID = "shogi"
     private var startedAt: Date
 
+    /// 盤上と両者の持ち駒を駒種ごとに合算して、平手の初期総数を超えていないか。
+    private static func hasPlausiblePieceCounts(_ pos: Position) -> Bool {
+        let limits: [PieceType: Int] = [
+            .pawn: 18, .lance: 4, .knight: 4, .silver: 4, .gold: 4, .bishop: 2, .rook: 2, .king: 2,
+        ]
+        var totals: [PieceType: Int] = [:]
+        for piece in pos.squares.compactMap({ $0 }) { totals[piece.type, default: 0] += 1 }
+        for hand in pos.hands {
+            for (raw, count) in hand.enumerated() {
+                guard let type = PieceType(rawValue: raw) else { continue }
+                // 足す前に 1 つずつ弾く（巨大な値の加算そのもので溢れさせない）。
+                guard count >= 0, count <= limits[type, default: 0] else { return false }
+                totals[type, default: 0] += count
+            }
+        }
+        return limits.allSatisfy { totals[$0.key, default: 0] <= $0.value }
+    }
+
     public init(services: GameServices? = nil) {
         self.services = services
         let snap = services?.snapshots.load(ShogiSnapshot.self, for: "shogi")
 
-        let sfen = snap?.initialSfen ?? Position.startSFEN
-        var pos = Position.fromSFEN(sfen) ?? Position.start()
+        // 中断データが壊れていても起動できるようにする（#1384。チェス #520 と同じ方針）。
+        // 読めない初期局面は初形に倒し、`initialSFEN` にも実際に読めた側を残す
+        // （千日手判定がここから指し手列を再生し直すため、食い違わせない）。
+        let savedSFEN = snap?.initialSfen ?? Position.startSFEN
+        // 駒数が初期の総数を超える局面も拒む（持ち駒数が巨大だと合法手の生成中に整数が溢れる）。
+        let parsed = Position.fromSFEN(savedSFEN).flatMap { Self.hasPlausiblePieceCounts($0) ? $0 : nil }
+        let sfen = parsed == nil ? Position.startSFEN : savedSFEN
+        var pos = parsed ?? Position.start()
         var moveList: [Move] = []
         if let snap {
             for usi in snap.moves {
-                guard let m = Move.fromUSI(usi) else { break }
+                // 読めない表記に加えて**不正な手でも切り詰める**。`make` は移動元の駒を
+                // force-unwrap するので、検証せず適用すると壊れた中断データで起動不能になる。
+                guard let m = Move.fromUSI(usi), pos.legalMoves().contains(m) else { break }
                 moveList.append(m)
                 pos.make(m)
             }
@@ -63,7 +89,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.selectedHand = nil
         self.pendingPromotion = nil
         self.phase = snap?.phase ?? .playing
-        self.reviewPly = snap?.reviewPly ?? moveList.count
+        // 手数の範囲に収める（切り詰めが起きた手順や壊れた値でも添字が範囲外にならないように）。
+        self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=先手 / CPU=後手）。
         self.sente = snap?.sente ?? .human
         self.gote = snap?.gote ?? .ai
@@ -111,7 +138,18 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
         // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
         // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
-        if snap == nil { services?.gameDidStart(gameID: gameID) }
+        if snap == nil { pendingInitialStart = true }
+    }
+
+    /// 開始シートを出す局の `game_start` は、最初の操作かシートを閉じた時点まで遅らせる（#1372）。
+    /// シートで「開始」を押すと `newGame` が選んだ強さ付きで数えるので、`init` で先に数えると
+    /// 1 局が 2 回 `game_start` になる（`game_end` は 1 回）。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: gameID)
     }
 
     // MARK: - 終局の判定
@@ -296,6 +334,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         position.make(move)
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        startPlayIfPending()
         services?.gameDidProgress(gameID: gameID)
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
@@ -308,10 +347,13 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             resultText = Self.checkmateResultText(loser: loser)
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
+            startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser == humanSide ? .loss : .win,
-                score: hints.winLossScore
+                score: hints.winLossScore,
+                // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+                isReviewHighlight: beatsWorthyCPU
             )
         } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
             // 千日手（#375）。同一局面が 4 回現れたら引き分けで終局する。これが無いと、
@@ -321,6 +363,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             resultText = Self.repetitionResultText
             phase = .review
             services?.feedback.notify(.warning)
+            startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID, outcome: .draw, score: hints.winLossScore
             )
@@ -376,6 +419,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         isHintThinking = false
         clearSelection()
         persist()
+        pendingInitialStart = false
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
@@ -426,7 +470,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「CPU思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
 
-    /// 残り回数（`BoardHintButton` が読む）。
+    /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
 
     /// ヒントで光らせるマス（移動元・移動先。打つ手は打つ先だけ）。
@@ -444,6 +488,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         phase == .playing && !gameOver && !hints.isExhausted
             && !isAITurn && !isThinking && !isHintThinking && pendingPromotion == nil
     }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか（#1500）。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
 
     /// 現在の局面の最善手を 1 手求め、盤の上に示す（#1118）。
     ///
@@ -469,12 +516,48 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                   !hints.isExhausted,
                   let usi, let move = Move.fromUSI(usi), legalMovesCache.contains(move),
                   hints.consume() else { return }
+            startPlayIfPending()
             services?.gameDidUseHint(gameID: gameID)
             hintMove = move
             services?.feedback.impact(.light)
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
             persist()
         }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（会長決裁 2026-09-27・#1500）。
+    ///
+    /// 広告の視聴完了を確かめてから CPU の読みを始める（読み終えてから広告を流さない契約）。
+    /// 視聴のあいだに指す・待った・新規対局が入ったら、読みには進まず `.unavailable` を返す。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let sfen = position.toSFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleMinimaxEngine(level: BoardHintBudget.engineLevel).bestMove(sfen: sfen)
+            }.value
+        } commit: { usi in
+            guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
+                  !hints.isExhausted,
+                  let usi, let move = Move.fromUSI(usi), legalMovesCache.contains(move),
+                  hints.consumeAd() else { return }
+            startPlayIfPending()
+            services?.gameDidUseHint(gameID: gameID)
+            hintMove = move
+            services?.feedback.impact(.light)
+            persist()
+            outcome = .granted
+        }
+        return outcome
     }
 
     // MARK: - 検討（終局後に手を戻す／進める）
@@ -517,6 +600,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
+        startPlayIfPending()
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
         resultText = "あなたの負け（投了）"
         phase = .review
@@ -569,6 +653,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     // MARK: - 永続化
+
+    /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
+    private var beatsWorthyCPU: Bool {
+        (sente == .ai || gote == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
+    }
 
     private func persist() {
         let snap = ShogiSnapshot(

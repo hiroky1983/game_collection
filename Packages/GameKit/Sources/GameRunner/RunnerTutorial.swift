@@ -129,21 +129,12 @@ struct RunnerTutorialSteps: View {
 /// 文字と絵はこちらのほうを大きくする。
 struct RunnerTutorialPage: View {
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                RunnerTutorial.riderJump(height: 74)
+        RuleListSheet(rules: []) {
+            RunnerTutorial.riderJump(height: 74)
+            RuleFigureCard(title: "そうさのしかた") {
                 RunnerTutorialSteps(fontSize: 15)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .popCard(corner: Theme.cornerSmall)
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-        .navigationTitle("そうさのしかた")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 }
 

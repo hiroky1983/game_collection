@@ -290,7 +290,7 @@ struct RewardGuardCallSiteTests {
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(requests == 13, "救済の入口は13面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く）")
+        #expect(requests == 17, "救済の入口は17面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348 を含む）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }
@@ -337,6 +337,8 @@ struct RewardGuardCallSiteTests {
         #expect(callers == [
             "Game2048/Game2048View.swift",
             "GameBlockPuzzle/BlockPuzzleView.swift",
+            // くっつきフルーツ（#1319・企画倉庫）のゲームオーバーの幕も同じ部品。
+            "GameFruits/FruitsView.swift",
             "GameSudoku/SudokuView.swift",
         ])
     }
@@ -383,9 +385,9 @@ struct RewardGuardCallSiteTests {
         // `checkedByGrant` は宣言でしかなく、`grant` が局を識別する値を渡さなければ照合は起きない。
         // ナンプレのヒントと麻雀ソリティアのヒント／並べ替えは宣言だけで照合が無く、広告中に始めた
         // 新しい局へ報酬が乗っていた（#815）。上の「残りは0面」はこの3面を数えていなかった。
-        // 局の通し番号を受ける `model.xxx(forGame:` / `forDeal:` / `forTurn:` / `forRun:` の呼び出しを
+        // 局の通し番号を受ける `model.xxx(forGame:` / `forDeal:` / `forTurn:` / `forRun:` / `forDay:`（柵越えおじさんの日付の鍵・#1348）の呼び出しを
         // ファイル単位で数え、宣言の数と突き合わせる。
-        let serialCall = try Regex(#"model\.\w+\(for(Game|Deal|Turn|Run):"#)
+        let serialCall = try Regex(#"model\.\w+\(for(Game|Deal|Turn|Run|Day):"#)
         let mismatched = try Self.gameSources()
             .map { (
                 path: $0.path,
@@ -410,7 +412,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 4, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）。麻雀は復活と最終局延長（#1201）の2か所")
+        #expect(withOutcome == 5, "広告をモデルで抱えている4面（ブラックジャック・ポーカー・麻雀・ルーレット #1318）。麻雀は復活と最終局延長（#1201）の2か所")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }
@@ -419,15 +421,21 @@ struct RewardGuardCallSiteTests {
     func nobodyBypassesTheSharedEntryPoint() throws {
         // `RewardedRescue` を通さずに `services.showRewardedAd(...)` を直に呼ぶと、
         // 連打ガードも局ガードも失敗アラートも付かない面が 1 つだけ生まれる。
-        // モデルが広告ごと持っている3面（`requestHandledByModel` 側）だけが直に呼んでよい。
+        // モデルが広告ごと持っている面（`requestHandledByModel` 側）だけが直に呼んでよい。
+        // 将棋・チェス・五目並べのヒント（無料枠を使い切った後・#1500）も、広告の視聴完了後に
+        // CPU の読みを始める必要があり分けられないため、モデルが直に呼ぶ側に入る。
         let callers = try Self.gameSources()
             .filter { $0.text.contains("showRewardedAd(") }
             .map(\.path)
             .sorted()
         #expect(callers == [
             "GameBlackjack/BlackjackModel.swift",
+            "GameChess/ChessGameModel.swift",
+            "GameGomoku/GomokuModel.swift",
             "GameMahjong/MahjongModel.swift",
             "GamePoker/PokerModel.swift",
+            "GameRoulette/RouletteModel.swift",
+            "GameShogi/ShogiGameModel.swift",
         ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
     }
 

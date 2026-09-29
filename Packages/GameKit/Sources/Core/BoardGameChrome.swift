@@ -69,6 +69,39 @@ public enum BoardGameCheckColor {
     public static let color = Color(hex: hex)
 }
 
+/// 「王手」「チェック」の札の書式（#1011）。将棋とチェスで揃える。
+///
+/// 色（`BoardGameCheckColor`）と動き（`BoardGameMotion.checkBanner`）は #377・#530 で共通化済みで、
+/// 残っていたフォント・余白を将棋側（44pt・明朝系・32×14）に合わせた。
+/// 寸法は View の `static let` に置くと MainActor 隔離になりテストから読めないので、非隔離の enum に持つ。
+public enum BoardGameCheckBannerStyle {
+    public static let fontSize: CGFloat = 44
+    public static let horizontalPadding: CGFloat = 32
+    public static let verticalPadding: CGFloat = 14
+}
+
+/// 王手が掛かった瞬間に盤の中央へ飛び出す札の見た目。
+///
+/// 出入りの `.transition` と、残り続ける親に置くアニメーションは**呼び出し側**に置く
+/// （分岐と同じ層でないと `.transition` が効かない・将棋 #201/#195）。
+public struct BoardGameCheckBanner: View {
+    private let text: String
+
+    public init(_ text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
+        Text(text)
+            .font(.system(size: BoardGameCheckBannerStyle.fontSize, weight: .black, design: .serif))
+            .foregroundStyle(.white)
+            .padding(.horizontal, BoardGameCheckBannerStyle.horizontalPadding)
+            .padding(.vertical, BoardGameCheckBannerStyle.verticalPadding)
+            .background(Capsule().fill(BoardGameCheckColor.color))
+            .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+    }
+}
+
 // MARK: - 駒の持ち上げ
 
 public extension View {
@@ -266,7 +299,33 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
     public var body: some View {
         button
             .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
+            .boardUndoFlow(model: model, services: services, rescue: undoRescue, isPresented: $showUndoConfirm)
+    }
+
+    @ViewBuilder private var button: some View {
+        if usesTapTargetCapsule {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        } else {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+        }
+    }
+}
+
+public extension View {
+    /// 「待った」の確認アラート・広告の待った・失敗のアラートまでの流れ（#526・#729・#828）。
+    /// ボタン（`BoardUndoButton`）にも「⋯」メニューの項目（`BoardGameControlBar`・#1468）にも同じ流れを付ける。
+    func boardUndoFlow<Model: BoardUndoModel>(
+        model: Model, services: GameServices, rescue: RewardedRescue, isPresented: Binding<Bool>
+    ) -> some View {
+        let undoRescue = rescue
+        let showUndoConfirm = isPresented.wrappedValue
+        return self
+            .alert("待った確認", isPresented: isPresented) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
                     guard model.undoUsed else {
                         // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
@@ -293,6 +352,9 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
                      ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
                      : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
+            // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
+            .rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed,
+                         services: services, gameID: model.gameID)
             .rewardedRescueAlerts(
                 undoRescue,
                 notEarned: "待ったは使えませんでした",
@@ -301,19 +363,6 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
                     message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
                 )
             )
-    }
-
-    @ViewBuilder private var button: some View {
-        if usesTapTargetCapsule {
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
-        } else {
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-        }
     }
 }
 
@@ -332,7 +381,7 @@ public enum BoardGameHintColor {
 
 /// ヒントを持つ盤ゲームの Model（将棋・チェス・五目並べ・#1118）。
 ///
-/// `BoardHintButton` が読む分だけを要求する。回数の勘定そのものは 3 本とも
+/// `BoardControlBarHint`（`BoardGameControlBar` の「⋯」メニュー）が読む分だけを要求する。回数の勘定そのものは 3 本とも
 /// `CoreEngine.BoardHintBudget` が持つので、ここでは「いま押せるか」「残りいくつか」だけを見る。
 @MainActor
 public protocol BoardHintModel: AnyObject {
@@ -342,61 +391,12 @@ public protocol BoardHintModel: AnyObject {
     var canUseHint: Bool { get }
     /// ヒントの読みの最中か。ボタンの中の合図に使う。
     var isHintThinking: Bool { get }
-    /// 最善手を 1 手求めて盤の上に示す。求まらなければ回数は減らさない。
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか（#1500）。
+    var needsAdForHint: Bool { get }
+    /// 最善手を 1 手求めて盤の上に示す（無料枠）。求まらなければ回数は減らさない。
     func requestHint() async
-}
-
-/// 操作列の「ヒント」ボタン（#1118）。
-///
-/// **3 本とも同じ部品・同じ見た目にする**（`feedback_same_widget_same_look` の方針）。`BoardResignButton` の
-/// ような見た目の分岐は持たせない — 新しく足す部品なので、片方だけ違う組み方を最初から作らない。
-/// 見た目は枠 44pt の共通カプセル（`BoardGameControlCapsuleStyle`）で、黄色 + 電球はナンプレのヒント
-/// （`SudokuView`）と同じ。アプリの中で「ヒント」の合図をゲームごとに変えない。
-///
-/// 将棋・チェスの操作列はカプセルが約 30pt の 1 行なので、**呼び出し側で
-/// `.padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)` を掛けて 44pt の枠を
-/// レイアウト上だけ詰める**（検討ナビの ◀ ▶ と同じ手。44 − 8 × 2 = 28pt < カプセル）。
-/// 詰めないと対局中の操作列だけが 14pt 高くなり、決着の瞬間に盤が縮む（#139・#148）。
-/// 五目並べの操作列は元から 44pt のカプセルで組んであるので、そのまま並べる（#711）。
-public struct BoardHintButton<Model: BoardHintModel>: View {
-    private let model: Model
-
-    public init(model: Model) {
-        self.model = model
-    }
-
-    public var body: some View {
-        Button {
-            // 読みは Model の中で `AITurnGuarded` の照合に載せる（押したあとの局面ずれはそこで弾く）。
-            Task { await model.requestHint() }
-        } label: {
-            Label {
-                Text("ヒント\(model.hintsRemaining)")
-            } icon: {
-                // 読みは最長 2 秒ほど掛かる。押したのに何も変わらない間を作らないよう、
-                // 電球を回転に差し替える（文字は残すのでボタンの幅はほぼ変わらない）。
-                if model.isHintThinking {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "lightbulb.fill")
-                }
-            }
-        }
-        .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))
-        .disabled(!model.canUseHint)
-        .accessibilityLabel("ヒント、残り\(model.hintsRemaining)回")
-        // 読みの最中も `canUseHint` は false になる。「使えない理由」だけを読ませると、
-        // 押した直後の数秒に「あなたの手番ではない」と誤った案内をすることになる（PR #1184 の指摘）。
-        .accessibilityHint(hintText)
-    }
-
-    /// ボタンの状態ごとの読み上げ説明。
-    private var hintText: String {
-        if model.isHintThinking { return "CPU が最善手を読んでいます" }
-        return model.canUseHint
-            ? "CPU の読みで最善手を1手だけ盤の上に示します。ヒントを使った対局は順位表に送りません"
-            : "いまは使えません（あなたの手番ではないか、3回とも使い切りました）"
-    }
+    /// 広告視聴後にヒントを 1 回出す（#1500）。視聴未完了・局面が変わった場合は回数を減らさない。
+    func requestAdHint() async -> RewardedModelOutcome
 }
 
 // MARK: - 検討ナビ

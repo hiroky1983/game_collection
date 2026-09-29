@@ -757,6 +757,19 @@ public enum RunnerPhase: Equatable, Sendable {
     /// **世界の締め（`.story`）は入れない**。あちらは時間ではなくコマ送り（View）で進むので、
     /// 回し続けても永久に抜けない（抜ける操作は `RunnerModel.finishStory()`）。
     public var isSettling: Bool { self == .falling || self == .chasing }
+
+    /// 毎フレームの描画ループが要る状態か（#1386。ブロック崩しの #522 と同じ考え方）。
+    ///
+    /// 一時停止・リザルト・世界の締め（`.story`。コマ送りは `RunnerStoryView` が描く）は
+    /// コースの絵が動かないので、SpriteKit のループごと止める。**`.ready` は含める**:
+    /// スタート画面のあいだに面やモードを選び直すと、局面は `.ready` のまま `resetRun` で
+    /// コースが組み直され、それを描くのはこのループの `sync()` だから。
+    public var needsAnimationFrames: Bool {
+        switch self {
+        case .ready, .running, .falling, .chasing: return true
+        case .paused, .failed, .story, .cleared, .allCleared: return false
+        }
+    }
 }
 
 /// リザルト・スタート画面に出すおじさんの表情（#702）。

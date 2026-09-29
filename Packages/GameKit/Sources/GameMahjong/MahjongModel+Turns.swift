@@ -198,9 +198,12 @@ extension MahjongModel {
             let player = (discarder + step) % Self.playerCount
             // 立直している人は手牌を変えられないので鳴けない。
             guard !riichi[player] else { continue }
-            let options = MahjongCallFinder.claimOptions(
+            var options = MahjongCallFinder.claimOptions(
                 hand: hands[player], tile: tile, from: discarder, allowsChi: step == 1
             )
+            // 大明槓は嶺上牌を引くので、王牌が尽きた局（残り 0 枚・4 回カン済み）では提示しない。
+            let canKan = remainingTiles > 0 && deadWallDraws < 4
+            options = options.filter { canKan || $0.kind != .openKan }
             guard !options.isEmpty else { continue }
             let triplets = options.filter { $0.kind != .chi }
             let runs = options.filter { $0.kind == .chi }

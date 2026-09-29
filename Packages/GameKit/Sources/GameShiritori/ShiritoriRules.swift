@@ -43,7 +43,7 @@ public enum ShiritoriQuota: Int, CaseIterable, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .easy:   return "やさしい"
+        case .easy:   return "かんたん"
         case .normal: return "ふつう"
         case .hard:   return "むずかしい"
         }

@@ -5,6 +5,8 @@ public struct SudokuView: View {
     @State private var model: SudokuModel
     private let services: GameServices
     @State private var showNewGame = true
+    /// 帯のタイマー（等幅）の文字サイズ。他の帯の文字と同じく文字サイズ設定に追従させる（#1469）。
+    @ScaledMetric(relativeTo: .caption) private var timerFontSize: CGFloat = 14
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
     /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
@@ -12,8 +14,6 @@ public struct SudokuView: View {
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
-    /// 帯の実幅（拡大トグルに文字を出すかの判定に使う。0 は未計測＝出す）。
-    @State private var statusBarWidth: CGFloat = 0
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
@@ -39,29 +39,24 @@ public struct SudokuView: View {
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
                 .disabled(hintRescue.isWatching)
-            HowToPlayHint(.sudoku, playLog: services.playLog)
             controlArea
+            HowToPlayHint(.sudoku, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "ナンプレ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.state == .playing {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                // 生成中の二度押しで 2 本目の生成が走らないようにする（Model 側でも再入を弾く）。
-                // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
-                // 「広告を見たのに入らなかった」を起こさないための緩和）。
-                .disabled(model.isGenerating || hintRescue.isWatching)
-            }
-        }
+        // 生成中の二度押しで 2 本目の生成が走らないようにする（Model 側でも再入を弾く）。
+        // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
+        // 「広告を見たのに入らなかった」を起こさないための緩和）。
+        .gameChrome(title: "ナンプレ", review: services.review,
+                    newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) {
+                        if model.state == .playing {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.sudoku)
         .sheet(isPresented: $showNewGame) {
             SudokuNewGameSheet { difficulty in
@@ -103,6 +98,8 @@ public struct SudokuView: View {
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([hintRescue, continueRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -143,6 +140,18 @@ public struct SudokuView: View {
                     model.enter(digit: model.solution[index])
                 }
             }
+            // 撮影・動作確認用（DEBUG 限定）: ミス上限まで誤答を入れ、失敗幕を出す（#1486）。
+            // `-sudokuAutoStart` と併用する。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuMistakeLimit") {
+                var guardCount = 0
+                while model.state == .playing, guardCount < SudokuModel.maxMistakes + 4 {
+                    guardCount += 1
+                    guard let index = (0..<SudokuEngine.cellCount).first(where: { !model.given[$0] && model.board[$0] == 0 }) else { break }
+                    if model.selected != index { model.select(index: index) }
+                    let wrong = (1...9).first { $0 != model.solution[index] }!
+                    model.enter(digit: wrong)
+                }
+            }
             // 撮影・動作確認用（DEBUG 限定）: 起動 2 秒後に空きマスへ誤答を 1 つ入れ、揺れを非対話で起こす（#666）。
             // `-sudokuAutoStart` と併用する。揺れが補間されるかの実測（連続スクショ）に使う。
             if ProcessInfo.processInfo.arguments.contains("-sudokuMistakePreview"), model.state == .playing,
@@ -176,25 +185,9 @@ public struct SudokuView: View {
 
     // MARK: - Status Bar
 
-    /// 帯は要素が多い（残り・ミス・難易度・時計・拡大）ので、拡大トグルの文字「拡大／全体」は
-    /// **入る幅のときだけ**出す（`SudokuMetrics.showsZoomTitle`）。iPhone SE（帯の幅 343pt）では
-    /// 文字を付けると「残り49」「ミス 0/3」が「残…」「ミ…」に潰れた（実測）。
-    /// `ViewThatFits` は文字の縮小（`minimumScaleFactor`）を見込まず iPhone 17 Pro Max でも文字を
-    /// 落としてしまったので、帯の実幅で判定する。
+    /// 帯には表示だけを置く（残り・ミス・難易度・時計）。拡大・メモなどの操作は右下の「⋯」へ（#1468）。
     private var statusBar: some View {
-        statusBarRow(zoomTitle: SudokuMetrics.showsZoomTitle(statusBarWidth: statusBarWidth),
-                     statusIcons: SudokuMetrics.showsStatusIcons(statusBarWidth: statusBarWidth))
-            .background(
-                GeometryReader { g in
-                    Color.clear
-                        .onAppear { statusBarWidth = g.size.width }
-                        .onChange(of: g.size.width) { _, w in statusBarWidth = w }
-                }
-            )
-    }
-
-    private func statusBarRow(zoomTitle: Bool, statusIcons: Bool) -> some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             Group {
                 if model.isFinished {
                     let cleared = model.state == .cleared
@@ -205,14 +198,13 @@ public struct SudokuView: View {
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(cleared ? Theme.teal : Theme.coral)
                 } else if model.hasPuzzle {
-                    statusLabel("残り\(model.remainingCount)", systemImage: "square.grid.3x3", showsIcon: statusIcons)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                    Label("残り\(model.remainingCount)", systemImage: "square.grid.3x3")
+                        .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coral)
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
-                    statusLabel("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle",
-                                showsIcon: statusIcons)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                    Label("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle")
+                        .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
                 } else {
@@ -224,7 +216,6 @@ public struct SudokuView: View {
                 }
             }
             .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(model.difficulty.label)
                 .themeCaption(11)
@@ -233,45 +224,16 @@ public struct SudokuView: View {
                 .background(Capsule().fill(difficultyAccent))
                 .fixedSize(horizontal: true, vertical: false)
                 .opacity(model.hasPuzzle ? 1 : 0)
-
-            HStack(spacing: 8) {
-                Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.teal)
-                    // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
-                    .opacity(model.hasPuzzle ? 1 : 0)
-
-                // 拡大トグル。麻雀ソリティア・マインスイーパーと共通の `BoardToggleButton`（Core・#641）。
-                // 以前は素のアイコン（13pt・枠なし・`Theme.surface`）を手書きしていて、他のゲームと
-                // 見た目が揃っていなかった（会長 QA 2026-09-13）。
-                BoardToggleButton(
-                    isOn: zoomMode,
-                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
-                    title: zoomTitle ? (zoomMode ? "全体" : "拡大") : nil,
-                    fill: Theme.Fill.teal,
-                    accent: Theme.teal,
-                    label: zoomMode ? "盤全体を表示" : "盤を拡大"
-                ) {
-                    zoomMode.toggle()
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+        } trailing: {
+            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
+                .font(.system(size: min(timerFontSize, 14 * 1.5), weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.teal)
+                // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
+                .opacity(model.hasPuzzle ? 1 : 0)
+                .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal, 12).padding(.vertical, SudokuMetrics.statusBarVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
         // 3 つを別々に読ませるとスワイプ回数が増えるだけなので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .contain)
-    }
-
-    /// 帯の「残り」「ミス」。狭い帯ではアイコンを省いて文字に幅を渡す（#775・`SudokuMetrics.showsStatusIcons`）。
-    @ViewBuilder
-    private func statusLabel(_ title: String, systemImage: String, showsIcon: Bool) -> some View {
-        if showsIcon {
-            Label(title, systemImage: systemImage)
-        } else {
-            Text(title)
-        }
     }
 
     private var difficultyAccent: Color {
@@ -592,71 +554,56 @@ public struct SudokuView: View {
     // MARK: - 操作ボタン
 
     private var gameControls: some View {
-        HStack(spacing: 6) {
-            Button { model.toggleNoteMode() } label: {
-                Label("メモ", systemImage: "pencil.tip")
-                    .foregroundStyle(model.noteMode ? Theme.onAccent : Theme.inkSub)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.noteMode ? Theme.Fill.purple : Theme.surface))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-            .accessibilityLabel(model.noteMode ? "メモモード、オン" : "メモモード、オフ")
+        // 戻す・メモ・ヒント・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
+        GameOverflowBar(menuItems: controlMenuItems, verticalPadding: 4, nudge: hintNudge)
+            .lineLimit(1)
+    }
 
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// ヒントが尽きた・決着した・広告の視聴中は出さない。マスを選んでいなくても出す（選ぶところから促したいため）。
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.state == .playing && model.remainingHints > 0 && !hintRescue.isWatching,
+            game: model.gameSerial,
+            activity: [model.selected ?? -1, model.hintsUsed, model.board.hashValue, model.notes.hashValue, model.noteMode ? 1 : 0]
+        )
+    }
+
+    /// 「⋯」に入れる操作。ヒントは広告を見て答えが入る（残り回数付き）。
+    private var controlMenuItems: [GameControlMenuItem] {
+        [
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
-            Button { model.undo() } label: {
-                Label("戻す", systemImage: "arrow.uturn.backward")
-                    // 有効時は差し色の面、無効時は濃いグレーの面。面ごとに読める文字色が違う（#220）。
-                    .foregroundStyle(model.canUndo ? Theme.onAccent : .white)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.canUndo ? Theme.Fill.teal : Theme.fillMuted))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-            .disabled(!model.canUndo)
-            .accessibilityLabel("元に戻す")
-            .accessibilityHint(
-                model.canUndo
-                    ? "直前の1手を取り消します。ミスもその手のぶんだけ戻ります"
+            GameControlMenuItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo,
+                accessibilityLabel: "元に戻す",
+                accessibilityHint: model.canUndo
+                    ? "直前の1手を取り消します。ミスの回数は戻りません"
                     : "取り消せる手がありません"
-            )
+            ) { model.undo() },
+            GameControlMenuItem(
+                id: "note", title: "メモ", systemImage: "pencil.tip", isChecked: model.noteMode,
+                accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"
+            ) { model.toggleNoteMode() },
+            zoomMenuItem,
+            GameControlMenuItem(
+                id: "hint", title: "ヒント（残り\(model.remainingHints)）", systemImage: "lightbulb.fill",
+                isEnabled: model.canHint && !hintRescue.isWatching,
+                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
+                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
+            ) { requestHint() },
+            GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
+                showGiveUpConfirm = true
+            },
+        ]
+    }
 
-            Button {
-                requestHint()
-            } label: {
-                Label("ヒント\(model.remainingHints)", systemImage: "lightbulb.fill")
-                    .foregroundStyle(model.canHint ? Theme.onAccent : .white)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.canHint ? Theme.Fill.yellow : Theme.fillMuted))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-            .disabled(!model.canHint || hintRescue.isWatching)
-            .accessibilityLabel(SudokuAccessibility.hintLabel(remaining: model.remainingHints))
-            .accessibilityHint(model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください")
-
-            Spacer(minLength: 0)
-
-            Button { showGiveUpConfirm = true } label: {
-                Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.Fill.coral))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-        }
-        .themeBody(14)
-        // 4ボタン+残数表示で幅が詰まり「ヒント」が改行していた（会長指摘 2026-09-02）。
-        // 1行固定+縮小許容で確実に収める。
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-        .padding(.horizontal, 10).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
+    /// 拡大（チェックマーク付き）。麻雀ソリティア・マインスイーパーなどと同じ書式（#1468）。
+    private var zoomMenuItem: GameControlMenuItem {
+        GameControlMenuItem(
+            id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+            accessibilityLabel: zoomMode ? "盤全体を表示" : "盤を拡大"
+        ) { zoomMode.toggle() }
     }
 
     /// リワード広告を最後まで見たときだけヒントを与える（既存のコンティニューと同じ形・#262）。
@@ -687,7 +634,7 @@ public struct SudokuView: View {
             cornerRadius: Theme.cornerSmall,
             contentPadding: 16,
             detail: Text("広告を見るとミスが0に戻り、続きから遊べます")
-                .themeCaption(12).foregroundStyle(.white.opacity(0.85)),
+                .themeBody(15).foregroundStyle(.white.opacity(0.85)),
             rescueLabel: "広告を見てコンティニュー",
             rescue: continueRescue, services: services, gameID: model.gameID,
             serial: model.gameSerial,
@@ -762,24 +709,19 @@ struct SudokuNewGameSheet: View {
     let onCancel: () -> Void
     @State private var difficulty: SudokuDifficulty = .normal
 
-    /// 「かんたん／ふつう／むずかしい」は横3つでは収まらないので、題名を縮めて1行に収める。
-    private static let metrics = GameSetupChooser.Metrics(
-        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6
-    )
-
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "スタート",
+            kind: .solo,
             onStart: { onStart(difficulty) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {
-                HStack(spacing: 12) {
+                HStack(spacing: 6) {
                     // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
                     // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
                     // `removalRange` のコメント参照・#354 の S6）。
-                    difficultyTile(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
-                    difficultyTile(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
-                    difficultyTile(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
+                    difficultyTile(.easy,   subtitle: "空き 約30〜35", accent: DifficultyTile.accent(step: 0, of: 3))
+                    difficultyTile(.normal, subtitle: "空き 約40〜45", accent: DifficultyTile.accent(step: 1, of: 3))
+                    difficultyTile(.hard,   subtitle: "空き 約46〜50", accent: DifficultyTile.accent(step: 2, of: 3))
                 }
             }
         }
@@ -788,7 +730,7 @@ struct SudokuNewGameSheet: View {
     private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
         GameSetupChooser(title: value.label, subtitle: subtitle,
                          selected: difficulty == value, accent: accent,
-                         metrics: Self.metrics) {
+                         metrics: DifficultyTile.metrics) {
             difficulty = value
         }
     }

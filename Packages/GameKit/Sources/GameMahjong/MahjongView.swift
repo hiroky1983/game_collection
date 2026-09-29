@@ -39,6 +39,8 @@ public struct MahjongView: View {
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
     /// 進行中の対局が見ているのは `model.gameLength`（開始時に焼き込んだ値）のほう。
     @State private var selectedLength: MahjongGameLength
+    /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
+    @State private var cpuTask: Task<Void, Never>?
 
     public init(services: GameServices) {
         self.services = services
@@ -128,26 +130,20 @@ public struct MahjongView: View {
         .padding(Theme.pad)
         // ナビバーの既定の白背景がコンテンツのクリーム背景と食い違い、画面上部だけ白い帯に
         // 見えていた（会長指摘）。背景色を揃えて帯の境目を消す。
-        .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
-            // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
-            // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
-            // 早見表をここに置く（#501。花札 #495 と同じ置き方）。ツールバーは `Label` を
-            // アイコンだけに畳むので、文字を出すために `Text` を直接渡す。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showYakuSheet = true } label: {
-                    Text("役")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                }
-                .accessibilityLabel("役の早見表")
-            }
-            // 対局を始めると東風戦を打ち切るかトビるまで抜けられなかった（会長QA・#638）。
-            // 他ゲーム（将棋・囲碁・ナンプレ）と同じ位置・同じ絵柄で「新規対局」を置く。
-            ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        // 復活ボタンは終局のリザルトにだけ出る（#780）。
+        .rewardOffer(reviveRescue, for: .revival, isPresented: model.phase == .gameResult && model.canReviveAfterBust,
+                     services: services, gameID: model.gameID)
+        .rewardOffer(extendRescue, for: .continue, isPresented: model.phase == .gameResult && model.canExtendAfterLastPlace,
+                     services: services, gameID: model.gameID)
+        // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
+        // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
+        // 早見表を置く（#501。花札 #495 と同じ置き方）。
+        // 対局を始めると東風戦を打ち切るかトビるまで抜けられなかった（会長QA・#638）ので新規対局も置く。
+        .gameChrome(title: "麻雀", review: services.review,
+                    reference: GameChromeReference { showYakuSheet = true },
+                    newGame: GameChromeNewGame(.match, isDisabled: isWatchingRescueAd) {
+                        startNewGame()
+                    })
         .confirmationDialog(
             "新規対局しますか？",
             isPresented: $showConfirmNewGame,
@@ -170,7 +166,7 @@ public struct MahjongView: View {
             MahjongStartSheet(length: $selectedLength) {
                 showStartSheet = false
                 model.startGame(length: selectedLength)
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             } onCancel: {
                 // 「覗いてみたけど今はやめる」の退路（#352）。対局は始まっていないので
                 // 記録・解析のイベントは何も発生しない（それらは `startGame()` だけが送る）。
@@ -231,6 +227,7 @@ public struct MahjongView: View {
         .task(id: model.turnKey) {
             await model.runCPUTurnsIfNeeded()
         }
+        .onDisappear { cpuTask?.cancel() }
         .onChange(of: model.playerHand) {
             // 手牌が変わったら選択（誤タップ防止の1タップ目）は必ず解除する。
             selectedTileID = nil
@@ -272,6 +269,11 @@ public struct MahjongView: View {
         showConfirmNewGame = true
     }
 
+    private func runCPU() {
+        cpuTask?.cancel()
+        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
+    }
+
     /// 開始シートは通さない。選ぶ項目は対局の長さ（#639）だけで、それは確認ダイアログの
     /// ボタン側で選べるようにしてある（対局中の人に遊び方の読み物を再度出しても手数が増えるだけ）。
     ///
@@ -279,7 +281,7 @@ public struct MahjongView: View {
     private func restartGame(length: MahjongGameLength? = nil) {
         if let length { selectedLength = length }
         model.startGame(length: length)
-        Task { await model.runCPUTurnsIfNeeded() }
+        runCPU()
     }
 
     // MARK: - 雀卓
@@ -461,39 +463,37 @@ public struct MahjongView: View {
             reviveRescue.requestHandledByModel(withOutcome: {
                 await model.reviveAfterAd()
             }, whenGranted: {
-                await model.runCPUTurnsIfNeeded()
+                runCPU()
             })
         } label: {
-            // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
+            // 「1対局に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
             // 書かないと2回目を期待して押す人が出る）。
-            Label("広告を見て25,000点で復活（1半荘に1回）", systemImage: "play.rectangle.fill")
-                .themeBody(16).frame(maxWidth: .infinity)
+            Label("広告を見て25,000点で復活（1対局に1回）", systemImage: "play.rectangle.fill")
+                .themeBody(16)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(reviveRescue.isWatching)
-        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
+        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1対局に1回だけです")
     }
 
     /// 東 4 局を終えて最下位だったときだけ出る延長導線（#1201）。トビ復活と同じ形で、
-    /// 視聴完了のときだけ東 5 局を 1 局足す。得点は動かさない（1 半荘 1 回まで）。
+    /// 視聴完了のときだけ東 5 局を 1 局足す。得点は動かさない（1 対局 1 回まで）。
     var extendButton: some View {
         Button {
             extendRescue.requestHandledByModel(withOutcome: {
                 await model.extendAfterAd()
             }, whenGranted: {
-                await model.runCPUTurnsIfNeeded()
+                runCPU()
             })
         } label: {
-            Label("広告を見て東5局を追加（1半荘に1回）", systemImage: "play.rectangle.fill")
-                .themeBody(16).frame(maxWidth: .infinity)
+            Label("広告を見て東5局を追加（1対局に1回）", systemImage: "play.rectangle.fill")
+                .themeBody(16)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(extendRescue.isWatching)
-        .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1半荘に1回だけです")
+        .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1対局に1回だけです")
     }
 
     // MARK: - 操作
@@ -510,11 +510,11 @@ public struct MahjongView: View {
             EmptyView()
         case .ronOffer:
             HStack(spacing: 12) {
-                actionButton("見逃す", color: Theme.fillMuted, foreground: .white) {
+                actionButton("見逃す", role: .skip) {
                     model.declineRon()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
-                actionButton("ロン", color: Theme.Fill.coral) { model.declareRon() }
+                actionButton("ロン", role: .primary) { model.declareRon() }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -525,55 +525,61 @@ public struct MahjongView: View {
                     offer: offer,
                     onAccept: { call in
                         model.acceptCall(call)
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     },
                     onDecline: {
                         model.declineCall()
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     }
                 )
                 .frame(minHeight: Self.actionAreaMinHeight)
             }
         case .playing:
-            HStack(spacing: 12) {
-                if model.isDeclaringRiichi {
-                    actionButton("やめる", color: Theme.fillMuted, foreground: .white) { model.cancelRiichiDeclaration() }
-                } else {
-                    actionButton("立直", color: Theme.Fill.purple, disabled: !model.canDeclareRiichi) {
-                        model.declareRiichi()
+            // 立直・カン・ツモは出来るときだけ出す（会長指摘: 押せないボタンが常に並んでいた）。
+            // 何も出せない間も同じ高さの空きを残し、ボタンの出入りで卓や広告が上下に動かないようにする。
+            let actions = MahjongTurnActions(model: model)
+            if actions.isEmpty {
+                Color.clear.frame(height: Self.actionAreaMinHeight)
+            } else {
+                HStack(spacing: 12) {
+                    if actions.showsCancelRiichi {
+                        actionButton("やめる", role: .skip) { model.cancelRiichiDeclaration() }
+                    }
+                    if actions.showsRiichi {
+                        actionButton("立直", role: .declaration) { model.declareRiichi() }
+                    }
+                    if actions.showsKan {
+                        MahjongKanButton(options: model.availableSelfKans) { call in
+                            model.declareKan(call)
+                            runCPU()
+                        }
+                    }
+                    if actions.showsTsumo {
+                        actionButton("ツモ", role: .primary) { model.declareTsumo() }
                     }
                 }
-                // カンは出来るときだけ出す（常設すると押せないボタンが 3 つ並ぶ）。
-                if model.canDeclareKan {
-                    MahjongKanButton(options: model.availableSelfKans) { call in
-                        model.declareKan(call)
-                        Task { await model.runCPUTurnsIfNeeded() }
-                    }
-                }
-                actionButton("ツモ", color: Theme.Fill.coral, disabled: !model.canDeclareTsumo) {
-                    model.declareTsumo()
-                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .popCard(corner: Theme.cornerSmall)
+                .frame(minHeight: Self.actionAreaMinHeight)
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
-            .frame(minHeight: Self.actionAreaMinHeight)
         case .handResult:
             // 一局戦（#639）はこの先に局が無いので「次の局へ」は嘘になる。東風戦の最終局・
             // アガリやめ・トビでも同じ状況なので、押した先に合わせて文言を差し替える。
             actionButton(
                 model.concludesAfterCurrentResult ? "結果を見る" : "次の局へ",
-                color: Theme.Fill.coral
+                role: .primary
             ) {
                 model.advanceToNextHand()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
-            actionButton("もう一度", color: Theme.Fill.coral) {
+            // 復活・延長の広告を読み込んでいる間は局を捨てさせない（#1381）。
+            actionButton("もう一度", role: .primary, disabled: isWatchingRescueAd) {
                 model.startGame()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -581,23 +587,38 @@ public struct MahjongView: View {
         }
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(
-        _ title: String, color: Color, foreground: Color = Theme.onAccent,
-        disabled: Bool = false, action: @escaping () -> Void
-    ) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .foregroundStyle(foreground)
+                .themeBody(16, weight: .bold, maxScale: 1.5)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(color)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 
+    private var isWatchingRescueAd: Bool { reviveRescue.isWatching || extendRescue.isWatching }
+
     static let windNames = ["東", "南", "西", "北"]
 
+}
+
+/// 対局中（`.playing`）の操作行に出すボタン。判定はモデルの `canDeclare…` をそのまま使い、ここではルールを持たない。
+struct MahjongTurnActions: Equatable {
+    /// 立直の宣言牌を選んでいる途中の取り消し。
+    var showsCancelRiichi: Bool
+    var showsRiichi: Bool
+    var showsKan: Bool
+    var showsTsumo: Bool
+
+    var isEmpty: Bool { !(showsCancelRiichi || showsRiichi || showsKan || showsTsumo) }
+
+    @MainActor
+    init(model: MahjongModel) {
+        showsCancelRiichi = model.isDeclaringRiichi
+        showsRiichi = !model.isDeclaringRiichi && model.canDeclareRiichi
+        showsKan = model.canDeclareKan
+        showsTsumo = model.canDeclareTsumo
+    }
 }

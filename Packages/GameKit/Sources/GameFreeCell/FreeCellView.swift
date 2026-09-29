@@ -47,26 +47,25 @@ public struct FreeCellView: View {
         VStack(spacing: 8) {
             statusBar
                 .padding(.horizontal, Theme.pad)
+            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             board
+                .cardTable(topInset: CardTableStyle.cardTopInset)
                 .padding(.horizontal, FreeCellMetrics.boardSideInset)
                 .layoutPriority(1)
-            HowToPlayHint(.freecell, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
             controlArea
                 .padding(.horizontal, Theme.pad)
+            HowToPlayHint(.freecell, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "フリーセル", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                .accessibilityLabel("新しい配札にする")
-            }
-        }
+        .gameChrome(title: "フリーセル", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        startNewGame()
+                    })
         .howToPlay(.freecell) { FreeCellRuleSheet() }
         .confirmationDialog("新しい配札にしますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
@@ -80,6 +79,8 @@ public struct FreeCellView: View {
         } message: {
             Text("広告を最後まで視聴すると「戻す」を\(FreeCellUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
         }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
             notEarned: "「戻す」を補充できませんでした",
@@ -110,6 +111,8 @@ public struct FreeCellView: View {
             #endif
         }
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。
@@ -123,42 +126,19 @@ public struct FreeCellView: View {
 
     // MARK: - ステータスバー
 
-    /// 数字の並び + 拡大トグル。
+    /// 数字の並び。帯には表示だけを置く。拡大の切り替えは右下の「⋯」へ（#1468）。
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             statusReadout
-
-            // 拡大トグル（#604）。麻雀ソリティア・マインスイーパー・ナンプレと共通の `BoardToggleButton`
-            // （Core・#641）。以前は素のアイコンを手書きしていて見た目が揃っていなかった（会長 QA 2026-09-13）。
-            BoardToggleButton(
-                isOn: zoomMode,
-                systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
-                title: zoomMode ? "全体" : "拡大",
-                fill: Theme.Fill.teal,
-                accent: Theme.teal,
-                label: zoomMode ? "盤全体を表示" : "札を拡大"
-            ) {
-                zoomMode.toggle()
-            }
-            // ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
-            // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
-            .accessibilityHint(zoomMode
-                ? "等倍に戻して盤全体を画面に収めます"
-                : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
+        } trailing: {
+            EmptyView()
         }
-        // 44pt のトグルが帯の高さを決めるようになるぶん上下を詰める（#203・#262 と同じ手当て）。
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .contain)
     }
 
-    /// 読み上げの対象。**拡大トグルはこの外に置く**（#604）。
-    ///
-    /// 数字は `children: .ignore` の 1 要素にまとめてあるので、中にボタンを入れると
-    /// VoiceOver から押せなくなる。読み上げを 1 要素に保ったままボタンを押せるようにするには、
-    /// 要素の境界を帯全体ではなく「数字の並び」に引き直すしかない。
+    /// 読み上げの対象。数字は `children: .ignore` の 1 要素にまとめる。
     private var statusReadout: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             Group {
                 if model.phase == .won {
                     Label("クリア！", systemImage: "flag.checkered")
@@ -172,26 +152,17 @@ public struct FreeCellView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
 
-            Spacer()
-
-            VStack(spacing: 0) {
-                Text(stateEmoji).font(.system(size: 24))
-                // 番号付きディールはフリーセルの文化なので、どの配札を解いているかを常時出す（#492）。
-                // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
-                // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
-                Text(verbatim: "配札 #" + String(model.dealNumber))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.inkSub)
-            }
-
-            Spacer()
+            // 番号付きディールはフリーセルの文化なので、どの配札を解いているかを常時出す（#492）。
+            // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
+            // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
+            Text(verbatim: "配札 #" + String(model.dealNumber))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.inkSub)
 
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-                .frame(minWidth: 78, alignment: .trailing)
         }
         // 数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
@@ -203,11 +174,6 @@ public struct FreeCellView: View {
             maxMovableCount: model.board.maxMovableCount(),
             isDeadEnd: model.isDeadEnd
         ))
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "♦️"
     }
 
     // MARK: - 盤面
@@ -415,13 +381,17 @@ public struct FreeCellView: View {
         // 上段は 8 枠が等間隔に並ぶので、**札が載ると 8 枚が 1 列に並んでいるようにしか
         // 見えない**（実測。空のうちは受け皿の絵と ♠♥♦♣ で区別が付くが、埋まると消える）。
         // 列の幅を崩さずに境目だけ描くため、レイアウトを取らない overlay で中央に引く。
+        // 色は卓の上（白系）と地の上（`Theme.inkSub` 系）で `cardTableInk` から取る（#1501）。
+        // 画面の View 本体で `@Environment` を読んでも盤に付けた卓の値は届かないので、盤の中で読む。
         .overlay {
-            Capsule()
-                .fill(Theme.inkSub.opacity(0.5))
-                .frame(width: 2.5)
-                .padding(.vertical, 2)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            CardTableInkReader { ink in
+                Capsule()
+                    .fill(ink.divider)
+                    .frame(width: 2.5)
+                    .padding(.vertical, 2)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 
@@ -605,68 +575,33 @@ public struct FreeCellView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
-            // 残り回数を常時見せる（#476 と同じ見せ方）。
-            controlButton("戻す\(model.undosRemaining)",
-                          systemImage: "arrow.uturn.backward",
-                          tint: Theme.Fill.coral) {
-                requestUndo()
-            }
-            .disabled(!model.canUndo || undoRescue.isWatching)
-            // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
-            .opacity(model.canUndo ? 1 : 0.4)
-            .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-            .accessibilityHint(FreeCellAccessibility.undoButtonHint(
-                canUndo: model.canUndo, remaining: model.undosRemaining))
-
-            // 一度に動かせる枚数は**フリーセルで手が通らない理由の大半**なので常時出す。
-            movableBadge
-
-            // 「あとは組札へ積むだけ」になった局面でだけ出す。終盤の連打を 1 回に畳む。
-            if model.canAutoFinish {
-                controlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
-                    model.autoFinish()
-                }
-                .accessibilityHint("残りの札をまとめて組札へ送ります")
-            }
-
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    /// 一度に動かせる枚数の表示。**ボタンではない**ので押せる見た目にはしない。
-    private var movableBadge: some View {
-        Label("\(model.board.maxMovableCount())枚", systemImage: "square.stack.3d.up.fill")
-            .lineLimit(1)
-            .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .background(Capsule().fill(Theme.Fill.purple))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("一度に\(model.board.maxMovableCount())枚まで動かせます")
-            .accessibilityHint("空きのフリーセルと空いた列が増えるほど多く動かせます")
-    }
-
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .lineLimit(1)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12)
-                // 高さは 44pt（#199 で全ゲームの操作ボタンに揃えた下限）。
-                .frame(minHeight: 44)
-                .background(Capsule().fill(tint))
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
+        // 戻す・拡大・自動で上がるは右下の「⋯」にまとめる（#1422・#1468）。
+        // 「動かせる枚数」の表示は操作行と一緒になくなる（会長決裁 2026-09-26。必要なら別の場所を相談）。
+        GameOverflowBar(menuItems: [
+            // 残り回数を文言に含める（#476 と同じ見せ方）。押せない間も項目は残す（#198）。
+            GameControlMenuItem(
+                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                accessibilityHint: FreeCellAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining)
+            ) { requestUndo() },
+            // 拡大（#604）。ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
+            // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
+            GameControlMenuItem(
+                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                accessibilityLabel: zoomMode ? "盤全体を表示" : "札を拡大",
+                accessibilityHint: zoomMode
+                    ? "等倍に戻して盤全体を画面に収めます"
+                    : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
+            ) { zoomMode.toggle() },
+            // 「あとは組札へ積むだけ」になった局面でだけ押せる。終盤の連打を 1 回に畳む。
+            GameControlMenuItem(
+                id: "autoFinish", title: "自動で上がる", systemImage: "wand.and.stars",
+                isEnabled: model.canAutoFinish,
+                accessibilityHint: "残りの札をまとめて組札へ送ります"
+            ) { model.autoFinish() },
+        ])
     }
 
     // MARK: - 行き止まりの告知
@@ -676,54 +611,30 @@ public struct FreeCellView: View {
     /// クロンダイク（#491）と違い盤に触れる手が残っていないので、告知は「取り上げている」わけではない。
     /// それでも閉じられるようにするのは、**どこで間違えたかを盤で読み返してから戻したい**ため。
     private var deadEndOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("😵").font(.system(size: 52))
-                Text("指せる手がありません")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text("フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-
-                if model.canUndo {
-                    Button { requestUndo() } label: {
-                        Label("1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(undoRescue.isWatching)
-                    .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-                    .accessibilityHint(FreeCellAccessibility.undoButtonHint(
-                        canUndo: model.canUndo, remaining: model.undosRemaining))
+        GameDeadEndPanel(
+            emoji: "😵",
+            title: "指せる手がありません",
+            message: "フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。"
+        ) {
+            if model.canUndo {
+                GameDeadEndActionButton(
+                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tint: Theme.Fill.coral, isDisabled: undoRescue.isWatching
+                ) {
+                    requestUndo()
                 }
-
-                Button { model.newGame() } label: {
-                    Text("新しい配札にする")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(undoRescue.isWatching)
-
-                Button { model.dismissDeadEndPrompt() } label: {
-                    Text("盤面を見る")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(undoRescue.isWatching)
+                .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
+                .accessibilityHint(FreeCellAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining))
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+
+            GameDeadEndDismissButton("新しい配札にする", isDisabled: undoRescue.isWatching) {
+                model.newGame()
+            }
+
+            GameDeadEndDismissButton("盤面を見る", isDisabled: undoRescue.isWatching) {
+                model.dismissDeadEndPrompt()
+            }
         }
         .accessibilityElement(children: .contain)
         // 暗幕が背面のタップを塞ぐので、VoiceOver も告知の中だけを移動させる。

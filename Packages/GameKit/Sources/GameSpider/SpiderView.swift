@@ -48,26 +48,25 @@ public struct SpiderView: View {
         VStack(spacing: 8) {
             statusBar
                 .padding(.horizontal, Theme.pad)
+            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             board
+                .cardTable(topInset: CardTableStyle.cardTopInset)
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
-            HowToPlayHint(.spider, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
             controlArea
                 .padding(.horizontal, Theme.pad)
+            HowToPlayHint(.spider, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "スパイダーソリティア", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { openSetup() } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                .accessibilityLabel("新しい配札にする")
-            }
-        }
+        .gameChrome(title: "スパイダーソリティア", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        openSetup()
+                    })
         .howToPlay(.spider) { SpiderRuleSheet() }
         .sheet(isPresented: $showSetup) {
             SpiderSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
@@ -83,6 +82,8 @@ public struct SpiderView: View {
         } message: {
             Text("広告を最後まで視聴すると「戻す」を\(SpiderUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
         }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
             notEarned: "「戻す」を補充できませんでした",
@@ -119,6 +120,8 @@ public struct SpiderView: View {
             #endif
         }
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498 と同じ）。
@@ -129,31 +132,18 @@ public struct SpiderView: View {
 
     // MARK: - ステータスバー
 
+    /// 帯には表示だけを置く。拡大の切り替えは右下の「⋯」へ（#1468）。
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             statusReadout
-
-            BoardToggleButton(
-                isOn: zoomMode,
-                systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
-                title: zoomMode ? "全体" : "拡大",
-                fill: Theme.Fill.teal,
-                accent: Theme.teal,
-                label: zoomMode ? "盤全体を表示" : "札を拡大"
-            ) {
-                zoomMode.toggle()
-            }
-            .accessibilityHint(zoomMode
-                ? "等倍に戻して盤全体を画面に収めます"
-                : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
+        } trailing: {
+            EmptyView()
         }
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .contain)
     }
 
     private var statusReadout: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             Group {
                 if model.phase == .won {
                     Label("クリア！", systemImage: "flag.checkered")
@@ -167,24 +157,15 @@ public struct SpiderView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
 
-            Spacer()
-
-            VStack(spacing: 0) {
-                Text(stateEmoji).font(.system(size: 24))
-                // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
-                Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.inkSub)
-            }
-
-            Spacer()
+            // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
+            Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.inkSub)
 
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-                .frame(minWidth: 78, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.statusLabel(
@@ -197,11 +178,6 @@ public struct SpiderView: View {
             completedCount: model.board.completed.count,
             isDeadEnd: model.isDeadEnd
         ))
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "🕷️"
     }
 
     // MARK: - 盤面
@@ -547,114 +523,67 @@ public struct SpiderView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
-            controlButton("戻す\(model.undosRemaining)",
-                          systemImage: "arrow.uturn.backward",
-                          tint: Theme.Fill.coral) {
-                requestUndo()
-            }
-            .disabled(!model.canUndo || undoRescue.isWatching)
-            .opacity(model.canUndo ? 1 : 0.4)
-            .accessibilityLabel(SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-            .accessibilityHint(SpiderAccessibility.undoButtonHint(
-                canUndo: model.canUndo, remaining: model.undosRemaining))
-
-            controlButton("配る\(model.board.dealsRemaining)",
-                          systemImage: "rectangle.stack.badge.plus",
-                          tint: Theme.Fill.teal) {
-                model.tapStock()
-            }
-            .disabled(model.board.dealsRemaining == 0)
-            .opacity(model.board.dealsRemaining == 0 ? 0.4 : 1)
-            .accessibilityLabel(SpiderAccessibility.stockLabel(
-                dealsRemaining: model.board.dealsRemaining,
-                isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile))
-
-            if showDealBlockedHint && model.board.isDealBlockedByEmptyPile {
-                // 「配る」が拒否された理由。空の列が埋まると自動で消える。
-                Text("空の列を埋めると配れます")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.coral)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .lineLimit(1)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                .background(Capsule().fill(tint))
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
+        // 戻す・配る・拡大は右下の「⋯」にまとめる（#1422・#1468）。
+        GameOverflowBar(
+            menuItems: [
+                // 残り回数を文言に含める。押せない間も項目は残す。
+                GameControlMenuItem(
+                    id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    isEnabled: model.canUndo && !undoRescue.isWatching,
+                    accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                    accessibilityHint: SpiderAccessibility.undoButtonHint(
+                        canUndo: model.canUndo, remaining: model.undosRemaining)
+                ) { requestUndo() },
+                GameControlMenuItem(
+                    id: "deal", title: "配る（残り\(model.board.dealsRemaining)）",
+                    systemImage: "rectangle.stack.badge.plus",
+                    isEnabled: model.board.dealsRemaining > 0,
+                    accessibilityLabel: SpiderAccessibility.stockLabel(
+                        dealsRemaining: model.board.dealsRemaining,
+                        isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile)
+                ) { model.tapStock() },
+                GameControlMenuItem(
+                    id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                    accessibilityLabel: zoomMode ? "盤全体を表示" : "札を拡大",
+                    accessibilityHint: zoomMode
+                        ? "等倍に戻して盤全体を画面に収めます"
+                        : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
+                ) { zoomMode.toggle() },
+            ],
+            // 「配る」が拒否された理由。空の列が埋まると自動で消える。
+            caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
+                ? GameOverflowCaption("空の列を埋めると配れます", color: Theme.coral)
+                : nil
+        )
     }
 
     // MARK: - 行き止まりの告知
 
     private var deadEndOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("😵").font(.system(size: 52))
-                Text("指せる手がありません")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text("どの札も置き先がなく、山札も配れません。この配札には勝ち筋があるので、手を戻せばやり直せます。")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-
-                if model.canUndo {
-                    Button { requestUndo() } label: {
-                        Label("1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(undoRescue.isWatching)
-                    .accessibilityLabel(SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-                    .accessibilityHint(SpiderAccessibility.undoButtonHint(
-                        canUndo: model.canUndo, remaining: model.undosRemaining))
+        GameDeadEndPanel(
+            emoji: "😵",
+            title: "指せる手がありません",
+            message: "どの札も置き先がなく、山札も配れません。この配札には勝ち筋があるので、手を戻せばやり直せます。"
+        ) {
+            if model.canUndo {
+                GameDeadEndActionButton(
+                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tint: Theme.Fill.coral, isDisabled: undoRescue.isWatching
+                ) {
+                    requestUndo()
                 }
-
-                Button { openSetup() } label: {
-                    Text("新しい配札にする")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(undoRescue.isWatching)
-
-                Button { model.dismissDeadEndPrompt() } label: {
-                    Text("盤面を見る")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(undoRescue.isWatching)
+                .accessibilityLabel(SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining))
+                .accessibilityHint(SpiderAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining))
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+
+            GameDeadEndDismissButton("新しい配札にする", isDisabled: undoRescue.isWatching) {
+                openSetup()
+            }
+
+            GameDeadEndDismissButton("盤面を見る", isDisabled: undoRescue.isWatching) {
+                model.dismissDeadEndPrompt()
+            }
         }
         .accessibilityElement(children: .contain)
         // 暗幕が背面のタップを塞ぐので、VoiceOver も告知の中だけを移動させる。
@@ -699,21 +628,16 @@ struct SpiderSetupSheet: View {
     let onStart: () -> Void
     let onCancel: () -> Void
 
-    private static let metrics = GameSetupChooser.Metrics(
-        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6, subtitleMinimumScale: 0.7
-    )
-
     var body: some View {
         GameSetupSheet(
-            title: "新しい配札",
-            startTitle: discardsProgress ? "終了して配る" : "配る",
+            kind: .solo, discardsProgress: discardsProgress,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("スートの数") {
-                HStack(spacing: 12) {
-                    tile(.one, accent: Theme.Fill.teal)
-                    tile(.two, accent: Theme.Fill.yellow)
-                    tile(.four, accent: Theme.Fill.coral)
+                HStack(spacing: 6) {
+                    tile(.one, accent: DifficultyTile.accent(step: 0, of: 3))
+                    tile(.two, accent: DifficultyTile.accent(step: 1, of: 3))
+                    tile(.four, accent: DifficultyTile.accent(step: 2, of: 3))
                 }
                 Text(Self.footer(for: draft.suitCount))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -731,7 +655,7 @@ struct SpiderSetupSheet: View {
     private func tile(_ value: SpiderSuitCount, accent: Color) -> some View {
         GameSetupChooser(title: value.label, subtitle: value.subtitle,
                          selected: draft.suitCount == value, accent: accent,
-                         metrics: Self.metrics) {
+                         metrics: DifficultyTile.metrics) {
             draft.suitCount = value
         }
     }
@@ -767,7 +691,7 @@ struct SpiderRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: Self.rules)
+        RuleListSheet(rules: Self.rules)
     }
 }
 

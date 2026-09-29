@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Core
 import MahjongTiles
 
 // MARK: - 卓のレイアウト（麻雀刷新 #736 → 長方形 #927）
@@ -40,6 +41,12 @@ public struct MahjongTableLayout: Sendable {
     static let frameSide: CGFloat = 12 / 393
     static let frameTop: CGFloat = 16 / 393
     static let frameBottom: CGFloat = 12 / 393
+    /// 卓の形（共通の卓の部品 `CardTableSurface` に渡す。#1535）。フェルトの位置（`project`）もここから取るので、
+    /// 描いた卓の内側と牌・河の座標がずれない。縦横比 `aspect`、角丸なし・外の落ち影なし（どちらも既定値）。
+    public static let tableFrame = CardTableFrame(
+        top: .widthFraction(frameTop), leading: .widthFraction(frameSide),
+        bottom: .widthFraction(frameBottom), trailing: .widthFraction(frameSide),
+        innerShadow: .standard, aspectRatio: aspect)
     /// 河の牌の基準幅（幅 393pt に対する比。#918 で 21 → 25）。iPhone 17（卓幅 361pt）で 21.6pt。
     /// 平行投影なのでどの家・どの行でも同じ大きさ。
     static let riverTileWidthRatio: CGFloat = 25 / 393
@@ -67,11 +74,12 @@ public struct MahjongTableLayout: Sendable {
         public var point: CGPoint { CGPoint(x: x, y: y) }
     }
 
-    private var feltTop: CGFloat { size.width * Self.frameTop }
-    private var feltBottom: CGFloat { size.height - size.width * Self.frameBottom }
-    private var feltHeight: CGFloat { feltBottom - feltTop }
-    private var feltLeft: CGFloat { size.width * Self.frameSide }
-    private var feltWidth: CGFloat { size.width - 2 * size.width * Self.frameSide }
+    /// フェルトの矩形。卓の部品が描くフェルトと同じ計算（`CardTableFrame.feltRect`）。
+    private var feltRect: CGRect { Self.tableFrame.feltRect(in: size) }
+    private var feltTop: CGFloat { feltRect.minY }
+    private var feltHeight: CGFloat { feltRect.height }
+    private var feltLeft: CGFloat { feltRect.minX }
+    private var feltWidth: CGFloat { feltRect.width }
     /// 幅 393pt を 1 とした縮尺（立て牌の側面など、pt で決めた値を卓の幅に合わせる）。
     private var widthScale: CGFloat { size.width / 393 }
 

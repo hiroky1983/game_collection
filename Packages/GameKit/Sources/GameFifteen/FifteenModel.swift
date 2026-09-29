@@ -75,6 +75,9 @@ public final class FifteenModel {
         }
     }
 
+    /// 「リセット」で失われる進行があるか（#1011）。1 手も動かしていない盤と解き終えた盤は捨てて構わない。
+    public var hasProgressToLose: Bool { moves > 0 && !isSolved }
+
     /// 新規ゲーム。
     public func newGame() {
         tiles = makeBoard()

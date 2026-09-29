@@ -7,9 +7,10 @@ public struct GomokuView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -26,29 +27,25 @@ public struct GomokuView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
+            controlArea
             HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
                           playLog: services.playLog)
-            controlArea
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "五目並べ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameOver || model.moveCount == 0 {
-                        showNewGame = true
-                    } else {
-                        showConfirmNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "五目並べ", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.gameOver || model.moveCount == 0 {
+                            showNewGame = true
+                        } else {
+                            showConfirmNewGame = true
+                        }
+                    })
         .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
                 model.newGame(humanSide: side, aiLevel: level, forbiddenMoves: renju)
@@ -286,7 +283,7 @@ public struct GomokuView: View {
     // MARK: - Status Bar
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             if let w = model.winner {
                 Label(w == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち",
                       systemImage: "flag.checkered")
@@ -297,18 +294,13 @@ public struct GomokuView: View {
                     .themeBody(16).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                let isMine = model.currentStone == model.humanSide
-                Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
+                TurnBadge(isYourTurn: model.currentStone == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 // 終局後の記録は行を増やさずここに同居させる（#148）。
                 // 将棋（#139）は手数を検討ナビの「n/N手」に譲れたが、五目並べには
@@ -318,31 +310,15 @@ public struct GomokuView: View {
             }
             Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
         }
-        .frame(minHeight: 32)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。中身は盤ゲーム 5 本で共通（#828）。
-            BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
-                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
-
-            Spacer()
-
-            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。ここは元から枠 44pt のカプセルで
-            // 組んである列なので、将棋・チェスのような余白の詰めは要らない。
-            BoardHintButton(model: model)
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
-        }
-        .themeBody(14)
-        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める（将棋・チェスと同じ）。
-        .lineLimit(1).minimumScaleFactor(0.8)
-        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
-        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
+            onResign: { model.resign() }
+        )
     }
 }
 
@@ -577,9 +553,9 @@ struct GomokuNewGameSheet: View {
 
     var body: some View {
         // 選択肢が3節あり `.medium` には収まらない（囲碁 GoNewGameSheet と同じで、
-        // はみ出すと「対局開始」が押せなくなる）。`.scrolling` は常に `.large` で開く。
+        // はみ出すと「対局開始」が押せなくなる）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level, renju) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの石") {

@@ -252,11 +252,27 @@ final class RunnerScene: SKScene {
         sync()
     }
 
+    /// 1 フレーム描き終えたことを画面側へ知らせる（#1386）。**一度も描かないうちに止めると
+    /// コースが出ないまま暗い矩形になる**ので、止める側はこれを待つ。止まったあとはこのフックも
+    /// 来なくなり、再開の判断は画面側の局面の変化が担う。
+    var onFrameRendered: (() -> Void)?
+
+    override func didFinishUpdate() {
+        onFrameRendered?()
+    }
+
     override func update(_ currentTime: TimeInterval) {
         defer { lastUpdate = currentTime }
         // 初回フレームは経過時間が測れないので進めない。
         guard let last = lastUpdate, currentTime > last else { return }
-        model.tick(dt: currentTime - last)
+        let dt = currentTime - last
+        // 描画ループを止めていたあいだ（`RunnerView` の `onFrameRendered`・#1386）も `currentTime` は進み続ける。
+        // 再開の 1 フレーム目は計時の穴とみなしてモデルは進めず、時計だけ合わせ直す（描画は写す）。
+        guard dt <= RunnerRules.staleFrameThreshold else {
+            sync()
+            return
+        }
+        model.tick(dt: dt)
         sync()
     }
 

@@ -28,61 +28,37 @@ struct SolitaireRescueOverlay: View {
     private var isBusy: Bool { isWatchingJokerAd || isWatchingUndoAd }
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text(model.isDeadEnd ? "😵" : "🤔").font(.system(size: 52))
-                Text(model.isDeadEnd ? "進める手がありません" : "このままではクリアできません")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text(rescueMessage)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
+        GameDeadEndPanel(
+            emoji: model.isDeadEnd ? "😵" : "🤔",
+            title: model.isDeadEnd ? "進める手がありません" : "このままではクリアできません",
+            message: rescueMessage
+        ) {
+            jokerRescueButton
 
-                jokerRescueButton
-
-                if model.canUndo {
-                    Button { onUndo() } label: {
-                        // ここでも残り回数を見せる（#476 仕様3）。押した先で初めて
-                        // 「使い切っていた」と分かるのでは、救済の面で二度手間になる。
-                        Label("1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isBusy)
-                    .accessibilityLabel(SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-                    .accessibilityHint(SolitaireAccessibility.undoButtonHint(
-                        canUndo: model.canUndo,
-                        remaining: model.undosRemaining
-                    ))
+            if model.canUndo {
+                // ここでも残り回数を見せる（#476 仕様3）。押した先で初めて
+                // 「使い切っていた」と分かるのでは、救済の面で二度手間になる。
+                GameDeadEndActionButton(
+                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tint: Theme.Fill.coral, isDisabled: isBusy
+                ) {
+                    onUndo()
                 }
-
-                Button { model.newGame() } label: {
-                    Text("新しい配札にする")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-
-                // どちらの告知でも盤には触れる手が残っている。宣告で操作を奪わない（#491）。
-                Button { model.dismissRescuePrompt() } label: {
-                    Text("このまま続ける")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
+                .accessibilityLabel(SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining))
+                .accessibilityHint(SolitaireAccessibility.undoButtonHint(
+                    canUndo: model.canUndo,
+                    remaining: model.undosRemaining
+                ))
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+
+            GameDeadEndDismissButton("新しい配札にする", isDisabled: isBusy) {
+                model.newGame()
+            }
+
+            // どちらの告知でも盤には触れる手が残っている。宣告で操作を奪わない（#491）。
+            GameDeadEndDismissButton("このまま続ける", isDisabled: isBusy) {
+                model.dismissRescuePrompt()
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(SolitaireAccessibility.rescuePromptLabel(
@@ -105,26 +81,18 @@ struct SolitaireRescueOverlay: View {
 
     /// 所持していれば広告なしで使い、持っていなければリワード広告で補充する。
     private var jokerRescueButton: some View {
-        Button {
+        GameDeadEndActionButton(
+            model.hasJoker ? "ジョーカーを使う" : "広告を見てジョーカーをもらう",
+            systemImage: model.hasJoker ? "questionmark.app.fill" : "play.rectangle.fill",
+            tint: Theme.Fill.purple,
+            // 「戻す」の補充広告を出している最中もここは押させない（2 本の広告が並走する）。
+            isDisabled: isBusy
+        ) {
             if model.hasJoker {
                 model.beginPlacingJoker()
             } else {
                 onRequestJoker()
             }
-        } label: {
-            Label(
-                model.hasJoker ? "ジョーカーを使う" : "広告を見てジョーカーをもらう",
-                systemImage: model.hasJoker ? "questionmark.app.fill" : "play.rectangle.fill"
-            )
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Theme.Fill.purple, in: RoundedRectangle(cornerRadius: 14))
-            .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.plain)
-        // 「戻す」の補充広告を出している最中もここは押させない（2 本の広告が並走する）。
-        .disabled(isBusy)
-        .opacity(isBusy ? 0.5 : 1)
     }
 }

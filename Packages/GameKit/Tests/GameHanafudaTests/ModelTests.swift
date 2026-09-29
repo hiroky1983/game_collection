@@ -385,8 +385,21 @@ struct HanafudaModelTests {
         #expect(store.exists(for: HanafudaModel.gameID))
         model.resign()
         #expect(model.phase == .matchResult)
+        #expect(model.wasResigned)
         #expect(log.record(gameID: HanafudaModel.gameID)?.losses == 1)
         #expect(!store.exists(for: HanafudaModel.gameID))
+    }
+
+    @Test("投了の印は次の試合で消える")
+    func wasResignedClearsOnRestart() {
+        let defaults = UserDefaults(suiteName: "asobiba.hanafuda.tests.resign-restart")!
+        defaults.removePersistentDomain(forName: "asobiba.hanafuda.tests.resign-restart")
+        let model = HanafudaModel(services: makeServices(log: PlayLog(defaults: defaults)), cpuDelay: .zero, seed: 72)
+        model.startMatch(options: HanafudaOptions(rounds: 6))
+        model.resign()
+        #expect(model.wasResigned)
+        model.restartMatch()
+        #expect(!model.wasResigned)
     }
 
     // MARK: 中断と復元

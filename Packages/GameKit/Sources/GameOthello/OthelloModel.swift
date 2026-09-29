@@ -71,6 +71,12 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
+    /// 「新規対局」で失われる進行があるか（#1011）。
+    ///
+    /// 初期配置（4 個）から石が増えていて、まだ決着していないとき。決着後は捨てるものが無く、
+    /// 開始直後（CPU 先手でまだ打っていない盤を含む）も確認を挟むだけ無駄なので false。
+    /// 石の数で見るのは、`placementCount` が中断データから復元すると 0 に戻るため。
+    public var hasProgressToLose: Bool { !gameOver && blackCount + whiteCount > 4 }
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     public var reviewOutcome: GameOutcome {
         if isDraw { return .draw }
@@ -111,7 +117,14 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
 
-        if let snap = services?.snapshots.load(OthelloSnapshot.self, for: "othello") {
+        var loaded = services?.snapshots.load(OthelloSnapshot.self, for: "othello")
+        // 盤の寸法が合わない中断データは、読むと盤の添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, snap.cells.count != othelloBoardSize * othelloBoardSize {
+            services?.snapshots.clear(for: "othello")
+            loaded = nil
+        }
+        if let snap = loaded {
             let cells = snap.cells.map { $0.flatMap { OthelloStone(rawValue: $0) } }
             board        = OthelloBoard(cells: cells)
             currentStone = OthelloStone(rawValue: snap.currentStone) ?? .black
@@ -351,7 +364,13 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         } else {
             services?.feedback.notify(winner == humanSide ? .success : .error)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+        recordResult = services?.gameDidFinish(
+            gameID: gameID,
+            outcome: reviewOutcome,
+            score: GameScore(metric: .winLoss),
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
+        )
         return true
     }
 

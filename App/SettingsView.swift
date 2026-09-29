@@ -1,5 +1,4 @@
 import SafariServices
-import StoreKit
 import SwiftUI
 import Core
 
@@ -9,7 +8,7 @@ struct SettingsView: View {
     /// プレイ記録。注入されないとき（プレビュー等）は消去の導線を出さない。
     var playLog: PlayLog?
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
     @State private var legalURL: IdentifiableURL?
     @State private var showClearPlayLogConfirm = false
 
@@ -104,22 +103,14 @@ struct SettingsView: View {
                         get: { settings.notificationsEnabled },
                         set: { settings.notificationsEnabled = $0 }
                     )) {
-                        Label("続きのお知らせ", systemImage: "bell")
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .tint(Theme.coral)
-                    Toggle(isOn: Binding(
-                        get: { settings.reengagementRemindersEnabled },
-                        set: { settings.reengagementRemindersEnabled = $0 }
-                    )) {
-                        Label("久しぶり通知", systemImage: "bell.badge")
+                        Label("お知らせ", systemImage: "bell")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
                 } header: {
                     Text("通知")
                 } footer: {
-                    Text("「続きのお知らせ」は、途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\n「久しぶり通知」は、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nどちらもオフにすると、予約済みのお知らせを取り消します。")
+                    Text("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nオフにすると、両方の予約済みのお知らせを取り消します。")
                 }
 
                 // MARK: 解析
@@ -187,7 +178,9 @@ struct SettingsView: View {
                 // MARK: その他
                 Section("その他") {
                     Button {
-                        requestReview()
+                        // OS の `requestReview` は上限に達すると何も出ない。自分から押した人には
+                        // 必ずレビュー画面が開く App Store の URL を使う（#1471）。
+                        openURL(AppEnvironment.writeReviewURL)
                     } label: {
                         Label("アプリを評価する", systemImage: "star")
                     }

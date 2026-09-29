@@ -10,8 +10,8 @@
 /// 長生きする場所に世代を置いて突き合わせる必要がある。それがこの型。
 ///
 /// 進めるのは `GameServices.gameDidLeave(gameID:)` の 1 か所だけ（ハブの `onChange(of: path)`
-/// が唯一の発火点）。照合は `RewardedRescue` と、広告を自分で抱えている 3 つの Model
-/// （麻雀・ブラックジャック・ポーカー）が行う。
+/// が唯一の発火点）。照合は `RewardedRescue` と、広告を自分で抱えている Model
+/// （麻雀・ブラックジャック・ポーカー・ルーレット・将棋・チェス・五目並べのヒント・#1500）が行う。
 @MainActor
 public final class GameScreenGeneration {
     public private(set) var current = 0
@@ -108,7 +108,7 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
-    /// 無料ヒントを**1回使った**ときに各 Model から呼ぶ（#1326）。`game_end` の `hints_used` に載る。
+    /// ヒントを**1回使った**（無料・広告のどちらでも）ときに各 Model から呼ぶ（#1326・#1500）。`game_end` の `hints_used` に載る。
     ///
     /// 途中離脱の `game_end` は Model を経由せず共通経路で出るため、決着時に値を渡す形ではなく
     /// 使うたびにここへ伝えて `GameAnalytics` に覚えさせる。
@@ -136,6 +136,15 @@ public struct GameServices {
     @MainActor
     public func gameDidRestoreFinished(gameID: String) {
         reminders?.gameDidFinish(gameID: gameID)
+    }
+
+    /// 終局が確定したが、記録（`gameDidFinish`）は後で付ける局のリザルトに入ったときに各 Model から呼ぶ（#1375）。
+    ///
+    /// 解析の `game_end` だけを先に送る。記録・評価リクエスト・レコメンド・Game Center は触らないので、
+    /// あとで `gameDidFinish` を呼んでも `game_end` は二重に出ない（送信済みのプレイは再送しない）。
+    @MainActor
+    public func gameDidDecide(gameID: String, outcome: GameOutcome) {
+        analytics?.finishPlay(gameID: gameID, outcome: outcome)
     }
 
     /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
@@ -174,6 +183,12 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。`survey_answer` を送るだけで、プレイの数え方には触らない。
+    @MainActor
+    public func gameDidAnswerSurvey(gameID: String, answers: [Int]) {
+        analytics?.recordSurveyAnswer(gameID: gameID, answers: answers)
+    }
+
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
     /// `reward_ad` を送る（#500 / #659）。
     ///
@@ -191,6 +206,18 @@ public struct GameServices {
         return true
     }
 
+    /// リワード広告の提示が終わったときに `RewardedRescue` から呼ぶ（#780）。`reward_offer` を送る。
+    ///
+    /// - Parameter accepted: 広告ボタンを押して終わったか。押したときは**広告を出す前に**呼ぶこと
+    ///   （出したあとだと先読みの広告が使われて、`not_ready` と区別できなくなる）。
+    @MainActor
+    public func rewardOfferDidEnd(gameID: String, purpose: RewardPurpose, accepted: Bool) {
+        let result: RewardOfferResult = accepted
+            ? (ads.isRewardedAdReady ? .accepted : .notReady)
+            : .declined
+        analytics?.recordRewardOffer(gameID: gameID, purpose: purpose, result: result)
+    }
+
     /// ゲームでミスした（穴に落ちた・ぶつかった）ときに各 Model から呼ぶ（#796）。
     ///
     /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの
@@ -206,7 +233,12 @@ public struct GameServices {
     /// ここ1か所で調停する。**評価リクエストを優先**し、その回のレコメンドは提示カウントを
     /// 消費せず次回に送る。
     ///
-    /// - Parameter score: そのゲームの成績（#115）。省略すると勝敗だけが記録される。
+    /// - Parameters:
+    ///   - score: そのゲームの成績（#115）。省略すると勝敗だけが記録される。
+    ///   - isReviewHighlight: その勝ちが評価リクエストの「見せ場」か（#1471）。既定は true
+    ///     （＝勝てば見せ場）。ブラックジャックのブラックジャック・ポーカーの役・対 CPU 盤面ゲームの
+    ///     強さなど、勝ちの中でも絞りたいゲームだけ false を渡す。**自己ベストの更新は、ここで渡した
+    ///     値にかかわらず全ゲーム共通で見せ場になる**（連勝記録は含めない）。
     /// - Returns: 更新後の自己ベストと更新内訳。リザルトに `RecordLabel` で 1 行出すのに使う。
     ///   記録を持たない構成（テスト・プレビュー）では nil。
     @MainActor
@@ -214,7 +246,8 @@ public struct GameServices {
     public func gameDidFinish(
         gameID: String,
         outcome: GameOutcome,
-        score: GameScore = GameScore()
+        score: GameScore = GameScore(),
+        isReviewHighlight: Bool = true
     ) -> RecordResult? {
         // 記録が先。リザルトは戻り値をそのまま描画するため、他の依頼より前に確定させる。
         let result = playLog?.recordResult(gameID: gameID, outcome: outcome, score: score)
@@ -223,7 +256,11 @@ public struct GameServices {
         // 決着した局には「途中のままです」を予約しない（#663）。将棋・チェスは終局後も見返しを
         // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
         reminders?.gameDidFinish(gameID: gameID)
-        let willRequestReview = review?.gameDidFinish(outcome: outcome) ?? false
+        let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
+        let willRequestReview = review?.gameDidFinish(
+            outcome: outcome,
+            isHighlight: isReviewHighlight || isNewScoreBest
+        ) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、
         // 勝利数を増やす `review`（`recordWin`）と、遊んだゲームを記録する `recommendations`

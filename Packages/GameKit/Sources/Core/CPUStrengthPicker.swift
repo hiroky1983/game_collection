@@ -31,11 +31,8 @@ public struct CPUStrengthPicker: View {
     private let details: [String]
     @Binding private var level: Int
 
-    /// タイルが4つ横に並ぶので、標準より一回り小さく詰める。最長の「むずかしい」は
-    /// 狭い端末（iPhone SE）で縮めて1行に収める。
-    private static let metrics = GameSetupChooser.Metrics(
-        title: .body(15), verticalPadding: 14, titleMinimumScale: 0.7
-    )
+    /// 寸法は他ゲームの難易度タイルと同じ（`DifficultyTile`・#1417）。
+    private static let metrics = DifficultyTile.metrics
 
     public init(level: Binding<Int>, details: [String]) {
         _level = level

@@ -51,8 +51,11 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
     }
 
     func cancelAll() {
-        // 接頭辞で絞って消す（#1268: 以前は無条件に全消去しており、#1223 で増えた
-        // 久しぶり通知（`reengagement-reminder.`）の予約まで巻き込んでいた）。
+        // 再エンゲージメント通知（#1193）が別の識別子空間で予約されるようになったため、
+        // 全消し（removeAllPendingNotificationRequests）は使わず、続きのお知らせだけを対象にする
+        // （CodeRabbit 指摘・PR #1228。全消しだとオンのままの再エンゲージメント通知も巻き込む）。
+        // 接頭辞で絞る実装そのものが崩れて #1223 の久しぶり通知（`reengagement-reminder.`）まで
+        // 巻き込んで消えていた不整合を #1268 で直したのもこの箇所。
         Task { await Self.cancelAllPendingAndDelivered() }
     }
 
@@ -121,6 +124,11 @@ enum ReengagementReminderNotification {
 final class UserNotificationReengagementScheduler: ReengagementReminderScheduler {
     private var center: UNUserNotificationCenter { .current() }
 
+    /// `schedule` / `cancelAll` は通知センターへの問い合わせを挟むため、直列化しないと
+    /// 「`cancelAll` が問い合わせている間に `schedule` が割り込み、その予約ごと消される」
+    /// 競合が起きうる（CodeRabbit 指摘・PR #1228）。#663 の `pendingWork` と同じ設計。
+    private var pendingOperation: Task<Void, Never>?
+
     func authorization() async -> ReminderAuthorization {
         switch await Self.authorizationStatus() {
         case .authorized:               return .authorized
@@ -138,11 +146,17 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
     }
 
     func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
-        // 前回の予約が残っているとインデックスがずれて末尾が重複するため、採番し直す前に必ず消す。
-        let identifiers = ReengagementReminderPolicy.offsetDays.indices
-            .map { ReengagementReminderNotification.identifier(for: gameID, index: $0) }
-        center.removePendingNotificationRequests(withIdentifiers: identifiers)
-        await Self.add(gameID: gameID, fireDates: fireDates, title: title, body: body)
+        let previous = pendingOperation
+        let task = Task<Void, Never> {
+            await previous?.value
+            // 前回の予約が残っているとインデックスがずれて末尾が重複するため、採番し直す前に必ず消す。
+            let identifiers = ReengagementReminderPolicy.offsetDays.indices
+                .map { ReengagementReminderNotification.identifier(for: gameID, index: $0) }
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            await Self.add(gameID: gameID, fireDates: fireDates, title: title, body: body)
+        }
+        pendingOperation = task
+        await task.value
     }
 
     func cancel(gameID: String) {
@@ -153,7 +167,12 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
     }
 
     func cancelAll() {
-        Task { await Self.cancelAllPendingAndDelivered() }
+        let previous = pendingOperation
+        let task = Task<Void, Never> {
+            await previous?.value
+            await Self.cancelAllPendingAndDelivered()
+        }
+        pendingOperation = task
     }
 
     // 通知センターの応答型は Sendable でないため、MainActor へ持ち込まずに値だけ取り出す。

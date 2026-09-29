@@ -107,7 +107,14 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
 
-        if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
+        var loaded = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku")
+        // 盤の寸法・着手の座標が範囲外の中断データは、読むと添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, !Self.isRestorable(snap) {
+            services?.snapshots.clear(for: "gomoku")
+            loaded = nil
+        }
+        if let snap = loaded {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
             aiLevel   = snap.aiLevel
             forbiddenMoves = snap.forbiddenMoves ?? false
@@ -183,7 +190,18 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
         // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
         // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
-        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+        if isFreshStart { pendingInitialStart = true }
+    }
+
+    /// 開始シートを出す局の `game_start` は、最初の操作かシートを閉じた時点まで遅らせる（#1372）。
+    /// シートで「開始」を押すと `newGame` が選んだ強さ付きで数えるので、`init` で先に数えると
+    /// 1 局が 2 回 `game_start` になる（`game_end` は 1 回）。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: gameID)
     }
 
     /// 盤面へのタップ。**盤外の座標を渡してよい**（範囲判定もここで行う）。
@@ -227,19 +245,24 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastMove = (row, col)
         moveCount += 1
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        startPlayIfPending()
         services?.gameDidProgress(gameID: gameID)
         if let line = board.winningLine(row: row, col: col) {
             winningLine = line
             winner = currentStone
             services?.feedback.notify(mover == humanSide ? .success : .error)
+            startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: mover == humanSide ? .win : .loss,
-                score: hints.winLossScore
+                score: hints.winLossScore,
+                // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+                isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
             )
         } else if board.isFull {
             isDraw = true
             services?.feedback.notify(.warning)
+            startPlayIfPending()
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .draw, score: hints.winLossScore)
         } else {
             currentStone = currentStone.opponent
@@ -309,13 +332,16 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
 
-    /// 残り回数（`BoardHintButton` が読む）。
+    /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
 
     /// いまヒントを押せるか。**自分の手番で、対局中で、残りが在るとき**だけ。
     public var canUseHint: Bool {
         !gameOver && !hints.isExhausted && !isAITurn && !isThinking && !isHintThinking
     }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか（#1500）。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
 
     /// 現在の盤面の最善手を 1 手求め、盤の上に示す（#1118。将棋・チェスと同型）。
     ///
@@ -339,12 +365,49 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             guard !gameOver, !isAITurn, !hints.isExhausted,
                   let (row, col) = move, board[row, col] == nil,
                   hints.consume() else { return }
+            startPlayIfPending()
             services?.gameDidUseHint(gameID: gameID)
             hintPoint = GomokuPoint(row: row, col: col)
             services?.feedback.impact(.light)
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
             persist()
         }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（会長決裁 2026-09-27・#1500。
+    /// 将棋 `ShogiGameModel.requestAdHint` と同型）。
+    ///
+    /// 広告の視聴完了を確かめてから CPU の読みを始める（読み終えてから広告を流さない契約）。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let b = board
+            let stone = currentStone
+            let renju = forbiddenMovesEnabled
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleGomokuEngine(level: BoardHintBudget.engineLevel, forbiddenMoves: renju)
+                    .bestMove(board: b, stone: stone)
+            }.value
+        } commit: { move in
+            guard !gameOver, !isAITurn, !hints.isExhausted,
+                  let (row, col) = move, board[row, col] == nil,
+                  hints.consumeAd() else { return }
+            startPlayIfPending()
+            services?.gameDidUseHint(gameID: gameID)
+            hintPoint = GomokuPoint(row: row, col: col)
+            services?.feedback.impact(.light)
+            persist()
+            outcome = .granted
+        }
+        return outcome
     }
 
     public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1, forbiddenMoves: Bool = false) {
@@ -374,6 +437,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
         isHintThinking = false
         persist()
+        pendingInitialStart = false
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
@@ -388,6 +452,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         resigned = true
         winner = humanSide.opponent
         services?.feedback.notify(.error)
+        startPlayIfPending()
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
         persist()
     }
@@ -438,6 +503,16 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         guard turn == aiTurnKey, canUndo else { return false }
         undoLastExchange()
         return true
+    }
+
+    /// 復元してよい中断データか。座標は盤の内側、手順が無い旧形式は盤の升数が合っていること。
+    private static func isRestorable(_ snap: GomokuSnapshot) -> Bool {
+        if let history = snap.moveHistory {
+            return history.allSatisfy {
+                (0..<gomokuBoardSize).contains($0.row) && (0..<gomokuBoardSize).contains($0.col)
+            }
+        }
+        return snap.cells.count == gomokuBoardSize * gomokuBoardSize
     }
 
     private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {

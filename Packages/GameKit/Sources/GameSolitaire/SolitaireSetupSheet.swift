@@ -6,7 +6,7 @@ import Core
 /// **ここで選んだ値は配札と同時に焼き込まれ、その局の途中では変えられない**
 /// （`docs/ai-devops.md`「1局=1RuleSet」原則）。ソリティアは起動したらすぐ遊べるのが
 /// 身上なので、**初回の配札ではこのシートを出さない**（既定の1枚めくりで即座に配る）。
-/// 出るのはツールバーの「新規ゲーム」を押したときだけ。
+/// 出るのはツールバーの「新規ゲーム」を押したときだけ。枠は共通の `GameSetupSheet`（#1416）。
 ///
 /// #498 以前にそこで出していた確認ダイアログ（「新しい配札にしますか？」）は、
 /// **このシートが兼ねる**。途中の盤面があるときは同じ警告をここに出し、
@@ -17,60 +17,45 @@ public struct SolitaireSetupSheet: View {
     /// 途中の盤面を捨てて配り直すことになるか。文言だけを切り替える。
     let discardsProgress: Bool
     let onStart: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onCancel: () -> Void
 
     public init(
         draft: Binding<SolitaireRuleSet>,
         discardsProgress: Bool,
-        onStart: @escaping () -> Void
+        onStart: @escaping () -> Void,
+        onCancel: @escaping () -> Void
     ) {
         self._draft = draft
         self.discardsProgress = discardsProgress
         self.onStart = onStart
+        self.onCancel = onCancel
     }
 
     public var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("山札のめくり方", selection: $draft.drawMode) {
-                        ForEach(SolitaireDrawMode.allCases, id: \.self) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("山札のめくり方")
-                } footer: {
-                    Text(Self.footer(for: draft.drawMode))
-                }
-
-                if discardsProgress {
-                    Section {
-                        Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
-                              systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(Theme.coral)
+        // 途中の盤面を捨てることになる場合だけ、開始ボタンが「終了してスタート」の確認文言になる
+        // （旧・確認ダイアログの「終了して新規ゲーム」と同じ重み）。
+        GameSetupSheet(
+            kind: .solo, discardsProgress: discardsProgress,
+            onStart: onStart, onCancel: onCancel
+        ) {
+            GameSetupSection("山札のめくり方") {
+                HStack(spacing: 12) {
+                    ForEach(SolitaireDrawMode.allCases, id: \.self) { mode in
+                        GameSetupChooser(
+                            title: mode.label, subtitle: "",
+                            selected: draft.drawMode == mode, accent: Theme.Fill.teal
+                        ) { draft.drawMode = mode }
                     }
                 }
+                Text(Self.footer(for: draft.drawMode))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
             }
-            .navigationTitle("新しい配札")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    // 途中の盤面を捨てることになる場合だけ破棄扱いにする（旧・確認ダイアログの
-                    // 「終了して新規ゲーム」と同じ重み）。
-                    Button(role: discardsProgress ? .destructive : nil) {
-                        onStart()
-                    } label: {
-                        Text(discardsProgress ? "終了して配る" : "配る")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                    }
-                }
+            if discardsProgress {
+                Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.coral)
             }
         }
     }

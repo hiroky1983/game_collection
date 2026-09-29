@@ -21,10 +21,27 @@ struct MahjongSolitaireBoardMetricsTests {
 
     typealias Metrics = MahjongSolitaireBoardMetrics
 
-    @Test("盤面は横 15.56 枚・縦 8.56 枚ぶんの広さ")
+    /// 盤面の枠は牌の外接矩形（会長 QA 2026-09-28）。上の段は山の中ほどにしか無いので、亀甲は
+    /// 地の段の 15×8 枚ぶんちょうど。以前は最上段ぶんのずらし（0.56 枚）を右と上に足していて、山が左に寄った。
+    @Test("盤面は横 15 枚・縦 8 枚ぶんの広さ（牌の外接矩形）")
     func canvasExtent() {
-        #expect(abs(Metrics.canvasWidthInTiles(layout: .turtle) - 15.56) < 0.001)
-        #expect(abs(Metrics.canvasHeightInTiles(layout: .turtle) - 8.56) < 0.001)
+        #expect(abs(Metrics.canvasWidthInTiles(layout: .turtle) - 15) < 0.001)
+        #expect(abs(Metrics.canvasHeightInTiles(layout: .turtle) - 8) < 0.001)
+    }
+
+    /// 枠の中で山が片側に寄らないこと。どのかたちも牌の外接矩形がそのまま枠になり、
+    /// 左端・上端の牌が 0 に、右端・下端の牌が枠の端にぴったり接する（余白が片側にだけ残らない）。
+    @Test("どのかたちも牌が枠の四辺に接する（山が枠の中で偏らない）", arguments: MahjongSolitaireLayout.all)
+    func tilesTouchEveryEdgeOfTheCanvas(layout: MahjongSolitaireLayout) {
+        let tileWidth: CGFloat = 30
+        let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: layout)
+        let frames = layout.positions.indices.map {
+            Metrics.tileFrame(index: $0, tileWidth: tileWidth, layout: layout)
+        }
+        #expect(abs(frames.map(\.minX).min()! - 0) < 0.001, "\(layout.displayName) の左に余白が残る")
+        #expect(abs(frames.map(\.minY).min()! - 0) < 0.001, "\(layout.displayName) の上に余白が残る")
+        #expect(abs(frames.map(\.maxX).max()! - canvas.width) < 0.001, "\(layout.displayName) の右に余白が残る")
+        #expect(abs(frames.map(\.maxY).max()! - canvas.height) < 0.001, "\(layout.displayName) の下に余白が残る")
     }
 
     @Test(
@@ -43,10 +60,10 @@ struct MahjongSolitaireBoardMetricsTests {
         arguments: [iPhoneSE, iPhone17]
     )
     func fittingTileIsBelowTapTargetOnPhones(size: CGSize) {
-        // 44pt の牌で盤面全体を出すには 684.6pt の幅が要る。iPhone では成立しないため
+        // 44pt の牌で盤面全体を出すには 660pt の幅が要る（外接矩形の 15 枚ぶん）。iPhone では成立しないため
         // 「全体表示を既定に戻す」と #196 の受け入れ条件を満たせなくなる。この関係が崩れたら気づけるようにする。
         #expect(Metrics.fittingTileWidth(in: size, layout: .turtle) < 44)
-        #expect(44 * Metrics.canvasWidthInTiles(layout: .turtle) > 680)
+        #expect(44 * Metrics.canvasWidthInTiles(layout: .turtle) > 640)
     }
 
     @Test("全体表示では盤面が与えられた領域に収まる", arguments: [iPhoneSE, iPhone17])
@@ -143,88 +160,27 @@ struct MahjongSolitaireBoardMetricsTests {
         }
     }
 
-    // MARK: - 表示切り替えボタン（#197）
+    // MARK: - 操作は右下の「⋯」へ（#1468）
 
-    @Test("表示切り替えボタンのタップ標的は 44pt 以上")
-    func displayToggleMeetsTapTarget() throws {
-        // 修正前は `padding(.horizontal, 8).padding(.vertical, 5)` + フォント 13 で実測 29×23pt だった。
-        // 全体像を取り戻す唯一の入口なので、牌と同じ基準を満たす。
-        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
-
-        // 定数だけ見ても意味が無い。View が **この定数を** frame に渡していなければ、
-        // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
-        // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する
-        // （`MotionTests.noRawAnimationOutsideCore` と同じやり方）。
-        //
-        // frame を持っているのは共通の `BoardToggleButton`（Core・#641）へ移った。結線は
-        // 「この定数が共通枠の寸法と同じ値」＋「View が共通枠を使っている」の 2 点に分かれる
-        // （共通枠が frame にこの寸法を渡していることは `BoardToggleButtonTests` が押さえる）。
-        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide,
-                "帯の高さの見積りがボタンの実寸から外れている")
-
-        let source = try Self.viewSource()
-        #expect(
-            source.contains("BoardToggleButton("),
-            "MahjongSolitaireView が共通の BoardToggleButton を使っていない（タップ標的が切れている）"
-        )
-    }
-
-    @Test("44pt のボタンを置いてもステータスバーは高くならない")
-    func statusBarStaysAsShortAsBefore() {
-        // 帯の高さ = max(中身の高さ) + 上下の余白 ×2。
-        // 修正前の中身でいちばん高いのは 28pt の絵文字（行の高さ ≈ 33.4pt）で、余白は 8 だった。
-        let emojiLineHeight: CGFloat = 33.4
-        let before = emojiLineHeight + 8 * 2
-        let after = max(emojiLineHeight, Metrics.toggleButtonMinSide) + Metrics.statusBarVerticalPadding * 2
-        // 盤面（残りの高さいっぱいに牌を敷く）を削らないことが条件（#148）。3pt 以内の増加に収める。
-        #expect(after - before <= 3)
-        // 余白を詰めすぎてボタンが帯からはみ出さないこと。
-        #expect(Metrics.statusBarVerticalPadding > 0)
-    }
-
-    @Test("ステータスバーの余白も View が Metrics の値を使っている")
-    func statusBarPaddingIsWiredToMetrics() throws {
-        let source = try Self.viewSource()
-        #expect(
-            source.range(
-                of: #"\.padding\(\.vertical,\s*Metrics\.statusBarVerticalPadding\)"#,
-                options: .regularExpression
-            ) != nil,
-            "ステータスバーの余白が Metrics から切れている（帯の高さの見積りが効かなくなる）"
-        )
+    @Test("状態の帯にボタン・トグルは無い。全体表示⇄拡大は「⋯」のチェック付き項目")
+    func displayToggleLivesInTheMenu() throws {
+        let source = SourceScan.strippingComments(try Self.viewSource())
+        #expect(!source.contains("BoardToggleButton("), "帯に切り替えボタンが残っている")
+        #expect(source.contains(#"GameControlMenuItem("#))
+        #expect(source.contains(#"id: "zoom""#))
+        #expect(SourceScan.matchCount(of: #"GameOverflowBar\("#, in: source) == 1)
     }
 
     // MARK: - 操作ボタンと演出（#199）
 
-    @Test("操作ボタン（ヒント・並べ替え・戻す）のタップ標的は 44pt 以上")
-    func gameControlButtonsMeetTapTarget() throws {
-        // 修正前は `padding(.horizontal, 12).padding(.vertical, 6)` + 本文 14pt で実測 約29pt だった。
-        // #198 でアイコンだけの段には 44pt が入ったが、既定の文字サイズで出る**文字付きの段**は
-        // 保留されていた（#199 のスコープ）。3 つとも同じ下限に揃える。
-        #expect(Metrics.controlButtonMinHeight >= Metrics.minimumTapTarget)
-
-        // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する
-        // （#197 の `displayToggleMeetsTapTarget` と同じやり方）。3 つのボタンは共通の
-        // `controlButton(_:systemImage:tint:showsTitle:action:)` を通るので、結線の点は 1 つ。
-        let source = try Self.viewSource()
-        #expect(
-            source.range(
-                of: #"minHeight:\s*Metrics\.controlButtonMinHeight"#,
-                options: .regularExpression
-            ) != nil,
-            "共通の controlButton が Metrics.controlButtonMinHeight を使っていない"
-        )
-        // 段を切り替える三項演算子（`showsTitle ? nil : …`）が高さ側に戻ると、
-        // 文字付きの段だけ 29pt に逆戻りする。そこも塞ぐ。
-        #expect(
-            source.range(
-                of: #"minHeight:\s*showsTitle\s*\?"#,
-                options: .regularExpression
-            ) == nil,
-            "文字付きの段だけ高さの下限が外れている（#199 の逆戻り）"
-        )
-        // ヒント・並べ替え・戻すの 3 つが同じヘルパーを通っていること。
-        #expect(SourceScan.matchCount(of: #"controlButton\("#, in: source) >= 3)
+    @Test("戻す・並べ替え・ヒントは「⋯」メニューに入っていて、画面ごとの手描きボタンは無い")
+    func controlsLiveInTheMenu() throws {
+        let source = SourceScan.strippingComments(try Self.viewSource())
+        for id in ["undo", "shuffle", "hint"] {
+            #expect(source.contains("id: \"\(id)\""), "\(id) が「⋯」メニューに無い")
+        }
+        #expect(SourceScan.matchCount(of: #"controlButton\("#, in: source) == 0)
+        #expect(SourceScan.matchCount(of: #"GameControlButton\("#, in: source) == 0)
     }
 
     @Test("牌の消失・枠色の演出は Reduce Motion 追従のヘルパー経由で盤面に掛かっている")

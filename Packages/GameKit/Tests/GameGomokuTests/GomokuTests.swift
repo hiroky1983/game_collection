@@ -293,31 +293,19 @@ struct GomokuStrengthLabelTests {
         }
     }
 
-    /// 「投了」「待った」が両方とも共通のカプセル（枠 44pt・`BoardGameControlCapsuleStyle`）を通り、操作列の余白を詰めている（#711）。
-    /// 以前は「待った」だけが枠の無い素の文字で、当たり判定が約 17pt しかなかった。
-    /// ボタンの中身は Core の `BoardResignButton` / `BoardUndoButton` に寄せた（#828）ので、ここでは見た目の選び方を見る。
-    /// 選んだ見た目が共通のカプセルを通り、押せない状態が結線されていることは `BoardGameChromeTests` が固定する。
-    @Test func gameControlsUseCapsuleStyleForBothButtons() throws {
+    /// 盤下の操作行は共通部品 `BoardGameControlBar`（待った + 「⋯」メニュー・高さ 44pt 固定）を通る（#1421）。
+    /// 手書きのカプセルや個別の投了ボタンが残ると、ゲームごとに見た目・外寸が食い違う。
+    /// 部品の中身（44pt・メニュー）は `BoardGameChromeTests` が固定する。
+    @Test func gameControlsUseSharedControlBar() throws {
         let controls = SourceScan.strippingComments(
             SourceScan.functionSource(startingWith: "private var gameControls: some View {", in: try Self.viewSource())
         )
         try #require(!controls.isEmpty, "走査の前提が壊れている: gameControls が見つからない")
-        #expect(
-            SourceScan.matchCount(of: #"BoardResignButton\(look: \.tapTargetCapsule\)"#, in: controls) == 1,
-            "「投了」が共通のカプセルを通っていない"
-        )
-        #expect(
-            SourceScan.matchCount(of: #"BoardUndoButton\([^)]*usesTapTargetCapsule: true\)"#, in: controls) == 1,
-            "「待った」が共通のカプセルを通っていない"
-        )
-        // 手書きのカプセルが残っていると、そちらの外寸・当たり判定が効いてしまう。
+        #expect(SourceScan.matchCount(of: #"BoardGameControlBar\("#, in: controls) == 1,
+                "盤下の操作行が共通部品を通っていない")
         #expect(SourceScan.matchCount(of: #"\.background\(Capsule\(\)"#, in: controls) == 0)
-        // ボタンの枠が 44pt になったぶん操作列の余白を詰めていないと、操作列が 14pt 高くなり盤が縮む（#148）。
-        #expect(
-            SourceScan.matchCount(of: #"\.padding\(\.vertical, BoardGameControlMetrics\.rowVerticalPadding\)"#, in: controls) == 1,
-            "操作列の上下の余白が BoardGameControlMetrics.rowVerticalPadding になっていない"
-        )
-        #expect(SourceScan.matchCount(of: #"\.padding\(\.vertical, 8\)"#, in: controls) == 0)
+        #expect(SourceScan.matchCount(of: #"BoardResignButton|BoardUndoButton"#, in: controls) == 0,
+                "投了・待ったを個別に並べ直している")
     }
 
     // MARK: - ヘルパー

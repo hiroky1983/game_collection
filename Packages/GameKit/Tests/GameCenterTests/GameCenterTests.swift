@@ -21,6 +21,12 @@ import GameRunner
 import GameHanafuda
 import GameShiritori
 import GameFifteen
+import GameRoulette
+import GameFruits
+import GameColorRelay
+import GameAnzan
+import GameBackgammon
+import GameSpeed
 import GameSpider
 import GameChess
 import GameBlocks
@@ -91,6 +97,7 @@ private func makeHubModules() -> [GameModule] {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
+        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
     ]
 }
 
@@ -221,7 +228,7 @@ struct GameCenterLeaderboardTests {
 
     @Test("勝敗しか残らないゲームは対象外")
     func winLossGamesAreExcluded() {
-        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration"] {
+        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay", "backgammon"] {
             #expect(
                 GameCenterLeaderboard.score(
                     gameID: gameID, outcome: .win, score: GameScore(metric: .winLoss)
@@ -300,6 +307,9 @@ struct GameCenterLeaderboardTests {
             // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
             ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
             ("hanafuda", GameScore(metric: .points, points: 1)),
+            ("roulette", GameScore(metric: .points, points: 1)),
+            ("fruits", GameScore(metric: .points, points: 1)),
+            ("homerun", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID

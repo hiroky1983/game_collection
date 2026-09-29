@@ -13,6 +13,14 @@ public protocol AdService {
     @MainActor func showInterstitial() async
     /// リワード広告を表示し、視聴完了なら true を返す。ロード失敗・キャンセル時は false。
     @MainActor func showRewardedAd() async -> Bool
+    /// いまタップされたら、読み込みを待たずにリワード広告を出せるか（先読み済みか・#658）。
+    /// `reward_offer` の `result`（`accepted` / `not_ready`）の判定にだけ使う（#780）。
+    @MainActor var isRewardedAdReady: Bool { get }
+}
+
+public extension AdService {
+    /// 先読みを持たない実装（テスト・広告を出さない構成）は、待たせずに結果を返すので常に true。
+    @MainActor var isRewardedAdReady: Bool { true }
 }
 
 /// 広告を出さない実装。

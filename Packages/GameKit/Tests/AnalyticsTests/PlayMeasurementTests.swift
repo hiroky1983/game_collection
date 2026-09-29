@@ -7,12 +7,14 @@ import CoreTestSupport
 
 // MARK: - Mocks
 
-/// 視聴完了 / 未完了を指定できる広告。
+/// 視聴完了 / 未完了と、先読み済みかを指定できる広告。
 private struct StubAdService: AdService {
     let earnsReward: Bool
+    var isReady = true
     @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
     @MainActor func showInterstitial() async {}
     @MainActor func showRewardedAd() async -> Bool { earnsReward }
+    @MainActor var isRewardedAdReady: Bool { isReady }
 }
 
 /// 進む時計。**実時間を待たない**（実時間の待ち合わせは並列実行で落ちるため）。
@@ -34,13 +36,14 @@ private func makeAnalytics(clock: TestClock = TestClock()) -> (GameAnalytics, Sp
 @MainActor
 private func makeServices(
     earnsReward: Bool = true,
+    isAdReady: Bool = true,
     snapshots: SnapshotStore = MemorySnapshotStore(),
     clock: TestClock = TestClock()
 ) -> (GameServices, SpyAnalyticsService) {
     let (analytics, spy) = makeAnalytics(clock: clock)
     let services = GameServices(
         snapshots: snapshots,
-        ads: StubAdService(earnsReward: earnsReward),
+        ads: StubAdService(earnsReward: earnsReward, isReady: isAdReady),
         analytics: analytics
     )
     return (services, spy)
@@ -140,8 +143,85 @@ struct QuitTrackingTests {
 
         #expect(spy.quits.isEmpty, "休憩を離脱として数えない")
         #expect(spy.ends.map(\.result) == [.win])
-        #expect(spy.ends.first?.durationSec == 90, "経過秒は最初の開始からの通算")
+        #expect(spy.ends.first?.durationSec == 70, "経過秒は前面で遊んだ時間の通算（休憩の 20 秒は入れない・#1373）")
         #expect(spy.starts.count == 1, "再開で game_start は増えない")
+    }
+
+    @Test("バックグラウンドにいた時間は duration_sec に入れない（#1373）")
+    func backgroundTimeIsExcluded() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(600)
+        analytics.appDidBecomeActive()
+        clock.advance(5)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 15)
+    }
+
+    @Test("休憩中にバックグラウンドを挟んでも、休憩ぶんを二重に引かない（#1373）")
+    func restingAndBackgroundAreNotDoubleCounted() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        clock.advance(100)
+        analytics.appDidResignActive()
+        clock.advance(100)
+        analytics.appDidBecomeActive()
+        clock.advance(100)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(7)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 17)
+    }
+
+    @Test("前面に戻る前に決着しても、離れていた時間は入れない（#1373）")
+    func finishingWhileStillInBackgroundExcludesTheAwayTime() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(600)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 10)
+    }
+
+    @Test("バックグラウンド中に休憩が始まっても、休憩前の前面の時間は残す（#1373）")
+    func restStartingWhileInactiveKeepsTheActivePart() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(10)
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        clock.advance(10)
+        analytics.appDidBecomeActive()
+        clock.advance(10)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(3)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 13)
+    }
+
+    @Test("duration_sec は 2 時間で頭打ちになる（#1373）")
+    func durationIsCapped() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(5 * 60 * 60)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 7200)
     }
 
     @Test("中断データが残らない離れ方は、1手でも指していれば quit")
@@ -378,6 +458,195 @@ struct OpenAndRequestTrackingTests {
     }
 }
 
+// MARK: - リワード広告の提示（#780）
+
+/// 救済の中で立つ `Task` が終わるまで待つ。実時間は待たない（スタブの広告は中断点を持たない）。
+@MainActor
+private func settle() async {
+    for _ in 0..<10 { await Task.yield() }
+}
+
+@Suite("リワード広告の提示の計測（#780）")
+@MainActor
+struct RewardOfferTrackingTests {
+    @Test("提示中に広告ボタンを押すと、広告を出す前に accepted を1回だけ送る")
+    func acceptedIsSentOnceBeforeTheAd() async {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "2048", purpose: .continue)
+        rescue.request(services, gameID: "2048", purpose: .continue, guardedBy: .checkedByGrant) { true }
+        rescue.offerDidClose()   // 報酬を受け取って幕が閉じた
+        await settle()
+
+        #expect(spy.offers.map(\.result) == [.accepted])
+        #expect(spy.offers.first?.gameID == "2048")
+        #expect(spy.offers.first?.purpose == .continue)
+        #expect(spy.events.map(\.name) == ["reward_offer", "reward_request", "reward_ad"],
+                "先読みの有無は広告を出す前に読む")
+    }
+
+    @Test("先読みの広告が無いときに押すと not_ready")
+    func notReadyWhenNoPreloadedAd() async {
+        let (services, spy) = makeServices(isAdReady: false)
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "solitaire", purpose: .revival)
+        rescue.requestHandledByModel(withOutcome: { .granted })
+        await settle()
+
+        #expect(spy.offers.map(\.result) == [.notReady])
+    }
+
+    @Test("押さずに閉じると declined を1回だけ送る（重ねて閉じても増えない）")
+    func declinedWhenClosedWithoutTapping() {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "solitaire", purpose: .undo)
+        rescue.offerDidShow(services, gameID: "solitaire", purpose: .undo)   // 再描画で重ねて呼ばれても1回の提示
+        rescue.offerDidClose()
+        rescue.offerDidClose()
+
+        #expect(spy.offers.map(\.result) == [.declined])
+        #expect(spy.requests.isEmpty)
+    }
+
+    @Test("見なかった後にもう一度押しても、同じ提示を2回目として数えない")
+    func retryWithinTheSameOfferIsNotAnotherOffer() async {
+        let (services, spy) = makeServices(earnsReward: false)
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "2048", purpose: .continue)
+        rescue.request(services, gameID: "2048", purpose: .continue, guardedBy: .checkedByGrant) { true }
+        await settle()
+        rescue.request(services, gameID: "2048", purpose: .continue, guardedBy: .checkedByGrant) { true }
+        await settle()
+        rescue.offerDidClose()   // 結局あきらめて閉じた
+
+        #expect(spy.offers.map(\.result) == [.accepted], "提示は1回")
+        #expect(spy.requests.count == 2, "タップの数は reward_request が持つ")
+    }
+
+    @Test("提示が無い押し方（常設のボタン）は reward_offer を送らない")
+    func noOfferWithoutPresentation() async {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        rescue.request(services, gameID: "sudoku", purpose: .hint, guardedBy: .checkedByGrant) { true }
+        await settle()
+
+        #expect(spy.offers.isEmpty)
+        #expect(spy.requests.count == 1)
+    }
+
+    @Test("閉じたあとにまた出たら、次の1回の提示として数える")
+    func nextPresentationIsCountedAgain() {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        for _ in 0..<3 {
+            rescue.offerDidShow(services, gameID: "sudoku", purpose: .continue)
+            rescue.offerDidClose()
+        }
+        #expect(spy.offers.map(\.result) == [.declined, .declined, .declined])
+    }
+
+    @Test("提示はプレイの数え方に影響せず、ハブに無い gameID・送信オフでは送らない")
+    func offerDoesNotTouchPlayStateAndRespectsGates() {
+        let (services, spy) = makeServices()
+        services.gameDidStart(gameID: "2048")
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "2048", purpose: .continue)
+        rescue.offerDidClose()
+        services.gameDidFinish(gameID: "2048", outcome: .loss)
+        #expect(spy.starts.count == 1)
+        #expect(spy.ends.map(\.result) == [.loss])
+
+        let unknown = RewardedRescue()
+        unknown.offerDidShow(services, gameID: "device-1234", purpose: .continue)
+        unknown.offerDidClose()
+        #expect(spy.offers.count == 1, "登録されていない gameID は捨てる")
+
+        let gatedSpy = SpyAnalyticsService()
+        let gated = GameServices(
+            snapshots: MemorySnapshotStore(), ads: StubAdService(earnsReward: true),
+            analytics: GameAnalytics(service: GatedAnalyticsService(base: gatedSpy) { false },
+                                     allowedGameIDs: testGameIDs)
+        )
+        let off = RewardedRescue()
+        off.offerDidShow(gated, gameID: "2048", purpose: .continue)
+        off.offerDidClose()
+        #expect(gatedSpy.events.isEmpty)
+    }
+}
+
+/// 提示の計測は各画面の View が「出ているか」を渡さないと出ない。View はテストから動かせないので、
+/// `RewardGuardCallSiteTests` と同じくソースを走査して、救済ごとに提示の結線があることを固定する（#780）。
+@Suite("リワード広告の提示の結線（#780）")
+struct RewardOfferWiringTests {
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
+
+    /// モジュール名 → そのモジュールの全ソースを連結した文字列。
+    private static func modules() throws -> [String: String] {
+        var joined: [String: String] = [:]
+        for path in try FileManager.default.subpathsOfDirectory(atPath: sourcesRoot.path)
+        where path.hasSuffix(".swift") {
+            let module = String(path.prefix(while: { $0 != "/" }))
+            joined[module, default: ""] += try String(contentsOf: sourcesRoot.appendingPathComponent(path), encoding: .utf8)
+        }
+        return joined
+    }
+
+    /// 提示の瞬間が無いので数えない救済（モジュール名.変数名）。常設の「ヒント」ボタンで、
+    /// 押すと確認を挟まずに広告へ進む（`reward_request ÷ game_start` で読む）。
+    /// 将棋・チェス・五目並べのヒント（無料3回を使い切った後・#1500）も同じ形なので加える。
+    private static let unpresentedRescues: Set<String> = [
+        "GameSudoku.hintRescue",
+        "GameShogi.hintRescue",
+        "GameChess.hintRescue",
+        "GameGomoku.hintRescue",
+    ]
+
+    @Test("各ゲームの救済は、提示の結線を持つか Core の部品（待った・コンティニューの幕）へ渡している")
+    func everyRescueIsWiredToAnOffer() throws {
+        let modules = try Self.modules()
+        let declaration = try NSRegularExpression(pattern: #"var (\w+) = RewardedRescue\(\)"#)
+        var declared: [String] = []
+        var unwired: [String] = []
+        for (module, text) in modules where module != "Core" {
+            let range = NSRange(text.startIndex..., in: text)
+            for match in declaration.matches(in: text, range: range) {
+                guard let nameRange = Range(match.range(at: 1), in: text) else { continue }
+                let name = String(text[nameRange])
+                let key = "\(module).\(name)"
+                declared.append(key)
+                let wired = text.contains(".rewardOffer(\(name),") || text.contains("rescue: \(name)")
+                if !wired && !Self.unpresentedRescues.contains(key) { unwired.append(key) }
+            }
+        }
+        #expect(declared.count >= 20, "走査のパターンが壊れている可能性（宣言 \(declared.count) 件）")
+        #expect(unwired.isEmpty, "提示を数えていない救済がある: \(unwired.sorted())")
+        // 除外は実在して、かつ本当に結線していないものだけ（直したら除外から外す）。
+        for key in Self.unpresentedRescues {
+            #expect(declared.contains(key), "除外リストの \(key) が見つからない")
+            let parts = key.split(separator: ".")
+            #expect(modules[String(parts[0])]?.contains(".rewardOffer(\(parts[1]),") == false,
+                    "\(key) は結線済みなので除外から外す")
+        }
+    }
+
+    @Test("Core の待ったとコンティニューの幕は、自分で提示を数えている")
+    func coreComponentsTrackTheirOffers() throws {
+        let core = try #require(try Self.modules()["Core"])
+        #expect(core.contains(".rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed"),
+                "盤ゲームの待った（無料の確認は数えない）")
+        #expect(core.contains(".rewardOffer(continueRescue, for: .continue, isPresented: canContinue"),
+                "コンティニューの幕")
+    }
+
+    @Test("救済の3つの入口は、広告を出す前に提示を受諾として閉じる")
+    func everyEntryResolvesTheOfferFirst() throws {
+        let core = try #require(try Self.modules()["Core"])
+        let entries = core.components(separatedBy: "isWatching = true\n        offerDidAccept()").count - 1
+        #expect(entries == 3, "request・requestHandledByModel 2種のどれかで受諾を閉じていない（\(entries) 件）")
+    }
+}
+
 // MARK: - ハブの遷移計測の結線（#659）
 
 /// `game_open` の発火点は App ターゲット（`HubView`）にあり GameKit のテストから import できないため、
@@ -472,8 +741,10 @@ struct RewardAdCallSiteTests {
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
         // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        // 麻雀の最終局延長（#1201）で 1 か所増えて 17。
-        #expect(counts.values.reduce(0, +) == 17, "リワード広告の面は17箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        // 麻雀の最終局延長（#1201）で 1 か所増えて 17。ルーレットのチップ切れ復活（#1318）で 18。
+        // いろリレーの引き札の免除（#1320）で 19。ぱっと暗算の見直し（#1321）で 20。スピードのタイム（#1323）で 21。柵越えおじさんの挑戦回数（#1348）で 22。
+        // 将棋・チェス・五目並べのヒント（無料枠を使い切った後の広告・#1500）で3か所増えて25。
+        #expect(counts.values.reduce(0, +) == 25, "リワード広告の面は25箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 
@@ -500,7 +771,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 23 本のゲーム）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 23 本のゲーム + 企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -510,7 +781,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 23, "ハブに並ぶゲームは23本")
+        #expect(games.count == 30, "ハブに並ぶゲームは23本 + 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・柵越えおじさん（#1348）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -525,6 +796,8 @@ struct PlayMeasurementCallSiteTests {
         // 難易度・段階を選べるゲームだけが対象。増減はプライバシー確認の対象になるので、
         // 「いつの間にか増えていた」を作らないためここで固定する（#500 の受け入れ条件）。
         #expect(leveled == [
+            "GameAnzan",         // 桁数・個数・速さの段の和を 4 段階へ丸める（#1321・企画倉庫）
+            "GameBackgammon",    // CPU の強さ 4 段階（#1322・企画倉庫）
             "GameBlocks",        // 面番号 1〜12
             "GameChess",         // CPU の強さ 3 段階
             "GameConcentration", // CPU の強さ 3 段階
@@ -536,6 +809,7 @@ struct PlayMeasurementCallSiteTests {
             "GameRunner",        // 面番号 1〜15
             "GameShiritori",     // ノルマ 3 段階（やさしい / ふつう / むずかしい・#1243）
             "GameShogi",         // CPU の強さ 3 段階
+            "GameSpeed",         // CPU の速さ 3 段階（#1323・企画倉庫）
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
         ])
@@ -629,5 +903,148 @@ struct HintsUsedTrackingTests {
         analytics.finishPlay(gameID: "2048", outcome: .win)
 
         #expect(endParameters(spy).allSatisfy { $0.keys.contains("hints_used") == false })
+    }
+}
+
+// MARK: - 休憩中にアプリが終了した局（#1374）
+
+@Suite("休憩中にアプリが終了した局の game_end（#1374）")
+@MainActor
+struct RestAcrossRelaunchTests {
+    private func makeStore() -> UserDefaults {
+        let name = "RestAcrossRelaunchTests-\(UUID().uuidString)"
+        let store = UserDefaults(suiteName: name)!
+        store.removePersistentDomain(forName: name)
+        return store
+    }
+
+    /// アプリを起動し直した状態。同じ保存先を持つ新しい `GameAnalytics` を作る。
+    private func relaunch(_ store: UserDefaults, clock: TestClock) -> (GameAnalytics, SpyAnalyticsService) {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: testGameIDs, now: { clock.now }, restStore: store
+        )
+        return (analytics, spy)
+    }
+
+    @Test("休憩のあとアプリが終了しても、「続きから」で戻って決着すれば game_end が出る")
+    func finishAfterRelaunchSendsEnd() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, beforeSpy) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048", mode: .endless)
+        before.recordProgress(gameID: "2048")
+        clock.advance(40)
+        before.leaveGame(gameID: "2048", isResumable: true)   // 休憩。ここでアプリが終了する
+        #expect(beforeSpy.starts.count == 1)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        clock.advance(3600)                                    // 終了していた間
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        clock.advance(25)
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(afterSpy.starts.isEmpty, "開始は送信済みなので数え直さない")
+        #expect(afterSpy.ends.map(\.result) == [.win])
+        #expect(afterSpy.ends.first?.durationSec == 65, "休憩前の 40 秒 + 戻ってからの 25 秒。終了中の時間は入れない")
+    }
+
+    @Test("復元した局を捨てると、1 手指していた分は quit として出る")
+    func quitAfterRelaunchSendsQuit() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.leaveGame(gameID: "2048", isResumable: false)
+
+        #expect(afterSpy.quits.map(\.gameID) == ["2048"])
+    }
+
+    @Test("決着したあとは控えが消え、次に「続きから」で開いても二重に出ない")
+    func finishedPlayDoesNotLeaveEntryBehind() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, _) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.finishPlay(gameID: "2048", outcome: .win)
+        after.leaveGame(gameID: "2048", isResumable: false)
+
+        let (third, thirdSpy) = relaunch(store, clock: clock)
+        third.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        third.finishPlay(gameID: "2048", outcome: .win)
+        #expect(thirdSpy.ends.isEmpty, "控えは決着で消えている")
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "空になったら鍵ごと消す")
+    }
+
+    @Test("新しく始めたプレイは、前の休憩の控えを引き継がない")
+    func newPlayDropsStaleEntry() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        clock.advance(500)
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: false)   // 新規で開いた
+        after.startPlay(gameID: "2048")
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "新しく始めた時点で古い控えは消える")
+        clock.advance(10)
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(afterSpy.ends.first?.durationSec == 10)
+    }
+
+    @Test("決着してからハブへ戻る前にアプリが終了しても、決着済みの局は復元されない")
+    func finishWithoutLeavingDoesNotLeaveEntryBehind() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, _) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.finishPlay(gameID: "2048", outcome: .win)   // leaveGame の前にアプリが終了する
+
+        let (third, thirdSpy) = relaunch(store, clock: clock)
+        third.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        third.restartPlay(gameID: "2048")
+        #expect(thirdSpy.ends.isEmpty, "決着済みの局を進行中として復元して quit を重ねない")
+    }
+
+    @Test("解析の設定を切り替えると控えも捨てる")
+    func discardPlayStateClearsEntries() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) != nil)
+
+        before.discardPlayState()
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil)
+    }
+
+    @Test("保存先を渡さなければ何も書かず、従来どおり動く")
+    func withoutStoreBehavesAsBefore() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        analytics.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        #expect(spy.ends.map(\.result) == [.win])
     }
 }
