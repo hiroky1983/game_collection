@@ -20,12 +20,12 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         self.readings = readings.map { ShiritoriKana.hiragana($0) }
     }
 
-    /// 山札（30 枚）。最初の 20 枚は会長決裁 2026-09-21（#1243）の初期カード案そのまま、
+    /// 山札（50 枚）。最初の 20 枚は会長決裁 2026-09-21（#1243）の初期カード案そのまま、
     /// 後ろの 10 枚は #1245（会長決裁: 20 枚では連鎖がすぐ途切れる）で足した。
-    /// 神経衰弱の絵柄（#1244）もこの 30 種に揃える。
+    /// 神経衰弱の絵柄（#1244）もこの 50 種に揃える。
     ///
     /// 足した 10 枚は、既存の語尾（こ・ら・す・か・ま・ね など）から始まる札と、その語頭で終わる札を
-    /// 混ぜて連鎖が伸びやすくしてある。裏読みは足していない（先頭字が既存のどの語尾とも重ならない
+    /// 混ぜて連鎖が伸びやすくしてある。この 10 枚（#1245 時点）には裏読みを足していない（先頭字が既存のどの語尾とも重ならない
     /// 裏読みは、表読みが受けられない札にしか使われず連鎖に効かなかったため）。
     ///
     /// **裏読みは山札のいずれかの語尾から受けられるものだけを残す**（#1271）。
@@ -45,27 +45,48 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         ShiritoriCard(.rabbit, "うさぎ"),
         ShiritoriCard(.guitar, "ぎたー"),
         ShiritoriCard(.drum, "たいこ"),
-        ShiritoriCard(.kitten, "くま"),
+        ShiritoriCard(.kitten, "くま", "こぐま"),
         ShiritoriCard(.glass, "こっぷ"),
         ShiritoriCard(.squirrel, "りす"),
         ShiritoriCard(.watermelon, "すいか"),
-        ShiritoriCard(.turtle, "かめ"),
+        ShiritoriCard(.turtle, "かめ", "うみがめ"),
         ShiritoriCard(.eyeglasses, "めがね"),
         ShiritoriCard(.cat, "ねこ", "にゃんこ"),
         ShiritoriCard(.spinningTop, "こま"),
-        ShiritoriCard(.pillow, "まふらー"),
+        ShiritoriCard(.pillow, "まふらー", "すかーふ"),
         ShiritoriCard(.ostrich, "だちょう"),
         ShiritoriCard(.handFan, "まいく"),
         ShiritoriCard(.crocodile, "わに"),
         ShiritoriCard(.boat, "ふね"),
         ShiritoriCard(.leek, "くり"),
-        ShiritoriCard(.ball, "にく"),
-        ShiritoriCard(.mushroom, "きのこ"),
+        ShiritoriCard(.ball, "にく", "すてーき"),
+        ShiritoriCard(.mushroom, "きのこ", "しいたけ"),
         ShiritoriCard(.horse, "うま"),
         ShiritoriCard(.deer, "しか"),
-        ShiritoriCard(.cow, "うし"),
+        ShiritoriCard(.cow, "うし", "ぎゅう"),
         ShiritoriCard(.bell, "すず"),
         ShiritoriCard(.moon, "つき"),
         ShiritoriCard(.octopus, "たこ"),
+        // #1502（会長決裁 2026-09-29）で足した 20 枚。裏読みは 10 件足して計 11 件にした。
+        ShiritoriCard(.lifebuoy, "うきわ"),
+        ShiritoriCard(.umbrella, "かさ"),
+        ShiritoriCard(.fish, "さかな"),
+        ShiritoriCard(.eggplant, "なす"),
+        ShiritoriCard(.fox, "きつね", "こぎつね"),
+        ShiritoriCard(.whale, "くじら"),
+        ShiritoriCard(.ice, "こおり"),
+        ShiritoriCard(.zebra, "しまうま"),
+        ShiritoriCard(.sushi, "すし", "にぎり"),
+        ShiritoriCard(.egg, "たまご"),
+        ShiritoriCard(.dango, "だんご"),
+        ShiritoriCard(.chicken, "にわとり", "こっこ"),
+        ShiritoriCard(.taiyaki, "たいやき"),
+        ShiritoriCard(.manju, "まんじゅう"),
+        ShiritoriCard(.friedEgg, "めだまやき"),
+        ShiritoriCard(.cake, "けーき"),
+        ShiritoriCard(.cottonCandy, "わたあめ"),
+        ShiritoriCard(.shoe, "くつ", "しゅーず"),
+        ShiritoriCard(.bamboo, "たけ"),
+        ShiritoriCard(.flask, "すいとう"),
     ]
 }
