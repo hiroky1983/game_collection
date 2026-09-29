@@ -36,6 +36,32 @@ public enum HomerunZoneGeometry {
     }
 }
 
+/// 照準の吸い寄せ（#1594 試作）。投球中に押している間、照準（`HomerunModel.aimCursor`）がボールの方へ少しずつ寄る。
+/// 寄る割合は押し始め（的が出る前から押していれば的が出た瞬間）からの時間で `rampSeconds` かけて 0 → `maxPull` に増える
+/// （1 = ボールの中心まで）。指でずらした分はそのまま効き、寄せはその上に掛かる。値は会長 QA で詰める。
+public struct HomerunAimAssist: Equatable, Sendable {
+    /// 最終的に詰める割合（0〜1）。
+    public var maxPull: Double
+    /// `maxPull` に届くまでの時間（秒）。
+    public var rampSeconds: TimeInterval
+
+    public init(maxPull: Double, rampSeconds: TimeInterval) {
+        self.maxPull = maxPull
+        self.rampSeconds = rampSeconds
+    }
+
+    /// 既定: 的が出てから 1.0 秒（輪が重なる 0.2 秒前）で距離の半分まで寄る。
+    public static let standard = HomerunAimAssist(maxPull: 0.5, rampSeconds: 1.0)
+    /// 寄せない（指で動かした位置のまま）。
+    public static let off = HomerunAimAssist(maxPull: 0, rampSeconds: 1)
+
+    /// 押し続けて `held` 秒たったときの寄せる割合。
+    public func pull(heldFor held: TimeInterval) -> Double {
+        guard maxPull > 0, held > 0 else { return 0 }
+        return maxPull * min(held / max(rampSeconds, 0.001), 1)
+    }
+}
+
 /// Reduce Motion のときの的の色（輪を縮める代わり・README §3.1）。
 public enum HomerunTargetCue: Equatable, Sendable {
     /// まだ遠い（白）。
@@ -55,6 +81,15 @@ public enum HomerunTargetCue: Equatable, Sendable {
 
 /// 画面に出す言葉（ミリ秒・角度は見せない。README §3.1）。
 public enum HomerunText {
+    /// 空振りの理由（#1594・短く）。
+    public static func missReason(_ reason: HomerunMissReason) -> String {
+        switch reason {
+        case .early: "振るのが早い"
+        case .late: "振るのが遅い"
+        case .aim: "照準がずれた"
+        }
+    }
+
     public static func timing(_ timing: HomerunTiming) -> String {
         switch timing {
         case .just: "ジャスト"

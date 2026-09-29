@@ -18,9 +18,15 @@ struct HomerunAtBatView: View {
     /// 一時停止から「途中でやめる」を押したときの確認（#1550）。
     @State private var confirmsQuit = false
 
-    /// 当たった瞬間（離した瞬間）から外野カメラ・結果のカードへ切り替えるまでの時間（秒）。打点のコマ（約 26 コマ目）からフォロースルー
-    /// の終わり（44 コマ目）までが 0.6 秒。その間、3D の球がバットから飛び出すのを打席のカメラで見せる。
-    static let swingShowDuration: TimeInterval = 0.6
+    /// 離した瞬間から外野カメラ・結果のカードへ切り替えるまでの時間（秒）。振りは離した瞬間に始まり（#1594）、
+    /// 打点のコマ（約 26 コマ目）まで約 0.2 秒・フォロースルーの終わり（44 コマ目）まで 0.8 秒。当たり以上はその間、
+    /// 3D の球がバットから飛び出すのを打席のカメラで見せる。空振り・見送りは理由を早く読めるよう短く。
+    static func swingShowDuration(for kind: HomerunKind?) -> TimeInterval {
+        switch kind {
+        case .inPlay, .fenceHit, .homer, .foul: HomerunBatterMotion.swingDuration
+        case .miss, nil: 0.4
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -49,7 +55,7 @@ struct HomerunAtBatView: View {
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             ball: model.phase == .pitching ? model.ballPoint : nil,
-                            cursor: model.cursor,
+                            cursor: model.aimCursor(at: now),
                             elapsed: model.pitchElapsed(at: now),
                             offset: model.timingOffset(at: now),
                             reduceMotion: reduceMotion
@@ -70,7 +76,8 @@ struct HomerunAtBatView: View {
                     .padding(.top, 8)
                     // 結果のカードは打席の打球を見せ終えてから出す（先に出すと打者に重なってスイングが隠れる・試作）。
                     if model.phase == .ballResult, swingShown, let ball = model.lastBall {
-                        HomerunBallResultCard(ball: ball, number: model.pitchNumber)
+                        HomerunBallResultCard(ball: ball, number: model.pitchNumber,
+                                              missNote: Self.missNote(didSwing: model.didSwingLastBall, reason: model.lastMissReason))
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, size.height * 0.2)
                             .transition(.scale(scale: 0.9).combined(with: .opacity))
@@ -104,7 +111,7 @@ struct HomerunAtBatView: View {
         .task(id: model.step) {
             swingShown = false
             guard model.phase == .ballResult else { return }
-            try? await Task.sleep(for: .seconds(Self.swingShowDuration))
+            try? await Task.sleep(for: .seconds(Self.swingShowDuration(for: model.lastBall?.kind)))
             guard !Task.isCancelled else { return }
             withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
         }
@@ -171,10 +178,17 @@ struct HomerunAtBatView: View {
         }
     }
 
-    /// 3D を時刻で動かしている間（投球中・振った直後の打球）。それ以外は `TimelineView` を止める。
+    /// 3D を時刻で動かしている間（投球中・振った直後の打球・結果の間の素振り）。それ以外は `TimelineView` を止める。
     private var isAnimating: Bool {
         guard !model.isHeld else { return false }
-        return model.phase == .pitching || (model.phase == .ballResult && !swingShown)
+        return model.phase == .pitching
+            || (model.phase == .ballResult && (!swingShown || model.ballClock?.practiceSwingAt != nil))
+    }
+
+    /// 空振り・見送りの結果に添える一言（#1594）。当たり・ファウルは nil。
+    static func missNote(didSwing: Bool, reason: HomerunMissReason?) -> String? {
+        guard didSwing else { return "見送り" }
+        return reason.map(HomerunText.missReason)
     }
 
     /// 当たり以上（外野へ飛んだ）の結果は外野カメラの静止ショットに切り替える（README §3.2）。
@@ -428,11 +442,14 @@ struct HomerunZoneCanvas: View {
                 }
             }
 
-            // ミートカーソル（水色の輪 + 十字）。
+            // ミートカーソル（水色の輪 + 十字）。外の輪が当たり判定（1 マスぶん・#1594）、内の細い輪が芯。
             let p = CGPoint(x: zoneCenter.x + cursor.x, y: zoneCenter.y + cursor.y)
-            let cr = HomerunJudge.coreRadius
+            let cr = HomerunJudge.contactRadius
             let cursorPath = Path(ellipseIn: CGRect(x: p.x - cr, y: p.y - cr, width: cr * 2, height: cr * 2))
             ctx.stroke(cursorPath, with: .color(Theme.teal), lineWidth: 3)
+            let core = HomerunJudge.coreRadius
+            ctx.stroke(Path(ellipseIn: CGRect(x: p.x - core, y: p.y - core, width: core * 2, height: core * 2)),
+                       with: .color(Theme.teal.opacity(0.7)), lineWidth: 1.5)
             var cross = Path()
             cross.move(to: CGPoint(x: p.x - cr - 4, y: p.y)); cross.addLine(to: CGPoint(x: p.x - cr + 4, y: p.y))
             cross.move(to: CGPoint(x: p.x + cr - 4, y: p.y)); cross.addLine(to: CGPoint(x: p.x + cr + 4, y: p.y))
@@ -495,6 +512,8 @@ struct HomerunDirectionMeter: View {
 struct HomerunBallResultCard: View {
     let ball: HomerunBattedBall
     let number: Int
+    /// 空振り・見送りの理由（「振るのが早い」など・#1594）。
+    var missNote: String? = nil
 
     var body: some View {
         VStack(spacing: 6) {
@@ -505,6 +524,11 @@ struct HomerunBallResultCard: View {
                 Text(verbatim: "\(HomerunText.meters(ball.distance))　\(HomerunSector(direction: ball.direction).label)")
                     .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
                     .foregroundStyle(Theme.ink)
+            }
+            if ball.kind == .miss, let missNote {
+                Text(verbatim: missNote)
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.coral)
             }
             if ball.kind != .miss || ball.timing != .miss {
                 Text(verbatim: "タイミング: \(HomerunText.timing(ball.timing))")
@@ -520,7 +544,8 @@ struct HomerunBallResultCard: View {
         .frame(maxWidth: 300)
         .popCard()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(HomerunText.spoken(ball, number: number))
+        .accessibilityLabel([HomerunText.spoken(ball, number: number), ball.kind == .miss ? missNote : nil]
+            .compactMap { $0 }.joined(separator: "、"))
         .accessibilityAddTraits(.updatesFrequently)
     }
 }

@@ -34,8 +34,9 @@ struct HomerunConnectionTests {
     private func makeModel(services: GameServices? = nil, defaults: UserDefaults? = nil,
                            pitches: [HomerunPitch] = [HomerunPitch(zone: 4)],
                            now: Date = HomerunConnectionTests.t0) -> HomerunModel {
+        // 照準の吸い寄せは切る（入力どおりの照準で柵越えを打つ）。
         HomerunModel(services: services, defaults: defaults ?? makeDefaults(), calendar: Self.calendar,
-                     pitches: pitches, now: now)
+                     pitches: pitches, aimAssist: .off, now: now)
     }
 
     /// 見送りで 1 球進めて結果を閉じる。
