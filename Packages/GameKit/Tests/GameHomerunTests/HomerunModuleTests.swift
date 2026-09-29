@@ -50,6 +50,12 @@ struct HomerunModuleTests {
         #expect(code.contains(".onChange(of: scenePhase)") && code.contains("model.hold(.inactive"),
                 "バックグラウンドでは投球を止める")
         #expect(code.contains("onPresent: { model.hold(.sheet, true"), "遊び方を読んでいるあいだは投球を止める")
+        #expect(code.contains("hidesBackButton: model.phase == .pitching || model.phase == .ballResult"),
+                "打席中は左上の戻るを出さない（#1550）")
+        #expect(!atBat.contains("GameControlMenu("), "打席の「⋯」は一時停止ボタンに置き換えた（#1550）")
+        #expect(atBat.contains("model.pause(now:") && atBat.contains("model.quitChallenge()"),
+                "一時停止ボタン・途中でやめる（確認つき）")
+        #expect(atBat.contains(".confirmationDialog("), "途中でやめる前に確認を出す")
         #expect(!code.contains("#if DEBUG"), "ゲームの出し分けを DEBUG で分けない")
         #expect(!code.contains("Task.sleep(nanoseconds"))
     }
@@ -204,18 +210,18 @@ struct HomerunGeometryTests {
         #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
     }
 
-    @Test("打席の「⋯」はカメラの前 / 後ろのチェック付き 2 択で、選んだ方にだけチェックが付く")
+    @Test("一時停止の画面のカメラは前 / 後ろのチェック付き 2 択で、選んだ方にだけチェックが付く")
     @MainActor func atBatMenuHasCameraChoices() {
         let suite = "asobiba.homerun.menu.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { UserDefaults().removePersistentDomain(forName: suite) }
         let model = HomerunModel(defaults: defaults)
-        var items = HomerunAtBatView.menuItems(for: model)
+        var items = HomerunAtBatView.cameraChoices(for: model)
         #expect(items.map(\.title) == ["カメラ: 前", "カメラ: 後ろ"])
         #expect(items.map(\.isChecked) == [true, false])
         items[1].action()
         #expect(model.atBatCamera == .back)
-        items = HomerunAtBatView.menuItems(for: model)
+        items = HomerunAtBatView.cameraChoices(for: model)
         #expect(items.map(\.isChecked) == [false, true])
         items[0].action()
         #expect(model.atBatCamera == .front)
@@ -238,10 +244,10 @@ struct HomerunGeometryTests {
         #expect(model.isHolding)
     }
 
-    @Test("打席の画面は「⋯」を共通の部品（GameControlMenu）で出し、カメラはモデルの設定から読む")
-    func atBatUsesSharedMenu() throws {
+    @Test("打席のカメラは一時停止の画面の 2 択から選び（#1550）、3D はモデルの設定から読む")
+    func atBatCameraFromPausePanel() throws {
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
-        #expect(atBat.contains("GameControlMenu(items: Self.menuItems(for: model))"))
+        #expect(atBat.contains("Self.cameraChoices(for: model)"))
         #expect(atBat.contains("cameraPreset: model.atBatCamera"))
     }
 }

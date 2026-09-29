@@ -319,6 +319,61 @@ struct HomerunModelTests {
         #expect(!model.isHolding)
     }
 
+    @Test("一時停止（#1550）: 止めているあいだは進まず押せない。再開でその球を投げ直す。打席前・結果では効かない")
+    func pauseStopsThePitchAndResumeRepitches() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.pause(now: Fixture.t0)
+        #expect(!model.isPaused, "打席前では止めない")
+        model.start(now: Fixture.t0)
+        let number = model.pitchNumber
+        let used = model.ledger.remaining
+        model.pause(now: Fixture.t0.addingTimeInterval(0.5))
+        #expect(model.isPaused && model.isHeld)
+        #expect(model.nextWake == nil, "止めているあいだは時計が進まない")
+        #expect(model.pitchStart == nil)
+        model.press(at: CGPoint(x: 5, y: 5))
+        #expect(!model.isHolding, "止めているあいだは押せない")
+        model.resume(now: Fixture.t0.addingTimeInterval(10))
+        #expect(!model.isPaused && !model.isHeld)
+        #expect(model.phase == .pitching && model.pitchNumber == number, "同じ球を投げ直す")
+        #expect(model.pitchStart != nil && model.nextWake != nil)
+        #expect(model.ledger.remaining == used, "台帳は動かない")
+    }
+
+    @Test("一時停止とバックグラウンドは別の理由: 前面に戻っても一時停止は解けない")
+    func pauseSurvivesInactive() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        model.pause(now: Fixture.t0)
+        model.hold(.inactive, true, now: Fixture.t0)
+        model.hold(.inactive, false, now: Fixture.t0.addingTimeInterval(1))
+        #expect(model.isPaused && model.nextWake == nil)
+    }
+
+    @Test("途中でやめる（#1550）: 一時停止中だけ効き、打席前へ戻る。回数は戻らず、記録は付かない")
+    func quitChallengeFromPause() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        let remaining = model.ledger.remaining
+        let records = model.records
+        model.quitChallenge()
+        #expect(model.phase == .pitching, "止めていなければやめられない")
+        model.pause(now: Fixture.t0)
+        let s0 = model.step
+        model.quitChallenge()
+        #expect(model.phase == .idle)
+        #expect(model.challenge == nil && model.lastBall == nil && model.ballClock == nil)
+        #expect(!model.isPaused && !model.isHeld && !model.isHolding)
+        #expect(model.step == s0 + 1)
+        #expect(model.ledger.remaining == remaining, "使った回数は戻らない")
+        #expect(model.records == records, "途中でやめた挑戦は記録に付けない")
+        #expect(model.nextWake == nil)
+        #expect(model.start(now: Fixture.t0.addingTimeInterval(5)), "続けて次の挑戦に立てる（回数が残っていれば）")
+    }
+
     @Test("回数が無ければ打席に立てず使い切りシートを出す。日付が進めば 0:00 で補充")
     func exhaustedThenNextDay() throws {
         let f = Fixture()
