@@ -119,15 +119,16 @@ enum CPUBenchLadder {
     /// `nodesPerSecond` は最適化ビルドで測った 1 秒あたりの局面数。時間で打ち切ると同時に走る対局の
     /// 負荷で強さが揺れるので、計測の対局は局面数で打ち切る（実機の時間で読める量と等しい）。
     /// `bestMoveProbability` を渡すと、その段階の確率だけを差し替える（確率の候補を試すため）。
+    /// `depthLimit` を渡すと、その段階の深さの上限だけを差し替える（#1566）。
     static func engine(_ strength: CPUStrength, nodesPerSecond: Double, bestMoveProbability: Double? = nil,
-                       seed: UInt64) -> OthelloEngine {
+                       depthLimit: Int? = nil, seed: UInt64) -> OthelloEngine {
         let shipped = OthelloEngine.settings(for: strength)
         var policy = shipped.policy
         if let p = bestMoveProbability {
             policy.bestMoveProbability = p
             if policy.slipMargin == 0 { policy.slipMargin = OthelloEngine.slipMargin }  // 「むずかしい」の確率を下げて試すとき
         }
-        return OthelloEngine(level: strength.rawValue, timeLimitOverride: .infinity,
+        return OthelloEngine(level: strength.rawValue, timeLimitOverride: .infinity, depthLimitOverride: depthLimit,
                              nodeLimit: Int(shipped.timeLimit * nodesPerSecond), policy: policy, seed: seed)
     }
 
