@@ -8,7 +8,7 @@ import Foundation
 //   timing [positions]                   出荷の設定（実時間）で 1 手にかかる時間: 平均・最大・上限で打ち切られた割合（ヒントも）
 //   match <上> <上の確率> <下> <下の確率> <局面数>
 //                                        上の段階と下の段階を、先後入れ替えで局面数×2 局。確率は 0...1 か shipped（出荷値）。
-//                                        段階は novice / easy / normal / hard
+//                                        段階は novice / easy / normal / hard。`easy:1` のように付けると読む深さの上限を差し替える（#1566）
 //   random <段階> <確率|shipped> <局面数>  一様乱択の相手と先後入れ替えで局面数×2 局
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: SLIP_MARGIN（外したときに許す損の幅の差し替え）・NPS（match / random / depth で使う 1 秒あたりの局面数）・
@@ -21,6 +21,12 @@ func strength(_ name: String) -> CPUStrength {
     case "normal": return .normal
     default: return .hard
     }
+}
+
+/// `easy:1` → (.easy, 1)。深さを付けなければ出荷の深さ（nil）。
+func strengthAndDepth(_ arg: String) -> (CPUStrength, Int?) {
+    let parts = arg.split(separator: ":")
+    return (strength(String(parts[0])), parts.count > 1 ? Int(parts[1]) : nil)
 }
 
 let env = ProcessInfo.processInfo.environment
@@ -138,17 +144,17 @@ struct Bench {
             let margin = Int(env["SLIP_MARGIN"] ?? "")
             let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
             if args[1] == "match" {
-                let up = strength(args[2]), low = strength(args[4])
+                let (up, upDepth) = strengthAndDepth(args[2]), (low, lowDepth) = strengthAndDepth(args[4])
                 let upP: Double? = args[3] == "shipped" ? nil : Double(args[3])
                 let p: Double? = args[5] == "shipped" ? nil : Double(args[5])
                 let openings = Int(args[6]) ?? 100
                 let t0 = Date()
                 let t = await CPUBenchLadder.run(
-                    upper: { CPUBenchLadder.engine(up, nodesPerSecond: nps, bestMoveProbability: upP, slipMargin: margin, seed: $0) },
-                    lower: { CPUBenchLadder.engine(low, nodesPerSecond: nps, bestMoveProbability: p, slipMargin: margin, seed: $0) },
+                    upper: { CPUBenchLadder.engine(up, nodesPerSecond: nps, bestMoveProbability: upP, slipMargin: margin, depth: upDepth, seed: $0) },
+                    lower: { CPUBenchLadder.engine(low, nodesPerSecond: nps, bestMoveProbability: p, slipMargin: margin, depth: lowDepth, seed: $0) },
                     openings: openings, maxPlies: plies, concurrency: conc, firstOpening: first)
                 let score = (Double(t.upperWins) + Double(t.draws) * 0.5) * 100 / Double(t.games)
-                print("MATCH 損の幅 \(margin.map(String.init) ?? "shipped") \(up.label)(確率 \(args[3])) 対 \(low.label)(確率 \(args[5])) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws)（うち下が駒得 \(t.drawsLowerAhead)） 上の得点率 \(String(format: "%.1f", score))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
+                print("MATCH 損の幅 \(margin.map(String.init) ?? "shipped") \(up.label)(深さ \(upDepth.map(String.init) ?? "shipped")・確率 \(args[3])) 対 \(low.label)(深さ \(lowDepth.map(String.init) ?? "shipped")・確率 \(args[5])) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws)（うち下が駒得 \(t.drawsLowerAhead)） 上の得点率 \(String(format: "%.1f", score))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
             } else {
                 let s = strength(args[2])
                 let p: Double? = args[3] == "shipped" ? nil : Double(args[3])
