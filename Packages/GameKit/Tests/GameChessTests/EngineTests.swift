@@ -64,12 +64,13 @@ struct EngineTests {
         #expect(isStalemate == false, "\(uci) はステイルメイトになる")
     }
 
-    @Test("難易度の設定が表示している文言と一致する（#416・#1462）")
+    @Test("難易度の設定が表示している文言と一致する（#416・#1462・#1566）")
     func levelsMatchTheirLabels() {
-        // 段階の差は考える時間・深さの上限・最善手の確率だけ（会長決裁 2026-09-27）。上の段ほど長く深く読む。
+        // 段階の差は考える時間・深さの上限・最善手の確率だけ（会長決裁 2026-09-27）。下の 3 段は 1 手先で揃え、
+        // 確率で差を付ける（#1566）。
         let engines = CPUStrength.allCases.map { SimpleChessEngine(level: $0.rawValue) }
         #expect(engines.map(\.timeLimit) == [0.02, 0.1, 0.5, 2])
-        #expect(engines.map(\.depth) == [1, 2, 3, SimpleChessEngine.maxDepth])
+        #expect(engines.map(\.depth) == [1, 1, 1, SimpleChessEngine.maxDepth])
         #expect(engines.allSatisfy { $0.usePositional && $0.useQuiescence && $0.nodeLimit == nil })
         // 定跡は「むずかしい」だけの売り。
         #expect(engines.map(\.useBook) == [false, false, false, true])
@@ -217,8 +218,8 @@ enum ChessSelfPlay {
 
 /// 下の段（入門・かんたん）の読みの下限と、最善手を外す段の振る舞い。段の番号は 0 始まりではない（`CPUStrength`）。
 ///
-/// 段階どうしの強さの差（上の段の得点率 90% 以上）は CI では回さない。最適化ビルドでも 1 組数十分かかるため、
-/// `Scripts/chess-cpu-bench` で計測し `docs/analytics/chess-1462-ladder.md` に記録してある。
+/// 段階どうしの強さの差（すぐ下の段に対する得点率 60〜70%）は CI では回さない。1 組 400 局を回すため、
+/// `Scripts/chess-cpu-bench` で計測し `docs/analytics/chess-1566-ladder.md` に記録してある。
 @Suite("チェスの入門・かんたん")
 struct ChessNoviceAndSeriousTests {
 
