@@ -107,7 +107,7 @@ enum HomerunAtBatLayout {
         /// 三塁側へずらすのは、真後ろだと手前の審判・捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす。審判・捕手は廃止予定）。
         case back
 
-        /// 「⋯」メニューの文言。
+        /// 一時停止の画面のカメラの 2 択の文言。
         var title: String {
             switch self {
             case .front: "カメラ: 前"

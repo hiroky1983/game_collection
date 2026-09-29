@@ -15,6 +15,8 @@ struct HomerunAtBatView: View {
     @State private var fingerPoint: CGPoint?
     /// 振った球の結果に入ってから、打者の振り抜きを見せ終えたか（外野カメラへの切り替えと結果のカードをそれまで待つ・試作）。
     @State private var swingShown = false
+    /// 一時停止から「途中でやめる」を押したときの確認（#1550）。
+    @State private var confirmsQuit = false
 
     /// 当たった瞬間（離した瞬間）から外野カメラ・結果のカードへ切り替えるまでの時間（秒）。打点のコマ（約 26 コマ目）からフォロースルー
     /// の終わり（44 コマ目）までが 0.6 秒。その間、3D の球がバットから飛び出すのを打席のカメラで見せる。
@@ -75,15 +77,29 @@ struct HomerunAtBatView: View {
                     }
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)
-                    // 「⋯」は押せる帯（下 1/3）のすぐ上の右端に置く（帯の中に置くと押す指と取り合う。ゾーンは横の中央なので重ならない）。
-                    GameControlMenu(items: Self.menuItems(for: model))
-                        .padding(.trailing, Theme.pad)
-                        .padding(.bottom, padHeight + 8)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    // 一時停止は押せる帯（下 1/3）のすぐ上の右端に置く（#1550。帯の中に置くと押す指と取り合う。
+                    // ゾーンは横の中央なので重ならない）。以前の「⋯」（カメラの 2 択）はここにあった。
+                    if !model.isPaused {
+                        pauseButton
+                            .padding(.trailing, Theme.pad)
+                            .padding(.bottom, padHeight + 8)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    }
+                    if model.isPaused {
+                        pausedPanel
+                    }
                 }
             }
         }
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
+        .gameAnimation(.easeOut(duration: 0.15), value: model.isPaused)
+        // 途中でやめる確認。キャンセル（外側のタップで閉じた場合も）は一時停止の画面に戻るだけ。
+        .confirmationDialog("この挑戦をやめますか？", isPresented: $confirmsQuit, titleVisibility: .visible) {
+            Button("やめる", role: .destructive) { model.quitChallenge() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("この挑戦はここで終わり、使った回数は戻りません。")
+        }
         // 外野カメラ・結果のカードへ切り替える前に、打席で当たった瞬間と打球（見送り・空振りならミットへ入る球）を見せる。
         .task(id: model.step) {
             swingShown = false
@@ -94,8 +110,59 @@ struct HomerunAtBatView: View {
         }
     }
 
-    /// 「⋯」メニューの項目: カメラの前 / 後ろ（チェック付きの 2 択・#1506）。選ぶのは見た目だけで、投球中でも判定・座標は変えない。
-    static func menuItems(for model: HomerunModel) -> [GameControlMenuItem] {
+    // MARK: 一時停止（#1550）
+
+    /// 一時停止ボタンの一辺（pt）。ブロック崩し・チャリンコおじさんの一時停止と同じ見た目（同じ役割の UI は同じ見た目）。
+    static let pauseButtonSide: CGFloat = 44
+
+    private var pauseButton: some View {
+        Button {
+            fingerPoint = nil
+            model.pause(now: Date())
+        } label: {
+            Image(systemName: "pause.fill")
+                .font(.system(size: 18, weight: .bold))
+                .frame(width: Self.pauseButtonSide, height: Self.pauseButtonSide)
+                .background(Circle().fill(Theme.Fill.coral))
+                .foregroundStyle(Theme.onAccent)
+        }
+        .buttonStyle(.pop)
+        .accessibilityLabel("一時停止")
+    }
+
+    /// 一時停止の画面: 再開・カメラの前 / 後ろ・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
+    private var pausedPanel: some View {
+        ZStack {
+            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Text("一時停止").font(.title3.bold()).foregroundStyle(.white)
+                GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
+                    model.resume(now: Date())
+                }
+                HStack(spacing: 8) {
+                    ForEach(Self.cameraChoices(for: model), id: \.id) { item in
+                        let isChecked = item.isChecked == true
+                        Button(action: item.action) {
+                            Label(item.title, systemImage: isChecked ? "checkmark.circle.fill" : "video")
+                                .themeCaption(14)
+                                .foregroundStyle(isChecked ? Theme.onAccent : .white)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(Capsule().fill(isChecked ? Theme.Fill.teal : .white.opacity(0.18)))
+                        }
+                        .buttonStyle(.pop)
+                        .accessibilityAddTraits(isChecked ? .isSelected : [])
+                    }
+                }
+                GameDeadEndActionButton("途中でやめる", systemImage: "xmark.circle.fill") {
+                    confirmsQuit = true
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    /// 一時停止の画面のカメラの 2 択（前 / 後ろ・#1506）。選ぶのは見た目だけで、判定・座標は変えない。
+    static func cameraChoices(for model: HomerunModel) -> [GameControlMenuItem] {
         HomerunAtBatLayout.CameraPreset.allCases.map { preset in
             GameControlMenuItem(id: "camera.\(preset.rawValue)", title: preset.title, systemImage: "video",
                                 isChecked: model.atBatCamera == preset) {

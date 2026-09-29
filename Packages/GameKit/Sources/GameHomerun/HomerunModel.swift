@@ -37,6 +37,8 @@ public final class HomerunModel {
         public static let inactive = Hold(rawValue: 1 << 0)
         /// 遊び方のシートの提示中。
         public static let sheet = Hold(rawValue: 1 << 1)
+        /// 打席の一時停止ボタン（#1550）。
+        public static let paused = Hold(rawValue: 1 << 2)
     }
 
     // MARK: 時間の定数（README §2）
@@ -154,6 +156,8 @@ public final class HomerunModel {
         return phase == .pitching ? challenge.results.count + 1 : challenge.results.count
     }
     public var isHeld: Bool { !holds.isEmpty }
+    /// 打席の一時停止ボタンで止めているか（#1550。バックグラウンド・遊び方のシートでの停止とは別）。
+    public var isPaused: Bool { holds.contains(.paused) }
 
     /// 輪が的に重なる時刻。
     public var arrival: Date? { pitchStart.map { $0.addingTimeInterval(Self.travel) } }
@@ -345,6 +349,33 @@ public final class HomerunModel {
             }
             step += 1
         }
+    }
+
+    /// 打席の一時停止（#1550）。打席（投球中・1 球の結果）だけで効く。止め方・戻し方は `hold` と同じで、
+    /// 投球中に止めたら再開でその球を投げ直す。
+    public func pause(now: Date) {
+        guard phase == .pitching || phase == .ballResult else { return }
+        hold(.paused, true, now: now)
+    }
+
+    public func resume(now: Date) {
+        hold(.paused, false, now: now)
+    }
+
+    /// 一時停止から挑戦を途中でやめて打席前へ戻る（#1550）。**回数は戻さない**（打席に立った時点で減っている）。
+    /// 記録・`gameDidFinish` は付けない。解析の途中終了（`game_end` の quit）は、次に打席に立ったとき
+    /// （`gameDidRestart`）か画面を離れたとき（`gameDidLeave`）に共通の経路で出る。
+    public func quitChallenge() {
+        guard isPaused, phase == .pitching || phase == .ballResult else { return }
+        holds.remove(.paused)
+        phase = .idle
+        challenge = nil
+        lastBall = nil
+        ballClock = nil
+        pitchStart = nil
+        resultUntil = nil
+        isHolding = false
+        step += 1
     }
 
     // MARK: 内部
