@@ -128,9 +128,9 @@ struct HomerunModelTests {
         #expect(model.cursor == .zero, "押しただけでは動かない")
         model.drag(to: CGPoint(x: 190, y: 730))
         #expect(model.cursor == CGPoint(x: -10, y: 30))
-        // 指を離しても（モーション中は振らない）カーソルは残り、次に押した位置から相対に動く。
+        // 指を離しても（モーション中は素振りで判定しない）カーソルは残り、次に押した位置から相対に動く。
         #expect(model.release(at: CGPoint(x: 190, y: 730), now: Fixture.t0.addingTimeInterval(0.3)) == nil)
-        #expect(model.phase == .pitching, "モーション中に離しても振らない")
+        #expect(model.phase == .pitching, "モーション中に離しても判定しない")
         model.press(at: CGPoint(x: 50, y: 650))
         model.drag(to: CGPoint(x: 55, y: 640))
         #expect(model.cursor == CGPoint(x: -5, y: 20))
@@ -200,6 +200,58 @@ struct HomerunModelTests {
         try skipPitch(model)
         #expect(model.swingCount == 1, "見送りで数が進んだ")
         #expect(!model.didSwingLastBall)
+    }
+
+    @Test("モーション中（的が出る前）に離すと素振り: 打者はその場で振るが、判定・球数・台帳・記録は変わらず、その球はそのまま来る")
+    func releaseDuringWindupIsPracticeSwing() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        let ledger = model.ledger
+        let records = model.records
+        let step = model.step
+        let practice = Fixture.t0.addingTimeInterval(0.3)
+        model.press(at: CGPoint(x: 150, y: 600), now: Fixture.t0.addingTimeInterval(0.1))
+        #expect(model.release(at: CGPoint(x: 150, y: 600), now: practice) == nil)
+        #expect(model.phase == .pitching && model.pitchNumber == 1)
+        #expect(model.challenge?.results.isEmpty == true)
+        #expect(model.swingCount == 0 && model.lastBall == nil)
+        #expect(model.ledger == ledger && model.records == records && model.step == step)
+        #expect(HomerunStorage.loadLedger(f.defaults) == ledger)
+        #expect(model.pitchStart == Fixture.t0.addingTimeInterval(HomerunModel.windup), "その球はそのまま投げられてくる")
+        #expect(model.ballClock?.practiceSwingAt == practice && model.ballClock?.pressedAt == nil)
+        // 3D の打者: 離した瞬間から頭（20 コマ目）で振り抜き、振り終わったら構えへ戻る。
+        let plan = HomerunSwingPlan(model: model)
+        #expect(plan.batterMotion(at: practice) == .swing(start: practice))
+        #expect(plan.batterMotion(at: practice.addingTimeInterval(0.5)) == .swing(start: practice))
+        #expect(plan.batterMotion(at: practice.addingTimeInterval(HomerunBatterMotion.swingDuration)) == .stance)
+        // もう一度押して、的が出た後に離せば通常の判定（当たり窓・結果は素振りの有無で変わらない）。
+        let ball = try #require(try swing(model, dx: 0, dy: 22, offset: 0))
+        #expect(ball.kind == .homer && ball.timing == .just)
+        #expect(model.phase == .ballResult && model.swingCount == 1)
+        #expect(model.challenge?.results == [ball])
+    }
+
+    @Test("素振りの振り抜き中に押し直して的が出てから離すと通常の判定。素振りは次の球へ持ち越さない")
+    func pressAgainDuringPracticeSwing() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        let pitchStart = try #require(model.pitchStart)
+        let practice = pitchStart.addingTimeInterval(-0.1)
+        model.press(at: CGPoint(x: 150, y: 600), now: practice.addingTimeInterval(-0.1))
+        model.release(at: CGPoint(x: 150, y: 600), now: practice)
+        model.press(at: CGPoint(x: 150, y: 600), now: practice.addingTimeInterval(0.05))
+        let release = pitchStart.addingTimeInterval(0.2)   // 素振りの振り抜きの途中・的は出ている
+        #expect(release < practice.addingTimeInterval(HomerunBatterMotion.swingDuration))
+        let ball = try #require(model.release(at: CGPoint(x: 150, y: 600), now: release))
+        #expect(ball.kind == .miss, "早すぎる空振り")
+        #expect(model.phase == .ballResult && model.swingCount == 1 && model.challenge?.results.count == 1)
+        #expect(model.ballClock?.releasedAt == release && model.ballClock?.practiceSwingAt == practice)
+        #expect(HomerunSwingPlan(model: model).batterMotion(at: release) == .swing(start: release))
+        let close = try #require(model.resultUntil)
+        model.advance(now: close)
+        #expect(model.phase == .pitching && model.ballClock?.practiceSwingAt == nil)
     }
 
     @Test("押したまま締め切りを過ぎても見送り。離しても 2 球目は振られない")
