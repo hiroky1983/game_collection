@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 import HomerunCore
 
-/// 柵越えおじさん（#1348）の画面。段 3 = 2D の仮絵で一回遊べる形（3D は後続の段）。
+/// 柵越えおじさん（#1348）の画面。打席・外野は 3D（RealityKit。macOS の `swift test` では 2D の絵に落ちる）。
 ///
 /// 打席前（`36-lobby-3D`）→ 打席（`31-at-bat-3D`・全画面でバナー無し）→ 10 球の結果（`34-result-spray`）。
 /// **打席（と外野カメラ）にはバナーを出さない**（受け入れ条件・既存ゲームとの意図した違い）。バナーは打席前と結果だけ。
@@ -399,7 +399,7 @@ struct HomerunBallTile: View {
 // MARK: - 使い切りシート
 
 /// 残り 0 で打席に立とうとしたときのシート。広告での回復のボタンは打席前と結果にある（アラートと提示の計測を
-/// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 は後続の段。
+/// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 のボタンも同じく打席前と結果にある。
 struct HomerunExhaustedSheet: View {
     let canWatchAd: Bool
     let onClose: () -> Void
