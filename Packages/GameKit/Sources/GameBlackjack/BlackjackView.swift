@@ -55,6 +55,14 @@ public struct BlackjackView: View {
                      services: services, gameID: model.gameID)
         .gameChrome(title: "ブラックジャック", review: services.review)
         .howToPlay(.blackjack)
+        // 勝敗が決まったら読み上げる（#1574）。バッジは見た目だけなので VoiceOver では気づけない。
+        .onChange(of: model.outcome) {
+            if let outcome = model.outcome {
+                AccessibilityNotification.Announcement(
+                    BlackjackAccessibility.outcomeAnnouncement(
+                        outcome: outcome, isSplit: model.hands.count > 1)).post()
+            }
+        }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。

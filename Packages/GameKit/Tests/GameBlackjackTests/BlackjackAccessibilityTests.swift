@@ -30,4 +30,21 @@ struct BlackjackAccessibilityTests {
         #expect(BlackjackAccessibility.dealerPartialValueLabel(visibleValue: 7)
                 == "見えているカードの合計7、1枚は伏せています")
     }
+
+    @Test("勝敗の読み上げは結果ごとに違う文で、負け・引き分けを勝ちと取り違えない", arguments: [
+        (BlackjackOutcome.playerBlackjack, "ブラックジャック！勝ちです"),
+        (.win, "勝ちです"),
+        (.push, "引き分けです"),
+        (.lose, "負けです"),
+        (.bust, "バストして負けです"),
+    ])
+    func outcomeAnnouncement(outcome: BlackjackOutcome, expected: String) {
+        #expect(BlackjackAccessibility.outcomeAnnouncement(outcome: outcome) == expected)
+    }
+
+    @Test("スプリットしたラウンドは収支のまとめであることを添える")
+    func splitOutcomeAnnouncement() {
+        #expect(BlackjackAccessibility.outcomeAnnouncement(outcome: .win, isSplit: true)
+                == "全体の結果は、勝ちです")
+    }
 }
