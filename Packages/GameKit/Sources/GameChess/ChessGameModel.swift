@@ -111,7 +111,18 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
         // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
         // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
-        if snap == nil { services?.gameDidStart(gameID: gameID) }
+        if snap == nil { pendingInitialStart = true }
+    }
+
+    /// 開始シートを出す局の `game_start` は、最初の操作かシートを閉じた時点まで遅らせる（#1372）。
+    /// シートで「開始」を押すと `newGame` が選んだ強さ付きで数えるので、`init` で先に数えると
+    /// 1 局が 2 回 `game_start` になる（`game_end` は 1 回）。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: gameID)
     }
 
     // MARK: - 終局の判定
@@ -307,6 +318,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         position.make(move)
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        startPlayIfPending()
         services?.gameDidProgress(gameID: gameID)
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
@@ -346,8 +358,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             outcome = .win
             services?.feedback.notify(.success)
         }
+        startPlayIfPending()
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: outcome, score: hints.winLossScore
+            gameID: gameID, outcome: outcome, score: hints.winLossScore,
+            // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+            isReviewHighlight: beatsWorthyCPU
         )
     }
 
@@ -385,6 +400,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         isHintThinking = false
         clearSelection()
         persist()
+        pendingInitialStart = false
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
@@ -440,7 +456,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ。
     public private(set) var isHintThinking: Bool = false
 
-    /// 残り回数（`BoardHintButton` が読む）。
+    /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
 
     /// ヒントで光らせるマス（移動元・移動先）。
@@ -454,6 +470,9 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         phase == .playing && !gameOver && !hints.isExhausted
             && !isAITurn && !isThinking && !isHintThinking && pendingPromotion == nil
     }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか（#1500）。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
 
     /// 現在の局面の最善手を 1 手求め、盤の上に示す（#1118。将棋 `ShogiGameModel.requestHint` と同型）。
     ///
@@ -477,12 +496,48 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                   !hints.isExhausted,
                   let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
                   hints.consume() else { return }
+            startPlayIfPending()
             services?.gameDidUseHint(gameID: gameID)
             hintMove = move
             services?.feedback.impact(.light)
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
             persist()
         }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（会長決裁 2026-09-27・#1500。
+    /// 将棋 `ShogiGameModel.requestAdHint` と同型）。
+    ///
+    /// 広告の視聴完了を確かめてから CPU の読みを始める（読み終えてから広告を流さない契約）。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let fen = position.toFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleChessEngine(level: BoardHintBudget.engineLevel).bestMove(fen: fen)
+            }.value
+        } commit: { uci in
+            guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
+                  !hints.isExhausted,
+                  let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
+                  hints.consumeAd() else { return }
+            startPlayIfPending()
+            services?.gameDidUseHint(gameID: gameID)
+            hintMove = move
+            services?.feedback.impact(.light)
+            persist()
+            outcome = .granted
+        }
+        return outcome
     }
 
     // MARK: - 検討（終局後に手を戻す／進める）
@@ -563,6 +618,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     // MARK: - 永続化
+
+    /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
+    private var beatsWorthyCPU: Bool {
+        (white == .ai || black == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
+    }
 
     private func persist() {
         let snap = ChessSnapshot(

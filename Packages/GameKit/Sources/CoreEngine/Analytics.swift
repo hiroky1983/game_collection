@@ -54,6 +54,23 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     /// #500 が挙げた6分類のどれにも当たらないため足した7つ目（詳細は PR の「社長判断」）。
     /// 盤面は生きたままで、ゲームオーバーからの続行（`continue`）でも復活（`revival`）でもない。
     case shuffle
+    /// 1 日の挑戦回数を 1 回ぶん増やす（柵越えおじさん・#1348）。
+    ///
+    /// 盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す**ため 8 つ目として足した（詳細は PR の「社長判断」）。
+    case challenge
+}
+
+/// `reward_offer` の `result`。リワード広告を**提示した 1 回がどう終わったか**（#780）。
+///
+/// 提示 = 広告を見るかどうかを選ばせる画面（確認アラート・コンティニューの幕・リザルトの復活ボタン）が
+/// 出たこと。常に出ている操作ボタン（ナンプレのヒント）は提示の瞬間が無いので数えない。
+public enum RewardOfferResult: String, Equatable, Sendable, CaseIterable {
+    /// 広告ボタンを押し、その時点で先読み済みの広告があった。
+    case accepted
+    /// 広告を選ばずに閉じた（キャンセル・「もう一度」・画面を離れた）。
+    case declined
+    /// 広告ボタンを押したが、先読み済みの広告が無かった（その場で読み込む。#658 の先読みで減る値）。
+    case notReady = "not_ready"
 }
 
 /// `game_end` の `cause`。**そのプレイで最後にミスした原因**（#796）。
@@ -198,8 +215,8 @@ public struct AnalyticsEngagement: Equatable, Sendable {
 }
 
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
-/// `share_tap` の6種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
-/// #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
+/// `reward_offer` / `share_tap` の7種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
 /// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
@@ -233,11 +250,18 @@ public enum AnalyticsEvent: Equatable, Sendable {
     ///   - position: 導線の中での位置（**1 始まり**）。並びを持たない導線では nil で、鍵ごと送らない。
     ///   - resume: 開いた時点で「続きから」だったか。GA4 で集計しやすいよう 0 / 1 で送る。
     case gameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool)
+    /// リワード広告の**提示**が終わった（#780）。1 回の提示につき 1 回。パラメータは
+    /// `game_id` / `purpose` / `result` のみで、`purpose` は `reward_ad` と同じ語彙。
+    case rewardOffer(gameID: String, purpose: RewardPurpose, result: RewardOfferResult)
     /// リザルトの共有ボタン（自己ベストを更新した回だけ出る）を押した（#1043）。パラメータは `game_id` のみ。
     ///
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
     case shareTap(gameID: String)
+    /// ゲーム内アンケートに答えた（#1348）。パラメータは `game_id` と設問ごとの `q1` `q2` …（**選んだ選択肢の番号・1 始まり**）。
+    ///
+    /// 選択式だけで自由記述は載せない。回答は端末に残さず、この 1 回の送信だけで完結する。
+    case surveyAnswer(gameID: String, answers: [Int])
 
     /// Firebase のイベント名。
     public var name: String {
@@ -247,7 +271,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .rewardAd:      return "reward_ad"
         case .rewardRequest: return "reward_request"
         case .gameOpen:      return "game_open"
+        case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
+        case .surveyAnswer:  return "survey_answer"
         }
     }
 
@@ -295,8 +321,18 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 位置は 1 始まり。0 以下は並びの中に存在しないので 1 に丸める。
             if source.hasPosition, let position { parameters["position"] = .int(max(1, position)) }
             return parameters
+        case let .rewardOffer(gameID, purpose, result):
+            return [
+                "game_id": .string(gameID),
+                "purpose": .string(purpose.rawValue),
+                "result": .string(result.rawValue),
+            ]
         case let .shareTap(gameID):
             return ["game_id": .string(gameID)]
+        case let .surveyAnswer(gameID, answers):
+            var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
+            for (index, answer) in answers.enumerated() { parameters["q\(index + 1)"] = .int(answer) }
+            return parameters
         }
     }
 }
@@ -364,17 +400,35 @@ public final class GameAnalytics {
     /// 進行中のプレイで最後にミスした原因（#796）。終わりの `game_end` に `cause` として載せる。
     /// プレイを始め直すと消える。ミスしていないプレイは鍵が無い。
     private var causes: [String: AnalyticsEndCause] = [:]
+    /// 進行中のプレイの `duration_sec` の元になる、計時済みの秒数（#1373）。
+    /// 積むのは「アプリが前面 かつ 休憩中でない」区間だけ。
+    private var activeSeconds: [String: TimeInterval] = [:]
+    /// 計時中のプレイの、いまの区間の開始時刻。計時を止めている間は鍵が無い。
+    private var countingSince: [String: Date] = [:]
+    /// ハブへ戻って休憩している（続きから戻れる）プレイ。再開（`startPlay`）か決着で外れる。
+    private var resting: Set<String> = []
+    /// アプリが前面にあるか。前面から外れている間は誰の計時も進めない。
+    private var isAppActive = true
+    /// 休憩中のプレイの控えの保存先（#1374）。nil なら保存しない（テスト・プレビュー）。
+    private let restStore: UserDefaults?
+    /// 休憩中のプレイの控えを入れる鍵。**この 1 つだけ**で、値はゲーム ID をキーにした辞書。
+    /// 書くのは休憩に入った時点の 1 回で、決着・離脱・新規開始・解析オフで消す。
+    public static let restStoreKey = "analytics_resting_plays_v1"
+    /// `duration_sec` の上限（秒）。計時を止め損ねた場合の歯止め（#1373）。
+    static let maxDurationSeconds = 2 * 60 * 60
 
     public init(
         service: AnalyticsService,
         allowedGameIDs: Set<String>,
         now: @escaping () -> Date = Date.init,
-        engagement: @escaping @MainActor (String, Date) -> AnalyticsEngagement? = { _, _ in nil }
+        engagement: @escaping @MainActor (String, Date) -> AnalyticsEngagement? = { _, _ in nil },
+        restStore: UserDefaults? = nil
     ) {
         self.service = service
         self.allowedGameIDs = allowedGameIDs
         self.now = now
         self.engagement = engagement
+        self.restStore = restStore
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに呼ぶ。**冪等**。
@@ -383,7 +437,10 @@ public final class GameAnalytics {
     /// `init` は1回の表示で何度も走りうる。ここで冪等にしておくことで、再描画・
     /// バックグラウンド復帰で `game_start` が増えない。
     public func startPlay(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
-        guard allowedGameIDs.contains(gameID), plays[gameID] == nil else { return }
+        guard allowedGameIDs.contains(gameID) else { return }
+        // 休憩していたプレイの再開。開始は数え直さず、計時だけ再開する。
+        if resting.remove(gameID) != nil { resumeClock(gameID: gameID) }
+        guard plays[gameID] == nil else { return }
         beginPlay(gameID: gameID, level: level, mode: mode)
     }
 
@@ -477,10 +534,19 @@ public final class GameAnalytics {
         service.log(.rewardRequest(gameID: gameID, purpose: purpose))
     }
 
+    /// リワード広告の**提示が終わった**ときに呼ぶ（#780）。`reward_request` がタップの数なのに対し、
+    /// こちらは「出したのに断られた」まで数える。プレイの数え方には影響しない。
+    public func recordRewardOffer(gameID: String, purpose: RewardPurpose, result: RewardOfferResult) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.rewardOffer(gameID: gameID, purpose: purpose, result: result))
+    }
+
     /// ハブからゲーム画面を開いたときに呼ぶ（#659）。プレイの数え方には影響しない
     /// （1プレイの開始は各ゲームの `startPlay` が決める。開いただけで遊ばずに戻る人もいるため）。
     public func recordGameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         guard allowedGameIDs.contains(gameID) else { return }
+        // アプリが終了してから「続きから」で開いた局は、休憩前の計測状態を取り戻す（#1374）。
+        if resume { adoptRest(gameID: gameID) }
         service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
     }
 
@@ -488,6 +554,12 @@ public final class GameAnalytics {
     public func recordShareTap(gameID: String) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.shareTap(gameID: gameID))
+    }
+
+    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。プレイの数え方には影響しない。
+    public func recordSurveyAnswer(gameID: String, answers: [Int]) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.surveyAnswer(gameID: gameID, answers: answers))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
@@ -502,6 +574,94 @@ public final class GameAnalytics {
     /// 送信済みの `game_start` とだけ対応が付く（= 集計側では「始めたのに終わっていない」ぶんに入る）。
     public func discardPlayState() {
         plays.removeAll()
+        activeSeconds.removeAll()
+        countingSince.removeAll()
+        resting.removeAll()
+        restStore?.removeObject(forKey: Self.restStoreKey)
+    }
+
+    /// アプリが前面から外れたときに呼ぶ（#1373）。戻るまでの時間は `duration_sec` に入れない。
+    public func appDidResignActive() {
+        isAppActive = false
+        for gameID in plays.keys { pauseClock(gameID: gameID) }
+    }
+
+    /// アプリが前面に戻ったときに呼ぶ（#1373）。休憩中のプレイは再開まで止めたまま。
+    public func appDidBecomeActive() {
+        isAppActive = true
+        for (gameID, state) in plays {
+            if case .inFlight = state, !resting.contains(gameID) { resumeClock(gameID: gameID) }
+        }
+    }
+
+    private func pauseClock(gameID: String) {
+        guard let since = countingSince.removeValue(forKey: gameID) else { return }
+        activeSeconds[gameID, default: 0] += max(0, now().timeIntervalSince(since))
+    }
+
+    private func resumeClock(gameID: String) {
+        guard isAppActive, countingSince[gameID] == nil else { return }
+        countingSince[gameID] = now()
+    }
+
+    private func clearClock(gameID: String) {
+        activeSeconds[gameID] = nil
+        countingSince[gameID] = nil
+        resting.remove(gameID)
+        forgetRest(gameID: gameID)
+    }
+
+    /// 休憩中の計測状態の控え。アプリが終了しても「続きから」で戻った局の `game_end` を出せるように、
+    /// 休憩に入る時点で書き留める（#1374）。中断データと同じく端末の中にだけ置き、ゲーム数を超えて増えない。
+    private struct RestEntry: Codable {
+        var activeSeconds: TimeInterval
+        var didProgress: Bool
+        var hintsUsed: Int
+        var mode: String?
+    }
+
+    private func loadRests() -> [String: RestEntry] {
+        guard let data = restStore?.data(forKey: Self.restStoreKey),
+              let rests = try? JSONDecoder().decode([String: RestEntry].self, from: data)
+        else { return [:] }
+        return rests
+    }
+
+    private func saveRests(_ rests: [String: RestEntry]) {
+        guard let restStore else { return }
+        if rests.isEmpty {
+            restStore.removeObject(forKey: Self.restStoreKey)
+        } else if let data = try? JSONEncoder().encode(rests) {
+            restStore.set(data, forKey: Self.restStoreKey)
+        }
+    }
+
+    private func rememberRest(gameID: String) {
+        guard restStore != nil, case let .inFlight(_, didProgress, _, hintsUsed) = plays[gameID] else { return }
+        var rests = loadRests()
+        rests[gameID] = RestEntry(
+            activeSeconds: activeSeconds[gameID] ?? 0, didProgress: didProgress,
+            hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue
+        )
+        saveRests(rests)
+    }
+
+    private func forgetRest(gameID: String) {
+        guard restStore != nil else { return }
+        var rests = loadRests()
+        guard rests.removeValue(forKey: gameID) != nil else { return }
+        saveRests(rests)
+    }
+
+    /// アプリの終了をまたいだ休憩を、進行中のプレイとして取り戻す。開始は数え直さない（送信済みのため）。
+    private func adoptRest(gameID: String) {
+        guard plays[gameID] == nil, let entry = loadRests()[gameID] else { return }
+        plays[gameID] = .inFlight(
+            startedAt: now(), didProgress: entry.didProgress, canResume: true, hintsUsed: entry.hintsUsed
+        )
+        modes[gameID] = entry.mode.flatMap(AnalyticsMode.init(rawValue:))
+        activeSeconds[gameID] = entry.activeSeconds
+        resumeClock(gameID: gameID)
     }
 
     /// ゲーム画面から離れたときに呼ぶ（ハブが1か所で呼ぶ）。
@@ -518,13 +678,21 @@ public final class GameAnalytics {
     public func leaveGame(gameID: String, isResumable: Bool) {
         if case .finished = plays[gameID] {
             plays[gameID] = nil
+            clearClock(gameID: gameID)
             return
         }
         // 中断データが在っても、そこから局を復元しないゲームは離脱として扱う（`markUnresumable`）。
-        if case let .inFlight(_, _, canResume, _) = plays[gameID], canResume, isResumable { return }
+        if case let .inFlight(_, _, canResume, _) = plays[gameID], canResume, isResumable {
+            // 休憩。再開するまでの時間は `duration_sec` に入れない（#1373）。
+            resting.insert(gameID)
+            pauseClock(gameID: gameID)
+            rememberRest(gameID: gameID)
+            return
+        }
         endPlayAsQuitIfProgressed(gameID: gameID)
         // 送っても送らなくても、再開できない盤面はもう続きが無い。次に開いたら数え直す。
         plays[gameID] = nil
+        clearClock(gameID: gameID)
     }
 
     /// 未決着のまま捨てられたプレイに `game_end`（`quit`）を送る。1手も指していなければ何も送らない。
@@ -536,8 +704,11 @@ public final class GameAnalytics {
     }
 
     private func sendEnd(gameID: String, result: AnalyticsResult, startedAt: Date, hintsUsed: Int) {
-        // 時計が巻き戻っても負の秒数を送らない。
-        let seconds = max(0, Int(now().timeIntervalSince(startedAt)))
+        // 前面にいた時間だけを数える。計時中の区間を締めてから読む。負の秒数は送らず、上限で頭打ちにする（#1373）。
+        pauseClock(gameID: gameID)
+        resting.remove(gameID)
+        forgetRest(gameID: gameID)
+        let seconds = min(Self.maxDurationSeconds, max(0, Int(activeSeconds[gameID] ?? 0)))
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed
@@ -548,6 +719,8 @@ public final class GameAnalytics {
         let startedAt = now()
         plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true, hintsUsed: 0)
         modes[gameID] = mode
+        clearClock(gameID: gameID)
+        resumeClock(gameID: gameID)
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
         service.log(.gameStart(

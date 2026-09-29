@@ -119,6 +119,14 @@ struct SolitaireJokerTests {
         #expect(!b.canSendToFoundation(SolitaireCard.joker))
     }
 
+    @Test("ジョーカーの上に札が載って一番上でなくなっても、その列にはもう置けない（#1389）")
+    func jokerCannotBePlacedOnPileHoldingJoker() {
+        let b = board([pile(up: [SolitaireCard(s, 5), SolitaireCard.joker, SolitaireCard(d, 3)]),
+                       pile(up: [SolitaireCard(s, 6)])], joker: true)
+        #expect(!b.canPlaceJoker(onPile: 0))
+        #expect(b.canPlaceJoker(onPile: 1))
+    }
+
     @Test("所持していなければ置けず、置くと所持は空になる")
     func jokerIsConsumed() {
         var b = board([pile(up: [SolitaireCard(s, 5)])], joker: true)

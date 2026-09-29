@@ -358,12 +358,12 @@ struct ShiritoriModelTests {
         #expect(model.cpuCursorSlot == 0, "まず手前の未確定札（りす）へカーソルが立つ")
         #expect(model.slots[0].owner == nil, "通過しただけで取られてはいない")
 
-        // 固定時間の待機ではなく、カーソルが対象へ移るまで状態の変化で同期する
-        // （実行環境の負荷で固定スリープがズレるとフレークする。CodeRabbit指摘・PR #1309）。
-        var gate = 0
-        while model.cpuCursorSlot != 1, gate < 1_000 {
-            gate += 1
-            await Task.yield()
+        // 固定回数の Task.yield() は実時間の経過を保証しないため、高速な CI 環境では
+        // cpuCursorStepDelay（10ms）の完了前にループが尽きてフレークする
+        // （CodeRabbit指摘・PR #1313）。実時間の期限で打ち切るポーリングに変える。
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(500))
+        while model.cpuCursorSlot != 1, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(2))
         }
         #expect(model.cpuCursorSlot == 1, "なぞり終えて対象（らっこ）へ移る")
         #expect(model.slots[1].owner == nil, "対象へ着いた直後はまだ確定していない")
@@ -420,6 +420,7 @@ struct ShiritoriModelTests {
 
     @Test("実際の山札を最後まで遊びきると、どの種でも必ず決着する（プレイヤーは取れる札の先頭を取る）")
     func fullGamesAlwaysFinish() async {
+        var alternateWasPlayed = false
         for seed in UInt64(0)..<100 {
             let (model, _) = makeModel(seed: seed)
             model.startGame(quota: .normal)
@@ -431,11 +432,40 @@ struct ShiritoriModelTests {
                 } else {
                     await model.runCPUTurnIfNeeded()
                 }
+                if case .played(_, _, let isAlternate) = model.lastEvent, isAlternate {
+                    alternateWasPlayed = true
+                }
             }
             #expect(model.phase == .result, "seed \(seed)")
             #expect(model.ending != nil)
             #expect(model.playerCount + model.cpuCount <= 29)
             #expect(model.playerCount >= model.cpuCount, "先手なので同数か 1 枚多い")
         }
+        // 残る裏読み「にゃんこ」（#1271 で「ぐらす」「おうぎ」を削除した後）が、実プレイで
+        // 一度も選ばれないなら、それも到達不能な裏読みが紛れている兆候。
+        #expect(alternateWasPlayed, "100 シードのどのゲームでも裏読みが一度も選ばれなかった")
+    }
+}
+
+// MARK: - 新規ゲームで失われる進行（#1011）
+
+@Suite("カードしりとり 新規ゲームで失われる進行（#1011）")
+@MainActor
+struct ShiritoriProgressToLoseTests {
+
+    @Test("開始前は失うものが無く、対局中は失う進行がある")
+    func onlyWhilePlaying() {
+        let (model, _) = makeModel()
+        #expect(!model.hasProgressToLose)
+        model.startGame()
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("一時停止しても対局中には変わりない（ボタンが pause してから確認を出すため）")
+    func pausedStillCounts() {
+        let (model, _) = makeModel()
+        model.startGame()
+        model.pause()
+        #expect(model.hasProgressToLose)
     }
 }

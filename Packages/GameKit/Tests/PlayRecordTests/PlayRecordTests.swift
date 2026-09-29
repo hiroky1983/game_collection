@@ -1278,6 +1278,32 @@ struct GameRecordingTests {
         #expect(log.record(gameID: "shogi")?.plays == 1)
     }
 
+    @Test("cancelWin は 1 勝ぶんの記録と通算勝利数を戻し、負けには触れない（#1359）")
+    func cancelWinRewindsOneWin() {
+        let (log, defaults, name) = makeLog(suite: "cancel-win")
+        defer { defaults.removePersistentDomain(forName: name) }
+        _ = log.recordResult(gameID: "fruits", outcome: .loss, score: GameScore(metric: .points, points: 10))
+        _ = log.recordResult(gameID: "fruits", outcome: .win, score: GameScore(metric: .points, points: 500))
+        log.recordWin()
+        #expect(log.record(gameID: "fruits")?.wins == 1)
+        #expect(log.totalWins == 1)
+
+        log.cancelWin(gameID: "fruits")
+        let record = log.record(gameID: "fruits")
+        #expect(record?.plays == 1)
+        #expect(record?.wins == 0)
+        #expect(record?.losses == 1, "負けは戻さない")
+        #expect(record?.currentStreak == 0)
+        #expect(record?.bestPoints == 500, "自己ベストは戻さない")
+        #expect(log.totalWins == 0)
+        #expect(defaults.integer(forKey: PlayLog.totalWinsKey) == 0, "通算勝利数の保存も戻る")
+
+        // 戻す勝ちが無ければ何もしない（別の局の勝ちを食わない）。
+        log.cancelWin(gameID: "fruits")
+        #expect(log.record(gameID: "fruits")?.plays == 1)
+        #expect(log.totalWins == 0)
+    }
+
     @Test("記録サービスを注入しない構成（プレビュー・テスト）では何も記録されない")
     func withoutPlayLogNothingIsRecorded() {
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())

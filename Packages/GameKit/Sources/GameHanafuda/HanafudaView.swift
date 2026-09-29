@@ -30,8 +30,12 @@ public struct HanafudaView: View {
                 if model.phase == .matchResult {
                     matchResultCard.transition(.opacity)
                 } else {
+                    // 「⋯」の行は札のすぐ下に置き、余りの高さは「⋯」の行と広告のあいだに残す（#1485）。
+                    // 行のぶんを先に引いてから札の大きさを決める（行を外に置いていた従来と同じ高さの配分）。
+                    let showsOverflow = showsOverflowBar
                     let fit = HanafudaFit.metrics(
-                        availableWidth: geo.size.width, availableHeight: geo.size.height,
+                        availableWidth: geo.size.width,
+                        availableHeight: geo.size.height - (showsOverflow ? HanafudaFit.overflowRowHeight + HanafudaFit.sectionSpacing : 0),
                         stripHeight: layout.scaled(HanafudaFit.baseStripHeight),
                         fieldCount: model.field.count, handCount: model.humanHand.count
                     )
@@ -39,6 +43,9 @@ public struct HanafudaView: View {
                         opponentArea(fit)
                         fieldArea(fit).transition(.opacity)
                         handArea(fit)
+                        if showsOverflow {
+                            overflowBar
+                        }
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                 }
@@ -50,17 +57,10 @@ public struct HanafudaView: View {
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "花札こいこい", review: services.review) {
-            // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
-            // 早見表をここに置く（#495 の仕様）。タイトル＋「?」（遊び方）とアイコンで並べる
-            // （文字ラベルにすると幅を取り、狭い画面でヘッダーが崩れていた・会長指摘）。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showYakuSheet = true } label: {
-                    Image(systemName: "list.bullet.rectangle")
-                }
-                .accessibilityLabel("役の早見表")
-            }
-        }
+        // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
+        // 早見表を置く（#495 の仕様）。
+        .gameChrome(title: "花札こいこい", review: services.review,
+                    reference: GameChromeReference { showYakuSheet = true })
         .howToPlay(.hanafuda) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
@@ -73,6 +73,9 @@ public struct HanafudaView: View {
         } message: {
             Text("この試合を打ち切ります。負けとして記録されます。")
         }
+        // 1 局延長の提示（#780 × #1049）。最終局で負けている局の結果でボタンが出ているあいだを 1 回の提示として数える。
+        .rewardOffer(extendRescue, for: .continue, isPresented: model.canExtendMatch,
+                     services: services, gameID: HanafudaModel.gameID)
         .rewardedRescueAlerts(
             extendRescue,
             notEarned: "延長できませんでした",
@@ -93,6 +96,14 @@ public struct HanafudaView: View {
             if model.phase == .idle { model.startMatch(options: draft) }
             showYakuSheet = true
         }
+        // 試合の結果画面（#1496）。同じくタップ無しでは辿り着けない画面。
+        .task {
+            if ProcessInfo.processInfo.arguments.contains("-hanafudaMatchResult") {
+                model.debugForceMatchResult(resigned: false)
+            } else if ProcessInfo.processInfo.arguments.contains("-hanafudaMatchResultResigned") {
+                model.debugForceMatchResult(resigned: true)
+            }
+        }
         #endif
     }
 
@@ -100,36 +111,58 @@ public struct HanafudaView: View {
 
     private var scoreBar: some View {
         VStack(spacing: 6) {
-            HStack {
+            // 手番はほかの対戦ゲームと同じく状態の帯の左に出す（#1485。以前は盤の下の行に「あなたの番」だけが残っていた）。
+            GameStatusBar {
+                turnBadge
+            } trailing: {
                 scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
-                Spacer(minLength: 8)
+                scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.coral)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(model.message)
+                    .themeCaption(13, weight: .semibold, maxScale: 1.5)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(2)
+                // 局数は帯から手番に場所を譲り、この行の右端へ（小さい画面で帯に収めるため）。
                 if model.phase != .matchResult {
                     Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .themeCaption(13, weight: .bold, maxScale: 1.5)
+                        .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
-                    Spacer(minLength: 8)
                 }
-                scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.purple)
             }
-            Text(model.message)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .lineLimit(2)
+            .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
         }
-        .padding(10)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 状態の帯の手番表示。局・試合の決着のあいだは終局色で出す。
+    @ViewBuilder
+    private var turnBadge: some View {
+        switch model.phase {
+        case .idle:
+            TurnBadge("開始待ち", kind: .finished)
+        case .playing, .koiKoiPrompt:
+            TurnBadge(isYourTurn: model.turn == .human)
+        case .roundResult:
+            TurnBadge("局の終わり", kind: .finished)
+        case .matchResult:
+            TurnBadge("決着", kind: .finished)
+        }
     }
 
     private func scoreChip(title: String, value: Int, fill: Color) -> some View {
         HStack(spacing: 6) {
             Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .themeCaption(12, weight: .bold, maxScale: 1.5)
+                .fitOneLine()
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(fill))
             Text("\(value)文")
-                .font(.system(size: 16, weight: .heavy, design: .rounded))
+                .themeBody(16, weight: .heavy, maxScale: 1.5)
+                .fitOneLine()
                 .foregroundStyle(Theme.ink)
         }
         .accessibilityElement(children: .combine)
@@ -142,16 +175,19 @@ public struct HanafudaView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("CPUの取り札")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(model.turn == .cpu ? Theme.coral : Theme.inkSub)
                 Text(yakuLine(for: .cpu))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
                 Text("手札\(model.cpuHand.count)枚")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
             }
             capturedStrip(model.cpuCaptured, height: fit.stripHeight)
@@ -168,7 +204,8 @@ public struct HanafudaView: View {
             HStack(spacing: 3) {
                 if cards.isEmpty {
                     Text("なし")
-                        .font(.system(size: 12, design: .rounded))
+                        .themeCaption(12, weight: .regular, maxScale: 1.5)
+                        .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
                         .frame(height: height)
                 }
@@ -187,20 +224,23 @@ public struct HanafudaView: View {
         VStack(spacing: 6) {
             HStack {
                 Text("場")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                 Spacer()
                 if let drawn = model.drawnCard {
                     HStack(spacing: 4) {
                         Text("めくり札")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .themeCaption(12, weight: .bold, maxScale: 1.5)
+                            .fitOneLine()
                             .foregroundStyle(Theme.coral)
                         HanafudaCardFace(card: drawn, isHighlighted: true)
                             .frame(height: fit.stripHeight)
                     }
                 }
                 Text("山札\(model.deck.count)枚")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
             }
             LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
@@ -237,10 +277,12 @@ public struct HanafudaView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("あなたの取り札")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
                 Text(yakuLine(for: .human))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -289,8 +331,8 @@ public struct HanafudaView: View {
         switch model.phase {
         case .koiKoiPrompt:
             HStack(spacing: 10) {
-                actionButton("こいこい", color: Theme.Fill.purple) { model.declareKoiKoi() }
-                actionButton("あがり", color: Theme.Fill.coral, disabled: !model.canStop) {
+                actionButton("こいこい", role: .declaration) { model.declareKoiKoi() }
+                actionButton("あがり", role: .primary, disabled: !model.canStop) {
                     model.declareStop()
                 }
             }
@@ -303,31 +345,34 @@ public struct HanafudaView: View {
                 // 視聴中に試合の結果へ進むと、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(
                     model.round >= model.totalRounds ? "試合の結果へ" : "次の局へ",
-                    color: Theme.Fill.coral,
+                    role: .primary,
                     disabled: extendRescue.isWatching
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
-            HStack(spacing: 10) {
-                actionButton("もう一度", color: Theme.Fill.coral) { model.restartMatch() }
-                actionButton("ハブへ戻る", color: Theme.fillMuted, foreground: .white) { dismiss() }
-            }
+            actionButton("もう一度", role: .primary) { model.restartMatch() }
         default:
-            HStack(spacing: 10) {
-                Text(model.isPlayerTurn ? "あなたの番です" : "CPUが考えています…")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                Button { showResignConfirm = true } label: {
-                    Text("投了")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .disabled(!model.canResign)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
+            // 対局中は操作の行を出さない。投了は札のすぐ下の「⋯」（`overflowBar`）、手番は状態の帯（#1485）。
+            EmptyView()
         }
+    }
+
+    /// 「⋯」の行を札のすぐ下に出す局面（こいこい・局の結果・試合の結果はその場の操作ボタンを出す）。
+    private var showsOverflowBar: Bool {
+        model.phase == .idle || model.phase == .playing
+    }
+
+    /// 札のすぐ下の「⋯」の行。投了は「⋯」へ（#1468）。
+    private var overflowBar: some View {
+        GameOverflowBar(
+            menuItems: [
+                GameControlMenuItem(
+                    id: "resign", title: "投了", systemImage: "flag.fill",
+                    isDestructive: true, isEnabled: model.canResign
+                ) { showResignConfirm = true },
+            ],
+            verticalPadding: HanafudaFit.overflowRowPadding
+        )
     }
 
     /// 最終局で負けているときにだけ出す「広告を見て1局延長」（#1049）。
@@ -344,16 +389,11 @@ public struct HanafudaView: View {
             }
         } label: {
             Label("広告を見て1局延長（1試合に1回）", systemImage: "play.rectangle.fill")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .themeBody(14, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(extendRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
-                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-                .foregroundStyle(extendRescue.isWatching ? Theme.inkSub : Theme.onAccent)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(extendRescue.isWatching)
     }
 
@@ -361,23 +401,25 @@ public struct HanafudaView: View {
         VStack(spacing: 6) {
             if let result = model.roundResult {
                 Text(result.winner == nil ? "流局" : "\(result.winner!.label)のあがり")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .themeBody(18, weight: .heavy)
+                    .fitOneLine()
                     .foregroundStyle(result.winner == .human ? Theme.teal : Theme.ink)
                 if !result.hits.isEmpty {
                     Text(result.hits.map { "\($0.name) \($0.points)文" }.joined(separator: "・"))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .themeCaption(13, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                         .multilineTextAlignment(.center)
                 }
                 if !result.reasons.isEmpty {
                     Text(result.reasons.joined(separator: "・"))
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(Theme.Fill.yellow))
                 }
                 Text("\(result.score)文")
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .themeBody(22, weight: .heavy)
+                    .fitOneLine()
                     .foregroundStyle(Theme.coral)
             }
         }
@@ -391,14 +433,15 @@ public struct HanafudaView: View {
     private var matchResultCard: some View {
         VStack(spacing: 10) {
             Text(matchTitle)
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
-                .foregroundStyle(model.humanTotal > model.cpuTotal ? Theme.teal : Theme.ink)
+                .themeBody(26, weight: .heavy)
+                .fitOneLine()
+                .foregroundStyle(matchTitleColor)
             Text("あなた \(model.humanTotal)文 ・ CPU \(model.cpuTotal)文")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .themeBody(15, weight: .semibold, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -413,25 +456,26 @@ public struct HanafudaView: View {
     }
 
     private var matchTitle: String {
+        if model.wasResigned { return "投了（CPUの勝ち）" }
         if model.humanTotal > model.cpuTotal { return "あなたの勝ち！" }
         if model.humanTotal < model.cpuTotal { return "CPUの勝ち" }
         return "引き分け"
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   濃色の面（`Theme.fillMuted`）には `.white` を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    private var matchTitleColor: Color {
+        if model.wasResigned { return Theme.ink }
+        return model.humanTotal > model.cpuTotal ? Theme.teal : Theme.ink
+    }
+
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
+                .themeBody(16, weight: .bold, maxScale: 1.5)
+                .fitOneLine()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }
@@ -456,6 +500,10 @@ enum HanafudaFit {
     static let minScale: CGFloat = 0.4
     /// 札の並べ方の候補（列数）。広い画面は 6 列 2 段、狭い画面は 8 列 1 段のほうが大きく取れる。
     static let columnChoices = [6, 8]
+    /// 札のすぐ下の「⋯」の行の上下の余白と、それを含めた行の高さ（44pt の「⋯」+ 上下の余白・#1485）。
+    /// 行を札の外に置いていた頃（44pt + 上下 2pt）と同じ外寸にして、札の大きさを変えない。
+    static let overflowRowPadding: CGFloat = 2
+    static let overflowRowHeight: CGFloat = BoardGameControlMetrics.minTapTarget + 2 * overflowRowPadding
     /// 縮められない部分（見出しの文字・カードの内側の余白・段のあいだ以外）の高さ。
     /// 見出し 3 行（12pt の文字 ≈ 16pt。役名の行は lineLimit(1) で折り返さない）＋ 3 カードぶんの上下余白 60 ＋ カード内の縦の間隔 4 か所 ＋ カード間の間隔 2 か所。
     static let fixedHeight: CGFloat = 3 * 16 + 3 * 2 * cardPadding + 4 * gap + 2 * sectionSpacing
@@ -497,5 +545,12 @@ enum HanafudaFit {
 
     private static func rows(_ count: Int, columns: Int) -> Int {
         (count + columns - 1) / columns
+    }
+}
+
+private extension View {
+    /// 文字サイズ設定で拡大しても、帯・見出しを折り返さず 1 行に縮めて収める（#1469）。
+    func fitOneLine() -> some View {
+        lineLimit(1).minimumScaleFactor(0.5)
     }
 }

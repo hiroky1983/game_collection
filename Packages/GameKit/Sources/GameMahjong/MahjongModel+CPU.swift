@@ -99,7 +99,7 @@ extension MahjongModel {
         )
         // 立直の条件（門前・聴牌・点棒・残り牌）が揃っていれば宣言してから切る。
         if drawnTile != nil, melds[player].allSatisfy({ !$0.breaksConcealment }),
-           MahjongAI.shouldDeclareRiichi(hand: full.removing(choice.tile)),
+           MahjongAI.shouldDeclareRiichi(hand: full.removing(choice.tile), meldCount: melds[player].count),
            scores[player] >= 1000, remainingTiles >= Self.playerCount {
             commitRiichi(for: player)
             // 相手が脅威を作った合図。和了と同じ「成功」を鳴らすと意味が逆になる（#714）。

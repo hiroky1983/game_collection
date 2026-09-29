@@ -5,6 +5,7 @@ public struct ConcentrationView: View {
     @State private var model: ConcentrationModel
     private let services: GameServices
     @State private var showNewGame = false
+    @State private var showConfirmNewGame = false
     @State private var showMattaConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -24,26 +25,32 @@ public struct ConcentrationView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Self.stackSpacing) {
             statusBar
+            // 札の並びと「⋯」の行は `cardGrid` の中で上から詰めて置き、余りの高さは「⋯」の行と広告の
+            // あいだに残す（盤→「⋯」→余白→広告・#1485）。
             cardGrid
             HowToPlayHint(.concentration, playLog: services.playLog)
-            if !model.isGameOver {
-                mattaControls
-            }
             // レコメンド・階段の枠は結果の暗幕の中に置く（`resultOverlay`）。ここに置くと
             // 決着後は暗幕の下になり、透けて見えるのに押せない（#847）。
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "神経衰弱", review: services.review, tint: Theme.purple) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
-                    Label("新規", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "神経衰弱", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.concentration)
+        .confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると、いまの対戦が失われます。")
+        }
         .sheet(isPresented: $showNewGame) {
             ConcentrationNewGameSheet(
                 pairCount: model.pairCount,
@@ -98,6 +105,9 @@ public struct ConcentrationView: View {
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                  : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
+        // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
+        .rewardOffer(undoRescue, for: .undo, isPresented: showMattaConfirm && model.mattaUsed,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
             notEarned: "待ったは使えませんでした",
@@ -115,19 +125,16 @@ public struct ConcentrationView: View {
     // MARK: - Status Bar
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             scoreChip(label: "あなた", score: model.playerScore,
                       color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
-            Spacer()
-            if model.isThinking {
-                ProgressView().controlSize(.small)
-            }
-            Spacer()
+        } trailing: {
+            // 常に場所を取り、思考中の出入りで CPU のチップが左右に動かないようにする。
+            ProgressView().controlSize(.small)
+                .opacity(model.isThinking ? 1 : 0)
             scoreChip(label: "CPU", score: model.cpuScore,
                       color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private func scoreChip(label: String, score: Int, color: Color, isActive: Bool) -> some View {
@@ -149,29 +156,27 @@ public struct ConcentrationView: View {
     // MARK: - Matta Controls
 
     private var mattaControls: some View {
-        HStack {
-            // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
-            Button {
-                model.pauseAutoTurn()
-                showMattaConfirm = true
-            } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-                    .themeBody(14)
-            }
-            .disabled(!model.canMatta)
-
-            Spacer()
-
+        // 待ったは右下の「⋯」へ（#1422・#1468）。押せる間（ミスマッチの猶予中）だけ有効になる。
+        GameOverflowBar(
+            menuItems: [
+                GameControlMenuItem(
+                    id: "matta", title: model.mattaUsed ? "待った（広告を見て）" : "待った（無料）",
+                    systemImage: "arrow.uturn.backward",
+                    isEnabled: model.canMatta,
+                    accessibilityLabel: "待った"
+                ) {
+                    // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
+                    model.pauseAutoTurn()
+                    showMattaConfirm = true
+                }
+            ],
+            verticalPadding: Self.controlRowPadding,
             // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
             // 待っている間だけ「待った」が押せることをここで知らせる。
-            if model.canMatta {
-                Text("ミスマッチ… 待ったは今だけ")
-                    .themeBody(13)
-                    .foregroundStyle(Theme.coral)
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+            caption: model.canMatta
+                ? GameOverflowCaption("ミスマッチ… 待ったは今だけ", color: Theme.coral)
+                : nil
+        )
     }
 
     // MARK: - Card Grid
@@ -182,34 +187,48 @@ public struct ConcentrationView: View {
 
         // 幅だけでカードの大きさを決めると縦に大きな空白が残る。与えられた高さも見て、
         // 余っていればカードを縦に伸ばす（伸ばしすぎて不自然にならないよう上限を設ける）。
+        // 「⋯」の行（対局中だけ）も同じ枠の中で札のすぐ下に置くので、その高さを先に引いておく（#1485）。
         return GeometryReader { geo in
             let spacing = Self.gridSpacing
+            let controls = model.isGameOver ? 0 : Self.controlRowHeight + Self.stackSpacing
+            let gridHeight = max(0, geo.size.height - controls)
             let widthLimit = (geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
             let heightLimit = rows > 0
-                ? (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows)
+                ? (gridHeight - spacing * CGFloat(rows - 1)) / CGFloat(rows)
                 : widthLimit / Self.cardAspect
             // 高さが足りないときは幅を削って収める。余っているときは幅いっぱいに使う。
             let cardWidth = max(1, min(widthLimit, heightLimit * Self.cardAspect / Self.maxStretch))
             let cardHeight = max(1, min(heightLimit, cardWidth / Self.cardAspect * Self.maxStretch))
             let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: spacing), count: cols)
 
-            LazyVGrid(columns: columns, spacing: spacing) {
-                ForEach(model.cards) { card in
-                    CardView(
-                        card: card,
-                        isLastMatched: model.lastMatchedIndices.contains(card.id),
-                        isMismatched: model.mismatchedIndices.contains(card.id)
-                    )
-                    .onTapGesture {
-                        guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
-                        model.tap(index: card.id)
+            VStack(spacing: Self.stackSpacing) {
+                LazyVGrid(columns: columns, spacing: spacing) {
+                    ForEach(model.cards) { card in
+                        CardView(
+                            card: card,
+                            isLastMatched: model.lastMatchedIndices.contains(card.id),
+                            isMismatched: model.mismatchedIndices.contains(card.id)
+                        )
+                        .onTapGesture {
+                            guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
+                            model.tap(index: card.id)
+                        }
+                        .frame(width: cardWidth, height: cardHeight)
                     }
-                    .frame(width: cardWidth, height: cardHeight)
+                }
+                if !model.isGameOver {
+                    mattaControls
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
     }
+
+    /// 画面の縦の並びの間隔。
+    private static let stackSpacing: CGFloat = 10
+    /// 「⋯」の行の上下の余白と、それを含めた行の高さ（`GameOverflowBar` は 44pt の枠 + 上下の余白）。
+    private static let controlRowPadding: CGFloat = 8
+    private static let controlRowHeight: CGFloat = BoardGameControlMetrics.minTapTarget + 2 * controlRowPadding
 
     /// カードの基準の幅 : 高さ
     private static let cardAspect: CGFloat = 0.75
@@ -265,7 +284,7 @@ public struct ConcentrationView: View {
                 }
             }
 
-            RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+            RecordLabel(model.recordResult)
 
             Button { showNewGame = true } label: {
                 Text("もう一度")
@@ -379,7 +398,7 @@ struct ConcentrationNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "ゲーム開始", startTint: Theme.Fill.purple,
+            kind: .versus, startTint: Theme.Fill.purple,
             onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
         ) {
             GameSetupSection("盤面サイズ") {
@@ -397,14 +416,14 @@ struct ConcentrationNewGameSheet: View {
             }
 
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    ForEach(ConcentrationCPULevel.allCases, id: \.rawValue) { l in
+                HStack(spacing: 6) {
+                    ForEach(Array(ConcentrationCPULevel.allCases.enumerated()), id: \.element) { step, l in
                         GameSetupChooser(
                             title: l.displayName,
                             subtitle: l.subtitle,
                             selected: selectedCPULevel == l,
-                            accent: Theme.Fill.coral,
-                            metrics: Self.metrics
+                            accent: DifficultyTile.accent(step: step, of: ConcentrationCPULevel.allCases.count),
+                            metrics: DifficultyTile.metrics
                         ) { selectedCPULevel = l }
                     }
                 }

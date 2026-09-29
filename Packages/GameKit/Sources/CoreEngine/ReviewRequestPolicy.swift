@@ -1,17 +1,18 @@
 import Foundation
 
-/// 評価リクエスト（App Store のレビュー依頼）を出す条件。Issue #53 の表そのまま。
+/// 評価リクエスト（App Store のレビュー依頼）を出す条件。Issue #53 の表が原型で、#1471 で間隔と瞬間を見直した。
 ///
-/// **方針は「勝って気分がいい瞬間に、生涯で数回だけ」**。乱数を使わず状態だけで決まるので、
+/// **方針は「見せ場（勝ちの中でも手応えのある瞬間）に、間隔を空けて」**。乱数を使わず状態だけで決まるので、
 /// ユニットテストで全分岐を固定できる。
 ///
-/// 条件1（勝利・クリアの直後のみ）は呼び出し側（`ReviewRequestService.gameDidFinish`）が、
+/// 条件1（勝利・クリアの直後、かつ見せ場のみ）は呼び出し側（`ReviewRequestService.gameDidFinish`）が、
 /// 条件6（リザルトの1.0秒後・進行中には呼ばない）は画面側（`reviewRequestPrompt`）が担う。
 public enum ReviewRequestPolicy {
     /// 条件2: 通算これだけ勝つまでは一度も出さない（判断できる程度に遊んだ人にだけ聞く）。
     public static let firstRequestWins = 5
-    /// 条件3: 前回リクエストからの最小間隔（120日）。OS 側の上限（365日で3回）にそもそも当たらない。
-    public static let minimumElapsed: TimeInterval = 120 * 24 * 60 * 60
+    /// 条件3: 前回リクエストからの最小間隔（60日）。OS 側の上限（365日で3回）には、
+    /// 前回から 20 勝の歯止め（条件4）と合わせても当たらない（#1471 で 120 日から短縮）。
+    public static let minimumElapsed: TimeInterval = 60 * 24 * 60 * 60
     /// 条件4: 前回リクエストからの最小勝利数。期間だけでなく利用実態でも間隔を担保する。
     public static let minimumWinsSinceLast = 20
 

@@ -147,7 +147,7 @@ struct FreeCellZoomTests {
             branches == Self.expectedZoomBranches,
             """
             拡大の分岐が \(branches) か所ある（想定 \(Self.expectedZoomBranches) か所: \
-            札の幅・スクロール方向・トグルの記号/文字・読み上げのラベルとヒント）。\
+            札の幅・スクロール方向・「⋯」の拡大項目の読み上げのラベルとヒント）。\
             寸法の分岐を各所に撒くと、拡大したのに当たり判定だけ等倍のまま、という形のズレが生まれる
             """
         )
@@ -156,9 +156,8 @@ struct FreeCellZoomTests {
         #expect(width.contains("zoomedCardWidth"), "取り違え防止")
     }
 
-    /// 札の幅・スクロール方向・トグルの記号/文字・読み上げのラベルとヒント
-    /// （塗り・文字色の分岐は共通の `BoardToggleButton`（Core・#641）へ移った）。
-    private static let expectedZoomBranches = 6
+    /// 札の幅・スクロール方向・「⋯」の拡大項目の読み上げのラベルとヒント（#1468）。
+    private static let expectedZoomBranches = 4
 
     @Test("盤は 1 つの札幅から作った metrics を上段と場札へ配る")
     func theBoardFeedsOneMetricsToBothRows() throws {
@@ -173,19 +172,20 @@ struct FreeCellZoomTests {
                 "盤が等倍の幅を直接呼んでいる。拡大しても当たり判定が等倍のまま残る")
     }
 
-    /// 帯は `children: .ignore` の 1 要素にまとめてあるので、その中にボタンを置くと
-    /// VoiceOver から押せなくなる。トグルは要素の外に無ければならない。
-    @Test("拡大トグルは読み上げを畳んだ要素の外にある")
-    func theToggleIsOutsideTheCollapsedAccessibilityElement() throws {
+    /// 帯には表示だけを置く（#1468）。拡大は右下の「⋯」のチェック付き項目にある。
+    @Test("拡大は帯ではなく「⋯」メニューにある")
+    func theToggleLivesInTheMenu() throws {
         let source = try Self.viewSource()
         let readout = try #require(SourceScan.declaration(of: "private var statusReadout:", in: source))
         #expect(readout.contains("children: .ignore"), "取り違え防止。畳んでいるのはこちら")
-        #expect(!readout.contains("zoomMode"), "トグルが畳んだ要素の中にある。VoiceOver から押せない")
 
         let bar = try #require(SourceScan.declaration(of: "private var statusBar:", in: source))
-        #expect(bar.contains("zoomMode.toggle()"), "トグルが帯から消えている")
-        #expect(!SourceScan.strippingComments(bar).contains("children: .ignore"),
-                "帯ごと畳むとトグルが読み上げから消える")
+        #expect(!SourceScan.strippingComments(bar).contains("Button"), "帯にボタンが戻っている")
+        #expect(!bar.contains("BoardToggleButton"), "帯に切り替えボタンが戻っている")
+
+        let controls = try #require(SourceScan.declaration(of: "private var gameControls:", in: source))
+        #expect(controls.contains(#"id: "zoom""#) && controls.contains("zoomMode.toggle()"),
+                "拡大が「⋯」から消えている")
     }
 
     // MARK: - ヘルパー

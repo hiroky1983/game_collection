@@ -30,6 +30,14 @@ let package = Package(
         .library(name: "GameFreeCell",     targets: ["GameFreeCell"]),
         .library(name: "GameSpider",       targets: ["GameSpider"]),
         .library(name: "GameFifteen",     targets: ["GameFifteen"]),
+        .library(name: "GameRoulette",     targets: ["GameRoulette"]),
+        .library(name: "GameFruits",       targets: ["GameFruits"]),
+        .library(name: "GameColorRelay",   targets: ["GameColorRelay"]),
+        .library(name: "GameAnzan",        targets: ["GameAnzan"]),
+        .library(name: "GameBackgammon",   targets: ["GameBackgammon"]),
+        .library(name: "GameSpeed",        targets: ["GameSpeed"]),
+        .library(name: "HomerunCore",      targets: ["HomerunCore"]),
+        .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
         .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
@@ -74,6 +82,33 @@ let package = Package(
         // （神経衰弱 #1244 と共有するドット絵）を使うので Core だけに依存する。
         .target(name: "GameShiritori",      dependencies: ["Core"]),
         .target(name: "GameFifteen",        dependencies: ["Core"]),
+        // ルーレット（#1318・企画倉庫）。配当・当たり判定は純粋ロジックで、乱数は CoreEngine の
+        // `SplitMix64` を使うので CoreEngine への依存も明示する。
+        .target(name: "GameRoulette",       dependencies: ["Core", "CoreEngine"]),
+        // くっつきフルーツ（#1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない純粋ロジックで、
+        // 落とす果物の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
+        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine"]),
+        // いろリレー（#1320・企画倉庫）。色合わせのカードゲーム。出せるかの判定・CPU は純粋ロジックで、
+        // 配りの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
+        .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine"]),
+        // ぱっと暗算（#1321・企画倉庫）。出題・表示の並び・合計は純粋ロジックで、出題の乱数に CoreEngine の
+        // `SplitMix64` を使う。表示の進行は Model が待ち時間を返すだけで、時間は View の `.task` が待つ。
+        .target(name: "GameAnzan",          dependencies: ["Core", "CoreEngine"]),
+        // バックギャモン（#1322・企画倉庫）。移動・叩き・ベアオフの判定と CPU の手順選びは純粋ロジックで、
+        // サイコロの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
+        .target(name: "GameBackgammon",     dependencies: ["Core", "CoreEngine"]),
+        // スピード（#1323・企画倉庫）。手番の無い同時進行のトランプ。出せるかの判定と CPU の選択は純粋ロジックで、
+        // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
+        // 「次に待つ時間」を返して View の `.task` が待つ形（ぱっと暗算と同じ）。
+        .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine"]),
+        // 柵越えおじさんのロジック層（#1348・企画倉庫・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積。
+        // 画面（RealityKit）は後続の段で `GameHomerun` として足す。`Game` 接頭辞のディレクトリは
+        // 画面の走査テスト（GameChromeTests）が gameChrome を要求するため、画面を持たない間はこの名前にする。
+        .target(name: "HomerunCore",        dependencies: ["Core"]),
+        // 柵越えおじさんの画面（#1348 の段 3・企画倉庫）。2D の仮絵で一回遊べる形。判定・台帳・蓄積は HomerunCore。
+        // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
+        // 3D（RealityKit）・広告/アンケートでの回数回復・解析・Game Center は後続の段で足す。
+        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
@@ -148,6 +183,14 @@ let package = Package(
         .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameRouletteTests",       dependencies: ["GameRoulette", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameColorRelayTests",     dependencies: ["GameColorRelay", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameAnzanTests",          dependencies: ["GameAnzan", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameBackgammonTests",     dependencies: ["GameBackgammon", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
+        .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
@@ -184,7 +227,8 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
         .testTarget(name: "AnalyticsTests", dependencies: [
@@ -192,7 +236,8 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -200,7 +245,8 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。

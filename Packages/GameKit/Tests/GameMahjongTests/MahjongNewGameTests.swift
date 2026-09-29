@@ -210,6 +210,53 @@ struct MahjongNewGameTests {
         #expect(spy.starts.count == 2, "そのあと新しい対局の game_start が出る")
     }
 
+    /// 終局が確定したリザルトで離れても、`game_end` は出ている（#1375）。
+    /// 記録は「結果を見る」で付けるので、そこを押さずに離れると `concludeGame` に戻らない。
+    @Test("終局が確定したリザルトに入った時点で game_end を 1 回送り、結果を見ても二重に送らない")
+    func gameEndIsSentWhenTheFinalResultAppears() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["mahjong4"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let model = makeModel(analytics: analytics)
+        model.startGame(length: .singleHand)
+        model.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            dealer: 0,
+            scores: [40_000, 20_000, 20_000, 20_000]
+        )
+        model.exhaustWallForTesting()
+        #expect(model.phase == .handResult)
+        #expect(model.concludesAfterCurrentResult)
+        #expect(spy.ends.count == 1, "結果を見る前に game_end が出ている")
+        #expect(spy.ends.first?.result == .win, "持ち点の 1 位は勝ち")
+
+        model.advanceToNextHand()
+
+        #expect(model.phase == .gameResult)
+        #expect(spy.ends.count == 1, "結果を見ても game_end は増えない")
+    }
+
+    @Test("まだ次の局がある局のリザルトでは game_end を送らない")
+    func gameEndIsNotSentBeforeTheLastHand() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["mahjong4"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let model = makeModel(analytics: analytics)
+        model.startGame(length: .tonpuu)
+        model.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            dealer: 0
+        )
+        model.exhaustWallForTesting()
+        #expect(model.phase == .handResult)
+        #expect(!model.concludesAfterCurrentResult)
+        #expect(spy.ends.isEmpty)
+    }
+
     @Test("配っただけで切らずに捨てた対局は離脱に数えない")
     func discardlessAbandonIsNotCountedAsQuit() {
         let spy = SpyAnalyticsService()

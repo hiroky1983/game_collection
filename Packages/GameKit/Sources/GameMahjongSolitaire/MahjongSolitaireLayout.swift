@@ -175,7 +175,7 @@ public extension MahjongSolitaireLayout {
         ]
     )
 
-    /// 選べるレイアウト。**この並び順が「＋」メニューと順送りの順序**になる。
+    /// 選べるレイアウト。**この並び順が開始シートのタイルと順送りの順序**になる。
     static let all: [MahjongSolitaireLayout] = [turtle, pyramid, cross]
 
     /// id から引く。**知らない id と nil は亀甲に倒す**（レイアウト識別子を持たない

@@ -23,6 +23,13 @@ import GameHanafuda
 import GameSpider
 import GameShiritori
 import GameFifteen
+import GameRoulette
+import GameFruits
+import GameColorRelay
+import GameAnzan
+import GameBackgammon
+import GameSpeed
+import GameHomerun
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -76,9 +83,10 @@ enum AppEnvironment {
     /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
     /// アプリがバックグラウンドに入るたびに対象を判定し直す（`GameCollectionApp` から呼ぶ）。
     /// 撮影モードと DEBUG ビルドでは予約しない（#663 と同じ理由）。
+    /// オン / オフは #663 と同じ設定トグルを共有する（#1508）。
     static let reengagement = ReengagementReminderService(
         scheduler: UserNotificationReengagementScheduler(),
-        isEnabled: { settings.reengagementRemindersEnabled },
+        isEnabled: { settings.notificationsEnabled },
         isSuppressed: isScreenshotMode || isDebugBuild,
         // #663 と異なり「中断データから局を復元できるか」は問わない。設定で非表示にしたゲームだけ除く。
         reminderTitle: { gameID in
@@ -120,7 +128,9 @@ enum AppEnvironment {
         // ハブに登録済みのゲーム ID だけを送信対象にする（未知の文字列が game_id にならない）。
         allowedGameIDs: Set(registry.modules.map(\.id)),
         // `game_start` に「そのゲームの通算プレイ回数・前回からの経過日数」を載せる（#1195）。
-        engagement: { gameID, now in playLog.engagement(gameID: gameID, now: now) }
+        engagement: { gameID, now in playLog.engagement(gameID: gameID, now: now) },
+        // 休憩中にアプリが終了しても、「続きから」で戻った局の `game_end` を出せるようにする（#1374）。
+        restStore: .standard
     )
 
     /// 設定の「利用状況の送信」を **Firebase SDK 全体の収集状態**へ反映する。
@@ -152,13 +162,17 @@ enum AppEnvironment {
         availableModules: { settings.visibleModules(from: registry) }
     )
 
-    /// 評価リクエスト。勝った直後にだけ、生涯で1〜2回だけ聞く（条件は `ReviewRequestPolicy`）。
+    /// 評価リクエスト。勝ちの中でも見せ場の直後にだけ、間隔を空けて聞く（条件は `ReviewRequestPolicy`）。
     /// バージョンごとに1回までのため、`CFBundleShortVersionString` を判定に使う。
     static let review = ReviewRequestService(log: playLog, appVersion: shortVersion)
 
     /// App Store の商品ページ。設定の「アプリをシェア」と、リザルトの記録の共有（#1043）が添える URL。
     /// キャンペーンのパラメータは付けない（付けるには ASC の Campaign Link の設定が要る・#1043）。
     static let appStoreURL = URL(string: "https://apps.apple.com/jp/app/id6781719499")!
+
+    /// App Store のレビュー記入画面を直接開く URL（#1471）。設定の「アプリを評価する」用。
+    /// `requestReview` は OS の上限（365 日で 3 回）に達すると何も出ないので、自分から開いた人には使わない。
+    static let writeReviewURL = URL(string: "https://apps.apple.com/app/id6781719499?action=write-review")!
 
     /// 表示用のバージョン番号（例 "1.1.1"）。取れなければ判定を止めないよう "0" を使う。
     static var shortVersion: String {
@@ -187,48 +201,59 @@ enum AppEnvironment {
     }
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
-    /// 並び順 = 新規インストール時の既定表示順（会長判断・2026-08-24）。ゲーム数が増えて
-    /// 1画面で全ては見渡せなくなったため、五目並べ・神経衰弱を下へ、麻雀（4人打ち）を上へ寄せた。
+    /// 並び順 = 新規インストール時の既定表示順。2026-09-23〜09-25 の GA4 実績から出したスコア順
+    /// （プレイ時間 50%・プレイ回数 25%・プレイ人数 25%。各指標を収録20本の中での順位パーセンタイルに
+    /// 直して重み付け）を基本に、会長の手動配置として チャリンコおじさん を 3位、四人打ち麻雀 を 4位、
+    /// カードしりとり を 9位、15パズル を最後に置いている（#1014・会長決裁 2026-09-25）。
+    /// ナンプレを上位に置く方針（国内の検索需要が最大級・#355 会長決裁 2026-08-31）はスコア順でも満たしている。
     /// 既にアプリを使っている人の並びには影響しない（`GameSettings` はユーザーの並び替えを
     /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
-        Game2048Module(),
-        ShogiModule(),
+        PokerModule(),
+        SolitaireModule(),
+        RunnerModule(),
         MahjongModule(),
-        // ナンプレは国内の検索需要が最大級のカテゴリなので上位に置く（#355 会長決裁・2026-08-31。
-        // それまでは #262 で末尾だった）。
         SudokuModule(),
         OthelloModule(),
-        // 囲碁（#398）。定番ボードの本丸で検索需要も大きいため、同系統の将棋・オセロの近くに置く。
-        GoModule(),
-        // チェス（#462）。将棋と同じ「駒を動かして王を詰ます」型なので、盤ゲームの並びに続ける。
-        ChessModule(),
-        MahjongSolitaireModule(),
-        // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
-        SolitaireModule(),
-        // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
-        FreeCellModule(),
-        // スパイダーソリティア（#717）。ソリティア御三家の残る 1 本なので、その隣に置く。
-        SpiderModule(),
-        DaifugoModule(),
-        PokerModule(),
-        BlackjackModule(),
-        MinesweeperModule(),
-        GomokuModule(),
-        ConcentrationModule(),
-        // カードしりとり（#1243）。同じ「絵札を取り合う」神経衰弱の隣に置く。
+        Game2048Module(),
+        ShogiModule(),
         ShiritoriModule(),
-        // 15パズル（#1314）。同じ「1人で盤面を詰める」ナンプレ・2048 系の軽量パズルで、
-        // 収録本数を偶数（22本）に保つための1本。
-        FifteenModule(),
-        // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
-        // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
-        BlocksModule(),
-        // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
-        RunnerModule(),
-        // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
-        // 使っている人の並びには影響しない）。#642 で v1.1.4 から持ち越したぶんを #668 で戻した。
+        DaifugoModule(),
+        GomokuModule(),
+        MinesweeperModule(),
+        SpiderModule(),
+        BlackjackModule(),
+        MahjongSolitaireModule(),
         HanafudaModule(),
+        GoModule(),
+        BlocksModule(),
+        ConcentrationModule(),
+        ChessModule(),
+        FreeCellModule(),
+        FifteenModule(),
+        // ルーレット（企画倉庫・#1318）。出荷する版が決まるまでハブには並べない
+        // （`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」。`#if DEBUG` では分岐しない）。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // RouletteModule(),
+        // くっつきフルーツ（企画倉庫・#1319）。ルーレットと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // FruitsModule(),
+        // いろリレー（企画倉庫・#1320）。ルーレット・くっつきフルーツと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // ColorRelayModule(),
+        // ぱっと暗算（企画倉庫・#1321）。上の 3 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // AnzanModule(),
+        // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // BackgammonModule(),
+        // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // SpeedModule(),
+        // 柵越えおじさん（企画倉庫・#1348）。上の 6 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // いまは段 3（2D の仮絵で一回遊べる形）で、3D・回数回復（広告/アンケート）・解析・Game Center は後続の段。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // HomerunModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

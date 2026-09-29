@@ -316,7 +316,7 @@ struct RunnerStoryTests {
     func theStoryKeepsThePresentationOrder() throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
         // ナビバーはオーバーレイの外にあるので、押せると 始まり → ガイド → 開始シートの順が崩れる。
-        #expect(source.contains(".disabled(presentedStory != nil)"))
+        #expect(source.contains("GameChromeNewGame(.restart, isDisabled: presentedStory != nil)"))
         // それでも中断された経路（撮影用の `-showRunnerStartSheet` など）で取り残さない。
         let open = try #require(SourceScan.declaration(of: "private func openStartSheet", in: source))
         #expect(open.contains("introScene = nil"))

@@ -96,6 +96,12 @@ public final class AdMobAdService: AdService {
         }
     }
 
+    /// 先読みした広告を失効前のまま預かっているか（`reward_offer` の `not_ready` の判定・#780）。
+    /// 先読みの途中はまだ出せないので false。
+    public var isRewardedAdReady: Bool {
+        rewardedSlot.hasFreshAd(now: Date())
+    }
+
     // 画面ごとに独立した GADBannerView を持たせる。共有すると UIView が奪われ HubView で表示されない。
     @MainActor public func makeBannerView(width: CGFloat) -> AnyView? {
         let vm = AdMobBannerViewModel(width: width)

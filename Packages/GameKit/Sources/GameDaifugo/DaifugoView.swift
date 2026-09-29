@@ -7,6 +7,8 @@ public struct DaifugoView: View {
     @State private var showResignConfirm = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
+    /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
+    @State private var cpuTask: Task<Void, Never>?
     /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -43,18 +45,7 @@ public struct DaifugoView: View {
         // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "大富豪", review: services.review) {
-            // 中断すると次回は必ず「続きから」に戻るため、局面を降りる導線をここに置く（#194）。
-            // 他ゲームのツールバーはアイコンだけだが、旗単体では「投了」と読めない。ツールバーは
-            // `Label` を渡してもアイコンだけに畳むので、文字を出すために `Text` を直接渡す。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showResignConfirm = true } label: {
-                    Text("投了")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                }
-                .disabled(!model.canResign)
-            }
-        }
+        .gameChrome(title: "大富豪", review: services.review)
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.daifugo) { DaifugoRuleSheet() }
         .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
@@ -63,6 +54,9 @@ public struct DaifugoView: View {
         } message: {
             Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
         }
+        // 献上免除の提示（#780 × #1048）。大貧民のリザルトでボタンが出ているあいだを 1 回の提示として数える。
+        .rewardOffer(waiveRescue, for: .revival, isPresented: model.canWaiveExchange,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             waiveRescue,
             notEarned: "カード交換を免除できませんでした",
@@ -78,12 +72,18 @@ public struct DaifugoView: View {
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
+        .onDisappear { cpuTask?.cancel() }
+    }
+
+    private func runCPU() {
+        cpuTask?.cancel()
+        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - ステータス
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
                 .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
@@ -94,13 +94,16 @@ public struct DaifugoView: View {
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Fill.coral))
             }
-            Spacer()
-            Text(turnLabel)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
+        } trailing: {
+            TurnBadge(turnLabel, kind: turnKind)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var turnKind: TurnBadge.Kind {
+        switch model.phase {
+        case .idle, .result: return .finished
+        case .playing: return model.isPlayerTurn ? .you : .cpu
+        }
     }
 
     private var turnLabel: String {
@@ -298,22 +301,36 @@ public struct DaifugoView: View {
             EmptyView()
         case .playing where model.isPlayerFinished:
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
-            actionButton("結果まで進める", color: Theme.Fill.coral, disabled: model.isSkippingToResult) {
+            actionButton("結果まで進める", role: .primary, disabled: model.isSkippingToResult) {
                 model.skipToResult()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton("パス", color: Theme.fillMuted, foreground: .white, disabled: !model.canPass) {
+                actionButton("パス", role: .skip, disabled: !model.canPass) {
                     model.pass()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
-                actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
+                actionButton(playButtonTitle, role: .primary, disabled: !model.canPlaySelection) {
                     model.playSelected()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
+                // 投了は盤下の「⋯」メニューに入れる（#1418・会長決裁 #1011 D1）。ヘッダー右は
+                // 役・？・新規の並びに固定するため文字の「投了」は置けない。中断すると次回は必ず
+                // 「続きから」に戻るので、局面を降りる導線としてここに残す（#194）。
+                Menu {
+                    Button("投了", role: .destructive) { showResignConfirm = true }
+                        .disabled(!model.canResign)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 44)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("その他の操作")
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -323,9 +340,9 @@ public struct DaifugoView: View {
                     waiveExchangeButton
                 }
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
-                actionButton("次のゲーム", color: Theme.Fill.coral, disabled: waiveRescue.isWatching) {
+                actionButton("次のゲーム", role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -350,13 +367,8 @@ public struct DaifugoView: View {
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(waiveRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(waiveRescue.isWatching ? Theme.inkSub : Theme.onAccent)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(waiveRescue.isWatching)
     }
 
@@ -444,26 +456,17 @@ public struct DaifugoView: View {
             : "次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）"
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
-                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
-                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
-        // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }
@@ -570,6 +573,6 @@ struct DaifugoRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: rules)
+        RuleListSheet(rules: rules)
     }
 }

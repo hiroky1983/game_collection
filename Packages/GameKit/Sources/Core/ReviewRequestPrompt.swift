@@ -9,7 +9,7 @@ public extension View {
     ///
     /// `SKStoreReviewController.requestReview(in:)` を直接呼ばず SwiftUI の `requestReview` を使う。
     /// 中身は同じ StoreKit のリクエストで、シーンの取得を自分でやらずに済み、iOS 18 で
-    /// deprecated になった API を避けられる（設定画面の「アプリを評価する」も同じ API）。
+    /// deprecated になった API を避けられる（設定画面の「アプリを評価する」は #1471 から App Store の URL を開く）。
     func reviewRequestPrompt(_ service: ReviewRequestService?) -> some View {
         modifier(ReviewRequestPromptModifier(service: service))
     }

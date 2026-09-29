@@ -838,3 +838,51 @@ struct MahjongCallFullGameTests {
         #expect(model.scores.reduce(0, +) == MahjongModel.startingScore * MahjongModel.playerCount)
     }
 }
+
+// MARK: - カンと海底・王牌の枯渇（#1385）
+
+@Suite("カンと海底・王牌の枯渇")
+@MainActor
+struct MahjongKanExhaustionTests {
+
+    @Test("残り 0 枚の嶺上ツモには海底摸月が付かない。通常のツモには付く")
+    func rinshanIsNotHaitei() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [MahjongNotation.hand("234p567p234s678s5m"), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            currentPlayer: 0
+        )
+        #expect(model.remainingTiles == 0)
+        let win = MahjongNotation.tile("5m")
+        let rinshan = try #require(model.winScore(for: 0, winningTile: win, isTsumo: true, isRinshan: true))
+        let normal = try #require(model.winScore(for: 0, winningTile: win, isTsumo: true))
+        #expect(rinshan.yaku.contains { $0.yaku == .rinshan })
+        #expect(!rinshan.yaku.contains { $0.yaku == .haitei }, "嶺上牌は海底に数えない")
+        #expect(normal.yaku.contains { $0.yaku == .haitei }, "対照: 通常の最後のツモには海底が付く")
+    }
+
+    @Test("4 回カン済みの局では他家の捨て牌への大明槓を提示しない（ポンは残る）")
+    func openKanNotOfferedAfterFourKans() {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [MahjongNotation.hand("555m234p567p23s99s"), junkHand(), junkHand(), junkHand()],
+            wall: MahjongNotation.tiles("1111m2222m"),
+            currentPlayer: 1,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("5m")
+        )
+        model.deadWallDraws = 4
+        model.discardForTesting(MahjongNotation.tile("5m"), by: 1)
+        #expect(model.callOffer?.options.map(\.kind) == [.pon])
+    }
+
+    @Test("CPU の立直判定は副露数を見る。暗槓後の 10 枚でも聴牌なら宣言できる")
+    func cpuRiichiCountsMelds() {
+        let concealed = MahjongNotation.hand("234p567p23s99s")  // 暗槓ぶん（3 枚）を除いた 10 枚
+        #expect(MahjongAI.shouldDeclareRiichi(hand: concealed, meldCount: 1))
+        #expect(!MahjongAI.shouldDeclareRiichi(hand: concealed), "対照: 副露数を渡さなければ聴牌に見えない")
+    }
+}

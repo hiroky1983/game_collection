@@ -11,15 +11,6 @@ enum MinesweeperMetrics {
     /// Apple HIG の最小タップ標的。
     static let minimumTapTarget: CGFloat = 44
 
-    /// 旗モード・拡大モードの切り替えボタンの一辺の下限（#203）。
-    ///
-    /// 従来はアイコン 13pt + 左右 8pt・上下 5pt の余白で実測およそ 29×23pt しかなく、
-    /// HIG を大きく下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ基準に揃える。
-    ///
-    /// 実際に frame へ渡すのは共通の `BoardToggleButton`（Core・#641）なので、値もそこから取る。
-    /// 帯の高さの見積り（`statusBarVerticalPadding`）がボタンの実寸から外れないようにするため。
-    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
-
     /// 拡大モードでの 1 マスの一辺（#458）。
     ///
     /// 44pt は「iPhone では等倍の盤が 44pt に届かない」ことから来た**下限**であって目標値ではない。
@@ -30,12 +21,6 @@ enum MinesweeperMetrics {
         guard cols > 0 else { return minimumTapTarget }
         return max(minimumTapTarget, availableWidth / CGFloat(cols))
     }
-
-    /// ステータスバーの上下の余白（#203）。
-    ///
-    /// 44pt のボタンが帯の高さを決めるようになるぶん余白を 8 → 4 に詰め、
-    /// #148 で盤面に捻出した高さをほぼ据え置きにする（#197 の麻雀ソリティアと同じ手当て）。
-    static let statusBarVerticalPadding: CGFloat = 4
 
     // MARK: - 連鎖開放の演出（#203）
 

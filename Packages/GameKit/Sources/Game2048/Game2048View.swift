@@ -7,6 +7,7 @@ public struct Game2048View: View {
     @State private var model: Game2048Model
     /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var continueRescue = RewardedRescue()
+    @State private var showConfirmReset = false
 
     public init(services: GameServices) {
         self.services = services
@@ -26,14 +27,21 @@ public struct Game2048View: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "2048", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { withGameAnimation { model.newGame() } } label: {
-                    Label("リセット", systemImage: "arrow.clockwise")
-                }
-            }
-        }
+        .gameChrome(title: "2048", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        if model.hasProgressToLose {
+                            showConfirmReset = true
+                        } else {
+                            withGameAnimation { model.newGame() }
+                        }
+                    })
         .howToPlay(.game2048)
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると、いまの盤面と得点が失われます。")
+        }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulate2048Move <up|down|left|right>` でその向きへ 1 手動かす（#438）。
@@ -43,6 +51,10 @@ public struct Game2048View: View {
             if let i = args.firstIndex(of: "-simulate2048Move"), i + 1 < args.count,
                let direction = Self.direction(named: args[i + 1]) {
                 withGameAnimation(.easeInOut(duration: 0.12)) { model.move(direction) }
+            }
+            // 撮影・動作確認用: `-simulate2048GameOver` でゲームオーバーの幕（盤だけに重ねる・#1486）を出す。
+            if args.contains("-simulate2048GameOver") {
+                model.debugForceGameOver()
             }
             #endif
         }

@@ -73,7 +73,9 @@ public final class MahjongSolitaireModel {
     private let services: GameServices?
     private var seed: UInt64?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "mahjong"
+    let gameID = MahjongSolitaireModel.snapshotID
+    /// 中断データの保存キー（= `gameID`）。View が開始シートを出すか決めるときに、モデルを作る前に引く。
+    nonisolated static let snapshotID = "mahjong"
     /// アンドゥで戻せる 1 手。**深さは常に 1 手ぶん**で、戻したら空になる（連続で巻き戻せない）。
     /// 並べ替え・新規ゲーム・クリアでは位置と絵柄の対応が変わる（または局が終わる）ので破棄する。
     /// 中断スナップショットには積まない = 再開直後は戻せない（オセロ・五目並べの「待った」と同じ扱い）。
@@ -84,6 +86,29 @@ public final class MahjongSolitaireModel {
         phase == .playing && remainingCount > 0 && availablePairCount == 0
     }
 
+    #if DEBUG
+    /// 動作確認用（DEBUG 限定）: 取れる組を乱択で取り続け、手詰まりの盤面まで進める（`-mahjongSolitaireDeadlock`）。
+    /// 手詰まりの画面（並べ替えの広告・最初から）は普通に遊ぶとなかなか出せず、シミュレータは自動タップも
+    /// できないため、起動引数で直接その状態を作る。取り切ってしまったら配り直してやり直す。
+    /// `tap()` は経由しない: 乱択が手詰まりに至る前に盤面を取り切ってしまうと `finish()` が走り、
+    /// 乱択プレイの結果が通算成績（自己ベスト）に記録されてしまうため、盤面操作だけを直接行う。
+    func debugPlayUntilDeadlock(maxDeals: Int = 50) {
+        var rng = SystemRandomNumberGenerator()
+        for _ in 0..<maxDeals {
+            while remainingCount > 0 {
+                let pairs = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout)
+                guard let pair = pairs.randomElement(using: &rng) else { break }
+                faces[pair.0] = nil
+                faces[pair.1] = nil
+                remainingCount -= 2
+                refreshDerivedState()
+            }
+            if isDeadlocked { return }
+            newGame()
+        }
+    }
+    #endif
+
     /// 1 手戻せるか。取った直後だけ true。
     public var canUndo: Bool { phase == .playing && lastTake != nil }
 
@@ -91,11 +116,14 @@ public final class MahjongSolitaireModel {
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
     ///   - faces: テスト用に盤面を直接与える経路（本番では使わない）。
     ///   - layout: 配る盤面のかたち。中断データがあればそちらのレイアウトが優先される。
+    ///   - defersInitialStart: 画面が開始シートを出すとき true。新しく配った盤面の `game_start` を
+    ///     `startPlayIfPending()` まで保留する。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
         faces: [MahjongFace?]? = nil,
-        layout: MahjongSolitaireLayout = .turtle
+        layout: MahjongSolitaireLayout = .turtle,
+        defersInitialStart: Bool = false
     ) {
         self.services = services
         self.seed = seed
@@ -130,7 +158,15 @@ public final class MahjongSolitaireModel {
         if remainingCount == 0 { phase = .won }
         // 中断からの復元は「新しいプレイ」ではないので数えない（#158）。
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshBoard { services?.gameDidStart(gameID: gameID) }
+        // 開始シートを出す初回は数えずに保留し、シートを閉じたとき（`startPlayIfPending`）か
+        // シートで配り直したとき（`newGame`）のどちらか一方で数える。
+        if isFreshBoard {
+            if defersInitialStart {
+                pendingInitialStart = true
+            } else {
+                services?.gameDidStart(gameID: gameID)
+            }
+        }
     }
 
     // MARK: - 操作
@@ -139,6 +175,8 @@ public final class MahjongSolitaireModel {
     public func tap(_ index: Int) {
         guard phase == .playing, index >= 0, index < faces.count else { return }
         guard let face = faces[index] else { return }
+        // シートを経ずに触れた場合の保険（通常はシートを閉じた時点で数え終わっている）。
+        startPlayIfPending()
         guard isFreeByIndex[index] else {
             services?.feedback.notify(.warning)   // 上に載っている・両隣が塞がっている牌は取れない
             return
@@ -295,12 +333,25 @@ public final class MahjongSolitaireModel {
         startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
+        // 開始シートで配り直したときは、保留していた初回の数え込みを捨てる（ここで 1 回だけ数える）。
+        pendingInitialStart = false
         services?.gameDidRestart(gameID: gameID)
+    }
+
+    /// 開始シートを出す初回の `game_start` は、シートを閉じた時点まで遅らせる（囲碁 #1372 と同じ作り）。
+    /// シートで別のかたちを選ぶと `newGame` が `gameDidRestart` で数えるので、`init` で先に数えると
+    /// 1 プレイが 2 回 `game_start` になる。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: gameID)
     }
 
     /// 手詰まりで「最初から」を選んだとき。盤面を配り直す（結果は記録しない）。
     ///
-    /// **記録の扱いは `newGame()` に揃えてある**（#240）。ここと「＋」からの配り直しは、
+    /// **記録の扱いは `newGame()` に揃えてある**（#240）。ここと「新規ゲーム」からの配り直しは、
     /// ユーザーから見ればどちらも「取り切れないまま盤面を捨てた」同じ操作なのに、
     /// 以前はこちらだけが敗北として通算成績に乗っていた。手詰まりはユーザーが選んだ結果ではなく
     /// 配りが行き止まりだったというだけなので、**捨てた盤面はどちらの経路でも記録しない**方に揃えた。
@@ -309,6 +360,15 @@ public final class MahjongSolitaireModel {
         guard phase == .playing else { return }
         services?.feedback.notify(.error)
         newGame()
+    }
+
+    /// 画面を離れたときに計時を止める（View の `.onDisappear` から呼ぶ・#1369）。
+    /// 止める前に経過秒を保存し直すので、戻ったときは続きから数え直せる。
+    /// 止めないと古いモデルが計時と保存を続け、開き直した盤面や消した中断データを上書きする。
+    public func pauseTimer() {
+        if isCounting { persist() }
+        timerTask?.cancel()
+        timerTask = nil
     }
 
     /// 計時が動いているか（テスト用）。
@@ -406,10 +466,11 @@ public final class MahjongSolitaireModel {
 
     private func startTimer() {
         timerTask?.cancel()
-        timerTask = Task {
+        // `[weak self]`: 画面を離れたあともモデルを握り続けて計時が進まないようにする（#1369）。
+        timerTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled, let self else { break }
                 tick()
             }
         }

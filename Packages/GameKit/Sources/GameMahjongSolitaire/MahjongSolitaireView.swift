@@ -36,10 +36,11 @@ public struct MahjongSolitaireView: View {
     /// 形を把握し、取りに行くときに「拡大」で 44pt の触れる大きさへ切り替える流れにする。
     /// （#196 当初は「触れる大きさ」既定だったが、初手から局所しか見えないほうが不便という判断）
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
-    @State private var showConfirmNewGame = false
-    /// 確認ダイアログで「終了して新規ゲーム」を押したときに配るかたち（#239）。
-    /// nil なら今と同じかたちのまま配り直す。
-    @State private var pendingLayout: MahjongSolitaireLayout?
+    /// 盤面のかたちを選ぶ開始シート（会長 QA 2026-09-28）。ほかのゲームの難易度選びと同じく、
+    /// **中断データが無い初回はシートから始め**、ナビバーの「新規ゲーム」でも開く。中断データがあれば出さず続きから。
+    @State private var showSetup: Bool
+    /// 開始シートで選んでいる最中のかたち。「スタート」を押すまで局には効かない（1局=1RuleSet）。
+    @State private var draftLayout: MahjongSolitaireLayout = .turtle
     @State private var showShuffleConfirm = false
     /// 並べ替えのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var shuffleRescue = RewardedRescue()
@@ -72,24 +73,32 @@ public struct MahjongSolitaireView: View {
     }
 
     /// 撮影用に特定のかたちで起動する経路（DEBUG 限定・#239）。
-    /// シミュレータは自動タップができないため、「＋」から選ぶ操作を再現する手段がこれしかない
-    /// （`-mahjongSolitaireZoomed` と同じ理由）。
-    private static var initialLayout: MahjongSolitaireLayout {
+    /// シミュレータは自動タップができないため、開始シートから選ぶ操作を再現する手段がこれしかない
+    /// （`-mahjongSolitaireZoomed` と同じ理由）。指定したときは開始シートを出さずにそのかたちで配る。
+    private static var launchLayout: MahjongSolitaireLayout? {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-mahjongLayout"), i + 1 < args.count {
             return .named(args[i + 1])
         }
         #endif
-        return .turtle
+        return nil
     }
 
     public init(services: GameServices) {
         self.services = services
+        let launchLayout = MahjongSolitaireView.launchLayout
+        // 中断データの有無はモデルを作る前に見る（モデルは作った時点では保存しないが、順序に頼らない）。
+        let hasSnapshot = services.snapshots.exists(for: MahjongSolitaireModel.snapshotID)
+        // 中断データがあれば続きから（シートを出さない）。起動引数でかたちを指定したときも出さない。
+        let showsInitialSetup = launchLayout == nil && !hasSnapshot
         _model = State(initialValue: MahjongSolitaireModel(
             services: services,
-            layout: MahjongSolitaireView.initialLayout
+            layout: launchLayout ?? .turtle,
+            // シートを出すときは `game_start` をシートを閉じるまで保留する（二重計上の防止・囲碁 #1372 と同じ）。
+            defersInitialStart: showsInitialSetup
         ))
+        _showSetup = State(initialValue: showsInitialSetup)
     }
 
     public var body: some View {
@@ -97,26 +106,40 @@ public struct MahjongSolitaireView: View {
         // 盤面に回せる高さを間隔から捻出している（#148）。
         VStack(spacing: 8) {
             statusBar
+            // 盤は卓の上に置く（#1501）。牌の大きさは卓の内側の幅から決まるので、山が卓からはみ出さない。
             board
-                // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白ぶんまで使って牌を大きくする。
-                .padding(.horizontal, -Theme.pad)
+                .cardTable()
+                // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白を卓の分（`boardSideInset` 4pt。
+                // ソリティア系 3 本と同じ）まで詰めて牌を大きくする。
+                .padding(.horizontal, -(Theme.pad - CardStackLayout.boardSideInset))
                 .layoutPriority(1)
-            HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
             controlArea
+            HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "麻雀ソリティア", review: services.review) {
-            ToolbarItem(placement: .primaryAction) { newGameMenu }
-        }
+        // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
+        // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
+        .gameChrome(title: "麻雀ソリティア", review: services.review,
+                    newGame: GameChromeNewGame(.solo, isDisabled: isWatchingRewardAd) {
+                        openSetup()
+                    })
         .howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { model.newGame(layout: pendingLayout) }
-            Button("キャンセル", role: .cancel) { pendingLayout = nil }
-        } message: {
-            Text(pendingLayout.map { "「\($0.displayName)」を配ります。途中で終了すると今の盤面が失われます。" }
-                 ?? "途中で終了すると今の盤面が失われます。")
+        // 初回のシートを閉じたとき（キャンセル・下へのスワイプを含む）は、配ってある盤面（亀甲）で
+        // そのまま遊べるよう計時を始め、保留していた `game_start` を数える（シートで配り直したなら
+        // `newGame` が数え済みで何もしない）。プレイ中に開いたシートなら計時は止めていないので何も起きない。
+        .sheet(isPresented: $showSetup, onDismiss: {
+            model.startPlayIfPending()
+            model.resumeTimerIfNeeded()
+        }) {
+            MahjongSolitaireSetupSheet(draft: $draftLayout, discardsProgress: hasProgress) {
+                showSetup = false
+                startGame(layout: draftLayout)
+            } onCancel: {
+                showSetup = false
+            }
         }
         // 並べ替えはリワード広告制（会長指示 2026-08-30）。将棋の「待った」と同じく、
         // 広告が出ることをダイアログで予告してから視聴に進める（突然の広告を出さない）。
@@ -139,6 +162,11 @@ public struct MahjongSolitaireView: View {
         // ヒントもリワード広告制（#336）。確認ダイアログは `HintAlerts` にまとめてある
         // （ここへ直接ぶら下げると body の型チェックが破綻してコンパイルが通らない）。
         .modifier(HintAlerts(showConfirm: $showHintConfirm, onWatchAd: requestHint))
+        // 並べ替えは確認アラートと手詰まりの覆い（確認を経ずに広告へ進む）の 2 か所で選ばせている（#780）。
+        .rewardOffer(shuffleRescue, for: .shuffle, isPresented: showShuffleConfirm || model.isDeadlocked,
+                     services: services, gameID: model.gameID)
+        .rewardOffer(hintRescue, for: .hint, isPresented: showHintConfirm,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             hintRescue,
             notEarned: "ヒントを表示できませんでした",
@@ -150,15 +178,30 @@ public struct MahjongSolitaireView: View {
         .overlay {
             if model.isDeadlocked { deadlockOverlay }
         }
+        // 画面を離れたら計時を止める（#1369）。戻れば .task が再開する。
+        .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([shuffleRescue, hintRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
-            model.resumeTimerIfNeeded()
+            // 初回の開始シートを出しているあいだは計時しない（選び終えてから数え始める）。
+            if !showSetup { model.resumeTimerIfNeeded() }
             #if DEBUG
             // 撮影・動作確認用（DEBUG 限定）: タップ無しでヒントの確認ダイアログを出す
             // （`-solitaireHintConfirm`）。この画面はタップ起点でしかダイアログを出せず、
             // シミュレータは自動タップができないため、非対話の確認にはこの経路が要る
             // （`-simulateGiveUp` と同じ理由・#336）。
             if ProcessInfo.processInfo.arguments.contains("-solitaireHintConfirm") {
+                showSetup = false
                 showHintConfirm = true
+            }
+            // 手詰まりの画面を確認する経路（`-mahjongSolitaireDeadlock`）。乱択で取り続けて手詰まりまで進める。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireDeadlock") {
+                showSetup = false
+                model.debugPlayUntilDeadlock()
+            }
+            // 中断データがあっても開始シートを開く経路（`-mahjongSolitaireSetup`・撮影用）。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireSetup") {
+                openSetup()
             }
             #endif
         }
@@ -179,40 +222,28 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 新規ゲーム（盤面のかたちの選択・#239）
 
-    /// 「＋」からかたちを選んで配り直す。
-    ///
-    /// 選択の導線をここ 1 か所にまとめているのは、盤面の下（操作カード）が既にヒント・並べ替え・
-    /// 戻すで埋まっていて iPhone の幅に 4 つ目が入らないため（#198 で実測済み）。
-    /// いま遊んでいるかたちにはチェックを付け、「どれで遊んでいるか」もこのメニューで分かるようにする。
-    private var newGameMenu: some View {
-        Menu {
-            ForEach(MahjongSolitaireLayout.all) { layout in
-                Button {
-                    startNewGame(layout: layout)
-                } label: {
-                    // 選択中はチェック付き。`Label` にすると iOS がアイコンだけに畳むことがあるので
-                    // メニュー項目は `Text` で組む。
-                    if layout == model.layout {
-                        Label(layout.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(layout.displayName)
-                    }
-                }
-            }
-        } label: {
-            Label("新規ゲーム", systemImage: "plus.circle.fill")
-        }
-        .accessibilityLabel("新規ゲーム（盤面のかたちを選ぶ）")
-        // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
-        // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
-        .disabled(isWatchingRewardAd)
+    /// 開始シートを開く。**いま遊んでいるかたちを初期選択にする**（ソリティア #498・スパイダーと同じ）。
+    private func openSetup() {
+        draftLayout = model.layout
+        showSetup = true
     }
 
-    /// 途中の盤面があるときだけ確認を挟んでから配り直す。
-    private func startNewGame(layout: MahjongSolitaireLayout) {
-        if model.phase == .playing && model.remainingCount < model.layout.count {
-            pendingLayout = layout
-            showConfirmNewGame = true
+    /// 途中の盤面（1 組でも取った）があるか。開始シートの確定ボタンを「終了してスタート」にする
+    /// （旧・確認ダイアログ「終了して新規ゲーム」の役目をシートが兼ねる。ソリティアと同じ）。
+    private var hasProgress: Bool {
+        model.phase == .playing && model.remainingCount < model.layout.count
+    }
+
+    /// 開始シートの「スタート」。
+    ///
+    /// 初回のシートでは、画面を開いた時点で亀甲が配ってある（シートのあいだは計時もしていない）。
+    /// **同じかたちで、配ったまま何もしていないなら配り直さない**（無駄に配り直さない。
+    /// `game_start` はシートを閉じたときの `startPlayIfPending()` が 1 回だけ数える）。
+    private func startGame(layout: MahjongSolitaireLayout) {
+        if layout == model.layout && model.phase == .playing && model.dealSerial == 0
+            && model.remainingCount == model.layout.count && model.elapsedSeconds == 0
+            && model.shuffleCount == 0 && model.hintCount == 0 {
+            model.resumeTimerIfNeeded()
         } else {
             model.newGame(layout: layout)
         }
@@ -220,8 +251,9 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - ステータスバー
 
+    /// 帯には表示だけを置く（残り枚数・状態・時計）。全体表示⇄拡大などの操作は右下の「⋯」へ（#1468）。
     private var statusBar: some View {
-        HStack(spacing: 0) {
+        GameStatusBar {
             Group {
                 if model.phase == .won {
                     // 取り切った後の表示は行を増やさずここに同居させる（#148）。
@@ -237,51 +269,10 @@ public struct MahjongSolitaireView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
-
-            Spacer()
-
-            Text(stateEmoji).font(.system(size: 28))
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                Label(timeText, systemImage: "clock")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.teal)
-
-                displayToggle
-            }
-            .frame(minWidth: 78, alignment: .trailing)
-        }
-        // 縦の余白は 4。切り替えボタンが 44pt になって帯の高さを決めるようになったぶんここを詰め、
-        // #148 で捻出した盤面の高さを食わないようにしている（#197）。
-        .padding(.horizontal, 12).padding(.vertical, Metrics.statusBarVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    /// 全体表示 ⇄ 拡大の切り替え（#197）。
-    ///
-    /// 全体像を取り戻す唯一の入口なので、次の2点を満たす形にしてある:
-    /// - **タップ標的 44pt 以上**（従来は実測 29×23pt で Apple HIG を下回っていた）
-    /// - **記号だけにしない**。虫めがねアイコン 1 つでは「押すと何が起きるか」が伝わらず、
-    ///   拡大・全体表示という機能の存在自体が初回プレイで気づかれない。常時出す短い文字で補う
-    ///   （一度きりのヒントと違い、初回でも 2 回目以降でも同じように読める）。
-    ///
-    /// 見た目そのものはマインスイーパー・ナンプレ・フリーセルの拡大と共通の `BoardToggleButton`
-    /// （Core・#641）が持つ。**ON（差し色の面）＝拡大中**の向きも 4 ゲームで揃える。以前はここだけ
-    /// 全体表示を ON にしていたため、開始直後にソリティアだけ塗りつぶしで出て別物に見えていた
-    /// （会長 QA 2026-09-13「ボタンが同じ見た目になっていない」）。
-    private var displayToggle: some View {
-        BoardToggleButton(
-            isOn: !showsWholeBoard,
-            systemImage: !showsWholeBoard ? "minus.magnifyingglass" : "plus.magnifyingglass",
-            title: !showsWholeBoard ? "全体" : "拡大",
-            fill: Theme.Fill.teal,
-            accent: Theme.teal,
-            label: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
-        ) {
-            showsWholeBoard.toggle()
+        } trailing: {
+            Label(timeText, systemImage: "clock")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.teal)
         }
     }
 
@@ -290,28 +281,27 @@ public struct MahjongSolitaireView: View {
         return String(format: "%02d:%02d", s / 60, s % 60)
     }
 
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        return model.isDeadlocked ? "😵" : "🀄️"
-    }
-
     // MARK: - 盤面
 
     private var board: some View {
         Group {
             if showsClearDisplay {
                 // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
-                VStack(spacing: 12) {
-                    Text("🎉").font(.system(size: 64))
-                    Text("全部取り切った！")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.ink)
-                    // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
-                    // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
-                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .lineLimit(1).minimumScaleFactor(0.7)
+                // 文字色は卓の上（白系）と地の上（`Theme.ink` 系）で `cardTableInk` から取る（#1501）。
+                // 画面の View 本体で `@Environment` を読んでも盤に付けた卓の値は届かないので、盤の中で読む。
+                CardTableInkReader { ink in
+                    VStack(spacing: 12) {
+                        Text("🎉").font(.system(size: 64))
+                        Text("全部取り切った！")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(ink.label)
+                        // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
+                        // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
+                        Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(ink.labelSub)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -344,11 +334,13 @@ public struct MahjongSolitaireView: View {
 
     private func boardCanvas(tileWidth: CGFloat) -> some View {
         let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: model.layout)
+        // 牌の外接矩形。牌ごとに求め直さないよう 1 度だけ計算して渡す。
+        let extent = Metrics.extent(layout: model.layout)
         return ZStack(alignment: .topLeading) {
             // 下の段から順に描くことで、上に積まれた牌が手前に来る。
             ForEach(model.faces.indices, id: \.self) { index in
                 if let face = model.faces[index] {
-                    tileView(index: index, face: face, tileWidth: tileWidth)
+                    tileView(index: index, face: face, tileWidth: tileWidth, extent: extent)
                 }
             }
         }
@@ -383,8 +375,8 @@ public struct MahjongSolitaireView: View {
         let hintPair: [Int]
     }
 
-    private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat) -> some View {
-        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: model.layout)
+    private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat, extent: Metrics.Extent) -> some View {
+        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: model.layout, extent: extent)
         return MahjongTileView(
             face: face,
             width: frame.width,
@@ -414,98 +406,51 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 操作
 
-    /// プレイ中の操作。アンドゥ（#198）を足して 3 つになったので、**1 段に収める**ための工夫が要る。
-    ///
-    /// 1. それまで右端に置いていた利用回数（「ヒント1 / 並べ替え1」）はやめた。3 つぶんの回数は
-    ///    どの iPhone の幅でも入らず、実測（iPhone 17 Pro）でボタンの文字が 2 行に折り返し、
-    ///    回数自体も「…」で切れた。回数はクリア後のリザルトに 3 つとも（0 回も省かず）出しており、
-    ///    情報は失われない。
-    /// 2. 文字が大きい設定では文字を捨ててアイコンだけにする（`ViewThatFits`）。縮小に頼ると
-    ///    アクセシビリティ XXXL で「ヒ…」まで切れて、大きいアイコンより読めなくなる（実測）。
-    ///    アイコンだけになるのは既定の文字サイズでは起きないので、#197 の「記号だけにしない」
-    ///    （＝初回に機能の存在が伝わらない）には抵触しない。読み上げのラベルは両方の段で同じ。
+    /// プレイ中の操作は右下の「⋯」にまとめる（#1422・#1468）。戻す・並べ替え・全体表示⇄拡大・ヒント。
     private var gameControls: some View {
-        HStack(spacing: 8) {
-            // 判定させたいのはボタン 3 つぶんの幅なので、伸び縮みする Spacer は外に置く
-            // （中に入れるとどんな幅でも「入る」と判定されて常に 1 つ目が選ばれる）。
-            ViewThatFits(in: .horizontal) {
-                controlRow(showsTitle: true)
-                controlRow(showsTitle: false)
-            }
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        GameOverflowBar(menuItems: controlMenuItems, nudge: hintNudge)
     }
 
-    private func controlRow(showsTitle: Bool) -> some View {
-        HStack(spacing: 8) {
-            // ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
-            // 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
-            controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.Fill.teal, showsTitle: showsTitle) {
-                showHintConfirm = true
-            }
-            // 手詰まりでは押せない（広告だけ見せて何も起きない状態を作らない）。
-            // 手詰まりならこのボタンは `deadlockOverlay` に覆われるので実際には届かないが、
-            // 覆いに頼らず二重の歯止めにしておく。見た目を落とさないのは、押せない状態が
-            // ユーザーから見える経路が無く、薄くしても伝わる相手がいないため。
-            .disabled(!model.canHint || isWatchingRewardAd)
-            .accessibilityHint("広告を見ると取れる組が1組光ります")
-            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
-            // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
-            // #324 側を採って統合した。ここから確認ダイアログ → 視聴 → 並べ替えの順に進む。
-            controlButton("並べ替え", systemImage: "shuffle", tint: Theme.Fill.purple, showsTitle: showsTitle) {
-                showShuffleConfirm = true
-            }
-            // ヒントの広告をロードしている最中は押させない（上の `isWatchingRewardAd` の理由）。
-            .disabled(isWatchingRewardAd)
-            undoButton(showsTitle: showsTitle)
-        }
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// 手詰まり・決着・広告の視聴中は出さない。
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canHint && !isWatchingRewardAd,
+            game: model.dealSerial,
+            activity: [model.selectedIndex ?? -1, model.remainingCount, model.hintCount, model.shuffleCount, model.undoCount, showsWholeBoard ? 1 : 0]
+        )
     }
 
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        showsTitle: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Group {
-                if showsTitle {
-                    Label(title, systemImage: systemImage).lineLimit(1)
-                } else {
-                    Image(systemName: systemImage)
-                }
-            }
-            .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 12)
-            // 高さは**どちらの段でも** 44pt（#199）。#198 の時点では文字付きの段を
-            // 上下 6pt の余白のままにして「44pt 化は #199 のスコープ」と保留していたが、
-            // ここで 3 つとも同じ下限に揃えた（1 つだけ大きくすると帯が不揃いになる）。
-            // 幅の下限はアイコンだけの段にのみ要る（文字付きの段は文字のぶんで足りる）。
-            .frame(
-                minWidth: showsTitle ? nil : Metrics.minimumTapTarget,
-                minHeight: Metrics.controlButtonMinHeight
-            )
-            .background(Capsule().fill(tint))
-            // 広げた枠の隅まで反応させる（既定は描いた中身のぶんしか受けない）。
-            .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
-    }
-
-    /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
-    private func undoButton(showsTitle: Bool) -> some View {
-        controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral, showsTitle: showsTitle) {
-            model.undoLastTake()
-        }
-        .disabled(!model.canUndo)
-        // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれ、誤タップの救済に気づかれない）。
-        .opacity(model.canUndo ? 1 : 0.4)
-        .accessibilityLabel("直前に取った2枚を戻す")
-        .accessibilityHint(model.canUndo ? "" : "牌を取った直後だけ使えます")
+    /// 「⋯」に入れる操作。ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
+    /// 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
+    /// 手詰まりなら操作行は `deadlockOverlay` に覆われるので実際には届かないが、
+    /// 覆いに頼らず二重の歯止めにしておく。ヒントの広告をロードしている最中も押させない。
+    private var controlMenuItems: [GameControlMenuItem] {
+        [
+            // 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。押せない間も項目は残す。
+            GameControlMenuItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo,
+                accessibilityLabel: "直前に取った2枚を戻す",
+                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
+            ) { model.undoLastTake() },
+            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。確認ダイアログ → 視聴 → 並べ替えの順に進む。
+            // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
+            GameControlMenuItem(
+                id: "shuffle", title: "並べ替え", systemImage: "shuffle",
+                isEnabled: !isWatchingRewardAd
+            ) { showShuffleConfirm = true },
+            // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
+            GameControlMenuItem(
+                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
+                accessibilityLabel: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
+            ) { showsWholeBoard.toggle() },
+            GameControlMenuItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill",
+                isEnabled: model.canHint && !isWatchingRewardAd,
+                accessibilityHint: "広告を見ると取れる組が1組光ります"
+            ) { showHintConfirm = true },
+        ]
     }
 
     // MARK: - 盤の下の操作エリア
@@ -577,55 +522,26 @@ public struct MahjongSolitaireView: View {
     }
 
     private var deadlockOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("😵").font(.system(size: 52))
-                Text("取れる牌がありません")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text("広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-
-                Button {
-                    requestShuffle()
-                } label: {
-                    Label("広告を見て並べ替える", systemImage: "play.rectangle.fill")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.Fill.purple, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.plain)
-
-                // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
-                // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
-                if model.canUndo {
-                    Button { model.undoLastTake() } label: {
-                        Label("直前の1手を戻す", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button { model.giveUpAndRestart() } label: {
-                    Text("最初から")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
+        GameDeadEndPanel(
+            emoji: "😵",
+            title: "取れる牌がありません",
+            message: "広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。"
+        ) {
+            GameDeadEndActionButton("広告を見て並べ替える", systemImage: "play.rectangle.fill", tint: Theme.Fill.purple) {
+                requestShuffle()
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+
+            // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
+            // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
+            if model.canUndo {
+                GameDeadEndActionButton("直前の1手を戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral) {
+                    model.undoLastTake()
+                }
+            }
+
+            GameDeadEndDismissButton("最初から") {
+                model.giveUpAndRestart()
+            }
         }
     }
 }
@@ -644,11 +560,11 @@ struct MahjongSolitaireRuleSheet: View {
         ("花牌と季節牌", "花牌（梅・蘭・菊・竹）どうし、季節牌（春・夏・秋・冬）どうしは、絵柄が違っても合わせて取れます。梅と蘭、春と冬のような組み合わせで消えるのはこのためです"),
         ("そのほかの牌", "花牌・季節牌以外は、まったく同じ絵柄の2枚だけが合います。一萬と二萬のように種類が同じでも数が違えば合いません"),
         ("並んでいる牌", "全部で144枚（標準の34種が4枚ずつ + 花牌4枚 + 季節牌4枚）です。配る盤面は取り切れる順番があるように作っているので、必ずクリアできます"),
-        ("盤面のかたち", "右上の「＋」から盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます"),
+        ("盤面のかたち", "はじめるときと「新規ゲーム」を押したときに、盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます"),
         ("ヒント・並べ替え・戻す", "「ヒント」は取れる2枚を1組光らせます。「並べ替え」は残りをそこから取り切れる配置に組み直します（戻せる1手は無くなります）。「戻す」は直前に取った2枚を盤に返します"),
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: Self.rules)
+        RuleListSheet(rules: Self.rules)
     }
 }

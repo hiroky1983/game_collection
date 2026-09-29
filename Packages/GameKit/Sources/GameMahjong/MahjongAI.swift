@@ -65,8 +65,8 @@ public enum MahjongAI {
 
     /// 立直するか。聴牌していて点棒があり、山に牌が残っていれば必ず宣言する
     /// （守備を持たない段階なので、打点を最大化する側に倒す）。
-    public static func shouldDeclareRiichi(hand: MahjongHand) -> Bool {
-        MahjongShanten.isTenpai(hand)
+    public static func shouldDeclareRiichi(hand: MahjongHand, meldCount: Int = 0) -> Bool {
+        MahjongShanten.isTenpai(hand, meldCount: meldCount)
     }
 
     // MARK: - 鳴きの判断

@@ -33,7 +33,7 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     public var label: String {
         switch self {
         case .novice: return "入門"
-        case .easy:   return "簡単"
+        case .easy:   return "かんたん"
         case .normal: return "ふつう"
         case .hard:   return "むずかしい"
         }
@@ -69,6 +69,12 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     /// 並びでの位置（0 始まり）→ `aiLevel`。`DifficultyLadder` が勧めてきた段で始め直すのに使う。
     public static func level(atLadderIndex index: Int) -> Int {
         allCases.indices.contains(index) ? allCases[index].rawValue : standard.rawValue
+    }
+
+    /// 評価リクエストの見せ場になる強さか（#1471）。「ふつう」以上の CPU に勝ったときだけ。
+    /// 「入門」「かんたん」に勝っても、評価を頼むほどの手応えとは言えない。
+    public static func isReviewWorthy(level: Int) -> Bool {
+        level >= normal.rawValue
     }
 
     /// 解析の段階（`aiLevel` から直接）。

@@ -121,41 +121,29 @@ struct MinesweeperRevealTests {
 
     // MARK: - タップ標的（#203 受け入れ条件2）
 
-    @Test("切り替えボタンの一辺は Apple HIG の 44pt 以上")
-    func toggleMeetsTapTarget() {
+    @Test("拡大モードのマスは Apple HIG の 44pt 以上")
+    func zoomedCellMeetsTapTarget() {
         #expect(Metrics.minimumTapTarget >= 44)
-        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
-        // frame を持っているのは共通の `BoardToggleButton`（Core・#641）なので、
-        // 帯の高さの見積りに使うこの定数がそこからずれていないことを押さえる。
-        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide,
-                "帯の高さの見積りがボタンの実寸から外れている")
     }
 
-    /// 定数を用意しただけで View 側が使っていなければ意味が無いので、実際の使用箇所を見る。
+    /// 帯には表示だけを置き、旗モード・拡大は右下の「⋯」のチェック付き項目にある（#1468）。
     /// **`statusBar` の宣言ブロックだけを切り出してから**走査する（ファイル全体を対象にすると、
     /// 後から別の場所に同じ文字列が入ったときに検証対象が静かにすり替わる・#201 の教訓）。
-    ///
-    /// #641 で旗・拡大とも共通の `BoardToggleButton` に載せ替えたので、見るのは
-    /// 「2 つとも共通枠から組まれているか」になる（44pt を frame に渡していることは
-    /// Core 側の `BoardToggleButtonTests` が押さえる）。
-    @Test("ステータスバーの切り替えボタンが 2 つとも共通枠から組まれている")
-    func statusBarTogglesUseTheSharedToggle() throws {
+    @Test("ステータスバーにボタン・トグルは無く、旗モード・拡大は「⋯」にある")
+    func statusBarHasNoButtons() throws {
         let block = try Self.declarationBlock(
             containing: "private var statusBar: some View {",
             inSourceFile: "GameMinesweeper/MinesweeperView.swift"
         )
+        #expect(!block.contains { $0.contains("Button") }, "ステータスバーにボタンが戻っている")
 
-        let buttons = block.filter { $0.contains("BoardToggleButton(") }.count
-        #expect(buttons == 2, "ステータスバーの共通枠のボタン数が変わっている（\(buttons) 個）")
-
-        // 手書きに戻すと、面の作り（薄い差し色・枠線・角丸 10）が再び揃わなくなる（#641 の再発）。
-        #expect(
-            !block.contains { $0.contains("Button {") },
-            "ステータスバーに手書きのボタンが戻っている（共通枠へ寄せること）"
+        let controls = try Self.declarationBlock(
+            containing: "private var gameControls: some View {",
+            inSourceFile: "GameMinesweeper/MinesweeperView.swift"
         )
-
-        // 旧実装の余白指定が残っていたら、それは 44pt を潰す指定なので落とす。
-        #expect(!block.contains { $0.contains("padding(.vertical, 5)") })
+        for id in ["flag", "zoom", "giveUp"] {
+            #expect(controls.contains { $0.contains("id: \"\(id)\"") }, "\(id) が「⋯」メニューに無い")
+        }
     }
 
     /// マスの演出の修飾子はマスに 1 つだけ（入れ子にすると内側が外側を打ち消す・#199 の教訓）。

@@ -61,6 +61,14 @@ public final class SpyAnalyticsService: AnalyticsService {
         }
     }
 
+    /// リワード広告の提示とその結末（#780）。受けた / 断った / 在庫が無かった、の別が入る。
+    public var offers: [(gameID: String, purpose: RewardPurpose, result: RewardOfferResult)] {
+        events.compactMap {
+            if case let .rewardOffer(gameID, purpose, result) = $0 { return (gameID, purpose, result) }
+            return nil
+        }
+    }
+
     public func starts(of gameID: String) -> Int { starts.filter { $0 == gameID }.count }
     public func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
     public func quits(of gameID: String) -> Int { quits.filter { $0.gameID == gameID }.count }

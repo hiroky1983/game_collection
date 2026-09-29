@@ -36,34 +36,43 @@ public struct SolitaireView: View {
     }
 
     public var body: some View {
+        // 左右の余白は部品ごとに付ける。卓だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
+        // 帯・ボタン・バナーは従来どおり `Theme.pad`（16pt）。フリーセル・スパイダーと同じ。
         VStack(spacing: 8) {
             statusBar
-            SolitaireBoardView(model: model, services: services).layoutPriority(1)
-            HowToPlayHint(.solitaire, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
+            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
+            SolitaireBoardView(model: model, services: services)
+                .cardTable(topInset: CardTableStyle.cardTopInset)
+                .padding(.horizontal, CardStackLayout.boardSideInset)
+                .layoutPriority(1)
             SolitaireControlsView(
                 model: model,
                 services: services,
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo
             )
+            .padding(.horizontal, Theme.pad)
+            HowToPlayHint(.solitaire, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
+                .padding(.horizontal, Theme.pad)
         }
-        .padding(Theme.pad)
-        .gameChrome(title: "ソリティア", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { openSetup() } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                .accessibilityLabel("新しい配札にする")
-            }
-        }
+        .padding(.vertical, Theme.pad)
+        .gameChrome(title: "ソリティア", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        openSetup()
+                    })
         .howToPlay(.solitaire) { SolitaireRuleSheet() }
         // めくり方を選んでから配る（#498）。局に焼き込むのは「配る」を押した瞬間だけ。
         .sheet(isPresented: $showSetup) {
             SolitaireSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
                 showSetup = false
                 model.newGame(rules: draft)
+            } onCancel: {
+                showSetup = false
             }
         }
         .rewardedRescueAlerts(
@@ -80,6 +89,11 @@ public struct SolitaireView: View {
         } message: {
             Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
         }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
+        // 手持ちのジョーカーがあるうちの幕は、広告ではなく「使う」を出している（#780）。
+        .rewardOffer(jokerRescue, for: .joker, isPresented: model.showsRescuePrompt && !model.hasJoker,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
             notEarned: "「戻す」を補充できませんでした",
@@ -131,6 +145,8 @@ public struct SolitaireView: View {
             #endif
         }
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([jokerRescue, undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498）。
@@ -143,7 +159,7 @@ public struct SolitaireView: View {
     // MARK: - ステータスバー
 
     private var statusBar: some View {
-        HStack(spacing: 0) {
+        GameStatusBar {
             Group {
                 if model.phase == .won {
                     Label("クリア！", systemImage: "flag.checkered")
@@ -157,21 +173,11 @@ public struct SolitaireView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
-
-            Spacer()
-
-            Text(stateEmoji).font(.system(size: 28))
-
-            Spacer()
-
+        } trailing: {
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-                .frame(minWidth: 78, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
         // 3 つの数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SolitaireAccessibility.statusLabel(
@@ -181,13 +187,6 @@ public struct SolitaireView: View {
             isDeadEnd: model.isDeadEnd,
             isLost: model.isLost
         ))
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        if model.isDeadEnd { return "😵" }
-        // 敗北確定（#406）。告知を閉じたあとも、ここだけは状態を出し続ける。
-        return model.isLost ? "🤔" : "♠️"
     }
 
     // MARK: - リワード広告の段取り
@@ -256,6 +255,6 @@ struct SolitaireRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: Self.rules)
+        RuleListSheet(rules: Self.rules)
     }
 }

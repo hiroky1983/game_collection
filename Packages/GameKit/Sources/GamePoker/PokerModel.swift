@@ -135,7 +135,7 @@ public final class PokerModel {
     private let betAmount = 20
     private let services: GameServices?
 
-    private let gameID = "poker"
+    let gameID = "poker"
 
     /// ショーダウンで CPU の 5 枚が返り終わり、役名が出るまでの時間（#667）。勝敗の触覚をここまで遅らせる。
     /// `.zero` なら従来どおり決着の瞬間に鳴らす。
@@ -341,7 +341,10 @@ public final class PokerModel {
                 // 復活（#499）を使ったセッションは順位表へ送らない（ソリティアのジョーカー #406 と
                 // 同じ思想。送ると「広告を何回見たか」の表になる）。ローカルの自己ベストには残す。
                 isLeaderboardEligible: rules.isLeaderboardEligible && !hasRevivedThisSession
-            )
+            ),
+            // 評価リクエストの見せ場は、スリーカード以上の役で勝ったとき（#1471）。フォールド勝ちでは
+            // 役を判定していない場合があるので、いまの手札から数え直す。
+            isReviewHighlight: HandEvaluator.evaluate(playerHand).rank >= .threeOfAKind
         )
         checkSessionOver()
         // ダブルアップの精算はここまでで終わっている。復活したセッション（#1104）は、
@@ -392,6 +395,7 @@ public final class PokerModel {
                 cpuChips -= callAmount
                 pot += callAmount
                 cpuBetInRound = callAmount
+                refundPlayerExcess(bet: playerBet, called: callAmount)
                 cpuAction = "コール"
                 phase = .exchange
             } else {
@@ -476,7 +480,7 @@ public final class PokerModel {
             cpuChips += pot
             pot = 0
             winner = .cpu
-            cpuAction = "プレイヤーフォールド"
+            cpuAction = "あなたがフォールド"
             phase = .result
             settleRound()
             persist()
@@ -505,6 +509,7 @@ public final class PokerModel {
                 cpuChips -= callAmount
                 pot += callAmount
                 cpuBetInRound = callAmount
+                refundPlayerExcess(bet: playerBet, called: callAmount)
                 cpuAction = "コール"
                 phase = .showdown
                 resolveShowdown()
@@ -523,10 +528,29 @@ public final class PokerModel {
         playerChips -= amount
         pot += amount
         playerBetInRound += amount
+        refundCPUExcess(bet: currentBet, called: amount)
         currentBet = 0
         phase = .showdown
         resolveShowdown()
         persist()
+    }
+
+    /// ショートコール（相手のチップが足りずベット全額に届かない）のとき、ベット側へ超過分を戻す。
+    /// 戻さないと超過分がポットに残り、勝者が総取りしてしまう。
+    private func refundPlayerExcess(bet: Int, called: Int) {
+        let excess = bet - called
+        guard excess > 0 else { return }
+        playerChips += excess
+        pot -= excess
+        playerBetInRound -= excess
+    }
+
+    private func refundCPUExcess(bet: Int, called: Int) {
+        let excess = bet - called
+        guard excess > 0 else { return }
+        cpuChips += excess
+        pot -= excess
+        cpuBetInRound -= excess
     }
 
     public func foldToCPUBet() {

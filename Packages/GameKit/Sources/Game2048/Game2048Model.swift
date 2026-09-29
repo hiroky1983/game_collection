@@ -34,7 +34,14 @@ public final class Game2048Model {
         var initialScore: Int
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
-        if let snap = services?.snapshots.load(Game2048Snapshot.self, for: gameID) {
+        var loaded = services?.snapshots.load(Game2048Snapshot.self, for: gameID)
+        // 盤が 4x4 でない中断データは、読むと添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, !Self.isRestorable(snap.board) {
+            services?.snapshots.clear(for: gameID)
+            loaded = nil
+        }
+        if let snap = loaded {
             initialBoard = snap.board
             initialScore = snap.score
             // 再起動でコンティニュー権が復活しないよう、使用済みフラグも復元する。
@@ -170,6 +177,15 @@ public final class Game2048Model {
         return true
     }
 
+    /// 「リセット」で失われる進行があるか（#1011）。
+    ///
+    /// 開始直後の盤は 2 枚だけで得点 0。1 手動かすと（合体すれば得点が入り、しなければ 1 枚増えて）
+    /// このどちらかが変わる。終局後は捨てるものが無いので false。
+    public var hasProgressToLose: Bool {
+        guard !gameOver else { return false }
+        return score > 0 || board.joined().filter { $0 != 0 }.count > 2
+    }
+
     /// 新規ゲーム。
     public func newGame() {
         gameSerial += 1
@@ -187,6 +203,25 @@ public final class Game2048Model {
         services?.gameDidRestart(gameID: gameID)
     }
 
+    #if DEBUG
+    /// 撮影・動作確認用: ゲームオーバーの画を直接作る（`-simulate2048GameOver`・#1486）。
+    /// 指し手で自然に詰ませようとすると新しいタイルの出現がランダムで時間もかかるため、
+    /// 隣どうしが必ず異なる 2 のべき乗を蛇行順に敷き詰めて（合体できない・空きも無い）確定で詰ませる。
+    public func debugForceGameOver() {
+        let n = Game2048Logic.size
+        var value = 1
+        board = (0..<n).map { r in
+            let row = (0..<n).map { _ -> Int in
+                value *= 2
+                return value
+            }
+            // 蛇行順（行ごとに向きを反転）にすることで、上下の行境界でも値が必ず食い違う。
+            return r % 2 == 0 ? row : Array(row.reversed())
+        }
+        gameOver = true
+    }
+    #endif
+
     private func persist() {
         guard !gameOver else { return }
         try? services?.snapshots.save(
@@ -199,6 +234,12 @@ public final class Game2048Model {
             ),
             for: gameID
         )
+    }
+
+    /// 復元してよい盤か。4x4 で、どのタイルも 0 以上であること。
+    private static func isRestorable(_ board: [[Int]]) -> Bool {
+        board.count == Game2048Logic.size
+            && board.allSatisfy { $0.count == Game2048Logic.size && $0.allSatisfy { $0 >= 0 } }
     }
 
     /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。

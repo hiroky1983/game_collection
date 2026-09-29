@@ -114,25 +114,18 @@ public struct RunnerView: View {
             }
         }
         .padding()
-        .gameChrome(title: "チャリンコおじさん", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
-                // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
-                // アイコンを一回り大きくして見つけやすくする（会長指摘「トグルボタンが小さい」・
-                // 2026-09-16）。
-                Button {
-                    if model.phase == .running { model.pause() }
-                    openStartSheet(mode: model.mode, stage: 1)
-                } label: {
-                    Label("はじめから", systemImage: "arrow.clockwise")
-                }
-                .imageScale(.large)
-                // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
-                // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
-                // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
-                .disabled(presentedStory != nil)
-            }
-        }
+        .rewardOffer(resumeRescue, for: .checkpoint, isPresented: model.canResumeFromCheckpoint,
+                     services: services, gameID: RunnerModel.gameID)
+        // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
+        // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
+        // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
+        // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
+        // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
+        .gameChrome(title: "チャリンコおじさん", review: services.review,
+                    newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil) {
+                        if model.phase == .running { model.pause() }
+                        openStartSheet(mode: model.mode, stage: 1)
+                    })
         .howToPlay(.runner) {
             // 読んでいる間にミスしないよう止める。走り出す前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
@@ -333,6 +326,22 @@ public struct RunnerView: View {
             // 機種によってはタップが SKView に吸われる。
             SpriteView(scene: scene, preferredFramesPerSecond: 60)
                 .allowsHitTesting(false)
+                // 動かない局面（一時停止・リザルト等）では SpriteKit のループを止める（#1386）。
+                // **止めるのは `SKView` で、`SpriteView` の引数ではない**（`isPaused` も
+                // `preferredFramesPerSecond` も生成時にしか効かない。`BlocksView.syncRenderLoop` の実測メモ参照）。
+                // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直されたときも、
+                // 次の 1 フレームでここに戻ってくる。`scene` を強く捕まえると
+                // scene → クロージャ → `@State` の scene の循環になるので弱参照にする（CodeRabbit 指摘）。
+                .onAppear {
+                    let model = model
+                    scene.onFrameRendered = { [weak scene] in
+                        scene?.view?.isPaused = !model.phase.needsAnimationFrames
+                    }
+                }
+                // 局面が変わったらいったん回し、1 フレーム描いてから止め直す。**その場で止めない**:
+                // 演出を飛ばしたときのように、局面が `update` の外で変わり、絵の切り替え（走り去った先に
+                // 置く）がまだ描かれていない経路があるため。
+                .onChange(of: model.phase) { _, _ in scene.view?.isPaused = false }
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(jumpGesture)
@@ -355,8 +364,8 @@ public struct RunnerView: View {
         case .endless:
             base = RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
         }
-        guard model.phase == .running, model.field.isInvincible else { return base }
-        return base + "、" + RunnerAccessibility.invincibleLabel(remaining: model.field.invincibleRemaining)
+        guard model.phase == .running, model.isInvincible else { return base }
+        return base + "、" + RunnerAccessibility.invincibleLabel(remaining: model.displayInvincibleRemaining)
     }
 
     /// たこ焼き（#797）の無敵の残り時間。縮むゲージと秒数の両方で見せる（受け入れ条件
@@ -364,8 +373,8 @@ public struct RunnerView: View {
     /// `field` が無敵のまま凍るので、走行中と一時停止中にだけ出す（`RunnerScene` の点滅と同じ条件）。
     @ViewBuilder
     private var invincibleBadge: some View {
-        if model.field.isInvincible, model.phase == .running || model.phase == .paused {
-            let remaining = model.field.invincibleRemaining
+        if model.isInvincible, model.phase == .running || model.phase == .paused {
+            let remaining = model.displayInvincibleRemaining
             let ratio = min(1, max(0, remaining / RunnerRules.invincibleDuration))
             HStack(spacing: 8) {
                 Text("無敵")
@@ -438,14 +447,9 @@ public struct RunnerView: View {
                 face: resultFace, faceScale: faceScale
             ) {
                 clearedDetail
-                Button {
+                GameDeadEndActionButton("次の面へ", systemImage: "arrow.forward.circle.fill", tint: Theme.Fill.coral) {
                     model.advanceToNextStage()
-                } label: {
-                    Label("次の面へ", systemImage: "arrow.forward.circle.fill")
-                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
                 replayButton
             }
         case .allCleared:
@@ -511,16 +515,14 @@ public struct RunnerView: View {
     ///
     /// 広告のロード〜視聴中は押せない（#1068）。押すと `runGeneration` が進み、見終えた広告が
     /// `resumeFromCheckpoint(forRun:)` の世代照合で弾かれて視聴が無駄になる（#816 / #911 と同型）。
+    ///
+    /// 見た目は締めのボタン（白地＋枠線）に固定する。50% の地点を越えて「広告を見て途中から再開」（コーラル）が
+    /// 足されても、「もう一度」の見た目は変えない（会長 QA 2026-09-28「広告のボタンと色を分ける」「同じ機能なのに
+    /// 50% の前後でデザインが違うのはおかしい」）。
     private var retryButton: some View {
-        Button {
+        GameDeadEndDismissButton("もう一度", isDisabled: resumeRescue.isWatching) {
             model.retryStage()
-        } label: {
-            Label("もう一度", systemImage: "arrow.clockwise")
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.Fill.coral)
-        .disabled(resumeRescue.isWatching)
     }
 
     // MARK: - スタート画面（#931 → #1027 でカードを縮小）
@@ -667,21 +669,19 @@ public struct RunnerView: View {
             // 2026-09-11）。設定変更時は`GameSettings.slowModeEnabled`のdidSetで
             // 中断データを破棄するため、この画面を経由した抜け道は無い。
 
-            Button {
+            GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
                 model.resume()
-            } label: {
-                Label("再開", systemImage: "play.fill")
-                    .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.Fill.coral)
 
             restartButton
         }
     }
 
     private var resumeButton: some View {
-        Button {
+        GameDeadEndActionButton(
+            "広告を見て途中から再開", systemImage: "play.rectangle.fill",
+            tint: Theme.Fill.coral, isDisabled: resumeRescue.isWatching
+        ) {
             // どのコースへの再開かを広告前に控える。ロード中に「はじめから」等で
             // コースが作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.runGeneration
@@ -691,28 +691,18 @@ public struct RunnerView: View {
             ) {
                 model.resumeFromCheckpoint(forRun: run)
             }
-        } label: {
-            Label("広告を見て途中から再開", systemImage: "play.rectangle.fill")
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.Fill.coral)
-        .disabled(resumeRescue.isWatching)
     }
 
     private var replayButton: some View {
-        Button("このステージをもう一度") { model.replayCurrentStage() }
-            .buttonStyle(.bordered)
-            .tint(.white)
+        GameDeadEndDismissButton("このステージをもう一度") { model.replayCurrentStage() }
     }
 
     /// 一時停止・全ステージクリアから「はじめから」。ツールバーの同名ボタンと同じく
     /// 開始シートを経由する（#1027。`.ready` に着地しただけではシートを出さなくなったので、
     /// モードや面を選び直したいこの導線だけは自分で開く）。
     private var restartButton: some View {
-        Button("はじめから") { openStartSheet(mode: model.mode, stage: 1) }
-            .buttonStyle(.bordered)
-            .tint(.white)
+        GameDeadEndDismissButton("はじめから") { openStartSheet(mode: model.mode, stage: 1) }
     }
 
     /// リザルト・一時停止の幕。`face` を渡すと見出しの上におじさんの顔を出す（#702。一時停止は nil）。

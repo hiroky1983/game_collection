@@ -29,9 +29,9 @@ public enum ConcentrationCPULevel: Int, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .weak:   return "よわい"
+        case .weak:   return "かんたん"
         case .normal: return "ふつう"
-        case .strong: return "つよい"
+        case .strong: return "むずかしい"
         }
     }
 

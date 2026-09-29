@@ -3,7 +3,7 @@ import Core
 /// しりとりの札 1 枚（#1243）。絵は神経衰弱と共有する `ObjectCardKind`。
 ///
 /// **1 枚が複数の読みを持てる（裏読み）**。`readings[0]` が表読みで、札の下に見せる。
-/// 2 つ目以降は本家の持ち味の言い換え（たいこ→ドラム、こっぷ→グラス など）で、
+/// 2 つ目以降は本家の持ち味の言い換え（ねこ→にゃんこ など）で、
 /// 画面には出さず、その読みで選んだときだけ「うらよみ！」として見える。
 /// 読みは正規化（ひらがな）済みで持つ。
 public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
@@ -28,6 +28,11 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
     /// 混ぜて連鎖が伸びやすくしてある。裏読みは足していない（先頭字が既存のどの語尾とも重ならない
     /// 裏読みは、表読みが受けられない札にしか使われず連鎖に効かなかったため）。
     ///
+    /// **裏読みは山札のいずれかの語尾から受けられるものだけを残す**（#1271）。
+    /// 「どらむ」（語頭 ど・語尾 む→ゆ の受け皿が無い）・「えみゅー」は #1292 で、
+    /// 「ぐらす」（語頭 ぐ）・「おうぎ」（語頭 お）は #1271 で、同じ理由（受け皿となる語頭の
+    /// 濁音・清音のどちらの語尾も山札に無く、選ぶ契機が絶対に来ない）で裏読み自体を削除した。
+    ///
     /// #1298 で会長不採用の 5 枚（こねこ・まくら・うちわ・ねぎ・まり）を くま・まふらー・まいく・くり・にく に
     /// 差し替えた（`ObjectCardKind` の識別子は中断データのため据え置き）。「ま」で始まる札（こま・うま の受け）と
     /// 「り」で終わる札（りんご・りす の送り）を残すよう選び、全札の語尾が受けられることはテストが縛る。
@@ -41,7 +46,7 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         ShiritoriCard(.guitar, "ぎたー"),
         ShiritoriCard(.drum, "たいこ"),
         ShiritoriCard(.kitten, "くま"),
-        ShiritoriCard(.glass, "こっぷ", "ぐらす"),
+        ShiritoriCard(.glass, "こっぷ"),
         ShiritoriCard(.squirrel, "りす"),
         ShiritoriCard(.watermelon, "すいか"),
         ShiritoriCard(.turtle, "かめ"),

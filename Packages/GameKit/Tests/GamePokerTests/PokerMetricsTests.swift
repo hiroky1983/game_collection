@@ -23,15 +23,14 @@ struct PokerMetricsTests {
         // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する
         // （麻雀ソリティアの `gameControlButtonsMeetTapTarget` と同じやり方）。
         let source = try Self.viewSource()
-        let wired = SourceScan.matchCount(
-            of: #"minHeight:\s*PokerMetrics\.actionButtonMinHeight"#, in: source
-        )
-        #expect(wired == 1, "actionButton が PokerMetrics.actionButtonMinHeight を使っていない（実測 \(wired) 箇所）")
-
-        // 高さを決めていた元の `.padding(.vertical, 10)` が残っていると、下限を外しても
-        // 見た目が 37pt で保たれてしまい上の検証が空振りしうるので、消えていることも見る。
+        // 44pt・角丸・押下フィードバックは `GameButtonStyle`（#1413）が持つ（#1423）。
+        let button = SourceScan.functionSource(startingWith: "private func actionButton(", in: source)
         #expect(
-            SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: SourceScan.functionSource(startingWith: "private func actionButton(", in: source)) == 0,
+            SourceScan.matchCount(of: #"GameButtonStyle\(role:\s*role,\s*shape:\s*\.block\)"#, in: button) == 1,
+            "actionButton が GameButtonStyle(role:shape: .block) を使っていない"
+        )
+        #expect(
+            SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: button) == 0,
             "actionButton に高さを決める .padding(.vertical, 10) が残っている"
         )
     }

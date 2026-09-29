@@ -5,8 +5,8 @@ public struct OthelloView: View {
     @State private var model: OthelloModel
     private let services: GameServices
     @State private var showNewGame = false
+    @State private var showConfirmNewGame = false
     @State private var showPassAlert = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
 
@@ -43,20 +43,22 @@ public struct OthelloView: View {
                         value: model.gameOver
                     )
                 }
-            Spacer(minLength: 0)
-            HowToPlayHint(.othello, playLog: services.playLog)
+            // 「⋯」の行は盤のすぐ下に付け、盤の下の余りは「⋯」の行と広告のあいだに回す（#1485）。
             controlArea
+            HowToPlayHint(.othello, playLog: services.playLog)
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "オセロ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "オセロ", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.othello)
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
@@ -64,12 +66,17 @@ public struct OthelloView: View {
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
+        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると対局データが失われます。")
+        }
         .alert("パス", isPresented: $showPassAlert) {
             Button("OK") { model.confirmPass() }
         } message: {
             Text("打てるマスがありません。パスします。")
         }
-        .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
         // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
         // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
         // パスの手段はこの案内の「OK」だけなので、出ないと着手も「待った」も塞がったまま詰む。
@@ -92,41 +99,30 @@ public struct OthelloView: View {
     // MARK: - Status Bar (スコアも一行に統合)
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             // 手番 / 結果
             if model.gameOver {
-                Text("終局")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.fillMuted))
+                TurnBadge("終局", kind: .finished)
             } else {
-                let isMine = !model.isAITurn
-                Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
+                TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                 }
             }
-
-            Spacer()
-
+        } trailing: {
             // コンパクトスコア（終局後はリザルトと同じ「残りマス加算」後の数字。#440）
             HStack(spacing: 5) {
                 Circle()
                     .fill(Color(hex: 0x1A1A1A))
                     .frame(width: 13, height: 13)
                 Text("\(model.blackScore)")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .themeBody(15, weight: .black, maxScale: 1.5)
                     .foregroundStyle(Theme.ink)
                 Text("–")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .themeCaption(13, weight: .semibold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.whiteScore)")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .themeBody(15, weight: .black, maxScale: 1.5)
                     .foregroundStyle(Theme.ink)
                 Circle()
                     .fill(Color(hex: 0xF0ECD8))
@@ -134,9 +130,6 @@ public struct OthelloView: View {
                     .frame(width: 13, height: 13)
             }
         }
-        // 縦の余白は 6。石・数字の大きさは変えずに、ここからも盤の高さを捻出している（#148）。
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Board
@@ -242,19 +235,11 @@ public struct OthelloView: View {
     // MARK: - Controls
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。中身は盤ゲーム 5 本で共通（#828）。
-            // 投了の確認ダイアログだけは画面全体に付けている（body の `boardResignConfirmation`）。
-            BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
-
-            Spacer()
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
-        }
-        .themeBody(14)
-        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
-        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            onResign: { model.resign() }
+        )
     }
 
     private var resultOverlay: some View {
@@ -267,14 +252,14 @@ public struct OthelloView: View {
                         .font(.system(size: 40))
                         .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
                     Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .themeBody(24, weight: .bold)
                         .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                 } else {
                     Image(systemName: "equal.circle.fill")
                         .font(.system(size: 40))
                         .foregroundStyle(Theme.inkSub)
                     Text("引き分け")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .themeBody(24, weight: .bold)
                         .foregroundStyle(Theme.inkSub)
                 }
                 HStack(spacing: 10) {
@@ -282,13 +267,13 @@ public struct OthelloView: View {
                         .fill(Color(hex: 0x1A1A1A))
                         .frame(width: 22, height: 22)
                     Text("\(model.blackScore)")
-                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .themeBody(30, weight: .black)
                         .foregroundStyle(Theme.ink)
                     Text("–")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .themeBody(22, weight: .semibold)
                         .foregroundStyle(Theme.inkSub)
                     Text("\(model.whiteScore)")
-                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .themeBody(30, weight: .black)
                         .foregroundStyle(Theme.ink)
                     Circle()
                         .fill(Color(hex: 0xF0ECD8))
@@ -537,7 +522,7 @@ struct OthelloNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの石") {

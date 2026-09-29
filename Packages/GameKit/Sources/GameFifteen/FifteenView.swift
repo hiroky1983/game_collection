@@ -5,6 +5,7 @@ import Core
 public struct FifteenView: View {
     private let services: GameServices
     @State private var model: FifteenModel
+    @State private var showConfirmReset = false
 
     public init(services: GameServices) {
         self.services = services
@@ -22,14 +23,21 @@ public struct FifteenView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "15パズル", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { withGameAnimation { model.newGame() } } label: {
-                    Label("リセット", systemImage: "arrow.clockwise")
-                }
-            }
-        }
+        .gameChrome(title: "15パズル", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        if model.hasProgressToLose {
+                            showConfirmReset = true
+                        } else {
+                            withGameAnimation { model.newGame() }
+                        }
+                    })
         .howToPlay(.fifteen)
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると、いまの盤面と手数が失われます。")
+        }
     }
 
     private var header: some View {
