@@ -64,16 +64,16 @@ struct HomerunModuleTests {
         #expect(!model.contains("ContinuousClock"))
     }
 
-    @Test("App の registry には企画倉庫としてコメントアウトで載っている（ハブには出さない）")
-    func registryLineIsCommentedOut() throws {
+    @Test("App の registry に登録されている（v1.1.8 で企画倉庫から出してハブに並べる）")
+    func registryLineIsActive() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
         )
         let lines = source.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-        #expect(lines.contains("// HomerunModule(),"))
-        #expect(!lines.contains("HomerunModule(),"), "出荷を決める Issue まではハブに並べない")
+        #expect(lines.contains("HomerunModule(),"), "ハブに並べる（会長決裁 2026-09-29）")
+        #expect(!lines.contains("// HomerunModule(),"), "コメントアウトの行が残っていない")
         #expect(lines.contains("import GameHomerun"))
-        #expect(source.contains("企画倉庫・#1348"))
+        #expect(!source.contains("企画倉庫・#1348"), "企画倉庫の注記が残っていない")
     }
 }
 

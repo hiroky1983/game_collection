@@ -95,9 +95,9 @@ public enum GameCenterLeaderboard {
     /// くっつきフルーツ（#1319・企画倉庫）。2048 と同じくスコア（High to Low）。
     /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
     public static let fruitsScore    = "asobiba.fruits.score"
-    /// 柵越えおじさん（#1348・企画倉庫）。送るのは 1 挑戦（10 球）の**合計飛距離 m**（High to Low）。
+    /// 柵越えおじさん（#1348・v1.1.8 でハブに並べる）。送るのは 1 挑戦（10 球）の**合計飛距離 m**（High to Low）。
     /// 判定は乱数なしで、同じ入力は同じ結果になるため同じ物差しで比べられる。
-    /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
+    /// v1.1.8 の審査提出までに、この ID を App Store Connect に登録する（会長操作）。
     public static let homerunDistance = "asobiba.homerun.distance"
 
     // 短いほど良い（App Store Connect では「Low to High」・フォーマットは経過時間で登録する）
