@@ -1028,6 +1028,23 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "shiritori") != nil)
     }
 
+    @Test("カードしりとり: とことんモードの成績は従来の枠と分けて残る（#1502）")
+    func shiritoriEndlessRecordsSeparately() async {
+        let (log, defaults, name) = makeLog(suite: "shiritori-endless")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = ShiritoriModel(services: makeServices(log: log), cpuDelay: .zero, seed: 2026)
+        await playShiritori(model, mode: .endless)
+
+        #expect(model.phase == .result)
+        #expect(log.record(gameID: "shiritori", variant: "endless")?.plays == 1)
+        #expect(log.record(gameID: "shiritori")?.plays ?? 0 == 0, "従来のモードの枠（variant nil）に混ざらない")
+
+        await playShiritori(model, mode: .quota)
+        #expect(log.record(gameID: "shiritori")?.plays == 1)
+        #expect(log.record(gameID: "shiritori", variant: "endless")?.plays == 1)
+    }
+
     @Test("花札こいこい: 合計文数を見出しにし、勝敗も残る")
     func hanafudaRecordsPoints() {
         let (log, defaults, name) = makeLog(suite: "hanafuda")
@@ -1357,8 +1374,8 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
 /// 取れる札の先頭を取り、CPU の番は進めて、決着まで遊ぶ（カードしりとり）。
 @MainActor
-private func playShiritori(_ model: ShiritoriModel, quota: ShiritoriQuota = .normal) async {
-    model.startGame(quota: quota)
+private func playShiritori(_ model: ShiritoriModel, quota: ShiritoriQuota = .normal, mode: ShiritoriMode = .quota) async {
+    model.startGame(quota: quota, mode: mode)
     for _ in 0..<60 where model.phase == .playing {
         if model.isPlayerTurn {
             guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { break }
