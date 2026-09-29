@@ -27,15 +27,33 @@ struct GomokuStrengthConfigTests {
         #expect(engines.allSatisfy { $0.nodeLimit == nil })
     }
 
-    /// 会長決裁（2026-09-28）: 深さの上限は 入門 1 / かんたん 3 / ふつう 5 手先、むずかしいは上限なし。
+    /// 深さの上限は 入門 1 / かんたん 1 / ふつう 1 手先、むずかしいは上限なし（#1566 の段階表。会長決裁 2026-09-29 の合格範囲）。
     /// 探索の形（候補手の絞り方）は全段で同じ（`SimpleGomokuEngine.breadth`）なので、違いは深さ・時間・確率だけ。
-    @Test("読む深さの上限は 1 / 3 / 5 手先・むずかしいは上限なし")
+    @Test("読む深さの上限は 1 / 1 / 1 手先・むずかしいは上限なし")
     func depthCapsFollowTheDecision() {
         let depths = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue).depth }
-        #expect(depths == [1, 3, 5, SimpleGomokuEngine.maxDepth])
+        #expect(depths == [1, 1, 1, SimpleGomokuEngine.maxDepth])
     }
 
-    /// むずかしいは 100%。下の段の確率は段階表（`docs/analytics/gomoku-1463-ladder.md`）で決めた値。
+    /// 会長決裁（2026-09-29・#1566）の制約: 深さ・確率とも 入門 ≤ かんたん ≤ ふつう ≤ むずかしい、
+    /// 確率は 10% 刻み（入門 20% を除き 30% 以上）・隣との差 10〜40 ポイント、深さは隣との差 0〜1 手（むずかしいは上限なしで対象外）。
+    @Test("段階の深さと確率は会長決裁の制約を満たす")
+    func stagesSatisfyTheLadderConstraints() {
+        let engines = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue) }
+        let percents = engines.map { Int(($0.policy.bestMoveProbability * 100).rounded()) }
+        #expect(percents == [20, 60, 90, 100])
+        #expect(percents.dropFirst().allSatisfy { $0 >= 30 && $0 <= 100 && $0 % 10 == 0 })
+        for (lower, upper) in zip(percents, percents.dropFirst()) {
+            #expect((10...40).contains(upper - lower), "確率の差 \(lower)% → \(upper)%")
+        }
+        let depths = engines.map(\.depth)
+        for (lower, upper) in zip(depths.dropLast(), depths.dropLast().dropFirst()) {
+            #expect((0...1).contains(upper - lower), "深さの差 \(lower) → \(upper)")
+        }
+        #expect(depths == depths.sorted())
+    }
+
+    /// むずかしいは 100%。下の段の確率は段階表（入門 `docs/analytics/gomoku-1463-ladder.md`・かんたん / ふつう `gomoku-1566-ladder.md`）で決めた値。
     @Test("最善手を打つ確率は むずかしい 100%・下の段は段階表の値で、損の幅は全段共通")
     func probabilitiesFollowTheLadder() {
         let policies = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue).policy }
@@ -131,7 +149,7 @@ struct GomokuSearchBudgetTests {
     /// 下の段は深さの上限まで読み終えたら、時間を残して打つ（時間ではなく深さで止まる）。
     @Test func lowerStagesStopAtTheirDepthCap() {
         let board = makeBoard(black: [(7, 7), (7, 8), (9, 9), (6, 9)], white: [(7, 9), (8, 8), (6, 6)])
-        for (strength, cap) in [(CPUStrength.novice, 1), (.easy, 3)] {
+        for (strength, cap) in [(CPUStrength.novice, 1), (.easy, 1), (.normal, 1)] {
             let r = SimpleGomokuEngine(level: strength.rawValue, seed: 1, timeLimit: .infinity)
                 .analyze(board: board, stone: .white)
             #expect(r.depth == cap, "\(strength.label) が深さ \(r.depth) まで読んだ（上限 \(cap)）")

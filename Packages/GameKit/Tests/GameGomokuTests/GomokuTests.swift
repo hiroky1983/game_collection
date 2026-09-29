@@ -258,12 +258,12 @@ struct GomokuInvalidTapTests {
 @Suite("Gomoku 強さ表示")
 struct GomokuStrengthLabelTests {
 
-    /// 実際の探索深さの上限は 1/3/5 手先・むずかしいは上限なし（#1463。探索の形は全段同じで、
+    /// 実際の探索深さの上限は 1/1/1 手先・むずかしいは上限なし（#1463・#1566。探索の形は全段同じで、
     /// 段の差は深さの上限・考える時間・最善手を打つ確率で付ける）。この前提が変わったら表示も見直す。
-    @Test func engineDepthCapsAreOneThreeFiveAndUnbounded() {
+    @Test func engineDepthCapsAreOneOneOneAndUnbounded() {
         #expect(SimpleGomokuEngine(level: -1).depth == 1)
-        #expect(SimpleGomokuEngine(level: 0).depth == 3)
-        #expect(SimpleGomokuEngine(level: 1).depth == 5)
+        #expect(SimpleGomokuEngine(level: 0).depth == 1)
+        #expect(SimpleGomokuEngine(level: 1).depth == 1)
         #expect(SimpleGomokuEngine(level: 2).depth == SimpleGomokuEngine.maxDepth)
     }
 
