@@ -89,14 +89,17 @@ final class HomerunBatterRig {
     }
 
     /// 段階を切り替える（呼ぶたびにその段階を頭から流す）。振り抜きは `start`（20 コマ目を置く実時刻）が `now` より前なら
-    /// その分だけ進めた所から流す（離した瞬間に打点のコマへ合わせ直すため）。
+    /// その分だけ進めた所から流す（離した瞬間に打点のコマへ合わせ直すため）。踏み込みも `start`（1 コマ目の実時刻）が
+    /// 過去ならその分だけ進める（素振りの振り抜きから戻ったとき）。
     func show(_ motion: HomerunBatterMotion, now: Date) {
         controller?.stop()
         switch motion {
         case .stance:
             controller = stanceAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
-        case .load:
+        case .load(let start):
             controller = loadAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
+            let ahead = now.timeIntervalSince(start)
+            if ahead > 0 { controller?.time = min(ahead, HomerunBatterMotion.loadDuration) }
         case .swing(let start):
             controller = swingAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
             let ahead = now.timeIntervalSince(start)
@@ -106,5 +109,7 @@ final class HomerunBatterRig {
 
     /// 振り抜きの再生位置（クリップ秒・20 コマ目 = 19/30）。テスト用。
     var swingClipTime: TimeInterval? { controller.map { HomerunBatterMotion.loadDuration + $0.time } }
+    /// いま流している段階の頭からの再生位置（秒）。テスト用。
+    var playbackTime: TimeInterval? { controller?.time }
 }
 #endif

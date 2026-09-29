@@ -214,6 +214,76 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
     }
 }
 
+/// 挑戦回数が戻ったら知らせる通知（#1576）の識別子。予約は常に 1 件なので固定。
+enum ChallengeReturnNotification {
+    static let identifier = "challenge-return.homerun"
+}
+
+/// `ChallengeReturnReminderService`（Core）の予約先を `UNUserNotificationCenter` で実装する。
+/// #663・#1193 と識別子の名前空間が別なので、お互いの予約を巻き込まない。
+@MainActor
+final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderScheduler {
+    private var center: UNUserNotificationCenter { .current() }
+
+    func authorization() async -> ReminderAuthorization {
+        switch await Self.authorizationStatus() {
+        case .authorized:               return .authorized
+        case .provisional, .ephemeral:  return .provisional
+        case .notDetermined:            return .notDetermined
+        case .denied:                   return .denied
+        @unknown default:               return .denied
+        }
+    }
+
+    func requestExplicitAuthorization() async -> ReminderAuthorization {
+        // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21）。
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        return await authorization()
+    }
+
+    func pendingFireDate() async -> Date? {
+        await Self.pendingTriggerDate()
+    }
+
+    func schedule(fireDate: Date, title: String, body: String) async {
+        await Self.add(fireDate: fireDate, title: title, body: body)
+    }
+
+    func cancel() {
+        center.removePendingNotificationRequests(withIdentifiers: [ChallengeReturnNotification.identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [ChallengeReturnNotification.identifier])
+    }
+
+    // 通知センターの応答型は Sendable でないため、MainActor へ持ち込まずに値だけ取り出す。
+
+    nonisolated private static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    nonisolated private static func pendingTriggerDate() async -> Date? {
+        await UNUserNotificationCenter.current().pendingNotificationRequests()
+            .first { $0.identifier == ChallengeReturnNotification.identifier }
+            .flatMap { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() }
+    }
+
+    nonisolated private static func add(fireDate: Date, title: String, body: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        // 0:00 過ぎに届くので音は鳴らさない（寝ている人を起こさない）。
+        content.sound = nil
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: fireDate
+        )
+        let request = UNNotificationRequest(
+            identifier: ChallengeReturnNotification.identifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+}
+
 /// 通知のタップを受ける（#663・#1193）。アプリが終了していた状態からのタップも拾うため、
 /// 起動処理の中で delegate を立てる（SwiftUI の `App` だけでは起動時のタップを受け取れない）。
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {

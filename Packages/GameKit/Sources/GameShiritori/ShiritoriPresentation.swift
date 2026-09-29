@@ -28,21 +28,25 @@ public enum ShiritoriPresentation {
 
     // MARK: - 結果
 
-    public static func resultTitle(ending: ShiritoriEnding, didWin: Bool) -> String {
+    public static func resultTitle(ending: ShiritoriEnding, didWin: Bool, mode: ShiritoriMode = .quota) -> String {
         switch ending {
         case .cpuHitN:    return didWin ? "CPUが「ん」で終わった！勝ち！" : "決着"
         case .playerHitN: return "「ん」で終わってしまった…負け"
         case .cpuStuck:   return "CPUが続けられない！勝ち！"
         case .playerStuck: return "続けられる札がない…負け"
-        case .timeUp:     return "時間切れ…ノルマ未達で負け"
+        case .timeUp:     return mode == .endless ? "時間切れ…負け" : "時間切れ…ノルマ未達で負け"
         case .quotaReached: return "ノルマ達成！勝ち！"
+        case .perfect:    return "パーフェクト！札を全部取った！"
         }
     }
 
     /// 結果に添える内訳（例: "あなた3枚・CPU2枚／ノルマ: 6枚取ったらクリア"）。
     /// ノルマが勝敗に絡むのは時間切れと到達の決着だけなので、ノルマの説明もそのときだけ添える。
-    public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota, ending: ShiritoriEnding) -> String {
+    /// とことんモードにはノルマが無いので、ノルマの説明は添えない。
+    public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota, ending: ShiritoriEnding,
+                                    mode: ShiritoriMode = .quota) -> String {
         let base = "あなた\(player)枚・CPU\(cpu)枚"
+        guard mode == .quota else { return base }
         return ending == .timeUp || ending == .quotaReached ? base + "／ノルマ: \(quota.summary)" : base
     }
 

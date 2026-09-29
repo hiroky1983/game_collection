@@ -74,6 +74,8 @@ public extension View {
     ///   - reference: 役の早見表。あるゲームだけ渡す。
     ///   - newGame: 新規ボタン。あるゲームだけ渡す。
     ///   - actions: 上の 2 つに収まらないゲーム固有の操作（難易度・盤面選択メニューなど）。最後尾に並ぶ。
+    ///   - hidesBackButton: 左上の戻るを隠す。誤タップで進行中の挑戦が終わってはいけない画面だけが渡す
+    ///     （柵越えおじさんの打席・#1550。やめる操作はゲーム側の一時停止に置く）。
     ///
     /// ヘッダー右の並びは **役の早見表 → `?`（`.howToPlay`）→ 新規 → その他** で固定し、
     /// ゲーム側からは変えられない（#1418。並びが各ゲームの書き方しだいだった）。
@@ -86,10 +88,12 @@ public extension View {
         review: ReviewRequestService?,
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
+        hidesBackButton: Bool = false,
         @ToolbarContentBuilder actions: () -> Actions
     ) -> some View {
         modifier(GameChromeBase(review: review))
-            .modifier(GameChromeToolbar(title: title, reference: reference, newGame: newGame, actions: actions()))
+            .modifier(GameChromeToolbar(title: title, reference: reference, newGame: newGame,
+                                        hidesBackButton: hidesBackButton, actions: actions()))
     }
 
     /// ゲーム固有の操作が無いゲーム用。
@@ -97,11 +101,12 @@ public extension View {
         title: String,
         review: ReviewRequestService?,
         reference: GameChromeReference? = nil,
-        newGame: GameChromeNewGame? = nil
+        newGame: GameChromeNewGame? = nil,
+        hidesBackButton: Bool = false
     ) -> some View {
         modifier(GameChromeBase(review: review))
             .modifier(GameChromeToolbar<ToolbarItem<Void, EmptyView>>(
-                title: title, reference: reference, newGame: newGame, actions: nil))
+                title: title, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton, actions: nil))
     }
 }
 
@@ -110,9 +115,11 @@ public extension View {
 /// 戻るは OS 既定のものを隠して自前で置いている（`navigationBarBackButtonHidden`）。
 /// 直前の画面名が入ると表示名の幅を圧迫するため。
 @ToolbarContentBuilder
-private func gameChromeBarItems(title: String, dismiss: DismissAction) -> some ToolbarContent {
-    ToolbarItem(placement: .cancellationAction) {
-        Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+private func gameChromeBarItems(title: String, dismiss: DismissAction, showsBack: Bool) -> some ToolbarContent {
+    if showsBack {
+        ToolbarItem(placement: .cancellationAction) {
+            Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+        }
     }
     ToolbarItem(placement: .principal) {
         GameChromeTitle(title: title)
@@ -153,13 +160,14 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
     let title: String
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
+    let hidesBackButton: Bool
     let actions: Actions?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
 
     func body(content: Content) -> some View {
         content.toolbar {
-            gameChromeBarItems(title: title, dismiss: dismiss)
+            gameChromeBarItems(title: title, dismiss: dismiss, showsBack: !hidesBackButton)
             // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
             if let reference {
                 ToolbarItem(placement: .primaryAction) {

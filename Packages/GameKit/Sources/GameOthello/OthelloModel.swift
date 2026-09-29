@@ -18,6 +18,10 @@ struct OthelloSnapshot: Codable {
     /// 旧形式のデータには無いので optional。無ければ従来どおり履歴は空で始まる。
     let undoCells: [Int?]?
     let undoCurrentStone: Int?
+    /// 直前の着手位置（#1575）。無いと中断から再開したとき、CPU がどこに打ったかの印が消える。
+    /// 旧形式のデータには無いので optional（既定値 nil）。無ければ従来どおり印なし。
+    var lastRow: Int? = nil
+    var lastCol: Int? = nil
 }
 
 private struct TurnState {
@@ -155,7 +159,13 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
             isFreshStart = true
         }
         isThinking = false
-        lastMove   = nil
+        // 盤の範囲外の座標は捨てる（壊れたデータで印が盤外に出ないように）。
+        if let snap = loaded, let r = snap.lastRow, let c = snap.lastCol,
+           (0..<othelloBoardSize).contains(r), (0..<othelloBoardSize).contains(c) {
+            lastMove = (r, c)
+        } else {
+            lastMove = nil
+        }
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
         // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
@@ -411,7 +421,9 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
             turnID: turnID,
             undoUsed: undoUsed ? true : nil,
             undoCells: undoHistory.last.map { $0.cells.map { $0?.rawValue } },
-            undoCurrentStone: undoHistory.last?.currentStone.rawValue
+            undoCurrentStone: undoHistory.last?.currentStone.rawValue,
+            lastRow: lastMove?.row,
+            lastCol: lastMove?.col
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

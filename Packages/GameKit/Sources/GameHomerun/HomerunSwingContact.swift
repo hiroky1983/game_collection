@@ -45,14 +45,17 @@ enum HomerunBatPath {
 enum HomerunBatterMotion: Equatable {
     /// 構え（1 コマ目で止める）。
     case stance
-    /// 踏み込み（1〜20 コマ目を流して 20 コマ目で止める）。
-    case load
+    /// 踏み込み（1〜20 コマ目を流して 20 コマ目で止める）。`start` は 1 コマ目を置く実時刻。過去なら途中から流す
+    /// （素振りの振り抜きが踏み込みの始まりより後に終わったとき、逆算した振り始めに 20 コマ目が間に合うように）。
+    case load(start: Date)
     /// 振り抜き〜フォロースルー（20 コマ目から最後まで）。`start` は 20 コマ目を置く実時刻。過去なら途中から流す
     /// （離した瞬間に打点のコマへ合わせ直すときに使う）。
     case swing(start: Date)
 
     /// 踏み込みの長さ（秒・20 コマ目 = 19/30 秒）。振り抜きはここから始まる。
     static let loadDuration: TimeInterval = 19.0 / 30
+    /// 振り抜き〜フォロースルーの長さ（秒・20〜44 コマ目 = 24/30 秒）。素振りはこれを過ぎたら構え・踏み込みへ戻る。
+    static var swingDuration: TimeInterval { HomerunBatPath.duration - loadDuration }
 }
 
 /// バットと球が当たる瞬間の同期（試作）。判定（`HomerunJudge`・離した時刻 − 輪が的に重なる時刻）は変えず、
@@ -241,8 +244,15 @@ struct HomerunSwingPlan {
         switch phase {
         case .pitching:
             if now >= start, isArmed { return .swing(start: start) }
+            // 素振り（的が出る前に離した）: 離した瞬間から頭（20 コマ目）で最後まで振り抜き、振り終わったら下の構え・踏み込みへ戻る。
+            // 振り抜き（0.8 秒）はモーション（0.8 秒）の直後までに終わり、逆算した振り始め（的が出て約 1 秒後）とは重ならない。
+            if let practice = clock.practiceSwingAt, now >= practice,
+               now < practice.addingTimeInterval(HomerunBatterMotion.swingDuration) {
+                return .swing(start: practice)
+            }
             // 踏み込みは振り始めに 20 コマ目が来るよう、その 19/30 秒前から。
-            return now >= start.addingTimeInterval(-HomerunBatterMotion.loadDuration) ? .load : .stance
+            let loadStart = start.addingTimeInterval(-HomerunBatterMotion.loadDuration)
+            return now >= loadStart ? .load(start: loadStart) : .stance
         case .ballResult:
             guard let release = clock.releasedAt, let offset = clock.timingOffset else {
                 // 見送り: 押したまま離さなかったなら振り抜く、押していなければ振らない。

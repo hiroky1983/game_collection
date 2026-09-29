@@ -61,6 +61,14 @@ public struct GomokuView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // 禁じ手で断られた理由を読み上げる（#1574）。連続して同じ手を打っても毎回読ませるため、
+        // `lastRejection` ではなく数え上げの `rejectedTapCount` で見張る。
+        .onChange(of: model.rejectedTapCount) {
+            if case .forbidden(let reason) = model.lastRejection {
+                AccessibilityNotification.Announcement(
+                    GomokuAccessibility.forbiddenAnnouncement(reason: reason)).post()
+            }
+        }
         .task {
             #if DEBUG
             // 撮影用（#366）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
@@ -206,7 +214,7 @@ public struct GomokuView: View {
     @ViewBuilder
     private var forbiddenNotice: some View {
         if case .forbidden(let reason) = model.lastRejection {
-            Text("\(reason.label)は打てません（禁じ手）")
+            Text(GomokuAccessibility.forbiddenAnnouncement(reason: reason))
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12).padding(.vertical, 6)

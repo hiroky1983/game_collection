@@ -13,4 +13,12 @@ public struct Game2048Module: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(Game2048View(services: services))
     }
+
+    /// 開いただけで一度も動かしていない盤（初期タイル 2 個・得点 0）は「続き」ではない（#1572）。
+    /// 一手動かすと、合体すれば得点が入り、しなければタイルが 3 個以上になるので、この 2 条件で見分けられる。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(Game2048Snapshot.self, for: id) else { return false }
+        let tiles = snap.board.reduce(0) { $0 + $1.filter { $0 != 0 }.count }
+        return snap.score > 0 || tiles > 2
+    }
 }

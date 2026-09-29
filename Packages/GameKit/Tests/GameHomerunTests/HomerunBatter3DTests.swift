@@ -85,7 +85,7 @@ struct HomerunBatter3DTests {
             return 2 * acos(min(1, abs(simd_dot(start.vector, end.vector))))
         }
         let swing = try batAngle(after: .swing(start: now), seconds: 0.2)
-        let load = try batAngle(after: .load, seconds: 0.2)
+        let load = try batAngle(after: .load(start: now), seconds: 0.2)
         #expect(swing > 0.5, "振り抜きの 0.2 秒でバットが \(swing) rad しか回らない")
         #expect(load < swing / 2, "踏み込み \(load) rad・振り抜き \(swing) rad")
     }
@@ -101,6 +101,24 @@ struct HomerunBatter3DTests {
         #expect(abs((rig.swingClipTime ?? -1) - (HomerunBatterMotion.loadDuration + 0.2)) < 0.01)
         rig.show(.swing(start: now.addingTimeInterval(0.5)), now: now)
         #expect(abs((rig.swingClipTime ?? -1) - HomerunBatterMotion.loadDuration) < 0.01, "未来の start は頭から")
+    }
+
+    @Test("踏み込みも start が過去ならその分だけ進める（素振りの振り抜きから戻ったとき）。素振りの後は構えに戻せる")
+    @MainActor
+    func loadSeeksWhenStartIsInThePast() throws {
+        let rig = try #require(HomerunBatterRig())
+        let now = Date()
+        rig.show(.load(start: now), now: now)
+        #expect(abs(rig.playbackTime ?? -1) < 0.01)
+        rig.show(.load(start: now.addingTimeInterval(-0.3)), now: now)
+        #expect(abs((rig.playbackTime ?? -1) - 0.3) < 0.01)
+        // 振り抜き（素振り）から構え・踏み込みへ戻ると、その段階を流し直す。
+        rig.show(.swing(start: now.addingTimeInterval(-0.5)), now: now)
+        #expect(abs((rig.swingClipTime ?? -1) - (HomerunBatterMotion.loadDuration + 0.5)) < 0.01)
+        rig.show(.stance, now: now)
+        #expect(abs(rig.playbackTime ?? -1) < 0.01)
+        rig.show(.load(start: now.addingTimeInterval(-0.1)), now: now)
+        #expect(abs((rig.playbackTime ?? -1) - 0.1) < 0.01)
     }
 
     @MainActor

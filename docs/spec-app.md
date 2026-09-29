@@ -36,7 +36,7 @@ Packages/GameKit/
     GameMinesweeper/    ← マインスイーパー
     GameGomoku/         ← 五目並べ
     GameConcentration/  ← 神経衰弱
-    GameShiritori/      ← カードしりとり（未リリース。2026-09-21 時点・#1243。山札 30 枚・勝敗は詰み優先。ノルマは取った枚数（4/6/9 枚・暫定）に届いた瞬間の即勝ちで、時間切れは負け固定・#1245。絵柄は Core の `ObjectCardArt` で、神経衰弱の絵柄総入れ替え #1244 と共有する）
+    GameShiritori/      ← カードしりとり（未リリース。2026-09-21 時点・#1243。山札 50 枚（#1502 で 30→50）・勝敗は詰み優先。別モード「とことん」（#1502）は、ノルマ無しで札が尽きる〈パーフェクト〉か詰みまで続け、取った札の場所へ山札から補充する（盤 29 枚は同じ。成績は variant `endless` で別枠・順位表なし）。ノルマは取った枚数（4/6/9 枚・暫定）に届いた瞬間の即勝ちで、時間切れは負け固定・#1245。絵柄は Core の `ObjectCardArt` で、神経衰弱の絵柄総入れ替え #1244 と共有する）
     GameFifteen/        ← 15パズル（未リリース。2026-09-24 時点・#1314。4×4・一人用。シャッフルは転倒数で必ず解ける配置のみ。タップで空白へスライド（同じ行・列はまとめて）・記録は最少手数）
     GameBlocks/         ← ブロック崩し（v1.1.3 で公開済み）
     GameRunner/         ← チャリンコおじさん（横スクロールランナー・未リリース。2026-09-10 時点）
@@ -47,6 +47,15 @@ Packages/GameKit/
 「未リリース」は App Store 配信中のバイナリにまだ含まれていないという意味で、コード上は
 他のゲームと同格に動く（`GameRegistry` はストア配信状態を持たない）。配信中かどうかは
 別途 ASO ドキュメント（`docs/aso/`）やリリースノートで確認すること。
+
+### 依存パッケージの版の固定（`Config/Package.resolved`・#1579）
+
+`GameCollection.xcodeproj/` は git 管理外で、`xcodegen generate` のたびに作り直される。Package.resolved がその中にあるため、
+以前はビルドごとに Firebase などの版が「`from:` の範囲の最新」へ黙って変わっていた（v1.1.5 は Firebase 12.19.0 で出荷）。
+
+- 版の正典は **`Config/Package.resolved`**（git 管理）。`xcodegen generate` の直後に `bash Scripts/apply-package-resolved.sh` で Xcode が読む場所へ置く（CI・`fastlane beta`・`capture-aso-screenshots.sh` は実施済み）
+- CI のビルドは `-disableAutomaticPackageResolution` 付き。`project.yml` の指定と食い違うと落ちる
+- **版を上げるとき**: `project.yml` を直し、`xcodegen generate` → `xcodebuild -resolvePackageDependencies -project GameCollection.xcodeproj -scheme GameCollection` で生成された `GameCollection.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` を `Config/Package.resolved` へコピーして同じ PR に含める
 
 ### 主要プロトコル
 
@@ -230,6 +239,16 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **対象外**: `GameModule.resumesFromSnapshot == false` のゲーム（中断データから局を復元しないチャリンコおじさん）
 - **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「通知」トグル。動作確認は `-simulateNotificationTap <gameID>`（DEBUG のみ）
+
+### 柵越えおじさん: 戻る時刻と「戻ったら知らせる」（#1576）
+
+挑戦回数を使い切ったシート（`HomerunExhaustedSheet`）に、端末の 0:00 までの残り（「あと約◯時間◯分で戻ります」）と、
+「戻ったら知らせる」トグル（既定オフ）を出す。
+
+- **予約**: トグルをオンにした 1 回だけ、翌 0:00 の 1 分後にローカル通知を 1 件（識別子 `challenge-return.homerun` 固定なので置き換わり、増えない）。音なし・繰り返しなし
+- **許可**: 設定の「通知」（#1508 の共有トグル）に従う。オフなら予約せずトグルを無効にする。OS の許諾が未決定なら標準ダイアログで求める（`.provisional` は使わない）
+- **保存先**: アプリ側の保存は無い（予約の有無は OS の予約一覧から読み直す）。トグルオフ・設定の「通知」オフで取り消す
+- **実装**: 規則は `HomerunReturnPolicy`（純関数）、予約は `ChallengeReturnReminderService`（`GameServices.returnReminder`）
 
 ---
 
