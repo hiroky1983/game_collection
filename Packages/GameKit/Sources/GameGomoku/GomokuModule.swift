@@ -12,4 +12,10 @@ public struct GomokuModule: GameModule {
     public func makeView(services: GameServices) -> AnyView {
         AnyView(GomokuView(services: services))
     }
+
+    /// 一手も打っていない盤は「続き」ではない（#1572）。手順を持たない旧形式は盤上の石の数で見る。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(GomokuSnapshot.self, for: id) else { return false }
+        return !(snap.moveHistory ?? []).isEmpty || snap.cells.contains { $0 != nil }
+    }
 }
