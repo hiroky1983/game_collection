@@ -426,6 +426,18 @@ struct HomerunModelTests {
         #expect(model.start(now: Fixture.t0.addingTimeInterval(5)), "続けて次の挑戦に立てる（回数が残っていれば）")
     }
 
+    @Test("動作確認用の回数無制限: 立っても回数が減らず、使い切りでも立てる。既定はオフ")
+    func debugUnlimitedChallenges() throws {
+        let f = Fixture()
+        HomerunStorage.saveLedger(HomerunLedger(dayKey: Fixture.todayKey, used: 3), f.defaults)
+        let model = f.model()
+        #expect(!model.start(now: Fixture.t0), "既定（鍵なし）は出荷の挙動")
+        model.showsExhausted = false
+        f.defaults.set(true, forKey: HomerunModel.debugUnlimitedKey)
+        #expect(model.start(now: Fixture.t0))
+        #expect(model.ledger.remaining == 0 && !model.showsExhausted)
+    }
+
     @Test("回数が無ければ打席に立てず使い切りシートを出す。日付が進めば 0:00 で補充")
     func exhaustedThenNextDay() throws {
         let f = Fixture()
