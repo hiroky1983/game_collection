@@ -77,10 +77,8 @@ struct HomerunReturnPolicyTests {
         #expect(a == b, "同じ日の使い切りなら何度求めても同じ時刻（識別子で置き換わり 1 回に収まる）")
     }
 
-    @Test("回数が残っていれば知らせるトグルは出さず、予約の有無は発火時刻で決まる")
+    @Test("予約の有無は発火時刻で決まる")
     func offerAndActive() {
-        #expect(HomerunReturnPolicy.offersReminder(remaining: 0))
-        #expect(!HomerunReturnPolicy.offersReminder(remaining: 1))
         let now = Date(timeIntervalSince1970: 1_000_000)
         #expect(!HomerunReturnPolicy.isReminderActive(pendingFireDate: nil, now: now))
         #expect(HomerunReturnPolicy.isReminderActive(pendingFireDate: now.addingTimeInterval(1), now: now))

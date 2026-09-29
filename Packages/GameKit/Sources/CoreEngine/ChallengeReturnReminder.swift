@@ -74,6 +74,11 @@ public final class ChallengeReturnReminderService {
         guard epoch == token, isEnabledSetting() else { return .superseded }
         guard fireDate > now() else { return .expired }
         await scheduler.schedule(fireDate: fireDate, title: title, body: body)
+        // OS への追加を待っている間に取り消されていたら、追加が済んだあとで消し直す（取り消しが先に走って予約だけ残るのを防ぐ）。
+        guard epoch == token else {
+            scheduler.cancel()
+            return .superseded
+        }
         return .scheduled
     }
 

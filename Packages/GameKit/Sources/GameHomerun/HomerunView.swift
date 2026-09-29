@@ -412,6 +412,8 @@ struct HomerunExhaustedSheet: View {
 
     @State private var notifiesOnReturn = false
     @State private var reminderNote: String?
+    /// ユーザーが触ったか。開いた直後の「予約済みか」の読み直しが、先に押された操作を上書きしないための印。
+    @State private var touchedReminder = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -464,12 +466,14 @@ struct HomerunExhaustedSheet: View {
         }
         .task {
             let pending = await service.pendingFireDate()
+            guard !touchedReminder else { return }
             notifiesOnReturn = HomerunReturnPolicy.isReminderActive(pendingFireDate: pending, now: Date())
         }
     }
 
     private func setReminder(_ on: Bool, _ service: ChallengeReturnReminderService) {
         reminderNote = nil
+        touchedReminder = true
         guard on else {
             notifiesOnReturn = false
             service.cancel()
@@ -480,8 +484,11 @@ struct HomerunExhaustedSheet: View {
             let content = HomerunReturnPolicy.notificationContent
             let fireDate = HomerunReturnPolicy.reminderFireDate(after: Date(), calendar: .current)
             switch await service.enable(fireDate: fireDate, title: content.title, body: content.body) {
-            case .scheduled, .superseded:
+            case .scheduled:
                 break
+            case .superseded:
+                // トグルをオフにした（または設定で通知をオフにした）操作が先に届いている。表示も合わせる。
+                notifiesOnReturn = false
             case .notificationsOff:
                 notifiesOnReturn = false
                 reminderNote = "設定の「通知」をオンにすると使えます。"

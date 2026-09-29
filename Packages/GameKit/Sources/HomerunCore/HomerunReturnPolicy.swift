@@ -40,9 +40,6 @@ public enum HomerunReturnPolicy {
         nextReset(after: now, calendar: calendar).addingTimeInterval(notificationDelay)
     }
 
-    /// 「戻ったら知らせる」を出してよいか。回数が残っているときに「戻ったら」は意味が無い。
-    public static func offersReminder(remaining: Int) -> Bool { remaining <= 0 }
-
     /// 予約が生きているか（トグルの初期状態）。予約の実体は OS が持つので、その発火時刻から判定する。
     public static func isReminderActive(pendingFireDate: Date?, now: Date) -> Bool {
         guard let pendingFireDate else { return false }
