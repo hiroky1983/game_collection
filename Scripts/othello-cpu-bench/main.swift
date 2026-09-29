@@ -11,7 +11,8 @@ import Foundation
 //   random <段階> <確率|shipped> <局面数>  一様乱択の相手と先後入れ替えで局面数×2 局
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: NPS（match / random で使う 1 秒あたりの局面数）・CONCURRENCY（既定 4）・
-// FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）。
+// FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）・
+// UPPER_DEPTH / LOWER_DEPTH（match の上 / 下の段の深さの上限を差し替える。#1566）。
 
 func strength(_ name: String) -> CPUStrength {
     switch name {
@@ -135,12 +136,14 @@ struct Bench {
                 let upP: Double? = args[3] == "shipped" ? nil : Double(args[3])
                 let p: Double? = args[5] == "shipped" ? nil : Double(args[5])
                 let openings = Int(args[6]) ?? 4
+                let upD = Int(env["UPPER_DEPTH"] ?? ""), lowD = Int(env["LOWER_DEPTH"] ?? "")
                 let t0 = Date()
                 let t = CPUBenchLadder.run(
-                    upper: { CPUBenchLadder.engine(up, nodesPerSecond: nps, bestMoveProbability: upP, seed: $0) },
-                    lower: { CPUBenchLadder.engine(low, nodesPerSecond: nps, bestMoveProbability: p, seed: $0) },
+                    upper: { CPUBenchLadder.engine(up, nodesPerSecond: nps, bestMoveProbability: upP, depthLimit: upD, seed: $0) },
+                    lower: { CPUBenchLadder.engine(low, nodesPerSecond: nps, bestMoveProbability: p, depthLimit: lowD, seed: $0) },
                     openings: openings, concurrency: conc, firstOpening: first)
-                print("MATCH \(up.label)(確率 \(args[3])) 対 \(low.label)(確率 \(args[5])) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 石差合計(下−上) \(t.lowerDiscDiffSum) 所要 \(Int(Date().timeIntervalSince(t0)))s")
+                let dl = { (d: Int?) in d.map { " 深さ \($0)" } ?? "" }
+                print("MATCH \(up.label)(確率 \(args[3])\(dl(upD))) 対 \(low.label)(確率 \(args[5])\(dl(lowD))) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 石差合計(下−上) \(t.lowerDiscDiffSum) 所要 \(Int(Date().timeIntervalSince(t0)))s")
             } else {
                 let s = strength(args[2])
                 let p: Double? = args[3] == "shipped" ? nil : Double(args[3])

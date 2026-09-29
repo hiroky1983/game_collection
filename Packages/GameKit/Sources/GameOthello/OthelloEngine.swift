@@ -59,13 +59,14 @@ public struct OthelloEngine: Sendable {
 
     /// テスト・計測用: 段階の出荷値から、指定したものだけを差し替える。
     /// `timeLimitOverride` は時間切れの挙動を決定的に検証するため（#1133）。
-    init(level: Int, timeLimitOverride: TimeInterval? = nil, nodeLimit: Int = .max,
+    /// `depthLimitOverride` は計測が深さの上限の候補を試すため（#1566）。
+    init(level: Int, timeLimitOverride: TimeInterval? = nil, depthLimitOverride: Int? = nil, nodeLimit: Int = .max,
          policy: OthelloMovePolicy? = nil, seed: UInt64? = nil,
          now: @escaping @Sendable () -> Date = { Date() }) {
         self.level = level
         let shipped = Self.settings(for: CPUStrength.strength(for: level))
         self.timeLimit = timeLimitOverride ?? shipped.timeLimit
-        self.depthLimit = shipped.depthLimit
+        self.depthLimit = depthLimitOverride ?? shipped.depthLimit
         self.nodeLimit = nodeLimit
         self.policy = policy ?? shipped.policy
         self.seed = seed
