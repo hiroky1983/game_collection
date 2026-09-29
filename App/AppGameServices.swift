@@ -61,7 +61,8 @@ enum AppEnvironment {
         analytics: analytics,
         gameCenter: gameCenter,
         reminders: reminders,
-        reengagement: reengagement
+        reengagement: reengagement,
+        returnReminder: returnReminder
     )
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
@@ -94,6 +95,14 @@ enum AppEnvironment {
             guard !settings.hiddenIDs.contains(gameID) else { return nil }
             return module.title
         }
+    )
+
+    /// 挑戦回数が戻ったら知らせる通知（#1576）。使い切りシートのトグルを入れたときだけ 1 回予約する
+    /// （自動では予約しない明示操作なので、#663・#1193 と違って撮影・DEBUG でも止めない）。
+    /// 許可は #663・#1193 と同じ設定トグルに従う。
+    static let returnReminder = ChallengeReturnReminderService(
+        scheduler: UserNotificationChallengeReturnScheduler(),
+        isEnabled: { settings.notificationsEnabled }
     )
 
     /// 再エンゲージメント通知（#1193）の対象判定に渡す、登録ゲームぶんの通算プレイ回数・最終プレイ日時。
