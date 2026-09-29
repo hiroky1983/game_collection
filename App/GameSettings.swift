@@ -66,6 +66,7 @@ final class GameSettings {
             if !notificationsEnabled {
                 AppEnvironment.reminders.cancelAll()
                 AppEnvironment.reengagement.cancelAll()
+                AppEnvironment.returnReminder.cancel()
             }
         }
     }
@@ -109,6 +110,7 @@ final class GameSettings {
         if !mergedNotificationsEnabled {
             AppEnvironment.reminders.cancelAll()
             AppEnvironment.reengagement.cancelAll()
+            AppEnvironment.returnReminder.cancel()
         }
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled

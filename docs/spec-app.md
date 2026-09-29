@@ -231,6 +231,16 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「通知」トグル。動作確認は `-simulateNotificationTap <gameID>`（DEBUG のみ）
 
+### 柵越えおじさん: 戻る時刻と「戻ったら知らせる」（#1576）
+
+挑戦回数を使い切ったシート（`HomerunExhaustedSheet`）に、端末の 0:00 までの残り（「あと約◯時間◯分で戻ります」）と、
+「戻ったら知らせる」トグル（既定オフ）を出す。
+
+- **予約**: トグルをオンにした 1 回だけ、翌 0:00 の 1 分後にローカル通知を 1 件（識別子 `challenge-return.homerun` 固定なので置き換わり、増えない）。音なし・繰り返しなし
+- **許可**: 設定の「通知」（#1508 の共有トグル）に従う。オフなら予約せずトグルを無効にする。OS の許諾が未決定なら標準ダイアログで求める（`.provisional` は使わない）
+- **保存先**: アプリ側の保存は無い（予約の有無は OS の予約一覧から読み直す）。トグルオフ・設定の「通知」オフで取り消す
+- **実装**: 規則は `HomerunReturnPolicy`（純関数）、予約は `ChallengeReturnReminderService`（`GameServices.returnReminder`）
+
 ---
 
 ## 広告仕様

@@ -35,7 +35,9 @@ public struct HomerunView: View {
                 HomerunRuleSheet()
             }
             .sheet(isPresented: Bindable(model).showsExhausted) {
-                HomerunExhaustedSheet(canWatchAd: model.ledger.canWatchAd) { model.showsExhausted = false }
+                HomerunExhaustedSheet(canWatchAd: model.ledger.canWatchAd, returnReminder: services.returnReminder) {
+                    model.showsExhausted = false
+                }
                     .presentationDetents([.medium])
             }
             // 回数の提示（#780）。使い切ってボタンが出ているあいだを 1 回の提示として数える。
@@ -404,7 +406,12 @@ struct HomerunBallTile: View {
 /// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 のボタンも同じく打席前と結果にある。
 struct HomerunExhaustedSheet: View {
     let canWatchAd: Bool
+    /// 「戻ったら知らせる」（#1576）。nil（テスト・プレビュー）ではトグルを出さない。
+    var returnReminder: ChallengeReturnReminderService?
     let onClose: () -> Void
+
+    @State private var notifiesOnReturn = false
+    @State private var reminderNote: String?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -417,6 +424,15 @@ struct HomerunExhaustedSheet: View {
                 .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
+            // 残りは分単位の表示なので、1 分ごとに描き直す（端末の時刻・タイムゾーンで 0:00 を数える）。
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                Text(HomerunReturnPolicy.remainingText(from: context.date, calendar: .current))
+                    .themeBody(16, weight: .heavy)
+                    .foregroundStyle(Theme.coral)
+            }
+            if let returnReminder {
+                reminderToggle(returnReminder)
+            }
             if canWatchAd {
                 Text("閉じると出てくる「広告を見て挑戦 +1 回」で、今日の回数を増やせます。")
                     .themeCaption(12)
@@ -431,6 +447,52 @@ struct HomerunExhaustedSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background.ignoresSafeArea())
+    }
+
+    /// 「戻ったら知らせる」。既定オフで、オンにした 1 回だけ翌 0:00 過ぎの通知を予約する。
+    /// 予約の有無は OS が持つので、開くたびに予約済みかを読み直してトグルに反映する。
+    private func reminderToggle(_ service: ChallengeReturnReminderService) -> some View {
+        VStack(spacing: 4) {
+            Toggle(isOn: Binding(get: { notifiesOnReturn }, set: { setReminder($0, service) })) {
+                Text("戻ったら知らせる").themeBody(15)
+            }
+            .tint(Theme.coral)
+            .disabled(!service.isNotificationsEnabled)
+            if let note = service.isNotificationsEnabled ? reminderNote : "設定の「通知」をオンにすると使えます。" {
+                Text(note).themeCaption(12).foregroundStyle(Theme.inkSub).multilineTextAlignment(.center)
+            }
+        }
+        .task {
+            let pending = await service.pendingFireDate()
+            notifiesOnReturn = HomerunReturnPolicy.isReminderActive(pendingFireDate: pending, now: Date())
+        }
+    }
+
+    private func setReminder(_ on: Bool, _ service: ChallengeReturnReminderService) {
+        reminderNote = nil
+        guard on else {
+            notifiesOnReturn = false
+            service.cancel()
+            return
+        }
+        notifiesOnReturn = true
+        Task {
+            let content = HomerunReturnPolicy.notificationContent
+            let fireDate = HomerunReturnPolicy.reminderFireDate(after: Date(), calendar: .current)
+            switch await service.enable(fireDate: fireDate, title: content.title, body: content.body) {
+            case .scheduled, .superseded:
+                break
+            case .notificationsOff:
+                notifiesOnReturn = false
+                reminderNote = "設定の「通知」をオンにすると使えます。"
+            case .denied:
+                notifiesOnReturn = false
+                reminderNote = "端末の設定で通知が許可されていません。"
+            case .expired:
+                notifiesOnReturn = false
+                reminderNote = "回数が戻りました。"
+            }
+        }
     }
 }
 

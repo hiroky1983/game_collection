@@ -20,7 +20,7 @@ struct ResumeReminderWiringTests {
             Self.matches(#"snapshots: ClearObservingSnapshotStore\(base: FileSnapshotStore\(\)\) \{[^}]*reminders\.snapshotDidClear\(gameID: gameID\)"#, in: source),
             "中断データの消去（終局・やり直し）がお知らせの取り消しに届いていない"
         )
-        #expect(Self.matches(#"gameCenter: gameCenter,\s*reminders: reminders,\s*reengagement: reengagement\s*\)"#, in: source),
+        #expect(Self.matches(#"gameCenter: gameCenter,\s*reminders: reminders,\s*reengagement: reengagement,\s*returnReminder: returnReminder\s*\)"#, in: source),
                 "ResumeReminderService が GameServices に渡っていない（離脱・開いたの両方が届かない）")
     }
 
