@@ -4,7 +4,7 @@ import HomerunCore
 
 /// 打席（`31-at-bat-3D` の 2D 仮絵）。全画面でバナー無し。
 ///
-/// 上端: 球数 / 今回の合計 / 柵越え本数 + 直前 2 球のチップ・方向メーター。中央やや上: 9 分割のゾーン・的・縮む輪・
+/// 上端: 球数 / 今回の合計 / 柵越え本数・方向メーター（直前 2 球のチップは置かない・#1613）。中央やや上: 9 分割のゾーン・的・縮む輪・
 /// ミートカーソル。下 1/3: 押せる帯（受け口の円は置かない）と案内 1 本・押している指の残像。
 ///
 /// ゾーン・的・カーソルは画面の上寄り（高さの 45%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
@@ -235,36 +235,31 @@ struct HomerunAtBatView: View {
 
     // MARK: 上端の HUD
 
+    /// 上端の「今回 ◯m」と「柵越え ◯」に数える球。結果のカードを出すまで（打球を追っている間）は直前の球を数えない
+    /// （当たった瞬間に数字が増えると、入ったかどうかが先に分かってしまう・会長 QA 2026-09-30・#1613）。
+    static func hudTotals(results: [HomerunBattedBall], revealsLast: Bool) -> (distance: Double, homers: Int) {
+        let shown = revealsLast ? results[...] : results.dropLast()
+        return (shown.reduce(0) { $0 + $1.distance }, shown.filter { $0.kind == .homer }.count)
+    }
+
+    /// 上端の HUD。直前 2 球のチップ（「1 球目 柵越え …」）は置かない（当たった直後に結果が分かってしまう・会長 QA 2026-09-30）。
     private var topHUD: some View {
-        let challenge = model.challenge
-        let results = challenge?.results ?? []
-        return VStack(spacing: 6) {
-            HStack(alignment: .center) {
-                hudPill(systemImage: "baseball.fill",
-                        text: "\(max(model.pitchNumber, 1)) / \(HomerunChallenge.pitchCount) 球")
-                Spacer()
-                VStack(spacing: 0) {
-                    Text("今回").themeCaption(11).foregroundStyle(.white.opacity(0.9))
-                    Text(verbatim: HomerunText.meters(challenge?.totalDistance ?? 0))
-                        .font(.system(size: 30, weight: .black, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                }
-                .accessibilityElement(children: .combine)
-                Spacer()
-                hudPill(systemImage: "flag.checkered", text: "柵越え \(challenge?.homerCount ?? 0)")
-            }
-            HStack(spacing: 6) {
-                ForEach(Array(results.enumerated().suffix(2)), id: \.offset) { index, ball in
-                    Text(verbatim: "\(index + 1) 球目 \(HomerunText.headline(ball))")
-                        .themeCaption(11)
-                        .lineLimit(1)
-                        .foregroundStyle(ball.kind == .homer ? Theme.onAccent : Theme.ink)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Capsule().fill(ball.kind == .homer ? Theme.Fill.yellow : Theme.surface.opacity(0.9)))
-                }
+        let totals = Self.hudTotals(results: model.challenge?.results ?? [],
+                                    revealsLast: model.phase != .ballResult || swingShown)
+        return HStack(alignment: .center) {
+            hudPill(systemImage: "baseball.fill",
+                    text: "\(max(model.pitchNumber, 1)) / \(HomerunChallenge.pitchCount) 球")
+            Spacer()
+            VStack(spacing: 0) {
+                Text("今回").themeCaption(11).foregroundStyle(.white.opacity(0.9))
+                Text(verbatim: HomerunText.meters(totals.distance))
+                    .font(.system(size: 30, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
             }
             .accessibilityElement(children: .combine)
+            Spacer()
+            hudPill(systemImage: "flag.checkered", text: "柵越え \(totals.homers)")
         }
     }
 

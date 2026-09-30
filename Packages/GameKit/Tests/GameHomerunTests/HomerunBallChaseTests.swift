@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import simd
+import GameKitTestSupport
 @testable import HomerunCore
 @testable import GameHomerun
 
@@ -246,6 +247,26 @@ struct HomerunBallChaseTests {
         #expect(took.chaseFrame(at: arrival.addingTimeInterval(1)) == nil)
         let pitching = HomerunSwingPlan(phase: .pitching, clock: HomerunModel.BallClock(pitchStart: t0, zone: 4), lastBall: HomerunJudge.judge(swing()))
         #expect(pitching.chaseFrame(at: arrival.addingTimeInterval(1)) == nil)
+    }
+
+    @Test("上端の合計・柵越え本数は、結果のカードを出すまで直前の球を数えない（ネタバレ防止・会長 QA 2026-09-30）")
+    @MainActor
+    func hudHidesTheLastBallUntilTheCard() {
+        let homer = HomerunJudge.judge(swing())
+        let inPlay = HomerunJudge.judge(swing(t: 90, band: .liner))
+        #expect(homer.kind == .homer && inPlay.kind == .inPlay)
+        let hidden = HomerunAtBatView.hudTotals(results: [inPlay, homer], revealsLast: false)
+        #expect(hidden.distance == inPlay.distance && hidden.homers == 0)
+        let shown = HomerunAtBatView.hudTotals(results: [inPlay, homer], revealsLast: true)
+        #expect(shown.distance == inPlay.distance + homer.distance && shown.homers == 1)
+        #expect(HomerunAtBatView.hudTotals(results: [], revealsLast: false) == (0, 0))
+    }
+
+    @Test("打席の上端に直前 2 球のチップ（「◯ 球目 …」）を置かない")
+    func noRecentBallChips() throws {
+        let url = SourceScan.packageRoot.appendingPathComponent("Sources/GameHomerun/HomerunAtBatView.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        #expect(!source.contains("results.enumerated().suffix(2)"), "直前 2 球のチップが残っている")
     }
 
     @Test("1 球の結果の時間: 柵越えが一番長く、空振りが一番短い")
