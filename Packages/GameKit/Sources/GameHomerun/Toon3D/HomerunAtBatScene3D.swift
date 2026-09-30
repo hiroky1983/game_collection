@@ -170,6 +170,19 @@ extension HomerunAtBatLayout {
     /// 踏み込みを終えた後）ので、判定・打点・球の通り道は変えない。前のカメラは今のまま（0）。
     static let backStanceSlide: Float = 0.25
 
+    /// 後ろのカメラで、構えの間だけ打者を捕手側へ下げる幅（m・-z）。会長 QA 2026-09-30（#1619）「後ろのとき、おじさんが
+    /// 前（投手側）に出すぎてバッターボックスからはみ出る」。本来の位置（z −0.10）の構えは足が z −0.37〜+0.20 で、
+    /// 後ろ・上から見下ろすと体（ひざ〜頭）がボックスの前の線より奥に重なって前寄りに見える。構えでは 0.25m 下げて足を
+    /// z −0.62〜−0.05（本塁の前縁より手前・ボックスの後ろ半分）に置き、外への寄り（`backStanceSlide`）と一緒に踏み込みの間に
+    /// 本来の位置へ戻す（踏み込みで投手側へ出る = 実際の踏み込みと同じ向き）。当たり窓は踏み込みの後なので打点は変えない。
+    static let backStanceSetBack: Float = 0.25
+
+    /// 外へのずれ `slide`（m・`batterSlideTarget`）のときに打者を本来の位置からずらす量（m）。外（+x）と捕手側（-z）へ
+    /// 同じ割合で寄せる（構え = (`backStanceSlide`, 0, −`backStanceSetBack`)・本来の位置 = 0）。
+    static func batterOffset(slide: Float) -> SIMD3<Float> {
+        [slide, 0, -backStanceSetBack * slide / backStanceSlide]
+    }
+
     /// 打者を本来の位置からどれだけ外へずらして見せるか（m）の目標。構え = `backStanceSlide`、踏み込みの間に 0 へ
     /// （なめらかに）、振り（本番・素振り）の間は nil（いまのずれのまま振る = 振りの途中で滑らせない）。
     static func batterSlideTarget(_ motion: HomerunBatterMotion, camera: Camera, now: Date) -> Float? {
@@ -433,7 +446,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             }
             c.batterSlide = next
             c.slideTick = now
-            rig.entity.position = HomerunAtBatLayout.batter.position + [next, 0, 0]
+            rig.entity.position = HomerunAtBatLayout.batter.position + HomerunAtBatLayout.batterOffset(slide: next)
         } else if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
             let new = Self.legacyBatter(batterPose)
             parent.addChild(new)
