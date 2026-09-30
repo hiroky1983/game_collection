@@ -10,7 +10,7 @@ packages:
     path: Packages/GameKit
   GoogleMobileAds:
     url: https://github.com/googleads/swift-package-manager-google-mobile-ads
-    from: 11.0.0
+    from: 13.0.0
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     from: 12.17.0

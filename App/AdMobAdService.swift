@@ -5,11 +5,11 @@ import Core
 // MARK: - Banner ViewModel
 
 @MainActor
-final class AdMobBannerViewModel: NSObject, @preconcurrency GADBannerViewDelegate {
-    let bannerView: GADBannerView
+final class AdMobBannerViewModel: NSObject, @preconcurrency BannerViewDelegate {
+    let bannerView: BannerView
 
     init(width: CGFloat) {
-        bannerView = GADBannerView(adSize: GADCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(width))
+        bannerView = BannerView(adSize: currentOrientationAnchoredAdaptiveBanner(width: width))
         bannerView.adUnitID = AdConfig.effectiveBannerID
         super.init()
         bannerView.delegate = self
@@ -19,7 +19,7 @@ final class AdMobBannerViewModel: NSObject, @preconcurrency GADBannerViewDelegat
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else { return }
         bannerView.rootViewController = root
-        bannerView.load(GADRequest())
+        bannerView.load(Request())
     }
 }
 
@@ -28,18 +28,18 @@ final class AdMobBannerViewModel: NSObject, @preconcurrency GADBannerViewDelegat
 struct AdMobBannerView: UIViewRepresentable {
     let viewModel: AdMobBannerViewModel
 
-    func makeUIView(context: Context) -> GADBannerView {
+    func makeUIView(context: Context) -> BannerView {
         viewModel.load()
         return viewModel.bannerView
     }
 
-    func updateUIView(_ uiView: GADBannerView, context: Context) {}
+    func updateUIView(_ uiView: BannerView, context: Context) {}
 }
 
 // MARK: - Full Screen Delegate
 
 @MainActor
-private final class FullScreenDelegate: NSObject, @preconcurrency GADFullScreenContentDelegate {
+private final class FullScreenDelegate: NSObject, @preconcurrency FullScreenContentDelegate {
     private let onDismiss: () -> Void
     private let onFailToPresent: () -> Void
 
@@ -49,11 +49,11 @@ private final class FullScreenDelegate: NSObject, @preconcurrency GADFullScreenC
         self.onFailToPresent = onFailToPresent ?? onDismiss
     }
 
-    func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
+    func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
         onDismiss()
     }
 
-    func ad(_ ad: GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+    func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         onFailToPresent()
     }
 }
@@ -65,7 +65,7 @@ public final class AdMobAdService: AdService {
     private var fullScreenDelegate: FullScreenDelegate?
 
     /// 先読みしたリワード広告（#658）。タップ時はこれを使い、読み込みを待たせない。
-    private var rewardedSlot = PreloadedAdSlot<GADRewardedAd>()
+    private var rewardedSlot = PreloadedAdSlot<RewardedAd>()
     /// 進行中の先読み。二重に読み込まないためと、タップがその途中に来たときに相乗りするため。
     private var rewardedPreloadTask: Task<Void, Never>?
     /// SDK の初期化（`initializeAds()`）が済むまでは先読みしない。
@@ -86,9 +86,9 @@ public final class AdMobAdService: AdService {
               !rewardedSlot.hasFreshAd(now: Date()) else { return }
         rewardedPreloadTask = Task { [weak self] in
             // 失敗は握りつぶす。次の先読みの機会（ハブからゲームを開く）か、タップ時の読み込みに任せる。
-            let ad = try? await GADRewardedAd.load(
-                withAdUnitID: AdConfig.effectiveRewardedID,
-                request: GADRequest()
+            let ad = try? await RewardedAd.load(
+                with: AdConfig.effectiveRewardedID,
+                request: Request()
             )
             guard let self else { return }
             if let ad { self.rewardedSlot.store(ad, loadedAt: Date()) }
@@ -102,18 +102,18 @@ public final class AdMobAdService: AdService {
         rewardedSlot.hasFreshAd(now: Date())
     }
 
-    // 画面ごとに独立した GADBannerView を持たせる。共有すると UIView が奪われ HubView で表示されない。
+    // 画面ごとに独立した BannerView を持たせる。共有すると UIView が奪われ HubView で表示されない。
     @MainActor public func makeBannerView(width: CGFloat) -> AnyView? {
         let vm = AdMobBannerViewModel(width: width)
         return AnyView(AdMobBannerView(viewModel: vm))
     }
 
     @MainActor public func showInterstitial() async {
-        let ad: GADInterstitialAd?
+        let ad: InterstitialAd?
         do {
-            ad = try await GADInterstitialAd.load(
-                withAdUnitID: AdConfig.effectiveInterstitialID,
-                request: GADRequest()
+            ad = try await InterstitialAd.load(
+                with: AdConfig.effectiveInterstitialID,
+                request: Request()
             )
         } catch {
             return
@@ -125,7 +125,7 @@ public final class AdMobAdService: AdService {
             let delegate = FullScreenDelegate { continuation.resume() }
             self.fullScreenDelegate = delegate
             ad.fullScreenContentDelegate = delegate
-            ad.present(fromRootViewController: root)
+            ad.present(from: root)
         }
         fullScreenDelegate = nil
     }
@@ -150,11 +150,11 @@ public final class AdMobAdService: AdService {
             }
         }
 
-        let ad: GADRewardedAd?
+        let ad: RewardedAd?
         do {
-            ad = try await GADRewardedAd.load(
-                withAdUnitID: AdConfig.effectiveRewardedID,
-                request: GADRequest()
+            ad = try await RewardedAd.load(
+                with: AdConfig.effectiveRewardedID,
+                request: Request()
             )
         } catch {
             return false
@@ -174,7 +174,7 @@ public final class AdMobAdService: AdService {
     }
 
     /// リワード広告を出し、閉じられるか表示に失敗するまで待つ。
-    private func present(_ ad: GADRewardedAd, from root: UIViewController) async -> RewardedPresentOutcome {
+    private func present(_ ad: RewardedAd, from root: UIViewController) async -> RewardedPresentOutcome {
         let outcome = await withCheckedContinuation { (continuation: CheckedContinuation<RewardedPresentOutcome, Never>) in
             var rewarded = false
             let delegate = FullScreenDelegate(
@@ -183,7 +183,7 @@ public final class AdMobAdService: AdService {
             )
             self.fullScreenDelegate = delegate
             ad.fullScreenContentDelegate = delegate
-            ad.present(fromRootViewController: root) {
+            ad.present(from: root) {
                 rewarded = true
             }
         }
