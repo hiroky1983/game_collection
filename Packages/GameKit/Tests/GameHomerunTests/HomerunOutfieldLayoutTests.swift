@@ -34,7 +34,7 @@ struct HomerunOutfieldLayoutTests {
             for p in [shot.cameraPosition, shot.cameraTarget, shot.fielderPosition, shot.ballPosition] {
                 let r = Double(hypot(p.x, p.z))
                 guard r > 0.5 else { continue }
-                let expectedX = r * sin(radians), expectedZ = r * cos(radians)
+                let expectedX = -r * sin(radians), expectedZ = r * cos(radians)   // 負（レフト）は +x（三塁側・#1594）
                 #expect(abs(Double(p.x) - expectedX) < 0.05, "\(p) が方向 \(ball.direction)° の線から外れている")
                 #expect(abs(Double(p.z) - expectedZ) < 0.05, "\(p) が方向 \(ball.direction)° の線から外れている")
             }
@@ -80,7 +80,7 @@ struct HomerunOutfieldLayoutTests {
         let fielderDistance = Double(hypot(shot.fielderPosition.x, shot.fielderPosition.z))
         #expect(fielderDistance < ball.fence, "外野手が柵の外に立っている")
         #expect(fielderDistance >= 20, "外野手が本塁に寄り過ぎている")
-        let expectedYaw = Float(ball.direction * .pi / 180) + .pi
+        let expectedYaw = Float(-ball.direction * .pi / 180) + .pi
         #expect(abs(shot.fielderYaw - expectedYaw) < 1e-5)
     }
 
@@ -161,5 +161,24 @@ struct HomerunOutfieldLayoutTests {
     func shotIsDeterministic() {
         let ball = HomerunJudge.judge(swing(t: 40))
         #expect(HomerunOutfieldLayout.shot(for: ball) == HomerunOutfieldLayout.shot(for: ball))
+    }
+
+    // #1594 会長 QA（2026-09-30）: RealityKit は右手系（y 上）なので、本塁からセンター（+z）を向くと左手が +x。
+    // レフトの打球を映したショットでは、本物の中継と同じく中堅が画面の右・レフトのポールが画面の左に来ること（ライトは逆）。
+    @Test("外野カメラ: レフトへの打球は中堅が画面の右・ポールが左に、ライトへの打球はその逆に映る（左右が判定と一致）")
+    func outfieldShotShowsTheJudgedSide() {
+        let left = HomerunJudge.judge(swing(t: -60, dx: -11)), right = HomerunJudge.judge(swing(t: 60, dx: 11))
+        #expect(left.direction < -20 && right.direction > 20 && left.kind != .foul && right.kind != .foul)
+        for ball in [left, right] {
+            let shot = HomerunOutfieldLayout.shot(for: ball)
+            let forward = simd_normalize(shot.cameraTarget - shot.cameraPosition)
+            let screenRight = simd_normalize(simd_cross(forward, [0, 1, 0]))
+            func side(_ p: SIMD3<Float>) -> Float { simd_dot(p - shot.cameraPosition, screenRight) - simd_dot(shot.ballPosition - shot.cameraPosition, screenRight) }
+            let center = HomerunOutfieldLayout.point(direction: 0, distance: HomerunJudge.fence(atDirection: 0))
+            let pole = HomerunOutfieldLayout.point(direction: ball.direction < 0 ? -45 : 45, distance: HomerunJudge.fence(atDirection: 45))
+            #expect(ball.direction < 0 ? side(center) > 0 && side(pole) < 0 : side(center) < 0 && side(pole) > 0,
+                    "方向 \(ball.direction): 中堅 \(side(center))・ポール \(side(pole))")
+        }
+        #expect(HomerunOutfieldLayout.point(direction: -30, distance: 100).x > 0, "レフト（負）は +x（三塁側）")
     }
 }
