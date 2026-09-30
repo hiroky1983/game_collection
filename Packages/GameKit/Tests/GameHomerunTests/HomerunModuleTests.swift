@@ -60,6 +60,16 @@ struct HomerunModuleTests {
         #expect(!code.contains("Task.sleep(nanoseconds"))
     }
 
+    @Test("押す・離すの時刻は Date() で渡し、ジェスチャーの value.time を Model に渡さない（#1594・会長 QA）")
+    func gesturePassesWallClockToModel() throws {
+        // value.time は起動からの経過を基準日に足した値で、Model の壁時計（pitchStart）と約 8 億秒ずれる。
+        // 渡すと timingOffset が nil になり、離しても判定されず全球「見送り」になっていた。
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(!atBat.contains("value.time"), "ジェスチャーの時刻は Model の時計と基準が違う")
+        #expect(atBat.contains("model.press(at: value.location, now: Date())"))
+        #expect(atBat.contains("model.release(at: value.location, now: Date())"))
+    }
+
     @Test("Model は時計を読まない（時刻はすべて引数で受ける）")
     func modelTakesTimeAsArgument() throws {
         let model = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunModel.swift"))
