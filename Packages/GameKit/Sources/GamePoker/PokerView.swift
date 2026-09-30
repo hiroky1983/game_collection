@@ -505,7 +505,7 @@ public struct PokerView: View {
                         model.foldToCPUBet()
                     }
                     actionButton("コール \(model.currentBet)枚", role: .primary,
-                                 disabled: model.playerChips < model.currentBet) {
+                                 disabled: !model.canCallCPUBet) {
                         model.callCPUBet()
                     }
                 }
