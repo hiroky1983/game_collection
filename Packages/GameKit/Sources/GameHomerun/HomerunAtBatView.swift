@@ -52,7 +52,7 @@ struct HomerunAtBatView: View {
                 ZStack(alignment: .top) {
                     HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                          batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
-                                         pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
+                                         machine: HomerunMachineMotion.state(elapsed: model.pitchElapsed(at: now), now: now),
                                          cameraPreset: model.atBatCamera,
                                          cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
@@ -341,7 +341,7 @@ struct HomerunAtBatView: View {
 struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
-    var pitcherPose: HomerunOjisanPose3 = .pitch
+    var machine = HomerunMachineMotion.state(elapsed: nil, now: .distantPast)
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
     /// 打球を追うカメラ（#1613）。nil なら `cameraPreset`。
     var cameraOverride: HomerunAtBatLayout.Camera? = nil
@@ -355,7 +355,7 @@ struct HomerunAtBatBackdrop: View {
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
+        HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
                                 cameraOverride: cameraOverride, batterMotion: batterMotion,
                                 ballPosition: ballPosition, ballScale: ballScale, now: now,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()

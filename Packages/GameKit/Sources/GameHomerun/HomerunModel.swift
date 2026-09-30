@@ -21,7 +21,7 @@ public final class HomerunModel {
     public enum Phase: Equatable, Sendable {
         /// 打席前（今日の残り・きろく）。
         case idle
-        /// 投球中（投手のモーション → 輪が縮む）。
+        /// 投球中（マシンが球を込める → 打ち出して輪が縮む）。
         case pitching
         /// 1 球の結果を見せている。
         case ballResult
@@ -43,8 +43,10 @@ public final class HomerunModel {
 
     // MARK: 時間の定数（README §2）
 
-    /// 投手のモーション（的が出るまで）。
-    public static let windup: TimeInterval = 0.8
+    /// マシンが球を込める時間（的が出るまで・`HomerunMachineMotion`）。投手の頃の 0.8 秒から 0.4 秒延ばした（#1612 会長 QA:
+    /// 「投げるアクションが無いのでテンポが早く、終わるのが早く感じる」）。結果から次の的までの間がそのぶん延び、
+    /// 球が受け皿からレールを転がり落ちて車輪の間から出るまでを見せる。
+    nonisolated public static let windup: TimeInterval = 1.2
     /// 輪が縮み切って的に重なるまで（判定窓の幾何が成り立つのは 1.2 秒だけ）。
     public static var travel: TimeInterval { TimeInterval(HomerunPitch.travelMilliseconds) / 1000 }
     /// 見送りの締め切り（輪が的に重なってからの秒数）。これを過ぎても離していなければ見送り（空振りと同じ扱い）で締める。
@@ -97,7 +99,7 @@ public final class HomerunModel {
     /// 止め始めた時刻（結果の間に止めたら、戻ったときに `ballClock` をその間ぶんずらす）。
     private var heldSince: Date?
 
-    /// 投球が始まる（投手のモーションが終わり、的が出て輪が縮み始める）時刻。
+    /// 投球が始まる（マシンが球を打ち出し、的が出て輪が縮み始める）時刻。
     public private(set) var pitchStart: Date?
 
     /// 今（または直前）の 1 球の時刻の記録。3D の打者のスイングと球を判定の時刻に同期させるためのもの（試作・
@@ -113,7 +115,7 @@ public final class HomerunModel {
         public var releasedAt: Date?
         /// 振ったときのずれ（ms・負が早い）。
         public var timingOffset: Double?
-        /// 的が出る前（投手のモーション中）に離して素振りした時刻（最後の 1 回）。3D の打者がその場で振るためだけのもので、
+        /// 的が出る前（マシンが込めている間）に離して素振りした時刻（最後の 1 回）。3D の打者がその場で振るためだけのもので、
         /// 判定・球数・台帳・記録には使わない（その球はそのまま投げられてくる）。
         public var practiceSwingAt: Date? = nil
         /// 輪が的に重なる時刻。
@@ -276,7 +278,7 @@ public final class HomerunModel {
         return true
     }
 
-    /// 打席の画面（3D）が描き始めたときに View が 1 回呼ぶ。1 球目の投手のモーションを今から数え直す（打席の 3D を作って
+    /// 打席の画面（3D）が描き始めたときに View が 1 回呼ぶ。1 球目のマシンの込める動きを今から数え直す（打席の 3D を作って
     /// 描き始めるまで（シミュレータで約 1 秒）は画面が止まるので、打席に立った時刻から数えるとモーションが見えないまま的が
     /// 出ていた・画面の E2E で実測）。1 球目をまだ押していないときだけ（押した・振った後は数え直さない）。
     public func atBatDidAppear(now: Date) {

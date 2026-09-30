@@ -66,7 +66,7 @@ private func skipPitch(_ model: HomerunModel) throws -> Date {
 @MainActor
 struct HomerunModelTests {
 
-    @Test("打席に立った時点で挑戦回数を 1 減らして保存し、0.8 秒のモーションの後に 1.2 秒で輪が的に重なる")
+    @Test("打席に立った時点で挑戦回数を 1 減らして保存し、1.2 秒のマシンの込める動き（#1612）の後に 1.2 秒で輪が的に重なる")
     func startConsumesLedger() throws {
         let f = Fixture()
         let model = f.model()
@@ -78,8 +78,8 @@ struct HomerunModelTests {
         #expect(model.ledger.dayKey == Fixture.todayKey)
         // 途中で画面を閉じても戻らない（開始時に保存済み）。
         #expect(HomerunStorage.loadLedger(f.defaults).used == 1)
-        #expect(model.pitchStart == Fixture.t0.addingTimeInterval(0.8))
-        #expect(model.arrival == Fixture.t0.addingTimeInterval(2.0))
+        #expect(model.pitchStart == Fixture.t0.addingTimeInterval(1.2))
+        #expect(model.arrival == Fixture.t0.addingTimeInterval(1.2).addingTimeInterval(1.2))
         #expect(model.pitchNumber == 1)
         #expect(model.challenge?.results.isEmpty == true)
     }
@@ -453,7 +453,7 @@ struct HomerunModelTests {
         #expect(model.phase == .pitching)
         #expect(model.pitchNumber == 2)
         #expect(model.cursor == .zero, "投球ごとにゾーンの中央へ戻る")
-        #expect(model.pitchStart == close.addingTimeInterval(0.8))
+        #expect(model.pitchStart == close.addingTimeInterval(1.2))
         // 基準は投球が替わった時点の指の位置（120, 100）。
         model.drag(to: CGPoint(x: 125, y: 110))
         #expect(model.cursor == CGPoint(x: 5, y: 10))
@@ -674,7 +674,7 @@ struct HomerunModelTests {
         model.hold(.sheet, false, now: resumed)
         #expect(!model.isHeld)
         #expect(model.pitchNumber == 2, "同じ球をやり直す")
-        #expect(model.pitchStart == resumed.addingTimeInterval(0.8))
+        #expect(model.pitchStart == resumed.addingTimeInterval(1.2))
         #expect(model.ledger.used == 1)
         #expect(HomerunStorage.loadLedger(f.defaults).used == 1)
     }

@@ -240,8 +240,8 @@ struct HomerunStadium3DTests {
         #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
         #expect(L.catcher.position.z < 0, "捕手は本塁の奥")
         #expect(L.catcher.position.x < 0, "捕手は打者と反対側へ寄せる")
-        #expect(abs(L.pitcher.position.z - 17.4) < 1e-4 && abs(L.pitcher.position.y - 0.3) < 1e-4, "マウンドの上（高さ 0.3m）")
-        #expect(abs(L.pitcher.yaw - .pi) < 1e-6)
+        #expect(abs(L.machine.position.z - 17.6) < 1e-4 && abs(L.machine.position.y - 0.3) < 1e-4, "マシンはマウンドの上（高さ 0.3m）")
+        #expect(abs(L.machine.yaw) < 1e-6, "マシンは -z（本塁）へ打ち出す向きのまま置く")
         #expect(L.cameraPosition.z > 20 && L.cameraTarget.z < 1, "センター側から本塁を見る")
         let toBatter = simd_normalize(SIMD3<Float>(L.batter.position.x, 1.7, L.batter.position.z) - L.cameraPosition)
         let axis = simd_normalize(L.cameraTarget - L.cameraPosition)
@@ -379,7 +379,7 @@ struct HomerunStadium3DTests {
         let cam = preset.camera
         let pose = cam.renderPose
         let rendered = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
-        for p in [L.batter, L.catcher, L.pitcher] {
+        for p in [L.batter, L.catcher, L.machine] {
             for local: SIMD3<Float> in [[0, 0, 0], [0.3, 1.2, 0.2], [-0.2, 1.7, -0.1]] {
                 // 描画される世界の点（人物は鏡映しない）。
                 let drawn = p.position + simd_quatf(angle: p.yaw, axis: [0, 1, 0]).act(local)
@@ -422,25 +422,6 @@ struct HomerunBatterPoseTests {
         #expect(expected.count == HomerunKind.allCases.count)
         for (kind, pose) in expected {
             #expect(HomerunAtBatLayout.batterPose(phase: .ballResult, lastKind: kind) == pose)
-        }
-    }
-}
-
-@Suite("柵越えおじさんの投手のポーズ")
-struct HomerunPitcherPoseTests {
-    @Test("投手のモーション中（的が出る前・elapsed が負）は振りかぶり")
-    func windupBeforeBallAppears() {
-        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: -0.8) == .windup)
-        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: -0.001) == .windup)
-    }
-
-    @Test("的が出た後（elapsed が 0 以上）・投球中でない・elapsed が無いときはリリースのまま")
-    func pitchOtherwise() {
-        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: 0) == .pitch)
-        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: 0.5) == .pitch)
-        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: nil) == .pitch)
-        for phase in [HomerunModel.Phase.idle, .ballResult, .finished] {
-            #expect(HomerunAtBatLayout.pitcherPose(phase: phase, elapsed: -0.5) == .pitch)
         }
     }
 }

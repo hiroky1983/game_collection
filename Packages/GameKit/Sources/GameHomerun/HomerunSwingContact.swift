@@ -199,10 +199,11 @@ enum HomerunSwingContact {
     }
 }
 
-/// 3D の球の飛び方（試作）。投球は投手の手からジャストの打点の上まで直線・等速、当たれば打点から放物線。
+/// 3D の球の飛び方（試作）。投球はマシンの打ち出し口からジャストの打点の上まで直線・等速、当たれば打点から放物線。
 enum HomerunBallFlight {
-    /// 投手の手（リリース点・世界座標）。右投げの投手（マウンド 17.4m・本塁を向く）の右手。
-    static let releasePoint: SIMD3<Float> = [-0.25, 1.9, 16.8]
+    /// 打ち出し口（リリース点・世界座標）。マウンドのバッティングマシン（#1612）の車輪の間の前 = [0, 1.3, 17.28]。
+    /// マシンの込める球は的が出る瞬間にここへ着き（`HomerunMachineMotion.state`）、そこからこの球が引き継ぐ。
+    static let releasePoint: SIMD3<Float> = HomerunAtBatLayout.machineWorld(HomerunMachineMotion.mouth)
     /// ここより後ろ（捕手のミット）に入ったら消す。
     static let mittZ: Float = -1.5
     static let gravity: Float = 9.8
@@ -212,7 +213,7 @@ enum HomerunBallFlight {
         (releasePoint.z - HomerunSwingContact.approachTarget(column: column).z) / (Float(HomerunPitch.travelMilliseconds) / 1000)
     }
 
-    /// 投球中の球の位置。的が出る `pitchStart` に手を離れ、`arrival` に `approachTarget` へ着き、その後も同じ速さで進む。
+    /// 投球中の球の位置。的が出る `pitchStart` に打ち出し口を出て、`arrival` に `approachTarget` へ着き、その後も同じ速さで進む。
     /// 的が出る前・ミットに入った後は nil。
     static func pitchPosition(at now: Date, pitchStart: Date, arrival: Date, column: Int) -> SIMD3<Float>? {
         let travel = arrival.timeIntervalSince(pitchStart)
