@@ -208,16 +208,22 @@ public final class HomerunModel {
         if ledger != before { HomerunStorage.saveLedger(ledger, defaults) }
     }
 
+    /// 動作確認用: この鍵が true なら挑戦回数を減らさない（会長 QA 用・2026-09-30）。アプリの DEBUG ビルドが
+    /// 起動引数 `-homerunUnlimited` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
+    public static let debugUnlimitedKey = "homerun_debugUnlimited"
+
     /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
     @discardableResult
     public func start(now: Date) -> Bool {
         guard phase == .idle || phase == .finished else { return false }
         refreshDay(now: now)
-        guard ledger.consume() else {
-            showsExhausted = true
-            return false
+        if !defaults.bool(forKey: Self.debugUnlimitedKey) {
+            guard ledger.consume() else {
+                showsExhausted = true
+                return false
+            }
+            HomerunStorage.saveLedger(ledger, defaults)
         }
-        HomerunStorage.saveLedger(ledger, defaults)
         challenge = HomerunChallenge(pitches: pitches)
         lastBall = nil
         isNewBest = false
