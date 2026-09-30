@@ -70,29 +70,22 @@ final class HomerunE2ETests: XCTestCase {
         if let shotDir { try? final.pngRepresentation.write(to: shotDir.appendingPathComponent("final.png")) }
 
         // もう一回（会長 QA 2026-09-30）: 前の挑戦の振り終わりの姿勢・ミット直前の球が残り、1 球目が何もしないうちに
-        // 終わっていた。始めた直後を細かく撮り、1 球目を打って見送り以外で判定されることを確かめる。
-        let again = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'もう一回'")).firstMatch
+        // 終わっていた。もう一回の 1 球目を打ち、1 球目として見送り以外で判定されることを確かめる。
+        // 残りが 0 のときの文言は「今日はおしまい」（`-homerunUnlimited` では回数を使わないので押せば始まる）。
+        let again = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'もう一回' OR label == '今日はおしまい'")).firstMatch
+        // 結果の画面は縦に長く、ボタンが画面の外だと見つからないので下へ送る。
+        for _ in 0..<4 where !(again.exists && again.isHittable) { app.swipeUp() }
         XCTAssertTrue(again.waitForExistence(timeout: 10), "もう一回 が出ない")
         again.tap()
-        let tapped = Date()
-        let restartCard = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label MATCHES '^1球目、.*'")).firstMatch
-        for k in 0..<8 {
-            let shot = XCUIScreen.main.screenshot()
-            if let shotDir {
-                try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent(String(format: "restart-t%02d.png", k)))
-            }
-            // 1 球目は投手のモーション（0.8 秒）+ 輪が縮む 1.2 秒より前には終わらない（前の挑戦の続きで即座に終わっていない）。
-            // 10 球の結果の「1 球ずつ」のマスも同じ読み上げなので、結果の画面が消えてから見る。
-            if !again.exists {
-                XCTAssertFalse(restartCard.exists, "もう一回の直後に 1 球目の結果が出た（\(k)）")
-            }
-            Thread.sleep(until: tapped.addingTimeInterval(Double(k + 1) * 0.25))
-        }
+        // 始めた直後を 1 枚だけ撮る（撮るのに時間がかかり、長く撮ると 1 球目の投球の始まりを読み逃す）。
+        // 直後に前の挑戦の画（振り終わりの打者・ミット直前の球）が残っていないかは、この 1 枚と録画で見る。
+        let shot = XCUIScreen.main.screenshot()
+        if let shotDir { try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent("restart-start.png")) }
         let again1 = playChallenge(app: app, latency: latency, shotDir: shotDir, prefix: "restart", count: 1)
         print("E2E-RESTART\n\(again1.joined(separator: "\n"))")
         if let shotDir { try? again1.joined(separator: "\n").write(to: shotDir.appendingPathComponent("restart.txt"), atomically: true, encoding: .utf8) }
         XCTAssertEqual(again1.count, 1, "もう一回の 1 球目が判定されない")
+        XCTAssertTrue(again1.first?.contains("→ 1球目、") == true, "もう一回で最初に判定されたのが 1 球目ではない: \(again1)")
     }
 
     /// 1 挑戦ぶん（`plan` の球数）を打つ。各球の結果の行を返す。`count` を渡すとその球数で止める。
