@@ -89,11 +89,14 @@ private final class Rig {
         let reason = model.lastMissReason
         let kind = model.lastBall?.kind
         let practice = model.ballClock?.practiceSwingAt
+        let offset = model.ballClock?.timingOffset
+        let zone = model.ballClock?.zone ?? 4
+        let timing = model.lastBall?.timing
         // 結果を見せ終えるまで見た目を追う。
         wait(until: model.resultUntil ?? now)
         let seen = visualSwings.filter { $0 >= from }
         return Outcome(judgedSwing: judged, releasedAt: releasedAt, practiceSwingAt: practice,
-                       visualSwings: seen, kind: kind, reason: reason,
+                       visualSwings: seen, kind: kind, timing: timing, timingOffset: offset, zone: zone, reason: reason,
                        headline: model.lastBall.map { HomerunBallResultCard.headline($0, tookPitch: !judged) } ?? "-",
                        note: model.lastBall.flatMap {
                            HomerunBallResultCard.reasonLine($0, tookPitch: !judged,
@@ -107,12 +110,22 @@ private final class Rig {
         var practiceSwingAt: Date?
         var visualSwings: [Date]
         var kind: HomerunKind?
+        var timing: HomerunTiming?
+        /// 判定のずれ（ms・負が早い）と、その球のゾーン。
+        var timingOffset: Double?
+        var zone: Int
         var reason: HomerunMissReason?
+        /// 本番の振りの見た目の 20 コマ目の時刻（離した瞬間に振り抜きの途中から流す・`HomerunSwingContact.swingStart`）。
+        var expectedSwingStart: Date? {
+            guard let releasedAt, let timingOffset else { return nil }
+            return HomerunSwingContact.swingStart(release: releasedAt, offsetMilliseconds: timingOffset,
+                                                  column: HomerunSwingContact.column(zone: zone))
+        }
         /// 結果のカードの見出しと、その下の理由（カードと同じ関数で作る）。
         var headline: String
         var note: String?
         var description: String {
-            "判定上のスイング=\(judgedSwing) 見た目のスイング=\(visualSwings.count)回 種別=\(kind.map { "\($0)" } ?? "-") カード=\(headline)／\(note ?? "-")"
+            "判定上のスイング=\(judgedSwing) ずれ=\(timingOffset.map { "\(Int($0.rounded()))ms" } ?? "-") 見た目のスイング=\(visualSwings.count)回 種別=\(kind.map { "\($0)" } ?? "-") カード=\(headline)／\(note ?? "-")"
         }
     }
 }
@@ -126,7 +139,8 @@ struct HomerunInputReplayTests {
         print("[再現] \(label): \(o)")
         #expect(o.judgedSwing, "\(label): 振ったのに見送り扱い（\(o)）")
         #expect(o.releasedAt == releasedAt, "\(label): 判定の離し時刻が付いていない")
-        #expect(o.visualSwings == [releasedAt], "\(label): 見た目のスイングと判定のスイングがずれている（\(o)）")
+        #expect(o.visualSwings.count == 1 && o.visualSwings.first == o.expectedSwingStart,
+                "\(label): 見た目のスイングと判定のスイングがずれている（\(o)）")
         #expect(o.headline != "見送り", "\(label): 見送りと出た")
     }
 
@@ -138,23 +152,60 @@ struct HomerunInputReplayTests {
         rig.wait(until: rig.arrival)
         let release = rig.now
         rig.up()
-        expectJudged(rig.settle(from: from), releasedAt: release, "直後から押しっぱなし→輪で離す")
+        let o = rig.settle(from: from)
+        expectJudged(o, releasedAt: release, "直後から押しっぱなし→輪で離す")
+        #expect(o.timing == .just && o.kind != .miss, "輪ちょうどで離したのにジャストで当たらない（\(o)）")
     }
 
-    @Test("押しっぱなし → 3D の球がバットに来たとき（輪が重なった 0.2 秒後）に離す = 遅い空振りとして判定される")
+    /// 3D の球（`HomerunSwingPlan.ballPosition`）が打点（ジャストの打点の上 `approachTarget`）の奥行きを越えた最初の時刻まで、
+    /// 1ms 刻みで進める。
+    private func waitUntilBallReachesBat(_ rig: Rig) -> Date {
+        let target = HomerunSwingContact.approachTarget(column: HomerunSwingContact.column(zone: rig.model.ballClock!.zone))
+        while rig.model.phase == .pitching {
+            if let p = HomerunSwingPlan(model: rig.model).ballPosition(at: rig.now), p.z <= target.z { break }
+            rig.wait(0.001)
+        }
+        return rig.now
+    }
+
+    @Test("押しっぱなし → 3D の球がバットに来た瞬間に離す = ジャスト（#1594 会長決裁 A）。そのとき輪はちょうど的の大きさ")
     func releaseWhenBallReachesBat() {
         let rig = Rig()
         let from = rig.mark()
         rig.down()
-        let release = rig.arrival.addingTimeInterval(HomerunSwingContact.lead(column: 1))
-        rig.wait(until: release)
+        let release = waitUntilBallReachesBat(rig)
+        #expect(abs(release.timeIntervalSince(rig.arrival)) <= 0.001, "球が打点に来る時刻と輪が重なる時刻がずれている")
+        let ring = HomerunZoneGeometry.ringDiameter(elapsed: release.timeIntervalSince(rig.pitchStart))
+        #expect(abs(ring - HomerunZoneGeometry.targetDiameter) < 0.1, "球が打点に来たときの輪 \(ring)pt")
         rig.up()
         let o = rig.settle(from: from)
-        expectJudged(o, releasedAt: release, "球がバットに来たときに離す（輪の \(Int(HomerunSwingContact.lead(column: 1) * 1000))ms 後）")
-        #expect(o.reason == .late && o.headline == "空振り" && o.note == "振るのが遅い")
+        expectJudged(o, releasedAt: release, "球がバットに来た瞬間に離す")
+        #expect(o.timing == .just && o.kind != .miss && o.reason == nil, "球に合わせて離したのにジャストで当たらない（\(o)）")
+        #expect(abs(o.timingOffset ?? .infinity) <= 1)
     }
 
-    @Test("遅れて離す（輪の 0.12〜0.45 秒後・見送りの締め切り 0.5 秒の手前）はどれも遅い空振りとして判定される", arguments: [0.12, 0.15, 0.3, 0.45])
+    @Test("輪ちょうどで離すのと、3D の球がバットに来た瞬間に離すのは同じ判定（ずれ・種別・飛距離）", arguments: [0, 1, 2, 3, 4])
+    func ringAndBallGiveSameResult(ballIndex: Int) {
+        // 5 球目まで（ゾーンの列が違う球を含む）、輪で離す・球で離すの 2 通りを別々の打席で比べる。
+        func play(_ release: (Rig) -> Date) -> (Double?, HomerunBattedBall?) {
+            let rig = Rig()
+            for _ in 0..<ballIndex {
+                rig.wait(until: rig.arrival.addingTimeInterval(HomerunModel.lateLimit + 0.01))
+                rig.wait(until: rig.model.resultUntil!.addingTimeInterval(0.01))
+            }
+            rig.down()
+            _ = release(rig)
+            rig.up()
+            return (rig.model.ballClock?.timingOffset, rig.model.lastBall)
+        }
+        let byRing = play { rig in rig.wait(until: rig.arrival); return rig.now }
+        let byBall = play { rig in self.waitUntilBallReachesBat(rig) }
+        #expect(byRing.1?.timing == .just && byBall.1?.timing == .just, "輪 \(String(describing: byRing)) / 球 \(String(describing: byBall))")
+        #expect(abs((byRing.0 ?? .infinity) - (byBall.0 ?? -.infinity)) <= 1)
+        #expect(byRing.1?.kind == byBall.1?.kind)
+    }
+
+    @Test("遅れて離す（輪の 0.12〜0.29 秒後・見送りの締め切り 0.3 秒の手前）はどれも遅い空振りとして判定される", arguments: [0.12, 0.15, 0.2, 0.29])
     func lateReleases(delay: TimeInterval) {
         let rig = Rig()
         let from = rig.mark()
@@ -182,7 +233,7 @@ struct HomerunInputReplayTests {
         let o = rig.settle(from: from)
         print("[再現] 素振り→本番: \(o)")
         #expect(o.judgedSwing && o.releasedAt == release)
-        #expect(o.visualSwings == [practice!, release], "素振り 1 回・本番 1 回")
+        #expect(o.visualSwings == [practice!, o.expectedSwingStart!], "素振り 1 回・本番 1 回")
     }
 
     @Test("前の球の結果表示中から押しっぱなし → 次の球の輪で離す")
