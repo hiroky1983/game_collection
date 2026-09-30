@@ -41,8 +41,8 @@ enum HomerunBatPath {
 /// 31〜44 コマ目がフォロースルー。バットが本塁の上（球の通り道）を通るのは約 25.3〜26.3 コマ目
 /// （`HomerunSwingContact.contactWindow`）で、振り抜きの起点（20 コマ目）から約 0.2 秒後（`HomerunSwingContact.lead`）。
 /// **振りは離した瞬間にだけ始め、始まったら最後まで振り切る**（#1594。押しっぱなしで先読みして振ったり、巻き戻したりしない）。
-/// 本番の振りは、離した瞬間にジャストの打点のコマ（20 コマ目の `lead` 後）から流す（判定の 0 = 3D の球が打点に来る瞬間・
-/// #1594 会長決裁 A）。素振りは 20 コマ目から流す。当たる瞬間の見た目は球の側を合わせる（`HomerunSwingPlan.ballPosition`）。
+/// 本番の振りは、離した瞬間に振り抜きの途中のコマから流す（ジャスト・遅いなら打点のコマ、早いなら球が来たときに打点のコマに
+/// なる手前・`HomerunSwingContact.swingStart`。判定の 0 = 3D の球が打点に来る瞬間・#1594 会長決裁 A）。素振りは 20 コマ目から流す。当たる瞬間の見た目は球の側を合わせる（`HomerunSwingPlan.ballPosition`）。
 enum HomerunBatterMotion: Equatable {
     /// 構え（1 コマ目で止める）。
     case stance
