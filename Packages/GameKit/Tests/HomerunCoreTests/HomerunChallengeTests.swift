@@ -38,11 +38,11 @@ struct HomerunChallengeTests {
         #expect(HomerunPitch.standardSequence.allSatisfy { (0..<9).contains($0.zone) })
     }
 
-    @Test("集計: 全球ジャスト = 柵越え 10 本・合計 1350m。見逃しは空振り 10")
+    @Test("集計: 全球ジャスト = 柵越え 10 本・合計 1610m。見逃しは空振り 10")
     func totals() {
         let all = finished(perfect)
         #expect(all.homerCount == 10)
-        #expect(abs(all.totalDistance - 1350) < 1e-9)
+        #expect(abs(all.totalDistance - 1610) < 1e-9)
         let none = finished(nil)
         #expect(none.missCount == 10)
         #expect(none.totalDistance == 0)
@@ -124,13 +124,13 @@ struct HomerunChallengeTests {
         var r = HomerunRecords()
         r.record(finished(perfect))
         #expect(r.challenges == 1 && r.pitches == 10 && r.homers == 10)
-        #expect(r.totalDistanceTenths == 13500)
-        #expect(r.bestTotalTenths == 13500)
-        #expect(r.longestTenths == 1350)
+        #expect(r.totalDistanceTenths == 16100)
+        #expect(r.bestTotalTenths == 16100)
+        #expect(r.longestTenths == 1610)
         r.record(finished(nil))
         #expect(r.challenges == 2 && r.misses == 10)
-        #expect(r.bestTotalTenths == 13500)  // 悪い挑戦では下がらない
-        #expect(r.totalDistanceTenths == 13500)
+        #expect(r.bestTotalTenths == 16100)  // 悪い挑戦では下がらない
+        #expect(r.totalDistanceTenths == 16100)
     }
 
     @Test("蓄積: 集計は 5 方向 × 8 距離帯の 40 セルで、当たった球だけ数える")
@@ -156,7 +156,7 @@ struct HomerunChallengeTests {
         var c = HomerunChallenge()
         let fly = HomerunLaunch.fly.centerDY
         c.swing(perfect)                                                                    // 柵越え
-        c.swing(HomerunSwing(timingOffset: 40, cursorDX: 0, cursorDY: fly))                 // ナイス（フェア）
+        c.swing(HomerunSwing(timingOffset: 40, cursorDX: 0, cursorDY: fly))                 // ナイス × フライも柵越え（#1594）
         c.swing(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.grounder.centerDY))  // ゴロ
         c.swing(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: fly))             // ファウル
         c.swing(nil)                                                                        // 見逃し
@@ -165,7 +165,7 @@ struct HomerunChallengeTests {
         r.record(c)
         #expect(r.fouls == 1)
         #expect(r.misses == 6)
-        #expect(r.homers == 1)
+        #expect(r.homers == 2)
         #expect(r.heatmap.reduce(0, +) == 3)
     }
 

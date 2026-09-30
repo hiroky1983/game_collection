@@ -30,12 +30,12 @@ public enum HomerunTiming: Int, Codable, Equatable, Sendable {
         else { self = .miss }
     }
 
-    /// 飛距離の土台（m）。
+    /// 飛距離の土台（m）。#1594 会長 QA で柵越えを出やすくした（旧 135 / 120 / 100）。
     var baseDistance: Double {
         switch self {
-        case .just: 135
-        case .nice: 120
-        case .hit: 100
+        case .just: 140
+        case .nice: 125
+        case .hit: 110
         case .miss: 0
         }
     }
@@ -59,12 +59,12 @@ public enum HomerunLaunch: Int, Codable, Equatable, Sendable {
     /// 帯の中心の高さ（ボールの中心から・pt・下が正）。ライナーがボールの高さ。
     public var centerDY: Double { Double(rawValue - 1) * Self.bandWidth }
 
-    /// 飛距離の係数。帯の中では一定（補間しない）。
+    /// 飛距離の係数。帯の中では一定（補間しない）。#1594 でライナー 0.85 → 1.0・フライ 1.0 → 1.15（柵越えを出やすく）。
     public var distanceFactor: Double {
         switch self {
         case .grounder: 0.3
-        case .liner: 0.85
-        case .fly: 1.0
+        case .liner: 1.0
+        case .fly: 1.15
         case .pop: 0.5
         }
     }
@@ -148,13 +148,15 @@ public enum HomerunJudge {
     public static let foulLimit = 45.0
     /// カーソルの横のずれがこの値で最大の 35° になる（pt）。
     public static let fullDeflection = 11.0
-    /// 芯の半径（pt・ゾーンの 1/8）。帯の中心から数えて、ここで係数 0.8。
+    /// 芯の半径（pt・ゾーンの 1/8）。帯の中心から数えて、ここで係数 `coreEdgeFactor`。
     public static let coreRadius = 11.0
-    /// 当たり判定の半径（pt・#1594 試作）。芯の外でもここまでは当たる（係数 0.8 → `edgeFactor` へ下がる）。
+    /// 芯の半径（`coreRadius`）での芯の係数（#1594 で 0.8 → 0.9）。
+    public static let coreEdgeFactor = 0.9
+    /// 当たり判定の半径（pt・#1594 試作）。芯の外でもここまでは当たる（係数 `coreEdgeFactor` → `edgeFactor` へ下がる）。
     /// ゾーン（88pt）の 1 マスぶん（約 29.3pt）。以前は芯の半径（11pt）の外は空振りで、ボールのマスまで正確にずらさないと当たらなかった。
     public static let contactRadius = HomerunLaunch.bandWidth * 4 / 3
-    /// 当たり判定の縁（`contactRadius`）での芯の係数。
-    public static let edgeFactor = 0.5
+    /// 当たり判定の縁（`contactRadius`）での芯の係数（#1594 で 0.5 → 0.8。照準が多少ずれても飛ぶように）。
+    public static let edgeFactor = 0.8
     /// 柵の手前でこの距離（m）以内なら「フェンス直撃」。
     public static let fenceHitMargin = 6.0
 
@@ -164,15 +166,15 @@ public enum HomerunJudge {
     }
 
     /// 芯の係数。`d` は「カーソルが入った角度の帯の中心」からカーソルまでの距離（pt）。
-    /// 中心で 1.0・芯の半径で 0.8・当たり判定の半径（`contactRadius`）で `edgeFactor`（それぞれ線形）・その外は 0（空振り）。
-    /// 帯の中心から測るのは、帯の幅（22pt）が芯の直径と同じで、ボール中心から測ると柵越えの帯（少し下）が常に 0.8 以下になるため。
+    /// 中心で 1.0・芯の半径で `coreEdgeFactor`・当たり判定の半径（`contactRadius`）で `edgeFactor`（それぞれ線形）・その外は 0（空振り）。
+    /// 帯の中心から測るのは、帯の幅（22pt）が芯の直径と同じで、ボール中心から測ると柵越えの帯（少し下）が常に芯の縁の係数以下になるため。
     public static func core(distanceFromBandCenter d: Double, abilities: HomerunAbilities = .standard) -> Double {
         let meet = max(abilities.meet, 0.01)
         let radius = coreRadius * meet
         let contact = max(contactRadius * meet, radius)
         if d > contact { return 0 }
-        if d <= radius { return 1 - 0.2 * d / radius }
-        return 0.8 - (0.8 - edgeFactor) * (d - radius) / (contact - radius)
+        if d <= radius { return 1 - (1 - coreEdgeFactor) * d / radius }
+        return coreEdgeFactor - (coreEdgeFactor - edgeFactor) * (d - radius) / (contact - radius)
     }
 
     /// 空振りの理由（結果に出す・#1594）。振っていない（見送り）・空振りでない（当たった・ファウル）なら nil。
