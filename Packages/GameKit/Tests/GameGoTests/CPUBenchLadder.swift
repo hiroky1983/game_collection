@@ -22,6 +22,8 @@ enum CPUBenchLadder {
         var level: GoLevel?
         /// 最善手を打つ確率の差し替え（`nil` なら出荷値）。
         var bestMoveChance: Double? = nil
+        /// 1 手あたりのプレイアウト数の上限の差し替え（`nil` なら出荷値。#1566）。
+        var playouts: Int? = nil
 
         static func random() -> Player { Player(level: nil, bestMoveChance: nil) }
 
@@ -31,6 +33,7 @@ enum CPUBenchLadder {
             var config = GoEngineConfig.level(level, seed: seed)
             config.timeLimit = nil
             if let bestMoveChance { config.bestMoveChance = bestMoveChance }
+            if let playouts { config.playouts = playouts }
             return config
         }
     }

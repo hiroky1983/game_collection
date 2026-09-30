@@ -6,18 +6,25 @@ import Foundation
 //                                        （TIMING_PLAYOUT_SCALE=10 で回数の上限を 10 倍にし、時間で打ち切る場合を確かめる）
 //   match <上> <上の確率> <下> <下の確率> <開始局面数>
 //                                        上の段階と下の段階を、先後入れ替えで開始局面数×2 局。確率は 0...1 か shipped（出荷値）。
-//                                        段階は novice / easy / normal / hard
+//                                        段階は novice / easy / normal / hard。`easy/1000` のように / の後ろに
+//                                        回数の上限を書くと、出荷値の代わりにその回数で打ち切る（#1566）
 //   random <段階> <確率|shipped> <開始局面数>  一様乱択の相手（眼は埋めない）と先後入れ替えで開始局面数×2 局
 // 対局は実時間の上限を外し、回数の上限（出荷値）だけで打ち切る（`CPUBenchLadder.Player.config`）。
 // 環境変数: CONCURRENCY（既定 4）・FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）。
 
-func level(_ name: String) -> GoLevel {
-    switch name {
+func level(_ spec: String) -> GoLevel {
+    switch spec.split(separator: "/").first.map(String.init) ?? spec {
     case "novice": return .novice
     case "easy": return .easy
     case "normal": return .normal
     default: return .hard
     }
+}
+
+/// `easy/1000` の `/` の後ろ（回数の上限の差し替え）。無ければ nil（出荷値）。
+func playoutsOverride(_ spec: String) -> Int? {
+    let parts = spec.split(separator: "/")
+    return parts.count > 1 ? Int(parts[1]) : nil
 }
 
 let env = ProcessInfo.processInfo.environment
@@ -92,10 +99,10 @@ struct Bench {
                 let upP: Double? = args[3] == "shipped" ? nil : Double(args[3])
                 let p: Double? = args[5] == "shipped" ? nil : Double(args[5])
                 let openings = args.count > 6 ? Int(args[6]) ?? 20 : 20
-                let t = CPUBenchLadder.run(upper: .init(level: up, bestMoveChance: upP),
-                                           lower: .init(level: low, bestMoveChance: p),
+                let t = CPUBenchLadder.run(upper: .init(level: up, bestMoveChance: upP, playouts: playoutsOverride(args[2])),
+                                           lower: .init(level: low, bestMoveChance: p, playouts: playoutsOverride(args[4])),
                                            openings: openings, firstOpening: first, concurrency: conc)
-                print("MATCH \(up.label)(確率 \(args[3])) 対 \(low.label)(確率 \(args[5])) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 所要 \(Int(Date().timeIntervalSince(t0)))s")
+                print("MATCH \(up.label)[\(args[2])](確率 \(args[3])) 対 \(low.label)[\(args[4])](確率 \(args[5])) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 所要 \(Int(Date().timeIntervalSince(t0)))s")
             } else {
                 guard args.count >= 4 else { print("引数が足りません: random <段階> <確率|shipped> [開始局面数]"); return }
                 let l = level(args[2])
