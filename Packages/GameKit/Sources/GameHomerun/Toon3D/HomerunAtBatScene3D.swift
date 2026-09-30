@@ -205,11 +205,15 @@ struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
+    /// 打球を追うカメラ（#1613・`HomerunBallChase`）。nil なら `cameraPreset` のカメラ。
+    var cameraOverride: HomerunAtBatLayout.Camera? = nil
     /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を流し直す（振り抜きは `start` からの経過ぶん進めた所から）。
     var batterMotion: HomerunBatterMotion = .stance
     /// 3D の球の位置（世界座標・前のカメラの置き方・`HomerunSwingPlan.ballPosition`）。nil なら見せない。
     /// 左右反転する後ろのカメラでは人物と同じく x について鏡映して置く。
     var ballPosition: SIMD3<Float>? = nil
+    /// 球の拡大率（打球を追う間は遠くでも見えるよう大きくする・#1613）。
+    var ballScale: Float = 1
     /// 今の時刻（振り抜きの再生位置を合わせるのに使う）。
     var now: Date = Date()
     /// 3D の描画が落ち着いたとき（作った直後のコマ落ちが収まったとき）に 1 回だけ呼ぶ（iOS だけ）。
@@ -220,8 +224,8 @@ struct HomerunAtBatScene3DView: View {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
-                                  batterMotion: batterMotion, ballPosition: ballPosition, now: now, onFirstFrame: onFirstFrame)
+            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraOverride ?? cameraPreset.camera,
+                                  batterMotion: batterMotion, ballPosition: ballPosition, ballScale: ballScale, now: now, onFirstFrame: onFirstFrame)
             #endif
         }
         .allowsHitTesting(false)
@@ -246,6 +250,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let camera: HomerunAtBatLayout.Camera
     let batterMotion: HomerunBatterMotion
     let ballPosition: SIMD3<Float>?
+    let ballScale: Float
     let now: Date
     let onFirstFrame: (@MainActor () -> Void)?
     /// 描き始めの合図は、更新の刻みがこのコマ数続けて `steadyFrameInterval` 以内になったとき（作った直後の約 0.3〜0.5 秒は
@@ -452,7 +457,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             Self.aim(cam, camera)
             c.camera = camera
         }
-        if let ball = c.ball { Self.placeBall(ball, at: ballPosition, camera: camera) }
+        if let ball = c.ball {
+            Self.placeBall(ball, at: ballPosition, camera: camera)
+            ball.scale = SIMD3(repeating: ballScale)
+        }
     }
 }
 
