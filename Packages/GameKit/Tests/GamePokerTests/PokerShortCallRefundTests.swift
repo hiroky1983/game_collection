@@ -92,4 +92,30 @@ struct PokerShortCallRefundTests {
         #expect(model.playerChips == 80)
         #expect(model.cpuChips == 140)    // 100 - 20（コール）+ ポット 60
     }
+
+    @Test("手持ちが 20 枚未満でも 1 枚以上あれば CPU のベットにコールできる（#1598）")
+    func canCallWithShortStack() {
+        let model = makeModel(phase: .betting2, playerChips: 15, cpuChips: 80, pot: 40, currentBet: 20, cpuWins: false)
+
+        #expect(model.canCallCPUBet)
+    }
+
+    @Test("手持ちが 0 枚ならコールできない・ベットが無ければコール対象が無い（#1598）")
+    func cannotCallWithoutChipsOrBet() {
+        let broke = makeModel(phase: .betting2, playerChips: 0, cpuChips: 80, pot: 40, currentBet: 20, cpuWins: false)
+        let noBet = makeModel(phase: .betting2, playerChips: 15, cpuChips: 80, pot: 40, currentBet: 0, cpuWins: false)
+
+        #expect(!broke.canCallCPUBet)
+        #expect(!noBet.canCallCPUBet)
+    }
+
+    @Test("View はコールの無効化を canCallCPUBet に任せ、手持ちとベット額を直接比べない（#1598）")
+    func viewUsesCanCallCPUBet() throws {
+        var url = URL(fileURLWithPath: #filePath)
+        for _ in 0..<3 { url.deleteLastPathComponent() }
+        let source = try String(contentsOf: url.appendingPathComponent("Sources/GamePoker/PokerView.swift"), encoding: .utf8)
+
+        #expect(source.contains("disabled: !model.canCallCPUBet"))
+        #expect(!source.contains("model.playerChips < model.currentBet"))
+    }
 }

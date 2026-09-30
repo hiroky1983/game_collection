@@ -2,6 +2,9 @@ import Testing
 import Foundation
 import simd
 import HomerunCore
+#if canImport(RealityKit)
+import RealityKit
+#endif
 @testable import GameHomerun
 
 @Suite("柵越えおじさんの 3D 球場と打席シーンの置き方")
@@ -492,4 +495,73 @@ struct HomerunBackStanceSlideTests {
         let motion = plan.batterMotion(at: windowStart)
         #expect((L.batterSlideTarget(motion, camera: L.CameraPreset.back.camera, now: windowStart) ?? 1) < 1e-4)
     }
+
+    @Test("後ろのカメラの構えは外へ 0.25m・捕手側へ 0.25m ずらし、ずれ 0（踏み込みの後）では本来の位置（#1619）")
+    func stanceOffsetMovesOutAndBack() {
+        #expect(L.batterOffset(slide: L.backStanceSlide) == [L.backStanceSlide, 0, -L.backStanceSetBack])
+        #expect(L.batterOffset(slide: 0) == [0, 0, 0])
+        let half = L.batterOffset(slide: L.backStanceSlide / 2)
+        #expect(abs(half.x - L.backStanceSlide / 2) < 1e-6 && abs(half.z + L.backStanceSetBack / 2) < 1e-6, "外と捕手側へ同じ割合で寄る")
+    }
+
+    #if canImport(RealityKit)
+    /// USDZ の構え（1 コマ目）の両足の骨（Foot・ToeBase）の打者の局所座標。
+    @MainActor
+    private func stanceFeet() throws -> [SIMD3<Float>] {
+        let rig = try #require(HomerunBatterRig())
+        if #available(macOS 15.0, iOS 18.0, *) {
+            let renderer = try RealityRenderer()
+            renderer.entities.append(rig.entity)
+            rig.show(.stance, now: Date())
+            try renderer.update(0.001)
+        }
+        func find(_ e: Entity) -> ModelEntity? {
+            if let m = e as? ModelEntity, !m.jointNames.isEmpty { return m }
+            for c in e.children { if let m = find(c) { return m } }
+            return nil
+        }
+        let model = try #require(find(rig.entity))
+        let names = model.jointNames
+        let feet = names.indices.filter { i in
+            let leaf = names[i].split(separator: "/").last.map(String.init) ?? ""
+            return leaf.hasSuffix("Foot") || leaf.hasSuffix("ToeBase")
+        }
+        #expect(feet.count == 4, "両足の Foot・ToeBase: \(feet.map { names[$0] })")
+        return feet.map { index in
+            var m = matrix_identity_float4x4
+            var path = names[index]
+            while true {
+                if let i = names.firstIndex(of: path) { m = model.jointTransforms[i].matrix * m }
+                guard let slash = path.lastIndex(of: "/") else { break }
+                path = String(path[..<slash])
+            }
+            let p = m * SIMD4<Float>(0, 0, 0, 1)
+            return [p.x, p.y, p.z]
+        }
+    }
+
+    @Test("後ろのカメラの構えでは、両足がバッターボックスの線の内側にあり、本塁の前縁より捕手側にある（#1619）")
+    @MainActor
+    func backStanceFeetAreInsideTheBox() throws {
+        typealias B = HomerunToonModel.BatterBox
+        let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, camera: L.CameraPreset.back.camera, now: t0)))
+        for local in try stanceFeet() {
+            let w = L.batterWorld(local) + offset
+            #expect(w.x > B.innerX + B.line / 2 && w.x < B.outerX - B.line / 2, "足が横の線をはみ出す: x \(w.x)")
+            #expect(w.z > B.backZ + B.line / 2 && w.z < B.frontZ - B.line / 2, "足が前後の線をはみ出す: z \(w.z)")
+            #expect(w.z < 0, "足が本塁の前縁（z 0）より投手側に出る: z \(w.z)")
+        }
+    }
+
+    @Test("前のカメラの構えでは、両足がバッターボックスの前後の線の内側にある（本来の位置のまま・#1619）")
+    @MainActor
+    func frontStanceFeetAreInsideTheBoxLengthwise() throws {
+        typealias B = HomerunToonModel.BatterBox
+        #expect(L.batterSlideTarget(.stance, camera: L.CameraPreset.front.camera, now: t0) == 0)
+        for local in try stanceFeet() {
+            let w = L.batterWorld(local)
+            #expect(w.z > B.backZ + B.line / 2 && w.z < B.frontZ - B.line / 2, "足が前後の線をはみ出す: z \(w.z)")
+        }
+    }
+    #endif
 }
