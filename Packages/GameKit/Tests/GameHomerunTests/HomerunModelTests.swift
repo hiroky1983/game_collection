@@ -171,16 +171,16 @@ struct HomerunModelTests {
         #expect(whiff.kind == .miss)
     }
 
-    @Test("押さずに当たり窓の遅い端（+110ms）を過ぎたら見送り = 空振りと同じ扱い")
+    @Test("押さずに見送りの締め切り（輪の 0.5 秒後）を過ぎたら見送り = 空振りと同じ扱い")
     func noSwingIsMiss() throws {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
         let arrive = try arrival(model)
-        #expect(model.nextWake == arrive.addingTimeInterval(0.11))
-        model.advance(now: arrive.addingTimeInterval(0.109))
-        #expect(model.phase == .pitching, "窓の中はまだ振れる")
-        model.advance(now: arrive.addingTimeInterval(0.11))
+        #expect(model.nextWake == arrive.addingTimeInterval(0.5))
+        model.advance(now: arrive.addingTimeInterval(0.499))
+        #expect(model.phase == .pitching, "締め切りの前はまだ振れる（当たり窓の外なら遅い空振り）")
+        model.advance(now: arrive.addingTimeInterval(0.5))
         #expect(model.phase == .ballResult)
         #expect(model.lastBall == HomerunJudge.judge(nil))
         #expect(model.lastBall?.kind == .miss)
@@ -256,7 +256,7 @@ struct HomerunModelTests {
         #expect(model.phase == .pitching && model.ballClock?.practiceSwingAt == nil)
     }
 
-    @Test("押したまま締め切りを過ぎても見送り。離しても 2 球目は振られない")
+    @Test("押したまま締め切りを過ぎても見送り。結果の間に離しても判定も素振りもしない（会長 QA 2026-09-30）")
     func holdingPastDeadlineIsMiss() throws {
         let f = Fixture()
         let model = f.model()
@@ -264,14 +264,18 @@ struct HomerunModelTests {
         model.press(at: CGPoint(x: 10, y: 10))
         model.drag(to: CGPoint(x: 10, y: 32))
         let arrive = try arrival(model)
-        model.advance(now: arrive.addingTimeInterval(0.2))
+        model.advance(now: arrive.addingTimeInterval(HomerunModel.lateLimit))
         #expect(model.lastBall?.kind == .miss)
         #expect(model.challenge?.results.count == 1)
         #expect(!model.didSwingLastBall && model.lastMissReason == nil, "見送り（理由は出さない）")
-        // 結果を見せているあいだに離しても判定しない（素振りだけ）。
-        #expect(model.release(at: CGPoint(x: 10, y: 32), now: arrive.addingTimeInterval(0.3)) == nil)
+        // 結果を見せているあいだに離しても判定しない。見送りのカードの裏で打者が振らないよう素振りにもしない。
+        #expect(model.release(at: CGPoint(x: 10, y: 32), now: arrive.addingTimeInterval(0.8)) == nil)
         #expect(model.challenge?.results.count == 1)
-        #expect(model.ballClock?.practiceSwingAt == arrive.addingTimeInterval(0.3))
+        #expect(model.ballClock?.practiceSwingAt == nil)
+        // その後に押し直して離せば、結果の間の素振りは今までどおり。
+        model.press(at: CGPoint(x: 10, y: 32))
+        #expect(model.release(at: CGPoint(x: 10, y: 32), now: arrive.addingTimeInterval(0.9)) == nil)
+        #expect(model.ballClock?.practiceSwingAt == arrive.addingTimeInterval(0.9))
     }
 
     @Test("結果の間に押して離すと素振り（判定なし）。振っている最中の素振りは受け付けず、振り終わっていない素振りは次の球へ持ち越す")
@@ -322,11 +326,27 @@ struct HomerunModelTests {
         model.advance(now: try #require(model.resultUntil))
         try skipPitch(model)
         #expect(model.lastMissReason == nil)
-        #expect(HomerunAtBatView.missNote(didSwing: false, reason: nil) == "見送り")
+        #expect(HomerunAtBatView.missNote(didSwing: false, reason: nil) == nil, "見送りは理由を付けず見出しを「見送り」にする")
         #expect(HomerunAtBatView.missNote(didSwing: true, reason: .early) == "振るのが早い")
         #expect(HomerunAtBatView.missNote(didSwing: true, reason: .late) == "振るのが遅い")
         #expect(HomerunAtBatView.missNote(didSwing: true, reason: .aim) == "照準がずれた")
         #expect(HomerunAtBatView.missNote(didSwing: true, reason: nil) == nil)
+    }
+
+    @Test("結果のカード: 見送りは見出し「見送り」で理由なし、振って外したら見出し「空振り」＋理由（会長 QA 2026-09-30）")
+    func resultCardHeadline() {
+        let miss = HomerunJudge.judge(nil)
+        #expect(HomerunBallResultCard.headline(miss, tookPitch: true) == "見送り")
+        #expect(HomerunBallResultCard.reasonLine(miss, tookPitch: true,
+                                                 missNote: HomerunAtBatView.missNote(didSwing: false, reason: nil)) == nil)
+        let whiff = HomerunJudge.judge(HomerunSwing(timingOffset: 300, cursorDX: 0, cursorDY: 0))
+        #expect(whiff.kind == .miss)
+        #expect(HomerunBallResultCard.headline(whiff, tookPitch: false) == "空振り")
+        #expect(HomerunBallResultCard.reasonLine(whiff, tookPitch: false,
+                                                 missNote: HomerunAtBatView.missNote(didSwing: true, reason: .late)) == "振るのが遅い")
+        let homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
+        #expect(HomerunBallResultCard.headline(homer, tookPitch: false) == HomerunText.kind(homer.kind))
+        #expect(HomerunBallResultCard.reasonLine(homer, tookPitch: false, missNote: nil) == nil)
     }
 
     @Test("照準の吸い寄せ: 投球中に押している間だけ、押し始め（的が出る前からなら的が出た瞬間）からの時間でボールへ寄り、離した位置で判定する")
