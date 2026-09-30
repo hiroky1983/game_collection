@@ -119,9 +119,9 @@ enum CPUBenchLadder {
     /// `nodesPerSecond` は最適化ビルドで測った 1 秒あたりの局面数。時間で打ち切ると同時に走る対局の
     /// 負荷で強さが揺れるので、計測の対局は局面数で打ち切る（実機の時間で読める量と等しい）。
     /// `bestMoveProbability` を渡すと、その段階の確率だけを差し替える（確率の候補を試すため）。
-    /// `slipMargin` は外したときに許す損の幅の差し替え。
+    /// `slipMargin` は外したときに許す損の幅の差し替え。`depth` は読む深さの上限の差し替え（#1566）。
     static func engine(_ strength: CPUStrength, nodesPerSecond: Double, bestMoveProbability: Double? = nil,
-                       slipMargin: Int? = nil, seed: UInt64) -> SimpleMinimaxEngine {
+                       slipMargin: Int? = nil, depth: Int? = nil, seed: UInt64) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: strength.rawValue)
         var policy = shipped.policy
         if let p = bestMoveProbability {
@@ -130,7 +130,7 @@ enum CPUBenchLadder {
         }
         if let m = slipMargin, !policy.isExact { policy.slipMargin = m }
         return SimpleMinimaxEngine(
-            depth: shipped.depth, usePositional: shipped.usePositional, useQuiescence: shipped.useQuiescence,
+            depth: depth ?? shipped.depth, usePositional: shipped.usePositional, useQuiescence: shipped.useQuiescence,
             useBook: shipped.useBook, timeLimit: .infinity,
             nodeLimit: Int(shipped.timeLimit * nodesPerSecond), policy: policy, seed: seed)
     }
