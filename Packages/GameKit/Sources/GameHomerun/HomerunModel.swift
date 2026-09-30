@@ -54,12 +54,12 @@ public final class HomerunModel {
     /// 0.3 秒 = 球が打点に来てからの猶予を #1607 の 0.5 秒（当時は球が打点に来るのが輪の約 0.2 秒後）と同じに保った値。
     public static let lateLimit: TimeInterval = 0.3
 
-    /// 1 球の結果を見せる時間。空振り・見逃しは短く、打球は長く（外野カメラの代わりに落下点を描く）。
+    /// 1 球の結果を見せる時間。空振り・見逃しは短く、打球（ファウルを含む）は打球をカメラが追って止まるのを見せてから
+    /// 結果のカードを出すぶん長く（`HomerunBallChase.resultDuration`・#1613）。
     public static func resultDuration(for kind: HomerunKind) -> TimeInterval {
         switch kind {
         case .miss: 1.2
-        case .foul: 1.6
-        case .inPlay, .fenceHit, .homer: 2.4
+        case .foul, .inPlay, .fenceHit, .homer: HomerunBallChase.resultDuration(for: kind)
         }
     }
 
