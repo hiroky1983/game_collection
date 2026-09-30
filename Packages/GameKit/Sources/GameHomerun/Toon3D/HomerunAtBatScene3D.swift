@@ -226,6 +226,13 @@ struct HomerunAtBatScene3DView: View {
 import Combine
 import RealityKit
 
+/// 打席の 3D の控え（`HomerunAtBatSceneView.reusable`）を手放す。柵越えおじさんの画面を離れたら呼ぶ
+/// （控えたままだと、ほかのゲームへ移っても球場・打者の 3D 一式がメモリに残り続ける）。
+@MainActor
+enum HomerunAtBatSceneReuse {
+    static func drop() { HomerunAtBatSceneView.reusable = nil }
+}
+
 private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
     let pitcherPose: HomerunOjisanPose3
@@ -285,7 +292,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     /// 10 球の結果から「もう一回」で打席を作り直すと、新しい `ARView` は描き始めるまで前の `ARView` の最後のコマ
     /// （振り終わりの打者・ミット直前の球）を映したまま約 2 秒止まり、その間に 1 球目が進んで見送りで終わっていた
     /// （画面の E2E の録画で確認）。作るのは最初の 1 回だけにして、2 回目からは同じ `ARView` を今の局面に合わせ直して使う。
-    @MainActor private static var reusable: (view: ARView, coordinator: Coordinator)?
+    @MainActor fileprivate static var reusable: (view: ARView, coordinator: Coordinator)?
 
     /// 控えの `ARView` がいま画面に出ていなければ、その控えの状態を使う。
     @MainActor private static var idleReusable: (view: ARView, coordinator: Coordinator)? {
