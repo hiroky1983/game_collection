@@ -210,7 +210,7 @@ struct HomerunConnectionTests {
         let model = makeModel(services: makeServices(spy: spy, log: log))
         model.start(now: Self.t0)
         model.atBatDidAppear(now: Self.t0)
-        // 1 球目: 真ん中でボールの 22pt 下・ジャスト = 中堅 135 m の柵越え。
+        // 1 球目: 真ん中でボールの 22pt 下・ジャスト = 中堅 161 m の柵越え。
         let arrive = try #require(model.arrival)
         model.press(at: CGPoint(x: 150, y: 600))
         let ball = model.ballPoint
@@ -219,7 +219,7 @@ struct HomerunConnectionTests {
         try skipResult(model)
         #expect(model.phase == .finished)
         #expect(spy.outcomes == [.win])
-        #expect(try #require(log.record(gameID: HomerunModel.gameID)).bestPoints == 135)
+        #expect(try #require(log.record(gameID: HomerunModel.gameID)).bestPoints == 161)
     }
 
     // MARK: 消去
