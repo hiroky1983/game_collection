@@ -51,7 +51,7 @@ struct HomerunAtBatView: View {
                                          pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
                                          cameraPreset: model.atBatCamera,
                                          batterMotion: plan.batterMotion(at: now),
-                                         ballPosition: isAnimating ? plan.ballPosition(at: now) : nil,
+                                         ballPosition: isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera) : nil,
                                          now: now,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。

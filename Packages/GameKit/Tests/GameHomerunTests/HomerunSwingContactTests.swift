@@ -282,9 +282,9 @@ struct HomerunSwingContactTests {
         let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 22))
         #expect(pull.direction < -20)
         let v = HomerunBallFlight.battedVelocity(pull)
-        #expect(v.x < 0 && v.z > 0 && v.y > 0, "引っ張りは -x（レフト）へ \(v)")
+        #expect(v.x > 0 && v.z > 0 && v.y > 0, "引っ張りは打者の立つ +x（三塁側・レフト）へ \(v)")
         let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 22))
-        #expect(HomerunBallFlight.battedVelocity(push).x > 0, "流しは +x（ライト）へ")
+        #expect(HomerunBallFlight.battedVelocity(push).x < 0, "流しは -x（一塁側・ライト）へ")
         // 柵越えの初速は 35〜45m/s、ファウルは 28m/s。
         #expect(simd_length(HomerunBallFlight.battedVelocity(center)) > 35 && simd_length(HomerunBallFlight.battedVelocity(center)) < 45)
         let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: 22))
@@ -296,6 +296,37 @@ struct HomerunSwingContactTests {
         let w = try! #require(whiffPlan.ballPosition(at: arrival))
         let cAtArrival = HomerunSwingContact.contactPoint(column: 0, offsetMilliseconds: 0)
         #expect(abs(w.y - cAtArrival.y - (HomerunSwingContact.approachLift - HomerunSwingContact.contactLift)) < 1e-4, "空振りの球はバットの 10cm 上を抜ける")
+    }
+
+    // #1594 会長 QA（2026-09-30）: 前のカメラで引っ張った打球が打者と逆の側（ライト）へ飛んで見えた。描画のとおり
+    // （`renderPose` のカメラ・反転なし・球は `placeBall` と同じく反転するカメラで x を鏡映）に画面へ投影し、
+    // どちらのカメラでも「引っ張り（判定の負 = レフト）は画面の上で打者の立つ側へ、流しは反対側へ」動くことを固定する。
+    @Test("打席の 3D の打球: 引っ張りは打者の立つ側（三塁側）へ・流しは反対側へ、前・後ろどちらのカメラの画面でも飛ぶ")
+    func battedBallGoesToTheJudgedFieldOnScreen() {
+        typealias L = HomerunAtBatLayout
+        let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 22))
+        let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 22))
+        #expect(pull.direction < -20 && push.direction > 20 && pull.kind != .foul && push.kind != .foul)
+        for preset in L.CameraPreset.allCases {
+            let cam = preset.camera
+            let pose = cam.renderPose
+            let render = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
+            func place(_ p: SIMD3<Float>) -> SIMD3<Float> { L.castMirrored(for: cam) ? [-p.x, p.y, p.z] : p }
+            let batterX = render.screenPoint(of: L.batter.position, aspect: 0.46).x
+            // 右打者は前では画面の右、後ろでは画面の左（どちらも描画の世界では +x = 三塁側に立つ）。
+            #expect(preset == .front ? batterX > 0.5 : batterX < 0.5, "\(preset): 打者 \(batterX)")
+            for (ball, offset) in [(pull, -60.0), (push, 60.0)] {
+                let release = arrival.addingTimeInterval(offset / 1000)
+                let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), lastBall: ball)
+                let hitAt = HomerunSwingContact.contactShownTime(release: release, offsetMilliseconds: offset, column: 0)
+                let c = place(try! #require(plan.ballPosition(at: hitAt, camera: cam)))
+                let p = place(try! #require(plan.ballPosition(at: hitAt.addingTimeInterval(0.05), camera: cam)))
+                #expect(ball.direction < 0 ? p.x > c.x + 0.5 : p.x < c.x - 0.5, "\(preset) 方向 \(ball.direction): 描画の x \(c.x) → \(p.x)")
+                let dx = render.screenPoint(of: p, aspect: 0.46).x - render.screenPoint(of: c, aspect: 0.46).x
+                let towardBatter = (batterX - 0.5) * dx > 0
+                #expect(towardBatter == (ball.direction < 0), "\(preset) 方向 \(ball.direction): 画面の横の動き \(dx)・打者 \(batterX)")
+            }
+        }
     }
 
     /// バット（線分）と球（点）の距離。

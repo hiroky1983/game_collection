@@ -38,6 +38,14 @@ enum HomerunAtBatLayout {
     /// 描画では人物を鏡映せず、カメラ側を鏡映して同じ画を作る（`Camera.renderPose`）。
     static func castMirrored(for camera: Camera) -> Bool { camera.mirrored }
 
+    /// 3D の球の座標（`HomerunSwingPlan.ballPosition`）で、右打者の引っ張り（判定の負 = レフト = 三塁側）が飛ぶ x の向き（+1 / -1）。
+    /// 描画では打者は鏡映せずに +x に立ち（RealityKit は右手系なので、本塁からセンターを向いて左手の +x が三塁側 = 右打者の立つ側）、
+    /// 球だけを左右反転するカメラで x について鏡映して置く（`placeBall`）。どちらのカメラでも描画の上で打者の側（+x）へ
+    /// 引っ張るように、反転するカメラでは鏡映の前の向きを逆にする（#1594 会長 QA 2026-09-30）。
+    static func pullSideX(for camera: Camera) -> Float {
+        (batter.position.x > 0 ? 1 : -1) * (castMirrored(for: camera) ? -1 : 1)
+    }
+
     /// 人物の置き方 `p` の中の点（人物の局所座標・`characterScale` 済みのメートル）が、`camera` の投影（`screenPoint`）で
     /// 世界のどこにある扱いになるか。テストはこれで画面の位置を測る（描画が同じ画になることは `renderPose` のテストで固定）。
     static func worldPoint(_ local: SIMD3<Float>, of p: Placement, for camera: Camera) -> SIMD3<Float> {

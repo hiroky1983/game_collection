@@ -103,7 +103,7 @@ enum HomerunSwingContact {
     /// 打点の探索の刻み（秒・表の刻みと同じ）。
     static let scanStep: TimeInterval = 1 / HomerunBatPath.sampleRate
 
-    /// 9 分割のゾーン（0 = 左上 … 8 = 右下）の列（-1 = 左・0 = 真ん中・+1 = 右）。HUD の右 = 世界の +x（一塁側）。
+    /// 9 分割のゾーン（0 = 左上 … 8 = 右下）の列（-1 = 左・0 = 真ん中・+1 = 右）。HUD の右 = 世界の +x（前のカメラの画面の右）。
     static func column(zone: Int) -> Int { min(max(zone, 0), 8) % 3 - 1 }
     /// 列の球の通り道（面 x = 一定）。
     static func ballLineX(column: Int) -> Float { Float(column) * zoneCellMeters }
@@ -224,10 +224,12 @@ enum HomerunBallFlight {
         return p.z < mittZ ? nil : p
     }
 
-    /// 打球の初速（m/s・世界座標）。方向は判定の `direction`（0 = 中堅・負が左 = -x）、打ち上げ角は帯の中心、
+    /// 打球の初速（m/s・世界座標）。方向は判定の `direction`（0 = 中堅・負が左 = レフト）、打ち上げ角は帯の中心、
     /// 速さは飛距離が出る初速（空気抵抗なし）。ファウルは 28m/s の固定。
+    /// 引っ張り（負 = レフト = 右打者の立つ三塁側）は x の `pullSideX` の向きへ飛ぶ（`HomerunAtBatLayout.pullSideX`）。
+    /// 以前は負を常に -x へ飛ばしていて、前のカメラでは打者（+x）と逆の側 = ライトへ飛んで見えていた（#1594 会長 QA 2026-09-30）。
     /// 上限 50m/s: ライナー（18°）の柵越え（最長 140m・#1594）が柵の手前に落ちないように（45m/s だと 121m 止まり）。
-    static func battedVelocity(_ ball: HomerunBattedBall) -> SIMD3<Float> {
+    static func battedVelocity(_ ball: HomerunBattedBall, pullSideX: Float = 1) -> SIMD3<Float> {
         let elevation: Double = switch ball.launch {
         case .grounder: 8
         case .liner: 18
@@ -238,7 +240,7 @@ enum HomerunBallFlight {
         let theta = elevation * .pi / 180
         let speed: Double = ball.kind == .foul ? 28 : min(max(sqrt(ball.distance * Double(gravity) / sin(2 * theta)), 15), 50)
         let d = ball.direction * .pi / 180
-        return SIMD3<Float>(Float(sin(d) * cos(theta)), Float(sin(theta)), Float(cos(d) * cos(theta))) * Float(speed)
+        return SIMD3<Float>(Float(-sin(d) * cos(theta)) * pullSideX, Float(sin(theta)), Float(cos(d) * cos(theta))) * Float(speed)
     }
 
     /// 打球の位置: 打点 `contact` から `release` に初速 `velocity` で放物線。地面（球の半径）より下へは行かない。
@@ -314,8 +316,9 @@ struct HomerunSwingPlan {
         }
     }
 
-    /// 3D の球の位置（世界座標・前のカメラの置き方）。見せない間は nil。
-    func ballPosition(at now: Date) -> SIMD3<Float>? {
+    /// 3D の球の位置（世界座標・前のカメラの置き方）。見せない間は nil。`camera` は打球の左右（`HomerunAtBatLayout.pullSideX`）
+    /// にだけ使う（左右反転するカメラでは描画側が球を x について鏡映して置く）。
+    func ballPosition(at now: Date, camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.CameraPreset.front.camera) -> SIMD3<Float>? {
         guard let clock, let ballArrival else { return nil }
         let pitched = HomerunBallFlight.pitchPosition(at: now, pitchStart: clock.pitchStart, arrival: ballArrival, column: column)
         switch phase {
@@ -336,7 +339,7 @@ struct HomerunSwingPlan {
                     return from + (contact - from) * k
                 }
                 return HomerunBallFlight.battedPosition(at: now, contact: contact, release: hitAt,
-                                                        velocity: HomerunBallFlight.battedVelocity(ball))
+                                                        velocity: HomerunBallFlight.battedVelocity(ball, pullSideX: HomerunAtBatLayout.pullSideX(for: camera)))
             }
             // 空振り・見送り: そのままミットへ。
             return pitched
