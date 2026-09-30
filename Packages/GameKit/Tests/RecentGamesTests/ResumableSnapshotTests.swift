@@ -81,11 +81,18 @@ struct ResumableSnapshotTests {
             if gameID == "shogi" {
                 let model = ShogiGameModel(services: services)
                 model.newGame()
+                #expect(!Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 一手も指していない局を途中扱いした（#1599）")
+                model.tapSquare(Sq.fromUSI("7g")!)
+                model.tapSquare(Sq.fromUSI("7f")!)
                 #expect(Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 対局中の局が途中扱いにならない")
                 model.resign()
             } else {
                 let model = ChessGameModel(services: services)
                 model.newGame()
+                #expect(!Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 一手も指していない局を途中扱いした（#1599）")
+                let opening = ChessMove.fromUCI("e2e4")!
+                model.tapSquare(opening.from)
+                model.tapSquare(opening.to)
                 #expect(Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 対局中の局が途中扱いにならない")
                 model.resign()
             }
