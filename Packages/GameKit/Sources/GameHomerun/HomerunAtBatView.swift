@@ -295,17 +295,20 @@ struct HomerunAtBatView: View {
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)
+                // 時刻は `value.time` ではなく `Date()` で渡す。`value.time` は起動からの経過（タッチの時刻）を基準日に
+                // 足した値で、Model の時計（`pitchStart` などの壁時計）と約 8 億秒ずれる。渡すと `timingOffset` が
+                // nil（的が出る前）になり、離しても判定されず素振りになっていた（#1594・会長 QA）。
                 .onChanged { value in
                     // 押し直し（一時停止で指が外れた後など）は今の指の位置を基準にする。最初に押した位置を
                     // 基準にすると、それまでの移動量ぶんカーソルが跳ぶ。
-                    if !model.isHolding { model.press(at: value.location, now: value.time) }
+                    if !model.isHolding { model.press(at: value.location, now: Date()) }
                     model.drag(to: value.location)
                     fingerPoint = model.isHolding ? value.location : nil
                 }
                 .onEnded { value in
                     fingerPoint = nil
                     withGameAnimation(.easeOut(duration: 0.2)) {
-                        _ = model.release(at: value.location, now: value.time)
+                        _ = model.release(at: value.location, now: Date())
                     }
                 }
         )
