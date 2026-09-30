@@ -352,6 +352,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     }
 
     private static func aim(_ cam: PerspectiveCamera, _ camera: HomerunAtBatLayout.Camera) {
+        // モックの撮影用（#1612）: `-homerunMachineCloseup` ならマシンの寄りのカメラに差し替える。
+        let camera = HomerunMachineMock.closeupCamera() ?? camera
         cam.camera.fieldOfViewInDegrees = camera.verticalFieldOfView
         let pose = camera.renderPose
         cam.look(at: pose.target, from: pose.position, relativeTo: nil)

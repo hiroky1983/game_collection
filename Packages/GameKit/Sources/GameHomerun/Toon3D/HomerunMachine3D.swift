@@ -186,4 +186,11 @@ enum HomerunMachineMock {
     static func forcedPose(arguments: [String] = ProcessInfo.processInfo.arguments) -> HomerunMachinePose? {
         value(after: "-homerunMachinePose", in: arguments).flatMap(HomerunMachinePose.init(rawValue:))
     }
+
+    /// `-homerunMachineCloseup`: 型の形を見せるため、置いたマシンを本塁側の斜め前 3m から見るカメラ（撮影用）。
+    static func closeupCamera(arguments: [String] = ProcessInfo.processInfo.arguments) -> HomerunAtBatLayout.Camera? {
+        guard arguments.contains("-homerunMachineCloseup") else { return nil }
+        let p = place(arguments: arguments).placement.position
+        return .aimed(from: p + [2.0, 1.5, -2.4], at: p + [0, 0.85, 0], yFraction: 0.5, verticalFieldOfView: 40)
+    }
 }
