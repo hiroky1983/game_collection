@@ -442,3 +442,55 @@ struct HomerunPitcherPoseTests {
         }
     }
 }
+
+// 会長 QA 2026-09-30「後ろのカメラのとき、おじさんがベースに近すぎる」。構えの間だけ外へ離して見せ、踏み込みで本来の位置へ寄る。
+@Suite("柵越えおじさんの後ろのカメラの打者の立ち位置")
+struct HomerunBackStanceSlideTests {
+    typealias L = HomerunAtBatLayout
+    private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
+
+    @Test("前のカメラは本来の位置のまま（ずらさない）")
+    func frontNeverSlides() {
+        let front = L.CameraPreset.front.camera
+        for motion in [HomerunBatterMotion.stance, .load(start: t0), .swing(start: t0)] {
+            #expect(L.batterSlideTarget(motion, camera: front, now: t0.addingTimeInterval(0.3)) == 0)
+        }
+    }
+
+    @Test("後ろのカメラは構えで外へ 0.25m、踏み込みの間に 0 へ寄り、振りの間はずれを変えない")
+    func backSlidesDuringLoad() {
+        let back = L.CameraPreset.back.camera
+        #expect(L.batterSlideTarget(.stance, camera: back, now: t0) == L.backStanceSlide)
+        #expect(L.batterSlideTarget(.load(start: t0), camera: back, now: t0) == L.backStanceSlide)
+        let half = L.batterSlideTarget(.load(start: t0), camera: back, now: t0.addingTimeInterval(HomerunBatterMotion.loadDuration / 2))
+        #expect(abs((half ?? -1) - L.backStanceSlide / 2) < 1e-4)
+        #expect(L.batterSlideTarget(.load(start: t0), camera: back, now: t0.addingTimeInterval(HomerunBatterMotion.loadDuration)) == 0)
+        #expect(L.batterSlideTarget(.swing(start: t0), camera: back, now: t0) == nil)
+    }
+
+    @Test("構えで外へ離すと、後ろから見て体の本塁側の縁がゾーンから遠ざかる（本来の位置ではゾーンに重なる）")
+    func stanceClearsTheZone() {
+        let back = L.CameraPreset.back.camera
+        let aspect = 9.0 / 19.5
+        // ゾーン（幅 0.36m）の打者側の縁。後ろのカメラでは人物は鏡映して置く扱い（`worldPoint`）なので、打者は -x・縁も -x 側。
+        let zoneEdge = back.screenPoint(of: [-0.18, 0.9, 0], aspect: aspect).x
+        // 打者の体の本塁側の縁（胸の前 0.2m・肩の高さ）。
+        func edge(slide: Float) -> Double {
+            var p = L.batter
+            p.position.x += slide
+            return back.screenPoint(of: L.worldPoint([0, 1.3, 0.2], of: p, for: back), aspect: aspect).x
+        }
+        #expect(edge(slide: 0) > zoneEdge, "本来の位置では体がゾーンに重なる（前提）: \(edge(slide: 0)) / \(zoneEdge)")
+        #expect(edge(slide: L.backStanceSlide) < zoneEdge, "外へ離すと体がゾーンの外に出る: \(edge(slide: L.backStanceSlide)) / \(zoneEdge)")
+    }
+
+    @Test("当たり窓の始まり（輪が重なる 110ms 前）には踏み込みが終わって本来の位置にいる = 打点・判定は変わらない")
+    func contactHappensAtTheRealPlacement() {
+        let travel = TimeInterval(HomerunPitch.travelMilliseconds) / 1000
+        let clock = HomerunModel.BallClock(pitchStart: t0, zone: 4, pressedAt: nil, releasedAt: nil, timingOffset: nil)
+        let plan = HomerunSwingPlan(phase: .pitching, clock: clock, lastBall: nil)
+        let windowStart = t0.addingTimeInterval(travel - HomerunTiming.hitWindow / 1000)
+        let motion = plan.batterMotion(at: windowStart)
+        #expect((L.batterSlideTarget(motion, camera: L.CameraPreset.back.camera, now: windowStart) ?? 1) < 1e-4)
+    }
+}

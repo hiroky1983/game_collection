@@ -15,6 +15,8 @@ import XCTest
 /// 環境変数（`TEST_RUNNER_` を付けて xcodebuild に渡す）:
 /// - `E2E_SHOT_DIR`: 結果のスクリーンショットを書き出すフォルダ（無ければ添付だけ）
 /// - `E2E_LATENCY`: 投球の開始を読んでから離すまでの遅れの補正（秒・既定 `defaultLatency`）
+/// - `E2E_SHIFT`: 全球の離す時刻のずれ（秒・`plan` の代わり）。負にすると全球で振る（Mac が重く離すのが遅れるときの確認用）
+/// - `E2E_CAMERA`: 打席のカメラ（`front` / `back`・既定 `front`）
 @MainActor
 final class HomerunE2ETests: XCTestCase {
     /// 的が出るまで（投手のモーション・`HomerunModel.windup`）。
@@ -45,13 +47,50 @@ final class HomerunE2ETests: XCTestCase {
 
         Self.skipQuiescenceWait()
         let app = XCUIApplication()
-        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode"]
+        // カメラは起動引数で固定する（保存された設定に左右されない。後ろは描画が重く、離す時刻の補正が変わる）。
+        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode",
+                               "-homerun_atBatCamera_v1", env["E2E_CAMERA"] ?? "front"]
         app.launch()
 
         let start = app.buttons["打席に立つ"]
         XCTAssertTrue(start.waitForExistence(timeout: 15), "打席に立つ が出ない")
         start.tap()
 
+        let results = playChallenge(app: app, latency: latency, shotDir: shotDir, prefix: "pitch")
+
+        let summary = results.joined(separator: "\n")
+        print("E2E-SUMMARY\n\(summary)")
+        if let shotDir { try? summary.write(to: shotDir.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8) }
+        let hits = results.filter { $0.contains("柵越え") || $0.contains("当たり、") || $0.contains("直撃") }
+        XCTAssertFalse(hits.isEmpty, "当たりが 1 本も出ない:\n\(summary)")
+
+        // 最後の結果（10 球の結果）の画面も残す。
+        sleep(3)
+        let final = XCUIScreen.main.screenshot()
+        if let shotDir { try? final.pngRepresentation.write(to: shotDir.appendingPathComponent("final.png")) }
+
+        // もう一回（会長 QA 2026-09-30）: 前の挑戦の振り終わりの姿勢・ミット直前の球が残り、1 球目が何もしないうちに
+        // 終わっていた。もう一回の 1 球目を打ち、1 球目として見送り以外で判定されることを確かめる。
+        // 残りが 0 のときの文言は「今日はおしまい」（`-homerunUnlimited` では回数を使わないので押せば始まる）。
+        let again = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'もう一回' OR label == '今日はおしまい'")).firstMatch
+        // 結果の画面は縦に長く、ボタンが画面の外だと見つからないので下へ送る。
+        for _ in 0..<4 where !(again.exists && again.isHittable) { app.swipeUp() }
+        XCTAssertTrue(again.waitForExistence(timeout: 10), "もう一回 が出ない")
+        again.tap()
+        // 始めた直後を 1 枚だけ撮る（撮るのに時間がかかり、長く撮ると 1 球目の投球の始まりを読み逃す）。
+        // 直後に前の挑戦の画（振り終わりの打者・ミット直前の球）が残っていないかは、この 1 枚と録画で見る。
+        let shot = XCUIScreen.main.screenshot()
+        if let shotDir { try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent("restart-start.png")) }
+        let again1 = playChallenge(app: app, latency: latency, shotDir: shotDir, prefix: "restart", count: 1)
+        print("E2E-RESTART\n\(again1.joined(separator: "\n"))")
+        if let shotDir { try? again1.joined(separator: "\n").write(to: shotDir.appendingPathComponent("restart.txt"), atomically: true, encoding: .utf8) }
+        XCTAssertEqual(again1.count, 1, "もう一回の 1 球目が判定されない")
+        XCTAssertTrue(again1.first?.contains("→ 1球目、") == true, "もう一回で最初に判定されたのが 1 球目ではない: \(again1)")
+    }
+
+    /// 1 挑戦ぶん（`plan` の球数）を打つ。各球の結果の行を返す。`count` を渡すとその球数で止める。
+    func playChallenge(app: XCUIApplication, latency: TimeInterval, shotDir: URL?, prefix: String,
+                       count: Int = HomerunE2ETests.plan.count) -> [String] {
         let zone = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label BEGINSWITH 'ストライクゾーン。ボールは'")).firstMatch
         let pad = app.descendants(matching: .any)["打つ場所"]
@@ -60,8 +99,8 @@ final class HomerunE2ETests: XCTestCase {
             .matching(NSPredicate(format: "label MATCHES '^[0-9]+球目、.*'"))
 
         var results: [String] = []
-        for (index, pitch) in Self.plan.enumerated() {
-            let shift = pitch.shift
+        for (index, pitch) in Self.plan.prefix(count).enumerated() {
+            let shift = ProcessInfo.processInfo.environment["E2E_SHIFT"].flatMap(Double.init) ?? pitch.shift
             let number = index + 1
             // `waitForExistence` は約 1 秒おきにしか見ないので、投球の始まり（0.8 秒のモーション）を読み逃す。細かく見る。
             guard let seen = Self.poll(timeout: 10, { zone.exists }) else {
@@ -90,11 +129,11 @@ final class HomerunE2ETests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.3)
             let shot = XCUIScreen.main.screenshot()
             let attachment = XCTAttachment(screenshot: shot)
-            attachment.name = "pitch-\(number)"
+            attachment.name = "\(prefix)-\(number)"
             attachment.lifetime = .keepAlways
             add(attachment)
             if let shotDir {
-                try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent(String(format: "pitch-%02d.png", number)))
+                try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent(String(format: "%@-%02d.png", prefix, number)))
             }
             // 見送りではなく、振った判定（当たり・ファウル・空振り＋理由）になっていること。
             XCTAssertFalse(result.hasSuffix("見送り"), "\(number) 球目が見送り扱い: \(result)")
@@ -103,21 +142,12 @@ final class HomerunE2ETests: XCTestCase {
                               "\(number) 球目の空振りに理由が無い: \(result)")
             }
             // 結果のカードが消えてから次の球へ。
-            if number < Self.plan.count {
+            if number < count {
                 XCTAssertNotNil(Self.poll(timeout: 6, { !card.exists }), "\(number) 球目の結果のカードが消えない")
             }
         }
 
-        let summary = results.joined(separator: "\n")
-        print("E2E-SUMMARY\n\(summary)")
-        if let shotDir { try? summary.write(to: shotDir.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8) }
-        let hits = results.filter { $0.contains("柵越え") || $0.contains("当たり、") || $0.contains("直撃") }
-        XCTAssertFalse(hits.isEmpty, "当たりが 1 本も出ない:\n\(summary)")
-
-        // 最後の結果（10 球の結果）の画面も残す。
-        sleep(3)
-        let final = XCUIScreen.main.screenshot()
-        if let shotDir { try? final.pngRepresentation.write(to: shotDir.appendingPathComponent("final.png")) }
+        return results
     }
 
     /// XCUITest は操作の前に「アプリが落ち着く（アニメーションが止まる）まで」待つが、打席は投球中ずっと 3D と輪を

@@ -38,6 +38,14 @@ enum HomerunAtBatLayout {
     /// 描画では人物を鏡映せず、カメラ側を鏡映して同じ画を作る（`Camera.renderPose`）。
     static func castMirrored(for camera: Camera) -> Bool { camera.mirrored }
 
+    /// 3D の球の座標（`HomerunSwingPlan.ballPosition`）で、右打者の引っ張り（判定の負 = レフト = 三塁側）が飛ぶ x の向き（+1 / -1）。
+    /// 描画では打者は鏡映せずに +x に立ち（RealityKit は右手系なので、本塁からセンターを向いて左手の +x が三塁側 = 右打者の立つ側）、
+    /// 球だけを左右反転するカメラで x について鏡映して置く（`placeBall`）。どちらのカメラでも描画の上で打者の側（+x）へ
+    /// 引っ張るように、反転するカメラでは鏡映の前の向きを逆にする（#1594 会長 QA 2026-09-30）。
+    static func pullSideX(for camera: Camera) -> Float {
+        (batter.position.x > 0 ? 1 : -1) * (castMirrored(for: camera) ? -1 : 1)
+    }
+
     /// 人物の置き方 `p` の中の点（人物の局所座標・`characterScale` 済みのメートル）が、`camera` の投影（`screenPoint`）で
     /// 世界のどこにある扱いになるか。テストはこれで画面の位置を測る（描画が同じ画になることは `renderPose` のテストで固定）。
     static func worldPoint(_ local: SIMD3<Float>, of p: Placement, for camera: Camera) -> SIMD3<Float> {
@@ -156,6 +164,31 @@ extension HomerunAtBatLayout {
         }
     }
 
+    /// 後ろのカメラで、構えの間だけ打者を本塁から離して置く幅（m・一塁側から見て外 = +x）。会長 QA 2026-09-30「後ろのとき
+    /// おじさんがベースに近すぎる」。打者の置き場所（`batter`・本塁から 0.30m）はバットが外の列に届く所で決まっていて
+    /// （#1558）、後ろから見ると体がゾーンの内側の列に重なる。構えでは 0.25m 外（0.55m・体がゾーンの外に出る）に立ち、
+    /// 踏み込み（`HomerunBatterMotion.load`）の間に本来の位置へ寄る。振りは本来の位置でしか当たらない（当たり窓は
+    /// 踏み込みを終えた後）ので、判定・打点・球の通り道は変えない。前のカメラは今のまま（0）。
+    static let backStanceSlide: Float = 0.25
+
+    /// 打者を本来の位置からどれだけ外へずらして見せるか（m）の目標。構え = `backStanceSlide`、踏み込みの間に 0 へ
+    /// （なめらかに）、振り（本番・素振り）の間は nil（いまのずれのまま振る = 振りの途中で滑らせない）。
+    static func batterSlideTarget(_ motion: HomerunBatterMotion, camera: Camera, now: Date) -> Float? {
+        guard camera.mirrored else { return 0 }
+        switch motion {
+        case .stance:
+            return backStanceSlide
+        case .load(let start):
+            let k = Float(min(max(now.timeIntervalSince(start) / HomerunBatterMotion.loadDuration, 0), 1))
+            return backStanceSlide * (1 - k * k * (3 - 2 * k))
+        case .swing:
+            return nil
+        }
+    }
+
+    /// 目標へ寄せる速さ（m/秒）。踏み込みの寄り（0.25m / 0.63 秒 ≒ 0.4m/秒）には遅れず、構えへ戻るときは瞬間移動に見えない速さ。
+    static let batterSlideSpeed: Float = 0.8
+
     /// いまの局面での投手のポーズ。投手のモーション中（的が出る前・`elapsed` が負）は振りかぶり、
     /// 的が出た後（リリース）〜結果の間はリリースのまま止める。
     static func pitcherPose(phase: HomerunModel.Phase, elapsed: TimeInterval?) -> HomerunOjisanPose3 {
@@ -203,6 +236,13 @@ struct HomerunAtBatScene3DView: View {
 import Combine
 import RealityKit
 
+/// 打席の 3D の控え（`HomerunAtBatSceneView.reusable`）を手放す。柵越えおじさんの画面を離れたら呼ぶ
+/// （控えたままだと、ほかのゲームへ移っても球場・打者の 3D 一式がメモリに残り続ける）。
+@MainActor
+enum HomerunAtBatSceneReuse {
+    static func drop() { HomerunAtBatSceneView.reusable = nil }
+}
+
 private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
     let pitcherPose: HomerunOjisanPose3
@@ -237,6 +277,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var updates: (any Cancellable)?
         var frames = 0
         var steadyFrames = 0
+        /// 打者を本来の位置から外へずらして見せている幅（m・`batterSlideTarget`）と、最後に寄せた時刻。
+        var batterSlide: Float?
+        var slideTick: Date?
     }
 
     /// 3D の球（白い球・陰影なし）。
@@ -258,7 +301,20 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         ball.isEnabled = true
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    /// 打席の 3D（`ARView`）を画面をまたいで使い回すための控え（#1594・会長 QA 2026-09-30）。
+    ///
+    /// 10 球の結果から「もう一回」で打席を作り直すと、新しい `ARView` は描き始めるまで前の `ARView` の最後のコマ
+    /// （振り終わりの打者・ミット直前の球）を映したまま約 2 秒止まり、その間に 1 球目が進んで見送りで終わっていた
+    /// （画面の E2E の録画で確認）。作るのは最初の 1 回だけにして、2 回目からは同じ `ARView` を今の局面に合わせ直して使う。
+    @MainActor fileprivate static var reusable: (view: ARView, coordinator: Coordinator)?
+
+    /// 控えの `ARView` がいま画面に出ていなければ、その控えの状態を使う。
+    @MainActor private static var idleReusable: (view: ARView, coordinator: Coordinator)? {
+        guard let reusable, reusable.view.superview == nil else { return nil }
+        return reusable
+    }
+
+    func makeCoordinator() -> Coordinator { Self.idleReusable?.coordinator ?? Coordinator() }
 
     private static func characterEntity(_ pose: HomerunOjisanPose3, outfit: HomerunOjisanOutfit, _ p: HomerunAtBatLayout.Placement) -> Entity {
         let e = HomerunToonScene.entity(for: .ojisan(pose, outfit: outfit), scale: HomerunAtBatLayout.characterScale)
@@ -284,6 +340,17 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> ARView {
+        if let reused = Self.idleReusable, reused.coordinator === context.coordinator {
+            // 前の打席の段階（振り終わりなど）を捨て、今の局面から流し直す。
+            if let rig = reused.coordinator.batterRig {
+                rig.show(batterMotion, now: now)
+                reused.coordinator.batterMotion = batterMotion
+            }
+            reused.coordinator.batterSlide = nil
+            updateUIView(reused.view, context: context)
+            subscribeFirstFrame(reused.view, reused.coordinator)
+            return reused.view
+        }
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
         // 触りは SwiftUI の押せる帯で受ける（`allowsHitTesting(false)` と二重に止める）。
         view.isUserInteractionEnabled = false
@@ -336,19 +403,33 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.cameraEntity = cam
         context.coordinator.camera = camera
         view.scene.addAnchor(anchor)
-        if let onFirstFrame {
-            let coordinator = context.coordinator
-            coordinator.updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak coordinator] event in
-                guard let coordinator else { return }
-                coordinator.frames += 1
-                coordinator.steadyFrames = event.deltaTime <= Self.steadyFrameInterval ? coordinator.steadyFrames + 1 : 0
-                guard coordinator.steadyFrames >= Self.steadyFrames || coordinator.frames >= Self.maxFramesBeforeReady else { return }
-                coordinator.updates?.cancel()
-                coordinator.updates = nil
-                MainActor.assumeIsolated { onFirstFrame() }
-            }
-        }
+        subscribeFirstFrame(view, context.coordinator)
+        Self.reusable = (view, context.coordinator)
         return view
+    }
+
+    /// 描き始めの合図（`onFirstFrame`）を待つ。使い回しのときも、画面に戻って描き直しが落ち着いてから知らせる。
+    private func subscribeFirstFrame(_ view: ARView, _ coordinator: Coordinator) {
+        coordinator.updates?.cancel()
+        coordinator.updates = nil
+        coordinator.frames = 0
+        coordinator.steadyFrames = 0
+        guard let onFirstFrame else { return }
+        coordinator.updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak coordinator] event in
+            guard let coordinator else { return }
+            coordinator.frames += 1
+            coordinator.steadyFrames = event.deltaTime <= Self.steadyFrameInterval ? coordinator.steadyFrames + 1 : 0
+            guard coordinator.steadyFrames >= Self.steadyFrames || coordinator.frames >= Self.maxFramesBeforeReady else { return }
+            coordinator.updates?.cancel()
+            coordinator.updates = nil
+            MainActor.assumeIsolated { onFirstFrame() }
+        }
+    }
+
+    /// 画面から外れたら合図の待ちを止める（`ARView` と打者などの実体は控えに残す）。
+    static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
+        coordinator.updates?.cancel()
+        coordinator.updates = nil
     }
 
     private static func aim(_ cam: PerspectiveCamera, _ camera: HomerunAtBatLayout.Camera) {
@@ -367,6 +448,18 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 c.batterMotion = batterMotion
             }
             rig.tick(now: now)
+            let target = HomerunAtBatLayout.batterSlideTarget(batterMotion, camera: camera, now: now)
+            let current = c.batterSlide ?? target ?? 0
+            var next = current
+            if let target {
+                let dt = Float(min(max(now.timeIntervalSince(c.slideTick ?? now), 0), 0.1))
+                let step = HomerunAtBatLayout.batterSlideSpeed * dt
+                // 見た目の切り替え（カメラを前 ⇄ 後ろ）ではすぐ合わせる。
+                next = c.camera != camera ? target : current + min(max(target - current, -step), step)
+            }
+            c.batterSlide = next
+            c.slideTick = now
+            rig.entity.position = HomerunAtBatLayout.batter.position + [next, 0, 0]
         } else if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
             let new = Self.legacyBatter(batterPose)
             parent.addChild(new)

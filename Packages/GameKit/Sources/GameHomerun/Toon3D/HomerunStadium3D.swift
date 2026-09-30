@@ -48,7 +48,7 @@ extension HomerunToonModel {
         static var roofHeight: Float { height(row: rows - 1) + 4.2 }
     }
 
-    /// 球場（メートル。本塁が原点・+z がセンター・+x が一塁側。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
+    /// 球場（メートル。本塁が原点・+z がセンター・左右対称。RealityKit は右手系なので描画の上では +x が三塁側（打球の置き方は `HomerunAtBatLayout.pullSideX`・`HomerunOutfieldLayout.point`）。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
     /// 柵の距離は判定と同じ `HomerunJudge.fence`。数千個の箱を色ごとのメッシュ 1 個にまとめてある（`merged()`）。
     ///
     /// スタンドは本塁を中心とする 1 周の極座標（`standFront`）で組む: 外野は柵に沿う弧、両翼はファウルラインに平行な直線、
@@ -150,7 +150,7 @@ extension HomerunToonModel {
         return m.merged()
     }
 
-    /// スタンドの前縁（本塁からの距離・m）。`deg` は本塁からの方向（0 = センター・正が一塁側）、`depth` は前縁からの奥行き。
+    /// スタンドの前縁（本塁からの距離・m）。`deg` は本塁からの方向（0 = センター。左右対称なので符号の向きは問わない）、`depth` は前縁からの奥行き。
     /// 外野（|deg| ≤ 46）は柵の 2m 外、バックネット裏（|deg| ≥ 135）は半径 16m、両翼はファウルラインの 16m 外側に平行な直線
     /// （直線が柵の弧より外に出る方向では弧を取る = 外野の弧が両翼へ回り込む）。
     static func standFront(_ deg: Double, depth: Float) -> Float {

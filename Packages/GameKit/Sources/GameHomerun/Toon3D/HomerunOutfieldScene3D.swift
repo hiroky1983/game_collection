@@ -29,10 +29,12 @@ enum HomerunOutfieldLayout {
     /// 画角の縁からこの角度（度）は内側に収める（打球・外野手が画面の端ぎりぎりに映らないように）。
     private static let frameMargin: Double = 4
 
-    /// 本塁を原点・+z をセンターとする世界座標（`HomerunStadium3D.stadium()` と同じ座標系）。
+    /// 本塁を原点・+z をセンターとする世界座標（`HomerunStadium3D.stadium()` と同じ座標系）。判定の方向（負 = レフト）は **+x** へ置く:
+    /// RealityKit は右手系（y 上）なので、本塁からセンター（+z）を向くと +x が左手 = 三塁側・レフト（#1594 会長 QA 2026-09-30。
+    /// 以前は負を -x に置いていて、外野カメラの画はレフトの打球がライト側の景色（ポールが打球の右）に映っていた）。
     static func point(direction degrees: Double, distance: Double, height: Double = 0) -> SIMD3<Float> {
         let radians = degrees * .pi / 180
-        return [Float(distance * sin(radians)), Float(height), Float(distance * cos(radians))]
+        return [Float(-distance * sin(radians)), Float(height), Float(distance * cos(radians))]
     }
 
     /// 打球の結果から静止ショットを組み立てる。`ball.kind` は `.inPlay` / `.fenceHit` / `.homer` のいずれかを渡すこと
@@ -49,8 +51,8 @@ enum HomerunOutfieldLayout {
         let ballPosition = point(direction: ball.direction, distance: renderDistance, height: ballHeight)
         let fielderDistance = max(min(renderDistance - 8, fence - fielderInFrontOfFence), fielderMinDistance)
         let fielderPosition = point(direction: ball.direction, distance: fielderDistance)
-        // 本塁の方（打球が飛んできた側）を向く = 外向き（`point` と同じ回転）から180°回す。
-        let fielderYaw = Float(ball.direction * .pi / 180) + .pi
+        // 本塁の方（打球が飛んできた側）を向く = 外向き（`point` と同じ回転 = y 軸で -方向）から180°回す。
+        let fielderYaw = Float(-ball.direction * .pi / 180) + .pi
         // 柵の 50m 手前・柵を注視するのを基本にする。打球が近いと画角（縦 ±16°）に打球・外野手が収まらない
         // （カメラの真下に落ちる・カメラの後方に入る）ので、収まるまでカメラを本塁側へ 1m ずつ引く。
         // 本塁まで引いても収まらない近距離の当たりは、打球と外野手が画角の真ん中に来るように注視点を下げる。

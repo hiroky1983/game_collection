@@ -63,6 +63,10 @@ public struct HomerunView: View {
             .onAppear {
                 if ProcessInfo.processInfo.arguments.contains("-homerunAutoStart"), model.phase == .idle { _ = model.start(now: Date()) }
             }
+            #if os(iOS) && canImport(RealityKit)
+            // 打席の 3D は画面の中では使い回し（もう一回で作り直すと前の打席の画のまま止まる・#1594）、離れたら手放す。
+            .onDisappear { HomerunAtBatSceneReuse.drop() }
+            #endif
     }
 
     /// 回復のボタンが出ているか（打席前と結果で、残りが 0 のあいだ。上限に達していれば出さない）。
