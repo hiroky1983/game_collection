@@ -71,6 +71,8 @@ public final class HomerunModel {
     public private(set) var swingCount = 0
     /// 直前の 1 球で振ったか（見送りなら false）。
     public private(set) var didSwingLastBall = false
+    /// 直前の 1 球の空振りの理由（早い / 遅い / 照準のずれ・#1594）。見送り・当たり・ファウルは nil。
+    public private(set) var lastMissReason: HomerunMissReason?
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
@@ -124,6 +126,9 @@ public final class HomerunModel {
     /// カーソルの基準（押した時点のカーソル位置）。
     private var cursorBase: CGPoint = .zero
 
+    /// 照準の吸い寄せ（#1594 試作）。テストは `.off` で入力どおりの照準を確かめる。
+    let aimAssist: HomerunAimAssist
+
     private let defaults: UserDefaults
     private let directionMeter: FeedbackPreference
     private let calendar: Calendar
@@ -137,8 +142,10 @@ public final class HomerunModel {
 
     public init(services: GameServices? = nil, defaults: UserDefaults = .standard, calendar: Calendar = .current,
                 directionMeter: FeedbackPreference = .homerunDirectionMeter,
-                pitches: [HomerunPitch] = HomerunPitch.standardSequence, now: Date = Date()) {
+                pitches: [HomerunPitch] = HomerunPitch.standardSequence, aimAssist: HomerunAimAssist = .standard,
+                now: Date = Date()) {
         self.services = services
+        self.aimAssist = aimAssist
         self.defaults = defaults
         self.directionMeter = directionMeter
         showsDirectionMeter = directionMeter.isEnabled
@@ -186,7 +193,18 @@ public final class HomerunModel {
     public func previewSwing(at now: Date) -> HomerunSwing {
         let offset = timingOffset(at: now) ?? -HomerunTiming.hitWindow
         let clamped = min(max(offset, -HomerunTiming.hitWindow), HomerunTiming.hitWindow)
-        return makeSwing(offset: clamped)
+        return makeSwing(offset: clamped, cursor: aimCursor(at: now))
+    }
+
+    /// 照準（画面に描き、離した瞬間に判定へ渡す位置）。指で動かしたカーソルを、投球中に押している間だけ
+    /// ボールの方へ吸い寄せる（`HomerunAimAssist`・#1594 試作）。的が出る前・押していない間はカーソルのまま。
+    /// 時刻から決まる純粋な値（モデルは時計を読まない）。
+    public func aimCursor(at now: Date) -> CGPoint {
+        guard phase == .pitching, isHolding, let pitchStart, now > pitchStart else { return cursor }
+        let since = max(pitchStart, ballClock?.pressedAt ?? pitchStart)
+        let k = aimAssist.pull(heldFor: now.timeIntervalSince(since))
+        let ball = ballPoint
+        return CGPoint(x: cursor.x + (ball.x - cursor.x) * k, y: cursor.y + (ball.y - cursor.y) * k)
     }
 
     /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻）。止まっているあいだは nil。
@@ -281,7 +299,7 @@ public final class HomerunModel {
     // MARK: 指の操作（片手: 押す → ずらす → 離す）
 
     /// 押す。投球前・投球中どちらでもよい（押しただけでは振らない）。`point` は押せる帯の中の座標（pt）。
-    /// `now` は押した時刻（3D の打者が逆算して振り始める時刻に押していたかを見るだけ。判定には使わない）。
+    /// `now` は押した時刻（照準の吸い寄せ `aimCursor` を押し始めから数えるのに使う）。
     public func press(at point: CGPoint, now: Date = .distantPast) {
         guard phase == .pitching || phase == .ballResult, !isHeld else { return }
         isHolding = true
@@ -301,21 +319,34 @@ public final class HomerunModel {
         ))
     }
 
-    /// 離す。投球中（的が出てから）なら、その瞬間がスイング。モーション中（的が出る前）に離したときは**素振り**:
-    /// 打者はその場で振る（`BallClock.practiceSwingAt`）が判定には使わず、その球はそのまま投げられてくる（nil を返す）。
+    /// 離す。投球中（的が出てから）なら、その瞬間がスイング（照準は吸い寄せた位置 `aimCursor`）。
+    /// モーション中（的が出る前）・1 球の結果を見せている間に離したときは**素振り**: 打者はその場で振る
+    /// （`BallClock.practiceSwingAt`）が判定には使わず、その球はそのまま投げられてくる（nil を返す）。
+    /// 振り（本番・素振り）は始まったら最後まで振り切る（#1594）ので、振っている最中の素振りは受け付けない。
     @discardableResult
     public func release(at point: CGPoint, now: Date) -> HomerunBattedBall? {
         guard isHolding else { return nil }
         drag(to: point)
-        isHolding = false
         guard let offset = timingOffset(at: now) else {
+            isHolding = false
             ballClock?.pressedAt = nil
-            if phase == .pitching { ballClock?.practiceSwingAt = now }
+            if phase == .pitching || phase == .ballResult, !isSwinging(at: now) { ballClock?.practiceSwingAt = now }
             return nil
         }
+        cursor = aimCursor(at: now)
+        isHolding = false
         ballClock?.releasedAt = now
         ballClock?.timingOffset = offset
-        return resolve(makeSwing(offset: offset), now: now)
+        return resolve(makeSwing(offset: offset, cursor: cursor), now: now)
+    }
+
+    /// 打者がいま振っている（本番か素振りの振り抜き〜フォロースルーの途中）か。
+    func isSwinging(at now: Date) -> Bool {
+        guard let clock = ballClock else { return false }
+        return [clock.releasedAt, clock.practiceSwingAt].contains { start in
+            guard let start else { return false }
+            return now >= start && now < start.addingTimeInterval(HomerunBatterMotion.swingDuration)
+        }
     }
 
     // MARK: 時間を進める
@@ -391,7 +422,7 @@ public final class HomerunModel {
 
     // MARK: 内部
 
-    private func makeSwing(offset: Double) -> HomerunSwing {
+    private func makeSwing(offset: Double, cursor: CGPoint) -> HomerunSwing {
         let ball = ballPoint
         return HomerunSwing(timingOffset: offset,
                             cursorDX: Double(cursor.x - ball.x),
@@ -401,9 +432,14 @@ public final class HomerunModel {
     private func beginPitch(now: Date) {
         phase = .pitching
         pitchStart = now.addingTimeInterval(Self.windup)
-        // 押したまま次の球に入ったら、その押しは新しい球でも「押していた」扱い（時刻は前の球のまま = 振り始めより前）。
+        // 結果の間に始めた素振りがまだ振り終わっていなければ、次の球でも最後まで振る（途中で構えに戻さない）。
+        let carriedPractice = ballClock?.practiceSwingAt.flatMap {
+            now < $0.addingTimeInterval(HomerunBatterMotion.swingDuration) ? $0 : nil
+        }
+        // 押したまま次の球に入ったら、その押しは新しい球でも「押していた」扱い（時刻は前の球のまま）。
         ballClock = BallClock(pitchStart: pitchStart!, zone: currentPitch?.zone ?? 4,
-                              pressedAt: isHolding ? (ballClock?.pressedAt ?? .distantPast) : nil)
+                              pressedAt: isHolding ? (ballClock?.pressedAt ?? .distantPast) : nil,
+                              practiceSwingAt: carriedPractice)
         resultUntil = nil
         // カーソルは投球ごとにゾーンの中央へ戻る。押したままなら今の指の位置を新しい基準にする。
         cursor = .zero
@@ -416,6 +452,7 @@ public final class HomerunModel {
     private func resolve(_ swing: HomerunSwing?, now: Date) -> HomerunBattedBall? {
         guard phase == .pitching, var challenge else { return nil }
         didSwingLastBall = swing != nil
+        lastMissReason = HomerunJudge.missReason(swing)
         if didSwingLastBall { swingCount += 1 }
         let ball = challenge.swing(swing)
         self.challenge = challenge

@@ -23,8 +23,10 @@ private final class Fixture {
 
     deinit { UserDefaults().removePersistentDomain(forName: name) }
 
-    func model(pitches: [HomerunPitch] = HomerunPitch.standardSequence, now: Date = Fixture.t0) -> HomerunModel {
-        HomerunModel(defaults: defaults, calendar: Self.calendar, pitches: pitches, now: now)
+    /// 照準の吸い寄せは既定で切る（入力どおりの照準で判定を確かめる）。吸い寄せのテストだけ `.standard` を渡す。
+    func model(pitches: [HomerunPitch] = HomerunPitch.standardSequence, aimAssist: HomerunAimAssist = .off,
+               now: Date = Fixture.t0) -> HomerunModel {
+        HomerunModel(defaults: defaults, calendar: Self.calendar, pitches: pitches, aimAssist: aimAssist, now: now)
     }
 
     static var todayKey: Int { HomerunLedger.dayKey(for: t0, calendar: calendar) }
@@ -265,9 +267,103 @@ struct HomerunModelTests {
         model.advance(now: arrive.addingTimeInterval(0.2))
         #expect(model.lastBall?.kind == .miss)
         #expect(model.challenge?.results.count == 1)
-        // 結果を見せているあいだに離しても振らない。
+        #expect(!model.didSwingLastBall && model.lastMissReason == nil, "見送り（理由は出さない）")
+        // 結果を見せているあいだに離しても判定しない（素振りだけ）。
         #expect(model.release(at: CGPoint(x: 10, y: 32), now: arrive.addingTimeInterval(0.3)) == nil)
         #expect(model.challenge?.results.count == 1)
+        #expect(model.ballClock?.practiceSwingAt == arrive.addingTimeInterval(0.3))
+    }
+
+    @Test("結果の間に押して離すと素振り（判定なし）。振っている最中の素振りは受け付けず、振り終わっていない素振りは次の球へ持ち越す")
+    func practiceSwingDuringResult() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        let arrive = try arrival(model)
+        let ball = try #require(try swing(model, dx: 40, dy: 0, offset: 0))
+        #expect(ball.kind == .miss)
+        let step = model.step
+        // 本番の振り（離した瞬間から 0.8 秒）の途中: 受け付けない。
+        model.press(at: CGPoint(x: 100, y: 600))
+        #expect(model.release(at: CGPoint(x: 100, y: 600), now: arrive.addingTimeInterval(0.5)) == nil)
+        #expect(model.ballClock?.practiceSwingAt == nil)
+        #expect(model.isSwinging(at: arrive.addingTimeInterval(0.5)))
+        // 振り終わった後: 素振り。判定・球数・進行は変わらない。
+        model.press(at: CGPoint(x: 100, y: 600))
+        let practice = arrive.addingTimeInterval(HomerunBatterMotion.swingDuration + 0.1)
+        #expect(model.release(at: CGPoint(x: 100, y: 600), now: practice) == nil)
+        #expect(model.ballClock?.practiceSwingAt == practice)
+        #expect(model.challenge?.results.count == 1 && model.swingCount == 1 && model.step == step && model.phase == .ballResult)
+        #expect(HomerunSwingPlan(model: model).batterMotion(at: practice) == .swing(start: practice))
+        // 結果が閉じても振り終わっていなければ、次の球のモーション中も最後まで振る。
+        let close = try #require(model.resultUntil)
+        #expect(close < practice.addingTimeInterval(HomerunBatterMotion.swingDuration))
+        model.advance(now: close)
+        #expect(model.phase == .pitching && model.ballClock?.practiceSwingAt == practice)
+        #expect(HomerunSwingPlan(model: model).batterMotion(at: close) == .swing(start: practice))
+    }
+
+    @Test("空振りの理由: 早い / 遅い / 照準のずれ。当たり・見送りは理由なし")
+    func missReasons() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        try swing(model, dx: 0, dy: 22, offset: -0.2)
+        #expect(model.lastBall?.kind == .miss && model.lastMissReason == .early)
+        model.advance(now: try #require(model.resultUntil))
+        try swing(model, dx: 0, dy: 22, offset: 0.2)
+        #expect(model.lastBall?.kind == .miss && model.lastMissReason == .late)
+        model.advance(now: try #require(model.resultUntil))
+        try swing(model, dx: 40, dy: 0, offset: 0)
+        #expect(model.lastBall?.kind == .miss && model.lastMissReason == .aim)
+        model.advance(now: try #require(model.resultUntil))
+        try swing(model, dx: 0, dy: 22, offset: 0)
+        #expect(model.lastBall?.kind != .miss && model.lastMissReason == nil)
+        model.advance(now: try #require(model.resultUntil))
+        try skipPitch(model)
+        #expect(model.lastMissReason == nil)
+        #expect(HomerunAtBatView.missNote(didSwing: false, reason: nil) == "見送り")
+        #expect(HomerunAtBatView.missNote(didSwing: true, reason: .early) == "振るのが早い")
+        #expect(HomerunAtBatView.missNote(didSwing: true, reason: .late) == "振るのが遅い")
+        #expect(HomerunAtBatView.missNote(didSwing: true, reason: .aim) == "照準がずれた")
+        #expect(HomerunAtBatView.missNote(didSwing: true, reason: nil) == nil)
+    }
+
+    @Test("照準の吸い寄せ: 投球中に押している間だけ、押し始め（的が出る前からなら的が出た瞬間）からの時間でボールへ寄り、離した位置で判定する")
+    func aimAssistPullsTowardBall() throws {
+        let f = Fixture()
+        let assist = HomerunAimAssist.standard
+        #expect(assist.pull(heldFor: 0) == 0)
+        #expect(abs(assist.pull(heldFor: assist.rampSeconds / 2) - assist.maxPull / 2) < 1e-9)
+        #expect(assist.pull(heldFor: assist.rampSeconds * 3) == assist.maxPull)
+        #expect(HomerunAimAssist.off.pull(heldFor: 10) == 0)
+        // 右上（zone 2）のボール。カーソルは中央のまま。
+        let model = f.model(pitches: [HomerunPitch(zone: 2)], aimAssist: assist)
+        model.start(now: Fixture.t0)
+        let pitchStart = try #require(model.pitchStart)
+        let ballPoint = model.ballPoint
+        #expect(model.aimCursor(at: pitchStart.addingTimeInterval(0.5)) == .zero, "押していなければ寄らない")
+        model.press(at: CGPoint(x: 150, y: 600), now: Fixture.t0.addingTimeInterval(0.1))   // モーション中から押している
+        #expect(model.aimCursor(at: pitchStart.addingTimeInterval(-0.1)) == .zero, "的が出る前は寄らない")
+        let half = model.aimCursor(at: pitchStart.addingTimeInterval(assist.rampSeconds / 2))
+        #expect(abs(Double(half.x) - Double(ballPoint.x) * assist.maxPull / 2) < 1e-9)
+        #expect(abs(Double(half.y) - Double(ballPoint.y) * assist.maxPull / 2) < 1e-9)
+        #expect(model.cursor == .zero, "指で動かしたカーソルそのものは変わらない")
+        // 輪が重なった瞬間に離す: 寄せた位置で判定する（中央のままでも、1 マス離れたボールに当たる）。
+        let arrive = try arrival(model)
+        let aimed = model.aimCursor(at: arrive)
+        let ball = try #require(model.release(at: CGPoint(x: 150, y: 600), now: arrive))
+        #expect(model.cursor == aimed, "離した瞬間の照準が結果の間も残る")
+        let expected = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: Double(aimed.x - ballPoint.x), cursorDY: Double(aimed.y - ballPoint.y)))
+        #expect(ball == expected)
+        #expect(ball.kind != .miss, "吸い寄せで当たる")
+        // 吸い寄せを切ると、中央のままでは 1 マス離れた右上のボールには当たらない。
+        let f2 = Fixture()
+        let plain = f2.model(pitches: [HomerunPitch(zone: 2)])
+        plain.start(now: Fixture.t0)
+        plain.press(at: CGPoint(x: 150, y: 600), now: Fixture.t0.addingTimeInterval(0.1))
+        let whiff = try #require(plain.release(at: CGPoint(x: 150, y: 600), now: try arrival(plain)))
+        #expect(whiff.kind == .miss && plain.lastMissReason == .aim)
     }
 
     @Test("1 球の結果は種別ごとの時間だけ見せ、次の球ではカーソルが中央へ戻る。押したままなら今の指が新しい基準")

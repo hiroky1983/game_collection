@@ -97,6 +97,16 @@ public struct HomerunSwing: Equatable, Sendable {
     }
 }
 
+/// 空振りの理由（#1594）。
+public enum HomerunMissReason: Equatable, Sendable {
+    /// 振るのが早い（当たり窓より前）。
+    case early
+    /// 振るのが遅い（当たり窓より後）。
+    case late
+    /// タイミングは合っていたが、照準がボールから外れていた。
+    case aim
+}
+
 /// 能力値（受け口 1: 飛距離の式の入力を 1 本の構造体にする）。第 1 弾は `.standard` 固定。
 public struct HomerunAbilities: Equatable, Sendable {
     /// パワー: 土台に足す距離（m）。
@@ -138,8 +148,13 @@ public enum HomerunJudge {
     public static let foulLimit = 45.0
     /// カーソルの横のずれがこの値で最大の 35° になる（pt）。
     public static let fullDeflection = 11.0
-    /// 芯の半径（pt・ゾーンの 1/8）。帯の中心から数えて、ここで係数 0.8・これより外は当たり判定の外。
+    /// 芯の半径（pt・ゾーンの 1/8）。帯の中心から数えて、ここで係数 0.8。
     public static let coreRadius = 11.0
+    /// 当たり判定の半径（pt・#1594 試作）。芯の外でもここまでは当たる（係数 0.8 → `edgeFactor` へ下がる）。
+    /// ゾーン（88pt）の 1 マスぶん（約 29.3pt）。以前は芯の半径（11pt）の外は空振りで、ボールのマスまで正確にずらさないと当たらなかった。
+    public static let contactRadius = HomerunLaunch.bandWidth * 4 / 3
+    /// 当たり判定の縁（`contactRadius`）での芯の係数。
+    public static let edgeFactor = 0.5
     /// 柵の手前でこの距離（m）以内なら「フェンス直撃」。
     public static let fenceHitMargin = 6.0
 
@@ -149,12 +164,25 @@ public enum HomerunJudge {
     }
 
     /// 芯の係数。`d` は「カーソルが入った角度の帯の中心」からカーソルまでの距離（pt）。
-    /// 中心で 1.0・半径で 0.8（線形）・半径の外は 0（当たり判定の外 = 空振り）。
+    /// 中心で 1.0・芯の半径で 0.8・当たり判定の半径（`contactRadius`）で `edgeFactor`（それぞれ線形）・その外は 0（空振り）。
     /// 帯の中心から測るのは、帯の幅（22pt）が芯の直径と同じで、ボール中心から測ると柵越えの帯（少し下）が常に 0.8 以下になるため。
     public static func core(distanceFromBandCenter d: Double, abilities: HomerunAbilities = .standard) -> Double {
-        let radius = coreRadius * max(abilities.meet, 0.01)
-        if d > radius { return 0 }
-        return 1 - 0.2 * d / radius
+        let meet = max(abilities.meet, 0.01)
+        let radius = coreRadius * meet
+        let contact = max(contactRadius * meet, radius)
+        if d > contact { return 0 }
+        if d <= radius { return 1 - 0.2 * d / radius }
+        return 0.8 - (0.8 - edgeFactor) * (d - radius) / (contact - radius)
+    }
+
+    /// 空振りの理由（結果に出す・#1594）。振っていない（見送り）・空振りでない（当たった・ファウル）なら nil。
+    /// タイミングが窓の外なら早い / 遅い（照準も外れていてもタイミングを先に言う）、窓の中なら照準のずれ。
+    public static func missReason(_ swing: HomerunSwing?, abilities: HomerunAbilities = .standard) -> HomerunMissReason? {
+        guard let swing, judge(swing, abilities: abilities).kind == .miss else { return nil }
+        if HomerunTiming(offsetMilliseconds: swing.timingOffset) == .miss {
+            return swing.timingOffset < 0 ? .early : .late
+        }
+        return .aim
     }
 
     /// 打球方向（度）。カーソルの左右（内側 = 引っ張り = 左）にタイミング（早い = 引っ張り）を足す。

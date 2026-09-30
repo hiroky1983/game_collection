@@ -83,20 +83,37 @@ struct HomerunJudgeTests {
         #expect(center.distance > 100 && center.distance < 114)
     }
 
-    @Test("芯: 帯の中心で 1.0・半径 11pt で 0.8・外は 0")
+    @Test("芯: 帯の中心で 1.0・芯の半径 11pt で 0.8・当たり判定の半径（1 マス ≈ 29.3pt）で 0.5・外は 0")
     func coreFalloff() {
+        #expect(abs(HomerunJudge.contactRadius - HomerunLaunch.bandWidth * 4 / 3) < 1e-9)
         #expect(HomerunJudge.core(distanceFromBandCenter: 0) == 1)
         #expect(abs(HomerunJudge.core(distanceFromBandCenter: 11) - 0.8) < 1e-9)
-        #expect(HomerunJudge.core(distanceFromBandCenter: 11.01) == 0)
+        #expect(HomerunJudge.core(distanceFromBandCenter: 11.01) < 0.8 && HomerunJudge.core(distanceFromBandCenter: 11.01) > 0.79)
+        #expect(abs(HomerunJudge.core(distanceFromBandCenter: HomerunJudge.contactRadius) - HomerunJudge.edgeFactor) < 1e-9)
+        #expect(HomerunJudge.core(distanceFromBandCenter: HomerunJudge.contactRadius + 0.01) == 0)
         // ミートが上がると半径が広がる
-        #expect(HomerunJudge.core(distanceFromBandCenter: 11.01, abilities: HomerunAbilities(meet: 1.5)) > 0)
+        #expect(HomerunJudge.core(distanceFromBandCenter: HomerunJudge.contactRadius + 0.01, abilities: HomerunAbilities(meet: 1.5)) > 0)
     }
 
-    @Test("芯の外に置くと空振り（距離 0）")
+    @Test("芯の外でも当たり判定の中なら当たる（距離は落ちる）。当たり判定の外に置くと空振り（距離 0）")
     func outsideCoreIsMiss() {
-        let ball = HomerunJudge.judge(swing(dx: 12))
+        let weak = HomerunJudge.judge(swing(dx: 12))
+        #expect(weak.kind != .miss)
+        #expect(weak.distance < HomerunJudge.judge(swing()).distance)
+        let ball = HomerunJudge.judge(swing(dx: 30))
         #expect(ball.kind == .miss)
         #expect(ball.distance == 0)
+    }
+
+    @Test("空振りの理由: タイミングが窓の外なら早い / 遅い（照準より先）、窓の中で照準の外なら照準のずれ。当たり・見送りは nil")
+    func missReason() {
+        #expect(HomerunJudge.missReason(swing(t: -111)) == .early)
+        #expect(HomerunJudge.missReason(swing(t: 111)) == .late)
+        #expect(HomerunJudge.missReason(swing(t: -200, dx: 40)) == .early)
+        #expect(HomerunJudge.missReason(swing(dx: 30)) == .aim)
+        #expect(HomerunJudge.missReason(swing()) == nil)
+        #expect(HomerunJudge.missReason(swing(t: -110, dx: -11)) == nil, "ファウルは空振りではない")
+        #expect(HomerunJudge.missReason(nil) == nil)
     }
 
     @Test("タイミングが窓の外なら空振り・押さずに見送っても空振り")

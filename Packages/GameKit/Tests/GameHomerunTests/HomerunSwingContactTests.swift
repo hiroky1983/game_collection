@@ -92,151 +92,131 @@ struct HomerunSwingContactTests {
         #expect(abs(just.y - axis.y - (HomerunBatPath.barrelRadius + HomerunSwingContact.ballRadius)) < 1e-6)
     }
 
-    @Test("逆算: 輪が的に重なる時刻にジャストの打点のコマが来るよう、その 0.18〜0.21 秒前に 20 コマ目を置いて振り始める")
-    func swingStartIsBackCalculated() {
+    @Test("振り始め（20 コマ目）からジャストの打点のコマまで 0.18〜0.22 秒。3D の球は輪が重なる時刻のその分あとに打点へ着く")
+    func leadAndBallArrival() {
         for column in -1...1 {
-            let start = HomerunSwingContact.swingStart(arrival: arrival, column: column)
-            let lead = arrival.timeIntervalSince(start)
+            let lead = HomerunSwingContact.lead(column: column)
             #expect(lead > 0.18 && lead < 0.22, "列 \(column): 先行 \(lead) 秒")
-            // 振り始めからジャストの打点までのクリップの進みが、ちょうど lead。
             let w = HomerunSwingContact.contactWindow(column: column)
             #expect(abs((w.just - HomerunSwingContact.swingClipStart) - lead) < 1e-9)
-            // 離した瞬間に合わせ直す: ジャストなら同じ振り始め、早いほど前倒し（進める）、遅いほど後ろ倒し。
-            let just = HomerunSwingContact.swingStart(release: arrival, offsetMilliseconds: 0, column: column)
-            #expect(abs(just.timeIntervalSince(start)) < 1e-9)
-            let early = HomerunSwingContact.swingStart(release: arrival.addingTimeInterval(-0.06), offsetMilliseconds: -60, column: column)
-            let late = HomerunSwingContact.swingStart(release: arrival.addingTimeInterval(0.06), offsetMilliseconds: 60, column: column)
-            #expect(early < start && late > start)
+            // ジャストに離すと、打点のコマはちょうど 3D の球が着く時刻。早い/遅いはその前後。
+            let plan = HomerunSwingPlan(phase: .pitching, clock: clock(zone: 4 + column), lastBall: nil)
+            let ballArrival = try! #require(plan.ballArrival)
+            #expect(abs(ballArrival.timeIntervalSince(arrival) - lead) < 1e-9)
+            let just = HomerunSwingContact.contactTime(release: arrival, offsetMilliseconds: 0, column: column)
+            #expect(abs(just.timeIntervalSince(ballArrival)) < 1e-9)
+            let early = HomerunSwingContact.contactTime(release: arrival.addingTimeInterval(-0.06), offsetMilliseconds: -60, column: column)
+            let late = HomerunSwingContact.contactTime(release: arrival.addingTimeInterval(0.06), offsetMilliseconds: 60, column: column)
+            #expect(early < just && late > just)
         }
     }
 
-    @Test("投球中: 振り始めの 19/30 秒前から踏み込み、振り始めに押していれば振り抜き（逆算した振り始め）、押していなければ踏み込みのまま")
+    @Test("投球中: 当たり窓の始まりに 20 コマ目で待てるよう踏み込み、押しっぱなしでも振らない（先読みで振らない・#1594）")
     func motionWhilePitching() {
-        let start = HomerunSwingContact.swingStart(arrival: arrival, column: 0)
-        let load = HomerunBatterMotion.load(start: start.addingTimeInterval(-HomerunBatterMotion.loadDuration))
-        let held = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: t0), isHolding: true, lastBall: nil)
-        #expect(held.batterMotion(at: t0.addingTimeInterval(-0.5)) == .stance, "モーション中は構え")
-        #expect(held.batterMotion(at: start.addingTimeInterval(-HomerunBatterMotion.loadDuration - 0.01)) == .stance)
-        #expect(held.batterMotion(at: start.addingTimeInterval(-HomerunBatterMotion.loadDuration)) == load)
-        #expect(held.batterMotion(at: start.addingTimeInterval(-0.01)) == load)
-        #expect(held.batterMotion(at: start) == .swing(start: start))
-        #expect(held.batterMotion(at: arrival) == .swing(start: start))
-        let notHeld = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: nil), isHolding: false, lastBall: nil)
-        #expect(notHeld.batterMotion(at: start) == load, "押していなければ振らない")
-        #expect(notHeld.batterMotion(at: arrival.addingTimeInterval(0.1)) == load)
-        // 振り始めの後に押しても、その球はもう逆算の振りには入らない（離せば離した瞬間から振る）。
-        let lateHold = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: start.addingTimeInterval(0.05)), isHolding: true, lastBall: nil)
-        #expect(lateHold.batterMotion(at: start.addingTimeInterval(0.1)) == load)
+        let plan = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: t0), lastBall: nil)
+        let loadStart = try! #require(plan.loadStart)
+        #expect(abs(arrival.timeIntervalSince(loadStart) - (HomerunTiming.hitWindow / 1000 + HomerunBatterMotion.loadDuration)) < 1e-9)
+        let load = HomerunBatterMotion.load(start: loadStart)
+        #expect(plan.batterMotion(at: t0.addingTimeInterval(-0.5)) == .stance, "モーション中は構え")
+        #expect(plan.batterMotion(at: loadStart.addingTimeInterval(-0.01)) == .stance)
+        #expect(plan.batterMotion(at: loadStart) == load)
+        #expect(plan.batterMotion(at: arrival) == load, "押したまま輪が重なっても振らない")
+        #expect(plan.batterMotion(at: arrival.addingTimeInterval(0.1)) == load)
+        let notHeld = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: nil), lastBall: nil)
+        #expect(notHeld.batterMotion(at: arrival) == load)
     }
 
     @Test("素振り（的が出る前に離した）: 離した瞬間から頭で振り抜き、振り終わると構え・踏み込みへ戻る")
     func practiceSwingWhilePitching() {
-        let start = HomerunSwingContact.swingStart(arrival: arrival, column: 0)
-        let loadStart = start.addingTimeInterval(-HomerunBatterMotion.loadDuration)
+        let plan0 = HomerunSwingPlan(phase: .pitching, clock: clock(), lastBall: nil)
+        let loadStart = try! #require(plan0.loadStart)
         #expect(abs(HomerunBatterMotion.swingDuration - 24.0 / 30) < 1e-6, "振り抜き〜フォロースルーは 20〜44 コマ目")
         // モーションの早いうち（的が出る 0.5 秒前）に素振り: 振り終わりは踏み込みの始まりより前 → 構えへ戻る。
         let early = t0.addingTimeInterval(-0.5)
-        let plan = HomerunSwingPlan(phase: .pitching, clock: clock(practiceSwingAt: early), isHolding: false, lastBall: nil)
+        let plan = HomerunSwingPlan(phase: .pitching, clock: clock(practiceSwingAt: early), lastBall: nil)
         #expect(plan.batterMotion(at: early.addingTimeInterval(-0.01)) == .stance)
         #expect(plan.batterMotion(at: early) == .swing(start: early))
         #expect(plan.batterMotion(at: early.addingTimeInterval(HomerunBatterMotion.swingDuration - 0.01)) == .swing(start: early))
         #expect(plan.batterMotion(at: early.addingTimeInterval(HomerunBatterMotion.swingDuration)) == .stance)
         #expect(plan.batterMotion(at: loadStart) == .load(start: loadStart), "その後は通常どおり踏み込む")
-        // 的が出る直前に素振り: 振り終わりが踏み込みの始まりより後 → 踏み込みへ戻る（頭の時刻は踏み込みの始まりのまま = 途中から流す）。
-        let late = t0.addingTimeInterval(-0.05)
+        // 的が出た頃まで振っている素振り: 振り終わりまで途切れず、その後は踏み込みへ戻る（途中から流す）。
+        let late = t0.addingTimeInterval(0.1)
         #expect(late.addingTimeInterval(HomerunBatterMotion.swingDuration) > loadStart)
-        #expect(late.addingTimeInterval(HomerunBatterMotion.swingDuration) < start, "逆算した振り始めとは重ならない")
-        let latePlan = HomerunSwingPlan(phase: .pitching, clock: clock(practiceSwingAt: late), isHolding: false, lastBall: nil)
+        let latePlan = HomerunSwingPlan(phase: .pitching, clock: clock(practiceSwingAt: late), lastBall: nil)
         #expect(latePlan.batterMotion(at: loadStart) == .swing(start: late))
         #expect(latePlan.batterMotion(at: late.addingTimeInterval(HomerunBatterMotion.swingDuration)) == .load(start: loadStart))
-        // 素振りの振り抜き中に押し直し、振り始めまで押していれば通常の逆算の振り。
-        let rearmed = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: t0.addingTimeInterval(0.2), practiceSwingAt: late),
-                                       isHolding: true, lastBall: nil)
-        #expect(rearmed.batterMotion(at: t0.addingTimeInterval(0.3)) == .swing(start: late))
-        #expect(rearmed.batterMotion(at: start) == .swing(start: start))
-        // 素振りの振り抜き中に押し直して的が出た後に離した（早い空振り）: 結果では離した瞬間から頭で振る。
-        let release = t0.addingTimeInterval(0.3)
-        let offset = release.timeIntervalSince(arrival) * 1000
-        let result = HomerunSwingPlan(phase: .ballResult,
-                                      clock: clock(pressedAt: t0.addingTimeInterval(0.2), releasedAt: release, offset: offset, practiceSwingAt: late),
-                                      isHolding: false, lastBall: nil)
-        #expect(result.batterMotion(at: release) == .swing(start: release))
     }
 
-    @Test("離した瞬間に打点のコマへ合わせ直す: ジャストは振り始めのまま、早い/遅いはずれの分だけ前後（当たり窓の中）")
+    @Test("離した瞬間に 20 コマ目から振り始め、合わせ直さない（ずれに関係なく振り始め = 離した時刻・#1594）")
     func motionAfterRelease() {
-        let start = HomerunSwingContact.swingStart(arrival: arrival, column: 0)
         let ball = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
-        for offset in [-110.0, -60, -25, 0, 25, 60, 110] {
+        for offset in [-300.0, -110, -60, -25, 0, 25, 60, 110, 300] {
             let release = arrival.addingTimeInterval(offset / 1000)
-            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), isHolding: false, lastBall: ball)
-            let expected = HomerunSwingContact.swingStart(release: release, offsetMilliseconds: offset, column: 0)
-            #expect(plan.batterMotion(at: release) == .swing(start: expected), "ずれ \(offset)ms")
-            // 合わせ直しで飛ぶコマ数は 2 × |ずれ| + 区間の幅ぶん以下（±110ms で 4 コマ強）。
-            let jump = abs(expected.timeIntervalSince(start)) * 30
-            #expect(jump <= 2 * abs(offset) / 1000 * 30 + 1, "ずれ \(offset)ms で \(jump) コマ飛ぶ")
-            if offset == 0 { #expect(jump < 1e-6) }
+            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), lastBall: ball)
+            #expect(plan.batterMotion(at: release) == .swing(start: release), "ずれ \(offset)ms")
+            // 振り終わった後もフォロースルーで止めたまま（構えへ跳ばない）。
+            #expect(plan.batterMotion(at: release.addingTimeInterval(1.0)) == .swing(start: release))
         }
     }
 
-    @Test("見送り: 押したまま離さなかったら振り抜く（判定と同じ空振り扱い）、押していなければ構えに戻る")
+    @Test("結果の間の素振り: 本番の振りより後に始めた素振りは離した瞬間から振る（判定なし）")
+    func practiceSwingDuringResult() {
+        let release = arrival
+        let practice = arrival.addingTimeInterval(1.0)
+        let miss = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 40, cursorDY: 0))
+        let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: 0, practiceSwingAt: practice),
+                                    lastBall: miss)
+        #expect(plan.batterMotion(at: practice.addingTimeInterval(-0.01)) == .swing(start: release))
+        #expect(plan.batterMotion(at: practice) == .swing(start: practice))
+        // 見送った球の結果の間でも振れる。
+        let taken = HomerunSwingPlan(phase: .ballResult, clock: clock(practiceSwingAt: practice), lastBall: HomerunJudge.judge(nil))
+        #expect(taken.batterMotion(at: practice.addingTimeInterval(-0.01)) == .stance)
+        #expect(taken.batterMotion(at: practice) == .swing(start: practice))
+    }
+
+    @Test("見送り: 押したまま離さなくても振らない（構えに戻る）")
     func takenPitch() {
-        let start = HomerunSwingContact.swingStart(arrival: arrival, column: 0)
         let miss = HomerunJudge.judge(nil)
-        let heldThrough = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0), isHolding: true, lastBall: miss)
-        #expect(heldThrough.batterMotion(at: arrival.addingTimeInterval(0.2)) == .swing(start: start))
-        let untouched = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: nil), isHolding: false, lastBall: miss)
+        let heldThrough = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0), lastBall: miss)
+        #expect(heldThrough.batterMotion(at: arrival.addingTimeInterval(0.2)) == .stance)
+        let untouched = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: nil), lastBall: miss)
         #expect(untouched.batterMotion(at: arrival.addingTimeInterval(0.2)) == .stance)
-        // 的が出る前に離した（押しが消えた）ときも振らない。
-        let letGo = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: nil), isHolding: false, lastBall: miss)
-        #expect(letGo.batterMotion(at: arrival.addingTimeInterval(0.2)) == .stance)
     }
 
-    @Test("空振り: 振り始める前の早い離しは離した瞬間から頭で振る、振り始めた後の早い離しは区間の端に合わせる、遅い離しは振り始めた通り")
-    func missTiming() {
-        let start = HomerunSwingContact.swingStart(arrival: arrival, column: 0)
-        let miss = HomerunJudge.judge(HomerunSwing(timingOffset: -300, cursorDX: 0, cursorDY: 0))
-        let tooEarly = arrival.addingTimeInterval(-0.3)
-        let a = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: tooEarly, offset: -300), isHolding: false, lastBall: miss)
-        #expect(a.batterMotion(at: tooEarly) == .swing(start: tooEarly))
-        let early = arrival.addingTimeInterval(-0.15)
-        let b = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: early, offset: -150), isHolding: false, lastBall: miss)
-        #expect(b.batterMotion(at: early) == .swing(start: HomerunSwingContact.swingStart(release: early, offsetMilliseconds: -150, column: 0)))
-        let late = arrival.addingTimeInterval(0.2)
-        let c = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: late, offset: 200), isHolding: false, lastBall: miss)
-        #expect(c.batterMotion(at: late) == .swing(start: start))
-        // 押していなかった（逆算の振りに入っていない）遅い離しは離した瞬間から。
-        let d = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: start.addingTimeInterval(0.05), releasedAt: late, offset: 200), isHolding: false, lastBall: miss)
-        #expect(d.batterMotion(at: late) == .swing(start: late))
-    }
-
-    @Test("球: 的が出た瞬間に投手の手を離れ、輪が重なる瞬間にジャストの打点の 10cm 上に着き、当たらなければミットへ抜けて消える")
+    @Test("球: 的が出た瞬間に投手の手を離れ、輪が重なる時刻の lead 後にジャストの打点の 10cm 上に着き、当たらなければミットへ抜けて消える")
     func pitchedBall() {
-        let plan = HomerunSwingPlan(phase: .pitching, clock: clock(), isHolding: false, lastBall: nil)
+        let plan = HomerunSwingPlan(phase: .pitching, clock: clock(), lastBall: nil)
+        let ballArrival = try! #require(plan.ballArrival)
         #expect(plan.ballPosition(at: t0.addingTimeInterval(-0.1)) == nil, "的が出る前は無い")
         let p0 = try! #require(plan.ballPosition(at: t0))
         #expect(simd_distance(p0, HomerunBallFlight.releasePoint) < 1e-4)
-        let pA = try! #require(plan.ballPosition(at: arrival))
+        let pA = try! #require(plan.ballPosition(at: ballArrival))
         let axis = try! #require(HomerunSwingContact.crossing(atClipTime: HomerunSwingContact.contactWindow(column: 0).just, x: 0))
         #expect(simd_distance(pA, axis + [0, HomerunSwingContact.approachLift, 0]) < 1e-4)
         // 等速の直線。
-        let mid = try! #require(plan.ballPosition(at: t0.addingTimeInterval(travel / 2)))
+        let flight = ballArrival.timeIntervalSince(t0)
+        let mid = try! #require(plan.ballPosition(at: t0.addingTimeInterval(flight / 2)))
         #expect(simd_distance(mid, (p0 + pA) / 2) < 1e-3)
         // 見送り: 結果に入っても同じ線をミットまで進み、ミットの奥で消える。
-        let taken = HomerunSwingPlan(phase: .ballResult, clock: clock(), isHolding: false, lastBall: HomerunJudge.judge(nil))
-        let after = try! #require(taken.ballPosition(at: arrival.addingTimeInterval(0.05)))
+        let taken = HomerunSwingPlan(phase: .ballResult, clock: clock(), lastBall: HomerunJudge.judge(nil))
+        let after = try! #require(taken.ballPosition(at: ballArrival.addingTimeInterval(0.05)))
         #expect(after.z < pA.z)
-        #expect(taken.ballPosition(at: arrival.addingTimeInterval(1.0)) == nil, "ミットに入った後は消える")
+        #expect(taken.ballPosition(at: ballArrival.addingTimeInterval(1.0)) == nil, "ミットに入った後は消える")
     }
 
-    @Test("当たり: 離した瞬間に球はその打点（バットの上面）に置かれ、判定の方向へ飛び出す（左は -x・右は +x・上向き）")
+    @Test("当たり: 離した瞬間の球の位置から、バットが打点に来る時刻に打点（バットの上面）へ寄せ、判定の方向へ飛び出す")
     func battedBall() {
         let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
         #expect(center.kind == .homer)
-        let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: arrival, offset: 0), isHolding: false, lastBall: center)
-        let c = try! #require(plan.ballPosition(at: arrival))
-        #expect(simd_distance(c, HomerunSwingContact.contactPoint(column: 0, offsetMilliseconds: 0)) < 1e-6)
-        let later = try! #require(plan.ballPosition(at: arrival.addingTimeInterval(0.3)))
+        let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: arrival, offset: 0), lastBall: center)
+        let pitching = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: t0), lastBall: nil)
+        // 離した瞬間は投球の線の上のまま（跳ばない）。
+        let r = try! #require(plan.ballPosition(at: arrival))
+        #expect(simd_distance(r, try! #require(pitching.ballPosition(at: arrival))) < 1e-5)
+        let hitAt = HomerunSwingContact.contactTime(release: arrival, offsetMilliseconds: 0, column: 0)
+        let c = try! #require(plan.ballPosition(at: hitAt))
+        #expect(simd_distance(c, HomerunSwingContact.contactPoint(column: 0, offsetMilliseconds: 0)) < 1e-5)
+        let later = try! #require(plan.ballPosition(at: hitAt.addingTimeInterval(0.3)))
         #expect(later.z > c.z + 5 && later.y > c.y, "中堅へ上向きに飛ぶ \(later)")
         let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 22))
         #expect(pull.direction < -20)
@@ -248,11 +228,11 @@ struct HomerunSwingContactTests {
         #expect(simd_length(HomerunBallFlight.battedVelocity(center)) > 35 && simd_length(HomerunBallFlight.battedVelocity(center)) < 45)
         let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: 22))
         #expect(foul.kind == .foul && abs(simd_length(HomerunBallFlight.battedVelocity(foul)) - 28) < 1e-3)
-        // 空振り（芯を外した）は打点に置かず、投球の線のままミットへ。
-        let whiff = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 30, cursorDY: 0))
+        // 空振り（照準を外した）は打点に寄せず、投球の線のままミットへ。
+        let whiff = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 40, cursorDY: 0))
         #expect(whiff.kind == .miss)
-        let whiffPlan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: arrival, offset: 0), isHolding: false, lastBall: whiff)
-        let w = try! #require(whiffPlan.ballPosition(at: arrival))
+        let whiffPlan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: arrival, offset: 0), lastBall: whiff)
+        let w = try! #require(whiffPlan.ballPosition(at: hitAt))
         #expect(abs(w.y - c.y - (HomerunSwingContact.approachLift - HomerunSwingContact.contactLift)) < 1e-4, "空振りの球はバットの 10cm 上を抜ける")
     }
 
@@ -265,7 +245,7 @@ struct HomerunSwingContactTests {
         return simd_distance(ball, a + ab * k)
     }
 
-    @Test("当たった瞬間はバットと球が触れ（軸から半径の和）、見送り・空振りでは球がバットを通り抜けない（表面どうしが離れている）")
+    @Test("当たった瞬間はバットと球が触れ（軸から半径の和）、ジャストで照準を外した空振りでは球がバットを通り抜けない")
     func contactAndNoPassThrough() {
         let touching = HomerunBatPath.barrelRadius + HomerunSwingContact.ballRadius
         for column in -1...1 {
@@ -273,23 +253,26 @@ struct HomerunSwingContactTests {
                 let release = arrival.addingTimeInterval(offset / 1000)
                 let ball = HomerunJudge.judge(HomerunSwing(timingOffset: offset, cursorDX: 0, cursorDY: 22))
                 let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: 4 + column, pressedAt: t0, releasedAt: release, offset: offset),
-                                            isHolding: false, lastBall: ball)
+                                            lastBall: ball)
                 guard case .swing(let start) = plan.batterMotion(at: release) else { Issue.record("振っていない"); continue }
-                let clip = HomerunSwingContact.swingClipStart + release.timeIntervalSince(start)
-                let d = batDistance(clipTime: clip, ball: try! #require(plan.ballPosition(at: release)))
+                #expect(start == release)
+                let hitAt = HomerunSwingContact.contactTime(release: release, offsetMilliseconds: offset, column: column)
+                let clip = HomerunSwingContact.swingClipStart + hitAt.timeIntervalSince(start)
+                let d = batDistance(clipTime: clip, ball: try! #require(plan.ballPosition(at: hitAt)))
                 #expect(abs(d - touching) < 0.005, "列 \(column)・ずれ \(offset)ms: 当たった瞬間のバットと球の距離 \(d)")
             }
-            // 見送り（押したまま）: 逆算の振りが球の通り道を通る間、球はバットの表面から 2cm 以上離れている。
-            let taken = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: 4 + column, pressedAt: t0), isHolding: true, lastBall: HomerunJudge.judge(nil))
-            let start = HomerunSwingContact.swingStart(arrival: arrival, column: column)
+            // ジャストに離して照準を外した空振り: バットが球の通り道を通る間、球はバットの表面から 2cm 以上離れている。
+            let whiff = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 40, cursorDY: 0))
+            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: 4 + column, pressedAt: t0, releasedAt: arrival, offset: 0),
+                                        lastBall: whiff)
             var minGap: Float = .infinity
-            for dt in stride(from: -0.3, through: 0.4, by: 1.0 / 240) {
+            for dt in stride(from: -0.3, through: 0.6, by: 1.0 / 240) {
                 let now = arrival.addingTimeInterval(dt)
-                guard let ball = taken.ballPosition(at: now) else { continue }
-                let clip = HomerunSwingContact.swingClipStart + max(now.timeIntervalSince(start), 0)
+                guard let ball = plan.ballPosition(at: now) else { continue }
+                let clip = HomerunSwingContact.swingClipStart + max(now.timeIntervalSince(arrival), 0)
                 minGap = min(minGap, batDistance(clipTime: clip, ball: ball) - touching)
             }
-            #expect(minGap > 0.02, "列 \(column): 見送りで球がバットに \(minGap)m まで近づく")
+            #expect(minGap > 0.02, "列 \(column): 空振りで球がバットに \(minGap)m まで近づく")
         }
     }
 
@@ -300,10 +283,10 @@ struct HomerunSwingContactTests {
             let release = arrival.addingTimeInterval(offset / 1000)
             let miss = HomerunJudge.judge(HomerunSwing(timingOffset: offset, cursorDX: 0, cursorDY: 22))
             #expect(miss.kind == .miss)
-            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), isHolding: false, lastBall: miss)
+            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), lastBall: miss)
             guard case .swing(let start) = plan.batterMotion(at: release) else { Issue.record("振っていない"); continue }
             var minGap: Float = .infinity
-            for dt in stride(from: -0.4, through: 0.6, by: 1.0 / 240) {
+            for dt in stride(from: -0.4, through: 0.8, by: 1.0 / 240) {
                 let now = arrival.addingTimeInterval(dt)
                 guard let ball = plan.ballPosition(at: now) else { continue }
                 let clip = HomerunSwingContact.swingClipStart + max(now.timeIntervalSince(start), 0)
@@ -338,7 +321,7 @@ struct HomerunSwingContactTests {
         model.advance(now: arrival.addingTimeInterval(5))
         #expect(model.phase == .pitching && model.ballClock?.zone == 0)
         #expect(model.ballClock?.pressedAt == nil && model.ballClock?.releasedAt == nil)
-        #expect(model.ballClock?.practiceSwingAt == nil, "素振りは次の球に持ち越さない")
+        #expect(model.ballClock?.practiceSwingAt == nil, "振り終わった素振りは次の球に持ち越さない")
         model.press(at: .zero, now: arrival.addingTimeInterval(5.1))
         model.advance(now: arrival.addingTimeInterval(5 + HomerunModel.windup + HomerunModel.travel + 1))   // 見送り
         model.advance(now: arrival.addingTimeInterval(5 + HomerunModel.windup + HomerunModel.travel + 3))   // 次の球
