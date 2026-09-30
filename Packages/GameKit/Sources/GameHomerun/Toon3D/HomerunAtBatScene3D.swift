@@ -28,10 +28,7 @@ enum HomerunAtBatLayout {
     }
     /// 捕手は本塁の少し打者と反対側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける（審判は無し・会長決裁 2026-09-30・#1617）。
     static let catcher = Placement(position: [-0.6, 0, -2.2], yaw: 0)
-    /// 投手はマウンドの上・本塁に向く（カメラに背中）。
-    static let pitcher = Placement(position: [0, 0.3, 17.4], yaw: .pi)
-
-    /// 人物（打者・投手・捕手）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
+    /// 人物（打者・捕手）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
     /// 反転を打ち消す（そのままだと右打ちの Meshy の打者が画面の右に立つ左打ちに見える）。これで後ろから見て右打者が
     /// 画面の左に右打ちで立ち、捕手は画面の右へ逃げる。判定・座標・HUD は鏡映しない。
     /// 描画では人物を鏡映せず、カメラ側を鏡映して同じ画を作る（`Camera.renderPose`）。
@@ -105,12 +102,12 @@ enum HomerunAtBatLayout {
     /// `rawValue` は保存に使うので変えない。
     enum CameraPreset: String, CaseIterable, Sendable {
         /// 前: 中継のセンターカメラ（本塁から 28m・高さ 4.5m・望遠 9.6°）。会長指示「おじさん遠すぎ」（2026-09-29）で 43m・6m から寄せ、
-        /// 打者の背丈を画面の高さの 23% → 36% にした。投手（マウンド 17.4m）はカメラの 10.6m 前で画角の下に外れる
-        /// （投手はバッティングマシンに置き換える予定なので画面内の制約を外した）。
+        /// 打者の背丈を画面の高さの 23% → 36% にした。マウンドのバッティングマシン（17.6m・#1612）は
+        /// カメラの 10.4m 前で画角の下に外れて映らない（会長決裁でそのまま）。
         case front
         /// 後ろ: 本塁の 5.5m 後ろ・三塁側へ 0.5m（打者の側）・高さ 2.6m から、ストライクゾーンを見下ろす（画角 50°）。
         /// 打者の背丈は画面の高さの 31%（7.5m・3m・53° のときの 22% から寄せた・会長指示 2026-09-29）。
-        /// 捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥に投手・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
+        /// 捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥にマウンドのマシン・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
         /// 三塁側へずらすのは、真後ろだと手前の捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす）。
         case back
 
@@ -187,23 +184,17 @@ extension HomerunAtBatLayout {
 
     /// 目標へ寄せる速さ（m/秒）。踏み込みの寄り（0.25m / 0.63 秒 ≒ 0.4m/秒）には遅れず、構えへ戻るときは瞬間移動に見えない速さ。
     static let batterSlideSpeed: Float = 0.8
-
-    /// いまの局面での投手のポーズ。投手のモーション中（的が出る前・`elapsed` が負）は振りかぶり、
-    /// 的が出た後（リリース）〜結果の間はリリースのまま止める。
-    static func pitcherPose(phase: HomerunModel.Phase, elapsed: TimeInterval?) -> HomerunOjisanPose3 {
-        guard phase == .pitching, let elapsed, elapsed < 0 else { return .pitch }
-        return .windup
-    }
 }
 
-/// 3D の打席シーン（球場 + 打者・投手・捕手）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
+/// 3D の打席シーン（球場 + 打者・捕手・マウンドのバッティングマシン）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
 ///
 /// **当たり判定を持たない**（`allowsHitTesting(false)`）。3D は UIKit の `ARView` なので、当たり判定を残すと
 /// 手前に重ねた押せる帯（`HomerunAtBatView.touchPad`）へのドラッグを `ARView` が吸ってしまい、
 /// カーソルが動かずスイングもできなくなる（会長 QA 2026-09-28。チャリンコ・ブロックの SpriteView と同じ扱い）。
 struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
-    var pitcherPose: HomerunOjisanPose3 = .pitch
+    /// バッティングマシンの動き（`HomerunMachineMotion.state`・#1612）。
+    var machine = HomerunMachineMotion.state(elapsed: nil, now: .distantPast)
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
     /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を流し直す（振り抜きは `start` からの経過ぶん進めた所から）。
     var batterMotion: HomerunBatterMotion = .stance
@@ -220,7 +211,7 @@ struct HomerunAtBatScene3DView: View {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
+            HomerunAtBatSceneView(batterPose: batterPose, machine: machine, camera: cameraPreset.camera,
                                   batterMotion: batterMotion, ballPosition: ballPosition, now: now, onFirstFrame: onFirstFrame)
             #endif
         }
@@ -242,7 +233,7 @@ enum HomerunAtBatSceneReuse {
 
 private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
-    let pitcherPose: HomerunOjisanPose3
+    let machine: HomerunMachineMotion.State
     let camera: HomerunAtBatLayout.Camera
     let batterMotion: HomerunBatterMotion
     let ballPosition: SIMD3<Float>?
@@ -255,15 +246,14 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     /// 落ち着かない端末でもこのコマ数で合図を出す。
     static let maxFramesBeforeReady = 60
 
-    /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。打者は Meshy のモデルが読めればそれ
+    /// 打者の実体（ポーズが変わったら差し替える）・マシン（動く部品の位置・向きを毎コマ変える）とカメラ（案が変わったら向け直す）。打者は Meshy のモデルが読めればそれ
     /// （`batterRig`）を使い、読めなければ旧モデル（プリミティブで組んだおじさん）をポーズごとに差し替える。
     final class Coordinator {
         var batterRig: HomerunBatterRig?
         var batterMotion: HomerunBatterMotion = .stance
         var batter: Entity?
         var batterPose: HomerunOjisanPose3?
-        var pitcher: Entity?
-        var pitcherPose: HomerunOjisanPose3?
+        var machine: HomerunMachineRig?
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
         var ball: ModelEntity?
@@ -364,10 +354,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             context.coordinator.batter = batter
             context.coordinator.batterPose = batterPose
         }
-        let pitcher = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
-        anchor.addChild(pitcher)
-        context.coordinator.pitcher = pitcher
-        context.coordinator.pitcherPose = pitcherPose
+        let machine = HomerunMachineRig()
+        machine.apply(self.machine)
+        anchor.addChild(machine.entity)
+        context.coordinator.machine = machine
         place(.catcher(), HomerunAtBatLayout.catcher)
         let ball = Self.makeBall()
         anchor.addChild(ball)
@@ -441,13 +431,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             c.batter = new
             c.batterPose = batterPose
         }
-        if c.pitcherPose != pitcherPose, let old = c.pitcher, let parent = old.parent {
-            let new = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
-            parent.addChild(new)
-            parent.removeChild(old)
-            c.pitcher = new
-            c.pitcherPose = pitcherPose
-        }
+        c.machine?.apply(machine)
         if c.camera != camera, let cam = c.cameraEntity {
             Self.aim(cam, camera)
             c.camera = camera

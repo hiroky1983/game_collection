@@ -48,10 +48,10 @@ struct HomerunAtBatView: View {
                 let plan = HomerunSwingPlan(model: model)
                 ZStack(alignment: .top) {
                     // 打席の 3D は外野カメラの間も消さずに下へ残す（if / else で作り直すと、次の球の頭で打席の 3D を
-                    // 作り直す間（約 0.6〜1 秒）画面が止まり、投手のモーションが見えないまま的が出ていた・E2E で実測）。
+                    // 作り直す間（約 0.6〜1 秒）画面が止まり、投球の前の動きが見えないまま的が出ていた・E2E で実測）。
                     HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                          batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
-                                         pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
+                                         machine: HomerunMachineMotion.state(elapsed: model.pitchElapsed(at: now), now: now),
                                          cameraPreset: model.atBatCamera,
                                          batterMotion: plan.batterMotion(at: now),
                                          ballPosition: isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera) : nil,
@@ -346,7 +346,7 @@ struct HomerunAtBatView: View {
 struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
-    var pitcherPose: HomerunOjisanPose3 = .pitch
+    var machine = HomerunMachineMotion.state(elapsed: nil, now: .distantPast)
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
     var batterMotion: HomerunBatterMotion = .stance
     var ballPosition: SIMD3<Float>? = nil
@@ -356,7 +356,7 @@ struct HomerunAtBatBackdrop: View {
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
+        HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
                                 batterMotion: batterMotion, ballPosition: ballPosition, now: now,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else

@@ -17,10 +17,11 @@ import XCTest
 /// - `E2E_LATENCY`: 投球の開始を読んでから離すまでの遅れの補正（秒・既定 `defaultLatency`）
 /// - `E2E_SHIFT`: 全球の離す時刻のずれ（秒・`plan` の代わり）。負にすると全球で振る（Mac が重く離すのが遅れるときの確認用）
 /// - `E2E_CAMERA`: 打席のカメラ（`front` / `back`・既定 `front`）
+/// - `E2E_RESTART_SHOT`: もう一回の直後の画を `restart-start.png` に撮る（撮ると 1 球目の始まりを読み遅れることがある）
 @MainActor
 final class HomerunE2ETests: XCTestCase {
-    /// 的が出るまで（投手のモーション・`HomerunModel.windup`）。
-    static let windup: TimeInterval = 0.8
+    /// 的が出るまで（マシンが球を込める時間・`HomerunModel.windup`）。
+    static let windup: TimeInterval = 1.2
     /// 的が出てから輪が的に重なるまで（`HomerunPitch.travelMilliseconds`）。
     static let travel: TimeInterval = 1.2
     /// ゾーンの 1 マス（pt・`HomerunZoneGeometry.cellSize`）。
@@ -77,10 +78,13 @@ final class HomerunE2ETests: XCTestCase {
         for _ in 0..<4 where !(again.exists && again.isHittable) { app.swipeUp() }
         XCTAssertTrue(again.waitForExistence(timeout: 10), "もう一回 が出ない")
         again.tap()
-        // 始めた直後を 1 枚だけ撮る（撮るのに時間がかかり、長く撮ると 1 球目の投球の始まりを読み逃す）。
-        // 直後に前の挑戦の画（振り終わりの打者・ミット直前の球）が残っていないかは、この 1 枚と録画で見る。
-        let shot = XCUIScreen.main.screenshot()
-        if let shotDir { try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent("restart-start.png")) }
+        // 始めた直後を 1 枚だけ撮る（`E2E_RESTART_SHOT` があるときだけ）。直後に前の挑戦の画（振り終わりの打者・ミット直前の球）が
+        // 残っていないかは、この 1 枚と録画で見る。撮るのに約 1 秒かかり、その間に 1 球目の投球が始まると始まりを読み遅れて
+        // 見送りになる（#1612 で撮ると 4 回続けて見送り・撮らなければ当たり。投手をマシンに替えて描き始めが撮影中に来るようになったと見ている）ので既定では撮らない。
+        if env["E2E_RESTART_SHOT"] != nil {
+            let shot = XCUIScreen.main.screenshot()
+            if let shotDir { try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent("restart-start.png")) }
+        }
         let again1 = playChallenge(app: app, latency: latency, shotDir: shotDir, prefix: "restart", count: 1)
         print("E2E-RESTART\n\(again1.joined(separator: "\n"))")
         if let shotDir { try? again1.joined(separator: "\n").write(to: shotDir.appendingPathComponent("restart.txt"), atomically: true, encoding: .utf8) }
