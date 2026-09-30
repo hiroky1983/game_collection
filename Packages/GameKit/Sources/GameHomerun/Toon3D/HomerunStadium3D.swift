@@ -48,7 +48,19 @@ extension HomerunToonModel {
         static var roofHeight: Float { height(row: rows - 1) + 4.2 }
     }
 
-    /// 球場（メートル。本塁が原点・+z がセンター・左右対称。RealityKit は右手系なので描画の上では +x が三塁側（打球の置き方は `HomerunAtBatLayout.pullSideX`・`HomerunOutfieldLayout.point`）。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
+    /// バッターボックスの白線（m・本塁が原点・左右に 1 つずつ）。線の中心の位置で、線の幅は `line`。
+    /// 打者の足がこの中に収まることをテストで固定する（#1619）。
+    enum BatterBox {
+        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.29・外側の線 = 1.51）。
+        static let centerX: Float = 0.9, width: Float = 1.22
+        /// 前（投手側）・後ろ（捕手側）の線の z と、横の線の長さ。
+        static let frontZ: Float = 0.9, backZ: Float = -0.93, sideLength: Float = 1.83
+        static let line: Float = 0.06
+        static var innerX: Float { centerX - width / 2 }
+        static var outerX: Float { centerX + width / 2 }
+    }
+
+    /// 球場（メートル。本塁が原点・+z がセンター・左右対称。RealityKit は右手系なので描画の上では +x が三塁側（打球の置き方は `HomerunAtBatLayout.pullSideX`・`HomerunBallChase.world`）。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
     /// 柵の距離は判定と同じ `HomerunJudge.fence`。数千個の箱を色ごとのメッシュ 1 個にまとめてある（`merged()`）。
     ///
     /// スタンドは本塁を中心とする 1 周の極座標（`standFront`）で組む: 外野は柵に沿う弧、両翼はファウルラインに平行な直線、
@@ -87,12 +99,13 @@ extension HomerunToonModel {
         // 本塁（五角形 = 長方形 + 45° に回した正方形の和。頂点は原本と同じ (±0.216, 0)・(±0.216, -0.216)・(0, -0.432)）・バッターボックス
         m.box(0.432, 0.02, 0.216, C.white, at: [0, 0.07, -0.108], outline: 0)
         m.box(0.3055, 0.02, 0.3055, C.white, at: [0, 0.07, -0.216], outline: 0, yaw: quarter)
+        typealias B = BatterBox
         for s: Float in [-1, 1] {
-            let cx = s * 0.9
-            m.box(1.22, 0.02, 0.06, C.white, at: [cx, 0.07, 0.9], outline: 0)
-            m.box(1.22, 0.02, 0.06, C.white, at: [cx, 0.07, -0.93], outline: 0)
-            m.box(0.06, 0.02, 1.83, C.white, at: [cx - s * 0.61, 0.07, 0], outline: 0)
-            m.box(0.06, 0.02, 1.83, C.white, at: [cx + s * 0.61, 0.07, 0], outline: 0)
+            let cx = s * B.centerX
+            m.box(B.width, 0.02, B.line, C.white, at: [cx, 0.07, B.frontZ], outline: 0)
+            m.box(B.width, 0.02, B.line, C.white, at: [cx, 0.07, B.backZ], outline: 0)
+            m.box(B.line, 0.02, B.sideLength, C.white, at: [cx - s * B.width / 2, 0.07, 0], outline: 0)
+            m.box(B.line, 0.02, B.sideLength, C.white, at: [cx + s * B.width / 2, 0.07, 0], outline: 0)
         }
         // フェンス（ラバーの継ぎ目 = 横 2 本・縦は 3° ごと・足元の暗い帯）・黄色の上線・ウォーニングトラック。
         // 柵の距離は方向で変わるので、隣の点を結ぶ弦の向きで板を回す。

@@ -16,8 +16,9 @@ public struct ChessModule: GameModule {
     }
 
     /// 将棋と同じく終局後の見返しも中断データに残る（`ChessGameModel.persist`）。検討に入った局には
-    /// 続きが無い（#809）。
+    /// 続きが無い（#809）。一手も指していない局も「続き」ではない（#1572・#1599）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
-        snapshots.load(ChessSnapshot.self, for: id)?.phase == .playing
+        guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return false }
+        return snap.phase == .playing && !snap.moves.isEmpty
     }
 }

@@ -18,6 +18,7 @@ import XCTest
 /// - `E2E_SHIFT`: 全球の離す時刻のずれ（秒・`plan` の代わり）。負にすると全球で振る（Mac が重く離すのが遅れるときの確認用）
 /// - `E2E_CAMERA`: 打席のカメラ（`front` / `back`・既定 `front`）
 /// - `E2E_RESTART_SHOT`: もう一回の直後の画を `restart-start.png` に撮る（撮ると 1 球目の始まりを読み遅れることがある）
+/// - `E2E_CHASE_SHOTS`: 付けると、当たり以上の球で離してから結果のカードが出るまで（打球を追うカメラ・#1613）を数コマ撮る
 @MainActor
 final class HomerunE2ETests: XCTestCase {
     /// 的が出るまで（マシンが球を込める時間・`HomerunModel.windup`）。
@@ -124,11 +125,32 @@ final class HomerunE2ETests: XCTestCase {
                        withVelocity: XCUIGestureVelocity(rawValue: Self.dragSpeed), thenHoldForDuration: hold)
 
             let card = cardQuery.firstMatch
+            // 打球を追うカメラ（#1613）: 離してから結果のカードが出るまでを数コマ撮る（当たり以上のときだけ残す）。
+            // 撮るのに時間がかかり、見送り・空振りの判定の時刻には影響しない（離した後に撮る）が、既定では撮らない。
+            var chaseShots: [XCUIScreenshot] = []
+            if ProcessInfo.processInfo.environment["E2E_CHASE_SHOTS"] != nil {
+                let released = Date()
+                while !card.exists, Date().timeIntervalSince(released) < 4, chaseShots.count < 8 {
+                    chaseShots.append(XCUIScreen.main.screenshot())
+                    Thread.sleep(forTimeInterval: 0.15)
+                }
+            }
             guard Self.poll(timeout: 6, { card.exists }) != nil else {
                 XCTFail("\(number) 球目の結果のカードが出ない"); break
             }
             let result = card.label
             results.append("\(number)球目 ずれ\(Int(shift * 1000))ms 下へ\(Int(pitch.low))pt [\(label)] → \(result)")
+            if !result.contains("空振り"), !result.hasSuffix("見送り") {
+                for (k, shot) in chaseShots.enumerated() {
+                    let attachment = XCTAttachment(screenshot: shot)
+                    attachment.name = "\(prefix)-\(number)-chase-\(k)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                    if let shotDir {
+                        try? shot.pngRepresentation.write(to: shotDir.appendingPathComponent(String(format: "%@-%02d-chase-%d.png", prefix, number, k)))
+                    }
+                }
+            }
             // カードは縮小から出てくるので、出きってから撮る。
             Thread.sleep(forTimeInterval: 0.3)
             let shot = XCUIScreen.main.screenshot()

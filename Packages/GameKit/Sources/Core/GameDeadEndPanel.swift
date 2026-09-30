@@ -47,7 +47,7 @@ public struct GameDeadEndPanel<Buttons: View>: View {
         VStack(spacing: 20) {
             Text(emoji).font(.system(size: 52))
             Text(title)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .themeBody(20, weight: .bold)
                 .foregroundStyle(Theme.ink)
             Text(message)
                 .themeBody(15, weight: .semibold)

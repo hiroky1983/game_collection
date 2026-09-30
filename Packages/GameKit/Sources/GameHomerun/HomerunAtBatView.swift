@@ -4,7 +4,7 @@ import HomerunCore
 
 /// 打席（`31-at-bat-3D` の 2D 仮絵）。全画面でバナー無し。
 ///
-/// 上端: 球数 / 今回の合計 / 柵越え本数 + 直前 2 球のチップ・方向メーター。中央やや上: 9 分割のゾーン・的・縮む輪・
+/// 上端: 球数 / 今回の合計 / 柵越え本数・方向メーター（直前 2 球のチップは置かない・#1613）。中央やや上: 9 分割のゾーン・的・縮む輪・
 /// ミートカーソル。下 1/3: 押せる帯（受け口の円は置かない）と案内 1 本・押している指の残像。
 ///
 /// ゾーン・的・カーソルは画面の上寄り（高さの 45%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
@@ -13,7 +13,7 @@ struct HomerunAtBatView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 押している指の位置（残像の描画用・押せる帯の座標）。
     @State private var fingerPoint: CGPoint?
-    /// 振った球の結果に入ってから、打者の振り抜きを見せ終えたか（外野カメラへの切り替えと結果のカードをそれまで待つ・試作）。
+    /// 振った球の結果に入ってから、打球（当たり以上は打球を追うカメラで止まるまで・#1613）を見せ終えたか（結果のカードをそれまで待つ）。
     @State private var swingShown = false
     /// 結果フェーズ中の素振り（`practiceSwingAt`）が振り終えたか。振り終えた後は `TimelineView` を止める（CodeRabbit 指摘）。
     @State private var practiceSwingExpired = false
@@ -23,9 +23,9 @@ struct HomerunAtBatView: View {
     /// ここから同じシートを開く）。
     @Environment(\.howToPlayTrigger) private var howToPlay
 
-    /// 離した瞬間から外野カメラ・結果のカードへ切り替えるまでの時間（秒）。振りは離した瞬間に始まり（#1594）、
-    /// 打点のコマ（約 26 コマ目）まで約 0.2 秒・フォロースルーの終わり（44 コマ目）まで 0.8 秒。当たり以上はその間、
-    /// 3D の球がバットから飛び出すのを打席のカメラで見せる。空振り・見送りは理由を早く読めるよう短く。
+    /// 離した瞬間から結果のカードへ切り替えるまでの時間（秒）。空振り・見送りは理由を早く読めるよう短く。
+    /// 当たり以上は打球を追うカメラで打球が止まるまで待つ（`HomerunSwingPlan.chaseCardAt`・#1613）。ここの値はその時刻が
+    /// 分からないとき（振った時刻の記録が無いとき）の控えで、振り抜き（フォロースルーの終わり・0.8 秒）まで。
     static func swingShowDuration(for kind: HomerunKind?) -> TimeInterval {
         switch kind {
         case .inPlay, .fenceHit, .homer, .foul: HomerunBatterMotion.swingDuration
@@ -46,22 +46,25 @@ struct HomerunAtBatView: View {
             TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: !isAnimating)) { timeline in
                 let now = timeline.date
                 let plan = HomerunSwingPlan(model: model)
+                // 当たり以上は、当たった直後から打席の 3D のカメラを打球の後ろへ回して追う（#1613。外野カメラの静止ショットと
+                // 外野手の置き換え）。打席の 3D をそのまま使い、球場・`ARView` を作り足さない。
+                let chase = plan.chaseFrame(at: now)
                 ZStack(alignment: .top) {
-                    // 打席の 3D は外野カメラの間も消さずに下へ残す（if / else で作り直すと、次の球の頭で打席の 3D を
-                    // 作り直す間（約 0.6〜1 秒）画面が止まり、投球の前の動きが見えないまま的が出ていた・E2E で実測）。
                     HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                          batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                          machine: HomerunMachineMotion.state(elapsed: model.pitchElapsed(at: now), now: now),
                                          cameraPreset: model.atBatCamera,
+                                         cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
-                                         ballPosition: isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera) : nil,
+                                         ballPosition: chase?.ball
+                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera) : nil),
+                                         ballScale: chase?.ballScale ?? 1,
                                          now: now,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
                                          onFirstFrame: { model.atBatDidAppear(now: Date()) })
-                    if showsOutfield, let ball = model.lastBall {
-                        HomerunOutfieldScene3DView(ball: ball).ignoresSafeArea()
-                    } else {
+                    // 打球を追っている間は、ゾーン・的・カーソルを出さない。
+                    if chase == nil {
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             // 打席の 3D が描き始める前（1 球目を数え直す前）は的と輪を出さない。
@@ -118,11 +121,14 @@ struct HomerunAtBatView: View {
         } message: {
             Text("この挑戦はここで終わり、使った回数は戻りません。")
         }
-        // 外野カメラ・結果のカードへ切り替える前に、打席で当たった瞬間と打球（見送り・空振りならミットへ入る球）を見せる。
+        // 結果のカードを出す前に、打球（当たり以上は追うカメラで止まるまで・見送り・空振りならミットへ入る球）を見せる。
         .task(id: model.step) {
             swingShown = false
             guard model.phase == .ballResult else { return }
-            try? await Task.sleep(for: .seconds(Self.swingShowDuration(for: model.lastBall?.kind)))
+            // 一時停止から戻ったときなど、打球がもう止まっていれば待たずに出す。
+            let wait = HomerunSwingPlan(model: model).chaseCardAt?.timeIntervalSinceNow
+                ?? Self.swingShowDuration(for: model.lastBall?.kind)
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             guard !Task.isCancelled else { return }
             withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
         }
@@ -220,12 +226,6 @@ struct HomerunAtBatView: View {
         return reason.map(HomerunText.missReason)
     }
 
-    /// 当たり以上（外野へ飛んだ）の結果は外野カメラの静止ショットに切り替える（README §3.2）。
-    private var showsOutfield: Bool {
-        guard model.phase == .ballResult, swingShown, let kind = model.lastBall?.kind else { return false }
-        return kind == .inPlay || kind == .fenceHit || kind == .homer
-    }
-
     private var zoneLabel: String {
         guard model.phase == .pitching, !model.awaitsAtBat, let pitch = model.currentPitch else { return "ストライクゾーン" }
         let rows = ["高め", "真ん中の高さ", "低め"]
@@ -235,36 +235,31 @@ struct HomerunAtBatView: View {
 
     // MARK: 上端の HUD
 
+    /// 上端の「今回 ◯m」と「柵越え ◯」に数える球。結果のカードを出すまで（打球を追っている間）は直前の球を数えない
+    /// （当たった瞬間に数字が増えると、入ったかどうかが先に分かってしまう・会長 QA 2026-09-30・#1613）。
+    static func hudTotals(results: [HomerunBattedBall], revealsLast: Bool) -> (distance: Double, homers: Int) {
+        let shown = revealsLast ? results[...] : results.dropLast()
+        return (shown.reduce(0) { $0 + $1.distance }, shown.filter { $0.kind == .homer }.count)
+    }
+
+    /// 上端の HUD。直前 2 球のチップ（「1 球目 柵越え …」）は置かない（当たった直後に結果が分かってしまう・会長 QA 2026-09-30）。
     private var topHUD: some View {
-        let challenge = model.challenge
-        let results = challenge?.results ?? []
-        return VStack(spacing: 6) {
-            HStack(alignment: .center) {
-                hudPill(systemImage: "baseball.fill",
-                        text: "\(max(model.pitchNumber, 1)) / \(HomerunChallenge.pitchCount) 球")
-                Spacer()
-                VStack(spacing: 0) {
-                    Text("今回").themeCaption(11).foregroundStyle(.white.opacity(0.9))
-                    Text(verbatim: HomerunText.meters(challenge?.totalDistance ?? 0))
-                        .font(.system(size: 30, weight: .black, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                }
-                .accessibilityElement(children: .combine)
-                Spacer()
-                hudPill(systemImage: "flag.checkered", text: "柵越え \(challenge?.homerCount ?? 0)")
-            }
-            HStack(spacing: 6) {
-                ForEach(Array(results.enumerated().suffix(2)), id: \.offset) { index, ball in
-                    Text(verbatim: "\(index + 1) 球目 \(HomerunText.headline(ball))")
-                        .themeCaption(11)
-                        .lineLimit(1)
-                        .foregroundStyle(ball.kind == .homer ? Theme.onAccent : Theme.ink)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Capsule().fill(ball.kind == .homer ? Theme.Fill.yellow : Theme.surface.opacity(0.9)))
-                }
+        let totals = Self.hudTotals(results: model.challenge?.results ?? [],
+                                    revealsLast: model.phase != .ballResult || swingShown)
+        return HStack(alignment: .center) {
+            hudPill(systemImage: "baseball.fill",
+                    text: "\(max(model.pitchNumber, 1)) / \(HomerunChallenge.pitchCount) 球")
+            Spacer()
+            VStack(spacing: 0) {
+                Text("今回").themeCaption(11).foregroundStyle(.white.opacity(0.9))
+                Text(verbatim: HomerunText.meters(totals.distance))
+                    .font(.system(size: 30, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
             }
             .accessibilityElement(children: .combine)
+            Spacer()
+            hudPill(systemImage: "flag.checkered", text: "柵越え \(totals.homers)")
         }
     }
 
@@ -348,8 +343,12 @@ struct HomerunAtBatBackdrop: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var machine = HomerunMachineMotion.state(elapsed: nil, now: .distantPast)
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
+    /// 打球を追うカメラ（#1613）。nil なら `cameraPreset`。
+    var cameraOverride: HomerunAtBatLayout.Camera? = nil
     var batterMotion: HomerunBatterMotion = .stance
     var ballPosition: SIMD3<Float>? = nil
+    /// 球の拡大率（打球を追う間は大きく見せる）。
+    var ballScale: Float = 1
     var now: Date = Date()
     /// 背景を描き始めたときに 1 回だけ呼ぶ（3D は最初の数コマを描いた後）。
     var onFirstFrame: (@MainActor () -> Void)? = nil
@@ -357,7 +356,8 @@ struct HomerunAtBatBackdrop: View {
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
-                                batterMotion: batterMotion, ballPosition: ballPosition, now: now,
+                                cameraOverride: cameraOverride, batterMotion: batterMotion,
+                                ballPosition: ballPosition, ballScale: ballScale, now: now,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
