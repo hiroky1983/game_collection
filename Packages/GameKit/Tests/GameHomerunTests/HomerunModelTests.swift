@@ -696,6 +696,28 @@ struct HomerunModelTests {
         #expect(model.resultUntil == back.addingTimeInterval(HomerunModel.resultDuration(for: .miss)))
     }
 
+    @Test("打球を追っている間に止めたら、戻ったときは止めた所から追い直す（#1613）")
+    func pauseDuringChaseResumesTheFlight() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
+        _ = try arrival(model)
+        let ball = try #require(try swing(model, dx: 0, dy: 22, offset: 0))
+        #expect(ball.kind != .miss)
+        let contact = try #require(HomerunSwingPlan(model: model).contactAt)
+        let paused = contact.addingTimeInterval(0.5)
+        let before = try #require(HomerunSwingPlan(model: model).chaseFrame(at: paused))
+        model.pause(now: paused)
+        let back = paused.addingTimeInterval(30)
+        model.resume(now: back)
+        let plan = HomerunSwingPlan(model: model)
+        #expect(plan.chaseFrame(at: back) == before, "止めた所から続かない")
+        let card = try #require(plan.chaseCardAt)
+        #expect(card > back, "戻った直後にカードが出てしまう")
+        #expect(try #require(model.resultUntil).timeIntervalSince(card) >= HomerunBallChase.cardHold - 1e-6)
+    }
+
     @Test("step は進行が変わるたびに進む（View の待ちの鍵）")
     func stepAdvances() throws {
         let f = Fixture()

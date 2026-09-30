@@ -27,14 +27,14 @@ struct HomerunBatter3DTests {
         let source = try toon3DSources()
         let made = SourceScan.matchCount(of: #"ARView\(frame:"#, in: source)
         let disabled = SourceScan.matchCount(of: #"isUserInteractionEnabled = false"#, in: source)
-        #expect(made >= 3, "ARView の生成が見つからない（\(made) 件）")
+        #expect(made >= 2, "ARView の生成が見つからない（\(made) 件）")
         #expect(disabled == made, "ARView \(made) 個のうち触りを止めているのは \(disabled) 個")
     }
 
     @Test("3D を置く SwiftUI の View は当たり判定を持たない（allowsHitTesting(false)）")
     func sceneViewsDoNotHitTest() throws {
         let source = try toon3DSources()
-        for header in ["struct HomerunAtBatScene3DView", "struct HomerunOutfieldScene3DView", "struct HomerunOjisan3DView"] {
+        for header in ["struct HomerunAtBatScene3DView", "struct HomerunOjisan3DView"] {
             let body = try #require(SourceScan.declaration(of: header, in: source), "\(header) が無い")
             #expect(body.contains(".allowsHitTesting(false)"), "\(header) に当たり判定が残っている")
         }

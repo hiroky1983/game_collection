@@ -60,7 +60,7 @@ extension HomerunToonModel {
         static var outerX: Float { centerX + width / 2 }
     }
 
-    /// 球場（メートル。本塁が原点・+z がセンター・左右対称。RealityKit は右手系なので描画の上では +x が三塁側（打球の置き方は `HomerunAtBatLayout.pullSideX`・`HomerunOutfieldLayout.point`）。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
+    /// 球場（メートル。本塁が原点・+z がセンター・左右対称。RealityKit は右手系なので描画の上では +x が三塁側（打球の置き方は `HomerunAtBatLayout.pullSideX`・`HomerunBallChase.world`）。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
     /// 柵の距離は判定と同じ `HomerunJudge.fence`。数千個の箱を色ごとのメッシュ 1 個にまとめてある（`merged()`）。
     ///
     /// スタンドは本塁を中心とする 1 周の極座標（`standFront`）で組む: 外野は柵に沿う弧、両翼はファウルラインに平行な直線、
