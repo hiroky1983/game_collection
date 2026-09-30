@@ -155,7 +155,7 @@ struct HomerunGeometryTests {
         #expect(HomerunText.spraySummary([homerLeft, foul, miss, center, center])
                 == "左 1 ／ 中 2 ／ 右 0 ／ ファウル 1 ／ 空振り 1")
         #expect(HomerunText.spoken(miss, number: 3) == "3球目、空振り")
-        #expect(HomerunText.spoken(center, number: 1) == "1球目、柵越え、135メートル、センター、ジャスト")
+        #expect(HomerunText.spoken(center, number: 1) == "1球目、柵越え、161メートル、センター、ジャスト")
     }
 
     @Test("スプレーチャートは本塁が原点で中堅が上。空振りは本塁、ファウルはラインの外")

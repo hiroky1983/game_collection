@@ -111,7 +111,7 @@ struct HomerunModelTests {
         #expect(model.pitchStart == second)
     }
 
-    @Test("ホールド → ずらす → 離す: ボールの少し下でジャストなら中堅へ 135 m の柵越え")
+    @Test("ホールド → ずらす → 離す: ボールの少し下でジャストなら中堅へ 161 m の柵越え")
     func justFlyToCenterIsHomer() throws {
         let f = Fixture()
         let model = f.model()
@@ -122,7 +122,7 @@ struct HomerunModelTests {
         #expect(ball.kind == .homer)
         #expect(ball.timing == .just)
         #expect(ball.launch == .fly)
-        #expect(approx(ball.distance, 135))
+        #expect(approx(ball.distance, 161))
         #expect(approx(ball.direction, 0))
         #expect(model.phase == .ballResult)
         #expect(model.lastBall == ball)
@@ -140,7 +140,7 @@ struct HomerunModelTests {
         #expect(ball.timing == .nice)
         #expect(approx(ball.direction, expected.direction, 1e-3))
         #expect(ball.direction < 0, "早いと引っ張り（左）")
-        #expect(approx(ball.distance, 120, 1e-6))
+        #expect(approx(ball.distance, 125 * 1.15, 1e-6))
 
         // 遅いと流し（右）。
         let close = try #require(model.resultUntil)
@@ -469,7 +469,7 @@ struct HomerunModelTests {
             #expect(model.phase == .pitching)
             #expect(model.pitchNumber == i + 1)
             if i == 0 {
-                try swing(model, dx: 0, dy: 22, offset: 0)   // 135 m の柵越え
+                try swing(model, dx: 0, dy: 22, offset: 0)   // 161 m の柵越え
                 model.advance(now: try #require(model.resultUntil))
             } else {
                 try skipPitch(model)
@@ -483,7 +483,7 @@ struct HomerunModelTests {
         #expect(model.records.pitches == 10)
         #expect(model.records.homers == 1)
         #expect(model.records.misses == 9)
-        #expect(model.records.bestTotalTenths == 1350)
+        #expect(model.records.bestTotalTenths == 1610)
         #expect(HomerunStorage.loadRecords(f.defaults) == model.records, "終了時に保存する")
 
         // 2 回目: 全部見送り → ベスト更新ではない。

@@ -14,11 +14,16 @@ struct HomerunOutfieldLayoutTests {
     func fixturesHaveExpectedKinds() {
         let homer = HomerunJudge.judge(swing())
         #expect(homer.kind == .homer)
-        let fenceHit = HomerunJudge.judge(swing(t: 40))
+        let fenceHit = HomerunJudge.judge(fenceHitSwing)
         #expect(fenceHit.kind == .fenceHit)
-        let inPlay = HomerunJudge.judge(swing(t: 90))
+        let inPlay = HomerunJudge.judge(inPlaySwing)
         #expect(inPlay.kind == .inPlay)
     }
+
+    /// フェンス直撃: ナイス（40ms）× ライナーを方向 0°（柵 122m）に戻し、縦に 5pt ずらして芯を落とす（≈ 119m）。
+    private var fenceHitSwing: HomerunSwing { swing(t: 40, dx: -(40.0 / 110 * 15) / 35 * 11, band: .liner, dy: 5) }
+    /// 当たり: 当たり（90ms）× ライナー（110m・柵 120m）。
+    private var inPlaySwing: HomerunSwing { swing(t: 90, band: .liner) }
 
     @Test("カメラ・注視点・外野手・打球は、すべて打球方向と同じ向きの線の上に乗る")
     func everythingIsOnTheDirectionLine() {
@@ -53,8 +58,8 @@ struct HomerunOutfieldLayoutTests {
     @Test("打球の高さは柵越え > フェンス直撃 > 当たり（地面）の順")
     func ballHeightByKind() {
         let homer = HomerunOutfieldLayout.shot(for: HomerunJudge.judge(swing())).ballPosition.y
-        let fenceHit = HomerunOutfieldLayout.shot(for: HomerunJudge.judge(swing(t: 40))).ballPosition.y
-        let inPlay = HomerunOutfieldLayout.shot(for: HomerunJudge.judge(swing(t: 90))).ballPosition.y
+        let fenceHit = HomerunOutfieldLayout.shot(for: HomerunJudge.judge(fenceHitSwing)).ballPosition.y
+        let inPlay = HomerunOutfieldLayout.shot(for: HomerunJudge.judge(inPlaySwing)).ballPosition.y
         #expect(homer > fenceHit && fenceHit > inPlay)
         #expect(inPlay < 1, "当たりの打球は地面近くに無いといけない")
     }
@@ -139,7 +144,7 @@ struct HomerunOutfieldLayoutTests {
             }
         }
         #expect(inPlayDistances.contains { $0 < 50 }, "テストの前提（近距離の当たりを作れているか）")
-        #expect(inPlayDistances.contains { $0 > 85 && $0 < 105 }, "テストの前提（中距離 90〜100m 前後の当たりを作れているか）")
+        #expect(inPlayDistances.contains { $0 > 85 && $0 < 115 }, "テストの前提（中距離 90〜110m 前後の当たりを作れているか）")
     }
 
     @Test("画角の確認そのものが効いている: 従来の固定カメラ（柵の 50m 手前・柵を注視）だと近距離の打球は画角の外になる")

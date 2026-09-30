@@ -50,27 +50,27 @@ struct HomerunJudgeTests {
         #expect(HomerunLaunch.angle(cursorDY: 1000) <= 55)
     }
 
-    @Test("飛距離の係数はゴロ 0.3・ライナー 0.85・フライ 1.0・ポップ 0.5")
+    @Test("飛距離の係数はゴロ 0.3・ライナー 1.0・フライ 1.15・ポップ 0.5")
     func launchFactors() {
         #expect(HomerunLaunch.grounder.distanceFactor == 0.3)
-        #expect(HomerunLaunch.liner.distanceFactor == 0.85)
-        #expect(HomerunLaunch.fly.distanceFactor == 1.0)
+        #expect(HomerunLaunch.liner.distanceFactor == 1.0)
+        #expect(HomerunLaunch.fly.distanceFactor == 1.15)
         #expect(HomerunLaunch.pop.distanceFactor == 0.5)
     }
 
-    @Test("ジャスト × フライの帯の中心 = 135m・中堅の柵 122m を越えて柵越え")
+    @Test("ジャスト × フライの帯の中心 = 140 × 1.15 = 161m・中堅の柵 122m を越えて柵越え")
     func justFlyCenterIsHomer() {
         let ball = HomerunJudge.judge(swing())
         #expect(ball.kind == .homer)
-        #expect(abs(ball.distance - 135) < 1e-9)
+        #expect(abs(ball.distance - 161) < 1e-9)
         #expect(ball.direction == 0)
         #expect(ball.timing == .just)
         #expect(ball.launch == .fly)
     }
 
-    @Test("ナイス（120m）× フライで方向 0° に戻すと、芯が落ちて 114m 未満・中堅の柵には届かない")
+    @Test("ナイス（125m）× フライで方向 0° に戻しても、芯が少し落ちるだけで中堅の柵（122m）を越える（#1594）")
     func niceExampleFromSpec() {
-        // 芯 0.95 になる帯の中心からのずれ = 0.25 × 11 = 2.75pt（縦にずらして方向は動かさない）。
+        // 帯の中心から縦に 2.75pt ずらす（方向は動かさない）。
         // タイミング 40ms は方向を +5.45° 動かす（流し方向）ので、方向は dx で打ち消す。
         let t = 40.0
         let timingDirection = t / 110 * 15
@@ -78,17 +78,19 @@ struct HomerunJudgeTests {
         let center = HomerunJudge.judge(swing(t: t, dx: dx0, dy: 2.75))
         #expect(center.timing == .nice)
         #expect(abs(center.direction) < 1e-9)
-        // 芯は dx0 ぶんも下がるので、方向 0° では 114m より少し短い。柵は 122m なので届かない。
-        #expect(center.kind != .homer)
-        #expect(center.distance > 100 && center.distance < 114)
+        // 芯は dx0 ぶんも合わせて約 3.2pt のずれで 0.97 程度。125 × 1.15 × 0.97 ≈ 139m で中堅の柵 122m を越える。
+        #expect(center.kind == .homer)
+        #expect(center.distance > 135 && center.distance < 125 * 1.15)
     }
 
-    @Test("芯: 帯の中心で 1.0・芯の半径 11pt で 0.8・当たり判定の半径（1 マス ≈ 29.3pt）で 0.5・外は 0")
+    @Test("芯: 帯の中心で 1.0・芯の半径 11pt で 0.9・当たり判定の半径（1 マス ≈ 29.3pt）で 0.8・外は 0")
     func coreFalloff() {
         #expect(abs(HomerunJudge.contactRadius - HomerunLaunch.bandWidth * 4 / 3) < 1e-9)
+        #expect(HomerunJudge.coreEdgeFactor == 0.9)
+        #expect(HomerunJudge.edgeFactor == 0.8)
         #expect(HomerunJudge.core(distanceFromBandCenter: 0) == 1)
-        #expect(abs(HomerunJudge.core(distanceFromBandCenter: 11) - 0.8) < 1e-9)
-        #expect(HomerunJudge.core(distanceFromBandCenter: 11.01) < 0.8 && HomerunJudge.core(distanceFromBandCenter: 11.01) > 0.79)
+        #expect(abs(HomerunJudge.core(distanceFromBandCenter: 11) - 0.9) < 1e-9)
+        #expect(HomerunJudge.core(distanceFromBandCenter: 11.01) < 0.9 && HomerunJudge.core(distanceFromBandCenter: 11.01) > 0.89)
         #expect(abs(HomerunJudge.core(distanceFromBandCenter: HomerunJudge.contactRadius) - HomerunJudge.edgeFactor) < 1e-9)
         #expect(HomerunJudge.core(distanceFromBandCenter: HomerunJudge.contactRadius + 0.01) == 0)
         // ミートが上がると半径が広がる
@@ -153,14 +155,14 @@ struct HomerunJudgeTests {
         #expect(HomerunJudge.judge(swing(t: -75, dx: -11)).kind == .foul)
     }
 
-    @Test("土台: ナイス 120m・当たり 100m（芯 1.0 の帯の中心で）")
+    @Test("土台: ナイス 125m・当たり 110m（芯 1.0 の帯の中心で・フライの 1.15 倍がかかる）")
     func timingBaseDistances() {
         let nice = HomerunJudge.judge(swing(t: 40))
         #expect(nice.timing == .nice)
-        #expect(abs(nice.distance - 120) < 1e-9)
+        #expect(abs(nice.distance - 125 * 1.15) < 1e-9)
         let hit = HomerunJudge.judge(swing(t: 100))
         #expect(hit.timing == .hit)
-        #expect(abs(hit.distance - 100) < 1e-9)
+        #expect(abs(hit.distance - 110 * 1.15) < 1e-9)
     }
 
     @Test("ゴロは柵越えにならず、ポップフライも柵に届かない")
@@ -168,25 +170,30 @@ struct HomerunJudgeTests {
         for band in [HomerunLaunch.grounder, .pop] {
             let ball = HomerunJudge.judge(swing(band: band))
             #expect(ball.kind == .inPlay, "\(band)")
-            #expect(ball.distance == 135 * band.distanceFactor)
+            #expect(ball.distance == 140 * band.distanceFactor)
         }
     }
 
-    @Test("ライナーは（135m でも）中堅の柵に届かず、引っ張って芯が落ちても届かない")
+    @Test("ジャストのライナーは中堅でも柵越え（140m）・引っ張って芯が落ちても柵越え。当たりのライナーは中堅に届かない")
     func linerDependsOnDirection() {
         let center = HomerunJudge.judge(swing(band: .liner))
-        #expect(abs(center.distance - 135 * 0.85) < 1e-9)
-        #expect(center.kind != .homer)
-        // 引っ張り側 -35°（柵 107.5m）: 芯 0.8 に落ちて 135 × 0.85 × 0.8 = 91.8m しか出ない
+        #expect(abs(center.distance - 140) < 1e-9)
+        #expect(center.kind == .homer)
+        // 引っ張り側 -35°（柵 107.5m）: 芯 0.9 に落ちても 140 × 0.9 = 126m
         let pulled = HomerunJudge.judge(swing(dx: -11, band: .liner))
-        #expect(pulled.kind != .homer)
+        #expect(pulled.kind == .homer)
+        // 当たり（100ms）で方向を中堅に戻す: 110 × 芯 0.96 ≈ 106m で柵 122m に届かない
+        let t = 100.0
+        let late = HomerunJudge.judge(swing(t: t, dx: -(t / 110 * 15) / 35 * 11, band: .liner))
+        #expect(late.timing == .hit)
+        #expect(late.kind == .inPlay)
     }
 
     @Test("柵の一歩手前（6m 以内）はフェンス直撃")
     func fenceHit() {
-        // ナイス（40ms）は方向を +5.45° 動かすので、dx で打ち消して中堅（柵 122m）に戻す。
-        // 芯は dx ぶん下がり 120m を少し切るため 116〜122m に入る = 柵の 6m 手前以内。
-        let near = HomerunJudge.judge(swing(t: 40, dx: -(40.0 / 110 * 15) / 35 * 11, dy: 0))
+        // ナイス（40ms）× ライナーは方向を +5.45° 動かすので、dx で打ち消して中堅（柵 122m）に戻す。
+        // 縦にも 5pt ずらすと芯は約 0.95 に下がり、125m × 0.95 ≈ 119m で 116〜122m に入る = 柵の 6m 手前以内。
+        let near = HomerunJudge.judge(swing(t: 40, dx: -(40.0 / 110 * 15) / 35 * 11, band: .liner, dy: 5))
         #expect(abs(near.direction) < 1e-9)
         #expect(near.distance > 116 && near.distance < 122)
         #expect(near.kind == .fenceHit)
@@ -202,8 +209,58 @@ struct HomerunJudgeTests {
     @Test("能力値: パワーは土台に足し、バットは最終距離にかける")
     func abilitiesScaleDistance() {
         let base = HomerunJudge.judge(swing()).distance
-        #expect(HomerunJudge.judge(swing(), abilities: HomerunAbilities(power: 5)).distance == base + 5)
+        #expect(abs(HomerunJudge.judge(swing(), abilities: HomerunAbilities(power: 5)).distance - (base + 5 * HomerunLaunch.fly.distanceFactor)) < 1e-9)
         #expect(abs(HomerunJudge.judge(swing(), abilities: HomerunAbilities(bat: 1.1)).distance - base * 1.1) < 1e-9)
+    }
+
+    /// 入力の格子（タイミング −110〜+110ms を 5ms 刻み・照準のずれ dx / dy をボールの中心から当たり判定の半径以内で 2pt 刻み）を
+    /// 総当たりし、当たった球（空振り以外）のうち柵越え・ファウルの割合（%）をタイミングの段階別と全体で返す。
+    private func homerRates() -> (just: Double, nice: Double, hit: Double, all: Double, foul: Double) {
+        var total: [HomerunTiming: Int] = [:], homers: [HomerunTiming: Int] = [:], fouls = 0
+        for t in stride(from: -110.0, through: 110, by: 5) {
+            for dx in stride(from: -30.0, through: 30, by: 2) {
+                for dy in stride(from: -30.0, through: 30, by: 2) where hypot(dx, dy) <= HomerunJudge.contactRadius {
+                    let ball = HomerunJudge.judge(HomerunSwing(timingOffset: t, cursorDX: dx, cursorDY: dy))
+                    guard ball.kind != .miss else { continue }
+                    total[ball.timing, default: 0] += 1
+                    if ball.kind == .homer { homers[ball.timing, default: 0] += 1 }
+                    if ball.kind == .foul { fouls += 1 }
+                }
+            }
+        }
+        func rate(_ ts: [HomerunTiming]) -> Double {
+            let n = ts.reduce(0) { $0 + total[$1, default: 0] }
+            return Double(ts.reduce(0) { $0 + homers[$1, default: 0] }) / Double(n) * 100
+        }
+        let all = total.values.reduce(0, +)
+        return (rate([.just]), rate([.nice]), rate([.hit]), rate([.just, .nice, .hit]), Double(fouls) / Double(all) * 100)
+    }
+
+    @Test("柵越え率（#1594 会長 QA）: ジャスト 70〜80%・ナイス 35〜45%・当たり 5〜10%・全体 35〜45%・ファウルは 12% 以下")
+    func homerRatesStayInTarget() {
+        let r = homerRates()
+        #expect((70...80).contains(r.just), "ジャスト \(r.just)%")
+        #expect((35...45).contains(r.nice), "ナイス \(r.nice)%")
+        #expect((5...10).contains(r.hit), "当たり \(r.hit)%")
+        #expect((35...45).contains(r.all), "全体 \(r.all)%")
+        #expect(r.foul <= 12, "ファウル \(r.foul)%")
+    }
+
+    @Test("柵越えの飛距離は最長でもジャスト × フライの帯の中心（161m）まで。ゴロ・ポップは柵越えにならない")
+    func homerDistanceStaysPlausible() {
+        var longest = 0.0
+        var homerBands: Set<HomerunLaunch> = []
+        for t in stride(from: -110.0, through: 110, by: 5) {
+            for dx in stride(from: -30.0, through: 30, by: 2) {
+                for dy in stride(from: -52.0, through: 74, by: 2) {
+                    let ball = HomerunJudge.judge(HomerunSwing(timingOffset: t, cursorDX: dx, cursorDY: dy))
+                    longest = max(longest, ball.distance)
+                    if ball.kind == .homer, let launch = ball.launch { homerBands.insert(launch) }
+                }
+            }
+        }
+        #expect(abs(longest - 161) < 1e-9)
+        #expect(homerBands == [.liner, .fly])
     }
 
     @Test("方向の呼び名は 5 区分で、境目は ±7・±21")

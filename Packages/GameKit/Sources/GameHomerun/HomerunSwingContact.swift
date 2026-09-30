@@ -226,6 +226,7 @@ enum HomerunBallFlight {
 
     /// 打球の初速（m/s・世界座標）。方向は判定の `direction`（0 = 中堅・負が左 = -x）、打ち上げ角は帯の中心、
     /// 速さは飛距離が出る初速（空気抵抗なし）。ファウルは 28m/s の固定。
+    /// 上限 50m/s: ライナー（18°）の柵越え（最長 140m・#1594）が柵の手前に落ちないように（45m/s だと 121m 止まり）。
     static func battedVelocity(_ ball: HomerunBattedBall) -> SIMD3<Float> {
         let elevation: Double = switch ball.launch {
         case .grounder: 8
@@ -235,7 +236,7 @@ enum HomerunBallFlight {
         case nil: 30
         }
         let theta = elevation * .pi / 180
-        let speed: Double = ball.kind == .foul ? 28 : min(max(sqrt(ball.distance * Double(gravity) / sin(2 * theta)), 15), 45)
+        let speed: Double = ball.kind == .foul ? 28 : min(max(sqrt(ball.distance * Double(gravity) / sin(2 * theta)), 15), 50)
         let d = ball.direction * .pi / 180
         return SIMD3<Float>(Float(sin(d) * cos(theta)), Float(sin(theta)), Float(cos(d) * cos(theta))) * Float(speed)
     }
