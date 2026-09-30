@@ -94,6 +94,8 @@ public final class HomerunModel {
     /// 進行が変わるたびに進む。View は `.task(id:)` の鍵にする。
     public private(set) var step = 0
     public private(set) var holds: Hold = []
+    /// 止め始めた時刻（結果の間に止めたら、戻ったときに `ballClock` をその間ぶんずらす）。
+    private var heldSince: Date?
 
     /// 投球が始まる（投手のモーションが終わり、的が出て輪が縮み始める）時刻。
     public private(set) var pitchStart: Date?
@@ -116,6 +118,14 @@ public final class HomerunModel {
         public var practiceSwingAt: Date? = nil
         /// 輪が的に重なる時刻。
         public var arrival: Date { pitchStart.addingTimeInterval(TimeInterval(HomerunPitch.travelMilliseconds) / 1000) }
+
+        /// 記録の時刻をすべて `seconds` 秒後ろへずらす（止めていた間を無かったことにする）。
+        mutating func shift(by seconds: TimeInterval) {
+            pitchStart = pitchStart.addingTimeInterval(seconds)
+            pressedAt = pressedAt?.addingTimeInterval(seconds)
+            releasedAt = releasedAt?.addingTimeInterval(seconds)
+            practiceSwingAt = practiceSwingAt?.addingTimeInterval(seconds)
+        }
     }
     public private(set) var ballClock: BallClock?
     /// 1 球の結果を閉じる時刻。
@@ -415,11 +425,16 @@ public final class HomerunModel {
                 pitchStart = nil
                 ballClock = nil
             }
+            heldSince = now
             step += 1
         } else if wasHeld, !isHeld {
             switch phase {
             case .pitching: beginPitch(now: now)
-            case .ballResult: resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall?.kind ?? .miss))
+            case .ballResult:
+                // 止めていた間ぶん、この球の時刻の記録を後ろへずらす（打球を追うカメラ・打者の振りを止めた所から続ける・#1613。
+                // ずらさないと、打球が飛んでいる間に止めて戻ったとき、追う様子を見せないまま止まった球とカードが出る）。
+                if let heldSince, now > heldSince { ballClock?.shift(by: now.timeIntervalSince(heldSince)) }
+                resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall?.kind ?? .miss))
             case .idle, .finished: break
             }
             step += 1
