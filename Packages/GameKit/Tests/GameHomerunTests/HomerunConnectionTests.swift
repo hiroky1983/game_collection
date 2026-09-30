@@ -92,6 +92,7 @@ struct HomerunConnectionTests {
         let model = makeModel()
         for _ in 0..<HomerunLedger.freePerDay {
             #expect(model.start(now: Self.t0))
+            model.atBatDidAppear(now: Self.t0)
             try skip(model)
         }
         #expect(!model.ledger.canStart)
@@ -164,6 +165,7 @@ struct HomerunConnectionTests {
         let spy = SpyAnalyticsService()
         let model = makeModel(services: makeServices(spy: spy))
         model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
         #expect(spy.starts == [HomerunModel.gameID])
         #expect(spy.ends.isEmpty)
         try skip(model)
@@ -177,8 +179,10 @@ struct HomerunConnectionTests {
         let spy = SpyAnalyticsService()
         let model = makeModel(services: makeServices(spy: spy))
         model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
         try skip(model)
         model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
         #expect(spy.starts.count == 2)
         #expect(spy.ends.count == 1, "1 本目は決着済みなので quit は出ない")
     }
@@ -190,6 +194,7 @@ struct HomerunConnectionTests {
         let spy = SpyAnalyticsService()
         let model = makeModel(services: makeServices(spy: spy, log: log))
         model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
         try skip(model)
         let record = try #require(log.record(gameID: HomerunModel.gameID))
         #expect(record.plays == 1)
@@ -204,6 +209,7 @@ struct HomerunConnectionTests {
         let spy = SpyAnalyticsService()
         let model = makeModel(services: makeServices(spy: spy, log: log))
         model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
         // 1 球目: 真ん中でボールの 22pt 下・ジャスト = 中堅 135 m の柵越え。
         let arrive = try #require(model.arrival)
         model.press(at: CGPoint(x: 150, y: 600))

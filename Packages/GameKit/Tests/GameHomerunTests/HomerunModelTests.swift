@@ -91,9 +91,12 @@ struct HomerunModelTests {
         let t0 = Fixture.t0
         model.start(now: t0)
         #expect(model.awaitsAtBat)
+        // 画面が描き始めるまでは締め切りを待たせない（作る間に 1 球目が見送りで確定しない）。
+        #expect(model.nextWake == nil)
         let ready = t0.addingTimeInterval(0.6)
         model.atBatDidAppear(now: ready)
         #expect(!model.awaitsAtBat)
+        #expect(model.nextWake != nil)
         #expect(model.pitchStart == ready.addingTimeInterval(HomerunModel.windup))
         #expect(model.ballClock?.pitchStart == model.pitchStart)
         // 押した後は数え直さない。
@@ -113,6 +116,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         // 1 球目は真ん中（zone 4）。ボールの 22pt 下 = フライの帯の中心。
         let ball = try #require(try swing(model, dx: 0, dy: 22, offset: 0))
         #expect(ball.kind == .homer)
@@ -130,6 +134,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let ball = try #require(try swing(model, dx: 0, dy: 22, offset: -0.05))
         let expected = HomerunJudge.judge(HomerunSwing(timingOffset: -50, cursorDX: 0, cursorDY: 22))
         #expect(ball.timing == .nice)
@@ -150,6 +155,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.press(at: CGPoint(x: 200, y: 700))
         #expect(model.cursor == .zero, "押しただけでは動かない")
         model.drag(to: CGPoint(x: 190, y: 730))
@@ -167,6 +173,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.press(at: CGPoint(x: 0, y: 0))
         model.drag(to: CGPoint(x: 999, y: -999))
         #expect(model.cursor == CGPoint(x: HomerunZoneGeometry.cursorLimit, y: -HomerunZoneGeometry.cursorLimit))
@@ -179,6 +186,7 @@ struct HomerunModelTests {
         // 左上（zone 0）のボール。
         let model = f.model(pitches: [HomerunPitch(zone: 0)])
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let cell = HomerunZoneGeometry.cellSize
         #expect(model.ballPoint == CGPoint(x: -cell, y: -cell))
         // カーソルをボールの 22pt 下（ゾーン中心からは (-cell, -cell + 22)）に置く。
@@ -190,6 +198,7 @@ struct HomerunModelTests {
         let f2 = Fixture()
         let model2 = f2.model(pitches: [HomerunPitch(zone: 0)])
         model2.start(now: Fixture.t0)
+        model2.atBatDidAppear(now: Fixture.t0)
         let whiff = try #require(try swing(model2, dx: cell, dy: cell, offset: 0))
         #expect(model2.cursor == .zero)
         #expect(whiff.kind == .miss)
@@ -200,6 +209,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let arrive = try arrival(model)
         #expect(HomerunModel.lateLimit == 0.3)
         #expect(model.nextWake == arrive.addingTimeInterval(0.3))
@@ -217,6 +227,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         #expect(model.swingCount == 0 && !model.didSwingLastBall)
         try swing(model, dx: 0, dy: 10, offset: 0)
         #expect(model.phase == .ballResult)
@@ -234,6 +245,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let ledger = model.ledger
         let records = model.records
         let step = model.step
@@ -264,6 +276,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let pitchStart = try #require(model.pitchStart)
         let practice = pitchStart.addingTimeInterval(-0.1)
         model.press(at: CGPoint(x: 150, y: 600), now: practice.addingTimeInterval(-0.1))
@@ -289,6 +302,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.press(at: CGPoint(x: 10, y: 10))
         model.drag(to: CGPoint(x: 10, y: 32))
         let arrive = try arrival(model)
@@ -311,6 +325,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let arrive = try arrival(model)
         let ball = try #require(try swing(model, dx: 40, dy: 0, offset: 0))
         #expect(ball.kind == .miss)
@@ -340,6 +355,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         try swing(model, dx: 0, dy: 22, offset: -0.2)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .early)
         model.advance(now: try #require(model.resultUntil))
@@ -388,6 +404,7 @@ struct HomerunModelTests {
         // 右上（zone 2）のボール。カーソルは中央のまま。
         let model = f.model(pitches: [HomerunPitch(zone: 2)], aimAssist: assist)
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let pitchStart = try #require(model.pitchStart)
         let ballPoint = model.ballPoint
         #expect(model.aimCursor(at: pitchStart.addingTimeInterval(0.5)) == .zero, "押していなければ寄らない")
@@ -409,6 +426,7 @@ struct HomerunModelTests {
         let f2 = Fixture()
         let plain = f2.model(pitches: [HomerunPitch(zone: 2)])
         plain.start(now: Fixture.t0)
+        plain.atBatDidAppear(now: Fixture.t0)
         plain.press(at: CGPoint(x: 150, y: 600), now: Fixture.t0.addingTimeInterval(0.1))
         let whiff = try #require(plain.release(at: CGPoint(x: 150, y: 600), now: try arrival(plain)))
         #expect(whiff.kind == .miss && plain.lastMissReason == .aim)
@@ -419,6 +437,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let hitAt = try arrival(model)
         let ball = try #require(try swing(model, dx: 0, dy: 22, offset: 0))
         #expect(model.resultUntil == hitAt.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind)))
@@ -445,6 +464,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         for i in 0..<HomerunChallenge.pitchCount {
             #expect(model.phase == .pitching)
             #expect(model.pitchNumber == i + 1)
@@ -468,6 +488,7 @@ struct HomerunModelTests {
 
         // 2 回目: 全部見送り → ベスト更新ではない。
         #expect(model.start(now: Fixture.t0.addingTimeInterval(60)))
+        model.atBatDidAppear(now: Fixture.t0.addingTimeInterval(60))
         #expect(model.challenge?.results.isEmpty == true, "新しい挑戦は空から")
         for _ in 0..<HomerunChallenge.pitchCount { try skipPitch(model) }
         #expect(model.phase == .finished)
@@ -481,6 +502,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         for _ in 0..<9 { try skipPitch(model) }
         #expect(model.phase == .pitching)
         #expect(HomerunStorage.loadRecords(f.defaults).challenges == 0)
@@ -500,6 +522,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.press(at: .zero)
         model.drag(to: CGPoint(x: 30, y: 30))
         let s0 = model.step
@@ -522,6 +545,7 @@ struct HomerunModelTests {
         model.pause(now: Fixture.t0)
         #expect(!model.isPaused, "打席前では止めない")
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let number = model.pitchNumber
         let used = model.ledger.remaining
         model.pause(now: Fixture.t0.addingTimeInterval(0.5))
@@ -542,6 +566,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.pause(now: Fixture.t0)
         model.hold(.inactive, true, now: Fixture.t0)
         model.hold(.inactive, false, now: Fixture.t0.addingTimeInterval(1))
@@ -553,6 +578,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let remaining = model.ledger.remaining
         let records = model.records
         model.quitChallenge()
@@ -627,6 +653,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         try skipPitch(model)
         #expect(model.pitchNumber == 2)
         model.press(at: .zero)
@@ -657,6 +684,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         let deadline = try #require(model.nextWake)
         model.advance(now: deadline)
         #expect(model.phase == .ballResult)
@@ -690,6 +718,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.press(at: .zero)
         model.drag(to: CGPoint(x: -11, y: 22))
         // モーション中（的が出る前）は窓の早い端。
@@ -707,6 +736,7 @@ struct HomerunModelTests {
         let f = Fixture()
         let model = f.model(pitches: [HomerunPitch(zone: 4)])
         model.start(now: Fixture.t0)
+        model.atBatDidAppear(now: Fixture.t0)
         model.backToLobby()
         #expect(model.phase == .pitching)
         try skipPitch(model)

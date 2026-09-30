@@ -216,7 +216,7 @@ public final class HomerunModel {
 
     /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻）。止まっているあいだは nil。
     public var nextWake: Date? {
-        guard !isHeld else { return nil }
+        guard !isHeld, !awaitsAtBat else { return nil }
         switch phase {
         case .pitching: return arrival?.addingTimeInterval(Self.lateLimit)
         case .ballResult: return resultUntil
