@@ -48,10 +48,11 @@ public final class HomerunModel {
     /// 輪が縮み切って的に重なるまで（判定窓の幾何が成り立つのは 1.2 秒だけ）。
     public static var travel: TimeInterval { TimeInterval(HomerunPitch.travelMilliseconds) / 1000 }
     /// 見送りの締め切り（輪が的に重なってからの秒数）。これを過ぎても離していなければ見送り（空振りと同じ扱い）で締める。
-    /// 当たり窓（±110ms）より長く取り、3D の球が打点（輪の約 0.2 秒後）を過ぎてミットに入る（約 0.3 秒後）までに
-    /// 離した振りは、遅すぎても「振るのが遅い」空振りとして判定する（会長 QA 2026-09-30: 以前は当たり窓の端 +110ms で
-    /// 締めていたため、3D の球に合わせて離すと締め切りの後になり、振ったのに全部「見送り」になっていた）。
-    public static let lateLimit: TimeInterval = 0.5
+    /// 当たり窓（±110ms）より長く取り、3D の球が打点（輪が的に重なる瞬間 = 判定の 0・#1594 会長決裁 A）を過ぎて
+    /// ミットに入る（約 0.14 秒後）までに離した振りは、遅すぎても「振るのが遅い」空振りとして判定する（会長 QA 2026-09-30:
+    /// 以前は当たり窓の端 +110ms で締めていたため、振ったのに全部「見送り」になっていた）。
+    /// 0.3 秒 = 球が打点に来てからの猶予を #1607 の 0.5 秒（当時は球が打点に来るのが輪の約 0.2 秒後）と同じに保った値。
+    public static let lateLimit: TimeInterval = 0.3
 
     /// 1 球の結果を見せる時間。空振り・見逃しは短く、打球は長く（外野カメラの代わりに落下点を描く）。
     public static func resultDuration(for kind: HomerunKind) -> TimeInterval {
@@ -349,13 +350,18 @@ public final class HomerunModel {
         return resolve(makeSwing(offset: offset, cursor: cursor), now: now)
     }
 
-    /// 打者がいま振っている（本番か素振りの振り抜き〜フォロースルーの途中）か。
+    /// 打者がいま振っている（本番か素振りの振り抜き〜フォロースルーの途中）か。本番の振りは離した瞬間に振り抜きの途中から
+    /// 流すので、振り終わりは 20 コマ目を置いた時刻（`HomerunSwingContact.swingStart`）から数える。
     func isSwinging(at now: Date) -> Bool {
         guard let clock = ballClock else { return false }
-        return [clock.releasedAt, clock.practiceSwingAt].contains { start in
-            guard let start else { return false }
-            return now >= start && now < start.addingTimeInterval(HomerunBatterMotion.swingDuration)
-        }
+        let column = HomerunSwingContact.column(zone: clock.zone)
+        let spans: [(begin: Date, clipStart: Date)] = [
+            clock.releasedAt.map {
+                ($0, HomerunSwingContact.swingStart(release: $0, offsetMilliseconds: clock.timingOffset ?? 0, column: column))
+            },
+            clock.practiceSwingAt.map { ($0, $0) },
+        ].compactMap { $0 }
+        return spans.contains { now >= $0.begin && now < $0.clipStart.addingTimeInterval(HomerunBatterMotion.swingDuration) }
     }
 
     // MARK: 時間を進める
