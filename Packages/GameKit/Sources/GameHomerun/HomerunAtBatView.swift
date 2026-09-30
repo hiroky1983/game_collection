@@ -49,13 +49,14 @@ struct HomerunAtBatView: View {
                     HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                          batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                          pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
+                                         machinePose: HomerunAtBatLayout.machinePose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
                                          cameraPreset: model.atBatCamera,
                                          batterMotion: plan.batterMotion(at: now),
                                          ballPosition: isAnimating ? plan.ballPosition(at: now) : nil,
                                          now: now,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
-                                         onFirstFrame: { model.atBatDidAppear(now: Date()) })
+                                         onFirstFrame: firstFrameHandler)
                     if showsOutfield, let ball = model.lastBall {
                         HomerunOutfieldScene3DView(ball: ball).ignoresSafeArea()
                     } else {
@@ -198,6 +199,12 @@ struct HomerunAtBatView: View {
     }
 
     /// 3D を時刻で動かしている間（投球中・振った直後の打球・結果の間の素振り）。それ以外は `TimelineView` を止める。
+    /// 打席の 3D が描き始めたときの処理。モックの撮影用（#1612）: `-homerunFreeze` があれば 1 球目を数え直さず、的が出る前の静止画で止める。
+    private var firstFrameHandler: (@MainActor () -> Void)? {
+        if ProcessInfo.processInfo.arguments.contains("-homerunFreeze") { return nil }
+        return { model.atBatDidAppear(now: Date()) }
+    }
+
     private var isAnimating: Bool {
         guard !model.isHeld else { return false }
         return model.phase == .pitching
@@ -339,6 +346,7 @@ struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
+    var machinePose: HomerunMachinePose = .idle
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
     var batterMotion: HomerunBatterMotion = .stance
     var ballPosition: SIMD3<Float>? = nil
@@ -348,7 +356,7 @@ struct HomerunAtBatBackdrop: View {
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
+        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, machinePose: machinePose, cameraPreset: cameraPreset,
                                 batterMotion: batterMotion, ballPosition: ballPosition, now: now,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else

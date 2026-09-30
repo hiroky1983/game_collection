@@ -59,6 +59,10 @@ public struct HomerunView: View {
             }
             // 進行の待ちは Model が決め、ここは待つだけ。進行が変わるたびに `step` が進んで前の待ちが止まる。
             .task(id: model.step) { await runClock() }
+            // モックの撮影用（#1612）: `-homerunAutoStart` で打席前を飛ばして打席に立つ。
+            .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("-homerunAutoStart"), model.phase == .idle { _ = model.start(now: Date()) }
+            }
     }
 
     /// 回復のボタンが出ているか（打席前と結果で、残りが 0 のあいだ。上限に達していれば出さない）。

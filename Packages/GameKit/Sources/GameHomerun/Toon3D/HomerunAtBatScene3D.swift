@@ -172,6 +172,8 @@ extension HomerunAtBatLayout {
 struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
+    /// バッティングマシンのコマ（#1612 モック。起動引数 `-homerunMachine` があるとき投手の代わりに置く）。
+    var machinePose: HomerunMachinePose = .idle
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
     /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を流し直す（振り抜きは `start` からの経過ぶん進めた所から）。
     var batterMotion: HomerunBatterMotion = .stance
@@ -188,7 +190,7 @@ struct HomerunAtBatScene3DView: View {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
+            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, machinePose: machinePose, camera: cameraPreset.camera,
                                   batterMotion: batterMotion, ballPosition: ballPosition, now: now, onFirstFrame: onFirstFrame)
             #endif
         }
@@ -204,6 +206,7 @@ import RealityKit
 private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
     let pitcherPose: HomerunOjisanPose3
+    let machinePose: HomerunMachinePose
     let camera: HomerunAtBatLayout.Camera
     let batterMotion: HomerunBatterMotion
     let ballPosition: SIMD3<Float>?
@@ -225,6 +228,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var batterPose: HomerunOjisanPose3?
         var pitcher: Entity?
         var pitcherPose: HomerunOjisanPose3?
+        /// マシンのモック（#1612）。型は起動引数で決まり、コマが変わったら差し替える。
+        var machine: Entity?
+        var machinePose: HomerunMachinePose?
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
         var ball: ModelEntity?
@@ -256,6 +262,15 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
 
     private static func characterEntity(_ pose: HomerunOjisanPose3, outfit: HomerunOjisanOutfit, _ p: HomerunAtBatLayout.Placement) -> Entity {
         let e = HomerunToonScene.entity(for: .ojisan(pose, outfit: outfit), scale: HomerunAtBatLayout.characterScale)
+        e.position = p.position
+        e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
+        return e
+    }
+
+    /// マシンのモック（#1612）: 起動引数の型・置き場所で、`pose`（起動引数で固定されていればそのコマ）の実体を作る。メートル単位なので scale 1。
+    private static func machineEntity(_ kind: HomerunMachineKind, _ pose: HomerunMachinePose) -> Entity {
+        let p = HomerunMachineMock.place().placement
+        let e = HomerunToonScene.entity(for: .machine(kind, pose: HomerunMachineMock.forcedPose() ?? pose))
         e.position = p.position
         e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
         return e
@@ -298,10 +313,17 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             context.coordinator.batter = batter
             context.coordinator.batterPose = batterPose
         }
-        let pitcher = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
-        anchor.addChild(pitcher)
-        context.coordinator.pitcher = pitcher
-        context.coordinator.pitcherPose = pitcherPose
+        if let kind = HomerunMachineMock.kind() {
+            let machine = Self.machineEntity(kind, machinePose)
+            anchor.addChild(machine)
+            context.coordinator.machine = machine
+            context.coordinator.machinePose = machinePose
+        } else {
+            let pitcher = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
+            anchor.addChild(pitcher)
+            context.coordinator.pitcher = pitcher
+            context.coordinator.pitcherPose = pitcherPose
+        }
         place(.catcher(), HomerunAtBatLayout.catcher)
         place(.umpire(), HomerunAtBatLayout.umpire)
         let ball = Self.makeBall()
@@ -356,6 +378,13 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             parent.removeChild(old)
             c.pitcher = new
             c.pitcherPose = pitcherPose
+        }
+        if c.machinePose != machinePose, let old = c.machine, let parent = old.parent, let kind = HomerunMachineMock.kind() {
+            let new = Self.machineEntity(kind, machinePose)
+            parent.addChild(new)
+            parent.removeChild(old)
+            c.machine = new
+            c.machinePose = machinePose
         }
         if c.camera != camera, let cam = c.cameraEntity {
             Self.aim(cam, camera)
