@@ -47,8 +47,11 @@ public final class HomerunModel {
     public static let windup: TimeInterval = 0.8
     /// 輪が縮み切って的に重なるまで（判定窓の幾何が成り立つのは 1.2 秒だけ）。
     public static var travel: TimeInterval { TimeInterval(HomerunPitch.travelMilliseconds) / 1000 }
-    /// 当たり窓の遅い側の端。これを過ぎても離していなければ見送り（空振りと同じ扱い）で締める。
-    public static var lateLimit: TimeInterval { HomerunTiming.hitWindow / 1000 }
+    /// 見送りの締め切り（輪が的に重なってからの秒数）。これを過ぎても離していなければ見送り（空振りと同じ扱い）で締める。
+    /// 当たり窓（±110ms）より長く取り、3D の球が打点（輪の約 0.2 秒後）を過ぎてミットに入る（約 0.3 秒後）までに
+    /// 離した振りは、遅すぎても「振るのが遅い」空振りとして判定する（会長 QA 2026-09-30: 以前は当たり窓の端 +110ms で
+    /// 締めていたため、3D の球に合わせて離すと締め切りの後になり、振ったのに全部「見送り」になっていた）。
+    public static let lateLimit: TimeInterval = 0.5
 
     /// 1 球の結果を見せる時間。空振り・見逃しは短く、打球は長く（外野カメラの代わりに落下点を描く）。
     public static func resultDuration(for kind: HomerunKind) -> TimeInterval {
@@ -125,6 +128,9 @@ public final class HomerunModel {
     public private(set) var cursor: CGPoint = .zero
     /// カーソルの基準（押した時点のカーソル位置）。
     private var cursorBase: CGPoint = .zero
+    /// 押したまま見送りで締めた球の結果の間は、離しても素振りにしない（見送りのカードの裏で打者が振ると「振ったのに
+    /// 見送り」に見える・会長 QA 2026-09-30）。次の球に入ったら外す（押したまま次の球で離せば通常の判定）。
+    private var suppressesPracticeOnLift = false
 
     /// 照準の吸い寄せ（#1594 試作）。テストは `.off` で入力どおりの照準を確かめる。
     let aimAssist: HomerunAimAssist
@@ -330,7 +336,10 @@ public final class HomerunModel {
         guard let offset = timingOffset(at: now) else {
             isHolding = false
             ballClock?.pressedAt = nil
-            if phase == .pitching || phase == .ballResult, !isSwinging(at: now) { ballClock?.practiceSwingAt = now }
+            if phase == .pitching || phase == .ballResult, !suppressesPracticeOnLift, !isSwinging(at: now) {
+                ballClock?.practiceSwingAt = now
+            }
+            suppressesPracticeOnLift = false
             return nil
         }
         cursor = aimCursor(at: now)
@@ -356,8 +365,10 @@ public final class HomerunModel {
         guard !isHeld else { return }
         switch phase {
         case .pitching:
-            // 当たり窓の遅い側を過ぎても振っていない = 見送り（空振りと同じ扱い・README §3.1）。
+            // 見送りの締め切りを過ぎても離していない = 見送り（空振りと同じ扱い・README §3.1）。押したままなら、この球の結果の
+            // 間に離しても素振りにしない。
             if let arrival, now >= arrival.addingTimeInterval(Self.lateLimit) {
+                suppressesPracticeOnLift = isHolding
                 resolve(nil, now: now)
             }
         case .ballResult:
@@ -431,6 +442,7 @@ public final class HomerunModel {
 
     private func beginPitch(now: Date) {
         phase = .pitching
+        suppressesPracticeOnLift = false
         pitchStart = now.addingTimeInterval(Self.windup)
         // 結果の間に始めた素振りがまだ振り終わっていなければ、次の球でも最後まで振る（途中で構えに戻さない）。
         let carriedPractice = ballClock?.practiceSwingAt.flatMap {

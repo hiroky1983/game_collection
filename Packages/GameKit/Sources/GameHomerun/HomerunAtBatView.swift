@@ -78,7 +78,7 @@ struct HomerunAtBatView: View {
                     .padding(.top, 8)
                     // 結果のカードは打席の打球を見せ終えてから出す（先に出すと打者に重なってスイングが隠れる・試作）。
                     if model.phase == .ballResult, swingShown, let ball = model.lastBall {
-                        HomerunBallResultCard(ball: ball, number: model.pitchNumber,
+                        HomerunBallResultCard(ball: ball, number: model.pitchNumber, tookPitch: !model.didSwingLastBall,
                                               missNote: Self.missNote(didSwing: model.didSwingLastBall, reason: model.lastMissReason))
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, size.height * 0.2)
@@ -199,9 +199,10 @@ struct HomerunAtBatView: View {
                 && (!swingShown || (model.ballClock?.practiceSwingAt != nil && !practiceSwingExpired)))
     }
 
-    /// 空振り・見送りの結果に添える一言（#1594）。当たり・ファウルは nil。
+    /// 空振りの結果に添える理由（#1594）。当たり・ファウル・見送りは nil（見送りは見出しそのものを「見送り」にする・
+    /// 会長 QA 2026-09-30: 見出し「空振り」と理由「見送り」が同時に出て矛盾していた）。
     static func missNote(didSwing: Bool, reason: HomerunMissReason?) -> String? {
-        guard didSwing else { return "見送り" }
+        guard didSwing else { return nil }
         return reason.map(HomerunText.missReason)
     }
 
@@ -526,12 +527,25 @@ struct HomerunDirectionMeter: View {
 struct HomerunBallResultCard: View {
     let ball: HomerunBattedBall
     let number: Int
-    /// 空振り・見送りの理由（「振るのが早い」など・#1594）。
+    /// 振らずに見送った（見出しを「見送り」にし、理由は付けない）。
+    var tookPitch = false
+    /// 空振りの理由（「振るのが早い」など・#1594）。見送りでは使わない。
     var missNote: String? = nil
 
+    /// 見出し: 見送りは「見送り」、振って外したら「空振り」、当たりは種別。
+    static func headline(_ ball: HomerunBattedBall, tookPitch: Bool) -> String {
+        ball.kind == .miss && tookPitch ? "見送り" : HomerunText.kind(ball.kind)
+    }
+
+    /// 見出しの下に添える空振りの理由。振って外したときだけ。
+    static func reasonLine(_ ball: HomerunBattedBall, tookPitch: Bool, missNote: String?) -> String? {
+        ball.kind == .miss && !tookPitch ? missNote : nil
+    }
+
     var body: some View {
+        let reason = Self.reasonLine(ball, tookPitch: tookPitch, missNote: missNote)
         VStack(spacing: 6) {
-            Text(verbatim: HomerunText.kind(ball.kind))
+            Text(verbatim: Self.headline(ball, tookPitch: tookPitch))
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(ball.kind == .homer ? Theme.coral : Theme.ink)
             if ball.distance > 0 {
@@ -539,8 +553,8 @@ struct HomerunBallResultCard: View {
                     .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
                     .foregroundStyle(Theme.ink)
             }
-            if ball.kind == .miss, let missNote {
-                Text(verbatim: missNote)
+            if let reason {
+                Text(verbatim: reason)
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
                     .foregroundStyle(Theme.coral)
             }
@@ -558,8 +572,9 @@ struct HomerunBallResultCard: View {
         .frame(maxWidth: 300)
         .popCard()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([HomerunText.spoken(ball, number: number), ball.kind == .miss ? missNote : nil]
-            .compactMap { $0 }.joined(separator: "、"))
+        .accessibilityLabel(ball.kind == .miss && tookPitch
+            ? "\(number)球目、見送り"
+            : [HomerunText.spoken(ball, number: number), reason].compactMap { $0 }.joined(separator: "、"))
         .accessibilityAddTraits(.updatesFrequently)
     }
 }
