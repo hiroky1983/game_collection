@@ -132,9 +132,10 @@ public enum ReengagementReminderPolicy {
         return result
     }
 
-    /// 通知の文言。
-    public static func content(gameTitle: String) -> (title: String, body: String) {
-        ("「\(gameTitle)」、久しぶりに遊んでみませんか？", "以前よく遊んでいたあそびです。")
+    /// 通知の文言。`recordSummary`（ハブのカードと同じ 1 行・#1604）があれば、戻る理由として本文に添える。
+    public static func content(gameTitle: String, recordSummary: String? = nil) -> (title: String, body: String) {
+        let body = recordSummary.map { "以前よく遊んでいたあそびです。記録: \($0)" } ?? "以前よく遊んでいたあそびです。"
+        return ("「\(gameTitle)」、久しぶりに遊んでみませんか？", body)
     }
 }
 
@@ -209,6 +210,7 @@ public final class ReengagementReminderService {
     @ObservationIgnored private let isEnabled: @MainActor () -> Bool
     @ObservationIgnored private let isSuppressed: Bool
     @ObservationIgnored private let reminderTitle: @MainActor (String) -> String?
+    @ObservationIgnored private let recordSummary: @MainActor (String) -> String?
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let calendar: Calendar
 
@@ -222,6 +224,7 @@ public final class ReengagementReminderService {
         isEnabled: @escaping @MainActor () -> Bool,
         isSuppressed: Bool,
         reminderTitle: @escaping @MainActor (String) -> String?,
+        recordSummary: @escaping @MainActor (String) -> String? = { _ in nil },
         now: @escaping @MainActor () -> Date = { Date() },
         calendar: Calendar = .current
     ) {
@@ -230,6 +233,7 @@ public final class ReengagementReminderService {
         self.isEnabled = isEnabled
         self.isSuppressed = isSuppressed
         self.reminderTitle = reminderTitle
+        self.recordSummary = recordSummary
         self.now = now
         self.calendar = calendar
     }
@@ -339,7 +343,7 @@ public final class ReengagementReminderService {
                 store.activeThreads.removeValue(forKey: gameID)
                 continue
             }
-            let content = ReengagementReminderPolicy.content(gameTitle: title)
+            let content = ReengagementReminderPolicy.content(gameTitle: title, recordSummary: recordSummary(gameID))
             await scheduler.schedule(gameID: gameID, fireDates: resolved[gameID] ?? [], title: content.title, body: content.body)
             // 追加の完了を待つ間に判定がやり直された・設定を切られたなら、入った予約を取り消す
             // （取り消しが追加より先に処理されると残ってしまうため。PR #697 の CodeRabbit 指摘と同型）。

@@ -94,7 +94,9 @@ enum AppEnvironment {
             guard let module = registry.module(id: gameID) else { return nil }
             guard !settings.hiddenIDs.contains(gameID) else { return nil }
             return module.title
-        }
+        },
+        // 戻る理由として、ハブのカードと同じ自己ベスト等の 1 行を本文に添える（#1604）。端末内で組み立てるだけ。
+        recordSummary: { gameID in playLog.summaryLine(gameID: gameID) }
     )
 
     /// 挑戦回数が戻ったら知らせる通知（#1576）。使い切りシートのトグルを入れたときだけ 1 回予約する
