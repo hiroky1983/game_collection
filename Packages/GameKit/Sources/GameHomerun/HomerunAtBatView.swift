@@ -15,6 +15,8 @@ struct HomerunAtBatView: View {
     @State private var fingerPoint: CGPoint?
     /// 振った球の結果に入ってから、打者の振り抜きを見せ終えたか（外野カメラへの切り替えと結果のカードをそれまで待つ・試作）。
     @State private var swingShown = false
+    /// 結果フェーズ中の素振り（`practiceSwingAt`）が振り終えたか。振り終えた後は `TimelineView` を止める（CodeRabbit 指摘）。
+    @State private var practiceSwingExpired = false
     /// 一時停止から「途中でやめる」を押したときの確認（#1550）。
     @State private var confirmsQuit = false
 
@@ -115,6 +117,17 @@ struct HomerunAtBatView: View {
             guard !Task.isCancelled else { return }
             withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
         }
+        // 結果フェーズ中の素振りが振り終えたら `isAnimating` を止める（振り終えた後も `TimelineView` が回り続けていた・CodeRabbit 指摘）。
+        .task(id: model.ballClock?.practiceSwingAt) {
+            practiceSwingExpired = false
+            guard let started = model.ballClock?.practiceSwingAt else { return }
+            let remaining = started.addingTimeInterval(HomerunBatterMotion.swingDuration).timeIntervalSinceNow
+            if remaining > 0 {
+                try? await Task.sleep(for: .seconds(remaining))
+            }
+            guard !Task.isCancelled else { return }
+            practiceSwingExpired = true
+        }
     }
 
     // MARK: 一時停止（#1550）
@@ -182,7 +195,8 @@ struct HomerunAtBatView: View {
     private var isAnimating: Bool {
         guard !model.isHeld else { return false }
         return model.phase == .pitching
-            || (model.phase == .ballResult && (!swingShown || model.ballClock?.practiceSwingAt != nil))
+            || (model.phase == .ballResult
+                && (!swingShown || (model.ballClock?.practiceSwingAt != nil && !practiceSwingExpired)))
     }
 
     /// 空振り・見送りの結果に添える一言（#1594）。当たり・ファウルは nil。
