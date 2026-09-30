@@ -26,6 +26,8 @@ private final class Rig {
         model = HomerunModel(defaults: defaults, calendar: calendar, aimAssist: .off, now: Self.t0)
         now = Self.t0
         model.start(now: now)
+        // 実アプリでは打席の 3D が描き始めたときに View が呼ぶ（それまで `nextWake` は止まる）。同時刻なので 1 球目は動かない。
+        model.atBatDidAppear(now: now)
     }
 
     deinit { UserDefaults().removePersistentDomain(forName: name) }
@@ -59,7 +61,7 @@ private final class Rig {
     func wait(_ seconds: TimeInterval) { wait(until: now.addingTimeInterval(seconds)) }
 
     private func sample() {
-        if case .swing(let start) = HomerunSwingPlan(model: model).batterMotion(at: now), visualSwings.last != start {
+        if case .swing(let start, _) = HomerunSwingPlan(model: model).batterMotion(at: now), visualSwings.last != start {
             visualSwings.append(start)
         }
     }

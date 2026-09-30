@@ -216,7 +216,7 @@ public final class HomerunModel {
 
     /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻）。止まっているあいだは nil。
     public var nextWake: Date? {
-        guard !isHeld else { return nil }
+        guard !isHeld, !awaitsAtBat else { return nil }
         switch phase {
         case .pitching: return arrival?.addingTimeInterval(Self.lateLimit)
         case .ballResult: return resultUntil
@@ -250,6 +250,7 @@ public final class HomerunModel {
             HomerunStorage.saveLedger(ledger, defaults)
         }
         challenge = HomerunChallenge(pitches: pitches)
+        awaitsAtBat = true
         lastBall = nil
         isNewBest = false
         hasProgressed = false
@@ -264,6 +265,21 @@ public final class HomerunModel {
         services?.gameWillNotResume(gameID: Self.gameID)
         return true
     }
+
+    /// 打席の画面（3D）が描き始めたときに View が 1 回呼ぶ。1 球目の投手のモーションを今から数え直す（打席の 3D を作って
+    /// 描き始めるまで（シミュレータで約 1 秒）は画面が止まるので、打席に立った時刻から数えるとモーションが見えないまま的が
+    /// 出ていた・画面の E2E で実測）。1 球目をまだ押していないときだけ（押した・振った後は数え直さない）。
+    public func atBatDidAppear(now: Date) {
+        guard awaitsAtBat else { return }
+        awaitsAtBat = false
+        guard phase == .pitching, !isHeld, !isHolding, challenge?.results.isEmpty == true,
+              ballClock?.releasedAt == nil, ballClock?.practiceSwingAt == nil else { return }
+        beginPitch(now: now)
+    }
+
+    /// 打席に立ってから、打席の画面が描き始める（`atBatDidAppear`）までの間。1 球目は数え直す前なので、ゾーンの読み上げに
+    /// ボールの位置を出さない。
+    public private(set) var awaitsAtBat = false
 
     /// 広告を見た報酬として今日の挑戦回数を 1 回増やす。**広告を出す前の日付で照合する**（見ている間に
     /// 0:00 をまたぐと台帳が作り直されており、前の日の広告で今日の回数が増えるのを防ぐ）。
@@ -427,6 +443,7 @@ public final class HomerunModel {
     public func quitChallenge() {
         guard isPaused, phase == .pitching || phase == .ballResult else { return }
         holds.remove(.paused)
+        awaitsAtBat = false
         phase = .idle
         challenge = nil
         lastBall = nil
@@ -469,6 +486,7 @@ public final class HomerunModel {
     @discardableResult
     private func resolve(_ swing: HomerunSwing?, now: Date) -> HomerunBattedBall? {
         guard phase == .pitching, var challenge else { return nil }
+        awaitsAtBat = false
         didSwingLastBall = swing != nil
         lastMissReason = HomerunJudge.missReason(swing)
         if didSwingLastBall { swingCount += 1 }

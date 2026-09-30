@@ -179,3 +179,26 @@ targets:
         # 無いと FirebaseAnalytics が実バイナリからリンク落ちし、Crashlytics が
         # 「Firebase Analytics SDK not detected」となる（Firebase 公式要件）。
         OTHER_LDFLAGS: ["$(inherited)", "-ObjC"]
+
+  # 画面操作の E2E（XCUITest・#1594）。シミュレータで手元実行する専用のターゲットで、CI では回さない
+  # （ci.yml は GameCollection スキームの build だけ。ここのスキームは test のときだけこのターゲットを作る）。
+  GameCollectionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - GameCollectionUITests
+    dependencies:
+      - target: GameCollection
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: 6MGM38HWDH
+        CODE_SIGN_STYLE: Automatic
+        TEST_TARGET_NAME: GameCollection
+    scheme:
+      testTargets:
+        - GameCollectionUITests
