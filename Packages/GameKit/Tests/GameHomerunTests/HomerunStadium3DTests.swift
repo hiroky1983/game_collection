@@ -225,7 +225,7 @@ struct HomerunStadium3DTests {
         #expect(plate.positions.contains { abs($0.x) < 0.01 && abs($0.z + 0.432) < 0.01 }, "本塁の先端が無い")
     }
 
-    @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手と審判は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
+    @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
         // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.29m）より外に腰（原点 + 0.1m）がある。
@@ -235,8 +235,8 @@ struct HomerunStadium3DTests {
         #expect(simd_dot(leftShoulder, [0, 0, 1]) > 0.99, "左肩が投手を向いていない")
         let chest = SIMD3<Float>(sin(L.batter.yaw), 0, cos(L.batter.yaw))
         #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
-        #expect(L.catcher.position.z < 0 && L.umpire.position.z < L.catcher.position.z, "審判は捕手のさらに後ろ")
-        #expect(L.catcher.position.x < 0 && L.umpire.position.x < 0, "捕手・審判は打者と反対側へ寄せる")
+        #expect(L.catcher.position.z < 0, "捕手は本塁の奥")
+        #expect(L.catcher.position.x < 0, "捕手は打者と反対側へ寄せる")
         #expect(abs(L.pitcher.position.z - 17.4) < 1e-4 && abs(L.pitcher.position.y - 0.3) < 1e-4, "マウンドの上（高さ 0.3m）")
         #expect(abs(L.pitcher.yaw - .pi) < 1e-6)
         #expect(L.cameraPosition.z > 20 && L.cameraTarget.z < 1, "センター側から本塁を見る")
@@ -318,11 +318,10 @@ struct HomerunStadium3DTests {
             }
             #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
             #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
-            // 手前の審判・捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
+            // 手前の捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
             let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
-            for head in [L.worldPoint([0, 1.77, 0.2], of: L.umpire, for: back), L.worldPoint([0, 1.53, 0], of: L.catcher, for: back)] {
-                #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "審判・捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
-            }
+            let head = L.worldPoint([0, 1.53, 0], of: L.catcher, for: back)
+            #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
         }
     }
 
@@ -377,7 +376,7 @@ struct HomerunStadium3DTests {
         let cam = preset.camera
         let pose = cam.renderPose
         let rendered = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
-        for p in [L.batter, L.catcher, L.umpire, L.pitcher] {
+        for p in [L.batter, L.catcher, L.pitcher] {
             for local: SIMD3<Float> in [[0, 0, 0], [0.3, 1.2, 0.2], [-0.2, 1.7, -0.1]] {
                 // 描画される世界の点（人物は鏡映しない）。
                 let drawn = p.position + simd_quatf(angle: p.yaw, axis: [0, 1, 0]).act(local)

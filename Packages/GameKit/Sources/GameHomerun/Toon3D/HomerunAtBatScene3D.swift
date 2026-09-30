@@ -26,15 +26,14 @@ enum HomerunAtBatLayout {
     static func batterWorld(_ local: SIMD3<Float>) -> SIMD3<Float> {
         batter.position + simd_quatf(angle: batter.yaw, axis: [0, 1, 0]).act(local)
     }
-    /// 審判は捕手の後ろ（ほとんど隠れる）。捕手は本塁の少し打者と反対側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける。
-    static let umpire = Placement(position: [-0.75, 0, -3.2], yaw: 0)
+    /// 捕手は本塁の少し打者と反対側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける（審判は無し・会長決裁 2026-09-30・#1617）。
     static let catcher = Placement(position: [-0.6, 0, -2.2], yaw: 0)
     /// 投手はマウンドの上・本塁に向く（カメラに背中）。
     static let pitcher = Placement(position: [0, 0.3, 17.4], yaw: .pi)
 
-    /// 人物（打者・投手・捕手・審判）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
+    /// 人物（打者・投手・捕手）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
     /// 反転を打ち消す（そのままだと右打ちの Meshy の打者が画面の右に立つ左打ちに見える）。これで後ろから見て右打者が
-    /// 画面の左に右打ちで立ち、捕手・審判は画面の右へ逃げる。判定・座標・HUD は鏡映しない。
+    /// 画面の左に右打ちで立ち、捕手は画面の右へ逃げる。判定・座標・HUD は鏡映しない。
     /// 描画では人物を鏡映せず、カメラ側を鏡映して同じ画を作る（`Camera.renderPose`）。
     static func castMirrored(for camera: Camera) -> Bool { camera.mirrored }
 
@@ -111,8 +110,8 @@ enum HomerunAtBatLayout {
         case front
         /// 後ろ: 本塁の 5.5m 後ろ・三塁側へ 0.5m（打者の側）・高さ 2.6m から、ストライクゾーンを見下ろす（画角 50°）。
         /// 打者の背丈は画面の高さの 31%（7.5m・3m・53° のときの 22% から寄せた・会長指示 2026-09-29）。
-        /// 審判・捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥に投手・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
-        /// 三塁側へずらすのは、真後ろだと手前の審判・捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす。審判・捕手は廃止予定）。
+        /// 捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥に投手・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
+        /// 三塁側へずらすのは、真後ろだと手前の捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす）。
         case back
 
         /// 一時停止の画面のカメラの 2 択の文言。
@@ -197,7 +196,7 @@ extension HomerunAtBatLayout {
     }
 }
 
-/// 3D の打席シーン（球場 + 打者・投手・捕手・審判）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
+/// 3D の打席シーン（球場 + 打者・投手・捕手）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
 ///
 /// **当たり判定を持たない**（`allowsHitTesting(false)`）。3D は UIKit の `ARView` なので、当たり判定を残すと
 /// 手前に重ねた押せる帯（`HomerunAtBatView.touchPad`）へのドラッグを `ARView` が吸ってしまい、
@@ -370,7 +369,6 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.pitcher = pitcher
         context.coordinator.pitcherPose = pitcherPose
         place(.catcher(), HomerunAtBatLayout.catcher)
-        place(.umpire(), HomerunAtBatLayout.umpire)
         let ball = Self.makeBall()
         anchor.addChild(ball)
         Self.placeBall(ball, at: ballPosition, camera: camera)

@@ -685,15 +685,18 @@ public struct YakuTableSection<Content: View>: View {
 /// 「遊び方」シートを開く操作。`.howToPlay` が環境へ入れ、`gameChrome` がヘッダー右の所定の位置に
 /// `?` ボタンとして置く（#1418。ボタンを各自のツールバーに足す形だと、役の早見表・新規ボタンとの
 /// 並びが宣言順しだいになる）。
-struct HowToPlayTrigger {
-    let present: () -> Void
+///
+/// `public`: ヘッダーの `?` を隠す画面（`hidesHowToPlay`）が、別の場所（一時停止の画面など）から
+/// 同じシートを開けるよう、ゲーム側のモジュールからも読める（柵越えおじさんの打席・#1617）。
+public struct HowToPlayTrigger {
+    public let present: () -> Void
 }
 
 private struct HowToPlayTriggerKey: EnvironmentKey {
     nonisolated(unsafe) static var defaultValue: HowToPlayTrigger? = nil
 }
 
-extension EnvironmentValues {
+public extension EnvironmentValues {
     var howToPlayTrigger: HowToPlayTrigger? {
         get { self[HowToPlayTriggerKey.self] }
         set { self[HowToPlayTriggerKey.self] = newValue }

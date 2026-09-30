@@ -27,8 +27,10 @@ public struct HomerunView: View {
             // 打席前 → 打席 → 結果の差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
             .gameAnimation(.easeInOut(duration: 0.2), value: model.phase == .idle)
             // 打席中は左上の戻るを出さない（#1550。誤タップで挑戦が終わらないように。やめるのは一時停止から確認つきで）。
+            // 打席中は右上の「?」も出さない（#1617。一時停止の画面に「遊び方」を置き、そこから開く）。
             .gameChrome(title: "柵越えおじさん", review: services.review,
-                        hidesBackButton: model.phase == .pitching || model.phase == .ballResult)
+                        hidesBackButton: model.phase == .pitching || model.phase == .ballResult,
+                        hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult)
             // 遊び方を読んでいるあいだは投球を止め、閉じたらその球を投げ直す。
             .howToPlay(.homerun, onPresent: { model.hold(.sheet, true, now: Date()) },
                        onDismiss: { model.hold(.sheet, false, now: Date()) }) {

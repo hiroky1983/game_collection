@@ -19,6 +19,9 @@ struct HomerunAtBatView: View {
     @State private var practiceSwingExpired = false
     /// 一時停止から「途中でやめる」を押したときの確認（#1550）。
     @State private var confirmsQuit = false
+    /// 一時停止の画面の「遊び方」ボタンが開く（#1617。ヘッダー右上の `?` は打席中は隠すため、
+    /// ここから同じシートを開く）。
+    @Environment(\.howToPlayTrigger) private var howToPlay
 
     /// 離した瞬間から外野カメラ・結果のカードへ切り替えるまでの時間（秒）。振りは離した瞬間に始まり（#1594）、
     /// 打点のコマ（約 26 コマ目）まで約 0.2 秒・フォロースルーの終わり（44 コマ目）まで 0.8 秒。当たり以上はその間、
@@ -138,17 +141,16 @@ struct HomerunAtBatView: View {
 
     // MARK: 一時停止（#1550）
 
-    /// 一時停止ボタンの一辺（pt）。ブロック崩し・チャリンコおじさんの一時停止と同じ見た目（同じ役割の UI は同じ見た目）。
-    static let pauseButtonSide: CGFloat = 44
-
     private var pauseButton: some View {
         Button {
             fingerPoint = nil
             model.pause(now: Date())
         } label: {
+            // 大きさ・形は「⋯」（`GameControlMenu`）と揃える（#1617・同じ役割の UI は同じ見た目）。
+            // 寸法はコピーせず `BoardGameControlMetrics.minTapTarget` を直接参照する。
             Image(systemName: "pause.fill")
                 .font(.system(size: 18, weight: .bold))
-                .frame(width: Self.pauseButtonSide, height: Self.pauseButtonSide)
+                .frame(width: BoardGameControlMetrics.minTapTarget, height: BoardGameControlMetrics.minTapTarget)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)
         }
@@ -177,6 +179,12 @@ struct HomerunAtBatView: View {
                         }
                         .buttonStyle(.pop)
                         .accessibilityAddTraits(isChecked ? .isSelected : [])
+                    }
+                }
+                // ヘッダー右上の「?」は打席中は隠しているので、同じシートをここから開く（#1617）。
+                if let howToPlay {
+                    GameDeadEndActionButton("遊び方", systemImage: "questionmark.circle.fill", tint: Theme.Fill.teal) {
+                        howToPlay.present()
                     }
                 }
                 GameDeadEndActionButton("途中でやめる", systemImage: "xmark.circle.fill") {
