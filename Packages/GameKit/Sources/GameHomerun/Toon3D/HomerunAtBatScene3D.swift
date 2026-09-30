@@ -180,6 +180,8 @@ struct HomerunAtBatScene3DView: View {
     var ballPosition: SIMD3<Float>? = nil
     /// 今の時刻（振り抜きの再生位置を合わせるのに使う）。
     var now: Date = Date()
+    /// 3D の描画が落ち着いたとき（作った直後のコマ落ちが収まったとき）に 1 回だけ呼ぶ（iOS だけ）。
+    var onFirstFrame: (@MainActor () -> Void)? = nil
 
     var body: some View {
         ZStack {
@@ -187,7 +189,7 @@ struct HomerunAtBatScene3DView: View {
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
             HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
-                                  batterMotion: batterMotion, ballPosition: ballPosition, now: now)
+                                  batterMotion: batterMotion, ballPosition: ballPosition, now: now, onFirstFrame: onFirstFrame)
             #endif
         }
         .allowsHitTesting(false)
@@ -196,6 +198,7 @@ struct HomerunAtBatScene3DView: View {
 }
 
 #if os(iOS) && canImport(RealityKit)
+import Combine
 import RealityKit
 
 private struct HomerunAtBatSceneView: UIViewRepresentable {
@@ -205,6 +208,13 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterMotion: HomerunBatterMotion
     let ballPosition: SIMD3<Float>?
     let now: Date
+    let onFirstFrame: (@MainActor () -> Void)?
+    /// 描き始めの合図は、更新の刻みがこのコマ数続けて `steadyFrameInterval` 以内になったとき（作った直後の約 0.3〜0.5 秒は
+    /// 刻みが 0.1〜0.8 秒に跳ねてコマ落ちする・シミュレータで実測。落ち着いた後の刻みは端末の負荷で 1/60〜1/20 秒）。
+    static let steadyFrames = 3
+    static let steadyFrameInterval: TimeInterval = 0.07
+    /// 落ち着かない端末でもこのコマ数で合図を出す。
+    static let maxFramesBeforeReady = 60
 
     /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。打者は Meshy のモデルが読めればそれ
     /// （`batterRig`）を使い、読めなければ旧モデル（プリミティブで組んだおじさん）をポーズごとに差し替える。
@@ -218,6 +228,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
         var ball: ModelEntity?
+        var updates: (any Cancellable)?
+        var frames = 0
+        var steadyFrames = 0
     }
 
     /// 3D の球（白い球・陰影なし）。
@@ -301,6 +314,18 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.cameraEntity = cam
         context.coordinator.camera = camera
         view.scene.addAnchor(anchor)
+        if let onFirstFrame {
+            let coordinator = context.coordinator
+            coordinator.updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak coordinator] event in
+                guard let coordinator else { return }
+                coordinator.frames += 1
+                coordinator.steadyFrames = event.deltaTime <= Self.steadyFrameInterval ? coordinator.steadyFrames + 1 : 0
+                guard coordinator.steadyFrames >= Self.steadyFrames || coordinator.frames >= Self.maxFramesBeforeReady else { return }
+                coordinator.updates?.cancel()
+                coordinator.updates = nil
+                MainActor.assumeIsolated { onFirstFrame() }
+            }
+        }
         return view
     }
 
@@ -317,6 +342,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 rig.show(batterMotion, now: now)
                 c.batterMotion = batterMotion
             }
+            rig.tick(now: now)
         } else if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
             let new = Self.legacyBatter(batterPose)
             parent.addChild(new)

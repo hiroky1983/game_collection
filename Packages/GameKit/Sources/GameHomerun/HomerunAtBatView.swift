@@ -44,19 +44,25 @@ struct HomerunAtBatView: View {
                 let now = timeline.date
                 let plan = HomerunSwingPlan(model: model)
                 ZStack(alignment: .top) {
+                    // 打席の 3D は外野カメラの間も消さずに下へ残す（if / else で作り直すと、次の球の頭で打席の 3D を
+                    // 作り直す間（約 0.6〜1 秒）画面が止まり、投手のモーションが見えないまま的が出ていた・E2E で実測）。
+                    HomerunAtBatBackdrop(zoneCenter: zoneCenter,
+                                         batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
+                                         pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
+                                         cameraPreset: model.atBatCamera,
+                                         batterMotion: plan.batterMotion(at: now),
+                                         ballPosition: isAnimating ? plan.ballPosition(at: now) : nil,
+                                         now: now,
+                                         // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
+                                         // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
+                                         onFirstFrame: { model.atBatDidAppear(now: Date()) })
                     if showsOutfield, let ball = model.lastBall {
                         HomerunOutfieldScene3DView(ball: ball).ignoresSafeArea()
                     } else {
-                        HomerunAtBatBackdrop(zoneCenter: zoneCenter,
-                                             batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
-                                             pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
-                                             cameraPreset: model.atBatCamera,
-                                             batterMotion: plan.batterMotion(at: now),
-                                             ballPosition: isAnimating ? plan.ballPosition(at: now) : nil,
-                                             now: now)
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
-                            ball: model.phase == .pitching ? model.ballPoint : nil,
+                            // 打席の 3D が描き始める前（1 球目を数え直す前）は的と輪を出さない。
+                            ball: model.phase == .pitching && !model.awaitsAtBat ? model.ballPoint : nil,
                             cursor: model.aimCursor(at: now),
                             elapsed: model.pitchElapsed(at: now),
                             offset: model.timingOffset(at: now),
@@ -213,7 +219,7 @@ struct HomerunAtBatView: View {
     }
 
     private var zoneLabel: String {
-        guard model.phase == .pitching, let pitch = model.currentPitch else { return "ストライクゾーン" }
+        guard model.phase == .pitching, !model.awaitsAtBat, let pitch = model.currentPitch else { return "ストライクゾーン" }
         let rows = ["高め", "真ん中の高さ", "低め"]
         let cols = ["左", "真ん中", "右"]
         return "ストライクゾーン。ボールは\(rows[pitch.zone / 3])の\(cols[pitch.zone % 3])"
@@ -337,13 +343,17 @@ struct HomerunAtBatBackdrop: View {
     var batterMotion: HomerunBatterMotion = .stance
     var ballPosition: SIMD3<Float>? = nil
     var now: Date = Date()
+    /// 背景を描き始めたときに 1 回だけ呼ぶ（3D は最初の数コマを描いた後）。
+    var onFirstFrame: (@MainActor () -> Void)? = nil
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
-                                batterMotion: batterMotion, ballPosition: ballPosition, now: now).ignoresSafeArea()
+                                batterMotion: batterMotion, ballPosition: ballPosition, now: now,
+                                onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
+            .onAppear { onFirstFrame?() }
         #endif
     }
 }

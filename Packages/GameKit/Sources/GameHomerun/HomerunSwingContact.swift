@@ -41,7 +41,7 @@ enum HomerunBatPath {
 /// 31〜44 コマ目がフォロースルー。バットが本塁の上（球の通り道）を通るのは約 25.3〜26.3 コマ目
 /// （`HomerunSwingContact.contactWindow`）で、振り抜きの起点（20 コマ目）から約 0.2 秒後（`HomerunSwingContact.lead`）。
 /// **振りは離した瞬間にだけ始め、始まったら最後まで振り切る**（#1594。押しっぱなしで先読みして振ったり、巻き戻したりしない）。
-/// 本番の振りは、離した瞬間に振り抜きの途中のコマから流す（ジャスト・遅いなら打点のコマ、早いなら球が来たときに打点のコマに
+/// 本番の振りは、離した瞬間に 20 コマ目から速めに流して振り抜きの途中の予定に追いつく（ジャスト・遅いなら打点のコマ、早いなら球が来たときに打点のコマに
 /// なる手前・`HomerunSwingContact.swingStart`。判定の 0 = 3D の球が打点に来る瞬間・#1594 会長決裁 A）。素振りは 20 コマ目から流す。当たる瞬間の見た目は球の側を合わせる（`HomerunSwingPlan.ballPosition`）。
 enum HomerunBatterMotion: Equatable {
     /// 構え（1 コマ目で止める）。
@@ -50,13 +50,28 @@ enum HomerunBatterMotion: Equatable {
     /// （素振りの振り抜きが踏み込みの始まりより後に終わったとき、当たり窓の始まりに 20 コマ目が間に合うように）。
     case load(start: Date)
     /// 振り抜き〜フォロースルー（20 コマ目から最後まで）。`start` は 20 コマ目を置く実時刻。素振りは離した時刻、
-    /// 本番の振りは離した時刻より前（`HomerunSwingContact.swingStart`・離した瞬間に振り抜きの途中のコマから流れる）。
-    case swing(start: Date)
+    /// 本番の振りは離した時刻より前（`HomerunSwingContact.swingStart`）。
+    /// `catchUpFrom`（本番の振りの離した時刻）があれば、その瞬間に 20 コマ目から `catchUpSpeed` 倍で流し、`start` の予定に
+    /// 追いついたら等速に戻す（`swingOffset`）。以前は離した瞬間に振り抜きの前半（約 0.2 秒ぶん）を飛ばして打点のコマを
+    /// 出していたため、構えから振り終わりまでが一瞬に見えた（会長 QA 2026-09-30・画面の E2E の録画で確認）。
+    case swing(start: Date, catchUpFrom: Date? = nil)
 
     /// 踏み込みの長さ（秒・20 コマ目 = 19/30 秒）。振り抜きはここから始まる。
     static let loadDuration: TimeInterval = 19.0 / 30
     /// 振り抜き〜フォロースルーの長さ（秒・20〜44 コマ目 = 24/30 秒）。素振りはこれを過ぎたら構え・踏み込みへ戻る。
     static var swingDuration: TimeInterval { HomerunBatPath.duration - loadDuration }
+    /// 本番の振りで、飛ばしていた振り抜きの前半を追いつくまで流す速さ（倍）。3 倍 = 打点のコマはジャストで離した約 0.065 秒後、
+    /// 約 0.1 秒で予定に追いつく（2 倍だと打点が約 0.1 秒遅れ、早すぎる空振り（-111ms）でバットが球に触れて見えた）。判定（離した時刻）は変えず、当たる瞬間の見た目は球の側を合わせる
+    /// （`HomerunSwingContact.contactShownTime`）。
+    static let catchUpSpeed: Double = 3
+
+    /// 振り抜きの再生位置（20 コマ目からの秒）。`start` の予定どおりなら `now - start`。`catchUpFrom` があればそこから
+    /// `catchUpSpeed` 倍で流し、予定に追いついたら予定どおり。
+    static func swingOffset(start: Date, catchUpFrom: Date?, at now: Date) -> TimeInterval {
+        let scheduled = now.timeIntervalSince(start)
+        guard let from = catchUpFrom, from > start else { return max(scheduled, 0) }
+        return max(min(catchUpSpeed * now.timeIntervalSince(from), scheduled), 0)
+    }
 }
 
 /// バットと球が当たる瞬間の同期（試作）。判定（`HomerunJudge`・離した時刻 − 輪が的に重なる時刻）は変えず、
@@ -168,6 +183,14 @@ enum HomerunSwingContact {
         return release.addingTimeInterval(max(ballArrivesIn, 0))
     }
 
+    /// バットがその打点のコマを**画面に出す**時刻。振り抜きの前半を飛ばさずに `catchUpSpeed` 倍で流すぶん、
+    /// `contactTime` より少し遅れることがある（ジャストで離した約 0.1 秒後）。3D の球はこの時刻に打点へ寄せる。
+    static func contactShownTime(release: Date, offsetMilliseconds offset: Double, column: Int) -> Date {
+        let start = swingStart(release: release, offsetMilliseconds: offset, column: column)
+        let clip = contactClipTime(column: column, offsetMilliseconds: offset) - swingClipStart
+        return max(release.addingTimeInterval(clip / HomerunBatterMotion.catchUpSpeed), start.addingTimeInterval(clip))
+    }
+
     /// 本番の振りの 20 コマ目を置く実時刻（離した時刻より前）。`contactTime` にそのずれの打点のコマが来るよう逆算する。
     /// 見せるのは離した瞬間から（その時点のコマから流す）。ジャストなら離した時刻の `lead` 前。
     static func swingStart(release: Date, offsetMilliseconds offset: Double, column: Int) -> Date {
@@ -277,8 +300,11 @@ struct HomerunSwingPlan {
                 return .swing(start: practice)
             }
             if let release = clock.releasedAt, release <= now {
-                return .swing(start: HomerunSwingContact.swingStart(release: release, offsetMilliseconds: clock.timingOffset ?? 0,
-                                                                   column: column))
+                let start = HomerunSwingContact.swingStart(release: release, offsetMilliseconds: clock.timingOffset ?? 0, column: column)
+                // タイミングは合っていて照準で外した空振りは、速めに流さず打点のコマから（遅れて振ると、ジャストの打点の
+                // 上を抜けた球にバットが追いついて触れて見える）。
+                let aimMiss = lastBall?.kind == .miss && lastBall?.timing != .miss
+                return .swing(start: start, catchUpFrom: start < release && !aimMiss ? release : nil)
             }
             // 見送り: 振らない。
             return .stance
@@ -297,7 +323,7 @@ struct HomerunSwingPlan {
         case .ballResult:
             if let release = clock.releasedAt, let offset = clock.timingOffset, let ball = lastBall, ball.kind != .miss {
                 let contact = HomerunSwingContact.contactPoint(column: column, offsetMilliseconds: offset)
-                let hitAt = HomerunSwingContact.contactTime(release: release, offsetMilliseconds: offset, column: column)
+                let hitAt = HomerunSwingContact.contactShownTime(release: release, offsetMilliseconds: offset, column: column)
                 if now < hitAt {
                     // 離した瞬間の球の位置から、バットがその打点に来る時刻に打点へ着くよう寄せる（球の側を合わせる）。早いときは
                     // バットが球の来る時刻に打点へ来るので、球はほぼ投球の線のまま着く。遅いとき（打点のコマ = 離した瞬間）は、

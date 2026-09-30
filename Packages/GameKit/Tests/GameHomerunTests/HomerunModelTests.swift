@@ -84,6 +84,30 @@ struct HomerunModelTests {
         #expect(model.challenge?.results.isEmpty == true)
     }
 
+    @Test("打席の 3D を作り終えたら 1 球目のモーションを数え直す（作る間の停止でモーションが見えないまま的が出ない）。押した後・2 球目以降は数え直さない")
+    func atBatDidAppearRestartsFirstPitch() throws {
+        let fixture = Fixture()
+        let model = fixture.model()
+        let t0 = Fixture.t0
+        model.start(now: t0)
+        #expect(model.awaitsAtBat)
+        let ready = t0.addingTimeInterval(0.6)
+        model.atBatDidAppear(now: ready)
+        #expect(!model.awaitsAtBat)
+        #expect(model.pitchStart == ready.addingTimeInterval(HomerunModel.windup))
+        #expect(model.ballClock?.pitchStart == model.pitchStart)
+        // 押した後は数え直さない。
+        model.press(at: CGPoint(x: 150, y: 600), now: ready.addingTimeInterval(0.1))
+        model.atBatDidAppear(now: ready.addingTimeInterval(0.2))
+        #expect(model.pitchStart == ready.addingTimeInterval(HomerunModel.windup))
+        // 2 球目以降も数え直さない。
+        model.release(at: CGPoint(x: 150, y: 600), now: try arrival(model))
+        model.advance(now: try #require(model.resultUntil))
+        let second = model.pitchStart
+        model.atBatDidAppear(now: ready.addingTimeInterval(10))
+        #expect(model.pitchStart == second)
+    }
+
     @Test("ホールド → ずらす → 離す: ボールの少し下でジャストなら中堅へ 135 m の柵越え")
     func justFlyToCenterIsHomer() throws {
         let f = Fixture()
@@ -253,7 +277,8 @@ struct HomerunModelTests {
         #expect(model.ballClock?.releasedAt == release && model.ballClock?.practiceSwingAt == practice)
         let offset = try #require(model.ballClock?.timingOffset)
         #expect(HomerunSwingPlan(model: model).batterMotion(at: release)
-                == .swing(start: HomerunSwingContact.swingStart(release: release, offsetMilliseconds: offset, column: 0)))
+                == .swing(start: HomerunSwingContact.swingStart(release: release, offsetMilliseconds: offset, column: 0),
+                          catchUpFrom: release))
         let close = try #require(model.resultUntil)
         model.advance(now: close)
         #expect(model.phase == .pitching && model.ballClock?.practiceSwingAt == nil)

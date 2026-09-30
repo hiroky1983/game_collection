@@ -59,7 +59,7 @@ private final class Rig {
     func wait(_ seconds: TimeInterval) { wait(until: now.addingTimeInterval(seconds)) }
 
     private func sample() {
-        if case .swing(let start) = HomerunSwingPlan(model: model).batterMotion(at: now), visualSwings.last != start {
+        if case .swing(let start, _) = HomerunSwingPlan(model: model).batterMotion(at: now), visualSwings.last != start {
             visualSwings.append(start)
         }
     }

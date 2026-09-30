@@ -63,6 +63,8 @@ final class HomerunBatterRig {
     private let loadAnimation: AnimationResource?
     private let swingAnimation: AnimationResource?
     private var controller: AnimationPlaybackController?
+    /// 本番の振りで速めに流している間の予定（`HomerunBatterMotion.swingOffset`）。追いついたら nil。
+    private var catchUp: (start: Date, from: Date)?
 
     /// スイング 1 本（踏み込み〜フォロースルー）の長さ（秒）。
     let fullDuration: TimeInterval
@@ -93,6 +95,7 @@ final class HomerunBatterRig {
     /// 過去ならその分だけ進める（素振りの振り抜きから戻ったとき）。
     func show(_ motion: HomerunBatterMotion, now: Date) {
         controller?.stop()
+        catchUp = nil
         switch motion {
         case .stance:
             controller = stanceAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
@@ -100,10 +103,25 @@ final class HomerunBatterRig {
             controller = loadAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
             let ahead = now.timeIntervalSince(start)
             if ahead > 0 { controller?.time = min(ahead, HomerunBatterMotion.loadDuration) }
-        case .swing(let start):
+        case .swing(let start, let catchUpFrom):
             controller = swingAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
-            let ahead = now.timeIntervalSince(start)
+            let ahead = HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now)
             if ahead > 0 { controller?.time = min(ahead, fullDuration - HomerunBatterMotion.loadDuration) }
+            if let from = catchUpFrom, ahead < now.timeIntervalSince(start) {
+                catchUp = (start, from)
+                controller?.speed = Float(HomerunBatterMotion.catchUpSpeed)
+            }
+        }
+    }
+
+    /// 毎コマ呼ぶ。速めに流している振りが予定に追いついたら等速に戻す。
+    func tick(now: Date) {
+        guard let catchUp, let controller else { return }
+        let scheduled = now.timeIntervalSince(catchUp.start)
+        if controller.time >= scheduled {
+            controller.speed = 1
+            controller.time = min(scheduled, fullDuration - HomerunBatterMotion.loadDuration)
+            self.catchUp = nil
         }
     }
 
