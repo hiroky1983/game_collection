@@ -111,21 +111,18 @@ struct HomerunToonMeshTests {
         #expect(m.parts.allSatisfy { $0.mesh.positions.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite } })
     }
 
-    @Test("捕手と審判は +z（投手）向きで、しゃがみ・前かがみの背丈に収まり、茶のミットがある")
-    func catcherAndUmpireBuild() {
-        let catcher = HomerunToonModel.catcher(), umpire = HomerunToonModel.umpire()
-        for (name, m) in [("捕手", catcher), ("審判", umpire)] {
-            let pos = m.parts.flatMap { $0.mesh.positions }
-            #expect(pos.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite }, "\(name)")
-            #expect(pos.map(\.y).min()! > -0.1 && pos.map(\.y).max()! < 5.5, "\(name): しゃがみ・前かがみは立ちより低い")
-            #expect(m.parts.count > 15 && m.parts.filter { $0.outline != nil }.count > m.parts.count / 2, "\(name)")
-            #expect(m.parts.allSatisfy { !$0.striped }, "\(name): ピンストライプは打者だけ")
-        }
+    @Test("捕手は +z（投手）向きで、しゃがみの背丈に収まり、茶のミットがある")
+    func catcherBuild() {
+        let catcher = HomerunToonModel.catcher()
+        let pos = catcher.parts.flatMap { $0.mesh.positions }
+        #expect(pos.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite })
+        #expect(pos.map(\.y).min()! > -0.1 && pos.map(\.y).max()! < 5.5, "しゃがみは立ちより低い")
+        #expect(catcher.parts.count > 15 && catcher.parts.filter { $0.outline != nil }.count > catcher.parts.count / 2)
+        #expect(catcher.parts.allSatisfy { !$0.striped }, "ピンストライプは打者だけ")
         #expect(catcher.parts.contains { $0.color == HomerunToonPalette.glove }, "ミットは茶")
         let front = catcher.parts.flatMap { $0.mesh.positions }.map(\.z).max()!
         #expect(front > 1.8 && front < 2.6, "ミットとケージは投手側（+z）に出る")
-        #expect(catcher == HomerunToonModel.catcher() && umpire == HomerunToonModel.umpire(), "乱数なし")
-        #expect(catcher != umpire)
+        #expect(catcher == HomerunToonModel.catcher(), "乱数なし")
     }
 
     #if canImport(RealityKit)

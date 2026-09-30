@@ -76,6 +76,9 @@ public extension View {
     ///   - actions: 上の 2 つに収まらないゲーム固有の操作（難易度・盤面選択メニューなど）。最後尾に並ぶ。
     ///   - hidesBackButton: 左上の戻るを隠す。誤タップで進行中の挑戦が終わってはいけない画面だけが渡す
     ///     （柵越えおじさんの打席・#1550。やめる操作はゲーム側の一時停止に置く）。
+    ///   - hidesHowToPlay: ヘッダー右上の `?`（`.howToPlay`）を隠す。一時停止の画面など、ゲーム側の別の場所に
+    ///     同じ「遊び方」への導線を置く画面だけが渡す（柵越えおじさんの打席・#1617）。`.howToPlay` の環境値
+    ///     自体は隠さないので、渡す側は `howToPlayTrigger` を読んで自前のボタンから開ける。
     ///
     /// ヘッダー右の並びは **役の早見表 → `?`（`.howToPlay`）→ 新規 → その他** で固定し、
     /// ゲーム側からは変えられない（#1418。並びが各ゲームの書き方しだいだった）。
@@ -89,11 +92,13 @@ public extension View {
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
         hidesBackButton: Bool = false,
+        hidesHowToPlay: Bool = false,
         @ToolbarContentBuilder actions: () -> Actions
     ) -> some View {
         modifier(GameChromeBase(review: review))
             .modifier(GameChromeToolbar(title: title, reference: reference, newGame: newGame,
-                                        hidesBackButton: hidesBackButton, actions: actions()))
+                                        hidesBackButton: hidesBackButton, hidesHowToPlay: hidesHowToPlay,
+                                        actions: actions()))
     }
 
     /// ゲーム固有の操作が無いゲーム用。
@@ -102,11 +107,13 @@ public extension View {
         review: ReviewRequestService?,
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
-        hidesBackButton: Bool = false
+        hidesBackButton: Bool = false,
+        hidesHowToPlay: Bool = false
     ) -> some View {
         modifier(GameChromeBase(review: review))
             .modifier(GameChromeToolbar<ToolbarItem<Void, EmptyView>>(
-                title: title, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton, actions: nil))
+                title: title, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton,
+                hidesHowToPlay: hidesHowToPlay, actions: nil))
     }
 }
 
@@ -161,6 +168,7 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let hidesBackButton: Bool
+    let hidesHowToPlay: Bool
     let actions: Actions?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
@@ -177,7 +185,7 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
                     .accessibilityLabel(reference.accessibilityLabel)
                 }
             }
-            if let howToPlay {
+            if let howToPlay, !hidesHowToPlay {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: howToPlay.present) {
                         Image(systemName: "questionmark.circle")

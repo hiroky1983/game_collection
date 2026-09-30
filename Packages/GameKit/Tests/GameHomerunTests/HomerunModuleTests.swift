@@ -52,10 +52,17 @@ struct HomerunModuleTests {
         #expect(code.contains("onPresent: { model.hold(.sheet, true"), "遊び方を読んでいるあいだは投球を止める")
         #expect(code.contains("hidesBackButton: model.phase == .pitching || model.phase == .ballResult"),
                 "打席中は左上の戻るを出さない（#1550）")
+        #expect(code.contains("hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult"),
+                "打席中は右上の「?」も出さない。一時停止の画面から開く（#1617）")
         #expect(!atBat.contains("GameControlMenu("), "打席の「⋯」は一時停止ボタンに置き換えた（#1550）")
         #expect(atBat.contains("model.pause(now:") && atBat.contains("model.quitChallenge()"),
                 "一時停止ボタン・途中でやめる（確認つき）")
         #expect(atBat.contains(".confirmationDialog("), "途中でやめる前に確認を出す")
+        #expect(atBat.contains("howToPlay.present()") && atBat.contains("\"遊び方\""),
+                "一時停止の画面に遊び方ボタンを置き、ヘッダーと同じシートを開く（#1617）")
+        #expect(atBat.contains("BoardGameControlMetrics.minTapTarget"),
+                "一時停止ボタンの寸法は「⋯」（GameControlMenu）側の定数を参照する（コピーで別の数字を書かない・#1617）")
+        #expect(!atBat.contains("pauseButtonSide"), "一時停止ボタン専用の寸法定数は持たない（#1617）")
         #expect(!code.contains("#if DEBUG"), "ゲームの出し分けを DEBUG で分けない")
         #expect(!code.contains("Task.sleep(nanoseconds"))
     }
