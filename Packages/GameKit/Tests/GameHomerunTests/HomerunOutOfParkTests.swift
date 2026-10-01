@@ -51,7 +51,8 @@ struct HomerunOutOfParkTests {
 
     @Test("境界: 後端ちょうどから場外・手前は柵越えのまま。柵越え以外は距離があっても場外にしない")
     func boundary() {
-        for deg in [-45.0, -30, -6, 0, 3, 15, 44] {
+        // ±45° ちょうどの柵越えはファウルポール直撃（#1686・場外より優先）なので、両翼は 44.5° で見る。
+        for deg in [-44.5, -30, -6, 0, 3, 15, 44] {
             let edge = Chase.outOfParkDistance(atDirection: deg)
             #expect(homer(direction: deg, distance: edge).isOutOfPark)
             #expect(homer(direction: deg, distance: edge + 20).isOutOfPark)

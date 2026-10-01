@@ -111,12 +111,14 @@ public enum HomerunText {
     }
 
     /// 1 球の種別の語。柵越えのうち場外（スタンドの最後列の後端を越えた・#1654）は「場外！」。月まで飛んだ打球（#1680）は
-    /// 場外より優先して「月まで飛んだ！」（2 回目は「月が割れた！」）。
+    /// 場外より優先して「月まで飛んだ！」（2 回目は「月が割れた！」）。ファウルポール直撃（#1686）は月の次・場外より先で「ポール直撃！」。
     public static func kind(of ball: HomerunBattedBall) -> String {
         switch ball.moon {
         case .hit: return "月まで飛んだ！"
         case .broken: return "月が割れた！"
-        case nil: return ball.isOutOfPark ? "場外！" : kind(ball.kind)
+        case nil:
+            if ball.isPoleHit { return "ポール直撃！" }
+            return ball.isOutOfPark ? "場外！" : kind(ball.kind)
         }
     }
 
@@ -138,6 +140,7 @@ public enum HomerunText {
         case .foul: "ファウル"
         case .fenceHit: "直撃"
         case .homer where ball.isMoon: "月"
+        case .homer where ball.isPoleHit: "ポール"
         case .homer where ball.isOutOfPark: "場外"
         case .inPlay, .homer: HomerunSector(direction: ball.direction).label
         }

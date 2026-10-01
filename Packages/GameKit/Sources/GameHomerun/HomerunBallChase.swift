@@ -41,6 +41,12 @@ enum HomerunBallChase {
         contactLeadMax + limit(for: kind) + cardHold
     }
 
+    /// ポール直撃（#1686）の、当たった瞬間から結果のカードを出すまでの上限（秒）。ポールまで飛んで当たり、跳ね返って
+    /// 下へ落ちて弾むまでを見せるぶん、ふつうの柵越え（`limit(for: .homer)`）より長い。
+    static let poleLimit: TimeInterval = 4.6
+    /// ポール直撃の 1 球の結果の時間（`HomerunModel.resultDuration`）。
+    static var poleResultDuration: TimeInterval { contactLeadMax + poleLimit + cardHold }
+
     // MARK: 見た目の定数
 
     /// 追うカメラで見せる球の半径（m・打球の道の地面の高さにも使う）。実寸（0.037m）では数十 m 先で見えないので少し大きくする。
@@ -198,6 +204,8 @@ enum HomerunBallChase {
             segments = groundBall(rest: foulRestDistance(for: ball.launch), launch: ball.launch)
         case .fenceHit:
             segments = fenceHit(ball)
+        case .homer where ball.isPoleHit:
+            return Track(direction: ball.direction, segments: fitted(poleHit(ball), into: poleLimit - restHold))
         case .homer where ball.isOutOfPark:
             return Track(direction: ball.direction, segments: fitted(outOfPark(ball), into: limit(for: ball.kind) - restHold),
                          vanishesAtEnd: true)
@@ -315,6 +323,45 @@ enum HomerunBallChase {
     static let scoreboardZ: Double = 137
     static let scoreboardHalfWidth: Double = 14.5
     static let scoreboardTop: Double = 26.5
+
+    // MARK: ファウルポール直撃（#1686・会長決裁 2026-10-02）
+
+    /// ポールの中心（本塁からの水平距離・m）。球場の 3D のポール（`HomerunToonModel` の柵）と同じく、両翼の柵の上に立つ。
+    static var poleS: Double { HomerunJudge.fence(atDirection: HomerunJudge.foulLimit) }
+    /// 球の中心がポールに当たる所（本塁からの水平距離・m）: ポールの面の手前、球の半径ぶん。
+    static var poleContactS: Double { poleS - HomerunJudge.poleRadius - ballRadius }
+    /// 球がポールに当たる高さの上限（m・ポールの先の球より下）。これより高く飛ぶ打球もこの高さで当てる。
+    static var poleContactMaxY: Double { HomerunJudge.poleHeight - 1.5 }
+    /// 跳ね返った球が落ちる所（ポールの手前・m）と、弾んで止まる所（ポールの手前・m）。どちらも柵の手前のウォーニングトラック。
+    static let poleDropBack: Double = 3
+    static let poleRestBack: Double = 6
+    /// 跳ね返る瞬間に球が上へ跳ねる速さ（m/s・「カーン」と少し浮いてから落ちる）。
+    static let poleKickUp: Double = 2.5
+
+    /// ポール直撃: ふつうの柵越えの放物線（柵の上を越えてスタンドへ落ちる）をポールの所で切って当て、本塁側へ跳ね返って
+    /// ポールの足元（柵の手前）へ落ち、小さく弾んで止まる。放物線がポールの先より高いときは先の少し下に当てる。
+    private static func poleHit(_ ball: HomerunBattedBall) -> [Segment] {
+        let contactS = poleContactS
+        let landing = Point(s: max(ball.distance, poleS + 8), y: ballRadius)
+        let full = flight(to: landing, elevation: elevation(for: ball.launch), over: [Point(s: poleS, y: fenceClearance)])
+        let u = (contactS - start.s) / (landing.s - start.s)
+        var hit = full.point(at: u)
+        let f: Segment
+        if hit.y <= poleContactMaxY, case .arc(let bulge) = full.motion {
+            // 放物線の途中の弦のふくらみは、弦の長さの 2 乗に比例する（同じ放物線の一部を切り出す）。
+            f = make(from: start, to: hit, .arc(bulge: bulge * u * u))
+        } else {
+            hit = Point(s: contactS, y: poleContactMaxY)
+            f = flight(to: hit, elevation: elevation(for: ball.launch))
+        }
+        // 跳ね返り: 少し上へ跳ねてから重力で落ちる放物線。落ちる時間 T は y(t) = h + v·t − g·t²/2 = 地面 から、
+        // ふくらみ（`Segment.arc`）は g·T²/8（`naturalDuration` の逆）。
+        let drop = Point(s: poleS - poleDropBack, y: ballRadius)
+        let h = hit.y - drop.y
+        let fall = (poleKickUp + sqrt(poleKickUp * poleKickUp + 2 * gravity * h)) / gravity
+        let back = make(from: hit, to: drop, .arc(bulge: gravity * fall * fall / 8))
+        return [f, back] + bounces(from: drop, rest: poleS - poleRestBack, firstHop: 0.6)
+    }
 
     // MARK: 場外（#1654・会長決裁 2026-10-01）
 
@@ -463,9 +510,9 @@ enum HomerunBallChase {
 extension HomerunBattedBall {
     /// 場外（#1654）: 柵越えのうち、飛距離がその方向のスタンドの最後列の後端（`HomerunBallChase.outOfParkDistance`）以上。
     /// 表示だけ（得点の上乗せなし）。保存（`HomerunShot`）の方向・距離・種別から毎回出すので、保存の形は変えない。
-    /// 月まで飛んだ打球（#1680）は場外より優先して月の扱い（場外にしない）。
+    /// 月まで飛んだ打球（#1680）・ポール直撃（#1686）は場外より優先（場外にしない）。
     var isOutOfPark: Bool {
-        !isMoon && kind == .homer && distance >= HomerunBallChase.outOfParkDistance(atDirection: direction)
+        !isMoon && !isPoleHit && kind == .homer && distance >= HomerunBallChase.outOfParkDistance(atDirection: direction)
     }
 }
 

@@ -26,6 +26,9 @@ struct GameCollectionApp: App {
         // 動作確認用: 柵越えおじさんで振れば必ず月まで飛ぶ（`-homerunForceMoon`・#1680 の隠し演出の確認用）。
         UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-homerunForceMoon"),
                                   forKey: HomerunModel.debugForceMoonKey)
+        // 動作確認用: 柵越えおじさんで振れば必ずファウルポールに当たる（`-homerunForcePole`・#1686 の確認用）。
+        UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-homerunForcePole"),
+                                  forKey: HomerunModel.debugForcePoleKey)
         #endif
     }
 

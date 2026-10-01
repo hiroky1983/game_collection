@@ -36,16 +36,19 @@ public struct HomerunChallenge: Sendable {
     public let abilities: HomerunAbilities
     /// 確認用（DEBUG の起動引数 `-homerunForceMoon`）: 振れば（見送り以外）必ず月まで飛ぶ。出荷ビルドでは立てる経路が無い。
     public let forcesMoon: Bool
+    /// 確認用（DEBUG の起動引数 `-homerunForcePole`）: 振れば（見送り以外）必ずファウルポールに当たる（#1686）。月の強制が優先。
+    public let forcesPole: Bool
     public private(set) var results: [HomerunBattedBall] = []
 
     /// 1 挑戦の中でこの回数目の月で月が割れ、挑戦が終わる（#1680）。
     public static let moonBreakCount = 2
 
     public init(pitches: [HomerunPitch] = HomerunPitch.standardSequence, abilities: HomerunAbilities = .standard,
-                forcesMoon: Bool = false) {
+                forcesMoon: Bool = false, forcesPole: Bool = false) {
         self.pitches = Array(pitches.prefix(Self.pitchCount))
         self.abilities = abilities
         self.forcesMoon = forcesMoon
+        self.forcesPole = forcesPole
     }
 
     /// 10 球を投げ終えた、または月が割れた（残りの球は没収・#1680）。
@@ -64,8 +67,11 @@ public struct HomerunChallenge: Sendable {
     public mutating func swing(_ swing: HomerunSwing?) -> HomerunBattedBall? {
         guard !isFinished else { return nil }
         // 月まで飛ぶ（#1680）: 条件（`HomerunJudge.isMoonShot`）か、確認用の強制。見送りは月にならない。
+        // ポール直撃（#1686）はふだんの判定（`judge`）の中。確認用の強制（`forcesPole`）は月の次。
         var result = if let swing, forcesMoon || HomerunJudge.isMoonShot(swing) {
             HomerunJudge.moonBall(swing)
+        } else if let swing, forcesPole {
+            HomerunJudge.forcedPoleBall(swing, abilities: abilities)
         } else {
             HomerunJudge.judge(swing, abilities: abilities)
         }

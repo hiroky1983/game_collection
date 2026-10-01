@@ -68,6 +68,7 @@ public final class HomerunModel {
     /// 1 球の結果を見せる時間（月まで飛んだ打球・#1680 は月の演出のぶん長い）。
     public static func resultDuration(for ball: HomerunBattedBall?) -> TimeInterval {
         if let moon = ball?.moon { return HomerunMoonShot.resultDuration(moon) }
+        if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration }
         return resultDuration(for: ball?.kind ?? .miss)
     }
 
@@ -257,6 +258,9 @@ public final class HomerunModel {
     /// 動作確認用: この鍵が true なら振れば必ず月まで飛ぶ（#1680・`HomerunChallenge.forcesMoon`）。アプリの DEBUG ビルドが
     /// 起動引数 `-homerunForceMoon` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
     public static let debugForceMoonKey = "homerun_debugForceMoon"
+    /// 動作確認用: この鍵が true なら振れば必ずファウルポールに当たる（#1686・`HomerunChallenge.forcesPole`）。アプリの DEBUG
+    /// ビルドが起動引数 `-homerunForcePole` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
+    public static let debugForcePoleKey = "homerun_debugForcePole"
 
     /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
     @discardableResult
@@ -270,7 +274,8 @@ public final class HomerunModel {
             }
             HomerunStorage.saveLedger(ledger, defaults)
         }
-        challenge = HomerunChallenge(pitches: pitches, forcesMoon: defaults.bool(forKey: Self.debugForceMoonKey))
+        challenge = HomerunChallenge(pitches: pitches, forcesMoon: defaults.bool(forKey: Self.debugForceMoonKey),
+                                     forcesPole: defaults.bool(forKey: Self.debugForcePoleKey))
         awaitsAtBat = true
         lastBall = nil
         isNewBest = false
