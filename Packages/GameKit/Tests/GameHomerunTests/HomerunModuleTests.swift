@@ -216,7 +216,7 @@ struct HomerunGeometryTests {
     func sprayLabelsDoNotOverlap() {
         let same = CGPoint(x: 140, y: 40)
         let marks = [same, same, CGPoint(x: 144, y: 42), CGPoint(x: 80, y: 120)]
-        let labels = HomerunSprayGeometry.labelCenters(for: marks)
+        let labels = HomerunSprayGeometry.labelCenters(for: marks, in: CGRect(x: 0, y: 0, width: 287, height: 213))
         let size = HomerunSprayGeometry.labelSize
         for i in labels.indices {
             for j in labels.indices where j > i {
@@ -226,6 +226,22 @@ struct HomerunGeometryTests {
             }
         }
         #expect(labels[3] == CGPoint(x: 90, y: 111), "離れた球は今まで通り右上")
+    }
+
+    @Test("空振りが 2 球でも番号の札は描く枠の内側に収まる（#1676）")
+    func sprayLabelsStayInsideFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 287, height: 213)
+        let layout = HomerunSprayGeometry.layout(in: frame.size, inset: 16)
+        let miss = CGPoint(x: layout.home.x, y: layout.home.y - 8)
+        let labels = HomerunSprayGeometry.labelCenters(for: [miss, miss], in: frame)
+        let size = HomerunSprayGeometry.labelSize
+        for (i, c) in labels.enumerated() {
+            let rect = CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
+            #expect(frame.contains(rect), "札 \(i + 1)")
+        }
+        // 枠を十分広く取ると、2 枚目が下にはみ出す（テストが効いている対照）。
+        let loose = HomerunSprayGeometry.labelCenters(for: [miss, miss], in: CGRect(x: -500, y: -500, width: 2000, height: 2000))
+        #expect(loose[1].y + size.height / 2 > frame.maxY)
     }
 
     @Test("合計飛距離（m）は順位表 homerunDistance へ送る")

@@ -86,7 +86,7 @@ struct HomerunSprayChart: View {
                 let p = map(HomerunSprayGeometry.mark(for: ball))
                 return ball.kind == .miss ? CGPoint(x: p.x, y: p.y - 8) : p
             }
-            let labels = HomerunSprayGeometry.labelCenters(for: marks)
+            let labels = HomerunSprayGeometry.labelCenters(for: marks, in: CGRect(origin: .zero, size: size))
             for (index, ball) in balls.enumerated() {
                 let p = map(HomerunSprayGeometry.mark(for: ball))
                 switch ball.kind {

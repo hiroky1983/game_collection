@@ -213,7 +213,8 @@ public enum HomerunSprayGeometry {
 
     /// 番号の札の中心（#1676）。印の位置 `marks`（枠の座標）の順に、ほかの札・ほかの印と重ならない最初の候補を選ぶ。
     /// どの候補も重なるときは重なりの最も少ないものにする（同じ所に何球落ちても札が完全には重ならない）。
-    public static func labelCenters(for marks: [CGPoint]) -> [CGPoint] {
+    /// 描く枠 `bounds` からはみ出す候補は、枠内に収まる候補が 1 つでもあれば選ばない。
+    public static func labelCenters(for marks: [CGPoint], in bounds: CGRect) -> [CGPoint] {
         var placed: [CGRect] = []
         // 自分の印は数えない（右上の札は★の縁に少し掛かるのが元からの見た目）。
         func markOverlap(_ rect: CGRect, _ own: Int) -> Int {
@@ -226,7 +227,8 @@ public enum HomerunSprayGeometry {
                 let center = CGPoint(x: mark.x + offset.dx, y: mark.y + offset.dy)
                 let rect = CGRect(x: center.x - labelSize.width / 2, y: center.y - labelSize.height / 2,
                                   width: labelSize.width, height: labelSize.height)
-                let cost = placed.filter { $0.intersects(rect) }.count * 2 + markOverlap(rect, index)
+                let outside = bounds.contains(rect) ? 0 : 100
+                let cost = placed.filter { $0.intersects(rect) }.count * 2 + markOverlap(rect, index) + outside
                 if best == nil || cost < best!.cost { best = (center, rect, cost) }
                 if cost == 0 { break }
             }
