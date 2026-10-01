@@ -32,26 +32,64 @@ struct HomerunBallShadowTests {
         return balls
     }
 
-    @Test("地面に着いた球の影は真下・浮かせた高さに、球の 1.4 倍の半径で濃く（0.55）")
+    /// 真上のカメラ（伸ばしなし・向きは問わない）。
+    private func above(_ p: SIMD3<Float>) -> SIMD3<Float> { [p.x, 100, p.z] }
+
+    @Test("地面に着いた球の影は真下・芝のすぐ上（0.01m）に、球の 1.4 倍の半径で濃く（0.55）")
     func onGround() {
-        let s = Shadow.shape(ball: [3, r, 40], ballRadius: r)
-        #expect(s.center == [3, Shadow.lift, 40])
+        let s = Shadow.shape(ball: [3, r, 60], ballRadius: r, camera: above([3, r, 60]))
+        #expect(s.center == [3, Shadow.plainClearance, 60])
         #expect(abs(s.radius - r * Shadow.groundRadiusFactor) < 1e-6)
         #expect(abs(s.opacity - Shadow.groundOpacity) < 1e-6)
+        #expect(s.stretch == 1)
+    }
+
+    @Test("円板を浮かせる高さ: 内野・ファウルゾーンは白線の上（0.09）、ウォーニングトラック 0.035、マウンド 0.03、外野の芝・座面 0.01")
+    func clearance() {
+        #expect(Shadow.clearance(below: [0, 0.8, 0]) == Shadow.infieldClearance)
+        #expect(Shadow.clearance(below: [0, 1, 40]) == Shadow.infieldClearance)
+        #expect(Shadow.clearance(below: Chase.world(.init(s: 40, y: 1), direction: 60)) == Shadow.infieldClearance)
+        #expect(Shadow.clearance(below: HomerunBallFlight.releasePoint) == Shadow.moundClearance)
+        #expect(Shadow.clearance(below: [0, 1, 60]) == Shadow.plainClearance)
+        let fence = HomerunJudge.fence(atDirection: 20)
+        #expect(Shadow.clearance(below: Chase.world(.init(s: fence - 2, y: 1), direction: 20)) == Shadow.trackClearance)
+        #expect(Shadow.clearance(below: Chase.world(.init(s: fence - 8, y: 1), direction: 20)) == Shadow.plainClearance)
+        #expect(Shadow.clearance(below: Chase.world(.init(s: fence + 2 + Double(Stand.depth(row: 2)), y: 20), direction: 20)) == Shadow.plainClearance)
+    }
+
+    @Test("低いカメラから見るほど視線の向きへ伸ばす（画面で横 : 縦 = 2 : 1 の楕円・上限 6 倍）。真上からは伸ばさない")
+    func stretchesTowardLowCamera() {
+        #expect(Shadow.stretch(sinElevation: 1) == 1)
+        #expect(Shadow.stretch(sinElevation: 0.5) == 1)
+        #expect(abs(Shadow.stretch(sinElevation: 0.25) - 2) < 1e-5)
+        #expect(Shadow.stretch(sinElevation: 0.01) == Shadow.maxStretch)
+        #expect(Shadow.stretch(sinElevation: 0) == Shadow.maxStretch)
+        // 前のカメラ（本塁から 28m・高さ 4.5m）から本塁の上の球: 見下ろす角 ≒ 9°（正弦 0.155）→ 約 3.2 倍。向きはカメラから影へ（−z）。
+        let front = HomerunAtBatLayout.CameraPreset.front.camera.position
+        let s = Shadow.shape(ball: [0, 0.8, 0], ballRadius: r, camera: front)
+        #expect(abs(s.stretch - Shadow.screenAspect / (4.4 / hypot(4.4, 28))) < 0.05)
+        #expect(abs(s.yaw - .pi) < 1e-4)
+        // 追うカメラ（球の 40m 後ろ・高さ 3m）: ほぼ水平（正弦 0.07）→ 上限。向きは +z（本塁からセンターへ）。
+        let chase = Shadow.shape(ball: [0, 0.2, 60], ballRadius: r, camera: [0, 3, 20])
+        #expect(chase.stretch == Shadow.maxStretch)
+        #expect(abs(chase.yaw) < 1e-4)
+        // 三塁側（+x）へ飛ぶ球を後ろから: 向きは +x 寄り。
+        let left = Shadow.shape(ball: [30, 0.2, 30], ballRadius: r, camera: [10, 3, 10])
+        #expect(abs(left.yaw - .pi / 4) < 1e-4)
     }
 
     @Test("高いほど薄く大きく、8m 以上は 2.6 倍・0.25 で止まる")
     func fadesWithHeight() {
-        var last = Shadow.shape(ball: [0, r, 40], ballRadius: r)
+        var last = Shadow.shape(ball: [0, r, 40], ballRadius: r, camera: above([0, 0, 40]))
         for h in stride(from: 0.5, through: 7.5, by: 0.5) {
-            let s = Shadow.shape(ball: [0, r + Float(h), 40], ballRadius: r)
+            let s = Shadow.shape(ball: [0, r + Float(h), 40], ballRadius: r, camera: above([0, 0, 40]))
             #expect(s.radius > last.radius, "高さ \(h)m で大きくならない")
             #expect(s.opacity < last.opacity, "高さ \(h)m で薄くならない")
-            #expect(s.center.y == Shadow.lift)
+            #expect(s.center.y == Shadow.infieldClearance)
             last = s
         }
         for h: Float in [8, 12, 30] {
-            let s = Shadow.shape(ball: [0, r + h, 40], ballRadius: r)
+            let s = Shadow.shape(ball: [0, r + h, 40], ballRadius: r, camera: above([0, 0, 40]))
             #expect(abs(s.radius - r * Shadow.highRadiusFactor) < 1e-6)
             #expect(abs(s.opacity - Shadow.highOpacity) < 1e-6)
         }
@@ -59,8 +97,8 @@ struct HomerunBallShadowTests {
 
     @Test("影の半径は球の見かけの半径に比例する（追う球を大きく見せても見えすぎ・消えすぎない）")
     func scalesWithBallRadius() {
-        let small = Shadow.shape(ball: [0, 2, 40], ballRadius: r)
-        let big = Shadow.shape(ball: [0, 2, 40], ballRadius: r * 4)
+        let small = Shadow.shape(ball: [0, 2, 40], ballRadius: r, camera: above([0, 0, 40]))
+        let big = Shadow.shape(ball: [0, 2, 40], ballRadius: r * 4, camera: above([0, 0, 40]))
         #expect(abs(big.radius / small.radius - 4) < 0.05)
     }
 
@@ -138,8 +176,9 @@ struct HomerunBallShadowTests {
         for ball in allHits {
             guard let track = Chase.track(for: ball) else { continue }
             let frame = Chase.frame(track, at: track.duration + 0.1)
-            let shape = Shadow.shape(ball: frame.ball, ballRadius: frame.ballScale * r)
+            let shape = Shadow.shape(ball: frame.ball, ballRadius: frame.ballScale * r, camera: frame.camera.position)
             #expect(abs(shape.opacity - Shadow.groundOpacity) < 1e-3, "\(ball.kind) 方向 \(ball.direction)")
+            #expect(shape.stretch >= 1 && shape.stretch <= Shadow.maxStretch)
             #expect(abs(shape.radius - frame.ballScale * r * Shadow.groundRadiusFactor) < 1e-4)
             #expect(shape.center.x == frame.ball.x && shape.center.z == frame.ball.z)
         }

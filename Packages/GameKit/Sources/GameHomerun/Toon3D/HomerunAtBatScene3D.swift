@@ -332,9 +332,12 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             shadow.isEnabled = false
             return
         }
-        let shape = HomerunBallShadow.shape(ball: position, ballRadius: ballScale * HomerunSwingContact.ballRadius)
-        shadow.position = HomerunAtBatLayout.castMirrored(for: camera) ? [-shape.center.x, shape.center.y, shape.center.z] : shape.center
-        shadow.scale = [shape.radius * 2, 1, shape.radius * 2]
+        let shape = HomerunBallShadow.shape(ball: position, ballRadius: ballScale * HomerunSwingContact.ballRadius, camera: camera.position)
+        let mirrored = HomerunAtBatLayout.castMirrored(for: camera)
+        shadow.position = mirrored ? [-shape.center.x, shape.center.y, shape.center.z] : shape.center
+        shadow.scale = [shape.radius * 2, 1, shape.radius * 2 * shape.stretch]
+        // 鏡映するカメラでは向きも x について鏡映（y 軸まわりの角の符号が反転する）。
+        shadow.orientation = simd_quatf(angle: mirrored ? -shape.yaw : shape.yaw, axis: [0, 1, 0])
         let step = HomerunBallShadow.opacityStep(shape.opacity)
         if coordinator.shadowStep != step {
             shadow.model?.materials = [shadowMaterial(step: step)]
