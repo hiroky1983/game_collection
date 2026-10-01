@@ -63,8 +63,11 @@ extension HomerunToonModel {
         static let aisleSpacing: Float = 12, railHeight: Float = 0.9
         /// 中堅はバックスクリーン（|deg| < 6）なので座席を置かない。
         static let battersEyeGap = 6.0
-        /// 両翼の柵の端（46°）から続くファウルゾーンの壁は、スタンドの前縁が弧から直線に変わる 54° まで柵と同じ高さ、その先は低い。
-        static let tallPadEnd = 54.0, padHeight: Float = 1.4, tallPadHeight: Float = 3.2
+        /// 両翼の柵の端（46°）から続くファウルゾーンの壁は、スタンドの前縁が弧から直線に変わる 54° まで柵と同じ高さ、その先の両翼は
+        /// 2.2m（会長 QA 2026-10-01「ファウル側のフェンスが見えない」: 1.4m では 19.5:9 の画面で芝と同じ緑の低い帯にしか見えず、
+        /// 客席がその上に直に乗って見えた。柵と同じ黄色の線・継ぎ目を付けて「フェンス」と分かる高さにする）、
+        /// バックネット裏（|deg| ≥ 135）は網の支柱の足元の低い壁。
+        static let tallPadEnd = 54.0, padHeight: Float = 2.2, tallPadHeight: Float = 3.2, backstopPadHeight: Float = 1.4
         /// 上段の後ろの壁と屋根（内野側だけ。外野はスコアボードと照明塔）。
         static var backDepth: Float { depth(row: rows - 1) + 1.6 }
         static var roofHeight: Float { height(row: rows - 1) + 4.2 }
@@ -197,10 +200,11 @@ extension HomerunToonModel {
             let t = chord(fencePoint(deg, -3.35), fencePoint(deg + 1.5, -3.35))
             m.box(t.length + 0.3, 0.02, 7.3, S.track, at: [t.center.x, 0.02, t.center.y], outline: 0, yaw: t.yaw)
         }
-        // 柵の端とスタンドの前縁をつなぐ壁（柵と同じ高さ・黄色の線は無し）
+        // 柵の端とスタンドの前縁をつなぐ壁（柵と同じ高さ・黄色の線もつなぐ）
         for s in [-1.0, 1.0] {
             let c = chord(fencePoint(s * 46), standPoint(s * 46, depth: 0))
             m.box(c.length + 0.4, F.rubberHeight, 0.4, S.fence, at: [c.center.x, F.rubberHeight / 2, c.center.y], outline: 0, yaw: c.yaw)
+            m.box(c.length + 0.4, F.lineHeight, 0.5, C.yellow, at: [c.center.x, F.lineY, c.center.y], outline: 0, yaw: c.yaw)
         }
         for mark in F.distanceMarks { fenceNumber(mark.text, atDirection: mark.deg, into: &m) }
         // ファウルポール（両翼の柵の上・黄色）
@@ -338,14 +342,23 @@ extension HomerunToonModel {
                 m.box(0.08, 0.95, 0.08, S.rail, at: [p.x, bottom + 0.475, p.y], outline: 0, yaw: s.yaw)
             }
         }
-        // ファウルゾーンの壁（|deg| ≥ 46・前縁の上）: 柵の端から 54° までは柵と同じ高さ、その先とバックネット裏は低いラバー。足元に暗い帯。
+        // ファウルゾーンの壁（|deg| ≥ 46・前縁の上）: 柵の端から 54° までは柵と同じ高さ、その先の両翼は 2.2m、バックネット裏は低いラバー。
+        // 足元に暗い帯。バックネット裏以外は柵と同じ見た目（黄色の上線・横の継ぎ目 2 本・3m ごとの縦の継ぎ目）にして「フェンス」と分かるようにする。
         sweep(depth: 0, size: 3) { deg, step in
             let mid = abs(deg + step / 2)
             guard mid >= 46 else { return }
             let s = segment(deg, step, depth: 0)
-            let h = mid <= Stand.tallPadEnd ? Stand.tallPadHeight : Stand.padHeight
+            let backstop = mid >= 135
+            let h = mid <= Stand.tallPadEnd ? Stand.tallPadHeight : (backstop ? Stand.backstopPadHeight : Stand.padHeight)
             m.box(s.length + 0.1, h, 0.4, S.foulPad, at: [s.center.x, h / 2, s.center.y], outline: 0, yaw: s.yaw)
             m.box(s.length + 0.1, 0.3, 0.46, S.fenceSeam, at: [s.center.x, 0.15, s.center.y], outline: 0, yaw: s.yaw)
+            guard !backstop else { return }
+            m.box(s.length + 0.1, Fence.lineHeight, 0.5, HomerunToonPalette.yellow, at: [s.center.x, h + 0.05, s.center.y], outline: 0, yaw: s.yaw)
+            for y in [h * 0.36, h * 0.69] {
+                m.box(s.length + 0.1, 0.07, 0.46, S.fenceSeam, at: [s.center.x, y, s.center.y], outline: 0, yaw: s.yaw)
+            }
+            let p = standPoint(deg, depth: 0)
+            m.box(0.07, h, 0.46, S.fenceSeam, at: [p.x, h / 2, p.y], outline: 0, yaw: s.yaw)
         }
         // 上段の後ろの壁と屋根（内野側 |deg| ≥ 60 だけ）
         let topRow = Stand.height(row: Stand.rows - 1)
@@ -400,7 +413,7 @@ extension HomerunToonModel {
             let yaw = -s * Float.pi / 4
             let inward = SIMD2<Float>(-s / root2, 1 / root2)   // 壁からグラウンドへ（線に垂直）
             let opening = center + inward * 0.25
-            m.box(12, 1.2, 0.3, S.dugout, at: [opening.x, 0.7, opening.y], outline: 0, yaw: yaw)
+            m.box(12, 1.6, 0.3, S.dugout, at: [opening.x, 0.9, opening.y], outline: 0, yaw: yaw)
             let roof = center + inward * 0.6
             m.box(13, 0.25, 1.6, S.tread, at: [roof.x, Stand.padHeight + 0.125, roof.y], outline: 0, yaw: yaw)
         }
