@@ -84,8 +84,6 @@ enum HomerunMoonShot {
     /// 火の玉の見かけの半径（ラジアン）。遠ざかっても点にならず、月の上でも見分けられる大きさ。燃え切った時にこの値で、
     /// 当たる直前は `ballShrinkEnd` と同じ割合まで縮める（迫る月との対比）。
     static let fireApparentRadius: Float = 0.014
-    /// 火の尾の玉の数（板ポリ・パーティクルは使わず、輪郭線付きの球を並べるだけ）。
-    static let trailCount = 6
 
     /// 火の玉（燃えている球）の 1 コマ。
     struct Fireball: Equatable {
@@ -96,6 +94,8 @@ enum HomerunMoonShot {
         var trail: SIMD3<Float>
         /// 炎のゆらぎ（0〜1）。
         var flicker: Float
+        /// 当たってからの秒（炎の舌・尾・火の粉を時間で揺らす・`HomerunFireballArt`）。
+        var time: Double = 0
     }
 
     /// 球の進む向き（打ち出す点 → 月の当たる点）。
@@ -120,7 +120,7 @@ enum HomerunMoonShot {
         let flicker = Float(0.5 + 0.5 * sin(t * 37))
         let radius = simd_distance(cameraPosition, ball) * fireApparentRadius * burn * shrink * (0.94 + 0.12 * flicker)
         guard radius > 0 else { return nil }
-        return Fireball(center: ball, radius: radius, trail: simd_normalize(screenDown - flightDirection * 0.35), flicker: flicker)
+        return Fireball(center: ball, radius: radius, trail: simd_normalize(screenDown - flightDirection * 0.35), flicker: flicker, time: t)
     }
     /// 注視点を球から月へ移し始める・移し終える時刻（秒）。
     static let lookUpStart: TimeInterval = 0.3
