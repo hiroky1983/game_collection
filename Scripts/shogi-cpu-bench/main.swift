@@ -8,6 +8,10 @@ import Foundation
 //                                        上の段階と下の段階を、先後入れ替えで局面数×2 局。確率は 0...1 か shipped（出荷値）。
 //                                        段階は novice / easy / normal / hard
 //   random <段階> <確率|shipped> <局面数>  一様乱択の相手と先後入れ替えで局面数×2 局
+//   hint <足す秒> <局面数>               毎手ヒントどおりに指す側（#1491）と「むずかしい」を先後入れ替えで局面数×2 局。
+//                                        ヒントはアプリと同じ `BoardHintBudget.engineLevel`（むずかしい）の設定で、
+//                                        考える時間だけ「むずかしい」+ 足す秒（局面数 = NPS × 秒）
+//   hinttiming <足す秒> [positions]      ヒントの 1 手の実時間（時間で打ち切る出荷どおりの読み・考える時間 2 秒 + 足す秒）
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: SLIP_MARGIN（外したときに許す損の幅の差し替え）・NPS（match / random で使う 1 秒あたりの局面数）・PLIES（手数上限・既定 150）・CONCURRENCY（既定 6）・
 // FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）・
@@ -141,8 +145,137 @@ struct Bench {
                     lower: nil, openings: openings, maxPlies: plies, concurrency: conc, firstOpening: first)
                 print("RANDOM 損の幅 \(margin.map(String.init) ?? "shipped") \(s.label)(確率 \(args[3])) 対 一様乱択: \(t.games)局 勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws)（勝率 \(String(format: "%.1f", Double(t.upperWins) * 100 / Double(t.games)))%）")
             }
+        case "hint":
+            let nps = Double(env["NPS"] ?? "") ?? 300_000
+            let plies = Int(env["PLIES"] ?? "") ?? 150
+            let conc = Int(env["CONCURRENCY"] ?? "") ?? 6
+            let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
+            let extra = Double(args[2]) ?? 0.5
+            let openings = Int(args[3]) ?? 10
+            let t0 = Date()
+            let r = await HintMatch.run(extraSeconds: extra, nodesPerSecond: nps, openings: openings,
+                                        maxPlies: plies, concurrency: conc, firstOpening: first)
+            let n = r.games
+            func f(_ v: Double) -> String { String(format: "%.3f", v) }
+            print("HINT ヒント(むずかしい+\(extra)s・局面数 \(Int((2.0 + extra) * nps))) 対 むずかしい(局面数 \(Int(2.0 * nps))) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(n)局 ヒント側の勝ち \(r.followerWins) 負け \(r.followerLosses) 引き分け \(r.draws)（うちヒント側が駒得 \(r.drawsFollowerAhead)） ヒント側先手 \(r.blackWins)勝/\(r.blackGames)局 後手 \(r.whiteWins)勝/\(r.whiteGames)局 平均手数 \(r.totalPlies / max(n, 1)) ヒント \(r.hintMoves)手 実時間 平均 \(f(r.hintSeconds / Double(max(r.hintMoves, 1))))s 最大 \(f(r.hintMaxSeconds))s 所要 \(Int(Date().timeIntervalSince(t0)))s")
+        case "hinttiming":
+            let extra = Double(args[2]) ?? 0.5
+            let n = args.count > 3 ? Int(args[3]) ?? 40 : 40
+            let sfens = await samplePositions(count: n)
+            var wall: [Double] = []
+            for sfen in sfens {
+                let e = HintMatch.timedHintEngine(extraSeconds: extra)
+                let t = Date()
+                _ = await e.bestMove(sfen: sfen)
+                wall.append(Date().timeIntervalSince(t))
+            }
+            func f(_ v: Double) -> String { String(format: "%.3f", v) }
+            print("HINTTIMING 上限 \(2.0 + extra)s: 実時間 平均 \(f(wall.reduce(0, +) / Double(wall.count)))s 最大 \(f(wall.max()!))s 最小 \(f(wall.min()!))s（\(wall.count) 局面）")
         default:
             print("不明なコマンド")
         }
+    }
+}
+
+/// 毎手ヒントを使い、出たヒントどおりに指す側（#1491）と「むずかしい」の対局。
+/// アプリのヒント（`ShogiGameModel.requestHint`）は対局中の段階に関わらず `BoardHintBudget.engineLevel`
+/// （= むずかしい）の `SimpleMinimaxEngine` で読むので、ヒントに従う側の手は段階に依らない。
+/// 考える時間だけを「むずかしい」+ `extraSeconds` にし、計測では局面数（NPS × 秒）に置き換える。
+enum HintMatch {
+    struct Tally {
+        var followerWins = 0, followerLosses = 0, draws = 0, drawsFollowerAhead = 0
+        var blackGames = 0, blackWins = 0, whiteGames = 0, whiteWins = 0
+        var totalPlies = 0, hintMoves = 0
+        var hintSeconds = 0.0, hintMaxSeconds = 0.0
+        var games: Int { followerWins + followerLosses + draws }
+    }
+
+    static let hardSeconds = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue).timeLimit
+
+    /// ヒントのエンジン（出荷のむずかしいの設定・考える時間だけ足す）。局面数で打ち切る。
+    static func hintEngine(extraSeconds: Double, nodesPerSecond: Double) -> SimpleMinimaxEngine {
+        let s = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue)
+        return SimpleMinimaxEngine(depth: s.depth, usePositional: s.usePositional, useQuiescence: s.useQuiescence,
+                                   useBook: s.useBook, timeLimit: .infinity,
+                                   nodeLimit: Int((s.timeLimit + extraSeconds) * nodesPerSecond), policy: s.policy)
+    }
+
+    /// 1 手の実時間を測るための、時間で打ち切るヒントのエンジン（アプリと同じ打ち切り方）。
+    static func timedHintEngine(extraSeconds: Double) -> SimpleMinimaxEngine {
+        let s = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue)
+        return SimpleMinimaxEngine(depth: s.depth, usePositional: s.usePositional, useQuiescence: s.useQuiescence,
+                                   useBook: s.useBook, timeLimit: s.timeLimit + extraSeconds, policy: s.policy)
+    }
+
+    struct Game { var outcome: CPUBenchLadder.Outcome; var followerAhead: Bool; var plies: Int
+                  var hintMoves: Int; var hintSeconds: Double; var hintMax: Double }
+
+    /// 1 局。upper = むずかしい、lower = ヒントに従う側。
+    static func play(seed: UInt64, hardIsBlack: Bool, extraSeconds: Double, nps: Double, maxPlies: Int) async -> Game {
+        var pos = CPUBenchLadder.opening(seed: seed)
+        var g = Game(outcome: .draw, followerAhead: false, plies: 0, hintMoves: 0, hintSeconds: 0, hintMax: 0)
+        for ply in 0..<maxPlies {
+            let moves = pos.legalMoves()
+            g.plies = ply
+            if moves.isEmpty {
+                let hardLost = (pos.sideToMove == .black) == hardIsBlack
+                g.outcome = hardLost ? .lowerWon : .upperWon
+                return g
+            }
+            let hardToMove = (pos.sideToMove == .black) == hardIsBlack
+            let engine = hardToMove
+                ? CPUBenchLadder.engine(.hard, nodesPerSecond: nps, seed: seed &* 100_000 &+ UInt64(ply))
+                : hintEngine(extraSeconds: extraSeconds, nodesPerSecond: nps)
+            let t = Date()
+            let usi = await engine.bestMove(sfen: pos.toSFEN())
+            if !hardToMove {
+                let dt = Date().timeIntervalSince(t)
+                g.hintMoves += 1; g.hintSeconds += dt; g.hintMax = max(g.hintMax, dt)
+            }
+            guard let usi, let m = Move.fromUSI(usi), moves.contains(m) else {
+                g.outcome = hardToMove ? .lowerWon : .upperWon
+                return g
+            }
+            pos.make(m)
+        }
+        g.plies = maxPlies
+        let blackLead = CPUBenchLadder.material(pos)
+        g.followerAhead = (hardIsBlack ? -blackLead : blackLead) > 0
+        return g
+    }
+
+    static func run(extraSeconds: Double, nodesPerSecond: Double, openings: Int, maxPlies: Int,
+                    concurrency: Int, firstOpening: Int) async -> Tally {
+        var tally = Tally()
+        let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(firstOpening + i), $0) } }
+        var next = 0
+        await withTaskGroup(of: (Game, Bool, UInt64).self) { group in
+            func add() {
+                guard next < jobs.count else { return }
+                let (seed, hardIsBlack) = jobs[next]
+                next += 1
+                group.addTask {
+                    (await play(seed: seed, hardIsBlack: hardIsBlack, extraSeconds: extraSeconds,
+                                nps: nodesPerSecond, maxPlies: maxPlies), hardIsBlack, seed)
+                }
+            }
+            for _ in 0..<concurrency { add() }
+            for await (g, hardIsBlack, seed) in group {
+                let won = g.outcome == .lowerWon
+                switch g.outcome {
+                case .lowerWon: tally.followerWins += 1
+                case .upperWon: tally.followerLosses += 1
+                case .draw: tally.draws += 1; if g.followerAhead { tally.drawsFollowerAhead += 1 }
+                }
+                if hardIsBlack { tally.whiteGames += 1; if won { tally.whiteWins += 1 } }
+                else { tally.blackGames += 1; if won { tally.blackWins += 1 } }
+                tally.totalPlies += g.plies
+                tally.hintMoves += g.hintMoves; tally.hintSeconds += g.hintSeconds
+                tally.hintMaxSeconds = max(tally.hintMaxSeconds, g.hintMax)
+                print("GAME 開始局面 \(seed) \(g.plies)手 ヒント側\(hardIsBlack ? "後手" : "先手") \(won ? "勝ち" : g.outcome == .draw ? "引き分け" : "負け")")
+                add()
+            }
+        }
+        return tally
     }
 }
