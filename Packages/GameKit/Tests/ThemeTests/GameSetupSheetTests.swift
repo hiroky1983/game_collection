@@ -213,7 +213,7 @@ struct CPUStrengthPickerSourceTests {
     @Test("段を選び直しても高さが変わらない")
     @MainActor
     func heightIsStableAcrossSelections() {
-        let details = ["手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み"]
+        let details = ["1手先だけ読む", "2手先まで読む", "3手先まで読む", "定跡＋深読み"]
         var heights: [Int] = []
         for strength in CPUStrength.allCases {
             var level = strength.rawValue

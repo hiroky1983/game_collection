@@ -524,8 +524,9 @@ struct NewGameSheet: View {
             }
             GameSetupSection("CPUの強さ") {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
+                // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
-                    "手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み",
+                    "1手先だけ読む", "2手先まで読む", "3手先まで読む", "定跡＋深読み",
                 ])
             }
         }

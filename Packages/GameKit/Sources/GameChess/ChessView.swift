@@ -536,7 +536,7 @@ struct ChessNewGameSheet: View {
         self.onCancel = onCancel
     }
 
-    /// 副題が「駒の働きも見る」と長めなので、1 行に縮めて収める。
+    /// 副題が「浅い読み・ミス少なめ」と長めなので、1 行に縮めて収める。
     private static let metrics = GameSetupChooser.Metrics(subtitleMinimumScale: 0.7)
 
     var body: some View {
@@ -557,8 +557,9 @@ struct ChessNewGameSheet: View {
             }
             GameSetupSection("CPUの強さ") {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleChessEngine.init(level:)`。
+                // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率（入門〜ふつうは 1 手先）。
                 CPUStrengthPicker(level: $level, details: [
-                    "手なりで指す", "駒の損得だけ", "駒の働きも見る", "定跡＋深読み",
+                    "浅い読み・ミス多め", "浅い読み・ミスあり", "浅い読み・ミス少なめ", "定跡＋深読み",
                 ])
             }
             GameSetupSection("駒の見た目") {
