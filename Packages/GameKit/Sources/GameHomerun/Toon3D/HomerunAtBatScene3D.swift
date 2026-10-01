@@ -278,6 +278,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         /// 球の足元の影（#1648・`HomerunBallShadow`）と、いま張ってある濃さの段（変わったときだけマテリアルを差し替える）。
         var shadow: ModelEntity?
         var shadowStep: Int?
+        /// 打者・マシンの足元の影（#1653・`HomerunFigureShadow`）。
+        var batterShadow: ModelEntity?
+        var machineShadow: ModelEntity?
         var updates: (any Cancellable)?
         var frames = 0
         var steadyFrames = 0
@@ -344,6 +347,25 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             coordinator.shadowStep = step
         }
         shadow.isEnabled = true
+    }
+
+    /// 打者・マシンの足元の影（#1653）を置く。球の影と同じ円板・同じマテリアルで、人物と同じく鏡映しない（描画の世界座標）。
+    @MainActor private static func placeFigureShadow(_ shadow: ModelEntity, _ shape: HomerunFigureShadow.Shape) {
+        shadow.position = shape.center
+        shadow.scale = [shape.radius * 2, 1, shape.radius * 2 * shape.stretch]
+        shadow.orientation = simd_quatf(angle: shape.yaw, axis: [0, 1, 0])
+    }
+
+    @MainActor private static func makeFigureShadow() -> ModelEntity {
+        ModelEntity(mesh: .generatePlane(width: 1, depth: 1, cornerRadius: 0.5),
+                    materials: [shadowMaterial(step: HomerunBallShadow.opacityStep(HomerunFigureShadow.opacity))])
+    }
+
+    /// 打者・マシンの影をいまの打者の位置・カメラに合わせる（数個の値の計算だけ・毎コマ呼んでよい）。
+    @MainActor private static func placeFigureShadows(_ c: Coordinator, batterOrigin: SIMD3<Float>, camera: HomerunAtBatLayout.Camera) {
+        let eye = camera.renderPose.position
+        if let s = c.batterShadow { placeFigureShadow(s, HomerunFigureShadow.batter(origin: batterOrigin, camera: eye)) }
+        if let s = c.machineShadow { placeFigureShadow(s, HomerunFigureShadow.machine(camera: eye)) }
     }
 
     /// 打席の 3D（`ARView`）を画面をまたいで使い回すための控え（#1594・会長 QA 2026-09-30）。
@@ -421,6 +443,12 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         anchor.addChild(machine.entity)
         context.coordinator.machine = machine
         place(.catcher(), HomerunAtBatLayout.catcher)
+        let batterShadow = Self.makeFigureShadow(), machineShadow = Self.makeFigureShadow()
+        anchor.addChild(batterShadow)
+        anchor.addChild(machineShadow)
+        context.coordinator.batterShadow = batterShadow
+        context.coordinator.machineShadow = machineShadow
+        Self.placeFigureShadows(context.coordinator, batterOrigin: HomerunAtBatLayout.batter.position, camera: camera)
         let ball = Self.makeBall()
         anchor.addChild(ball)
         Self.placeBall(ball, at: ballPosition, camera: camera)
@@ -498,6 +526,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             c.batterPose = batterPose
         }
         c.machine?.apply(machine)
+        Self.placeFigureShadows(c, batterOrigin: c.batterRig?.entity.position ?? HomerunAtBatLayout.batter.position, camera: camera)
         if c.camera != camera, let cam = c.cameraEntity {
             Self.aim(cam, camera)
             c.camera = camera
