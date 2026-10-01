@@ -381,7 +381,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326)、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
-| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
+| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
@@ -447,6 +447,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   タップと path の変化の順序が保証されないため。`resume` も**タップした時点**の中断データの有無で決める。
   `notification` は #663 のローカル通知のタップで開いたとき（`release/v1.1.5` から。上の「中断したゲームのお知らせ」を参照）
   `first_pick` はハブ最上部の「はじめの1本」（#721。記録ゼロの初回だけ出る1枚）から開いたとき（`release/v1.1.5` から）
+  `quick_action` はホーム画面アイコン長押しの項目（#1642。「続きから」可能なゲーム→最近遊んだゲームの最大4件。
+  `RecentGames` と同じ並び・非表示除外で、バックグラウンドへ入るたびに `QuickActionService` が組み直す。`release/v1.1.9` から）
 - `source` / `position` / `resume` は GA4 のカスタムディメンション登録が要る（会長操作依頼 #694）
 
 ---

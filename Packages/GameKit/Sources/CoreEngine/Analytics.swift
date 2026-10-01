@@ -201,13 +201,15 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case notification
     /// ハブ最上部の「はじめの1本」（#721）。記録がゼロの初回だけ出る1枚。
     case firstPick = "first_pick"
+    /// ホーム画面アイコン長押しの項目（#1642）。
+    case quickAction = "quick_action"
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
     public var hasPosition: Bool {
         switch self {
         case .hub, .recent:                              return true
-        case .recommendation, .notification, .firstPick: return false
+        case .recommendation, .notification, .firstPick, .quickAction: return false
         }
     }
 }
