@@ -257,6 +257,8 @@ struct HomerunAtBatScene3DView: View {
     var ballScale: Float = 1
     /// 今の時刻（振り抜きの再生位置を合わせるのに使う）。
     var now: Date = Date()
+    /// 月まで飛んだ打球（#1680）の月・夜空。nil なら出さない。
+    var moon: HomerunMoonShot.Look? = nil
     /// 3D の描画が落ち着いたとき（作った直後のコマ落ちが収まったとき）に 1 回だけ呼ぶ（iOS だけ）。
     var onFirstFrame: (@MainActor () -> Void)? = nil
 
@@ -264,10 +266,13 @@ struct HomerunAtBatScene3DView: View {
         ZStack {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
+            if let moon, moon.night > 0 { HomerunNightSky(amount: moon.night) }
             #if os(iOS) && canImport(RealityKit)
             HomerunAtBatSceneView(batterPose: batterPose, machine: machine, camera: cameraOverride ?? cameraPreset.camera,
-                                  batterMotion: batterMotion, ballPosition: ballPosition, ballScale: ballScale, now: now, onFirstFrame: onFirstFrame)
+                                  batterMotion: batterMotion, ballPosition: ballPosition, ballScale: ballScale, now: now,
+                                  moon: moon, onFirstFrame: onFirstFrame)
             #endif
+            if let moon, moon.flash > 0 { Color.white.opacity(moon.flash * 0.85) }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -293,6 +298,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let ballPosition: SIMD3<Float>?
     let ballScale: Float
     let now: Date
+    let moon: HomerunMoonShot.Look?
     let onFirstFrame: (@MainActor () -> Void)?
     /// 描き始めの合図は、更新の刻みがこのコマ数続けて `steadyFrameInterval` 以内になったとき（作った直後の約 0.3〜0.5 秒は
     /// 刻みが 0.1〜0.8 秒に跳ねてコマ落ちする・シミュレータで実測。落ち着いた後の刻みは端末の負荷で 1/60〜1/20 秒）。
@@ -328,6 +334,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         /// 打者を本来の位置から外へずらして見せている幅（m・`batterSlideTarget`）と、最後に寄せた時刻。
         var batterSlide: Float?
         var slideTick: Date?
+        /// 月（#1680）。月まで飛んだ打球で初めて要るときに作って足す（ふだんは作らない）。
+        var moon: HomerunMoonRig?
+        /// 燃えている球（#1680）。月と同じく要るときに作る。
+        var fire: HomerunFireballRig?
     }
 
     /// 縫い目の画像（#1656・`HomerunBallSeam`）。1 回だけ作る。作れない環境では nil で、白い球のまま。
@@ -614,6 +624,18 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         if let shadow = c.shadow {
             Self.placeShadow(shadow, coordinator: c, ball: ballPosition, ballScale: ballScale, camera: camera)
         }
+        if c.moon == nil, moon?.moonVisible == true, let anchor = c.cameraEntity?.parent {
+            let rig = HomerunMoonRig()
+            anchor.addChild(rig.entity)
+            c.moon = rig
+        }
+        c.moon?.apply(moon)
+        if c.fire == nil, moon?.fire != nil, let anchor = c.cameraEntity?.parent {
+            let rig = HomerunFireballRig()
+            anchor.addChild(rig.entity)
+            c.fire = rig
+        }
+        c.fire?.apply(moon?.fire, camera: camera.renderPose.position)
     }
 }
 

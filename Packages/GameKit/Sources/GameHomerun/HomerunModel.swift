@@ -65,6 +65,12 @@ public final class HomerunModel {
         }
     }
 
+    /// 1 球の結果を見せる時間（月まで飛んだ打球・#1680 は月の演出のぶん長い）。
+    public static func resultDuration(for ball: HomerunBattedBall?) -> TimeInterval {
+        if let moon = ball?.moon { return HomerunMoonShot.resultDuration(moon) }
+        return resultDuration(for: ball?.kind ?? .miss)
+    }
+
     // MARK: 状態
 
     public private(set) var phase: Phase = .idle
@@ -248,6 +254,9 @@ public final class HomerunModel {
     /// 動作確認用: この鍵が true なら挑戦回数を減らさない（会長 QA 用・2026-09-30）。アプリの DEBUG ビルドが
     /// 起動引数 `-homerunUnlimited` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
     public static let debugUnlimitedKey = "homerun_debugUnlimited"
+    /// 動作確認用: この鍵が true なら振れば必ず月まで飛ぶ（#1680・`HomerunChallenge.forcesMoon`）。アプリの DEBUG ビルドが
+    /// 起動引数 `-homerunForceMoon` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
+    public static let debugForceMoonKey = "homerun_debugForceMoon"
 
     /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
     @discardableResult
@@ -261,7 +270,7 @@ public final class HomerunModel {
             }
             HomerunStorage.saveLedger(ledger, defaults)
         }
-        challenge = HomerunChallenge(pitches: pitches)
+        challenge = HomerunChallenge(pitches: pitches, forcesMoon: defaults.bool(forKey: Self.debugForceMoonKey))
         awaitsAtBat = true
         lastBall = nil
         isNewBest = false
@@ -436,7 +445,7 @@ public final class HomerunModel {
                 // 止めていた間ぶん、この球の時刻の記録を後ろへずらす（打球を追うカメラ・打者の振りを止めた所から続ける・#1613。
                 // ずらさないと、打球が飛んでいる間に止めて戻ったとき、追う様子を見せないまま止まった球とカードが出る）。
                 if let heldSince, now > heldSince { ballClock?.shift(by: now.timeIntervalSince(heldSince)) }
-                resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall?.kind ?? .miss))
+                resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall))
             case .idle, .finished: break
             }
             step += 1
@@ -514,12 +523,18 @@ public final class HomerunModel {
             services?.gameDidProgress(gameID: Self.gameID)
         }
         lastBall = ball
+        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +2（当日分・上限なし）。
+        if ball?.moon == .broken {
+            refreshDay(now: now)
+            ledger.grantMoonBonus()
+            HomerunStorage.saveLedger(ledger, defaults)
+        }
         phase = .ballResult
         pitchStart = nil
         // 10 球目を打った時点で蓄積に取り込む（結果を見せている 2 秒余りのあいだに画面を閉じても、
         // 打ち終えた挑戦は記録に残す）。
         if challenge.isFinished { record(challenge) }
-        resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball?.kind ?? .miss))
+        resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball
     }

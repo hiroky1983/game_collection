@@ -34,14 +34,27 @@ public struct HomerunChallenge: Sendable {
 
     public let pitches: [HomerunPitch]
     public let abilities: HomerunAbilities
+    /// 確認用（DEBUG の起動引数 `-homerunForceMoon`）: 振れば（見送り以外）必ず月まで飛ぶ。出荷ビルドでは立てる経路が無い。
+    public let forcesMoon: Bool
     public private(set) var results: [HomerunBattedBall] = []
 
-    public init(pitches: [HomerunPitch] = HomerunPitch.standardSequence, abilities: HomerunAbilities = .standard) {
+    /// 1 挑戦の中でこの回数目の月で月が割れ、挑戦が終わる（#1680）。
+    public static let moonBreakCount = 2
+
+    public init(pitches: [HomerunPitch] = HomerunPitch.standardSequence, abilities: HomerunAbilities = .standard,
+                forcesMoon: Bool = false) {
         self.pitches = Array(pitches.prefix(Self.pitchCount))
         self.abilities = abilities
+        self.forcesMoon = forcesMoon
     }
 
-    public var isFinished: Bool { results.count >= pitches.count }
+    /// 10 球を投げ終えた、または月が割れた（残りの球は没収・#1680）。
+    public var isFinished: Bool { results.count >= pitches.count || isMoonBroken }
+
+    /// この挑戦で月まで飛んだ回数。
+    public var moonCount: Int { results.filter(\.isMoon).count }
+    /// この挑戦で月が割れた（2 回目の月）。
+    public var isMoonBroken: Bool { results.contains { $0.moon == .broken } }
 
     /// 次に投げる球。終わっていれば nil。
     public var currentPitch: HomerunPitch? { isFinished ? nil : pitches[results.count] }
@@ -50,7 +63,13 @@ public struct HomerunChallenge: Sendable {
     @discardableResult
     public mutating func swing(_ swing: HomerunSwing?) -> HomerunBattedBall? {
         guard !isFinished else { return nil }
-        let result = HomerunJudge.judge(swing, abilities: abilities)
+        // 月まで飛ぶ（#1680）: 条件（`HomerunJudge.isMoonShot`）か、確認用の強制。見送りは月にならない。
+        var result = if let swing, forcesMoon || HomerunJudge.isMoonShot(swing) {
+            HomerunJudge.moonBall(swing)
+        } else {
+            HomerunJudge.judge(swing, abilities: abilities)
+        }
+        if result.isMoon, moonCount + 1 >= Self.moonBreakCount { result.moon = .broken }
         results.append(result)
         return result
     }

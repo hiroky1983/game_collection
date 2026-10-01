@@ -63,6 +63,7 @@ struct HomerunAtBatView: View {
                                                                                             height: fullHeight)) : nil),
                                          ballScale: chase?.ballScale ?? 1,
                                          now: now,
+                                         moon: chase?.moon,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
                                          onFirstFrame: { model.atBatDidAppear(now: Date()) })
@@ -353,6 +354,8 @@ struct HomerunAtBatBackdrop: View {
     /// 球の拡大率（打球を追う間は大きく見せる）。
     var ballScale: Float = 1
     var now: Date = Date()
+    /// 月まで飛んだ打球（#1680）の月・夜空。
+    var moon: HomerunMoonShot.Look? = nil
     /// 背景を描き始めたときに 1 回だけ呼ぶ（3D は最初の数コマを描いた後）。
     var onFirstFrame: (@MainActor () -> Void)? = nil
 
@@ -360,7 +363,7 @@ struct HomerunAtBatBackdrop: View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
                                 cameraOverride: cameraOverride, batterMotion: batterMotion,
-                                ballPosition: ballPosition, ballScale: ballScale, now: now,
+                                ballPosition: ballPosition, ballScale: ballScale, now: now, moon: moon,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
@@ -572,7 +575,20 @@ struct HomerunBallResultCard: View {
             Text(verbatim: Self.headline(ball, tookPitch: tookPitch))
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(ball.kind == .homer ? Theme.coral : Theme.ink)
-            if ball.distance > 0 {
+            if ball.isMoon {
+                // 月まで飛んだ打球（#1680）: 距離は 384,400 km と出す（記録には 180m で数える）。方向は出さない。
+                Text(verbatim: HomerunText.moonDistance)
+                    .font(.system(size: 24, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Theme.ink)
+                if ball.moon == .broken {
+                    Text("挑戦はここまで")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Label("プレイ回数 +\(HomerunLedger.moonBonus) プレゼント", systemImage: "gift.fill")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.coral)
+                }
+            } else if ball.distance > 0 {
                 Text(verbatim: "\(HomerunText.meters(ball.distance))　\(HomerunSector(direction: ball.direction).label)")
                     .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
                     .foregroundStyle(Theme.ink)
@@ -587,7 +603,7 @@ struct HomerunBallResultCard: View {
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
             }
-            if ball.distance > 0 {
+            if ball.distance > 0, !ball.isMoon {
                 HomerunSprayChart(balls: [ball], numbered: false)
                     .frame(width: 180, height: 130)
             }
@@ -598,7 +614,9 @@ struct HomerunBallResultCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ball.kind == .miss && tookPitch
             ? "\(number)球目、見送り"
-            : [HomerunText.spoken(ball, number: number), reason].compactMap { $0 }.joined(separator: "、"))
+            : [HomerunText.spoken(ball, number: number), reason,
+               ball.moon == .broken ? "挑戦はここまで、プレイ回数プラス\(HomerunLedger.moonBonus)プレゼント" : nil]
+                .compactMap { $0 }.joined(separator: "、"))
         .accessibilityAddTraits(.updatesFrequently)
     }
 }
