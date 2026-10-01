@@ -50,55 +50,114 @@ struct HomerunConnectionTests {
         model.advance(now: try #require(model.resultUntil))
     }
 
-    // MARK: 広告で +1
+    // MARK: 広告を見てプレイ（#1694）
 
-    @Test("広告を見ると今日の回数が 1 増え、保存される。1 日 5 本まで")
-    func adGrantsUpToLimit() {
+    /// 無料の回数を使い切り、結果画面まで進める。
+    private func useUpFree(_ model: HomerunModel, at now: Date = HomerunConnectionTests.t0) throws {
+        for _ in 0..<HomerunLedger.freePerDay {
+            #expect(model.start(now: now))
+            model.atBatDidAppear(now: now)
+            try skip(model)
+        }
+        #expect(model.phase == .finished)
+        #expect(!model.ledger.canStart)
+    }
+
+    @Test("使い切ったあと広告を見終えると、その場で打席に入る。回数は増えない・増えたように見えない")
+    func adStartsChallengeImmediately() throws {
         let defaults = makeDefaults()
         let model = makeModel(defaults: defaults)
+        try useUpFree(model)
+        let before = model.ledger
+        #expect(model.ledger.canPlayWithAd)
+        #expect(model.startWithAd(forDay: model.dayKey(at: Self.t0), now: Self.t0))
+        #expect(model.phase == .pitching, "確認を挟まずに打席へ")
+        #expect(model.startedWithAd)
+        #expect(model.ledger.allowance == before.allowance, "回数（分母）は増えない")
+        #expect(model.ledger.remaining == 0, "残りも 0 のまま")
+        #expect(model.ledger.used == before.used, "回数から引かない（広告の 1 本で遊ぶ）")
+        #expect(model.ledger.adPlays == 1, "台帳の上で広告での挑戦と分かる")
+        #expect(HomerunStorage.loadLedger(defaults).adPlays == 1, "保存される")
+        #expect(!model.showsExhausted)
+    }
+
+    @Test("広告でのプレイは 1 日 adLimitPerDay 本まで")
+    func adPlaysUpToLimit() throws {
+        let model = makeModel()
+        try useUpFree(model)
         let day = model.dayKey(at: Self.t0)
-        for i in 1...HomerunLedger.adLimitPerDay {
-            #expect(model.grantAdChallenge(forDay: day, now: Self.t0), "\(i) 本目は増える")
-        }
-        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.adLimitPerDay)
-        #expect(!model.grantAdChallenge(forDay: day, now: Self.t0), "6 本目は増えない")
-        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.adLimitPerDay)
-        #expect(HomerunStorage.loadLedger(defaults).adsWatched == HomerunLedger.adLimitPerDay)
-    }
-
-    @Test("広告を見ているあいだに 0:00 をまたいだら、前の日の広告では増やさない")
-    func adAcrossMidnightIsRejected() {
-        let model = makeModel()
-        let dayBefore = model.dayKey(at: Self.t0)
-        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
-        #expect(!model.grantAdChallenge(forDay: dayBefore, now: nextDay))
-        #expect(model.ledger.adsWatched == 0)
-        #expect(model.ledger.remaining == HomerunLedger.freePerDay, "新しい日は無料分に戻っている")
-    }
-
-    @Test("画面を開いたまま 0:00 を過ぎても、その日の鍵を控えて見た広告は増やす（台帳の日付が古いだけで弾かない）")
-    func adAfterMidnightWithStaleLedgerIsGranted() {
-        let model = makeModel()
-        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
-        // 台帳はまだ前の日のまま（refreshDay が走っていない）。ボタンを押した時点の時計から鍵を作る。
-        let key = model.dayKey(at: nextDay)
-        #expect(key != model.ledger.dayKey)
-        #expect(model.grantAdChallenge(forDay: key, now: nextDay))
-        #expect(model.ledger.adsWatched == 1)
-    }
-
-    @Test("使い切ったあと広告で 1 回増え、打席に立てる")
-    func adRestoresChallenge() throws {
-        let model = makeModel()
-        for _ in 0..<HomerunLedger.freePerDay {
-            #expect(model.start(now: Self.t0))
+        let limit = try #require(HomerunLedger.adLimitPerDay, "上限は 10 本（会長決裁 2026-10-02）")
+        #expect(limit == 10)
+        for i in 1...limit {
+            #expect(model.startWithAd(forDay: day, now: Self.t0), "\(i) 本目は遊べる")
             model.atBatDidAppear(now: Self.t0)
             try skip(model)
         }
-        #expect(!model.ledger.canStart)
-        #expect(model.grantAdChallenge(forDay: model.dayKey(at: Self.t0), now: Self.t0))
-        #expect(model.ledger.remaining == 1)
+        #expect(!model.ledger.canWatchAd)
+        #expect(!model.ledger.canPlayWithAd)
+        #expect(!model.startWithAd(forDay: day, now: Self.t0), "上限を超えたら始めない")
+        #expect(model.phase == .finished)
+        #expect(model.ledger.adPlays == limit)
+    }
+
+    @Test("回数が残っているうちは広告では始めない（先に回数を使う）")
+    func adPlayRequiresExhausted() {
+        let model = makeModel()
+        #expect(!model.ledger.canPlayWithAd)
+        #expect(!model.startWithAd(forDay: model.dayKey(at: Self.t0), now: Self.t0))
+        #expect(model.phase == .idle)
+        #expect(model.ledger.adPlays == 0)
+    }
+
+    @Test("打席中は広告で始めない（打席前・結果だけ）")
+    func adPlayOnlyFromIdleOrFinished() throws {
+        let model = makeModel()
+        try useUpFree(model)
+        #expect(model.startWithAd(forDay: model.dayKey(at: Self.t0), now: Self.t0))
+        #expect(model.phase == .pitching)
+        #expect(!model.startWithAd(forDay: model.dayKey(at: Self.t0), now: Self.t0))
+        #expect(model.ledger.adPlays == 1)
+    }
+
+    @Test("ふつうに打席に立った挑戦は広告での挑戦にならない")
+    func normalStartIsNotAdPlay() throws {
+        let model = makeModel()
         #expect(model.start(now: Self.t0))
+        #expect(!model.startedWithAd)
+        #expect(model.ledger.adPlays == 0)
+    }
+
+    @Test("広告を見ているあいだに 0:00 をまたいだら、前の日の広告では始めない")
+    func adAcrossMidnightIsRejected() throws {
+        let model = makeModel()
+        try useUpFree(model)
+        let dayBefore = model.dayKey(at: Self.t0)
+        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
+        #expect(!model.startWithAd(forDay: dayBefore, now: nextDay))
+        #expect(model.phase == .finished)
+        #expect(model.ledger.adPlays == 0)
+        #expect(model.ledger.remaining == HomerunLedger.freePerDay, "新しい日は無料分に戻っている")
+    }
+
+    @Test("画面を開いたまま 0:00 を過ぎ、その日の鍵を控えて見た広告: 新しい日は無料分があるので広告では始めない")
+    func adAfterMidnightWithStaleLedgerUsesFreeFirst() throws {
+        let model = makeModel()
+        try useUpFree(model)
+        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
+        let key = model.dayKey(at: nextDay)
+        #expect(key != model.ledger.dayKey)
+        #expect(!model.startWithAd(forDay: key, now: nextDay))
+        #expect(model.ledger.canStart)
+    }
+
+    @Test("アンケート +1・月のご褒美 +2 は今どおり回数に足す（広告でのプレイとは別）")
+    func surveyAndMoonStillAddToCount() throws {
+        let model = makeModel()
+        try useUpFree(model)
+        #expect(model.submitSurvey([1, 2, 3], forDay: model.dayKey(at: Self.t0), now: Self.t0))
+        #expect(model.ledger.remaining == HomerunLedger.surveyBonus)
+        #expect(!model.ledger.canPlayWithAd, "回数があるうちは広告のボタンを出さない")
+        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
     }
 
     // MARK: アンケートで +1

@@ -104,8 +104,7 @@ struct HomerunMoonTests {
 
     @Test("台帳: 月が割れたら当日分として +2（上限なし・何回でも）・0:00 で消える")
     func ledgerMoonBonus() {
-        var l = HomerunLedger(dayKey: 20261001)
-        for _ in 0..<5 { l.grantAd() }
+        var l = HomerunLedger(dayKey: 20261001, legacyAdGrants: 5)  // 以前の版で貯めた広告分
         l.grantSurvey()
         #expect(l.allowance == 9)
         l.grantMoonBonus()
@@ -125,7 +124,7 @@ struct HomerunMoonTests {
     func ledgerCompatibility() throws {
         let old = Data(#"{"dayKey":20261001,"used":2,"adsWatched":1,"surveyDone":true}"#.utf8)
         let decoded = try JSONDecoder().decode(HomerunLedger.self, from: old)
-        #expect(decoded == HomerunLedger(dayKey: 20261001, used: 2, adsWatched: 1, surveyDone: true))
+        #expect(decoded == HomerunLedger(dayKey: 20261001, used: 2, legacyAdGrants: 1, surveyDone: true))
         #expect(decoded.bonus == 0)
         #expect(decoded.remaining == 3)
 
