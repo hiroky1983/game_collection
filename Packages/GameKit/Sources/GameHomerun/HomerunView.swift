@@ -12,7 +12,7 @@ import HomerunCore
 /// 輪の大きさは `TimelineView` が時刻から描く（`Timer` は持たない）。
 public struct HomerunView: View {
     @State private var model: HomerunModel
-    /// 広告での回数 +1 の救済。**画面に 1 つだけ**持ち、打席前・結果のボタンへ渡す（ボタンごとに持つと、
+    /// 広告を見てプレイ（#1694）の救済。**画面に 1 つだけ**持ち、打席前・結果のボタンへ渡す（ボタンごとに持つと、
     /// 提示の計測（`reward_offer`）と連打ガードが割れ、付与でボタンが消えたときにアラートも一緒に消える）。
     @State private var challengeRescue = RewardedRescue()
     private let services: GameServices
@@ -48,10 +48,10 @@ public struct HomerunView: View {
                          services: services, gameID: HomerunModel.gameID)
             .rewardedRescueAlerts(
                 challengeRescue,
-                notEarned: "挑戦回数を増やせませんでした",
+                notEarned: "広告でプレイできませんでした",
                 unavailable: RewardUnavailableAlert(
-                    title: "挑戦回数を増やせませんでした",
-                    message: "広告を見ているあいだに日付が変わったか、今日の広告での回復の上限に達したため、回数を増やせませんでした。"
+                    title: "広告でプレイできませんでした",
+                    message: "広告を見ているあいだに日付が変わったか、今日の広告でのプレイの上限に達したため、挑戦を始められませんでした。"
                 )
             )
             // バックグラウンドでは投球を止め、戻ったらその球をやり直す（台帳は戻さない）。
@@ -184,14 +184,8 @@ struct HomerunLobbyView: View {
                     .themeBody(16, weight: .heavy)
                     .foregroundStyle(ledger.canStart ? Theme.coral : Theme.inkSub)
             }
-            HStack(spacing: 8) {
-                ForEach(0..<ledger.allowance, id: \.self) { i in
-                    Image(systemName: "baseball.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(i < ledger.remaining ? Theme.coral : Theme.inkSub.opacity(0.35))
-                }
-            }
-            .accessibilityHidden(true)
+            HomerunCountMeter(allowance: ledger.allowance, remaining: ledger.remaining)
+                .accessibilityHidden(true)
             Text(ledger.canStart
                  ? "0:00 に \(HomerunLedger.freePerDay) 回に戻ります"
                  : "今日の挑戦は使い切りました。0:00 にまた \(HomerunLedger.freePerDay) 回挑戦できます")
@@ -234,6 +228,55 @@ struct HomerunLobbyView: View {
                 .foregroundStyle(Theme.ink)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - 回数の表示
+
+/// 今日の挑戦回数の表示（#1694）。回数ぶんアイコンを並べると、月のご褒美などで回数が増えるたびに固有幅が伸び、
+/// 縮められない横並びがカードを押し広げて打席前の全カード（ScrollView の VStack は一番広い子に揃う）が横にはみ出していた。
+/// **`maxDots` 個までは点、それを超えたら「×N」の数字**にして、どれだけ増えても幅が一定を超えないようにする。
+enum HomerunCountDisplay: Equatable {
+    /// 点を `total` 個並べ、先頭の `lit` 個を色付きにする（残り）。
+    case dots(total: Int, lit: Int)
+    /// アイコン 1 つと「×`remaining`」。
+    case number(remaining: Int)
+
+    static let maxDots = 5
+
+    init(allowance: Int, remaining: Int) {
+        self = allowance <= Self.maxDots ? .dots(total: max(0, allowance), lit: max(0, remaining))
+                                         : .number(remaining: max(0, remaining))
+    }
+}
+
+struct HomerunCountMeter: View {
+    let allowance: Int
+    let remaining: Int
+
+    var body: some View {
+        switch HomerunCountDisplay(allowance: allowance, remaining: remaining) {
+        case .dots(let total, let lit):
+            HStack(spacing: 8) {
+                ForEach(0..<total, id: \.self) { i in
+                    ball(lit: i < lit)
+                }
+            }
+        case .number(let remaining):
+            HStack(spacing: 6) {
+                ball(lit: remaining > 0)
+                Text(verbatim: "×\(remaining)")
+                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(remaining > 0 ? Theme.coral : Theme.inkSub)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func ball(lit: Bool) -> some View {
+        Image(systemName: "baseball.fill")
+            .font(.system(size: 20))
+            .foregroundStyle(lit ? Theme.coral : Theme.inkSub.opacity(0.35))
     }
 }
 
@@ -381,19 +424,23 @@ struct HomerunResultView: View {
     }
 
     private var actions: some View {
-        let remaining = model.ledger.remaining
+        let ledger = model.ledger
+        let remaining = ledger.remaining
         return HStack(spacing: 10) {
-            Button {
-                withGameAnimation { _ = model.start(now: Date()) }
-            } label: {
-                Label(remaining > 0 ? "もう一回（残り \(remaining)）" : "今日はおしまい",
-                      systemImage: "arrow.counterclockwise")
-                    .themeBody(16)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
+            // 回数が尽きて広告でプレイできるときは、このボタンは出さず下の「広告を見てプレイ」に任せる（#1694）。
+            if !ledger.canPlayWithAd {
+                Button {
+                    withGameAnimation { _ = model.start(now: Date()) }
+                } label: {
+                    Label(remaining > 0 ? "もう一回（残り \(remaining)）" : "今日はおしまい",
+                          systemImage: "arrow.counterclockwise")
+                        .themeBody(16)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             Button {
                 withGameAnimation { model.backToLobby() }
             } label: {
@@ -483,7 +530,7 @@ struct HomerunExhaustedSheet: View {
                 reminderToggle(returnReminder)
             }
             if canWatchAd {
-                Text("閉じると出てくる「広告を見て挑戦 +1 回」で、今日の回数を増やせます。")
+                Text("閉じると出てくる「広告を見てプレイ」で、広告を見てすぐに 1 回挑戦できます。")
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
                     .multilineTextAlignment(.center)
@@ -550,13 +597,14 @@ struct HomerunExhaustedSheet: View {
     }
 }
 
-// MARK: - 広告で挑戦回数 +1
+// MARK: - 広告を見てプレイ
 
-/// 「広告を見て挑戦 +1 回」（README §3.4）。1 日 5 本まで。回数はコインで買えず、広告とアンケートだけで増える。
+/// 回数を使い切ったあとの「広告を見てプレイ」（#1694・README §3.4）。1 日の上限は `HomerunLedger.adLimitPerDay`。
+/// **見終えたらその場で 1 挑戦を始めて打席へ入る**（回数は増やさない・貯められない）。必ずユーザーのタップで出す（自動再生しない）。
 ///
 /// 打席前と結果に同じものを置く（**広告の呼び出しはここ 1 か所**）。救済（`RewardedRescue`）・提示の計測・失敗の
 /// アラートは `HomerunView` が 1 つ持つ。広告を出す前に「今日」の鍵を時計から控え、視聴中に 0:00 をまたいだら
-/// 適用しない（前の日の広告で今日の回数を増やさない）。
+/// 始めない（前の日の広告で今日の挑戦を始めない）。見なかった・読み込めなかったときは始めない（`RewardedRescue` の失敗の知らせ）。
 struct HomerunRecoveryButton: View {
     let model: HomerunModel
     let services: GameServices
@@ -571,17 +619,18 @@ struct HomerunRecoveryButton: View {
     var body: some View {
         let ledger = model.ledger
         VStack(spacing: 6) {
-            if ledger.canWatchAd {
+            if ledger.canPlayWithAd {
                 Button {
                     let day = model.dayKey(at: Date())
                     challengeRescue.request(
                         services, gameID: HomerunModel.gameID, purpose: .challenge,
                         guardedBy: .checkedByGrant
                     ) {
-                        model.grantAdChallenge(forDay: day, now: Date())
+                        // 見終えたら確認を挟まずに打席へ（会長指示 2026-10-02）。
+                        withGameAnimation(.easeInOut(duration: 0.2)) { model.startWithAd(forDay: day, now: Date()) }
                     }
                 } label: {
-                    Label("広告を見て挑戦 +1 回", systemImage: "play.rectangle.fill")
+                    Label("広告を見てプレイ", systemImage: "play.rectangle.fill")
                         .themeBody(16)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity)
@@ -590,11 +639,9 @@ struct HomerunRecoveryButton: View {
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 .tint(challengeRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal)
                 .disabled(challengeRescue.isWatching)
-                Text(verbatim: "広告での回復は今日あと \(HomerunLedger.adLimitPerDay - ledger.adsWatched) 回（1 日 \(HomerunLedger.adLimitPerDay) 回まで）")
-                    .themeCaption(11)
-                    .foregroundStyle(Theme.inkSub)
-            } else {
-                Text(verbatim: "広告での回復は今日の上限（\(HomerunLedger.adLimitPerDay) 回）に達しました")
+            } else if !ledger.canWatchAd {
+                // 上限の本数は画面に出さない（会長決裁 2026-10-02）。達したときだけ知らせる。
+                Text("今日はここまで。0:00 に \(HomerunLedger.freePerDay) 回に戻ります")
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -709,7 +756,7 @@ struct HomerunRuleSheet: View {
         ("角度", "カーソルがボールより上だとゴロ、真ん中だとライナー、少し下だと柵越えの出やすいフライ、下すぎるとポップフライ"),
         ("方向", "カーソルを左に置くと左へ、右に置くと右へ。早く振ると左、遅く振ると右にも寄ります。寄せすぎるとファウル"),
         ("柵", "両翼 100 m・中堅 122 m。左右へ引っ張ると柵は近いけれどファウルになりやすく、センターは遠いけれどファウルが無い"),
-        ("回数", "挑戦は1日3回。打席に立った時点で1回減り、途中でやめても戻りません。0:00 に3回に戻ります"),
+        ("回数", "挑戦は1日3回。打席に立った時点で1回減り、途中でやめても戻りません。0:00 に3回に戻ります。使い切ったあとは、広告を見るとその場で1回挑戦できます"),
     ]
 
     var body: some View {
