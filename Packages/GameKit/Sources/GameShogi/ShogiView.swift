@@ -151,8 +151,8 @@ public struct ShogiView: View {
                             model.resolvePromotion(false)
                         } label: {
                             Text("不成")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .frame(width: 80, height: 44)
+                                .themeBody(16, weight: .semibold, maxScale: 1.5)
+                                .frame(minWidth: 80, minHeight: 44)
                                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(Theme.ink)
                         }
@@ -160,8 +160,8 @@ public struct ShogiView: View {
                             model.resolvePromotion(true)
                         } label: {
                             Text("成る")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .frame(width: 80, height: 44)
+                                .themeBody(16, weight: .semibold, maxScale: 1.5)
+                                .frame(minWidth: 80, minHeight: 44)
                                 .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(Theme.onAccent)
                         }
@@ -591,7 +591,7 @@ private struct HandAreaView: View {
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(color == .black ? "☗" : "☖")
-                    .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
+                    .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSub)
             }
             .frame(width: 38, alignment: .leading)
 

@@ -81,10 +81,11 @@ public struct Game2048View: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("スコア")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded).monospacedDigit())
+                    .themeBody(30, weight: .heavy, maxScale: 1.5).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.5)
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
