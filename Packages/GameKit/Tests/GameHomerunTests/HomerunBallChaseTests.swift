@@ -181,6 +181,16 @@ struct HomerunBallChaseTests {
         }
     }
 
+    @Test("遠くで大きく見せた球も、止まったとき地面に埋まらない（#1646 CodeRabbit）")
+    func enlargedBallDoesNotSinkIntoGround() throws {
+        for ball in allHits where ball.kind != .homer {
+            let tr = try track(ball)
+            let f = Chase.frame(tr, at: tr.duration)
+            let radius = Double(f.ballScale) * Double(HomerunSwingContact.ballRadius)
+            #expect(Double(f.ball.y) - radius >= -1e-4, "\(ball.kind) の球が地面に埋まっている: 中心 \(f.ball.y) 半径 \(radius)")
+        }
+    }
+
     @Test("球もカメラもコマの間で跳ばない（1/60 秒で 2.5m 以内）")
     func noJumps() throws {
         for ball in allHits {
@@ -279,7 +289,7 @@ struct HomerunBallChaseTests {
             let resultEnd = release.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind))
             #expect(resultEnd.timeIntervalSince(card) >= Chase.cardHold - 1e-6, "\(ball.kind): カードが \(resultEnd.timeIntervalSince(card)) 秒しか出ない")
             // カードを出した後も止まった球を映し続ける。
-            #expect(plan.chaseFrame(at: card.addingTimeInterval(1))?.ball == tr.position(at: tr.duration))
+            #expect(plan.chaseFrame(at: card.addingTimeInterval(1)) == Chase.frame(tr, at: tr.duration))
         }
     }
 

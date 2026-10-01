@@ -372,12 +372,19 @@ enum HomerunBallChase {
         // 柵の向こうに落ちる球は、落ちていく間にカメラを柵越しに見える高さ（`overFenceHeight`）へなめらかに上げる。
         let lift = smoothstep((t - track.flightDuration * liftStart) / (track.flightDuration * (1 - liftStart)))
         let height = max(cameraBaseHeight + cameraHeightFollow * followY, overFenceHeight(track) * lift)
-        let camera = HomerunAtBatLayout.Camera(
-            position: world(Point(s: camS, y: height), direction: track.direction),
-            target: world(p, direction: track.direction),
-            verticalFieldOfView: verticalFieldOfView)
-        let ball = world(p, direction: track.direction)
-        return Frame(camera: camera, ball: ball, ballScale: ballScale(distance: Double(simd_distance(camera.position, ball))))
+        let cameraPosition = world(Point(s: camS, y: height), direction: track.direction)
+        // 遠くでは見かけの大きさを保つために球を大きくするので、地面・座面に置いた中心の高さ（`ballRadius`）のままだと
+        // 球の下側が埋まる。大きくした分だけ中心を持ち上げる（判定と打球の道は変えない）。持ち上げで距離が変わるので
+        // 2 回取り直す（差は 1e-5 倍以下）。
+        let base = world(p, direction: track.direction)
+        var ball = base
+        var scale = ballScale(distance: Double(simd_distance(cameraPosition, ball)))
+        for _ in 0..<2 {
+            ball = base + SIMD3(0, scale * HomerunSwingContact.ballRadius - Float(ballRadius), 0)
+            scale = ballScale(distance: Double(simd_distance(cameraPosition, ball)))
+        }
+        let camera = HomerunAtBatLayout.Camera(position: cameraPosition, target: ball, verticalFieldOfView: verticalFieldOfView)
+        return Frame(camera: camera, ball: ball, ballScale: scale)
     }
 }
 
