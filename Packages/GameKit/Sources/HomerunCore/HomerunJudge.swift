@@ -158,6 +158,23 @@ public struct HomerunBattedBall: Equatable, Sendable {
     public var launch: HomerunLaunch?
     /// 打球のあった方向の柵の距離（m）。空振りは中堅の値。
     public var fence: Double
+    /// 月まで飛んだ（#1680 の隠し演出）。nil は普通の打球。1 挑戦（`HomerunChallenge.swing`）が条件
+    /// （`HomerunJudge.isMoonShot`）を見て `.hit` を付け、同じ挑戦の 2 回目は `.broken` にする。保存（`HomerunShot`）には持たない。
+    public var moon: HomerunMoon? = nil
+
+    /// 月まで飛んだか。
+    public var isMoon: Bool { moon != nil }
+}
+
+/// 月まで飛んだ打球の段階（#1680・会長決裁 2026-10-01）。
+public enum HomerunMoon: Int, Codable, Equatable, Sendable {
+    /// 1 回目: 月に当たってヒビが入る。
+    case hit = 0
+    /// 2 回目（同じ挑戦の中）: 月が半分に割れ、その挑戦は終わる（残りの球は没収・プレイ回数 +2）。
+    case broken = 1
+
+    /// 画面に出す飛距離（km・地球から月までのおおよその距離）。記録・合計には `HomerunJudge.moonCountedDistance`（m）で数える。
+    public static let displayKilometers = 384_400
 }
 
 /// 判定の純粋ロジック（README §3.1）。乱数は使わない: 同じ入力は必ず同じ結果になる。
@@ -185,6 +202,36 @@ public enum HomerunJudge {
     /// 上乗せ（`sweetSpot`）はフライ・ジャストの窓の中・芯の円の中だけで効くので、ナイス・当たり・芯の外・ライナーの飛距離と
     /// 柵越え率はほぼ変わらない。
     public static let bestDistance = 180.0
+
+    // MARK: 月（#1680・会長決裁 2026-10-01「ほとんど出ない」隠し演出）
+
+    /// 月まで飛ぶタイミングのずれの幅（ms・±）。会長決裁の ±0.05 秒。
+    public static let moonTimingWindow = 50.0
+    /// 月まで飛ぶカーソルの幅（pt）: フライの芯の基準点（`HomerunLaunch.fly.centerDY`・ボールの中心の 4pt 下）からの距離がこれ以内。
+    /// ボールの中心（何もずらさず真ん中の球を打ったとき・照準の吸い寄せが寄せる先）は基準点から 4pt 離れているので入らない。
+    /// 0.5pt はゾーン（88pt）の 1/176・指で 1pt 動かして照準の吸い寄せで半分戻る世界なので、狙って合わせる余地はほぼ無い
+    /// （発生率の見込み: ふつうの遊び方で 1 挑戦あたり約 3%・芯を狙う人で約 10%。見積もりは #1680 の PR の説明）。
+    public static let moonCursorRadius = 0.5
+    /// 月まで飛んだ打球を記録（自己ベスト・合計・最長）に数える距離（m）= 最高の当たりの飛距離（会長決裁: 180m として数える）。
+    public static var moonCountedDistance: Double { bestDistance }
+
+    /// 月まで飛ぶ条件は判定（`judge`・ふだんの飛距離の式）には入れず、1 挑戦（`HomerunChallenge.swing`）が振るたびに見る
+    /// （1 挑戦の中で回数を数える演出なので）。
+    /// 月まで飛ぶ条件（タイミング ±`moonTimingWindow` ms 以内 かつ カーソルがフライの芯の基準点から `moonCursorRadius` 以内）。
+    public static func isMoonShot(_ swing: HomerunSwing) -> Bool {
+        abs(swing.timingOffset) <= moonTimingWindow
+            && hypot(swing.cursorDX, swing.cursorDY - HomerunLaunch.fly.centerDY) <= moonCursorRadius
+    }
+
+    /// 月まで飛んだ打球（柵越え・`moonCountedDistance` m・`.hit`）。方向はふだんの式（条件の中では ±10° に収まる）を、
+    /// 確認用に条件の外から作ったとき（DEBUG の `-homerunForceMoon`）もフェアになるよう ±20° に丸める。
+    public static func moonBall(_ swing: HomerunSwing) -> HomerunBattedBall {
+        let direction = min(max(direction(swing), -20), 20)
+        let timing = HomerunTiming(offsetMilliseconds: swing.timingOffset)
+        return HomerunBattedBall(direction: direction, distance: moonCountedDistance, kind: .homer,
+                                 timing: timing == .miss ? .just : timing, launch: .fly,
+                                 fence: fence(atDirection: direction), moon: .hit)
+    }
 
     /// 最高の当たりの近さ（0〜1）。`(タイミングの近さ) × (芯の近さ)` で、両方が満点（0ms・帯の芯の基準点ちょうど）で 1。
     /// タイミングの近さはジャストの窓（±25ms）の端で 0、芯の近さは芯の半径（`coreRadius` × ミート）で 0。

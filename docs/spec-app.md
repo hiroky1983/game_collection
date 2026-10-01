@@ -250,6 +250,23 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **保存先**: アプリ側の保存は無い（予約の有無は OS の予約一覧から読み直す）。トグルオフ・設定の「通知」オフで取り消す
 - **実装**: 規則は `HomerunReturnPolicy`（純関数）、予約は `ChallengeReturnReminderService`（`GameServices.returnReminder`）
 
+### 柵越えおじさん: 月まで飛ぶ隠し演出（#1680・v1.1.8）
+
+タイミングのずれ ±50ms 以内 かつ カーソルがフライの芯の基準点（ボールの中心の 4pt 下）から 0.5pt 以内で振ると、打球が月まで飛ぶ
+（`HomerunJudge.isMoonShot`。場外より優先）。1 挑戦の中で回数を数える。
+
+- **1 回目**: カメラが打球を追って真上へ見上げ、空が夜空になり、球が月に当たってヒビが入る。結果は「384,400 km」と表示
+- **2 回目**: 月が半分に割れ、その挑戦は終了（残りの球は没収・それまでの球は記録に残す）。今日のプレイ回数を +2
+- **記録**: 表示は 384,400 km だが、自己ベスト・合計・最長には 180m（`HomerunJudge.moonCountedDistance`）として数える。
+  Game Center の合計飛距離も同じ
+- **台帳のボーナス枠**: `HomerunLedger` に「月が割れたプレゼント」の回数を持つ（`grantMoonBonus`・+2 ずつ・上限なし・当日分として
+  0:00 で消える）。保存は Optional のキーで、0 のときは書かない（以前の保存も以前の版も読める）
+- **実績**: `HomerunRecords.moonShots`（月まで飛ばした回数）・`moonBreaks`（割れた回数）。保存の互換は台帳と同じ扱い。
+  打席前の「きろく」に 1 回以上のときだけ「月まで飛ばした N 回」を出す
+- **見せ方**: `HomerunMoonShot`（時刻だけで決まるカメラ・夜空・月）、月の 3D は `HomerunMoonRig`（クレーターの模様の球・ヒビ・
+  割れた半球 2 つ・トゥーンの輪郭線。Meshy 不使用）
+- **動作確認**: DEBUG ビルドの起動引数 `-homerunForceMoon` で、振れば必ず月まで飛ぶ（`HomerunModel.debugForceMoonKey`）
+
 ---
 
 ## 広告仕様

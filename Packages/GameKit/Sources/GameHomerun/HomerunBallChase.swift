@@ -397,6 +397,8 @@ enum HomerunBallChase {
         var ballScale: Float
         /// 場外の球が消えた後（#1654）。カメラはそのまま、球と影だけ描かない。
         var ballHidden = false
+        /// 月まで飛んだ打球（#1680）の月・夜空の見え方。ふだんの打球は nil。
+        var moon: HomerunMoonShot.Look? = nil
         /// 描く球の位置（消えた後は nil = 球も影も出さない）。
         var visibleBall: SIMD3<Float>? { ballHidden ? nil : ball }
     }
@@ -461,8 +463,9 @@ enum HomerunBallChase {
 extension HomerunBattedBall {
     /// 場外（#1654）: 柵越えのうち、飛距離がその方向のスタンドの最後列の後端（`HomerunBallChase.outOfParkDistance`）以上。
     /// 表示だけ（得点の上乗せなし）。保存（`HomerunShot`）の方向・距離・種別から毎回出すので、保存の形は変えない。
+    /// 月まで飛んだ打球（#1680）は場外より優先して月の扱い（場外にしない）。
     var isOutOfPark: Bool {
-        kind == .homer && distance >= HomerunBallChase.outOfParkDistance(atDirection: direction)
+        !isMoon && kind == .homer && distance >= HomerunBallChase.outOfParkDistance(atDirection: direction)
     }
 }
 
@@ -475,23 +478,27 @@ extension HomerunSwingPlan {
                                                     column: HomerunSwingContact.column(zone: clock.zone))
     }
 
-    /// 打球の道（当たり以上のときだけ）。
+    /// 打球の道（当たり以上のときだけ）。月まで飛んだ打球（#1680）は道を持たず、`HomerunMoonShot` が時刻から描く。
     var chaseTrack: HomerunBallChase.Track? {
-        guard contactAt != nil, let lastBall else { return nil }
+        guard contactAt != nil, let lastBall, !lastBall.isMoon else { return nil }
         return HomerunBallChase.track(for: lastBall)
     }
 
     /// 打球を追うカメラのコマ。当たってから `HomerunBallChase.cutDelay` 秒たつまでは nil（打席のカメラのまま）。
     func chaseFrame(at now: Date) -> HomerunBallChase.Frame? {
-        guard let contactAt, let track = chaseTrack else { return nil }
+        guard let contactAt else { return nil }
         let t = now.timeIntervalSince(contactAt)
         guard t >= HomerunBallChase.cutDelay else { return nil }
+        if let moon = lastBall?.moon { return HomerunMoonShot.frame(moon, at: t) }
+        guard let track = chaseTrack else { return nil }
         return HomerunBallChase.frame(track, at: t)
     }
 
     /// 結果のカードを出す時刻: 打球が止まって（柵越えはスタンドに落ちて）から `restHold` 秒後。当たり以上でなければ nil。
     var chaseCardAt: Date? {
-        guard let contactAt, let track = chaseTrack else { return nil }
+        guard let contactAt else { return nil }
+        if let moon = lastBall?.moon { return contactAt.addingTimeInterval(HomerunMoonShot.cardDelay(moon)) }
+        guard let track = chaseTrack else { return nil }
         return contactAt.addingTimeInterval(track.duration + HomerunBallChase.restHold)
     }
 }

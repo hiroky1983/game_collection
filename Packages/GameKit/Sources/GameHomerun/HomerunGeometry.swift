@@ -110,13 +110,26 @@ public enum HomerunText {
         }
     }
 
-    /// 1 球の種別の語。柵越えのうち場外（スタンドの最後列の後端を越えた・#1654）は「場外！」。
+    /// 1 球の種別の語。柵越えのうち場外（スタンドの最後列の後端を越えた・#1654）は「場外！」。月まで飛んだ打球（#1680）は
+    /// 場外より優先して「月まで飛んだ！」（2 回目は「月が割れた！」）。
     public static func kind(of ball: HomerunBattedBall) -> String {
-        ball.isOutOfPark ? "場外！" : kind(ball.kind)
+        switch ball.moon {
+        case .hit: return "月まで飛んだ！"
+        case .broken: return "月が割れた！"
+        case nil: return ball.isOutOfPark ? "場外！" : kind(ball.kind)
+        }
     }
 
     /// 距離（m・整数に丸める）。
     public static func meters(_ distance: Double) -> String { "\(Int(distance.rounded())) m" }
+
+    /// 月までの距離の表示（#1680・会長決裁「384,400km」）。記録・合計には 180m で数える（`HomerunJudge.moonCountedDistance`）。
+    public static let moonDistance = "384,400 km"
+
+    /// 1 球の飛距離の表示。月まで飛んだ打球は `moonDistance`、それ以外は m。
+    public static func distance(of ball: HomerunBattedBall) -> String {
+        ball.isMoon ? moonDistance : meters(ball.distance)
+    }
 
     /// 1 球の内訳の方向の呼び名（空振り・ファウル・直撃はその語）。
     public static func place(_ ball: HomerunBattedBall) -> String {
@@ -124,6 +137,7 @@ public enum HomerunText {
         case .miss: "—"
         case .foul: "ファウル"
         case .fenceHit: "直撃"
+        case .homer where ball.isMoon: "月"
         case .homer where ball.isOutOfPark: "場外"
         case .inPlay, .homer: HomerunSector(direction: ball.direction).label
         }
@@ -134,6 +148,8 @@ public enum HomerunText {
         switch ball.kind {
         case .miss: "空振り"
         case .foul: "ファウル"
+        case .homer where ball.isMoon:
+            "\(kind(of: ball)) \(moonDistance)"
         case .inPlay, .fenceHit, .homer:
             "\(kind(of: ball)) \(meters(ball.distance)) \(HomerunSector(direction: ball.direction).label)"
         }
@@ -144,6 +160,8 @@ public enum HomerunText {
         switch ball.kind {
         case .miss: "\(number)球目、空振り"
         case .foul: "\(number)球目、ファウル"
+        case .homer where ball.isMoon:
+            "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、38万4400キロメートル、\(timing(ball.timing))"
         case .inPlay, .fenceHit, .homer:
             "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、\(Int(ball.distance.rounded()))メートル、\(HomerunSector(direction: ball.direction).label)、\(timing(ball.timing))"
         }
