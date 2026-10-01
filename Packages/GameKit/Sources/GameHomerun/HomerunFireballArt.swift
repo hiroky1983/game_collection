@@ -145,7 +145,7 @@ enum HomerunFireballArt {
         let spread: [Float] = [0, -0.42, 0.42]
         for i in 0..<tongueCount {
             let axis = turned(spread[i] + 0.12 * wave(9 + Double(i) * 2.3, Double(i) * 1.9))
-            let width = r * (2.5 - 0.35 * Float(i > 0 ? 1 : 0)) * (1 + 0.08 * wave(17 + Double(i), Double(i)))
+            let width = r * (2.9 - 0.4 * Float(i > 0 ? 1 : 0)) * (1 + 0.08 * wave(17 + Double(i), Double(i)))
             let length = width * Float(aspect(.outer)) * (1 + 0.22 * wave(12 + Double(i) * 3.1, Double(i) * 2.7))
             out.append(Sprite(layer: .tongue(i), center: fire.center + axis * (length / 2 - width / 2) + lift(-0.2 + 0.03 * Float(i)),
                               axis: axis, size: SIMD2(width, length)))
@@ -157,7 +157,7 @@ enum HomerunFireballArt {
         out.append(Sprite(layer: .inner, center: fire.center + innerAxis * (innerLength / 2 - innerWidth / 2) + lift(0.05),
                           axis: innerAxis, size: SIMD2(innerWidth, innerLength)))
         out.append(Sprite(layer: .core, center: fire.center + lift(0.1), axis: down,
-                          size: SIMD2(repeating: r * (0.95 + 0.1 * wave(23, 0)))))
+                          size: SIMD2(repeating: r * (1.15 + 0.1 * wave(23, 0)))))
         // 火の粉: 尾に沿って流れ、遠くへ行くほど小さくなる（1 周期ごとに頭へ戻る）。
         for i in 0..<sparkCount {
             let phase = (t * 1.7 + Double(i) / Double(sparkCount)).truncatingRemainder(dividingBy: 1)

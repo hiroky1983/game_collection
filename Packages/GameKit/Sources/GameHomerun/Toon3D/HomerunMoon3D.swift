@@ -128,8 +128,8 @@ final class HomerunFireballRig {
         }
         // 1 式で連結すると型推論が重くなる（CI のタイムアウト・#1680）ので、1 枚ずつ足す。
         var layers: [(HomerunFireballArt.Layer, MeshResource, UnlitMaterial)] = []
-        layers.append((.glowOuter, disc, glow(0xFF7A1A, 0.28)))
-        layers.append((.glowInner, disc, glow(0xFFC23A, 0.42)))
+        layers.append((.glowOuter, disc, glow(0xFFA040, 0.32)))
+        layers.append((.glowInner, disc, glow(0xFFE27A, 0.5)))
         layers.append((.tail, plane, flame(.tail)))
         for i in 0..<HomerunFireballArt.tongueCount {
             layers.append((.tongue(i), plane, flame(.outer, phase: Double(i) * 2.1)))
