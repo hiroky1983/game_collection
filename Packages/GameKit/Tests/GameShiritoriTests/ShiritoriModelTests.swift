@@ -548,6 +548,39 @@ struct ShiritoriEndlessTests {
         #expect(model.phase == .playing && !model.isPlayerTurn, "補充された札で CPU は続けられる")
     }
 
+    /// #1659: とことんは CPU が盤の左から取り進めるので、山札に後続が残っているのにプレイヤーが詰んで負けになる
+    /// 局が約半数あった（測定: ランダムに打つ人で 47%）。
+    @Test("CPU が取った直後にプレイヤーの続けられる札が盤に無いとき、山札から続けられる札を先に補充する")
+    func refillPicksFollowerWhenPlayerWouldBeStuck() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [top, otter], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()   // CPU が ごりら（ら）を取る。盤に残る かさ では ら を受けられない
+
+        #expect(model.slots[0].card == otter, "山札の先頭（こま）ではなく、ら を受けられる らっこ が出る")
+        #expect(model.stock == [top])
+        #expect(model.phase == .playing && model.isPlayerTurn, "詰みにならず、プレイヤーの番になる")
+    }
+
+    @Test("盤にプレイヤーの続けられる札があるなら、山札は先頭から補充する（順序を崩さない）")
+    func refillKeepsOrderWhenPlayerCanContinue() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, otter], mode: .endless, stock: [top, kasa], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()   // CPU が ごりら を取る。盤の らっこ で続けられる
+
+        #expect(model.slots[0].card == top)
+        #expect(model.stock == [kasa])
+    }
+
+    @Test("プレイヤーが取った直後は、CPU が詰む補充でも山札の先頭のまま（CPU を詰ませて勝つ道を残す）")
+    func refillAfterPlayerClaimIsNotRescued() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [top, otter])
+        model.select(0)
+
+        #expect(model.slots[0].card == top)
+        #expect(model.ending == .cpuStuck && model.didPlayerWin)
+    }
+
     @Test("山札が尽きたら補充されず、取られた札が盤に残る")
     func noRefillWhenStockIsEmpty() {
         let (model, _) = makeModel()
