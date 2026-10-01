@@ -208,16 +208,16 @@ struct ShiritoriDeal: Equatable {
 }
 
 extension ShiritoriRules {
-    /// 盤に並べる札の枚数（6 列 × 5 行に収まる本数）。
-    static let boardSize = 29
+    /// 盤に並べる札の枚数（6 列 × 5 行にぴったり収まる本数（#1660: 29 枚だと右下が歯抜けだった））。
+    static let boardSize = 30
 
-    /// 山札が増えても盤の枚数は変えない。`quota` は山札から開場札 1 枚 + 盤 29 枚だけを使い（残りは使わない）、
+    /// 山札が増えても盤の枚数は変えない。`quota` は山札から開場札 1 枚 + 盤 30 枚だけを使い（残りは使わない）、
     /// `endless` は残りを山札にして取るたびに補充する。
     ///
     /// **配り直して保証すること**（何度か引き直して、満たす配りだけを採る）:
     /// - 開場札の語尾が「ん」でなく、プレイヤーの最初の手が盤に 1 枚以上ある
     /// - 詰み専用の唯一後続喪失が無い（`hasDeadEndReading`。`quota` は使う 30 枚の中で、`endless` は山札を含む
-    ///   全体で見る。補充で後続が現れるので、盤の 29 枚の中だけでは判定しない）
+    ///   全体で見る。補充で後続が現れるので、盤の 30 枚の中だけでは判定しない）
     static func deal<G: RandomNumberGenerator>(
         deck: [ShiritoriCard], mode: ShiritoriMode, using generator: inout G
     ) -> ShiritoriDeal {
