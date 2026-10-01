@@ -412,10 +412,12 @@ extension HomerunToonModel {
             let center = SIMD2<Float>(s * (l + 16) / root2, (l - 16) / root2)
             let yaw = -s * Float.pi / 4
             let inward = SIMD2<Float>(-s / root2, 1 / root2)   // 壁からグラウンドへ（線に垂直）
+            // 開口（0.1m〜1.7m）の上に屋根の板（厚さ 0.25m）を 0.1m のすき間で載せる。壁の高さ（`padHeight`）には合わせない。
+            let (openingBottom, openingTop, roofThickness): (Float, Float, Float) = (0.1, 1.7, 0.25)
             let opening = center + inward * 0.25
-            m.box(12, 1.6, 0.3, S.dugout, at: [opening.x, 0.9, opening.y], outline: 0, yaw: yaw)
+            m.box(12, openingTop - openingBottom, 0.3, S.dugout, at: [opening.x, (openingTop + openingBottom) / 2, opening.y], outline: 0, yaw: yaw)
             let roof = center + inward * 0.6
-            m.box(13, 0.25, 1.6, S.tread, at: [roof.x, Stand.padHeight + 0.125, roof.y], outline: 0, yaw: yaw)
+            m.box(13, roofThickness, 1.6, S.tread, at: [roof.x, openingTop + 0.1 + roofThickness / 2, roof.y], outline: 0, yaw: yaw)
         }
     }
 
