@@ -224,6 +224,58 @@ struct ShiritoriRulesTests {
     }
 }
 
+// MARK: - 勝てる盤（#1659）
+
+@Suite("ノルマの配りは勝てる盤だけ")
+struct ShiritoriWinnableDealTests {
+    private let gorilla = ShiritoriCard(.gorilla, "ごりら")   // ご → ら
+    private let otter = ShiritoriCard(.seaOtter, "らっこ")    // ら → こ
+    private let kasa = ShiritoriCard(.umbrella, "かさ")       // か → さ
+    private let trap = ShiritoriCard(.pillow, "ごはん")       // ご → ん
+
+    private func slots(_ cards: [ShiritoriCard]) -> [ShiritoriSlot] { cards.map { ShiritoriSlot(card: $0) } }
+
+    @Test("1 枚取ってノルマに届くなら勝てる・届かず途中で詰む一本道なら勝てない")
+    func winnableAndNot() {
+        // りんご → ごりら → (CPU) らっこ → プレイヤーは「こ」を受ける札が無く詰む。
+        let board = slots([gorilla, otter, kasa])
+        #expect(ShiritoriRules.isWinnable(slots: board, openerReading: "りんご", quota: 1))
+        #expect(!ShiritoriRules.isWinnable(slots: board, openerReading: "りんご", quota: 2))
+    }
+
+    @Test("CPU が続けられなくなる手があれば、ノルマに届かなくても勝てる")
+    func cpuStuckCountsAsWin() {
+        #expect(ShiritoriRules.isWinnable(slots: slots([gorilla, kasa]), openerReading: "りんご", quota: 9))
+    }
+
+    @Test("プレイヤーの手が「ん」で終わる札しか無い盤は勝てない")
+    func onlyNEndingMoveLoses() {
+        #expect(!ShiritoriRules.isWinnable(slots: slots([trap, kasa]), openerReading: "りんご", quota: 1))
+    }
+
+    @Test("探索は盤を元に戻す（呼んだあとも取られた札が残らない）")
+    func searchRestoresBoard() {
+        let board = slots([gorilla, otter, kasa])
+        _ = ShiritoriRules.isWinnable(slots: board, openerReading: "りんご", quota: 2)
+        #expect(board.allSatisfy { $0.owner == nil })
+    }
+
+    @Test("どの難易度でも、配られた盤にはプレイヤーが勝てる手順がある（100 配り × 3 難易度）")
+    func dealtBoardsAreWinnable() {
+        for quota in ShiritoriQuota.allCases {
+            for seed in UInt64(0)..<100 {
+                var generator = SplitMix64(seed: seed)
+                let deal = ShiritoriRules.deal(deck: ShiritoriCard.deck, mode: .quota, quota: quota, using: &generator)
+                #expect(
+                    ShiritoriRules.isWinnable(slots: deal.board.map { ShiritoriSlot(card: $0) },
+                                              openerReading: deal.opener.primaryReading, quota: quota.cardCount),
+                    "\(quota.label) seed \(seed)"
+                )
+            }
+        }
+    }
+}
+
 // MARK: - ノルマ
 
 @Suite("ノルマ（難易度）")
