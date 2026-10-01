@@ -26,15 +26,17 @@ struct OthelloMovePolicy: Equatable, Sendable {
 /// |---|---|---|---|---|
 /// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
 /// | 0 | かんたん | 0.5 秒 | 3 手先 | `easyBestMoveProbability` |
-/// | 1 | ふつう | 1 秒 | 5 手先 | `normalBestMoveProbability` |
+/// | 1 | ふつう | 1 秒 | 4 手先 | `normalBestMoveProbability` |
 /// | 2 | むずかしい | 1.5 秒 | 無し（終局まで） | 100% |
 ///
 /// **段階の差は、この時間・深さの上限・確率の 3 つだけで付ける**（#1464・会長決裁 2026-09-27）。
 /// 探索（反復深化 αβ・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら打つ。
 /// むずかしいは深さの上限が無いので、空きが少なくなれば時間内に終局まで読み切る（終盤の完全読み）。
 /// 以前（#1401）の段階ごとの打ち方（入門=自分にいちばん不利な手・簡単=最も多く返る手・局面数の上限）は廃止した。
-/// 深さの上限が奇数なのは、偶数の深さは 1 つ手前の奇数より弱くなることがあるため（実測）。
+/// 深さの上限が奇数なのは、偶数の深さは 1 つ手前の奇数より弱くなることがあるため（実測）。ただしふつうは #1658 で
+/// 4 手にした（かんたん 3 手に対して 3 手と 5 手のあいだの強さに収まることを実測で確かめた）。
 /// 確率の根拠は `docs/analytics/othello-1464-ladder.md`（上の段の得点率 90% 以上で最も高い値）。
+/// ふつうだけは #1658（会長決裁 2026-10-01）で、かんたんに対する得点率 60〜70% に下げた（`docs/analytics/othello-1658-normal.md`）。
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
 public struct OthelloEngine: Sendable {
@@ -79,16 +81,17 @@ public struct OthelloEngine: Sendable {
         switch strength {
         case .novice: return (0.3, 1, policy(noviceBestMoveProbability))
         case .easy:   return (0.5, 3, policy(easyBestMoveProbability))
-        case .normal: return (1.0, 5, policy(normalBestMoveProbability))
+        case .normal: return (1.0, 4, policy(normalBestMoveProbability))
         case .hard:   return (1.5, nil, .exact)
         }
     }
 
     /// 最善手を打つ確率（#1464 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。上から順に決めた:
     /// むずかしい 100% に対しふつう 90%、ふつう 90% に対しかんたん 60%、かんたん 60% に対し入門 50%）。
+    /// ふつうは #1658 で 5 手・90% → 4 手・60% に下げた（かんたんに対する得点率 91.8% → 開始局面 1〜400 の 800 局で 64.8%）。
     static let noviceBestMoveProbability = 0.5
     static let easyBestMoveProbability = 0.6
-    static let normalBestMoveProbability = 0.9
+    static let normalBestMoveProbability = 0.6
 
     /// 外したときに許す損の幅（`evaluate` の点数）。X 打ち（角のななめとなり）の減点 1 つ・着手可能数の差 4 手ぶん。
     /// 角を相手に渡す手（角の点 120）は入らない。実測で、外しの候補（最善以外）が残る局面は 8 割強（平均 3 手）。
