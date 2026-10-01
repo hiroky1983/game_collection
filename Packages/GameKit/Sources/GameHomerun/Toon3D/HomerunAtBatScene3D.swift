@@ -275,6 +275,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
         var ball: ModelEntity?
+        /// 球の足元の影（#1648・`HomerunBallShadow`）と、いま張ってある濃さの段（変わったときだけマテリアルを差し替える）。
+        var shadow: ModelEntity?
+        var shadowStep: Int?
         var updates: (any Cancellable)?
         var frames = 0
         var steadyFrames = 0
@@ -300,6 +303,47 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         }
         ball.position = HomerunAtBatLayout.castMirrored(for: camera) ? [-position.x, position.y, position.z] : position
         ball.isEnabled = true
+    }
+
+    /// 球の足元の影（#1648）: 半径 0.5 の円板（xz 面・角の丸め = 半分の幅で円になる）。大きさは `scale` で、濃さはマテリアルで変える。
+    @MainActor private static func makeShadow() -> ModelEntity {
+        let shadow = ModelEntity(mesh: .generatePlane(width: 1, depth: 1, cornerRadius: 0.5),
+                                 materials: [shadowMaterial(step: HomerunBallShadow.opacityStep(HomerunBallShadow.groundOpacity))])
+        shadow.isEnabled = false
+        return shadow
+    }
+
+    /// 濃さの段ごとの影のマテリアル（インク色・半透明）。段の数ぶんだけ作って使い回す。
+    @MainActor private static var shadowMaterials: [Int: UnlitMaterial] = [:]
+    @MainActor private static func shadowMaterial(step: Int) -> UnlitMaterial {
+        if let m = shadowMaterials[step] { return m }
+        let ink = HomerunToonModel.ink
+        var m = UnlitMaterial(color: HomerunPlatformColor(red: CGFloat((ink >> 16) & 0xFF) / 255, green: CGFloat((ink >> 8) & 0xFF) / 255,
+                                                          blue: CGFloat(ink & 0xFF) / 255, alpha: 1))
+        m.blending = .transparent(opacity: .init(floatLiteral: HomerunBallShadow.opacity(step: step)))
+        shadowMaterials[step] = m
+        return m
+    }
+
+    /// 影を球の真下の地面に置く（球と同じく鏡映するカメラでは x を鏡映）。球が無ければ隠す。
+    @MainActor private static func placeShadow(_ shadow: ModelEntity, coordinator: Coordinator, ball position: SIMD3<Float>?, ballScale: Float,
+                                    camera: HomerunAtBatLayout.Camera) {
+        guard let position else {
+            shadow.isEnabled = false
+            return
+        }
+        let shape = HomerunBallShadow.shape(ball: position, ballRadius: ballScale * HomerunSwingContact.ballRadius, camera: camera.position)
+        let mirrored = HomerunAtBatLayout.castMirrored(for: camera)
+        shadow.position = mirrored ? [-shape.center.x, shape.center.y, shape.center.z] : shape.center
+        shadow.scale = [shape.radius * 2, 1, shape.radius * 2 * shape.stretch]
+        // 鏡映するカメラでは向きも x について鏡映（y 軸まわりの角の符号が反転する）。
+        shadow.orientation = simd_quatf(angle: mirrored ? -shape.yaw : shape.yaw, axis: [0, 1, 0])
+        let step = HomerunBallShadow.opacityStep(shape.opacity)
+        if coordinator.shadowStep != step {
+            shadow.model?.materials = [shadowMaterial(step: step)]
+            coordinator.shadowStep = step
+        }
+        shadow.isEnabled = true
     }
 
     /// 打席の 3D（`ARView`）を画面をまたいで使い回すための控え（#1594・会長 QA 2026-09-30）。
@@ -381,6 +425,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         anchor.addChild(ball)
         Self.placeBall(ball, at: ballPosition, camera: camera)
         context.coordinator.ball = ball
+        let shadow = Self.makeShadow()
+        anchor.addChild(shadow)
+        context.coordinator.shadow = shadow
+        Self.placeShadow(shadow, coordinator: context.coordinator, ball: ballPosition, ballScale: ballScale, camera: camera)
         let cam = PerspectiveCamera()
         anchor.addChild(cam)
         Self.aim(cam, camera)
@@ -457,6 +505,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         if let ball = c.ball {
             Self.placeBall(ball, at: ballPosition, camera: camera)
             ball.scale = SIMD3(repeating: ballScale)
+        }
+        if let shadow = c.shadow {
+            Self.placeShadow(shadow, coordinator: c, ball: ballPosition, ballScale: ballScale, camera: camera)
         }
     }
 }
