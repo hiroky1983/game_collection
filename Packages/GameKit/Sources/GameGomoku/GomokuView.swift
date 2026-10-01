@@ -114,19 +114,13 @@ public struct GomokuView: View {
     /// 「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#148）。
     /// 記録ラベルは行を増やさずステータスバーへ同居させている。
     private var resultControls: some View {
-        HStack(spacing: 12) {
-            Spacer(minLength: 0)
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        GameReplayBar(
+            onReplay: {
+                model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                              forbiddenMoves: model.forbiddenMovesEnabled)
+            },
+            onChangeSettings: { showNewGame = true }
+        )
     }
 
     // MARK: - Board

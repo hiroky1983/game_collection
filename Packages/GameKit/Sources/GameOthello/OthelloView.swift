@@ -313,19 +313,10 @@ public struct OthelloView: View {
     /// 「もう一度」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
     /// 全幅の大ボタンのままだと盤の下が伸び、決着の瞬間に盤が縮む。
     private var newGameButton: some View {
-        HStack(spacing: 12) {
-            Spacer(minLength: 0)
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        GameReplayBar(
+            onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
+            onChangeSettings: { showNewGame = true }
+        )
     }
 }
 
