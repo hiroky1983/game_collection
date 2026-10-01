@@ -382,7 +382,12 @@ struct HomerunMoonMesh: Equatable {
         var m = self
         m.positions = positions.map { $0 * scale }
         m.normals = normals.map { -$0 }
-        m.indices = stride(from: 0, to: indices.count, by: 3).flatMap { [indices[$0], indices[$0 + 2], indices[$0 + 1]] }
+        var flipped: [UInt32] = []
+        flipped.reserveCapacity(indices.count)
+        for i in stride(from: 0, to: indices.count, by: 3) {
+            flipped.append(contentsOf: [indices[i], indices[i + 2], indices[i + 1]])
+        }
+        m.indices = flipped
         return m
     }
 }
