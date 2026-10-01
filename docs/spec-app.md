@@ -240,6 +240,26 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「通知」トグル。動作確認は `-simulateNotificationTap <gameID>`（DEBUG のみ）
 
+### 柵越えおじさん: 公開状態と動作確認用の強制
+
+- **公開状態**: 企画倉庫（`AppEnvironment.registry` でコメントアウト）。v1.1.8 では非公開（会長指示 2026-10-02）。
+  以下の柵越えおじさんの節は倉庫にあるコードの仕様で、ハブ・LP・ストア文言には出していない
+- **動作確認用の強制**（`-homerunUnlimited`・`-homerunForceMoon`・`-homerunForcePole`・`-homerunForceWhiffGag`）は
+  DEBUG ビルドだけで効く。鍵の宣言と読み取りは `HomerunModel+Debug.swift`（`HomerunDebugOverrides`）の `#if DEBUG` の中だけで、
+  出荷ビルドでは端末に同じ鍵が残っていても読まない
+
+### 柵越えおじさん: 空振りで回って倒れて目を回す演出（#1681・v1.1.8）
+
+振った空振り（見送りは除く）で、打者がそのまま約 1.8 回転して後ろへ尻もちをつき、座って頭をぐるぐる回す（ぐるぐる目・頭上の星 3 つ）。
+
+- **発生**: 1 挑戦の中で 2 回目の空振りは必ず、それ以外の空振りは 1/3 の確率（`HomerunWhiffGag.shows`・`HomerunModel.showsWhiffGag`）
+- **間合い**: 演出の空振りは結果の時間を離してから約 4.2 秒に延ばし（`HomerunWhiffGag.resultDuration`・`HomerunModel.resultEnd`）、
+  座りきるまで次の球を投げない。結果のカードは座り込んでから（離して 2.4 秒）。演出の間は素振りを受け付けない。次の球で構えに戻る
+- **素材**: 骨の動きは `HomerunBatter.usdz` のスイング（1〜44 コマ）の続き（45〜133 コマ）として焼き込み（モデルは 1 つ）。
+  体全体の回転・後ろへの傾きは親の実体のヨーで足し、回転の量は座ったとき顔がいまのカメラ（前 / 後ろ）を向く量。
+  ぐるぐる目・星・バットと体の影は表（`HomerunWhiffGag+Samples.swift`・生成物）から毎コマ置く
+- **動作確認**: DEBUG ビルドの起動引数 `-homerunForceWhiffGag` で、振った空振りに必ず演出を出す（`HomerunModel.debugForceWhiffGagKey`）
+
 ### 柵越えおじさん: 戻る時刻と「戻ったら知らせる」（#1576）
 
 挑戦回数を使い切ったシート（`HomerunExhaustedSheet`）に、端末の 0:00 までの残り（「あと約◯時間◯分で戻ります」）と、

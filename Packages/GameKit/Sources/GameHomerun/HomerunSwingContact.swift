@@ -55,6 +55,9 @@ enum HomerunBatterMotion: Equatable {
     /// 追いついたら等速に戻す（`swingOffset`）。以前は離した瞬間に振り抜きの前半（約 0.2 秒ぶん）を飛ばして打点のコマを
     /// 出していたため、構えから振り終わりまでが一瞬に見えた（会長 QA 2026-09-30・画面の E2E の録画で確認）。
     case swing(start: Date, catchUpFrom: Date? = nil)
+    /// 空振りで回って倒れて目を回す演出（#1681・`HomerunWhiffGag`）。振り抜き（`start`・`catchUpFrom` は `swing` と同じ）から
+    /// そのまま回転・尻もち・座って頭をぐるぐるまで流し、最後のコマで止める。
+    case whiffGag(start: Date, catchUpFrom: Date? = nil)
 
     /// 踏み込みの長さ（秒・20 コマ目 = 19/30 秒）。振り抜きはここから始まる。
     static let loadDuration: TimeInterval = 19.0 / 30
@@ -284,18 +287,22 @@ struct HomerunSwingPlan {
     var phase: HomerunModel.Phase
     var clock: HomerunModel.BallClock?
     var lastBall: HomerunBattedBall?
+    /// 直前の空振りで回って倒れる演出を出すか（#1681・`HomerunModel.showsWhiffGag`）。
+    var whiffGag = false
 
     @MainActor
     init(model: HomerunModel) {
         phase = model.phase
         clock = model.ballClock
         lastBall = model.lastBall
+        whiffGag = model.showsWhiffGag
     }
 
-    init(phase: HomerunModel.Phase, clock: HomerunModel.BallClock?, lastBall: HomerunBattedBall?) {
+    init(phase: HomerunModel.Phase, clock: HomerunModel.BallClock?, lastBall: HomerunBattedBall?, whiffGag: Bool = false) {
         self.phase = phase
         self.clock = clock
         self.lastBall = lastBall
+        self.whiffGag = whiffGag
     }
 
     private var column: Int { HomerunSwingContact.column(zone: clock?.zone ?? 4) }
@@ -333,7 +340,10 @@ struct HomerunSwingPlan {
                 // タイミングは合っていて照準で外した空振りは、速めに流さず打点のコマから（遅れて振ると、ジャストの打点の
                 // 上を抜けた球にバットが追いついて触れて見える）。
                 let aimMiss = lastBall?.kind == .miss && lastBall?.timing != .miss
-                return .swing(start: start, catchUpFrom: start < release && !aimMiss ? release : nil)
+                let catchUpFrom = start < release && !aimMiss ? release : nil
+                // 空振りの演出（#1681）は振り抜きからそのまま回って倒れる（演出の間の素振りは受け付けない・`HomerunModel.release`）。
+                if whiffGag, lastBall?.kind == .miss { return .whiffGag(start: start, catchUpFrom: catchUpFrom) }
+                return .swing(start: start, catchUpFrom: catchUpFrom)
             }
             // 見送り: 振らない。
             return .stance

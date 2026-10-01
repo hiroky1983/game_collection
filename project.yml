@@ -179,6 +179,9 @@ targets:
         # 無いと FirebaseAnalytics が実バイナリからリンク落ちし、Crashlytics が
         # 「Firebase Analytics SDK not detected」となる（Firebase 公式要件）。
         OTHER_LDFLAGS: ["$(inherited)", "-ObjC"]
+    # 共有スキームを明示的に生成する。下の UITests ターゲットが共有スキームを持つと、fastlane は
+    # 共有スキームしか探さないため GameCollection を見失い UITests を archive してしまう（v1.1.8 出荷で発覚）
+    scheme: {}
 
   # 画面操作の E2E（XCUITest・#1594）。シミュレータで手元実行する専用のターゲットで、CI では回さない
   # （ci.yml は GameCollection スキームの build だけ。ここのスキームは test のときだけこのターゲットを作る）。
