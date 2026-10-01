@@ -240,6 +240,14 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「通知」トグル。動作確認は `-simulateNotificationTap <gameID>`（DEBUG のみ）
 
+### 柵越えおじさん: 公開状態と動作確認用の強制
+
+- **公開状態**: 企画倉庫（`AppEnvironment.registry` でコメントアウト）。v1.1.8 では非公開（会長指示 2026-10-02）。
+  以下の柵越えおじさんの節は倉庫にあるコードの仕様で、ハブ・LP・ストア文言には出していない
+- **動作確認用の強制**（`-homerunUnlimited`・`-homerunForceMoon`・`-homerunForcePole`・`-homerunForceWhiffGag`）は
+  DEBUG ビルドだけで効く。鍵の宣言と読み取りは `HomerunModel+Debug.swift`（`HomerunDebugOverrides`）の `#if DEBUG` の中だけで、
+  出荷ビルドでは端末に同じ鍵が残っていても読まない
+
 ### 柵越えおじさん: 空振りで回って倒れて目を回す演出（#1681・v1.1.8）
 
 振った空振り（見送りは除く）で、打者がそのまま約 1.8 回転して後ろへ尻もちをつき、座って頭をぐるぐる回す（ぐるぐる目・頭上の星 3 つ）。

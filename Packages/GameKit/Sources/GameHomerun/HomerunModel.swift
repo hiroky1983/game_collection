@@ -258,30 +258,21 @@ public final class HomerunModel {
         if ledger != before { HomerunStorage.saveLedger(ledger, defaults) }
     }
 
-    /// 動作確認用: この鍵が true なら挑戦回数を減らさない（会長 QA 用・2026-09-30）。アプリの DEBUG ビルドが
-    /// 起動引数 `-homerunUnlimited` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
-    public static let debugUnlimitedKey = "homerun_debugUnlimited"
-    /// 動作確認用: この鍵が true なら振れば必ず月まで飛ぶ（#1680・`HomerunChallenge.forcesMoon`）。アプリの DEBUG ビルドが
-    /// 起動引数 `-homerunForceMoon` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
-    public static let debugForceMoonKey = "homerun_debugForceMoon"
-    /// 動作確認用: この鍵が true なら振れば必ずファウルポールに当たる（#1686・`HomerunChallenge.forcesPole`）。アプリの DEBUG
-    /// ビルドが起動引数 `-homerunForcePole` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
-    public static let debugForcePoleKey = "homerun_debugForcePole"
-
     /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
+    /// 動作確認用の強制（回数無制限・月・ポール）は DEBUG ビルドだけで効く（`HomerunDebugOverrides`）。
     @discardableResult
     public func start(now: Date) -> Bool {
         guard phase == .idle || phase == .finished else { return false }
         refreshDay(now: now)
-        if !defaults.bool(forKey: Self.debugUnlimitedKey) {
+        let debug = HomerunDebugOverrides.current(defaults)
+        if !debug.unlimited {
             guard ledger.consume() else {
                 showsExhausted = true
                 return false
             }
             HomerunStorage.saveLedger(ledger, defaults)
         }
-        challenge = HomerunChallenge(pitches: pitches, forcesMoon: defaults.bool(forKey: Self.debugForceMoonKey),
-                                     forcesPole: defaults.bool(forKey: Self.debugForcePoleKey))
+        challenge = HomerunChallenge(pitches: pitches, forcesMoon: debug.forcesMoon, forcesPole: debug.forcesPole)
         awaitsAtBat = true
         lastBall = nil
         isNewBest = false
@@ -496,10 +487,6 @@ public final class HomerunModel {
 
     // MARK: 空振りの演出（#1681）
 
-    /// 動作確認用: この鍵が true なら振った空振りで必ず演出を出す。アプリの DEBUG ビルドが起動引数
-    /// `-homerunForceWhiffGag` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
-    public static let debugForceWhiffGagKey = "homerun_debugForceWhiffGag"
-
     /// 1 球の結果を閉じる時刻。ふだんは `resultUntil` で、空振りの演出のときは座りきるまで（`HomerunWhiffGag.resultDuration`）
     /// 延ばす（演出の間は次の球を投げない）。
     public var resultEnd: Date? {
@@ -516,7 +503,7 @@ public final class HomerunModel {
             return
         }
         whiffCount += 1
-        showsWhiffGag = defaults.bool(forKey: Self.debugForceWhiffGagKey)
+        showsWhiffGag = HomerunDebugOverrides.current(defaults).forcesWhiffGag
             || HomerunWhiffGag.shows(whiffNumber: whiffCount, roll: whiffGagRoll())
     }
 

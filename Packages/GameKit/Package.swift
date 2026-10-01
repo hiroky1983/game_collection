@@ -105,7 +105,7 @@ let package = Package(
         // 画面は `GameHomerun`。`Game` 接頭辞のディレクトリは画面の走査テスト（GameChromeTests）が
         // gameChrome を要求するため、画面を持たないロジック層はこの名前にしている。
         .target(name: "HomerunCore",        dependencies: ["Core"]),
-        // 柵越えおじさんの画面（#1348・v1.1.8 でハブに並べる）。打席・外野は 3D（RealityKit）。判定・台帳・蓄積は HomerunCore。
+        // 柵越えおじさんの画面（#1348・企画倉庫。v1.1.8 では非公開・会長指示 2026-10-02）。打席・外野は 3D（RealityKit）。判定・台帳・蓄積は HomerunCore。
         // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
         // 広告/アンケートでの回数回復・解析・Game Center への送信も入っている。
         // 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）を同梱する。
