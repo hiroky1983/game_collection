@@ -81,6 +81,9 @@ enum AppEnvironment {
         }
     )
 
+    /// ホーム画面アイコン長押し（#1642）。項目の組み直しは `GameCollectionApp` がバックグラウンドへ入るたびに行う。
+    static let quickActions = QuickActionService()
+
     /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
     /// アプリがバックグラウンドに入るたびに対象を判定し直す（`GameCollectionApp` から呼ぶ）。
     /// 撮影モードと DEBUG ビルドでは予約しない（#663 と同じ理由）。

@@ -295,6 +295,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    /// ホーム画面アイコン長押し（#1642）。アプリが終了していた状態からの起動は項目がここへ来る
+    /// （起動中・バックグラウンドからのタップは `QuickActionSceneDelegate`）。
+    /// デリゲートを差すために、SwiftUI が組む既定のシーン構成を同じ役割のまま作り直す。
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        if let item = options.shortcutItem {
+            MainActor.assumeIsolated { _ = AppEnvironment.quickActions.handle(item) }
+        }
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = QuickActionSceneDelegate.self
+        return configuration
+    }
+
     /// タップされた。そのゲームを開くようハブへ伝える。
     ///
     /// async 版の delegate は、完了の合図が Swift Concurrency の協調スレッドから iOS へ返ることがあり、

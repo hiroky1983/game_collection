@@ -356,6 +356,20 @@ struct HubView: View {
                     resume: isResumable(id)
                 ))
             }
+            // ホーム画面アイコン長押し（#1642）の項目がタップされたら、そのゲームを直接開く。
+            // 終了していた状態からの起動は値がハブより先に入るため、初期値でも走らせる。
+            // 設定で非表示にしたゲームは、項目が古いままでも開かない。
+            .onChange(of: AppEnvironment.quickActions.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                AppEnvironment.quickActions.requestedGameID = nil
+                guard settings.visibleModules(from: registry).contains(where: { $0.id == id }) else { return }
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .quickAction, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
             .task {
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
                 // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で
