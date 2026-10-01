@@ -63,7 +63,11 @@ struct HomerunModuleTests {
         #expect(atBat.contains("BoardGameControlMetrics.minTapTarget"),
                 "一時停止ボタンの寸法は「⋯」（GameControlMenu）側の定数を参照する（コピーで別の数字を書かない・#1617）")
         #expect(!atBat.contains("pauseButtonSide"), "一時停止ボタン専用の寸法定数は持たない（#1617）")
-        #expect(!code.contains("#if DEBUG"), "ゲームの出し分けを DEBUG で分けない")
+        // 動作確認用の強制（`HomerunModel+Debug.swift`）だけは出荷ビルドから外すため #if DEBUG で囲む（v1.1.8・会長指示 2026-10-02）。
+        let debugFile = SourceScan.strippingComments(
+            try SourceScan.packageSource("Sources/GameHomerun/HomerunModel+Debug.swift")
+        )
+        #expect(!code.replacingOccurrences(of: debugFile, with: "").contains("#if DEBUG"), "ゲームの出し分けを DEBUG で分けない")
         #expect(!code.contains("Task.sleep(nanoseconds"))
     }
 
@@ -87,16 +91,53 @@ struct HomerunModuleTests {
         #expect(!model.contains("ContinuousClock"))
     }
 
-    @Test("App の registry に登録されている（v1.1.8 で企画倉庫から出してハブに並べる）")
-    func registryLineIsActive() throws {
+    @Test("App の registry には企画倉庫としてコメントアウトで載っている（v1.1.8 では非公開・会長指示 2026-10-02）")
+    func registryLineIsCommentedOut() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
         )
         let lines = source.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-        #expect(lines.contains("HomerunModule(),"), "ハブに並べる（会長決裁 2026-09-29）")
-        #expect(!lines.contains("// HomerunModule(),"), "コメントアウトの行が残っていない")
+        #expect(lines.contains("// HomerunModule(),"))
+        #expect(!lines.contains("HomerunModule(),"), "出荷を決める Issue まではハブに並べない")
         #expect(lines.contains("import GameHomerun"))
-        #expect(!source.contains("企画倉庫・#1348"), "企画倉庫の注記が残っていない")
+        #expect(source.contains("企画倉庫・#1348"))
+        #expect(source.contains("v1.1.8 では非公開（会長指示 2026-10-02）"))
+    }
+
+    @Test("動作確認用の強制（回数無制限・月・ポール・空振りの演出）は出荷ビルドでは鍵が残っていても効かない")
+    func debugOverridesAreIgnoredInReleaseBuild() throws {
+        let defaults = UserDefaults(suiteName: "HomerunDebugOverrides.\(UUID())")!
+        for key in [HomerunModel.debugUnlimitedKey, HomerunModel.debugForceMoonKey,
+                    HomerunModel.debugForcePoleKey, HomerunModel.debugForceWhiffGagKey] {
+            defaults.set(true, forKey: key)
+        }
+        // 出荷ビルドの経路（DEBUG でない）は鍵を読まない。
+        #expect(HomerunDebugOverrides.current(defaults, isDebugBuild: false) == .none)
+        // DEBUG ビルドの経路では鍵どおりに効く（会長 QA 用）。
+        #expect(HomerunDebugOverrides.current(defaults, isDebugBuild: true)
+                == HomerunDebugOverrides(unlimited: true, forcesMoon: true, forcesPole: true, forcesWhiffGag: true))
+        // テストは DEBUG でビルドされる（`swift test` の既定）ので、既定引数は DEBUG の経路。
+        #expect(HomerunDebugOverrides.isDebugBuild)
+    }
+
+    @Test("動作確認用の鍵の宣言と読み取りは HomerunModel+Debug.swift の #if DEBUG の中だけにある")
+    func debugKeysAreReadOnlyInsideDebugFile() throws {
+        let debugFile = SourceScan.strippingComments(
+            try SourceScan.packageSource("Sources/GameHomerun/HomerunModel+Debug.swift")
+        )
+        let rest = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
+            .replacingOccurrences(of: debugFile, with: "")
+        for key in ["debugUnlimitedKey", "debugForceMoonKey", "debugForcePoleKey", "debugForceWhiffGagKey",
+                    "homerun_debug"] {
+            #expect(!rest.contains(key), "\(key) を Debug ファイルの外で読んでいる（出荷ビルドで効いてしまう）")
+        }
+        // 宣言（extension）と読み取り（current の中）は両方 #if DEBUG の内側。
+        let extensionStart = try #require(debugFile.range(of: "extension HomerunModel"))
+        #expect(debugFile[..<extensionStart.lowerBound].hasSuffix("#if DEBUG\n"))
+        let reads = SourceScan.functionSource(startingWith: "static func current(", in: debugFile)
+        let guardIndex = try #require(reads.range(of: "#if DEBUG"))
+        let readIndex = try #require(reads.range(of: "defaults.bool(forKey:"))
+        #expect(guardIndex.lowerBound < readIndex.lowerBound)
     }
 }
 
