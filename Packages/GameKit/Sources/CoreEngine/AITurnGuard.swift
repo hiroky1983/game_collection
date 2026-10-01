@@ -31,7 +31,10 @@ extension AITurnGuarded {
             if let flag, self[keyPath: key].gameSerial == started.gameSerial { self[keyPath: flag] = false }
         }
         let value = await think()
-        guard self[keyPath: key] == started else { return }
+        // `Task.detached { … }.value` は親がキャンセルされても走り切り、`try? await Task.sleep` は
+        // キャンセルを握り潰して即返る。画面を離れた（`.task(id:)` が取り消された）あとに着手が
+        // 確定すると、敗北が記録されて中断データが消える（#1621）。キーは変わらないのでキーでは弾けない。
+        guard !Task.isCancelled, self[keyPath: key] == started else { return }
         commit(value)
     }
 
