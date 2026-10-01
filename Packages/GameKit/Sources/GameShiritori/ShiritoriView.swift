@@ -244,7 +244,10 @@ public struct ShiritoriView: View {
         case .playing:
             EmptyView()
         case .result:
-            actionButton("もう一度", role: .primary) { showSetup = true }
+            GameReplayBar(
+                onReplay: { model.startGame(quota: model.quota, mode: model.mode) },
+                onChangeSettings: { showSetup = true }
+            )
         }
     }
 

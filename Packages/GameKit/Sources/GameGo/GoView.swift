@@ -118,19 +118,12 @@ public struct GoView: View {
     }
 
     private var resultControls: some View {
-        HStack(spacing: 12) {
-            Spacer(minLength: 0)
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        GameReplayBar(
+            onReplay: {
+                model.newGame(humanSide: model.humanSide, level: model.aiLevel, handicap: model.ruleset.handicap)
+            },
+            onChangeSettings: { showNewGame = true }
+        )
     }
 
     /// 両者パスのあとの確認。**ここで結果を承認するまで成績は記録しない**ので、

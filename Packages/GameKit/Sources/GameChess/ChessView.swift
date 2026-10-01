@@ -433,7 +433,7 @@ public struct ChessView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度）で中身が入れ替わるが、
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一回）で中身が入れ替わるが、
     /// どちらも**同じ余白の1行**なので高さは変わらない（#139 の「決着で盤が縮まない」契約）。
     private var controlArea: some View {
         ZStack(alignment: .top) {
@@ -454,14 +454,15 @@ public struct ChessView: View {
         )
     }
 
-    /// 検討ナビと「もう一度」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
+    /// 検討ナビと「もう一回」「設定を変える」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
     private var reviewControls: some View {
         ReviewNavBar(
             ply: model.reviewPly,
             total: model.moves.count,
             onBack: { model.reviewStepBack() },
             onForward: { model.reviewStepForward() },
-            onNewGame: { showNewGame = true }
+            onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
+            onChangeSettings: { showNewGame = true }
         )
     }
 }

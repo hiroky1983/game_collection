@@ -657,25 +657,18 @@ public struct SudokuView: View {
     // MARK: - Result Controls
 
     private var resultControls: some View {
-        HStack(spacing: 12) {
+        // 行の高さは数字パッドの 1 ボタンと同じ（対局中の操作列との高さ合わせ）。ボタン自体は他ゲームと同じ大きさ。
+        GameReplayBar(
+            contentMinHeight: SudokuMetrics.padButtonMinSide,
+            verticalPadding: 4,
+            onReplay: {
+                zoomMode = false
+                Task { await model.newGame(difficulty: model.difficulty) }
+            },
+            onChangeSettings: { showNewGame = true }
+        ) {
             RecordLabel(model.recordResult)
-                .lineLimit(1).minimumScaleFactor(0.7)
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.Fill.coral))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
         }
-        .themeBody(14)
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 
