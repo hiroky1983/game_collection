@@ -53,22 +53,25 @@ public struct GameReplayBar<Leading: View>: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 8)
             Button(action: onReplay) {
-                Self.capsule(replayTitle, fill: Theme.Fill.coral, foreground: Theme.onAccent)
+                capsule(replayTitle, fill: Theme.Fill.coral, foreground: Theme.onAccent)
             }
             Button(action: onChangeSettings) {
-                Self.capsule(GameReplayBarText.changeSettings, fill: Theme.fillMuted, foreground: .white)
+                capsule(GameReplayBarText.changeSettings, fill: Theme.fillMuted, foreground: .white)
             }
         }
         .frame(minHeight: contentMinHeight)
     }
 
     /// 文字を拡大しても折り返してボタンの高さが跳ねないよう、1 行に固定する（`ViewThatFits` が幅を見る）。
-    private static func capsule(_ title: String, fill: Color, foreground: Color) -> some View {
+    /// 行を背の高い操作列に合わせるとき（ナンプレ）は、見た目のカプセルは変えずに押せる範囲だけ行の高さまで広げる。
+    private func capsule(_ title: String, fill: Color, foreground: Color) -> some View {
         Text(title)
             .lineLimit(1).fixedSize(horizontal: true, vertical: false)
             .foregroundStyle(foreground)
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(Capsule().fill(fill))
+            .frame(minHeight: contentMinHeight)
+            .contentShape(Rectangle())
     }
 }
 

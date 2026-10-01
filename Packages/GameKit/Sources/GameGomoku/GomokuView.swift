@@ -111,7 +111,7 @@ public struct GomokuView: View {
         }
     }
 
-    /// 「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#148）。
+    /// 「もう一回」「設定を変える」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#148）。
     /// 記録ラベルは行を増やさずステータスバーへ同居させている。
     private var resultControls: some View {
         GameReplayBar(

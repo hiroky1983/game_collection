@@ -310,7 +310,7 @@ public struct OthelloView: View {
         }
     }
 
-    /// 「もう一度」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
+    /// 「もう一回」「設定を変える」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
     /// 全幅の大ボタンのままだと盤の下が伸び、決着の瞬間に盤が縮む。
     private var newGameButton: some View {
         GameReplayBar(
