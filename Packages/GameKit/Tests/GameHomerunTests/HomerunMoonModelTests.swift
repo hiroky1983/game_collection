@@ -108,6 +108,25 @@ struct HomerunMoonModelTests {
         #expect(plain.challenge?.forcesMoon == false)
     }
 
+    @Test("確認用の鍵（DEBUG の -homerunForcePole・#1686）が立っていれば、どこで振ってもポール直撃（左右は振った方向の側）")
+    func forcedPoleByDebugKey() throws {
+        let f = Fixture()
+        f.defaults.set(true, forKey: HomerunModel.debugForcePoleKey)
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        #expect(model.challenge?.forcesPole == true)
+        let (left, close) = try swing(model, dx: -8, dy: -20, offset: -0.06)
+        #expect(left?.isPoleHit == true && left?.direction == -45)
+        model.advance(now: close)
+        let (right, _) = try swing(model, dx: 8, dy: 0, offset: 0.06)
+        #expect(right?.isPoleHit == true && right?.direction == 45)
+        #expect(model.resultUntil == model.ballClock?.releasedAt?.addingTimeInterval(HomerunBallChase.poleResultDuration))
+
+        let plain = Fixture().model()
+        plain.start(now: Fixture.t0)
+        #expect(plain.challenge?.forcesPole == false)
+    }
+
     // MARK: 見せ方
 
     @Test("見せ方: 球は月の手前の面に当たり、カメラは真上寄りへ見上げ、空が夜になってから月が出る・当たってヒビ")

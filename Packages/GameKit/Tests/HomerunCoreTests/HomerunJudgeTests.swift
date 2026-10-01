@@ -233,8 +233,10 @@ struct HomerunJudgeTests {
         // 45° の際（±1e-9 / ±1e-6）: 110ms（±15°）に、カーソルで残りの 30° を足す
         func dx(forCursorDegrees d: Double) -> Double { d / 35 * 11 }
         #expect(HomerunJudge.judge(swing(t: 110, dx: dx(forCursorDegrees: 30 - 1e-9))).kind != .foul)
-        #expect(HomerunJudge.judge(swing(t: 110, dx: dx(forCursorDegrees: 30 + 1e-6))).kind == .foul)
-        #expect(HomerunJudge.judge(swing(t: -110, dx: -dx(forCursorDegrees: 30 + 1e-6))).kind == .foul)
+        // 45° のすぐ外はファウルポールの幅（#1686）なので、ファウルになるのはポールの幅の外から。
+        let outside = 30 + HomerunJudge.poleHalfAngle + 1e-6
+        #expect(HomerunJudge.judge(swing(t: 110, dx: dx(forCursorDegrees: outside))).kind == .foul)
+        #expect(HomerunJudge.judge(swing(t: -110, dx: -dx(forCursorDegrees: outside))).kind == .foul)
         // -35 + (-9.5) = -44.5° はフェア・-35 + (-10.2) = -45.2° はファウル（早さ 70ms / 75ms）
         #expect(HomerunJudge.judge(swing(t: -70, dx: -11)).kind != .foul)
         #expect(HomerunJudge.judge(swing(t: -75, dx: -11)).kind == .foul)

@@ -266,11 +266,12 @@ extension HomerunToonModel {
             m.box(c.length + 0.4, F.lineHeight, 0.5, C.yellow, at: [c.center.x, F.lineY, c.center.y], outline: 0, yaw: c.yaw)
         }
         for mark in F.distanceMarks { fenceNumber(mark.text, atDirection: mark.deg, into: &m) }
-        // ファウルポール（両翼の柵の上・黄色）
+        // ファウルポール（両翼の柵の上・黄色）。太さ・高さは当たり判定（`HomerunJudge.poleRadius` / `poleHeight`・#1686）と同じ。
+        let poleRadius = Float(HomerunJudge.poleRadius), poleHeight = Float(HomerunJudge.poleHeight)
         for s: Float in [-1, 1] {
-            let p = fencePoint(Double(s) * 45)
-            m.cylinder(0.3, 20, C.yellow, at: [p.x, 10, p.y], outline: 0)
-            m.sphere(0.5, C.yellow, at: [p.x, 20.2, p.y], outline: 0)
+            let p = fencePoint(Double(s) * HomerunJudge.foulLimit)
+            m.cylinder(poleRadius, poleHeight, C.yellow, at: [p.x, poleHeight / 2, p.y], outline: 0)
+            m.sphere(0.5, C.yellow, at: [p.x, poleHeight + 0.2, p.y], outline: 0)
         }
     }
 
