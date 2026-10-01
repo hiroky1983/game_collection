@@ -389,7 +389,9 @@ struct HomerunModelTests {
         #expect(HomerunBallResultCard.reasonLine(whiff, tookPitch: false,
                                                  missNote: HomerunAtBatView.missNote(didSwing: true, reason: .late)) == "振るのが遅い")
         let homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 4))
-        #expect(HomerunBallResultCard.headline(homer, tookPitch: false) == HomerunText.kind(homer.kind))
+        // 最高の当たり（中堅 180m）はスタンドの最後列の後端（約 148m）を越えるので「場外！」（#1654）。
+        #expect(homer.isOutOfPark)
+        #expect(HomerunBallResultCard.headline(homer, tookPitch: false) == "場外！")
         #expect(HomerunBallResultCard.reasonLine(homer, tookPitch: false, missNote: nil) == nil)
     }
 

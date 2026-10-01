@@ -56,7 +56,8 @@ struct HomerunAtBatView: View {
                                          cameraPreset: model.atBatCamera,
                                          cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
-                                         ballPosition: chase?.ball
+                                         // 場外の球が消えた後（#1654）は nil（球も影も出さない）。投球中の球へ戻さない。
+                                         ballPosition: chase.map(\.visibleBall)
                                             ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera,
                                                                              screen: CGSize(width: size.width + inset.leading + inset.trailing,
                                                                                             height: fullHeight)) : nil),
@@ -557,7 +558,7 @@ struct HomerunBallResultCard: View {
 
     /// 見出し: 見送りは「見送り」、振って外したら「空振り」、当たりは種別。
     static func headline(_ ball: HomerunBattedBall, tookPitch: Bool) -> String {
-        ball.kind == .miss && tookPitch ? "見送り" : HomerunText.kind(ball.kind)
+        ball.kind == .miss && tookPitch ? "見送り" : HomerunText.kind(of: ball)
     }
 
     /// 見出しの下に添える空振りの理由。振って外したときだけ。

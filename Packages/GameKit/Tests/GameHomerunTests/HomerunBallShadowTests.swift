@@ -145,16 +145,16 @@ struct HomerunBallShadowTests {
         #expect(hits.contains { $0.kind == .homer })
         for ball in hits {
             guard let track = Chase.track(for: ball) else { continue }
-            // 止まった点（スタンドの座面・芝）。
+            // 止まった点（スタンドの座面・芝）。場外（#1654）は止まらずに後端の先で消えるので、飛んでいる間だけ見る。
             let rest = track.rest
             let restWorld = Chase.world(rest, direction: track.direction)
-            if !onMound(restWorld) {
+            if !track.vanishesAtEnd, !onMound(restWorld) {
                 let ground = Shadow.groundHeight(below: restWorld)
                 #expect(abs(Double(ground) - (rest.y - Chase.ballRadius)) < 1e-3, "\(ball.kind) 方向 \(ball.direction) 距離 \(ball.distance): 止まった高さ \(rest.y) 地面 \(ground)")
             }
             // 最初に着いた点（フェンス直撃は柵の面・中堅（|方向| < 6°）の柵越えはバックスクリーンの面に当たることがあるので除く）。
             let landing = Chase.world(track.landing, direction: track.direction)
-            if ball.kind != .fenceHit, !(ball.kind == .homer && abs(ball.direction) < 6), !onMound(landing) {
+            if ball.kind != .fenceHit, !track.vanishesAtEnd, !(ball.kind == .homer && abs(ball.direction) < 6), !onMound(landing) {
                 let ground = Shadow.groundHeight(below: landing)
                 #expect(abs(Double(ground) - (track.landing.y - Chase.ballRadius)) < 1e-3, "\(ball.kind) 方向 \(ball.direction): 着いた高さ \(track.landing.y) 地面 \(ground)")
             }
@@ -174,7 +174,7 @@ struct HomerunBallShadowTests {
     @Test("追う球が止まったコマ: 大きく見せた球の下端が影の面に乗り、影は濃い（地面の濃さ）")
     func restingChaseFrame() {
         for ball in allHits {
-            guard let track = Chase.track(for: ball) else { continue }
+            guard let track = Chase.track(for: ball), !track.vanishesAtEnd else { continue }
             let frame = Chase.frame(track, at: track.duration + 0.1)
             let shape = Shadow.shape(ball: frame.ball, ballRadius: frame.ballScale * r, camera: frame.camera.position)
             #expect(abs(shape.opacity - Shadow.groundOpacity) < 1e-3, "\(ball.kind) 方向 \(ball.direction)")

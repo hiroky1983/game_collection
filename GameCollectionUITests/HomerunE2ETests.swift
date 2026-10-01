@@ -63,7 +63,7 @@ final class HomerunE2ETests: XCTestCase {
         let summary = results.joined(separator: "\n")
         print("E2E-SUMMARY\n\(summary)")
         if let shotDir { try? summary.write(to: shotDir.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8) }
-        let hits = results.filter { $0.contains("柵越え") || $0.contains("当たり、") || $0.contains("直撃") }
+        let hits = results.filter { $0.contains("柵越え") || $0.contains("場外") || $0.contains("当たり、") || $0.contains("直撃") }
         XCTAssertFalse(hits.isEmpty, "当たりが 1 本も出ない:\n\(summary)")
 
         // 最後の結果（10 球の結果）の画面も残す。

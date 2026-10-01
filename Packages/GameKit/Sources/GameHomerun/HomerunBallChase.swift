@@ -128,6 +128,8 @@ enum HomerunBallChase {
         var flightDuration: TimeInterval { segments.first?.duration ?? 0 }
         /// 止まるまでの時間。
         var duration: TimeInterval { segments.reduce(0) { $0 + $1.duration } }
+        /// 場外（#1654）: 道の終わり（スタンドの後端の `vanishBeyond` m 先）で球が消える。消えた後は球も影も描かない。
+        var vanishesAtEnd = false
 
         /// 当たってから `t` 秒の点。止まった後は止まった点のまま。
         func point(at t: TimeInterval) -> Point {
@@ -196,6 +198,9 @@ enum HomerunBallChase {
             segments = groundBall(rest: foulRestDistance(for: ball.launch), launch: ball.launch)
         case .fenceHit:
             segments = fenceHit(ball)
+        case .homer where ball.isOutOfPark:
+            return Track(direction: ball.direction, segments: fitted(outOfPark(ball), into: limit(for: ball.kind) - restHold),
+                         vanishesAtEnd: true)
         case .homer:
             segments = homer(ball)
         }
@@ -295,7 +300,8 @@ enum HomerunBallChase {
         }
         // 小さく弾んで 1.2m 奥に止まる。奥の列の座面は高いので、止まる高さはその所の座面に合わせる（同じ高さのままだと
         // 奥の列の座席の中に埋まって見えなくなる・#1645 の画面の確認で発見）。
-        let hopS = landing.s + 1.2
+        // 最後列の近くに落ちた球は、最後列の後端（`standBackEdgeDepth`・その先はスタンドの外）を越えて弾まない（#1654）。
+        let hopS = min(landing.s + 1.2, front + Double(standBackEdgeDepth) - ballRadius)
         let hopY = abs(ball.direction) < 6 ? landing.y : max(standSurface(depth: hopS - front) + ballRadius, landing.y)
         let hop = make(from: landing, to: Point(s: hopS, y: hopY), .arc(bulge: 0.5))
         return [f, hop]
@@ -305,6 +311,66 @@ enum HomerunBallChase {
     static let battersEyeZ: Double = 125.0
     static let battersEyeHalfWidth: Double = 13
     static let battersEyeHeight: Double = 15
+    /// バックスクリーンの裏のスコアボード（`HomerunToonModel.battersEye`: z = 137・上の縁の幅 29m・上端 26.5m）。
+    static let scoreboardZ: Double = 137
+    static let scoreboardHalfWidth: Double = 14.5
+    static let scoreboardTop: Double = 26.5
+
+    // MARK: 場外（#1654・会長決裁 2026-10-01）
+
+    /// スタンドの最後列の段の後端（前縁からの奥行き・m）。外野のスタンドはここで終わる（後ろの壁・屋根は内野側だけ）。
+    static var standBackEdgeDepth: Float {
+        typealias Stand = HomerunToonModel.Stand
+        return Stand.treadBack(row: Stand.rows - 1)
+    }
+
+    /// 場外になる距離（本塁から・m）: 方向 `degrees` のスタンドの最後列の後端。球場の見た目と同じ `HomerunToonModel.standFront`
+    /// から出すので、柵の距離（`HomerunJudge.fence`）+ 柵からスタンドの前縁 2m + 最後列の後端の奥行きになる
+    /// （両翼 ±45° ≈ 126.5m・中堅 ≈ 148.5m）。中堅のバックスクリーンの方向（座席が無い）も同じ線で数える。
+    static func outOfParkDistance(atDirection degrees: Double) -> Double {
+        Double(HomerunToonModel.standFront(degrees, depth: standBackEdgeDepth))
+    }
+
+    /// スタンドの最後列の座席の背もたれの上端（m）。場外の打球はここより `outOfParkClearance` 上を抜けていく。
+    static var standBackTop: Double {
+        typealias Stand = HomerunToonModel.Stand
+        return Double(Stand.treadTop(row: Stand.rows - 1) + Stand.seatBackHeight)
+    }
+    /// 場外の打球が後端・バックスクリーン・スコアボードの上に空ける高さ（m）。
+    static let outOfParkClearance: Double = 2
+    /// 場外の打球が消える所: スタンドの後端からこれだけ先（m）。後端を越えて抜けていくのが見えてから消える。
+    static let vanishBeyond: Double = 3
+
+    /// 場外: 柵とスタンドの上を越えて最後列の後端の上を抜け、その `vanishBeyond` m 先で消える（スタンドに落ちて止まらない）。
+    /// 中堅（バックスクリーン・スコアボードの幅の中）はその上も越える。道は 1 本の放物線を後端で 2 区間に分けたもの。
+    private static func outOfPark(_ ball: HomerunBattedBall) -> [Segment] {
+        let radians = ball.direction * .pi / 180
+        let edge = outOfParkDistance(atDirection: ball.direction)
+        var obstacles = [Point(s: ball.fence, y: fenceClearance)]
+        var exitY = standBackTop + outOfParkClearance
+        let screenS = battersEyeZ / cos(radians)
+        if abs(screenS * sin(radians)) < battersEyeHalfWidth {
+            obstacles.append(Point(s: screenS, y: battersEyeHeight + ballRadius + outOfParkClearance))
+        }
+        let boardS = scoreboardZ / cos(radians)
+        if abs(boardS * sin(radians)) < scoreboardHalfWidth {
+            let over = scoreboardTop + ballRadius + outOfParkClearance
+            obstacles.append(Point(s: boardS, y: over))
+            exitY = max(exitY, over)
+        }
+        let exit = Point(s: edge, y: exitY)
+        let f = flight(to: exit, elevation: elevation(for: ball.launch), over: obstacles)
+        guard case .arc(let bulge) = f.motion else { return [f] }
+        // 同じ放物線（y = y0 + slope·x − k·x²・x は打ち出す点から）を後端の先 `vanishBeyond` m まで伸ばす。
+        let L = edge - start.s, k = 4 * bulge / (L * L)
+        let slope = (exit.y - start.y + k * L * L) / L
+        let x = L + vanishBeyond
+        let end = Point(s: start.s + x, y: start.y + slope * x - k * x * x)
+        // 水平は同じ速さのまま（`naturalDuration` はふくらみの下限 0.02m で短い区間を長くするので、長さの比で決める）。
+        let beyond = Segment(from: exit, to: end, motion: .arc(bulge: k * vanishBeyond * vanishBeyond / 4),
+                             duration: f.duration * vanishBeyond / L)
+        return [f, beyond]
+    }
 
     /// スタンドの前縁から奥へ `depth` m の座面の上面の高さ（m）。前縁の手前（柵との間）は地面（0）。
     static func standSurface(depth: Double) -> Double {
@@ -329,6 +395,10 @@ enum HomerunBallChase {
         var camera: HomerunAtBatLayout.Camera
         var ball: SIMD3<Float>
         var ballScale: Float
+        /// 場外の球が消えた後（#1654）。カメラはそのまま、球と影だけ描かない。
+        var ballHidden = false
+        /// 描く球の位置（消えた後は nil = 球も影も出さない）。
+        var visibleBall: SIMD3<Float>? { ballHidden ? nil : ball }
     }
 
     /// 球が本塁から `ball` m のときのカメラの本塁からの水平距離（m）。
@@ -384,7 +454,15 @@ enum HomerunBallChase {
             scale = ballScale(distance: Double(simd_distance(cameraPosition, ball)))
         }
         let camera = HomerunAtBatLayout.Camera(position: cameraPosition, target: ball, verticalFieldOfView: verticalFieldOfView)
-        return Frame(camera: camera, ball: ball, ballScale: scale)
+        return Frame(camera: camera, ball: ball, ballScale: scale, ballHidden: track.vanishesAtEnd && t >= track.duration)
+    }
+}
+
+extension HomerunBattedBall {
+    /// 場外（#1654）: 柵越えのうち、飛距離がその方向のスタンドの最後列の後端（`HomerunBallChase.outOfParkDistance`）以上。
+    /// 表示だけ（得点の上乗せなし）。保存（`HomerunShot`）の方向・距離・種別から毎回出すので、保存の形は変えない。
+    var isOutOfPark: Bool {
+        kind == .homer && distance >= HomerunBallChase.outOfParkDistance(atDirection: direction)
     }
 }
 
