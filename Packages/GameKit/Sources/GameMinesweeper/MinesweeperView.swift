@@ -250,26 +250,21 @@ public struct MinesweeperView: View {
 
     // MARK: - Result Controls
 
-    /// 記録と「次のゲーム」は 1 段にまとめ、プレイ中の `gameControls` と同じ高さに収める（#148）。
+    /// 記録と「もう一回」「設定を変える」は 1 段にまとめ、プレイ中の `gameControls` と同じ高さに収める（#148）。
     /// 3 段のままだと盤の下が伸び、決着の瞬間に盤が縮む。結果（クリア / ゲームオーバー）と
     /// 所要時間はステータスバーが出しているため、入れ替えても情報は失われない。
     private var resultControls: some View {
-        HStack(spacing: 12) {
+        GameReplayBar(
+            onReplay: {
+                // 同じ難易度（盤の大きさと地雷数）で始め直す。後始末は新規ゲームシートと同じ。
+                model.newGame(rows: model.rows, cols: model.cols, mines: model.totalMines)
+                zoomMode = false
+                showContinue = false
+            },
+            onChangeSettings: { showNewGame = true }
+        ) {
             RecordLabel(model.recordResult)
-                .lineLimit(1).minimumScaleFactor(0.7)
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Status Bar
