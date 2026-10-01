@@ -8,7 +8,9 @@ import HomerunCore
 ///
 /// 1. 打席のカメラのまま球がバットから飛び出す（`HomerunBallChase.cutDelay` まで）
 /// 2. 本塁の後ろの低いカメラへ切り替え、上がっていく球を追って**真上へ見上げる**（注視点を球 → 月へ移す）
-/// 3. 空が夜空になり（`night`）、星と月が出る
+/// 3. 空が夜空になり（`night`）、星と月が出る。月は遠くの小さな点から、加速しながら画面いっぱいまで迫ってくる（`moonDistance`）。
+///    球は逆に遠ざかって小さくなり、月面に吸い込まれて当たる（会長 QA 2026-10-01）。大気圏を抜ける（空が夜になる）ところで
+///    球が燃え、オレンジ〜赤の炎と火の尾をまとった火の玉になる（`Fireball`・月の黄土色と夜空の紺の上でも見えるように）
 /// 4. 球が月に当たる（`impact`）: 白く光り、月が揺れてヒビが入る（1 回目）。2 回目は続けて月が半分に割れて左右へ離れる
 /// 5. 結果のカード（1 回目「月まで飛んだ！ 384,400 km」・2 回目「月が割れた！」と「プレイ回数 +2」）
 ///
@@ -19,10 +21,15 @@ enum HomerunMoonShot {
 
     /// 見上げるカメラ（本塁の 7m 後ろ・目の高さ）。
     static let cameraPosition: SIMD3<Float> = [0, 1.6, -7]
-    /// 月の中心。本塁の真上寄り（カメラから仰角約 75°）に置き、カメラが「真上へ」向くようにする。真上ちょうどにしないのは、
+    /// カメラから月へ向かう向き。本塁の真上寄り（仰角約 75°）で、カメラが「真上へ」向くようにする。真上ちょうどにしないのは、
     /// 注視点がカメラの真上だと見る向きの上下が決まらない（RealityKit の `look(at:)` が上向き +y を使う）ため。
-    static let moonCenter: SIMD3<Float> = [0, 500, 130]
-    /// 月の半径（m）。カメラから約 517m で、寄った画角（`endFieldOfView`）の縦画面で横幅の約 6 割に映る。
+    static let moonDirection: SIMD3<Float> = simd_normalize([0, 498.4, 137])
+    /// 当たる瞬間の月の中心までの距離（m）と、月が出た時の距離（遠くの小さな点）。
+    static let moonNearDistance: Float = 400
+    static let moonFarDistance: Float = 9000
+    /// 当たる瞬間の月の中心（ここで当たり、ヒビ・割れもここで見せる）。
+    static var moonCenter: SIMD3<Float> { cameraPosition + moonDirection * moonNearDistance }
+    /// 月の半径（m）。当たる瞬間（400m・寄った画角 `endFieldOfView`）の縦画面で横幅の約 8 割に映る。
     static let moonRadius: Float = 45
 
     /// 月の手前の面（カメラ側）の、球が当たる点。カメラから見て月の真ん中に当たる。
@@ -33,13 +40,32 @@ enum HomerunMoonShot {
     /// 月の向き: 模様の正面（局所の +z・ヒビを描いた面）をカメラへ向ける。回す軸は x なので、局所の x は画面の横のまま
     /// （割れた半球は画面の左右へ離れる）。
     static var moonOrientation: simd_quatf {
-        simd_quatf(from: [0, 0, 1], to: simd_normalize(cameraPosition - moonCenter))
+        simd_quatf(from: [0, 0, 1], to: -moonDirection)
+    }
+
+    /// 月が出てから `t` 秒の、カメラから月の中心までの距離（m）。距離を対数で補間し（見かけの大きさが一定の割合で増える）、
+    /// その進みを x^1.5 のイーズインにする: 小さな点から途中もじわじわ大きくなり、終わりほど加速して画面いっぱいに迫る
+    /// （距離を線形・3 乗で縮めると、見かけの大きさ ∝ 1 / 距離 のため最後の 0.3 秒まで点のままで、急に現れて見えた）。
+    static func moonDistance(at t: TimeInterval) -> Float {
+        let x = min(max((t - moonAppear) / (impact - moonAppear), 0), 1)
+        let k = Float(pow(x, 1.5))
+        return moonFarDistance * pow(moonNearDistance / moonFarDistance, k)
+    }
+
+    /// `t` 秒の月の中心（当たった後は `moonCenter` のまま）。
+    static func moonPosition(at t: TimeInterval) -> SIMD3<Float> {
+        cameraPosition + moonDirection * moonDistance(at: t)
+    }
+
+    /// 月の見かけの半径（ラジアン・カメラから）。
+    static func moonApparentRadius(at t: TimeInterval) -> Float {
+        asin(min(moonRadius / moonDistance(at: t), 1))
     }
 
     // MARK: 時間（当たった瞬間 = 0 秒から）
 
     /// 球が月に当たるまで（秒）。
-    static let impact: TimeInterval = 2.8
+    static let impact: TimeInterval = 3.4
     /// 空が夜になり始める・なり切る時刻（秒）。
     static let nightStart: TimeInterval = 0.6
     static let nightEnd: TimeInterval = 1.8
@@ -48,7 +74,54 @@ enum HomerunMoonShot {
     /// 画角を寄せ始める時刻（秒）と、寄せる前・寄せた後の縦の画角（度）。
     static let zoomStart: TimeInterval = 1.2
     static let startFieldOfView: Float = 46
-    static let endFieldOfView: Float = 36
+    static let endFieldOfView: Float = 34
+    /// 月へ向かう球の見かけの大きさを、当たる直前にこの割合まで縮める（ふだんの打球の下限 `HomerunBallChase.minApparentRadius`
+    /// より小さくし、迫ってくる月との大きさの対比を出す）。縮め始めるのは注視点が月へ移り終えてから。
+    static let ballShrinkEnd: Float = 0.45
+    /// 球が燃え始める・燃え切る時刻（秒）。空が夜に変わり始める（大気圏を抜ける）のに合わせる。
+    static let burnStart: TimeInterval = nightStart
+    static let burnFull: TimeInterval = nightStart + 0.5
+    /// 火の玉の見かけの半径（ラジアン）。遠ざかっても点にならず、月の上でも見分けられる大きさ。燃え切った時にこの値で、
+    /// 当たる直前は `ballShrinkEnd` と同じ割合まで縮める（迫る月との対比）。
+    static let fireApparentRadius: Float = 0.014
+    /// 火の尾の玉の数（板ポリ・パーティクルは使わず、輪郭線付きの球を並べるだけ）。
+    static let trailCount = 6
+
+    /// 火の玉（燃えている球）の 1 コマ。
+    struct Fireball: Equatable {
+        /// 炎の中心（世界座標）と半径（m）。
+        var center: SIMD3<Float>
+        var radius: Float
+        /// 火の尾の向き（進む向きの逆・単位ベクトル）。
+        var trail: SIMD3<Float>
+        /// 炎のゆらぎ（0〜1）。
+        var flicker: Float
+    }
+
+    /// 球の進む向き（打ち出す点 → 月の当たる点）。
+    static var flightDirection: SIMD3<Float> {
+        simd_normalize(impactPoint - HomerunBallChase.world(HomerunBallChase.start, direction: 0))
+    }
+
+    /// 見上げたカメラの画面の下向き（世界座標・月へ向かう向きに垂直）。球はこちら側から月へ昇っていき、火の尾もこちらへ引く
+    /// （カメラと球の道がほぼ一直線なので、そのままだと球が月の真ん中に重なって月の点を隠し、火の尾も奥へ伸びて見えない）。
+    static var screenDown: SIMD3<Float> {
+        let up: SIMD3<Float> = [0, 1, 0]
+        return -simd_normalize(up - moonDirection * simd_dot(up, moonDirection))
+    }
+    /// 球を画面の下側へずらす量（カメラからの距離に対する割合 = 見かけの角・ラジアン）の最大。月が出る頃に最大で、当たる瞬間に 0。
+    static let ballDrop: Float = 0.16
+
+    /// `t` 秒の火の玉。燃える前・当たった後は nil。
+    static func fireball(at t: TimeInterval) -> Fireball? {
+        guard t >= burnStart, let ball = ballPosition(at: t) else { return nil }
+        let burn = Float(smoothstep((t - burnStart) / (burnFull - burnStart)))
+        let shrink = 1 + (ballShrinkEnd - 1) * Float(smoothstep((t - lookUpEnd) / (impact - lookUpEnd)))
+        let flicker = Float(0.5 + 0.5 * sin(t * 37))
+        let radius = simd_distance(cameraPosition, ball) * fireApparentRadius * burn * shrink * (0.94 + 0.12 * flicker)
+        guard radius > 0 else { return nil }
+        return Fireball(center: ball, radius: radius, trail: simd_normalize(screenDown - flightDirection * 0.35), flicker: flicker)
+    }
     /// 注視点を球から月へ移し始める・移し終える時刻（秒）。
     static let lookUpStart: TimeInterval = 0.3
     static let lookUpEnd: TimeInterval = 1.6
@@ -91,6 +164,10 @@ enum HomerunMoonShot {
         var flash: Double
         /// 月の揺れ（世界座標のずれ・m）。
         var shake: SIMD3<Float>
+        /// 月の中心（世界座標・揺れの前）。遠くから迫ってくる。
+        var moonCenter: SIMD3<Float> = HomerunMoonShot.moonCenter
+        /// 燃えている球（大気圏を抜けてから当たるまで）。
+        var fire: Fireball? = nil
     }
 
     static func smoothstep(_ x: Double) -> Double {
@@ -109,7 +186,8 @@ enum HomerunMoonShot {
                     cracked: since >= 0,
                     split: split,
                     flash: since >= 0 ? max(0, 1 - since / flashDuration) : 0,
-                    shake: shake)
+                    shake: shake,
+                    moonCenter: moonPosition(at: t))
     }
 
     /// 球の位置（当たった瞬間の打ち出す点から月の当たる点まで。はじめ速く、遠ざかるほどゆっくり見える）。当たった後は nil。
@@ -118,7 +196,10 @@ enum HomerunMoonShot {
         let x = min(max(t / impact, 0), 1)
         let u = Float(1 - pow(1 - x, 2.2))
         let from = HomerunBallChase.world(HomerunBallChase.start, direction: 0)
-        return from + (impactPoint - from) * u
+        let straight = from + (impactPoint - from) * u
+        // 画面の下側から月へ昇っていくよう、道を画面の下へふくらませる（打ち出した直後と当たる瞬間は 0）。
+        let rise = Float(smoothstep(t / moonAppear)) * Float(1 - smoothstep((t - moonAppear) / (impact - moonAppear)))
+        return straight + screenDown * simd_distance(cameraPosition, straight) * ballDrop * rise
     }
 
     /// 当たってから `t` 秒のコマ（`HomerunBallChase.Frame` の形で返し、打球を追うカメラと同じ道で描く）。
@@ -126,13 +207,17 @@ enum HomerunMoonShot {
         let ball = ballPosition(at: t)
         let shown = ball ?? impactPoint
         let w = Float(smoothstep((t - lookUpStart) / (lookUpEnd - lookUpStart)))
-        let target = shown + (moonCenter - shown) * w
-        let zoom = Float(smoothstep((t - zoomStart) / (impact - zoomStart)))
-        let fov = startFieldOfView + (endFieldOfView - startFieldOfView) * zoom
+        let target = shown + (moonPosition(at: t) - shown) * w
+        // 画角も月が迫るのに合わせて加速しながら寄せる（イーズイン）。
+        let zx = min(max((t - zoomStart) / (impact - zoomStart), 0), 1)
+        let fov = startFieldOfView + (endFieldOfView - startFieldOfView) * Float(zx * zx)
         let camera = HomerunAtBatLayout.Camera(position: cameraPosition, target: target, verticalFieldOfView: fov)
-        let scale = HomerunBallChase.ballScale(distance: Double(simd_distance(cameraPosition, shown)))
+        let shrink = 1 + (ballShrinkEnd - 1) * Float(smoothstep((t - lookUpEnd) / (impact - lookUpEnd)))
+        let scale = HomerunBallChase.ballScale(distance: Double(simd_distance(cameraPosition, shown))) * shrink
+        var look = look(moon, at: t)
+        look.fire = fireball(at: t)
         return HomerunBallChase.Frame(camera: camera, ball: shown, ballScale: scale, ballHidden: ball == nil,
-                                      moon: look(moon, at: t))
+                                      moon: look)
     }
 }
 

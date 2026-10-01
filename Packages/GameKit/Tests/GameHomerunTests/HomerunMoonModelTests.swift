@@ -130,6 +130,67 @@ struct HomerunMoonModelTests {
         let p = end.camera.screenPoint(of: HomerunMoonShot.impactPoint, aspect: 0.46)
         #expect(abs(p.x - 0.5) < 0.02 && abs(p.y - 0.5) < 0.05)
 
+        // 月は遠くの小さな点から迫ってくる（加速するイーズイン）。球は逆に遠ざかって小さく見える。
+        typealias M = HomerunMoonShot
+        let appear = M.frame(.hit, at: M.moonAppear)
+        let mid = M.frame(.hit, at: (M.moonAppear + M.impact) / 2)
+        func moonScreenRadius(_ f: HomerunBallChase.Frame, _ t: TimeInterval) -> Double {
+            // 縦の画角に対する月の見かけの半径の割合（画面の高さの何割か）。
+            Double(M.moonApparentRadius(at: t)) / (Double(f.camera.verticalFieldOfView) * .pi / 360) / 2
+        }
+        let r0 = moonScreenRadius(appear, M.moonAppear)
+        let r1 = moonScreenRadius(mid, (M.moonAppear + M.impact) / 2)
+        let r2 = moonScreenRadius(end, M.impact)
+        #expect(r0 < 0.01, "出たときは小さな点: \(r0)")
+        #expect(r2 > 0.15, "当たる直前は画面いっぱい（縦画面の横幅を越える）: \(r2)")
+        #expect(r1 < r2 / 4, "後半で一気に迫る（加速）: \(r1) \(r2)")
+        #expect(abs(M.moonDistance(at: M.moonAppear) - M.moonFarDistance) < 0.01)
+        #expect(abs(M.moonDistance(at: M.impact) - M.moonNearDistance) < 0.01)
+        // 見かけの大きさは単調に大きくなり、増え方が加速する（途中でも大きくなっていくのが見える: 半分の時刻で 2 倍以上）。
+        var last: Float = 0, lastGain: Float = 0
+        for k in 0...20 {
+            let a = M.moonApparentRadius(at: M.moonAppear + (M.impact - M.moonAppear) * Double(k) / 20)
+            #expect(a >= last)
+            if k > 1 { #expect(a - last >= lastGain - 1e-6, "大きくなり方が加速している") }
+            if k > 0 { lastGain = a - last }
+            last = a
+        }
+        #expect(M.moonApparentRadius(at: (M.moonAppear + M.impact) / 2) > M.moonApparentRadius(at: M.moonAppear) * 2)
+        #expect(M.frame(.hit, at: M.impact).moon?.moonCenter == M.moonCenter)
+        // 月の手前の面は常に球より奥（球が月を追い越さない）。
+        for k in 0...30 {
+            let t = M.impact * Double(k) / 30
+            if let b = M.ballPosition(at: t) {
+                #expect(simd_distance(M.cameraPosition, b) <= M.moonDistance(at: t) - M.moonRadius + 0.5)
+            }
+        }
+        // 球の見かけの大きさ（ラジアン）は当たる直前の方が小さい。
+        let ballApparent = { (f: HomerunBallChase.Frame) in
+            f.ballScale * HomerunSwingContact.ballRadius / simd_distance(f.camera.position, f.ball)
+        }
+        #expect(ballApparent(end) < ballApparent(appear) * 0.6)
+        // 大気圏を抜ける（空が夜になり始める）ところで燃え、当たるまで火の玉。火の尾は進む向きの逆。
+        #expect(M.burnStart == M.nightStart)
+        #expect(M.fireball(at: M.burnStart - 0.01) == nil)
+        #expect(start.moon?.fire == nil)
+        let burning = try #require(end.moon?.fire)
+        #expect(simd_distance(burning.center, end.ball) < 1e-3)
+        // 火の尾は画面の下（昇ってきた側）へ引き、進む向きとは逆向き。
+        #expect(simd_dot(burning.trail, M.screenDown) > 0.9)
+        #expect(simd_dot(burning.trail, M.flightDirection) < 0)
+        // 月が出た頃の火の玉は月（画面の真ん中）より下に映り、遠くの月の点を隠さない。
+        let early = M.frame(.hit, at: M.moonAppear)
+        let ep = early.camera.screenPoint(of: early.ball, aspect: 0.46)
+        let mp = early.camera.screenPoint(of: M.moonPosition(at: M.moonAppear), aspect: 0.46)
+        #expect(ep.y - mp.y > 0.1)
+        // 炎は球よりずっと大きく見える（月の上でも見分けられる）。
+        let fireApparent = burning.radius / simd_distance(end.camera.position, burning.center)
+        #expect(fireApparent > ballApparent(end) * 3)
+        #expect(M.fireball(at: M.impact) == nil, "当たったら炎ごと月に突っ込んで消える")
+        #expect(M.frame(.hit, at: M.impact + 0.05).moon?.fire == nil)
+        // 全体は以前（当たるまで 2.8 秒）から 1 秒以内しか延ばさない。
+        #expect(M.impact <= 3.8)
+
         let hit = HomerunMoonShot.frame(.hit, at: HomerunMoonShot.impact + 0.05)
         #expect(hit.ballHidden)
         #expect(hit.moon?.cracked == true)

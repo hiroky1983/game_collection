@@ -336,6 +336,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var slideTick: Date?
         /// 月（#1680）。月まで飛んだ打球で初めて要るときに作って足す（ふだんは作らない）。
         var moon: HomerunMoonRig?
+        /// 燃えている球（#1680）。月と同じく要るときに作る。
+        var fire: HomerunFireballRig?
     }
 
     /// 縫い目の画像（#1656・`HomerunBallSeam`）。1 回だけ作る。作れない環境では nil で、白い球のまま。
@@ -628,6 +630,12 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             c.moon = rig
         }
         c.moon?.apply(moon)
+        if c.fire == nil, moon?.fire != nil, let anchor = c.cameraEntity?.parent {
+            let rig = HomerunFireballRig()
+            anchor.addChild(rig.entity)
+            c.fire = rig
+        }
+        c.fire?.apply(moon?.fire, camera: camera.renderPose.position)
     }
 }
 
