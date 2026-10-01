@@ -18,11 +18,13 @@ enum HomerunBallChase {
 
     /// 当たった瞬間から結果のカードを出すまでの上限（秒）。打球の動き（飛ぶ・弾む・転がる）はこの時間から `restHold` を
     /// 引いた長さに収まるよう、長い打球ほど速回しにする（短い打球は実際の速さのまま早く止まり、カードも早く出る）。
+    /// 会長 QA（2026-10-01・#1645）「スタンドまでが近すぎる」で、速回しを弱めて打球の見かけの速さを約 2 割落とした
+    /// （柵越え 3.0 → 3.6・当たり / フェンス直撃 2.4 → 2.8・ファウル 2.0 → 2.3 秒）。
     static func limit(for kind: HomerunKind) -> TimeInterval {
         switch kind {
-        case .homer: 3.0
-        case .fenceHit, .inPlay: 2.4
-        case .foul: 2.0
+        case .homer: 3.6
+        case .fenceHit, .inPlay: 2.8
+        case .foul: 2.3
         case .miss: 0
         }
     }
@@ -41,10 +43,17 @@ enum HomerunBallChase {
 
     // MARK: 見た目の定数
 
-    /// 追うカメラで見せる球の半径（m）。実寸（0.037m）では数十 m 先で見えないので大きくする（以前の外野カメラと同じ扱い）。
-    static let ballRadius: Double = 0.3
-    /// 打席の 3D の球（実寸）をこの倍率に拡大して見せる。
-    static var ballScale: Float { Float(ballRadius) / HomerunSwingContact.ballRadius }
+    /// 追うカメラで見せる球の半径（m・打球の道の地面の高さにも使う）。実寸（0.037m）では数十 m 先で見えないので少し大きくする。
+    /// 会長 QA（2026-10-01・#1645）「追う球が大きすぎる」で 0.3 → 0.1（切り替え直後の見かけの直径が画面の高さの約 6% → 2%）。
+    /// 大きさは変えないので、カメラから遠ざかるほど小さく映る（`minApparentRadius` まで）。
+    static let ballRadius: Double = 0.1
+    /// 球の見かけの半径の下限（ラジアン・縦の画角 `verticalFieldOfView` の画面で直径が高さの約 0.8%）。これより遠くでは
+    /// 球を大きくして、この見かけの大きさのまま見せる（遠くの球が点になって消えない）。
+    static let minApparentRadius: Double = 0.0035
+    /// 打席の 3D の球（実寸）を、カメラから `distance` m の所でこの倍率に拡大して見せる。
+    static func ballScale(distance: Double) -> Float {
+        Float(max(ballRadius, distance * minApparentRadius)) / HomerunSwingContact.ballRadius
+    }
     /// 打ち出す点（本塁の少し前・打点の高さ）。
     static let start = Point(s: 0.5, y: 1.0)
     /// 柵（高さ 3.2m + 黄色の上線）を越える打球が、柵の真上で通る最低の高さ（球の中心・m）。
@@ -52,16 +61,18 @@ enum HomerunBallChase {
     /// フェンス直撃の球の中心が止まる、柵の面からの距離（m）。
     static let fenceContactInset: Double = 0.4
     static let gravity: Double = 9.8
-    /// 追うカメラの縦の画角（度）。
-    static let verticalFieldOfView: Float = 40
+    /// 追うカメラの縦の画角（度）。#1645 で 40 → 46（広めにして奥の柵・スタンドを小さく = 遠くに見せる）。
+    static let verticalFieldOfView: Float = 46
     /// カメラは球の後ろ（本塁側）`trailBase + trailGrowth × 球の距離` に置く（遠くへ飛ぶほど少し引いて、球場を広く映す）。
+    /// #1645 で trailGrowth を 0.25 → 0.35（遠くへ飛ぶほど球がカメラから離れて小さくなる）。
     static let trailBase: Double = 12
-    static let trailGrowth: Double = 0.25
+    static let trailGrowth: Double = 0.35
     /// カメラの高さ = `cameraBaseHeight + cameraHeightFollow × 球の高さ`（上がる球を下から見上げすぎない）。
     static let cameraBaseHeight: Double = 3
     static let cameraHeightFollow: Double = 0.4
-    /// カメラは柵のこれだけ手前より先へは出ない（柵越えの球を追ってスタンドへ入り込まない）。
-    static let cameraFenceMargin: Double = 12
+    /// カメラは柵のこれだけ手前より先へは出ない（柵越えの球を追ってスタンドへ入り込まない）。#1645 で 12 → 24
+    /// （外野の芝の中ほどで止まり、柵越えの球が柵・スタンドへ遠ざかっていくのを見送る）。
+    static let cameraFenceMargin: Double = 24
 
     // MARK: 打球の道
 
@@ -282,7 +293,11 @@ enum HomerunBallChase {
                 return [f, make(from: atScreen, to: foot, .arc(bulge: 0.2))]
             }
         }
-        let hop = make(from: landing, to: Point(s: landing.s + 1.2, y: landing.y), .arc(bulge: 0.5))
+        // 小さく弾んで 1.2m 奥に止まる。奥の列の座面は高いので、止まる高さはその所の座面に合わせる（同じ高さのままだと
+        // 奥の列の座席の中に埋まって見えなくなる・#1645 の画面の確認で発見）。
+        let hopS = landing.s + 1.2
+        let hopY = abs(ball.direction) < 6 ? landing.y : max(standSurface(depth: hopS - front) + ballRadius, landing.y)
+        let hop = make(from: landing, to: Point(s: hopS, y: hopY), .arc(bulge: 0.5))
         return [f, hop]
     }
 
@@ -316,18 +331,53 @@ enum HomerunBallChase {
         var ballScale: Float
     }
 
+    /// 球が本塁から `ball` m のときのカメラの本塁からの水平距離（m）。
+    static func cameraDistance(ball: Double, fence: Double) -> Double {
+        min(ball - (trailBase + trailGrowth * ball), fence - cameraFenceMargin)
+    }
+
+    /// 柵（高さ 3.2m + 黄色の上線）の上端（m）と、柵越しに球を見る視線が上端の上に空ける余裕（m）。
+    static let fenceTop: Double = 3.45
+    static let sightClearance: Double = 0.5
+    /// 柵越しに見るために上げるカメラの高さの上限（m）。
+    static let maxCameraHeight: Double = 30
+    /// 飛んでいる時間のこの割合からカメラを上げ始める。
+    static let liftStart: Double = 0.4
+
+    /// 柵の向こうで止まる球（柵越え）を、止まった所のカメラから柵越しに見るのに要る高さ（m・`maxCameraHeight` まで）。
+    /// スタンドの前の方の座席は柵の上端より低く、低いカメラからは柵に隠れる（#1645 でカメラを柵から離したので必要になった）。
+    /// 柵の手前で止まる球は 0。
+    static func overFenceHeight(_ track: Track) -> Double {
+        let fence = HomerunJudge.fence(atDirection: track.direction)
+        let rest = track.rest
+        let camS = cameraDistance(ball: rest.s, fence: fence)
+        guard rest.s > fence, camS < fence else { return 0 }
+        // カメラ（camS, h）から球（rest）への視線が柵の位置で上端 + 余裕を通る h。
+        let f = (fence - camS) / (rest.s - camS)
+        return min(max((fenceTop + sightClearance - rest.y * f) / (1 - f), 0), maxCameraHeight)
+    }
+
+    private static func smoothstep(_ x: Double) -> Double {
+        let k = min(max(x, 0), 1)
+        return k * k * (3 - 2 * k)
+    }
+
     /// 当たってから `t` 秒のコマ。カメラは球の後ろ（本塁側）・少し上から球を見る。
     static func frame(_ track: Track, at t: TimeInterval) -> Frame {
         let p = track.point(at: t)
         // 着いた後の弾みでカメラが上下に揺れないよう、高さは飛んでいる間だけ球に付いていき、その後は着いた高さのまま。
         let followY = t < track.flightDuration ? p.y : track.landing.y
         let fence = HomerunJudge.fence(atDirection: track.direction)
-        let camS = min(p.s - (trailBase + trailGrowth * p.s), fence - cameraFenceMargin)
+        let camS = cameraDistance(ball: p.s, fence: fence)
+        // 柵の向こうに落ちる球は、落ちていく間にカメラを柵越しに見える高さ（`overFenceHeight`）へなめらかに上げる。
+        let lift = smoothstep((t - track.flightDuration * liftStart) / (track.flightDuration * (1 - liftStart)))
+        let height = max(cameraBaseHeight + cameraHeightFollow * followY, overFenceHeight(track) * lift)
         let camera = HomerunAtBatLayout.Camera(
-            position: world(Point(s: camS, y: cameraBaseHeight + cameraHeightFollow * followY), direction: track.direction),
+            position: world(Point(s: camS, y: height), direction: track.direction),
             target: world(p, direction: track.direction),
             verticalFieldOfView: verticalFieldOfView)
-        return Frame(camera: camera, ball: world(p, direction: track.direction), ballScale: ballScale)
+        let ball = world(p, direction: track.direction)
+        return Frame(camera: camera, ball: ball, ballScale: ballScale(distance: Double(simd_distance(camera.position, ball))))
     }
 }
 

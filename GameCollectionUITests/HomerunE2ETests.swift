@@ -130,7 +130,7 @@ final class HomerunE2ETests: XCTestCase {
             var chaseShots: [XCUIScreenshot] = []
             if ProcessInfo.processInfo.environment["E2E_CHASE_SHOTS"] != nil {
                 let released = Date()
-                while !card.exists, Date().timeIntervalSince(released) < 4, chaseShots.count < 8 {
+                while !card.exists, Date().timeIntervalSince(released) < 5, chaseShots.count < 12 {
                     chaseShots.append(XCUIScreen.main.screenshot())
                     Thread.sleep(forTimeInterval: 0.15)
                 }

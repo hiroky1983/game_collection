@@ -415,16 +415,16 @@ struct HomerunSwingContactTests {
         #expect(model.ballClock?.releasedAt == arrival.addingTimeInterval(-0.03))
         #expect(abs((model.ballClock?.timingOffset ?? 0) + 30) < 1e-6)
         #expect(model.ballClock?.zone == 4, "結果の間も打った球の記録のまま（次の球ではない）")
-        // 押したまま次の球へ: 押しは引き継ぐ。
-        model.advance(now: arrival.addingTimeInterval(5))
+        // 押したまま次の球へ: 押しは引き継ぐ（結果の時間 = 柵越えで約 5.25 秒・#1645 の後に次の球へ）。
+        model.advance(now: arrival.addingTimeInterval(6))
         #expect(model.phase == .pitching && model.ballClock?.zone == 0)
         #expect(model.ballClock?.pressedAt == nil && model.ballClock?.releasedAt == nil)
         #expect(model.ballClock?.practiceSwingAt == nil, "振り終わった素振りは次の球に持ち越さない")
-        model.press(at: .zero, now: arrival.addingTimeInterval(5.1))
-        model.advance(now: arrival.addingTimeInterval(5 + HomerunModel.windup + HomerunModel.travel + 1))   // 見送り
-        model.advance(now: arrival.addingTimeInterval(5 + HomerunModel.windup + HomerunModel.travel + 3))   // 次の球
+        model.press(at: .zero, now: arrival.addingTimeInterval(6.1))
+        model.advance(now: arrival.addingTimeInterval(6 + HomerunModel.windup + HomerunModel.travel + 1))   // 見送り
+        model.advance(now: arrival.addingTimeInterval(6 + HomerunModel.windup + HomerunModel.travel + 3))   // 次の球
         #expect(model.phase == .pitching && model.ballClock?.zone == 8)
-        #expect(model.ballClock?.pressedAt == arrival.addingTimeInterval(5.1), "押したままなら前の押しの時刻を引き継ぐ")
+        #expect(model.ballClock?.pressedAt == arrival.addingTimeInterval(6.1), "押したままなら前の押しの時刻を引き継ぐ")
     }
 
     #if canImport(RealityKit)
