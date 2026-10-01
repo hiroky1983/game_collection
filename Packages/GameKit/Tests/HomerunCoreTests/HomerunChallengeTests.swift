@@ -55,22 +55,68 @@ struct HomerunChallengeTests {
 
     // MARK: 日次台帳
 
-    @Test("台帳: 無料 3・広告 +1 を 5 本・アンケート +1 で最大 9")
+    @Test("台帳: 無料 3・アンケート +1 で回数は 4。広告は回数に足さない（#1694）")
     func ledgerAllowance() {
         var l = HomerunLedger(dayKey: 20260926)
         #expect(l.remaining == 3)
-        for _ in 0..<5 { let ok = l.grantAd(); #expect(ok) }
-        let sixth = l.grantAd()
-        #expect(!sixth)
         let survey = l.grantSurvey()
         let surveyAgain = l.grantSurvey()
         #expect(survey && !surveyAgain)
-        #expect(l.remaining == 9)
-        for _ in 0..<9 { let ok = l.consume(); #expect(ok) }
-        let tenth = l.consume()
-        #expect(!tenth)
+        #expect(l.remaining == 4)
+        for _ in 0..<4 { let ok = l.consume(); #expect(ok) }
+        let fifth = l.consume()
+        #expect(!fifth)
         #expect(l.remaining == 0)
         #expect(!l.canStart)
+    }
+
+    @Test("台帳: 回数が尽きたら広告でプレイ。回数は増えず adPlays で数え、1 日 10 本まで（#1694）")
+    func ledgerAdPlay() throws {
+        #expect(HomerunLedger.adLimitPerDay == 10, "会長決裁 2026-10-02")
+        let limit = try #require(HomerunLedger.adLimitPerDay)
+        var l = HomerunLedger(dayKey: 20261002)
+        #expect(!l.canPlayWithAd, "回数があるうちは出さない")
+        let early = l.consumeAdPlay()
+        #expect(!early)
+        for _ in 0..<3 { l.consume() }
+        #expect(l.canPlayWithAd)
+        for _ in 0..<limit { let ok = l.consumeAdPlay(); #expect(ok) }
+        let over = l.consumeAdPlay()
+        #expect(!over)
+        #expect(l.adPlays == limit && l.adsWatched == limit)
+        #expect(l.allowance == 3 && l.remaining == 0 && l.used == 3, "回数は増えない")
+        #expect(!l.canWatchAd && !l.canPlayWithAd)
+        l.roll(to: 20261003)
+        #expect(l.adPlays == 0 && l.canStart)
+    }
+
+    @Test("台帳: 上限は定数 1 つで切り替わる（nil = 無制限）")
+    func ledgerAdLimitSwitch() {
+        #expect(HomerunLedger.canWatchAd(adsWatched: 4, limit: 5))
+        #expect(!HomerunLedger.canWatchAd(adsWatched: 5, limit: 5))
+        #expect(HomerunLedger.canWatchAd(adsWatched: 1_000, limit: nil))
+    }
+
+    @Test("台帳: 以前の版で貯めた広告分（adsWatched）は今日の残り回数として使え、上限にも数える")
+    func ledgerLegacyAdGrants() throws {
+        let old = Data(#"{"dayKey":20261002,"used":4,"adsWatched":3,"surveyDone":false}"#.utf8)
+        var l = try JSONDecoder().decode(HomerunLedger.self, from: old)
+        #expect(l.legacyAdGrants == 3)
+        #expect(l.allowance == 6 && l.remaining == 2, "貯めた分は消えない")
+        #expect(!l.canPlayWithAd)
+        l.consume(); l.consume()
+        #expect(l.canPlayWithAd)
+        // その日に見た 3 本も 1 日の上限に数える。
+        let limit = try #require(HomerunLedger.adLimitPerDay)
+        for _ in 0..<(limit - 3) { l.consumeAdPlay() }
+        #expect(!l.canWatchAd)
+        #expect(l.adPlays == limit - 3)
+        // 保存し直しても以前のキーのまま・広告での挑戦は別のキー。
+        let data = try JSONEncoder().encode(l)
+        let keys = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(keys["adsWatched"] as? Int == 3)
+        #expect(keys["adPlays"] as? Int == limit - 3)
+        #expect(try JSONDecoder().decode(HomerunLedger.self, from: data) == l)
     }
 
     @Test("台帳: 回数が無ければ消費しない・減算は consume（打席に立った時点）だけ")
@@ -87,7 +133,7 @@ struct HomerunChallengeTests {
     func ledgerRoll() {
         var l = HomerunLedger(dayKey: 20260926)
         l.consume(); l.consume(); l.consume()
-        l.grantAd()
+        l.grantSurvey()
         l.roll(to: 20260926)
         #expect(l.remaining == 1)  // 同じ日は何もしない
         l.roll(to: 20260925)
@@ -115,7 +161,7 @@ struct HomerunChallengeTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         var l = HomerunLedger(dayKey: 5)
-        l.consume(); l.grantAd()
+        l.consume(); l.grantSurvey()
         HomerunStorage.saveLedger(l, defaults)
         #expect(HomerunStorage.loadLedger(defaults) == l)
         #expect(HomerunStorage.recordsKey != HomerunStorage.ledgerKey)

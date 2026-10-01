@@ -272,6 +272,30 @@ public final class HomerunModel {
             }
             HomerunStorage.saveLedger(ledger, defaults)
         }
+        beginChallenge(now: now, withAd: false)
+        return true
+    }
+
+    /// 回数を使い切ったあと、広告を見終えたところで呼ぶ（#1694）。**回数は増やさず**、その場で 1 挑戦を始めて打席へ入る
+    /// （シートや確認は挟まない）。広告を出す前に控えた日付で照合する（見ている間に 0:00 をまたぐと台帳が作り直されて
+    /// 無料分が戻っているので、前の日の広告では始めない）。回数が残っている・広告の上限（`HomerunLedger.adLimitPerDay`）
+    /// に達している・打席前/結果でなければ始めず false（→ 「始められなかった」の知らせ）。
+    @discardableResult
+    public func startWithAd(forDay dayKey: Int, now: Date) -> Bool {
+        guard phase == .idle || phase == .finished else { return false }
+        refreshDay(now: now)
+        guard ledger.dayKey == dayKey, ledger.consumeAdPlay() else { return false }
+        HomerunStorage.saveLedger(ledger, defaults)
+        beginChallenge(now: now, withAd: true)
+        return true
+    }
+
+    /// いまの挑戦を広告を見て始めたか（#1694。台帳の `adPlays` と合わせ、計測 #1685 で枠を見分ける材料）。
+    public private(set) var startedWithAd = false
+
+    private func beginChallenge(now: Date, withAd: Bool) {
+        startedWithAd = withAd
+        let debug = HomerunDebugOverrides.current(defaults)
         challenge = HomerunChallenge(pitches: pitches, forcesMoon: debug.forcesMoon, forcesPole: debug.forcesPole)
         awaitsAtBat = true
         lastBall = nil
@@ -287,7 +311,6 @@ public final class HomerunModel {
         }
         // 1 挑戦は途中から戻せない（中断データを持たない）。画面を離れたら休憩ではなく離脱として数える。
         services?.gameWillNotResume(gameID: Self.gameID)
-        return true
     }
 
     /// 打席の画面（3D）が描き始めたときに View が 1 回呼ぶ。1 球目のマシンの込める動きを今から数え直す（打席の 3D を作って
@@ -305,18 +328,7 @@ public final class HomerunModel {
     /// ボールの位置を出さない。
     public private(set) var awaitsAtBat = false
 
-    /// 広告を見た報酬として今日の挑戦回数を 1 回増やす。**広告を出す前の日付で照合する**（見ている間に
-    /// 0:00 をまたぐと台帳が作り直されており、前の日の広告で今日の回数が増えるのを防ぐ）。
-    /// 上限（1 日 5 本）に達していれば増やさず false（→ 「適用できなかった」の知らせ）。
-    @discardableResult
-    public func grantAdChallenge(forDay dayKey: Int, now: Date) -> Bool {
-        refreshDay(now: now)
-        guard ledger.dayKey == dayKey, ledger.grantAd() else { return false }
-        HomerunStorage.saveLedger(ledger, defaults)
-        return true
-    }
-
-    /// アンケートに答えた報酬として今日の挑戦回数を 1 回増やす（1 日 1 回）。日付の照合は `grantAdChallenge` と同じ。
+    /// アンケートに答えた報酬として今日の挑戦回数を 1 回増やす（1 日 1 回）。日付の照合は `startWithAd` と同じ。
     /// 回答は選択肢の番号だけを `survey_answer` で送り、端末には残さない（台帳の「済み」フラグだけ）。
     /// 未回答の設問がある・すでに済み・日付が変わっていれば増やさず false（回答も送らない）。
     @discardableResult
@@ -328,7 +340,7 @@ public final class HomerunModel {
         return true
     }
 
-    /// 広告を出す前に控える「今日」の鍵（`grantAdChallenge(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
+    /// 広告を出す前に控える「今日」の鍵（`startWithAd(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
     /// 作る（画面を開いたまま 0:00 を過ぎても、日付の更新は前面へ戻るか打席に立つまで走らないため、
     /// 台帳の日付を控えると、日をまたいでいない広告まで「前の日」として弾いてしまう）。
     public func dayKey(at now: Date) -> Int { HomerunLedger.dayKey(for: now, calendar: calendar) }
