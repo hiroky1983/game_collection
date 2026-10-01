@@ -233,6 +233,81 @@ struct HomerunStadium3DTests {
         #expect(plate.positions.contains { abs($0.x) < 0.01 && abs($0.z + 0.432) < 0.01 }, "本塁の先端が無い")
     }
 
+    // #1677 会長 QA（2026-10-01）: バッターボックス・ホームベースをきれいに作り直す。
+    @Test("本塁まわり: 五角形の本塁（上面 0.08・縁取りと土の輪）と白線（幅 0.05・上面 0.08）は影の浮かせ量より低く、箱の中には線が無い")
+    func homePlateAreaLayers() {
+        typealias M = HomerunToonModel
+        typealias B = M.BatterBox
+        typealias P = M.HomePlate
+        let white = positions(of: HomerunToonPalette.white).filter { abs($0.x) < 4 && abs($0.z) < 4 }
+        #expect(!white.isEmpty)
+        // 高さ: すべて土の面（0.06）より上・白線の上面（0.08）以下で、影の浮かせ量（0.09）より低い。
+        #expect(white.allSatisfy { $0.y >= P.dirtTop - 1e-4 && $0.y <= P.lineTop + 1e-4 }, "本塁まわりの白が 0.06〜0.08 の外にある")
+        #expect(P.lineTop < HomerunBallShadow.infieldClearance && P.top < HomerunBallShadow.infieldClearance)
+        #expect(P.top == P.lineTop, "本塁の上面と白線の上面は同じ高さ（低いカメラで段差が出ない）")
+        // 本塁: 五角形の 5 頂点（底の外周）があり、上面は縁を落として内へ寄っている（先端 −0.432 より手前）。
+        for (x, z) in [(0.216, 0.0), (-0.216, 0.0), (0.216, -0.216), (-0.216, -0.216), (0.0, -0.432)] {
+            #expect(white.contains { abs(Double($0.x) - x) < 1e-3 && abs(Double($0.z) - z) < 1e-3 && $0.y < P.top - P.thickness + 1e-4 }, "本塁の頂点 (\(x), \(z)) が無い")
+        }
+        let plateTop = white.filter { abs($0.y - P.top) < 1e-4 && abs($0.x) < 0.3 && $0.z <= 0.01 && $0.z > -0.5 }
+        #expect(!plateTop.isEmpty && plateTop.allSatisfy { $0.z > P.apexZ + P.bevel })
+        // 縁取り（灰色）と土の輪（暗い土）は本塁の周りだけで、本塁の上面より低い。
+        let rim = positions(of: M.StadiumColor.plateRim)
+        #expect(!rim.isEmpty && rim.allSatisfy { abs($0.x) <= P.halfWidth + P.rimWidth + 1e-3 && $0.z <= P.rimWidth + 1e-3 && $0.y <= P.rimTop + 1e-4 && $0.y < P.top })
+        let dark = positions(of: M.StadiumColor.dirtDark), light = positions(of: M.StadiumColor.dirtLight)
+        #expect(dark.contains { abs($0.x) < 0.3 && $0.z > 0.04 && $0.z < 0.06 }, "本塁の周りの暗い土の輪が無い")
+        for patch in dark + light {
+            #expect(simd_length(SIMD2(patch.x, patch.z)) < 4, "土の色むらが本塁の土の円の外にある: \(patch)")
+            #expect(patch.y > P.dirtTop && patch.y <= P.patchTop + 1e-4 && patch.y < P.rimTop, "土の色むらの高さ \(patch.y)")
+        }
+        #expect(stadium.parts.count < 48)
+    }
+
+    @Test("バッターボックスは幅 0.05 の線で角が閉じ、内側の線の本塁側の縁は本塁の縁（0.216）。ファウルラインは本塁の先端を通る 45° の線で前の線から外へ、箱の中には引かない")
+    func batterBoxLinesAreClosedAndClean() {
+        typealias M = HomerunToonModel
+        typealias B = M.BatterBox
+        typealias P = M.HomePlate
+        let white = positions(of: HomerunToonPalette.white)
+        let h = B.line / 2
+        #expect(abs((B.innerX - h) - P.halfWidth) < 1e-4, "内側の線の縁 \(B.innerX - h)")
+        #expect(abs(B.width - 1.22) < 1e-6 && abs(B.frontZ - B.backZ - 1.83) < 1e-6, "4 × 6 フィートの実寸比")
+        for s: Float in [-1, 1] {
+            // 4 隅の外の角と内の角が 1 点ずつある（留め継ぎ・飛び出しや欠けが無い）。
+            for (x, z) in [(B.innerX, B.frontZ), (B.outerX, B.frontZ), (B.outerX, B.backZ), (B.innerX, B.backZ)] {
+                let dx: Float = x == B.innerX ? -h : h, dz: Float = z == B.frontZ ? h : -h
+                #expect(white.contains { abs($0.x - s * (x + dx)) < 1e-4 && abs($0.z - (z + dz)) < 1e-4 }, "外の角 (\(s * (x + dx)), \(z + dz)) が無い")
+                #expect(white.contains { abs($0.x - s * (x - dx)) < 1e-4 && abs($0.z - (z - dz)) < 1e-4 }, "内の角 (\(s * (x - dx)), \(z - dz)) が無い")
+            }
+            // 箱の中（線の内側の縁より内）には白い頂点が無い（ファウルラインを箱の中に引かない・継ぎ目の飛び出しも無い）。
+            let inside = white.filter { s * $0.x > B.innerX + h + 1e-4 && s * $0.x < B.outerX - h - 1e-4 && $0.z > B.backZ + h + 1e-4 && $0.z < B.frontZ - h - 1e-4 }
+            #expect(inside.isEmpty, "箱の中に白がある: \(inside.prefix(4))")
+            // ファウルライン: 本塁の先端 (0, −0.432) を通る 45° の線 = s·x − z = 0.432 で、縁は ±(線の幅/2)·√2。前の線から始まり柵（100m）の手前で終わる。
+            // 白線の高さ（0.072〜0.08）で拾う（塁のベース 0〜0.1・投手板 0.3・柵の距離表示は除く）。前の線の外側の縁（0.925）より先の白は
+            // ファウルラインだけで、どの頂点も s·x − z = 0.432 の線の幅の中にある。
+            let onLine = { (p: SIMD3<Float>) in abs((s * p.x - p.z) + P.apexZ) < h * Float(2).squareRoot() + 1e-3 }
+            let band = white.filter { s * $0.x > 0.5 && $0.z > 0.93 && $0.y > 0.07 && $0.y < 0.081 }
+            #expect(!band.isEmpty && band.allSatisfy(onLine), "ファウルラインが先端を通らない")
+            let foul = white.filter { $0.z > 0.5 && $0.y > 0.07 && $0.y < 0.081 && onLine($0) }
+            let start = foul.map(\.z).min()!, end = foul.map { simd_length(SIMD2($0.x, $0.z)) }.max()!
+            #expect(start < B.frontZ + h + 1e-3, "ファウルラインが前の線から離れて始まる: z \(start)")
+            #expect(end > 95 && end < Float(HomerunJudge.fence(atDirection: 45)), "ファウルラインの端 \(end)")
+            // 走路の中（幅 1.9m）に収まる。
+            #expect(foul.allSatisfy { abs(s * $0.x - $0.z) < 0.95 })
+        }
+        // キャッチャーボックス: 幅 43 インチ（±0.546）・先端から 8 フィート（z −2.87）の U の字が、後ろの線の外側の縁から始まる。
+        typealias K = M.CatcherBox
+        let catcher = white.filter { $0.z < B.backZ - 0.2 && $0.z > K.backZ - h - 1e-3 && abs($0.x) < 1 }
+        #expect(!catcher.isEmpty)
+        #expect(catcher.allSatisfy { abs(abs($0.x) - K.halfWidth) < h + 1e-4 || abs($0.z - K.backZ) < h + 1e-4 }, "キャッチャーボックスの線が幅 0.546 の 2 辺と後ろの 1 辺の外にある")
+        #expect(catcher.contains { abs($0.x - (K.halfWidth + h)) < 1e-4 && abs($0.z - (K.backZ - h)) < 1e-4 }, "後ろの角が閉じていない")
+        // 2 辺の手前の端は、バッターボックスの後ろの線の外側の縁（backZ − 線の幅/2）に接する。
+        for s: Float in [-1, 1] {
+            #expect(white.contains { abs($0.x - s * (K.halfWidth + h)) < 1e-4 && abs($0.z - (B.backZ - h)) < 0.005 }, "キャッチャーボックスが後ろの線とつながっていない")
+        }
+        #expect(abs(K.backZ - (P.apexZ - 2.44)) < 1e-6)
+    }
+
     // #1652 会長 QA「ファウルポールより外側のフェンスが無く客席が剥き出し」: 原因は形状（柵の板が ±46° で終わっていた）。
     @Test("ファウルゾーンの壁は柵の端から本塁の後ろまで前縁の上で 1 周つながり、柵の端は壁の高さのままスタンドの前縁までつなぐ")
     func foulWallWrapsAround() {
@@ -356,7 +431,7 @@ struct HomerunStadium3DTests {
     @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
-        // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.246m）より外に腰（原点 + 0.1m）がある。
+        // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.241m）より外に腰（原点 + 0.1m）がある。
         #expect(L.batter.position.x > 0.15 && L.batter.position.x + 0.1 >= 0.29, "右打者は前のカメラの画面の右（+x）のバッターボックスに立つ")
         // Meshy の打者は構えで左肩が +x。y 軸まわりに yaw 回すと +x は (cos, 0, -sin) へ向く → 投手（+z）を向くこと。
         let leftShoulder = SIMD3<Float>(cos(L.batter.yaw), 0, -sin(L.batter.yaw))

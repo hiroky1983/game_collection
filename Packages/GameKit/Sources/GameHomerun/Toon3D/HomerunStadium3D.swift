@@ -6,6 +6,8 @@ extension HomerunToonModel {
     /// 球場の色（`mock3d.swift` の `P` のうち球場のもの + #1506 で足した部品の色 + #1651 で足した部品の色）。
     enum StadiumColor {
         static let grass: UInt32 = 0x4FA653, grassDark: UInt32 = 0x3F8E45, dirt: UInt32 = 0xC28C58
+        /// 打席まわりの土の色むら（踏み跡の暗い土・乾いた明るい土）と、本塁のゴム板の縁取り（#1677）。
+        static let dirtDark: UInt32 = 0xB88451, dirtLight: UInt32 = 0xC99561, plateRim: UInt32 = 0xC9C5BA
         static let fence: UInt32 = 0x2F7A4F, fenceSeam: UInt32 = 0x1F5A38, track: UInt32 = 0xB8804C
         /// ファウルゾーンの壁（内野〜外野ファウルの客席の手前に 1 周つながるラバー。外野の柵とほぼ同じ緑・別メッシュ）。
         static let foulPad: UInt32 = 0x2D744B
@@ -78,15 +80,43 @@ extension HomerunToonModel {
     /// バッターボックスの白線（m・本塁が原点・左右に 1 つずつ）。線の中心の位置で、線の幅は `line`。
     /// 打者の足がこの中に収まることをテストで固定する（#1619）。
     enum BatterBox {
-        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.246・外側の線 = 1.466）。内側の線は本塁の縁（0.216）に
+        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.241・外側の線 = 1.461）。内側の線は本塁の縁（0.216）に
         /// 本塁側の縁を合わせる（#1667・会長 QA 2026-10-01: 0.29 では振りの間に右足のつま先が線を越えていた。打者はバットが
         /// 外の列に届く所から動かせないので、線の側を寄せる）。
-        static let centerX: Float = 0.856, width: Float = 1.22
+        static let centerX: Float = 0.851, width: Float = 1.22
         /// 前（投手側）・後ろ（捕手側）の線の z と、横の線の長さ。
         static let frontZ: Float = 0.9, backZ: Float = -0.93, sideLength: Float = 1.83
-        static let line: Float = 0.06
+        /// 線の幅（実物の 2 インチ・#1677 で 0.06 から細くした）。
+        static let line: Float = 0.05
         static var innerX: Float { centerX - width / 2 }
         static var outerX: Float { centerX + width / 2 }
+        /// 箱の 4 隅（線の中心・一塁側 s = -1 / 三塁側 s = +1。留め継ぎで閉じる `HomerunToonMesh.ribbon` に渡す）。
+        static func corners(side s: Float) -> [SIMD2<Float>] {
+            [[s * innerX, frontZ], [s * outerX, frontZ], [s * outerX, backZ], [s * innerX, backZ]]
+        }
+    }
+
+    /// 本塁（五角形・実物の 17 インチ）とキャッチャーボックス・打席まわりの土の層の高さ（#1677 会長 QA 2026-10-01「デザインが荒い」）。
+    /// 高さの層: 土の面 0.06 → 色むら・踏み跡 0.067 → 本塁の縁取り 0.072 → 白線と本塁の上面 0.08。影（球・打者・バット）は
+    /// 白線の上 `HomerunBallShadow.infieldClearance`（0.09）に浮かせてあるので、ここの上面は 0.08 を超えない。
+    enum HomePlate {
+        /// 頂点（x, z）: 前縁 (±0.216, 0)・横 (±0.216, -0.216)・先端 (0, -0.432)。先端を通る 45° の線がファウルライン。
+        static let polygon: [SIMD2<Float>] = [[-0.216, 0], [0.216, 0], [0.216, -0.216], [0, -0.432], [-0.216, -0.216]]
+        static let halfWidth: Float = 0.216, apexZ: Float = -0.432
+        /// 白いゴム板: 上面 0.08・厚み 1.6cm（土から 2cm 顔を出す）・上の縁を 1.2cm 斜めに落とす（陰影で縁が出る）。
+        static let top: Float = 0.08, thickness: Float = 0.016, bevel: Float = 0.012
+        /// 板の周りの薄い灰色の縁取り（1.5cm・上面 0.072）と、土に少し埋まって見える暗い土の輪（5cm・上面 0.067）。
+        static let rimWidth: Float = 0.015, rimTop: Float = 0.072, sunkWidth: Float = 0.05, patchTop: Float = 0.067
+        /// 白線の上面と厚み（土の上に薄く乗る 8mm。側面を薄くして低いカメラでも線が太って見えない）。
+        static let lineTop: Float = 0.08, lineThickness: Float = 0.008
+        /// 土の面の高さ（`stadium()` の本塁まわりの土の円の上面）。
+        static let dirtTop: Float = 0.06
+    }
+
+    /// キャッチャーボックス（実物: 幅 43 インチ・本塁の先端から 8 フィート後ろまで）。バッターボックスの後ろの線から後ろへ U の字に引く。
+    enum CatcherBox {
+        static let halfWidth: Float = 0.546
+        static var backZ: Float { HomePlate.apexZ - 2.44 }
     }
 
     /// 外野の柵（ラバー 3.2m + 黄色の線 + その上の金網）。柵の距離は判定と同じ `HomerunJudge.fence`。
@@ -119,7 +149,7 @@ extension HomerunToonModel {
             m.box(80, 0.02, 200, S.grass, at: [s * 70.7, 0.03, 14.1], outline: 0, yaw: s * quarter)
         }
         m.box(25.5, 0.02, 25.5, S.grass, at: [0, 0.03, 19.4], outline: 0, yaw: quarter)
-        // 本塁まわりの土・マウンド・塁の土・走路（4 辺）・ネクストバッターズサークル・ファウルライン
+        // 本塁まわりの土・マウンド・塁の土・走路（4 辺）・ネクストバッターズサークル（ファウルラインは `homePlateArea`）
         m.cylinder(4.0, 0.02, S.dirt, at: [0, 0.05, 0], outline: 0)
         m.cylinder(5.5, 0.02, S.dirt, at: [0, 0.05, 18.44], outline: 0)
         m.cylinder(2.75, 0.3, S.dirt, at: [0, 0.15, 18.44], outline: 0)
@@ -130,21 +160,10 @@ extension HomerunToonModel {
             m.box(1.9, 0.02, 27.4, S.dirt, at: [s * 9.7, 0.05, 9.7], outline: 0, yaw: s * quarter)
             m.box(1.9, 0.02, 27.4, S.dirt, at: [s * 9.7, 0.05, 29.1], outline: 0, yaw: -s * quarter)
             m.box(0.4, 0.1, 0.4, C.white, at: [s * 19.4, 0.05, 19.4], outline: 0)
-            m.box(0.12, 0.02, 100, C.white, at: [s * 35.4, 0.07, 35.4], outline: 0, yaw: s * quarter)
             m.cylinder(1.3, 0.02, S.dirt, at: [s * 9, 0.05, -5], outline: 0)
         }
         m.box(0.4, 0.1, 0.4, C.white, at: [0, 0.05, 38.8], outline: 0)
-        // 本塁（五角形 = 長方形 + 45° に回した正方形の和。頂点は原本と同じ (±0.216, 0)・(±0.216, -0.216)・(0, -0.432)）・バッターボックス
-        m.box(0.432, 0.02, 0.216, C.white, at: [0, 0.07, -0.108], outline: 0)
-        m.box(0.3055, 0.02, 0.3055, C.white, at: [0, 0.07, -0.216], outline: 0, yaw: quarter)
-        typealias B = BatterBox
-        for s: Float in [-1, 1] {
-            let cx = s * B.centerX
-            m.box(B.width, 0.02, B.line, C.white, at: [cx, 0.07, B.frontZ], outline: 0)
-            m.box(B.width, 0.02, B.line, C.white, at: [cx, 0.07, B.backZ], outline: 0)
-            m.box(B.line, 0.02, B.sideLength, C.white, at: [cx - s * B.width / 2, 0.07, 0], outline: 0)
-            m.box(B.line, 0.02, B.sideLength, C.white, at: [cx + s * B.width / 2, 0.07, 0], outline: 0)
-        }
+        homePlateArea(into: &m)
         fence(into: &m)
         stands(into: &m)
         battersEye(into: &m)
@@ -158,6 +177,44 @@ extension HomerunToonModel {
         }
         skyline(into: &m)
         return m.merged()
+    }
+
+    /// 本塁まわり（#1677）: 五角形の本塁（白いゴム板 + 灰色の縁取り + 土に埋まった暗い輪）・バッターボックス（留め継ぎで閉じた 1 本の線）・
+    /// キャッチャーボックス・ファウルライン（本塁の先端を通る 45° の線。実物どおりバッターボックスの前の線から外へ引き、箱の中には引かない）・
+    /// 打席まわりの土の色むら（踏み跡の暗い楕円・乾いた所の明るい楕円）。すべて平らな図形で、上面は白線の 0.08 を超えない。
+    private static func homePlateArea(into m: inout HomerunToonModel) {
+        typealias C = HomerunToonPalette
+        typealias S = StadiumColor
+        typealias B = BatterBox
+        typealias P = HomePlate
+        func flat(_ polygon: [SIMD2<Float>], top: Float, thickness: Float, _ color: UInt32, bevel: Float = 0) {
+            m.parts.append(HomerunToonPart(mesh: HomerunToonMesh.prism(polygon, height: thickness, bevel: bevel)
+                                               .placed(HomerunToonModel.translation([0, top - thickness / 2, 0])), outline: nil, color: color))
+        }
+        func line(_ points: [SIMD2<Float>], closed: Bool) {
+            m.parts.append(HomerunToonPart(mesh: HomerunToonMesh.ribbon(points, width: B.line, height: P.lineThickness, closed: closed)
+                                               .placed(HomerunToonModel.translation([0, P.lineTop - P.lineThickness / 2, 0])), outline: nil, color: C.white))
+        }
+        // 本塁: 暗い土の輪 → 灰色の縁取り → 白いゴム板（上の縁を斜めに落とす）。
+        flat(HomerunToonMesh.offset(HomerunToonMesh.clockwise(P.polygon), by: P.sunkWidth, closed: true), top: P.patchTop, thickness: 0.006, S.dirtDark)
+        flat(HomerunToonMesh.offset(HomerunToonMesh.clockwise(P.polygon), by: P.rimWidth, closed: true), top: P.rimTop, thickness: 0.01, S.plateRim)
+        flat(P.polygon, top: P.top, thickness: P.thickness, C.white, bevel: P.bevel)
+        for s: Float in [-1, 1] {
+            line(B.corners(side: s), closed: true)
+            // ファウルライン: 先端 (0, apexZ) を通る x = s (z − apexZ) の線を、前の線の外側の縁から 98m（柵の手前まで）。
+            let z0 = B.frontZ + B.line / 2 - 0.002
+            let x0 = s * (z0 - P.apexZ)
+            let far = 98 / Float(2).squareRoot()
+            line([[x0, z0], [x0 + s * far, z0 + far]], closed: false)
+            // 踏み跡（打者が立つ所の暗い楕円。左右対称に両方の箱へ）と、乾いた所の明るい楕円。
+            flat(HomerunToonMesh.ellipse(center: [s * 0.78, -0.06], rx: 0.4, rz: 0.52), top: P.patchTop, thickness: 0.006, S.dirtDark)
+            flat(HomerunToonMesh.ellipse(center: [s * 2.3, -1.7], rx: 0.55, rz: 0.35), top: P.patchTop, thickness: 0.006, S.dirtLight)
+            flat(HomerunToonMesh.ellipse(center: [s * 1.6, 2.1], rx: 0.45, rz: 0.3), top: P.patchTop, thickness: 0.006, S.dirtLight)
+        }
+        flat(HomerunToonMesh.ellipse(center: [0, 2.7], rx: 0.9, rz: 0.4), top: P.patchTop, thickness: 0.006, S.dirtLight)
+        // キャッチャーボックス: 後ろの線の外側の縁から U の字（43 インチ幅・先端から 8 フィート）。
+        let z1 = B.backZ - B.line / 2 + 0.002
+        line([[-CatcherBox.halfWidth, z1], [-CatcherBox.halfWidth, CatcherBox.backZ], [CatcherBox.halfWidth, CatcherBox.backZ], [CatcherBox.halfWidth, z1]], closed: false)
     }
 
     /// 柵の上の点（本塁からの方向 `deg`・柵から `dr` m 外）。
