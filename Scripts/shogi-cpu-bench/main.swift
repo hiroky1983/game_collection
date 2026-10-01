@@ -16,7 +16,8 @@ import Foundation
 // 環境変数: SLIP_MARGIN（外したときに許す損の幅の差し替え）・NPS（match / random で使う 1 秒あたりの局面数）・PLIES（手数上限・既定 150）・CONCURRENCY（既定 6）・
 // FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）・
 // UPPER_DEPTH / LOWER_DEPTH（match の上・下の段の読む深さの上限の差し替え。既定は出荷値。#1566）・
-// ONLY_SIDE（hint でヒント側を black=先手 / white=後手 だけにする。#1491）。
+// ONLY_SIDE（hint でヒント側を black=先手 / white=後手 だけにする。#1491）・
+// RESUME_SFEN / RESUME_PLY / WALL_LIMIT（hint の 1 局を途中で止めて続きから回す。HintMatch.play を参照）。
 
 func strength(_ name: String) -> CPUStrength {
     switch name {
@@ -213,9 +214,19 @@ enum HintMatch {
 
     /// 1 局。upper = むずかしい、lower = ヒントに従う側。
     static func play(seed: UInt64, hardIsBlack: Bool, extraSeconds: Double, nps: Double, maxPlies: Int) async -> Game {
-        var pos = CPUBenchLadder.opening(seed: seed)
+        // RESUME_SFEN / RESUME_PLY: 10 分に収まらない局を、打ち切った局面から続ける（両者とも乱数を使わず、
+        // エンジンは手ごとに作り直すので、局面と手数だけで続きは同じになる）。WALL_LIMIT 秒を過ぎたら局面を出して止める。
+        let env = ProcessInfo.processInfo.environment
+        var pos = env["RESUME_SFEN"].flatMap(Position.fromSFEN) ?? CPUBenchLadder.opening(seed: seed)
+        let startPly = Int(env["RESUME_PLY"] ?? "") ?? 0
+        let wallLimit = Double(env["WALL_LIMIT"] ?? "") ?? .infinity
+        let started = Date()
         var g = Game(outcome: .draw, followerAhead: false, plies: 0, hintMoves: 0, hintSeconds: 0, hintMax: 0)
-        for ply in 0..<maxPlies {
+        for ply in startPly..<maxPlies {
+            if Date().timeIntervalSince(started) > wallLimit {
+                print("SUSPEND 開始局面 \(seed) RESUME_PLY=\(ply) RESUME_SFEN='\(pos.toSFEN())'")
+                exit(0)
+            }
             let moves = pos.legalMoves()
             g.plies = ply
             if moves.isEmpty {
