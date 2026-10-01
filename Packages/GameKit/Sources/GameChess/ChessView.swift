@@ -162,7 +162,8 @@ public struct ChessView: View {
                                         style: pieceStyle
                                     )
                                     Text(type.japaneseName)
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
+                                        .lineLimit(1).minimumScaleFactor(0.5)
                                         .foregroundStyle(Theme.inkSub)
                                 }
                                 .frame(width: 66, height: 76)

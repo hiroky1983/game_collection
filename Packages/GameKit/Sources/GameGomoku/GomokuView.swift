@@ -215,7 +215,7 @@ public struct GomokuView: View {
     private var forbiddenNotice: some View {
         if case .forbidden(let reason) = model.lastRejection {
             Text(GomokuAccessibility.forbiddenAnnouncement(reason: reason))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(Theme.Fill.coral))
@@ -273,10 +273,10 @@ public struct GomokuView: View {
                 .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                 .frame(width: 18, height: 18)
             Text(isYou ? "あなた" : "CPU")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
             Text(stone == .black ? "黒・先手" : "白・後手")
-                .font(.system(size: 13, design: .rounded))
+                .themeCaption(13, weight: .regular, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             Spacer()
         }
