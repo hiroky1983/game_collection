@@ -68,7 +68,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.outcome == .lose)
         #expect(model.dealerTask == nil)
         #expect(spy.notices == [.error])
-        #expect(!store.exists(for: "blackjack"))
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
     }
 
     @Test("間があればスタンド直後はディーラーの番に留まり、記録も勝敗の触覚もまだ出ない")
@@ -94,7 +94,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.recordResult != nil, "精算で記録が確定する")
         #expect(spy.notices == [.error], "勝敗の触覚は精算で 1 回だけ")
         #expect(spy.impacts.isEmpty, "ディーラー（CPU）の引きでは鳴らさない")
-        #expect(!store.exists(for: "blackjack"))
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
         #expect(model.dealerTask == nil)
     }
 
@@ -111,7 +111,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.dealerHand.map(\.rank) == expectedDealerRanks, "飛ばしても結果は変わらない")
         #expect(model.chips == 900)
         #expect(spy.notices == [.error])
-        #expect(!store.exists(for: "blackjack"))
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
 
         // 1 時間の待ちは取り消しで即座に終わる。終わったあとに札も精算も増えていない。
         await task?.value
@@ -149,7 +149,7 @@ struct BlackjackDealerPacingTests {
         #expect(reopened.phase == .result)
         #expect(reopened.dealerHand.map(\.rank) == expectedDealerRanks)
         #expect(reopened.chips == 900)
-        #expect(!store.exists(for: "blackjack"))
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
 
         let task = interrupted.dealerTask
         task?.cancel()
