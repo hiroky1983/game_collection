@@ -97,35 +97,60 @@ final class HomerunMoonRig {
 #endif
 
 #if canImport(RealityKit)
-/// 燃えている球（#1680・会長 QA）: 赤橙の炎の玉（インクの輪郭線付き）・手前の黄色い芯・後ろへ細くなる火の尾の玉。
-/// 板ポリ・パーティクルは使わず、陰影なしの球を `HomerunMoonShot.trailCount + 2` 個並べるだけ（毎コマは位置と大きさを変えるだけ）。
+/// 燃えている球（#1680・#1687 会長 QA「もっと火の玉っぽく」）: カメラを向く板（`HomerunFireballArt.sprites`）を重ねた火の玉。
+/// 光の輪 2 枚（半透明）・長い火の尾・舌状の炎 3 枚・内側の炎・芯・火の粉 5 粒の計 `HomerunFireballArt.spriteCount` 枚で、
+/// パーティクルは使わない。炎は陰影なしの段の画像（白 → 黄 → 橙 → 赤・縁は濃い赤の細い線）を、画像の外を切り抜いて貼る。
 @MainActor
 final class HomerunFireballRig {
     let entity = Entity()
-    private let flame: ModelEntity
-    private let outline: ModelEntity
-    private let core: ModelEntity
-    private let trail: [ModelEntity]
+    private var sprites: [HomerunFireballArt.Layer: ModelEntity] = [:]
 
     init() {
-        func color(_ v: UInt32) -> UnlitMaterial {
-            UnlitMaterial(color: HomerunPlatformColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
-                                                      blue: CGFloat(v & 0xFF) / 255, alpha: 1))
+        let plane = MeshResource.generatePlane(width: 1, height: 1)
+        let disc = MeshResource.generatePlane(width: 1, height: 1, cornerRadius: 0.5)
+        func flame(_ style: HomerunFireballArt.Style, phase: Double = 0) -> UnlitMaterial {
+            var m = UnlitMaterial()
+            if let image = HomerunFireballArt.image(style, phase: phase),
+               let texture = try? TextureResource.generate(from: image, options: .init(semantic: .color)) {
+                m.color = .init(tint: .white, texture: .init(texture))
+                // 画像の外（赤が 0）を切り抜く。炎の中の色は赤の成分が 0.69 以上。
+                m.blending = .transparent(opacity: .init(scale: 1, texture: .init(texture)))
+                m.opacityThreshold = 0.5
+            } else {
+                m.color = .init(tint: Self.color(0xFF8A1E))
+            }
+            return m
         }
-        let sphere = MeshResource.generateSphere(radius: 1)
-        flame = ModelEntity(mesh: sphere, materials: [color(0xFF6A1A)])
-        let hull = HomerunMoonMesh.shell(radius: 1, rings: 12, segments: 24).outline(scale: 1.12)
-        var d = MeshDescriptor(name: "fireOutline")
-        d.positions = MeshBuffer(hull.positions)
-        d.normals = MeshBuffer(hull.normals)
-        d.primitives = .triangles(hull.indices)
-        outline = ModelEntity(mesh: (try? MeshResource.generate(from: [d])) ?? sphere, materials: [color(0x2B2634)])
-        core = ModelEntity(mesh: sphere, materials: [color(0xFFE45C)])
-        // 火の尾: 芯に近いほど橙、遠いほど赤。
-        let tail: [UInt32] = [0xFF8A1E, 0xFF7418, 0xF65A16, 0xE84414, 0xD43212, 0xBC2410]
-        trail = (0..<HomerunMoonShot.trailCount).map { ModelEntity(mesh: sphere, materials: [color(tail[$0 % tail.count])]) }
-        for e in [outline, flame, core] + trail { entity.addChild(e) }
+        func glow(_ v: UInt32, _ opacity: Float) -> UnlitMaterial {
+            var m = UnlitMaterial(color: Self.color(v))
+            m.blending = .transparent(opacity: .init(floatLiteral: opacity))
+            return m
+        }
+        // 1 式で連結すると型推論が重くなる（CI のタイムアウト・#1680）ので、1 枚ずつ足す。
+        var layers: [(HomerunFireballArt.Layer, MeshResource, UnlitMaterial)] = []
+        layers.append((.glowOuter, disc, glow(0xFF7A1A, 0.28)))
+        layers.append((.glowInner, disc, glow(0xFFC23A, 0.42)))
+        layers.append((.tail, plane, flame(.tail)))
+        for i in 0..<HomerunFireballArt.tongueCount {
+            layers.append((.tongue(i), plane, flame(.outer, phase: Double(i) * 2.1)))
+        }
+        layers.append((.inner, plane, flame(.inner)))
+        layers.append((.core, disc, UnlitMaterial(color: Self.color(0xFFFBE6))))
+        for i in 0..<HomerunFireballArt.sparkCount {
+            let spark: UInt32 = i % 2 == 0 ? 0xFFD23A : 0xFF8A1E
+            layers.append((.spark(i), disc, UnlitMaterial(color: Self.color(spark))))
+        }
+        for (layer, mesh, material) in layers {
+            let e = ModelEntity(mesh: mesh, materials: [material])
+            entity.addChild(e)
+            sprites[layer] = e
+        }
         entity.isEnabled = false
+    }
+
+    private static func color(_ v: UInt32) -> HomerunPlatformColor {
+        HomerunPlatformColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                             blue: CGFloat(v & 0xFF) / 255, alpha: 1)
     }
 
     func apply(_ fire: HomerunMoonShot.Fireball?, camera: SIMD3<Float>) {
@@ -134,21 +159,15 @@ final class HomerunFireballRig {
             return
         }
         entity.isEnabled = true
-        let r = fire.radius
-        let toCamera = simd_normalize(camera - fire.center)
-        flame.position = fire.center
-        flame.scale = SIMD3(repeating: r)
-        outline.position = fire.center
-        outline.scale = SIMD3(repeating: r)
-        // 黄色い芯は炎の手前（カメラ側）に寄せて、炎の中に明るい芯が見えるようにする。
-        core.position = fire.center + toCamera * r * 0.5
-        core.scale = SIMD3(repeating: r * (0.55 + 0.1 * fire.flicker))
-        for (i, e) in trail.enumerated() {
-            let k = Float(i + 1)
-            let wobble = (i % 2 == 0 ? 1 : -1) * 0.15 * (fire.flicker - 0.5)
-            let side = simd_normalize(simd_cross(fire.trail, [1, 0, 0]))
-            e.position = fire.center + fire.trail * r * 1.15 * k + side * r * wobble
-            e.scale = SIMD3(repeating: r * max(0.85 - 0.13 * k, 0.12))
+        for s in HomerunFireballArt.sprites(fire, camera: camera) {
+            guard let e = sprites[s.layer] else { continue }
+            // 板（xy 面・+z が表）の +z をカメラへ、+y を尾の向きへ。
+            let z = simd_normalize(camera - s.center)
+            let y = simd_normalize(s.axis - z * simd_dot(s.axis, z))
+            let x = simd_cross(y, z)
+            e.orientation = simd_quatf(simd_float3x3(columns: (x, y, z)))
+            e.position = s.center
+            e.scale = [s.size.x, s.size.y, 1]
         }
     }
 }
