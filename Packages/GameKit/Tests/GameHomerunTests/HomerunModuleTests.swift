@@ -182,6 +182,52 @@ struct HomerunGeometryTests {
         #expect(abs(atan2(fp.x, -fp.y) * 180 / .pi) > 45, "ファウルラインの外")
     }
 
+    @Test("スプレーチャートは最大飛距離（180m）まで枠の内側に描く。場外の線は柵の外・180m の内側（#1676）",
+          arguments: [CGSize(width: 180, height: 130),   // 1 球の結果の小さな扇
+                      CGSize(width: 287, height: 213),   // SE の結果カード（375 - 余白）
+                      CGSize(width: 382, height: 283)])  // Pro Max の結果カード
+    func sprayFitsMaxDistance(size: CGSize) {
+        #expect(HomerunSprayGeometry.maxMeters >= HomerunJudge.bestDistance)
+        for inset in [CGFloat(10), 16] {
+            let layout = HomerunSprayGeometry.layout(in: size, inset: inset)
+            let frame = CGRect(origin: .zero, size: size).insetBy(dx: inset - 0.001, dy: inset - 0.001)
+            for deg in stride(from: -45.0, through: 45.0, by: 1) {
+                let far = layout.map(HomerunSprayGeometry.point(direction: deg, distance: HomerunJudge.bestDistance))
+                #expect(frame.contains(far), "\(deg)° の 180m が余白の内側（\(size)・\(far)）")
+                let fence = HomerunJudge.fence(atDirection: deg)
+                let out = HomerunBallChase.outOfParkDistance(atDirection: deg)
+                #expect(fence < out && out < HomerunJudge.bestDistance)
+            }
+            // 180m より遠い当たりも縁で止まる（外に出ない）。
+            let beyond = layout.map(HomerunSprayGeometry.point(direction: 0, distance: 250))
+            #expect(frame.contains(beyond))
+            // 柵（中堅 122m）は扇の半分より外: 柵の中が小さくなりすぎない。
+            #expect(HomerunJudge.fence(atDirection: 0) / HomerunSprayGeometry.maxMeters > 0.6)
+        }
+        // 以前の切れ方（中堅 150m 以上が扇の外）の再現: 場外の★が上端に収まる。
+        var homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 0))
+        homer.kind = .homer
+        homer.distance = 172
+        let layout = HomerunSprayGeometry.layout(in: CGSize(width: 287, height: 213), inset: 16)
+        #expect(layout.map(HomerunSprayGeometry.mark(for: homer)).y >= 16)
+    }
+
+    @Test("番号の札は同じ所に落ちた球どうしでも重ならない（#1676）")
+    func sprayLabelsDoNotOverlap() {
+        let same = CGPoint(x: 140, y: 40)
+        let marks = [same, same, CGPoint(x: 144, y: 42), CGPoint(x: 80, y: 120)]
+        let labels = HomerunSprayGeometry.labelCenters(for: marks)
+        let size = HomerunSprayGeometry.labelSize
+        for i in labels.indices {
+            for j in labels.indices where j > i {
+                let a = CGRect(x: labels[i].x - size.width / 2, y: labels[i].y - size.height / 2, width: size.width, height: size.height)
+                let b = CGRect(x: labels[j].x - size.width / 2, y: labels[j].y - size.height / 2, width: size.width, height: size.height)
+                #expect(!a.intersects(b), "札 \(i + 1) と \(j + 1)")
+            }
+        }
+        #expect(labels[3] == CGPoint(x: 90, y: 111), "離れた球は今まで通り右上")
+    }
+
     @Test("合計飛距離（m）は順位表 homerunDistance へ送る")
     @MainActor func leaderboardMapping() {
         let mapped = GameCenterLeaderboard.score(
