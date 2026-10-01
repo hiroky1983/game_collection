@@ -110,8 +110,28 @@ public enum HomerunText {
         }
     }
 
+    /// 1 球の種別の語。柵越えのうち場外（スタンドの最後列の後端を越えた・#1654）は「場外！」。月まで飛んだ打球（#1680）は
+    /// 場外より優先して「月まで飛んだ！」（2 回目は「月が割れた！」）。ファウルポール直撃（#1686）は月の次・場外より先で「ポール直撃！」。
+    public static func kind(of ball: HomerunBattedBall) -> String {
+        switch ball.moon {
+        case .hit: return "月まで飛んだ！"
+        case .broken: return "月が割れた！"
+        case nil:
+            if ball.isPoleHit { return "ポール直撃！" }
+            return ball.isOutOfPark ? "場外！" : kind(ball.kind)
+        }
+    }
+
     /// 距離（m・整数に丸める）。
     public static func meters(_ distance: Double) -> String { "\(Int(distance.rounded())) m" }
+
+    /// 月までの距離の表示（#1680・会長決裁「384,400km」）。記録・合計には 180m で数える（`HomerunJudge.moonCountedDistance`）。
+    public static let moonDistance = "384,400 km"
+
+    /// 1 球の飛距離の表示。月まで飛んだ打球は `moonDistance`、それ以外は m。
+    public static func distance(of ball: HomerunBattedBall) -> String {
+        ball.isMoon ? moonDistance : meters(ball.distance)
+    }
 
     /// 1 球の内訳の方向の呼び名（空振り・ファウル・直撃はその語）。
     public static func place(_ ball: HomerunBattedBall) -> String {
@@ -119,6 +139,9 @@ public enum HomerunText {
         case .miss: "—"
         case .foul: "ファウル"
         case .fenceHit: "直撃"
+        case .homer where ball.isMoon: "月"
+        case .homer where ball.isPoleHit: "ポール"
+        case .homer where ball.isOutOfPark: "場外"
         case .inPlay, .homer: HomerunSector(direction: ball.direction).label
         }
     }
@@ -128,8 +151,10 @@ public enum HomerunText {
         switch ball.kind {
         case .miss: "空振り"
         case .foul: "ファウル"
+        case .homer where ball.isMoon:
+            "\(kind(of: ball)) \(moonDistance)"
         case .inPlay, .fenceHit, .homer:
-            "\(kind(ball.kind)) \(meters(ball.distance)) \(HomerunSector(direction: ball.direction).label)"
+            "\(kind(of: ball)) \(meters(ball.distance)) \(HomerunSector(direction: ball.direction).label)"
         }
     }
 
@@ -138,8 +163,10 @@ public enum HomerunText {
         switch ball.kind {
         case .miss: "\(number)球目、空振り"
         case .foul: "\(number)球目、ファウル"
+        case .homer where ball.isMoon:
+            "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、38万4400キロメートル、\(timing(ball.timing))"
         case .inPlay, .fenceHit, .homer:
-            "\(number)球目、\(kind(ball.kind).replacingOccurrences(of: "！", with: ""))、\(Int(ball.distance.rounded()))メートル、\(HomerunSector(direction: ball.direction).label)、\(timing(ball.timing))"
+            "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、\(Int(ball.distance.rounded()))メートル、\(HomerunSector(direction: ball.direction).label)、\(timing(ball.timing))"
         }
     }
 
@@ -157,12 +184,14 @@ public enum HomerunText {
 
 /// スプレーチャート（上から見た扇）の座標。本塁が原点、中堅が上。
 public enum HomerunSprayGeometry {
-    /// 扇の半径に取る距離（m）。中堅の柵（122m）より少し外まで描く。
-    public static let maxMeters = 135.0
+    /// 扇の半径に取る距離（m）。最大飛距離（`HomerunJudge.bestDistance` = 180m）の★まで図の中に入れる（#1676）。
+    /// 以前は 135m（の 1.1 倍 ≈ 148.5m で頭打ち）で、場外（中堅 ≈ 148.5m）より遠い★が扇の外に出て切れていた。
+    public static let maxMeters = HomerunJudge.bestDistance
 
     /// 方向（度・0 が中堅・負が左）と距離（m）を、本塁から見た単位円の座標（右と下が正・1 = maxMeters）にする。
+    /// `maxMeters` より遠い距離は扇の縁に置く。
     public static func point(direction: Double, distance: Double) -> CGPoint {
-        let r = min(max(distance, 0), maxMeters * 1.1) / maxMeters
+        let r = min(max(distance, 0), maxMeters) / maxMeters
         let rad = direction * .pi / 180
         return CGPoint(x: r * sin(rad), y: -r * cos(rad))
     }
@@ -173,6 +202,59 @@ public enum HomerunSprayGeometry {
         case .miss: return .zero
         case .foul: return point(direction: ball.direction < 0 ? -52 : 52, distance: 40)
         case .inPlay, .fenceHit, .homer: return point(direction: ball.direction, distance: ball.distance)
+        }
+    }
+
+    /// 描く枠（pt）の中での扇の置き方: 本塁の位置と、`maxMeters` を何 pt にするか。
+    public struct Layout: Equatable, Sendable {
+        public var home: CGPoint
+        public var radius: CGFloat
+
+        /// 単位円の座標（`point` / `mark`）を枠の中の座標にする。
+        public func map(_ p: CGPoint) -> CGPoint { CGPoint(x: home.x + p.x * radius, y: home.y + p.y * radius) }
+    }
+
+    /// 枠 `size` に、扇（±45°・半径 `maxMeters`）が上・左右に `inset`、下に `bottom` の余白を残して収まる置き方。
+    /// `inset` は★（18pt）と番号の札が縁で切れないための余白。
+    public static func layout(in size: CGSize, inset: CGFloat, bottom: CGFloat = 6) -> Layout {
+        let halfWidth = max(size.width / 2 - inset, 1)
+        let radius = max(min(halfWidth / sin(.pi / 4), size.height - bottom - inset), 1)
+        return Layout(home: CGPoint(x: size.width / 2, y: size.height - bottom), radius: radius)
+    }
+
+    /// 番号の札の置き場所の候補（印からのずれ・pt）。右上を先に試し、重なるなら次へ。
+    static let labelOffsets: [CGVector] = [
+        CGVector(dx: 10, dy: -9), CGVector(dx: -10, dy: -9), CGVector(dx: 10, dy: 9), CGVector(dx: -10, dy: 9),
+        CGVector(dx: 0, dy: -17), CGVector(dx: 0, dy: 16), CGVector(dx: 17, dy: 0), CGVector(dx: -17, dy: 0),
+    ]
+    /// 番号の札の大きさ（pt・9pt の 2 桁がおさまる箱）。
+    static let labelSize = CGSize(width: 13, height: 11)
+    /// 印（★・●）が占める半径（pt）。札をここに重ねない。
+    static let markRadius: CGFloat = 7
+
+    /// 番号の札の中心（#1676）。印の位置 `marks`（枠の座標）の順に、ほかの札・ほかの印と重ならない最初の候補を選ぶ。
+    /// どの候補も重なるときは重なりの最も少ないものにする（同じ所に何球落ちても札が完全には重ならない）。
+    /// 描く枠 `bounds` からはみ出す候補は、枠内に収まる候補が 1 つでもあれば選ばない。
+    public static func labelCenters(for marks: [CGPoint], in bounds: CGRect) -> [CGPoint] {
+        var placed: [CGRect] = []
+        // 自分の印は数えない（右上の札は★の縁に少し掛かるのが元からの見た目）。
+        func markOverlap(_ rect: CGRect, _ own: Int) -> Int {
+            marks.indices.filter { $0 != own && rect.insetBy(dx: -markRadius, dy: -markRadius).contains(marks[$0]) }.count
+        }
+        return marks.indices.map { index in
+            let mark = marks[index]
+            var best: (center: CGPoint, rect: CGRect, cost: Int)?
+            for offset in labelOffsets {
+                let center = CGPoint(x: mark.x + offset.dx, y: mark.y + offset.dy)
+                let rect = CGRect(x: center.x - labelSize.width / 2, y: center.y - labelSize.height / 2,
+                                  width: labelSize.width, height: labelSize.height)
+                let outside = bounds.contains(rect) ? 0 : 100
+                let cost = placed.filter { $0.intersects(rect) }.count * 2 + markOverlap(rect, index) + outside
+                if best == nil || cost < best!.cost { best = (center, rect, cost) }
+                if cost == 0 { break }
+            }
+            placed.append(best!.rect)
+            return best!.center
         }
     }
 }

@@ -36,9 +36,10 @@ final class HomerunE2ETests: XCTestCase {
 
     /// 1 挑戦 10 球の離す時刻のずれ（秒・輪が的に重なる瞬間から。負が早い）と、照準をボールからどれだけ下へずらすか（pt）。
     /// 早い・ジャスト狙い・遅いに振り分ける。下へずらすのは柵越えの帯（フライ）を狙う球: 照準の吸い寄せ（押して 1 秒で
-    /// ボールとの距離の半分）で半分戻るので、44pt ずらすと離す瞬間はボールの 22pt 下（フライの帯の中心）になる。
+    /// ボールとの距離の半分）で半分戻るので、12pt ずらすと離す瞬間はボールの 6pt 下（フライの芯の基準点の 2pt 下・月まで飛ぶ条件
+    /// `HomerunJudge.moonCursorRadius`（1pt・#1680）の外）になる。基準点ちょうど（8pt）は ±50ms の窓の中で月になり、2 回で挑戦が終わる（#1698 の CodeRabbit 指摘）。
     static let plan: [(shift: TimeInterval, low: CGFloat)] = [
-        (0, 44), (-0.06, 0), (0.06, 44), (0, 44), (-0.25, 0), (0, 44), (0.22, 0), (-0.03, 44), (0.03, 0), (0, 44),
+        (0, 12), (-0.06, 0), (0.06, 12), (0, 12), (-0.25, 0), (0, 12), (0.22, 0), (-0.03, 12), (0.03, 0), (0, 12),
     ]
 
     func testSwingEveryPitchIsJudged() throws {
@@ -63,7 +64,7 @@ final class HomerunE2ETests: XCTestCase {
         let summary = results.joined(separator: "\n")
         print("E2E-SUMMARY\n\(summary)")
         if let shotDir { try? summary.write(to: shotDir.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8) }
-        let hits = results.filter { $0.contains("柵越え") || $0.contains("当たり、") || $0.contains("直撃") }
+        let hits = results.filter { $0.contains("柵越え") || $0.contains("場外") || $0.contains("当たり、") || $0.contains("直撃") }
         XCTAssertFalse(hits.isEmpty, "当たりが 1 本も出ない:\n\(summary)")
 
         // 最後の結果（10 球の結果）の画面も残す。

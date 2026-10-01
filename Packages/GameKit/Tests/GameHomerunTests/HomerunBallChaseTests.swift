@@ -100,7 +100,8 @@ struct HomerunBallChaseTests {
 
     @Test("柵越え: 柵の真上を柵より高く越え、判定の飛距離（スタンドの最後列まで）でスタンドに落ちる")
     func homerClearsTheFenceAndLandsInTheStands() throws {
-        let balls = allHits.filter { $0.kind == .homer }
+        // 場外（スタンドの後端を越える・#1654）は `HomerunOutOfParkTests` で見る。
+        let balls = allHits.filter { $0.kind == .homer && !$0.isOutOfPark }
         #expect(!balls.isEmpty)
         let farthest: (Double) -> Double = { $0 + 2 + Double(HomerunToonModel.Stand.depth(row: HomerunToonModel.Stand.rows - 1)) }
         for ball in balls {
@@ -309,7 +310,7 @@ struct HomerunBallChaseTests {
     @MainActor
     func hudHidesTheLastBallUntilTheCard() {
         let homer = HomerunJudge.judge(swing())
-        let inPlay = HomerunJudge.judge(swing(t: 90, band: .liner))
+        let inPlay = HomerunJudge.judge(swing(t: 90, band: .liner, dy: -8))
         #expect(homer.kind == .homer && inPlay.kind == .inPlay)
         let hidden = HomerunAtBatView.hudTotals(results: [inPlay, homer], revealsLast: false)
         #expect(hidden.distance == inPlay.distance && hidden.homers == 0)

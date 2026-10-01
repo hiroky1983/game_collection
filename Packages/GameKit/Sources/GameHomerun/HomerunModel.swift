@@ -65,6 +65,13 @@ public final class HomerunModel {
         }
     }
 
+    /// 1 球の結果を見せる時間（月まで飛んだ打球・#1680 は月の演出のぶん長い）。
+    public static func resultDuration(for ball: HomerunBattedBall?) -> TimeInterval {
+        if let moon = ball?.moon { return HomerunMoonShot.resultDuration(moon) }
+        if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration }
+        return resultDuration(for: ball?.kind ?? .miss)
+    }
+
     // MARK: 状態
 
     public private(set) var phase: Phase = .idle
@@ -79,6 +86,12 @@ public final class HomerunModel {
     public private(set) var didSwingLastBall = false
     /// 直前の 1 球の空振りの理由（早い / 遅い / 照準のずれ・#1594）。見送り・当たり・ファウルは nil。
     public private(set) var lastMissReason: HomerunMissReason?
+    /// 直前の空振りで回って倒れて目を回す演出（#1681・`HomerunWhiffGag`）を出すか。振った空振りのときだけ立つ。
+    public private(set) var showsWhiffGag = false
+    /// いまの挑戦で振った空振りの回数（2 回目は必ず演出を出す）。
+    private(set) var whiffCount = 0
+    /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
+    var whiffGagRoll: () -> Double = { Double.random(in: 0..<1) }
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
@@ -231,7 +244,7 @@ public final class HomerunModel {
         guard !isHeld, !awaitsAtBat else { return nil }
         switch phase {
         case .pitching: return arrival?.addingTimeInterval(Self.lateLimit)
-        case .ballResult: return resultUntil
+        case .ballResult: return resultEnd
         case .idle, .finished: return nil
         }
     }
@@ -245,27 +258,26 @@ public final class HomerunModel {
         if ledger != before { HomerunStorage.saveLedger(ledger, defaults) }
     }
 
-    /// 動作確認用: この鍵が true なら挑戦回数を減らさない（会長 QA 用・2026-09-30）。アプリの DEBUG ビルドが
-    /// 起動引数 `-homerunUnlimited` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
-    public static let debugUnlimitedKey = "homerun_debugUnlimited"
-
     /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
+    /// 動作確認用の強制（回数無制限・月・ポール）は DEBUG ビルドだけで効く（`HomerunDebugOverrides`）。
     @discardableResult
     public func start(now: Date) -> Bool {
         guard phase == .idle || phase == .finished else { return false }
         refreshDay(now: now)
-        if !defaults.bool(forKey: Self.debugUnlimitedKey) {
+        let debug = HomerunDebugOverrides.current(defaults)
+        if !debug.unlimited {
             guard ledger.consume() else {
                 showsExhausted = true
                 return false
             }
             HomerunStorage.saveLedger(ledger, defaults)
         }
-        challenge = HomerunChallenge(pitches: pitches)
+        challenge = HomerunChallenge(pitches: pitches, forcesMoon: debug.forcesMoon, forcesPole: debug.forcesPole)
         awaitsAtBat = true
         lastBall = nil
         isNewBest = false
         hasProgressed = false
+        whiffCount = 0
         beginPitch(now: now)
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID)
@@ -381,6 +393,8 @@ public final class HomerunModel {
     /// 打者がいま振っている（本番か素振りの振り抜き〜フォロースルーの途中）か。本番の振りは離した瞬間に振り抜きの途中から
     /// 流すので、振り終わりは 20 コマ目を置いた時刻（`HomerunSwingContact.swingStart`）から数える。
     func isSwinging(at now: Date) -> Bool {
+        // 空振りの演出（#1681）の間は、回って座りきるまで振っている扱い（素振りで演出を切らない）。
+        if phase == .ballResult, showsWhiffGag { return true }
         guard let clock = ballClock else { return false }
         let column = HomerunSwingContact.column(zone: clock.zone)
         let spans: [(begin: Date, clipStart: Date)] = [
@@ -406,7 +420,7 @@ public final class HomerunModel {
                 resolve(nil, now: now)
             }
         case .ballResult:
-            guard let resultUntil, now >= resultUntil else { return }
+            guard let resultEnd, now >= resultEnd else { return }
             if challenge?.isFinished == true {
                 finish()
             } else {
@@ -436,7 +450,7 @@ public final class HomerunModel {
                 // 止めていた間ぶん、この球の時刻の記録を後ろへずらす（打球を追うカメラ・打者の振りを止めた所から続ける・#1613。
                 // ずらさないと、打球が飛んでいる間に止めて戻ったとき、追う様子を見せないまま止まった球とカードが出る）。
                 if let heldSince, now > heldSince { ballClock?.shift(by: now.timeIntervalSince(heldSince)) }
-                resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall?.kind ?? .miss))
+                resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall))
             case .idle, .finished: break
             }
             step += 1
@@ -469,6 +483,28 @@ public final class HomerunModel {
         resultUntil = nil
         isHolding = false
         step += 1
+    }
+
+    // MARK: 空振りの演出（#1681）
+
+    /// 1 球の結果を閉じる時刻。ふだんは `resultUntil` で、空振りの演出のときは座りきるまで（`HomerunWhiffGag.resultDuration`）
+    /// 延ばす（演出の間は次の球を投げない）。
+    public var resultEnd: Date? {
+        resultUntil.map { showsWhiffGag ? $0.addingTimeInterval(Self.whiffGagExtension) : $0 }
+    }
+
+    /// 空振りの演出で結果の時間を延ばす分（秒）。
+    static var whiffGagExtension: TimeInterval { HomerunWhiffGag.resultDuration - resultDuration(for: .miss) }
+
+    /// 1 球を締めたときに、空振りの演出を出すか決める（振った空振りだけを数える。見送りは数えない）。
+    private func decideWhiffGag(swung: Bool, ball: HomerunBattedBall?) {
+        guard swung, ball?.kind == .miss else {
+            showsWhiffGag = false
+            return
+        }
+        whiffCount += 1
+        showsWhiffGag = HomerunDebugOverrides.current(defaults).forcesWhiffGag
+            || HomerunWhiffGag.shows(whiffNumber: whiffCount, roll: whiffGagRoll())
     }
 
     // MARK: 内部
@@ -509,17 +545,24 @@ public final class HomerunModel {
         if didSwingLastBall { swingCount += 1 }
         let ball = challenge.swing(swing)
         self.challenge = challenge
+        decideWhiffGag(swung: swing != nil, ball: ball)
         if !hasProgressed {
             hasProgressed = true
             services?.gameDidProgress(gameID: Self.gameID)
         }
         lastBall = ball
+        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +2（当日分・上限なし）。
+        if ball?.moon == .broken {
+            refreshDay(now: now)
+            ledger.grantMoonBonus()
+            HomerunStorage.saveLedger(ledger, defaults)
+        }
         phase = .ballResult
         pitchStart = nil
         // 10 球目を打った時点で蓄積に取り込む（結果を見せている 2 秒余りのあいだに画面を閉じても、
         // 打ち終えた挑戦は記録に残す）。
         if challenge.isFinished { record(challenge) }
-        resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball?.kind ?? .miss))
+        resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball
     }

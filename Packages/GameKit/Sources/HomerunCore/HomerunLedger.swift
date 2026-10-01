@@ -1,24 +1,33 @@
 import Foundation
 
-/// 日次台帳（README §3.4）: 無料 3・広告 +1（1 日 5 本）・アンケート +1（1 日 1 回）・0:00 リセット。
+/// 日次台帳（README §3.4）: 無料 3・広告 +1（1 日 5 本）・アンケート +1（1 日 1 回）・月が割れたら +2（#1680・回数の上限なし）・0:00 リセット。
 /// 減算は打席に立った時点。「プレイ記録を消去」で補充されないよう、保存先は `PlayLog.allKeys` に入れない。
 public struct HomerunLedger: Codable, Equatable, Sendable {
     public static let freePerDay = 3
     public static let adLimitPerDay = 5
     public static let surveyBonus = 1
+    /// 月が割れたとき（#1680）のプレゼント。当日分として足す（0:00 で消える）。1 日の全体の上限は無い（会長決裁 2026-10-01）。
+    public static let moonBonus = 2
 
     /// 台帳が属する日（`yyyyMMdd`）。
     public private(set) var dayKey: Int
     public private(set) var used: Int
     public private(set) var adsWatched: Int
     public private(set) var surveyDone: Bool
+    /// 月が割れたプレゼントで足した回数（#1680）。Optional なのは保存の互換のため: 以前の保存（このキーが無い）も読め、
+    /// 0 のときは書かない（以前の版で読んでも知らないキーは無視される）。
+    private var moonBonusGranted: Int?
 
-    public init(dayKey: Int = 0, used: Int = 0, adsWatched: Int = 0, surveyDone: Bool = false) {
+    public init(dayKey: Int = 0, used: Int = 0, adsWatched: Int = 0, surveyDone: Bool = false, bonus: Int = 0) {
         self.dayKey = dayKey
         self.used = used
         self.adsWatched = adsWatched
         self.surveyDone = surveyDone
+        moonBonusGranted = bonus > 0 ? bonus : nil
     }
+
+    /// 今日、月が割れたプレゼントで足した回数。
+    public var bonus: Int { moonBonusGranted ?? 0 }
 
     /// `yyyyMMdd` の日付キー。0:00 の境目は `calendar` のタイムゾーンで決まる。
     public static func dayKey(for date: Date, calendar: Calendar = .current) -> Int {
@@ -32,7 +41,7 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
         self = HomerunLedger(dayKey: today)
     }
 
-    public var allowance: Int { Self.freePerDay + adsWatched + (surveyDone ? Self.surveyBonus : 0) }
+    public var allowance: Int { Self.freePerDay + adsWatched + (surveyDone ? Self.surveyBonus : 0) + bonus }
     public var remaining: Int { max(0, allowance - used) }
     public var canStart: Bool { remaining > 0 }
     public var canWatchAd: Bool { adsWatched < Self.adLimitPerDay }
@@ -58,5 +67,10 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
         guard canDoSurvey else { return false }
         surveyDone = true
         return true
+    }
+
+    /// 月が割れた（#1680）プレゼント: 今日の回数を `moonBonus` 増やす。上限は無い。
+    public mutating func grantMoonBonus() {
+        moonBonusGranted = bonus + Self.moonBonus
     }
 }

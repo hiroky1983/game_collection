@@ -26,7 +26,10 @@ private final class Fixture {
     /// 照準の吸い寄せは既定で切る（入力どおりの照準で判定を確かめる）。吸い寄せのテストだけ `.standard` を渡す。
     func model(pitches: [HomerunPitch] = HomerunPitch.standardSequence, aimAssist: HomerunAimAssist = .off,
                now: Date = Fixture.t0) -> HomerunModel {
-        HomerunModel(defaults: defaults, calendar: Self.calendar, pitches: pitches, aimAssist: aimAssist, now: now)
+        let model = HomerunModel(defaults: defaults, calendar: Self.calendar, pitches: pitches, aimAssist: aimAssist, now: now)
+        // 空振りの演出（#1681）の「3 回に 1 回」は引かない（2 回目の空振りは必ず出るので、空振りを重ねるテストは `resultEnd` で閉じる）。
+        model.whiffGagRoll = { 1 }
+        return model
     }
 
     static var todayKey: Int { HomerunLedger.dayKey(for: t0, calendar: calendar) }
@@ -111,18 +114,18 @@ struct HomerunModelTests {
         #expect(model.pitchStart == second)
     }
 
-    @Test("ホールド → ずらす → 離す: ボールの少し下でジャストなら中堅へ 161 m の柵越え")
+    @Test("ホールド → ずらす → 離す: ボールの少し下でジャストなら中堅へ 180 m の柵越え（最高の当たり・#1647）")
     func justFlyToCenterIsHomer() throws {
         let f = Fixture()
         let model = f.model()
         model.start(now: Fixture.t0)
         model.atBatDidAppear(now: Fixture.t0)
-        // 1 球目は真ん中（zone 4）。ボールの 9pt 下 = フライの芯の基準点（#1647）。
-        let ball = try #require(try swing(model, dx: 0, dy: 9, offset: 0))
+        // 1 球目は真ん中（zone 4）。ボールの 4pt 下 = フライの芯の基準点（#1647）。
+        let ball = try #require(try swing(model, dx: 0, dy: 4, offset: 0))
         #expect(ball.kind == .homer)
         #expect(ball.timing == .just)
         #expect(ball.launch == .fly)
-        #expect(approx(ball.distance, 161))
+        #expect(approx(ball.distance, HomerunJudge.bestDistance))
         #expect(approx(ball.direction, 0))
         #expect(model.phase == .ballResult)
         #expect(model.lastBall == ball)
@@ -135,8 +138,9 @@ struct HomerunModelTests {
         let model = f.model()
         model.start(now: Fixture.t0)
         model.atBatDidAppear(now: Fixture.t0)
-        let ball = try #require(try swing(model, dx: 0, dy: 9, offset: -0.05))
-        let expected = HomerunJudge.judge(HomerunSwing(timingOffset: -50, cursorDX: 0, cursorDY: 9))
+        // -55ms（月まで飛ぶ ±50ms・#1680 の外のナイス）。
+        let ball = try #require(try swing(model, dx: 0, dy: 4, offset: -0.055))
+        let expected = HomerunJudge.judge(HomerunSwing(timingOffset: -55, cursorDX: 0, cursorDY: 4))
         #expect(ball.timing == .nice)
         #expect(approx(ball.direction, expected.direction, 1e-3))
         #expect(ball.direction < 0, "早いと引っ張り（左）")
@@ -145,7 +149,7 @@ struct HomerunModelTests {
         // 遅いと流し（右）。
         let close = try #require(model.resultUntil)
         model.advance(now: close)
-        let late = try #require(try swing(model, dx: 0, dy: 9, offset: 0.08))
+        let late = try #require(try swing(model, dx: 0, dy: 4, offset: 0.08))
         #expect(late.timing == .hit)
         #expect(late.direction > 0, "2 球目は左上（zone 0）でも、ボールから測るので同じ結果の形になる")
     }
@@ -189,9 +193,9 @@ struct HomerunModelTests {
         model.atBatDidAppear(now: Fixture.t0)
         let cell = HomerunZoneGeometry.cellSize
         #expect(model.ballPoint == CGPoint(x: -cell, y: -cell))
-        // カーソルをボールの 9pt 下（ゾーン中心からは (-cell, -cell + 9)）に置く。
-        let ball = try #require(try swing(model, dx: 0, dy: 9, offset: 0))
-        #expect(approx(Double(model.cursor.x), -cell, 1e-9) && approx(Double(model.cursor.y), -cell + 9, 1e-9))
+        // カーソルをボールの 4pt 下（ゾーン中心からは (-cell, -cell + 4)）に置く。
+        let ball = try #require(try swing(model, dx: 0, dy: 4, offset: 0))
+        #expect(approx(Double(model.cursor.x), -cell, 1e-9) && approx(Double(model.cursor.y), -cell + 4, 1e-9))
         #expect(ball.kind == .homer)
         #expect(approx(ball.direction, 0, 1e-9))
         // ゾーン中心のまま振ると、ボールから (cell, cell) ずれて芯を外す（空振り）。
@@ -265,7 +269,7 @@ struct HomerunModelTests {
         #expect(plan.batterMotion(at: practice.addingTimeInterval(0.5)) == .swing(start: practice))
         #expect(plan.batterMotion(at: practice.addingTimeInterval(HomerunBatterMotion.swingDuration)) == .stance)
         // もう一度押して、的が出た後に離せば通常の判定（当たり窓・結果は素振りの有無で変わらない）。
-        let ball = try #require(try swing(model, dx: 0, dy: 9, offset: 0))
+        let ball = try #require(try swing(model, dx: 0, dy: 4, offset: 0))
         #expect(ball.kind == .homer && ball.timing == .just)
         #expect(model.phase == .ballResult && model.swingCount == 1)
         #expect(model.challenge?.results == [ball])
@@ -356,16 +360,16 @@ struct HomerunModelTests {
         let model = f.model()
         model.start(now: Fixture.t0)
         model.atBatDidAppear(now: Fixture.t0)
-        try swing(model, dx: 0, dy: 9, offset: -0.2)
+        try swing(model, dx: 0, dy: 4, offset: -0.2)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .early)
-        model.advance(now: try #require(model.resultUntil))
-        try swing(model, dx: 0, dy: 9, offset: 0.2)
+        model.advance(now: try #require(model.resultEnd))
+        try swing(model, dx: 0, dy: 4, offset: 0.2)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .late)
-        model.advance(now: try #require(model.resultUntil))
+        model.advance(now: try #require(model.resultEnd))
         try swing(model, dx: 40, dy: 0, offset: 0)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .aim)
-        model.advance(now: try #require(model.resultUntil))
-        try swing(model, dx: 0, dy: 9, offset: 0)
+        model.advance(now: try #require(model.resultEnd))
+        try swing(model, dx: 0, dy: 4, offset: 0)
         #expect(model.lastBall?.kind != .miss && model.lastMissReason == nil)
         model.advance(now: try #require(model.resultUntil))
         try skipPitch(model)
@@ -388,8 +392,10 @@ struct HomerunModelTests {
         #expect(HomerunBallResultCard.headline(whiff, tookPitch: false) == "空振り")
         #expect(HomerunBallResultCard.reasonLine(whiff, tookPitch: false,
                                                  missNote: HomerunAtBatView.missNote(didSwing: true, reason: .late)) == "振るのが遅い")
-        let homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 9))
-        #expect(HomerunBallResultCard.headline(homer, tookPitch: false) == HomerunText.kind(homer.kind))
+        let homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 4))
+        // 最高の当たり（中堅 180m）はスタンドの最後列の後端（約 148m）を越えるので「場外！」（#1654）。
+        #expect(homer.isOutOfPark)
+        #expect(HomerunBallResultCard.headline(homer, tookPitch: false) == "場外！")
         #expect(HomerunBallResultCard.reasonLine(homer, tookPitch: false, missNote: nil) == nil)
     }
 
@@ -439,14 +445,16 @@ struct HomerunModelTests {
         model.start(now: Fixture.t0)
         model.atBatDidAppear(now: Fixture.t0)
         let hitAt = try arrival(model)
-        let ball = try #require(try swing(model, dx: 0, dy: 9, offset: 0))
+        // 芯の基準点から 2pt 下（月まで飛ぶ 1pt・#1680 の外の柵越え）。
+        let ball = try #require(try swing(model, dx: 0, dy: 6, offset: 0))
+        #expect(ball.kind == .homer && !ball.isMoon)
         #expect(model.resultUntil == hitAt.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind)))
         #expect(HomerunModel.resultDuration(for: .miss) < HomerunModel.resultDuration(for: .homer))
         let close = try #require(model.resultUntil)
         // 結果を見せているあいだに押してずらしておく。
         model.press(at: CGPoint(x: 100, y: 100))
         model.drag(to: CGPoint(x: 120, y: 100))
-        #expect(model.cursor == CGPoint(x: 20, y: 9))
+        #expect(model.cursor == CGPoint(x: 20, y: 6))
         model.advance(now: close.addingTimeInterval(-0.01))
         #expect(model.phase == .ballResult)
         model.advance(now: close)
@@ -469,7 +477,7 @@ struct HomerunModelTests {
             #expect(model.phase == .pitching)
             #expect(model.pitchNumber == i + 1)
             if i == 0 {
-                try swing(model, dx: 0, dy: 9, offset: 0)   // 161 m の柵越え
+                try swing(model, dx: 0, dy: 4, offset: 0)   // 180 m の柵越え
                 model.advance(now: try #require(model.resultUntil))
             } else {
                 try skipPitch(model)
@@ -483,7 +491,7 @@ struct HomerunModelTests {
         #expect(model.records.pitches == 10)
         #expect(model.records.homers == 1)
         #expect(model.records.misses == 9)
-        #expect(model.records.bestTotalTenths == 1610)
+        #expect(model.records.bestTotalTenths == 1800)
         #expect(HomerunStorage.loadRecords(f.defaults) == model.records, "終了時に保存する")
 
         // 2 回目: 全部見送り → ベスト更新ではない。
@@ -703,7 +711,7 @@ struct HomerunModelTests {
         model.start(now: Fixture.t0)
         model.atBatDidAppear(now: Fixture.t0)
         _ = try arrival(model)
-        let ball = try #require(try swing(model, dx: 0, dy: 9, offset: 0))
+        let ball = try #require(try swing(model, dx: 0, dy: 4, offset: 0))
         #expect(ball.kind != .miss)
         let contact = try #require(HomerunSwingPlan(model: model).contactAt)
         let paused = contact.addingTimeInterval(0.5)
@@ -726,7 +734,7 @@ struct HomerunModelTests {
         model.start(now: Fixture.t0)
         let s1 = model.step
         #expect(s1 == s0 + 1)
-        try swing(model, dx: 0, dy: 9, offset: 0)
+        try swing(model, dx: 0, dy: 4, offset: 0)
         #expect(model.step == s1 + 1)
         model.advance(now: try #require(model.resultUntil))
         #expect(model.step == s1 + 2)

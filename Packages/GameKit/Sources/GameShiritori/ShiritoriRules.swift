@@ -198,6 +198,36 @@ enum ShiritoriRules {
     }
 }
 
+// MARK: - 勝てる盤か（#1659）
+
+extension ShiritoriRules {
+    /// `quota` モードで、プレイヤーが先手の最良の打ち方をすれば勝てる盤か。CPU の手は固定順（`cpuMove`）で
+    /// 決まるので、プレイヤーの選択だけを枝分かれさせて全探索できる（枝は数本・深さはノルマ枚数まで）。
+    /// 勝ちは `quota` 枚に届く・CPU が続けられない・CPU が「ん」で終わる読みを選ばされる、のいずれか。
+    /// プレイヤーが「ん」で終わる読みを選ぶ手は負けなので探索しない。
+    static func isWinnable(slots: [ShiritoriSlot], openerReading: String, quota: Int) -> Bool {
+        var board = slots
+        guard let tail = ShiritoriKana.tail(of: openerReading) else { return false }
+        return playerCanWin(board: &board, tail: tail, taken: 0, quota: quota)
+    }
+
+    private static func playerCanWin(board: inout [ShiritoriSlot], tail: Character, taken: Int, quota: Int) -> Bool {
+        for move in moves(slots: board, after: tail) where !endsWithN(move.reading) {
+            guard let next = ShiritoriKana.tail(of: move.reading) else { continue }
+            board[move.slot].owner = .player
+            defer { board[move.slot].owner = nil }
+            if taken + 1 >= quota { return true }
+            guard let reply = cpuMove(slots: board, after: next) else { return true }   // CPU が詰む
+            if endsWithN(reply.reading) { return true }                                   // CPU が「ん」を取らされる
+            guard let replyTail = ShiritoriKana.tail(of: reply.reading) else { continue }
+            board[reply.slot].owner = .cpu
+            defer { board[reply.slot].owner = nil }
+            if playerCanWin(board: &board, tail: replyTail, taken: taken + 1, quota: quota) { return true }
+        }
+        return false
+    }
+}
+
 // MARK: - 配り（#1502）
 
 /// 配った結果。`stock` は山札（盤の札が取られたときの補充元。`quota` モードでは常に空）。
@@ -208,18 +238,20 @@ struct ShiritoriDeal: Equatable {
 }
 
 extension ShiritoriRules {
-    /// 盤に並べる札の枚数（6 列 × 5 行に収まる本数）。
-    static let boardSize = 29
+    /// 盤に並べる札の枚数（6 列 × 5 行にぴったり収まる本数（#1660: 29 枚だと右下が歯抜けだった））。
+    static let boardSize = 30
 
-    /// 山札が増えても盤の枚数は変えない。`quota` は山札から開場札 1 枚 + 盤 29 枚だけを使い（残りは使わない）、
+    /// 山札が増えても盤の枚数は変えない。`quota` は山札から開場札 1 枚 + 盤 30 枚だけを使い（残りは使わない）、
     /// `endless` は残りを山札にして取るたびに補充する。
     ///
     /// **配り直して保証すること**（何度か引き直して、満たす配りだけを採る）:
     /// - 開場札の語尾が「ん」でなく、プレイヤーの最初の手が盤に 1 枚以上ある
     /// - 詰み専用の唯一後続喪失が無い（`hasDeadEndReading`。`quota` は使う 30 枚の中で、`endless` は山札を含む
-    ///   全体で見る。補充で後続が現れるので、盤の 29 枚の中だけでは判定しない）
+    ///   全体で見る。補充で後続が現れるので、盤の 30 枚の中だけでは判定しない）
+    /// - `quota` は、プレイヤーの打ち方次第で勝てる手順が盤にある（`isWinnable`・#1659: ランダムな配りだと
+    ///   ふつうで 35%・むずかしいで 50% の局が、どう打っても途中で詰んで負けだった）
     static func deal<G: RandomNumberGenerator>(
-        deck: [ShiritoriCard], mode: ShiritoriMode, using generator: inout G
+        deck: [ShiritoriCard], mode: ShiritoriMode, quota: ShiritoriQuota = .standard, using generator: inout G
     ) -> ShiritoriDeal {
         let boardCount = min(boardSize, max(deck.count - 1, 0))
         var fallback: ShiritoriDeal?
@@ -228,7 +260,7 @@ extension ShiritoriRules {
             // ノルマは 50 枚から 30 枚だけを使うので、そのまま抜くと詰み専用の札が混ざりやすい。
             // 混ざったら、その札を使わない札と入れ替えて直す。
             if mode == .quota { cards = repairedSelection(cards, count: boardCount + 1, using: &generator) }
-            guard let deal = deal(from: cards, boardCount: boardCount, mode: mode) else {
+            guard let deal = deal(from: cards, boardCount: boardCount, mode: mode, quota: quota) else {
                 if fallback == nil { fallback = unguardedDeal(from: cards, boardCount: boardCount, mode: mode) }
                 continue
             }
@@ -258,7 +290,9 @@ extension ShiritoriRules {
         return inside + outside
     }
 
-    private static func deal(from cards: [ShiritoriCard], boardCount: Int, mode: ShiritoriMode) -> ShiritoriDeal? {
+    private static func deal(
+        from cards: [ShiritoriCard], boardCount: Int, mode: ShiritoriMode, quota: ShiritoriQuota
+    ) -> ShiritoriDeal? {
         let used = Array(cards.prefix(boardCount + 1))
         let pool = mode == .endless ? cards : used
         for index in used.indices {
@@ -268,6 +302,9 @@ extension ShiritoriRules {
             let board = Array(rest.prefix(boardCount))
             guard !moves(slots: board.map { ShiritoriSlot(card: $0) }, after: tail).isEmpty,
                   !hasDeadEndReading(in: rest) else { continue }
+            if mode == .quota,
+               !isWinnable(slots: board.map { ShiritoriSlot(card: $0) }, openerReading: opener.primaryReading,
+                           quota: quota.cardCount) { continue }
             return ShiritoriDeal(opener: opener, board: board, stock: Array(rest.dropFirst(boardCount)))
         }
         return nil

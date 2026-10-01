@@ -62,8 +62,17 @@ public struct HomerunRecords: Codable, Equatable, Sendable {
     public var unlockedStadiums: [String] = []
     public var unlockedBats: [String] = []
     public var titles: [String] = []
+    /// 実績「月まで飛ばした」（#1680）の回数と、月が割れた回数。Optional なのは保存の互換のため（以前の保存はキーが無く、
+    /// 0 のときは書かない）。読むのは `moonShots` / `moonBreaks`。
+    private var moonShotCount: Int?
+    private var moonBreakCount: Int?
 
     public init() {}
+
+    /// 月まで飛ばした回数（通算・実績）。距離は記録に `HomerunJudge.moonCountedDistance`（180m）で数えてある。
+    public var moonShots: Int { moonShotCount ?? 0 }
+    /// 月が割れた回数（通算）。
+    public var moonBreaks: Int { moonBreakCount ?? 0 }
 
     public static func distanceBand(_ meters: Double) -> Int {
         distanceBounds.firstIndex { meters < $0 } ?? distanceBounds.count
@@ -90,6 +99,8 @@ public struct HomerunRecords: Codable, Equatable, Sendable {
                 heatmap[Self.heatmapIndex(direction: ball.direction, distance: ball.distance)] += 1
             }
         }
+        if challenge.moonCount > 0 { moonShotCount = moonShots + challenge.moonCount }
+        if challenge.isMoonBroken { moonBreakCount = moonBreaks + 1 }
         recent.append(balls.map(HomerunShot.init))
         if recent.count > Self.recentLimit { recent.removeFirst(recent.count - Self.recentLimit) }
     }

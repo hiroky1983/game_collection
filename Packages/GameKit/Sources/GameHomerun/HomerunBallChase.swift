@@ -41,6 +41,12 @@ enum HomerunBallChase {
         contactLeadMax + limit(for: kind) + cardHold
     }
 
+    /// ポール直撃（#1686）の、当たった瞬間から結果のカードを出すまでの上限（秒）。ポールまで飛んで当たり、跳ね返って
+    /// 下へ落ちて弾むまでを見せるぶん、ふつうの柵越え（`limit(for: .homer)`）より長い。
+    static let poleLimit: TimeInterval = 4.6
+    /// ポール直撃の 1 球の結果の時間（`HomerunModel.resultDuration`）。
+    static var poleResultDuration: TimeInterval { contactLeadMax + poleLimit + cardHold }
+
     // MARK: 見た目の定数
 
     /// 追うカメラで見せる球の半径（m・打球の道の地面の高さにも使う）。実寸（0.037m）では数十 m 先で見えないので少し大きくする。
@@ -128,6 +134,8 @@ enum HomerunBallChase {
         var flightDuration: TimeInterval { segments.first?.duration ?? 0 }
         /// 止まるまでの時間。
         var duration: TimeInterval { segments.reduce(0) { $0 + $1.duration } }
+        /// 場外（#1654）: 道の終わり（スタンドの後端の `vanishBeyond` m 先）で球が消える。消えた後は球も影も描かない。
+        var vanishesAtEnd = false
 
         /// 当たってから `t` 秒の点。止まった後は止まった点のまま。
         func point(at t: TimeInterval) -> Point {
@@ -196,6 +204,11 @@ enum HomerunBallChase {
             segments = groundBall(rest: foulRestDistance(for: ball.launch), launch: ball.launch)
         case .fenceHit:
             segments = fenceHit(ball)
+        case .homer where ball.isPoleHit:
+            return Track(direction: ball.direction, segments: fitted(poleHit(ball), into: poleLimit - restHold))
+        case .homer where ball.isOutOfPark:
+            return Track(direction: ball.direction, segments: fitted(outOfPark(ball), into: limit(for: ball.kind) - restHold),
+                         vanishesAtEnd: true)
         case .homer:
             segments = homer(ball)
         }
@@ -295,7 +308,8 @@ enum HomerunBallChase {
         }
         // 小さく弾んで 1.2m 奥に止まる。奥の列の座面は高いので、止まる高さはその所の座面に合わせる（同じ高さのままだと
         // 奥の列の座席の中に埋まって見えなくなる・#1645 の画面の確認で発見）。
-        let hopS = landing.s + 1.2
+        // 最後列の近くに落ちた球は、最後列の後端（`standBackEdgeDepth`・その先はスタンドの外）を越えて弾まない（#1654）。
+        let hopS = min(landing.s + 1.2, front + Double(standBackEdgeDepth) - ballRadius)
         let hopY = abs(ball.direction) < 6 ? landing.y : max(standSurface(depth: hopS - front) + ballRadius, landing.y)
         let hop = make(from: landing, to: Point(s: hopS, y: hopY), .arc(bulge: 0.5))
         return [f, hop]
@@ -305,6 +319,105 @@ enum HomerunBallChase {
     static let battersEyeZ: Double = 125.0
     static let battersEyeHalfWidth: Double = 13
     static let battersEyeHeight: Double = 15
+    /// バックスクリーンの裏のスコアボード（`HomerunToonModel.battersEye`: z = 137・上の縁の幅 29m・上端 26.5m）。
+    static let scoreboardZ: Double = 137
+    static let scoreboardHalfWidth: Double = 14.5
+    static let scoreboardTop: Double = 26.5
+
+    // MARK: ファウルポール直撃（#1686・会長決裁 2026-10-02）
+
+    /// ポールの中心（本塁からの水平距離・m）。球場の 3D のポール（`HomerunToonModel` の柵）と同じく、両翼の柵の上に立つ。
+    static var poleS: Double { HomerunJudge.fence(atDirection: HomerunJudge.foulLimit) }
+    /// 球の中心がポールに当たる所（本塁からの水平距離・m）: ポールの面の手前、球の半径ぶん。
+    static var poleContactS: Double { poleS - HomerunJudge.poleRadius - ballRadius }
+    /// 球がポールに当たる高さの上限（m・ポールの先の球より下）。これより高く飛ぶ打球もこの高さで当てる。
+    static var poleContactMaxY: Double { HomerunJudge.poleHeight - 1.5 }
+    /// 跳ね返った球が落ちる所（ポールの手前・m）と、弾んで止まる所（ポールの手前・m）。どちらも柵の手前のウォーニングトラック。
+    static let poleDropBack: Double = 3
+    static let poleRestBack: Double = 6
+    /// 跳ね返る瞬間に球が上へ跳ねる速さ（m/s・「カーン」と少し浮いてから落ちる）。
+    static let poleKickUp: Double = 2.5
+
+    /// ポール直撃: ふつうの柵越えの放物線（柵の上を越えてスタンドへ落ちる）をポールの所で切って当て、本塁側へ跳ね返って
+    /// ポールの足元（柵の手前）へ落ち、小さく弾んで止まる。放物線がポールの先より高いときは先の少し下に当てる。
+    private static func poleHit(_ ball: HomerunBattedBall) -> [Segment] {
+        let contactS = poleContactS
+        let landing = Point(s: max(ball.distance, poleS + 8), y: ballRadius)
+        let full = flight(to: landing, elevation: elevation(for: ball.launch), over: [Point(s: poleS, y: fenceClearance)])
+        let u = (contactS - start.s) / (landing.s - start.s)
+        var hit = full.point(at: u)
+        let f: Segment
+        if hit.y <= poleContactMaxY, case .arc(let bulge) = full.motion {
+            // 放物線の途中の弦のふくらみは、弦の長さの 2 乗に比例する（同じ放物線の一部を切り出す）。
+            f = make(from: start, to: hit, .arc(bulge: bulge * u * u))
+        } else {
+            hit = Point(s: contactS, y: poleContactMaxY)
+            f = flight(to: hit, elevation: elevation(for: ball.launch))
+        }
+        // 跳ね返り: 少し上へ跳ねてから重力で落ちる放物線。落ちる時間 T は y(t) = h + v·t − g·t²/2 = 地面 から、
+        // ふくらみ（`Segment.arc`）は g·T²/8（`naturalDuration` の逆）。
+        let drop = Point(s: poleS - poleDropBack, y: ballRadius)
+        let h = hit.y - drop.y
+        let fall = (poleKickUp + sqrt(poleKickUp * poleKickUp + 2 * gravity * h)) / gravity
+        let back = make(from: hit, to: drop, .arc(bulge: gravity * fall * fall / 8))
+        return [f, back] + bounces(from: drop, rest: poleS - poleRestBack, firstHop: 0.6)
+    }
+
+    // MARK: 場外（#1654・会長決裁 2026-10-01）
+
+    /// スタンドの最後列の段の後端（前縁からの奥行き・m）。外野のスタンドはここで終わる（後ろの壁・屋根は内野側だけ）。
+    static var standBackEdgeDepth: Float {
+        typealias Stand = HomerunToonModel.Stand
+        return Stand.treadBack(row: Stand.rows - 1)
+    }
+
+    /// 場外になる距離（本塁から・m）: 方向 `degrees` のスタンドの最後列の後端。球場の見た目と同じ `HomerunToonModel.standFront`
+    /// から出すので、柵の距離（`HomerunJudge.fence`）+ 柵からスタンドの前縁 2m + 最後列の後端の奥行きになる
+    /// （両翼 ±45° ≈ 126.5m・中堅 ≈ 148.5m）。中堅のバックスクリーンの方向（座席が無い）も同じ線で数える。
+    static func outOfParkDistance(atDirection degrees: Double) -> Double {
+        Double(HomerunToonModel.standFront(degrees, depth: standBackEdgeDepth))
+    }
+
+    /// スタンドの最後列の座席の背もたれの上端（m）。場外の打球はここより `outOfParkClearance` 上を抜けていく。
+    static var standBackTop: Double {
+        typealias Stand = HomerunToonModel.Stand
+        return Double(Stand.treadTop(row: Stand.rows - 1) + Stand.seatBackHeight)
+    }
+    /// 場外の打球が後端・バックスクリーン・スコアボードの上に空ける高さ（m）。
+    static let outOfParkClearance: Double = 2
+    /// 場外の打球が消える所: スタンドの後端からこれだけ先（m）。後端を越えて抜けていくのが見えてから消える。
+    static let vanishBeyond: Double = 3
+
+    /// 場外: 柵とスタンドの上を越えて最後列の後端の上を抜け、その `vanishBeyond` m 先で消える（スタンドに落ちて止まらない）。
+    /// 中堅（バックスクリーン・スコアボードの幅の中）はその上も越える。道は 1 本の放物線を後端で 2 区間に分けたもの。
+    private static func outOfPark(_ ball: HomerunBattedBall) -> [Segment] {
+        let radians = ball.direction * .pi / 180
+        let edge = outOfParkDistance(atDirection: ball.direction)
+        var obstacles = [Point(s: ball.fence, y: fenceClearance)]
+        var exitY = standBackTop + outOfParkClearance
+        let screenS = battersEyeZ / cos(radians)
+        if abs(screenS * sin(radians)) < battersEyeHalfWidth {
+            obstacles.append(Point(s: screenS, y: battersEyeHeight + ballRadius + outOfParkClearance))
+        }
+        let boardS = scoreboardZ / cos(radians)
+        if abs(boardS * sin(radians)) < scoreboardHalfWidth {
+            let over = scoreboardTop + ballRadius + outOfParkClearance
+            obstacles.append(Point(s: boardS, y: over))
+            exitY = max(exitY, over)
+        }
+        let exit = Point(s: edge, y: exitY)
+        let f = flight(to: exit, elevation: elevation(for: ball.launch), over: obstacles)
+        guard case .arc(let bulge) = f.motion else { return [f] }
+        // 同じ放物線（y = y0 + slope·x − k·x²・x は打ち出す点から）を後端の先 `vanishBeyond` m まで伸ばす。
+        let L = edge - start.s, k = 4 * bulge / (L * L)
+        let slope = (exit.y - start.y + k * L * L) / L
+        let x = L + vanishBeyond
+        let end = Point(s: start.s + x, y: start.y + slope * x - k * x * x)
+        // 水平は同じ速さのまま（`naturalDuration` はふくらみの下限 0.02m で短い区間を長くするので、長さの比で決める）。
+        let beyond = Segment(from: exit, to: end, motion: .arc(bulge: k * vanishBeyond * vanishBeyond / 4),
+                             duration: f.duration * vanishBeyond / L)
+        return [f, beyond]
+    }
 
     /// スタンドの前縁から奥へ `depth` m の座面の上面の高さ（m）。前縁の手前（柵との間）は地面（0）。
     static func standSurface(depth: Double) -> Double {
@@ -329,6 +442,12 @@ enum HomerunBallChase {
         var camera: HomerunAtBatLayout.Camera
         var ball: SIMD3<Float>
         var ballScale: Float
+        /// 場外の球が消えた後（#1654）。カメラはそのまま、球と影だけ描かない。
+        var ballHidden = false
+        /// 月まで飛んだ打球（#1680）の月・夜空の見え方。ふだんの打球は nil。
+        var moon: HomerunMoonShot.Look? = nil
+        /// 描く球の位置（消えた後は nil = 球も影も出さない）。
+        var visibleBall: SIMD3<Float>? { ballHidden ? nil : ball }
     }
 
     /// 球が本塁から `ball` m のときのカメラの本塁からの水平距離（m）。
@@ -384,7 +503,16 @@ enum HomerunBallChase {
             scale = ballScale(distance: Double(simd_distance(cameraPosition, ball)))
         }
         let camera = HomerunAtBatLayout.Camera(position: cameraPosition, target: ball, verticalFieldOfView: verticalFieldOfView)
-        return Frame(camera: camera, ball: ball, ballScale: scale)
+        return Frame(camera: camera, ball: ball, ballScale: scale, ballHidden: track.vanishesAtEnd && t >= track.duration)
+    }
+}
+
+extension HomerunBattedBall {
+    /// 場外（#1654）: 柵越えのうち、飛距離がその方向のスタンドの最後列の後端（`HomerunBallChase.outOfParkDistance`）以上。
+    /// 表示だけ（得点の上乗せなし）。保存（`HomerunShot`）の方向・距離・種別から毎回出すので、保存の形は変えない。
+    /// 月まで飛んだ打球（#1680）・ポール直撃（#1686）は場外より優先（場外にしない）。
+    var isOutOfPark: Bool {
+        !isMoon && !isPoleHit && kind == .homer && distance >= HomerunBallChase.outOfParkDistance(atDirection: direction)
     }
 }
 
@@ -397,23 +525,27 @@ extension HomerunSwingPlan {
                                                     column: HomerunSwingContact.column(zone: clock.zone))
     }
 
-    /// 打球の道（当たり以上のときだけ）。
+    /// 打球の道（当たり以上のときだけ）。月まで飛んだ打球（#1680）は道を持たず、`HomerunMoonShot` が時刻から描く。
     var chaseTrack: HomerunBallChase.Track? {
-        guard contactAt != nil, let lastBall else { return nil }
+        guard contactAt != nil, let lastBall, !lastBall.isMoon else { return nil }
         return HomerunBallChase.track(for: lastBall)
     }
 
     /// 打球を追うカメラのコマ。当たってから `HomerunBallChase.cutDelay` 秒たつまでは nil（打席のカメラのまま）。
     func chaseFrame(at now: Date) -> HomerunBallChase.Frame? {
-        guard let contactAt, let track = chaseTrack else { return nil }
+        guard let contactAt else { return nil }
         let t = now.timeIntervalSince(contactAt)
         guard t >= HomerunBallChase.cutDelay else { return nil }
+        if let moon = lastBall?.moon { return HomerunMoonShot.frame(moon, at: t) }
+        guard let track = chaseTrack else { return nil }
         return HomerunBallChase.frame(track, at: t)
     }
 
     /// 結果のカードを出す時刻: 打球が止まって（柵越えはスタンドに落ちて）から `restHold` 秒後。当たり以上でなければ nil。
     var chaseCardAt: Date? {
-        guard let contactAt, let track = chaseTrack else { return nil }
+        guard let contactAt else { return nil }
+        if let moon = lastBall?.moon { return contactAt.addingTimeInterval(HomerunMoonShot.cardDelay(moon)) }
+        guard let track = chaseTrack else { return nil }
         return contactAt.addingTimeInterval(track.duration + HomerunBallChase.restHold)
     }
 }

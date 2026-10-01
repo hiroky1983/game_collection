@@ -19,14 +19,18 @@ public struct GomokuView: View {
     }
 
     public var body: some View {
-        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 縦の余白は 6。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
         // 盤に回せる高さを間隔から捻出している（#148・#139 の横展開）。
-        VStack(spacing: 8) {
+        // 石の色の案内は 1 行（`playersRow`）に畳み、盤の上下の帯を 2 本 → 0 本にして
+        // 盤へ回している（#1663。SE では高さが盤の大きさを決めていた）。
+        VStack(spacing: 6) {
             statusBar
-            stoneRow(stone: model.humanSide.opponent, isYou: false)
+            // 盤は左右の余白（Theme.pad）の半分まで広げる。盤の外周の余白（`boardInset`）も
+            // 詰めてあるので、枠の外へはみ出すのは木地の縁だけ。
             board
+                .padding(.horizontal, -Theme.pad / 2)
                 .layoutPriority(1)
-            stoneRow(stone: model.humanSide, isYou: true)
+            playersRow
             controlArea
             HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
                           playLog: services.playLog)
@@ -127,9 +131,12 @@ public struct GomokuView: View {
 
     // MARK: - Board
 
+    /// 盤の木地の縁から端の線までの余白。石が端の線に乗っても欠けない最小限（石の半径は 1 マスの約 0.45 = 24pt 前後で約 11pt）。
+    private static let boardInset: CGFloat = 12
+
     private var board: some View {
         GeometryReader { geo in
-            let pad: CGFloat = 14
+            let pad = Self.boardInset
             let inner = geo.size.width - pad * 2
             let spacing = inner / CGFloat(gomokuBoardSize - 1)
 
@@ -264,8 +271,21 @@ public struct GomokuView: View {
 
     // MARK: - Stone Info Row
 
-    private func stoneRow(stone: GomokuStone, isYou: Bool) -> some View {
+    /// 「あなた／CPU」の石の色を 1 行で示す（#1663）。以前は 2 行（盤の上下に 30pt ずつ）だった。
+    private var playersRow: some View {
         HStack(spacing: 8) {
+            playerChip(stone: model.humanSide, isYou: true)
+            Spacer(minLength: 0)
+            playerChip(stone: model.humanSide.opponent, isYou: false)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 30)
+        .padding(.horizontal, 12)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private func playerChip(stone: GomokuStone, isYou: Bool) -> some View {
+        HStack(spacing: 6) {
             Circle()
                 .fill(stone == .black
                       ? AnyShapeStyle(Color(hex: 0x18140E))
@@ -278,14 +298,9 @@ public struct GomokuView: View {
             Text(stone == .black ? "黒・先手" : "白・後手")
                 .themeCaption(13, weight: .regular, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
-            Spacer()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 高さは 30。終局後に出るもののぶんを確保しても盤が小さくならないよう、
-        // 石・文字の大きさは変えずに余白から捻出している（#148）。
-        .frame(minHeight: 30)
-        .padding(.horizontal, 12)
-        .popCard(corner: Theme.cornerSmall)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 
     // MARK: - Status Bar
