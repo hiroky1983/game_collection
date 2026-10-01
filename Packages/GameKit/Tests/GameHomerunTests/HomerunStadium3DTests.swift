@@ -356,7 +356,7 @@ struct HomerunStadium3DTests {
     @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
-        // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.29m）より外に腰（原点 + 0.1m）がある。
+        // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.246m）より外に腰（原点 + 0.1m）がある。
         #expect(L.batter.position.x > 0.15 && L.batter.position.x + 0.1 >= 0.29, "右打者は前のカメラの画面の右（+x）のバッターボックスに立つ")
         // Meshy の打者は構えで左肩が +x。y 軸まわりに yaw 回すと +x は (cos, 0, -sin) へ向く → 投手（+z）を向くこと。
         let leftShoulder = SIMD3<Float>(cos(L.batter.yaw), 0, -sin(L.batter.yaw))
@@ -448,7 +448,7 @@ struct HomerunStadium3DTests {
             #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
             // 手前の捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
             let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
-            let head = L.worldPoint([0, 1.53, 0], of: L.catcher, for: back)
+            let head = L.worldPoint([0, 4.3 * L.catcherScale, 0], of: L.catcher, for: back)
             #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
         }
     }
@@ -557,11 +557,12 @@ struct HomerunBackStanceSlideTests {
     typealias L = HomerunAtBatLayout
     private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
-    @Test("前のカメラは本来の位置のまま（ずらさない）")
-    func frontNeverSlides() {
-        let front = L.CameraPreset.front.camera
+    @Test("前のカメラも後ろと同じだけずらす（構えのつま先がボックスの線を越えないように・#1667）")
+    func frontSlidesLikeBack() {
+        let front = L.CameraPreset.front.camera, back = L.CameraPreset.back.camera
         for motion in [HomerunBatterMotion.stance, .load(start: t0), .swing(start: t0)] {
-            #expect(L.batterSlideTarget(motion, camera: front, now: t0.addingTimeInterval(0.3)) == 0)
+            #expect(L.batterSlideTarget(motion, camera: front, now: t0.addingTimeInterval(0.3))
+                    == L.batterSlideTarget(motion, camera: back, now: t0.addingTimeInterval(0.3)))
         }
     }
 
@@ -613,12 +614,16 @@ struct HomerunBackStanceSlideTests {
     #if canImport(RealityKit)
     /// USDZ の構え（1 コマ目）の両足の骨（Foot・ToeBase）の打者の局所座標。
     @MainActor
-    private func stanceFeet() throws -> [SIMD3<Float>] {
+    private func stanceFeet() throws -> [SIMD3<Float>] { try feet(.stance, now: Date()) }
+
+    /// 段階 `motion` を時刻 `now` に見せたときの両足の骨の打者の局所座標。
+    @MainActor
+    private func feet(_ motion: HomerunBatterMotion, now: Date) throws -> [SIMD3<Float>] {
         let rig = try #require(HomerunBatterRig())
         if #available(macOS 15.0, iOS 18.0, *) {
             let renderer = try RealityRenderer()
             renderer.entities.append(rig.entity)
-            rig.show(.stance, now: Date())
+            rig.show(motion, now: now)
             try renderer.update(0.001)
         }
         func find(_ e: Entity) -> ModelEntity? {
@@ -659,11 +664,110 @@ struct HomerunBackStanceSlideTests {
         }
     }
 
+    // #1667 会長 QA（2026-10-01）: 骨（Foot・ToeBase）は線の内側でも、靴の皮は本塁側へ 0.1m ほど先に出ていて、
+    // 構え・振りの間につま先が内側の線を越えていた。骨ではなく皮の頂点（スキニングを手で計算）で測る。
+    @Test("構え（前・後ろのカメラのずらし込み）では、両足の靴の皮がバッターボックスの線の内側に収まる（#1667）")
+    @MainActor
+    func stanceShoesAreInsideTheBox() throws {
+        typealias B = HomerunToonModel.BatterBox
+        let now = Date()
+        let shoes = try skinnedFootVertices(.stance, now: now)
+        #expect(shoes.count > 500, "足元の頂点が \(shoes.count) 個しか取れない")
+        for preset in L.CameraPreset.allCases {
+            let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, camera: preset.camera, now: now)))
+            let w = shoes.map { L.batterWorld($0) + offset }
+            let minX = w.map(\.x).min()!, maxX = w.map(\.x).max()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
+            #expect(minX > B.innerX + B.line / 2 && maxX < B.outerX - B.line / 2, "\(preset): 横の線をはみ出す x \(minX)〜\(maxX)")
+            #expect(minZ > B.backZ + B.line / 2 && maxZ < B.frontZ - B.line / 2, "\(preset): 前後の線をはみ出す z \(minZ)〜\(maxZ)")
+        }
+    }
+
+    // 振りは本来の位置でしか打点が合わない（バットの先端が外の列に 7cm しか余らない・`HomerunSwingContactTests`）ので打者は
+    // 動かせない。内側の線を本塁の縁まで寄せ、つま先が本塁の縁を越えるのは振り抜きの一瞬（最大 6cm）に抑える。
+    @Test("踏み込み〜振り終わり: つま先は内側の線の本塁側の縁（= 本塁の縁）を 7cm より先へ越えず、前後の線の内側にある（#1667）")
+    @MainActor
+    func swingShoesStayNearTheBox() throws {
+        typealias B = HomerunToonModel.BatterBox
+        #expect(abs((B.innerX - B.line / 2) - 0.216) < 0.001, "内側の線の本塁側の縁は本塁の縁")
+        let now = Date()
+        let back = L.CameraPreset.back.camera
+        var motions: [HomerunBatterMotion] = (0...19).map { .load(start: now.addingTimeInterval(-Double($0) / 30)) }
+        motions += (0...24).map { .swing(start: now.addingTimeInterval(-Double($0) / 30)) }
+        for motion in motions {
+            let offset = L.batterOffset(slide: L.batterSlideTarget(motion, camera: back, now: now) ?? 0)
+            let w = try skinnedFootVertices(motion, now: now).map { L.batterWorld($0) + offset }
+            let minX = w.map(\.x).min()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
+            #expect(minX > B.innerX - B.line / 2 - 0.07, "\(motion): つま先 x \(minX)")
+            #expect(minZ > B.backZ + B.line / 2 && maxZ < B.frontZ - B.line / 2, "\(motion): 前後の線をはみ出す z \(minZ)〜\(maxZ)")
+        }
+    }
+
+    /// 段階 `motion` を時刻 `now` に見せたときの、足元（高さ 0.15m 未満）の皮の頂点（打者の局所座標・スキニングを手で計算）。
+    @MainActor
+    private func skinnedFootVertices(_ motion: HomerunBatterMotion, now: Date) throws -> [SIMD3<Float>] {
+        let rig = try #require(HomerunBatterRig())
+        if #available(macOS 15.0, iOS 18.0, *) {
+            let renderer = try RealityRenderer()
+            renderer.entities.append(rig.entity)
+            rig.show(motion, now: now)
+            try renderer.update(0.001)
+        }
+        func models(_ e: Entity) -> [ModelEntity] {
+            var r: [ModelEntity] = []
+            if let m = e as? ModelEntity, !m.jointNames.isEmpty { r.append(m) }
+            for c in e.children { r += models(c) }
+            return r
+        }
+        var out: [SIMD3<Float>] = []
+        for model in models(rig.entity) {
+            let names = model.jointNames
+            // 骨の打者の局所座標の行列（親をたどって掛ける）。
+            let world: [String: simd_float4x4] = Dictionary(uniqueKeysWithValues: names.indices.map { index in
+                var m = matrix_identity_float4x4
+                var path = names[index]
+                while true {
+                    if let i = names.firstIndex(of: path) { m = model.jointTransforms[i].matrix * m }
+                    guard let slash = path.lastIndex(of: "/") else { break }
+                    path = String(path[..<slash])
+                }
+                return (names[index], m)
+            })
+            let entityToRig = model.transformMatrix(relativeTo: rig.entity)
+            guard #available(macOS 15.0, iOS 18.0, *), let contents = model.model?.mesh.contents else { continue }
+            for instance in contents.instances {
+                guard let meshModel = contents.models[instance.model] else { continue }
+                for part in meshModel.parts {
+                    guard let skelID = part.skeletonID, let skeleton = contents.skeletons[skelID],
+                          let influences = part.jointInfluences else { continue }
+                    let infl = influences.influences.elements
+                    let positions = part.positions.elements
+                    let per = infl.count / max(positions.count, 1)
+                    let jointMatrices: [simd_float4x4] = skeleton.joints.map { joint in
+                        let leaf = joint.name.split(separator: "/").last.map(String.init) ?? joint.name
+                        let m: simd_float4x4 = world[joint.name] ?? world.first { $0.key.split(separator: "/").last.map(String.init) == leaf }?.value ?? matrix_identity_float4x4
+                        return m * joint.inverseBindPoseMatrix
+                    }
+                    for (vi, p) in positions.enumerated() {
+                        let v = instance.transform * SIMD4<Float>(p.x, p.y, p.z, 1)
+                        var acc = SIMD4<Float>(0, 0, 0, 0)
+                        for k in 0..<per {
+                            let inf = infl[vi * per + k]
+                            if inf.weight > 0 { acc += inf.weight * (jointMatrices[inf.jointIndex] * v) }
+                        }
+                        let r: SIMD4<Float> = entityToRig * acc
+                        if r.y < 0.15 { out.append(SIMD3<Float>(r.x, r.y, r.z)) }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
     @Test("前のカメラの構えでは、両足がバッターボックスの前後の線の内側にある（本来の位置のまま・#1619）")
     @MainActor
     func frontStanceFeetAreInsideTheBoxLengthwise() throws {
         typealias B = HomerunToonModel.BatterBox
-        #expect(L.batterSlideTarget(.stance, camera: L.CameraPreset.front.camera, now: t0) == 0)
+        #expect(L.batterSlideTarget(.stance, camera: L.CameraPreset.front.camera, now: t0) == L.backStanceSlide, "前のカメラも構えはずらす（#1667）")
         for local in try stanceFeet() {
             let w = L.batterWorld(local)
             #expect(w.z > B.backZ + B.line / 2 && w.z < B.frontZ - B.line / 2, "足が前後の線をはみ出す: z \(w.z)")

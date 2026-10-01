@@ -35,6 +35,40 @@ enum HomerunFigureShadow {
         shape(foot: HomerunAtBatLayout.machine.position, radius: machineRadius, camera: camera)
     }
 
+    /// バットの影（#1668）: 細長い楕円（横 `size.x`・縦 `size.y` の円板を縦がバットの向きに沿うよう `yaw` 回す）。描画の世界座標。
+    struct Strip: Equatable {
+        var center: SIMD3<Float>
+        var size: SIMD2<Float>
+        var yaw: Float
+    }
+
+    /// バットの影の太さ（m・バットの太さ 7cm より少しぼかして太め）。
+    static let batWidth: Float = 0.09
+
+    /// バットの影（#1668・会長 QA 2026-10-01「バットの影が無い」）。グリップ端 `grip`・先端 `tip`（描画の世界座標）を真下の地面へ
+    /// 落とした線分を覆う細長い楕円。真上から照らす体の影と同じ向きの光で、構えのように立てたバットは手元の短い影になる。
+    /// 低いカメラでは体の影と同じ `HomerunBallShadow.stretch` の分だけ、視線の向きに沿う成分を伸ばす（線につぶれない）。
+    /// 骨は読まず、打者の局所座標のバットの表（`HomerunBatPath`）から両端を引くだけ（毎コマ数個の値の計算）。
+    static func bat(grip: SIMD3<Float>, tip: SIMD3<Float>, camera: SIMD3<Float>) -> Strip {
+        let mid = (grip + tip) / 2
+        let center: SIMD3<Float> = [mid.x, HomerunBallShadow.groundHeight(below: mid) + HomerunBallShadow.clearance(below: mid), mid.z]
+        let along = SIMD2<Float>(tip.x - grip.x, tip.z - grip.z)
+        let length = simd_length(along)
+        let dir = length > 1e-5 ? along / length : SIMD2<Float>(0, 1)
+        let toShadow = center - camera
+        let distance = simd_length(toShadow)
+        let sinElevation = distance > 0 ? max(-toShadow.y, 0) / distance : 1
+        let stretch = HomerunBallShadow.stretch(sinElevation: sinElevation)
+        let flat = SIMD2<Float>(toShadow.x, toShadow.z)
+        let view = simd_length(flat) > 1e-6 ? simd_normalize(flat) : SIMD2<Float>(0, 1)
+        // 視線に沿う成分ほど伸ばす（沿う向き = 1 で stretch 倍・直交 = 1 倍）。
+        func grow(_ d: SIMD2<Float>) -> Float { 1 + (stretch - 1) * abs(simd_dot(d, view)) }
+        let side = SIMD2<Float>(-dir.y, dir.x)
+        return Strip(center: center,
+                     size: [batWidth * grow(side), (length + batWidth) * grow(dir)],
+                     yaw: atan2(dir.x, dir.y))
+    }
+
     /// 足元 `foot`（x・z を使う）の地面に、半径 `radius` の円板を置く。浮かせる高さは球の影と同じ（`HomerunBallShadow.clearance`）。
     static func shape(foot: SIMD3<Float>, radius: Float, camera: SIMD3<Float>) -> Shape {
         let center: SIMD3<Float> = [foot.x, HomerunBallShadow.groundHeight(below: foot) + HomerunBallShadow.clearance(below: foot), foot.z]

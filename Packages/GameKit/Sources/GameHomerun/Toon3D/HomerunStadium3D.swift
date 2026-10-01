@@ -78,8 +78,10 @@ extension HomerunToonModel {
     /// バッターボックスの白線（m・本塁が原点・左右に 1 つずつ）。線の中心の位置で、線の幅は `line`。
     /// 打者の足がこの中に収まることをテストで固定する（#1619）。
     enum BatterBox {
-        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.29・外側の線 = 1.51）。
-        static let centerX: Float = 0.9, width: Float = 1.22
+        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.246・外側の線 = 1.466）。内側の線は本塁の縁（0.216）に
+        /// 本塁側の縁を合わせる（#1667・会長 QA 2026-10-01: 0.29 では振りの間に右足のつま先が線を越えていた。打者はバットが
+        /// 外の列に届く所から動かせないので、線の側を寄せる）。
+        static let centerX: Float = 0.856, width: Float = 1.22
         /// 前（投手側）・後ろ（捕手側）の線の z と、横の線の長さ。
         static let frontZ: Float = 0.9, backZ: Float = -0.93, sideLength: Float = 1.83
         static let line: Float = 0.06
