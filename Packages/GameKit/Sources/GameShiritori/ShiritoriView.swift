@@ -304,7 +304,7 @@ private struct ShiritoriBoardAnimationState: Equatable {
 // MARK: - 盤の寸法
 
 enum ShiritoriBoardLayout {
-    /// 29 枚が 6 列 × 5 行（6・6・6・6・5）に収まる。iPhone SE でも広告枠を含めて縦に収まる本数。
+    /// 30 枚が 6 列 × 5 行にぴったり収まる（#1660: 29 枚の頃は右下が歯抜けだった）。iPhone SE でも広告枠を含めて縦に収まる本数。
     static let columns = 6
 }
 

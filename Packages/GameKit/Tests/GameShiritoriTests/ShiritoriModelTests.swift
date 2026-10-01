@@ -26,15 +26,15 @@ private let trapForCPU = ShiritoriCard(.cat, "らーめん")        // ら → �
 @MainActor
 struct ShiritoriModelTests {
 
-    @Test("開始（ノルマ）: 29 枚が並び、別の 1 枚が場の札。山札 50 枚のうち 30 枚だけ使う。時間は 60 秒でプレイヤーが先手")
+    @Test("開始（ノルマ）: 30 枚が並び、別の 1 枚が場の札。山札 50 枚のうち 31 枚だけ使う。時間は 60 秒でプレイヤーが先手")
     func startDealsTwentyNineAndOpensOne() {
         let (model, _) = makeModel()
         model.startGame(quota: .hard)
 
         #expect(model.phase == .playing)
-        #expect(model.slots.count == 29)
+        #expect(model.slots.count == 30)
         let ids = model.slots.map(\.card.id) + [model.currentCard?.id ?? ""]
-        #expect(Set(ids).count == 30, "盤 29 枚と場の 1 枚は重ならない")
+        #expect(Set(ids).count == 31, "盤 30 枚と場の 1 枚は重ならない")
         #expect(Set(ids).isSubset(of: Set(ShiritoriCard.deck.map(\.id))))
         #expect(model.mode == .quota && model.stock.isEmpty, "ノルマは山札を使わない")
         #expect(model.currentReading == model.currentCard?.primaryReading, "最初の場は表読み")
@@ -440,7 +440,7 @@ struct ShiritoriModelTests {
             }
             #expect(model.phase == .result, "seed \(seed)")
             #expect(model.ending != nil)
-            #expect(model.playerCount + model.cpuCount <= 29)
+            #expect(model.playerCount + model.cpuCount <= 30)
             #expect(model.playerCount >= model.cpuCount, "先手なので同数か 1 枚多い")
         }
         // 残る裏読み「にゃんこ」（#1271 で「ぐらす」「おうぎ」を削除した後）が、実プレイで
@@ -486,15 +486,15 @@ private let koala = ShiritoriCard(.koala, "こあら")            // こ → ら
 @MainActor
 struct ShiritoriEndlessTests {
 
-    @Test("配り: 盤 29 枚・場 1 枚・山札 20 枚が重ならず全 50 枚。ノルマは山札を使わない")
+    @Test("配り: 盤 30 枚・場 1 枚・山札 19 枚が重ならず全 50 枚。ノルマは山札を使わない")
     func dealSplitsFiftyCards() {
         for seed in UInt64(0)..<100 {
             let (model, _) = makeModel(seed: seed)
             model.startGame(mode: .endless)
             let ids = model.slots.map(\.card.id) + [model.currentCard?.id ?? ""] + model.stock.map(\.id)
-            #expect(model.slots.count == 29 && model.stock.count == 20, "seed \(seed)")
+            #expect(model.slots.count == 30 && model.stock.count == 19, "seed \(seed)")
             #expect(Set(ids) == Set(ShiritoriCard.deck.map(\.id)) && ids.count == 50, "seed \(seed)")
-            #expect(model.stockCount == 20)
+            #expect(model.stockCount == 19)
         }
     }
 
