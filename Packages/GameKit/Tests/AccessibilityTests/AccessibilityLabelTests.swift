@@ -21,6 +21,11 @@ import Testing
 @Suite("将棋の読み上げ文")
 struct ShogiAccessibilityTests {
 
+    @Test("成り確認の札は問いをそのまま読む（#1641）")
+    func promotionPromptLabel() {
+        #expect(ShogiAccessibility.promotionPromptLabel == "成りますか？")
+    }
+
     @Test("マスは筋段と駒種を読む") func square() {
         // index 60 = file 6(=7筋) / rank 6(=七段)
         let label = ShogiAccessibility.squareLabel(
@@ -383,6 +388,11 @@ struct GoAccessibilityTests {
 
 @Suite("チェスの読み上げ文")
 struct ChessAccessibilityTests {
+
+    @Test("成り先の選択札は問いをそのまま読む（#1641）")
+    func promotionPromptLabel() {
+        #expect(ChessAccessibility.promotionPromptLabel == "何に成りますか？")
+    }
 
     private func sq(_ name: String) -> Int { ChessSquare.fromName(Substring(name))! }
 

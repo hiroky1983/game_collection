@@ -146,6 +146,8 @@ public struct ChessView: View {
                 Color.black.opacity(0.35).ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture { model.cancelPromotion() }
+                    // 暗幕のタップは VoiceOver の代わりに「やめる」ボタンがある。読ませる要素にしない（#1641）。
+                    .accessibilityHidden(true)
                 VStack(spacing: 18) {
                     Text("何に成りますか？")
                         .themeBody(18, weight: .bold)
@@ -180,6 +182,10 @@ public struct ChessView: View {
                 .padding(24)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
                 .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
+                // 札を盤の後ろ扱いにせず、VoiceOver を札の中だけで動かす（#1641。FreeCell の暗幕パネルと同じ形）。
+                .accessibilityElement(children: .contain)
+                .accessibilityAddTraits(.isModal)
+                .accessibilityLabel(ChessAccessibility.promotionPromptLabel)
                 .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
@@ -188,6 +194,10 @@ public struct ChessView: View {
         // 中身を足したときに静かに盤のタップを塞ぐ。
         .allowsHitTesting(model.pendingPromotion != nil)
         .gameAnimation(ChessMotion.promotionPrompt, value: model.pendingPromotion != nil)
+        // 札が出たことを告げ、VoiceOver のフォーカスを札へ移す（#1641）。
+        .onChange(of: model.pendingPromotion != nil) { _, shown in
+            if shown { AccessibilityNotification.ScreenChanged(nil).post() }
+        }
     }
 
     // MARK: - 盤

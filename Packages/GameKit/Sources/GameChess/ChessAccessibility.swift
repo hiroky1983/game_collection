@@ -42,6 +42,9 @@ public enum ChessAccessibility {
         return parts.joined(separator: "、")
     }
 
+    /// 成り先の選択札の読み上げ文（#1641）。見た目の問い（`ChessView.promotionOverlay`）と同じ文言にする。
+    public static let promotionPromptLabel = "何に成りますか？"
+
     /// 取られた駒の列の読み上げ文。1 マスずつ読ませると数だけ増えて意味が伝わらないので、
     /// 「誰が何を何枚失ったか」の 1 文にまとめる。
     public static func capturedLabel(owner: ChessColor, lost: [ChessPieceType]) -> String {
