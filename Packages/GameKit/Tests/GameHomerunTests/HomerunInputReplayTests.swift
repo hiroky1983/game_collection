@@ -61,8 +61,12 @@ private final class Rig {
     func wait(_ seconds: TimeInterval) { wait(until: now.addingTimeInterval(seconds)) }
 
     private func sample() {
-        if case .swing(let start, _) = HomerunSwingPlan(model: model).batterMotion(at: now), visualSwings.last != start {
-            visualSwings.append(start)
+        // 空振りの演出（#1681）も振り抜きは同じ時刻から始まる。
+        switch HomerunSwingPlan(model: model).batterMotion(at: now) {
+        case .swing(let start, _), .whiffGag(let start, _):
+            if visualSwings.last != start { visualSwings.append(start) }
+        case .stance, .load:
+            break
         }
     }
 

@@ -227,7 +227,7 @@ extension HomerunAtBatLayout {
         case .load(let start):
             let k = Float(min(max(now.timeIntervalSince(start) / HomerunBatterMotion.loadDuration, 0), 1))
             return backStanceSlide * (1 - k * k * (3 - 2 * k))
-        case .swing:
+        case .swing, .whiffGag:
             return nil
         }
     }
@@ -327,6 +327,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var batterShadow: ModelEntity?
         /// バットの影（#1668・`HomerunFigureShadow.bat`）。
         var batShadow: ModelEntity?
+        /// 空振りの演出（#1681）の回転・目・星・影を毎コマ置き直す購読（SwiftUI の更新が止まった後も動かす）。
+        var whiffGagUpdates: (any Cancellable)?
         var machineShadow: ModelEntity?
         var updates: (any Cancellable)?
         var frames = 0
@@ -425,7 +427,15 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     /// 打者・マシンの影をいまの打者の位置・カメラに合わせる（数個の値の計算だけ・毎コマ呼んでよい）。
     @MainActor private static func placeFigureShadows(_ c: Coordinator, batterOrigin: SIMD3<Float>, camera: HomerunAtBatLayout.Camera) {
         let eye = camera.renderPose.position
-        if let s = c.batterShadow { placeFigureShadow(s, HomerunFigureShadow.batter(origin: batterOrigin, camera: eye)) }
+        // 空振りの演出（#1681）の間は、体全体の回転・傾きと倒れていく体・バットに影を合わせる。
+        let gag: (clip: TimeInterval, turn: simd_quatf)? = c.batterRig.flatMap { rig in
+            guard rig.isWhiffGag, let clip = rig.whiffGagClipTime else { return nil }
+            return (clip, HomerunWhiffGag.turn(atClipTime: clip, back: camera.mirrored))
+        }
+        if let s = c.batterShadow {
+            placeFigureShadow(s, gag.map { HomerunFigureShadow.whiffGagBatter(origin: batterOrigin, clipTime: $0.clip, turn: $0.turn, camera: eye) }
+                ?? HomerunFigureShadow.batter(origin: batterOrigin, camera: eye))
+        }
         if let s = c.machineShadow { placeFigureShadow(s, HomerunFigureShadow.machine(camera: eye)) }
         if let s = c.batShadow {
             // バットの両端は打者の局所座標の表（`HomerunBatPath`）から、いま流しているクリップの位置で引く（骨は読まない）。
@@ -433,9 +443,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 let clip: TimeInterval = switch c.batterMotion {
                 case .stance: 0
                 case .load: rig.playbackTime ?? 0
-                case .swing: rig.swingClipTime ?? HomerunBatterMotion.loadDuration
+                case .swing, .whiffGag: rig.swingClipTime ?? HomerunBatterMotion.loadDuration
                 }
-                let bat = HomerunBatPath.segment(atClipTime: clip)
+                let bat = gag.map { HomerunFigureShadow.whiffGagBat(clipTime: $0.clip, turn: $0.turn) } ?? HomerunBatPath.segment(atClipTime: clip)
                 let turn = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
                 let strip = HomerunFigureShadow.bat(grip: batterOrigin + turn.act(bat.grip), tip: batterOrigin + turn.act(bat.tip), camera: eye)
                 s.position = strip.center
@@ -487,6 +497,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             reused.coordinator.batterSlide = nil
             updateUIView(reused.view, context: context)
             subscribeFirstFrame(reused.view, reused.coordinator)
+            Self.subscribeWhiffGag(reused.view, reused.coordinator)
             return reused.view
         }
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
@@ -547,6 +558,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.camera = camera
         view.scene.addAnchor(anchor)
         subscribeFirstFrame(view, context.coordinator)
+        Self.subscribeWhiffGag(view, context.coordinator)
         Self.reusable = (view, context.coordinator)
         return view
     }
@@ -569,10 +581,28 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         }
     }
 
+    /// 空振りの演出（#1681）の間、毎コマ（描画の更新ごと）に体全体の回転・傾き、ぐるぐる目・星、影を置き直す。結果のカードが
+    /// 出た後は SwiftUI の `TimelineView` が止まり `updateUIView` が呼ばれないので、描画の更新で動かす。演出でなければ何もしない。
+    private static func subscribeWhiffGag(_ view: ARView, _ coordinator: Coordinator) {
+        coordinator.whiffGagUpdates?.cancel()
+        coordinator.whiffGagUpdates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak coordinator] _ in
+            MainActor.assumeIsolated {
+                guard let coordinator, let rig = coordinator.batterRig, rig.isWhiffGag, let camera = coordinator.camera else { return }
+                let now = Date()
+                rig.tick(now: now)
+                rig.applyWhiffGag(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                placeFigureShadows(coordinator, batterOrigin: rig.entity.position, camera: camera)
+            }
+        }
+    }
+
     /// 画面から外れたら合図の待ちを止める（`ARView` と打者などの実体は控えに残す）。
     static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
         coordinator.updates?.cancel()
         coordinator.updates = nil
+        // 空振りの演出の購読も止める（使い回すときは `makeUIView` で張り直す）。
+        coordinator.whiffGagUpdates?.cancel()
+        coordinator.whiffGagUpdates = nil
     }
 
     private static func aim(_ cam: PerspectiveCamera, _ camera: HomerunAtBatLayout.Camera) {
