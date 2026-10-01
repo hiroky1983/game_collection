@@ -87,8 +87,10 @@ public struct GameServices {
     ///   - level: 難易度・段階（#500）。持たないゲームは省略し、`level` の鍵ごと送らない。
     ///   - mode: 遊び方の区分（#783・#820。値の全量は `AnalyticsMode`）。持たないゲームは省略。
     @MainActor
-    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
-        analytics?.startPlay(gameID: gameID, level: level, mode: mode)
+    public func gameDidStart(
+        gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil, credit: AnalyticsCredit? = nil
+    ) {
+        analytics?.startPlay(gameID: gameID, level: level, mode: mode, credit: credit)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
@@ -97,8 +99,10 @@ public struct GameServices {
     ///
     /// 前のプレイが未決着のまま捨てられていれば、始め直す前に `game_end`（`quit`）が出る（#500）。
     @MainActor
-    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
-        analytics?.restartPlay(gameID: gameID, level: level, mode: mode)
+    public func gameDidRestart(
+        gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil, credit: AnalyticsCredit? = nil
+    ) {
+        analytics?.restartPlay(gameID: gameID, level: level, mode: mode, credit: credit)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 

@@ -1152,7 +1152,7 @@ struct RunnerEndlessModelTests {
         model.newEndlessGame(seed: 1)
         model.newGame(mode: .stages)
         let starts = spy.events.compactMap { event -> (level: String?, mode: String?)? in
-            if case let .gameStart(_, level, mode, _) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
+            if case let .gameStart(_, level, mode, _, _) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
         }
         #expect(starts.map(\.mode) == ["stage", "endless", "stage"])
         #expect(starts.map(\.level) == ["stage-3", nil, "stage-1"])
@@ -1177,7 +1177,7 @@ struct RunnerEndlessModelTests {
         let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("endless-analytics-end"))
         func ends() -> [(result: AnalyticsResult, mode: AnalyticsMode?, cause: AnalyticsEndCause?)] {
             spy.events.compactMap { event in
-                if case let .gameEnd(_, result, _, mode, cause, _) = event { return (result, mode, cause) } else { return nil }
+                if case let .gameEnd(_, result, _, mode, cause, _, _) = event { return (result, mode, cause) } else { return nil }
             }
         }
         model.newEndlessGame(seed: 1)

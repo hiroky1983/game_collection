@@ -357,8 +357,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
-| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326) |
+| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326)、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
@@ -386,6 +386,12 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   いまはチャリンコおじさんだけが送る。ステージ制ではミスは決着ではなく `game_end` はクリア（win）か
   途中離脱（quit）でしか出ないので、「何にやられて諦めたか」＝離脱直前の死因として読む。
   GA4 のカスタムディメンション登録が要る（会長操作）
+- `credit`（`AnalyticsCredit`・#1685・会長指示 2026-10-01）は**そのプレイが消費した回数枠**（`free` 無料 / `survey` アンケート /
+  `ad` 広告 / `bonus` 月を落としたご褒美）。柵越えおじさんだけが `game_start` と `game_end` の両方に載せ（枠ごとの回数・遊んだ時間を
+  出すため）、イベントは増やさない。**枠の使う順は固定で 無料 → ご褒美 → アンケート → 広告**（`HomerunLedger.nextCredit`・
+  使った回数と今の付与だけから決まり、保存の形は変えない。もらった順ではないので、無料を使い切る前の遊びは「広告を見て遊んだ」に
+  数えない）。DEBUG の `-homerunUnlimited`（回数を使わない）では載せない。回数制でないゲームは鍵ごと送らない。
+  GA4 で枠別に見るには**カスタムディメンション `credit`（イベントスコープ）の登録が要る**（会長操作）。
 - `hints_used`（#1326）は**そのプレイで使った無料ヒントの回数**（1〜3）。将棋・チェス・五目並べの3本だけが送る。
   各 Model が `BoardHintBudget.consume()` の成功ごとに `gameDidUseHint` を呼び、`GameAnalytics` が進行中の
   プレイに覚えて `game_end` に載せる。**送信は `sendEnd` の1か所**なので、決着（`finishPlay`）でも
