@@ -265,7 +265,10 @@ public final class HomerunModel {
         guard phase == .idle || phase == .finished else { return false }
         refreshDay(now: now)
         let debug = HomerunDebugOverrides.current(defaults)
+        // 消費した枠（#1685）。DEBUG の回数無制限（`-homerunUnlimited`）では台帳を使わないので載せない。
+        var credit: AnalyticsCredit?
         if !debug.unlimited {
+            credit = ledger.nextCredit.map(Self.analyticsCredit)
             guard ledger.consume() else {
                 showsExhausted = true
                 return false
@@ -280,14 +283,23 @@ public final class HomerunModel {
         whiffCount = 0
         beginPitch(now: now)
         if hasCountedStart {
-            services?.gameDidRestart(gameID: Self.gameID)
+            services?.gameDidRestart(gameID: Self.gameID, credit: credit)
         } else {
-            services?.gameDidStart(gameID: Self.gameID)
+            services?.gameDidStart(gameID: Self.gameID, credit: credit)
             hasCountedStart = true
         }
         // 1 挑戦は途中から戻せない（中断データを持たない）。画面を離れたら休憩ではなく離脱として数える。
         services?.gameWillNotResume(gameID: Self.gameID)
         return true
+    }
+
+    private static func analyticsCredit(_ credit: HomerunLedger.Credit) -> AnalyticsCredit {
+        switch credit {
+        case .free:   return .free
+        case .bonus:  return .bonus
+        case .survey: return .survey
+        case .ad:     return .ad
+        }
     }
 
     /// 打席の画面（3D）が描き始めたときに View が 1 回呼ぶ。1 球目のマシンの込める動きを今から数え直す（打席の 3D を作って

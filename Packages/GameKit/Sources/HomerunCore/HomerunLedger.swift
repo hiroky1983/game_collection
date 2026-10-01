@@ -9,6 +9,11 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
     /// 月が割れたとき（#1680）のプレゼント。当日分として足す（0:00 で消える）。1 日の全体の上限は無い（会長決裁 2026-10-01）。
     public static let moonBonus = 2
 
+    /// 消費する枠の種別（#1685）。
+    public enum Credit: Equatable, Sendable {
+        case free, bonus, survey, ad
+    }
+
     /// 台帳が属する日（`yyyyMMdd`）。
     public private(set) var dayKey: Int
     public private(set) var used: Int
@@ -46,6 +51,22 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
     public var canStart: Bool { remaining > 0 }
     public var canWatchAd: Bool { adsWatched < Self.adLimitPerDay }
     public var canDoSurvey: Bool { !surveyDone }
+
+    /// 次に打席に立つと消費する枠（#1685）。回数が無ければ nil。
+    ///
+    /// **使う順は固定**（無料 → ご褒美 → アンケート → 広告）で、もらった順ではない。無料を先に使うので、
+    /// 「広告を見て遊んだ」と数えられるのは無料・ご褒美・アンケートを使い切った後の 1 回だけになる。
+    /// 使った回数 `used` と今の付与だけから決まるので、保存の形は変えない。
+    public var nextCredit: Credit? {
+        guard canStart else { return nil }
+        var rest = used
+        for (credit, size) in [(Credit.free, Self.freePerDay), (.bonus, bonus),
+                               (.survey, surveyDone ? Self.surveyBonus : 0)] {
+            if rest < size { return credit }
+            rest -= size
+        }
+        return .ad
+    }
 
     /// 打席に立つ。回数が無ければ false（消費しない）。
     @discardableResult

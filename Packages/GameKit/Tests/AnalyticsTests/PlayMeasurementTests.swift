@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -96,8 +96,8 @@ struct QuitTrackingTests {
 
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
-            case let .gameStart(_, _, mode, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _): return ("end", mode)
+            case let .gameStart(_, _, mode, _, _):     return ("start", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _): return ("end", mode)
             default:                             return nil
             }
         }

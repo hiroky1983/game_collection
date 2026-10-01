@@ -973,12 +973,12 @@ struct RunnerStageFlowTests {
 
         func starts() -> [String] {
             spy.events.compactMap { event -> String? in
-                if case let .gameStart(_, level, _, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+                if case let .gameStart(_, level, _, _, _) = event { return level?.parameterValue ?? "-" } else { return nil }
             }
         }
         func ends() -> [AnalyticsResult] {
             spy.events.compactMap { event -> AnalyticsResult? in
-                if case let .gameEnd(_, result, _, _, _, _) = event { return result } else { return nil }
+                if case let .gameEnd(_, result, _, _, _, _, _) = event { return result } else { return nil }
             }
         }
 
@@ -1038,19 +1038,19 @@ struct RunnerPlayCountTests {
 
     private func starts(_ spy: SpyAnalyticsService) -> [String] {
         spy.events.compactMap { event -> String? in
-            if case let .gameStart(_, level, _, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+            if case let .gameStart(_, level, _, _, _) = event { return level?.parameterValue ?? "-" } else { return nil }
         }
     }
 
     private func ends(_ spy: SpyAnalyticsService) -> [AnalyticsResult] {
         spy.events.compactMap { event -> AnalyticsResult? in
-            if case let .gameEnd(_, result, _, _, _, _) = event { return result } else { return nil }
+            if case let .gameEnd(_, result, _, _, _, _, _) = event { return result } else { return nil }
         }
     }
 
     private func durations(_ spy: SpyAnalyticsService) -> [Int] {
         spy.events.compactMap { event -> Int? in
-            if case let .gameEnd(_, _, seconds, _, _, _) = event { return seconds } else { return nil }
+            if case let .gameEnd(_, _, seconds, _, _, _, _) = event { return seconds } else { return nil }
         }
     }
 
