@@ -169,7 +169,7 @@ struct HomerunSwingContactTests {
 
     @Test("離した瞬間に振り始め（振り抜きの途中のコマから）、合わせ直さない（#1594）")
     func motionAfterRelease() {
-        let ball = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
+        let ball = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 9))
         for offset in [-300.0, -110, -60, -25, 0, 25, 60, 110, 300] {
             let release = arrival.addingTimeInterval(offset / 1000)
             let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), lastBall: ball)
@@ -252,7 +252,7 @@ struct HomerunSwingContactTests {
 
     @Test("当たり: 離した瞬間の球の位置から、バットが打点に来る時刻に打点（バットの上面）へ寄せ、判定の方向へ飛び出す")
     func battedBall() {
-        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
+        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 9))
         #expect(center.kind == .homer)
         let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: arrival, offset: 0), lastBall: center)
         let pitching = HomerunSwingPlan(phase: .pitching, clock: clock(pressedAt: t0), lastBall: nil)
@@ -267,7 +267,7 @@ struct HomerunSwingContactTests {
         // （振り抜きの前半を速めに流すぶん、線の上の球より最大 0.3m ほど手前で待つ）。
         let earlyPlan = HomerunSwingPlan(phase: .ballResult,
                                          clock: clock(pressedAt: t0, releasedAt: arrival.addingTimeInterval(-0.06), offset: -60),
-                                         lastBall: HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: 0, cursorDY: 22)))
+                                         lastBall: HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: 0, cursorDY: 9)))
         let earlyHitAt = HomerunSwingContact.contactShownTime(release: arrival.addingTimeInterval(-0.06), offsetMilliseconds: -60, column: 0)
         for dt in stride(from: -0.06, through: earlyHitAt.timeIntervalSince(arrival), by: 0.005) {
             let now = arrival.addingTimeInterval(dt)
@@ -279,15 +279,15 @@ struct HomerunSwingContactTests {
         #expect(simd_distance(c, HomerunSwingContact.contactPoint(column: 0, offsetMilliseconds: 0)) < 1e-5)
         let later = try! #require(plan.ballPosition(at: hitAt.addingTimeInterval(0.3)))
         #expect(later.z > c.z + 5 && later.y > c.y, "中堅へ上向きに飛ぶ \(later)")
-        let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 22))
+        let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 9))
         #expect(pull.direction < -20)
         let v = HomerunBallFlight.battedVelocity(pull)
         #expect(v.x > 0 && v.z > 0 && v.y > 0, "引っ張りは打者の立つ +x（三塁側・レフト）へ \(v)")
-        let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 22))
+        let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 9))
         #expect(HomerunBallFlight.battedVelocity(push).x < 0, "流しは -x（一塁側・ライト）へ")
         // 柵越えの初速は 35〜45m/s、ファウルは 28m/s。
         #expect(simd_length(HomerunBallFlight.battedVelocity(center)) > 35 && simd_length(HomerunBallFlight.battedVelocity(center)) < 45)
-        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: 22))
+        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: 9))
         #expect(foul.kind == .foul && abs(simd_length(HomerunBallFlight.battedVelocity(foul)) - 28) < 1e-3)
         // 空振り（照準を外した）は打点に寄せず、投球の線のままミットへ。
         let whiff = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 40, cursorDY: 0))
@@ -304,8 +304,8 @@ struct HomerunSwingContactTests {
     @Test("打席の 3D の打球: 引っ張りは打者の立つ側（三塁側）へ・流しは反対側へ、前・後ろどちらのカメラの画面でも飛ぶ")
     func battedBallGoesToTheJudgedFieldOnScreen() {
         typealias L = HomerunAtBatLayout
-        let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 22))
-        let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 22))
+        let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 9))
+        let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 9))
         #expect(pull.direction < -20 && push.direction > 20 && pull.kind != .foul && push.kind != .foul)
         for preset in L.CameraPreset.allCases {
             let cam = preset.camera
@@ -344,7 +344,7 @@ struct HomerunSwingContactTests {
         for column in -1...1 {
             for offset in [-110.0, -60, 0, 60, 110] {
                 let release = arrival.addingTimeInterval(offset / 1000)
-                let ball = HomerunJudge.judge(HomerunSwing(timingOffset: offset, cursorDX: 0, cursorDY: 22))
+                let ball = HomerunJudge.judge(HomerunSwing(timingOffset: offset, cursorDX: 0, cursorDY: 9))
                 let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: 4 + column, pressedAt: t0, releasedAt: release, offset: offset),
                                             lastBall: ball)
                 guard case .swing(let start, let catchUpFrom) = plan.batterMotion(at: release) else { Issue.record("振っていない"); continue }
@@ -378,7 +378,7 @@ struct HomerunSwingContactTests {
         let touching = HomerunBatPath.barrelRadius + HomerunSwingContact.ballRadius
         for offset in [-300.0, -150, -111, 111, 150, 300] {
             let release = arrival.addingTimeInterval(offset / 1000)
-            let miss = HomerunJudge.judge(HomerunSwing(timingOffset: offset, cursorDX: 0, cursorDY: 22))
+            let miss = HomerunJudge.judge(HomerunSwing(timingOffset: offset, cursorDX: 0, cursorDY: 9))
             #expect(miss.kind == .miss)
             let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), lastBall: miss)
             guard case .swing(let start, let catchUpFrom) = plan.batterMotion(at: release) else { Issue.record("振っていない"); continue }

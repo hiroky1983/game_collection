@@ -34,20 +34,66 @@ struct HomerunJudgeTests {
         #expect(HomerunLaunch(cursorDY: -100) == .grounder)
         #expect(HomerunLaunch(cursorDY: -11.01) == .grounder)
         #expect(HomerunLaunch(cursorDY: -11) == .liner)
-        #expect(HomerunLaunch(cursorDY: 10.99) == .liner)
-        #expect(HomerunLaunch(cursorDY: 11) == .fly)
-        #expect(HomerunLaunch(cursorDY: 32.99) == .fly)
-        #expect(HomerunLaunch(cursorDY: 33) == .pop)
+        #expect(HomerunLaunch(cursorDY: 4.99) == .liner)
+        #expect(HomerunLaunch(cursorDY: 5) == .fly)
+        #expect(HomerunLaunch(cursorDY: 24.99) == .fly)
+        #expect(HomerunLaunch(cursorDY: 25) == .pop)
         #expect(HomerunLaunch(cursorDY: 500) == .pop)
     }
 
-    @Test("打ち出し角は帯の境目でつながる（0〜10 / 10〜25 / 25〜35 / 35〜）")
+    @Test("打ち出し角は帯の境目でつながる（0〜10 / 10〜25 / 25〜35 / 35〜55）")
     func launchAngles() {
         #expect(abs(HomerunLaunch.angle(cursorDY: -33) - 0) < 1e-9)
         #expect(abs(HomerunLaunch.angle(cursorDY: -11) - 10) < 1e-9)
-        #expect(abs(HomerunLaunch.angle(cursorDY: 11) - 25) < 1e-9)
-        #expect(abs(HomerunLaunch.angle(cursorDY: 33) - 35) < 1e-9)
+        #expect(abs(HomerunLaunch.angle(cursorDY: 5) - 25) < 1e-9)
+        #expect(abs(HomerunLaunch.angle(cursorDY: 25) - 35) < 1e-9)
+        #expect(abs(HomerunLaunch.angle(cursorDY: 47) - 55) < 1e-9)
         #expect(HomerunLaunch.angle(cursorDY: 1000) <= 55)
+    }
+
+    @Test("下で当てるほど打球角度が上がる（縦のずれに対して打ち出し角も帯も単調に増える・#1647）")
+    func lowerContactLaunchesHigher() {
+        var previousAngle = -Double.infinity
+        var previousBand = HomerunLaunch.grounder
+        for dy in stride(from: -40.0, through: 60, by: 0.5) {
+            let angle = HomerunLaunch.angle(cursorDY: dy)
+            let band = HomerunLaunch(cursorDY: dy)
+            #expect(angle >= previousAngle, "dy \(dy)")
+            #expect(band.rawValue >= previousBand.rawValue, "dy \(dy)")
+            previousAngle = angle
+            previousBand = band
+        }
+        // 当たり判定の円の中（-29〜+29pt）で、上からゴロ → ライナー → フライ → ポップが全部出る
+        #expect(HomerunLaunch.angle(cursorDY: 10) > HomerunLaunch.angle(cursorDY: 0))
+        #expect(HomerunLaunch(cursorDY: -20) == .grounder && HomerunLaunch(cursorDY: 28) == .pop)
+    }
+
+    @Test("芯の円の内側の下寄り（ボールが内側の円の上寄りにかかる）で当てるとフライで柵越えの距離に届く（#1647）")
+    func lowerInsideCoreReachesHomerDistance() {
+        // フライの芯の基準点は芯の円の内側
+        #expect(HomerunLaunch.fly.centerDY > 0 && HomerunLaunch.fly.centerDY < HomerunJudge.coreRadius)
+        // ジャスト・センター: 縦のずれ 5〜11pt（芯の円の上寄り）は全部フライで柵越え
+        for dy in stride(from: 5.0, through: HomerunJudge.coreRadius, by: 0.5) {
+            let ball = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: dy))
+            #expect(ball.launch == .fly, "dy \(dy)")
+            #expect(ball.kind == .homer, "dy \(dy)")
+        }
+        // 最も飛ぶのは芯の円の内側（以前は 22pt = 芯の円の外だった）
+        var best = (dy: 0.0, distance: 0.0)
+        for dy in stride(from: -29.0, through: 29, by: 0.5) {
+            let d = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: dy)).distance
+            if d > best.distance { best = (dy, d) }
+        }
+        #expect(best.dy > 0 && best.dy < HomerunJudge.coreRadius, "最長 \(best)")
+        // ナイス・当たりのタイミングでも、芯の円の上寄り（9pt）なら中堅の柵を越える
+        func centered(_ t: Double, dy: Double) -> HomerunBattedBall {
+            HomerunJudge.judge(HomerunSwing(timingOffset: t, cursorDX: -(t / 110 * 15) / 35 * 11, cursorDY: dy))
+        }
+        #expect(centered(40, dy: 9).kind == .homer)
+        #expect(centered(80, dy: 9).kind == .homer)
+        // 真芯（ずれ 0）はライナーの強い当たり
+        let straight = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 0))
+        #expect(straight.launch == .liner && straight.distance == 140)
     }
 
     @Test("飛距離の係数はゴロ 0.3・ライナー 1.0・フライ 1.15・ポップ 0.5")
@@ -192,8 +238,8 @@ struct HomerunJudgeTests {
     @Test("柵の一歩手前（6m 以内）はフェンス直撃")
     func fenceHit() {
         // ナイス（40ms）× ライナーは方向を +5.45° 動かすので、dx で打ち消して中堅（柵 122m）に戻す。
-        // 縦にも 5pt ずらすと芯は約 0.95 に下がり、125m × 0.95 ≈ 119m で 116〜122m に入る = 柵の 6m 手前以内。
-        let near = HomerunJudge.judge(swing(t: 40, dx: -(40.0 / 110 * 15) / 35 * 11, band: .liner, dy: 5))
+        // 縦に上へ 5pt ずらすと芯は約 0.95 に下がり、125m × 0.95 ≈ 119m で 116〜122m に入る = 柵の 6m 手前以内。
+        let near = HomerunJudge.judge(swing(t: 40, dx: -(40.0 / 110 * 15) / 35 * 11, band: .liner, dy: -5))
         #expect(abs(near.direction) < 1e-9)
         #expect(near.distance > 116 && near.distance < 122)
         #expect(near.kind == .fenceHit)
@@ -236,23 +282,23 @@ struct HomerunJudgeTests {
         return (rate([.just]), rate([.nice]), rate([.hit]), rate([.just, .nice, .hit]), Double(fouls) / Double(all) * 100)
     }
 
-    @Test("柵越え率（#1594 会長 QA）: ジャスト 70〜80%・ナイス 35〜45%・当たり 5〜10%・全体 35〜45%・ファウルは 12% 以下")
+    @Test("柵越え率（#1594 会長 QA）: ジャスト 70〜80%・ナイス 45〜55%（#1647 でフライの芯を照準の円の内側へ寄せて約 50%）・当たり 5〜10%・全体 35〜45%・ファウルは 12% 以下")
     func homerRatesStayInTarget() {
         let r = homerRates()
         #expect((70...80).contains(r.just), "ジャスト \(r.just)%")
-        #expect((35...45).contains(r.nice), "ナイス \(r.nice)%")
+        #expect((45...55).contains(r.nice), "ナイス \(r.nice)%")
         #expect((5...10).contains(r.hit), "当たり \(r.hit)%")
         #expect((35...45).contains(r.all), "全体 \(r.all)%")
         #expect(r.foul <= 12, "ファウル \(r.foul)%")
     }
 
-    @Test("柵越えの飛距離は最長でもジャスト × フライの帯の中心（161m）まで。ゴロ・ポップは柵越えにならない")
+    @Test("柵越えの飛距離は最長でもジャスト × フライの芯の基準点（161m）まで。ゴロ・ポップは柵越えにならない")
     func homerDistanceStaysPlausible() {
         var longest = 0.0
         var homerBands: Set<HomerunLaunch> = []
         for t in stride(from: -110.0, through: 110, by: 5) {
             for dx in stride(from: -30.0, through: 30, by: 2) {
-                for dy in stride(from: -52.0, through: 74, by: 2) {
+                for dy in stride(from: -51.0, through: 75, by: 2) {
                     let ball = HomerunJudge.judge(HomerunSwing(timingOffset: t, cursorDX: dx, cursorDY: dy))
                     longest = max(longest, ball.distance)
                     if ball.kind == .homer, let launch = ball.launch { homerBands.insert(launch) }
