@@ -43,6 +43,11 @@ struct HomerunModuleTests {
         let banner = try #require(atBat.range(of: "BannerSlot(ads: ads)"))
         let hud = try #require(atBat.range(of: "topHUD\n"))
         #expect(banner.lowerBound < hud.lowerBound, "バナーは HUD の上")
+        // バナーで下がった方向メーターより、輪・カーソル（ゾーン）を上の層に描く。結果のカードはゾーンより上の層。
+        let zoneLayer = try #require(atBat.range(of: "HomerunZoneCanvas(\n"))
+        let card = try #require(atBat.range(of: "HomerunBallResultCard(ball:"))
+        #expect(hud.lowerBound < zoneLayer.lowerBound && zoneLayer.lowerBound < card.lowerBound,
+                "HUD・メーター → ゾーン → 結果のカード の順に重ねる")
         let pad = try #require(atBat.range(of: "private func touchPad("))
         #expect(banner.lowerBound < pad.lowerBound && !atBat[pad.lowerBound...].contains("BannerSlot("),
                 "押せる帯にバナーを重ねない")

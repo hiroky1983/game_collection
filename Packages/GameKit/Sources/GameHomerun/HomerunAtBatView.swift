@@ -74,6 +74,22 @@ struct HomerunAtBatView: View {
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
                                          onFirstFrame: { model.atBatDidAppear(now: Date()) })
+                    // 上から バナー → HUD → 方向メーター の順に積む（#1696。バナーの下に並べるので重ならない）。
+                    // ゾーンより先に（下の層に）描く: SE ではバナーのぶん方向メーターがゾーンの右上に近づくので、
+                    // 縮み始めの輪や端まで寄せたカーソルがメーターに掛かっても、輪・カーソルの方を上に見せる。
+                    VStack(spacing: 8) {
+                        BannerSlot(ads: ads)
+                        VStack(spacing: 8) {
+                            topHUD
+                            HStack(alignment: .top) {
+                                Spacer()
+                                if model.phase == .pitching, model.showsDirectionMeter {
+                                    HomerunDirectionMeter(swing: model.previewSwing(at: now))
+                                }
+                            }
+                        }
+                        .padding(.horizontal, Theme.pad)
+                    }
                     // 打球を追っている間は、ゾーン・的・カーソルを出さない。
                     if chase == nil {
                         HomerunZoneCanvas(
@@ -88,27 +104,18 @@ struct HomerunAtBatView: View {
                         .accessibilityElement()
                         .accessibilityLabel(zoneLabel)
                     }
-                    // 上から バナー → HUD → 方向メーター / 結果のカード の順に積む（#1696。バナーの下に並べるので重ならない）。
-                    VStack(spacing: 8) {
-                        BannerSlot(ads: ads)
+                    // 結果のカードは打席の打球を見せ終えてから出す（先に出すと打者に重なってスイングが隠れる・試作）。
+                    // バナーと HUD のすぐ下に置く（同じ高さの見えない枠で押し下げる）。以前は画面の高さの 20% 下げていたが、
+                    // バナーのぶん下がると SE で押せる帯に掛かる（#1696）。ゾーン・カーソルより上の層。
+                    if model.phase == .ballResult, swingShown, let ball = model.lastBall {
                         VStack(spacing: 8) {
-                            topHUD
-                            HStack(alignment: .top) {
-                                Spacer()
-                                if model.phase == .pitching, model.showsDirectionMeter {
-                                    HomerunDirectionMeter(swing: model.previewSwing(at: now))
-                                }
-                            }
-                        }
-                        .padding(.horizontal, Theme.pad)
-                        // 結果のカードは打席の打球を見せ終えてから出す（先に出すと打者に重なってスイングが隠れる・試作）。
-                        // HUD のすぐ下に置く（以前は画面の高さの 20% 下げていたが、バナーのぶん下がると SE で押せる帯に掛かる）。
-                        if model.phase == .ballResult, swingShown, let ball = model.lastBall {
+                            Color.clear.frame(height: BannerSlot.height)
+                            topHUD.hidden().padding(.horizontal, Theme.pad)
                             HomerunBallResultCard(ball: ball, number: model.pitchNumber, tookPitch: !model.didSwingLastBall,
                                                   missNote: Self.missNote(didSwing: model.didSwingLastBall, reason: model.lastMissReason))
                                 .padding(.horizontal, Theme.pad)
-                                .transition(.scale(scale: 0.9).combined(with: .opacity))
                         }
+                        .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)
