@@ -150,10 +150,10 @@ struct HomerunGeometryTests {
 
     @Test("内訳の呼び名と結果の一言")
     func summary() {
-        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 22))
-        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 22))
+        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 9))
+        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 9))
         let miss = HomerunJudge.judge(nil)
-        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
+        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 9))
         #expect(homerLeft.kind == .homer && homerLeft.direction < -7)
         #expect(foul.kind == .foul)
         #expect(HomerunText.place(homerLeft) == HomerunSector(direction: homerLeft.direction).label)
@@ -172,7 +172,7 @@ struct HomerunGeometryTests {
         let left = HomerunSprayGeometry.point(direction: -45, distance: 100)
         #expect(left.x < 0 && left.y < 0)
         #expect(HomerunSprayGeometry.mark(for: HomerunJudge.judge(nil)) == .zero)
-        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 22))
+        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 9))
         let fp = HomerunSprayGeometry.mark(for: foul)
         #expect(fp.x < 0, "引っ張りのファウルは左側")
         #expect(abs(atan2(fp.x, -fp.y) * 180 / .pi) > 45, "ファウルラインの外")

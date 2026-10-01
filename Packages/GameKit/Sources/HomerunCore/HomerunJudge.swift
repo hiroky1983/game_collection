@@ -45,19 +45,35 @@ public enum HomerunTiming: Int, Codable, Equatable, Sendable {
 public enum HomerunLaunch: Int, Codable, Equatable, Sendable {
     case grounder = 0, liner = 1, fly = 2, pop = 3
 
-    /// 帯の幅（pt）。ゾーンの 1/4。
+    /// 帯の幅（pt）。ゾーンの 1/4（ゾーンの寸法の基準。縦の帯の境目は下の `linerFloor` 〜 `popFloor`）。
     public static let bandWidth = 22.0
 
+    /// 帯の境目（ボールの中心からカーソルまでの縦のずれ・pt・下が正）。ここ以上がその帯。
+    /// #1647 会長 QA: 以前はフライが 11〜33pt（芯の基準点 22pt = 芯の円の外）で、ボールのかなり下を叩かないと
+    /// 最も飛ばなかった。フライを 5〜25pt・芯の基準点 9pt（ボールが芯の円の上寄りにかかる位置）に寄せた。
+    public static let linerFloor = -bandWidth / 2
+    public static let flyFloor = 5.0
+    public static let popFloor = 25.0
+
     /// `dy`: ボールの中心からカーソルまでの縦のずれ（pt・下が正）。境界は角度の大きい方の帯に入れる。
+    /// 下で当てるほど（dy が大きいほど）角度の大きい帯になる（ゴロ → ライナー → フライ → ポップ）。
     public init(cursorDY dy: Double) {
-        if dy < -Self.bandWidth / 2 { self = .grounder }
-        else if dy < Self.bandWidth / 2 { self = .liner }
-        else if dy < Self.bandWidth * 1.5 { self = .fly }
+        if dy < Self.linerFloor { self = .grounder }
+        else if dy < Self.flyFloor { self = .liner }
+        else if dy < Self.popFloor { self = .fly }
         else { self = .pop }
     }
 
-    /// 帯の中心の高さ（ボールの中心から・pt・下が正）。ライナーがボールの高さ。
-    public var centerDY: Double { Double(rawValue - 1) * Self.bandWidth }
+    /// 芯の基準点の高さ（ボールの中心から・pt・下が正）。芯の係数はここからの距離で決まる（ここで 1.0）。
+    /// ライナーがボールの高さ・フライは芯の円の少し内側（#1647）。ゴロ・ポップは帯の外側の境目から帯の幅の半分。
+    public var centerDY: Double {
+        switch self {
+        case .grounder: Self.linerFloor - Self.bandWidth / 2
+        case .liner: 0
+        case .fly: 9
+        case .pop: Self.popFloor + Self.bandWidth / 2
+        }
+    }
 
     /// 飛距離の係数。帯の中では一定（補間しない）。#1594 でライナー 0.85 → 1.0・フライ 1.0 → 1.15（柵越えを出やすく）。
     public var distanceFactor: Double {
@@ -70,14 +86,16 @@ public enum HomerunLaunch: Int, Codable, Equatable, Sendable {
     }
 
     /// 弧の見た目に使う打ち出し角（度）。帯の中は線形に補間する（判定には使わない）。
+    /// ゴロ・ポップは帯の幅 1 つぶんで 0° / 55° に届き、その外は打ち止め。
     public static func angle(cursorDY dy: Double) -> Double {
         let w = bandWidth
-        let clamped = min(max(dy, -1.5 * w), 2.5 * w)
+        let low = linerFloor - w, high = popFloor + w
+        let clamped = min(max(dy, low), high)
         switch HomerunLaunch(cursorDY: clamped) {
-        case .grounder: return 10 * (clamped + 1.5 * w) / w
-        case .liner: return 10 + 15 * (clamped + w / 2) / w
-        case .fly: return 25 + 10 * (clamped - w / 2) / w
-        case .pop: return 35 + 20 * (clamped - 1.5 * w) / w
+        case .grounder: return 10 * (clamped - low) / w
+        case .liner: return 10 + 15 * (clamped - linerFloor) / (flyFloor - linerFloor)
+        case .fly: return 25 + 10 * (clamped - flyFloor) / (popFloor - flyFloor)
+        case .pop: return 35 + 20 * (clamped - popFloor) / w
         }
     }
 }
@@ -148,7 +166,7 @@ public enum HomerunJudge {
     public static let foulLimit = 45.0
     /// カーソルの横のずれがこの値で最大の 35° になる（pt）。
     public static let fullDeflection = 11.0
-    /// 芯の半径（pt・ゾーンの 1/8）。帯の中心から数えて、ここで係数 `coreEdgeFactor`。
+    /// 芯の半径（pt・ゾーンの 1/8）。帯の芯の基準点（`HomerunLaunch.centerDY`）から数えて、ここで係数 `coreEdgeFactor`。
     public static let coreRadius = 11.0
     /// 芯の半径（`coreRadius`）での芯の係数（#1594 で 0.8 → 0.9）。
     public static let coreEdgeFactor = 0.9
@@ -165,9 +183,9 @@ public enum HomerunJudge {
         100 + 22 * cos(2 * degrees * .pi / 180)
     }
 
-    /// 芯の係数。`d` は「カーソルが入った角度の帯の中心」からカーソルまでの距離（pt）。
+    /// 芯の係数。`d` は「カーソルが入った角度の帯の芯の基準点（`centerDY`）」からカーソルまでの距離（pt）。
     /// 中心で 1.0・芯の半径で `coreEdgeFactor`・当たり判定の半径（`contactRadius`）で `edgeFactor`（それぞれ線形）・その外は 0（空振り）。
-    /// 帯の中心から測るのは、帯の幅（22pt）が芯の直径と同じで、ボール中心から測ると柵越えの帯（少し下）が常に芯の縁の係数以下になるため。
+    /// 基準点から測るのは、帯の幅が芯の直径と同じくらいで、ボール中心から測ると柵越えの帯（少し下）が常に芯の縁の係数以下になるため。
     public static func core(distanceFromBandCenter d: Double, abilities: HomerunAbilities = .standard) -> Double {
         let meet = max(abilities.meet, 0.01)
         let radius = coreRadius * meet
