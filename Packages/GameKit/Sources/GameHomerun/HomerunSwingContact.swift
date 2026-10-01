@@ -213,14 +213,16 @@ enum HomerunBallFlight {
         (releasePoint.z - HomerunSwingContact.approachTarget(column: column).z) / (Float(HomerunPitch.travelMilliseconds) / 1000)
     }
 
-    /// 投球中の球の位置。的が出る `pitchStart` に打ち出し口を出て、`arrival` に `approachTarget` へ着き、その後も同じ速さで進む。
+    /// 投球中の球の位置。的が出る `pitchStart` に打ち出し口を出て、`arrival` に `target`（省略時は `approachTarget`・
+    /// 画面では `HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点）へ着き、その後も同じ向き・速さで進む。
     /// 的が出る前・ミットに入った後は nil。
-    static func pitchPosition(at now: Date, pitchStart: Date, arrival: Date, column: Int) -> SIMD3<Float>? {
+    static func pitchPosition(at now: Date, pitchStart: Date, arrival: Date, column: Int,
+                              target: SIMD3<Float>? = nil) -> SIMD3<Float>? {
         let travel = arrival.timeIntervalSince(pitchStart)
         guard travel > 0 else { return nil }
         let k = Float(now.timeIntervalSince(pitchStart) / travel)
         guard k >= 0 else { return nil }
-        let target = HomerunSwingContact.approachTarget(column: column)
+        let target = target ?? HomerunSwingContact.approachTarget(column: column)
         let p = releasePoint + (target - releasePoint) * k
         return p.z < mittZ ? nil : p
     }
@@ -229,7 +231,8 @@ enum HomerunBallFlight {
     /// 速さは飛距離が出る初速（空気抵抗なし）。ファウルは 28m/s の固定。
     /// 引っ張り（負 = レフト = 右打者の立つ三塁側）は x の `pullSideX` の向きへ飛ぶ（`HomerunAtBatLayout.pullSideX`）。
     /// 以前は負を常に -x へ飛ばしていて、前のカメラでは打者（+x）と逆の側 = ライトへ飛んで見えていた（#1594 会長 QA 2026-09-30）。
-    /// 上限 50m/s: ライナー（18°）の柵越え（最長 140m・#1594）が柵の手前に落ちないように（45m/s だと 121m 止まり）。
+    /// 上限 55m/s: ライナー（18°）の柵越え（最長 147 × 最高の当たりの上乗せ ≈ 164m・#1647）が見た目でも届くように
+    /// （45m/s だと 121m・50m/s だと 150m 止まり）。
     static func battedVelocity(_ ball: HomerunBattedBall, pullSideX: Float = 1) -> SIMD3<Float> {
         let elevation: Double = switch ball.launch {
         case .grounder: 8
@@ -239,7 +242,7 @@ enum HomerunBallFlight {
         case nil: 30
         }
         let theta = elevation * .pi / 180
-        let speed: Double = ball.kind == .foul ? 28 : min(max(sqrt(ball.distance * Double(gravity) / sin(2 * theta)), 15), 50)
+        let speed: Double = ball.kind == .foul ? 28 : min(max(sqrt(ball.distance * Double(gravity) / sin(2 * theta)), 15), 55)
         let d = ball.direction * .pi / 180
         return SIMD3<Float>(Float(-sin(d) * cos(theta)) * pullSideX, Float(sin(theta)), Float(cos(d) * cos(theta))) * Float(speed)
     }
@@ -318,10 +321,14 @@ struct HomerunSwingPlan {
     }
 
     /// 3D の球の位置（世界座標・前のカメラの置き方）。見せない間は nil。`camera` は打球の左右（`HomerunAtBatLayout.pullSideX`）
-    /// にだけ使う（左右反転するカメラでは描画側が球を x について鏡映して置く）。
-    func ballPosition(at now: Date, camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.CameraPreset.front.camera) -> SIMD3<Float>? {
+    /// と、`screen`（3D を描く全画面の大きさ）があるときの投球の着く点（`HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点・#1647）
+    /// に使う（左右反転するカメラでは描画側が球を x について鏡映して置く）。`screen` が無ければ打点の上（`approachTarget`）へ着く。
+    func ballPosition(at now: Date, camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.CameraPreset.front.camera,
+                      screen: CGSize? = nil) -> SIMD3<Float>? {
         guard let clock, let ballArrival else { return nil }
-        let pitched = HomerunBallFlight.pitchPosition(at: now, pitchStart: clock.pitchStart, arrival: ballArrival, column: column)
+        let target = screen.map { HomerunAtBatLayout.pitchTarget(zone: clock.zone, camera: camera, screen: $0) }
+        let pitched = HomerunBallFlight.pitchPosition(at: now, pitchStart: clock.pitchStart, arrival: ballArrival, column: column,
+                                                      target: target)
         switch phase {
         case .pitching:
             return pitched
@@ -334,7 +341,7 @@ struct HomerunSwingPlan {
                     // バットが球の来る時刻に打点へ来るので、球はほぼ投球の線のまま着く。遅いとき（打点のコマ = 離した瞬間）は、
                     // 打点を過ぎた球をその瞬間に打点へ戻す。
                     let from = HomerunBallFlight.pitchPosition(at: release, pitchStart: clock.pitchStart, arrival: ballArrival,
-                                                               column: column) ?? contact
+                                                               column: column, target: target) ?? contact
                     let span = hitAt.timeIntervalSince(release)
                     let k = Float(span > 0 ? min(max(now.timeIntervalSince(release) / span, 0), 1) : 1)
                     return from + (contact - from) * k

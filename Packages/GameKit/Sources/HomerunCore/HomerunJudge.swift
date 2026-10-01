@@ -50,10 +50,13 @@ public enum HomerunLaunch: Int, Codable, Equatable, Sendable {
 
     /// 帯の境目（ボールの中心からカーソルまでの縦のずれ・pt・下が正）。ここ以上がその帯。
     /// #1647 会長 QA: 以前はフライが 11〜33pt（芯の基準点 22pt = 芯の円の外）で、ボールのかなり下を叩かないと
-    /// 最も飛ばなかった。フライを 5〜25pt・芯の基準点 9pt（ボールが芯の円の上寄りにかかる位置）に寄せた。
-    public static let linerFloor = -bandWidth / 2
-    public static let flyFloor = 5.0
-    public static let popFloor = 25.0
+    /// 最も飛ばなかった。PR #1649 でフライを 5〜25pt に寄せたが、まだ「下に大きく外しても柵越え」「かなり下を狙わないと
+    /// 柵越えが出ない」だった（3D の球が 2D の的と縦にずれて映っていたのが主因・`HomerunAtBatLayout.pitchTarget` で直した）。
+    /// フライを -3〜11pt（ボールの真ん中〜少し下）にし、芯の円（半径 `HomerunJudge.coreRadius` = 11pt）の外の下側は
+    /// ポップ（柵越えにならない）にした。柵越え率を保つため、ライナーをボールの上寄り（-17〜-3pt）へ広げた。
+    public static let linerFloor = -17.0
+    public static let flyFloor = -3.0
+    public static let popFloor = 11.0
 
     /// `dy`: ボールの中心からカーソルまでの縦のずれ（pt・下が正）。境界は角度の大きい方の帯に入れる。
     /// 下で当てるほど（dy が大きいほど）角度の大きい帯になる（ゴロ → ライナー → フライ → ポップ）。
@@ -65,21 +68,22 @@ public enum HomerunLaunch: Int, Codable, Equatable, Sendable {
     }
 
     /// 芯の基準点の高さ（ボールの中心から・pt・下が正）。芯の係数はここからの距離で決まる（ここで 1.0）。
-    /// ライナーがボールの高さ・フライは芯の円の少し内側（#1647）。ゴロ・ポップは帯の外側の境目から帯の幅の半分。
+    /// ライナーはボールの上寄り・フライはボールの中心の少し下（芯の円の内側・#1647）。ゴロ・ポップは帯の外側の境目から帯の幅の半分。
     public var centerDY: Double {
         switch self {
         case .grounder: Self.linerFloor - Self.bandWidth / 2
-        case .liner: 0
-        case .fly: 9
+        case .liner: -8
+        case .fly: 4
         case .pop: Self.popFloor + Self.bandWidth / 2
         }
     }
 
     /// 飛距離の係数。帯の中では一定（補間しない）。#1594 でライナー 0.85 → 1.0・フライ 1.0 → 1.15（柵越えを出やすく）。
+    /// #1647 でライナー 1.0 → 1.05（フライの帯を芯の円の中へ狭めたぶん、ナイスのライナーでも柵越えが出るように）。
     public var distanceFactor: Double {
         switch self {
         case .grounder: 0.3
-        case .liner: 1.0
+        case .liner: 1.05
         case .fly: 1.15
         case .pop: 0.5
         }
@@ -177,6 +181,23 @@ public enum HomerunJudge {
     public static let edgeFactor = 0.8
     /// 柵の手前でこの距離（m）以内なら「フェンス直撃」。
     public static let fenceHitMargin = 6.0
+    /// 最高の当たり（ジャストの真ん中 0ms × フライの芯の基準点）の飛距離（m）。会長指示 2026-10-01（#1647）で 161m（140 × 1.15）→ 約 180m。
+    /// 上乗せ（`sweetSpot`）はフライ・ジャストの窓の中・芯の円の中だけで効くので、ナイス・当たり・芯の外・ライナーの飛距離と
+    /// 柵越え率はほぼ変わらない。
+    public static let bestDistance = 180.0
+
+    /// 最高の当たりの近さ（0〜1）。`(タイミングの近さ) × (芯の近さ)` で、両方が満点（0ms・帯の芯の基準点ちょうど）で 1。
+    /// タイミングの近さはジャストの窓（±25ms）の端で 0、芯の近さは芯の半径（`coreRadius` × ミート）で 0。
+    /// 掛け算なので、片方だけ良くても伸びは小さい（例: 10ms・基準点から 2pt で 0.49 = 約 +9m）。
+    public static func sweetSpot(timingOffset: Double, distanceFromBandCenter d: Double,
+                                 abilities: HomerunAbilities = .standard) -> Double {
+        let timing = max(1 - abs(timingOffset) / HomerunTiming.justWindow, 0)
+        let core = max(1 - d / (coreRadius * max(abilities.meet, 0.01)), 0)
+        return timing * core
+    }
+
+    /// 最高の当たり（`sweetSpot` = 1）でフライに上乗せする距離（m・161m → 180m の差 19m）。
+    static var sweetSpotExtra: Double { bestDistance - HomerunTiming.just.baseDistance * HomerunLaunch.fly.distanceFactor }
 
     /// 柵の距離。両翼 100m・中堅 122m。
     public static func fence(atDirection degrees: Double) -> Double {
@@ -220,10 +241,8 @@ public enum HomerunJudge {
         }
         let timing = HomerunTiming(offsetMilliseconds: swing.timingOffset)
         let launch = HomerunLaunch(cursorDY: swing.cursorDY)
-        let core = core(
-            distanceFromBandCenter: hypot(swing.cursorDX, swing.cursorDY - launch.centerDY),
-            abilities: abilities
-        )
+        let fromCenter = hypot(swing.cursorDX, swing.cursorDY - launch.centerDY)
+        let core = core(distanceFromBandCenter: fromCenter, abilities: abilities)
         guard timing != .miss, core > 0 else {
             return HomerunBattedBall(direction: 0, distance: 0, kind: .miss, timing: timing, launch: nil, fence: centerFence)
         }
@@ -232,7 +251,11 @@ public enum HomerunJudge {
         if abs(direction) > foulLimit {
             return HomerunBattedBall(direction: direction, distance: 0, kind: .foul, timing: timing, launch: launch, fence: fence)
         }
-        let distance = (timing.baseDistance + abilities.power) * launch.distanceFactor * core * abilities.bat
+        var distance = (timing.baseDistance + abilities.power) * launch.distanceFactor * core * abilities.bat
+        if launch == .fly {
+            distance += sweetSpotExtra * sweetSpot(timingOffset: swing.timingOffset, distanceFromBandCenter: fromCenter,
+                                                   abilities: abilities) * abilities.bat
+        }
         let kind: HomerunKind
         if distance >= fence { kind = .homer }
         else if distance >= fence - fenceHitMargin { kind = .fenceHit }

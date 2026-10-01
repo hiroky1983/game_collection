@@ -150,10 +150,10 @@ struct HomerunGeometryTests {
 
     @Test("内訳の呼び名と結果の一言")
     func summary() {
-        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 9))
+        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 4))
         let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 9))
         let miss = HomerunJudge.judge(nil)
-        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 9))
+        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 4))
         #expect(homerLeft.kind == .homer && homerLeft.direction < -7)
         #expect(foul.kind == .foul)
         #expect(HomerunText.place(homerLeft) == HomerunSector(direction: homerLeft.direction).label)
@@ -162,7 +162,7 @@ struct HomerunGeometryTests {
         #expect(HomerunText.spraySummary([homerLeft, foul, miss, center, center])
                 == "左 1 ／ 中 2 ／ 右 0 ／ ファウル 1 ／ 空振り 1")
         #expect(HomerunText.spoken(miss, number: 3) == "3球目、空振り")
-        #expect(HomerunText.spoken(center, number: 1) == "1球目、柵越え、161メートル、センター、ジャスト")
+        #expect(HomerunText.spoken(center, number: 1) == "1球目、柵越え、180メートル、センター、ジャスト")
     }
 
     @Test("スプレーチャートは本塁が原点で中堅が上。空振りは本塁、ファウルはラインの外")
