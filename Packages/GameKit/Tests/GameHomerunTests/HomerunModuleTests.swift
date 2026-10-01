@@ -150,19 +150,23 @@ struct HomerunGeometryTests {
 
     @Test("内訳の呼び名と結果の一言")
     func summary() {
-        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 9))
+        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 4))
         let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 9))
         let miss = HomerunJudge.judge(nil)
-        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 9))
+        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 4))
         #expect(homerLeft.kind == .homer && homerLeft.direction < -7)
         #expect(foul.kind == .foul)
-        #expect(HomerunText.place(homerLeft) == HomerunSector(direction: homerLeft.direction).label)
+        // 左中間の 164m はスタンドの後端（約 145m）を越えるので「場外」（#1654）。スタンドに落ちる柵越えは方向の呼び名。
+        #expect(homerLeft.isOutOfPark && HomerunText.place(homerLeft) == "場外")
+        var inStands = homerLeft
+        inStands.distance = 125
+        #expect(HomerunText.place(inStands) == HomerunSector(direction: homerLeft.direction).label)
         #expect(HomerunText.place(foul) == "ファウル")
         #expect(HomerunText.place(miss) == "—")
         #expect(HomerunText.spraySummary([homerLeft, foul, miss, center, center])
                 == "左 1 ／ 中 2 ／ 右 0 ／ ファウル 1 ／ 空振り 1")
         #expect(HomerunText.spoken(miss, number: 3) == "3球目、空振り")
-        #expect(HomerunText.spoken(center, number: 1) == "1球目、柵越え、161メートル、センター、ジャスト")
+        #expect(HomerunText.spoken(center, number: 1) == "1球目、場外、180メートル、センター、ジャスト")
     }
 
     @Test("スプレーチャートは本塁が原点で中堅が上。空振りは本塁、ファウルはラインの外")
@@ -176,6 +180,68 @@ struct HomerunGeometryTests {
         let fp = HomerunSprayGeometry.mark(for: foul)
         #expect(fp.x < 0, "引っ張りのファウルは左側")
         #expect(abs(atan2(fp.x, -fp.y) * 180 / .pi) > 45, "ファウルラインの外")
+    }
+
+    @Test("スプレーチャートは最大飛距離（180m）まで枠の内側に描く。場外の線は柵の外・180m の内側（#1676）",
+          arguments: [CGSize(width: 180, height: 130),   // 1 球の結果の小さな扇
+                      CGSize(width: 287, height: 213),   // SE の結果カード（375 - 余白）
+                      CGSize(width: 382, height: 283)])  // Pro Max の結果カード
+    func sprayFitsMaxDistance(size: CGSize) {
+        #expect(HomerunSprayGeometry.maxMeters >= HomerunJudge.bestDistance)
+        for inset in [CGFloat(10), 16] {
+            let layout = HomerunSprayGeometry.layout(in: size, inset: inset)
+            let frame = CGRect(origin: .zero, size: size).insetBy(dx: inset - 0.001, dy: inset - 0.001)
+            for deg in stride(from: -45.0, through: 45.0, by: 1) {
+                let far = layout.map(HomerunSprayGeometry.point(direction: deg, distance: HomerunJudge.bestDistance))
+                #expect(frame.contains(far), "\(deg)° の 180m が余白の内側（\(size)・\(far)）")
+                let fence = HomerunJudge.fence(atDirection: deg)
+                let out = HomerunBallChase.outOfParkDistance(atDirection: deg)
+                #expect(fence < out && out < HomerunJudge.bestDistance)
+            }
+            // 180m より遠い当たりも縁で止まる（外に出ない）。
+            let beyond = layout.map(HomerunSprayGeometry.point(direction: 0, distance: 250))
+            #expect(frame.contains(beyond))
+            // 柵（中堅 122m）は扇の半分より外: 柵の中が小さくなりすぎない。
+            #expect(HomerunJudge.fence(atDirection: 0) / HomerunSprayGeometry.maxMeters > 0.6)
+        }
+        // 以前の切れ方（中堅 150m 以上が扇の外）の再現: 場外の★が上端に収まる。
+        var homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 0))
+        homer.kind = .homer
+        homer.distance = 172
+        let layout = HomerunSprayGeometry.layout(in: CGSize(width: 287, height: 213), inset: 16)
+        #expect(layout.map(HomerunSprayGeometry.mark(for: homer)).y >= 16)
+    }
+
+    @Test("番号の札は同じ所に落ちた球どうしでも重ならない（#1676）")
+    func sprayLabelsDoNotOverlap() {
+        let same = CGPoint(x: 140, y: 40)
+        let marks = [same, same, CGPoint(x: 144, y: 42), CGPoint(x: 80, y: 120)]
+        let labels = HomerunSprayGeometry.labelCenters(for: marks, in: CGRect(x: 0, y: 0, width: 287, height: 213))
+        let size = HomerunSprayGeometry.labelSize
+        for i in labels.indices {
+            for j in labels.indices where j > i {
+                let a = CGRect(x: labels[i].x - size.width / 2, y: labels[i].y - size.height / 2, width: size.width, height: size.height)
+                let b = CGRect(x: labels[j].x - size.width / 2, y: labels[j].y - size.height / 2, width: size.width, height: size.height)
+                #expect(!a.intersects(b), "札 \(i + 1) と \(j + 1)")
+            }
+        }
+        #expect(labels[3] == CGPoint(x: 90, y: 111), "離れた球は今まで通り右上")
+    }
+
+    @Test("空振りが 2 球でも番号の札は描く枠の内側に収まる（#1676）")
+    func sprayLabelsStayInsideFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 287, height: 213)
+        let layout = HomerunSprayGeometry.layout(in: frame.size, inset: 16)
+        let miss = CGPoint(x: layout.home.x, y: layout.home.y - 8)
+        let labels = HomerunSprayGeometry.labelCenters(for: [miss, miss], in: frame)
+        let size = HomerunSprayGeometry.labelSize
+        for (i, c) in labels.enumerated() {
+            let rect = CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
+            #expect(frame.contains(rect), "札 \(i + 1)")
+        }
+        // 枠を十分広く取ると、2 枚目が下にはみ出す（テストが効いている対照）。
+        let loose = HomerunSprayGeometry.labelCenters(for: [miss, miss], in: CGRect(x: -500, y: -500, width: 2000, height: 2000))
+        #expect(loose[1].y + size.height / 2 > frame.maxY)
     }
 
     @Test("合計飛距離（m）は順位表 homerunDistance へ送る")

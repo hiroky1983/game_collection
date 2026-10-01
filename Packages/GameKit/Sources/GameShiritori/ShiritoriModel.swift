@@ -44,7 +44,7 @@ public enum ShiritoriEvent: Equatable, Sendable {
 
 /// カードしりとり（CPU 1 人との対戦・#1243）。プレイヤーが先手。
 ///
-/// 盤に 29 枚の札を並べ、別の 1 枚を最初の「場の札」にする（山札は 50 枚で、`quota` モードは残りを使わない・
+/// 盤に 30 枚の札を並べ、別の 1 枚を最初の「場の札」にする（山札は 50 枚で、`quota` モードは残りを使わない・
 /// `endless` モードは残りを山札にして、札が取られるたびに空いた場所へ補充する・#1502）。手番の人は、場の札の読みの語尾に続く
 /// 読みを持つ札を 1 枚選んで**取る**。取った札が新しい場の札になり、相手の番になる。
 /// 相手が続けられなくなれば勝ち・自分が続けられなくなれば負け。
@@ -145,11 +145,11 @@ public final class ShiritoriModel: AITurnGuarded {
         if let mode { self.mode = mode }
         let deal: ShiritoriDeal
         if var generator = makeGenerator() {
-            deal = ShiritoriRules.deal(deck: deck, mode: self.mode, using: &generator)
+            deal = ShiritoriRules.deal(deck: deck, mode: self.mode, quota: self.quota, using: &generator)
             seed = generator.next()   // 次ゲームで同じ配りにならないよう種を進める
         } else {
             var generator = SystemRandomNumberGenerator()
-            deal = ShiritoriRules.deal(deck: deck, mode: self.mode, using: &generator)
+            deal = ShiritoriRules.deal(deck: deck, mode: self.mode, quota: self.quota, using: &generator)
         }
 
         slots = deal.board.map { ShiritoriSlot(card: $0) }
@@ -245,7 +245,7 @@ public final class ShiritoriModel: AITurnGuarded {
         // とことんモード: 取った札は場の札へ移ったので、空いた場所へ山札から補充する（山札が尽きたら補充なし）。
         // 補充してから行き詰まりを判定する（補充された札で続けられることがある）。
         if mode == .endless, !stock.isEmpty {
-            slots[index] = ShiritoriSlot(card: stock.removeFirst())
+            slots[index] = ShiritoriSlot(card: stock.remove(at: refillIndex(after: owner, reading: reading)))
         }
         // 盤にも山札にも札が 1 枚も残っていなければパーフェクト（誰が最後の 1 枚を取っても）。
         if mode == .endless, remainingCount == 0, stock.isEmpty {
@@ -267,6 +267,19 @@ public final class ShiritoriModel: AITurnGuarded {
             isPlayerTurn = true
             if availableMoves.isEmpty { finish(.playerStuck) }
         }
+    }
+
+    /// 山札のどれを補充するか。CPU が取った直後に、プレイヤーが続けられる札が盤に 1 枚も無いときだけ、
+    /// 続けられる札（「ん」で終わらないものを優先）を山札から先に出す（#1659: とことんは CPU が盤の左から
+    /// 取り進めるため、山札に後続が残っているのにプレイヤーが詰んで負けになる局が約半数あった）。
+    /// プレイヤーが取った直後は触らない（CPU を詰ませて勝つ道を残す）。
+    private func refillIndex(after owner: ShiritoriOwner, reading: String) -> Int {
+        guard owner == .cpu, let tail = ShiritoriKana.tail(of: reading),
+              ShiritoriRules.moves(slots: slots, after: tail).isEmpty else { return 0 }
+        let followers = stock.indices.compactMap { i -> (index: Int, reading: String)? in
+            ShiritoriRules.acceptingReading(of: stock[i], after: tail).map { (i, $0) }
+        }
+        return (followers.first { !ShiritoriRules.endsWithN($0.reading) } ?? followers.first)?.index ?? 0
     }
 
     private func finish(_ ending: ShiritoriEnding) {

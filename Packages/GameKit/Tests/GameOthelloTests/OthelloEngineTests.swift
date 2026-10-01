@@ -13,13 +13,14 @@ struct OthelloEngineTests {
     // MARK: - 段階の設定（#1464）
 
     /// 段階の差は時間・深さの上限・最善手の確率の 3 つだけ（会長決裁 2026-09-27）。値を変えたら段階表を測り直すこと。
+    /// ふつうは #1658（会長決裁 2026-10-01）で 4 手・60% に下げた（`docs/analytics/othello-1658-normal.md`）。
     @Test("段階の設定は決裁値（時間・深さの上限・最善手の確率）")
     func settingsMatchTheDecision() {
         let novice = OthelloEngine.settings(for: .novice), easy = OthelloEngine.settings(for: .easy)
         let normal = OthelloEngine.settings(for: .normal), hard = OthelloEngine.settings(for: .hard)
         #expect(novice.timeLimit == 0.3 && novice.depthLimit == 1 && novice.policy.bestMoveProbability == 0.5)
         #expect(easy.timeLimit == 0.5 && easy.depthLimit == 3 && easy.policy.bestMoveProbability == 0.6)
-        #expect(normal.timeLimit == 1.0 && normal.depthLimit == 5 && normal.policy.bestMoveProbability == 0.9)
+        #expect(normal.timeLimit == 1.0 && normal.depthLimit == 4 && normal.policy.bestMoveProbability == 0.6)
         #expect(hard.timeLimit == 1.5 && hard.depthLimit == nil && hard.policy == .exact)
         for s in [novice, easy, normal] { #expect(s.policy.slipMargin == 40) }
         // 出荷のエンジンは局面数で打ち切らない（強さは時間と深さの上限で決まる）。
@@ -29,7 +30,7 @@ struct OthelloEngineTests {
     @Test("深さの上限より深く読まない")
     func searchStopsAtTheDepthLimit() throws {
         let board = OthelloBoard()
-        for (strength, limit) in [(CPUStrength.novice, 1), (.easy, 3), (.normal, 5)] {
+        for (strength, limit) in [(CPUStrength.novice, 1), (.easy, 3), (.normal, 4)] {
             let r = try #require(OthelloEngine(level: strength.rawValue, timeLimitOverride: .infinity)
                 .analyze(board: board, stone: .black))
             #expect(r.depth == limit, "\(strength.label) が深さ \(r.depth) まで読んだ")

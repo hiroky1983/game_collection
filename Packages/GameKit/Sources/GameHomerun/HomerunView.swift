@@ -213,6 +213,13 @@ struct HomerunLobbyView: View {
                 Spacer()
                 stat("通算 柵越え", "\(r.homers) 本")
             }
+            // 実績「月まで飛ばした」（#1680）。出したことがある人にだけ出す（隠し演出なので先に存在を知らせない）。
+            if r.moonShots > 0 {
+                Label("月まで飛ばした \(r.moonShots) 回", systemImage: "moon.stars.fill")
+                    .themeCaption(13)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityElement(children: .combine)
+            }
         }
         .padding(14)
         .popCard()
@@ -249,6 +256,7 @@ struct HomerunResultView: View {
         ScrollView {
             VStack(spacing: 14) {
                 summaryCard
+                moonCard
                 sprayCard
                 breakdownCard
                 actions
@@ -269,7 +277,9 @@ struct HomerunResultView: View {
             HomerunOjisan3DStillView()
                 .frame(width: 80, height: 80)
             VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
+                Text(verbatim: model.challenge?.isMoonBroken == true
+                     ? "\(balls.count) 球で終了（月が割れた）"
+                     : "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
                 Text(verbatim: HomerunText.meters(total))
                     .font(.system(size: 44, weight: .black, design: .rounded).monospacedDigit())
                     .foregroundStyle(Theme.ink)
@@ -286,6 +296,35 @@ struct HomerunResultView: View {
         .padding(14)
         .popCard()
         .accessibilityElement(children: .combine)
+    }
+
+    /// 月まで飛んだ（#1680）挑戦だけに出す。距離は 384,400 km と出し（合計・自己ベストには 180m で数えてある）、月が割れたら
+    /// 挑戦の終わりとプレイ回数 +2 を知らせる。打球の分布（`sprayCard`）とは別のカード。
+    @ViewBuilder private var moonCard: some View {
+        if let challenge = model.challenge, challenge.moonCount > 0 {
+            HStack(spacing: 12) {
+                Image(systemName: challenge.isMoonBroken ? "moon.circle.fill" : "moon.stars.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(Theme.yellow)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(challenge.isMoonBroken ? "月が割れた！" : "月まで飛んだ！")
+                        .themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
+                    Text(verbatim: HomerunText.moonDistance)
+                        .font(.system(size: 26, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Theme.ink)
+                    if challenge.isMoonBroken {
+                        Text("挑戦はここで終わり。プレイ回数 +\(HomerunLedger.moonBonus) をプレゼント")
+                            .themeCaption(12).foregroundStyle(Theme.coral)
+                    } else {
+                        Text("記録には 180 m として数えます").themeCaption(11).foregroundStyle(Theme.inkSub)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .popCard()
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private func chip(_ text: String, systemImage: String?, fill: Color) -> some View {
@@ -331,7 +370,7 @@ struct HomerunResultView: View {
             }
             if let longest = balls.enumerated().max(by: { $0.element.distance < $1.element.distance }),
                longest.element.distance > 0 {
-                Text(verbatim: "最長 \(HomerunText.meters(longest.element.distance))（\(longest.offset + 1) 球目・\(HomerunText.place(longest.element))・\(HomerunText.timing(longest.element.timing))）")
+                Text(verbatim: "最長 \(HomerunText.distance(of: longest.element))（\(longest.offset + 1) 球目・\(HomerunText.place(longest.element))・\(HomerunText.timing(longest.element.timing))）")
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -373,7 +412,7 @@ struct HomerunBallTile: View {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(iconColor)
-            Text(verbatim: ball.distance > 0 ? HomerunText.meters(ball.distance) : HomerunText.kind(ball.kind))
+            Text(verbatim: ball.distance > 0 ? HomerunText.distance(of: ball) : HomerunText.kind(ball.kind))
                 .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -388,7 +427,8 @@ struct HomerunBallTile: View {
     }
 
     private var icon: String {
-        switch ball.kind {
+        if ball.isMoon { return "moon.fill" }
+        return switch ball.kind {
         case .homer: "star.fill"
         case .miss: "xmark"
         case .foul: "f.cursive"

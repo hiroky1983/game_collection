@@ -26,8 +26,10 @@ struct HomerunAtBatView: View {
     /// 離した瞬間から結果のカードへ切り替えるまでの時間（秒）。空振り・見送りは理由を早く読めるよう短く。
     /// 当たり以上は打球を追うカメラで打球が止まるまで待つ（`HomerunSwingPlan.chaseCardAt`・#1613）。ここの値はその時刻が
     /// 分からないとき（振った時刻の記録が無いとき）の控えで、振り抜き（フォロースルーの終わり・0.8 秒）まで。
-    static func swingShowDuration(for kind: HomerunKind?) -> TimeInterval {
-        switch kind {
+    /// 空振りの演出（#1681）は座り込んでから（`HomerunWhiffGag.cardDelay`）。
+    static func swingShowDuration(for kind: HomerunKind?, whiffGag: Bool = false) -> TimeInterval {
+        if whiffGag, kind == .miss { return HomerunWhiffGag.cardDelay }
+        return switch kind {
         case .inPlay, .fenceHit, .homer, .foul: HomerunBatterMotion.swingDuration
         case .miss, nil: 0.4
         }
@@ -56,10 +58,14 @@ struct HomerunAtBatView: View {
                                          cameraPreset: model.atBatCamera,
                                          cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
-                                         ballPosition: chase?.ball
-                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera) : nil),
+                                         // 場外の球が消えた後（#1654）は nil（球も影も出さない）。投球中の球へ戻さない。
+                                         ballPosition: chase.map(\.visibleBall)
+                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera,
+                                                                             screen: CGSize(width: size.width + inset.leading + inset.trailing,
+                                                                                            height: fullHeight)) : nil),
                                          ballScale: chase?.ballScale ?? 1,
                                          now: now,
+                                         moon: chase?.moon,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
                                          onFirstFrame: { model.atBatDidAppear(now: Date()) })
@@ -127,7 +133,7 @@ struct HomerunAtBatView: View {
             guard model.phase == .ballResult else { return }
             // 一時停止から戻ったときなど、打球がもう止まっていれば待たずに出す。
             let wait = HomerunSwingPlan(model: model).chaseCardAt?.timeIntervalSinceNow
-                ?? Self.swingShowDuration(for: model.lastBall?.kind)
+                ?? Self.swingShowDuration(for: model.lastBall?.kind, whiffGag: model.showsWhiffGag)
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             guard !Task.isCancelled else { return }
             withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
@@ -350,6 +356,8 @@ struct HomerunAtBatBackdrop: View {
     /// 球の拡大率（打球を追う間は大きく見せる）。
     var ballScale: Float = 1
     var now: Date = Date()
+    /// 月まで飛んだ打球（#1680）の月・夜空。
+    var moon: HomerunMoonShot.Look? = nil
     /// 背景を描き始めたときに 1 回だけ呼ぶ（3D は最初の数コマを描いた後）。
     var onFirstFrame: (@MainActor () -> Void)? = nil
 
@@ -357,7 +365,7 @@ struct HomerunAtBatBackdrop: View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
                                 cameraOverride: cameraOverride, batterMotion: batterMotion,
-                                ballPosition: ballPosition, ballScale: ballScale, now: now,
+                                ballPosition: ballPosition, ballScale: ballScale, now: now, moon: moon,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
@@ -555,7 +563,7 @@ struct HomerunBallResultCard: View {
 
     /// 見出し: 見送りは「見送り」、振って外したら「空振り」、当たりは種別。
     static func headline(_ ball: HomerunBattedBall, tookPitch: Bool) -> String {
-        ball.kind == .miss && tookPitch ? "見送り" : HomerunText.kind(ball.kind)
+        ball.kind == .miss && tookPitch ? "見送り" : HomerunText.kind(of: ball)
     }
 
     /// 見出しの下に添える空振りの理由。振って外したときだけ。
@@ -569,7 +577,20 @@ struct HomerunBallResultCard: View {
             Text(verbatim: Self.headline(ball, tookPitch: tookPitch))
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(ball.kind == .homer ? Theme.coral : Theme.ink)
-            if ball.distance > 0 {
+            if ball.isMoon {
+                // 月まで飛んだ打球（#1680）: 距離は 384,400 km と出す（記録には 180m で数える）。方向は出さない。
+                Text(verbatim: HomerunText.moonDistance)
+                    .font(.system(size: 24, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Theme.ink)
+                if ball.moon == .broken {
+                    Text("挑戦はここまで")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Label("プレイ回数 +\(HomerunLedger.moonBonus) プレゼント", systemImage: "gift.fill")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.coral)
+                }
+            } else if ball.distance > 0 {
                 Text(verbatim: "\(HomerunText.meters(ball.distance))　\(HomerunSector(direction: ball.direction).label)")
                     .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
                     .foregroundStyle(Theme.ink)
@@ -584,7 +605,7 @@ struct HomerunBallResultCard: View {
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
             }
-            if ball.distance > 0 {
+            if ball.distance > 0, !ball.isMoon {
                 HomerunSprayChart(balls: [ball], numbered: false)
                     .frame(width: 180, height: 130)
             }
@@ -595,7 +616,9 @@ struct HomerunBallResultCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ball.kind == .miss && tookPitch
             ? "\(number)球目、見送り"
-            : [HomerunText.spoken(ball, number: number), reason].compactMap { $0 }.joined(separator: "、"))
+            : [HomerunText.spoken(ball, number: number), reason,
+               ball.moon == .broken ? "挑戦はここまで、プレイ回数プラス\(HomerunLedger.moonBonus)プレゼント" : nil]
+                .compactMap { $0 }.joined(separator: "、"))
         .accessibilityAddTraits(.updatesFrequently)
     }
 }

@@ -162,6 +162,121 @@ struct HomerunToonMesh: Equatable {
         return m
     }
 
+    // MARK: 地面に敷く平らな図形（#1677 本塁・バッターボックス・ファウルライン）
+
+    /// 凸多角形の柱（上面は y = +h/2・底は -h/2。`polygon` は (x, z) の頂点で、向きはどちら回りでもよい）。
+    /// `bevel` > 0 なら上面の多角形を `bevel` だけ内へ寄せ、側面を底の外周から上面の内周へ斜めに張る（薄いゴム板の縁）。
+    /// 底は見えないので張らない。面ごとに頂点を持ち、面の法線で陰影が付く。
+    static func prism(_ polygon: [SIMD2<Float>], height h: Float, bevel: Float = 0) -> HomerunToonMesh {
+        let outer = clockwise(polygon)
+        let top = bevel > 0 ? offset(outer, by: -bevel, closed: true) : outer
+        var m = HomerunToonMesh()
+        m.addFan(top.map { SIMD3($0.x, h / 2, $0.y) }, normal: SIMD3(0, 1, 0))
+        for i in outer.indices {
+            let j = (i + 1) % outer.count
+            let (a, b) = (outer[i], outer[j])
+            let n = outwardNormal(a, b)
+            m.addQuad(SIMD3(a.x, -h / 2, a.y), SIMD3(b.x, -h / 2, b.y), SIMD3(top[j].x, h / 2, top[j].y), SIMD3(top[i].x, h / 2, top[i].y),
+                      outward: SIMD3(n.x, 0.5, n.y))
+        }
+        return m
+    }
+
+    /// 折れ線に沿う幅 `width`・厚み `height` の帯（白線）。角は留め継ぎ（左右の縁を交点でつなぐ）で、`closed` なら最後の点から最初へ戻って輪にする。
+    /// 上面と外側・内側の側面（開いた帯は両端のふたも）を張り、底は張らない。原点中心ではなく、`points` の座標にそのまま置く（y = ±height/2）。
+    static func ribbon(_ points: [SIMD2<Float>], width w: Float, height h: Float, closed: Bool) -> HomerunToonMesh {
+        precondition(points.count >= 2)
+        let path = closed ? clockwise(points) : points
+        let left = offset(path, by: w / 2, closed: closed), right = offset(path, by: -w / 2, closed: closed)
+        var m = HomerunToonMesh()
+        let n = path.count
+        let segments = closed ? n : n - 1
+        for i in 0..<segments {
+            let j = (i + 1) % n
+            // 上面（左右の縁の間）・左右の側面（上から底へ）。側面の向きは左右の縁の外向き。
+            m.addQuad(SIMD3(left[i].x, h / 2, left[i].y), SIMD3(left[j].x, h / 2, left[j].y),
+                      SIMD3(right[j].x, h / 2, right[j].y), SIMD3(right[i].x, h / 2, right[i].y), outward: SIMD3(0, 1, 0))
+            let d = path[j] - path[i]
+            let leftNormal = SIMD2<Float>(-d.y, d.x)
+            m.addQuad(SIMD3(left[i].x, h / 2, left[i].y), SIMD3(left[j].x, h / 2, left[j].y),
+                      SIMD3(left[j].x, -h / 2, left[j].y), SIMD3(left[i].x, -h / 2, left[i].y), outward: SIMD3(leftNormal.x, 0, leftNormal.y))
+            m.addQuad(SIMD3(right[i].x, h / 2, right[i].y), SIMD3(right[j].x, h / 2, right[j].y),
+                      SIMD3(right[j].x, -h / 2, right[j].y), SIMD3(right[i].x, -h / 2, right[i].y), outward: SIMD3(-leftNormal.x, 0, -leftNormal.y))
+        }
+        if !closed {
+            for (i, sign) in [(0, Float(-1)), (n - 1, 1)] {
+                let d = path[min(i + 1, n - 1)] - path[max(i - 1, 0)]
+                m.addQuad(SIMD3(left[i].x, h / 2, left[i].y), SIMD3(right[i].x, h / 2, right[i].y),
+                          SIMD3(right[i].x, -h / 2, right[i].y), SIMD3(left[i].x, -h / 2, left[i].y), outward: SIMD3(d.x, 0, d.y) * sign)
+            }
+        }
+        return m
+    }
+
+    /// 中心 `center`・半径 (rx, rz) の楕円の頂点（`segments` 角形）。
+    static func ellipse(center: SIMD2<Float>, rx: Float, rz: Float, segments: Int = 20) -> [SIMD2<Float>] {
+        (0..<segments).map { i in
+            let a = Float(i) / Float(segments) * 2 * .pi
+            return center + SIMD2(rx * cos(a), rz * sin(a))
+        }
+    }
+
+    /// (x, z) の多角形を、上（+y）から見て表になる向き（x–z の符号付き面積が負）に揃える。
+    static func clockwise(_ polygon: [SIMD2<Float>]) -> [SIMD2<Float>] {
+        var area: Float = 0
+        for i in polygon.indices {
+            let a = polygon[i], b = polygon[(i + 1) % polygon.count]
+            area += a.x * b.y - b.x * a.y
+        }
+        return area > 0 ? polygon.reversed() : polygon
+    }
+
+    /// `clockwise` に揃えた多角形の辺 a → b の外向きの単位法線（左手側）。
+    static func outwardNormal(_ a: SIMD2<Float>, _ b: SIMD2<Float>) -> SIMD2<Float> {
+        let d = b - a
+        return simd_normalize(SIMD2(-d.y, d.x))
+    }
+
+    /// 折れ線の各点を、進む向きの左手側へ `distance` だけずらした点（角は留め継ぎ = 隣り合う辺の平行線の交点）。
+    /// `clockwise` に揃えた閉じた多角形では左手側が外なので、正で外へ・負で内へ寄る。
+    static func offset(_ points: [SIMD2<Float>], by distance: Float, closed: Bool) -> [SIMD2<Float>] {
+        let n = points.count
+        func normal(_ i: Int, _ j: Int) -> SIMD2<Float> { outwardNormal(points[i], points[j]) }
+        return points.indices.map { i in
+            let hasPrev = closed || i > 0, hasNext = closed || i < n - 1
+            let prev = hasPrev ? normal((i + n - 1) % n, i) : normal(i, i + 1)
+            let next = hasNext ? normal(i, (i + 1) % n) : normal(i - 1, i)
+            let sum = prev + next
+            guard simd_length(sum) > 1e-5 else { return points[i] + prev * distance }
+            let miter = simd_normalize(sum)
+            return points[i] + miter * (distance / max(simd_dot(miter, prev), 0.2))
+        }
+    }
+
+    /// 凸多角形の面（扇形に三角形を張る）。`normal` の側が表になるよう巻きを揃える。
+    private mutating func addFan(_ points: [SIMD3<Float>], normal: SIMD3<Float>) {
+        guard points.count >= 3 else { return }
+        let start = UInt32(positions.count)
+        let flip = simd_dot(simd_cross(points[1] - points[0], points[2] - points[0]), normal) < 0
+        for p in points { positions.append(p); normals.append(simd_normalize(normal)); stripe.append(0.5) }
+        for k in 1..<UInt32(points.count - 1) {
+            indices += flip ? [start, start + k + 1, start + k] : [start, start + k, start + k + 1]
+        }
+    }
+
+    /// 四角形の面（a → b → c → d の順の 4 点）。法線は面の幾何から求め、`outward` と同じ側を向くように巻きと法線を揃える。
+    private mutating func addQuad(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ c: SIMD3<Float>, _ d: SIMD3<Float>, outward: SIMD3<Float>) {
+        var n = simd_cross(b - a, c - a)
+        if simd_length(n) < 1e-9 { n = simd_cross(c - a, d - a) }
+        guard simd_length(n) > 1e-9 else { return }
+        n = simd_normalize(n)
+        let flip = simd_dot(n, outward) < 0
+        if flip { n = -n }
+        let start = UInt32(positions.count)
+        for p in [a, b, c, d] { positions.append(p); normals.append(n); stripe.append(0.5) }
+        indices += flip ? [start, start + 2, start + 1, start, start + 3, start + 2] : [start, start + 1, start + 2, start, start + 2, start + 3]
+    }
+
     /// `rows` 行 × `columns` 列の格子の頂点（行が北から南・列が phi 方向）に、外向き（表が外）の三角形を張る。
     private mutating func appendGridIndices(rows: Int, columns: Int) {
         for i in 0..<(rows - 1) {

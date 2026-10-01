@@ -26,15 +26,15 @@ private let trapForCPU = ShiritoriCard(.cat, "らーめん")        // ら → �
 @MainActor
 struct ShiritoriModelTests {
 
-    @Test("開始（ノルマ）: 29 枚が並び、別の 1 枚が場の札。山札 50 枚のうち 30 枚だけ使う。時間は 60 秒でプレイヤーが先手")
+    @Test("開始（ノルマ）: 30 枚が並び、別の 1 枚が場の札。山札 50 枚のうち 31 枚だけ使う。時間は 60 秒でプレイヤーが先手")
     func startDealsTwentyNineAndOpensOne() {
         let (model, _) = makeModel()
         model.startGame(quota: .hard)
 
         #expect(model.phase == .playing)
-        #expect(model.slots.count == 29)
+        #expect(model.slots.count == 30)
         let ids = model.slots.map(\.card.id) + [model.currentCard?.id ?? ""]
-        #expect(Set(ids).count == 30, "盤 29 枚と場の 1 枚は重ならない")
+        #expect(Set(ids).count == 31, "盤 30 枚と場の 1 枚は重ならない")
         #expect(Set(ids).isSubset(of: Set(ShiritoriCard.deck.map(\.id))))
         #expect(model.mode == .quota && model.stock.isEmpty, "ノルマは山札を使わない")
         #expect(model.currentReading == model.currentCard?.primaryReading, "最初の場は表読み")
@@ -440,7 +440,7 @@ struct ShiritoriModelTests {
             }
             #expect(model.phase == .result, "seed \(seed)")
             #expect(model.ending != nil)
-            #expect(model.playerCount + model.cpuCount <= 29)
+            #expect(model.playerCount + model.cpuCount <= 30)
             #expect(model.playerCount >= model.cpuCount, "先手なので同数か 1 枚多い")
         }
         // 残る裏読み「にゃんこ」（#1271 で「ぐらす」「おうぎ」を削除した後）が、実プレイで
@@ -486,15 +486,15 @@ private let koala = ShiritoriCard(.koala, "こあら")            // こ → ら
 @MainActor
 struct ShiritoriEndlessTests {
 
-    @Test("配り: 盤 29 枚・場 1 枚・山札 20 枚が重ならず全 50 枚。ノルマは山札を使わない")
+    @Test("配り: 盤 30 枚・場 1 枚・山札 19 枚が重ならず全 50 枚。ノルマは山札を使わない")
     func dealSplitsFiftyCards() {
         for seed in UInt64(0)..<100 {
             let (model, _) = makeModel(seed: seed)
             model.startGame(mode: .endless)
             let ids = model.slots.map(\.card.id) + [model.currentCard?.id ?? ""] + model.stock.map(\.id)
-            #expect(model.slots.count == 29 && model.stock.count == 20, "seed \(seed)")
+            #expect(model.slots.count == 30 && model.stock.count == 19, "seed \(seed)")
             #expect(Set(ids) == Set(ShiritoriCard.deck.map(\.id)) && ids.count == 50, "seed \(seed)")
-            #expect(model.stockCount == 20)
+            #expect(model.stockCount == 19)
         }
     }
 
@@ -546,6 +546,39 @@ struct ShiritoriEndlessTests {
         #expect(model.currentCard == gorilla)
         #expect(model.playerCount == 1 && model.cpuCount == 0)
         #expect(model.phase == .playing && !model.isPlayerTurn, "補充された札で CPU は続けられる")
+    }
+
+    /// #1659: とことんは CPU が盤の左から取り進めるので、山札に後続が残っているのにプレイヤーが詰んで負けになる
+    /// 局が約半数あった（測定: ランダムに打つ人で 47%）。
+    @Test("CPU が取った直後にプレイヤーの続けられる札が盤に無いとき、山札から続けられる札を先に補充する")
+    func refillPicksFollowerWhenPlayerWouldBeStuck() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [top, otter], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()   // CPU が ごりら（ら）を取る。盤に残る かさ では ら を受けられない
+
+        #expect(model.slots[0].card == otter, "山札の先頭（こま）ではなく、ら を受けられる らっこ が出る")
+        #expect(model.stock == [top])
+        #expect(model.phase == .playing && model.isPlayerTurn, "詰みにならず、プレイヤーの番になる")
+    }
+
+    @Test("盤にプレイヤーの続けられる札があるなら、山札は先頭から補充する（順序を崩さない）")
+    func refillKeepsOrderWhenPlayerCanContinue() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, otter], mode: .endless, stock: [top, kasa], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()   // CPU が ごりら を取る。盤の らっこ で続けられる
+
+        #expect(model.slots[0].card == top)
+        #expect(model.stock == [kasa])
+    }
+
+    @Test("プレイヤーが取った直後は、CPU が詰む補充でも山札の先頭のまま（CPU を詰ませて勝つ道を残す）")
+    func refillAfterPlayerClaimIsNotRescued() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [top, otter])
+        model.select(0)
+
+        #expect(model.slots[0].card == top)
+        #expect(model.ending == .cpuStuck && model.didPlayerWin)
     }
 
     @Test("山札が尽きたら補充されず、取られた札が盤に残る")

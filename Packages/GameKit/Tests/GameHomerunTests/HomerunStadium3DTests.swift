@@ -98,9 +98,11 @@ struct HomerunStadium3DTests {
         let lower = (0..<S.crowd.count).flatMap { color -> [SIMD3<Float>] in
             stadium.parts.first { $0.color == S.mutedCrowd(color, fraction: S.lowerTierMute) }?.mesh.positions ?? []
         }
-        let seam = lower.filter { abs($0.x) < 3 && $0.z < -17 && $0.z > -19 && abs($0.y - 0.45) < 0.01 }.map(\.x).sorted()
+        // 最前列の座席は段の上面（1.35m）の上に置く（#1651）。箱の底の頂点で見る。
+        let seatBottom = M.Stand.treadTop(row: 0) + 0.01
+        let seam = lower.filter { abs($0.x) < 3 && $0.z < -17 && $0.z > -19.5 && abs($0.y - seatBottom) < 0.01 }.map(\.x).sorted()
         #expect(seam.count >= 8, "継ぎ目の座席が見つからない")
-        // 隣り合う箱の縁（頂点が 0.1m 未満に固まる）を数え、縁と縁の間隔は座席の幅 1.5m を超えない。
+        // 隣り合う箱の縁（頂点が 0.1m 未満に固まる）を数え、縁と縁の間隔は座席の幅 1.5m を超えない（座席の間の隙間 0.25m を含めて）。
         var edges: [Float] = []
         for x in seam where edges.last.map({ x - $0 > 0.1 }) ?? true { edges.append(x) }
         for (a, b) in zip(edges, edges.dropFirst()) { #expect(b - a <= 1.5 + 0.01, "縁の間隔 \(b - a)") }
@@ -128,16 +130,19 @@ struct HomerunStadium3DTests {
         for (x, z) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
             #expect(lamps.contains { Double($0.x) * x > 20 && Double($0.z) * z > 5 }, "(\(x), \(z)) の象限に照明塔が無い")
         }
-        #expect(positions(of: S.screen).contains { abs(abs($0.x) - 12) < 0.01 && $0.z > 145 && $0.y > 16 }, "スコアボードが無い")
+        // スコアボードはバックスクリーンの裏の建屋の上（z 137・17m より上。壁を越えた球の道に掛からない・#1651）。
+        #expect(positions(of: S.screen).contains { abs(abs($0.x) - 13) < 0.01 && $0.z > 130 && $0.y > 16 }, "スコアボードが無い")
+        let board = positions(of: S.board).filter { $0.z > 130 }
+        #expect(!board.isEmpty && board.allSatisfy { $0.y >= 17 - 0.01 }, "スコアボードが壁を越えた球の道（17m 未満）に掛かる")
         // 灯体（幅 10m の箱）は幅の向きが円の接線 = 面がホームを向く: 外野右の塔（36°）の角は接線 (cos36°, -sin36°) 方向に ±5m。
         let lamp36 = lamps.filter { $0.x > 20 && $0.z > 5 && $0.y > 40 }
         let r36 = HomerunJudge.fence(atDirection: 36) + 30, a36 = 36.0 * .pi / 180
         let center36 = SIMD2(Float(r36 * sin(a36)), Float(r36 * cos(a36)))
         let tangent = SIMD2(Float(cos(a36)), Float(-sin(a36)))
         #expect(lamp36.contains { simd_length(SIMD2($0.x, $0.z) - (center36 + tangent * 5)) < 1.0 }, "灯体の面がホームを向いていない（yaw の符号）")
-        // バックネット裏の壁も接線向き（180° の板の幅は x 方向）。
-        let wall = positions(of: HomerunToonModel.StadiumColor.backWall)
-        #expect(wall.contains { abs($0.x - 0.5) < 0.01 && abs($0.z + 14.5) < 0.25 }, "バックネット裏の壁が接線を向いていない")
+        // バックネット裏の壁はスタンドの前縁（半径 16m）の上で接線向き（180° の板の幅は x 方向・#1652 で 1 周の壁に統合）。
+        let wall = positions(of: HomerunToonModel.StadiumColor.foulPad)
+        #expect(wall.contains { abs($0.x) < 2 && abs($0.z + 16) < 0.3 && $0.y > 1.3 }, "バックネット裏の壁が無い・接線を向いていない")
         let yellow = positions(of: HomerunToonPalette.yellow)
         let r = 100 * sin(Double.pi / 4)
         for s in [-1.0, 1.0] {
@@ -228,10 +233,205 @@ struct HomerunStadium3DTests {
         #expect(plate.positions.contains { abs($0.x) < 0.01 && abs($0.z + 0.432) < 0.01 }, "本塁の先端が無い")
     }
 
+    // #1677 会長 QA（2026-10-01）: バッターボックス・ホームベースをきれいに作り直す。
+    @Test("本塁まわり: 五角形の本塁（上面 0.08・縁取りと土の輪）と白線（幅 0.05・上面 0.08）は影の浮かせ量より低く、箱の中には線が無い")
+    func homePlateAreaLayers() {
+        typealias M = HomerunToonModel
+        typealias B = M.BatterBox
+        typealias P = M.HomePlate
+        let white = positions(of: HomerunToonPalette.white).filter { abs($0.x) < 4 && abs($0.z) < 4 }
+        #expect(!white.isEmpty)
+        // 高さ: すべて土の面（0.06）より上・白線の上面（0.08）以下で、影の浮かせ量（0.09）より低い。
+        #expect(white.allSatisfy { $0.y >= P.dirtTop - 1e-4 && $0.y <= P.lineTop + 1e-4 }, "本塁まわりの白が 0.06〜0.08 の外にある")
+        #expect(P.lineTop < HomerunBallShadow.infieldClearance && P.top < HomerunBallShadow.infieldClearance)
+        #expect(P.top == P.lineTop, "本塁の上面と白線の上面は同じ高さ（低いカメラで段差が出ない）")
+        // 本塁: 五角形の 5 頂点（底の外周）があり、上面は縁を落として内へ寄っている（先端 −0.432 より手前）。
+        for (x, z) in [(0.216, 0.0), (-0.216, 0.0), (0.216, -0.216), (-0.216, -0.216), (0.0, -0.432)] {
+            #expect(white.contains { abs(Double($0.x) - x) < 1e-3 && abs(Double($0.z) - z) < 1e-3 && $0.y < P.top - P.thickness + 1e-4 }, "本塁の頂点 (\(x), \(z)) が無い")
+        }
+        let plateTop = white.filter { abs($0.y - P.top) < 1e-4 && abs($0.x) < 0.3 && $0.z <= 0.01 && $0.z > -0.5 }
+        #expect(!plateTop.isEmpty && plateTop.allSatisfy { $0.z > P.apexZ + P.bevel })
+        // 縁取り（灰色）と土の輪（暗い土）は本塁の周りだけで、本塁の上面より低い。
+        let rim = positions(of: M.StadiumColor.plateRim)
+        #expect(!rim.isEmpty && rim.allSatisfy { abs($0.x) <= P.halfWidth + P.rimWidth + 1e-3 && $0.z <= P.rimWidth + 1e-3 && $0.y <= P.rimTop + 1e-4 && $0.y < P.top })
+        let dark = positions(of: M.StadiumColor.dirtDark), light = positions(of: M.StadiumColor.dirtLight)
+        #expect(dark.contains { abs($0.x) < 0.3 && $0.z > 0.04 && $0.z < 0.06 }, "本塁の周りの暗い土の輪が無い")
+        for patch in dark + light {
+            #expect(simd_length(SIMD2(patch.x, patch.z)) < 4, "土の色むらが本塁の土の円の外にある: \(patch)")
+            #expect(patch.y > P.dirtTop && patch.y <= P.patchTop + 1e-4 && patch.y < P.rimTop, "土の色むらの高さ \(patch.y)")
+        }
+        #expect(stadium.parts.count < 48)
+    }
+
+    @Test("バッターボックスは幅 0.05 の線で角が閉じ、内側の線の本塁側の縁は本塁の縁（0.216）。ファウルラインは本塁の先端を通る 45° の線で前の線から外へ、箱の中には引かない")
+    func batterBoxLinesAreClosedAndClean() {
+        typealias M = HomerunToonModel
+        typealias B = M.BatterBox
+        typealias P = M.HomePlate
+        let white = positions(of: HomerunToonPalette.white)
+        let h = B.line / 2
+        #expect(abs((B.innerX - h) - P.halfWidth) < 1e-4, "内側の線の縁 \(B.innerX - h)")
+        #expect(abs(B.width - 1.22) < 1e-6 && abs(B.frontZ - B.backZ - 1.83) < 1e-6, "4 × 6 フィートの実寸比")
+        for s: Float in [-1, 1] {
+            // 4 隅の外の角と内の角が 1 点ずつある（留め継ぎ・飛び出しや欠けが無い）。
+            for (x, z) in [(B.innerX, B.frontZ), (B.outerX, B.frontZ), (B.outerX, B.backZ), (B.innerX, B.backZ)] {
+                let dx: Float = x == B.innerX ? -h : h, dz: Float = z == B.frontZ ? h : -h
+                #expect(white.contains { abs($0.x - s * (x + dx)) < 1e-4 && abs($0.z - (z + dz)) < 1e-4 }, "外の角 (\(s * (x + dx)), \(z + dz)) が無い")
+                #expect(white.contains { abs($0.x - s * (x - dx)) < 1e-4 && abs($0.z - (z - dz)) < 1e-4 }, "内の角 (\(s * (x - dx)), \(z - dz)) が無い")
+            }
+            // 箱の中（線の内側の縁より内）には白い頂点が無い（ファウルラインを箱の中に引かない・継ぎ目の飛び出しも無い）。
+            let inside = white.filter { s * $0.x > B.innerX + h + 1e-4 && s * $0.x < B.outerX - h - 1e-4 && $0.z > B.backZ + h + 1e-4 && $0.z < B.frontZ - h - 1e-4 }
+            #expect(inside.isEmpty, "箱の中に白がある: \(inside.prefix(4))")
+            // ファウルライン: 本塁の先端 (0, −0.432) を通る 45° の線 = s·x − z = 0.432 で、縁は ±(線の幅/2)·√2。前の線から始まり柵（100m）の手前で終わる。
+            // 白線の高さ（0.072〜0.08）で拾う（塁のベース 0〜0.1・投手板 0.3・柵の距離表示は除く）。前の線の外側の縁（0.925）より先の白は
+            // ファウルラインだけで、どの頂点も s·x − z = 0.432 の線の幅の中にある。
+            let onLine = { (p: SIMD3<Float>) in abs((s * p.x - p.z) + P.apexZ) < h * Float(2).squareRoot() + 1e-3 }
+            let band = white.filter { s * $0.x > 0.5 && $0.z > 0.93 && $0.y > 0.07 && $0.y < 0.081 }
+            #expect(!band.isEmpty && band.allSatisfy(onLine), "ファウルラインが先端を通らない")
+            let foul = white.filter { $0.z > 0.5 && $0.y > 0.07 && $0.y < 0.081 && onLine($0) }
+            let start = foul.map(\.z).min()!, end = foul.map { simd_length(SIMD2($0.x, $0.z)) }.max()!
+            #expect(start < B.frontZ + h + 1e-3, "ファウルラインが前の線から離れて始まる: z \(start)")
+            #expect(end > 95 && end < Float(HomerunJudge.fence(atDirection: 45)), "ファウルラインの端 \(end)")
+            // 走路の中（幅 1.9m）に収まる。
+            #expect(foul.allSatisfy { abs(s * $0.x - $0.z) < 0.95 })
+        }
+        // キャッチャーボックス: 幅 43 インチ（±0.546）・先端から 8 フィート（z −2.87）の U の字が、後ろの線の外側の縁から始まる。
+        typealias K = M.CatcherBox
+        let catcher = white.filter { $0.z < B.backZ - 0.2 && $0.z > K.backZ - h - 1e-3 && abs($0.x) < 1 }
+        #expect(!catcher.isEmpty)
+        #expect(catcher.allSatisfy { abs(abs($0.x) - K.halfWidth) < h + 1e-4 || abs($0.z - K.backZ) < h + 1e-4 }, "キャッチャーボックスの線が幅 0.546 の 2 辺と後ろの 1 辺の外にある")
+        #expect(catcher.contains { abs($0.x - (K.halfWidth + h)) < 1e-4 && abs($0.z - (K.backZ - h)) < 1e-4 }, "後ろの角が閉じていない")
+        // 2 辺の手前の端は、バッターボックスの後ろの線の外側の縁（backZ − 線の幅/2）に接する。
+        for s: Float in [-1, 1] {
+            #expect(white.contains { abs($0.x - s * (K.halfWidth + h)) < 1e-4 && abs($0.z - (B.backZ - h)) < 0.005 }, "キャッチャーボックスが後ろの線とつながっていない")
+        }
+        #expect(abs(K.backZ - (P.apexZ - 2.44)) < 1e-6)
+    }
+
+    // #1652 会長 QA「ファウルポールより外側のフェンスが無く客席が剥き出し」: 原因は形状（柵の板が ±46° で終わっていた）。
+    @Test("ファウルゾーンの壁は柵の端から本塁の後ろまで前縁の上で 1 周つながり、柵の端は壁の高さのままスタンドの前縁までつなぐ")
+    func foulWallWrapsAround() {
+        typealias M = HomerunToonModel
+        typealias S = M.StadiumColor
+        let pad = positions(of: S.foulPad)
+        func direction(_ p: SIMD3<Float>) -> Double { atan2(Double(p.x), Double(p.z)) * 180 / .pi }
+        for deg in stride(from: 50.0, through: 180.0, by: 10) {
+            for s in (deg == 180 ? [1.0] : [-1.0, 1.0]) {
+                // 両翼の前縁は 1° で数 m 変わる直線なので、頂点ごとにその方向の前縁と比べる。
+                let near = pad.filter { abs(direction($0) - s * deg) < 6 && abs(simd_length(SIMD2($0.x, $0.z)) - M.standFront(direction($0), depth: 0)) < 1.2 }
+                #expect(near.contains { $0.y > 1.3 }, "\(s * deg)° の壁が無い")
+                #expect(near.allSatisfy { $0.y >= -0.01 }, "\(s * deg)° の壁が地面に埋まる")
+            }
+        }
+        // 柵の端（46°）から 54° までは柵と同じ高さ（3.2m）、その先の両翼は 2.2m、バックネット裏は 1.4m（会長 QA 2026-10-01）。
+        #expect(pad.contains { abs(direction($0) - 50) < 4 && $0.y > 3.1 }, "柵の端に続く壁が低い")
+        #expect(pad.contains { abs(direction($0)) > 60 && abs(direction($0)) < 130 && $0.y > 2.1 }, "両翼の壁が低い（フェンスに見えない）")
+        #expect(!pad.contains { abs(direction($0)) > 60 && $0.y > 2.3 }, "両翼の壁が高すぎる")
+        #expect(!pad.contains { abs(direction($0)) > 140 && $0.y > 1.5 }, "バックネット裏の壁が高すぎる")
+        // 両翼の壁の上にも黄色の線（柵と同じ見た目）。バックネット裏には無い。
+        let yellow = positions(of: HomerunToonPalette.yellow)
+        #expect(yellow.contains { abs(direction($0) - 90) < 3 && $0.y > 2.1 && $0.y < 2.5 }, "両翼の壁に黄色の線が無い")
+        #expect(!yellow.contains { abs(direction($0)) > 140 && $0.y < 5 }, "バックネット裏に黄色の線がある")
+        // 柵の端（46°・柵の距離）とスタンドの前縁（2m 外）をつなぐ壁は柵の色。
+        let fence = positions(of: S.fence)
+        for s in [-1.0, 1.0] {
+            #expect(fence.contains { abs(direction($0) - s * 46) < 0.5 && simd_length(SIMD2($0.x, $0.z)) > Float(HomerunJudge.fence(atDirection: 46)) + 1.5 && $0.y > 3 },
+                    "\(s * 46)° の柵の端とスタンドをつなぐ壁が無い")
+        }
+    }
+
+    @Test("柵の上の金網は柵越えの球が柵の上で通る高さ（4.6m − 球の半径）より下で、距離表示（122・111・100）は柵の面にある")
+    func fenceNetAndDistanceMarks() {
+        typealias M = HomerunToonModel
+        typealias S = M.StadiumColor
+        func onFence(_ p: SIMD3<Float>) -> Bool {
+            let deg = atan2(Double(p.x), Double(p.z)) * 180 / .pi
+            return abs(deg) <= 46.5 && abs(Double(simd_length(SIMD2(p.x, p.z))) - HomerunJudge.fence(atDirection: deg)) < 0.6
+        }
+        let net = (positions(of: S.wire) + positions(of: S.rail)).filter(onFence)
+        #expect(net.contains { $0.y > 4.0 }, "金網が無い")
+        #expect(net.allSatisfy { Double($0.y) <= HomerunBallChase.fenceClearance - HomerunBallChase.ballRadius - 0.05 }, "金網が柵越えの球に掛かる")
+        #expect(M.Fence.netTopY < Float(HomerunBallChase.fenceClearance - HomerunBallChase.ballRadius))
+        // 黄色の線はラバーの上端のまま（追うカメラが柵越しに見る `fenceTop` 3.45 より下）。
+        #expect(Double(M.Fence.lineY + M.Fence.lineHeight / 2) <= HomerunBallChase.fenceTop + 0.01)
+        let white = positions(of: HomerunToonPalette.white).filter(onFence)
+        for (deg, _) in M.Fence.distanceMarks {
+            let r = HomerunJudge.fence(atDirection: deg), a = deg * .pi / 180
+            let digits = white.filter { abs(Double($0.x) - r * sin(a)) < 1.5 && abs(Double($0.z) - r * cos(a)) < 1.5 }
+            #expect(digits.contains { $0.y > 1.9 } && digits.contains { $0.y < 1.4 }, "\(deg)° の距離表示が無い")
+            // 本塁側の面（柵の中心より 0.2m 手前）の上に浮かせ、面から離れすぎない（頂点ごとにその方向の柵の距離で見る）。
+            for p in digits {
+                let own = HomerunJudge.fence(atDirection: atan2(Double(p.x), Double(p.z)) * 180 / .pi)
+                let radius = Double(simd_length(SIMD2(p.x, p.z)))
+                #expect(radius < own - 0.12 && radius > own - 0.45, "\(deg)° の距離表示が柵に埋まる・浮く（\(radius) / \(own)）")
+            }
+        }
+    }
+
+    @Test("スタンドの段は地面から隙間なく積み（前の段の上面 = 次の段の下面）、打球が落ちる面（HomerunBallChase.standSurface）は段の上面のまま")
+    func treadsAreSolidAndMatchTheLandingSurface() {
+        typealias Stand = HomerunToonModel.Stand
+        #expect(Stand.treadBottom(row: 0) == 0 && Stand.treadFront(row: 0) == 0)
+        for row in 1..<Stand.rows {
+            #expect(Stand.treadBottom(row: row) == Stand.treadTop(row: row - 1))
+            #expect(Stand.treadFront(row: row) >= Stand.treadBack(row: row - 1) - 1e-4, "\(row) 列目の段が前の段と重なる")
+        }
+        for row in 0..<Stand.rows {
+            #expect(abs(HomerunBallChase.standSurface(depth: Double(Stand.depth(row: row))) - Double(Stand.treadTop(row: row))) < 1e-5, "\(row) 列目")
+        }
+        // 段の箱は 1 周にあり、最前列は地面（y = 0）から立ち上がる。
+        let tread = positions(of: HomerunToonModel.StadiumColor.tread)
+        func direction(_ p: SIMD3<Float>) -> Double { atan2(Double(p.x), Double(p.z)) * 180 / .pi }
+        for deg in stride(from: -170.0, through: 170.0, by: 20) {
+            #expect(tread.contains { abs(direction($0) - deg) < 5 && $0.y < 0.01 }, "\(deg)° の最前列の段が地面から始まらない")
+        }
+    }
+
+    @Test("階段通路は本塁から放射状で約 12m おき・真後ろ（180°）には置かず、通路の脇に手すりがある")
+    func aislesAndRails() {
+        typealias M = HomerunToonModel
+        let aisles = M.aisleAngles
+        #expect(aisles.count > 20 && !aisles.contains { abs($0) > 170 })
+        for (a, b) in zip(aisles, aisles.dropFirst()) {
+            let r = M.standFront((a + b) / 2, depth: M.Stand.depth(row: M.Stand.lowerRows / 2))
+            let gap = Double(r) * (b - a) * .pi / 180
+            #expect(gap > 6 && gap < 18, "通路の間隔 \(gap)m")
+        }
+        let rail = positions(of: M.StadiumColor.rail)
+        #expect(rail.contains { $0.y > 10 && $0.z < -20 }, "上段の通路に手すりが無い")
+    }
+
+    // 会長指示 2026-10-01: 後ろ（バックネット・ネット裏の客席・内野スタンドの後方）にカメラを向けても破綻しない。
+    @Test("バックネット裏: 壁の上に網（支柱 + 横線・本塁の真後ろには支柱を置かない）、上段の後ろに放送席、両翼にダッグアウト")
+    func backstopAndDugouts() {
+        typealias M = HomerunToonModel
+        typealias S = M.StadiumColor
+        let posts = positions(of: S.rail).filter { $0.z < -14 && $0.y > 8 }
+        #expect(posts.contains { $0.x > 10 } && posts.contains { $0.x < -10 }, "バックネットの支柱が無い")
+        #expect(!posts.contains { abs($0.x) < 1.5 && abs($0.z + 16) < 1 && $0.y > 5 && $0.y < 8.8 }, "本塁の真後ろに支柱がある（前のカメラで打者の後ろに柱が立つ）")
+        let wires = positions(of: S.wire).filter { $0.z < -14 }
+        #expect(wires.contains { abs($0.x) < 3 && $0.y > 4 && $0.y < 7 }, "網の横線が無い")
+        // 放送席は上段の後ろ 2 列の上（本塁の後ろ 38m 前後・13〜17m）で屋根より低い。
+        let press = positions(of: S.concourse).filter { abs($0.x) <= M.Stand.pressBoxWidth / 2 + 0.01 && $0.z < -35 && $0.z > -42 && $0.y > 12 }
+        #expect(!press.isEmpty, "放送席が無い")
+        #expect(press.allSatisfy { $0.y < M.Stand.roofHeight - 0.5 })
+        let window = positions(of: S.screen).filter { $0.z < -30 }
+        #expect(window.contains { $0.y > 14 && $0.y < 17 }, "放送席の窓が無い")
+        // ダッグアウト（ファウルラインに沿って 20〜32m・線の 16m 外）: 開口は壁より手前（グラウンド側）にある。
+        let dugout = positions(of: S.dugout)
+        let root2 = Float(2).squareRoot()
+        for s: Float in [-1, 1] {
+            let center = SIMD2<Float>(s * (26 + 16) / root2, (26 - 16) / root2)
+            let near = dugout.filter { simd_length(SIMD2($0.x, $0.z) - center) < 7 }
+            #expect(near.count >= 8, "\(s > 0 ? "三塁" : "一塁")側のダッグアウトが無い")
+            #expect(near.allSatisfy { $0.y >= 0.05 && $0.y <= 1.75 })
+        }
+    }
+
     @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
-        // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.29m）より外に腰（原点 + 0.1m）がある。
+        // バットが本塁の上の球の通り道に届く距離（`HomerunSwingContact`）。バッターボックスの内側の線（0.241m）より外に腰（原点 + 0.1m）がある。
         #expect(L.batter.position.x > 0.15 && L.batter.position.x + 0.1 >= 0.29, "右打者は前のカメラの画面の右（+x）のバッターボックスに立つ")
         // Meshy の打者は構えで左肩が +x。y 軸まわりに yaw 回すと +x は (cos, 0, -sin) へ向く → 投手（+z）を向くこと。
         let leftShoulder = SIMD3<Float>(cos(L.batter.yaw), 0, -sin(L.batter.yaw))
@@ -240,6 +440,9 @@ struct HomerunStadium3DTests {
         #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
         #expect(L.catcher.position.z < 0, "捕手は本塁の奥")
         #expect(L.catcher.position.x < 0, "捕手は打者と反対側へ寄せる")
+        // 本塁の真後ろ（五角形の先端 z −0.432 より奥・本塁の幅 ±0.216 の中）で、ミットは本塁の中央の後ろ。
+        #expect(L.catcher.position.z < -0.432 && L.catcher.position.z > -1.3 && abs(L.catcher.position.x) < 0.216)
+        #expect(abs(HomerunBallFlight.mittPoint().x) < 0.15, "ミット \(HomerunBallFlight.mittPoint())")
         #expect(abs(L.machine.position.z - 17.6) < 1e-4 && abs(L.machine.position.y - 0.3) < 1e-4, "マシンはマウンドの上（高さ 0.3m）")
         #expect(abs(L.machine.yaw) < 1e-6, "マシンは -z（本塁）へ打ち出す向きのまま置く")
         #expect(L.cameraPosition.z > 20 && L.cameraTarget.z < 1, "センター側から本塁を見る")
@@ -321,10 +524,10 @@ struct HomerunStadium3DTests {
             }
             #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
             #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
-            // 手前の捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
-            let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
-            let head = L.worldPoint([0, 1.53, 0], of: L.catcher, for: back)
-            #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
+            // 本塁の真後ろの捕手の頭（ヘルメットの上）は、ゾーン（2D・SE の高さ 667pt で測る）の下の外に映り、ゾーンを塞がない。
+            let zoneBottom = L.zoneScreenFraction + Double(HomerunZoneGeometry.zoneSize) / 2 / 667
+            let head = L.worldPoint([0, 4.3 * L.catcherScale, 0], of: L.catcher, for: back)
+            #expect(back.screenPoint(of: head, aspect: aspect).y > zoneBottom, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
         }
     }
 
@@ -432,11 +635,12 @@ struct HomerunBackStanceSlideTests {
     typealias L = HomerunAtBatLayout
     private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
-    @Test("前のカメラは本来の位置のまま（ずらさない）")
-    func frontNeverSlides() {
-        let front = L.CameraPreset.front.camera
+    @Test("前のカメラも後ろと同じだけずらす（構えのつま先がボックスの線を越えないように・#1667）")
+    func frontSlidesLikeBack() {
+        let front = L.CameraPreset.front.camera, back = L.CameraPreset.back.camera
         for motion in [HomerunBatterMotion.stance, .load(start: t0), .swing(start: t0)] {
-            #expect(L.batterSlideTarget(motion, camera: front, now: t0.addingTimeInterval(0.3)) == 0)
+            #expect(L.batterSlideTarget(motion, camera: front, now: t0.addingTimeInterval(0.3))
+                    == L.batterSlideTarget(motion, camera: back, now: t0.addingTimeInterval(0.3)))
         }
     }
 
@@ -488,12 +692,16 @@ struct HomerunBackStanceSlideTests {
     #if canImport(RealityKit)
     /// USDZ の構え（1 コマ目）の両足の骨（Foot・ToeBase）の打者の局所座標。
     @MainActor
-    private func stanceFeet() throws -> [SIMD3<Float>] {
+    private func stanceFeet() throws -> [SIMD3<Float>] { try feet(.stance, now: Date()) }
+
+    /// 段階 `motion` を時刻 `now` に見せたときの両足の骨の打者の局所座標。
+    @MainActor
+    private func feet(_ motion: HomerunBatterMotion, now: Date) throws -> [SIMD3<Float>] {
         let rig = try #require(HomerunBatterRig())
         if #available(macOS 15.0, iOS 18.0, *) {
             let renderer = try RealityRenderer()
             renderer.entities.append(rig.entity)
-            rig.show(.stance, now: Date())
+            rig.show(motion, now: now)
             try renderer.update(0.001)
         }
         func find(_ e: Entity) -> ModelEntity? {
@@ -534,11 +742,110 @@ struct HomerunBackStanceSlideTests {
         }
     }
 
+    // #1667 会長 QA（2026-10-01）: 骨（Foot・ToeBase）は線の内側でも、靴の皮は本塁側へ 0.1m ほど先に出ていて、
+    // 構え・振りの間につま先が内側の線を越えていた。骨ではなく皮の頂点（スキニングを手で計算）で測る。
+    @Test("構え（前・後ろのカメラのずらし込み）では、両足の靴の皮がバッターボックスの線の内側に収まる（#1667）")
+    @MainActor
+    func stanceShoesAreInsideTheBox() throws {
+        typealias B = HomerunToonModel.BatterBox
+        let now = Date()
+        let shoes = try skinnedFootVertices(.stance, now: now)
+        #expect(shoes.count > 500, "足元の頂点が \(shoes.count) 個しか取れない")
+        for preset in L.CameraPreset.allCases {
+            let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, camera: preset.camera, now: now)))
+            let w = shoes.map { L.batterWorld($0) + offset }
+            let minX = w.map(\.x).min()!, maxX = w.map(\.x).max()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
+            #expect(minX > B.innerX + B.line / 2 && maxX < B.outerX - B.line / 2, "\(preset): 横の線をはみ出す x \(minX)〜\(maxX)")
+            #expect(minZ > B.backZ + B.line / 2 && maxZ < B.frontZ - B.line / 2, "\(preset): 前後の線をはみ出す z \(minZ)〜\(maxZ)")
+        }
+    }
+
+    // 振りは本来の位置でしか打点が合わない（バットの先端が外の列に 7cm しか余らない・`HomerunSwingContactTests`）ので打者は
+    // 動かせない。内側の線を本塁の縁まで寄せ、つま先が本塁の縁を越えるのは振り抜きの一瞬（最大 6cm）に抑える。
+    @Test("踏み込み〜振り終わり: つま先は内側の線の本塁側の縁（= 本塁の縁）を 7cm より先へ越えず、前後の線の内側にある（#1667）")
+    @MainActor
+    func swingShoesStayNearTheBox() throws {
+        typealias B = HomerunToonModel.BatterBox
+        #expect(abs((B.innerX - B.line / 2) - 0.216) < 0.001, "内側の線の本塁側の縁は本塁の縁")
+        let now = Date()
+        let back = L.CameraPreset.back.camera
+        var motions: [HomerunBatterMotion] = (0...19).map { .load(start: now.addingTimeInterval(-Double($0) / 30)) }
+        motions += (0...24).map { .swing(start: now.addingTimeInterval(-Double($0) / 30)) }
+        for motion in motions {
+            let offset = L.batterOffset(slide: L.batterSlideTarget(motion, camera: back, now: now) ?? 0)
+            let w = try skinnedFootVertices(motion, now: now).map { L.batterWorld($0) + offset }
+            let minX = w.map(\.x).min()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
+            #expect(minX > B.innerX - B.line / 2 - 0.07, "\(motion): つま先 x \(minX)")
+            #expect(minZ > B.backZ + B.line / 2 && maxZ < B.frontZ - B.line / 2, "\(motion): 前後の線をはみ出す z \(minZ)〜\(maxZ)")
+        }
+    }
+
+    /// 段階 `motion` を時刻 `now` に見せたときの、足元（高さ 0.15m 未満）の皮の頂点（打者の局所座標・スキニングを手で計算）。
+    @MainActor
+    private func skinnedFootVertices(_ motion: HomerunBatterMotion, now: Date) throws -> [SIMD3<Float>] {
+        let rig = try #require(HomerunBatterRig())
+        if #available(macOS 15.0, iOS 18.0, *) {
+            let renderer = try RealityRenderer()
+            renderer.entities.append(rig.entity)
+            rig.show(motion, now: now)
+            try renderer.update(0.001)
+        }
+        func models(_ e: Entity) -> [ModelEntity] {
+            var r: [ModelEntity] = []
+            if let m = e as? ModelEntity, !m.jointNames.isEmpty { r.append(m) }
+            for c in e.children { r += models(c) }
+            return r
+        }
+        var out: [SIMD3<Float>] = []
+        for model in models(rig.entity) {
+            let names = model.jointNames
+            // 骨の打者の局所座標の行列（親をたどって掛ける）。
+            let world: [String: simd_float4x4] = Dictionary(uniqueKeysWithValues: names.indices.map { index in
+                var m = matrix_identity_float4x4
+                var path = names[index]
+                while true {
+                    if let i = names.firstIndex(of: path) { m = model.jointTransforms[i].matrix * m }
+                    guard let slash = path.lastIndex(of: "/") else { break }
+                    path = String(path[..<slash])
+                }
+                return (names[index], m)
+            })
+            let entityToRig = model.transformMatrix(relativeTo: rig.entity)
+            guard #available(macOS 15.0, iOS 18.0, *), let contents = model.model?.mesh.contents else { continue }
+            for instance in contents.instances {
+                guard let meshModel = contents.models[instance.model] else { continue }
+                for part in meshModel.parts {
+                    guard let skelID = part.skeletonID, let skeleton = contents.skeletons[skelID],
+                          let influences = part.jointInfluences else { continue }
+                    let infl = influences.influences.elements
+                    let positions = part.positions.elements
+                    let per = infl.count / max(positions.count, 1)
+                    let jointMatrices: [simd_float4x4] = skeleton.joints.map { joint in
+                        let leaf = joint.name.split(separator: "/").last.map(String.init) ?? joint.name
+                        let m: simd_float4x4 = world[joint.name] ?? world.first { $0.key.split(separator: "/").last.map(String.init) == leaf }?.value ?? matrix_identity_float4x4
+                        return m * joint.inverseBindPoseMatrix
+                    }
+                    for (vi, p) in positions.enumerated() {
+                        let v = instance.transform * SIMD4<Float>(p.x, p.y, p.z, 1)
+                        var acc = SIMD4<Float>(0, 0, 0, 0)
+                        for k in 0..<per {
+                            let inf = infl[vi * per + k]
+                            if inf.weight > 0 { acc += inf.weight * (jointMatrices[inf.jointIndex] * v) }
+                        }
+                        let r: SIMD4<Float> = entityToRig * acc
+                        if r.y < 0.15 { out.append(SIMD3<Float>(r.x, r.y, r.z)) }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
     @Test("前のカメラの構えでは、両足がバッターボックスの前後の線の内側にある（本来の位置のまま・#1619）")
     @MainActor
     func frontStanceFeetAreInsideTheBoxLengthwise() throws {
         typealias B = HomerunToonModel.BatterBox
-        #expect(L.batterSlideTarget(.stance, camera: L.CameraPreset.front.camera, now: t0) == 0)
+        #expect(L.batterSlideTarget(.stance, camera: L.CameraPreset.front.camera, now: t0) == L.backStanceSlide, "前のカメラも構えはずらす（#1667）")
         for local in try stanceFeet() {
             let w = L.batterWorld(local)
             #expect(w.z > B.backZ + B.line / 2 && w.z < B.frontZ - B.line / 2, "足が前後の線をはみ出す: z \(w.z)")

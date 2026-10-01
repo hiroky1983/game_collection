@@ -3,12 +3,17 @@ import simd
 import HomerunCore
 
 extension HomerunToonModel {
-    /// 球場の色（`mock3d.swift` の `P` のうち球場のもの + #1506 で足した部品の色）。
+    /// 球場の色（`mock3d.swift` の `P` のうち球場のもの + #1506 で足した部品の色 + #1651 で足した部品の色）。
     enum StadiumColor {
         static let grass: UInt32 = 0x4FA653, grassDark: UInt32 = 0x3F8E45, dirt: UInt32 = 0xC28C58
-        static let fence: UInt32 = 0x2F7A4F, fenceSeam: UInt32 = 0x1F5A38, track: UInt32 = 0xB8804C, backWall: UInt32 = 0x3C5A3A
-        /// スタンドの構造（通路の壁・屋根・屋根の下の壁）と設備（照明塔・スコアボード・バックスクリーン）。
-        static let concourse: UInt32 = 0xB9B5C2, roof: UInt32 = 0x565C74, roofWall: UInt32 = 0x7C8299
+        /// 打席まわりの土の色むら（踏み跡の暗い土・乾いた明るい土）と、本塁のゴム板の縁取り（#1677）。
+        static let dirtDark: UInt32 = 0xB88451, dirtLight: UInt32 = 0xC99561, plateRim: UInt32 = 0xC9C5BA
+        static let fence: UInt32 = 0x2F7A4F, fenceSeam: UInt32 = 0x1F5A38, track: UInt32 = 0xB8804C
+        /// ファウルゾーンの壁（内野〜外野ファウルの客席の手前に 1 周つながるラバー。外野の柵とほぼ同じ緑・別メッシュ）。
+        static let foulPad: UInt32 = 0x2D744B
+        /// スタンドの構造（段のコンクリート・通路・手すり・屋根・屋根の下の壁）と設備（照明塔・スコアボード・バックスクリーン）。
+        static let tread: UInt32 = 0xA9A6B4, concourse: UInt32 = 0xB9B5C2, rail: UInt32 = 0x4E5468, wire: UInt32 = 0xD8DBE2
+        static let roof: UInt32 = 0x565C74, roofWall: UInt32 = 0x7C8299, dugout: UInt32 = 0x3A3645
         static let tower: UInt32 = 0x9AA0AE, lamp: UInt32 = 0xFFF2C2, board: UInt32 = 0x2B2634, screen: UInt32 = 0x1A2A3C
         static let battersEye: UInt32 = 0x28553A
         /// 遠景（街並み 2 段・雲）。陰影を付けず（`shade` = 1）平らに塗る。
@@ -28,9 +33,14 @@ extension HomerunToonModel {
     }
 
     /// スタンドの段（下段 7 列 + 通路 + 上段 6 列。#1506「段のあるスタンド」）。前縁からの奥行き（m）と座面の高さ（m）。
+    ///
+    /// #1651 で「色の帯の積み重ね」から「コンクリートの段（踏み面）の上に座席の列」に変えた。段は前の段の上面から自分の上面まで
+    /// を 1 つの箱にして地面から隙間なく積み（`treadTop` / `treadBottom`）、座席はその上の後ろ寄りに置く。打球が落ちる面
+    /// （`HomerunBallChase.standSurface` = `height + seatHeight / 2`）は段の上面で変えていない。
     enum Stand {
         static let lowerRows = 7, upperRows = 6
         static var rows: Int { lowerRows + upperRows }
+        /// 座席 1 つの幅（周に沿う刻み）と、段 1 つの高さ（`height` は段の上面より `seatHeight / 2` 下 = 段の中心）。
         static let seatSize: Float = 1.5, seatHeight: Float = 0.9
         /// 下段は 1.6m 刻みで 0.95m ずつ上がり、上段は通路（3m）を挟んで 1.5m 刻みで 1.15m ずつ（下段より急）上がる。
         static func depth(row: Int) -> Float {
@@ -39,25 +49,83 @@ extension HomerunToonModel {
         static func height(row: Int) -> Float {
             row < lowerRows ? 0.9 + Float(row) * 0.95 : 0.9 + Float(lowerRows - 1) * 0.95 + 1.4 + Float(row - lowerRows) * 1.15
         }
-        /// 通路の壁（下段の最後列のすぐ後ろ）。
-        static var concourseDepth: Float { 2 + Float(lowerRows) * 1.6 + 0.4 }
-        static var concourseWallBottom: Float { height(row: lowerRows - 1) }
-        static var concourseWallTop: Float { height(row: lowerRows) - 0.1 }
+        static func pitch(row: Int) -> Float { row < lowerRows ? 1.6 : 1.5 }
+        /// 段（踏み面）の上面・下面の高さと、前縁からの手前・奥の奥行き。最前列は前縁（奥行き 0）から始めて壁の裏を埋める。
+        static func treadTop(row: Int) -> Float { height(row: row) + seatHeight / 2 }
+        static func treadBottom(row: Int) -> Float { row == 0 ? 0 : treadTop(row: row - 1) }
+        static func treadFront(row: Int) -> Float { row == 0 ? 0 : depth(row: row) - pitch(row: row) / 2 }
+        static func treadBack(row: Int) -> Float { depth(row: row) + pitch(row: row) / 2 }
+        /// 下段と上段の間の通路（床は下段の最後列の上面と同じ高さ・奥は上段の最前列の段の立ち上がり）。
+        static var walkwayFront: Float { treadBack(row: lowerRows - 1) }
+        static var walkwayBack: Float { treadFront(row: lowerRows) }
+        static var walkwayFloor: Float { treadTop(row: lowerRows - 1) }
+        /// 座席（背もたれの箱）: 幅は刻みから `seatGap` 引き、段の奥寄りに置く。
+        static let seatBackHeight: Float = 0.5, seatDepth: Float = 0.55, seatGap: Float = 0.25
+        /// 階段通路の間隔（下段の中ほどの周に沿って約 12m・本塁から放射状）と、通路の脇の手すりの高さ。
+        static let aisleSpacing: Float = 12, railHeight: Float = 0.9
+        /// 中堅はバックスクリーン（|deg| < 6）なので座席を置かない。
+        static let battersEyeGap = 6.0
+        /// 両翼の柵の端（46°）から続くファウルゾーンの壁は、スタンドの前縁が弧から直線に変わる 54° まで柵と同じ高さ、その先の両翼は
+        /// 2.2m（会長 QA 2026-10-01「ファウル側のフェンスが見えない」: 1.4m では 19.5:9 の画面で芝と同じ緑の低い帯にしか見えず、
+        /// 客席がその上に直に乗って見えた。柵と同じ黄色の線・継ぎ目を付けて「フェンス」と分かる高さにする）、
+        /// バックネット裏（|deg| ≥ 135）は網の支柱の足元の低い壁。
+        static let tallPadEnd = 54.0, padHeight: Float = 2.2, tallPadHeight: Float = 3.2, backstopPadHeight: Float = 1.4
         /// 上段の後ろの壁と屋根（内野側だけ。外野はスコアボードと照明塔）。
         static var backDepth: Float { depth(row: rows - 1) + 1.6 }
         static var roofHeight: Float { height(row: rows - 1) + 4.2 }
+        /// バックネット裏の放送席（上段の後ろ 2 列・本塁の真後ろ ±10.5°）。
+        static let pressBoxHalfAngle = 10.5, pressBoxWidth: Float = 14
     }
 
     /// バッターボックスの白線（m・本塁が原点・左右に 1 つずつ）。線の中心の位置で、線の幅は `line`。
     /// 打者の足がこの中に収まることをテストで固定する（#1619）。
     enum BatterBox {
-        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.29・外側の線 = 1.51）。
-        static let centerX: Float = 0.9, width: Float = 1.22
+        /// 箱の中心の |x|・横幅（内側の線 = centerX − width/2 = 0.241・外側の線 = 1.461）。内側の線は本塁の縁（0.216）に
+        /// 本塁側の縁を合わせる（#1667・会長 QA 2026-10-01: 0.29 では振りの間に右足のつま先が線を越えていた。打者はバットが
+        /// 外の列に届く所から動かせないので、線の側を寄せる）。
+        static let centerX: Float = 0.851, width: Float = 1.22
         /// 前（投手側）・後ろ（捕手側）の線の z と、横の線の長さ。
         static let frontZ: Float = 0.9, backZ: Float = -0.93, sideLength: Float = 1.83
-        static let line: Float = 0.06
+        /// 線の幅（実物の 2 インチ・#1677 で 0.06 から細くした）。
+        static let line: Float = 0.05
         static var innerX: Float { centerX - width / 2 }
         static var outerX: Float { centerX + width / 2 }
+        /// 箱の 4 隅（線の中心・一塁側 s = -1 / 三塁側 s = +1。留め継ぎで閉じる `HomerunToonMesh.ribbon` に渡す）。
+        static func corners(side s: Float) -> [SIMD2<Float>] {
+            [[s * innerX, frontZ], [s * outerX, frontZ], [s * outerX, backZ], [s * innerX, backZ]]
+        }
+    }
+
+    /// 本塁（五角形・実物の 17 インチ）とキャッチャーボックス・打席まわりの土の層の高さ（#1677 会長 QA 2026-10-01「デザインが荒い」）。
+    /// 高さの層: 土の面 0.06 → 色むら・踏み跡 0.067 → 本塁の縁取り 0.072 → 白線と本塁の上面 0.08。影（球・打者・バット）は
+    /// 白線の上 `HomerunBallShadow.infieldClearance`（0.09）に浮かせてあるので、ここの上面は 0.08 を超えない。
+    enum HomePlate {
+        /// 頂点（x, z）: 前縁 (±0.216, 0)・横 (±0.216, -0.216)・先端 (0, -0.432)。先端を通る 45° の線がファウルライン。
+        static let polygon: [SIMD2<Float>] = [[-0.216, 0], [0.216, 0], [0.216, -0.216], [0, -0.432], [-0.216, -0.216]]
+        static let halfWidth: Float = 0.216, apexZ: Float = -0.432
+        /// 白いゴム板: 上面 0.08・厚み 1.6cm（土から 2cm 顔を出す）・上の縁を 1.2cm 斜めに落とす（陰影で縁が出る）。
+        static let top: Float = 0.08, thickness: Float = 0.016, bevel: Float = 0.012
+        /// 板の周りの薄い灰色の縁取り（1.5cm・上面 0.072）と、土に少し埋まって見える暗い土の輪（5cm・上面 0.067）。
+        static let rimWidth: Float = 0.015, rimTop: Float = 0.072, sunkWidth: Float = 0.05, patchTop: Float = 0.067
+        /// 白線の上面と厚み（土の上に薄く乗る 8mm。側面を薄くして低いカメラでも線が太って見えない）。
+        static let lineTop: Float = 0.08, lineThickness: Float = 0.008
+        /// 土の面の高さ（`stadium()` の本塁まわりの土の円の上面）。
+        static let dirtTop: Float = 0.06
+    }
+
+    /// キャッチャーボックス（実物: 幅 43 インチ・本塁の先端から 8 フィート後ろまで）。バッターボックスの後ろの線から後ろへ U の字に引く。
+    enum CatcherBox {
+        static let halfWidth: Float = 0.546
+        static var backZ: Float { HomePlate.apexZ - 2.44 }
+    }
+
+    /// 外野の柵（ラバー 3.2m + 黄色の線 + その上の金網）。柵の距離は判定と同じ `HomerunJudge.fence`。
+    /// 金網の上端は柵越えの球が通る高さ（`HomerunBallChase.fenceClearance` 4.6m・球の半径 0.1m）より下。
+    enum Fence {
+        static let rubberHeight: Float = 3.2, lineY: Float = 3.25, lineHeight: Float = 0.18
+        static let netWireYs: [Float] = [3.62, 3.88, 4.12], netTopY: Float = 4.36
+        /// 柵の面に貼る距離表示（中堅 122・左右中間 111・両翼 100）。角度と文字。
+        static let distanceMarks: [(deg: Double, text: String)] = [(0, "122"), (30, "111"), (-30, "111"), (43, "100"), (-43, "100")]
     }
 
     /// 球場（メートル。本塁が原点・+z がセンター・左右対称。RealityKit は右手系なので描画の上では +x が三塁側（打球の置き方は `HomerunAtBatLayout.pullSideX`・`HomerunBallChase.world`）。`mock3d.swift` の `stadium()` を出発点に #1506 で作り込んだもの）。
@@ -81,7 +149,7 @@ extension HomerunToonModel {
             m.box(80, 0.02, 200, S.grass, at: [s * 70.7, 0.03, 14.1], outline: 0, yaw: s * quarter)
         }
         m.box(25.5, 0.02, 25.5, S.grass, at: [0, 0.03, 19.4], outline: 0, yaw: quarter)
-        // 本塁まわりの土・マウンド・塁の土・走路（4 辺）・ネクストバッターズサークル・ファウルライン
+        // 本塁まわりの土・マウンド・塁の土・走路（4 辺）・ネクストバッターズサークル（ファウルラインは `homePlateArea`）
         m.cylinder(4.0, 0.02, S.dirt, at: [0, 0.05, 0], outline: 0)
         m.cylinder(5.5, 0.02, S.dirt, at: [0, 0.05, 18.44], outline: 0)
         m.cylinder(2.75, 0.3, S.dirt, at: [0, 0.15, 18.44], outline: 0)
@@ -92,60 +160,13 @@ extension HomerunToonModel {
             m.box(1.9, 0.02, 27.4, S.dirt, at: [s * 9.7, 0.05, 9.7], outline: 0, yaw: s * quarter)
             m.box(1.9, 0.02, 27.4, S.dirt, at: [s * 9.7, 0.05, 29.1], outline: 0, yaw: -s * quarter)
             m.box(0.4, 0.1, 0.4, C.white, at: [s * 19.4, 0.05, 19.4], outline: 0)
-            m.box(0.12, 0.02, 100, C.white, at: [s * 35.4, 0.07, 35.4], outline: 0, yaw: s * quarter)
             m.cylinder(1.3, 0.02, S.dirt, at: [s * 9, 0.05, -5], outline: 0)
         }
         m.box(0.4, 0.1, 0.4, C.white, at: [0, 0.05, 38.8], outline: 0)
-        // 本塁（五角形 = 長方形 + 45° に回した正方形の和。頂点は原本と同じ (±0.216, 0)・(±0.216, -0.216)・(0, -0.432)）・バッターボックス
-        m.box(0.432, 0.02, 0.216, C.white, at: [0, 0.07, -0.108], outline: 0)
-        m.box(0.3055, 0.02, 0.3055, C.white, at: [0, 0.07, -0.216], outline: 0, yaw: quarter)
-        typealias B = BatterBox
-        for s: Float in [-1, 1] {
-            let cx = s * B.centerX
-            m.box(B.width, 0.02, B.line, C.white, at: [cx, 0.07, B.frontZ], outline: 0)
-            m.box(B.width, 0.02, B.line, C.white, at: [cx, 0.07, B.backZ], outline: 0)
-            m.box(B.line, 0.02, B.sideLength, C.white, at: [cx - s * B.width / 2, 0.07, 0], outline: 0)
-            m.box(B.line, 0.02, B.sideLength, C.white, at: [cx + s * B.width / 2, 0.07, 0], outline: 0)
-        }
-        // フェンス（ラバーの継ぎ目 = 横 2 本・縦は 3° ごと・足元の暗い帯）・黄色の上線・ウォーニングトラック。
-        // 柵の距離は方向で変わるので、隣の点を結ぶ弦の向きで板を回す。
-        func point(_ deg: Double, _ dr: Double = 0) -> SIMD2<Float> {
-            let r = HomerunJudge.fence(atDirection: deg) + dr
-            return [Float(r * sin(deg * .pi / 180)), Float(r * cos(deg * .pi / 180))]
-        }
-        func chord(_ deg: Double, _ step: Double, _ dr: Double = 0) -> (center: SIMD2<Float>, length: Float, yaw: Float) {
-            let a = point(deg, dr), b = point(deg + step, dr), d = b - a
-            return ((a + b) / 2, simd_length(d), Float(atan2(Double(-d.y), Double(d.x))))
-        }
-        for deg in stride(from: -46.0, to: 46.0, by: 1.5) {
-            let c = chord(deg, 1.5)
-            m.box(c.length + 0.15, 3.2, 0.4, S.fence, at: [c.center.x, 1.6, c.center.y], outline: 0, yaw: c.yaw)
-            m.box(c.length + 0.15, 0.18, 0.5, C.yellow, at: [c.center.x, 3.25, c.center.y], outline: 0, yaw: c.yaw)
-            m.box(c.length + 0.15, 0.35, 0.46, S.fenceSeam, at: [c.center.x, 0.18, c.center.y], outline: 0, yaw: c.yaw)
-            for y: Float in [1.15, 2.2] {
-                m.box(c.length + 0.15, 0.07, 0.46, S.fenceSeam, at: [c.center.x, y, c.center.y], outline: 0, yaw: c.yaw)
-            }
-            if Int((deg + 46) / 1.5) % 2 == 0 {
-                let p = point(deg)
-                m.box(0.07, 3.2, 0.46, S.fenceSeam, at: [p.x, 1.6, p.y], outline: 0, yaw: c.yaw)
-            }
-            let t = chord(deg, 1.5, -3.35)
-            m.box(t.length + 0.3, 0.02, 7.3, S.track, at: [t.center.x, 0.02, t.center.y], outline: 0, yaw: t.yaw)
-        }
-        // ファウルポール（両翼の柵の上・黄色）
-        for s: Float in [-1, 1] {
-            let p = point(Double(s) * 45)
-            m.cylinder(0.3, 20, C.yellow, at: [p.x, 10, p.y], outline: 0)
-            m.sphere(0.5, C.yellow, at: [p.x, 20.2, p.y], outline: 0)
-        }
+        homePlateArea(into: &m)
+        fence(into: &m)
         stands(into: &m)
-        // バックスクリーン（中堅の客席を塞ぐ濃い緑の板）とスコアボード（その上・脚 2 本）
-        m.box(26, 15, 1.0, S.battersEye, at: [0, 7.5, 125.5], outline: 0)
-        m.box(26, 10, 1.5, S.board, at: [0, 21, 151], outline: 0)
-        m.box(24, 8, 0.3, S.screen, at: [0, 21, 150.2], outline: 0)
-        for s: Float in [-1, 1] {
-            m.cylinder(0.6, 16, S.tower, at: [s * 9, 8, 152], outline: 0)
-        }
+        battersEye(into: &m)
         // 照明塔（外野 2 基・内野 2 基。灯体はホームを向く）
         for (deg, dr, height) in [(-36.0, 30.0, Float(42)), (36.0, 30.0, 42), (-104.0, 0.0, 38), (104.0, 0.0, 38)] {
             let r = dr > 0 ? HomerunJudge.fence(atDirection: deg) + dr : Double(standFront(deg, depth: Stand.backDepth + 4))
@@ -154,13 +175,133 @@ extension HomerunToonModel {
             // 幅の向きを円の接線（yaw = +角）にして灯体の面をホームへ向ける（`box` の yaw は正で x 軸を -z 側へ回す）。
             m.box(10, 6, 1.5, S.lamp, at: [x, height + 2.5, z], outline: 0, yaw: Float(deg * .pi / 180))
         }
-        // バックネット裏の低い壁（yaw は +角 = 接線。原本の SceneKit の写しでは -角になっていて板が互い違いに見えていた）
-        for deg in stride(from: 132.0, to: 228.0, by: 3.0) {
-            let a = Float(deg * .pi / 180)
-            m.box(1.0, 1.1, 0.4, S.backWall, at: [14.5 * sin(a), 0.55, 14.5 * cos(a)], outline: 0, yaw: a)
-        }
         skyline(into: &m)
         return m.merged()
+    }
+
+    /// 本塁まわり（#1677）: 五角形の本塁（白いゴム板 + 灰色の縁取り + 土に埋まった暗い輪）・バッターボックス（留め継ぎで閉じた 1 本の線）・
+    /// キャッチャーボックス・ファウルライン（本塁の先端を通る 45° の線。実物どおりバッターボックスの前の線から外へ引き、箱の中には引かない）・
+    /// 打席まわりの土の色むら（踏み跡の暗い楕円・乾いた所の明るい楕円）。すべて平らな図形で、上面は白線の 0.08 を超えない。
+    private static func homePlateArea(into m: inout HomerunToonModel) {
+        typealias C = HomerunToonPalette
+        typealias S = StadiumColor
+        typealias B = BatterBox
+        typealias P = HomePlate
+        func flat(_ polygon: [SIMD2<Float>], top: Float, thickness: Float, _ color: UInt32, bevel: Float = 0) {
+            m.parts.append(HomerunToonPart(mesh: HomerunToonMesh.prism(polygon, height: thickness, bevel: bevel)
+                                               .placed(HomerunToonModel.translation([0, top - thickness / 2, 0])), outline: nil, color: color))
+        }
+        func line(_ points: [SIMD2<Float>], closed: Bool) {
+            m.parts.append(HomerunToonPart(mesh: HomerunToonMesh.ribbon(points, width: B.line, height: P.lineThickness, closed: closed)
+                                               .placed(HomerunToonModel.translation([0, P.lineTop - P.lineThickness / 2, 0])), outline: nil, color: C.white))
+        }
+        // 本塁: 暗い土の輪 → 灰色の縁取り → 白いゴム板（上の縁を斜めに落とす）。
+        flat(HomerunToonMesh.offset(HomerunToonMesh.clockwise(P.polygon), by: P.sunkWidth, closed: true), top: P.patchTop, thickness: 0.006, S.dirtDark)
+        flat(HomerunToonMesh.offset(HomerunToonMesh.clockwise(P.polygon), by: P.rimWidth, closed: true), top: P.rimTop, thickness: 0.01, S.plateRim)
+        flat(P.polygon, top: P.top, thickness: P.thickness, C.white, bevel: P.bevel)
+        for s: Float in [-1, 1] {
+            line(B.corners(side: s), closed: true)
+            // ファウルライン: 先端 (0, apexZ) を通る x = s (z − apexZ) の線を、前の線の外側の縁から 98m（柵の手前まで）。
+            let z0 = B.frontZ + B.line / 2 - 0.002
+            let x0 = s * (z0 - P.apexZ)
+            let far = 98 / Float(2).squareRoot()
+            line([[x0, z0], [x0 + s * far, z0 + far]], closed: false)
+            // 踏み跡（打者が立つ所の暗い楕円。左右対称に両方の箱へ）と、乾いた所の明るい楕円。
+            flat(HomerunToonMesh.ellipse(center: [s * 0.78, -0.06], rx: 0.4, rz: 0.52), top: P.patchTop, thickness: 0.006, S.dirtDark)
+            flat(HomerunToonMesh.ellipse(center: [s * 2.3, -1.7], rx: 0.55, rz: 0.35), top: P.patchTop, thickness: 0.006, S.dirtLight)
+            flat(HomerunToonMesh.ellipse(center: [s * 1.6, 2.1], rx: 0.45, rz: 0.3), top: P.patchTop, thickness: 0.006, S.dirtLight)
+        }
+        flat(HomerunToonMesh.ellipse(center: [0, 2.7], rx: 0.9, rz: 0.4), top: P.patchTop, thickness: 0.006, S.dirtLight)
+        // キャッチャーボックス: 後ろの線の外側の縁から U の字（43 インチ幅・先端から 8 フィート）。
+        let z1 = B.backZ - B.line / 2 + 0.002
+        line([[-CatcherBox.halfWidth, z1], [-CatcherBox.halfWidth, CatcherBox.backZ], [CatcherBox.halfWidth, CatcherBox.backZ], [CatcherBox.halfWidth, z1]], closed: false)
+    }
+
+    /// 柵の上の点（本塁からの方向 `deg`・柵から `dr` m 外）。
+    static func fencePoint(_ deg: Double, _ dr: Double = 0) -> SIMD2<Float> {
+        let r = HomerunJudge.fence(atDirection: deg) + dr
+        return [Float(r * sin(deg * .pi / 180)), Float(r * cos(deg * .pi / 180))]
+    }
+
+    /// 2 点を結ぶ板の置き方（中心・長さ・y 軸まわりの向き）。板の局所の +x は a → b の向き（`box` の yaw は正で x 軸を -z 側へ回す）。
+    private static func chord(_ a: SIMD2<Float>, _ b: SIMD2<Float>) -> (center: SIMD2<Float>, length: Float, yaw: Float) {
+        let d = b - a
+        return ((a + b) / 2, simd_length(d), Float(atan2(Double(-d.y), Double(d.x))))
+    }
+
+    /// 外野の柵（-46°〜46°）: ラバー（継ぎ目 = 横 2 本・縦は 3° ごと・足元の暗い帯）・黄色の上線・その上の金網（支柱 + 横線 3 本 + 上の桟）・
+    /// 距離表示・ウォーニングトラック・ファウルポール。柵の距離は方向で変わるので、隣の点を結ぶ弦の向きで板を回す。
+    /// 柵の端（±46°）はスタンドの前縁（2m 外）まで同じ高さの壁でつなぎ、そこからファウルゾーンの壁（`stands`）が 1 周続く。
+    private static func fence(into m: inout HomerunToonModel) {
+        typealias C = HomerunToonPalette
+        typealias S = StadiumColor
+        typealias F = Fence
+        for deg in stride(from: -46.0, to: 46.0, by: 1.5) {
+            let c = chord(fencePoint(deg), fencePoint(deg + 1.5))
+            let (x, z) = (c.center.x, c.center.y)
+            m.box(c.length + 0.15, F.rubberHeight, 0.4, S.fence, at: [x, F.rubberHeight / 2, z], outline: 0, yaw: c.yaw)
+            m.box(c.length + 0.15, F.lineHeight, 0.5, C.yellow, at: [x, F.lineY, z], outline: 0, yaw: c.yaw)
+            m.box(c.length + 0.15, 0.35, 0.46, S.fenceSeam, at: [x, 0.18, z], outline: 0, yaw: c.yaw)
+            for y: Float in [1.15, 2.2] {
+                m.box(c.length + 0.15, 0.07, 0.46, S.fenceSeam, at: [x, y, z], outline: 0, yaw: c.yaw)
+            }
+            // 金網: 横線は細く（0.03m）、上の桟は少し太く。追うカメラの柵越しの視線（柵の上端 + 0.5m）はこの線の間を通る。
+            for y in F.netWireYs {
+                m.box(c.length + 0.1, 0.03, 0.03, S.wire, at: [x, y, z], outline: 0, yaw: c.yaw)
+            }
+            m.box(c.length + 0.1, 0.08, 0.08, S.rail, at: [x, F.netTopY, z], outline: 0, yaw: c.yaw)
+            if Int((deg + 46) / 1.5) % 2 == 0 {
+                let p = fencePoint(deg)
+                m.box(0.07, F.rubberHeight, 0.46, S.fenceSeam, at: [p.x, F.rubberHeight / 2, p.y], outline: 0, yaw: c.yaw)
+                let postBottom = F.lineY + F.lineHeight / 2, postTop = F.netTopY + 0.04
+                m.box(0.1, postTop - postBottom, 0.1, S.rail, at: [p.x, (postTop + postBottom) / 2, p.y], outline: 0, yaw: c.yaw)
+            }
+            let t = chord(fencePoint(deg, -3.35), fencePoint(deg + 1.5, -3.35))
+            m.box(t.length + 0.3, 0.02, 7.3, S.track, at: [t.center.x, 0.02, t.center.y], outline: 0, yaw: t.yaw)
+        }
+        // 柵の端とスタンドの前縁をつなぐ壁（柵と同じ高さ・黄色の線もつなぐ）
+        for s in [-1.0, 1.0] {
+            let c = chord(fencePoint(s * 46), standPoint(s * 46, depth: 0))
+            m.box(c.length + 0.4, F.rubberHeight, 0.4, S.fence, at: [c.center.x, F.rubberHeight / 2, c.center.y], outline: 0, yaw: c.yaw)
+            m.box(c.length + 0.4, F.lineHeight, 0.5, C.yellow, at: [c.center.x, F.lineY, c.center.y], outline: 0, yaw: c.yaw)
+        }
+        for mark in F.distanceMarks { fenceNumber(mark.text, atDirection: mark.deg, into: &m) }
+        // ファウルポール（両翼の柵の上・黄色）。太さ・高さは当たり判定（`HomerunJudge.poleRadius` / `poleHeight`・#1686）と同じ。
+        let poleRadius = Float(HomerunJudge.poleRadius), poleHeight = Float(HomerunJudge.poleHeight)
+        for s: Float in [-1, 1] {
+            let p = fencePoint(Double(s) * HomerunJudge.foulLimit)
+            m.cylinder(poleRadius, poleHeight, C.yellow, at: [p.x, poleHeight / 2, p.y], outline: 0)
+            m.sphere(0.5, C.yellow, at: [p.x, poleHeight + 0.2, p.y], outline: 0)
+        }
+    }
+
+    /// 7 セグメントの数字（高さ 0.8m・白）を、方向 `deg` の柵のラバーの面（本塁側）に貼る。本塁から見て左から右へ読める向き
+    /// （板の局所 +x は角度が増す向き = 本塁から見て左なので、文字は局所 -x へ進める）。
+    private static func fenceNumber(_ text: String, atDirection deg: Double, into m: inout HomerunToonModel) {
+        let (height, width, stroke, pitch, baseY, thick): (Float, Float, Float, Float, Float, Float) = (0.8, 0.5, 0.09, 0.72, 1.3, 0.06)
+        // 柵の板は弦の向きに回してあり、柵の距離は方向で変わる（弦は半径方向に直交しない）ので、面からの浮かせ方も弦の法線で測る。
+        let c = chord(fencePoint(deg - 0.75), fencePoint(deg + 0.75))
+        let tangent = SIMD2<Float>(cos(c.yaw), -sin(c.yaw))
+        let toHome = SIMD2<Float>(-sin(c.yaw), -cos(c.yaw))
+        let origin = c.center + toHome * (0.2 + thick / 2)
+        // 見る人の右 = 局所 -x。(u, v) は数字の中心からの横・下端からの高さ、(w, h) は箱の大きさ。
+        let segments: [Character: [(u: Float, v: Float, w: Float, h: Float)]] = [
+            "0": [(0, height, width, stroke), (0, 0, width, stroke),
+                  (width / 2, height * 0.75, stroke, height / 2), (-width / 2, height * 0.75, stroke, height / 2),
+                  (width / 2, height * 0.25, stroke, height / 2), (-width / 2, height * 0.25, stroke, height / 2)],
+            "1": [(-width / 2, height * 0.75, stroke, height / 2), (-width / 2, height * 0.25, stroke, height / 2)],
+            "2": [(0, height, width, stroke), (-width / 2, height * 0.75, stroke, height / 2), (0, height / 2, width, stroke),
+                  (width / 2, height * 0.25, stroke, height / 2), (0, 0, width, stroke)],
+        ]
+        let chars = Array(text)
+        for (i, ch) in chars.enumerated() {
+            guard let segs = segments[ch] else { continue }
+            let u0 = (Float(chars.count - 1) / 2 - Float(i)) * pitch
+            for s in segs {
+                let p = origin + tangent * (u0 + s.u)
+                m.box(s.w, s.h, thick, HomerunToonPalette.white, at: [p.x, baseY + s.v, p.y], outline: 0, yaw: c.yaw)
+            }
+        }
     }
 
     /// スタンドの前縁（本塁からの距離・m）。`deg` は本塁からの方向（0 = センター。左右対称なので符号の向きは問わない）、`depth` は前縁からの奥行き。
@@ -187,37 +328,97 @@ extension HomerunToonModel {
         return segments
     }
 
-    private static func standPoint(_ deg: Double, depth: Float) -> SIMD2<Float> {
+    static func standPoint(_ deg: Double, depth: Float) -> SIMD2<Float> {
         let r = standFront(deg, depth: depth), a = deg * .pi / 180
         return [r * Float(sin(a)), r * Float(cos(a))]
     }
 
-    /// 1 周のスタンド: 段の座席・通路の壁・（内野側だけ）上段の後ろの壁と屋根。中堅（|deg| < 6）はバックスクリーンなので座席を置かない。
+    /// 階段通路の角度（本塁から放射状。下段の中ほどの周に沿って `aisleSpacing` おき）。-180° 始まりの区間の中点にして、
+    /// 本塁の真後ろ（|deg| > 170 = 前のカメラで打者の後ろに映る範囲）には置かない。
+    static var aisleAngles: [Double] {
+        standSweep(depth: Stand.depth(row: Stand.lowerRows / 2), size: Stand.aisleSpacing).map { $0.deg + $0.step / 2 }.filter { abs($0) <= 170 }
+    }
+
+    /// 1 周のスタンド: コンクリートの段（地面から隙間なく積む）・その上の座席の列・階段通路と手すり・下段と上段の間の通路・
+    /// 最前列と通路の手前の手すり・（内野側だけ）上段の後ろの壁と屋根・ファウルゾーンの壁（1 周の前縁）・バックネット（支柱 + 横線）・
+    /// 放送席・ダッグアウト。中堅（|deg| < 6）はバックスクリーンなので座席を置かない。
     private static func stands(into m: inout HomerunToonModel) {
         typealias S = StadiumColor
         func sweep(depth: Float, size: Float, _ body: (Double, Double) -> Void) {
             for seg in standSweep(depth: depth, size: size) { body(seg.deg, seg.step) }
         }
         func segment(_ deg: Double, _ step: Double, depth: Float) -> (center: SIMD2<Float>, length: Float, yaw: Float) {
-            let a = standPoint(deg, depth: depth), b = standPoint(deg + step, depth: depth), d = b - a
-            return ((a + b) / 2, simd_length(d), Float(atan2(Double(-d.y), Double(d.x))))
+            chord(standPoint(deg, depth: depth), standPoint(deg + step, depth: depth))
         }
+        let aisles = aisleAngles
+        func isAisle(_ deg: Double, _ step: Double) -> Bool { aisles.contains { $0 >= deg && $0 < deg + step } }
+        func inPressBox(row: Int, _ mid: Double) -> Bool { row >= Stand.rows - 2 && abs(mid) >= 180 - Stand.pressBoxHalfAngle }
+        // 段（踏み面）: 前の段の上面から自分の上面まで。3m 刻みの板で 1 周。
         for row in 0..<Stand.rows {
-            let depth = Stand.depth(row: row), y = Stand.height(row: row)
-            let upper = row >= Stand.lowerRows
-            sweep(depth: depth, size: Stand.seatSize) { deg, step in
-                guard abs(deg + step / 2) >= 6 else { return }
-                let s = segment(deg, step, depth: depth)
-                let color = S.mutedCrowd(Int((deg + 180) * 13) + row * 5, fraction: upper ? S.upperTierMute : S.lowerTierMute)
-                // 最後の区間（180° で切り詰めた分）は箱も短くし、-180° の最初の座席と重ねない。
-                m.box(min(Stand.seatSize, s.length), Stand.seatHeight, Stand.seatSize, color, at: [s.center.x, y, s.center.y], outline: 0, yaw: s.yaw)
+            let top = Stand.treadTop(row: row), bottom = Stand.treadBottom(row: row)
+            let front = Stand.treadFront(row: row), back = Stand.treadBack(row: row)
+            sweep(depth: (front + back) / 2, size: 3) { deg, step in
+                let s = segment(deg, step, depth: (front + back) / 2)
+                m.box(s.length + 0.1, top - bottom, back - front, S.tread, at: [s.center.x, (top + bottom) / 2, s.center.y], outline: 0, yaw: s.yaw)
             }
         }
-        // 通路の壁（1 周）
-        let wallHeight = Stand.concourseWallTop - Stand.concourseWallBottom
-        sweep(depth: Stand.concourseDepth, size: 3) { deg, step in
-            let s = segment(deg, step, depth: Stand.concourseDepth)
-            m.box(s.length + 0.2, wallHeight, 0.5, S.concourse, at: [s.center.x, Stand.concourseWallBottom + wallHeight / 2, s.center.y], outline: 0, yaw: s.yaw)
+        // 通路の床（下段の最後列の上面と同じ高さ・上段の最前列の段の立ち上がりまで）
+        let walkwayDepth = (Stand.walkwayFront + Stand.walkwayBack) / 2
+        let walkwayBottom = Stand.treadTop(row: Stand.lowerRows - 2)
+        sweep(depth: walkwayDepth, size: 3) { deg, step in
+            let s = segment(deg, step, depth: walkwayDepth)
+            m.box(s.length + 0.1, Stand.walkwayFloor - walkwayBottom, Stand.walkwayBack - Stand.walkwayFront, S.concourse,
+                  at: [s.center.x, (Stand.walkwayFloor + walkwayBottom) / 2, s.center.y], outline: 0, yaw: s.yaw)
+        }
+        // 座席の列（段の奥寄り・背もたれの箱）。階段通路の所は座席を置かず、脇に手すりの薄い板を立てる。
+        for row in 0..<Stand.rows {
+            let treadTop = Stand.treadTop(row: row)
+            let depth = Stand.treadBack(row: row) - Stand.seatDepth / 2 - 0.1
+            let upper = row >= Stand.lowerRows
+            sweep(depth: depth, size: Stand.seatSize) { deg, step in
+                let mid = deg + step / 2
+                guard abs(mid) >= Stand.battersEyeGap, !inPressBox(row: row, mid) else { return }
+                let s = segment(deg, step, depth: depth)
+                if isAisle(deg, step) {
+                    let treadDepth = Stand.treadBack(row: row) - Stand.treadFront(row: row)
+                    let railCenter = standPoint(mid, depth: (Stand.treadFront(row: row) + Stand.treadBack(row: row)) / 2)
+                    m.box(0.06, Stand.railHeight, treadDepth, S.rail, at: [railCenter.x, treadTop + Stand.railHeight / 2, railCenter.y], outline: 0, yaw: s.yaw)
+                    return
+                }
+                let color = S.mutedCrowd(Int((deg + 180) * 13) + row * 5, fraction: upper ? S.upperTierMute : S.lowerTierMute)
+                // 最後の区間（180° で切り詰めた分）は箱も短くし、-180° の最初の座席と重ねない。
+                let width = max(min(Stand.seatSize, s.length) - Stand.seatGap, 0.3)
+                m.box(width, Stand.seatBackHeight, Stand.seatDepth, color, at: [s.center.x, treadTop + Stand.seatBackHeight / 2 + 0.01, s.center.y], outline: 0, yaw: s.yaw)
+            }
+        }
+        // 手すり（最前列の前・通路の手前）: 上の桟 + 3m ごとの支柱。バックネット裏（|deg| ≥ 135）は網の支柱があるので最前列には置かない。
+        for (depth, bottom, frontOnly) in [(Float(0.3), Stand.treadTop(row: 0), true), (Stand.walkwayFront + 0.15, Stand.walkwayFloor, false)] {
+            sweep(depth: depth, size: 3) { deg, step in
+                let mid = deg + step / 2
+                guard abs(mid) >= Stand.battersEyeGap, !(frontOnly && abs(mid) >= 135) else { return }
+                let s = segment(deg, step, depth: depth)
+                m.box(s.length + 0.1, 0.08, 0.08, S.rail, at: [s.center.x, bottom + 0.95, s.center.y], outline: 0, yaw: s.yaw)
+                let p = standPoint(deg, depth: depth)
+                m.box(0.08, 0.95, 0.08, S.rail, at: [p.x, bottom + 0.475, p.y], outline: 0, yaw: s.yaw)
+            }
+        }
+        // ファウルゾーンの壁（|deg| ≥ 46・前縁の上）: 柵の端から 54° までは柵と同じ高さ、その先の両翼は 2.2m、バックネット裏は低いラバー。
+        // 足元に暗い帯。バックネット裏以外は柵と同じ見た目（黄色の上線・横の継ぎ目 2 本・3m ごとの縦の継ぎ目）にして「フェンス」と分かるようにする。
+        sweep(depth: 0, size: 3) { deg, step in
+            let mid = abs(deg + step / 2)
+            guard mid >= 46 else { return }
+            let s = segment(deg, step, depth: 0)
+            let backstop = mid >= 135
+            let h = mid <= Stand.tallPadEnd ? Stand.tallPadHeight : (backstop ? Stand.backstopPadHeight : Stand.padHeight)
+            m.box(s.length + 0.1, h, 0.4, S.foulPad, at: [s.center.x, h / 2, s.center.y], outline: 0, yaw: s.yaw)
+            m.box(s.length + 0.1, 0.3, 0.46, S.fenceSeam, at: [s.center.x, 0.15, s.center.y], outline: 0, yaw: s.yaw)
+            guard !backstop else { return }
+            m.box(s.length + 0.1, Fence.lineHeight, 0.5, HomerunToonPalette.yellow, at: [s.center.x, h + 0.05, s.center.y], outline: 0, yaw: s.yaw)
+            for y in [h * 0.36, h * 0.69] {
+                m.box(s.length + 0.1, 0.07, 0.46, S.fenceSeam, at: [s.center.x, y, s.center.y], outline: 0, yaw: s.yaw)
+            }
+            let p = standPoint(deg, depth: 0)
+            m.box(0.07, h, 0.46, S.fenceSeam, at: [p.x, h / 2, p.y], outline: 0, yaw: s.yaw)
         }
         // 上段の後ろの壁と屋根（内野側 |deg| ≥ 60 だけ）
         let topRow = Stand.height(row: Stand.rows - 1)
@@ -230,6 +431,73 @@ extension HomerunToonModel {
             let r = segment(deg, step, depth: Stand.backDepth - roofDepth / 2 + 0.5)
             m.box(r.length + 0.6, 0.5, roofDepth, S.roof, at: [r.center.x, Stand.roofHeight, r.center.y], outline: 0, yaw: r.yaw)
         }
+        backstop(into: &m)
+        dugouts(into: &m)
+    }
+
+    /// バックネット裏: 網（壁の上の支柱 10 本 + 横線 3 本 + 上の桟。本塁の真後ろ 180° には支柱を置かず、前のカメラで打者の後ろに
+    /// 柱が立たないようにする）と、上段の後ろの放送席（暗い窓の帯）。
+    private static func backstop(into m: inout HomerunToonModel) {
+        typealias S = StadiumColor
+        let (postTop, wireYs): (Float, [Float]) = (9.0, [3.2, 5.0, 6.8])
+        let posts = stride(from: 135.0, through: 225.0, by: 9.0).filter { abs($0 - 180) > 1 }
+        for deg in posts {
+            let p = standPoint(deg, depth: 0)
+            m.cylinder(0.12, postTop, S.rail, at: [p.x, postTop / 2, p.y], outline: 0)
+        }
+        for (a, b) in zip(posts, posts.dropFirst()) {
+            let c = chord(standPoint(a, depth: 0), standPoint(b, depth: 0))
+            for y in wireYs {
+                m.box(c.length, 0.04, 0.04, S.wire, at: [c.center.x, y, c.center.y], outline: 0, yaw: c.yaw)
+            }
+            m.box(c.length + 0.1, 0.12, 0.12, S.rail, at: [c.center.x, postTop, c.center.y], outline: 0, yaw: c.yaw)
+        }
+        // 放送席（上段の後ろ 2 列の上・屋根の下）
+        let rows = Stand.rows
+        let front = Stand.treadFront(row: rows - 2), back = Stand.treadBack(row: rows - 1)
+        let bottom = Stand.treadTop(row: rows - 2), top = Stand.roofHeight - 1.0
+        let c = standPoint(180, depth: (front + back) / 2)
+        m.box(Stand.pressBoxWidth, top - bottom, back - front, S.concourse, at: [c.x, (top + bottom) / 2, c.y], outline: 0)
+        let window = standPoint(180, depth: front - 0.05)
+        m.box(Stand.pressBoxWidth - 1, 1.3, 0.1, S.screen, at: [window.x, Stand.treadTop(row: rows - 1) + 1.1, window.y], outline: 0)
+    }
+
+    /// ダッグアウト（両翼の壁の下・ファウルラインに沿って本塁から 20〜32m）: 暗い開口 + コンクリートの屋根の板。
+    private static func dugouts(into m: inout HomerunToonModel) {
+        typealias S = StadiumColor
+        let root2 = Float(2).squareRoot()
+        for s: Float in [-1, 1] {
+            // ファウルラインに沿った距離 L の壁の点 = ((L + 16) / √2, (L − 16) / √2)（一塁側）。長さの向きは線に平行。
+            let l: Float = 26
+            let center = SIMD2<Float>(s * (l + 16) / root2, (l - 16) / root2)
+            let yaw = -s * Float.pi / 4
+            let inward = SIMD2<Float>(-s / root2, 1 / root2)   // 壁からグラウンドへ（線に垂直）
+            // 開口（0.1m〜1.7m）の上に屋根の板（厚さ 0.25m）を 0.1m のすき間で載せる。壁の高さ（`padHeight`）には合わせない。
+            let (openingBottom, openingTop, roofThickness): (Float, Float, Float) = (0.1, 1.7, 0.25)
+            let opening = center + inward * 0.25
+            m.box(12, openingTop - openingBottom, 0.3, S.dugout, at: [opening.x, (openingTop + openingBottom) / 2, opening.y], outline: 0, yaw: yaw)
+            let roof = center + inward * 0.6
+            m.box(13, roofThickness, 1.6, S.tread, at: [roof.x, openingTop + 0.1 + roofThickness / 2, roof.y], outline: 0, yaw: yaw)
+        }
+    }
+
+    /// バックスクリーン（中堅の客席を塞ぐ濃い緑の大壁 26m × 15m・手前の面は z = 125 = `HomerunBallChase.battersEyeZ`）と、
+    /// その裏の建屋・上のスコアボード（脚 2 本・暗い画面・上の縁）。壁の面には上の縁の帯と横の継ぎ目。
+    /// 壁を越えた球の道（z 125 で 15m 超・149m までに地面）に掛からないよう、建屋は 8m 以下、スコアボードは z 137 で 17m より上。
+    private static func battersEye(into m: inout HomerunToonModel) {
+        typealias S = StadiumColor
+        m.box(26, 15, 1.0, S.battersEye, at: [0, 7.5, 125.5], outline: 0)
+        m.box(26.4, 0.5, 1.2, S.tower, at: [0, 14.75, 125.5], outline: 0)
+        for y: Float in [5, 10] {
+            m.box(25.6, 0.08, 0.06, S.fenceSeam, at: [0, y, 124.98], outline: 0)
+        }
+        m.box(26, 8, 8, S.roofWall, at: [0, 4, 131], outline: 0)
+        for s: Float in [-1, 1] {
+            m.cylinder(0.7, 9.5, S.tower, at: [s * 10, 12.5, 137], outline: 0)
+        }
+        m.box(28, 9, 1.5, S.board, at: [0, 21.5, 137], outline: 0)
+        m.box(26, 7, 0.3, S.screen, at: [0, 21.5, 136.2], outline: 0)
+        m.box(29, 0.5, 2.0, S.tower, at: [0, 26.25, 137], outline: 0)
     }
 
     /// 遠景: スタンドの外の街並み（2 段・陰影なし）と雲。乱数なし（高さ・間隔は角度の式で決める）。
