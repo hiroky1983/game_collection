@@ -365,6 +365,9 @@ struct HomerunStadium3DTests {
         #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
         #expect(L.catcher.position.z < 0, "捕手は本塁の奥")
         #expect(L.catcher.position.x < 0, "捕手は打者と反対側へ寄せる")
+        // 本塁の真後ろ（五角形の先端 z −0.432 より奥・本塁の幅 ±0.216 の中）で、ミットは本塁の中央の後ろ。
+        #expect(L.catcher.position.z < -0.432 && L.catcher.position.z > -1.3 && abs(L.catcher.position.x) < 0.216)
+        #expect(abs(HomerunBallFlight.mittPoint().x) < 0.15, "ミット \(HomerunBallFlight.mittPoint())")
         #expect(abs(L.machine.position.z - 17.6) < 1e-4 && abs(L.machine.position.y - 0.3) < 1e-4, "マシンはマウンドの上（高さ 0.3m）")
         #expect(abs(L.machine.yaw) < 1e-6, "マシンは -z（本塁）へ打ち出す向きのまま置く")
         #expect(L.cameraPosition.z > 20 && L.cameraTarget.z < 1, "センター側から本塁を見る")
@@ -446,10 +449,10 @@ struct HomerunStadium3DTests {
             }
             #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
             #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
-            // 手前の捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
-            let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
+            // 本塁の真後ろの捕手の頭（ヘルメットの上）は、ゾーン（2D・SE の高さ 667pt で測る）の下の外に映り、ゾーンを塞がない。
+            let zoneBottom = L.zoneScreenFraction + Double(HomerunZoneGeometry.zoneSize) / 2 / 667
             let head = L.worldPoint([0, 4.3 * L.catcherScale, 0], of: L.catcher, for: back)
-            #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
+            #expect(back.screenPoint(of: head, aspect: aspect).y > zoneBottom, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
         }
     }
 
