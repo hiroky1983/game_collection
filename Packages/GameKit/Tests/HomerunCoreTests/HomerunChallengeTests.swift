@@ -38,11 +38,11 @@ struct HomerunChallengeTests {
         #expect(HomerunPitch.standardSequence.allSatisfy { (0..<9).contains($0.zone) })
     }
 
-    @Test("集計: 全球ジャスト = 柵越え 10 本・合計 1610m。見逃しは空振り 10")
+    @Test("集計: 全球ジャスト = 柵越え 10 本・合計 1800m。見逃しは空振り 10")
     func totals() {
         let all = finished(perfect)
         #expect(all.homerCount == 10)
-        #expect(abs(all.totalDistance - 1610) < 1e-9)
+        #expect(abs(all.totalDistance - 1800) < 1e-9)
         let none = finished(nil)
         #expect(none.missCount == 10)
         #expect(none.totalDistance == 0)
@@ -124,13 +124,13 @@ struct HomerunChallengeTests {
         var r = HomerunRecords()
         r.record(finished(perfect))
         #expect(r.challenges == 1 && r.pitches == 10 && r.homers == 10)
-        #expect(r.totalDistanceTenths == 16100)
-        #expect(r.bestTotalTenths == 16100)
-        #expect(r.longestTenths == 1610)
+        #expect(r.totalDistanceTenths == 18000)
+        #expect(r.bestTotalTenths == 18000)
+        #expect(r.longestTenths == 1800)
         r.record(finished(nil))
         #expect(r.challenges == 2 && r.misses == 10)
-        #expect(r.bestTotalTenths == 16100)  // 悪い挑戦では下がらない
-        #expect(r.totalDistanceTenths == 16100)
+        #expect(r.bestTotalTenths == 18000)  // 悪い挑戦では下がらない
+        #expect(r.totalDistanceTenths == 18000)
     }
 
     @Test("蓄積: 集計は 5 方向 × 8 距離帯の 40 セルで、当たった球だけ数える")

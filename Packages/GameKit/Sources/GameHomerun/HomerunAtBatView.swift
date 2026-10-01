@@ -57,7 +57,9 @@ struct HomerunAtBatView: View {
                                          cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
                                          ballPosition: chase?.ball
-                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera) : nil),
+                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera,
+                                                                             screen: CGSize(width: size.width + inset.leading + inset.trailing,
+                                                                                            height: fullHeight)) : nil),
                                          ballScale: chase?.ballScale ?? 1,
                                          now: now,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒

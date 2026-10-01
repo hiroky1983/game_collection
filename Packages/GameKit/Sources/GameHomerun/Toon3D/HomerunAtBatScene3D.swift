@@ -80,6 +80,18 @@ enum HomerunAtBatLayout {
             return ([-position.x, position.y, position.z], [-target.x, target.y, target.z])
         }
 
+        /// `screenPoint` の逆: 画面の点（左上 = (0, 0)・右下 = (1, 1)）に映る、奥行きの面 `z = planeZ` 上の世界の点。
+        func worldPoint(screenX: Double, screenY: Double, aspect: Double, onPlaneZ planeZ: Float) -> SIMD3<Float> {
+            let forward = simd_normalize(target - position)
+            let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
+            let up = simd_cross(right, forward)
+            let halfTan = tan(Double(verticalFieldOfView) * .pi / 360)
+            let sx = mirrored ? 1 - screenX : screenX
+            let ray = forward + right * Float((sx - 0.5) * 2 * halfTan * aspect) + up * Float((0.5 - screenY) * 2 * halfTan)
+            guard abs(ray.z) > 1e-6 else { return position }
+            return position + ray * ((planeZ - position.z) / ray.z)
+        }
+
         /// 世界の点が画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
         func screenFraction(of point: SIMD3<Float>) -> Double { screenPoint(of: point, aspect: 1).y }
 
@@ -146,6 +158,24 @@ enum HomerunAtBatLayout {
     /// 世界の点が前のカメラで画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
     static func screenFraction(of point: SIMD3<Float>) -> Double {
         CameraPreset.front.camera.screenFraction(of: point)
+    }
+
+    /// 投球が輪の重なる瞬間に着く点（世界座標・#1647）: 打点の奥行き（`HomerunSwingContact.approachTarget` の z）の面で、
+    /// `camera` から見て 2D の的（`HomerunZoneGeometry.ballPoint`・判定のボールの位置）にちょうど重なって映る点。
+    /// `screen` は 3D を描く全画面の大きさ（pt・安全域の外まで）。
+    ///
+    /// 以前は 3D の球が列（左右）でしか変わらない打点の上（`approachTarget`）に着き、行（上下）を無視していた。2D の的は 1 行
+    /// 29.3pt ずつ上下するので、前のカメラでは上の行で球が的の約 32pt 下・下の行で約 27pt 上、後ろのカメラでは真ん中の行でも
+    /// 約 24pt 上（下の行で約 54pt 上）に映っていた（iPhone 17 の画面で計算）。判定は 2D の的で測るので、球を見て照準を
+    /// 合わせると判定上は大きく上を叩いたことになり、的の下を大きく外すと判定上は芯に近かった（会長 QA「下に大きく外しても
+    /// 柵越え」「かなり下を狙わないと柵越えが出ない」）。判定を動かさず、3D の球の通り道を的に合わせる。
+    static func pitchTarget(zone: Int, camera: Camera, screen: CGSize) -> SIMD3<Float> {
+        let approach = HomerunSwingContact.approachTarget(column: HomerunSwingContact.column(zone: zone))
+        guard screen.width > 0, screen.height > 0 else { return approach }
+        let offset = HomerunZoneGeometry.ballPoint(zone: zone)
+        return camera.worldPoint(screenX: 0.5 + Double(offset.x) / Double(screen.width),
+                                 screenY: zoneScreenFraction + Double(offset.y) / Double(screen.height),
+                                 aspect: Double(screen.width / screen.height), onPlaneZ: approach.z)
     }
 }
 

@@ -309,7 +309,7 @@ struct HomerunBallChaseTests {
     @MainActor
     func hudHidesTheLastBallUntilTheCard() {
         let homer = HomerunJudge.judge(swing())
-        let inPlay = HomerunJudge.judge(swing(t: 90, band: .liner))
+        let inPlay = HomerunJudge.judge(swing(t: 90, band: .liner, dy: -8))
         #expect(homer.kind == .homer && inPlay.kind == .inPlay)
         let hidden = HomerunAtBatView.hudTotals(results: [inPlay, homer], revealsLast: false)
         #expect(hidden.distance == inPlay.distance && hidden.homers == 0)
