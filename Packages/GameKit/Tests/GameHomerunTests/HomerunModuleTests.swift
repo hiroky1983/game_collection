@@ -35,10 +35,17 @@ struct HomerunModuleTests {
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
-        // バナーは打席前と結果の 2 か所だけ。打席（と外野カメラ）は無バナー（受け入れ条件・#1348）。
-        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 2, "打席前と結果にだけ出す")
+        // バナーは打席前・打席・結果の 3 か所（打席は #1696 で上部に足した。#1348 の無バナーは改めた）。
+        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 3, "打席前・打席・結果に 1 つずつ")
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
-        #expect(!atBat.contains("BannerSlot("), "打席・外野は無バナー")
+        #expect(atBat.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席にも 1 つ置く（#1696）")
+        // 打席のバナーは上端（HUD より先に積む）。押せる帯（下 1/3）の中には置かない。
+        let banner = try #require(atBat.range(of: "BannerSlot(ads: ads)"))
+        let hud = try #require(atBat.range(of: "topHUD\n"))
+        #expect(banner.lowerBound < hud.lowerBound, "バナーは HUD の上")
+        let pad = try #require(atBat.range(of: "private func touchPad("))
+        #expect(banner.lowerBound < pad.lowerBound && !atBat[pad.lowerBound...].contains("BannerSlot("),
+                "押せる帯にバナーを重ねない")
         #expect(code.contains("HowToPlayHint(.homerun"))
         #expect(code.contains(".howToPlay(.homerun"))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
