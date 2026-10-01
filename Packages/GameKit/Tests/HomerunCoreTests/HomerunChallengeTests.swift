@@ -129,6 +129,26 @@ struct HomerunChallengeTests {
         #expect(l.used == 3)
     }
 
+    @Test("台帳: 次に消費する枠は 無料 → ご褒美 → アンケート → 広告 の固定順で、回数が無ければ nil（#1685）")
+    func ledgerNextCreditOrder() {
+        var l = HomerunLedger(dayKey: 1, legacyAdGrants: 2, surveyDone: true, bonus: 2)
+        var seen: [HomerunLedger.Credit] = []
+        while let credit = l.nextCredit {
+            seen.append(credit)
+            l.consume()
+        }
+        #expect(seen == [.free, .free, .free, .bonus, .bonus, .survey, .ad, .ad])
+        #expect(l.nextCredit == nil)
+        // 無料を使い切ったあと、以前の版の「広告で +1」の貯めた分が残っていれば広告の枠。
+        // 今の版の「広告を見てプレイ」（回数に数えない）は枠を作らない（打席を始めた側が .ad を渡す）。
+        var m = HomerunLedger(dayKey: 1)
+        m.consume(); m.consume(); m.consume()
+        #expect(m.nextCredit == nil)
+        m.consumeAdPlay()
+        #expect(m.nextCredit == nil)
+        #expect(HomerunLedger(dayKey: 1, used: 3, legacyAdGrants: 1).nextCredit == .ad)
+    }
+
     @Test("台帳: 日付が進むと補充され、戻しても・同じ日でも増えない")
     func ledgerRoll() {
         var l = HomerunLedger(dayKey: 20260926)

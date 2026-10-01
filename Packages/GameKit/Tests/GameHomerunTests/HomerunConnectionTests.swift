@@ -219,6 +219,53 @@ struct HomerunConnectionTests {
 
     // MARK: 解析・記録
 
+    @Test("広告を見てプレイした打席の credit は ad（game_start と game_end の両方・#1685 × #1694）")
+    func adPlayCarriesAdCredit() throws {
+        let spy = SpyAnalyticsService()
+        let model = makeModel(services: makeServices(spy: spy))
+        try useUpFree(model)
+        #expect(model.startWithAd(forDay: model.dayKey(at: Self.t0), now: Self.t0))
+        model.atBatDidAppear(now: Self.t0)
+        try skip(model)
+        #expect(spy.startCredits.last == .ad)
+        #expect(spy.endCredits.last == .ad)
+    }
+
+    @Test("消費した枠（credit）は 無料 → ご褒美 → アンケート → 広告 の固定順で、game_start と game_end の両方に載る（#1685）")
+    func creditFollowsFixedOrder() throws {
+        let spy = SpyAnalyticsService()
+        let defaults = makeDefaults()
+        let day = HomerunLedger.dayKey(for: Self.t0, calendar: Self.calendar)
+        // 無料 3 + ご褒美 2（月 1 回）+ アンケート 1 + 広告 1。もらった順（広告が先）に関わらず固定順で使う。
+        var ledger = HomerunLedger(dayKey: day, legacyAdGrants: 1, surveyDone: true, bonus: 2)
+        HomerunStorage.saveLedger(ledger, defaults)
+        let model = makeModel(services: makeServices(spy: spy), defaults: defaults)
+        for _ in 0..<7 {
+            model.start(now: Self.t0)
+            model.atBatDidAppear(now: Self.t0)
+            try skip(model)
+        }
+        let expected: [AnalyticsCredit?] = [.free, .free, .free, .bonus, .bonus, .survey, .ad]
+        #expect(spy.startCredits == expected)
+        #expect(spy.endCredits == expected, "終わりは開始と同じ枠で突き合わせられる")
+        #expect(!model.start(now: Self.t0), "8 回目は回数が無い")
+        #expect(spy.starts.count == 7, "回数が無くて立てなかった打席は数えない")
+        ledger.roll(to: day)
+    }
+
+    @Test("DEBUG の回数無制限では credit を載せない（#1685）")
+    func unlimitedDoesNotSendCredit() throws {
+        let spy = SpyAnalyticsService()
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: HomerunModel.debugUnlimitedKey)
+        let model = makeModel(services: makeServices(spy: spy), defaults: defaults)
+        model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
+        try skip(model)
+        #expect(spy.startCredits == [nil])
+        #expect(spy.endCredits == [nil])
+    }
+
     @Test("打席に立つと game_start、10 球目で game_end が 1 回ずつ。柵越えが無ければ loss")
     func analyticsStartAndEnd() throws {
         let spy = SpyAnalyticsService()

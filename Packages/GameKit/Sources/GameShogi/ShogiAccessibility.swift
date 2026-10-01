@@ -71,6 +71,9 @@ public enum ShogiAccessibility {
         return parts.joined(separator: "、")
     }
 
+    /// 成り確認の札の読み上げ文（#1641）。見た目の問い（`ShogiView.promotionOverlay`）と同じ文言にする。
+    public static let promotionPromptLabel = "成りますか？"
+
     /// 持ち駒 1 種類の読み上げ文。
     public static func handLabel(type: PieceType, color: Side, count: Int, isSelected: Bool) -> String {
         var text = "\(sideName(color))の持ち駒、\(pieceName(Piece(type: type, color: color)))\(count)枚"
