@@ -15,7 +15,8 @@ import Foundation
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: SLIP_MARGIN（外したときに許す損の幅の差し替え）・NPS（match / random で使う 1 秒あたりの局面数）・PLIES（手数上限・既定 150）・CONCURRENCY（既定 6）・
 // FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）・
-// UPPER_DEPTH / LOWER_DEPTH（match の上・下の段の読む深さの上限の差し替え。既定は出荷値。#1566）。
+// UPPER_DEPTH / LOWER_DEPTH（match の上・下の段の読む深さの上限の差し替え。既定は出荷値。#1566）・
+// ONLY_SIDE（hint でヒント側を black=先手 / white=後手 だけにする。#1491）。
 
 func strength(_ name: String) -> CPUStrength {
     switch name {
@@ -247,7 +248,13 @@ enum HintMatch {
     static func run(extraSeconds: Double, nodesPerSecond: Double, openings: Int, maxPlies: Int,
                     concurrency: Int, firstOpening: Int) async -> Tally {
         var tally = Tally()
-        let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(firstOpening + i), $0) } }
+        // ONLY_SIDE=black / white でヒント側の手番を片方だけにする（打ち切られた局だけ回し直すため）。
+        let sides: [Bool] = switch ProcessInfo.processInfo.environment["ONLY_SIDE"] {
+        case "black": [false]
+        case "white": [true]
+        default: [true, false]
+        }
+        let jobs = (0..<openings).flatMap { i in sides.map { (UInt64(firstOpening + i), $0) } }
         var next = 0
         await withTaskGroup(of: (Game, Bool, UInt64).self) { group in
             func add() {
