@@ -66,4 +66,29 @@ struct HomerunFigureShadowTests {
         #expect(s.radius > 0.4)
         #expect(s.stretch == 1)
     }
+
+    // #1668 会長 QA（2026-10-01）: 体の影だけでバットの影が無かった。
+    @Test("バットの影: 真上から見ると、地面へ落としたバットの線分を覆う細長い楕円（向きはバットに沿う）。立てたバットは手元の小さな影")
+    func batShadowFollowsTheBat() {
+        let overhead: SIMD3<Float> = [0, 100, 0]
+        let flat = Shadow.bat(grip: [0.6, 1.0, 0.2], tip: [-0.2, 1.0, 0.2], camera: overhead)
+        #expect(abs(flat.center.x - 0.2) < 1e-4 && abs(flat.center.z - 0.2) < 1e-4)
+        #expect(flat.center.y == HomerunBallShadow.infieldClearance)
+        #expect(abs(flat.size.y - (0.8 + Shadow.batWidth)) < 1e-3 && abs(flat.size.x - Shadow.batWidth) < 1e-3)
+        // 縦（局所 z）が -x を向く: (sin yaw, cos yaw) = (-1, 0)。
+        #expect(abs(sin(flat.yaw) + 1) < 1e-4 && abs(cos(flat.yaw)) < 1e-4)
+        let upright = Shadow.bat(grip: [0.4, 1.0, 0], tip: [0.4, 1.8, 0.01], camera: overhead)
+        #expect(upright.size.y < Shadow.batWidth + 0.02, "立てたバットの影は短い \(upright.size.y)")
+    }
+
+    @Test("バットの影: 低い前のカメラでは、視線に沿う太さを体の影と同じ割合で伸ばす（横向きのバットが線につぶれない）")
+    func batShadowStretchesForLowCamera() {
+        let eye = Layout.CameraPreset.front.camera.renderPose.position
+        let across = Shadow.bat(grip: [0.6, 1.0, 0.2], tip: [-0.2, 1.0, 0.2], camera: eye)
+        let body = Shadow.batter(origin: Layout.batter.position, camera: eye)
+        #expect(body.stretch > 2)
+        // 横向き（視線にほぼ直交）のバット: 長さはほぼそのまま、太さは視線に沿うので伸びる。
+        #expect(abs(across.size.y - (0.8 + Shadow.batWidth)) < 0.1)
+        #expect(across.size.x > Shadow.batWidth * body.stretch * 0.8, "太さ \(across.size.x)")
+    }
 }

@@ -204,9 +204,17 @@ enum HomerunBallFlight {
     /// 打ち出し口（リリース点・世界座標）。マウンドのバッティングマシン（#1612）の車輪の間の前 = [0, 1.3, 17.28]。
     /// マシンの込める球は的が出る瞬間にここへ着き（`HomerunMachineMotion.state`）、そこからこの球が引き継ぐ。
     static let releasePoint: SIMD3<Float> = HomerunAtBatLayout.machineWorld(HomerunMachineMotion.mouth)
-    /// ここより後ろ（捕手のミット）に入ったら消す。
-    static let mittZ: Float = -1.5
+    /// 見送り・空振りの球が収まる捕手のミットのポケット（捕手の局所座標・`catcherScale` を掛ける前・`HomerunToonModel.catcher()`）。
+    static let mittPocketLocal: SIMD3<Float> = [1.5, 1.72, 1.86]
+    /// ミットに収まった球を見せておく時間（秒）。過ぎたら消す（影も一緒に消える）。
+    static let mittHold: TimeInterval = 0.35
     static let gravity: Float = 9.8
+
+    /// 見送り・空振りの球が収まる点（`camera` の置き方の世界座標・左右反転するカメラでは捕手と同じく x を鏡映した扱い）。
+    /// 以前は投球の線のまま進めて z −1.5 で消していて、捕手のミットを外れたまま後ろへ突き抜けて見えた（会長 QA 2026-10-01・#1655）。
+    static func mittPoint(for camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.CameraPreset.front.camera) -> SIMD3<Float> {
+        HomerunAtBatLayout.worldPoint(mittPocketLocal * HomerunAtBatLayout.catcherScale, of: HomerunAtBatLayout.catcher, for: camera)
+    }
 
     /// 投球の奥行きの速さ（m/s・本塁へ向かう -z の向きを正に）。手を離れてから 1.2 秒（輪が縮み切る時間）で打点に着く。
     static func pitchSpeedZ(column: Int) -> Float {
@@ -214,17 +222,31 @@ enum HomerunBallFlight {
     }
 
     /// 投球中の球の位置。的が出る `pitchStart` に打ち出し口を出て、`arrival` に `target`（省略時は `approachTarget`・
-    /// 画面では `HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点）へ着き、その後も同じ向き・速さで進む。
-    /// 的が出る前・ミットに入った後は nil。
+    /// 画面では `HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点）へ着き、その後は同じ速さのまま滑らかに曲がって
+    /// 捕手のミット（`mitt`・省略時は前のカメラの `mittPoint`）へ入り、`mittHold` だけ止まって消える。的が出る前・消えた後は nil。
     static func pitchPosition(at now: Date, pitchStart: Date, arrival: Date, column: Int,
-                              target: SIMD3<Float>? = nil) -> SIMD3<Float>? {
+                              target: SIMD3<Float>? = nil, mitt: SIMD3<Float>? = nil) -> SIMD3<Float>? {
         let travel = arrival.timeIntervalSince(pitchStart)
         guard travel > 0 else { return nil }
         let k = Float(now.timeIntervalSince(pitchStart) / travel)
         guard k >= 0 else { return nil }
         let target = target ?? HomerunSwingContact.approachTarget(column: column)
-        let p = releasePoint + (target - releasePoint) * k
-        return p.z < mittZ ? nil : p
+        guard k > 1 else { return releasePoint + (target - releasePoint) * k }
+        let mitt = mitt ?? mittPoint()
+        let after = now.timeIntervalSince(arrival)
+        let reach = mittReach(target: target, mitt: mitt, travel: travel)
+        guard after < reach else { return after < reach + mittHold ? mitt : nil }
+        // 着いた点を投球の向き・速さで出て、同じ向きでミットへ入る 3 次エルミート曲線（折れて見えない）。
+        let s = Float(after / reach)
+        let v = (target - releasePoint) * Float(reach / travel)
+        let s2 = s * s, s3 = s2 * s
+        return target * (2 * s3 - 3 * s2 + 1) + v * (s3 - 2 * s2 + s) + mitt * (3 * s2 - 2 * s3) + v * (s3 - s2)
+    }
+
+    /// 投球が的の点 `target` からミット `mitt` へ入るまでの時間（秒）。投球と同じ速さ（`travel` 秒で打ち出し口から `target`）。
+    static func mittReach(target: SIMD3<Float>, mitt: SIMD3<Float>, travel: TimeInterval) -> TimeInterval {
+        let speed = Double(simd_distance(releasePoint, target)) / travel
+        return max(Double(simd_distance(target, mitt)) / speed, 0.01)
     }
 
     /// 打球の初速（m/s・世界座標）。方向は判定の `direction`（0 = 中堅・負が左 = レフト）、打ち上げ角は帯の中心、
@@ -328,7 +350,7 @@ struct HomerunSwingPlan {
         guard let clock, let ballArrival else { return nil }
         let target = screen.map { HomerunAtBatLayout.pitchTarget(zone: clock.zone, camera: camera, screen: $0) }
         let pitched = HomerunBallFlight.pitchPosition(at: now, pitchStart: clock.pitchStart, arrival: ballArrival, column: column,
-                                                      target: target)
+                                                      target: target, mitt: HomerunBallFlight.mittPoint(for: camera))
         switch phase {
         case .pitching:
             return pitched
@@ -341,7 +363,8 @@ struct HomerunSwingPlan {
                     // バットが球の来る時刻に打点へ来るので、球はほぼ投球の線のまま着く。遅いとき（打点のコマ = 離した瞬間）は、
                     // 打点を過ぎた球をその瞬間に打点へ戻す。
                     let from = HomerunBallFlight.pitchPosition(at: release, pitchStart: clock.pitchStart, arrival: ballArrival,
-                                                               column: column, target: target) ?? contact
+                                                               column: column, target: target,
+                                                               mitt: HomerunBallFlight.mittPoint(for: camera)) ?? contact
                     let span = hitAt.timeIntervalSince(release)
                     let k = Float(span > 0 ? min(max(now.timeIntervalSince(release) / span, 0), 1) : 1)
                     return from + (contact - from) * k
@@ -349,7 +372,7 @@ struct HomerunSwingPlan {
                 return HomerunBallFlight.battedPosition(at: now, contact: contact, release: hitAt,
                                                         velocity: HomerunBallFlight.battedVelocity(ball, pullSideX: HomerunAtBatLayout.pullSideX(for: camera)))
             }
-            // 空振り・見送り: そのままミットへ。
+            // 空振り・見送り: そのままミットへ入って止まり、消える（#1655）。
             return pitched
         case .idle, .finished:
             return nil

@@ -18,7 +18,7 @@ enum HomerunAtBatLayout {
     ///
     /// 本塁からの距離は**バットが球の通り道に届く所**（`HomerunSwingContact`）。USDZ のスイングは腕を伸ばさず、バットの先端は
     /// 打者の原点から本塁側へ 0.48m しか出ない（実寸で測った値）。0.95m に置くと先端が本塁の 0.5m 手前で止まるので、
-    /// 外の列（-0.12m）にも先端が届く 0.30m に寄せる（腰は 0.40m・バッターボックスの内側の線 0.29m の内）。z は本塁の前縁より
+    /// 外の列（-0.12m）にも先端が届く 0.30m に寄せる（腰は 0.40m・バッターボックスの内側の線 0.25m の内）。z は本塁の前縁より
     /// 少し捕手側（-0.10m）にして、ジャストの打点が本塁の前縁の 0.3m 前に来るようにする。
     static let batter = Placement(position: [0.30, 0, -0.10], yaw: -.pi / 2)
 
@@ -26,8 +26,14 @@ enum HomerunAtBatLayout {
     static func batterWorld(_ local: SIMD3<Float>) -> SIMD3<Float> {
         batter.position + simd_quatf(angle: batter.yaw, axis: [0, 1, 0]).act(local)
     }
-    /// 捕手は本塁の少し打者と反対側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける（審判は無し・会長決裁 2026-09-30・#1617）。
-    static let catcher = Placement(position: [-0.6, 0, -2.2], yaw: 0)
+    /// 捕手は本塁の真後ろ（五角形の先端 z −0.43 の 0.5m 後ろ）でしゃがみ、ミット（左手・+x）を本塁の中央に構える（会長 QA 2026-10-01・#1673）。
+    /// 以前（#1617）は大きかった捕手をゾーンと打者から逃がすため本塁の左奥（-0.6, -2.2）に置いていて、縮めた後は本塁から
+    /// 外れた所にいるように見えた。後ろのカメラではゾーンの下（本塁の手前）に映り、前のカメラではヘルメットの上がゾーンの下の
+    /// 段の後ろに隠れる（実際の中継のセンターカメラと同じ並び）。審判は無し（会長決裁 2026-09-30）。
+    static let catcher = Placement(position: [-0.15, 0, -0.95], yaw: 0)
+    /// 捕手の大きさ（頭の半径 1 の単位 → m）。打者（`characterScale` の頃の 2 頭身のおじさん）に合わせた 0.354 では、しゃがんだ
+    /// 背丈が 1.38m と Meshy の打者（身長 1.72m）の肩まであって大きすぎた（#1666・会長 QA 2026-10-01）。頭の大きさが打者のヘルメットと揃う 0.18（しゃがんだ背丈 0.70m）に縮める。
+    static let catcherScale: Float = 0.18
     /// 人物（打者・捕手）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
     /// 反転を打ち消す（そのままだと右打ちの Meshy の打者が画面の右に立つ左打ちに見える）。これで後ろから見て右打者が
     /// 画面の左に右打ちで立ち、捕手は画面の右へ逃げる。判定・座標・HUD は鏡映しない。
@@ -194,7 +200,9 @@ extension HomerunAtBatLayout {
     /// おじさんがベースに近すぎる」。打者の置き場所（`batter`・本塁から 0.30m）はバットが外の列に届く所で決まっていて
     /// （#1558）、後ろから見ると体がゾーンの内側の列に重なる。構えでは 0.25m 外（0.55m・体がゾーンの外に出る）に立ち、
     /// 踏み込み（`HomerunBatterMotion.load`）の間に本来の位置へ寄る。振りは本来の位置でしか当たらない（当たり窓は
-    /// 踏み込みを終えた後）ので、判定・打点・球の通り道は変えない。前のカメラは今のまま（0）。
+    /// 踏み込みを終えた後）ので、判定・打点・球の通り道は変えない。
+    /// 前のカメラも同じだけずらす（#1667・会長 QA 2026-10-01）: 本来の位置の構えは右足のつま先（靴の皮の頂点）が x 0.06 まで
+    /// 本塁側へ出て、バッターボックスの内側の線を越え本塁にかかっていた。
     static let backStanceSlide: Float = 0.25
 
     /// 後ろのカメラで、構えの間だけ打者を捕手側へ下げる幅（m・-z）。会長 QA 2026-09-30（#1619）「後ろのとき、おじさんが
@@ -211,9 +219,8 @@ extension HomerunAtBatLayout {
     }
 
     /// 打者を本来の位置からどれだけ外へずらして見せるか（m）の目標。構え = `backStanceSlide`、踏み込みの間に 0 へ
-    /// （なめらかに）、振り（本番・素振り）の間は nil（いまのずれのまま振る = 振りの途中で滑らせない）。
+    /// （なめらかに）、振り（本番・素振り）の間は nil（いまのずれのまま振る = 振りの途中で滑らせない）。前・後ろのカメラで同じ（#1667）。
     static func batterSlideTarget(_ motion: HomerunBatterMotion, camera: Camera, now: Date) -> Float? {
-        guard camera.mirrored else { return 0 }
         switch motion {
         case .stance:
             return backStanceSlide
@@ -305,11 +312,15 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
         var ball: ModelEntity?
+        /// 前のコマの球の位置（動いている間だけ縫い目を回す・#1656）。
+        var ballPosition: SIMD3<Float>?
         /// 球の足元の影（#1648・`HomerunBallShadow`）と、いま張ってある濃さの段（変わったときだけマテリアルを差し替える）。
         var shadow: ModelEntity?
         var shadowStep: Int?
         /// 打者・マシンの足元の影（#1653・`HomerunFigureShadow`）。
         var batterShadow: ModelEntity?
+        /// バットの影（#1668・`HomerunFigureShadow.bat`）。
+        var batShadow: ModelEntity?
         var machineShadow: ModelEntity?
         var updates: (any Cancellable)?
         var frames = 0
@@ -319,10 +330,20 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var slideTick: Date?
     }
 
-    /// 3D の球（白い球・陰影なし）。
-    private static func makeBall() -> ModelEntity {
+    /// 縫い目の画像（#1656・`HomerunBallSeam`）。1 回だけ作る。作れない環境では nil で、白い球のまま。
+    @MainActor private static var seamTexture: TextureResource?
+
+    /// 3D の球（白地に赤い縫い目・陰影なし）。
+    @MainActor private static func makeBall() -> ModelEntity {
         var material = UnlitMaterial()
-        material.color = .init(tint: HomerunPlatformColor(red: 0.98, green: 0.98, blue: 0.96, alpha: 1))
+        if seamTexture == nil, let image = HomerunBallSeam.image() {
+            seamTexture = try? TextureResource.generate(from: image, options: .init(semantic: .color, mipmapsMode: .allocateAndGenerateAll))
+        }
+        if let seamTexture {
+            material.color = .init(tint: .white, texture: .init(seamTexture))
+        } else {
+            material.color = .init(tint: HomerunPlatformColor(red: 0.98, green: 0.98, blue: 0.96, alpha: 1))
+        }
         let ball = ModelEntity(mesh: .generateSphere(radius: HomerunSwingContact.ballRadius), materials: [material])
         ball.isEnabled = false
         return ball
@@ -396,6 +417,25 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         let eye = camera.renderPose.position
         if let s = c.batterShadow { placeFigureShadow(s, HomerunFigureShadow.batter(origin: batterOrigin, camera: eye)) }
         if let s = c.machineShadow { placeFigureShadow(s, HomerunFigureShadow.machine(camera: eye)) }
+        if let s = c.batShadow {
+            // バットの両端は打者の局所座標の表（`HomerunBatPath`）から、いま流しているクリップの位置で引く（骨は読まない）。
+            if let rig = c.batterRig {
+                let clip: TimeInterval = switch c.batterMotion {
+                case .stance: 0
+                case .load: rig.playbackTime ?? 0
+                case .swing: rig.swingClipTime ?? HomerunBatterMotion.loadDuration
+                }
+                let bat = HomerunBatPath.segment(atClipTime: clip)
+                let turn = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
+                let strip = HomerunFigureShadow.bat(grip: batterOrigin + turn.act(bat.grip), tip: batterOrigin + turn.act(bat.tip), camera: eye)
+                s.position = strip.center
+                s.scale = [strip.size.x, 1, strip.size.y]
+                s.orientation = simd_quatf(angle: strip.yaw, axis: [0, 1, 0])
+                s.isEnabled = true
+            } else {
+                s.isEnabled = false
+            }
+        }
     }
 
     /// 打席の 3D（`ARView`）を画面をまたいで使い回すための控え（#1594・会長 QA 2026-09-30）。
@@ -449,8 +489,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                                       .disableCameraGrain, .disableAREnvironmentLighting])
         let anchor = AnchorEntity(world: .zero)
         anchor.addChild(HomerunToonScene.entity(for: .stadium()))
-        func place(_ model: HomerunToonModel, _ p: HomerunAtBatLayout.Placement) {
-            let e = HomerunToonScene.entity(for: model, scale: HomerunAtBatLayout.characterScale)
+        func place(_ model: HomerunToonModel, _ p: HomerunAtBatLayout.Placement, scale: Float = HomerunAtBatLayout.characterScale) {
+            let e = HomerunToonScene.entity(for: model, scale: scale)
             e.position = p.position
             e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
             anchor.addChild(e)
@@ -472,12 +512,15 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         machine.apply(self.machine)
         anchor.addChild(machine.entity)
         context.coordinator.machine = machine
-        place(.catcher(), HomerunAtBatLayout.catcher)
+        place(.catcher(), HomerunAtBatLayout.catcher, scale: HomerunAtBatLayout.catcherScale)
         let batterShadow = Self.makeFigureShadow(), machineShadow = Self.makeFigureShadow()
         anchor.addChild(batterShadow)
         anchor.addChild(machineShadow)
         context.coordinator.batterShadow = batterShadow
         context.coordinator.machineShadow = machineShadow
+        let batShadow = Self.makeFigureShadow()
+        anchor.addChild(batShadow)
+        context.coordinator.batShadow = batShadow
         Self.placeFigureShadows(context.coordinator, batterOrigin: HomerunAtBatLayout.batter.position, camera: camera)
         let ball = Self.makeBall()
         anchor.addChild(ball)
@@ -564,6 +607,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         if let ball = c.ball {
             Self.placeBall(ball, at: ballPosition, camera: camera)
             ball.scale = SIMD3(repeating: ballScale)
+            // 飛んでいる間は回して見せ、ミット・地面で止まった球は回さない。
+            if let ballPosition, ballPosition != c.ballPosition { ball.orientation = HomerunBallSeam.spin(at: now) }
+            c.ballPosition = ballPosition
         }
         if let shadow = c.shadow {
             Self.placeShadow(shadow, coordinator: c, ball: ballPosition, ballScale: ballScale, camera: camera)

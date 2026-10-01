@@ -274,6 +274,58 @@ struct HomerunSwingContactTests {
         }
     }
 
+    // #1655 会長 QA（2026-10-01）: 見送り・空振りの球が捕手の後ろへ突き抜けて見えた。的に着いた後は同じ速さで滑らかに
+    // ミットへ曲がって入り、`mittHold` だけ止まって消える（前・後ろのカメラ・全ゾーン）。
+    @Test("見送り・空振りの球は的に着いた後、捕手のミットへ滑らかに入って止まり、少し後に消える（突き抜けない・#1655）")
+    func takenBallEndsInMitt() throws {
+        let screen = CGSize(width: 402, height: 874)
+        let scale = HomerunAtBatLayout.catcherScale
+        for preset in HomerunAtBatLayout.CameraPreset.allCases {
+            let camera = preset.camera
+            let mitt = HomerunBallFlight.mittPoint(for: camera)
+            // ミットの点は捕手の茶のミット（局所 (1.55, 1.7, 1.55)・半径 0.62）の前面にある。
+            let glove = HomerunAtBatLayout.worldPoint(SIMD3<Float>(1.55, 1.7, 1.55) * scale, of: HomerunAtBatLayout.catcher, for: camera)
+            #expect(simd_distance(mitt, glove) < 0.62 * scale && mitt.z > glove.z, "\(preset): ミット \(mitt)・グラブ \(glove)")
+            for zone in 0..<9 {
+                let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: zone), lastBall: HomerunJudge.judge(nil))
+                let target = try #require(plan.ballPosition(at: arrival, camera: camera, screen: screen))
+                let reach = HomerunBallFlight.mittReach(target: target, mitt: mitt, travel: travel)
+                #expect(reach > 0.05 && reach < 0.3, "\(preset) zone \(zone): ミットまで \(reach) 秒")
+                // 着いてからミットまで: 1/120 秒ごとの動きが投球の速さの 1.5 倍を超えない（飛ばない）・ミットより奥へ行かない。
+                let speed = simd_distance(HomerunBallFlight.releasePoint, target) / Float(travel)
+                var last = target
+                for i in 1...Int(reach * 120) + 2 {
+                    let p = try #require(plan.ballPosition(at: arrival.addingTimeInterval(Double(i) / 120), camera: camera, screen: screen))
+                    #expect(simd_distance(p, last) <= speed * 1.5 / 120, "\(preset) zone \(zone) \(i): 跳んだ")
+                    #expect(p.z >= mitt.z - 1e-4, "\(preset) zone \(zone): ミットの奥へ抜けた \(p)")
+                    last = p
+                }
+                let held = try #require(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold / 2),
+                                                          camera: camera, screen: screen))
+                #expect(simd_distance(held, mitt) < 1e-5, "ミットで止まる")
+                #expect(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold + 0.01),
+                                          camera: camera, screen: screen) == nil, "止まった後に消える")
+            }
+        }
+    }
+
+    @Test("球の縫い目: 球面に乗る 1 本の閉じた曲線を赤い帯で描き、どの向きから見ても赤が見える（#1656）")
+    func ballSeam() {
+        for p in HomerunBallSeam.curve { #expect(abs(simd_length(p) - 1) < 1e-4) }
+        let bytes = HomerunBallSeam.pixels()
+        #expect(bytes.count == HomerunBallSeam.textureWidth * HomerunBallSeam.textureHeight * 4)
+        let red = stride(from: 0, to: bytes.count, by: 4).filter { bytes[$0] == HomerunBallSeam.stitch.0 && bytes[$0 + 1] == HomerunBallSeam.stitch.1 }.count
+        let ratio = Double(red) / Double(bytes.count / 4)
+        #expect(ratio > 0.08 && ratio < 0.3, "赤の割合 \(ratio)")
+        // 6 方向それぞれの半球に縫い目がある（どちらから見ても C の字が見える）。
+        let axes: [SIMD3<Float>] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
+        for axis in axes { #expect(HomerunBallSeam.curve.contains { simd_dot($0, axis) > 0.5 }, "\(axis)") }
+        #expect(HomerunBallSeam.image() != nil)
+        // 回転は時刻の大きさに関係なく正規化された四元数。
+        let q = HomerunBallSeam.spin(at: Date(timeIntervalSinceReferenceDate: 8e8 + 0.123))
+        #expect(abs(simd_length(q.vector) - 1) < 1e-5)
+    }
+
     @Test("以前（打点の上へ着く球）は的と縦に大きくずれて映っていた（iPhone 17・前のカメラの上下の行・後ろのカメラの真ん中の行・#1647）")
     func legacyApproachWasMisaligned() {
         let screen = CGSize(width: 402, height: 874)
