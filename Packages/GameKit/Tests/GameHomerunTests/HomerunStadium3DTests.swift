@@ -248,9 +248,15 @@ struct HomerunStadium3DTests {
                 #expect(near.allSatisfy { $0.y >= -0.01 }, "\(s * deg)° の壁が地面に埋まる")
             }
         }
-        // 柵の端（46°）から 54° までは柵と同じ高さ（3.2m）、その先は低い（1.4m）。
+        // 柵の端（46°）から 54° までは柵と同じ高さ（3.2m）、その先の両翼は 2.2m、バックネット裏は 1.4m（会長 QA 2026-10-01）。
         #expect(pad.contains { abs(direction($0) - 50) < 4 && $0.y > 3.1 }, "柵の端に続く壁が低い")
-        #expect(!pad.contains { abs(direction($0)) > 60 && $0.y > 1.5 }, "両翼の壁が高すぎる")
+        #expect(pad.contains { abs(direction($0)) > 60 && abs(direction($0)) < 130 && $0.y > 2.1 }, "両翼の壁が低い（フェンスに見えない）")
+        #expect(!pad.contains { abs(direction($0)) > 60 && $0.y > 2.3 }, "両翼の壁が高すぎる")
+        #expect(!pad.contains { abs(direction($0)) > 140 && $0.y > 1.5 }, "バックネット裏の壁が高すぎる")
+        // 両翼の壁の上にも黄色の線（柵と同じ見た目）。バックネット裏には無い。
+        let yellow = positions(of: HomerunToonPalette.yellow)
+        #expect(yellow.contains { abs(direction($0) - 90) < 3 && $0.y > 2.1 && $0.y < 2.5 }, "両翼の壁に黄色の線が無い")
+        #expect(!yellow.contains { abs(direction($0)) > 140 && $0.y < 5 }, "バックネット裏に黄色の線がある")
         // 柵の端（46°・柵の距離）とスタンドの前縁（2m 外）をつなぐ壁は柵の色。
         let fence = positions(of: S.fence)
         for s in [-1.0, 1.0] {
@@ -343,7 +349,7 @@ struct HomerunStadium3DTests {
             let center = SIMD2<Float>(s * (26 + 16) / root2, (26 - 16) / root2)
             let near = dugout.filter { simd_length(SIMD2($0.x, $0.z) - center) < 7 }
             #expect(near.count >= 8, "\(s > 0 ? "三塁" : "一塁")側のダッグアウトが無い")
-            #expect(near.allSatisfy { $0.y >= 0.05 && $0.y <= 1.35 })
+            #expect(near.allSatisfy { $0.y >= 0.05 && $0.y <= 1.75 })
         }
     }
 
