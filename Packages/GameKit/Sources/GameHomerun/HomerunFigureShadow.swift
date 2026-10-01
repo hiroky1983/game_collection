@@ -30,6 +30,21 @@ enum HomerunFigureShadow {
         return shape(foot: foot, radius: batterRadius, camera: camera)
     }
 
+    /// 空振りの演出（#1681・`HomerunWhiffGag`）の間の打者の影。体の中心のずれ（回って倒れて座る）と体全体の回転・傾き `turn` を掛けた
+    /// 所に置く（クリップ時刻 `clipTime` の 20 コマ目では `batter` と同じ所）。
+    static func whiffGagBatter(origin batterOrigin: SIMD3<Float>, clipTime: TimeInterval, turn: simd_quatf, camera: SIMD3<Float>) -> Shape {
+        let local = HomerunWhiffGag.place(batterCenterLocal + HomerunWhiffGag.bodyShift(atClipTime: clipTime), turn: turn)
+        let foot = batterOrigin + simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0]).act(local)
+        return shape(foot: foot, radius: batterRadius, camera: camera)
+    }
+
+    /// 空振りの演出の間のバットの両端（打者の局所・回転・傾きを掛けた）。振り終わり（44 コマ）までは振りの表（`HomerunBatPath`）、
+    /// その後は演出の表から引く。
+    static func whiffGagBat(clipTime: TimeInterval, turn: simd_quatf) -> (grip: SIMD3<Float>, tip: SIMD3<Float>) {
+        let bat = clipTime <= HomerunBatPath.duration ? HomerunBatPath.segment(atClipTime: clipTime) : HomerunWhiffGag.bat(atClipTime: clipTime)
+        return (HomerunWhiffGag.place(bat.grip, turn: turn), HomerunWhiffGag.place(bat.tip, turn: turn))
+    }
+
     /// バッティングマシンの影（マシンは動かないので置き場所は `HomerunAtBatLayout.machine` で決まる）。
     static func machine(camera: SIMD3<Float>) -> Shape {
         shape(foot: HomerunAtBatLayout.machine.position, radius: machineRadius, camera: camera)

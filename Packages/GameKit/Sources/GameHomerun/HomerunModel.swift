@@ -79,6 +79,12 @@ public final class HomerunModel {
     public private(set) var didSwingLastBall = false
     /// 直前の 1 球の空振りの理由（早い / 遅い / 照準のずれ・#1594）。見送り・当たり・ファウルは nil。
     public private(set) var lastMissReason: HomerunMissReason?
+    /// 直前の空振りで回って倒れて目を回す演出（#1681・`HomerunWhiffGag`）を出すか。振った空振りのときだけ立つ。
+    public private(set) var showsWhiffGag = false
+    /// いまの挑戦で振った空振りの回数（2 回目は必ず演出を出す）。
+    private(set) var whiffCount = 0
+    /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
+    var whiffGagRoll: () -> Double = { Double.random(in: 0..<1) }
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
@@ -231,7 +237,7 @@ public final class HomerunModel {
         guard !isHeld, !awaitsAtBat else { return nil }
         switch phase {
         case .pitching: return arrival?.addingTimeInterval(Self.lateLimit)
-        case .ballResult: return resultUntil
+        case .ballResult: return resultEnd
         case .idle, .finished: return nil
         }
     }
@@ -266,6 +272,7 @@ public final class HomerunModel {
         lastBall = nil
         isNewBest = false
         hasProgressed = false
+        whiffCount = 0
         beginPitch(now: now)
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID)
@@ -381,6 +388,8 @@ public final class HomerunModel {
     /// 打者がいま振っている（本番か素振りの振り抜き〜フォロースルーの途中）か。本番の振りは離した瞬間に振り抜きの途中から
     /// 流すので、振り終わりは 20 コマ目を置いた時刻（`HomerunSwingContact.swingStart`）から数える。
     func isSwinging(at now: Date) -> Bool {
+        // 空振りの演出（#1681）の間は、回って座りきるまで振っている扱い（素振りで演出を切らない）。
+        if phase == .ballResult, showsWhiffGag { return true }
         guard let clock = ballClock else { return false }
         let column = HomerunSwingContact.column(zone: clock.zone)
         let spans: [(begin: Date, clipStart: Date)] = [
@@ -406,7 +415,7 @@ public final class HomerunModel {
                 resolve(nil, now: now)
             }
         case .ballResult:
-            guard let resultUntil, now >= resultUntil else { return }
+            guard let resultEnd, now >= resultEnd else { return }
             if challenge?.isFinished == true {
                 finish()
             } else {
@@ -471,6 +480,32 @@ public final class HomerunModel {
         step += 1
     }
 
+    // MARK: 空振りの演出（#1681）
+
+    /// 動作確認用: この鍵が true なら振った空振りで必ず演出を出す。アプリの DEBUG ビルドが起動引数
+    /// `-homerunForceWhiffGag` のときだけ立て、無ければ消す（`GameCollectionApp`）。出荷ビルドでは立てる経路が無い。
+    public static let debugForceWhiffGagKey = "homerun_debugForceWhiffGag"
+
+    /// 1 球の結果を閉じる時刻。ふだんは `resultUntil` で、空振りの演出のときは座りきるまで（`HomerunWhiffGag.resultDuration`）
+    /// 延ばす（演出の間は次の球を投げない）。
+    public var resultEnd: Date? {
+        resultUntil.map { showsWhiffGag ? $0.addingTimeInterval(Self.whiffGagExtension) : $0 }
+    }
+
+    /// 空振りの演出で結果の時間を延ばす分（秒）。
+    static var whiffGagExtension: TimeInterval { HomerunWhiffGag.resultDuration - resultDuration(for: .miss) }
+
+    /// 1 球を締めたときに、空振りの演出を出すか決める（振った空振りだけを数える。見送りは数えない）。
+    private func decideWhiffGag(swung: Bool, ball: HomerunBattedBall?) {
+        guard swung, ball?.kind == .miss else {
+            showsWhiffGag = false
+            return
+        }
+        whiffCount += 1
+        showsWhiffGag = defaults.bool(forKey: Self.debugForceWhiffGagKey)
+            || HomerunWhiffGag.shows(whiffNumber: whiffCount, roll: whiffGagRoll())
+    }
+
     // MARK: 内部
 
     private func makeSwing(offset: Double, cursor: CGPoint) -> HomerunSwing {
@@ -509,6 +544,7 @@ public final class HomerunModel {
         if didSwingLastBall { swingCount += 1 }
         let ball = challenge.swing(swing)
         self.challenge = challenge
+        decideWhiffGag(swung: swing != nil, ball: ball)
         if !hasProgressed {
             hasProgressed = true
             services?.gameDidProgress(gameID: Self.gameID)

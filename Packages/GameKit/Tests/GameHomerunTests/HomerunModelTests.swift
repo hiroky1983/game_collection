@@ -26,7 +26,10 @@ private final class Fixture {
     /// 照準の吸い寄せは既定で切る（入力どおりの照準で判定を確かめる）。吸い寄せのテストだけ `.standard` を渡す。
     func model(pitches: [HomerunPitch] = HomerunPitch.standardSequence, aimAssist: HomerunAimAssist = .off,
                now: Date = Fixture.t0) -> HomerunModel {
-        HomerunModel(defaults: defaults, calendar: Self.calendar, pitches: pitches, aimAssist: aimAssist, now: now)
+        let model = HomerunModel(defaults: defaults, calendar: Self.calendar, pitches: pitches, aimAssist: aimAssist, now: now)
+        // 空振りの演出（#1681）の「3 回に 1 回」は引かない（2 回目の空振りは必ず出るので、空振りを重ねるテストは `resultEnd` で閉じる）。
+        model.whiffGagRoll = { 1 }
+        return model
     }
 
     static var todayKey: Int { HomerunLedger.dayKey(for: t0, calendar: calendar) }
@@ -358,13 +361,13 @@ struct HomerunModelTests {
         model.atBatDidAppear(now: Fixture.t0)
         try swing(model, dx: 0, dy: 4, offset: -0.2)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .early)
-        model.advance(now: try #require(model.resultUntil))
+        model.advance(now: try #require(model.resultEnd))
         try swing(model, dx: 0, dy: 4, offset: 0.2)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .late)
-        model.advance(now: try #require(model.resultUntil))
+        model.advance(now: try #require(model.resultEnd))
         try swing(model, dx: 40, dy: 0, offset: 0)
         #expect(model.lastBall?.kind == .miss && model.lastMissReason == .aim)
-        model.advance(now: try #require(model.resultUntil))
+        model.advance(now: try #require(model.resultEnd))
         try swing(model, dx: 0, dy: 4, offset: 0)
         #expect(model.lastBall?.kind != .miss && model.lastMissReason == nil)
         model.advance(now: try #require(model.resultUntil))

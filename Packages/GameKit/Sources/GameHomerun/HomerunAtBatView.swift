@@ -26,8 +26,10 @@ struct HomerunAtBatView: View {
     /// 離した瞬間から結果のカードへ切り替えるまでの時間（秒）。空振り・見送りは理由を早く読めるよう短く。
     /// 当たり以上は打球を追うカメラで打球が止まるまで待つ（`HomerunSwingPlan.chaseCardAt`・#1613）。ここの値はその時刻が
     /// 分からないとき（振った時刻の記録が無いとき）の控えで、振り抜き（フォロースルーの終わり・0.8 秒）まで。
-    static func swingShowDuration(for kind: HomerunKind?) -> TimeInterval {
-        switch kind {
+    /// 空振りの演出（#1681）は座り込んでから（`HomerunWhiffGag.cardDelay`）。
+    static func swingShowDuration(for kind: HomerunKind?, whiffGag: Bool = false) -> TimeInterval {
+        if whiffGag, kind == .miss { return HomerunWhiffGag.cardDelay }
+        return switch kind {
         case .inPlay, .fenceHit, .homer, .foul: HomerunBatterMotion.swingDuration
         case .miss, nil: 0.4
         }
@@ -130,7 +132,7 @@ struct HomerunAtBatView: View {
             guard model.phase == .ballResult else { return }
             // 一時停止から戻ったときなど、打球がもう止まっていれば待たずに出す。
             let wait = HomerunSwingPlan(model: model).chaseCardAt?.timeIntervalSinceNow
-                ?? Self.swingShowDuration(for: model.lastBall?.kind)
+                ?? Self.swingShowDuration(for: model.lastBall?.kind, whiffGag: model.showsWhiffGag)
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             guard !Task.isCancelled else { return }
             withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
