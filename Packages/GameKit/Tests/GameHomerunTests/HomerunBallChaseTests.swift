@@ -122,6 +122,9 @@ struct HomerunBallChaseTests {
                 #expect(abs(tr.landing.s - expected) < 0.01, "落ちる点 \(tr.landing.s) ≠ \(expected)")
                 if abs(ball.direction) >= 6 {
                     #expect(tr.landing.y > 1, "スタンド（座面）の上に落ちていない: \(tr.landing.y)")
+                    // 弾んで止まる所の座面に埋まらない（#1645）。
+                    let seat = Chase.standSurface(depth: tr.rest.s - (ball.fence + 2))
+                    #expect(tr.rest.y >= seat + Chase.ballRadius - 1e-9, "止まった球が座席に埋まる: \(tr.rest.y) < \(seat)")
                 }
                 #expect(tr.rest.s > ball.fence, "柵の手前に戻ってきた")
             }
@@ -142,15 +145,50 @@ struct HomerunBallChaseTests {
         }
     }
 
-    @Test("打球は結果のカードの上限（柵越え 3 秒・その他 2.4 秒・ファウル 2 秒）から止めて見せる時間を引いた内に止まる")
+    @Test("打球は結果のカードの上限（柵越え 3.6 秒・その他 2.8 秒・ファウル 2.3 秒）から止めて見せる時間を引いた内に止まる")
     func trackFitsTheTimeLimit() throws {
         for ball in allHits {
             let tr = try track(ball)
             #expect(tr.duration + Chase.restHold <= Chase.limit(for: ball.kind) + 1e-9, "\(ball.kind) \(tr.duration) 秒")
             #expect(tr.point(at: tr.duration + 5) == tr.rest, "止まった後も動いている")
         }
-        #expect(Chase.limit(for: .homer) == 3.0)
-        #expect(Chase.limit(for: .inPlay) <= 2.5 && Chase.limit(for: .fenceHit) <= 2.5 && Chase.limit(for: .foul) <= 2.5)
+        #expect(Chase.limit(for: .homer) == 3.6)
+        #expect(Chase.limit(for: .inPlay) <= 2.8 && Chase.limit(for: .fenceHit) <= 2.8 && Chase.limit(for: .foul) <= 2.8)
+    }
+
+    @Test("追う球はカメラから遠ざかるほど小さく映り、下限より小さくはならない（#1645 会長 QA「球が大きすぎる」）")
+    func ballShrinksWithDistance() throws {
+        let halfTan = tan(Double(Chase.verticalFieldOfView) * .pi / 360)
+        // 見かけの直径（画面の高さに対する割合）。
+        func apparent(_ f: Chase.Frame) -> Double {
+            let radius = Double(f.ballScale) * Double(HomerunSwingContact.ballRadius)
+            return radius / Double(simd_distance(f.camera.position, f.ball)) / halfTan
+        }
+        let floor = Chase.minApparentRadius / halfTan
+        for ball in allHits {
+            let tr = try track(ball)
+            let first = Chase.frame(tr, at: Chase.cutDelay)
+            // 切り替え直後でも画面の高さの 3% 未満（以前の 0.3m の球は約 6%）。
+            #expect(apparent(first) < 0.03, "\(ball.kind) の切り替え直後の球が大きい: \(apparent(first))")
+            for t in stride(from: Chase.cutDelay, through: tr.duration, by: 0.05) {
+                #expect(apparent(Chase.frame(tr, at: t)) >= floor - 1e-6, "\(ball.kind) の球が \(t) 秒で下限より小さい")
+            }
+        }
+        // 柵越えは、スタンドに落ちるときには切り替え直後より小さく映る（遠くへ飛んだ感じ）。
+        for ball in allHits where ball.kind == .homer {
+            let tr = try track(ball)
+            #expect(apparent(Chase.frame(tr, at: tr.flightDuration)) < apparent(Chase.frame(tr, at: Chase.cutDelay)) * 0.6)
+        }
+    }
+
+    @Test("遠くで大きく見せた球も、止まったとき地面に埋まらない（#1646 CodeRabbit）")
+    func enlargedBallDoesNotSinkIntoGround() throws {
+        for ball in allHits where ball.kind != .homer {
+            let tr = try track(ball)
+            let f = Chase.frame(tr, at: tr.duration)
+            let radius = Double(f.ballScale) * Double(HomerunSwingContact.ballRadius)
+            #expect(Double(f.ball.y) - radius >= -1e-4, "\(ball.kind) の球が地面に埋まっている: 中心 \(f.ball.y) 半径 \(radius)")
+        }
     }
 
     @Test("球もカメラもコマの間で跳ばない（1/60 秒で 2.5m 以内）")
@@ -186,6 +224,24 @@ struct HomerunBallChaseTests {
                 #expect(abs(screen.x - 0.5) < 1e-3 && abs(screen.y - 0.5) < 1e-3)
             }
         }
+    }
+
+    @Test("柵越えでスタンドに止まった球は、カメラから柵越しに見える（柵に隠れない・#1645）")
+    func homerRestIsVisibleOverTheFence() throws {
+        var checked = 0
+        for ball in allHits where ball.kind == .homer {
+            let tr = try track(ball)
+            guard Chase.overFenceHeight(tr) < Chase.maxCameraHeight else { continue }   // 上限で頭打ちの球（バックスクリーンの足元）は除く
+            let f = Chase.frame(tr, at: tr.duration)
+            let camera = f.camera.position
+            let radians = ball.direction * .pi / 180
+            let camS = Double(camera.z) / cos(radians)
+            let u = (ball.fence - camS) / (tr.rest.s - camS)
+            let sightAtFence = Double(camera.y) + (tr.rest.y - Double(camera.y)) * u
+            #expect(sightAtFence >= Chase.fenceTop, "\(ball.direction)° \(ball.distance)m の球が柵に隠れる（視線 \(sightAtFence)m）")
+            checked += 1
+        }
+        #expect(checked > 0)
     }
 
     @Test("同じ打球は同じ道になる（乱数なし）")
@@ -233,7 +289,7 @@ struct HomerunBallChaseTests {
             let resultEnd = release.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind))
             #expect(resultEnd.timeIntervalSince(card) >= Chase.cardHold - 1e-6, "\(ball.kind): カードが \(resultEnd.timeIntervalSince(card)) 秒しか出ない")
             // カードを出した後も止まった球を映し続ける。
-            #expect(plan.chaseFrame(at: card.addingTimeInterval(1))?.ball == tr.position(at: tr.duration))
+            #expect(plan.chaseFrame(at: card.addingTimeInterval(1)) == Chase.frame(tr, at: tr.duration))
         }
     }
 
