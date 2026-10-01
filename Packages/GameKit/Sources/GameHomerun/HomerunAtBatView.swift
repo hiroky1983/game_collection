@@ -2,14 +2,19 @@ import SwiftUI
 import Core
 import HomerunCore
 
-/// 打席（`31-at-bat-3D` の 2D 仮絵）。全画面でバナー無し。
+/// 打席（`31-at-bat-3D` の 2D 仮絵）。
 ///
-/// 上端: 球数 / 今回の合計 / 柵越え本数・方向メーター（直前 2 球のチップは置かない・#1613）。中央やや上: 9 分割のゾーン・的・縮む輪・
+/// 最上部: バナー（`BannerSlot`・#1696。打球を追うカメラの間も同じ所に出し続ける）。その下: 球数 / 今回の合計 / 柵越え本数・
+/// 方向メーター（直前 2 球のチップは置かない・#1613）・結果のカード。中央やや上: 9 分割のゾーン・的・縮む輪・
 /// ミートカーソル。下 1/3: 押せる帯（受け口の円は置かない）と案内 1 本・押している指の残像。
+///
+/// バナーは上端に置き、押せる帯（下 1/3）には重ねない（誤タップ・AdMob のポリシー）。枠の高さ（`BannerSlot.height`）は
+/// 広告の読み込み前から確保されるので、読み込み前後で HUD・カードの位置は動かない。
 ///
 /// ゾーン・的・カーソルは画面の上寄り（高さの 45%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
 struct HomerunAtBatView: View {
     let model: HomerunModel
+    let ads: AdService
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 押している指の位置（残像の描画用・押せる帯の座標）。
     @State private var fingerPoint: CGPoint?
@@ -83,24 +88,27 @@ struct HomerunAtBatView: View {
                         .accessibilityElement()
                         .accessibilityLabel(zoneLabel)
                     }
+                    // 上から バナー → HUD → 方向メーター / 結果のカード の順に積む（#1696。バナーの下に並べるので重ならない）。
                     VStack(spacing: 8) {
-                        topHUD
-                        HStack(alignment: .top) {
-                            Spacer()
-                            if model.phase == .pitching, model.showsDirectionMeter {
-                                HomerunDirectionMeter(swing: model.previewSwing(at: now))
+                        BannerSlot(ads: ads)
+                        VStack(spacing: 8) {
+                            topHUD
+                            HStack(alignment: .top) {
+                                Spacer()
+                                if model.phase == .pitching, model.showsDirectionMeter {
+                                    HomerunDirectionMeter(swing: model.previewSwing(at: now))
+                                }
                             }
                         }
-                    }
-                    .padding(.horizontal, Theme.pad)
-                    .padding(.top, 8)
-                    // 結果のカードは打席の打球を見せ終えてから出す（先に出すと打者に重なってスイングが隠れる・試作）。
-                    if model.phase == .ballResult, swingShown, let ball = model.lastBall {
-                        HomerunBallResultCard(ball: ball, number: model.pitchNumber, tookPitch: !model.didSwingLastBall,
-                                              missNote: Self.missNote(didSwing: model.didSwingLastBall, reason: model.lastMissReason))
-                            .padding(.horizontal, Theme.pad)
-                            .padding(.top, size.height * 0.2)
-                            .transition(.scale(scale: 0.9).combined(with: .opacity))
+                        .padding(.horizontal, Theme.pad)
+                        // 結果のカードは打席の打球を見せ終えてから出す（先に出すと打者に重なってスイングが隠れる・試作）。
+                        // HUD のすぐ下に置く（以前は画面の高さの 20% 下げていたが、バナーのぶん下がると SE で押せる帯に掛かる）。
+                        if model.phase == .ballResult, swingShown, let ball = model.lastBall {
+                            HomerunBallResultCard(ball: ball, number: model.pitchNumber, tookPitch: !model.didSwingLastBall,
+                                                  missNote: Self.missNote(didSwing: model.didSwingLastBall, reason: model.lastMissReason))
+                                .padding(.horizontal, Theme.pad)
+                                .transition(.scale(scale: 0.9).combined(with: .opacity))
+                        }
                     }
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)

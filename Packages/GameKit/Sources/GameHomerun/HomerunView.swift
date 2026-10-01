@@ -4,8 +4,9 @@ import HomerunCore
 
 /// 柵越えおじさん（#1348）の画面。打席・外野は 3D（RealityKit。macOS の `swift test` では 2D の絵に落ちる）。
 ///
-/// 打席前（`36-lobby-3D`）→ 打席（`31-at-bat-3D`・全画面でバナー無し）→ 10 球の結果（`34-result-spray`）。
-/// **打席（と外野カメラ）にはバナーを出さない**（受け入れ条件・既存ゲームとの意図した違い）。バナーは打席前と結果だけ。
+/// 打席前（`36-lobby-3D`）→ 打席（`31-at-bat-3D`）→ 10 球の結果（`34-result-spray`）。
+/// バナーは打席前・結果では画面の下、**打席（打球を追うカメラの間も）では画面の上**（#1696・会長指示 2026-10-02。
+/// 下 1/3 は押せる帯なので重ねない）。#1348 で打席を無バナーにした方針はここで改めた。
 ///
 /// 時間は Model が「次に起こしてほしい時刻」（`nextWake`）を返し、ここの `.task(id: model.step)` が待つだけ。
 /// 輪の大きさは `TimelineView` が時刻から描く（`Timer` は持たない）。
@@ -79,7 +80,7 @@ public struct HomerunView: View {
             HomerunLobbyView(model: model, services: services, challengeRescue: challengeRescue)
                 .transition(.opacity)
         case .pitching, .ballResult:
-            HomerunAtBatView(model: model)
+            HomerunAtBatView(model: model, ads: services.ads)
                 .transition(.opacity)
         case .finished:
             HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)
