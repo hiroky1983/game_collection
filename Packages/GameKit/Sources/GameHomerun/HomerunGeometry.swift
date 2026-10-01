@@ -110,6 +110,11 @@ public enum HomerunText {
         }
     }
 
+    /// 1 球の種別の語。柵越えのうち場外（スタンドの最後列の後端を越えた・#1654）は「場外！」。
+    public static func kind(of ball: HomerunBattedBall) -> String {
+        ball.isOutOfPark ? "場外！" : kind(ball.kind)
+    }
+
     /// 距離（m・整数に丸める）。
     public static func meters(_ distance: Double) -> String { "\(Int(distance.rounded())) m" }
 
@@ -119,6 +124,7 @@ public enum HomerunText {
         case .miss: "—"
         case .foul: "ファウル"
         case .fenceHit: "直撃"
+        case .homer where ball.isOutOfPark: "場外"
         case .inPlay, .homer: HomerunSector(direction: ball.direction).label
         }
     }
@@ -129,7 +135,7 @@ public enum HomerunText {
         case .miss: "空振り"
         case .foul: "ファウル"
         case .inPlay, .fenceHit, .homer:
-            "\(kind(ball.kind)) \(meters(ball.distance)) \(HomerunSector(direction: ball.direction).label)"
+            "\(kind(of: ball)) \(meters(ball.distance)) \(HomerunSector(direction: ball.direction).label)"
         }
     }
 
@@ -139,7 +145,7 @@ public enum HomerunText {
         case .miss: "\(number)球目、空振り"
         case .foul: "\(number)球目、ファウル"
         case .inPlay, .fenceHit, .homer:
-            "\(number)球目、\(kind(ball.kind).replacingOccurrences(of: "！", with: ""))、\(Int(ball.distance.rounded()))メートル、\(HomerunSector(direction: ball.direction).label)、\(timing(ball.timing))"
+            "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、\(Int(ball.distance.rounded()))メートル、\(HomerunSector(direction: ball.direction).label)、\(timing(ball.timing))"
         }
     }
 

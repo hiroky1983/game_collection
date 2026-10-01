@@ -103,11 +103,13 @@ enum HomerunBallShadow {
         (Double(atan2(-p.x, p.z)) * 180 / .pi, hypot(p.x, p.z))
     }
 
-    /// スタンドの座面の高さ（スタンドの外は 0）。
+    /// スタンドの座面の高さ（スタンドの外 = 前縁の手前・最後列の後端より先は 0）。
     private static func standHeight(below p: SIMD3<Float>) -> Float {
         let (degrees, s) = polar(p)
         guard abs(degrees) >= 6 else { return 0 }
         let front = HomerunToonModel.standFront(degrees, depth: 0)
+        // 最後列の後端より先（場外の球が抜けていく所・#1654）はスタンドの外 = 地面。
+        guard s - front <= HomerunBallChase.standBackEdgeDepth else { return 0 }
         return Float(HomerunBallChase.standSurface(depth: Double(s - front)))
     }
 
