@@ -120,6 +120,10 @@ public final class SudokuModel {
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "sudoku"
     private var timerTask: Task<Void, Never>?
+    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
+    private var elapsedClock: ElapsedClock?
+    /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
+    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
     /// テスト用の固定種。nil ならシステムの乱数を使う。
     private var seed: UInt64?
 
@@ -547,11 +551,13 @@ public final class SudokuModel {
 
     private func startTimer() {
         timerTask?.cancel()
+        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
+        elapsedClock = clock
         timerTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(for: clock.untilNextSecond)
                 guard !Task.isCancelled else { break }
-                tick()
+                syncElapsed()
             }
         }
     }
@@ -565,6 +571,15 @@ public final class SudokuModel {
         // 狂う（#240 の同型・#513）。一定間隔で保存し直し、失われる幅を最大
         // `persistInterval` 秒に抑える。
         if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
+    /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
+    /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
+    func syncElapsed() {
+        guard let clock = elapsedClock, timerTask != nil else { return }
+        let before = elapsedSeconds
+        elapsedSeconds = max(before, clock.seconds)
+        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
     }
 
     private func stopTimer() {

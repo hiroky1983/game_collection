@@ -290,6 +290,27 @@ struct FreeCellModelTests {
 
     // MARK: - 計時
 
+    @Test("経過秒は実経過時間で数える（実時間 600 秒なら 600 秒・停止中は数えない・#1751）")
+    func elapsedFollowsWallClock() {
+        let model = FreeCellModel(services: makeServices(), seed: firstSeed())
+        defer { model.pauseTimer() }
+        let manual = ManualClock()
+        model.clockNow = manual.now
+        model.newGame()   // 配り直しで計時を張り直す（ここで時計が差し替わる）
+        manual.advance(by: .seconds(600))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 600)
+
+        model.pauseTimer()
+        manual.advance(by: .seconds(500))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 600, "止まっている間は数えない")
+        model.resumeTimerIfNeeded()
+        manual.advance(by: .seconds(20))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 620, "再開は止まった時点の続きから")
+    }
+
     @Test("計時は 30 秒ごとに中断データを保存し直す")
     func periodicPersist() {
         let store = MemorySnapshotStore()

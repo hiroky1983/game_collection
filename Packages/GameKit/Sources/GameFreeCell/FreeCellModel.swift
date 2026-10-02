@@ -87,6 +87,10 @@ public final class FreeCellModel {
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。
     private var autoFinishPlan: [FreeCellMove]?
     private var timerTask: Task<Void, Never>?
+    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
+    private var elapsedClock: ElapsedClock?
+    /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
+    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "freecell"
@@ -491,11 +495,13 @@ public final class FreeCellModel {
 
     private func startTimer() {
         timerTask?.cancel()
+        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
+        elapsedClock = clock
         timerTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(for: clock.untilNextSecond)
                 guard !Task.isCancelled else { break }
-                tick()
+                syncElapsed()
             }
         }
     }
@@ -505,6 +511,15 @@ public final class FreeCellModel {
     func tick() {
         elapsedSeconds += 1
         if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
+    /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
+    /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
+    func syncElapsed() {
+        guard let clock = elapsedClock, timerTask != nil else { return }
+        let before = elapsedSeconds
+        elapsedSeconds = max(before, clock.seconds)
+        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
     }
 
     #if DEBUG

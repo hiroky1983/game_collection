@@ -73,6 +73,27 @@ struct MinesweeperTimerPersistenceTests {
         )
     }
 
+    @Test("経過秒は実経過時間で数える（実時間 600 秒なら 600 秒・停止中は数えない・#1751）")
+    func elapsedFollowsWallClock() {
+        let model = makeModel(store: MemorySnapshotStore())
+        defer { model.pauseTimer() }
+        let manual = ManualClock()
+        model.clockNow = manual.now
+        model.tap(row: 0, col: 0)   // 最初のタップで計時が始まる
+        manual.advance(by: .seconds(600))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 600)
+
+        model.pauseTimer()
+        manual.advance(by: .seconds(500))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 600, "止まっている間は数えない")
+        model.resumeTimerIfNeeded()
+        manual.advance(by: .seconds(20))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 620, "再開は止まった時点の続きから")
+    }
+
     @Test("強制終了して開き直しても、経過秒は直近の保存間隔ぶんまでしか失われない")
     func resumeKeepsTheElapsedSecondsSavedByTheTimer() {
         let store = MemorySnapshotStore()
