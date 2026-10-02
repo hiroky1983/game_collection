@@ -167,7 +167,7 @@ public final class PokerModel {
             self.rules           = snap.rules ?? .standard
             // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
             self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
-            // `.idle` を書くのは `persistRevivedRoundWaiting` だけ（局を持たない中断データ・#1104）。
+            // `.idle` を書くのは `persistRoundWaiting` だけ（局を持たない中断データ・#1104）。
             // 戻った先は次の局の開始シートで「続き」ではないので、中断のお知らせ（#663）の対象から
             // 外す（#1145）。保存時の `notifyRoundWaitingSnapshot` は**保存したプロセスの中**でしか
             // 効かない（`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）ため、
@@ -184,11 +184,13 @@ public final class PokerModel {
     private func persist() {
         let savablePhases: [PokerPhase] = [.betting1, .exchange, .cpuExchange, .betting2]
         guard savablePhases.contains(phase) else {
-            // 局は進んでいないが、復活（#499）で戻した残高と「使い切った」印だけは残す（#1104）。
+            // 局は進んでいないが、残高と復活（#499）の「使い切った」印だけは残す（#1104・#1714）。
             // 捨てると、広告を見た直後に次の局を始める前で離れた人が報酬を丸ごと失い（#523 で
             // 復活の枚数を初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
-            if hasRevivedThisSession && !sessionOver {
-                persistRevivedRoundWaiting()
+            // 復活していない通常のセッションも同じで、決着直後に離れると勝ち負けが初期額へ戻ってしまう。
+            // 破産（`sessionOver`）後は残高に続きが無いので、従来どおり捨てる。
+            if !sessionOver {
+                persistRoundWaiting()
                 return
             }
             services?.snapshots.clear(for: gameID)
@@ -205,12 +207,12 @@ public final class PokerModel {
         try? services?.snapshots.save(snap, for: gameID)
     }
 
-    /// 局を持たない「次の局待ち」の中断データ（#1104）。復活したセッションの両者の残高と
+    /// 局を持たない「次の局待ち」の中断データ（#1104・#1714）。セッションの両者の残高と
     /// 「復活を使い切った」印だけを持ち回る。
     ///
     /// 決着の画（`winner` と役は中断データに持っていない）を復元しても読めないので、局は書かずに
     /// `.idle` で戻す。画面側は復元した局面が `.idle` なら開始シートを出す（`PokerView.init`）。
-    private func persistRevivedRoundWaiting() {
+    private func persistRoundWaiting() {
         let snap = PokerSnapshot(
             playerHand: [], cpuHand: [], deck: [],
             playerChips: playerChips, cpuChips: cpuChips, pot: 0,
