@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-import Core
+@testable import Core
 import CoreTestSupport
 import GameKitTestSupport
 
@@ -47,6 +47,16 @@ struct DifficultyLadderSlotTests {
         // レコメンドは無い（`services.recommendations` が nil）ので、描かれた高さは階段のカードのものだけ。
         let slot = RecommendationSlot(services: makeServices(), isFinished: true, ladder: ladder)
         #expect(height(slot, size) == placeholder)
+    }
+
+    /// 隣の「あそぶ」との押し間違いを防ぐ（#1735）。44pt 化で行が伸びるぶん縦余白を詰めるので、
+    /// カードの外寸（`placeholderMinimumHeight`）は動かない。
+    @Test("閉じるボタンは44pt四方で、カードの外寸は変わらない")
+    func dismissButtonIs44ptWithoutChangingCardHeight() {
+        #expect(height(RecommendationDismissButton(action: {})) >= 44)
+        #expect(RecommendationDismissButton.side >= 44)
+        #expect(RecommendationDismissButton.side + RecommendationDismissButton.cardVerticalPadding * 2
+                == RecommendationCard.placeholderMinimumHeight)
     }
 
     @Test("決着前は勧めがあっても何も描かない")
