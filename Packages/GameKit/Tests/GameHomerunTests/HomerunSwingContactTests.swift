@@ -274,35 +274,36 @@ struct HomerunSwingContactTests {
         }
     }
 
-    // #1655 会長 QA（2026-10-01）: 見送り・空振りの球が捕手の後ろへ突き抜けて見えた。的に着いた後は同じ速さで滑らかに
-    // ミットへ曲がって入り、`mittHold` だけ止まって消える（前・後ろのカメラ・全ゾーン）。
-    @Test("見送り・空振りの球は的に着いた後、捕手のミットへ滑らかに入って止まり、少し後に消える（突き抜けない・#1655）")
-    func takenBallEndsInMitt() throws {
+    // #1655 会長 QA（2026-10-01）: 突き抜けて見えた。#1771 会長 QA（2026-10-02）: ミットへ曲げると吸い込まれる変化球に見えた。
+    // 的に着いた後は投球の線のまま同じ速さでまっすぐ進み、ミットの深さで止まって `mittHold` 後に消える（前・後ろのカメラ・全ゾーン）。
+    @Test("見送り・空振りの球は的に着いた後も投球の線のまま進み、ミットの深さで止まって少し後に消える（曲がらない・突き抜けない・#1771）")
+    func takenBallStaysOnItsLineToMitt() throws {
         let screen = CGSize(width: 402, height: 874)
-        let scale = HomerunAtBatLayout.catcherScale
         for preset in HomerunAtBatLayout.CameraPreset.allCases {
             let camera = preset.camera
             let mitt = HomerunBallFlight.mittPoint(for: camera)
-            // ミットの点は捕手の茶のミット（局所 (1.55, 1.7, 1.55)・半径 0.62）の前面にある。
-            let glove = HomerunAtBatLayout.worldPoint(SIMD3<Float>(1.55, 1.7, 1.55) * scale, of: HomerunAtBatLayout.catcher, for: camera)
-            #expect(simd_distance(mitt, glove) < 0.62 * scale && mitt.z > glove.z, "\(preset): ミット \(mitt)・グラブ \(glove)")
             for zone in 0..<9 {
                 let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: zone), lastBall: HomerunJudge.judge(nil))
                 let target = try #require(plan.ballPosition(at: arrival, camera: camera, screen: screen))
+                let release = HomerunBallFlight.releasePoint
+                let line = simd_normalize(target - release)
                 let reach = HomerunBallFlight.mittReach(target: target, mitt: mitt, travel: travel)
-                #expect(reach > 0.05 && reach < 0.3, "\(preset) zone \(zone): ミットまで \(reach) 秒")
-                // 着いてからミットまで: 1/120 秒ごとの動きが投球の速さの 1.5 倍を超えない（飛ばない）・ミットより奥へ行かない。
-                let speed = simd_distance(HomerunBallFlight.releasePoint, target) / Float(travel)
+                #expect(reach > 0.05 && reach < 0.5, "\(preset) zone \(zone): ミットの深さまで \(reach) 秒")
+                // 着いてからミットの深さまで: 常に打ち出し口からの直線の上にあり、速さも変わらない・ミットの深さより奥へ行かない。
+                let speed = simd_distance(release, target) / Float(travel)
                 var last = target
                 for i in 1...Int(reach * 120) + 2 {
                     let p = try #require(plan.ballPosition(at: arrival.addingTimeInterval(Double(i) / 120), camera: camera, screen: screen))
-                    #expect(simd_distance(p, last) <= speed * 1.5 / 120, "\(preset) zone \(zone) \(i): 跳んだ")
-                    #expect(p.z >= mitt.z - 1e-4, "\(preset) zone \(zone): ミットの奥へ抜けた \(p)")
+                    let off = simd_length(simd_cross(p - release, line))
+                    #expect(off < 1e-3, "\(preset) zone \(zone) \(i): 線から \(off) 外れた（曲がった）")
+                    #expect(abs(simd_distance(p, last) - speed / 120) < 1e-3 || p.z <= mitt.z + 1e-4, "\(preset) zone \(zone) \(i): 速さが変わった")
+                    #expect(p.z >= mitt.z - 1e-4, "\(preset) zone \(zone): ミットの深さより奥へ抜けた \(p)")
                     last = p
                 }
                 let held = try #require(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold / 2),
                                                           camera: camera, screen: screen))
-                #expect(simd_distance(held, mitt) < 1e-5, "ミットで止まる")
+                #expect(abs(held.z - mitt.z) < 1e-3, "ミットの深さで止まる")
+                #expect(simd_length(simd_cross(held - release, line)) < 1e-3, "止まった点も投球の線の上")
                 #expect(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold + 0.01),
                                           camera: camera, screen: screen) == nil, "止まった後に消える")
             }
