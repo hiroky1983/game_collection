@@ -615,7 +615,11 @@ private struct HandAreaView: View {
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
-                    HStack(spacing: 6) {
+                    // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
+                    // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
+                    let koma     = layout.scaled(32)
+                    let tapWidth = max(44, koma + 10)
+                    HStack(spacing: max(0, 6 - (tapWidth - (koma + 10)))) {
                         ForEach(owned, id: \.rawValue) { type in
                             let selected = model.selectedHand == type && color == pos.sideToMove
                             let count    = hand[type.rawValue]
@@ -632,6 +636,8 @@ private struct HandAreaView: View {
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
                                         .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
                                 }
+                                .frame(minWidth: tapWidth)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(ShogiAccessibility.handLabel(
