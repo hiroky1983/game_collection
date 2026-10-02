@@ -191,7 +191,7 @@ public struct PokerView: View {
             potArea
                 .handResultOverlay(
                     model.handResult,
-                    appearDelay: model.cpuFolded || Motion.isReduceMotionEnabled
+                    appearDelay: model.cpuFolded || model.playerFolded || Motion.isReduceMotionEnabled
                         ? .zero : PokerMotion.showdownRevealDelay
                 )
                 // 後ろに並ぶ手札の枠より手前に描く（兄弟は並び順に重なるため、無いとバナーの下半分が隠れる）。
