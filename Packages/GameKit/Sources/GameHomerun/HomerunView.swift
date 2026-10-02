@@ -114,6 +114,10 @@ struct HomerunLobbyView: View {
             lobbyScroll
             BannerSlot(ads: services.ads)
         }
+        #if os(iOS) && canImport(RealityKit)
+        // 打席の 3D を見えない所で先に作っておく（#1695。「打席に立つ」・広告を見てプレイで待たせない）。
+        .onAppear { HomerunAtBatScenePrewarm.schedule(camera: model.atBatCamera) }
+        #endif
     }
 
     private var lobbyScroll: some View {

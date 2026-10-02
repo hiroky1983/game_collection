@@ -284,10 +284,91 @@ import Combine
 import RealityKit
 
 /// 打席の 3D の控え（`HomerunAtBatSceneView.reusable`）を手放す。柵越えおじさんの画面を離れたら呼ぶ
-/// （控えたままだと、ほかのゲームへ移っても球場・打者の 3D 一式がメモリに残り続ける）。
+/// （控えたままだと、ほかのゲームへ移っても球場・打者の 3D 一式がメモリに残り続ける）。先読み（`HomerunAtBatScenePrewarm`）も止める。
+/// 部品の原本（`HomerunAtBatAssets`）はプロセスの間持つ（メッシュだけ・入り直しで頂点を計算し直さない）。
 @MainActor
 enum HomerunAtBatSceneReuse {
-    static func drop() { HomerunAtBatSceneView.reusable = nil }
+    static func drop() {
+        HomerunAtBatScenePrewarm.handOff()
+        HomerunAtBatSceneView.reusable = nil
+    }
+}
+
+/// 打席の 3D の先読み（#1695）。打席前の画面が出て落ち着いてから、打席の `ARView` を**見えない所で**作って一度描いておき、
+/// 控え（`HomerunAtBatSceneView.reusable`）に置く。「打席に立つ」（広告を見てプレイ・#1694 も同じ）で打席に入ると、
+/// 2 回目以降の打席と同じ使い回しの経路に乗り、球場・打者の組み立てと最初の描画の準備（シェーダ・メッシュの転送）を待たない
+/// （タップから 1 球目の合図まで Release で約 0.7〜1.0 秒 → 約 0.1 秒）。
+///
+/// - 見えない所: 画面のウインドウの**いちばん奥**（アプリの画面の後ろ）に全画面の大きさで差し込み、数コマ描いたら外す。
+///   手前のアプリの画面は不透明なので映らない。描画は `ARView` 自身のループで行われ、覆われていても止まらない。
+/// - カクつき対策: 打席前の画面が出てから `delay` 待ってから始め（画面の切り替えのアニメーション・打席前のおじさんの 3D の
+///   描き始めと重ねない）、頂点の計算はバックグラウンド、主スレッドの組み立ては部品ごとに 1 コマ空ける（`HomerunAtBatAssets.preload`）。
+/// - 先読みの途中で打席に入ったら（`handOff`）、そこで止めて、できている控えがあればそれを使う（無ければ従来どおりその場で作る）。
+/// - メモリ: 打席に入らなくても、打席前の画面にいる間は打席の 3D 一式（球場のメッシュ・打者・`ARView`）を 1 組持つ。
+///   画面を離れると `HomerunAtBatSceneReuse.drop` で手放す（打席に入った後の控えと同じ扱い）。
+@MainActor
+enum HomerunAtBatScenePrewarm {
+    /// 打席前の画面が出てから先読みを始めるまで（秒）。
+    static let delay: TimeInterval = 0.8
+    /// 見えない所で描くコマ数（描き始めのコマ落ちが収まるまで・`HomerunAtBatSceneView.steadyFrames` と同じ見方）と、待つ上限（秒）。
+    static let framesToRender = 6
+    static let renderTimeout: TimeInterval = 2
+
+    private static var task: Task<Void, Never>?
+    private static var host: ARView?
+
+    /// 打席前の画面が出たときに呼ぶ。控えがすでにあれば（もう一回・結果から戻ったとき）何もしない。
+    static func schedule(camera: HomerunAtBatLayout.CameraPreset) {
+        guard task == nil, HomerunAtBatSceneView.reusable == nil else { return }
+        task = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await HomerunAtBatAssets.preload()
+            guard !Task.isCancelled, HomerunAtBatSceneView.reusable == nil, let window = keyWindow else { return }
+            // 打者（骨の動きの準備を含む）と `ARView` 一式は 1 コマ空けて別々に作る（続けて作ると打席前の画面が約 0.1 秒止まる）。
+            let rig = HomerunBatterRig()
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled, HomerunAtBatSceneView.reusable == nil else { return }
+            let prepared = HomerunAtBatSceneView.prepared(camera: camera.camera, batterRig: rig)
+            HomerunAtBatSceneView.reusable = prepared
+            let view = prepared.view
+            view.frame = window.bounds
+            // 見えない所に差している間も VoiceOver に読ませない（打席では SwiftUI 側で隠している）。
+            view.accessibilityElementsHidden = true
+            window.insertSubview(view, at: 0)
+            host = view
+            await renderFrames(view)
+            if host === view {
+                view.removeFromSuperview()
+                host = nil
+            }
+        }
+    }
+
+    /// 打席の 3D が画面に出る直前・画面を離れるときに呼ぶ。先読みを止め、見えない所に差していれば外す（控えは残す）。
+    static func handOff() {
+        task?.cancel()
+        task = nil
+        host?.removeFromSuperview()
+        host = nil
+    }
+
+    private static var keyWindow: UIWindow? {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        return windows.first(where: \.isKeyWindow) ?? windows.first
+    }
+
+    /// `framesToRender` コマ描くまで（上限 `renderTimeout` 秒）待つ。
+    private static func renderFrames(_ view: ARView) async {
+        var frames = 0
+        var subscription: (any Cancellable)?
+        let deadline = Date().addingTimeInterval(renderTimeout)
+        subscription = view.scene.subscribe(to: SceneEvents.Update.self) { _ in frames += 1 }
+        while frames < framesToRender, Date() < deadline, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        subscription?.cancel()
+    }
 }
 
 private struct HomerunAtBatSceneView: UIViewRepresentable {
@@ -356,7 +437,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         } else {
             material.color = .init(tint: HomerunPlatformColor(red: 0.98, green: 0.98, blue: 0.96, alpha: 1))
         }
-        let ball = ModelEntity(mesh: .generateSphere(radius: HomerunSwingContact.ballRadius), materials: [material])
+        let ball = ModelEntity(mesh: HomerunAtBatAssets.ball(), materials: [material])
         ball.isEnabled = false
         return ball
     }
@@ -373,7 +454,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
 
     /// 球の足元の影（#1648）: 半径 0.5 の円板（xz 面・角の丸め = 半分の幅で円になる）。大きさは `scale` で、濃さはマテリアルで変える。
     @MainActor private static func makeShadow() -> ModelEntity {
-        let shadow = ModelEntity(mesh: .generatePlane(width: 1, depth: 1, cornerRadius: 0.5),
+        let shadow = ModelEntity(mesh: HomerunAtBatAssets.disc(),
                                  materials: [shadowMaterial(step: HomerunBallShadow.opacityStep(HomerunBallShadow.groundOpacity))])
         shadow.isEnabled = false
         return shadow
@@ -420,7 +501,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     }
 
     @MainActor private static func makeFigureShadow() -> ModelEntity {
-        ModelEntity(mesh: .generatePlane(width: 1, depth: 1, cornerRadius: 0.5),
+        ModelEntity(mesh: HomerunAtBatAssets.disc(),
                     materials: [shadowMaterial(step: HomerunBallShadow.opacityStep(HomerunFigureShadow.opacity))])
     }
 
@@ -471,7 +552,20 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         return reusable
     }
 
-    func makeCoordinator() -> Coordinator { Self.idleReusable?.coordinator ?? Coordinator() }
+    func makeCoordinator() -> Coordinator {
+        // 先読み（`HomerunAtBatScenePrewarm`）の途中なら止め、見えない所から外す（できていれば控えとして使う）。
+        HomerunAtBatScenePrewarm.handOff()
+        return Self.idleReusable?.coordinator ?? Coordinator()
+    }
+
+    /// 打席前の画面で先読みする打席の 3D（構え・球なし・マシンは止まった状態）。
+    static func prepared(camera: HomerunAtBatLayout.Camera, batterRig: HomerunBatterRig?) -> (view: ARView, coordinator: Coordinator) {
+        let scene = HomerunAtBatSceneView(batterPose: .stance, machine: HomerunMachineMotion.state(elapsed: nil, now: .distantPast),
+                                          camera: camera, batterMotion: .stance, ballPosition: nil, ballScale: 1, now: Date(),
+                                          moon: nil, onFirstFrame: nil)
+        let coordinator = Coordinator()
+        return (scene.build(coordinator, batterRig: batterRig), coordinator)
+    }
 
     private static func characterEntity(_ pose: HomerunOjisanPose3, outfit: HomerunOjisanOutfit, _ p: HomerunAtBatLayout.Placement) -> Entity {
         let e = HomerunToonScene.entity(for: .ojisan(pose, outfit: outfit), scale: HomerunAtBatLayout.characterScale)
@@ -495,11 +589,21 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 reused.coordinator.batterMotion = batterMotion
             }
             reused.coordinator.batterSlide = nil
-            updateUIView(reused.view, context: context)
+            apply(reused.coordinator)
             subscribeFirstFrame(reused.view, reused.coordinator)
             Self.subscribeWhiffGag(reused.view, reused.coordinator)
             return reused.view
         }
+        let view = build(context.coordinator)
+        subscribeFirstFrame(view, context.coordinator)
+        Self.subscribeWhiffGag(view, context.coordinator)
+        Self.reusable = (view, context.coordinator)
+        return view
+    }
+
+    /// 打席の 3D 一式を組み立てる。球場・捕手・マシンの部品は原本（`HomerunAtBatAssets`）の複製。
+    /// `batterRig` は先に作っておいた打者（無ければここで作る）。
+    private func build(_ coordinator: Coordinator, batterRig: HomerunBatterRig? = nil) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
         // 触りは SwiftUI の押せる帯で受ける（`allowsHitTesting(false)` と二重に止める）。
         view.isUserInteractionEnabled = false
@@ -509,57 +613,52 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         view.renderOptions.formUnion([.disableMotionBlur, .disableDepthOfField, .disableHDR, .disableGroundingShadows,
                                       .disableCameraGrain, .disableAREnvironmentLighting])
         let anchor = AnchorEntity(world: .zero)
-        anchor.addChild(HomerunToonScene.entity(for: .stadium()))
-        func place(_ model: HomerunToonModel, _ p: HomerunAtBatLayout.Placement, scale: Float = HomerunAtBatLayout.characterScale) {
-            let e = HomerunToonScene.entity(for: model, scale: scale)
-            e.position = p.position
-            e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
-            anchor.addChild(e)
-        }
-        if let rig = HomerunBatterRig() {
+        anchor.addChild(HomerunAtBatAssets.stadium())
+        if let rig = batterRig ?? HomerunBatterRig() {
             rig.entity.position = HomerunAtBatLayout.batter.position
             rig.entity.orientation = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
             anchor.addChild(rig.entity)
-            context.coordinator.batterRig = rig
+            coordinator.batterRig = rig
             if batterMotion != .stance { rig.show(batterMotion, now: now) }
-            context.coordinator.batterMotion = batterMotion
+            coordinator.batterMotion = batterMotion
         } else {
             let batter = Self.legacyBatter(batterPose)
             anchor.addChild(batter)
-            context.coordinator.batter = batter
-            context.coordinator.batterPose = batterPose
+            coordinator.batter = batter
+            coordinator.batterPose = batterPose
         }
         let machine = HomerunMachineRig()
         machine.apply(self.machine)
         anchor.addChild(machine.entity)
-        context.coordinator.machine = machine
-        place(.catcher(), HomerunAtBatLayout.catcher, scale: HomerunAtBatLayout.catcherScale)
+        coordinator.machine = machine
+        let catcher = HomerunAtBatAssets.catcher()
+        catcher.scale = SIMD3(repeating: HomerunAtBatLayout.catcherScale)
+        catcher.position = HomerunAtBatLayout.catcher.position
+        catcher.orientation = simd_quatf(angle: HomerunAtBatLayout.catcher.yaw, axis: [0, 1, 0])
+        anchor.addChild(catcher)
         let batterShadow = Self.makeFigureShadow(), machineShadow = Self.makeFigureShadow()
         anchor.addChild(batterShadow)
         anchor.addChild(machineShadow)
-        context.coordinator.batterShadow = batterShadow
-        context.coordinator.machineShadow = machineShadow
+        coordinator.batterShadow = batterShadow
+        coordinator.machineShadow = machineShadow
         let batShadow = Self.makeFigureShadow()
         anchor.addChild(batShadow)
-        context.coordinator.batShadow = batShadow
-        Self.placeFigureShadows(context.coordinator, batterOrigin: HomerunAtBatLayout.batter.position, camera: camera)
+        coordinator.batShadow = batShadow
+        Self.placeFigureShadows(coordinator, batterOrigin: HomerunAtBatLayout.batter.position, camera: camera)
         let ball = Self.makeBall()
         anchor.addChild(ball)
         Self.placeBall(ball, at: ballPosition, camera: camera)
-        context.coordinator.ball = ball
+        coordinator.ball = ball
         let shadow = Self.makeShadow()
         anchor.addChild(shadow)
-        context.coordinator.shadow = shadow
-        Self.placeShadow(shadow, coordinator: context.coordinator, ball: ballPosition, ballScale: ballScale, camera: camera)
+        coordinator.shadow = shadow
+        Self.placeShadow(shadow, coordinator: coordinator, ball: ballPosition, ballScale: ballScale, camera: camera)
         let cam = PerspectiveCamera()
         anchor.addChild(cam)
         Self.aim(cam, camera)
-        context.coordinator.cameraEntity = cam
-        context.coordinator.camera = camera
+        coordinator.cameraEntity = cam
+        coordinator.camera = camera
         view.scene.addAnchor(anchor)
-        subscribeFirstFrame(view, context.coordinator)
-        Self.subscribeWhiffGag(view, context.coordinator)
-        Self.reusable = (view, context.coordinator)
         return view
     }
 
@@ -612,7 +711,11 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {
-        let c = context.coordinator
+        apply(context.coordinator)
+    }
+
+    /// 今の局面（打者の動き・マシン・カメラ・球・月）に合わせ直す。
+    private func apply(_ c: Coordinator) {
         if let rig = c.batterRig {
             if c.batterMotion != batterMotion {
                 rig.show(batterMotion, now: now)
