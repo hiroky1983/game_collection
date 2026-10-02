@@ -216,7 +216,7 @@ enum HomerunBallFlight {
     /// 見送り・空振りの球が止まる奥行きの基準になる点（`camera` の置き方の世界座標・左右反転するカメラでは捕手と同じく x を鏡映した扱い）。
     /// 球は投球の線のまま進み、この点の z（捕手のミットの深さ）に届いたところで止まって消える（#1771。ミットへ曲げると吸い込まれる
     /// 変化球に見えた・会長 QA 2026-10-02）。以前は z −1.5 まで進めて消していて、ミットを外れて後ろへ突き抜けて見えた（#1655）。
-    static func mittPoint(for camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.CameraPreset.front.camera) -> SIMD3<Float> {
+    static func mittPoint(for camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.camera) -> SIMD3<Float> {
         HomerunAtBatLayout.worldPoint(mittPocketLocal * HomerunAtBatLayout.catcherScale, of: HomerunAtBatLayout.catcher, for: camera)
     }
 
@@ -371,7 +371,7 @@ struct HomerunSwingPlan {
     /// 3D の球の位置（世界座標・前のカメラの置き方）。見せない間は nil。`camera` は打球の左右（`HomerunAtBatLayout.pullSideX`）
     /// と、`screen`（3D を描く全画面の大きさ）があるときの投球の着く点（`HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点・#1647）
     /// に使う（左右反転するカメラでは描画側が球を x について鏡映して置く）。`screen` が無ければ打点の上（`approachTarget`）へ着く。
-    func ballPosition(at now: Date, camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.CameraPreset.front.camera,
+    func ballPosition(at now: Date, camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.camera,
                       screen: CGSize? = nil) -> SIMD3<Float>? {
         guard let clock, let ballArrival else { return nil }
         let target = screen.map { HomerunAtBatLayout.pitchTarget(zone: clock.zone, camera: camera, screen: $0) }

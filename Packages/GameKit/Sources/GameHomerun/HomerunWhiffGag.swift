@@ -11,7 +11,7 @@ import simd
 ///   姿勢から Meshy の「よろけて後ろへ尻もち → 座って頭をぐるぐる」へ混ぜる。腰の水平移動の固定・上体の起こし・経路の
 ///   向きと縮尺・首のぐるぐるは試作と同じ補正を焼き込み済み。モデルは複製せず、同じ USDZ の時間を延ばしただけ。
 /// - 体全体の回転（約 1.8 回転・減速）と後ろへの傾き: 骨ではなく親の実体のヨー・傾きで足す（`spinYaw`・`lean`）。回転の量は
-///   座りきったとき顔がカメラを向く量で、前・後ろのカメラで別（前 649° / 後ろ 828°）。
+///   座りきったとき顔が打席のカメラ（センターカメラ）を向く量（649°）。
 /// - ぐるぐる目・頭上の星: 頭の骨に合わせて毎コマ置く（`head` の表から）。骨は読まない。
 /// - バット・体の影: 表から引いて回転・傾きを掛ける（`HomerunFigureShadow`）。
 ///
@@ -39,8 +39,8 @@ enum HomerunWhiffGag {
     /// 演出を出す空振りの結果の時間（離してから次の球のマシンが込め始めるまで・秒）。振り抜きの頭は離した時刻より前
     /// （`HomerunSwingContact.swingStart`）なので、離した時刻から数えれば座りきるまで次の球を投げない。
     static var resultDuration: TimeInterval { span + endHold }
-    /// 結果のカード（「空振り」）を出すまで（離してから・秒）。座り込んだ後に出す（すぐ出すと、後ろのカメラでは回っている
-    /// 頭と星がカードに隠れた・シミュレータの録画で確認）。座り込むのは 92 コマ目ごろ = 振り抜きの頭から約 2.4 秒。
+    /// 結果のカード（「空振り」）を出すまで（離してから・秒）。座り込んだ後に出す（すぐ出すと、回っている頭と星が
+    /// カードに隠れた・シミュレータの録画で確認）。座り込むのは 92 コマ目ごろ = 振り抜きの頭から約 2.4 秒。
     static let cardDelay: TimeInterval = 2.4
 
     // MARK: 体全体の回転と傾き（親の実体）
@@ -52,9 +52,9 @@ enum HomerunWhiffGag {
     /// クリップ時刻 `t`（秒・0 = 1 コマ目）のコマ番号（1 始まり・小数）。
     static func frame(atClipTime t: TimeInterval) -> Double { t * frameRate + 1 }
 
-    /// 体全体の回転（ラジアン・打者の局所の y まわり）。`back` は後ろのカメラ用（座ったとき顔が後ろのカメラを向く）。
-    static func spinYaw(atClipTime t: TimeInterval, back: Bool) -> Float {
-        let table = back ? backYaw : frontYaw
+    /// 体全体の回転（ラジアン・打者の局所の y まわり）。座ったとき顔が打席のカメラを向く。
+    static func spinYaw(atClipTime t: TimeInterval) -> Float {
+        let table = frontYaw
         let k = (frame(atClipTime: t) - spinFirstFrame) * 2
         guard k > 0 else { return 0 }
         guard k < Double(table.count - 1) else { return table[table.count - 1] }
@@ -80,8 +80,8 @@ enum HomerunWhiffGag {
     }
 
     /// 回転・傾き（親の実体の向き）。支点は `pivot`。
-    static func turn(atClipTime t: TimeInterval, back: Bool) -> simd_quatf {
-        simd_quatf(angle: lean(atClipTime: t), axis: leanAxis) * simd_quatf(angle: spinYaw(atClipTime: t, back: back), axis: [0, 1, 0])
+    static func turn(atClipTime t: TimeInterval) -> simd_quatf {
+        simd_quatf(angle: lean(atClipTime: t), axis: leanAxis) * simd_quatf(angle: spinYaw(atClipTime: t), axis: [0, 1, 0])
     }
 
     /// クリップの骨だけの打者の局所の点 `p` を、回転・傾きを掛けた打者の局所へ置く。
@@ -164,8 +164,8 @@ enum HomerunWhiffGag {
     static let starOrbitRadius: Float = 0.26
     static let starLift: Float = 0.10
     static let starCount = 3
-    /// 星の外側の半径（m）。前のカメラは遠い（28m）ので大きめ（試作と同じ）。
-    static func starSize(back: Bool) -> Float { back ? 0.075 : 0.10 }
+    /// 星の外側の半径（m）。打席のカメラは遠い（28m）ので大きめ（試作と同じ）。
+    static let starSize: Float = 0.10
 
     /// 出始めから `grow` 秒で 0 → 1。
     static func appear(atClipTime t: TimeInterval, from frame: Double, grow: TimeInterval) -> Float {

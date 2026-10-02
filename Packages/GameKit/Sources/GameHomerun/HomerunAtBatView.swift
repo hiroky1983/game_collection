@@ -5,7 +5,7 @@ import HomerunCore
 /// 打席（`31-at-bat-3D` の 2D 仮絵）。
 ///
 /// 最上部: バナー（`BannerSlot`・#1696。打球を追うカメラの間も同じ所に出し続ける）。その下: 球数 / 今回の合計 / 柵越え本数・
-/// 方向メーター（直前 2 球のチップは置かない・#1613）・結果のカード。中央やや上: 9 分割のゾーン・的・縮む輪・
+/// 左上に方向メーター（直前 2 球のチップは置かない・#1613。置き場所は `HomerunAtBatHUDLayout`）・結果のカード。中央やや上: 9 分割のゾーン・的・縮む輪・
 /// ミートカーソル。下 1/3: 押せる帯（受け口の円は置かない）と案内 1 本・押している指の残像。
 ///
 /// バナーは上端に置き、押せる帯（下 1/3）には重ねない（誤タップ・AdMob のポリシー）。枠の高さ（`BannerSlot.height`）は
@@ -66,13 +66,12 @@ struct HomerunAtBatView: View {
                     HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                          batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                          machine: HomerunMachineMotion.state(elapsed: model.pitchElapsed(at: now), now: now),
-                                         cameraPreset: model.atBatCamera,
                                          cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
                                          faceMark: plan.faceMark,
                                          // 場外の球が消えた後（#1654）は nil（球も影も出さない）。投球中の球へ戻さない。
                                          ballPosition: chase.map(\.visibleBall)
-                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera,
+                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: HomerunAtBatLayout.camera,
                                                                              screen: CGSize(width: size.width + inset.leading + inset.trailing,
                                                                                             height: fullHeight)) : nil),
                                          ballScale: chase?.ballScale ?? 1,
@@ -81,18 +80,17 @@ struct HomerunAtBatView: View {
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
                                          onFirstFrame: { model.atBatDidAppear(now: Date()) })
-                    // 上から バナー → HUD → 方向メーター の順に積む（#1696。バナーの下に並べるので重ならない）。
-                    // ゾーンより先に（下の層に）描く: SE ではバナーのぶん方向メーターがゾーンの右上に近づくので、
-                    // 縮み始めの輪や端まで寄せたカーソルがメーターに掛かっても、輪・カーソルの方を上に見せる。
-                    VStack(spacing: 8) {
+                    // 上から バナー → HUD → 方向メーター（左端）の順に積む（#1696。バナーの下に並べるので重ならない）。
+                    // 方向メーターは左上（#1770。右上は打席のカメラで打者の頭・バットに重なる）。ゾーン・的・輪と重ならない
+                    // 大きさ・位置は `HomerunAtBatHUDLayout`。ゾーンより先に（下の層に）描く: SE でゾーンの外の左上の端まで
+                    // 寄せたカーソルだけはメーターに掛かりうるので、そのときはカーソルの方を上に見せる。
+                    VStack(spacing: HomerunAtBatHUDLayout.spacing) {
                         BannerSlot(ads: ads)
-                        VStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: HomerunAtBatHUDLayout.spacing) {
                             topHUD
-                            HStack(alignment: .top) {
-                                Spacer()
-                                if model.phase == .pitching, model.showsDirectionMeter {
-                                    HomerunDirectionMeter(swing: model.previewSwing(at: now))
-                                }
+                                .frame(minHeight: HomerunAtBatHUDLayout.hudHeight)
+                            if model.phase == .pitching, model.showsDirectionMeter {
+                                HomerunDirectionMeter(swing: model.previewSwing(at: now))
                             }
                         }
                         .padding(.horizontal, Theme.pad)
@@ -117,7 +115,9 @@ struct HomerunAtBatView: View {
                     if model.phase == .ballResult, swingShown, let ball = model.lastBall {
                         VStack(spacing: 8) {
                             Color.clear.frame(height: BannerSlot.height)
-                            topHUD.hidden().padding(.horizontal, Theme.pad)
+                            topHUD.hidden()
+                                .frame(minHeight: HomerunAtBatHUDLayout.hudHeight)
+                                .padding(.horizontal, Theme.pad)
                             HomerunBallResultCard(ball: ball, number: model.pitchNumber, tookPitch: !model.didSwingLastBall,
                                                   missNote: Self.missNote(didSwing: model.didSwingLastBall, reason: model.lastMissReason))
                                 .padding(.horizontal, Theme.pad)
@@ -127,7 +127,7 @@ struct HomerunAtBatView: View {
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                     // 一時停止は押せる帯（下 1/3）のすぐ上の右端に置く（#1550。帯の中に置くと押す指と取り合う。
-                    // ゾーンは横の中央なので重ならない）。以前の「⋯」（カメラの 2 択）はここにあった。
+                    // ゾーンは横の中央なので重ならない）。
                     if !model.isPaused {
                         pauseButton
                             .padding(.trailing, Theme.pad)
@@ -205,7 +205,7 @@ struct HomerunAtBatView: View {
         .accessibilityLabel("一時停止")
     }
 
-    /// 一時停止の画面: 再開・カメラの前 / 後ろ・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
+    /// 一時停止の画面: 再開・遊び方・操作の説明・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
     private var pausedPanel: some View {
         ZStack {
             Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea()
@@ -213,20 +213,6 @@ struct HomerunAtBatView: View {
                 Text("一時停止").font(.title3.bold()).foregroundStyle(.white)
                 GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
                     model.resume(now: Date())
-                }
-                HStack(spacing: 8) {
-                    ForEach(Self.cameraChoices(for: model), id: \.id) { item in
-                        let isChecked = item.isChecked == true
-                        Button(action: item.action) {
-                            Label(item.title, systemImage: isChecked ? "checkmark.circle.fill" : "video")
-                                .themeCaption(14)
-                                .foregroundStyle(isChecked ? Theme.onAccent : .white)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                                .background(Capsule().fill(isChecked ? Theme.Fill.teal : .white.opacity(0.18)))
-                        }
-                        .buttonStyle(.pop)
-                        .accessibilityAddTraits(isChecked ? .isSelected : [])
-                    }
                 }
                 // ヘッダー右上の「?」は打席中は隠しているので、同じシートをここから開く（#1617）。
                 if let howToPlay {
@@ -258,16 +244,6 @@ struct HomerunAtBatView: View {
             tutorialFromPause = false
         } else {
             model.hold(.sheet, false, now: Date())
-        }
-    }
-
-    /// 一時停止の画面のカメラの 2 択（前 / 後ろ・#1506）。選ぶのは見た目だけで、判定・座標は変えない。
-    static func cameraChoices(for model: HomerunModel) -> [GameControlMenuItem] {
-        HomerunAtBatLayout.CameraPreset.allCases.map { preset in
-            GameControlMenuItem(id: "camera.\(preset.rawValue)", title: preset.title, systemImage: "video",
-                                isChecked: model.atBatCamera == preset) {
-                model.atBatCamera = preset
-            }
         }
     }
 
@@ -402,8 +378,7 @@ struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
     var machine = HomerunMachineMotion.state(elapsed: nil, now: .distantPast)
-    var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
-    /// 打球を追うカメラ（#1613）。nil なら `cameraPreset`。
+    /// 打球を追うカメラ（#1613）。nil なら打席のカメラ（`HomerunAtBatLayout.camera`）。
     var cameraOverride: HomerunAtBatLayout.Camera? = nil
     var batterMotion: HomerunBatterMotion = .stance
     var faceMark: HomerunFaceMark = .none
@@ -418,7 +393,7 @@ struct HomerunAtBatBackdrop: View {
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
+        HomerunAtBatScene3DView(batterPose: batterPose, machine: machine,
                                 cameraOverride: cameraOverride, batterMotion: batterMotion, faceMark: faceMark,
                                 ballPosition: ballPosition, ballScale: ballScale, now: now, moon: moon,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
@@ -562,14 +537,41 @@ struct HomerunZoneCanvas: View {
 
 // MARK: - 方向メーター
 
-/// いまのカーソルと、いま振ったときのタイミングで決まる打球方向と、その方向の柵の距離（`31` 右上）。
+/// 打席の上端の HUD と方向メーターの置き場所（#1770）。座標は打席の画面の安全域の内側（`HomerunAtBatView` の
+/// `GeometryReader` と同じ・左上 = (0, 0)）。純粋な値なので、ゾーン・的・輪・カーソルと重ならないことをテストで固定する。
+///
+/// 方向メーターは左上・HUD（球数 / 今回 / 柵越え）の下に置く。右上は打席のカメラで打者の頭・バットに重なり（会長 QA 2026-10-02）、
+/// HUD の段の左には球数があるので、その下の段の左端にする。いちばん狭い iPhone SE（中身 375×603pt）では、ゾーンの左上の
+/// 升の縮み始めの輪（直径 118pt）がメーターの右下の角のすぐ近くまで来るので、メーターは輪に掛からない大きさ（`meterSize`）に
+/// 収める（以前の右上のメーターは約 100×85pt で、SE では輪に掛かっていた）。
+@MainActor
+enum HomerunAtBatHUDLayout {
+    /// バナー・HUD・方向メーターの縦の間隔。
+    static let spacing: CGFloat = 8
+    /// 上端の HUD の段の高さ（最小）。標準の文字の大きさで中身（「今回」+ 30pt の距離）は 49pt 程度なので、この高さに揃い、
+    /// メーターの位置が文字の測り方の誤差で動かない（文字を大きくしたときは HUD ごと伸び、メーターも下がる）。
+    static let hudHeight: CGFloat = 50
+    /// 方向メーターの外枠の大きさ（固定）。
+    static let meterSize = CGSize(width: 84, height: 60)
+
+    /// 方向メーターの枠（バナーの下・HUD の下・左端は `Theme.pad`）。
+    static var meterFrame: CGRect {
+        CGRect(x: Theme.pad, y: BannerSlot.height + spacing + hudHeight + spacing,
+               width: meterSize.width, height: meterSize.height)
+    }
+}
+
+/// いまのカーソルと、いま振ったときのタイミングで決まる打球方向と、その方向の柵の距離（打席の左上・#1770）。
 struct HomerunDirectionMeter: View {
     let swing: HomerunSwing
+
+    /// 枠の内側の余白。
+    static let padding: CGFloat = 6
 
     var body: some View {
         let direction = HomerunJudge.direction(swing)
         let isFoul = abs(direction) > HomerunJudge.foulLimit
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Canvas { ctx, size in
                 let home = CGPoint(x: size.width / 2, y: size.height - 2)
                 let r = min(size.width / 2 / sin(.pi / 4), size.height) * 0.95
@@ -591,14 +593,18 @@ struct HomerunDirectionMeter: View {
                 wedge.closeSubpath()
                 ctx.fill(wedge, with: .color(isFoul ? Theme.inkSub : Theme.yellow))
             }
-            .frame(width: 84, height: 52)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             Text(verbatim: isFoul
                  ? "ファウル"
                  : "\(HomerunSector(direction: direction).label) \(Int(HomerunJudge.fence(atDirection: direction).rounded())) m")
-                .themeCaption(11)
+                .themeCaption(11, maxScale: 1)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(.white)
         }
-        .padding(8)
+        .padding(Self.padding)
+        // 外枠は固定（ゾーン・輪に掛からない大きさ・`HomerunAtBatHUDLayout.meterSize`）。
+        .frame(width: HomerunAtBatHUDLayout.meterSize.width, height: HomerunAtBatHUDLayout.meterSize.height)
         .background(RoundedRectangle(cornerRadius: Theme.cornerSmall).fill(Color.black.opacity(0.35)))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(isFoul ? "方向メーター、ファウル" : "方向メーター、\(HomerunSector(direction: direction).label)")

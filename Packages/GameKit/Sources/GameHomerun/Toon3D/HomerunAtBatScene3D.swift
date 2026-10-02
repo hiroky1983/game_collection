@@ -14,7 +14,8 @@ enum HomerunAtBatLayout {
 
     /// 打者（右打者を中継のセンターカメラのように**前のカメラの画面の右**に立たせる = +x）。Meshy の 3D モデル（`HomerunBatterAsset`）は構えで
     /// 胸が +z・左肩が +x を向いているので、y 軸で -90° 回して左肩を投手（+z）へ、胸を本塁（-x）へ向ける（試作）。
-    /// 人物の置き方はすべて前のカメラ用。左右反転する後ろのカメラでは `castMirrored` で x について鏡映して置いた扱いになる。
+    /// 人物の置き方はすべて打席のカメラ（センターカメラ）用。左右反転するカメラ（`Camera.mirrored`）では `castMirrored` で
+    /// x について鏡映して置いた扱いになる（いまの打席のカメラは反転しない）。
     ///
     /// 本塁からの距離は**バットが球の通り道に届く所**（`HomerunSwingContact`）。USDZ のスイングは腕を伸ばさず、バットの先端は
     /// 打者の原点から本塁側へ 0.48m しか出ない（実寸で測った値）。0.95m に置くと先端が本塁の 0.5m 手前で止まるので、
@@ -28,15 +29,15 @@ enum HomerunAtBatLayout {
     }
     /// 捕手は本塁の真後ろ（五角形の先端 z −0.43 の 0.5m 後ろ）でしゃがみ、ミット（左手・+x）を本塁の中央に構える（会長 QA 2026-10-01・#1673）。
     /// 以前（#1617）は大きかった捕手をゾーンと打者から逃がすため本塁の左奥（-0.6, -2.2）に置いていて、縮めた後は本塁から
-    /// 外れた所にいるように見えた。後ろのカメラではゾーンの下（本塁の手前）に映り、前のカメラではヘルメットの上がゾーンの下の
-    /// 段の後ろに隠れる（実際の中継のセンターカメラと同じ並び）。審判は無し（会長決裁 2026-09-30）。
+    /// 外れた所にいるように見えた。打席のカメラ（センターカメラ）ではヘルメットの上がゾーンの下の段の後ろに隠れる
+    /// （実際の中継のセンターカメラと同じ並び）。審判は無し（会長決裁 2026-09-30）。
     static let catcher = Placement(position: [-0.15, 0, -0.95], yaw: 0)
     /// 捕手の大きさ（頭の半径 1 の単位 → m）。打者（`characterScale` の頃の 2 頭身のおじさん）に合わせた 0.354 では、しゃがんだ
     /// 背丈が 1.38m と Meshy の打者（身長 1.72m）の肩まであって大きすぎた（#1666・会長 QA 2026-10-01）。頭の大きさが打者のヘルメットと揃う 0.18（しゃがんだ背丈 0.70m）に縮める。
     static let catcherScale: Float = 0.18
-    /// 人物（打者・捕手）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
-    /// 反転を打ち消す（そのままだと右打ちの Meshy の打者が画面の右に立つ左打ちに見える）。これで後ろから見て右打者が
-    /// 画面の左に右打ちで立ち、捕手は画面の右へ逃げる。判定・座標・HUD は鏡映しない。
+    /// 人物（打者・捕手）を x について鏡映して置くか。左右反転するカメラ（本塁の後ろから外野を向くカメラ用の仕組み。
+    /// いまの打席のカメラは反転しない）では人物も鏡映し、反転を打ち消す（そのままだと右打ちの Meshy の打者が左打ちに見える）。
+    /// 判定・座標・HUD は鏡映しない。
     /// 描画では人物を鏡映せず、カメラ側を鏡映して同じ画を作る（`Camera.renderPose`）。
     static func castMirrored(for camera: Camera) -> Bool { camera.mirrored }
 
@@ -114,47 +115,19 @@ enum HomerunAtBatLayout {
         }
     }
 
-    /// 打席カメラ（#1506・会長決裁 2026-09-28: 前 / 後ろの 2 択・既定は前）。打席の「⋯」メニューで切り替え、選んだ方は次回も残る
-    /// （`HomerunModel.atBatCamera`）。どちらもストライクゾーンの中心が画面の横の中央・高さ `zoneScreenFraction` に映る
-    /// （2D のゾーン・的・カーソルの位置と片手操作を変えない）。切り替えるのは見た目だけで、判定・座標・解析は変えない。
-    /// `rawValue` は保存に使うので変えない。
-    enum CameraPreset: String, CaseIterable, Sendable {
-        /// 前: 中継のセンターカメラ（本塁から 28m・高さ 4.5m・望遠 9.6°）。会長指示「おじさん遠すぎ」（2026-09-29）で 43m・6m から寄せ、
-        /// 打者の背丈を画面の高さの 23% → 36% にした。マウンドのバッティングマシン（17.6m・#1612）は
-        /// カメラの 10.4m 前で画角の下に外れて映らない（会長決裁でそのまま）。
-        case front
-        /// 後ろ: 本塁の 5.5m 後ろ・三塁側へ 0.5m（打者の側）・高さ 2.6m から、ストライクゾーンを見下ろす（画角 50°）。
-        /// 打者の背丈は画面の高さの 31%（7.5m・3m・53° のときの 22% から寄せた・会長指示 2026-09-29）。
-        /// 捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥にマウンドのマシン・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
-        /// 三塁側へずらすのは、真後ろだと手前の捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす）。
-        case back
-
-        /// 一時停止の画面のカメラの 2 択の文言。
-        var title: String {
-            switch self {
-            case .front: "カメラ: 前"
-            case .back: "カメラ: 後ろ"
-            }
-        }
-
-        var camera: Camera {
-            switch self {
-            case .front:
-                return .aimed(from: [0, 4.5, 28], at: HomerunAtBatLayout.zoneWorldCenter,
-                              yFraction: HomerunAtBatLayout.zoneScreenFraction, verticalFieldOfView: 9.6)
-            case .back:
-                return .aimed(from: [-0.5, 2.6, -5.5], at: HomerunAtBatLayout.zoneWorldCenter,
-                              yFraction: HomerunAtBatLayout.zoneScreenFraction, verticalFieldOfView: 50, mirrored: true)
-            }
-        }
+    /// 打席のカメラ: 中継のセンターカメラ（本塁から 28m・高さ 4.5m・望遠 9.6°）。会長指示「おじさん遠すぎ」（2026-09-29）で
+    /// 43m・6m から寄せ、打者の背丈を画面の高さの 23% → 36% にした。マウンドのバッティングマシン（17.6m・#1612）は
+    /// カメラの 10.4m 前で画角の下に外れて映らない（会長決裁でそのまま）。ストライクゾーンの中心（`zoneWorldCenter`）が
+    /// 画面の横の中央・高さ `zoneScreenFraction` に映るように注視点を決めている（打席の HUD の 2D のゾーン・的・カーソルを
+    /// そこへ重ねる。押せる帯の下 1/3 と重ねない）。以前は後ろのカメラとの 2 択だったが、後ろからはおじさんの表情が
+    /// 見えないので廃止した（#1770・会長決裁 2026-10-02）。
+    static var camera: Camera {
+        .aimed(from: [0, 4.5, 28], at: zoneWorldCenter, yFraction: zoneScreenFraction, verticalFieldOfView: 9.6)
     }
 
-    /// 前のカメラ（`CameraPreset.front`）。センター側からの望遠（中継のセンターカメラ）。注視点は、ストライクゾーンの中心
-    /// （`zoneWorldCenter`）が画面の高さの `zoneScreenFraction` に映るように決めている（打席の HUD の 2D のゾーン・的・カーソルを
-    /// そこへ重ねる。押せる帯の下 1/3 と重ねない）。
-    static var cameraPosition: SIMD3<Float> { CameraPreset.front.camera.position }
-    static var cameraTarget: SIMD3<Float> { CameraPreset.front.camera.target }
-    static var verticalFieldOfView: Float { CameraPreset.front.camera.verticalFieldOfView }
+    static var cameraPosition: SIMD3<Float> { camera.position }
+    static var cameraTarget: SIMD3<Float> { camera.target }
+    static var verticalFieldOfView: Float { camera.verticalFieldOfView }
 
     /// ストライクゾーンの中心（本塁の真上・胸の高さ）。
     static let zoneWorldCenter: SIMD3<Float> = [0, 0.9, 0]
@@ -163,7 +136,7 @@ enum HomerunAtBatLayout {
 
     /// 世界の点が前のカメラで画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
     static func screenFraction(of point: SIMD3<Float>) -> Double {
-        CameraPreset.front.camera.screenFraction(of: point)
+        camera.screenFraction(of: point)
     }
 
     /// 投球が輪の重なる瞬間に着く点（世界座標・#1647）: 打点の奥行き（`HomerunSwingContact.approachTarget` の z）の面で、
@@ -171,8 +144,7 @@ enum HomerunAtBatLayout {
     /// `screen` は 3D を描く全画面の大きさ（pt・安全域の外まで）。
     ///
     /// 以前は 3D の球が列（左右）でしか変わらない打点の上（`approachTarget`）に着き、行（上下）を無視していた。2D の的は 1 行
-    /// 29.3pt ずつ上下するので、前のカメラでは上の行で球が的の約 32pt 下・下の行で約 27pt 上、後ろのカメラでは真ん中の行でも
-    /// 約 24pt 上（下の行で約 54pt 上）に映っていた（iPhone 17 の画面で計算）。判定は 2D の的で測るので、球を見て照準を
+    /// 29.3pt ずつ上下するので、打席のカメラでは上の行で球が的の約 32pt 下・下の行で約 27pt 上に映っていた（iPhone 17 の画面で計算）。判定は 2D の的で測るので、球を見て照準を
     /// 合わせると判定上は大きく上を叩いたことになり、的の下を大きく外すと判定上は芯に近かった（会長 QA「下に大きく外しても
     /// 柵越え」「かなり下を狙わないと柵越えが出ない」）。判定を動かさず、3D の球の通り道を的に合わせる。
     static func pitchTarget(zone: Int, camera: Camera, screen: CGSize) -> SIMD3<Float> {
@@ -196,37 +168,34 @@ extension HomerunAtBatLayout {
         }
     }
 
-    /// 後ろのカメラで、構えの間だけ打者を本塁から離して置く幅（m・一塁側から見て外 = +x）。会長 QA 2026-09-30「後ろのとき
-    /// おじさんがベースに近すぎる」。打者の置き場所（`batter`・本塁から 0.30m）はバットが外の列に届く所で決まっていて
-    /// （#1558）、後ろから見ると体がゾーンの内側の列に重なる。構えでは 0.25m 外（0.55m・体がゾーンの外に出る）に立ち、
+    /// 構えの間だけ打者を本塁から離して置く幅（m・一塁側から見て外 = +x・#1667・会長 QA 2026-10-01）。本来の位置
+    /// （`batter`・本塁から 0.30m。バットが外の列に届く所で決まっている・#1558）の構えは右足のつま先（靴の皮の頂点）が
+    /// x 0.06 まで本塁側へ出て、バッターボックスの内側の線を越え本塁にかかっていた。構えでは 0.25m 外（0.55m）に立ち、
     /// 踏み込み（`HomerunBatterMotion.load`）の間に本来の位置へ寄る。振りは本来の位置でしか当たらない（当たり窓は
     /// 踏み込みを終えた後）ので、判定・打点・球の通り道は変えない。
-    /// 前のカメラも同じだけずらす（#1667・会長 QA 2026-10-01）: 本来の位置の構えは右足のつま先（靴の皮の頂点）が x 0.06 まで
-    /// 本塁側へ出て、バッターボックスの内側の線を越え本塁にかかっていた。
-    static let backStanceSlide: Float = 0.25
+    static let stanceSlide: Float = 0.25
 
-    /// 後ろのカメラで、構えの間だけ打者を捕手側へ下げる幅（m・-z）。会長 QA 2026-09-30（#1619）「後ろのとき、おじさんが
-    /// 前（投手側）に出すぎてバッターボックスからはみ出る」。本来の位置（z −0.10）の構えは足が z −0.37〜+0.20 で、
-    /// 後ろ・上から見下ろすと体（ひざ〜頭）がボックスの前の線より奥に重なって前寄りに見える。構えでは 0.25m 下げて足を
-    /// z −0.62〜−0.05（本塁の前縁より手前・ボックスの後ろ半分）に置き、外への寄り（`backStanceSlide`）と一緒に踏み込みの間に
-    /// 本来の位置へ戻す（踏み込みで投手側へ出る = 実際の踏み込みと同じ向き）。当たり窓は踏み込みの後なので打点は変えない。
-    static let backStanceSetBack: Float = 0.25
+    /// 構えの間だけ打者を捕手側へ下げる幅（m・-z・#1619）。本来の位置（z −0.10）の構えは足が z −0.37〜+0.20 で、
+    /// バッターボックスの前の線からはみ出て見えた。構えでは 0.25m 下げて足を z −0.62〜−0.05（本塁の前縁より手前・ボックスの
+    /// 後ろ半分）に置き、外への寄り（`stanceSlide`）と一緒に踏み込みの間に本来の位置へ戻す（踏み込みで投手側へ出る = 実際の
+    /// 踏み込みと同じ向き）。当たり窓は踏み込みの後なので打点は変えない。
+    static let stanceSetBack: Float = 0.25
 
     /// 外へのずれ `slide`（m・`batterSlideTarget`）のときに打者を本来の位置からずらす量（m）。外（+x）と捕手側（-z）へ
-    /// 同じ割合で寄せる（構え = (`backStanceSlide`, 0, −`backStanceSetBack`)・本来の位置 = 0）。
+    /// 同じ割合で寄せる（構え = (`stanceSlide`, 0, −`stanceSetBack`)・本来の位置 = 0）。
     static func batterOffset(slide: Float) -> SIMD3<Float> {
-        [slide, 0, -backStanceSetBack * slide / backStanceSlide]
+        [slide, 0, -stanceSetBack * slide / stanceSlide]
     }
 
-    /// 打者を本来の位置からどれだけ外へずらして見せるか（m）の目標。構え = `backStanceSlide`、踏み込みの間に 0 へ
-    /// （なめらかに）、振り（本番・素振り）の間は nil（いまのずれのまま振る = 振りの途中で滑らせない）。前・後ろのカメラで同じ（#1667）。
-    static func batterSlideTarget(_ motion: HomerunBatterMotion, camera: Camera, now: Date) -> Float? {
+    /// 打者を本来の位置からどれだけ外へずらして見せるか（m）の目標。構え = `stanceSlide`、踏み込みの間に 0 へ
+    /// （なめらかに）、振り（本番・素振り）の間は nil（いまのずれのまま振る = 振りの途中で滑らせない）。
+    static func batterSlideTarget(_ motion: HomerunBatterMotion, now: Date) -> Float? {
         switch motion {
         case .stance:
-            return backStanceSlide
+            return stanceSlide
         case .load(let start):
             let k = Float(min(max(now.timeIntervalSince(start) / HomerunBatterMotion.loadDuration, 0), 1))
-            return backStanceSlide * (1 - k * k * (3 - 2 * k))
+            return stanceSlide * (1 - k * k * (3 - 2 * k))
         case .swing, .whiffGag:
             return nil
         }
@@ -245,15 +214,14 @@ struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     /// バッティングマシンの動き（`HomerunMachineMotion.state`・#1612）。
     var machine = HomerunMachineMotion.state(elapsed: nil, now: .distantPast)
-    var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
-    /// 打球を追うカメラ（#1613・`HomerunBallChase`）。nil なら `cameraPreset` のカメラ。
+    /// 打球を追うカメラ（#1613・`HomerunBallChase`）。nil なら打席のカメラ（`HomerunAtBatLayout.camera`）。
     var cameraOverride: HomerunAtBatLayout.Camera? = nil
     /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を流し直す（振り抜きは `start` からの経過ぶん進めた所から）。
     var batterMotion: HomerunBatterMotion = .stance
     /// 結果に応じて頭に重ねる記号（#1760）。
     var faceMark: HomerunFaceMark = .none
-    /// 3D の球の位置（世界座標・前のカメラの置き方・`HomerunSwingPlan.ballPosition`）。nil なら見せない。
-    /// 左右反転する後ろのカメラでは人物と同じく x について鏡映して置く。
+    /// 3D の球の位置（世界座標・打席のカメラの置き方・`HomerunSwingPlan.ballPosition`）。nil なら見せない。
+    /// 左右反転するカメラ（`Camera.mirrored`）では人物と同じく x について鏡映して置く。
     var ballPosition: SIMD3<Float>? = nil
     /// 球の拡大率（打球を追う間は遠くでも見えるよう大きくする・#1613）。
     var ballScale: Float = 1
@@ -270,7 +238,7 @@ struct HomerunAtBatScene3DView: View {
                            startPoint: .top, endPoint: .bottom)
             if let moon, moon.night > 0 { HomerunNightSky(amount: moon.night) }
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose, machine: machine, camera: cameraOverride ?? cameraPreset.camera,
+            HomerunAtBatSceneView(batterPose: batterPose, machine: machine, camera: cameraOverride ?? HomerunAtBatLayout.camera,
                                   batterMotion: batterMotion, faceMark: faceMark, ballPosition: ballPosition, ballScale: ballScale, now: now,
                                   moon: moon, onFirstFrame: onFirstFrame)
             #endif
@@ -320,7 +288,7 @@ enum HomerunAtBatScenePrewarm {
     private static var host: ARView?
 
     /// 打席前の画面が出たときに呼ぶ。控えがすでにあれば（もう一回・結果から戻ったとき）何もしない。
-    static func schedule(camera: HomerunAtBatLayout.CameraPreset) {
+    static func schedule() {
         guard task == nil, HomerunAtBatSceneView.reusable == nil else { return }
         task = Task { @MainActor in
             try? await Task.sleep(for: .seconds(delay))
@@ -331,7 +299,7 @@ enum HomerunAtBatScenePrewarm {
             let rig = HomerunBatterRig()
             try? await Task.sleep(for: .milliseconds(16))
             guard !Task.isCancelled, HomerunAtBatSceneView.reusable == nil else { return }
-            let prepared = HomerunAtBatSceneView.prepared(camera: camera.camera, batterRig: rig)
+            let prepared = HomerunAtBatSceneView.prepared(camera: HomerunAtBatLayout.camera, batterRig: rig)
             HomerunAtBatSceneView.reusable = prepared
             let view = prepared.view
             view.frame = window.bounds
@@ -515,7 +483,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         // 空振りの演出（#1681）の間は、体全体の回転・傾きと倒れていく体・バットに影を合わせる。
         let gag: (clip: TimeInterval, turn: simd_quatf)? = c.batterRig.flatMap { rig in
             guard rig.isWhiffGag, let clip = rig.whiffGagClipTime else { return nil }
-            return (clip, HomerunWhiffGag.turn(atClipTime: clip, back: camera.mirrored))
+            return (clip, HomerunWhiffGag.turn(atClipTime: clip))
         }
         if let s = c.batterShadow {
             placeFigureShadow(s, gag.map { HomerunFigureShadow.whiffGagBatter(origin: batterOrigin, clipTime: $0.clip, turn: $0.turn, camera: eye) }
@@ -695,9 +663,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 let now = Date()
                 rig.tick(now: now)
                 if rig.isWhiffGag {
-                    rig.applyWhiffGag(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                    rig.applyWhiffGag(now: now, camera: camera.renderPose.position)
                 } else {
-                    rig.applyFaceMark(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                    rig.applyFaceMark(now: now, camera: camera.renderPose.position)
                 }
                 placeFigureShadows(coordinator, batterOrigin: rig.entity.position, camera: camera)
             }
@@ -733,15 +701,15 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             rig.faceMark = faceMark
             rig.tick(now: now)
             if rig.showsFaceMark {
-                rig.applyFaceMark(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                rig.applyFaceMark(now: now, camera: camera.renderPose.position)
             }
-            let target = HomerunAtBatLayout.batterSlideTarget(batterMotion, camera: camera, now: now)
+            let target = HomerunAtBatLayout.batterSlideTarget(batterMotion, now: now)
             let current = c.batterSlide ?? target ?? 0
             var next = current
             if let target {
                 let dt = Float(min(max(now.timeIntervalSince(c.slideTick ?? now), 0), 0.1))
                 let step = HomerunAtBatLayout.batterSlideSpeed * dt
-                // 見た目の切り替え（カメラを前 ⇄ 後ろ）ではすぐ合わせる。
+                // カメラが変わった（打球を追うカメラから打席のカメラへ戻った等）ときはすぐ合わせる。
                 next = c.camera != camera ? target : current + min(max(target - current, -step), step)
             }
             c.batterSlide = next

@@ -81,7 +81,7 @@ final class HomerunWhiffGagOverlay {
 
     /// 結果の記号（キラキラ目・怒りマーク）を置く。回って倒れる演出ではない振りの間に毎コマ呼ぶ。`poseClip` は頭の骨の置き場所を
     /// 引くクリップ時刻（フォロースルーの最後のコマで止める）、`animClip` は出始め・明滅を数える時刻（止まった後も進める）。
-    func applyMark(_ mark: HomerunFaceMark, poseClip: TimeInterval, animClip: TimeInterval, back: Bool, camera: SIMD3<Float>) {
+    func applyMark(_ mark: HomerunFaceMark, poseClip: TimeInterval, animClip: TimeInterval, camera: SIMD3<Float>) {
         hideGag()
         hideMarks()
         let since = max(animClip - (HomerunFaceMark.appearFrame - 1) / HomerunWhiffGag.frameRate, 0)
@@ -111,7 +111,7 @@ final class HomerunWhiffGagOverlay {
                 let phase = HomerunFaceMark.pulse(since: since + (i == 0 ? 0 : 0.5 / HomerunFaceMark.twinkleRate),
                                                   rate: HomerunFaceMark.twinkleRate, depth: HomerunFaceMark.twinkleDepth)
                 s.position = top + side * (sign * HomerunFaceMark.sparkleSide) + up * HomerunFaceMark.sparkleLift * (i == 0 ? 1 : 0.4)
-                s.scale = SIMD3(repeating: max(grow * HomerunFaceMark.sparkleSize(back: back) * phase * (i == 0 ? 1 : 0.8), 0.0001))
+                s.scale = SIMD3(repeating: max(grow * HomerunFaceMark.sparkleSize * phase * (i == 0 ? 1 : 0.8), 0.0001))
                 Self.faceCamera(s, camera: camera)
                 s.isEnabled = true
             }
@@ -119,8 +119,7 @@ final class HomerunWhiffGagOverlay {
     }
 
     /// 構えのキラキラ目（#1762）: 左右の目の上に星を置く。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は明滅の位相。
-    /// 目の飾りは顔に貼るので後ろのカメラでは顔が見えない。後ろのときだけ、結果のキラキラ目（#1760）と同じ頭の横のきらめきを足す。
-    func applyWaitingEyes(poseClip: TimeInterval, now: Date, back: Bool, camera: SIMD3<Float>) {
+    func applyWaitingEyes(poseClip: TimeInterval, now: Date) {
         hideGag()
         hideMarks()
         let twinkle = HomerunFaceMark.pulse(since: now.timeIntervalSinceReferenceDate, rate: HomerunFaceMark.waitingTwinkleRate,
@@ -132,25 +131,10 @@ final class HomerunWhiffGagOverlay {
             s.scale = SIMD3(repeating: HomerunFaceMark.sparkleEyeRadius * twinkle)
             s.isEnabled = true
         }
-        guard back else { return }
-        let head = HomerunWhiffGag.preSwingHead(atClipTime: poseClip)
-        let top = head.position + head.rotation.act(HomerunWhiffGag.headTop)
-        let up = simd_normalize(head.rotation.act(HomerunWhiffGag.headUp))
-        // 頭の位置は打者の局所なので、カメラ（世界）も局所へ直してから横を決める。
-        let side = simd_normalize(simd_cross(up, simd_normalize(entity.convert(position: camera, from: nil) - top)))
-        for (i, s) in sparkles.enumerated() {
-            let sign: Float = i == 0 ? 1 : -1
-            let phase = HomerunFaceMark.pulse(since: now.timeIntervalSinceReferenceDate + (i == 0 ? 0 : 0.5 / HomerunFaceMark.twinkleRate),
-                                              rate: HomerunFaceMark.twinkleRate, depth: HomerunFaceMark.twinkleDepth)
-            s.position = top + side * (sign * HomerunFaceMark.sparkleSide) + up * HomerunFaceMark.sparkleLift * (i == 0 ? 1 : 0.4)
-            s.scale = SIMD3(repeating: HomerunFaceMark.sparkleSize(back: true) * phase * (i == 0 ? 1 : 0.8))
-            Self.faceCamera(s, camera: camera)
-            s.isEnabled = true
-        }
     }
 
     /// 構えの怒りマーク（#1769）: 頭の横に置き、脈打たせて弾ませる。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は動きの位相。
-    func applyWaitingAngry(poseClip: TimeInterval, now: Date, back: Bool, camera: SIMD3<Float>) {
+    func applyWaitingAngry(poseClip: TimeInterval, now: Date, camera: SIMD3<Float>) {
         hideGag()
         hideMarks()
         guard let a = angry else { return }
@@ -162,7 +146,7 @@ final class HomerunWhiffGagOverlay {
         let t = now.timeIntervalSinceReferenceDate
         let pulse = HomerunFaceMark.pulse(since: t, rate: HomerunFaceMark.angryPulseRate, depth: HomerunFaceMark.angryPulseDepth)
         a.position = top + side * HomerunFaceMark.angrySide + up * (HomerunFaceMark.angryLift + HomerunFaceMark.angryBounce(since: t))
-        a.scale = SIMD3(repeating: max(HomerunFaceMark.angrySize(back: back) * pulse, 0.0001))
+        a.scale = SIMD3(repeating: max(HomerunFaceMark.angrySize * pulse, 0.0001))
         Self.faceCamera(a, camera: camera)
         a.isEnabled = true
     }
@@ -177,7 +161,7 @@ final class HomerunWhiffGagOverlay {
     }
 
     /// クリップ時刻 `clipTime`・回転と傾き `turn` のときに置き直す。`camera` は描画のカメラの位置（世界座標）。
-    func apply(clipTime t: TimeInterval, turn: simd_quatf, back: Bool, camera: SIMD3<Float>) {
+    func apply(clipTime t: TimeInterval, turn: simd_quatf, camera: SIMD3<Float>) {
         hideMarks()
         let eyeScale = HomerunWhiffGag.appear(atClipTime: t, from: HomerunWhiffGag.eyeInFrame, grow: HomerunWhiffGag.eyeGrow)
         let spin = simd_quatf(angle: HomerunWhiffGag.eyeSpin(atClipTime: t), axis: [0, 0, 1])
@@ -189,7 +173,7 @@ final class HomerunWhiffGagOverlay {
             eye.isEnabled = eyeScale > 0
         }
         let starScale = HomerunWhiffGag.appear(atClipTime: t, from: HomerunWhiffGag.starInFrame, grow: HomerunWhiffGag.starGrow)
-            * HomerunWhiffGag.starSize(back: back)
+            * HomerunWhiffGag.starSize
         for (i, star) in stars.enumerated() {
             star.position = HomerunWhiffGag.starCenter(atClipTime: t, index: i, turn: turn)
             star.scale = SIMD3(repeating: max(starScale, 0.0001))

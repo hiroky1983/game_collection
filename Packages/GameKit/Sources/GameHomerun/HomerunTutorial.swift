@@ -151,8 +151,8 @@ struct HomerunTutorialCards: View {
 // MARK: - 図解（ねらう・振る）
 
 /// 説明用の絵。打席のスクショ（`Resources/HomerunTutorialShot.jpg`・iPhone 17 で撮り、ゾーンの少し上から帯の下端まで
-/// 切り出した 2x 相当・前カメラ）の上に、帯の光・指・矢印・カーソル・球を描き足す。後ろカメラ用の絵は作らない
-/// （説明の図として許容）。スクショが読めなければ 2D の仮絵（`HomerunFieldBackdrop`）の上に描く。
+/// 切り出した 2x 相当・打席のカメラ）の上に、帯の光・指・矢印・カーソル・球を描き足す。スクショが読めなければ
+/// 2D の仮絵（`HomerunFieldBackdrop`）の上に描く。
 struct HomerunTutorialFigure: View {
     enum Kind { case aim, swing }
     let kind: Kind

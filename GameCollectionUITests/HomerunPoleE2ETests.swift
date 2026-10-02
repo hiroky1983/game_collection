@@ -24,8 +24,7 @@ final class HomerunPoleE2ETests: XCTestCase {
 
         HomerunE2ETests.skipQuiescenceWait()
         let app = XCUIApplication()
-        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-homerunForcePole", "-screenshotMode",
-                               "-homerun_atBatCamera_v1", "front"]
+        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-homerunForcePole", "-screenshotMode"]
         app.launch()
         let start = app.buttons["打席に立つ"]
         XCTAssertTrue(start.waitForExistence(timeout: 15), "打席に立つ が出ない")
