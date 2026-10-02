@@ -399,7 +399,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326)、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
-| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
+| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761） |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで

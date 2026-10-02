@@ -124,6 +124,37 @@ struct AdaptiveLayoutTests {
         #expect(layout.hubCardMinHeight(viewportHeight: 1270, rows: 0) == nil)
     }
 
+    // MARK: - ハブ先頭の特別枠（#1761）
+
+    /// 特別枠を置いても最終行が画面外へはみ出さない（枠の高さ + 間隔をグリッドの取り分から引く）。
+    @Test("特別枠があっても iPad のハブは縦に収まる")
+    func hubFillsHeightWithHeroOnPad() throws {
+        let viewport: CGFloat = 1270
+        for width in Self.iPadWidths {
+            let layout = AdaptiveLayout(width: width)
+            let columns = layout.hubColumnCount(containerWidth: width)
+            let rows = (15 + columns - 1) / columns
+            let hero = layout.hubHeroHeight(containerWidth: width)
+            let height = try #require(layout.hubCardMinHeight(
+                viewportHeight: viewport, rows: rows, reservedHeight: hero + 12))
+            let used = hero + 12 + height * CGFloat(rows) + 12 * CGFloat(rows - 1) + Theme.pad * 2
+            #expect(abs(used - viewport) < 0.5, "幅 \(width)pt: \(used)pt（容器は \(viewport)pt）")
+        }
+    }
+
+    /// iPad で幅いっぱいに広げると高さが過大になる。幅の上限で頭打ちにして、比率は 2.05:1 のまま。
+    @Test("特別枠の高さは幅の上限で頭打ちになる")
+    func heroHeightIsCappedOnPad() {
+        let cap = AdaptiveLayout.hubHeroMaxWidth / AdaptiveLayout.hubHeroAspect
+        for width in Self.iPadWidths {
+            #expect(AdaptiveLayout(width: width).hubHeroHeight(containerWidth: width) == cap)
+        }
+        for width in Self.iPhoneWidths {
+            let h = AdaptiveLayout(width: width).hubHeroHeight(containerWidth: width)
+            #expect(abs(h - (width - Theme.pad * 2) / AdaptiveLayout.hubHeroAspect) < 0.001)
+        }
+    }
+
     // MARK: - LazyVGrid の列数の再現
 
     /// 列数が決まればカード 1 枚の幅も決まる（`.flexible()` は等幅）。

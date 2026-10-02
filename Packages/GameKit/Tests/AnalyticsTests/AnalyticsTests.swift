@@ -171,10 +171,10 @@ struct AnalyticsEventShapeTests {
         ])
     }
 
-    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action の6値に閉じている（#659・#721）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero の7値に閉じている（#659・#721）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
-            "hub", "recent", "recommendation", "notification", "first_pick", "quick_action",
+            "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
         ])
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }

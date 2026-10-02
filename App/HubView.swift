@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import GameHomerun
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -70,6 +71,27 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
+    // MARK: 柵越えおじさんの特別枠（#1761）
+
+    /// 特別枠に出すゲーム。グリッドの通常カードからは外し、**登録されていて非表示にされていないときだけ**出す
+    /// （非公開のままなら registry に居ないので何も変わらない）。
+    private static let heroGameID = "homerun"
+
+    private var showsHero: Bool {
+        settings.visibleModules(from: registry).contains { $0.id == Self.heroGameID }
+    }
+
+    /// グリッドに並べるゲーム（特別枠のゲームを除く）。
+    private var gridModules: [GameModule] {
+        settings.visibleModules(from: registry).filter { $0.id != Self.heroGameID }
+    }
+
+    /// 特別枠がグリッドの上で取る高さ（枠 + グリッドとの間隔）。カード高さの割り付けから引く（#485）。
+    private var heroReservedHeight: CGFloat {
+        guard showsHero else { return 0 }
+        return layout.hubHeroHeight(containerWidth: layout.width) + Self.gridSpacing
+    }
+
     /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
     ///
     /// `PlayLog` も `SnapshotStore` も監視対象ではないので、行が更新されるのはハブが描き直される
@@ -116,10 +138,11 @@ struct HubView: View {
 
     /// カード 1 枚に与える最小の高さ。iPad では縦を使い切るために伸び、iPhone では `nil`（＝据え置き）。
     private var cardMinHeight: CGFloat? {
-        let count = settings.visibleModules(from: registry).count
+        let count = gridModules.count
         guard count > 0 else { return nil }
         let rows = (count + columnCount - 1) / columnCount
-        return layout.hubCardMinHeight(viewportHeight: viewportHeight, rows: rows, spacing: Self.gridSpacing)
+        return layout.hubCardMinHeight(viewportHeight: viewportHeight, rows: rows, spacing: Self.gridSpacing,
+                                       reservedHeight: heroReservedHeight)
     }
 
     init(
@@ -192,8 +215,31 @@ struct HubView: View {
                     .padding(.top, Theme.pad)
                 }
                 ScrollView {
+                    VStack(spacing: Self.gridSpacing) {
+                    // 特別枠（#1761）: グリッドの先頭に 1 枚ぶち抜きで置き、スクロールで一緒に流れる。
+                    if showsHero, let hero = registry.module(id: Self.heroGameID) {
+                        NavigationLink(value: HubRoute(
+                            gameID: hero.id, source: .hero, position: nil,
+                            resume: isResumable(hero.id)
+                        )) {
+                            HomerunHubHeroCard()
+                        }
+                        .buttonStyle(.pop)
+                        // 幅の上限は iPad の高さの頭打ち用（`AdaptiveLayout.hubHeroMaxWidth`）。上限より広ければ中央に置く。
+                        .frame(maxWidth: AdaptiveLayout.hubHeroMaxWidth)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                        // 常に先頭なので「いちばん上に置く」は出さない。非表示にすると特別枠ごと消える（設定から戻せる）。
+                        .contextMenu {
+                            Button {
+                                hide(hero)
+                            } label: {
+                                Label("非表示にする", systemImage: "eye.slash")
+                            }
+                        }
+                    }
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                        ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
+                        ForEach(Array(gridModules.enumerated()), id: \.element.id) { index, module in
                             let hasResume = isResumable(module.id)
                             // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
                             NavigationLink(value: HubRoute(
@@ -231,6 +277,7 @@ struct HubView: View {
                                 }
                             }
                         }
+                    }
                     }
                     .padding(Theme.pad)
                 }
