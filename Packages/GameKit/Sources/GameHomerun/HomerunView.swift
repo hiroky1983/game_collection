@@ -102,6 +102,12 @@ public struct HomerunView: View {
     }
 }
 
+/// 下端固定バナーと、スクロールの末尾にある押せる要素との間隔（#1749。AdMob は広告の近くのボタンを誤タップ誘発として扱う）。
+/// スクロールし切ったとき、最後の要素の下に `Theme.pad` + これだけの余白が残る（SE でも合計 72pt > バナーの高さ 50pt）。
+enum HomerunBannerGap {
+    static let belowContent: CGFloat = 56
+}
+
 // MARK: - 打席前
 
 struct HomerunLobbyView: View {
@@ -151,6 +157,7 @@ struct HomerunLobbyView: View {
                 HowToPlayHint(.homerun, playLog: services.playLog)
             }
             .padding(Theme.pad)
+            .padding(.bottom, HomerunBannerGap.belowContent)
         }
     }
 
@@ -315,6 +322,7 @@ struct HomerunResultView: View {
                 RecommendationSlot(services: services, isFinished: true)
             }
             .padding(Theme.pad)
+            .padding(.bottom, HomerunBannerGap.belowContent)
         }
     }
 
