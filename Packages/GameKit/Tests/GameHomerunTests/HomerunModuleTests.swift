@@ -20,6 +20,16 @@ struct HomerunModuleTests {
         #expect(!module.resumesFromSnapshot, "1 挑戦は途中から戻せない")
     }
 
+    @Test("打席前・結果のスクロール末尾にバナーとの間隔を確保する（#1749。誤タップ誘発の回避）")
+    func scrollEndsKeepGapAboveBanner() throws {
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        let gap = ".padding(.bottom, HomerunBannerGap.belowContent)"
+        let parts = view.components(separatedBy: gap)
+        #expect(parts.count - 1 == 2, "打席前・結果の ScrollView に 1 つずつ")
+        #expect(parts.dropLast().allSatisfy { $0.suffix(60).contains(".padding(Theme.pad)") }, "中身の余白の直後に足す")
+        #expect(HomerunBannerGap.belowContent + Theme.pad > BannerSlot.height, "余白の合計はバナーの高さより大きい")
+    }
+
     @Test("表示名・説明・ルールに他社の登録商標を思わせる語を含めない（README §4.1 の禁止語）")
     func noTrademarkedWords() {
         let module = HomerunModule()
