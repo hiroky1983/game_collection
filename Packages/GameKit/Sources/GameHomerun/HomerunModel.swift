@@ -309,7 +309,6 @@ public final class HomerunModel {
         isNewBest = false
         hasProgressed = false
         whiffCount = 0
-        whiffStreak = 0
         faceMark = .none
         waitingFaceMark = .none
         beginPitch(now: now)
@@ -577,7 +576,6 @@ public final class HomerunModel {
         let ball = challenge.swing(swing)
         self.challenge = challenge
         decideWhiffGag(swung: swing != nil, ball: ball)
-        if swing != nil { whiffStreak = ball?.kind == .miss ? whiffStreak + 1 : 0 }
         if !hasProgressed {
             hasProgressed = true
             services?.gameDidProgress(gameID: Self.gameID)
@@ -594,8 +592,8 @@ public final class HomerunModel {
         // 10 球目を打った時点で蓄積に取り込む（結果を見せている 2 秒余りのあいだに画面を閉じても、
         // 打ち終えた挑戦は記録に残す）。
         if challenge.isFinished { record(challenge) }
-        faceMark = .decide(ball: ball, swung: swing != nil, whiffGag: showsWhiffGag, whiffStreak: whiffStreak, isNewBest: isNewBest)
-        waitingFaceMark = .waiting(after: ball, challengeFinished: challenge.isFinished)
+        faceMark = .decide(ball: ball, swung: swing != nil, isNewBest: isNewBest)
+        waitingFaceMark = .waiting(after: ball, swung: swing != nil, challengeFinished: challenge.isFinished)
         resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball

@@ -95,7 +95,7 @@ final class HomerunWhiffGagOverlay {
         let toCamera = simd_normalize(camera - top)
         let side = simd_normalize(simd_cross(up, toCamera))
         switch mark {
-        case .none, .waitingSparkle:
+        case .none, .waitingSparkle, .waitingAngry:
             break
         case .sparkle:
             for (i, s) in sparkleEyes.enumerated() {
@@ -115,13 +115,6 @@ final class HomerunWhiffGagOverlay {
                 Self.faceCamera(s, camera: camera)
                 s.isEnabled = true
             }
-        case .angry:
-            guard let a = angry else { return }
-            let pulse = HomerunFaceMark.pulse(since: since, rate: HomerunFaceMark.angryPulseRate, depth: HomerunFaceMark.angryPulseDepth)
-            a.position = top + side * HomerunFaceMark.angrySide + up * HomerunFaceMark.angryLift
-            a.scale = SIMD3(repeating: max(grow * HomerunFaceMark.angrySize * pulse, 0.0001))
-            Self.faceCamera(a, camera: camera)
-            a.isEnabled = true
         }
     }
 
@@ -138,6 +131,24 @@ final class HomerunWhiffGagOverlay {
             s.scale = SIMD3(repeating: HomerunFaceMark.sparkleEyeRadius * twinkle)
             s.isEnabled = true
         }
+    }
+
+    /// 構えの怒りマーク（#1769）: 頭の横に置き、脈打たせて弾ませる。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は動きの位相。
+    func applyWaitingAngry(poseClip: TimeInterval, now: Date, camera: SIMD3<Float>) {
+        hideGag()
+        hideMarks()
+        guard let a = angry else { return }
+        let head = HomerunWhiffGag.preSwingHead(atClipTime: poseClip)
+        let top = head.position + head.rotation.act(HomerunWhiffGag.headTop)
+        let up = simd_normalize(head.rotation.act(HomerunWhiffGag.headUp))
+        // 頭の位置は打者の局所なので、カメラ（世界）も局所へ直してから横を決める。
+        let side = simd_normalize(simd_cross(up, simd_normalize(entity.convert(position: camera, from: nil) - top)))
+        let t = now.timeIntervalSinceReferenceDate
+        let pulse = HomerunFaceMark.pulse(since: t, rate: HomerunFaceMark.angryPulseRate, depth: HomerunFaceMark.angryPulseDepth)
+        a.position = top + side * HomerunFaceMark.angrySide + up * (HomerunFaceMark.angryLift + HomerunFaceMark.angryBounce(since: t))
+        a.scale = SIMD3(repeating: max(HomerunFaceMark.angrySize * pulse, 0.0001))
+        Self.faceCamera(a, camera: camera)
+        a.isEnabled = true
     }
 
     /// 記号の +z をカメラへ向ける（上はなるべく世界の上）。
