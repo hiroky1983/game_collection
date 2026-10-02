@@ -110,7 +110,9 @@ let package = Package(
         // 広告/アンケートでの回数回復・解析・Game Center への送信も入っている。
         // 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）を同梱する。
         .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"],
-                resources: [.copy("Resources/HomerunBatter.usdz")]),
+                resources: [.copy("Resources/HomerunBatter.usdz"),
+                            // ハブの特別枠の絵（#1761。会長提供・ロゴ入り横長 1206×804）。
+                            .copy("Resources/HomerunHubHeroArtLogo.jpg")]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
