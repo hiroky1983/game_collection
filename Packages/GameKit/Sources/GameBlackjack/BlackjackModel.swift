@@ -168,6 +168,8 @@ public final class BlackjackModel {
     public private(set) var bet: Int = 0
     public private(set) var phase: BlackjackPhase = .betting
     public private(set) var outcome: BlackjackOutcome? = nil
+    /// 直近のラウンドの収支（全手の合計）。決着の「±チップ」表示（#1754）に使う。`chips` に足したのと同じ値。
+    public private(set) var roundDelta: Int?
     public private(set) var sessionOver: Bool = false
     /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
@@ -582,6 +584,7 @@ public final class BlackjackModel {
             totalDelta += settlement.chipDelta
         }
         chips += totalDelta
+        roundDelta = totalDelta
         // 手が1つなら従来どおりその結果をそのまま出す。スプリットしたラウンドは
         // 手ごとに勝敗が割れるので、まとめの表示・評価判定は収支で決める。
         outcome = hands.count == 1
@@ -618,11 +621,68 @@ public final class BlackjackModel {
         }
     }
 
+    // MARK: - 決着の表示（#1754）
+
+    /// 決着したラウンドの、卓の中央に出す結果。`.result` でなければ nil。
+    ///
+    /// 見出しと ±チップは `outcome` / `roundDelta`（どちらも `resolveAll` が同じ精算から出した値）だけで決めるので、
+    /// スプリットで手ごとに勝敗が割れても、表示と実際の収支は食い違わない。理由の行に手ごとの内訳を出す。
+    public var handResult: HandResult? {
+        guard phase == .result, let outcome else { return nil }
+        let kind: HandResult.Kind
+        let headline: String
+        switch outcome {
+        case .playerBlackjack: (kind, headline) = (.win, "ブラックジャック！")
+        case .win:             (kind, headline) = (.win, "勝ち！")
+        case .push:            (kind, headline) = (.draw, "引き分け")
+        case .lose, .bust:     (kind, headline) = (.lose, "負け")
+        }
+        let reason: String
+        if hands.count > 1 {
+            reason = hands.enumerated().map { index, hand in
+                "ハンド\(index + 1) \(hand.outcome.map(Self.shortLabel) ?? "")"
+            }.joined(separator: " / ")
+        } else {
+            reason = singleHandReason(outcome)
+        }
+        return HandResult(
+            kind: kind, headline: headline, reason: reason, chipDelta: roundDelta,
+            spokenResult: BlackjackAccessibility.outcomeAnnouncement(outcome: outcome, isSplit: hands.count > 1)
+        )
+    }
+
+    private static func shortLabel(_ outcome: BlackjackOutcome) -> String {
+        switch outcome {
+        case .playerBlackjack: return "ブラックジャック"
+        case .win:             return "勝ち"
+        case .push:            return "引き分け"
+        case .lose:            return "負け"
+        case .bust:            return "バスト"
+        }
+    }
+
+    /// 手が 1 つのときの理由 1 行（例: "21 対 19" / "バスト（24）"）。
+    private func singleHandReason(_ outcome: BlackjackOutcome) -> String {
+        switch outcome {
+        case .bust:
+            return "バスト（\(playerValue)）"
+        case .playerBlackjack:
+            return "最初の2枚で21（1.5倍）"
+        case .win where dealerValue > 21:
+            return "ディーラーがバスト（\(dealerValue)）"
+        case .lose where isBlackjack(dealerHand):
+            return "ディーラーがブラックジャック"
+        default:
+            return "あなた\(playerValue) 対 ディーラー\(dealerValue)"
+        }
+    }
+
     // MARK: - Next Round
 
     public func nextRound() {
         guard !sessionOver else { return }
         outcome = nil
+        roundDelta = nil
         clearHands()
         dealerHand = []
         phase = .betting
@@ -668,6 +728,7 @@ public final class BlackjackModel {
         chips = BlackjackModel.reviveChips
         sessionOver = false
         outcome = nil
+        roundDelta = nil
         clearHands()
         dealerHand = []
         phase = .betting
@@ -689,6 +750,7 @@ public final class BlackjackModel {
         hasRevivedThisSession = false
         sessionOver = false
         outcome = nil
+        roundDelta = nil
         clearHands()
         dealerHand = []
         phase = .betting
