@@ -3,7 +3,7 @@ import CoreGraphics
 import simd
 
 /// 空振りで回って倒れて目を回す演出（#1681）。振った空振りのときだけ、1 挑戦の 2 回目の空振りは必ず、それ以外は
-/// 空振りの約 3 回に 1 回出す（会長決裁 2026-10-01）。見た目は試作動画 whiff_full_try2 で決裁（2026-10-02）、
+/// 空振りの約 5 回に 1 回出す（会長決裁 2026-10-01）。見た目は試作動画 whiff_full_try2 で決裁（2026-10-02）、
 /// よろめきを削って回転の勢いのまま後ろへ尻もちにつなぐ（会長追加指示 2026-10-02）。
 ///
 /// 組み立て（`scratchpad/whiff-app/bake.py` で生成）:
@@ -19,8 +19,8 @@ import simd
 enum HomerunWhiffGag {
     // MARK: 発生
 
-    /// 2 回目以外の空振りで演出を出す確率（約 3 回に 1 回）。
-    static let chance: Double = 1.0 / 3
+    /// 2 回目以外の空振りで演出を出す確率（約 5 回に 1 回・#1769）。
+    static let chance: Double = 1.0 / 5
 
     /// 1 挑戦の中で `whiffNumber` 回目（1 始まり・振った空振りだけを数える）の空振りで演出を出すか。`roll` は 0 以上 1 未満の乱数。
     static func shows(whiffNumber: Int, roll: Double) -> Bool {
