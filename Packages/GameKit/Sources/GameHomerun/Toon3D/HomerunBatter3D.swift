@@ -185,6 +185,32 @@ final class HomerunBatterRig {
         whiffGagOverlay?.apply(clipTime: overlayClip, turn: HomerunWhiffGag.turn(atClipTime: overlayClip, back: back), back: back, camera: camera)
     }
 
+    /// 結果に応じて頭に重ねる記号（#1760）。モデルが決めた値を毎コマの更新で受け取る。振っていない間（構え・踏み込み）は出さない。
+    var faceMark: HomerunFaceMark = .none
+
+    /// 記号を毎コマ置くか（回って倒れる演出の間は演出のぐるぐる目・星を優先して置かない）。
+    var showsFaceMark: Bool {
+        guard faceMark != .none, !isWhiffGag else { return false }
+        if case .swing = motion { return true }
+        return false
+    }
+
+    /// 結果の記号（キラキラ目・怒りマーク）を置く。頭の骨は振り抜きのフォロースルーの最後のコマで止め、出始め・明滅は実時刻から数える。
+    func applyFaceMark(now: Date, back: Bool, camera: SIMD3<Float>) {
+        guard case .swing(let start, let catchUpFrom) = motion else { return }
+        let segment = fullDuration - HomerunBatterMotion.loadDuration
+        let offset = HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now)
+        let poseClip = HomerunBatterMotion.loadDuration + min(offset, segment)
+        let animClip = HomerunBatterMotion.loadDuration + max(now.timeIntervalSince(start), min(offset, segment))
+        if whiffGagOverlay == nil {
+            let overlay = HomerunWhiffGagOverlay()
+            entity.addChild(overlay.entity)
+            whiffGagOverlay = overlay
+        }
+        whiffGagOverlay?.isEnabled = true
+        whiffGagOverlay?.applyMark(faceMark, poseClip: poseClip, animClip: animClip, back: back, camera: camera)
+    }
+
     /// 空振りの演出の、最後に置き直したときのクリップ時刻（秒・`applyWhiffGag`）。演出でなければ nil。影もこれに合わせる。
     private(set) var whiffGagClipTime: TimeInterval?
 

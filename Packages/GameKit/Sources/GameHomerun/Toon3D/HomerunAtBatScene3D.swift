@@ -250,6 +250,8 @@ struct HomerunAtBatScene3DView: View {
     var cameraOverride: HomerunAtBatLayout.Camera? = nil
     /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を流し直す（振り抜きは `start` からの経過ぶん進めた所から）。
     var batterMotion: HomerunBatterMotion = .stance
+    /// 結果に応じて頭に重ねる記号（#1760）。
+    var faceMark: HomerunFaceMark = .none
     /// 3D の球の位置（世界座標・前のカメラの置き方・`HomerunSwingPlan.ballPosition`）。nil なら見せない。
     /// 左右反転する後ろのカメラでは人物と同じく x について鏡映して置く。
     var ballPosition: SIMD3<Float>? = nil
@@ -269,7 +271,7 @@ struct HomerunAtBatScene3DView: View {
             if let moon, moon.night > 0 { HomerunNightSky(amount: moon.night) }
             #if os(iOS) && canImport(RealityKit)
             HomerunAtBatSceneView(batterPose: batterPose, machine: machine, camera: cameraOverride ?? cameraPreset.camera,
-                                  batterMotion: batterMotion, ballPosition: ballPosition, ballScale: ballScale, now: now,
+                                  batterMotion: batterMotion, faceMark: faceMark, ballPosition: ballPosition, ballScale: ballScale, now: now,
                                   moon: moon, onFirstFrame: onFirstFrame)
             #endif
             if let moon, moon.flash > 0 { Color.white.opacity(moon.flash * 0.85) }
@@ -376,6 +378,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let machine: HomerunMachineMotion.State
     let camera: HomerunAtBatLayout.Camera
     let batterMotion: HomerunBatterMotion
+    /// 結果に応じて頭に重ねる記号（#1760）。
+    var faceMark: HomerunFaceMark = .none
     let ballPosition: SIMD3<Float>?
     let ballScale: Float
     let now: Date
@@ -686,10 +690,15 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         coordinator.whiffGagUpdates?.cancel()
         coordinator.whiffGagUpdates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak coordinator] _ in
             MainActor.assumeIsolated {
-                guard let coordinator, let rig = coordinator.batterRig, rig.isWhiffGag, let camera = coordinator.camera else { return }
+                guard let coordinator, let rig = coordinator.batterRig, rig.isWhiffGag || rig.showsFaceMark,
+                      let camera = coordinator.camera else { return }
                 let now = Date()
                 rig.tick(now: now)
-                rig.applyWhiffGag(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                if rig.isWhiffGag {
+                    rig.applyWhiffGag(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                } else {
+                    rig.applyFaceMark(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+                }
                 placeFigureShadows(coordinator, batterOrigin: rig.entity.position, camera: camera)
             }
         }
@@ -721,7 +730,11 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 rig.show(batterMotion, now: now)
                 c.batterMotion = batterMotion
             }
+            rig.faceMark = faceMark
             rig.tick(now: now)
+            if rig.showsFaceMark {
+                rig.applyFaceMark(now: now, back: camera.mirrored, camera: camera.renderPose.position)
+            }
             let target = HomerunAtBatLayout.batterSlideTarget(batterMotion, camera: camera, now: now)
             let current = c.batterSlide ?? target ?? 0
             var next = current

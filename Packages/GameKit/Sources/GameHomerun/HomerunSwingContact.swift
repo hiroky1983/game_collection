@@ -289,6 +289,11 @@ struct HomerunSwingPlan {
     var lastBall: HomerunBattedBall?
     /// 直前の空振りで回って倒れる演出を出すか（#1681・`HomerunModel.showsWhiffGag`）。
     var whiffGag = false
+    /// 直前の 1 球の結果に重ねる頭の記号（#1760・`HomerunModel.faceMark`）。見せるのは結果の間だけ（`faceMark`）。
+    private var resultFaceMark: HomerunFaceMark = .none
+
+    /// いま打者の頭に重ねる記号。結果の間（`.ballResult`）だけ。
+    var faceMark: HomerunFaceMark { phase == .ballResult ? resultFaceMark : .none }
 
     @MainActor
     init(model: HomerunModel) {
@@ -296,10 +301,13 @@ struct HomerunSwingPlan {
         clock = model.ballClock
         lastBall = model.lastBall
         whiffGag = model.showsWhiffGag
+        resultFaceMark = model.faceMark
     }
 
-    init(phase: HomerunModel.Phase, clock: HomerunModel.BallClock?, lastBall: HomerunBattedBall?, whiffGag: Bool = false) {
+    init(phase: HomerunModel.Phase, clock: HomerunModel.BallClock?, lastBall: HomerunBattedBall?, whiffGag: Bool = false,
+         faceMark: HomerunFaceMark = .none) {
         self.phase = phase
+        self.resultFaceMark = faceMark
         self.clock = clock
         self.lastBall = lastBall
         self.whiffGag = whiffGag
