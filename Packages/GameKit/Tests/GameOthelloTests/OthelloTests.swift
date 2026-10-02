@@ -331,6 +331,7 @@ struct OthelloPassDeadlockTests {
     }
 }
 
+#if DEBUG   // applyPreviewMidgameForTesting は DEBUG 限定
 @MainActor
 @Suite("オセロ 撮影用プレビュー")
 struct OthelloPreviewMidgameTests {
@@ -409,6 +410,7 @@ struct OthelloPreviewMidgameTests {
         #expect(model.isAITurn == false)         // 人間(白)の手番で止まっている
     }
 }
+#endif
 
 // MARK: - 終局スコアの残りマス加算（#440）
 
