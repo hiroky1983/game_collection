@@ -79,13 +79,15 @@ public struct AdaptiveLayout: Equatable, Sendable {
     /// ハブ先頭の特別枠（#1761）の幅の上限。絵の比率（2.05:1）を保つため、広い画面でも幅で頭打ちにする
     /// （幅いっぱいに広げると iPad 13 インチで高さが 470pt を超え、グリッドが画面外へ押し出される）。
     public static let hubHeroMaxWidth: CGFloat = 640
-    /// 特別枠の比率（幅 ÷ 高さ）。
+    /// 特別枠の**絵の部分**の比率（幅 ÷ 高さ）。カード全体の上 80%。
     public static let hubHeroAspect: CGFloat = 2.05
+    /// 絵の下に足す説明文の帯の高さ ÷ 絵の高さ（= 全体の 20% ÷ 80%）。
+    public static let hubHeroBandRatio: CGFloat = 0.25
 
-    /// ハブ先頭の特別枠の高さ（#1761）。カード高さの割り付け（`hubCardMinHeight`）にも同じ値を渡す。
+    /// ハブ先頭の特別枠の高さ（#1761。絵 + 説明文の帯）。Dynamic Type で帯が伸びたぶんは含まない（スクロールに任せる）。カード高さの割り付け（`hubCardMinHeight`）にも同じ値を渡す。
     public func hubHeroHeight(containerWidth: CGFloat) -> CGFloat {
         let width = min(max(0, containerWidth - Theme.pad * 2), Self.hubHeroMaxWidth)
-        return width / Self.hubHeroAspect
+        return width / Self.hubHeroAspect * (1 + Self.hubHeroBandRatio)
     }
 
     /// 盤と一緒には拡大されない**固定 pt の部品**（将棋の持ち駒など）に掛ける倍率。

@@ -142,16 +142,16 @@ struct AdaptiveLayoutTests {
         }
     }
 
-    /// iPad で幅いっぱいに広げると高さが過大になる。幅の上限で頭打ちにして、比率は 2.05:1 のまま。
+    /// iPad で幅いっぱいに広げると高さが過大になる。幅の上限で頭打ちにして、絵の比率は 2.05:1 のまま、下に帯（絵の 1/4）が付く。
     @Test("特別枠の高さは幅の上限で頭打ちになる")
     func heroHeightIsCappedOnPad() {
-        let cap = AdaptiveLayout.hubHeroMaxWidth / AdaptiveLayout.hubHeroAspect
+        let cap = AdaptiveLayout.hubHeroMaxWidth / AdaptiveLayout.hubHeroAspect * (1 + AdaptiveLayout.hubHeroBandRatio)
         for width in Self.iPadWidths {
             #expect(AdaptiveLayout(width: width).hubHeroHeight(containerWidth: width) == cap)
         }
         for width in Self.iPhoneWidths {
             let h = AdaptiveLayout(width: width).hubHeroHeight(containerWidth: width)
-            #expect(abs(h - (width - Theme.pad * 2) / AdaptiveLayout.hubHeroAspect) < 0.001)
+            #expect(abs(h - (width - Theme.pad * 2) / AdaptiveLayout.hubHeroAspect * 1.25) < 0.001)
         }
     }
 

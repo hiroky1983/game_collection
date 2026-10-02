@@ -222,7 +222,7 @@ struct HubView: View {
                             gameID: hero.id, source: .hero, position: nil,
                             resume: isResumable(hero.id)
                         )) {
-                            HomerunHubHeroCard()
+                            HomerunHubHeroCard(description: hero.description)
                         }
                         .buttonStyle(.pop)
                         // 幅の上限は iPad の高さの頭打ち用（`AdaptiveLayout.hubHeroMaxWidth`）。上限より広ければ中央に置く。

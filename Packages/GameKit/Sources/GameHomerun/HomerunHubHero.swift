@@ -24,8 +24,8 @@ struct HomerunHubHeroInfo {
 
     var bestText: String? { bestMeters.map { HomerunText.meters($0) } }
 
-    var accessibilityLabel: String {
-        var parts = ["柵越えおじさん", "体験版", "今日の挑戦 残り \(remaining) 回"]
+    func accessibilityLabel(description: String) -> String {
+        var parts = ["柵越えおじさん", description, "体験版", "今日の挑戦 残り \(remaining) 回"]
         if let bestText { parts.append("自己ベスト \(bestText)") }
         return parts.joined(separator: "、")
     }
@@ -34,15 +34,18 @@ struct HomerunHubHeroInfo {
 /// ハブの特別枠。遷移は呼び出し側の `NavigationLink(value:)` に任せる（グリッドのカードと同じ作法）。
 public struct HomerunHubHeroCard: View {
     private let info: HomerunHubHeroInfo
+    /// 下の白い帯に出すゲームの説明（`HomerunModule.description`。ハブの `GameCard` と同じ文）。
+    private let description: String
 
-    public init() {
+    public init(description: String) {
+        self.description = description
         info = .load()
     }
 
     public var body: some View {
-        HomerunHeroLogoImageCard(info: info)
+        HomerunHeroLogoImageCard(info: info, description: description)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(info.accessibilityLabel)
+            .accessibilityLabel(info.accessibilityLabel(description: description))
             .accessibilityHint("柵越えおじさんを開きます")
     }
 }
@@ -119,9 +122,12 @@ struct HomerunHeroCompactPill: View {
 // MARK: - ロゴ入りの横長の静止画
 
 /// ロゴが絵に描き込まれているので、重ねるのは左下の「体験版」と右下の札だけ（ロゴ = 上 30%・顔 = 左の中段・ボール = 右の中段に
-/// 重ねない）。カードの比率（2.05:1）で**上端を合わせて下を切る**。
+/// 重ねない）。絵の部分は比率 2.05:1 で**上端を合わせて下を切る**（カード全体の上 80%）。
+/// その下に `GameCard` と同じ白い面の帯（カード全体の下 20%）を足し、ゲームの説明を `GameCard` の説明文と同じ書体・色で入れる。
 struct HomerunHeroLogoImageCard: View {
     let info: HomerunHubHeroInfo
+    let description: String
+    @Environment(\.adaptiveLayout) private var adaptive
 
     private static let ink = Color(red: 0x2B / 255, green: 0x26 / 255, blue: 0x34 / 255)
     // GameKit は macOS でもビルドされる（`swift test`）ので UIImage は使わず ImageIO で読む。
@@ -132,6 +138,21 @@ struct HomerunHeroLogoImageCard: View {
     private static let imageAspect: CGFloat = 1536 / 1024
 
     var body: some View {
+        VStack(spacing: 0) {
+            art
+            band
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .fill(Theme.surface)
+                .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 6)
+        )
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).strokeBorder(Theme.cardBorder, lineWidth: 1))
+    }
+
+    /// 上 80%: ロゴ入りの絵・左下「体験版」・右下の札。
+    private var art: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack(alignment: .topLeading) {
@@ -148,7 +169,7 @@ struct HomerunHeroLogoImageCard: View {
                 LinearGradient(stops: [.init(color: .clear, location: 0.7), .init(color: Self.ink.opacity(0.45), location: 1)],
                                startPoint: .top, endPoint: .bottom)
                     .frame(width: w, height: h)
-                // Dynamic Type で札が伸びて横に収まらないときは、縦に積む（カードの高さは比率で決まるので折り返しは使えない）。
+                // Dynamic Type で札が伸びて横に収まらないときは、縦に積む（絵の高さは比率で決まるので折り返しは使えない）。
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .bottom) { badge; Spacer(minLength: 0); HomerunHeroCompactPill(info: info) }
                     VStack(alignment: .leading, spacing: 4) { HomerunHeroCompactPill(info: info); badge }
@@ -159,14 +180,22 @@ struct HomerunHeroLogoImageCard: View {
             .frame(width: w, height: h)
         }
         .aspectRatio(AdaptiveLayout.hubHeroAspect, contentMode: .fit)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-        .background(
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                .fill(Theme.surface)
-                .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 6)
-        )
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).strokeBorder(Theme.cardBorder, lineWidth: 1))
+    }
+
+    /// 下 20%: `GameCard` と同じ白い面に、説明を `GameCard` の説明文と同じ書体・色・1 行（縮小）で。
+    /// 高さは絵の 1/4（= カード全体の 20%）を下限にし、Dynamic Type で文字が伸びたぶんだけ増える。
+    private var band: some View {
+        GeometryReader { geo in
+            Text(description)
+                .themeCaption(adaptive.scaled(11))
+                .foregroundStyle(Theme.inkSub)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, adaptive.scaled(10))
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+        }
+        .aspectRatio(AdaptiveLayout.hubHeroAspect / AdaptiveLayout.hubHeroBandRatio, contentMode: .fit)
+        .background(Theme.surface)
     }
 
     private var badge: some View {
