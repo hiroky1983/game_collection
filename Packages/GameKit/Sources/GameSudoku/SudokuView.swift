@@ -36,6 +36,9 @@ public struct SudokuView: View {
                 .overlay {
                     if model.state == .failed { failedOverlay }
                 }
+                // クリアは盤に重ねる共通のカードで示す（#1755）。答えを見た終局は出さない。
+                .gameClearCard(isPresented: model.state == .cleared,
+                               details: ["\(model.difficulty.label) / ミス\(model.mistakes)回 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
                 // 広告のロード〜視聴中は盤に触れない。ここが開いていると、
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
