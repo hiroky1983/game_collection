@@ -14,9 +14,9 @@ struct HomerunFaceMarkTests {
         HomerunBattedBall(direction: 0, distance: 0, kind: kind, timing: timing, launch: kind == .miss ? nil : .fly, fence: 100)
     }
 
-    private func decide(_ kind: HomerunKind, _ timing: HomerunTiming, swung: Bool = true, gag: Bool = false,
-                        streak: Int = 0, best: Bool = false) -> HomerunFaceMark {
-        .decide(ball: ball(kind, timing), swung: swung, whiffGag: gag, whiffStreak: streak, isNewBest: best)
+    private func decide(_ kind: HomerunKind, _ timing: HomerunTiming, swung: Bool = true,
+                        best: Bool = false) -> HomerunFaceMark {
+        .decide(ball: ball(kind, timing), swung: swung, isNewBest: best)
     }
 
     @Test("ジャストの当たり・柵越え・自己ベスト更新ではキラキラ目。ふつうの当たり・ファウル・見送りでは出ない")
@@ -31,19 +31,14 @@ struct HomerunFaceMarkTests {
         #expect(decide(.foul, .just) == .none, "ファウルはジャストでも出さない")
         #expect(decide(.foul, .nice, best: true) == .none)
         #expect(decide(.homer, .just, swung: false) == .none, "見送りは出さない")
-        #expect(HomerunFaceMark.decide(ball: nil, swung: true, whiffGag: false, whiffStreak: 0, isNewBest: true) == .none)
+        #expect(HomerunFaceMark.decide(ball: nil, swung: true, isNewBest: true) == .none)
     }
 
-    @Test("空振りが 2 球連続以上で怒りマーク。ぐるぐる目の演出が出る球は怒りマークを重ねない")
-    func angryRule() {
-        #expect(HomerunFaceMark.angryStreak == 2)
-        #expect(decide(.miss, .miss, streak: 1) == .none)
-        #expect(decide(.miss, .miss, streak: 2) == .angry)
-        #expect(decide(.miss, .nice, streak: 5) == .angry, "照準を外した空振りも空振り")
-        #expect(decide(.miss, .miss, gag: true, streak: 2) == .none, "ぐるぐる目を優先")
-        #expect(decide(.miss, .miss, gag: true, streak: 9) == .none)
-        #expect(decide(.miss, .miss, swung: false, streak: 3) == .none, "見送りは出さない")
-        #expect(decide(.inPlay, .hit, streak: 3) == .none, "当たりに怒りマークは付かない")
+    @Test("空振りの球の結果中には記号を出さない（怒りマークは次の球の構え・#1769）")
+    func noMarkOnWhiffResult() {
+        #expect(decide(.miss, .miss) == .none)
+        #expect(decide(.miss, .nice) == .none)
+        #expect(decide(.miss, .miss, swung: false) == .none)
     }
 
     // MARK: モデル
@@ -79,44 +74,6 @@ struct HomerunFaceMarkTests {
         #expect(model.phase == .pitching)
     }
 
-    @Test("連続の空振りを数える: 当たりで戻り、見送りは数えず戻しもしない。2 回目の空振りはぐるぐる目なので怒りは 3 球目から")
-    func streakInModel() throws {
-        let model = makeModel()
-        try whiff(model)
-        #expect(model.whiffStreak == 1 && model.faceMark == .none)
-        try next(model)
-        try take(model)
-        #expect(model.whiffStreak == 1 && model.faceMark == .none, "見送りは数えず、戻しもしない")
-        try next(model)
-        try whiff(model)
-        #expect(model.showsWhiffGag && model.whiffStreak == 2 && model.faceMark == .none, "ぐるぐる目を優先")
-        try next(model)
-        try whiff(model)
-        #expect(!model.showsWhiffGag && model.whiffStreak == 3 && model.faceMark == .angry)
-        try next(model)
-        try hit(model)
-        #expect(model.whiffStreak == 0)
-        #expect(model.faceMark == .sparkle, "ジャストの当たり")
-        try next(model)
-        try whiff(model)
-        #expect(model.whiffStreak == 1 && model.faceMark == .none, "当たりで連続は切れる")
-    }
-
-    @Test("挑戦をやり直すと連続の空振りも記号も消える")
-    func resetOnNewChallenge() throws {
-        let model = makeModel(roll: 0.9)
-        try whiff(model)
-        try next(model)
-        try whiff(model)
-        try next(model)
-        try whiff(model)
-        #expect(model.faceMark == .angry)
-        model.pause(now: Self.t0.addingTimeInterval(100))
-        model.quitChallenge()
-        model.start(now: Self.t0.addingTimeInterval(100))
-        #expect(model.whiffStreak == 0 && model.faceMark == .none)
-    }
-
     @Test("判定は変えない: 記号の有無で飛距離・種別・結果の時間が変わらない")
     func judgementUnchanged() throws {
         let model = makeModel()
@@ -134,7 +91,7 @@ struct HomerunFaceMarkTests {
         for phase in [HomerunModel.Phase.idle, .pitching, .finished] {
             #expect(HomerunSwingPlan(phase: phase, clock: nil, lastBall: nil, faceMark: .sparkle).faceMark == .none)
         }
-        #expect(HomerunSwingPlan(phase: .ballResult, clock: nil, lastBall: nil, faceMark: .angry).faceMark == .angry)
+        #expect(HomerunSwingPlan(phase: .ballResult, clock: nil, lastBall: nil, faceMark: .sparkle).faceMark == .sparkle)
     }
 
     @Test("記号の出始めはフォロースルーの頭（打点の後）、振り抜きの終わりより前")
@@ -164,19 +121,51 @@ struct HomerunFaceMarkTests {
 
     @Test("構えの記号は柵越え（ポール直撃・月を含む）の次の球だけ。挑戦が終わる球の次は出さない")
     func waitingRule() {
-        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), challengeFinished: false) == .waitingSparkle)
-        #expect(HomerunFaceMark.waiting(after: ball(.homer, .hit), challengeFinished: false) == .waitingSparkle)
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), swung: true, challengeFinished: false) == .waitingSparkle)
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .hit), swung: true, challengeFinished: false) == .waitingSparkle)
         var moon = ball(.homer, .just)
         moon.moon = .hit
-        #expect(HomerunFaceMark.waiting(after: moon, challengeFinished: false) == .waitingSparkle, "月まで飛んだ球の次も出す")
+        #expect(HomerunFaceMark.waiting(after: moon, swung: true, challengeFinished: false) == .waitingSparkle, "月まで飛んだ球の次も出す")
         moon.moon = .broken
-        #expect(HomerunFaceMark.waiting(after: moon, challengeFinished: true) == .none, "月が割れて終わるときは除く")
-        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), challengeFinished: true) == .none, "10 球目の次は無い")
-        #expect(HomerunFaceMark.waiting(after: ball(.fenceHit, .just), challengeFinished: false) == .none)
-        #expect(HomerunFaceMark.waiting(after: ball(.inPlay, .just), challengeFinished: false) == .none)
-        #expect(HomerunFaceMark.waiting(after: ball(.foul, .just), challengeFinished: false) == .none)
-        #expect(HomerunFaceMark.waiting(after: ball(.miss, .miss), challengeFinished: false) == .none)
-        #expect(HomerunFaceMark.waiting(after: nil, challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: moon, swung: true, challengeFinished: true) == .none, "月が割れて終わるときは除く")
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), swung: true, challengeFinished: true) == .none, "10 球目の次は無い")
+        #expect(HomerunFaceMark.waiting(after: ball(.fenceHit, .just), swung: true, challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: ball(.inPlay, .just), swung: true, challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: ball(.foul, .just), swung: true, challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), swung: false, challengeFinished: false) == .waitingSparkle)
+        #expect(HomerunFaceMark.waiting(after: nil, swung: true, challengeFinished: false) == .none)
+    }
+
+    @Test("振った空振りの次の球の構えで怒りマーク。見送り・当たり・挑戦が終わる球の次は出さない（#1769）")
+    func angryWaitingRule() {
+        #expect(HomerunFaceMark.waiting(after: ball(.miss, .miss), swung: true, challengeFinished: false) == .waitingAngry)
+        #expect(HomerunFaceMark.waiting(after: ball(.miss, .nice), swung: true, challengeFinished: false) == .waitingAngry, "照準を外した空振りも空振り")
+        #expect(HomerunFaceMark.waiting(after: ball(.miss, .miss), swung: false, challengeFinished: false) == .none, "見送りは数えない")
+        #expect(HomerunFaceMark.waiting(after: ball(.miss, .miss), swung: true, challengeFinished: true) == .none, "最後の球の次は無い")
+        #expect(HomerunFaceMark.waiting(after: ball(.foul, .just), swung: true, challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waitingAngry.isWaiting && HomerunFaceMark.waitingSparkle.isWaiting && !HomerunFaceMark.sparkle.isWaiting)
+    }
+
+    @Test("1 回の空振りでも次の球で出て、見送ると消える。当たりでも消える。挑戦をやり直すと消える")
+    func angryWaitingInModel() throws {
+        let model = makeModel()
+        try whiff(model)
+        #expect(model.faceMark == .none, "空振りの結果中は出さない")
+        #expect(model.waitingFaceMark == .waitingAngry)
+        try next(model)
+        #expect(model.waitingFaceMark == .waitingAngry, "次の球を待つ間")
+        try take(model)
+        #expect(model.waitingFaceMark == .none, "見送ると消える")
+        try next(model)
+        try hit(model)
+        #expect(model.waitingFaceMark != .waitingAngry)
+        try next(model)
+        try whiff(model)
+        #expect(model.waitingFaceMark == .waitingAngry)
+        model.pause(now: Self.t0.addingTimeInterval(100))
+        model.quitChallenge()
+        model.start(now: Self.t0.addingTimeInterval(100))
+        #expect(model.waitingFaceMark == .none)
     }
 
     @Test("柵越えの次の球の構えで出て、その球を見送ると消える。1 挑戦の最初の球・挑戦をまたいでは出さない")
@@ -204,7 +193,7 @@ struct HomerunFaceMarkTests {
         #expect(model.waitingFaceMark == .waitingSparkle, "また柵越えなら次の球でも")
         try next(model)
         try whiff(model)
-        #expect(model.waitingFaceMark == .none, "空振りで消える")
+        #expect(model.waitingFaceMark == .waitingAngry, "空振りで構えの記号は怒りマークに替わる")
     }
 
     @Test("挑戦をやり直すと構えの記号は消える")
@@ -221,10 +210,10 @@ struct HomerunFaceMarkTests {
     @Test("構えの記号は球を待つ間（投球の局面）だけ見せる。結果の間は結果の記号")
     func waitingShownWhilePitching() {
         func plan(_ phase: HomerunModel.Phase) -> HomerunSwingPlan {
-            HomerunSwingPlan(phase: phase, clock: nil, lastBall: nil, faceMark: .angry, waitingFaceMark: .waitingSparkle)
+            HomerunSwingPlan(phase: phase, clock: nil, lastBall: nil, faceMark: .sparkle, waitingFaceMark: .waitingSparkle)
         }
         #expect(plan(.pitching).faceMark == .waitingSparkle)
-        #expect(plan(.ballResult).faceMark == .angry)
+        #expect(plan(.ballResult).faceMark == .sparkle)
         #expect(plan(.idle).faceMark == .none && plan(.finished).faceMark == .none)
     }
 

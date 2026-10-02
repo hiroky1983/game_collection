@@ -7,7 +7,7 @@ import HomerunCore
 import RealityKit
 #endif
 
-/// 空振りで回って倒れて目を回す演出（#1681）: 発生条件（2 回目は必ず・見送りは除く・約 3 回に 1 回）・間合い（演出の間は次の球を
+/// 空振りで回って倒れて目を回す演出（#1681）: 発生条件（2 回目は必ず・見送りは除く・約 5 回に 1 回）・間合い（演出の間は次の球を
 /// 投げない）・見え方（回転の量・顔の向き・影・目と星）。
 @Suite("柵越えおじさんの空振りの演出")
 @MainActor
@@ -61,19 +61,19 @@ struct HomerunWhiffGagTests {
 
     // MARK: 発生
 
-    @Test("2 回目の空振りは必ず、それ以外は乱数が 1/3 未満のときだけ")
+    @Test("2 回目の空振りは必ず、それ以外は乱数が 1/5 未満のときだけ")
     func showsRule() {
         #expect(HomerunWhiffGag.shows(whiffNumber: 2, roll: 0.99))
         for n in [1, 3, 4, 7] {
             #expect(HomerunWhiffGag.shows(whiffNumber: n, roll: 0.0))
-            #expect(HomerunWhiffGag.shows(whiffNumber: n, roll: 0.33))
-            #expect(!HomerunWhiffGag.shows(whiffNumber: n, roll: 1.0 / 3))
+            #expect(HomerunWhiffGag.shows(whiffNumber: n, roll: 0.19))
+            #expect(!HomerunWhiffGag.shows(whiffNumber: n, roll: 1.0 / 5))
             #expect(!HomerunWhiffGag.shows(whiffNumber: n, roll: 0.9))
         }
-        // 乱数が一様なら空振り（2 回目以外）の約 3 回に 1 回。
+        // 乱数が一様なら空振り（2 回目以外）の約 5 回に 1 回。
         let rolls = (0..<3000).map { Double($0) / 3000 }
         let rate = Double(rolls.filter { HomerunWhiffGag.shows(whiffNumber: 1, roll: $0) }.count) / Double(rolls.count)
-        #expect(abs(rate - 1.0 / 3) < 0.01)
+        #expect(abs(rate - 1.0 / 5) < 0.01)
     }
 
     @Test("1 挑戦の 2 回目の空振りで必ず出る。見送り・当たりは数えず演出も出さない")
@@ -98,9 +98,9 @@ struct HomerunWhiffGagTests {
         #expect(!model.showsWhiffGag && model.whiffCount == 3, "3 回目は乱数しだい")
     }
 
-    @Test("2 回目以外の空振りは乱数が 1/3 未満なら出る。挑戦をやり直すと数え直す")
+    @Test("2 回目以外の空振りは乱数が 1/5 未満なら出る。挑戦をやり直すと数え直す")
     func otherWhiffsUseTheRoll() throws {
-        let model = makeModel(roll: 0.2)
+        let model = makeModel(roll: 0.1)
         try whiff(model)
         #expect(model.showsWhiffGag && model.whiffCount == 1)
         try next(model)
