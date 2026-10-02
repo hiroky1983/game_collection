@@ -291,9 +291,16 @@ struct HomerunSwingPlan {
     var whiffGag = false
     /// 直前の 1 球の結果に重ねる頭の記号（#1760・`HomerunModel.faceMark`）。見せるのは結果の間だけ（`faceMark`）。
     private var resultFaceMark: HomerunFaceMark = .none
+    private var waitingFaceMark: HomerunFaceMark = .none
 
-    /// いま打者の頭に重ねる記号。結果の間（`.ballResult`）だけ。
-    var faceMark: HomerunFaceMark { phase == .ballResult ? resultFaceMark : .none }
+    /// いま打者の頭に重ねる記号。結果の間（`.ballResult`）の結果の記号と、次の球を待つ間（`.pitching`）の構えの記号（#1762）。
+    var faceMark: HomerunFaceMark {
+        switch phase {
+        case .ballResult: resultFaceMark
+        case .pitching: waitingFaceMark
+        case .idle, .finished: .none
+        }
+    }
 
     @MainActor
     init(model: HomerunModel) {
@@ -302,12 +309,14 @@ struct HomerunSwingPlan {
         lastBall = model.lastBall
         whiffGag = model.showsWhiffGag
         resultFaceMark = model.faceMark
+        waitingFaceMark = model.waitingFaceMark
     }
 
     init(phase: HomerunModel.Phase, clock: HomerunModel.BallClock?, lastBall: HomerunBattedBall?, whiffGag: Bool = false,
-         faceMark: HomerunFaceMark = .none) {
+         faceMark: HomerunFaceMark = .none, waitingFaceMark: HomerunFaceMark = .none) {
         self.phase = phase
         self.resultFaceMark = faceMark
+        self.waitingFaceMark = waitingFaceMark
         self.clock = clock
         self.lastBall = lastBall
         self.whiffGag = whiffGag

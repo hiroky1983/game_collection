@@ -194,12 +194,16 @@ final class HomerunBatterRig {
     /// 記号を毎コマ置くか（回って倒れる演出の間は演出のぐるぐる目・星を優先して置かない）。
     var showsFaceMark: Bool {
         guard faceMark != .none, !isWhiffGag else { return false }
-        if case .swing = motion { return true }
-        return false
+        switch motion {
+        case .swing: return faceMark != .waitingSparkle
+        case .stance, .load: return faceMark == .waitingSparkle
+        case .whiffGag: return false
+        }
     }
 
     /// 結果の記号（キラキラ目・怒りマーク）を置く。頭の骨は振り抜きのフォロースルーの最後のコマで止め、出始め・明滅は実時刻から数える。
     func applyFaceMark(now: Date, back: Bool, camera: SIMD3<Float>) {
+        if faceMark == .waitingSparkle { applyWaitingMark(now: now); return }
         guard case .swing(let start, let catchUpFrom) = motion else { return }
         let segment = fullDuration - HomerunBatterMotion.loadDuration
         let offset = HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now)
@@ -212,6 +216,23 @@ final class HomerunBatterRig {
         }
         whiffGagOverlay?.isEnabled = true
         whiffGagOverlay?.applyMark(faceMark, poseClip: poseClip, animClip: animClip, back: back, camera: camera)
+    }
+
+    /// 構えのキラキラ目（#1762）を置く。構えは 1 コマ目で止まり、踏み込みは 1〜20 コマ目を実時刻から数える。
+    private func applyWaitingMark(now: Date) {
+        let clip: TimeInterval
+        switch motion {
+        case .stance: clip = 0
+        case .load(let start): clip = min(max(now.timeIntervalSince(start), 0), HomerunBatterMotion.loadDuration)
+        default: return
+        }
+        if whiffGagOverlay == nil {
+            let overlay = HomerunWhiffGagOverlay()
+            entity.addChild(overlay.entity)
+            whiffGagOverlay = overlay
+        }
+        whiffGagOverlay?.isEnabled = true
+        whiffGagOverlay?.applyWaitingEyes(poseClip: clip, now: now)
     }
 
     /// 空振りの演出の、最後に置き直したときのクリップ時刻（秒・`applyWhiffGag`）。演出でなければ nil。影もこれに合わせる。

@@ -95,7 +95,7 @@ final class HomerunWhiffGagOverlay {
         let toCamera = simd_normalize(camera - top)
         let side = simd_normalize(simd_cross(up, toCamera))
         switch mark {
-        case .none:
+        case .none, .waitingSparkle:
             break
         case .sparkle:
             for (i, s) in sparkleEyes.enumerated() {
@@ -122,6 +122,22 @@ final class HomerunWhiffGagOverlay {
             a.scale = SIMD3(repeating: max(grow * HomerunFaceMark.angrySize(back: back) * pulse, 0.0001))
             Self.faceCamera(a, camera: camera)
             a.isEnabled = true
+        }
+    }
+
+    /// 構えのキラキラ目（#1762）: 左右の目の上に星を置く。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は明滅の位相。
+    /// 目の飾りは顔に貼るので、後ろのカメラでは顔が見えないぶん隠れる（頭の横には出さない）。
+    func applyWaitingEyes(poseClip: TimeInterval, now: Date) {
+        hideGag()
+        hideMarks()
+        let twinkle = HomerunFaceMark.pulse(since: now.timeIntervalSinceReferenceDate, rate: HomerunFaceMark.waitingTwinkleRate,
+                                            depth: HomerunFaceMark.waitingTwinkleDepth)
+        for (i, s) in sparkleEyes.enumerated() {
+            let pose = HomerunWhiffGag.preSwingEyePose(atClipTime: poseClip, index: i)
+            s.position = pose.position
+            s.orientation = pose.rotation
+            s.scale = SIMD3(repeating: HomerunFaceMark.sparkleEyeRadius * twinkle)
+            s.isEnabled = true
         }
     }
 
