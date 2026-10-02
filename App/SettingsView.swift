@@ -248,6 +248,7 @@ struct SettingsView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(Theme.onAccent)
                     }
+                    .accessibilityHidden(true)
                 Text(module.title)
                     .themeBody(16)
                     .foregroundStyle(isVisible ? Theme.ink : Theme.inkSub)
