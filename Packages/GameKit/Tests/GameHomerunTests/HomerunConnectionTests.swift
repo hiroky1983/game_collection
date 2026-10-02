@@ -253,6 +253,9 @@ struct HomerunConnectionTests {
         ledger.roll(to: day)
     }
 
+    // 鍵（`debugUnlimitedKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言なので、
+    // 参照するこのテストも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+    #if DEBUG
     @Test("DEBUG の回数無制限では credit を載せない（#1685）")
     func unlimitedDoesNotSendCredit() throws {
         let spy = SpyAnalyticsService()
@@ -265,6 +268,7 @@ struct HomerunConnectionTests {
         #expect(spy.startCredits == [nil])
         #expect(spy.endCredits == [nil])
     }
+    #endif
 
     @Test("打席に立つと game_start、10 球目で game_end が 1 回ずつ。柵越えが無ければ loss")
     func analyticsStartAndEnd() throws {
