@@ -235,6 +235,20 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         return ChessNotation.san(m, in: before)
     }
 
+    /// 結果カードの勝敗（#1753）。
+    public var endVerdict: BoardGameResultCard.Verdict? {
+        guard let result else { return nil }
+        guard let loser = result.loser else { return .draw }
+        return loser == humanSide ? .loss : .win
+    }
+
+    /// 結果カードに出す決め手（チェックメイトを掛けた最後の手。例 "Qh5#"）。それ以外の終局では nil。
+    /// 検討ナビで戻っていても最終手を返す。
+    public var decisiveMoveText: String? {
+        guard case .checkmate = result, let m = moves.last else { return nil }
+        return ChessNotation.san(m, in: positionAt(ply: moves.count - 1))
+    }
+
     /// 取られた駒（表示局面基準）。指定色が**失った**駒を価値の高い順に返す。
     public func capturedPieces(of color: ChessColor) -> [ChessPieceType] {
         let pos = displayedPosition

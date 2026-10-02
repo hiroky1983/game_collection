@@ -11,6 +11,8 @@ public struct GoView: View {
     @State private var undoRescue = RewardedRescue()
     /// 出ている「パス」の札（#664）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var passBannerID: Int?
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
 
     public init(services: GameServices) {
         self.services = services
@@ -26,6 +28,7 @@ public struct GoView: View {
             stoneRow(stone: model.humanSide.opponent, isYou: false)
             board
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             stoneRow(stone: model.humanSide, isYou: true)
             controlArea
             HowToPlayHint(.go, playLog: services.playLog)
@@ -34,6 +37,9 @@ public struct GoView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.phase)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "囲碁", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -166,6 +172,27 @@ public struct GoView: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 終局の結果カード（#1753）。確定後は目数の内訳（黒・白・コミ）を残す。投了には内訳が無い。
+    @ViewBuilder
+    private var resultCard: some View {
+        if model.gameOver {
+            let verdict: BoardGameResultCard.Verdict = model.winner == nil ? .draw
+                : (model.winner == model.humanSide ? .win : .loss)
+            if let score = model.endgame?.score {
+                BoardGameResultCard(
+                    verdict: verdict,
+                    reason: score.summary,
+                    details: ["黒 \(score.blackArea) 目 / 白 \(score.whiteArea) 目 + コミ \(komiText(score))"],
+                    record: model.recordResult
+                ) { resultCardClosed = true }
+            } else {
+                BoardGameResultCard(verdict: verdict, reason: "投了", record: model.recordResult) {
+                    resultCardClosed = true
+                }
+            }
+        }
     }
 
     private func komiText(_ score: GoScore) -> String {

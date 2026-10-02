@@ -11,6 +11,8 @@ public struct GomokuView: View {
     @State private var undoRescue = RewardedRescue()
     /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
     @State private var hintRescue = RewardedRescue()
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
 
     public init(services: GameServices) {
         self.services = services
@@ -30,6 +32,7 @@ public struct GomokuView: View {
             board
                 .padding(.horizontal, -Theme.pad / 2)
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             playersRow
             controlArea
             HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
@@ -39,6 +42,9 @@ public struct GomokuView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "五目並べ", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -292,6 +298,20 @@ public struct GomokuView: View {
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
+    }
+
+    /// 終局の結果カード（#1753）。五連の線が残っていれば五連、無ければ投了。
+    @ViewBuilder
+    private var resultCard: some View {
+        if model.gameOver {
+            let verdict: BoardGameResultCard.Verdict = model.isDraw ? .draw
+                : (model.winner == model.humanSide ? .win : .loss)
+            BoardGameResultCard(
+                verdict: verdict,
+                reason: model.isDraw ? "盤が埋まった" : (model.winningLine != nil ? "五連" : "投了"),
+                record: model.recordResult
+            ) { resultCardClosed = true }
+        }
     }
 
     // MARK: - Status Bar

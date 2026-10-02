@@ -17,6 +17,8 @@ public struct ShogiView: View {
     /// 表示中の「王手」の合図の契機 ID（#377）。nil なら出していない。
     /// モデルの `checkEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var checkBannerID: Int?
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
 
     public init(services: GameServices) {
         self.services = services
@@ -43,6 +45,7 @@ public struct ShogiView: View {
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             HandAreaView(model: model, color: model.humanSide)
             controlArea
             HowToPlayHint(.shogi, playLog: services.playLog)
@@ -51,6 +54,9 @@ public struct ShogiView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "将棋", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -429,6 +435,19 @@ public struct ShogiView: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// 終局の結果カード（#1753）。理由・決め手は `ShogiGameModel` が局面と指し手列から導く。
+    @ViewBuilder
+    private var resultCard: some View {
+        if let verdict = model.endVerdict, let kind = model.endKind {
+            BoardGameResultCard(
+                verdict: verdict,
+                reason: kind.reasonText,
+                decisiveMove: model.decisiveMoveText,
+                record: model.recordResult
+            ) { resultCardClosed = true }
+        }
     }
 
     // MARK: - ステータス

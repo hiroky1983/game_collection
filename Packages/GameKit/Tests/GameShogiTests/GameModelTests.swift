@@ -269,6 +269,10 @@ struct ShogiRepetitionTests {
         #expect(model.gameOver)
         #expect(model.resultText == "引き分け（千日手）")
         #expect(model.phase == .review)
+        // 結果カード（#1753）
+        #expect(model.endKind == .repetition)
+        #expect(model.endVerdict == .draw)
+        #expect(model.decisiveMoveText == nil)
     }
 
     @Test("千日手はアプリを再起動しても引き分けのまま復元される")
@@ -303,6 +307,11 @@ struct ShogiRepetitionTests {
         model.apply(mate)
         #expect(model.gameOver)
         #expect(model.resultText == "後手の負け（詰み）")
+        // 結果カード（#1753）: 先手（人間）の勝ち。決め手は最終手。
+        #expect(model.endKind == .checkmate)
+        #expect(model.endKind?.reasonText == "詰み")
+        #expect(model.endVerdict == .win)
+        #expect(model.decisiveMoveText?.hasPrefix("▲") == true)
 
         let resumed = ShogiGameModel(services: makeServices(store))
         #expect(resumed.gameOver)

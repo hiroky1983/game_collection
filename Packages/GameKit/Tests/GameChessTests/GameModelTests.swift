@@ -94,6 +94,9 @@ struct ChessGameModelTests {
         #expect(model.result == .resignation(loser: .white))
         #expect(model.phase == .review)
         #expect(model.resultText?.contains("あなたの負け") == true)
+        #expect(model.endVerdict == .loss)
+        #expect(model.result?.reasonText == "投了")
+        #expect(model.decisiveMoveText == nil)
     }
 
     // MARK: - プロモーション
@@ -173,6 +176,12 @@ struct ChessResultTests {
         #expect(m.gameOver)
         #expect(m.result == .checkmate(loser: .black))
         #expect(m.phase == .review)
+        // 結果カード（#1753）: 勝ち・理由・決め手（最終手）。検討で戻っても決め手は変わらない。
+        #expect(m.endVerdict == .win)
+        #expect(m.result?.reasonText == "チェックメイト")
+        #expect(m.decisiveMoveText == "Ra8#")
+        m.reviewStepBack()
+        #expect(m.decisiveMoveText == "Ra8#")
     }
 
     @Test("ステイルメイトは引き分けで決着する（負けにしない）")
@@ -183,6 +192,9 @@ struct ChessResultTests {
         #expect(m.result == .stalemate)
         #expect(m.result?.isDraw == true)
         #expect(m.resultText?.contains("引き分け") == true)
+        #expect(m.endVerdict == .draw)
+        #expect(m.result?.reasonText == "ステイルメイト")
+        #expect(m.decisiveMoveText == nil, "詰みでない終局に決め手は出さない")
     }
 
     @Test("50手ルールで引き分けになる")
