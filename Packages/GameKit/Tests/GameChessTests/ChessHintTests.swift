@@ -360,3 +360,22 @@ struct ChessAdHintTests {
         #expect(restored.needsAdForHint, "無料枠を使い切った状態のまま再開している")
     }
 }
+
+/// ヒントの考える時間は「むずかしい」+0.5 秒（#1739）。深さ・確率・定跡は「むずかしい」のまま。
+@Suite("チェス ヒントの考える時間（#1739）")
+struct ChessHintThinkingTimeTests {
+    @Test("ヒントは むずかしい より 0.5 秒長く考える")
+    func hintThinksHalfSecondLongerThanHard() {
+        let hard = SimpleChessEngine(level: CPUStrength.hard.rawValue, seed: nil)
+        let hint = SimpleChessEngine.hint()
+        #expect(BoardHintBudget.extraThinkingTime == 0.5)
+        #expect(hint.timeLimit == hard.timeLimit + 0.5)
+        #expect(hint.depth == hard.depth)
+        #expect(hint.policy.isExact)
+    }
+
+    @Test("対局 CPU の むずかしい の考える時間は変えない")
+    func hardCPUKeepsItsTime() {
+        #expect(SimpleChessEngine(level: CPUStrength.hard.rawValue, seed: nil).timeLimit == 2.0)
+    }
+}

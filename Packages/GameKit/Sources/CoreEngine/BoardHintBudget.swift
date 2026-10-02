@@ -28,6 +28,11 @@ public struct BoardHintBudget: Equatable, Sendable {
     /// （`.serious` 復活時はそちらへ戻す。#1196）。
     public static let engineLevel = CPUStrength.hard.rawValue
 
+    /// ヒントが「むずかしい」より長く考える時間（秒）。ヒントは設定が「むずかしい」と全く同じだと
+    /// 対「むずかしい」で互角にしかならないため、考える時間だけ +0.5 秒にする（会長決裁 2026-10-02・#1739。
+    /// 毎手従った勝率は将棋 64.2%・チェス 58.2%・五目並べ 50.2%）。深さ・確率・定跡は「むずかしい」のまま。
+    public static let extraThinkingTime: TimeInterval = 0.5
+
     /// この局で使った回数。中断データにはこの値だけを保存する（残りは引き算で導ける）。
     public private(set) var used: Int
 

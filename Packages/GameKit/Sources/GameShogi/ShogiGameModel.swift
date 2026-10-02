@@ -505,7 +505,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
-                await SimpleMinimaxEngine(level: BoardHintBudget.engineLevel).bestMove(sfen: sfen)
+                await SimpleMinimaxEngine.hint().bestMove(sfen: sfen)
             }.value
         } commit: { usi in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
@@ -543,7 +543,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let sfen = position.toSFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleMinimaxEngine(level: BoardHintBudget.engineLevel).bestMove(sfen: sfen)
+                await SimpleMinimaxEngine.hint().bestMove(sfen: sfen)
             }.value
         } commit: { usi in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
