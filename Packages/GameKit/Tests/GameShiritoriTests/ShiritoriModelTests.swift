@@ -698,3 +698,115 @@ struct ShiritoriEndlessTests {
         #expect(!detail.contains("ノルマ"))
     }
 }
+
+// MARK: - 広告で時間を延長（#1717）
+
+@Suite("カードしりとり: 時間切れから広告で続ける（#1717）")
+@MainActor
+struct ShiritoriTimeExtensionTests {
+    private func makeLoggedModel(_ suite: String) -> (ShiritoriModel, PlayLog) {
+        let name = "asobiba.shiritori.tests.extend.\(suite)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: log)
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 1)
+        model.configureForTesting(opener: apple, board: [gorilla, squirrel, otter])
+        return (model, log)
+    }
+
+    private func plays(_ log: PlayLog) -> Int { log.record(gameID: "shiritori")?.plays ?? 0 }
+
+    @Test("時間切れの結果では負けをまだ記録せず、続ける選択肢が出る")
+    func timeUpHoldsTheRecord() {
+        let (model, log) = makeLoggedModel("hold")
+        model.tick(ShiritoriTime.initial)
+
+        #expect(model.phase == .result && model.ending == .timeUp && !model.didPlayerWin)
+        #expect(model.canExtendTime)
+        #expect(plays(log) == 0)
+        #expect(model.recordResult == nil)
+    }
+
+    @Test("続けると 30 秒が足され、同じ局がプレイヤーの手番で再開する。勝敗は記録されない")
+    func extendResumesWithoutRecording() {
+        let (model, log) = makeLoggedModel("extend")
+        model.tick(ShiritoriTime.initial)
+        #expect(model.extendTimeAfterAd(forGame: model.gameNumber))
+
+        #expect(model.phase == .playing && model.ending == nil && model.isPlayerTurn)
+        #expect(model.timeRemaining == 30)
+        #expect(model.currentCard == apple, "盤面は保たれる")
+        #expect(!model.canExtendTime, "1 局 1 回")
+        #expect(plays(log) == 0)
+
+        model.select(0)   // 続きを遊べる（取れば +10 秒）
+        #expect(model.timeRemaining == 40)
+    }
+
+    @Test("続けたあとの 2 度目の時間切れは、その場で負けを 1 回だけ記録する")
+    func secondTimeUpRecordsOnce() {
+        let (model, log) = makeLoggedModel("second")
+        model.tick(ShiritoriTime.initial)
+        #expect(model.extendTimeAfterAd(forGame: model.gameNumber))
+        model.tick(30)
+
+        #expect(model.phase == .result && model.ending == .timeUp)
+        #expect(!model.canExtendTime)
+        #expect(plays(log) == 1)
+        model.commitTimeUpLoss()
+        #expect(plays(log) == 1, "冪等")
+    }
+
+    @Test("続けない（commit）と負けが 1 回だけ記録され、続ける導線は消える")
+    func declineRecordsOnce() {
+        let (model, log) = makeLoggedModel("decline")
+        model.tick(ShiritoriTime.initial)
+        model.commitTimeUpLoss()
+        model.commitTimeUpLoss()
+
+        #expect(plays(log) == 1)
+        #expect(model.recordResult != nil)
+        #expect(!model.canExtendTime)
+        #expect(!model.extendTimeAfterAd(forGame: model.gameNumber), "記録した後は延長できない")
+    }
+
+    @Test("「もう一度」で始め直すと、保留していた負けを先に記録する。次の局ではまた延長できる")
+    func restartCommitsPendingLoss() {
+        let (model, log) = makeLoggedModel("restart")
+        model.tick(ShiritoriTime.initial)
+        model.startGame()
+
+        #expect(plays(log) == 1)
+        #expect(model.phase == .playing && !model.hasExtendedTime)
+        model.tick(ShiritoriTime.initial)
+        #expect(model.canExtendTime, "新しい局では権利が戻る")
+    }
+
+    @Test("広告を見ているあいだに局が入れ替わったら延長しない（局ガード）")
+    func staleSerialIsRejected() {
+        let (model, _) = makeLoggedModel("stale")
+        model.tick(ShiritoriTime.initial)
+        let serial = model.gameNumber
+        model.startGame()
+        model.tick(ShiritoriTime.initial)
+
+        #expect(!model.extendTimeAfterAd(forGame: serial))
+        #expect(model.phase == .result)
+    }
+
+    @Test("時間切れ以外の決着（勝ち・「ん」の負け）には延長を出さず、その場で記録する")
+    func onlyTimeUpIsExtendable() {
+        let (win, winLog) = makeLoggedModel("win")
+        win.configureForTesting(opener: apple, board: [gorilla])   // 取ると CPU が続けられない
+        win.select(0)
+        #expect(win.ending == .cpuStuck && !win.canExtendTime)
+        #expect(plays(winLog) == 1)
+
+        let (hitN, hitNLog) = makeLoggedModel("hitN")
+        hitN.configureForTesting(opener: apple, board: [trapForPlayer])
+        hitN.select(0)
+        #expect(hitN.ending == .playerHitN && !hitN.canExtendTime)
+        #expect(plays(hitNLog) == 1)
+    }
+}

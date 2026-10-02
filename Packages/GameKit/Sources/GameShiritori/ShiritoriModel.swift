@@ -88,6 +88,11 @@ public final class ShiritoriModel: AITurnGuarded {
     /// CPU が次に取ろうとしている札。考えた手が決まってから確定するまでの間だけセットする
     /// （#1286: 取り札が瞬時に確定せず、カーソルが動いてから選ぶ演出のため）。
     public private(set) var cpuCursorSlot: Int?
+    /// 時間切れの負けの記録を、広告で続ける選択肢を出すあいだ**保留している**か（#1717）。
+    /// 結果画面は出ているが `gameDidFinish` はまだ呼んでいない。続けるなら取り消し、続けないなら `commitTimeUpLoss()` で記録する。
+    public private(set) var isTimeUpLossPending = false
+    /// この局で時間の延長をすでに使ったか（1 局 1 回）。
+    public private(set) var hasExtendedTime = false
 
     private let services: GameServices?
     private let deck: [ShiritoriCard]
@@ -141,6 +146,7 @@ public final class ShiritoriModel: AITurnGuarded {
     // MARK: - ゲーム開始
 
     public func startGame(quota: ShiritoriQuota? = nil, mode: ShiritoriMode? = nil) {
+        commitTimeUpLoss()   // 保留中の負けは、始め直す前に記録する（前の局の記録を落とさない）
         if let quota { self.quota = quota }
         if let mode { self.mode = mode }
         let deal: ShiritoriDeal
@@ -167,6 +173,7 @@ public final class ShiritoriModel: AITurnGuarded {
         phase = .playing
         isPlayerTurn = true
         isPaused = false
+        hasExtendedTime = false
         cpuCursorSlot = nil
 
         services?.feedback.impact(.medium)   // 札が配られた
@@ -282,6 +289,42 @@ public final class ShiritoriModel: AITurnGuarded {
         return (followers.first { !ShiritoriRules.endsWithN($0.reading) } ?? followers.first)?.index ?? 0
     }
 
+    // MARK: - 広告で時間を延長（#1717）
+
+    /// 延長で足す秒数（会長指示 2026-10-02: 15 秒では少なすぎるので 30 秒）。
+    static let extensionSeconds: Double = ShiritoriTime.adExtension
+
+    /// 時間切れの結果画面で、広告を見て続けられるか。1 局 1 回・時間切れの負けに限る
+    /// （詰み・「ん」の負けは時間では救えないので対象外）。
+    public var canExtendTime: Bool {
+        phase == .result && ending == .timeUp && isTimeUpLossPending && !hasExtendedTime
+    }
+
+    /// 広告を見終えたあと、時間を足して同じ局を再開する。
+    ///
+    /// - Parameter serial: 広告を出す**前**に控えた `gameNumber`。視聴中に局が入れ替わっていたら
+    ///   延長を乗せずに false を返す（局ガード）。
+    /// - Returns: 延長したか。
+    public func extendTimeAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameNumber, canExtendTime else { return false }
+        isTimeUpLossPending = false
+        hasExtendedTime = true
+        ending = nil
+        phase = .playing
+        isPlayerTurn = true
+        isPaused = false
+        timeRemaining = Self.extensionSeconds
+        services?.feedback.notify(.success)
+        return true
+    }
+
+    /// 保留していた時間切れの負けを記録する。続けない・続けられなかったとき、局を始め直すとき、画面を離れるときに呼ぶ。冪等。
+    public func commitTimeUpLoss() {
+        guard isTimeUpLossPending else { return }
+        isTimeUpLossPending = false
+        recordFinish()
+    }
+
     private func finish(_ ending: ShiritoriEnding) {
         self.ending = ending
         phase = .result
@@ -290,6 +333,16 @@ public final class ShiritoriModel: AITurnGuarded {
         case .playerHitN, .playerStuck, .timeUp: didPlayerWin = false
         case .cpuHitN, .cpuStuck, .quotaReached, .perfect: didPlayerWin = true
         }
+        // 広告で続けられる時間切れは、続けるかを選ぶまで負けを記録しない（#1717）。
+        // 広告を出せない構成（services なし）は従来どおりその場で記録する。
+        if ending == .timeUp, !hasExtendedTime, services != nil {
+            isTimeUpLossPending = true
+            return
+        }
+        recordFinish()
+    }
+
+    private func recordFinish() {
         services?.feedback.notify(didPlayerWin ? .success : .error)
         // 従来のモードの記録は variant nil のまま（保存先を変えない）。とことんは別枠で、順位表へは送らない。
         let variant = mode.scoreVariant
@@ -364,6 +417,8 @@ public final class ShiritoriModel: AITurnGuarded {
         lastEvent = nil
         gameNumber = 1
         phase = .playing
+        isTimeUpLossPending = false
+        hasExtendedTime = false
         self.isPlayerTurn = isPlayerTurn
     }
 }
