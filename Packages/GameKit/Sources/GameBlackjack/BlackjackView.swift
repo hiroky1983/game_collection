@@ -471,6 +471,7 @@ public struct BlackjackView: View {
                 Image(systemName: "xmark.octagon.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(Theme.coral)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
                     // 「なくなりました」ではなく「足りません」と言う。

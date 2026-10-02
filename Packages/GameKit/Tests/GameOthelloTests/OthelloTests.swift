@@ -537,12 +537,12 @@ struct OthelloEmptyCellBonusTests {
         #expect(model.whiteScore == model.whiteCount)
     }
 
-    /// 表示の結線。スコアを出す2箇所（対局中のヘッダーとリザルト）が加算後の値を読んでいること。
+    /// 表示の結線。スコアを出す3箇所（対局中のヘッダー・リザルト・リザルトの読み上げ文言 #1716）が加算後の値を読んでいること。
     /// モデルが正しくても実石数を読んだままだと、リザルトの合計が 64 にならず狙いが画面に出ない。
     @Test func viewReadsBonusAppliedScore() throws {
         let source = try Self.viewSource()
-        #expect(SourceScan.matchCount(of: #"model\.blackScore"#, in: source) == 2)
-        #expect(SourceScan.matchCount(of: #"model\.whiteScore"#, in: source) == 2)
+        #expect(SourceScan.matchCount(of: #"model\.blackScore"#, in: source) == 3)
+        #expect(SourceScan.matchCount(of: #"model\.whiteScore"#, in: source) == 3)
         #expect(
             SourceScan.matchCount(of: #"model\.(black|white)Count"#, in: source) == 0,
             "スコアの表示に実石数（blackCount / whiteCount）が残っている"
