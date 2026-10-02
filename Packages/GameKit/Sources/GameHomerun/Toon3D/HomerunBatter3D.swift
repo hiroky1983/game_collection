@@ -143,7 +143,15 @@ final class HomerunBatterRig {
     }
 
     /// 毎コマ呼ぶ。速めに流している振りが予定に追いついたら等速に戻す。
-    func tick(now: Date) {
+    /// `clockHeld`（ジャストミートの演出・#1775）: `now` が実時刻より遅れている間は、再生に任せず振りの再生位置を毎コマ `now` から
+    /// 決め直す（再生は実時間で進むので、止めた時間の中でも振りが先へ進んでしまう）。
+    func tick(now: Date, clockHeld: Bool = false) {
+        if clockHeld, case .swing(let start, let catchUpFrom) = motion, let controller {
+            catchUp = nil
+            controller.speed = 0
+            controller.time = min(HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now), segmentLength)
+            return
+        }
         guard let catchUp, let controller else { return }
         let scheduled = now.timeIntervalSince(catchUp.start)
         if controller.time >= scheduled {

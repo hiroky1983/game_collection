@@ -59,27 +59,40 @@ struct HomerunAtBatView: View {
             TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: !isAnimating)) { timeline in
                 let now = timeline.date
                 let plan = HomerunSwingPlan(model: model)
+                // ジャストミートの確定演出（#1775）の間は、打者・球・打球を追うカメラを遅らせた時刻で描く（ヒットストップ）。
+                // 演出が無い球では `shown == now`。
+                let shown = plan.displayTime(at: now)
+                let justMeet = plan.justMeetElapsed(at: now)
                 // 当たり以上は、当たった直後から打席の 3D のカメラを打球の後ろへ回して追う（#1613。外野カメラの静止ショットと
                 // 外野手の置き換え）。打席の 3D をそのまま使い、球場・`ARView` を作り足さない。
-                let chase = plan.chaseFrame(at: now)
+                let chase = plan.chaseFrame(at: shown)
+                let justMeetCamera = reduceMotion ? nil : plan.justMeetCamera(at: now)
                 ZStack(alignment: .top) {
                     HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                          batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
-                                         machine: HomerunMachineMotion.state(elapsed: model.pitchElapsed(at: now), now: now),
-                                         cameraOverride: chase?.camera,
-                                         batterMotion: plan.batterMotion(at: now),
+                                         machine: HomerunMachineMotion.state(elapsed: model.pitchElapsed(at: now), now: shown),
+                                         cameraOverride: chase?.camera ?? justMeetCamera,
+                                         batterMotion: plan.batterMotion(at: shown),
                                          faceMark: plan.faceMark,
                                          // 場外の球が消えた後（#1654）は nil（球も影も出さない）。投球中の球へ戻さない。
                                          ballPosition: chase.map(\.visibleBall)
-                                            ?? (isAnimating ? plan.ballPosition(at: now, camera: HomerunAtBatLayout.camera,
+                                            ?? (isAnimating ? plan.ballPosition(at: shown, camera: HomerunAtBatLayout.camera,
                                                                              screen: CGSize(width: size.width + inset.leading + inset.trailing,
                                                                                             height: fullHeight)) : nil),
                                          ballScale: chase?.ballScale ?? 1,
-                                         now: now,
+                                         now: shown,
+                                         batterClockHeld: plan.holdsBatterClock(at: now),
                                          moon: chase?.moon,
                                          // 1 球目のモーションは打席の 3D が描き始めてから数える（作る・描き始めるまで約 0.6〜1 秒
                                          // 画面が止まり、モーションが見えないまま的が出ていた・画面の E2E の録画で確認）。
                                          onFirstFrame: { model.atBatDidAppear(now: Date()) })
+                    // ジャストミートの閃光・衝撃の輪・集中線（#1775）。打点の画面上の位置は、そのときのカメラで投影して決める。
+                    if !reduceMotion, let justMeet, let point = plan.justMeetPoint {
+                        let camera = justMeetCamera ?? HomerunAtBatLayout.camera
+                        let screen = camera.screenPoint(of: point, aspect: Double((size.width + inset.leading + inset.trailing) / fullHeight))
+                        HomerunJustMeetEffect(elapsed: justMeet, center: CGPoint(x: screen.x, y: screen.y))
+                            .ignoresSafeArea()
+                    }
                     // 上から バナー → HUD → 方向メーター（左端）の順に積む（#1696。バナーの下に並べるので重ならない）。
                     // 方向メーターは左上（#1770。右上は打席のカメラで打者の頭・バットに重なる）。ゾーン・的・輪と重ならない
                     // 大きさ・位置は `HomerunAtBatHUDLayout`。ゾーンより先に（下の層に）描く: SE でゾーンの外の左上の端まで
@@ -95,8 +108,8 @@ struct HomerunAtBatView: View {
                         }
                         .padding(.horizontal, Theme.pad)
                     }
-                    // 打球を追っている間は、ゾーン・的・カーソルを出さない。
-                    if chase == nil {
+                    // 打球を追っている間と、ジャストミートの演出（#1775）の間は、ゾーン・的・カーソルを出さない（打点が隠れる）。
+                    if chase == nil, justMeet == nil {
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             // 打席の 3D が描き始める前（1 球目を数え直す前）は的と輪を出さない。
@@ -386,6 +399,8 @@ struct HomerunAtBatBackdrop: View {
     /// 球の拡大率（打球を追う間は大きく見せる）。
     var ballScale: Float = 1
     var now: Date = Date()
+    /// 打者の振りを `now` から決め直す（ジャストミートの演出・#1775で `now` を遅らせている間）。
+    var batterClockHeld = false
     /// 月まで飛んだ打球（#1680）の月・夜空。
     var moon: HomerunMoonShot.Look? = nil
     /// 背景を描き始めたときに 1 回だけ呼ぶ（3D は最初の数コマを描いた後）。
@@ -395,7 +410,8 @@ struct HomerunAtBatBackdrop: View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, machine: machine,
                                 cameraOverride: cameraOverride, batterMotion: batterMotion, faceMark: faceMark,
-                                ballPosition: ballPosition, ballScale: ballScale, now: now, moon: moon,
+                                ballPosition: ballPosition, ballScale: ballScale, now: now,
+                                batterClockHeld: batterClockHeld, moon: moon,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)

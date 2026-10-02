@@ -360,7 +360,7 @@ struct HomerunGeometryTests {
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
         #expect(!atBat.contains("カメラ:"), "一時停止の画面にカメラの切り替えが残っている")
         // 3D の球の通り道と 3D の描画は、どちらも打席のカメラ（`HomerunAtBatLayout.camera`）から決める。
-        #expect(atBat.contains("plan.ballPosition(at: now, camera: HomerunAtBatLayout.camera,"))
+        #expect(atBat.contains("plan.ballPosition(at: shown, camera: HomerunAtBatLayout.camera,"))
         let scene = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/Toon3D/HomerunAtBatScene3D.swift"))
         #expect(scene.contains("camera: cameraOverride ?? HomerunAtBatLayout.camera,"))
         #expect(scene.contains("HomerunAtBatSceneView.prepared(camera: HomerunAtBatLayout.camera,"))

@@ -68,8 +68,10 @@ public final class HomerunModel {
     /// 1 球の結果を見せる時間（月まで飛んだ打球・#1680 は月の演出のぶん長い）。
     public static func resultDuration(for ball: HomerunBattedBall?) -> TimeInterval {
         if let moon = ball?.moon { return HomerunMoonShot.resultDuration(moon) }
-        if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration }
-        return resultDuration(for: ball?.kind ?? .miss)
+        // ジャストミート（#1775）は確定演出のヒットストップのぶん長い。
+        let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
+        if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration + held }
+        return resultDuration(for: ball?.kind ?? .miss) + held
     }
 
     // MARK: 状態
