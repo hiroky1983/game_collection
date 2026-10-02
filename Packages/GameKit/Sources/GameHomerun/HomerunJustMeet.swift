@@ -87,9 +87,16 @@ extension HomerunSwingPlan {
         HomerunJustMeet.applies(to: lastBall) ? contactAt : nil
     }
 
+    /// 当たった後に結果の間の素振りを始めたか。素振りは実時刻で始まるので、このときは表示の時刻を遅らせない
+    /// （遅らせると素振りの始まりが遅れ、振り抜きの途中で止まる）。
+    private var practicesAfterRelease: Bool {
+        guard let practice = clock?.practiceSwingAt, let release = clock?.releasedAt else { return false }
+        return practice > release
+    }
+
     /// 画面に出す時刻。演出の間だけ実時刻より遅れる（当たる前は実時刻のまま）。打者・球・打球を追うカメラはこの時刻で描く。
     func displayTime(at now: Date) -> Date {
-        guard let contact = justMeetContactAt, now > contact else { return now }
+        guard let contact = justMeetContactAt, now > contact, !practicesAfterRelease else { return now }
         return contact.addingTimeInterval(HomerunJustMeet.displayElapsed(realElapsed: now.timeIntervalSince(contact)))
     }
 
@@ -103,7 +110,7 @@ extension HomerunSwingPlan {
     /// 打者の振りを表示の時刻から決め直す間か（当たった後・`displayTime` が実時刻とずれている間）。
     func holdsBatterClock(at now: Date) -> Bool {
         guard let contact = justMeetContactAt else { return false }
-        return now > contact
+        return now > contact && !practicesAfterRelease
     }
 
     /// 演出の打点（世界座標）。

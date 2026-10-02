@@ -368,6 +368,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     final class Coordinator {
         var batterRig: HomerunBatterRig?
         var batterMotion: HomerunBatterMotion = .stance
+        /// 実時刻より表示の時刻がどれだけ遅れているか（秒・ジャストミートの演出・#1775）。描画の更新で記号などを置くとき、
+        /// `Date()` から引いて SwiftUI 側の更新と同じ時刻に揃える。
+        var clockLag: TimeInterval = 0
         var batter: Entity?
         var batterPose: HomerunOjisanPose3?
         var machine: HomerunMachineRig?
@@ -663,8 +666,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             MainActor.assumeIsolated {
                 guard let coordinator, let rig = coordinator.batterRig, rig.isWhiffGag || rig.showsFaceMark,
                       let camera = coordinator.camera else { return }
-                let now = Date()
-                rig.tick(now: now)
+                let now = Date().addingTimeInterval(-coordinator.clockLag)
+                rig.tick(now: now, clockHeld: coordinator.clockLag > 0)
                 if rig.isWhiffGag {
                     rig.applyWhiffGag(now: now, camera: camera.renderPose.position)
                 } else {
@@ -702,6 +705,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 c.batterMotion = batterMotion
             }
             rig.faceMark = faceMark
+            c.clockLag = batterClockHeld ? max(Date().timeIntervalSince(now), 0) : 0
             rig.tick(now: now, clockHeld: batterClockHeld)
             if rig.showsFaceMark {
                 rig.applyFaceMark(now: now, camera: camera.renderPose.position)

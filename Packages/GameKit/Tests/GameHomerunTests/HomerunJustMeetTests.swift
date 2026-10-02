@@ -147,4 +147,17 @@ struct HomerunJustMeetTests {
         #expect(p.displayTime(at: contact.addingTimeInterval(0.1)) == contact.addingTimeInterval(0.1))
         #expect(HomerunModel.resultDuration(for: moon) == HomerunMoonShot.resultDuration(.hit))
     }
+
+    @Test("当たった後に結果の間の素振りを始めたら、表示の時刻は遅らせない（素振りは実時刻で始まる）")
+    func practiceSwingAfterHitUsesRealTime() throws {
+        let ball = HomerunJudge.judge(swing())
+        var p = plan(ball: ball)
+        let contact = try #require(p.contactAt)
+        let during = contact.addingTimeInterval(JM.hitStop / 2)
+        #expect(p.holdsBatterClock(at: during) && p.displayTime(at: during) != during)
+        var clock = try #require(p.clock)
+        clock.practiceSwingAt = contact.addingTimeInterval(0.1)
+        p.clock = clock
+        #expect(!p.holdsBatterClock(at: during) && p.displayTime(at: during) == during)
+    }
 }
