@@ -63,6 +63,7 @@ struct HomerunAtBatView: View {
                                          cameraPreset: model.atBatCamera,
                                          cameraOverride: chase?.camera,
                                          batterMotion: plan.batterMotion(at: now),
+                                         faceMark: plan.faceMark,
                                          // 場外の球が消えた後（#1654）は nil（球も影も出さない）。投球中の球へ戻さない。
                                          ballPosition: chase.map(\.visibleBall)
                                             ?? (isAnimating ? plan.ballPosition(at: now, camera: model.atBatCamera.camera,
@@ -367,6 +368,7 @@ struct HomerunAtBatBackdrop: View {
     /// 打球を追うカメラ（#1613）。nil なら `cameraPreset`。
     var cameraOverride: HomerunAtBatLayout.Camera? = nil
     var batterMotion: HomerunBatterMotion = .stance
+    var faceMark: HomerunFaceMark = .none
     var ballPosition: SIMD3<Float>? = nil
     /// 球の拡大率（打球を追う間は大きく見せる）。
     var ballScale: Float = 1
@@ -379,7 +381,7 @@ struct HomerunAtBatBackdrop: View {
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, machine: machine, cameraPreset: cameraPreset,
-                                cameraOverride: cameraOverride, batterMotion: batterMotion,
+                                cameraOverride: cameraOverride, batterMotion: batterMotion, faceMark: faceMark,
                                 ballPosition: ballPosition, ballScale: ballScale, now: now, moon: moon,
                                 onFirstFrame: onFirstFrame).ignoresSafeArea()
         #else

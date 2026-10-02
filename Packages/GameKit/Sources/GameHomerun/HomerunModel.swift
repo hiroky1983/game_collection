@@ -90,6 +90,10 @@ public final class HomerunModel {
     public private(set) var showsWhiffGag = false
     /// いまの挑戦で振った空振りの回数（2 回目は必ず演出を出す）。
     private(set) var whiffCount = 0
+    /// 直前の 1 球の結果に重ねる頭の記号（キラキラ目・怒りマーク・#1760）。結果の間だけ見せる（見せる局面の判断は `HomerunSwingPlan`）。
+    private(set) var faceMark: HomerunFaceMark = .none
+    /// 振った空振りの連続回数（怒りマーク用）。当たり・ファウルで 0 に戻り、見送りは数えず戻しもしない。
+    private(set) var whiffStreak = 0
     /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
     var whiffGagRoll: () -> Double = { Double.random(in: 0..<1) }
     /// 10 球の結果で自己ベストを更新したか。
@@ -305,6 +309,8 @@ public final class HomerunModel {
         isNewBest = false
         hasProgressed = false
         whiffCount = 0
+        whiffStreak = 0
+        faceMark = .none
         beginPitch(now: now)
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID, credit: credit)
@@ -570,6 +576,7 @@ public final class HomerunModel {
         let ball = challenge.swing(swing)
         self.challenge = challenge
         decideWhiffGag(swung: swing != nil, ball: ball)
+        if swing != nil { whiffStreak = ball?.kind == .miss ? whiffStreak + 1 : 0 }
         if !hasProgressed {
             hasProgressed = true
             services?.gameDidProgress(gameID: Self.gameID)
@@ -586,6 +593,7 @@ public final class HomerunModel {
         // 10 球目を打った時点で蓄積に取り込む（結果を見せている 2 秒余りのあいだに画面を閉じても、
         // 打ち終えた挑戦は記録に残す）。
         if challenge.isFinished { record(challenge) }
+        faceMark = .decide(ball: ball, swung: swing != nil, whiffGag: showsWhiffGag, whiffStreak: whiffStreak, isNewBest: isNewBest)
         resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball
