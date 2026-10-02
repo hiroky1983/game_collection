@@ -34,7 +34,7 @@ struct HomerunBatter3DTests {
     @Test("3D を置く SwiftUI の View は当たり判定を持たない（allowsHitTesting(false)）")
     func sceneViewsDoNotHitTest() throws {
         let source = try toon3DSources()
-        for header in ["struct HomerunAtBatScene3DView", "struct HomerunOjisan3DView"] {
+        for header in ["struct HomerunAtBatScene3DView", "struct HomerunOjisanImageView"] {
             let body = try #require(SourceScan.declaration(of: header, in: source), "\(header) が無い")
             #expect(body.contains(".allowsHitTesting(false)"), "\(header) に当たり判定が残っている")
         }

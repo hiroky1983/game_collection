@@ -114,7 +114,9 @@ let package = Package(
                             // ハブの特別枠の絵（#1761。会長提供・ロゴ入り横長 1206×804）。
                             .copy("Resources/HomerunHubHeroArtLogo.jpg"),
                             // 打席の操作の説明の図の元絵（#1763。ゾーン・カーソル無しの打席・前カメラ・2x 相当）。
-                            .copy("Resources/HomerunTutorialShot.jpg")]),
+                            .copy("Resources/HomerunTutorialShot.jpg"),
+                            // 打席前・結果画面のおじさん（#1772。3D の構えを書き出した透明 PNG・3x）。撮り直し手順は HomerunToonView.swift。
+                            .copy("Resources/HomerunOjisanStance.png")]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
