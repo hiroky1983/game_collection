@@ -298,10 +298,9 @@ struct FreeCellModelTests {
         model.clockNow = manual.now
         model.newGame()   // 配り直しで計時を張り直す（ここで時計が差し替わる）
         manual.advance(by: .seconds(600))
-        model.syncElapsed()
+        model.pauseTimer()   // 秒の境目を待たずに止めても、止めるまでの時間を取り込む
         #expect(model.elapsedSeconds == 600)
 
-        model.pauseTimer()
         manual.advance(by: .seconds(500))
         model.syncElapsed()
         #expect(model.elapsedSeconds == 600, "止まっている間は数えない")

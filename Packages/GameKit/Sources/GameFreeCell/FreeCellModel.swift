@@ -309,6 +309,7 @@ public final class FreeCellModel {
     /// 判定の境目は「新規ゲームの確認ダイアログを出すか」と同じ `canUndo` に揃えてある
     /// （＝ユーザーが「今の盤面が失われます」と読んだ操作だけが記録に乗る）。ソリティア #397 と同じ。
     public func newGame() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
@@ -348,6 +349,7 @@ public final class FreeCellModel {
     /// 止める前に保存し直すのは、直近の保存から最大 `persistInterval` 秒ぶんの計時が
     /// 失われるのを防ぐため（#240 と同じ理由）。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         persist()
         timerTask?.cancel()
         timerTask = nil
@@ -467,6 +469,7 @@ public final class FreeCellModel {
     }
 
     private func finish() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
         timerTask?.cancel()
         timerTask = nil

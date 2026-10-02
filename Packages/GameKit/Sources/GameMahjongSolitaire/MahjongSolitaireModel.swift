@@ -370,6 +370,7 @@ public final class MahjongSolitaireModel {
     /// 止める前に経過秒を保存し直すので、戻ったときは続きから数え直せる。
     /// 止めないと古いモデルが計時と保存を続け、開き直した盤面や消した中断データを上書きする。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isCounting { persist() }
         timerTask?.cancel()
         timerTask = nil
@@ -431,6 +432,7 @@ public final class MahjongSolitaireModel {
     }
 
     private func finish() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
         timerTask?.cancel()
         timerTask = nil

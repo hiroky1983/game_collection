@@ -252,6 +252,7 @@ public final class SpiderModel {
     /// **1 手でも指した盤面を捨てたときは敗北として記録する**（判定の境目は `canUndo`。#397 と同じ）。
     /// - Parameter rules: 次の局に焼き込むルール。省略すると**今の局と同じルール**で配り直す。
     public func newGame(rules: SpiderRuleSet? = nil) {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
@@ -286,6 +287,7 @@ public final class SpiderModel {
 
     /// 画面を離れるときに計時を止める（`onDisappear` から呼ぶ。理由は `FreeCellModel.pauseTimer`）。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         persist()
         timerTask?.cancel()
         timerTask = nil
@@ -353,6 +355,7 @@ public final class SpiderModel {
     }
 
     private func finish() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
         timerTask?.cancel()
         timerTask = nil

@@ -810,10 +810,9 @@ struct SudokuTimerPersistenceTests {
         model.clockNow = manual.now
         await model.newGame(difficulty: .easy)
         manual.advance(by: .seconds(600))
-        model.syncElapsed()
+        model.pauseTimer()   // 秒の境目を待たずに止めても、止めるまでの時間を取り込む
         #expect(model.elapsedSeconds == 600)
 
-        model.pauseTimer()
         manual.advance(by: .seconds(500))
         model.syncElapsed()
         #expect(model.elapsedSeconds == 600, "止まっている間は数えない")

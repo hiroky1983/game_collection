@@ -281,6 +281,7 @@ public final class MinesweeperModel {
     /// 失われるのを防ぐため（#240 と同じ理由・#513）。計時が動いていないときは
     /// 保存し直す経過秒が無いので触らない（`persist()` は非 `playing` だと中断データを消すため）。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isTimerRunning { persist() }
         timerTask?.cancel()
         timerTask = nil
@@ -402,6 +403,7 @@ public final class MinesweeperModel {
 
     /// 地雷を踏んだときの終局処理。1マスのタップとコード（#437）で共有する。
     private func loseGame(hitRow: Int, hitCol: Int) {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         hitMine = (hitRow, hitCol)
         revealAllMines()
         gameState = .lost
@@ -414,6 +416,7 @@ public final class MinesweeperModel {
     /// 安全マスを開いたあとの後始末（勝利判定と触覚）。同じく両方の入口から呼ぶ。
     private func settleAfterReveal() {
         if revealedCount == safeCellCount {
+            syncElapsed()
             flagAllMines()
             gameState = .won
             timerTask?.cancel()
@@ -513,6 +516,7 @@ public final class MinesweeperModel {
 
     public func giveUp() {
         guard gameState == .playing else { return }
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         revealAllMines()
         gameState = .lost
         services?.feedback.notify(.error)

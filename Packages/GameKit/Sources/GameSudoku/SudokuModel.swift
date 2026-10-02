@@ -300,6 +300,7 @@ public final class SudokuModel {
     /// 保存し直す経過秒が無いので触らない（生成中に画面を離れたときに `persist()` が
     /// 中断データを消してしまうのを避ける）。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isTimerRunning { persist() }
         stopTimer()
     }
@@ -583,6 +584,7 @@ public final class SudokuModel {
     }
 
     private func stopTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         timerTask?.cancel()
         timerTask = nil
     }
