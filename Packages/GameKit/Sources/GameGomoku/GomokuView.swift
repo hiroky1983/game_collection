@@ -25,8 +25,8 @@ public struct GomokuView: View {
         // 盤へ回している（#1663。SE では高さが盤の大きさを決めていた）。
         VStack(spacing: 6) {
             statusBar
-            // 盤は左右の余白（Theme.pad）の半分まで広げる。盤の外周の余白（`boardInset`）も
-            // 詰めてあるので、枠の外へはみ出すのは木地の縁だけ。
+            // 盤は左右の余白（Theme.pad）の半分まで広げる。盤の外周の余白（`GomokuBoardMetrics.inset`）も
+            // 印が欠けない最小限に詰めてあるので、枠の外へはみ出すのは木地の縁だけ。
             board
                 .padding(.horizontal, -Theme.pad / 2)
                 .layoutPriority(1)
@@ -125,12 +125,9 @@ public struct GomokuView: View {
 
     // MARK: - Board
 
-    /// 盤の木地の縁から端の線までの余白。石が端の線に乗っても欠けない最小限（石の半径は 1 マスの約 0.45 = 24pt 前後で約 11pt）。
-    private static let boardInset: CGFloat = 12
-
     private var board: some View {
         GeometryReader { geo in
-            let pad = Self.boardInset
+            let pad = GomokuBoardMetrics.inset(forWidth: geo.size.width)
             let inner = geo.size.width - pad * 2
             let spacing = inner / CGFloat(gomokuBoardSize - 1)
 
@@ -466,6 +463,29 @@ private struct GomokuBoardCanvas: View, Animatable {
                 }
             }
         }
+    }
+}
+
+// MARK: - 盤の寸法
+
+/// 盤の外周の余白（木地の縁から端の線まで）の求め方（#1706）。View の `static` は MainActor 隔離になるため、別の enum に置く。
+///
+/// 余白が狭いと、盤の端の交点に置いた石につく印（勝ち筋のリング・直前手のリング・石の落ち影）が
+/// `Canvas` の描画範囲の外へ出て欠ける。印のはみ出しは石の半径（1 マスの 0.46 倍）に比例するので、
+/// 余白も盤の幅に合わせて決める（幅を固定の余白で割ると、広い端末ほど端の印が切れる）。
+enum GomokuBoardMetrics {
+    /// 石の半径が 1 マスに占める割合（`GomokuBoardCanvas` の石・`GomokuWinLineCanvas` のリングと揃える）。
+    static let stoneRadiusRatio: CGFloat = 0.46
+    /// 石の外周から印の外縁までの最大のはみ出し。勝ち筋のリング（半径 +3・線幅 3 の外半分 1.5）が最大。
+    static let markOverhang: CGFloat = 4.5
+    /// 外縁と描画範囲の端のあいだに残す余裕。
+    static let margin: CGFloat = 1
+
+    /// 盤の幅 `width` に対する余白。`inset = stoneRadiusRatio * (width - 2 * inset) / (gomokuBoardSize - 1) + markOverhang + margin` を解いたもの。
+    static func inset(forWidth width: CGFloat) -> CGFloat {
+        let divisions = CGFloat(gomokuBoardSize - 1)
+        let k = stoneRadiusRatio / divisions
+        return (k * width + markOverhang + margin) / (1 + 2 * k)
     }
 }
 
