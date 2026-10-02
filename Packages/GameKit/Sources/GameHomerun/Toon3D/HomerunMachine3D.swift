@@ -198,17 +198,17 @@ final class HomerunMachineRig {
         typealias M = HomerunMachineMotion
         var wheels: [Entity] = []
         for c in M.wheelCenters {
-            let w = HomerunToonScene.entity(for: .machineWheel())
+            let w = HomerunAtBatAssets.machineWheel()
             w.position = c
             wheels.append(w)
         }
         self.wheels = wheels
-        lever = HomerunToonScene.entity(for: .machineLever())
+        lever = HomerunAtBatAssets.machineLever()
         lever.position = M.leverPivot
-        loadedBall = HomerunToonScene.entity(for: .machineBall())
-        hopperBall = HomerunToonScene.entity(for: .machineBall())
+        loadedBall = HomerunAtBatAssets.machineBall()
+        hopperBall = HomerunAtBatAssets.machineBall()
         hopperBall.position = M.hopper
-        entity.addChild(HomerunToonScene.entity(for: .machineBody()))
+        entity.addChild(HomerunAtBatAssets.machineBody())
         for e in wheels + [lever, loadedBall, hopperBall] { entity.addChild(e) }
         let p = HomerunAtBatLayout.machine
         entity.position = p.position
