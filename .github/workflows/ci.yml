@@ -45,8 +45,7 @@ jobs:
           # .github/ は運用系だが、ci.yml 自身は CI の壊れを見逃さないため必ず全部回す
           others=$(printf '%s\n' "$files" | grep -v -E '^(docs/|Scripts/|web/)|\.md$|^\.github/' | grep -v '^$' || true)
           if printf '%s\n' "$files" | grep -q -x -F '.github/workflows/ci.yml'; then
-            others="$others
-.github/workflows/ci.yml"
+            others=".github/workflows/ci.yml"
           fi
           # classify:end
           if [ -n "$others" ]; then
