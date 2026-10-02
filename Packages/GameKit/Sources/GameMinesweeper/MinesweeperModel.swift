@@ -143,6 +143,10 @@ public final class MinesweeperModel {
     public private(set) var flagMode = false
 
     private var timerTask: Task<Void, Never>?
+    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
+    private var elapsedClock: ElapsedClock?
+    /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
+    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "minesweeper"
@@ -277,6 +281,7 @@ public final class MinesweeperModel {
     /// 失われるのを防ぐため（#240 と同じ理由・#513）。計時が動いていないときは
     /// 保存し直す経過秒が無いので触らない（`persist()` は非 `playing` だと中断データを消すため）。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isTimerRunning { persist() }
         timerTask?.cancel()
         timerTask = nil
@@ -398,6 +403,7 @@ public final class MinesweeperModel {
 
     /// 地雷を踏んだときの終局処理。1マスのタップとコード（#437）で共有する。
     private func loseGame(hitRow: Int, hitCol: Int) {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         hitMine = (hitRow, hitCol)
         revealAllMines()
         gameState = .lost
@@ -410,6 +416,7 @@ public final class MinesweeperModel {
     /// 安全マスを開いたあとの後始末（勝利判定と触覚）。同じく両方の入口から呼ぶ。
     private func settleAfterReveal() {
         if revealedCount == safeCellCount {
+            syncElapsed()
             flagAllMines()
             gameState = .won
             timerTask?.cancel()
@@ -509,6 +516,7 @@ public final class MinesweeperModel {
 
     public func giveUp() {
         guard gameState == .playing else { return }
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         revealAllMines()
         gameState = .lost
         services?.feedback.notify(.error)
@@ -649,11 +657,13 @@ public final class MinesweeperModel {
 
     private func startTimer() {
         timerTask?.cancel()
+        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
+        elapsedClock = clock
         timerTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(for: clock.untilNextSecond)
                 guard !Task.isCancelled else { break }
-                tick()
+                syncElapsed()
             }
         }
     }
@@ -667,6 +677,15 @@ public final class MinesweeperModel {
         // 狂う（#240 の同型・#513）。一定間隔で保存し直し、失われる幅を最大
         // `persistInterval` 秒に抑える。
         if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
+    /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
+    /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
+    func syncElapsed() {
+        guard let clock = elapsedClock, timerTask != nil else { return }
+        let before = elapsedSeconds
+        elapsedSeconds = max(before, clock.seconds)
+        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
     }
 
     /// 復元してよい中断データか。行数・列数が正で、`cells` の形と地雷数がそれに合っていること。
