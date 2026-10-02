@@ -253,6 +253,44 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         return mover + KIF.notation(m, pos: before, prevTo: nil)
     }
 
+    /// 終局の種類（結果カード用・#1753）。局面と指し手列から毎回導き、状態としては保存しない。
+    public enum EndKind: Equatable, Sendable {
+        case checkmate, repetition, resignation
+
+        /// 結果カードに出す理由。
+        public var reasonText: String {
+            switch self {
+            case .checkmate: return "詰み"
+            case .repetition: return "千日手"
+            case .resignation: return "投了"
+            }
+        }
+    }
+
+    public var endKind: EndKind? {
+        guard gameOver else { return nil }
+        if resigned { return .resignation }
+        return resultText == Self.repetitionResultText ? .repetition : .checkmate
+    }
+
+    /// 結果カードの勝敗。詰みは手番側（動かせない側）が負け。
+    public var endVerdict: BoardGameResultCard.Verdict? {
+        switch endKind {
+        case nil: return nil
+        case .resignation: return .loss
+        case .repetition: return .draw
+        case .checkmate: return position.sideToMove == humanSide ? .loss : .win
+        }
+    }
+
+    /// 結果カードに出す決め手（詰ましに行った最後の手。例 "▲７六歩"）。詰み以外では nil。
+    /// 検討ナビで戻っていても最終手を返す（`highlightedMoveText` は表示中の手）。
+    public var decisiveMoveText: String? {
+        guard endKind == .checkmate, let m = moves.last else { return nil }
+        let before = positionAt(ply: moves.count - 1)
+        return (before.sideToMove == .black ? "▲" : "△") + KIF.notation(m, pos: before, prevTo: nil)
+    }
+
     /// 現在の選択から導く合法な着手先マス。
     public var legalTargets: Set<Int> {
         if let from = selectedSquare {

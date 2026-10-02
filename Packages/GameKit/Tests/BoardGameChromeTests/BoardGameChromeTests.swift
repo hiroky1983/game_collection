@@ -492,3 +492,21 @@ struct GameReplayBarTests {
         return try #require(renderer.cgImage)
     }
 }
+
+/// 結果カード（#1753）の読み上げ文。勝敗・理由・決め手・補足を 1 回で読ませる。
+@Suite("BoardGameResultCard")
+struct BoardGameResultCardTests {
+    @Test("読み上げは勝敗・理由・決め手・補足の順で、感嘆符を含まない")
+    func accessibilityLabelOrder() {
+        let label = BoardGameResultCard.accessibilityLabel(
+            verdict: .win, reason: "詰み", decisiveMove: "▲５三金", details: ["黒 10 目"])
+        #expect(label == "あなたの勝ち。詰み。決め手 ▲５三金。黒 10 目")
+    }
+
+    @Test("決め手も補足も無ければ勝敗と理由だけ")
+    func accessibilityLabelMinimal() {
+        let label = BoardGameResultCard.accessibilityLabel(
+            verdict: .draw, reason: "千日手", decisiveMove: nil, details: [])
+        #expect(label == "引き分け。千日手")
+    }
+}

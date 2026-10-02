@@ -13,6 +13,8 @@ public struct ChessView: View {
     @State private var hintRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（将棋 #200 と同じ）。
     @State private var pieceLayout: ChessPieceLayout
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
     /// 表示中の「チェック」の合図の契機 ID。nil なら出していない。
     @State private var checkBannerID: Int?
     /// 駒の意匠（#598）。見た目だけの設定なので局には焼き込まず、保存値をここで持って
@@ -44,6 +46,7 @@ public struct ChessView: View {
             CapturedAreaView(model: model, owner: model.humanSide.opponent, style: pieceStyle)
             board
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             CapturedAreaView(model: model, owner: model.humanSide, style: pieceStyle)
             controlArea
             HowToPlayHint(.chess, playLog: services.playLog)
@@ -52,6 +55,9 @@ public struct ChessView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "チェス", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -401,6 +407,19 @@ public struct ChessView: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// 終局の結果カード（#1753）。
+    @ViewBuilder
+    private var resultCard: some View {
+        if let verdict = model.endVerdict, let result = model.result {
+            BoardGameResultCard(
+                verdict: verdict,
+                reason: result.reasonText,
+                decisiveMove: model.decisiveMoveText,
+                record: model.recordResult
+            ) { resultCardClosed = true }
+        }
     }
 
     // MARK: - ステータス
