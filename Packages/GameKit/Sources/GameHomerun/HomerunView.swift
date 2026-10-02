@@ -173,11 +173,7 @@ struct HomerunLobbyView: View {
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .fixedSize(horizontal: false, vertical: true)
-                Label("体験版", systemImage: "sparkles")
-                    .themeCaption(12)
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.Fill.purple))
+                HomerunHeroTrialBadge()
             }
             Spacer(minLength: 0)
         }

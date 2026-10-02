@@ -52,14 +52,18 @@ public struct HomerunHubHeroCard: View {
 
 // MARK: - 部品
 
-/// 「体験版」の印。打席前の画面（`HomerunLobbyView.introCard`）と同じ部品・同じ配色。
+/// 「体験版」の印。打席前の画面（`HomerunLobbyView.introCard`）と同じ部品・同じ配色（#1768）。
+/// キービジュアル（青空・赤黄のロゴ）の上でも読めるよう、濃い面＋白文字＋白い縁取り＋影で絵から浮かせる。
+/// 文字と面のコントラスト比は 7.1:1（WCAG AA の 4.5:1 以上）。文字は Dynamic Type に追従し、拡大は 1.3 倍まで。
 struct HomerunHeroTrialBadge: View {
     var body: some View {
         Label("体験版", systemImage: "sparkles")
-            .themeCaption(12)
-            .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Capsule().fill(Theme.Fill.purple))
+            .themeCaption(15, weight: .heavy, maxScale: 1.3)
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 12).padding(.vertical, 5)
+            .background(Capsule().fill(Color(hex: 0x5B3FC4)))
+            .overlay(Capsule().strokeBorder(Color.white, lineWidth: 2))
+            .shadow(color: Color.black.opacity(0.35), radius: 3, y: 2)
             .fixedSize()
     }
 }
@@ -200,6 +204,5 @@ struct HomerunHeroLogoImageCard: View {
 
     private var badge: some View {
         HomerunHeroTrialBadge()
-            .shadow(color: Self.ink.opacity(0.3), radius: 3, y: 2)
     }
 }
