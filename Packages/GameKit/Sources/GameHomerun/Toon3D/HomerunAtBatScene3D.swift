@@ -333,6 +333,8 @@ enum HomerunAtBatScenePrewarm {
             HomerunAtBatSceneView.reusable = prepared
             let view = prepared.view
             view.frame = window.bounds
+            // 見えない所に差している間も VoiceOver に読ませない（打席では SwiftUI 側で隠している）。
+            view.accessibilityElementsHidden = true
             window.insertSubview(view, at: 0)
             host = view
             await renderFrames(view)
