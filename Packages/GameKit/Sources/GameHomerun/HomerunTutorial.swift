@@ -69,6 +69,7 @@ struct HomerunTutorialCards: View {
                     TabView(selection: $page) {
                         ForEach(0..<HomerunTutorial.pageCount, id: \.self) { i in
                             pageView(i, figureSize: CGSize(width: shownWidth, height: figureHeight)).tag(i)
+                                .accessibilityHidden(i != page)  // いまのページだけを読み上げる
                         }
                     }
                     #if os(iOS)
