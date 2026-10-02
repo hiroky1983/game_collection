@@ -91,7 +91,7 @@ struct DifficultyLadderCard: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: RecommendationDismissButton.leadingGap) {
             Button(action: onClimb) {
                 HStack(spacing: 12) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -126,16 +126,10 @@ struct DifficultyLadderCard: View {
             .accessibilityLabel("\(offer.caption)\(offer.title)")
             .accessibilityHint("「\(offer.nextLevelLabel)」で新しく始めます")
 
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Theme.inkSub)
-                    .padding(6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("閉じる")
+            RecommendationDismissButton(action: onDismiss)
         }
-        .padding(.horizontal, 12).padding(.vertical, RecommendationCard.verticalPadding)
+        .padding(.leading, 12).padding(.trailing, RecommendationDismissButton.trailingInset)
+        .padding(.vertical, RecommendationDismissButton.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 }
