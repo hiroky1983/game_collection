@@ -102,16 +102,10 @@ public final class HomerunModel {
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
     public var showsExhausted = false
-    /// 方向メーター（打席の右上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
+    /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
     public var showsDirectionMeter: Bool {
         didSet { directionMeter.isEnabled = showsDirectionMeter }
     }
-    /// 打席のカメラ（前 / 後ろ・#1506）。既定は前。選んだ方は保存して次回も使う。見た目だけで、判定・座標・解析は変えない
-    /// （投球中に切り替えても同じ球のまま続く）。
-    var atBatCamera: HomerunAtBatLayout.CameraPreset {
-        didSet { defaults.set(atBatCamera.rawValue, forKey: Self.atBatCameraKey) }
-    }
-    static let atBatCameraKey = "homerun_atBatCamera_v1"
     /// 操作の説明（#1763）を見たか。初めて打席に入ったとき 1 球目の前に自動で出し、見たら端末に記録して 2 回目以降は
     /// 自動では出さない（一時停止の「操作の説明」からはいつでも開ける）。
     static let tutorialSeenKey = "homerun_tutorialSeen_v1"
@@ -192,7 +186,6 @@ public final class HomerunModel {
         self.defaults = defaults
         self.directionMeter = directionMeter
         showsDirectionMeter = directionMeter.isEnabled
-        atBatCamera = defaults.string(forKey: Self.atBatCameraKey).flatMap(HomerunAtBatLayout.CameraPreset.init(rawValue:)) ?? .front
         self.calendar = calendar
         self.pitches = pitches
         ledger = HomerunStorage.loadLedger(defaults)

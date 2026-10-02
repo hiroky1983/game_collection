@@ -16,7 +16,6 @@ import XCTest
 /// - `E2E_SHOT_DIR`: 結果のスクリーンショットを書き出すフォルダ（無ければ添付だけ）
 /// - `E2E_LATENCY`: 投球の開始を読んでから離すまでの遅れの補正（秒・既定 `defaultLatency`）
 /// - `E2E_SHIFT`: 全球の離す時刻のずれ（秒・`plan` の代わり）。負にすると全球で振る（Mac が重く離すのが遅れるときの確認用）
-/// - `E2E_CAMERA`: 打席のカメラ（`front` / `back`・既定 `front`）
 /// - `E2E_RESTART_SHOT`: もう一回の直後の画を `restart-start.png` に撮る（撮ると 1 球目の始まりを読み遅れることがある）
 /// - `E2E_CHASE_SHOTS`: 付けると、当たり以上の球で離してから結果のカードが出るまで（打球を追うカメラ・#1613）を数コマ撮る
 @MainActor
@@ -50,9 +49,7 @@ final class HomerunE2ETests: XCTestCase {
 
         Self.skipQuiescenceWait()
         let app = XCUIApplication()
-        // カメラは起動引数で固定する（保存された設定に左右されない。後ろは描画が重く、離す時刻の補正が変わる）。
-        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode",
-                               "-homerun_atBatCamera_v1", env["E2E_CAMERA"] ?? "front"]
+        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode"]
         app.launch()
 
         let start = app.buttons["打席に立つ"]

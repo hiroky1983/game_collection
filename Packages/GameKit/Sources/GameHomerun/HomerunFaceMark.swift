@@ -53,8 +53,8 @@ enum HomerunFaceMark: Equatable, Sendable {
 
     /// キラキラ目の星の外側の半径（目の飾りと同じ位置に貼る）。
     static let sparkleEyeRadius: Float = 0.05
-    /// きらめき（頭の横の小さな星）の外側の半径（前のカメラは遠い・`HomerunWhiffGag.starSize` と同じ考え方）と、頭の中心からの横・上の距離。
-    static func sparkleSize(back: Bool) -> Float { back ? 0.055 : 0.075 }
+    /// きらめき（頭の横の小さな星）の外側の半径（打席のカメラは遠い・`HomerunWhiffGag.starSize` と同じ考え方）と、頭の中心からの横・上の距離。
+    static let sparkleSize: Float = 0.075
     static let sparkleSide: Float = 0.24
     static let sparkleLift: Float = 0.12
     /// きらめきの明滅（回/秒）と振れ幅（割合）。
@@ -62,7 +62,7 @@ enum HomerunFaceMark: Equatable, Sendable {
     static let twinkleDepth: Float = 0.25
 
     /// 怒りマークの大きさ（m・外側の半径）・頭の中心からの横と上の距離・脈打つ速さ（回/秒）と振れ幅（割合）。
-    static func angrySize(back: Bool) -> Float { back ? 0.10 : 0.14 }
+    static let angrySize: Float = 0.14
     static let angrySide: Float = 0.22
     static let angryLift: Float = 0.2
     static let angryPulseRate: Double = 3

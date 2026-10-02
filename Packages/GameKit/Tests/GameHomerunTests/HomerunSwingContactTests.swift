@@ -250,62 +250,58 @@ struct HomerunSwingContactTests {
         #expect(taken.ballPosition(at: ballArrival.addingTimeInterval(1.0)) == nil, "ミットに入った後は消える")
     }
 
-    @Test("画面の 3D の球は、輪が重なる瞬間に 2D の的（判定のボールの位置）にちょうど重なって映る（全ゾーン・前 / 後ろのカメラ・画面の大きさ違い・#1647）",
+    @Test("画面の 3D の球は、輪が重なる瞬間に 2D の的（判定のボールの位置）にちょうど重なって映る（全ゾーン・画面の大きさ違い・#1647）",
           arguments: [CGSize(width: 402, height: 874), CGSize(width: 375, height: 667), CGSize(width: 440, height: 956)])
     func pitchedBallOverlapsTarget(screen: CGSize) throws {
-        for preset in HomerunAtBatLayout.CameraPreset.allCases {
-            let camera = preset.camera
-            let aspect = Double(screen.width / screen.height)
-            for zone in 0..<9 {
-                let plan = HomerunSwingPlan(phase: .pitching, clock: clock(zone: zone), lastBall: nil)
-                let ball = try #require(plan.ballPosition(at: arrival, camera: camera, screen: screen))
-                let p = camera.screenPoint(of: ball, aspect: aspect)
-                let target = HomerunZoneGeometry.ballPoint(zone: zone)
-                let dx = p.x * Double(screen.width) - (Double(screen.width) / 2 + Double(target.x))
-                let dy = p.y * Double(screen.height) - (Double(screen.height) * HomerunAtBatLayout.zoneScreenFraction + Double(target.y))
-                #expect(abs(dx) < 0.5 && abs(dy) < 0.5, "\(preset) zone \(zone) \(screen): 的からのずれ (\(dx), \(dy)) pt")
-                // 奥行きは打点（の上）のまま: バットとの同期（投球の速さ・当たる瞬間の時刻）は変えない。
-                let column = HomerunSwingContact.column(zone: zone)
-                #expect(abs(ball.z - HomerunSwingContact.approachTarget(column: column).z) < 1e-4)
-                // 球は手前のバッティングマシンの口から出る。
-                #expect(simd_distance(try #require(plan.ballPosition(at: t0, camera: camera, screen: screen)),
-                                      HomerunBallFlight.releasePoint) < 1e-4)
-            }
+        let camera = HomerunAtBatLayout.camera
+        let aspect = Double(screen.width / screen.height)
+        for zone in 0..<9 {
+            let plan = HomerunSwingPlan(phase: .pitching, clock: clock(zone: zone), lastBall: nil)
+            let ball = try #require(plan.ballPosition(at: arrival, camera: camera, screen: screen))
+            let p = camera.screenPoint(of: ball, aspect: aspect)
+            let target = HomerunZoneGeometry.ballPoint(zone: zone)
+            let dx = p.x * Double(screen.width) - (Double(screen.width) / 2 + Double(target.x))
+            let dy = p.y * Double(screen.height) - (Double(screen.height) * HomerunAtBatLayout.zoneScreenFraction + Double(target.y))
+            #expect(abs(dx) < 0.5 && abs(dy) < 0.5, "zone \(zone) \(screen): 的からのずれ (\(dx), \(dy)) pt")
+            // 奥行きは打点（の上）のまま: バットとの同期（投球の速さ・当たる瞬間の時刻）は変えない。
+            let column = HomerunSwingContact.column(zone: zone)
+            #expect(abs(ball.z - HomerunSwingContact.approachTarget(column: column).z) < 1e-4)
+            // 球は手前のバッティングマシンの口から出る。
+            #expect(simd_distance(try #require(plan.ballPosition(at: t0, camera: camera, screen: screen)),
+                                  HomerunBallFlight.releasePoint) < 1e-4)
         }
     }
 
     // #1655 会長 QA（2026-10-01）: 見送り・空振りの球が捕手の後ろへ突き抜けて見えた。的に着いた後は同じ速さで滑らかに
-    // ミットへ曲がって入り、`mittHold` だけ止まって消える（前・後ろのカメラ・全ゾーン）。
+    // ミットへ曲がって入り、`mittHold` だけ止まって消える（全ゾーン）。
     @Test("見送り・空振りの球は的に着いた後、捕手のミットへ滑らかに入って止まり、少し後に消える（突き抜けない・#1655）")
     func takenBallEndsInMitt() throws {
         let screen = CGSize(width: 402, height: 874)
         let scale = HomerunAtBatLayout.catcherScale
-        for preset in HomerunAtBatLayout.CameraPreset.allCases {
-            let camera = preset.camera
-            let mitt = HomerunBallFlight.mittPoint(for: camera)
-            // ミットの点は捕手の茶のミット（局所 (1.55, 1.7, 1.55)・半径 0.62）の前面にある。
-            let glove = HomerunAtBatLayout.worldPoint(SIMD3<Float>(1.55, 1.7, 1.55) * scale, of: HomerunAtBatLayout.catcher, for: camera)
-            #expect(simd_distance(mitt, glove) < 0.62 * scale && mitt.z > glove.z, "\(preset): ミット \(mitt)・グラブ \(glove)")
-            for zone in 0..<9 {
-                let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: zone), lastBall: HomerunJudge.judge(nil))
-                let target = try #require(plan.ballPosition(at: arrival, camera: camera, screen: screen))
-                let reach = HomerunBallFlight.mittReach(target: target, mitt: mitt, travel: travel)
-                #expect(reach > 0.05 && reach < 0.3, "\(preset) zone \(zone): ミットまで \(reach) 秒")
-                // 着いてからミットまで: 1/120 秒ごとの動きが投球の速さの 1.5 倍を超えない（飛ばない）・ミットより奥へ行かない。
-                let speed = simd_distance(HomerunBallFlight.releasePoint, target) / Float(travel)
-                var last = target
-                for i in 1...Int(reach * 120) + 2 {
-                    let p = try #require(plan.ballPosition(at: arrival.addingTimeInterval(Double(i) / 120), camera: camera, screen: screen))
-                    #expect(simd_distance(p, last) <= speed * 1.5 / 120, "\(preset) zone \(zone) \(i): 跳んだ")
-                    #expect(p.z >= mitt.z - 1e-4, "\(preset) zone \(zone): ミットの奥へ抜けた \(p)")
-                    last = p
-                }
-                let held = try #require(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold / 2),
-                                                          camera: camera, screen: screen))
-                #expect(simd_distance(held, mitt) < 1e-5, "ミットで止まる")
-                #expect(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold + 0.01),
-                                          camera: camera, screen: screen) == nil, "止まった後に消える")
+        let camera = HomerunAtBatLayout.camera
+        let mitt = HomerunBallFlight.mittPoint(for: camera)
+        // ミットの点は捕手の茶のミット（局所 (1.55, 1.7, 1.55)・半径 0.62）の前面にある。
+        let glove = HomerunAtBatLayout.worldPoint(SIMD3<Float>(1.55, 1.7, 1.55) * scale, of: HomerunAtBatLayout.catcher, for: camera)
+        #expect(simd_distance(mitt, glove) < 0.62 * scale && mitt.z > glove.z, "ミット \(mitt)・グラブ \(glove)")
+        for zone in 0..<9 {
+            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: zone), lastBall: HomerunJudge.judge(nil))
+            let target = try #require(plan.ballPosition(at: arrival, camera: camera, screen: screen))
+            let reach = HomerunBallFlight.mittReach(target: target, mitt: mitt, travel: travel)
+            #expect(reach > 0.05 && reach < 0.3, "zone \(zone): ミットまで \(reach) 秒")
+            // 着いてからミットまで: 1/120 秒ごとの動きが投球の速さの 1.5 倍を超えない（飛ばない）・ミットより奥へ行かない。
+            let speed = simd_distance(HomerunBallFlight.releasePoint, target) / Float(travel)
+            var last = target
+            for i in 1...Int(reach * 120) + 2 {
+                let p = try #require(plan.ballPosition(at: arrival.addingTimeInterval(Double(i) / 120), camera: camera, screen: screen))
+                #expect(simd_distance(p, last) <= speed * 1.5 / 120, "zone \(zone) \(i): 跳んだ")
+                #expect(p.z >= mitt.z - 1e-4, "zone \(zone): ミットの奥へ抜けた \(p)")
+                last = p
             }
+            let held = try #require(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold / 2),
+                                                      camera: camera, screen: screen))
+            #expect(simd_distance(held, mitt) < 1e-5, "ミットで止まる")
+            #expect(plan.ballPosition(at: arrival.addingTimeInterval(reach + HomerunBallFlight.mittHold + 0.01),
+                                      camera: camera, screen: screen) == nil, "止まった後に消える")
         }
     }
 
@@ -326,33 +322,31 @@ struct HomerunSwingContactTests {
         #expect(abs(simd_length(q.vector) - 1) < 1e-5)
     }
 
-    @Test("以前（打点の上へ着く球）は的と縦に大きくずれて映っていた（iPhone 17・前のカメラの上下の行・後ろのカメラの真ん中の行・#1647）")
+    @Test("以前（打点の上へ着く球）は的と縦に大きくずれて映っていた（iPhone 17・打席のカメラの上下の行・#1647）")
     func legacyApproachWasMisaligned() {
         let screen = CGSize(width: 402, height: 874)
-        func verticalGap(_ preset: HomerunAtBatLayout.CameraPreset, zone: Int) -> Double {
+        func verticalGap(zone: Int) -> Double {
             let a = HomerunSwingContact.approachTarget(column: HomerunSwingContact.column(zone: zone))
-            let y = preset.camera.screenPoint(of: a, aspect: Double(screen.width / screen.height)).y * Double(screen.height)
+            let y = HomerunAtBatLayout.camera.screenPoint(of: a, aspect: Double(screen.width / screen.height)).y * Double(screen.height)
             return y - (Double(screen.height) * HomerunAtBatLayout.zoneScreenFraction + Double(HomerunZoneGeometry.ballPoint(zone: zone).y))
         }
-        #expect(verticalGap(.front, zone: 1) > 25, "前・上の行: 球が的より下")
-        #expect(verticalGap(.front, zone: 7) < -25, "前・下の行: 球が的より上")
-        #expect(verticalGap(.back, zone: 4) < -20, "後ろ・真ん中: 球が的より上")
+        #expect(verticalGap(zone: 1) > 25, "上の行: 球が的より下")
+        #expect(verticalGap(zone: 7) < -25, "下の行: 球が的より上")
     }
 
     @Test("的に合わせた球でも、当たればバットが打点に来る時刻に打点（バットの上面）へ着く（#1647）")
     func alignedBallStillMeetsBat() throws {
         let screen = CGSize(width: 402, height: 874)
         let hit = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY))
-        for preset in HomerunAtBatLayout.CameraPreset.allCases {
-            for zone in [0, 4, 8] {
-                let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: zone, pressedAt: t0, releasedAt: arrival, offset: 0),
-                                            lastBall: hit)
-                let column = HomerunSwingContact.column(zone: zone)
-                let hitAt = HomerunSwingContact.contactShownTime(release: arrival, offsetMilliseconds: 0, column: column)
-                let ball = try #require(plan.ballPosition(at: hitAt, camera: preset.camera, screen: screen))
-                #expect(simd_distance(ball, HomerunSwingContact.contactPoint(column: column, offsetMilliseconds: 0)) < 1e-3,
-                        "\(preset) zone \(zone)")
-            }
+        let camera = HomerunAtBatLayout.camera
+        for zone in [0, 4, 8] {
+            let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(zone: zone, pressedAt: t0, releasedAt: arrival, offset: 0),
+                                        lastBall: hit)
+            let column = HomerunSwingContact.column(zone: zone)
+            let hitAt = HomerunSwingContact.contactShownTime(release: arrival, offsetMilliseconds: 0, column: column)
+            let ball = try #require(plan.ballPosition(at: hitAt, camera: camera, screen: screen))
+            #expect(simd_distance(ball, HomerunSwingContact.contactPoint(column: column, offsetMilliseconds: 0)) < 1e-3,
+                    "zone \(zone)")
         }
     }
 
@@ -406,21 +400,25 @@ struct HomerunSwingContactTests {
 
     // #1594 会長 QA（2026-09-30）: 前のカメラで引っ張った打球が打者と逆の側（ライト）へ飛んで見えた。描画のとおり
     // （`renderPose` のカメラ・反転なし・球は `placeBall` と同じく反転するカメラで x を鏡映）に画面へ投影し、
-    // どちらのカメラでも「引っ張り（判定の負 = レフト）は画面の上で打者の立つ側へ、流しは反対側へ」動くことを固定する。
-    @Test("打席の 3D の打球: 引っ張りは打者の立つ側（三塁側）へ・流しは反対側へ、前・後ろどちらのカメラの画面でも飛ぶ")
+    // 打席のカメラでも、鏡映の仕組み（`Camera.mirrored`・`pullSideX`）で反転するカメラでも「引っ張り（判定の負 = レフト）は
+    // 画面の上で打者の立つ側へ、流しは反対側へ」動くことを固定する。
+    @Test("打席の 3D の打球: 引っ張りは打者の立つ側（三塁側）へ・流しは反対側へ、打席のカメラ・反転するカメラ（鏡映の仕組み）の画面で飛ぶ")
     func battedBallGoesToTheJudgedFieldOnScreen() {
         typealias L = HomerunAtBatLayout
         let pull = HomerunJudge.judge(HomerunSwing(timingOffset: -60, cursorDX: -11, cursorDY: 4))
         let push = HomerunJudge.judge(HomerunSwing(timingOffset: 60, cursorDX: 11, cursorDY: 4))
         #expect(pull.direction < -20 && push.direction > 20 && pull.kind != .foul && push.kind != .foul)
-        for preset in L.CameraPreset.allCases {
-            let cam = preset.camera
+        // 反転するカメラは鏡映の仕組みのテスト用に手で作る（本塁の後ろ・三塁側から見下ろす。打席のカメラは反転しない）。
+        let mirrored = L.Camera.aimed(from: [-0.5, 2.6, -5.5], at: L.zoneWorldCenter, yFraction: L.zoneScreenFraction,
+                                      verticalFieldOfView: 50, mirrored: true)
+        for (preset, cam) in [("打席のカメラ", L.camera), ("反転するカメラ", mirrored)] {
             let pose = cam.renderPose
             let render = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
             func place(_ p: SIMD3<Float>) -> SIMD3<Float> { L.castMirrored(for: cam) ? [-p.x, p.y, p.z] : p }
             let batterX = render.screenPoint(of: L.batter.position, aspect: 0.46).x
-            // 右打者は前では画面の右、後ろでは画面の左（どちらも描画の世界では +x = 三塁側に立つ）。
-            #expect(preset == .front ? batterX > 0.5 : batterX < 0.5, "\(preset): 打者 \(batterX)")
+            // 右打者は打席のカメラ（センター側から見る）では画面の右、本塁の後ろから見る反転するカメラでは画面の左
+            // （どちらも描画の世界では +x = 三塁側に立つ）。
+            #expect(cam.mirrored ? batterX < 0.5 : batterX > 0.5, "\(preset): 打者 \(batterX)")
             for (ball, offset) in [(pull, -60.0), (push, 60.0)] {
                 let release = arrival.addingTimeInterval(offset / 1000)
                 let plan = HomerunSwingPlan(phase: .ballResult, clock: clock(pressedAt: t0, releasedAt: release, offset: offset), lastBall: ball)

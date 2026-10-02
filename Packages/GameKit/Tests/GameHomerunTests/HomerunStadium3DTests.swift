@@ -463,23 +463,22 @@ struct HomerunStadium3DTests {
         #expect(L.zoneScreenFraction + 0.2 < 2.0 / 3, "ゾーンの下端が押せる帯（下 1/3）に食い込む")
     }
 
-    @Test("カメラ（前・後ろ）はどちらもストライクゾーンの中心を画面の横の中央・高さ 45% に映し、打者の頭と足元・振り抜いたバットが画面に収まる",
-          arguments: HomerunAtBatLayout.CameraPreset.allCases)
-    func presetsKeepZoneWhereTheHUDIs(preset: HomerunAtBatLayout.CameraPreset) {
+    @Test("打席のカメラはストライクゾーンの中心を画面の横の中央・高さ 45% に映し、打者の頭と足元・振り抜いたバットが画面に収まる")
+    func cameraKeepsZoneWhereTheHUDIs() {
         typealias L = HomerunAtBatLayout
-        let cam = preset.camera
+        let cam = L.camera
         for aspect in [9.0 / 19.5, 9.0 / 16.0] {
             let zone = cam.screenPoint(of: L.zoneWorldCenter, aspect: aspect)
-            #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005, "\(preset): ゾーンが (\(zone.x), \(zone.y))")
+            #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005, "ゾーンが (\(zone.x), \(zone.y))")
             let head = cam.screenPoint(of: L.worldPoint([0, 1.75, 0], of: L.batter, for: cam), aspect: aspect)
             let feet = cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect)
-            #expect(head.y > 0.05 && feet.y < 0.95 && head.x > 0.05 && head.x < 0.95, "\(preset): 打者が画面の外（頭 \(head)・足元 \(feet)）")
+            #expect(head.y > 0.05 && feet.y < 0.95 && head.x > 0.05 && head.x < 0.95, "打者が画面の外（頭 \(head)・足元 \(feet)）")
             // 振り抜いたバット（USDZ から測った軌跡の全コマ）も SE（9:16）・Pro Max（9:19.5）の画面の中。
             for t in stride(from: 0.0, through: HomerunBatPath.duration, by: 1.0 / 30) {
                 let s = HomerunBatPath.segment(atClipTime: t)
                 for local in [s.grip, s.tip] {
                     let p = cam.screenPoint(of: L.worldPoint(local, of: L.batter, for: cam), aspect: aspect)
-                    #expect(p.x > 0.02 && p.x < 0.98 && p.y > 0.05 && p.y < 0.95, "\(preset): \(HomerunBatPath.frame(atClipTime: t)) コマ目のバットが画面の外 \(p)")
+                    #expect(p.x > 0.02 && p.x < 0.98 && p.y > 0.05 && p.y < 0.95, "\(HomerunBatPath.frame(atClipTime: t)) コマ目のバットが画面の外 \(p)")
                 }
             }
             // 投手（マウンドの上）が画面に入る制約は外した: 投手は廃止してバッティングマシンに置き換える予定（会長決裁 2026-09-29）。
@@ -488,15 +487,15 @@ struct HomerunStadium3DTests {
         #expect(simd_length(cam.target - cam.position) > 5)
     }
 
-    // 会長指示「おじさん遠すぎ」（2026-09-29）: 前・後ろとも打者の背丈が画面の高さの 30% 以上。
-    @Test("カメラ（前・後ろ）は打者の背丈（足元〜頭 1.72m）を画面の高さの 30% 以上に映す", arguments: HomerunAtBatLayout.CameraPreset.allCases)
-    func presetsShowTheBatterLarge(preset: HomerunAtBatLayout.CameraPreset) {
+    // 会長指示「おじさん遠すぎ」（2026-09-29）: 打者の背丈が画面の高さの 30% 以上。
+    @Test("打席のカメラは打者の背丈（足元〜頭 1.72m）を画面の高さの 30% 以上に映す")
+    func cameraShowsTheBatterLarge() {
         typealias L = HomerunAtBatLayout
-        let cam = preset.camera
+        let cam = L.camera
         for aspect in [9.0 / 19.5, 9.0 / 16.0] {
             let height = cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect).y
                 - cam.screenPoint(of: L.worldPoint([0, 1.72, 0], of: L.batter, for: cam), aspect: aspect).y
-            #expect(height >= 0.30, "\(preset): 打者の背丈が画面の \(height)")
+            #expect(height >= 0.30, "打者の背丈が画面の \(height)")
         }
     }
 
@@ -511,49 +510,33 @@ struct HomerunStadium3DTests {
         }
     }
 
-    @Test("後ろのカメラは打者を検討時の案 B（14m 後ろ・高さ 7m・54°）より 2 倍以上大きく、本塁を画面のより下（手前）に映す")
-    func backCameraBringsTheBoxCloser() {
+    @Test("打席のカメラは左右反転せず（HUD の右 = 一塁側に合う）、右打者は画面の右に映る")
+    func atBatCameraIsNotMirrored() {
         typealias L = HomerunAtBatLayout
-        let caseB = L.Camera.aimed(from: [0.5, 7, -14], at: L.zoneWorldCenter, yFraction: L.zoneScreenFraction,
-                                   verticalFieldOfView: 54, mirrored: true)
-        let back = L.CameraPreset.back.camera
-        for aspect in [9.0 / 19.5, 9.0 / 16.0] {
-            func height(_ cam: L.Camera) -> Double {
-                cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect).y
-                    - cam.screenPoint(of: L.worldPoint([0, 1.75, 0], of: L.batter, for: cam), aspect: aspect).y
-            }
-            #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
-            #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
-            // 本塁の真後ろの捕手の頭（ヘルメットの上）は、ゾーン（2D・SE の高さ 667pt で測る）の下の外に映り、ゾーンを塞がない。
-            let zoneBottom = L.zoneScreenFraction + Double(HomerunZoneGeometry.zoneSize) / 2 / 667
-            let head = L.worldPoint([0, 4.3 * L.catcherScale, 0], of: L.catcher, for: back)
-            #expect(back.screenPoint(of: head, aspect: aspect).y > zoneBottom, "捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
-        }
-    }
-
-    @Test("後ろのカメラだけ左右反転し（HUD の右 = 一塁側に合う）、右打者は前では画面の右・後ろでは画面の左に映る")
-    func rearPresetsAreMirrored() {
-        typealias L = HomerunAtBatLayout
-        #expect(!L.CameraPreset.front.camera.mirrored && L.CameraPreset.back.camera.mirrored)
-        for preset in L.CameraPreset.allCases {
-            let cam = preset.camera
-            let batter = cam.screenPoint(of: L.worldPoint([0, 1, 0], of: L.batter, for: cam), aspect: 0.5)
-            let firstBase = cam.screenPoint(of: [19.4, 0, 19.4], aspect: 0.5)
-            // 右打者は前（センター側から見る）では画面の右、後ろ（本塁の後ろから見る）では画面の左に立つのが本来の見え方。
-            #expect(preset == .front ? batter.x > 0.5 : batter.x < 0.5, "\(preset): 打者が \(batter.x)")
-            #expect(firstBase.x > 0.5, "\(preset): 一塁側（+x）が画面の左に映り、方向メーターの右と食い違う")
-        }
-        // 反転は x だけ（y はそのまま）。
-        var cam = L.CameraPreset.front.camera
-        let before = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
-        cam.mirrored = true
-        let after = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
+        let cam = L.camera
+        #expect(!cam.mirrored && !L.castMirrored(for: cam))
+        let batter = cam.screenPoint(of: L.worldPoint([0, 1, 0], of: L.batter, for: cam), aspect: 0.5)
+        let firstBase = cam.screenPoint(of: [19.4, 0, 19.4], aspect: 0.5)
+        #expect(batter.x > 0.5, "打者が \(batter.x)")
+        #expect(firstBase.x > 0.5, "一塁側（+x）が画面の左に映り、方向メーターの右と食い違う")
+        // 反転（`Camera.mirrored`）は x だけ（y はそのまま）。
+        var mirrored = cam
+        let before = mirrored.screenPoint(of: [3, 1, 0], aspect: 0.5)
+        mirrored.mirrored = true
+        let after = mirrored.screenPoint(of: [3, 1, 0], aspect: 0.5)
         #expect(abs(before.x + after.x - 1) < 1e-9 && before.y == after.y)
     }
 
-    // 後ろのカメラは描画を左右反転するので、人物を鏡映しないと右打ちの Meshy の打者が左打ちに見える。
-    // 画面に映った打者の「胸・上・左肩」の 3 本の向きの掌性（行列式の符号）が前と後ろで同じ = 同じ右打ちに見えること。
-    @Test("後ろのカメラでも打者は前と同じ右打ちに見える（左右反転の描画を人物の鏡映で打ち消す）")
+    /// 鏡映の仕組み（`Camera.mirrored`・`castMirrored`・`renderPose`）を確かめる、本塁の後ろ・三塁側から見下ろす反転するカメラ
+    /// （打席のカメラは反転しない。仕組みのテスト用に手で作る）。
+    static var mirroredCamera: HomerunAtBatLayout.Camera {
+        .aimed(from: [-0.5, 2.6, -5.5], at: HomerunAtBatLayout.zoneWorldCenter, yFraction: HomerunAtBatLayout.zoneScreenFraction,
+               verticalFieldOfView: 50, mirrored: true)
+    }
+
+    // 本塁の後ろから見る反転するカメラは描画を左右反転するので、人物を鏡映しないと右打ちの Meshy の打者が左打ちに見える。
+    // 画面に映った打者の「胸・上・左肩」の 3 本の向きの掌性（行列式の符号）が打席のカメラと同じ = 同じ右打ちに見えること。
+    @Test("反転するカメラ（鏡映の仕組み）でも打者は打席のカメラと同じ右打ちに見える（左右反転の描画を人物の鏡映で打ち消す）")
     func batterKeepsHandednessOnScreen() {
         typealias L = HomerunAtBatLayout
         func handedness(_ cam: L.Camera) -> Float {
@@ -568,18 +551,19 @@ struct HomerunStadium3DTests {
             let chest = onScreen([0, 1, 1]), leftShoulder = onScreen([1, 1, 0]), head = onScreen([0, 2, 0])
             return simd_dot(chest, simd_cross(head, leftShoulder))
         }
-        let front = handedness(L.CameraPreset.front.camera), back = handedness(L.CameraPreset.back.camera)
-        #expect(abs(front) > 0.5 && front * back > 0, "前 \(front)・後ろ \(back) で掌性が逆（後ろで左打ちに見える）")
-        #expect(!L.castMirrored(for: L.CameraPreset.front.camera) && L.castMirrored(for: L.CameraPreset.back.camera))
+        let front = handedness(L.camera), mirrored = handedness(Self.mirroredCamera)
+        #expect(abs(front) > 0.5 && front * mirrored > 0, "打席のカメラ \(front)・反転するカメラ \(mirrored) で掌性が逆（左打ちに見える）")
+        #expect(!L.castMirrored(for: L.camera) && L.castMirrored(for: Self.mirroredCamera))
     }
 
     // 描画は反転（UIView の scaleX -1）と人物の鏡映の代わりに、カメラを x について鏡映して反転なしで描く
     // （人物を鏡映すると三角形の表裏が逆になり、iOS 17 では輪郭線が体を覆って真っ黒になった）。同じ画になること。
-    @Test("後ろのカメラの描画（鏡映したカメラ・反転なし）は、人物を鏡映して反転した投影（screenPoint）と同じ画になる",
-          arguments: HomerunAtBatLayout.CameraPreset.allCases)
-    func renderPoseMatchesMirroredProjection(preset: HomerunAtBatLayout.CameraPreset) {
+    @Test("反転するカメラの描画（鏡映したカメラ・反転なし）は、人物を鏡映して反転した投影（screenPoint）と同じ画になる（打席のカメラはそのまま）",
+          arguments: [false, true])
+    func renderPoseMatchesMirroredProjection(mirrored: Bool) {
         typealias L = HomerunAtBatLayout
-        let cam = preset.camera
+        let cam = mirrored ? Self.mirroredCamera : L.camera
+        let preset = mirrored ? "反転するカメラ" : "打席のカメラ"
         let pose = cam.renderPose
         let rendered = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
         for p in [L.batter, L.catcher, L.machine] {
@@ -596,14 +580,11 @@ struct HomerunStadium3DTests {
         #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005)
     }
 
-    @Test("前のカメラはセンター側 28m・高さ 4.5m・望遠 9.6°（43m・6m から寄せた・会長指示 2026-09-29）。後ろは 5.5m 後ろ・高さ 2.6m・50°")
-    func presetNumbers() {
-        #expect(HomerunAtBatLayout.CameraPreset.allCases == [.front, .back], "選べるのは前・後ろの 2 つだけ")
-        let front = HomerunAtBatLayout.CameraPreset.front.camera
+    @Test("打席のカメラはセンター側 28m・高さ 4.5m・望遠 9.6°（43m・6m から寄せた・会長指示 2026-09-29）")
+    func cameraNumbers() {
+        let front = HomerunAtBatLayout.camera
         #expect(front.position == [0, 4.5, 28] && front.verticalFieldOfView == 9.6 && !front.mirrored)
         #expect(HomerunAtBatLayout.cameraPosition == front.position && HomerunAtBatLayout.verticalFieldOfView == 9.6)
-        let back = HomerunAtBatLayout.CameraPreset.back.camera
-        #expect(back.position == [-0.5, 2.6, -5.5] && back.verticalFieldOfView == 50 && back.mirrored)
     }
 }
 
@@ -629,46 +610,20 @@ struct HomerunBatterPoseTests {
     }
 }
 
-// 会長 QA 2026-09-30「後ろのカメラのとき、おじさんがベースに近すぎる」。構えの間だけ外へ離して見せ、踏み込みで本来の位置へ寄る。
-@Suite("柵越えおじさんの後ろのカメラの打者の立ち位置")
-struct HomerunBackStanceSlideTests {
+// 構えの間だけ外・捕手側へ離して見せ、踏み込みで本来の位置へ寄る（#1619・#1667）。
+@Suite("柵越えおじさんの構えの打者の立ち位置")
+struct HomerunStanceSlideTests {
     typealias L = HomerunAtBatLayout
     private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
-    @Test("前のカメラも後ろと同じだけずらす（構えのつま先がボックスの線を越えないように・#1667）")
-    func frontSlidesLikeBack() {
-        let front = L.CameraPreset.front.camera, back = L.CameraPreset.back.camera
-        for motion in [HomerunBatterMotion.stance, .load(start: t0), .swing(start: t0)] {
-            #expect(L.batterSlideTarget(motion, camera: front, now: t0.addingTimeInterval(0.3))
-                    == L.batterSlideTarget(motion, camera: back, now: t0.addingTimeInterval(0.3)))
-        }
-    }
-
-    @Test("後ろのカメラは構えで外へ 0.25m、踏み込みの間に 0 へ寄り、振りの間はずれを変えない")
-    func backSlidesDuringLoad() {
-        let back = L.CameraPreset.back.camera
-        #expect(L.batterSlideTarget(.stance, camera: back, now: t0) == L.backStanceSlide)
-        #expect(L.batterSlideTarget(.load(start: t0), camera: back, now: t0) == L.backStanceSlide)
-        let half = L.batterSlideTarget(.load(start: t0), camera: back, now: t0.addingTimeInterval(HomerunBatterMotion.loadDuration / 2))
-        #expect(abs((half ?? -1) - L.backStanceSlide / 2) < 1e-4)
-        #expect(L.batterSlideTarget(.load(start: t0), camera: back, now: t0.addingTimeInterval(HomerunBatterMotion.loadDuration)) == 0)
-        #expect(L.batterSlideTarget(.swing(start: t0), camera: back, now: t0) == nil)
-    }
-
-    @Test("構えで外へ離すと、後ろから見て体の本塁側の縁がゾーンから遠ざかる（本来の位置ではゾーンに重なる）")
-    func stanceClearsTheZone() {
-        let back = L.CameraPreset.back.camera
-        let aspect = 9.0 / 19.5
-        // ゾーン（幅 0.36m）の打者側の縁。後ろのカメラでは人物は鏡映して置く扱い（`worldPoint`）なので、打者は -x・縁も -x 側。
-        let zoneEdge = back.screenPoint(of: [-0.18, 0.9, 0], aspect: aspect).x
-        // 打者の体の本塁側の縁（胸の前 0.2m・肩の高さ）。
-        func edge(slide: Float) -> Double {
-            var p = L.batter
-            p.position.x += slide
-            return back.screenPoint(of: L.worldPoint([0, 1.3, 0.2], of: p, for: back), aspect: aspect).x
-        }
-        #expect(edge(slide: 0) > zoneEdge, "本来の位置では体がゾーンに重なる（前提）: \(edge(slide: 0)) / \(zoneEdge)")
-        #expect(edge(slide: L.backStanceSlide) < zoneEdge, "外へ離すと体がゾーンの外に出る: \(edge(slide: L.backStanceSlide)) / \(zoneEdge)")
+    @Test("構えで外へ 0.25m、踏み込みの間に 0 へ寄り、振りの間はずれを変えない")
+    func slidesDuringLoad() {
+        #expect(L.batterSlideTarget(.stance, now: t0) == L.stanceSlide)
+        #expect(L.batterSlideTarget(.load(start: t0), now: t0) == L.stanceSlide)
+        let half = L.batterSlideTarget(.load(start: t0), now: t0.addingTimeInterval(HomerunBatterMotion.loadDuration / 2))
+        #expect(abs((half ?? -1) - L.stanceSlide / 2) < 1e-4)
+        #expect(L.batterSlideTarget(.load(start: t0), now: t0.addingTimeInterval(HomerunBatterMotion.loadDuration)) == 0)
+        #expect(L.batterSlideTarget(.swing(start: t0), now: t0) == nil)
     }
 
     @Test("当たり窓の始まり（輪が重なる 110ms 前）には踏み込みが終わって本来の位置にいる = 打点・判定は変わらない")
@@ -678,15 +633,15 @@ struct HomerunBackStanceSlideTests {
         let plan = HomerunSwingPlan(phase: .pitching, clock: clock, lastBall: nil)
         let windowStart = t0.addingTimeInterval(travel - HomerunTiming.hitWindow / 1000)
         let motion = plan.batterMotion(at: windowStart)
-        #expect((L.batterSlideTarget(motion, camera: L.CameraPreset.back.camera, now: windowStart) ?? 1) < 1e-4)
+        #expect((L.batterSlideTarget(motion, now: windowStart) ?? 1) < 1e-4)
     }
 
-    @Test("後ろのカメラの構えは外へ 0.25m・捕手側へ 0.25m ずらし、ずれ 0（踏み込みの後）では本来の位置（#1619）")
+    @Test("構えは外へ 0.25m・捕手側へ 0.25m ずらし、ずれ 0（踏み込みの後）では本来の位置（#1619）")
     func stanceOffsetMovesOutAndBack() {
-        #expect(L.batterOffset(slide: L.backStanceSlide) == [L.backStanceSlide, 0, -L.backStanceSetBack])
+        #expect(L.batterOffset(slide: L.stanceSlide) == [L.stanceSlide, 0, -L.stanceSetBack])
         #expect(L.batterOffset(slide: 0) == [0, 0, 0])
-        let half = L.batterOffset(slide: L.backStanceSlide / 2)
-        #expect(abs(half.x - L.backStanceSlide / 2) < 1e-6 && abs(half.z + L.backStanceSetBack / 2) < 1e-6, "外と捕手側へ同じ割合で寄る")
+        let half = L.batterOffset(slide: L.stanceSlide / 2)
+        #expect(abs(half.x - L.stanceSlide / 2) < 1e-6 && abs(half.z + L.stanceSetBack / 2) < 1e-6, "外と捕手側へ同じ割合で寄る")
     }
 
     #if canImport(RealityKit)
@@ -729,11 +684,11 @@ struct HomerunBackStanceSlideTests {
         }
     }
 
-    @Test("後ろのカメラの構えでは、両足がバッターボックスの線の内側にあり、本塁の前縁より捕手側にある（#1619）")
+    @Test("構え（ずらし込み）では、両足がバッターボックスの線の内側にあり、本塁の前縁より捕手側にある（#1619）")
     @MainActor
-    func backStanceFeetAreInsideTheBox() throws {
+    func stanceFeetAreInsideTheBox() throws {
         typealias B = HomerunToonModel.BatterBox
-        let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, camera: L.CameraPreset.back.camera, now: t0)))
+        let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, now: t0)))
         for local in try stanceFeet() {
             let w = L.batterWorld(local) + offset
             #expect(w.x > B.innerX + B.line / 2 && w.x < B.outerX - B.line / 2, "足が横の線をはみ出す: x \(w.x)")
@@ -744,20 +699,18 @@ struct HomerunBackStanceSlideTests {
 
     // #1667 会長 QA（2026-10-01）: 骨（Foot・ToeBase）は線の内側でも、靴の皮は本塁側へ 0.1m ほど先に出ていて、
     // 構え・振りの間につま先が内側の線を越えていた。骨ではなく皮の頂点（スキニングを手で計算）で測る。
-    @Test("構え（前・後ろのカメラのずらし込み）では、両足の靴の皮がバッターボックスの線の内側に収まる（#1667）")
+    @Test("構え（ずらし込み）では、両足の靴の皮がバッターボックスの線の内側に収まる（#1667）")
     @MainActor
     func stanceShoesAreInsideTheBox() throws {
         typealias B = HomerunToonModel.BatterBox
         let now = Date()
         let shoes = try skinnedFootVertices(.stance, now: now)
         #expect(shoes.count > 500, "足元の頂点が \(shoes.count) 個しか取れない")
-        for preset in L.CameraPreset.allCases {
-            let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, camera: preset.camera, now: now)))
-            let w = shoes.map { L.batterWorld($0) + offset }
-            let minX = w.map(\.x).min()!, maxX = w.map(\.x).max()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
-            #expect(minX > B.innerX + B.line / 2 && maxX < B.outerX - B.line / 2, "\(preset): 横の線をはみ出す x \(minX)〜\(maxX)")
-            #expect(minZ > B.backZ + B.line / 2 && maxZ < B.frontZ - B.line / 2, "\(preset): 前後の線をはみ出す z \(minZ)〜\(maxZ)")
-        }
+        let offset = L.batterOffset(slide: try #require(L.batterSlideTarget(.stance, now: now)))
+        let w = shoes.map { L.batterWorld($0) + offset }
+        let minX = w.map(\.x).min()!, maxX = w.map(\.x).max()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
+        #expect(minX > B.innerX + B.line / 2 && maxX < B.outerX - B.line / 2, "横の線をはみ出す x \(minX)〜\(maxX)")
+        #expect(minZ > B.backZ + B.line / 2 && maxZ < B.frontZ - B.line / 2, "前後の線をはみ出す z \(minZ)〜\(maxZ)")
     }
 
     // 振りは本来の位置でしか打点が合わない（バットの先端が外の列に 7cm しか余らない・`HomerunSwingContactTests`）ので打者は
@@ -768,11 +721,10 @@ struct HomerunBackStanceSlideTests {
         typealias B = HomerunToonModel.BatterBox
         #expect(abs((B.innerX - B.line / 2) - 0.216) < 0.001, "内側の線の本塁側の縁は本塁の縁")
         let now = Date()
-        let back = L.CameraPreset.back.camera
         var motions: [HomerunBatterMotion] = (0...19).map { .load(start: now.addingTimeInterval(-Double($0) / 30)) }
         motions += (0...24).map { .swing(start: now.addingTimeInterval(-Double($0) / 30)) }
         for motion in motions {
-            let offset = L.batterOffset(slide: L.batterSlideTarget(motion, camera: back, now: now) ?? 0)
+            let offset = L.batterOffset(slide: L.batterSlideTarget(motion, now: now) ?? 0)
             let w = try skinnedFootVertices(motion, now: now).map { L.batterWorld($0) + offset }
             let minX = w.map(\.x).min()!, minZ = w.map(\.z).min()!, maxZ = w.map(\.z).max()!
             #expect(minX > B.innerX - B.line / 2 - 0.07, "\(motion): つま先 x \(minX)")
@@ -841,11 +793,11 @@ struct HomerunBackStanceSlideTests {
         return out
     }
 
-    @Test("前のカメラの構えでは、両足がバッターボックスの前後の線の内側にある（本来の位置のまま・#1619）")
+    @Test("構えを本来の位置に置いても、両足がバッターボックスの前後の線の内側にある（#1619）")
     @MainActor
-    func frontStanceFeetAreInsideTheBoxLengthwise() throws {
+    func unslidStanceFeetAreInsideTheBoxLengthwise() throws {
         typealias B = HomerunToonModel.BatterBox
-        #expect(L.batterSlideTarget(.stance, camera: L.CameraPreset.front.camera, now: t0) == L.backStanceSlide, "前のカメラも構えはずらす（#1667）")
+        #expect(L.batterSlideTarget(.stance, now: t0) == L.stanceSlide, "構えはずらす（#1667）")
         for local in try stanceFeet() {
             let w = L.batterWorld(local)
             #expect(w.z > B.backZ + B.line / 2 && w.z < B.frontZ - B.line / 2, "足が前後の線をはみ出す: z \(w.z)")

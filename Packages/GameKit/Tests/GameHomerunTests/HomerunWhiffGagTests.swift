@@ -221,16 +221,14 @@ struct HomerunWhiffGagTests {
 
     // MARK: 見え方（表）
 
-    @Test("体全体の回転は振り抜きの 26 コマ目から始まり、前 約 1.8 回転・後ろ 約 2.3 回転で止まる。傾きは 7° まで")
+    @Test("体全体の回転は振り抜きの 26 コマ目から始まり、約 1.8 回転で止まる。傾きは 7° まで")
     func spinAndLean() {
-        #expect(HomerunWhiffGag.spinYaw(atClipTime: 25.0 / 30, back: false) == 0)
-        let frontEnd = HomerunWhiffGag.spinYaw(atClipTime: HomerunWhiffGag.clipEnd, back: false)
-        let backEnd = HomerunWhiffGag.spinYaw(atClipTime: HomerunWhiffGag.clipEnd, back: true)
-        #expect(abs(frontEnd / (2 * .pi) - 1.8) < 0.1, "前 \(frontEnd / (2 * .pi)) 回転")
-        #expect(abs(backEnd / (2 * .pi) - 2.3) < 0.1, "後ろ \(backEnd / (2 * .pi)) 回転")
+        #expect(HomerunWhiffGag.spinYaw(atClipTime: 25.0 / 30) == 0)
+        let end = HomerunWhiffGag.spinYaw(atClipTime: HomerunWhiffGag.clipEnd)
+        #expect(abs(end / (2 * .pi) - 1.8) < 0.1, "\(end / (2 * .pi)) 回転")
         // 回り始めは振りの勢い（毎秒 1000° 超）で、止まる手前は遅い（減速）。
         func speed(_ f: Double) -> Float {
-            (HomerunWhiffGag.spinYaw(atClipTime: (f + 0.5 - 1) / 30, back: false) - HomerunWhiffGag.spinYaw(atClipTime: (f - 0.5 - 1) / 30, back: false)) * 30
+            (HomerunWhiffGag.spinYaw(atClipTime: (f + 0.5 - 1) / 30) - HomerunWhiffGag.spinYaw(atClipTime: (f - 0.5 - 1) / 30)) * 30
         }
         #expect(speed(40) > 5, "回っている途中の速さ \(speed(40)) rad/秒")
         #expect(speed(50) > abs(speed(79)), "止まる手前は遅い")
@@ -248,26 +246,23 @@ struct HomerunWhiffGagTests {
         #expect(up.z < -0.1 && abs(up.x) < 1e-4)
     }
 
-    @Test("座りきったとき、顔（目の向き）はいまのカメラの側を向く（前 = 前のカメラ・後ろ = 後ろのカメラ。試作と同じく斜め 40° ほど）")
+    @Test("座りきったとき、顔（目の向き）は打席のカメラの側を向く（試作と同じく斜め 40° ほど）")
     func faceLooksAtTheCamera() {
-        for preset in HomerunAtBatLayout.CameraPreset.allCases {
-            let back = preset == .back
-            let t = HomerunWhiffGag.clipEnd
-            let turn = HomerunWhiffGag.turn(atClipTime: t, back: back)
-            let batterTurn = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
-            var face = SIMD3<Float>.zero
-            for i in 0..<2 { face += batterTurn.act(HomerunWhiffGag.eyePose(atClipTime: t, index: i, turn: turn).rotation.act([0, 0, 1])) }
-            let head = HomerunAtBatLayout.batterWorld(HomerunWhiffGag.place(HomerunWhiffGag.head(atClipTime: t).position, turn: turn))
-            let toCamera = preset.camera.renderPose.position - head
-            let flatFace = simd_normalize(SIMD2(face.x, face.z)), flatCam = simd_normalize(SIMD2(toCamera.x, toCamera.z))
-            #expect(simd_dot(flatFace, flatCam) > 0.65, "\(preset): 顔とカメラの向きの内積 \(simd_dot(flatFace, flatCam)) face \(flatFace) cam \(flatCam)")
-        }
+        let t = HomerunWhiffGag.clipEnd
+        let turn = HomerunWhiffGag.turn(atClipTime: t)
+        let batterTurn = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
+        var face = SIMD3<Float>.zero
+        for i in 0..<2 { face += batterTurn.act(HomerunWhiffGag.eyePose(atClipTime: t, index: i, turn: turn).rotation.act([0, 0, 1])) }
+        let head = HomerunAtBatLayout.batterWorld(HomerunWhiffGag.place(HomerunWhiffGag.head(atClipTime: t).position, turn: turn))
+        let toCamera = HomerunAtBatLayout.camera.renderPose.position - head
+        let flatFace = simd_normalize(SIMD2(face.x, face.z)), flatCam = simd_normalize(SIMD2(toCamera.x, toCamera.z))
+        #expect(simd_dot(flatFace, flatCam) > 0.65, "顔とカメラの向きの内積 \(simd_dot(flatFace, flatCam)) face \(flatFace) cam \(flatCam)")
     }
 
     @Test("座った後は腰が地面近く（0.35m 未満）まで下がり、頭のてっぺんの上に星が回る")
     func seatedPose() {
         let t = HomerunWhiffGag.clipEnd
-        let turn = HomerunWhiffGag.turn(atClipTime: t, back: false)
+        let turn = HomerunWhiffGag.turn(atClipTime: t)
         let head = HomerunWhiffGag.head(atClipTime: t)
         #expect(head.position.y < 0.8, "頭の高さ \(head.position.y)")
         let top = HomerunWhiffGag.place(head.position + head.rotation.act(HomerunWhiffGag.headTop), turn: turn)
@@ -287,25 +282,25 @@ struct HomerunWhiffGagTests {
     @Test("体とバットの影: 振り抜きの頭では振りの影と同じ所、座った後は回転・倒れた体に付いて動く")
     func shadowsFollowTheGag() {
         let origin = HomerunAtBatLayout.batter.position
-        let eye = HomerunAtBatLayout.CameraPreset.front.camera.renderPose.position
+        let eye = HomerunAtBatLayout.camera.renderPose.position
         let t20 = HomerunBatterMotion.loadDuration
         let plain = HomerunFigureShadow.batter(origin: origin, camera: eye)
-        let atStart = HomerunFigureShadow.whiffGagBatter(origin: origin, clipTime: t20, turn: HomerunWhiffGag.turn(atClipTime: t20, back: false), camera: eye)
+        let atStart = HomerunFigureShadow.whiffGagBatter(origin: origin, clipTime: t20, turn: HomerunWhiffGag.turn(atClipTime: t20), camera: eye)
         #expect(simd_distance(plain.center, atStart.center) < 1e-4)
         let t = HomerunWhiffGag.clipEnd
-        let seated = HomerunFigureShadow.whiffGagBatter(origin: origin, clipTime: t, turn: HomerunWhiffGag.turn(atClipTime: t, back: false), camera: eye)
+        let seated = HomerunFigureShadow.whiffGagBatter(origin: origin, clipTime: t, turn: HomerunWhiffGag.turn(atClipTime: t), camera: eye)
         #expect(simd_distance(seated.center, plain.center) > 0.1, "座った体に影が付いて動かない")
         // 座った体の中心（腰・頭・足の平均）の真下。
-        let turn = HomerunWhiffGag.turn(atClipTime: t, back: false)
+        let turn = HomerunWhiffGag.turn(atClipTime: t)
         let head = HomerunWhiffGag.head(atClipTime: t).position
         let headWorld = HomerunAtBatLayout.batterWorld(HomerunWhiffGag.place(head, turn: turn))
         #expect(simd_distance(SIMD2(seated.center.x, seated.center.z), SIMD2(headWorld.x, headWorld.z)) < 0.8)
         // バット: 26 コマ目（回り始め）までは振りの表と同じ。回った後は回転を掛けた所。
         let t25 = 25.0 / 30
-        let a = HomerunFigureShadow.whiffGagBat(clipTime: t25, turn: HomerunWhiffGag.turn(atClipTime: t25, back: false))
+        let a = HomerunFigureShadow.whiffGagBat(clipTime: t25, turn: HomerunWhiffGag.turn(atClipTime: t25))
         let b = HomerunBatPath.segment(atClipTime: t25)
         #expect(simd_distance(a.grip, b.grip) < 1e-4 && simd_distance(a.tip, b.tip) < 1e-4)
-        let late = HomerunFigureShadow.whiffGagBat(clipTime: 60.0 / 30, turn: HomerunWhiffGag.turn(atClipTime: 60.0 / 30, back: false))
+        let late = HomerunFigureShadow.whiffGagBat(clipTime: 60.0 / 30, turn: HomerunWhiffGag.turn(atClipTime: 60.0 / 30))
         let raw = HomerunWhiffGag.bat(atClipTime: 60.0 / 30)
         #expect(simd_distance(late.tip, raw.tip) > 0.05)
         // 表の振りの部分（44 コマ目まで）は振りの表と同じ骨から測った値。
@@ -346,9 +341,9 @@ struct HomerunWhiffGagTests {
         renderer.entities.append(rig.entity)
         // 再生を終えた後も（`controller.time` は頭に戻る）回転は最後のまま（座った後に回転だけ外れて体が飛んだ不具合）。
         for _ in 0..<6 { try renderer.update(0.5) }
-        rig.applyWhiffGag(now: now, back: false, camera: [0, 4.5, 28])
+        rig.applyWhiffGag(now: now, camera: [0, 4.5, 28])
         #expect(abs((rig.whiffGagClipTime ?? 0) - HomerunWhiffGag.clipEnd) < 1e-6)
-        let yaw = HomerunWhiffGag.spinYaw(atClipTime: HomerunWhiffGag.clipEnd, back: false)
+        let yaw = HomerunWhiffGag.spinYaw(atClipTime: HomerunWhiffGag.clipEnd)
         let expected = simd_quatf(angle: yaw, axis: [0, 1, 0])
         #expect(abs(simd_dot(rig.turnOrientation.vector, expected.vector)) > 0.999)
         #expect(rig.overlay?.isEnabled == true)

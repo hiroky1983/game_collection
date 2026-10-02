@@ -122,7 +122,7 @@ struct HomerunLobbyView: View {
         }
         #if os(iOS) && canImport(RealityKit)
         // 打席の 3D を見えない所で先に作っておく（#1695。「打席に立つ」・広告を見てプレイで待たせない）。
-        .onAppear { HomerunAtBatScenePrewarm.schedule(camera: model.atBatCamera) }
+        .onAppear { HomerunAtBatScenePrewarm.schedule() }
         #endif
     }
 
@@ -152,7 +152,7 @@ struct HomerunLobbyView: View {
                     Text("方向メーターを表示").themeBody(14).foregroundStyle(Theme.ink)
                 }
                 .tint(Theme.coral)
-                .accessibilityHint("打席の右上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
+                .accessibilityHint("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
                 // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
                 HowToPlayHint(.homerun, playLog: services.playLog)
             }
