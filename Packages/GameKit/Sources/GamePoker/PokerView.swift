@@ -557,6 +557,7 @@ public struct PokerView: View {
         return HStack(spacing: 6) {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(Theme.yellow)
+                .accessibilityHidden(true)
             Text("役ボーナス \(who) +\(chips)枚")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
@@ -589,6 +590,7 @@ public struct PokerView: View {
                     CardView(card: state.baseCard, faceUp: true)
                     Image(systemName: "arrow.right")
                         .foregroundStyle(Theme.inkSub)
+                        .accessibilityHidden(true)
                     if let drawn = state.drawnCard {
                         CardView(card: drawn, faceUp: true)
                     } else {
@@ -604,6 +606,7 @@ public struct PokerView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.up.right.circle.fill")
                         .foregroundStyle(Theme.yellow)
+                        .accessibilityHidden(true)
                     Text("獲得 \(model.pendingWinnings)枚 をダブルアップに賭けますか？")
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .lineLimit(2)
@@ -697,6 +700,7 @@ public struct PokerView: View {
                 Image(systemName: icon)
                     .font(.system(size: 24))
                     .foregroundStyle(iconColor)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .themeBody(16, weight: .bold, maxScale: 1.5)
