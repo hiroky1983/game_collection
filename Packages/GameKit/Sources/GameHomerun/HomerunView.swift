@@ -163,7 +163,7 @@ struct HomerunLobbyView: View {
 
     private var introCard: some View {
         HStack(spacing: 14) {
-            HomerunOjisan3DView()
+            HomerunOjisanImageView()
                 .frame(width: 96, height: 96)
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: "1 挑戦 = \(HomerunChallenge.pitchCount) 球")
@@ -326,7 +326,7 @@ struct HomerunResultView: View {
         let total = model.challenge?.totalDistance ?? 0
         let homers = model.challenge?.homerCount ?? 0
         return HStack(spacing: 14) {
-            HomerunOjisan3DStillView()
+            HomerunOjisanImageView()
                 .frame(width: 80, height: 80)
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: model.challenge?.isMoonBroken == true
