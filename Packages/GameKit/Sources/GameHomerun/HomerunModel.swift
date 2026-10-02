@@ -112,6 +112,11 @@ public final class HomerunModel {
         didSet { defaults.set(atBatCamera.rawValue, forKey: Self.atBatCameraKey) }
     }
     static let atBatCameraKey = "homerun_atBatCamera_v1"
+    /// 操作の説明（#1763）を見たか。初めて打席に入ったとき 1 球目の前に自動で出し、見たら端末に記録して 2 回目以降は
+    /// 自動では出さない（一時停止の「操作の説明」からはいつでも開ける）。
+    static let tutorialSeenKey = "homerun_tutorialSeen_v1"
+    var hasSeenTutorial: Bool { defaults.bool(forKey: Self.tutorialSeenKey) }
+    func markTutorialSeen() { defaults.set(true, forKey: Self.tutorialSeenKey) }
     /// 進行が変わるたびに進む。View は `.task(id:)` の鍵にする。
     public private(set) var step = 0
     public private(set) var holds: Hold = []
