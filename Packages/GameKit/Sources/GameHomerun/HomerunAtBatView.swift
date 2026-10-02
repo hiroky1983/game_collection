@@ -27,6 +27,12 @@ struct HomerunAtBatView: View {
     /// 一時停止の画面の「遊び方」ボタンが開く（#1617。ヘッダー右上の `?` は打席中は隠すため、
     /// ここから同じシートを開く）。
     @Environment(\.howToPlayTrigger) private var howToPlay
+    /// 操作の説明のページ（nil = 出していない・#1763）。初回は 1 球目の前に自動で出し、一時停止の画面の「操作の説明」からも開く。
+    @State private var tutorialPage: Int?
+    /// 初回の自動表示を済ませたか（この画面の `onAppear` が再び走っても二重に出さない）。
+    @State private var tutorialChecked = false
+    /// 一時停止の画面から開いたか（閉じたら一時停止の画面へ戻る。投球は止めたまま）。
+    @State private var tutorialFromPause = false
 
     /// 離した瞬間から結果のカードへ切り替えるまでの時間（秒）。空振り・見送りは理由を早く読めるよう短く。
     /// 当たり以上は打球を追うカメラで打球が止まるまで待つ（`HomerunSwingPlan.chaseCardAt`・#1613）。ここの値はその時刻が
@@ -128,11 +134,24 @@ struct HomerunAtBatView: View {
                             .padding(.bottom, padHeight + 8)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     }
-                    if model.isPaused {
+                    if model.isPaused, tutorialPage == nil {
                         pausedPanel
+                    }
+                    if tutorialPage != nil {
+                        HomerunTutorialCards(size: size, page: tutorialPageBinding, onFinish: finishTutorial)
+                            .transition(.opacity)
+                            .zIndex(10)
                     }
                 }
             }
+        }
+        // 初めて打席に入ったとき、1 球目の前に操作の説明を出す（表示中は投球を止め、閉じたら 1 球目を始める）。
+        .onAppear {
+            guard !tutorialChecked else { return }
+            tutorialChecked = true
+            guard !model.hasSeenTutorial else { return }
+            model.hold(.sheet, true, now: Date())
+            tutorialPage = 0
         }
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
         .gameAnimation(.easeOut(duration: 0.15), value: model.isPaused)
@@ -215,11 +234,30 @@ struct HomerunAtBatView: View {
                         howToPlay.present()
                     }
                 }
+                GameDeadEndActionButton("操作の説明", systemImage: "hand.draw.fill", tint: Theme.Fill.purple) {
+                    tutorialFromPause = true
+                    withGameAnimation(.easeOut(duration: 0.2)) { tutorialPage = 0 }
+                }
                 GameDeadEndActionButton("途中でやめる", systemImage: "xmark.circle.fill") {
                     confirmsQuit = true
                 }
             }
             .padding(20)
+        }
+    }
+
+    private var tutorialPageBinding: Binding<Int> {
+        Binding(get: { tutorialPage ?? 0 }, set: { tutorialPage = $0 })
+    }
+
+    /// 操作の説明を閉じる。初回なら見たことを記録して止めていた投球を始め、一時停止からなら一時停止の画面へ戻る。
+    private func finishTutorial() {
+        withGameAnimation(.easeOut(duration: 0.2)) { tutorialPage = nil }
+        model.markTutorialSeen()
+        if tutorialFromPause {
+            tutorialFromPause = false
+        } else {
+            model.hold(.sheet, false, now: Date())
         }
     }
 
