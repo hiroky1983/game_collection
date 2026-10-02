@@ -187,8 +187,8 @@ final class HomerunBatterRig {
 
     /// 結果に応じて頭に重ねる記号（#1760）。モデルが決めた値を毎コマの更新で受け取る。振っていない間（構え・踏み込み）は出さない。
     var faceMark: HomerunFaceMark = .none {
-        // 結果が閉じても素振りの段階が続くことがある。前の球の記号を残さない（空振りの演出の間は演出を消さない）。
-        didSet { if faceMark == .none, !isWhiffGag { whiffGagOverlay?.isEnabled = false } }
+        // 結果が閉じても素振りの段階が続くことがある。前の球の記号を残さない（結果の記号から構えの記号に替わった素振り中も同じ）（空振りの演出の間は演出を消さない）。
+        didSet { if !showsFaceMark, !isWhiffGag { whiffGagOverlay?.isEnabled = false } }
     }
 
     /// 記号を毎コマ置くか（回って倒れる演出の間は演出のぐるぐる目・星を優先して置かない）。
