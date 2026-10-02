@@ -3,6 +3,7 @@ import Core
 
 public struct SudokuView: View {
     @State private var model: SudokuModel
+    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     @State private var showNewGame = true
     /// 帯のタイマー（等幅）の文字サイズ。他の帯の文字と同じく文字サイズ設定に追従させる（#1469）。
@@ -98,6 +99,16 @@ public struct SudokuView: View {
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
+        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
+        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
+        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                model.pauseTimer()
+            } else if !hintRescue.isWatching && !continueRescue.isWatching {
+                model.resumeTimerIfNeeded()
+            }
+        }
         // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
         .pausesTimerWhileWatching([hintRescue, continueRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
