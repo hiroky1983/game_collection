@@ -213,8 +213,9 @@ enum HomerunBallFlight {
     static let mittHold: TimeInterval = 0.35
     static let gravity: Float = 9.8
 
-    /// 見送り・空振りの球が収まる点（`camera` の置き方の世界座標・左右反転するカメラでは捕手と同じく x を鏡映した扱い）。
-    /// 以前は投球の線のまま進めて z −1.5 で消していて、捕手のミットを外れたまま後ろへ突き抜けて見えた（会長 QA 2026-10-01・#1655）。
+    /// 見送り・空振りの球が止まる奥行きの基準になる点（`camera` の置き方の世界座標・左右反転するカメラでは捕手と同じく x を鏡映した扱い）。
+    /// 球は投球の線のまま進み、この点の z（捕手のミットの深さ）に届いたところで止まって消える（#1771。ミットへ曲げると吸い込まれる
+    /// 変化球に見えた・会長 QA 2026-10-02）。以前は z −1.5 まで進めて消していて、ミットを外れて後ろへ突き抜けて見えた（#1655）。
     static func mittPoint(for camera: HomerunAtBatLayout.Camera = HomerunAtBatLayout.camera) -> SIMD3<Float> {
         HomerunAtBatLayout.worldPoint(mittPocketLocal * HomerunAtBatLayout.catcherScale, of: HomerunAtBatLayout.catcher, for: camera)
     }
@@ -225,8 +226,8 @@ enum HomerunBallFlight {
     }
 
     /// 投球中の球の位置。的が出る `pitchStart` に打ち出し口を出て、`arrival` に `target`（省略時は `approachTarget`・
-    /// 画面では `HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点）へ着き、その後は同じ速さのまま滑らかに曲がって
-    /// 捕手のミット（`mitt`・省略時は前のカメラの `mittPoint`）へ入り、`mittHold` だけ止まって消える。的が出る前・消えた後は nil。
+    /// 画面では `HomerunAtBatLayout.pitchTarget` = 2D の的に重なる点）へ着き、その後は向きも速さも変えずにまっすぐ進んで
+    /// 捕手のミット（`mitt`・省略時は前のカメラの `mittPoint`）の深さで止まり、`mittHold` だけ見せて消える。的が出る前・消えた後は nil。
     static func pitchPosition(at now: Date, pitchStart: Date, arrival: Date, column: Int,
                               target: SIMD3<Float>? = nil, mitt: SIMD3<Float>? = nil) -> SIMD3<Float>? {
         let travel = arrival.timeIntervalSince(pitchStart)
@@ -238,18 +239,16 @@ enum HomerunBallFlight {
         let mitt = mitt ?? mittPoint()
         let after = now.timeIntervalSince(arrival)
         let reach = mittReach(target: target, mitt: mitt, travel: travel)
-        guard after < reach else { return after < reach + mittHold ? mitt : nil }
-        // 着いた点を投球の向き・速さで出て、同じ向きでミットへ入る 3 次エルミート曲線（折れて見えない）。
-        let s = Float(after / reach)
-        let v = (target - releasePoint) * Float(reach / travel)
-        let s2 = s * s, s3 = s2 * s
-        return target * (2 * s3 - 3 * s2 + 1) + v * (s3 - 2 * s2 + s) + mitt * (3 * s2 - 2 * s3) + v * (s3 - s2)
+        let velocity = (target - releasePoint) / Float(travel)
+        guard after < reach else { return after < reach + mittHold ? target + velocity * Float(reach) : nil }
+        return target + velocity * Float(after)
     }
 
-    /// 投球が的の点 `target` からミット `mitt` へ入るまでの時間（秒）。投球と同じ速さ（`travel` 秒で打ち出し口から `target`）。
+    /// 投球が的の点 `target` からミットの深さ（`mitt` の z）に届くまでの時間（秒）。投球の線のまま同じ速さで進む。
     static func mittReach(target: SIMD3<Float>, mitt: SIMD3<Float>, travel: TimeInterval) -> TimeInterval {
-        let speed = Double(simd_distance(releasePoint, target)) / travel
-        return max(Double(simd_distance(target, mitt)) / speed, 0.01)
+        let vz = Double(target.z - releasePoint.z) / travel
+        guard vz != 0 else { return 0.01 }
+        return max(Double(mitt.z - target.z) / vz, 0.01)
     }
 
     /// 打球の初速（m/s・世界座標）。方向は判定の `direction`（0 = 中堅・負が左 = レフト）、打ち上げ角は帯の中心、
