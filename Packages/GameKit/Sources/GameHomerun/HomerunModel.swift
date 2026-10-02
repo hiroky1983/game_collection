@@ -92,6 +92,8 @@ public final class HomerunModel {
     private(set) var whiffCount = 0
     /// 直前の 1 球の結果に重ねる頭の記号（キラキラ目・怒りマーク・#1760）。結果の間だけ見せる（見せる局面の判断は `HomerunSwingPlan`）。
     private(set) var faceMark: HomerunFaceMark = .none
+    /// 次の球の構えで見せる頭の記号（柵越えを打った次の 1 球だけ・#1762）。その球を打つ・見送ると入れ替わる。
+    private(set) var waitingFaceMark: HomerunFaceMark = .none
     /// 振った空振りの連続回数（怒りマーク用）。当たり・ファウルで 0 に戻り、見送りは数えず戻しもしない。
     private(set) var whiffStreak = 0
     /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
@@ -311,6 +313,7 @@ public final class HomerunModel {
         whiffCount = 0
         whiffStreak = 0
         faceMark = .none
+        waitingFaceMark = .none
         beginPitch(now: now)
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID, credit: credit)
@@ -594,6 +597,7 @@ public final class HomerunModel {
         // 打ち終えた挑戦は記録に残す）。
         if challenge.isFinished { record(challenge) }
         faceMark = .decide(ball: ball, swung: swing != nil, whiffGag: showsWhiffGag, whiffStreak: whiffStreak, isNewBest: isNewBest)
+        waitingFaceMark = .waiting(after: ball, challengeFinished: challenge.isFinished)
         resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball

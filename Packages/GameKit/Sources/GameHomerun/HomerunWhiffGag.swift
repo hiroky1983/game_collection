@@ -130,6 +130,24 @@ enum HomerunWhiffGag {
         return (simd_mix(vector(i0, 8), vector(i1, 8), SIMD3(repeating: a)), simd_slerp(q(i0), q(i1), a))
     }
 
+    /// 構え〜踏み込み（クリップの 0〜19/30 秒 = 1〜20 コマ目）の頭の骨の位置・向き（#1762・`HomerunWhiffGag+PreSwingSamples.swift`）。
+    static func preSwingHead(atClipTime t: TimeInterval) -> (position: SIMD3<Float>, rotation: simd_quatf) {
+        let rows = preSwingHead.count / preSwingHeadRowWidth
+        let position = min(max(frame(atClipTime: t) - 1, 0), Double(rows - 1))
+        let i0 = Int(position), i1 = min(i0 + 1, rows - 1), a = Float(position - Double(i0))
+        func v(_ row: Int, _ column: Int) -> Float { preSwingHead[row * preSwingHeadRowWidth + column] }
+        func p(_ i: Int) -> SIMD3<Float> { [v(i, 0), v(i, 1), v(i, 2)] }
+        func q(_ i: Int) -> simd_quatf { simd_quatf(ix: v(i, 3), iy: v(i, 4), iz: v(i, 5), r: v(i, 6)) }
+        return (simd_mix(p(i0), p(i1), SIMD3(repeating: a)), simd_slerp(q(i0), q(i1), a))
+    }
+
+    /// 構え〜踏み込みの目の飾り `index`（0 = 左・1 = 右）の置き方（打者の局所・+z が顔の外）。
+    static func preSwingEyePose(atClipTime t: TimeInterval, index: Int) -> (position: SIMD3<Float>, rotation: simd_quatf) {
+        let h = preSwingHead(atClipTime: t)
+        let mount = eyeMounts[index]
+        return (h.position + h.rotation.act(mount.position), h.rotation * mount.rotation)
+    }
+
     // MARK: ぐるぐる目・頭上の星
 
     /// 目の飾りの半径（m・白地 + 黒の縁）。縁の外径は `eyeRadius * eyeRimScale`。

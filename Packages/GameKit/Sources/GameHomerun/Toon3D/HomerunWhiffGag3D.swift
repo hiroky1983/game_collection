@@ -95,7 +95,7 @@ final class HomerunWhiffGagOverlay {
         let toCamera = simd_normalize(camera - top)
         let side = simd_normalize(simd_cross(up, toCamera))
         switch mark {
-        case .none:
+        case .none, .waitingSparkle:
             break
         case .sparkle:
             for (i, s) in sparkleEyes.enumerated() {
@@ -122,6 +122,37 @@ final class HomerunWhiffGagOverlay {
             a.scale = SIMD3(repeating: max(grow * HomerunFaceMark.angrySize(back: back) * pulse, 0.0001))
             Self.faceCamera(a, camera: camera)
             a.isEnabled = true
+        }
+    }
+
+    /// 構えのキラキラ目（#1762）: 左右の目の上に星を置く。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は明滅の位相。
+    /// 目の飾りは顔に貼るので後ろのカメラでは顔が見えない。後ろのときだけ、結果のキラキラ目（#1760）と同じ頭の横のきらめきを足す。
+    func applyWaitingEyes(poseClip: TimeInterval, now: Date, back: Bool, camera: SIMD3<Float>) {
+        hideGag()
+        hideMarks()
+        let twinkle = HomerunFaceMark.pulse(since: now.timeIntervalSinceReferenceDate, rate: HomerunFaceMark.waitingTwinkleRate,
+                                            depth: HomerunFaceMark.waitingTwinkleDepth)
+        for (i, s) in sparkleEyes.enumerated() {
+            let pose = HomerunWhiffGag.preSwingEyePose(atClipTime: poseClip, index: i)
+            s.position = pose.position
+            s.orientation = pose.rotation
+            s.scale = SIMD3(repeating: HomerunFaceMark.sparkleEyeRadius * twinkle)
+            s.isEnabled = true
+        }
+        guard back else { return }
+        let head = HomerunWhiffGag.preSwingHead(atClipTime: poseClip)
+        let top = head.position + head.rotation.act(HomerunWhiffGag.headTop)
+        let up = simd_normalize(head.rotation.act(HomerunWhiffGag.headUp))
+        // 頭の位置は打者の局所なので、カメラ（世界）も局所へ直してから横を決める。
+        let side = simd_normalize(simd_cross(up, simd_normalize(entity.convert(position: camera, from: nil) - top)))
+        for (i, s) in sparkles.enumerated() {
+            let sign: Float = i == 0 ? 1 : -1
+            let phase = HomerunFaceMark.pulse(since: now.timeIntervalSinceReferenceDate + (i == 0 ? 0 : 0.5 / HomerunFaceMark.twinkleRate),
+                                              rate: HomerunFaceMark.twinkleRate, depth: HomerunFaceMark.twinkleDepth)
+            s.position = top + side * (sign * HomerunFaceMark.sparkleSide) + up * HomerunFaceMark.sparkleLift * (i == 0 ? 1 : 0.4)
+            s.scale = SIMD3(repeating: HomerunFaceMark.sparkleSize(back: true) * phase * (i == 0 ? 1 : 0.8))
+            Self.faceCamera(s, camera: camera)
+            s.isEnabled = true
         }
     }
 

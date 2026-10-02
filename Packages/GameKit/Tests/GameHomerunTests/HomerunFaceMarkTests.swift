@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import simd
 @testable import HomerunCore
 @testable import GameHomerun
 
@@ -144,5 +145,97 @@ struct HomerunFaceMarkTests {
         #expect(appear > contact, "打点（\(contact) 秒）より後")
         #expect(appear < HomerunBatPath.duration, "振り終わりの前")
         #expect(HomerunFaceMark.appearGrow > 0 && HomerunFaceMark.pulse(since: 0, rate: 3, depth: 0.2) == 1)
+    }
+
+    // MARK: 次の球の構えのキラキラ目（#1762）
+
+    /// ジャストで芯から 2pt 外した柵越え（芯そのものはジャストなら月まで飛ぶ・#1680）。
+    static let homerDY = HomerunLaunch.fly.centerDY + 2
+
+    /// 押す → ボールの中心から (0, dy) へずらす → 輪が重なる時刻 + `offset` 秒で離す。
+    @discardableResult
+    private func swing(_ model: HomerunModel, dy: Double, offset: TimeInterval = 0) throws -> HomerunBattedBall? {
+        let hit = try #require(model.arrival).addingTimeInterval(offset)
+        let start = CGPoint(x: 150, y: 600)
+        model.press(at: start, now: hit.addingTimeInterval(-0.5))
+        let ball = model.ballPoint
+        return model.release(at: CGPoint(x: start.x + ball.x - model.cursor.x, y: start.y + ball.y + dy - model.cursor.y), now: hit)
+    }
+
+    @Test("構えの記号は柵越え（ポール直撃・月を含む）の次の球だけ。挑戦が終わる球の次は出さない")
+    func waitingRule() {
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), challengeFinished: false) == .waitingSparkle)
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .hit), challengeFinished: false) == .waitingSparkle)
+        var moon = ball(.homer, .just)
+        moon.moon = .hit
+        #expect(HomerunFaceMark.waiting(after: moon, challengeFinished: false) == .waitingSparkle, "月まで飛んだ球の次も出す")
+        moon.moon = .broken
+        #expect(HomerunFaceMark.waiting(after: moon, challengeFinished: true) == .none, "月が割れて終わるときは除く")
+        #expect(HomerunFaceMark.waiting(after: ball(.homer, .just), challengeFinished: true) == .none, "10 球目の次は無い")
+        #expect(HomerunFaceMark.waiting(after: ball(.fenceHit, .just), challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: ball(.inPlay, .just), challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: ball(.foul, .just), challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: ball(.miss, .miss), challengeFinished: false) == .none)
+        #expect(HomerunFaceMark.waiting(after: nil, challengeFinished: false) == .none)
+    }
+
+    @Test("柵越えの次の球の構えで出て、その球を見送ると消える。1 挑戦の最初の球・挑戦をまたいでは出さない")
+    func waitingInModel() throws {
+        let model = makeModel()
+        #expect(model.waitingFaceMark == .none, "最初の球")
+        let first = try swing(model, dy: Self.homerDY)
+        #expect(first?.kind == .homer)
+        #expect(model.waitingFaceMark == .waitingSparkle)
+        try next(model)
+        #expect(model.waitingFaceMark == .waitingSparkle, "次の球を待つ間")
+        try take(model)
+        #expect(model.waitingFaceMark == .none, "見送ると消える")
+        try next(model)
+        #expect(model.waitingFaceMark == .none)
+    }
+
+    @Test("柵越えをもう一度打てば次の球でも出る。ふつうの当たりで消える")
+    func waitingRepeatsAndClears() throws {
+        let model = makeModel()
+        try swing(model, dy: Self.homerDY)
+        try next(model)
+        let second = try swing(model, dy: Self.homerDY)
+        #expect(second?.kind == .homer)
+        #expect(model.waitingFaceMark == .waitingSparkle, "また柵越えなら次の球でも")
+        try next(model)
+        try whiff(model)
+        #expect(model.waitingFaceMark == .none, "空振りで消える")
+    }
+
+    @Test("挑戦をやり直すと構えの記号は消える")
+    func waitingResetsOnNewChallenge() throws {
+        let model = makeModel()
+        try swing(model, dy: Self.homerDY)
+        #expect(model.waitingFaceMark == .waitingSparkle)
+        model.pause(now: Self.t0.addingTimeInterval(100))
+        model.quitChallenge()
+        model.start(now: Self.t0.addingTimeInterval(100))
+        #expect(model.waitingFaceMark == .none)
+    }
+
+    @Test("構えの記号は球を待つ間（投球の局面）だけ見せる。結果の間は結果の記号")
+    func waitingShownWhilePitching() {
+        func plan(_ phase: HomerunModel.Phase) -> HomerunSwingPlan {
+            HomerunSwingPlan(phase: phase, clock: nil, lastBall: nil, faceMark: .angry, waitingFaceMark: .waitingSparkle)
+        }
+        #expect(plan(.pitching).faceMark == .waitingSparkle)
+        #expect(plan(.ballResult).faceMark == .angry)
+        #expect(plan(.idle).faceMark == .none && plan(.finished).faceMark == .none)
+    }
+
+    @Test("構え・踏み込みの頭の表は 20 コマ目で振り抜きの表とつながる")
+    func preSwingHeadJoinsSwingTable() {
+        let a = HomerunWhiffGag.preSwingHead(atClipTime: HomerunBatterMotion.loadDuration)
+        let b = HomerunWhiffGag.head(atClipTime: HomerunBatterMotion.loadDuration)
+        #expect(simd_length(a.position - b.position) < 0.001)
+        #expect(abs(simd_dot(a.rotation.vector, b.rotation.vector)) > 0.9999)
+        // 構え（1 コマ目）から 20 コマ目までに頭は動く（表が全部同じ値ではない）。
+        let first = HomerunWhiffGag.preSwingHead(atClipTime: 0)
+        #expect(simd_length(first.position - a.position) > 0.02)
     }
 }

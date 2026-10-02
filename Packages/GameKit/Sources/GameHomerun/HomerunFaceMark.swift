@@ -11,6 +11,8 @@ enum HomerunFaceMark: Equatable, Sendable {
     case sparkle
     /// 怒りマーク: 頭の横に赤い怒りマークを出す。
     case angry
+    /// 柵越えを打った次の球の構え（#1762）: 球を待つ間、目だけを星にする（頭の横のきらめきは出さない）。
+    case waitingSparkle
 
     // MARK: 発生
 
@@ -33,6 +35,12 @@ enum HomerunFaceMark: Equatable, Sendable {
             // ジャストの当たり・柵越え・自己ベスト更新。
             return ball.timing == .just || ball.kind == .homer || isNewBest ? .sparkle : .none
         }
+    }
+
+    /// 柵越え（場外・ポール直撃・月を含む）を打った球の次の球の構えに出す記号（#1762）。次の球を打つ・見送るまでの 1 球だけ。
+    /// 挑戦が終わる球（10 球目・月が割れた球）の次は無いので出さない。
+    static func waiting(after ball: HomerunBattedBall?, challengeFinished: Bool) -> HomerunFaceMark {
+        ball?.kind == .homer && !challengeFinished ? .waitingSparkle : .none
     }
 
     // MARK: 時間
@@ -59,6 +67,10 @@ enum HomerunFaceMark: Equatable, Sendable {
     static let angryLift: Float = 0.2
     static let angryPulseRate: Double = 3
     static let angryPulseDepth: Float = 0.18
+
+    /// 構えのキラキラ目の明滅（回/秒）と振れ幅（割合）。
+    static let waitingTwinkleRate: Double = 2
+    static let waitingTwinkleDepth: Float = 0.12
 
     /// 出始めから `t` 秒後の明滅の係数（1 を中心に ±`depth`）。
     static func pulse(since t: TimeInterval, rate: Double, depth: Float) -> Float {
