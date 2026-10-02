@@ -51,6 +51,9 @@ public struct SpiderView: View {
             // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             board
                 .cardTable(topInset: CardTableStyle.cardTopInset)
+                // クリアは盤に重ねる共通のカードで示す（#1755）。
+                .gameClearCard(isPresented: model.phase == .won,
+                               details: ["\(model.moveCount)手 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea

@@ -435,6 +435,13 @@ public struct RunnerView: View {
             // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは
             // ミスがそのまま決着なので、走行距離と自己ベストの行が加わる。
             panel(title: "ミス！", face: resultFace, faceScale: faceScale) {
+                // 何でミスしたかを 1 行で添える（#1755）。原因はミスの瞬間に判定済み。
+                if let cause = model.field.lastMissCause {
+                    Text(Self.missCauseText(cause))
+                        .themeBody(15, weight: .semibold, maxScale: 1.5)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                }
                 if model.mode == .endless { endlessDetail }
                 if model.canResumeFromCheckpoint { resumeButton }
                 retryButton
@@ -723,6 +730,17 @@ public struct RunnerView: View {
                 content()
             }
             .padding(20)
+        }
+    }
+
+    /// ミスの原因を 1 行にした文（#1755）。
+    static func missCauseText(_ cause: AnalyticsEndCause) -> String {
+        switch cause {
+        case .pit: return "穴に落ちた"
+        case .rock: return "岩にぶつかった"
+        case .bird: return "鳥にぶつかった"
+        case .animal: return "動物にぶつかった"
+        case .sink: return "沈んでしまった"
         }
     }
 
