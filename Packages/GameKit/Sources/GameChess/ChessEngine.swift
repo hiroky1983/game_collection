@@ -213,18 +213,28 @@ public struct SimpleChessEngine: ChessEngine {
         self.init(level: level, seed: nil)
     }
 
-    init(level: Int, seed: UInt64?) {
+    init(level: Int, seed: UInt64?, timeLimit overrideTime: TimeInterval? = nil) {
         let strength = CPUStrength.strength(for: level)
         (usePositional, useQuiescence) = (true, true)
         useBook = strength == .hard
+        let shippedTime: TimeInterval
         switch strength {
-        case .novice: (timeLimit, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (timeLimit, depth, policy) = (0.1, 1, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (timeLimit, depth, policy) = (0.5, 1, Self.policy(Self.normalBestMoveProbability))
-        case .hard:   (timeLimit, depth, policy) = (2.0, Self.maxDepth, .exact)
+        case .novice: (shippedTime, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
+        case .easy:   (shippedTime, depth, policy) = (0.1, 1, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (shippedTime, depth, policy) = (0.5, 1, Self.policy(Self.normalBestMoveProbability))
+        case .hard:   (shippedTime, depth, policy) = (2.0, Self.maxDepth, .exact)
         }
+        self.timeLimit = overrideTime ?? shippedTime   // ヒント用: 考える時間だけ差し替える（#1739）
         self.nodeLimit = nil
         self.seed = seed
+    }
+
+    /// ヒント専用のエンジン（#1739）。「むずかしい」と同じ設定で、考える時間だけ
+    /// `BoardHintBudget.extraThinkingTime` 長い。対局 CPU の「むずかしい」は変えない。
+    static func hint() -> SimpleChessEngine {
+        let base = SimpleChessEngine(level: BoardHintBudget.engineLevel, seed: nil)
+        return SimpleChessEngine(level: BoardHintBudget.engineLevel, seed: nil,
+                  timeLimit: base.timeLimit + BoardHintBudget.extraThinkingTime)
     }
 
     /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。

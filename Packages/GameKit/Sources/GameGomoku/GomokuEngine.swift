@@ -181,6 +181,14 @@ public struct SimpleGomokuEngine: GomokuEngine {
         self.seed = seed
     }
 
+    /// ヒント専用のエンジン（#1739）。「むずかしい」と同じ設定で、考える時間だけ
+    /// `BoardHintBudget.extraThinkingTime` 長い。対局 CPU の「むずかしい」は変えない。
+    static func hint(forbiddenMoves: Bool) -> SimpleGomokuEngine {
+        let base = SimpleGomokuEngine(level: BoardHintBudget.engineLevel, forbiddenMoves: forbiddenMoves, seed: nil)
+        return SimpleGomokuEngine(level: BoardHintBudget.engineLevel, forbiddenMoves: forbiddenMoves, seed: nil,
+                                  timeLimit: base.timeLimit + BoardHintBudget.extraThinkingTime)
+    }
+
     public func bestMove(board: GomokuBoard, stone: GomokuStone) async -> (row: Int, col: Int)? {
         var rng = GomokuRandom(seed: seed)
         // 外すかどうかを先に決める。外す手番だけ、最善から `slipMargin` 以内の手に正確な評価値を付けて読む。

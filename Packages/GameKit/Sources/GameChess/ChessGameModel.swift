@@ -485,7 +485,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
-                await SimpleChessEngine(level: BoardHintBudget.engineLevel).bestMove(fen: fen)
+                await SimpleChessEngine.hint().bestMove(fen: fen)
             }.value
         } commit: { uci in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
@@ -523,7 +523,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let fen = position.toFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleChessEngine(level: BoardHintBudget.engineLevel).bestMove(fen: fen)
+                await SimpleChessEngine.hint().bestMove(fen: fen)
             }.value
         } commit: { uci in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
