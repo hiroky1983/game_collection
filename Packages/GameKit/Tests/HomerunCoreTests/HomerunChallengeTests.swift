@@ -6,7 +6,7 @@ import Foundation
 struct HomerunChallengeTests {
 
     private let perfect = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY)
-    /// 月まで飛ぶ条件（芯の基準点から 1pt 以内・#1680）の外で一番飛ぶ当たり。`perfect` は月になり、2 回目で挑戦が終わる。
+    /// 月まで飛ぶ条件（芯の基準点から 0.5pt 以内・#1680）の外で一番飛ぶ当たり。`perfect` は月になり、2 回目で挑戦が終わる。
     private let top = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY + 1.5)
     private var topTenths: Int { Int((HomerunJudge.judge(top).distance * 10).rounded()) }
 

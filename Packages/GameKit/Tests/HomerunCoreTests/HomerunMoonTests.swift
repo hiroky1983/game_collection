@@ -14,10 +14,10 @@ struct HomerunMoonTests {
 
     // MARK: 発生条件
 
-    @Test("発生条件: タイミング ±50ms 以内 かつ フライの芯の基準点から 1pt 以内（境界は含む）")
+    @Test("発生条件: タイミング ±50ms 以内 かつ フライの芯の基準点から 0.5pt 以内（境界は含む）")
     func conditionBoundaries() {
         #expect(HomerunJudge.moonTimingWindow == 50)
-        #expect(HomerunJudge.moonCursorRadius == 1)
+        #expect(HomerunJudge.moonCursorRadius == 0.5)
         // タイミングの境界。
         #expect(HomerunJudge.isMoonShot(swing(0)))
         #expect(HomerunJudge.isMoonShot(swing(50)))
@@ -25,13 +25,13 @@ struct HomerunMoonTests {
         #expect(!HomerunJudge.isMoonShot(swing(50.1)))
         #expect(!HomerunJudge.isMoonShot(swing(-50.1)))
         // カーソルの境界（縦・横・斜め）。
-        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 1)))
-        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter - 1)))
-        #expect(HomerunJudge.isMoonShot(swing(0, dx: 1)))
-        #expect(!HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 1.01)))
-        #expect(!HomerunJudge.isMoonShot(swing(0, dx: -1.01)))
-        #expect(HomerunJudge.isMoonShot(swing(0, dx: 0.7, dy: flyCenter + 0.7)))
-        #expect(!HomerunJudge.isMoonShot(swing(0, dx: 0.75, dy: flyCenter + 0.75)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 0.5)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter - 0.5)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dx: 0.5)))
+        #expect(!HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 0.51)))
+        #expect(!HomerunJudge.isMoonShot(swing(0, dx: -0.51)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dx: 0.35, dy: flyCenter + 0.35)))
+        #expect(!HomerunJudge.isMoonShot(swing(0, dx: 0.38, dy: flyCenter + 0.38)))
         // 何もずらさずボールの中心を打った（照準の吸い寄せの寄せる先）は月にならない。
         #expect(!HomerunJudge.isMoonShot(swing(0, dy: 0)))
         // 両方そろって初めて月。
@@ -40,7 +40,7 @@ struct HomerunMoonTests {
 
     @Test("1 挑戦の判定: 条件の中は柵越え・180m・月（.hit）。外・見送りはふだんの判定（月にならない）。飛距離の式（judge）は月を持たない")
     func judgeMoonBall() {
-        for s in [swing(0), swing(-50, dx: 1), swing(50, dy: flyCenter - 1)] {
+        for s in [swing(0), swing(-50, dx: 0.5), swing(50, dy: flyCenter - 0.5)] {
             var c = HomerunChallenge()
             let ball = c.swing(s)!
             #expect(HomerunJudge.judge(s).moon == nil)
