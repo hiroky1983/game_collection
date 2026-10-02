@@ -238,6 +238,7 @@ struct GomokuInvalidTapTests {
         #expect(model.lastRejection == nil)
     }
 
+    #if DEBUG   // applyPreviewMidgameForTesting は DEBUG 限定
     /// 撮影用の中盤盤面（#366）は、決着せず人間の手番で止まること。
     /// 決着したり CPU の手番で止まったりすると、撮影中に結果表示や CPU の着手で盤が動く。
     @Test func previewMidgameStopsOnHumanTurnWithoutEnding() {
@@ -252,6 +253,7 @@ struct GomokuInvalidTapTests {
         model.applyPreviewMidgameForTesting()
         #expect(model.moveCount == 10)
     }
+    #endif
 }
 
 /// 新規対局シートの「CPUの強さ」表示が実装と食い違わないこと（#416）。
