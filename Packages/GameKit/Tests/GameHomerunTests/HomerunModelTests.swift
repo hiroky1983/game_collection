@@ -604,6 +604,9 @@ struct HomerunModelTests {
         #expect(model.start(now: Fixture.t0.addingTimeInterval(5)), "続けて次の挑戦に立てる（回数が残っていれば）")
     }
 
+    // 鍵（`debugUnlimitedKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言なので、
+    // 参照するこのテストも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+    #if DEBUG
     @Test("動作確認用の回数無制限: 立っても回数が減らず、使い切りでも立てる。既定はオフ")
     func debugUnlimitedChallenges() throws {
         let f = Fixture()
@@ -615,6 +618,7 @@ struct HomerunModelTests {
         #expect(model.start(now: Fixture.t0))
         #expect(model.ledger.remaining == 0 && !model.showsExhausted)
     }
+    #endif
 
     @Test("回数が無ければ打席に立てず使い切りシートを出す。日付が進めば 0:00 で補充")
     func exhaustedThenNextDay() throws {

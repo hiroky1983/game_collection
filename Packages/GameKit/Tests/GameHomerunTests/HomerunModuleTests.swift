@@ -119,6 +119,9 @@ struct HomerunModuleTests {
     @Test("動作確認用の強制（回数無制限・月・ポール・空振りの演出）は出荷ビルドでは鍵が残っていても効かない")
     func debugOverridesAreIgnoredInReleaseBuild() throws {
         let defaults = UserDefaults(suiteName: "HomerunDebugOverrides.\(UUID())")!
+        // 鍵（`debugUnlimitedKey` 等）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言なので、
+        // 参照するこのブロックも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+        #if DEBUG
         for key in [HomerunModel.debugUnlimitedKey, HomerunModel.debugForceMoonKey,
                     HomerunModel.debugForcePoleKey, HomerunModel.debugForceWhiffGagKey] {
             defaults.set(true, forKey: key)
@@ -130,6 +133,11 @@ struct HomerunModuleTests {
                 == HomerunDebugOverrides(unlimited: true, forcesMoon: true, forcesPole: true, forcesWhiffGag: true))
         // テストは DEBUG でビルドされる（`swift test` の既定）ので、既定引数は DEBUG の経路。
         #expect(HomerunDebugOverrides.isDebugBuild)
+        #else
+        // 出荷ビルドでは鍵自体が存在しない（宣言も #if DEBUG の中）。経路は常に .none・isDebugBuild も false。
+        #expect(HomerunDebugOverrides.current(defaults) == .none)
+        #expect(!HomerunDebugOverrides.isDebugBuild)
+        #endif
     }
 
     @Test("動作確認用の鍵の宣言と読み取りは HomerunModel+Debug.swift の #if DEBUG の中だけにある")

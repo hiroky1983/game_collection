@@ -17,7 +17,10 @@ struct HomerunWhiffGagTests {
     /// 1 テスト 1 つの UserDefaults のモデル（照準の吸い寄せは切る）。`roll` は演出の乱数。
     private func makeModel(roll: Double = 1, forced: Bool = false) -> HomerunModel {
         let defaults = UserDefaults(suiteName: "HomerunWhiffGagTests.\(UUID())")!
+        // 鍵（`debugForceWhiffGagKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言（#1705）。
+        #if DEBUG
         defaults.set(forced, forKey: HomerunModel.debugForceWhiffGagKey)
+        #endif
         let model = HomerunModel(defaults: defaults, aimAssist: .off, now: Self.t0)
         model.whiffGagRoll = { roll }
         model.start(now: Self.t0)
@@ -111,6 +114,9 @@ struct HomerunWhiffGagTests {
         #expect(!model.showsWhiffGag && model.whiffCount == 1)
     }
 
+    // 鍵（`debugForceWhiffGagKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言なので、
+    // 鍵の効果そのものを確かめるこのテストも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+    #if DEBUG
     @Test("動作確認の起動引数の鍵が立っていれば、振った空振りは毎回出る（見送りは出ない）")
     func debugKeyForcesGag() throws {
         let model = makeModel(roll: 0.99, forced: true)
@@ -120,6 +126,7 @@ struct HomerunWhiffGagTests {
         try take(model)
         #expect(!model.showsWhiffGag)
     }
+    #endif
 
     // MARK: 間合い
 

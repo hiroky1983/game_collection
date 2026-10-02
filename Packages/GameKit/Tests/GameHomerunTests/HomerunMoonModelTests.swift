@@ -90,6 +90,9 @@ struct HomerunMoonModelTests {
         #expect(HomerunMoonShot.resultDuration(.broken) > HomerunMoonShot.resultDuration(.hit))
     }
 
+    // 鍵（`debugForceMoonKey`・`debugForcePoleKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの
+    // 宣言なので、参照するこの 2 つのテストも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+    #if DEBUG
     @Test("確認用の鍵（DEBUG の -homerunForceMoon）が立っていれば、どこで振っても月になる")
     func forcedByDebugKey() throws {
         let f = Fixture()
@@ -126,6 +129,7 @@ struct HomerunMoonModelTests {
         plain.start(now: Fixture.t0)
         #expect(plain.challenge?.forcesPole == false)
     }
+    #endif
 
     // MARK: 見せ方
 
