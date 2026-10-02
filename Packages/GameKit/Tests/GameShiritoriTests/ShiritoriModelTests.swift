@@ -809,4 +809,41 @@ struct ShiritoriTimeExtensionTests {
         #expect(hitN.ending == .playerHitN && !hitN.canExtendTime)
         #expect(plays(hitNLog) == 1)
     }
+
+    @Test("続けたあとに勝てば、勝ちが 1 回だけ記録される（負けは付かない）")
+    func winAfterExtensionRecordsOneWin() {
+        let (model, log) = makeLoggedModel("win-after")
+        model.configureForTesting(opener: apple, board: [gorilla])
+        model.tick(ShiritoriTime.initial)
+        #expect(model.extendTimeAfterAd(forGame: model.gameNumber))
+        model.select(0)   // CPU が続けられない
+
+        #expect(model.ending == .cpuStuck && model.didPlayerWin)
+        let record = log.record(gameID: "shiritori")
+        #expect(record?.plays == 1 && record?.wins == 1 && record?.losses == 0)
+    }
+
+    @Test("解析: 時間切れで game_end(loss) を 1 回送り、続けても二重に送らず、続きは新しいプレイになる")
+    func analyticsEndsOnTimeUpAndRestartsOnExtension() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["shiritori"], now: { Date(timeIntervalSince1970: 0) })
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 1)
+        model.startGame()
+        model.tick(ShiritoriTime.initial)
+
+        func ends() -> [AnalyticsResult] {
+            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _) = $0 { return result } else { return nil } }
+        }
+        func starts() -> Int { spy.events.filter { if case .gameStart = $0 { return true } else { return false } }.count }
+        #expect(ends() == [.loss] && starts() == 1)
+
+        model.commitTimeUpLoss()
+        #expect(ends() == [.loss], "記録を確定しても game_end は二重に出ない")
+
+        model.startGame()
+        model.tick(ShiritoriTime.initial)
+        #expect(model.extendTimeAfterAd(forGame: model.gameNumber))
+        #expect(starts() == 3, "続きは新しいプレイ（開始 1・始め直し 2・続き 3）")
+    }
 }

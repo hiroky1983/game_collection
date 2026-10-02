@@ -315,6 +315,9 @@ public final class ShiritoriModel: AITurnGuarded {
         isPaused = false
         timeRemaining = Self.extensionSeconds
         services?.feedback.notify(.success)
+        // 時間切れで `game_end` を送り済みなので、続きは新しいプレイとして数える。
+        services?.gameDidRestart(gameID: gameID, level: mode == .quota ? quota.analyticsLevel : nil)
+        services?.gameWillNotResume(gameID: gameID)
         return true
     }
 
@@ -335,15 +338,20 @@ public final class ShiritoriModel: AITurnGuarded {
         }
         // 広告で続けられる時間切れは、続けるかを選ぶまで負けを記録しない（#1717）。
         // 広告を出せない構成（services なし）は従来どおりその場で記録する。
-        if ending == .timeUp, !hasExtendedTime, services != nil {
+        // 解析の `game_end`（loss）だけは今送る（#1375 と同じ流儀）。記録を後に回しても、結果画面で離れて
+        // `gameDidLeave` が先に走ると休憩・離脱と判定され、負けが `quit` になる・欠ける。結果画面に居た時間も
+        // `duration_sec` に乗せない。続けるなら `extendTimeAfterAd` が新しいプレイとして数え直す。
+        if ending == .timeUp, !hasExtendedTime, let services {
             isTimeUpLossPending = true
+            services.feedback.notify(.error)
+            services.gameDidDecide(gameID: gameID, outcome: .loss)
             return
         }
+        services?.feedback.notify(didPlayerWin ? .success : .error)
         recordFinish()
     }
 
     private func recordFinish() {
-        services?.feedback.notify(didPlayerWin ? .success : .error)
         // 従来のモードの記録は variant nil のまま（保存先を変えない）。とことんは別枠で、順位表へは送らない。
         let variant = mode.scoreVariant
         recordResult = services?.gameDidFinish(
