@@ -448,7 +448,7 @@ struct HomerunModelTests {
         // 芯の基準点から 2pt 下（月まで飛ぶ 0.5pt・#1680 の外の柵越え）。
         let ball = try #require(try swing(model, dx: 0, dy: 6, offset: 0))
         #expect(ball.kind == .homer && !ball.isMoon)
-        #expect(model.resultUntil == hitAt.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind)))
+        #expect(model.resultUntil == hitAt.addingTimeInterval(HomerunModel.resultDuration(for: ball)))
         #expect(HomerunModel.resultDuration(for: .miss) < HomerunModel.resultDuration(for: .homer))
         let close = try #require(model.resultUntil)
         // 結果を見せているあいだに押してずらしておく。

@@ -227,6 +227,8 @@ struct HomerunAtBatScene3DView: View {
     var ballScale: Float = 1
     /// 今の時刻（振り抜きの再生位置を合わせるのに使う）。
     var now: Date = Date()
+    /// 打者の振りの再生位置を毎コマ `now` から決め直す（ジャストミートの演出・#1775で `now` を実時刻より遅らせている間）。
+    var batterClockHeld = false
     /// 月まで飛んだ打球（#1680）の月・夜空。nil なら出さない。
     var moon: HomerunMoonShot.Look? = nil
     /// 3D の描画が落ち着いたとき（作った直後のコマ落ちが収まったとき）に 1 回だけ呼ぶ（iOS だけ）。
@@ -240,7 +242,7 @@ struct HomerunAtBatScene3DView: View {
             #if os(iOS) && canImport(RealityKit)
             HomerunAtBatSceneView(batterPose: batterPose, machine: machine, camera: cameraOverride ?? HomerunAtBatLayout.camera,
                                   batterMotion: batterMotion, faceMark: faceMark, ballPosition: ballPosition, ballScale: ballScale, now: now,
-                                  moon: moon, onFirstFrame: onFirstFrame)
+                                  batterClockHeld: batterClockHeld, moon: moon, onFirstFrame: onFirstFrame)
             #endif
             if let moon, moon.flash > 0 { Color.white.opacity(moon.flash * 0.85) }
         }
@@ -351,6 +353,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let ballPosition: SIMD3<Float>?
     let ballScale: Float
     let now: Date
+    var batterClockHeld = false
     let moon: HomerunMoonShot.Look?
     let onFirstFrame: (@MainActor () -> Void)?
     /// 描き始めの合図は、更新の刻みがこのコマ数続けて `steadyFrameInterval` 以内になったとき（作った直後の約 0.3〜0.5 秒は
@@ -699,7 +702,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 c.batterMotion = batterMotion
             }
             rig.faceMark = faceMark
-            rig.tick(now: now)
+            rig.tick(now: now, clockHeld: batterClockHeld)
             if rig.showsFaceMark {
                 rig.applyFaceMark(now: now, camera: camera.renderPose.position)
             }

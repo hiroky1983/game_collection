@@ -285,9 +285,11 @@ struct HomerunBallChaseTests {
             let first = try #require(plan.chaseFrame(at: contact.addingTimeInterval(Chase.cutDelay)))
             #expect(first == Chase.frame(tr, at: Chase.cutDelay))
             let card = try #require(plan.chaseCardAt)
-            #expect(abs(card.timeIntervalSince(contact) - (tr.duration + Chase.restHold)) < 1e-6)
+            // ジャストミート（#1775）はヒットストップのぶんカードが遅れる。
+            let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
+            #expect(abs(card.timeIntervalSince(contact) - (tr.duration + Chase.restHold + held)) < 1e-6)
             // 次の球（`resultUntil`）までにカードを `cardHold` 秒以上見せる。
-            let resultEnd = release.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind))
+            let resultEnd = release.addingTimeInterval(HomerunModel.resultDuration(for: ball))
             #expect(resultEnd.timeIntervalSince(card) >= Chase.cardHold - 1e-6, "\(ball.kind): カードが \(resultEnd.timeIntervalSince(card)) 秒しか出ない")
             // カードを出した後も止まった球を映し続ける。
             #expect(plan.chaseFrame(at: card.addingTimeInterval(1)) == Chase.frame(tr, at: tr.duration))

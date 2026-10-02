@@ -546,6 +546,8 @@ extension HomerunSwingPlan {
         guard let contactAt else { return nil }
         if let moon = lastBall?.moon { return contactAt.addingTimeInterval(HomerunMoonShot.cardDelay(moon)) }
         guard let track = chaseTrack else { return nil }
-        return contactAt.addingTimeInterval(track.duration + HomerunBallChase.restHold)
+        // ジャストミートの演出（#1775）の間は表示の時間が止まっていたぶん、カードも遅らせる。
+        let held = HomerunJustMeet.applies(to: lastBall) ? HomerunJustMeet.extraDuration : 0
+        return contactAt.addingTimeInterval(track.duration + HomerunBallChase.restHold + held)
     }
 }
