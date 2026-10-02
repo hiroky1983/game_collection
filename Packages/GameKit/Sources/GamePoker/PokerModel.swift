@@ -39,6 +39,9 @@ struct PokerSnapshot: Codable {
     /// 「1 セッション 1 回まで」を守るために持ち回る（麻雀のトビ復活 #338 と同じ方式）。
     /// `rules` と同じく**旧データには鍵が無い**ので optional のまま置き、nil は「まだ使っていない」に倒す。
     var hasRevivedThisSession: Bool? = nil
+    /// この局を始める前（アンティを引く前）の持ち点。決着の「±チップ」表示（#1754）に使う。
+    /// **旧データには鍵が無い**ので optional のまま置き、nil は「増減は出さない」に倒す。
+    var handStartChips: Int? = nil
 }
 
 // MARK: - Model
@@ -65,6 +68,12 @@ public final class PokerModel {
     public private(set) var sessionWinner: PokerWinner? = nil
     /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 直近の局を始める前の持ち点（アンティ前）。中断データに載せて、復元した局でも増減を出せるようにする（#1754）。
+    private var handStartChips: Int?
+    /// 直近の局で決着した時点の自分の増減（役ボーナス込み・ダブルアップ前）。次の局が始まるまで残る。
+    public private(set) var handNetChips: Int?
+    /// 直近の局をプレイヤーのフォールドで終えたか。決着の理由（#1754）を「降りた」と「手で負けた」に分ける。
+    public private(set) var playerFolded = false
 
     // MARK: ルール分岐（#496）
 
@@ -167,6 +176,7 @@ public final class PokerModel {
             self.rules           = snap.rules ?? .standard
             // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
             self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
+            self.handStartChips = snap.handStartChips
             // `.idle` を書くのは `persistRoundWaiting` だけ（局を持たない中断データ・#1104）。
             // 戻った先は次の局の開始シートで「続き」ではないので、中断のお知らせ（#663）の対象から
             // 外す（#1145）。保存時の `notifyRoundWaitingSnapshot` は**保存したプロセスの中**でしか
@@ -202,7 +212,8 @@ public final class PokerModel {
             phase: phase, currentBet: currentBet,
             playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
             cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules,
-            hasRevivedThisSession: hasRevivedThisSession
+            hasRevivedThisSession: hasRevivedThisSession,
+            handStartChips: handStartChips
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -237,6 +248,38 @@ public final class PokerModel {
         services?.gameDidRestoreFinished(gameID: gameID)
     }
 
+    // MARK: - 決着の表示（#1754）
+
+    /// 決着した局の、卓の中央に出す結果。`.result` でなければ nil。
+    ///
+    /// ボーナスルールの増減は役ボーナスを含み、ダブルアップの結果は含まない（局の決着はそこまで）。
+    public var handResult: HandResult? {
+        guard phase == .result, let winner else { return nil }
+        let kind: HandResult.Kind
+        let headline: String
+        let spoken: String
+        switch winner {
+        case .player: (kind, headline, spoken) = (.win, "勝ち！", "勝ちです")
+        case .cpu:    (kind, headline, spoken) = (.lose, "負け", "負けです")
+        case .tie:    (kind, headline, spoken) = (.draw, "引き分け", "引き分けです")
+        }
+        let reason: String
+        if cpuFolded {
+            reason = "CPUがフォールド"
+        } else if playerFolded {
+            reason = "あなたがフォールド"
+        } else if winner == .tie {
+            reason = "どちらも\(playerHandRank.description)"
+        } else {
+            reason = "\(playerHandRank.description) 対 \(cpuHandRank.description)"
+        }
+        var note = reason
+        if winner == .player, playerBonus > 0 { note += "（役ボーナス+\(playerBonus)枚込み）" }
+        if winner == .cpu, cpuBonus > 0 { note += "（CPUに役ボーナス+\(cpuBonus)枚）" }
+        return HandResult(kind: kind, headline: headline, reason: note,
+                          chipDelta: handNetChips, spokenResult: spoken)
+    }
+
     // MARK: - Start
 
     /// 1 局を始める。
@@ -267,6 +310,9 @@ public final class PokerModel {
         sessionOver = false
         sessionWinner = nil
 
+        handStartChips = playerChips
+        handNetChips = nil
+        playerFolded = false
         // アンティ
         let playerAnte = min(anteAmount, playerChips)
         let cpuAnte    = min(anteAmount, cpuChips)
@@ -297,6 +343,7 @@ public final class PokerModel {
     ///
     /// - Parameter noticeDelay: 勝敗の触覚を遅らせる時間。ショーダウンでは CPU の手札が返り終わるまで待つ（#667）。
     private func settleRound(noticeDelay: Duration = .zero) {
+        handNetChips = handStartChips.map { playerChips - $0 }
         notifyOutcome(after: noticeDelay)
         if rules == .bonus, winner == .player, pendingWinnings > 0, deck.count >= 2 {
             awaitsDoubleUp = true
@@ -477,6 +524,7 @@ public final class PokerModel {
             cpuBet2Response(playerBet: amount)
         case .fold:
             cpuFolded = false
+            playerFolded = true
             playerHandRank = HandEvaluator.evaluate(playerHand).rank
             cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
             cpuChips += pot
@@ -562,6 +610,7 @@ public final class PokerModel {
 
     public func foldToCPUBet() {
         guard phase == .betting2, currentBet > 0 else { return }
+        playerFolded = true
         playerHandRank = HandEvaluator.evaluate(playerHand).rank
         cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
         cpuChips += pot
