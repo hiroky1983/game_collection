@@ -162,39 +162,38 @@ struct HomerunTankobuGagTests {
         #expect(abs(G.throb(at: 0) - 1) < 1e-6 && G.throbDepth < 0.1)
     }
 
-    @Test("たんこぶの絵はトゥーン調の 3 段（明・中・影）。光の側が明るく、反対側が影")
-    func lumpColors() {
-        #expect(G.lumpColor(normal: G.lumpLight) == G.lumpHighlight)
-        #expect(G.lumpColor(normal: -G.lumpLight) == G.lumpShade)
-        let pixels = G.lumpPixels()
-        #expect(pixels.count == G.lumpTextureSize * G.lumpTextureSize * 4)
-        var seen = Set<[UInt8]>()
-        for i in stride(from: 0, to: pixels.count, by: 4) { seen.insert(Array(pixels[i..<i + 3])) }
-        let expected: Set<[UInt8]> = [[255, 205, 196], [244, 140, 128], [196, 90, 94]]
-        #expect(seen == expected, "3 色だけ（ふくらみに見える陰影）")
-        #expect(G.lumpImage() != nil)
+    @Test("たんこぶの色はモックのピンク（下側が濃く、光りは白に近い）。下側の濃い色は下へ・光りは上にのぞく")
+    func lumpLook() {
+        #expect(G.lumpPink == [1.0, 0.50, 0.62])
+        #expect(G.lumpUnderside.x < G.lumpPink.x && G.lumpUnderside.y < G.lumpPink.y && G.lumpUnderside.z < G.lumpPink.z)
+        #expect(G.lumpShine.x > G.lumpPink.x - 0.01 && G.lumpShine.y > G.lumpPink.y && G.lumpShine.z > G.lumpPink.z)
+        #expect(G.undersideOffset.y < 0 && G.undersideRadius > 1, "濃い色は下の縁だけ外へのぞく")
+        #expect(G.shineOffset.y > 0 && simd_length(G.shineOffset) + G.shineRadius > 1, "光りの点は上で、面の外へ少し出て見える")
     }
 
-    @Test("たんこぶの球: 面と輪郭で表裏が逆。頂点は単位球の上")
-    func lumpMesh() {
-        let face = G.lumpMesh(flipped: false), rim = G.lumpMesh(flipped: true)
-        #expect(face.positions.count == (G.lumpRings + 1) * (G.lumpSegments + 1))
-        #expect(face.uvs.count == face.positions.count)
-        #expect(face.positions.allSatisfy { abs(simd_length($0) - 1) < 1e-5 })
-        #expect(face.indices.count == G.lumpRings * G.lumpSegments * 6 && face.indices.count == rim.indices.count)
-        // 三角形の向き: 面は外向き（法線が中心から外へ）、輪郭は内向き。
-        func outward(_ m: (positions: [SIMD3<Float>], uvs: [SIMD2<Float>], indices: [UInt32])) -> Int {
-            var n = 0
-            for t in stride(from: 0, to: m.indices.count, by: 3) {
-                let a = m.positions[Int(m.indices[t])], b = m.positions[Int(m.indices[t + 1])], c = m.positions[Int(m.indices[t + 2])]
-                let normal = simd_cross(b - a, c - a)
-                if simd_dot(normal, a + b + c) > 0 { n += 1 }
-            }
-            return n
+    @Test("黒い点々はカメラ側の上半分にばらけ、光りの点・絆創膏・ほかの点と重ならない。絆創膏は頂点あたりに白い 2 枚の十字")
+    func lumpDotsAndBandage() {
+        let dots = G.dotNormals.map(simd_normalize)
+        #expect(dots.count >= 3)
+        let shine = simd_normalize(G.shineOffset)
+        // 球の面の上の距離（弦）で見る。
+        for (i, d) in dots.enumerated() {
+            #expect(d.y >= 0 && d.z > 0, "見える側: \(d)")
+            #expect(simd_distance(d, shine) > G.shineRadius + G.dotRadius, "光りの点と重なる: \(d)")
+            #expect(simd_distance(d, G.bandageNormal) > G.bandageLength / 2 + G.dotRadius, "絆創膏の下に隠れる: \(d)")
+            for e in dots[(i + 1)...] { #expect(simd_distance(d, e) > 4 * G.dotRadius, "点がくっつく: \(d) \(e)") }
         }
-        let faceOut = outward(face), rimOut = outward(rim)
-        #expect(faceOut > 0 && rimOut == 0, "面は外向き・輪郭は内向き（極の面積 0 の三角形は数えない）")
-        #expect(G.lumpOutlineScale > 1)
+        #expect(G.bandageNormal.y > 0.85, "頂点あたり")
+        // 光りの点は絆創膏の板の下に隠れない（板の向きと、絆創膏の中心から見た光りの点の向きがずれている）。
+        let n = G.bandageNormal, toShine = shine - n * simd_dot(shine, n)
+        let frame = simd_quatf(from: [0, 1, 0], to: n)
+        for a in G.bandageAngles {
+            let along = (frame * simd_quatf(angle: a, axis: [0, 1, 0])).act([1, 0, 0])
+            let cosine = abs(simd_dot(simd_normalize(toShine), along))
+            #expect(cosine < 0.9, "板 \(a) が光りの点の上に掛かる")
+        }
+        #expect(G.bandageAngles.count == 2 && abs(abs(G.bandageAngles[0] - G.bandageAngles[1]) - .pi / 2) < 1e-5, "直角に重ねる")
+        #expect(G.bandageLength > 3 * G.bandageWidth && G.bandageOutline < G.bandageWidth / 4, "細長い板・細い輪郭")
     }
 
     // MARK: 頭の位置

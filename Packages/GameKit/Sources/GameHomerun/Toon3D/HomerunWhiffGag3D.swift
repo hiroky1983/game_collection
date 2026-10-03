@@ -21,9 +21,8 @@ final class HomerunWhiffGagOverlay {
     private var steamMasks: [TextureResource] = []
     /// 湯気の絵（右向き・左向き（鏡映）の色と不透明度・1 回だけ作る）。
     private static var steamTextures: [(color: TextureResource, mask: TextureResource)] = []
-    /// たんこぶ（#1793）: ヘルメットの上の膨らみ（トゥーン調の面）と輪郭（表裏を逆にした少し大きい球）。
+    /// たんこぶ（#1793）: ヘルメットの上のピンクの球（モックの見た目: 下側の濃い色・上の光り・輪郭なし）と黒い点々・白い十字の絆創膏。
     private var lump: ModelEntity?
-    private static var lumpTexture: TextureResource?
 
     var isEnabled: Bool {
         get { entity.isEnabled }
@@ -93,15 +92,47 @@ final class HomerunWhiffGagOverlay {
                 steamMasks.append(textures.mask)
             }
         }
-        if Self.lumpTexture == nil, let image = HomerunTankobuGag.lumpImage() {
-            Self.lumpTexture = try? TextureResource.generate(from: image, options: .init(semantic: .color))
+        func flat(_ c: SIMD3<Float>) -> UnlitMaterial {
+            UnlitMaterial(color: HomerunPlatformColor(red: CGFloat(c.x), green: CGFloat(c.y), blue: CGFloat(c.z), alpha: 1))
         }
-        var lumpMaterial = UnlitMaterial(color: HomerunPlatformColor(red: 0.96, green: 0.55, blue: 0.50, alpha: 1))
-        if let texture = Self.lumpTexture { lumpMaterial.color = .init(tint: .white, texture: .init(texture)) }
-        let lumpEntity = ModelEntity(mesh: Self.lumpSphere(flipped: false), materials: [lumpMaterial])
-        let outline = ModelEntity(mesh: Self.lumpSphere(flipped: true), materials: [rim])
-        outline.scale = SIMD3(repeating: HomerunTankobuGag.lumpOutlineScale)
-        lumpEntity.addChild(outline)
+        let lumpEntity = ModelEntity(mesh: .generateSphere(radius: 1), materials: [flat(HomerunTankobuGag.lumpPink)])
+        let underside = ModelEntity(mesh: .generateSphere(radius: HomerunTankobuGag.undersideRadius),
+                                    materials: [flat(HomerunTankobuGag.lumpUnderside)])
+        underside.position = HomerunTankobuGag.undersideOffset
+        underside.scale = HomerunTankobuGag.undersideScale
+        lumpEntity.addChild(underside)
+        let shine = ModelEntity(mesh: .generateSphere(radius: HomerunTankobuGag.shineRadius), materials: [flat(HomerunTankobuGag.lumpShine)])
+        shine.position = HomerunTankobuGag.shineOffset
+        lumpEntity.addChild(shine)
+        // 黒い点々（面に沿ってつぶした小さな球を半分埋める）。
+        let dotMesh = MeshResource.generateSphere(radius: HomerunTankobuGag.dotRadius)
+        for n in HomerunTankobuGag.dotNormals.map(simd_normalize) {
+            let dot = ModelEntity(mesh: dotMesh, materials: [rim])
+            dot.position = n
+            dot.orientation = simd_quatf(from: [0, 1, 0], to: n)
+            dot.scale = [1, HomerunTankobuGag.dotFlatten, 1]
+            lumpEntity.addChild(dot)
+        }
+        // 白い十字の絆創膏（白い板 2 枚を重ね、それぞれ少し大きい黒い板を下に敷いて細い輪郭にする）。
+        let bandage = Entity()
+        let n = HomerunTankobuGag.bandageNormal
+        bandage.position = n * (1 + HomerunTankobuGag.bandageLift)
+        bandage.orientation = simd_quatf(from: [0, 1, 0], to: n)
+        let white = UnlitMaterial(color: .white)
+        let L = HomerunTankobuGag.bandageLength, W = HomerunTankobuGag.bandageWidth, T = HomerunTankobuGag.bandageThickness
+        let o = HomerunTankobuGag.bandageOutline
+        for (i, angle) in HomerunTankobuGag.bandageAngles.enumerated() {
+            let strip = Entity()
+            strip.orientation = simd_quatf(angle: angle, axis: [0, 1, 0])
+            // 2 枚目は 1 枚目の上に重ねる（同じ高さだとちらつく）。
+            strip.position = [0, Float(i) * T * 1.2, 0]
+            let edge = ModelEntity(mesh: .generateBox(size: [L + 2 * o, T, W + 2 * o]), materials: [rim])
+            edge.position = [0, -T * 0.5, 0]
+            strip.addChild(edge)
+            strip.addChild(ModelEntity(mesh: .generateBox(size: [L, T, W]), materials: [white]))
+            bandage.addChild(strip)
+        }
+        lumpEntity.addChild(bandage)
         entity.addChild(lumpEntity)
         lump = lumpEntity
         hideMarks()
@@ -195,7 +226,7 @@ final class HomerunWhiffGagOverlay {
                   size: HomerunTankobuGag.lumpRadius * HomerunTankobuGag.throb(at: now.timeIntervalSinceReferenceDate))
     }
 
-    /// たんこぶを置く。向きは世界に固定する（光の向きを絵に焼いてあるので、頭の向きに合わせて回さない）。
+    /// たんこぶを置く。向きは世界に固定する（下側の濃い色はいつも下・光りの点はいつも上に見せる）。
     private func placeLump(_ lump: ModelEntity, helmetTop: SIMD3<Float>, up: SIMD3<Float>, size: Float) {
         lump.position = helmetTop + simd_normalize(up) * HomerunTankobuGag.lumpLift
         lump.scale = SIMD3(repeating: max(size, 0.0001))
@@ -373,16 +404,6 @@ final class HomerunWhiffGagOverlay {
             disc(line[line.count - 1])
         }
         return polygon(tris)
-    }
-
-    /// たんこぶの球（半径 1・UV つき）。`flipped` は表裏を逆にした輪郭用（背面だけが見え、面の縁取りになる）。
-    private static func lumpSphere(flipped: Bool) -> MeshResource {
-        let m = HomerunTankobuGag.lumpMesh(flipped: flipped)
-        var d = MeshDescriptor(name: flipped ? "lumpOutline" : "lump")
-        d.positions = MeshBuffer(m.positions)
-        d.textureCoordinates = MeshBuffer(m.uvs)
-        d.primitives = .triangles(m.indices)
-        return (try? MeshResource.generate(from: [d])) ?? .generateSphere(radius: 1)
     }
 
     /// 5 つ角の星（xy 面・半径 1 の単位・両面）。

@@ -1,5 +1,4 @@
 import Foundation
-import CoreGraphics
 import simd
 
 /// 打ち上げた球が自分の頭に落ちてたんこぶができる演出（#1793・会長決裁 2026-10-03。発生条件は `HomerunTankobu`）。
@@ -11,7 +10,7 @@ import simd
 ///   体全体の回転は掛けない（真上から球が落ちてきて尻もちをつくだけ）。星・ぐるぐる目は空振りの演出の部品を流用する。
 /// - 球: 打点から真上へ上がり、頂点を過ぎて頭のてっぺんへ落ちる（実際の重力の放物線）。当たったら弾んで地面へ転がる。
 /// - カメラ（モックの T3）: 一塁側の低い所から打球を見上げ、頂点を過ぎたら球と一緒に下りて、当たる瞬間に斜め上からの見下ろしに着く。
-/// - たんこぶ: ヘルメットの上に当たった瞬間ぷくっと膨らみ、トゥーン調の陰影と輪郭を付ける。次の球の構えでも残す（`HomerunFaceMark.waitingLump`）。
+/// - たんこぶ: ヘルメットの上に当たった瞬間ぷくっと膨らむ。見た目はモックのピンクの球（下側の濃い色・上の光り・輪郭なし）。次の球の構えでも残す（`HomerunFaceMark.waitingLump`）。
 ///
 /// 時刻はすべて「20 コマ目を置いた実時刻（`HomerunBatterMotion.swing` の `start`）からの秒」（`offset`）。ヒットストップ（`hitStop`）は
 /// `effective(_:)` で当たる瞬間の時刻を止め、骨・球・カメラ・たんこぶはその時刻で決める。
@@ -189,79 +188,38 @@ enum HomerunTankobuGag {
     static let throbDepth: Float = 0.03
     static func throb(at t: TimeInterval) -> Float { 1 + throbDepth * Float(sin(t * throbRate * 2 * .pi)) }
 
-    // MARK: たんこぶの絵（トゥーン調の陰影・輪郭）
+    // MARK: たんこぶの絵（モックの見た目に戻す・会長判定 2026-10-04「デザインは前（モック）の方が良かった」）
 
-    /// 球の面（緯度・経度の分割数）。
-    static let lumpRings = 12
-    static let lumpSegments = 24
-    /// 輪郭（反転した少し大きい球）の拡大率。
-    static let lumpOutlineScale: Float = 1.14
-    /// 絵の大きさ（画素）。
-    static let lumpTextureSize = 64
-    /// 光の向き（世界座標・上と、カメラ（+z）の側から）。
-    static let lumpLight: SIMD3<Float> = simd_normalize([-0.35, 0.8, 0.5])
-    /// 面の色（RGB）: 明るい面・ふつうの面・影の面。
-    static let lumpHighlight: SIMD3<UInt8> = [255, 205, 196]
-    static let lumpBase: SIMD3<UInt8> = [244, 140, 128]
-    static let lumpShade: SIMD3<UInt8> = [196, 90, 94]
-    /// 明るい面・影の面に入る光の強さ（光の向きとの内積）の境目。
-    static let highlightThreshold: Float = 0.72
-    static let shadeThreshold: Float = 0.05
+    /// ピンクの球の色（RGB 0〜1）と、下側の濃い色（陰の代わり）・上の光り。いずれも光を受けない平らな色（Unlit）。輪郭は付けない。
+    static let lumpPink: SIMD3<Float> = [1.0, 0.50, 0.62]
+    static let lumpUnderside: SIMD3<Float> = [0.86, 0.22, 0.36]
+    static let lumpShine: SIMD3<Float> = [1.0, 0.92, 0.95]
+    /// 下側の濃い球（ピンクの球の局所・半径 1 の単位）: 少し大きく・下へずらし・上下につぶす。下の縁だけ濃い色がのぞく。
+    static let undersideRadius: Float = 1.04
+    static let undersideOffset: SIMD3<Float> = [0, -0.18, 0]
+    static let undersideScale: SIMD3<Float> = [1, 0.75, 1]
+    /// 光りの点（ピンクの球の局所）。頭の向きと一緒に回る。
+    static let shineRadius: Float = 0.28
+    static let shineOffset: SIMD3<Float> = [-0.35, 0.62, 0.45]
 
-    /// 球の面の点 `n`（単位ベクトル・世界座標）の色。3 段（明・中・影）のトゥーン。
-    static func lumpColor(normal n: SIMD3<Float>) -> SIMD3<UInt8> {
-        let d = simd_dot(n, lumpLight)
-        if d >= highlightThreshold { return lumpHighlight }
-        if d >= shadeThreshold { return lumpBase }
-        return lumpShade
-    }
+    // MARK: たんこぶの定番の描き込み（会長判定 2026-10-04: 黒い点々・白い十字の絆創膏）
+    // いずれもピンクの球の子（局所・半径 1 の単位）なので、球と一緒に膨らみ、次の球の構えでも残る。
+    // 球の向きは世界に固定（`placeLump`）なので、局所の +y = 上・+z = カメラの側（投手側）・+x = 一塁側。
 
-    /// 緯度・経度の球（半径 1）: 頂点・UV（u = 経度・v = 上から下）・三角形。`flipped` は表裏を逆にした輪郭用。
-    static func lumpMesh(flipped: Bool) -> (positions: [SIMD3<Float>], uvs: [SIMD2<Float>], indices: [UInt32]) {
-        var positions: [SIMD3<Float>] = [], uvs: [SIMD2<Float>] = [], indices: [UInt32] = []
-        for r in 0...lumpRings {
-            let v = Float(r) / Float(lumpRings)
-            let theta = v * .pi
-            for s in 0...lumpSegments {
-                let u = Float(s) / Float(lumpSegments)
-                let phi = u * 2 * .pi
-                positions.append([sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi)])
-                uvs.append([u, v])
-            }
-        }
-        let row = UInt32(lumpSegments + 1)
-        for r in 0..<lumpRings {
-            for s in 0..<lumpSegments {
-                let a = UInt32(r) * row + UInt32(s), b = a + 1, c = a + row, d = c + 1
-                indices += flipped ? [a, c, b, b, c, d] : [a, b, c, b, d, c]
-            }
-        }
-        return (positions, uvs, indices)
-    }
-
-    /// 絵の画素（RGBA・左上から行ごと）。画素の (u, v) に対応する球の点の向きから色を決める。
-    static func lumpPixels() -> [UInt8] {
-        let n = lumpTextureSize
-        var bytes = [UInt8](repeating: 255, count: n * n * 4)
-        for py in 0..<n {
-            let theta = (Float(py) + 0.5) / Float(n) * .pi
-            for px in 0..<n {
-                let phi = (Float(px) + 0.5) / Float(n) * 2 * .pi
-                let c = lumpColor(normal: [sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi)])
-                let o = (py * n + px) * 4
-                bytes[o] = c.x; bytes[o + 1] = c.y; bytes[o + 2] = c.z
-            }
-        }
-        return bytes
-    }
-
-    static func lumpImage() -> CGImage? {
-        let n = lumpTextureSize
-        let provider = CGDataProvider(data: Data(lumpPixels()) as CFData)
-        return provider.flatMap {
-            CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4,
-                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
-                    provider: $0, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
-        }
-    }
+    /// 黒い点々を置く面の向き（球の面の点・正規化して使う）。カメラから見える上半分の手前にばらけて置き、光りの点・絆創膏とは重ねない。
+    static let dotNormals: [SIMD3<Float>] = [
+        [-0.55, 0.30, 0.78], [0.62, 0.28, 0.73], [-0.12, 0.10, 0.99], [0.30, 0.55, 0.78], [0.80, 0.50, 0.33],
+    ]
+    /// 黒い点 1 つの半径（球の局所）。上下は面に沿ってつぶす（`dotFlatten`）。
+    static let dotRadius: Float = 0.06
+    static let dotFlatten: Float = 0.5
+    /// 絆創膏を貼る面の向き（頂点から少しカメラ側へ）と、1 枚の長さ・幅・厚み（球の局所）、面から浮かせる量、細い輪郭の太さ。
+    static let bandageNormal: SIMD3<Float> = simd_normalize([0.05, 0.92, 0.38])
+    static let bandageLength: Float = 0.95
+    static let bandageWidth: Float = 0.26
+    static let bandageThickness: Float = 0.02
+    static let bandageLift: Float = 0.03
+    static let bandageOutline: Float = 0.035
+    /// 2 枚の向き（面の上で回す角度）。直角に重ね、光りの点の方向（約 25°）からどちらも 45° 外して、板が光りの点を隠さないようにする。
+    static let bandageAngles: [Float] = [-20 * .pi / 180, 70 * .pi / 180]
 }
