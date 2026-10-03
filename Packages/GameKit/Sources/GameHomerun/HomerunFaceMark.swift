@@ -61,13 +61,25 @@ enum HomerunFaceMark: Equatable, Sendable {
     static let twinkleDepth: Float = 0.25
 
     /// 怒りマークの大きさ（m・外側の半径）・頭の中心からの横と上の距離・脈打つ速さ（回/秒）と振れ幅（割合）・弾む高さ（m）。
+    /// 頭の輪郭から離して、こめかみの外側の斜め上に浮かせる（#1785）。脈打ちと弾みの最大でもヘルメットに重ならない距離にしてある。
     /// 「プンプン」に見えるよう、脈打ちを強めてぴょこぴょこ弾ませる。
-    static let angrySize: Float = 0.14
-    static let angrySide: Float = 0.22
-    static let angryLift: Float = 0.2
+    static let angrySize: Float = 0.22
+    static let angrySide: Float = 0.36
+    static let angryLift: Float = 0.26
     static let angryPulseRate: Double = 4
-    static let angryPulseDepth: Float = 0.3
+    static let angryPulseDepth: Float = 0.2
     static let angryHop: Float = 0.03
+    /// 十字に交差して見える弧の太さ（外側の半径を 1 とした比）と、縁取りの太らせ幅。背景に埋もれないよう太く縁取る。
+    static let angryStrokeWidth: Float = 0.38
+    static let angryRimGrow: Float = 0.2
+    /// 縁取りまで含めた絵が `angrySize` の何倍の半径に収まるか（`angryMark` のメッシュから実測）。
+    static let angryExtent: Float = 0.77
+    /// ヘルメット（頭のてっぺんから見て中心 (0, -0.175)・半径 0.29 の球。`HomerunOjisan3D` の頭の球 0.27 m を基準）と怒りマークの間の最小の隙間（m）。
+    /// 脈打ち・弾みが最大でも重ならないことをテストで確かめる。
+    static var angryMinClearance: Float {
+        let dx = angrySide, dy = angryLift + 0.175
+        return (dx * dx + dy * dy).squareRoot() - 0.29 - angryHop - angrySize * (1 + angryPulseDepth) * angryExtent
+    }
 
     /// 弾み（0 以上 `angryHop` 以下）。脈打ちと同じ速さで、跳ねて着く。
     static func angryBounce(since t: TimeInterval) -> Float {
