@@ -388,6 +388,40 @@ struct GameCenterReporterTests {
         #expect(spy.reportCalls == 0)
     }
 
+    @Test("ゲーム別の実績（#1794）は 100% で送り、同じ ID を二度送らない。失敗したら次の機会に送り直せる")
+    func reportUnlockedSendsOnce() {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: makeHubGameIDs())
+        reporter.reportUnlocked(["x.a", "x.b"])
+        reporter.reportUnlocked(["x.a"])
+        #expect(spy.reportCalls == 1)
+        #expect(spy.percent(of: "x.a") == 100)
+        #expect(spy.percent(of: "x.b") == 100)
+
+        spy.reportSucceeds = false
+        reporter.reportUnlocked(["x.c"])
+        spy.reportSucceeds = true
+        reporter.reportUnlocked(["x.c"])
+        #expect(spy.achievements.filter { $0.achievementID == "x.c" }.count == 2, "失敗のあとは送り直す")
+    }
+
+    @Test("未サインインのときは実績を送らず、解除済みの読み出しも nil（何も呼ばない）")
+    func unlockedAchievementsUnavailable() async {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: [], isAvailable: { false })
+        reporter.reportUnlocked(["x.a"])
+        #expect(spy.reportCalls == 0)
+        #expect(!reporter.isSignedIn)
+        #expect(await reporter.fetchUnlockedAchievementIDs() == nil)
+    }
+
+    @Test("読む手段を持たない実装は「読めなかった」を返す（既定）")
+    func defaultFetchIsNil() async {
+        let reporter = GameCenterReporter(service: SpyGameCenterService(), allowedGameIDs: [])
+        #expect(reporter.isSignedIn)
+        #expect(await reporter.fetchUnlockedAchievementIDs() == nil)
+    }
+
     @Test("ハブに登録されていないゲーム ID は送らない")
     func unknownGameIDIsDropped() {
         let spy = SpyGameCenterService()

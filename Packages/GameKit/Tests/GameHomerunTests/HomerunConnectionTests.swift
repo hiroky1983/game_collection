@@ -334,10 +334,11 @@ struct HomerunConnectionTests {
 
     // MARK: 消去
 
-    @Test("蓄積は「プレイ記録を消去」の対象、日次台帳は対象外（補充の穴を塞ぐ）")
+    @Test("蓄積・実績は「プレイ記録を消去」の対象、日次台帳は対象外（補充の穴を塞ぐ）")
     func clearScope() {
         #expect(PlayLog.allKeys.contains(HomerunStorage.recordsKey))
+        #expect(PlayLog.allKeys.contains(HomerunStorage.achievementsKey))
         #expect(!PlayLog.allKeys.contains(HomerunStorage.ledgerKey))
-        #expect(PlayLog.homerunKeys == [HomerunStorage.recordsKey])
+        #expect(PlayLog.homerunKeys == [HomerunStorage.recordsKey, HomerunStorage.achievementsKey])
     }
 }

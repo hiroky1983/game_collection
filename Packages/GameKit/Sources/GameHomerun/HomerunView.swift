@@ -120,6 +120,8 @@ struct HomerunLobbyView: View {
             lobbyScroll
             BannerSlot(ads: services.ads)
         }
+        // Game Center の解除済みを読んで端末の記録と合わせる（連携の有無・通信の有無で一覧は変わらない。読めなければ何もしない）。
+        .task { await model.syncGameCenterAchievements() }
         #if os(iOS) && canImport(RealityKit)
         // 打席の 3D を見えない所で先に作っておく（#1695。「打席に立つ」・広告を見てプレイで待たせない）。
         .onAppear { HomerunAtBatScenePrewarm.schedule() }
@@ -132,6 +134,7 @@ struct HomerunLobbyView: View {
                 introCard
                 todayCard
                 recordsCard
+                HomerunAchievementsCard(model: model)
                 Button {
                     withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
@@ -307,6 +310,7 @@ struct HomerunResultView: View {
         ScrollView {
             VStack(spacing: 14) {
                 summaryCard
+                HomerunUnlockedCard(items: model.unlockedThisChallenge)
                 moonCard
                 sprayCard
                 breakdownCard
