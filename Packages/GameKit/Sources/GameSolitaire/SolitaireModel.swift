@@ -764,5 +764,25 @@ public final class SolitaireModel {
         }
         refreshDerivedState()
     }
+
+    /// 確認用（#1755）: クリア直前／クリア済みの局を作る。共通のクリアカードを遊ばずに見るための口。
+    ///
+    /// **`services` を持たない局として作る**ので、中断データの読み書き・記録（Game Center・プレイ記録）・
+    /// 解析には一切触れない（残りの 1 手を指してクリアしても記録されず、遊びかけの局も消えない）。
+    /// - Parameter remainingMoves: 勝ち筋の残り手数。0 ならクリア済みの盤で返す。
+    public static func clearPreviewForTesting(remainingMoves: Int) -> SolitaireModel {
+        let model = SolitaireModel(services: nil)
+        let deal = SolitaireDealer.deal(seed: model.seed, rules: model.rules)
+        guard let solution = SolitaireSolver.solve(deal).solution else { return model }
+        for move in solution.dropLast(max(0, remainingMoves)) {
+            guard model.board.apply(move) else { break }
+            model.moves.append(move)
+        }
+        // タイム 0:00 だとカードの見た目が実際のクリアと違うので、それらしい経過時間を入れておく。
+        model.elapsedSeconds = 205
+        model.refreshDerivedState()
+        if model.board.isWon { model.finish() }
+        return model
+    }
     #endif
 }

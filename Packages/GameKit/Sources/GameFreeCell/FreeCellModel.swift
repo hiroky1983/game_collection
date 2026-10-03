@@ -564,5 +564,24 @@ public final class FreeCellModel {
         didDismissDeadEndPrompt = false
         refreshDerivedState()
     }
+
+    /// 確認用（#1755）: クリア直前／クリア済みの局を作る（ソリティアの `clearPreviewForTesting` と同じ）。
+    ///
+    /// **`services` を持たない局として作る**ので、中断データ・記録・解析には一切触れない。
+    /// - Parameter remainingMoves: 勝ち筋の残り手数。0 ならクリア済みの盤で返す。
+    public static func clearPreviewForTesting(remainingMoves: Int) -> FreeCellModel {
+        let model = FreeCellModel(services: nil)
+        guard let solution = FreeCellSolver.solve(FreeCellDealer.deal(seed: model.dealNumber)).solution else {
+            return model
+        }
+        for move in solution.dropLast(max(0, remainingMoves)) {
+            guard model.board.apply(move) else { break }
+            model.moves.append(move)
+        }
+        model.elapsedSeconds = 205
+        model.refreshDerivedState()
+        if model.board.isWon { model.finish() }
+        return model
+    }
     #endif
 }

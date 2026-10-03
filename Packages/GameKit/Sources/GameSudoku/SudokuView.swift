@@ -20,8 +20,27 @@ public struct SudokuView: View {
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
     @State private var holdsUnitFlash = false
 
+    #if DEBUG
+    /// 確認用の起動引数（#1755）が求める残りマス数。指定が無ければ nil。
+    private static var clearPreviewRemaining: Int? {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-sudokuWon") { return 0 }
+        if arguments.contains("-sudokuAlmostWon") { return 1 }
+        return nil
+    }
+    #endif
+
     public init(services: GameServices) {
         self.services = services
+        #if DEBUG
+        // 確認用（#1755）: クリアカードを遊ばずに出す。`services` を持たない局で開くので、
+        // 中断データ・記録・解析には触れない（盤は `.task` で作って埋める）。
+        if Self.clearPreviewRemaining != nil {
+            _model = State(initialValue: SudokuModel(services: nil))
+            _showNewGame = State(initialValue: false)
+            return
+        }
+        #endif
         _model = State(initialValue: SudokuModel(services: services))
         _showNewGame = State(initialValue: !services.snapshots.exists(for: "sudoku"))
     }
@@ -117,6 +136,15 @@ public struct SudokuView: View {
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
+            // 確認用（#1755）: `-sudokuWon` はクリア済み、`-sudokuAlmostWon` は残り 1 マスの盤にする。
+            if let remaining = Self.clearPreviewRemaining {
+                if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
+                let blanks = (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 }
+                for index in blanks.dropLast(remaining) {
+                    if model.selected != index { model.select(index: index) }
+                    model.enter(digit: model.solution[index])
+                }
+            }
             // 撮影・動作確認用（DEBUG 限定）: タップ無しで終局後のレイアウトにする（`-simulateGiveUp`）。
             // 数独の終局は「81マス埋める」か「諦める」でしか作れず、非対話のシミュレータ確認では
             // この経路が要る（マインスイーパー #148 と同じ）。
