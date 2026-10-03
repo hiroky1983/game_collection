@@ -16,8 +16,9 @@ public struct ShogiModule: GameModule {
 
     /// 終局後の見返しも中断データに残る（`ShogiGameModel.persist`）。`.review` から対局へ戻る経路は
     /// `newGame` だけなので、検討に入った局には続きが無い（#809）。読めない中断データは Model も
-    /// 新規対局として扱うので false。
+    /// 新規対局として扱うので false。一手も指していない局は「続き」ではない（#1572・#1599）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
-        snapshots.load(ShogiSnapshot.self, for: id)?.phase == .playing
+        guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return false }
+        return snap.phase == .playing && !snap.moves.isEmpty
     }
 }

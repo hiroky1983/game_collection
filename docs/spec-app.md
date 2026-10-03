@@ -38,6 +38,8 @@ Packages/GameKit/
     GameMinesweeper/    ← マインスイーパー
     GameGomoku/         ← 五目並べ
     GameConcentration/  ← 神経衰弱
+    GameShiritori/      ← カードしりとり（未リリース。2026-09-21 時点・#1243。山札 50 枚（#1502 で 30→50）・勝敗は詰み優先。別モード「とことん」（#1502）は、ノルマ無しで札が尽きる〈パーフェクト〉か詰みまで続け、取った札の場所へ山札から補充する（盤 30 枚は同じ。成績は variant `endless` で別枠・順位表なし）。ノルマは取った枚数（4/6/9 枚・暫定）に届いた瞬間の即勝ちで、時間切れは負け固定・#1245。絵柄は Core の `ObjectCardArt` で、神経衰弱の絵柄総入れ替え #1244 と共有する）
+    GameFifteen/        ← 15パズル（未リリース。2026-09-24 時点・#1314。4×4・一人用。シャッフルは転倒数で必ず解ける配置のみ。タップで空白へスライド（同じ行・列はまとめて）・記録は最少手数）
     GameBlocks/         ← ブロック崩し（v1.1.3 で公開済み）
     GameRunner/         ← チャリンコおじさん（横スクロールランナー・未リリース。2026-09-10 時点）
     GameHanafuda/       ← 花札こいこい（未リリース。2026-09-10 時点）
@@ -61,6 +63,14 @@ Packages/GameKit/
 **`release/v1.1.6` から**、AITurnGuard・FirstPick・NewGames・RecordsSummary・Analytics・GameCenter・PlayLog など
 20 本と `PlayingCardSuit` / `PlayingCardFigure` が `CoreEngine/` に移っている。本文中のこれらの `Core/…swift` は、
 v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
+### 依存パッケージの版の固定（`Config/Package.resolved`・#1579）
+
+`GameCollection.xcodeproj/` は git 管理外で、`xcodegen generate` のたびに作り直される。Package.resolved がその中にあるため、
+以前はビルドごとに Firebase などの版が「`from:` の範囲の最新」へ黙って変わっていた（v1.1.5 は Firebase 12.19.0 で出荷）。
+
+- 版の正典は **`Config/Package.resolved`**（git 管理）。`xcodegen generate` の直後に `bash Scripts/apply-package-resolved.sh` で Xcode が読む場所へ置く（CI・`fastlane beta`・`capture-aso-screenshots.sh` は実施済み）
+- CI のビルドは `-disableAutomaticPackageResolution` 付き。`project.yml` の指定と食い違うと落ちる
+- **版を上げるとき**: `project.yml` を直し、`xcodegen generate` → `xcodebuild -resolvePackageDependencies -project GameCollection.xcodeproj -scheme GameCollection` で生成された `GameCollection.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` を `Config/Package.resolved` へコピーして同じ PR に含める
 
 ### 主要プロトコル
 
@@ -134,6 +144,37 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
 - 最弱は「弱いが壊れていない」水準を保つ（#502 の物差し）。将棋・チェスは**深さを削らず**
   「最善から歩／ポーン 1 枚未満しか損しない手から乱択する」、五目並べは防御率と候補の広さを緩める、
   オセロは「角のとなりに飛びつく」初心者の癖を足す
+- **将棋は #1461（v1.1.7）で段階の作りを作り直した**（#1397 の「局面数の上限が主・時間は長め」と、段階ごとに
+  ばらばらだった手の選び方は廃止）。段階の差は**考える時間**（入門 0.02 秒 / かんたん 0.1 秒 / ふつう 0.5 秒 /
+  むずかしい 2 秒。時間で打ち切り、読み終われば早く指す。ヒントは「むずかしい」なので 2 秒以内）・
+  **読む深さの上限**（入門 1 / かんたん 2 / ふつう 3 手先・むずかしいは上限なし）と
+  **最善手を打つ確率**（入門 100% / かんたん 70% / ふつう 80% / むずかしい 100%）で付け、探索の仕組み自体は全段階で同じ
+  （`ShogiEngine.swift` の `SimpleMinimaxEngine.init(level:)`。会長決裁 2026-09-27）。外したときは 1 手読み＋静止探索で全候補に点を付け、
+  最善以外で最善から銀 1 枚ぶん（500 点）以内の損の手から乱択する（次の一手で詰まされる手は除く・`slipMove`）。
+  ふつう 80% は会長決裁、かんたん・入門の確率は「隣り合う段階と先後入れ替えで戦い、上の段の得点率（勝ち＋引き分け×0.5）が
+  90% 以上」になる 10% 刻みの最大値（上から順に決定。段階表は `docs/analytics/shogi-1461-ladder.md`）。
+  勝率表と計測条件は #1461 の PR / Issue コメント。計測は最適化ビルドの単体バイナリ（`Scripts/shogi-cpu-bench`）と
+  `CPUBenchTests`（`CPU_BENCH=1` のときだけ走る）で、CI には入れない
+- **チェスは #1398（v1.1.7）で、将棋の #1397 と同じ作り（局面数の上限＋見逃し。将棋はその後 #1461 で作り直した）に変えた**。局面数の上限は `ChessEngine.swift` の
+  `normalNodeLimit` / `hardNodeLimit`、見逃しは `ChessMovePolicy`、入門は自分の手 1 手だけを読む。
+  計測は `CPUBenchTests`（`CPU_BENCH=1`）。CPU 同士の対局計測は最適化ビルドの単体バイナリで回す
+- **五目並べは #1463（v1.1.7）で将棋（#1461）と同じ段階の作りに作り直した**（#1399 の局面数の上限・段ごとの見逃しは廃止）。
+  段階の差は**考える時間**（入門 0.3 秒 / かんたん 0.5 秒 / ふつう 1 秒 / むずかしい 2 秒。読み終われば早く打つ）・
+  **読む深さの上限**（入門 1 / かんたん 3 / ふつう 5 手先・むずかしいは上限なし）と
+  **最善手を打つ確率**（入門 20% / かんたん 10% / ふつう 60% / むずかしい 100%）で付け、探索（各局面で点の高い 14 手だけ読む・
+  四を作る手は 1 手延長）は全段階で同じ（`GomokuEngine.swift` の `SimpleGomokuEngine.init(level:)`。会長決裁 2026-09-26・09-28）。
+  外したときは最善以外で最善から開三 1 本ぶん（500）以内の損の手から乱択する（`GomokuMovePolicy`・`slipMargin`）。
+  確率は上の段の得点率 90% 以上で最も高い値を実測で決めた（`docs/analytics/gomoku-1463-ladder.md`。計測は `Scripts/gomoku-cpu-bench`）
+- **囲碁も #1400（v1.1.7）で共通の呼び名（入門・簡単・ふつう・むずかしい）に揃えた**（`GoLevel` の番号は `CPUStrength` と同じ -1〜2・
+  開始シートは共通の `CPUStrengthPicker`）。打ち切りは**プレイアウト回数**（入門 100・簡単 200・ふつう 1,500・むずかしい 6,000）が主で、
+  実時間の上限は回数に比例した安全用（`GoLevel.timeLimit`）。入門〜ふつうは `bestMoveChance` の確率を外れたとき、
+  勝率が最善手から `mistakeMargin` 以内の手から乱択する。むずかしいは当面 100% 最善手。**合格基準は上の段階の負けが対局数の 3% 以下**
+  （会長決裁 2026-09-26）で、`CPUBenchTests`（`CPU_BENCH=1`）で確かめる
+- **オセロも #1401（v1.1.7）で作りを変えた**（`OthelloEngine.swift`）。打ち切りは**読む局面数の上限**（ふつう 2 万・むずかしい 80 万）が主で、
+  時間の上限（5 秒）は安全用。根でも αβ を効かせ、着手は位置評価の高い順に読む。**入門は 2 手読んで自分にいちばん不利な手を選ぶ**
+  （簡単＝石数最大が元から弱く、以前の「角のとなりを好む」では簡単に負け越さなかったため）。ふつうは深さ 2、むずかしいは深さ 5 ＋
+  空き 12 以下の完全読み（評価関数が同じ探索は深さ 1〜2 差では 10〜20% 負けるので大きく離した。深さ 3 と 4 は偶奇の癖で逆転しうる）。
+  **合格基準は上の段階の負けが対局数の 3% 以下**（会長決裁 2026-09-26）で、`CPUBenchTests`（`CPU_BENCH=1`）で確かめる
 - 最強は 1 手の持ち時間も伸ばす（深くするだけだと打ち切りで弱くなる）。反復深化を持たない
   オセロだけは、深い読みが**時間内に終わったときだけ**採る 2 段構えにしてある
 - 解析（`AnalyticsLevel`）は既存 3 段階の値（`beginner`/`normal`/`hard`）を動かさず、上に
@@ -675,6 +716,68 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **対象外**: 設定で非表示にしたゲーム
 - **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「お知らせ」トグル
+
+### 柵越えおじさん: 公開状態と動作確認用の強制
+
+- **公開状態**: 企画倉庫（`AppEnvironment.registry` でコメントアウト）。v1.1.8 では非公開（会長指示 2026-10-02）。
+  以下の柵越えおじさんの節は倉庫にあるコードの仕様で、ハブ・LP・ストア文言には出していない
+- **動作確認用の強制**（`-homerunUnlimited`・`-homerunForceMoon`・`-homerunForcePole`・`-homerunForceWhiffGag`）は
+  DEBUG ビルドだけで効く。鍵の宣言と読み取りは `HomerunModel+Debug.swift`（`HomerunDebugOverrides`）の `#if DEBUG` の中だけで、
+  出荷ビルドでは端末に同じ鍵が残っていても読まない
+
+### 柵越えおじさん: 空振りで回って倒れて目を回す演出（#1681・v1.1.8）
+
+振った空振り（見送りは除く）で、打者がそのまま約 1.8 回転して後ろへ尻もちをつき、座って頭をぐるぐる回す（ぐるぐる目・頭上の星 3 つ）。
+
+- **発生**: 1 挑戦の中で 2 回目の空振りは必ず、それ以外の空振りは 1/3 の確率（`HomerunWhiffGag.shows`・`HomerunModel.showsWhiffGag`）
+- **間合い**: 演出の空振りは結果の時間を離してから約 4.2 秒に延ばし（`HomerunWhiffGag.resultDuration`・`HomerunModel.resultEnd`）、
+  座りきるまで次の球を投げない。結果のカードは座り込んでから（離して 2.4 秒）。演出の間は素振りを受け付けない。次の球で構えに戻る
+- **素材**: 骨の動きは `HomerunBatter.usdz` のスイング（1〜44 コマ）の続き（45〜133 コマ）として焼き込み（モデルは 1 つ）。
+  体全体の回転・後ろへの傾きは親の実体のヨーで足し、回転の量は座ったとき顔がいまのカメラ（前 / 後ろ）を向く量。
+  ぐるぐる目・星・バットと体の影は表（`HomerunWhiffGag+Samples.swift`・生成物）から毎コマ置く
+- **動作確認**: DEBUG ビルドの起動引数 `-homerunForceWhiffGag` で、振った空振りに必ず演出を出す（`HomerunModel.debugForceWhiffGagKey`）
+
+### 柵越えおじさん: 戻る時刻と「戻ったら知らせる」（#1576）
+
+挑戦回数を使い切ったシート（`HomerunExhaustedSheet`）に、端末の 0:00 までの残り（「あと約◯時間◯分で戻ります」）と、
+「戻ったら知らせる」トグル（既定オフ）を出す。
+
+- **予約**: トグルをオンにした 1 回だけ、翌 0:00 の 1 分後にローカル通知を 1 件（識別子 `challenge-return.homerun` 固定なので置き換わり、増えない）。音なし・繰り返しなし
+- **許可**: 設定の「通知」（#1508 の共有トグル）に従う。オフなら予約せずトグルを無効にする。OS の許諾が未決定なら標準ダイアログで求める（`.provisional` は使わない）
+- **保存先**: アプリ側の保存は無い（予約の有無は OS の予約一覧から読み直す）。トグルオフ・設定の「通知」オフで取り消す
+- **実装**: 規則は `HomerunReturnPolicy`（純関数）、予約は `ChallengeReturnReminderService`（`GameServices.returnReminder`）
+
+### 柵越えおじさん: 月まで飛ぶ隠し演出（#1680・v1.1.8）
+
+タイミングのずれ ±50ms 以内 かつ カーソルがフライの芯の基準点（ボールの中心の 4pt 下）から 1pt 以内で振ると、打球が月まで飛ぶ
+（`HomerunJudge.isMoonShot`。場外より優先）。1 挑戦の中で回数を数える。
+
+- **1 回目**: カメラが打球を追って真上へ見上げ、空が夜空になる（大気圏を抜けたところで球が燃えて火の玉になる）。月は遠くの点から加速しながら画面いっぱいまで迫り、火の玉が月面に突っ込んでヒビが入る。結果は「384,400 km」と表示
+- **2 回目**: 月が半分に割れ、その挑戦は終了（残りの球は没収・それまでの球は記録に残す）。今日のプレイ回数を +2
+- **記録**: 表示は 384,400 km だが、自己ベスト・合計・最長には 180m（`HomerunJudge.moonCountedDistance`）として数える。
+  Game Center の合計飛距離も同じ
+- **台帳のボーナス枠**: `HomerunLedger` に「月が割れたプレゼント」の回数を持つ（`grantMoonBonus`・+2 ずつ・上限なし・当日分として
+  0:00 で消える）。保存は Optional のキーで、0 のときは書かない（以前の保存も以前の版も読める）
+- **実績**: `HomerunRecords.moonShots`（月まで飛ばした回数）・`moonBreaks`（割れた回数）。保存の互換は台帳と同じ扱い。
+  打席前の「きろく」に 1 回以上のときだけ「月まで飛ばした N 回」を出す
+- **見せ方**: `HomerunMoonShot`（時刻だけで決まるカメラ・夜空・月）、月の 3D は `HomerunMoonRig`（クレーターの模様の球・ヒビ・
+  割れた半球 2 つ・トゥーンの輪郭線。Meshy 不使用）
+- **動作確認**: DEBUG ビルドの起動引数 `-homerunForceMoon` で、振れば必ず月まで飛ぶ（`HomerunModel.debugForceMoonKey`）
+
+### 柵越えおじさん: ファウルポール直撃（#1686・v1.1.8）
+
+打球方向が ±45°（ポールの線）から `HomerunJudge.poleHalfAngle`（柵 100m の所でポールの半径 0.3m + 球の半径が見込む角度・約 0.19°）
+以内で、柵（100m）を越える飛距離の打球はポールに当たり、45° の外側（本来のファウル）でも柵越えになる（`HomerunJudge.judge`）。
+
+- **結果**: 種別は柵越え（本数・記録に数える・飛距離はふだんの式の値）。方向は ±45° ちょうどに置き、`isPoleHit`（柵越え かつ
+  |方向| ≥ 45°）を保存（`HomerunShot`）の方向・種別から毎回求める（保存の形は変えない）。表示は「ポール直撃！」（結果カード・
+  1 球ずつの記録・読み上げ）
+- **優先順位**: 月 > ポール直撃 > 場外（`isOutOfPark` はポール直撃・月の打球では false）
+- **見せ方**: 打球を追うカメラで、柵越えの放物線をポールの面で切って当て、本塁側へ少し跳ね上がって柵の手前に落ち、弾んで止まる
+  （`HomerunBallChase.poleHit`・カードまでの上限は柵越えより長い `poleLimit`）。影は球の真下の地面に追従する
+- **ポールの寸法**: 判定と球場の 3D は同じ定数（`HomerunJudge.poleRadius` / `poleHeight`）
+- **動作確認**: DEBUG ビルドの起動引数 `-homerunForcePole` で、振れば必ずポールに当たる（向きは振った方向の側・
+  `HomerunModel.debugForcePoleKey`）。月の強制が優先
 
 ---
 

@@ -165,38 +165,56 @@ public struct MinesweeperView: View {
     private var continueOverlay: some View {
         ZStack {
             Color.black.opacity(0.6)
-            VStack(spacing: 12) {
-                Text("💥")
-                    .font(.system(size: 52))
-                Text("地雷を踏んだ！")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                GameDeadEndActionButton(
-                    "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
-                    tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
-                ) {
-                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
-                    // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
-                    let game = model.gameSerial
-                    continueRescue.request(
-                        services, gameID: model.gameID, purpose: .continue,
-                        guardedBy: .checkedByGrant
-                    ) {
-                        guard model.continueAfterAd(forGame: game) else { return false }
-                        showContinue = false
-                        return true
+            // 大きな文字設定（アクセシビリティ）では、ボタンが盤の高さに収まらずパネルがはみ出す
+            // （SE で確認・#1520）。**収まるあいだは今までの非スクロール表示のままにし、収まらない
+            // ときだけ盤の中でスクロールに落とす**（`GameDeadEndPanel` と同じ手当て）。
+            ViewThatFits(in: .vertical) {
+                continueContent
+                GeometryReader { geo in
+                    ScrollView(showsIndicators: false) {
+                        // 幅を枠に固定する（`ScrollView` は中身の理想幅を提案してくるため）。
+                        continueContent
+                            .frame(width: geo.size.width)
+                            .frame(minHeight: geo.size.height, alignment: .top)
                     }
                 }
+            }
+        }
+    }
 
-                // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
-                // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
-                GameDeadEndDismissButton("諦める", isDisabled: continueRescue.isWatching) {
+    private var continueContent: some View {
+        VStack(spacing: 12) {
+            Text("💥")
+                .font(.system(size: 52))
+            Text("地雷を踏んだ！")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+
+            GameDeadEndActionButton(
+                "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
+                tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
+            ) {
+                // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
+                // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                let game = model.gameSerial
+                continueRescue.request(
+                    services, gameID: model.gameID, purpose: .continue,
+                    guardedBy: .checkedByGrant
+                ) {
+                    guard model.continueAfterAd(forGame: game) else { return false }
                     showContinue = false
+                    return true
                 }
             }
-            .padding(20)
+
+            // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
+            // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
+            GameDeadEndDismissButton("諦める", isDisabled: continueRescue.isWatching) {
+                showContinue = false
+            }
         }
+        // 他の失敗パネル（2048・ブロックならべ・ナンプレ・フルーツ）と同じ余白（#1520）。
+        .padding(RewardedPanelLayout.contentPadding)
     }
 
     // MARK: - 盤の下の操作エリア

@@ -256,7 +256,9 @@ public struct PokerView: View {
                     .foregroundStyle(Theme.inkSub)
                 if !model.cpuAction.isEmpty {
                     Text(model.cpuAction)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .themeCaption(12, weight: .bold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(Theme.Fill.purple))
@@ -264,7 +266,9 @@ public struct PokerView: View {
                 Spacer()
                 if model.phase == .result && !model.cpuFolded {
                     Text(model.cpuHandRank.description)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .themeCaption(12, weight: .bold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.purple)
                         // 役名が手札より先に出ると答えを見せてから返すことになるので、
                         // 5 枚が返り終わってから薄く現れる（#206）。
@@ -316,10 +320,14 @@ public struct PokerView: View {
 
                 VStack(spacing: 2) {
                     Text("ポット")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                     Text("\(model.pot)枚")
-                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .themeBody(20, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.yellow)
                         // ベット・コールで増え、決着で勝者に渡って 0 に戻る。数字が瞬時に
                         // 入れ替わると増減の向きが分からないので、転がして見せる（#206）。
@@ -352,7 +360,9 @@ public struct PokerView: View {
                 Spacer()
                 if model.phase == .exchange {
                     Text("捨てるカードを選んでください")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.teal)
                 }
                 if model.phase == .result {
@@ -362,7 +372,9 @@ public struct PokerView: View {
                 }
                 if model.phase == .result || model.phase == .showdown {
                     Text(model.playerHandRank.description)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .themeCaption(12, weight: .bold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.teal)
                 }
             }
@@ -402,19 +414,25 @@ public struct PokerView: View {
         switch winner {
         case .player:
             Text("勝ち！")
-                .font(.system(size: 13, weight: .black, design: .rounded))
+                .themeCaption(13, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(Theme.Fill.teal))
         case .cpu:
             Text("負け")
-                .font(.system(size: 13, weight: .black, design: .rounded))
+                .themeCaption(13, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(Theme.Fill.coral))
         case .tie:
             Text("引き分け")
-                .font(.system(size: 13, weight: .black, design: .rounded))
+                .themeCaption(13, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(Theme.fillMuted))
@@ -487,7 +505,7 @@ public struct PokerView: View {
                         model.foldToCPUBet()
                     }
                     actionButton("コール \(model.currentBet)枚", role: .primary,
-                                 disabled: model.playerChips < model.currentBet) {
+                                 disabled: !model.canCallCPUBet) {
                         model.callCPUBet()
                     }
                 }
@@ -540,7 +558,9 @@ public struct PokerView: View {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(Theme.yellow)
             Text("役ボーナス \(who) +\(chips)枚")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .themeCaption(13, weight: .bold, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(isPlayer ? Theme.teal : Theme.inkSub)
             Spacer()
         }
@@ -554,11 +574,15 @@ public struct PokerView: View {
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
                     Text(state.isSettled ? "ダブルアップ終了" : "ダブルアップ \(state.streak)/\(PokerModel.maxDoubleUpStreak)")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .themeCaption(12, weight: .bold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                     Spacer()
                     Text(state.isSettled ? "獲得 \(state.payout)枚" : "賭け金 \(state.stake)枚")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .themeBody(14, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(state.isSettled && state.payout == 0 ? Theme.coral : Theme.yellow)
                 }
                 HStack(spacing: 12) {
@@ -581,7 +605,9 @@ public struct PokerView: View {
                     Image(systemName: "arrow.up.right.circle.fill")
                         .foregroundStyle(Theme.yellow)
                     Text("獲得 \(model.pendingWinnings)枚 をダブルアップに賭けますか？")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .themeCaption(13, weight: .bold, maxScale: 1.5)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.ink)
                     Spacer()
                 }
@@ -625,7 +651,9 @@ public struct PokerView: View {
         case .push:    ("引き分け", Theme.fillMuted)
         }
         Text(text)
-            .font(.system(size: 13, weight: .black, design: .rounded))
+            .themeCaption(13, weight: .black, maxScale: 1.5)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .foregroundStyle(result == .push ? .white : Theme.onAccent)
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(Capsule().fill(fill))
@@ -671,10 +699,14 @@ public struct PokerView: View {
                     .foregroundStyle(iconColor)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .themeBody(16, weight: .bold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(titleColor)
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                 }
                 Spacer()

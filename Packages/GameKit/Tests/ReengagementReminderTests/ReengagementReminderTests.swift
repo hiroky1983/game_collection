@@ -121,7 +121,8 @@ private func makeService(
     _ spy: SpyScheduler,
     _ env: Environment,
     store: ReengagementReminderStore = freshStore(),
-    suppressed: Bool = false
+    suppressed: Bool = false,
+    summaries: [String: String] = [:]
 ) -> ReengagementReminderService {
     ReengagementReminderService(
         scheduler: spy,
@@ -129,6 +130,7 @@ private func makeService(
         isEnabled: { env.enabled },
         isSuppressed: suppressed,
         reminderTitle: { env.hidden.contains($0) ? nil : titles[$0] },
+        recordSummary: { summaries[$0] },
         now: { env.now },
         calendar: tokyo
     )
@@ -269,6 +271,30 @@ struct ReengagementReminderServiceTests {
 
         #expect(spy.scheduled["shogi"]?.count == 3)
         #expect(spy.contents["shogi"]?.title == "「将棋」、久しぶりに遊んでみませんか？")
+    }
+
+    @Test("記録の 1 行があれば本文に添え、無ければ従来の文面のまま（#1604）")
+    func bodyCarriesRecordSummaryWhenAvailable() async {
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
+
+        let withRecord = SpyScheduler()
+        let service = makeService(withRecord, Environment(now: date(8, 8)), summaries: ["shogi": "ベスト 12,340"])
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        #expect(withRecord.contents["shogi"]?.body == "以前よく遊んでいたあそびです。記録: ベスト 12,340")
+
+        let withoutRecord = SpyScheduler()
+        let plain = makeService(withoutRecord, Environment(now: date(8, 8)))
+        plain.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await plain.pendingWork?.value
+        #expect(withoutRecord.contents["shogi"]?.body == "以前よく遊んでいたあそびです。")
+    }
+
+    @Test("文面の組み立て: 記録あり・なし（#1604）")
+    func contentBody() {
+        #expect(ReengagementReminderPolicy.content(gameTitle: "将棋").body == "以前よく遊んでいたあそびです。")
+        #expect(ReengagementReminderPolicy.content(gameTitle: "将棋", recordSummary: "3勝1敗").body
+                == "以前よく遊んでいたあそびです。記録: 3勝1敗")
     }
 
     @Test("複数ゲームのスレッドが同時にアクティブになれ、新しい対象が選ばれても既存スレッドはキャンセルされない")

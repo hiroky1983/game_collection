@@ -42,7 +42,7 @@ public struct GameOverflowBar: View {
         HStack(spacing: 8) {
             if let caption {
                 Text(caption.text)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, maxScale: 1.3)
                     .foregroundStyle(caption.color)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)

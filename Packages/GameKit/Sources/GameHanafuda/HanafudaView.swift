@@ -28,7 +28,14 @@ public struct HanafudaView: View {
             // 1 画面に収める（#1254。麻雀・将棋・オセロの盤と同じ考え方）。
             GeometryReader { geo in
                 if model.phase == .matchResult {
-                    matchResultCard.transition(.opacity)
+                    // 「もう一度」は結果カードのすぐ下に置き、余りの高さは広告との間に残す（#1519）。
+                    // 下の操作エリアに置くと、この枠が残り高さを取るぶんボタンが広告の直上へ押し下げられて誤タップを招く。
+                    VStack(spacing: 8) {
+                        matchResultCard
+                        actionButton("もう一度", role: .primary) { model.restartMatch() }
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                    .transition(.opacity)
                 } else {
                     // 「⋯」の行は札のすぐ下に置き、余りの高さは「⋯」の行と広告のあいだに残す（#1485）。
                     // 行のぶんを先に引いてから札の大きさを決める（行を外に置いていた従来と同じ高さの配分）。
@@ -350,7 +357,8 @@ public struct HanafudaView: View {
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
-            actionButton("もう一度", role: .primary) { model.restartMatch() }
+            // 試合の結果の「もう一度」は結果カードの下（body の GeometryReader 内）に出す（#1519）。
+            EmptyView()
         default:
             // 対局中は操作の行を出さない。投了は札のすぐ下の「⋯」（`overflowBar`）、手番は状態の帯（#1485）。
             EmptyView()

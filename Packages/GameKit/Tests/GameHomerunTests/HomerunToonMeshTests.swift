@@ -12,7 +12,70 @@ struct HomerunToonMeshTests {
         ("角丸の箱", .box(width: 1, height: 2, depth: 3, radius: 0.3)),
         ("円柱", .frustum(top: 1, bottom: 1, height: 2)),
         ("円錐台", .frustum(top: 0.17, bottom: 0.09, height: 3)),
+        ("五角形の柱", .prism(HomerunToonModel.HomePlate.polygon, height: 0.02)),
+        ("縁を落とした五角形の柱", .prism(HomerunToonModel.HomePlate.polygon, height: 0.016, bevel: 0.012)),
+        ("楕円の柱", .prism(HomerunToonMesh.ellipse(center: [1, -2], rx: 0.5, rz: 0.3), height: 0.006)),
+        ("閉じた帯", .ribbon([[0, 0], [1, 0], [1, 2], [0, 2]], width: 0.05, height: 0.01, closed: true)),
+        ("開いた帯", .ribbon([[-0.5, 0], [-0.5, -2], [0.5, -2], [0.5, 0]], width: 0.05, height: 0.01, closed: false)),
     ]
+
+    // #1677: 本塁・白線は平らな図形（柱・帯）で作る。
+    @Test("多角形の柱: 上面は多角形そのまま（縁を落とすと内へ寄る）・底の外周は元の頂点で、高さは ±h/2")
+    func prismShape() {
+        let square: [SIMD2<Float>] = [[-1, -1], [1, -1], [1, 1], [-1, 1]]
+        let plain = HomerunToonMesh.prism(square, height: 0.2)
+        #expect(plain.positions.allSatisfy { abs(abs($0.y) - 0.1) < 1e-6 })
+        #expect(plain.positions.filter { $0.y > 0 }.allSatisfy { abs(abs($0.x) - 1) < 1e-6 && abs(abs($0.z) - 1) < 1e-6 })
+        // 上面は 4 頂点 + 側面 4 × 4 = 20 頂点・三角形は 2 + 8。底は張らない。
+        #expect(plain.positions.count == 20 && plain.indices.count == 30)
+        let beveled = HomerunToonMesh.prism(square, height: 0.2, bevel: 0.25)
+        let top = beveled.positions.filter { $0.y > 0 }
+        #expect(top.allSatisfy { abs(abs($0.x) - 0.75) < 1e-5 && abs(abs($0.z) - 0.75) < 1e-5 }, "上面が 0.25 内へ寄っていない")
+        #expect(beveled.positions.filter { $0.y < 0 }.allSatisfy { abs(abs($0.x) - 1) < 1e-6 }, "底の外周は元のまま")
+        // 斜めの側面の法線は外と上を向く。
+        let side = zip(beveled.positions, beveled.normals).filter { abs($0.0.x - 0.75) < 1e-5 && $0.0.y > 0 && abs($0.1.x) > 0.1 }
+        #expect(!side.isEmpty && side.allSatisfy { $0.1.x > 0.5 && $0.1.y > 0.3 })
+        // 頂点の並びがどちら回りでも同じ形。
+        let reversed = HomerunToonMesh.prism(square.reversed(), height: 0.2)
+        #expect(Set(reversed.positions.map { "\($0)" }) == Set(plain.positions.map { "\($0)" }))
+    }
+
+    @Test("帯: 幅の半分だけ両側へ広がり、角は留め継ぎで閉じる（閉じた帯の外の角は (±(1 + w/2)) に 1 点ずつ）・開いた帯は両端にふた")
+    func ribbonShape() {
+        let w: Float = 0.1
+        let ring = HomerunToonMesh.ribbon([[-1, -1], [1, -1], [1, 1], [-1, 1]], width: w, height: 0.01, closed: true)
+        let xs = ring.positions.map(\.x), zs = ring.positions.map(\.z)
+        #expect(abs(xs.max()! - (1 + w / 2)) < 1e-5 && abs(xs.min()! + (1 + w / 2)) < 1e-5)
+        #expect(abs(zs.max()! - (1 + w / 2)) < 1e-5 && abs(zs.min()! + (1 + w / 2)) < 1e-5)
+        // 上面の頂点は外の角（1.05）か内の角（0.95）だけ = 継ぎ目に飛び出しも欠けもない。
+        for p in ring.positions where p.y > 0 {
+            #expect((abs(abs(p.x) - 1.05) < 1e-5 || abs(abs(p.x) - 0.95) < 1e-5) && (abs(abs(p.z) - 1.05) < 1e-5 || abs(abs(p.z) - 0.95) < 1e-5), "\(p)")
+        }
+        let open = HomerunToonMesh.ribbon([[0, 0], [0, -2], [1, -2], [1, 0]], width: w, height: 0.01, closed: false)
+        // 端（z = 0）はまっすぐ切れ、角（z = -2）は留め継ぎ。両端のふた（法線 ±z）がある。
+        #expect(abs(open.positions.map(\.z).max()!) < 1e-5 && abs(open.positions.map(\.z).min()! + 2 + w / 2) < 1e-5)
+        // 端（z = 0）の頂点の法線は上・横（±x）・ふた（+z = U の字の開いた側）だけで、内向き（−z）のふたは無い。
+        let ends = zip(open.positions, open.normals).filter { $0.0.z > -1e-5 }.map(\.1)
+        #expect(ends.contains { $0.z > 0.99 } && !ends.contains { $0.z < -0.99 }, "ふたは両端とも +z 向き（U の字の開いた側）")
+        let axisAligned = open.normals.filter { abs($0.y) < 1e-5 }
+        #expect(axisAligned.allSatisfy { abs(abs($0.x) - 1) < 1e-5 || abs(abs($0.z) - 1) < 1e-5 })
+    }
+
+    @Test("多角形の寄せ（offset）: 正で外・負で内へ、辺に垂直な距離が等しい。向きはどちら回りでも同じ")
+    func polygonOffset() {
+        let square: [SIMD2<Float>] = [[-1, -1], [1, -1], [1, 1], [-1, 1]]
+        for polygon in [square, square.reversed()] {
+            let out = HomerunToonMesh.offset(HomerunToonMesh.clockwise(polygon), by: 0.5, closed: true)
+            #expect(out.allSatisfy { abs(abs($0.x) - 1.5) < 1e-5 && abs(abs($0.y) - 1.5) < 1e-5 }, "\(out)")
+            let inner = HomerunToonMesh.offset(HomerunToonMesh.clockwise(polygon), by: -0.5, closed: true)
+            #expect(inner.allSatisfy { abs(abs($0.x) - 0.5) < 1e-5 && abs(abs($0.y) - 0.5) < 1e-5 }, "\(inner)")
+        }
+        // 五角形の本塁を 0.05 外へ: 先端は 45° の 2 辺の交点なので 0.05 / sin45° = 0.0707 下へ。
+        let plate = HomerunToonMesh.offset(HomerunToonMesh.clockwise(HomerunToonModel.HomePlate.polygon), by: 0.05, closed: true)
+        let apex = plate.min { $0.y < $1.y }!
+        #expect(abs(apex.x) < 1e-5 && abs(apex.y - (-0.432 - 0.05 * Float(2).squareRoot())) < 1e-4, "\(apex)")
+        #expect(plate.contains { abs($0.x - 0.266) < 1e-4 && abs($0.y - 0.05) < 1e-4 }, "前の角 \(plate)")
+    }
 
     /// 三角形の表（反時計回り）が法線と同じ側を向く = 外向き。縮退した三角形（極の点）は面積 0 なので数えない。
     private func facesOutward(_ m: HomerunToonMesh) -> (outward: Int, inward: Int) {
@@ -111,21 +174,18 @@ struct HomerunToonMeshTests {
         #expect(m.parts.allSatisfy { $0.mesh.positions.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite } })
     }
 
-    @Test("捕手と審判は +z（投手）向きで、しゃがみ・前かがみの背丈に収まり、茶のミットがある")
-    func catcherAndUmpireBuild() {
-        let catcher = HomerunToonModel.catcher(), umpire = HomerunToonModel.umpire()
-        for (name, m) in [("捕手", catcher), ("審判", umpire)] {
-            let pos = m.parts.flatMap { $0.mesh.positions }
-            #expect(pos.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite }, "\(name)")
-            #expect(pos.map(\.y).min()! > -0.1 && pos.map(\.y).max()! < 5.5, "\(name): しゃがみ・前かがみは立ちより低い")
-            #expect(m.parts.count > 15 && m.parts.filter { $0.outline != nil }.count > m.parts.count / 2, "\(name)")
-            #expect(m.parts.allSatisfy { !$0.striped }, "\(name): ピンストライプは打者だけ")
-        }
+    @Test("捕手は +z（投手）向きで、しゃがみの背丈に収まり、茶のミットがある")
+    func catcherBuild() {
+        let catcher = HomerunToonModel.catcher()
+        let pos = catcher.parts.flatMap { $0.mesh.positions }
+        #expect(pos.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite })
+        #expect(pos.map(\.y).min()! > -0.1 && pos.map(\.y).max()! < 5.5, "しゃがみは立ちより低い")
+        #expect(catcher.parts.count > 15 && catcher.parts.filter { $0.outline != nil }.count > catcher.parts.count / 2)
+        #expect(catcher.parts.allSatisfy { !$0.striped }, "ピンストライプは打者だけ")
         #expect(catcher.parts.contains { $0.color == HomerunToonPalette.glove }, "ミットは茶")
         let front = catcher.parts.flatMap { $0.mesh.positions }.map(\.z).max()!
         #expect(front > 1.8 && front < 2.6, "ミットとケージは投手側（+z）に出る")
-        #expect(catcher == HomerunToonModel.catcher() && umpire == HomerunToonModel.umpire(), "乱数なし")
-        #expect(catcher != umpire)
+        #expect(catcher == HomerunToonModel.catcher(), "乱数なし")
     }
 
     #if canImport(RealityKit)

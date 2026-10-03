@@ -26,15 +26,17 @@ private let trapForCPU = ShiritoriCard(.cat, "らーめん")        // ら → �
 @MainActor
 struct ShiritoriModelTests {
 
-    @Test("開始: 29 枚が並び、残る 1 枚が場の札。時間は 60 秒でプレイヤーが先手")
+    @Test("開始（ノルマ）: 30 枚が並び、別の 1 枚が場の札。山札 50 枚のうち 31 枚だけ使う。時間は 60 秒でプレイヤーが先手")
     func startDealsTwentyNineAndOpensOne() {
         let (model, _) = makeModel()
         model.startGame(quota: .hard)
 
         #expect(model.phase == .playing)
-        #expect(model.slots.count == 29)
+        #expect(model.slots.count == 30)
         let ids = model.slots.map(\.card.id) + [model.currentCard?.id ?? ""]
-        #expect(Set(ids) == Set(ShiritoriCard.deck.map(\.id)), "山札 30 枚が過不足なく盤と場に分かれる")
+        #expect(Set(ids).count == 31, "盤 30 枚と場の 1 枚は重ならない")
+        #expect(Set(ids).isSubset(of: Set(ShiritoriCard.deck.map(\.id))))
+        #expect(model.mode == .quota && model.stock.isEmpty, "ノルマは山札を使わない")
         #expect(model.currentReading == model.currentCard?.primaryReading, "最初の場は表読み")
         #expect(model.timeRemaining == 60)
         #expect(model.isPlayerTurn)
@@ -438,7 +440,7 @@ struct ShiritoriModelTests {
             }
             #expect(model.phase == .result, "seed \(seed)")
             #expect(model.ending != nil)
-            #expect(model.playerCount + model.cpuCount <= 29)
+            #expect(model.playerCount + model.cpuCount <= 30)
             #expect(model.playerCount >= model.cpuCount, "先手なので同数か 1 枚多い")
         }
         // 残る裏読み「にゃんこ」（#1271 で「ぐらす」「おうぎ」を削除した後）が、実プレイで
@@ -467,5 +469,232 @@ struct ShiritoriProgressToLoseTests {
         model.startGame()
         model.pause()
         #expect(model.hasProgressToLose)
+    }
+}
+
+// MARK: - とことんモード（#1502）
+
+private let kasa = ShiritoriCard(.umbrella, "かさ")            // か → さ
+private let aardvark = ShiritoriCard(.deer, "らくだ")          // ら → だ（絵は使い回し。配りの検査には使わない）
+private let bamboo = ShiritoriCard(.bamboo, "だちょう")        // だ → う
+private let rabbit = ShiritoriCard(.rabbit, "うさぎ")          // う → ぎ
+private let guitar = ShiritoriCard(.guitar, "ぎたー")          // ぎ → た
+private let drum = ShiritoriCard(.drum, "たいこ")              // た → こ
+private let koala = ShiritoriCard(.koala, "こあら")            // こ → ら
+
+@Suite("カードしりとり とことんモード（#1502）")
+@MainActor
+struct ShiritoriEndlessTests {
+
+    @Test("配り: 盤 30 枚・場 1 枚・山札 19 枚が重ならず全 50 枚。ノルマは山札を使わない")
+    func dealSplitsFiftyCards() {
+        for seed in UInt64(0)..<100 {
+            let (model, _) = makeModel(seed: seed)
+            model.startGame(mode: .endless)
+            let ids = model.slots.map(\.card.id) + [model.currentCard?.id ?? ""] + model.stock.map(\.id)
+            #expect(model.slots.count == 30 && model.stock.count == 19, "seed \(seed)")
+            #expect(Set(ids) == Set(ShiritoriCard.deck.map(\.id)) && ids.count == 50, "seed \(seed)")
+            #expect(model.stockCount == 19)
+        }
+    }
+
+    @Test("最初の盤面では絶対に詰まない: どちらのモードでも、多数の種でプレイヤーの 1 手目が盤にある")
+    func firstMoveAlwaysExistsInBothModes() {
+        for mode in ShiritoriMode.allCases {
+            for seed in UInt64(0)..<500 {
+                let (model, _) = makeModel(seed: seed)
+                model.startGame(mode: mode)
+                #expect(model.phase == .playing, "\(mode) seed \(seed)")
+                let tail = model.requiredTail
+                #expect(tail != nil && tail != "ん", "\(mode) seed \(seed)")
+                #expect(!ShiritoriRules.moves(slots: model.slots, after: tail ?? "ん").isEmpty, "\(mode) seed \(seed)")
+            }
+        }
+    }
+
+    @Test("配りに詰み専用の札が無い: 場と盤（とことんは山札も）のどの読みの語尾も、ほかの札で受けられる")
+    func dealHasNoDeadEnd() {
+        for mode in ShiritoriMode.allCases {
+            for seed in UInt64(0)..<200 {
+                let (model, _) = makeModel(seed: seed)
+                model.startGame(mode: mode)
+                let opener = model.currentCard.map { [$0] } ?? []
+                let cards = model.slots.map(\.card) + model.stock
+                // 開場札は場に出ているので、受け手は盤と山札の札。
+                let pool = cards
+                for card in pool {
+                    let others = pool.filter { $0.id != card.id }.map { ShiritoriSlot(card: $0) }
+                    for reading in card.readings {
+                        guard !ShiritoriRules.endsWithN(reading), let tail = ShiritoriKana.tail(of: reading) else { continue }
+                        #expect(!ShiritoriRules.moves(slots: others, after: tail).isEmpty,
+                                "\(mode) seed \(seed): \(card.id) の \(reading) に後続がない（場: \(opener.first?.id.description ?? "")）")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("取ると空いた場所へ山札の先頭が補充され、山札は 1 枚減る。取った枚数は数え続ける")
+    func claimRefillsFromStock() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [otter, top])
+        model.select(0)
+
+        #expect(model.slots[0].card == otter && model.slots[0].owner == nil, "同じ場所に山札の先頭が出る")
+        #expect(model.slots[1].card == kasa)
+        #expect(model.stock == [top])
+        #expect(model.currentCard == gorilla)
+        #expect(model.playerCount == 1 && model.cpuCount == 0)
+        #expect(model.phase == .playing && !model.isPlayerTurn, "補充された札で CPU は続けられる")
+    }
+
+    /// #1659: とことんは CPU が盤の左から取り進めるので、山札に後続が残っているのにプレイヤーが詰んで負けになる
+    /// 局が約半数あった（測定: ランダムに打つ人で 47%）。
+    @Test("CPU が取った直後にプレイヤーの続けられる札が盤に無いとき、山札から続けられる札を先に補充する")
+    func refillPicksFollowerWhenPlayerWouldBeStuck() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [top, otter], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()   // CPU が ごりら（ら）を取る。盤に残る かさ では ら を受けられない
+
+        #expect(model.slots[0].card == otter, "山札の先頭（こま）ではなく、ら を受けられる らっこ が出る")
+        #expect(model.stock == [top])
+        #expect(model.phase == .playing && model.isPlayerTurn, "詰みにならず、プレイヤーの番になる")
+    }
+
+    @Test("盤にプレイヤーの続けられる札があるなら、山札は先頭から補充する（順序を崩さない）")
+    func refillKeepsOrderWhenPlayerCanContinue() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, otter], mode: .endless, stock: [top, kasa], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()   // CPU が ごりら を取る。盤の らっこ で続けられる
+
+        #expect(model.slots[0].card == top)
+        #expect(model.stock == [kasa])
+    }
+
+    @Test("プレイヤーが取った直後は、CPU が詰む補充でも山札の先頭のまま（CPU を詰ませて勝つ道を残す）")
+    func refillAfterPlayerClaimIsNotRescued() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [top, otter])
+        model.select(0)
+
+        #expect(model.slots[0].card == top)
+        #expect(model.ending == .cpuStuck && model.didPlayerWin)
+    }
+
+    @Test("山札が尽きたら補充されず、取られた札が盤に残る")
+    func noRefillWhenStockIsEmpty() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [])
+        model.select(0)
+
+        #expect(model.slots[0].card == gorilla && model.slots[0].owner == .player)
+        #expect(model.ending == .cpuStuck && model.didPlayerWin, "受けられる札が盤に無い（かさ ← ら）ので CPU は詰み")
+    }
+
+    @Test("補充で続けられるようになった手は詰みではない（補充してから詰みを見る）")
+    func refillIsSeenBeforeStuckCheck() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [otter])
+        model.select(0)
+        #expect(model.ending == nil, "ごりら → 補充された らっこ で CPU は続けられる")
+    }
+
+    @Test("パーフェクト: 盤と山札の最後の 1 枚をプレイヤーが取ったら勝ち。時間は成立ぶん増える")
+    func playerTakesLastCardIsPerfect() {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla], mode: .endless, stock: [])
+        model.select(0)
+
+        #expect(model.phase == .result && model.ending == .perfect)
+        #expect(model.didPlayerWin)
+        #expect(model.reviewOutcome == .win)
+        #expect(model.playerCount == 1)
+    }
+
+    @Test("パーフェクト: CPU が最後の 1 枚を取っても、札が全部なくなればプレイヤーの勝ち")
+    func cpuTakesLastCardIsStillPerfect() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: [gorilla], mode: .endless, stock: [], isPlayerTurn: false)
+        await model.runCPUTurnIfNeeded()
+
+        #expect(model.ending == .perfect && model.didPlayerWin)
+        #expect(model.cpuCount == 1)
+    }
+
+    @Test("ノルマは無い: ノルマの枚数を取っても終わらず、続けられる限り続く")
+    func quotaDoesNotApply() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            opener: apple, board: [gorilla, otter, koala, ShiritoriCard(.camel, "らくだ"), bamboo, rabbit, guitar, drum],
+            quota: .easy, mode: .endless, stock: []
+        )
+        // あなた: ごりら → CPU: らっこ → あなた: こあら → CPU: らくだ → あなた: だちょう → CPU: うさぎ → あなた: ぎたー（4 枚目）
+        for pick in [0, 2, 4] {
+            model.select(pick)
+            await model.runCPUTurnIfNeeded()
+        }
+        model.select(6)
+
+        #expect(model.playerCount == 4 && model.quota == .easy)
+        #expect(!model.isQuotaMet)
+        #expect(model.ending == nil && model.phase == .playing, "ノルマ 4 枚に届いても終わらない")
+    }
+
+    @Test("負け筋は従来どおり: 続けられない・時間切れ・「ん」")
+    func lossesAndTimeUp() {
+        // 続けられない（CPU の番でプレイヤーが受けられる札が盤にも山札にも無い）
+        let (stuck, _) = makeModel()
+        stuck.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [], isPlayerTurn: true)
+        stuck.select(1)   // かさ ← り はお手つき
+        #expect(stuck.lastEvent == .miss && stuck.phase == .playing)
+
+        let (timeUp, _) = makeModel()
+        timeUp.configureForTesting(opener: apple, board: [gorilla, kasa], mode: .endless, stock: [otter])
+        timeUp.tick(ShiritoriTime.initial)
+        #expect(timeUp.ending == .timeUp && !timeUp.didPlayerWin, "とことんでも時間切れは負け")
+
+        let (n, _) = makeModel()
+        n.configureForTesting(opener: apple, board: [trapForPlayer, gorilla], mode: .endless, stock: [otter])
+        n.select(0)
+        #expect(n.ending == .playerHitN && !n.didPlayerWin)
+    }
+
+    @Test("モードは局に焼き込まれる: 次の startGame で mode を渡さなければ前の局のモードのまま")
+    func modeIsBakedIntoTheGame() {
+        let (model, _) = makeModel()
+        model.startGame(mode: .endless)
+        #expect(model.mode == .endless)
+        model.startGame()
+        #expect(model.mode == .endless, "省略したら直前の選択を引き継ぐ（開始シートの初期値と同じ）")
+        model.startGame(mode: .quota)
+        #expect(model.mode == .quota && model.stock.isEmpty)
+    }
+
+    @Test("とことんの実プレイ: どの種でも必ず決着し、取った枚数は 49 枚を超えない")
+    func fullEndlessGamesAlwaysFinish() async {
+        for seed in UInt64(0)..<40 {
+            let (model, _) = makeModel(seed: seed)
+            model.startGame(mode: .endless)
+            for _ in 0..<120 where model.phase == .playing {
+                if model.isPlayerTurn {
+                    let tail = model.requiredTail ?? "ん"
+                    guard let move = ShiritoriRules.moves(slots: model.slots, after: tail).first else { break }
+                    model.select(move.slot)
+                } else {
+                    await model.runCPUTurnIfNeeded()
+                }
+            }
+            #expect(model.phase == .result, "seed \(seed)")
+            #expect(model.playerCount + model.cpuCount <= 49)
+        }
+    }
+
+    @Test("結果の文言: パーフェクトと、とことんの時間切れにノルマの話を出さない")
+    func presentation() {
+        #expect(ShiritoriPresentation.resultTitle(ending: .perfect, didWin: true, mode: .endless).contains("パーフェクト"))
+        #expect(!ShiritoriPresentation.resultTitle(ending: .timeUp, didWin: false, mode: .endless).contains("ノルマ"))
+        #expect(ShiritoriPresentation.resultTitle(ending: .timeUp, didWin: false).contains("ノルマ"), "従来の文言は変えない")
+        let detail = ShiritoriPresentation.resultDetail(player: 5, cpu: 4, quota: .normal, ending: .timeUp, mode: .endless)
+        #expect(!detail.contains("ノルマ"))
     }
 }

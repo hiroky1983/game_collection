@@ -6,6 +6,9 @@ import Foundation
 struct HomerunChallengeTests {
 
     private let perfect = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY)
+    /// 月まで飛ぶ条件（芯の基準点から 1pt 以内・#1680）の外で一番飛ぶ当たり。`perfect` は月になり、2 回目で挑戦が終わる。
+    private let top = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY + 1.5)
+    private var topTenths: Int { Int((HomerunJudge.judge(top).distance * 10).rounded()) }
 
     private func finished(_ swing: HomerunSwing?) -> HomerunChallenge {
         var c = HomerunChallenge()
@@ -22,7 +25,7 @@ struct HomerunChallengeTests {
         #expect(c.pitches.count == 10)
         for i in 0..<10 {
             #expect(c.currentPitch == c.pitches[i])
-            let ball = c.swing(perfect)
+            let ball = c.swing(top)
             #expect(ball != nil)
         }
         #expect(c.isFinished)
@@ -38,11 +41,12 @@ struct HomerunChallengeTests {
         #expect(HomerunPitch.standardSequence.allSatisfy { (0..<9).contains($0.zone) })
     }
 
-    @Test("集計: 全球ジャスト = 柵越え 10 本・合計 1350m。見逃しは空振り 10")
+    @Test("集計: 全球ジャスト（月の条件の外）= 柵越え 10 本・合計は 10 球ぶん。見逃しは空振り 10")
     func totals() {
-        let all = finished(perfect)
+        let all = finished(top)
         #expect(all.homerCount == 10)
-        #expect(abs(all.totalDistance - 1350) < 1e-9)
+        #expect(abs(all.totalDistance - 10 * HomerunJudge.judge(top).distance) < 1e-9)
+        #expect(HomerunJudge.judge(top).distance > 170)
         let none = finished(nil)
         #expect(none.missCount == 10)
         #expect(none.totalDistance == 0)
@@ -122,22 +126,23 @@ struct HomerunChallengeTests {
     @Test("蓄積: 挑戦の要約が積み上がる")
     func recordsSummary() {
         var r = HomerunRecords()
-        r.record(finished(perfect))
+        r.record(finished(top))
+        let total = Int((finished(top).totalDistance * 10).rounded())
         #expect(r.challenges == 1 && r.pitches == 10 && r.homers == 10)
-        #expect(r.totalDistanceTenths == 13500)
-        #expect(r.bestTotalTenths == 13500)
-        #expect(r.longestTenths == 1350)
+        #expect(r.totalDistanceTenths == total)
+        #expect(r.bestTotalTenths == total)
+        #expect(r.longestTenths == topTenths)
         r.record(finished(nil))
         #expect(r.challenges == 2 && r.misses == 10)
-        #expect(r.bestTotalTenths == 13500)  // 悪い挑戦では下がらない
-        #expect(r.totalDistanceTenths == 13500)
+        #expect(r.bestTotalTenths == total)  // 悪い挑戦では下がらない
+        #expect(r.totalDistanceTenths == total)
     }
 
     @Test("蓄積: 集計は 5 方向 × 8 距離帯の 40 セルで、当たった球だけ数える")
     func recordsHeatmap() {
         #expect(HomerunRecords().heatmap.count == 40)
         var r = HomerunRecords()
-        r.record(finished(perfect))
+        r.record(finished(top))
         // 135m は最後の帯（135〜）・センター
         #expect(r.heatmap[HomerunRecords.heatmapIndex(direction: 0, distance: 135)] == 10)
         #expect(r.heatmap.reduce(0, +) == 10)
@@ -155,8 +160,8 @@ struct HomerunChallengeTests {
     func recordsMixedKinds() {
         var c = HomerunChallenge()
         let fly = HomerunLaunch.fly.centerDY
-        c.swing(perfect)                                                                    // 柵越え
-        c.swing(HomerunSwing(timingOffset: 40, cursorDX: 0, cursorDY: fly))                 // ナイス（フェア）
+        c.swing(top)                                                                        // 柵越え
+        c.swing(HomerunSwing(timingOffset: 60, cursorDX: 0, cursorDY: fly))                 // ナイス × フライも柵越え（#1594・月の ±50ms の外）
         c.swing(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.grounder.centerDY))  // ゴロ
         c.swing(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: fly))             // ファウル
         c.swing(nil)                                                                        // 見逃し
@@ -165,7 +170,7 @@ struct HomerunChallengeTests {
         r.record(c)
         #expect(r.fouls == 1)
         #expect(r.misses == 6)
-        #expect(r.homers == 1)
+        #expect(r.homers == 2)
         #expect(r.heatmap.reduce(0, +) == 3)
     }
 
@@ -191,7 +196,7 @@ struct HomerunChallengeTests {
     @Test("蓄積: 保存量は数 KB 未満（上限まで貯めて実測）・読み戻せる・不正な種別は捨てる")
     func recordsSizeAndRoundTrip() throws {
         var r = HomerunRecords()
-        for _ in 0..<50 { r.record(finished(perfect)) }
+        for _ in 0..<50 { r.record(finished(top)) }
         let data = try JSONEncoder().encode(r)
         #expect(data.count < 4096, "\(data.count) bytes")
         #expect(try JSONDecoder().decode(HomerunRecords.self, from: data) == r)

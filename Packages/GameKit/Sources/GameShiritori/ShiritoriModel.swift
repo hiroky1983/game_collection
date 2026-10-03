@@ -20,6 +20,7 @@ public enum ShiritoriEnding: Equatable, Sendable {
     /// プレイヤーが続けられない。**負け**。
     case playerStuck
     /// 制限時間が切れた。ノルマに届かないまま時間が尽きたので**負け固定**（届いていれば `quotaReached` で決着済み）。
+    /// `endless` モードでは、札が残ったまま時間が尽きた負け。
     case timeUp
     /// プレイヤーが「ん」で終わる読みを選んだ。**負け**。
     case playerHitN
@@ -27,6 +28,8 @@ public enum ShiritoriEnding: Equatable, Sendable {
     case cpuHitN
     /// プレイヤーが取った札がノルマの枚数に届いた。**その瞬間に勝ち**（社長決裁 2026-09-21 の訂正・#1245）。
     case quotaReached
+    /// 盤と山札の札がすべてなくなった（`endless` モード）。**パーフェクト**で、プレイヤーの勝ち（#1502）。
+    case perfect
 }
 
 /// 直近の出来事。画面の一言バナー用。
@@ -41,7 +44,8 @@ public enum ShiritoriEvent: Equatable, Sendable {
 
 /// カードしりとり（CPU 1 人との対戦・#1243）。プレイヤーが先手。
 ///
-/// 盤に 29 枚の札を並べ、残る 1 枚を最初の「場の札」にする。手番の人は、場の札の読みの語尾に続く
+/// 盤に 30 枚の札を並べ、別の 1 枚を最初の「場の札」にする（山札は 50 枚で、`quota` モードは残りを使わない・
+/// `endless` モードは残りを山札にして、札が取られるたびに空いた場所へ補充する・#1502）。手番の人は、場の札の読みの語尾に続く
 /// 読みを持つ札を 1 枚選んで**取る**。取った札が新しい場の札になり、相手の番になる。
 /// 相手が続けられなくなれば勝ち・自分が続けられなくなれば負け。
 /// 取った札がノルマ（難易度ごとの枚数）に届いた瞬間も勝ちで、届かないまま時間が切れれば負け（#1245）。
@@ -64,6 +68,13 @@ public final class ShiritoriModel: AITurnGuarded {
     public private(set) var timeRemaining: Double = ShiritoriTime.initial
     public private(set) var ending: ShiritoriEnding?
     public private(set) var quota: ShiritoriQuota = .standard
+    /// 今の局のモード。**局の開始時に焼き込み**、途中で設定を読み直さない（#1502・1 局 = 1 RuleSet）。
+    public private(set) var mode: ShiritoriMode = .standard
+    /// 山札（`endless` モードで、盤の札が取られたときの補充元）。
+    public private(set) var stock: [ShiritoriCard] = []
+    /// 取った枚数。`endless` では取った札を盤から下げて山札から補充するので、盤の並びから数えられない。
+    public private(set) var playerCount = 0
+    public private(set) var cpuCount = 0
     /// 何ゲーム目か（1 始まり）。
     public private(set) var gameNumber = 0
     public private(set) var lastEvent: ShiritoriEvent?
@@ -106,10 +117,10 @@ public final class ShiritoriModel: AITurnGuarded {
 
     // MARK: - 公開状態
 
-    public var playerCount: Int { slots.filter { $0.owner == .player }.count }
-    public var cpuCount: Int { slots.filter { $0.owner == .cpu }.count }
-    /// まだ誰にも取られていない札の枚数。
+    /// まだ誰にも取られていない札の枚数（盤の上のぶん）。
     public var remainingCount: Int { slots.filter { $0.owner == nil }.count }
+    /// 山札の枚数。
+    public var stockCount: Int { stock.count }
 
     /// 次に受ける語尾。開始前は nil。
     public var requiredTail: Character? {
@@ -117,7 +128,7 @@ public final class ShiritoriModel: AITurnGuarded {
     }
 
     /// いまの取得枚数がノルマに届いているか。
-    public var isQuotaMet: Bool { quota.isMet(player: playerCount) }
+    public var isQuotaMet: Bool { mode == .quota && quota.isMet(player: playerCount) }
 
     /// 評価リクエスト（#53）の判定用。引き分けは無い。
     public var reviewOutcome: GameOutcome { didPlayerWin ? .win : .loss }
@@ -129,21 +140,24 @@ public final class ShiritoriModel: AITurnGuarded {
 
     // MARK: - ゲーム開始
 
-    public func startGame(quota: ShiritoriQuota? = nil) {
+    public func startGame(quota: ShiritoriQuota? = nil, mode: ShiritoriMode? = nil) {
         if let quota { self.quota = quota }
-        var cards = deck
+        if let mode { self.mode = mode }
+        let deal: ShiritoriDeal
         if var generator = makeGenerator() {
-            cards.shuffle(using: &generator)
+            deal = ShiritoriRules.deal(deck: deck, mode: self.mode, quota: self.quota, using: &generator)
             seed = generator.next()   // 次ゲームで同じ配りにならないよう種を進める
         } else {
-            cards.shuffle()
+            var generator = SystemRandomNumberGenerator()
+            deal = ShiritoriRules.deal(deck: deck, mode: self.mode, quota: self.quota, using: &generator)
         }
-        let openerIndex = ShiritoriRules.openerIndex(in: cards) ?? 0
-        let opener = cards.remove(at: openerIndex)
 
-        slots = cards.map { ShiritoriSlot(card: $0) }
-        currentCard = opener
-        currentReading = opener.primaryReading
+        slots = deal.board.map { ShiritoriSlot(card: $0) }
+        stock = deal.stock
+        playerCount = 0
+        cpuCount = 0
+        currentCard = deal.opener
+        currentReading = deal.opener.primaryReading
         timeRemaining = ShiritoriTime.initial
         ending = nil
         didPlayerWin = false
@@ -157,7 +171,8 @@ public final class ShiritoriModel: AITurnGuarded {
 
         services?.feedback.impact(.medium)   // 札が配られた
         // 1 ゲーム = 1 プレイ。中断データは持たないので、画面を離れたら失われる（#663）。
-        services?.gameDidRestart(gameID: gameID, level: self.quota.analyticsLevel)
+        // とことんモードは難易度の概念が無いので level を送らない（ノルマ側の段階別集計に混ぜない）。
+        services?.gameDidRestart(gameID: gameID, level: self.mode == .quota ? self.quota.analyticsLevel : nil)
         services?.gameWillNotResume(gameID: gameID)
 
         // 最初の場の札に続けられる札が無いと何もできない。`openerIndex` が避けるので通常は起きない。
@@ -211,6 +226,10 @@ public final class ShiritoriModel: AITurnGuarded {
     private func claim(_ index: Int, reading: String, by owner: ShiritoriOwner) {
         let card = slots[index].card
         slots[index].owner = owner
+        switch owner {
+        case .player: playerCount += 1
+        case .cpu:    cpuCount += 1
+        }
         currentCard = card
         currentReading = reading
         lastEvent = .played(by: owner, reading: reading, isAlternate: reading != card.primaryReading)
@@ -220,6 +239,18 @@ public final class ShiritoriModel: AITurnGuarded {
         // 「ん」で終わる読みを選んだ側が、その場で負ける（ノルマ到達より優先。その札でノルマに届く場合も負け）。
         if ShiritoriRules.endsWithN(reading) {
             finish(owner == .player ? .playerHitN : .cpuHitN)
+            return
+        }
+
+        // とことんモード: 取った札は場の札へ移ったので、空いた場所へ山札から補充する（山札が尽きたら補充なし）。
+        // 補充してから行き詰まりを判定する（補充された札で続けられることがある）。
+        if mode == .endless, !stock.isEmpty {
+            slots[index] = ShiritoriSlot(card: stock.remove(at: refillIndex(after: owner, reading: reading)))
+        }
+        // 盤にも山札にも札が 1 枚も残っていなければパーフェクト（誰が最後の 1 枚を取っても）。
+        if mode == .endless, remainingCount == 0, stock.isEmpty {
+            if owner == .player { timeRemaining += ShiritoriTime.successBonus }
+            finish(.perfect)
             return
         }
 
@@ -238,16 +269,34 @@ public final class ShiritoriModel: AITurnGuarded {
         }
     }
 
+    /// 山札のどれを補充するか。CPU が取った直後に、プレイヤーが続けられる札が盤に 1 枚も無いときだけ、
+    /// 続けられる札（「ん」で終わらないものを優先）を山札から先に出す（#1659: とことんは CPU が盤の左から
+    /// 取り進めるため、山札に後続が残っているのにプレイヤーが詰んで負けになる局が約半数あった）。
+    /// プレイヤーが取った直後は触らない（CPU を詰ませて勝つ道を残す）。
+    private func refillIndex(after owner: ShiritoriOwner, reading: String) -> Int {
+        guard owner == .cpu, let tail = ShiritoriKana.tail(of: reading),
+              ShiritoriRules.moves(slots: slots, after: tail).isEmpty else { return 0 }
+        let followers = stock.indices.compactMap { i -> (index: Int, reading: String)? in
+            ShiritoriRules.acceptingReading(of: stock[i], after: tail).map { (i, $0) }
+        }
+        return (followers.first { !ShiritoriRules.endsWithN($0.reading) } ?? followers.first)?.index ?? 0
+    }
+
     private func finish(_ ending: ShiritoriEnding) {
         self.ending = ending
         phase = .result
         isPlayerTurn = false
         switch ending {
         case .playerHitN, .playerStuck, .timeUp: didPlayerWin = false
-        case .cpuHitN, .cpuStuck, .quotaReached: didPlayerWin = true
+        case .cpuHitN, .cpuStuck, .quotaReached, .perfect: didPlayerWin = true
         }
         services?.feedback.notify(didPlayerWin ? .success : .error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore())
+        // 従来のモードの記録は variant nil のまま（保存先を変えない）。とことんは別枠で、順位表へは送らない。
+        let variant = mode.scoreVariant
+        recordResult = services?.gameDidFinish(
+            gameID: gameID, outcome: reviewOutcome,
+            score: GameScore(variant: variant?.key, variantLabel: variant?.label, isLeaderboardEligible: variant == nil)
+        )
     }
 
     // MARK: - CPU
@@ -297,12 +346,18 @@ public final class ShiritoriModel: AITurnGuarded {
         opener: ShiritoriCard,
         board: [ShiritoriCard],
         quota: ShiritoriQuota = .normal,
+        mode: ShiritoriMode = .quota,
+        stock: [ShiritoriCard] = [],
         isPlayerTurn: Bool = true
     ) {
         slots = board.map { ShiritoriSlot(card: $0) }
+        self.stock = stock
+        playerCount = 0
+        cpuCount = 0
         currentCard = opener
         currentReading = opener.primaryReading
         self.quota = quota
+        self.mode = mode
         timeRemaining = ShiritoriTime.initial
         ending = nil
         didPlayerWin = false

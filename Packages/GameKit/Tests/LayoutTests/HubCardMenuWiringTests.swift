@@ -42,6 +42,8 @@ struct HubCardMenuWiringTests {
         let hide = try Self.functionBody("hide", in: source)
         #expect(hide.contains("settings.toggleHidden(module.id)"), "非表示が GameSettings.toggleHidden を通っていない")
         #expect(hide.contains("AccessibilityNotification.Announcement("), "非表示の案内が VoiceOver で読まれない")
+        #expect(moveToTop.contains("AccessibilityNotification.Announcement("), "先頭へ移動の完了が VoiceOver で読まれない（#1602）")
+        #expect(moveToTop.contains("withGameAnimation("), "先頭へ移動が Reduce Motion 追従のアニメーションを通っていない（#1602）")
         #expect(!moveToTop.contains("UserDefaults") && !hide.contains("UserDefaults"),
                 "メニューが GameSettings を通さずに独自に保存している")
     }

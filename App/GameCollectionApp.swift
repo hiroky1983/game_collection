@@ -2,6 +2,9 @@ import SwiftUI
 import Core
 import MahjongTiles
 import FirebaseCore
+#if DEBUG
+import GameHomerun
+#endif
 
 @main
 struct GameCollectionApp: App {
@@ -16,6 +19,20 @@ struct GameCollectionApp: App {
         // 設定の「利用状況の送信」を SDK 全体の収集状態へ反映する（#158）。
         // 収集は Info.plist で既定オフにしてあり（#382）、許可された経路でだけここが ON を立てる。
         AppEnvironment.applyAnalyticsCollectionState()
+        #if DEBUG
+        // 動作確認用: 柵越えおじさんの振った空振りで必ず「回って倒れる」演出を出す（`-homerunForceWhiffGag`・#1681）。
+        UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-homerunForceWhiffGag"),
+                                  forKey: HomerunModel.debugForceWhiffGagKey)
+        // 動作確認用: 柵越えおじさんの挑戦回数を減らさない（`-homerunUnlimited`・会長 QA 用）。
+        UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-homerunUnlimited"),
+                                  forKey: HomerunModel.debugUnlimitedKey)
+        // 動作確認用: 柵越えおじさんで振れば必ず月まで飛ぶ（`-homerunForceMoon`・#1680 の隠し演出の確認用）。
+        UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-homerunForceMoon"),
+                                  forKey: HomerunModel.debugForceMoonKey)
+        // 動作確認用: 柵越えおじさんで振れば必ずファウルポールに当たる（`-homerunForcePole`・#1686 の確認用）。
+        UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-homerunForcePole"),
+                                  forKey: HomerunModel.debugForcePoleKey)
+        #endif
     }
 
     var body: some Scene {

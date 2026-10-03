@@ -613,3 +613,34 @@ struct OthelloSnapshotTests {
         #expect(model.canUndo == false)
     }
 }
+
+// MARK: - 思考中に画面を離れる（#1621）
+
+@MainActor
+@Suite("オセロ 思考中のキャンセル")
+struct OthelloCancelDuringThinkingTests {
+    /// CPU の思考中に `.task(id:)` が取り消されても（画面を離れた）、読みは走り切る。
+    /// そのあとで着手を確定してはいけない（盤面も手数も動かない）。
+    @Test func cancelledThinkingDoesNotPlaceMove() async throws {
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
+        model.newGame(humanSide: .white, aiLevel: 2) // CPU=黒(先手)
+        try #require(model.isAITurn)
+
+        let gate = TaskGate()
+        model.thinkingGate = { await gate.wait() }
+        let task = Task { await model.performAIMoveIfNeeded() }
+        await gate.waitUntilArrived()
+        model.thinkingGate = nil
+        try #require(model.isThinking, "テストの前提: 思考中であること")
+
+        task.cancel()
+        gate.release()
+        await task.value
+
+        #expect(model.turnID == 0)
+        #expect(model.blackCount == 2)
+        #expect(model.whiteCount == 2)
+        #expect(model.isThinking == false)
+        #expect(model.isAITurn)   // 手番は CPU のまま（戻ってきたら再開できる）
+    }
+}

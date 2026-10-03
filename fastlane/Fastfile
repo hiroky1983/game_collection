@@ -35,6 +35,9 @@ platform :ios do
     # fastlane の sh は fastlane/ を cwd に実行するため、spec を明示しないと
     # fastlane/project.yml を探して落ちる（2026-08-30 に顕在化）。
     sh("xcodegen", "generate", "--spec", "../project.yml", "--project", "..")
+    # 依存の版を Config/Package.resolved で固定する（#1579）。xcodegen が作り直すたびに
+    # Package.resolved が消え、ビルドごとに SDK の版が変わっていた
+    sh("bash", "../Scripts/apply-package-resolved.sh")
 
     build_app(
       # 注意: `sh` は fastlane/ を cwd に走るが、**アクションはリポジトリルートを cwd に走る**。

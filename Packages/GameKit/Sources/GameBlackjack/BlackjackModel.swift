@@ -274,7 +274,7 @@ public final class BlackjackModel {
                 // 「ボタンが全部無効・破産カードも出ない」で詰む。
                 self.checkSessionOver()
                 // 戻った先は賭け待ちで「続き」ではないので、中断のお知らせ（#663）の対象から外す（#1145）。
-                // `persistRevivedBetWaiting` の通知は**保存したプロセスの中**でしか効かない
+                // `persistBetWaiting` の通知は**保存したプロセスの中**でしか効かない
                 // （`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）。
                 // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
                 // 将棋・チェスが `init` で同じことをしている（`ChessGameModel.init`）。
@@ -292,11 +292,13 @@ public final class BlackjackModel {
         // ディーラーが1枚ずつ引いているあいだ（#667）も保存する。保存しないと、途中で落ちたとき
         // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
         guard phase == .playerTurn || phase == .dealerTurn else {
-            // 局は進んでいないが、復活（#499）で戻した残高と「使い切った」印だけは残す（#1104）。
+            // 局は進んでいないが、残高と復活（#499）の「使い切った」印だけは残す（#1104・#1623）。
             // 捨てると、広告を見た直後に賭ける前で離れた人が報酬を丸ごと失い（#523 で復活の枚数を
-            // 初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
-            if hasRevivedThisSession && !sessionOver {
-                persistRevivedBetWaiting()
+            // 初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。復活していない
+            // 通常のセッションも同じで、勝って決着した直後に離れると勝ち分が初期額へ戻ってしまう。
+            // 破産（`sessionOver`）後は残高に続きが無いので、従来どおり捨てる。
+            if !sessionOver {
+                persistBetWaiting()
                 return
             }
             services?.snapshots.clear(for: gameID)
@@ -316,12 +318,12 @@ public final class BlackjackModel {
         try? services?.snapshots.save(snap, for: gameID)
     }
 
-    /// 局を持たない「賭け待ち」の中断データ（#1104）。復活したセッションの残高と
+    /// 局を持たない「賭け待ち」の中断データ（#1104・#1623）。セッションの残高と
     /// 「復活を使い切った」印だけを持ち回る。
     ///
     /// 決着の画（`outcome` は中断データに持っていない）を復元しても読めないので、局は書かずに
     /// 賭ける前へ戻す。復元側は「手が無ければ賭け待ちに戻す」既存の経路（`init`）がそのまま使える。
-    private func persistRevivedBetWaiting() {
+    private func persistBetWaiting() {
         let snap = BlackjackSnapshot(
             playerHand: [],
             dealerHand: [],

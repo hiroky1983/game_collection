@@ -385,6 +385,55 @@ struct ModelTests {
         #expect(model.lives == BlocksRules.initialLives, "クリアしたのに残機が減っている")
     }
 
+    /// 落球時の保存は、そのステージを始めた時点の得点にする（#1622）。
+    ///
+    /// 復元はブロックが全部戻るステージ頭から始まるので、加算済みの点を保存すると
+    /// 同じブロックを壊し直すたびに二重に入り、順位表の点を水増しできてしまう。
+    @Test("落球後の保存は加算済みの得点を含めない（#1622）")
+    func dropSavesStageStartScore() {
+        let store = MemorySnapshotStore()
+        let model = BlocksModel(
+            services: makeServices(store: store), startingAt: 1, score: 300,
+            preference: makePreference("dropscore")
+        )
+        model.launch()
+        if let target = firstBreakable(model.field) {
+            let r = BlocksField.blockRect(row: target.row, column: target.column)
+            model.placeBallForTesting(x: r.midX, y: r.midY, vx: 0, vy: 1)
+            model.tick(dt: 1.0 / 60)
+        }
+        #expect(model.score > 300, "ブロックを壊して得点が入っている")
+        dropBall(model)
+        #expect(model.lives == BlocksRules.initialLives - 1)
+        let saved = store.load(BlocksSnapshot.self, for: BlocksModel.gameID)
+        #expect(saved?.score == 300, "ステージ開始時点の得点で保存されていない")
+        #expect(saved?.lives == BlocksRules.initialLives - 1, "残機の保存（#508）は変えない")
+
+        let restored = BlocksModel(
+            services: makeServices(store: store), preference: makePreference("dropscore2")
+        )
+        #expect(restored.score == 300)
+    }
+
+    @Test("広告コンティニューは、そのステージで加算済みの得点を戻す（#1622）")
+    func continueResetsStageScore() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, score: 300, lives: 1,
+            preference: makePreference("contscore")
+        )
+        model.launch()
+        if let target = firstBreakable(model.field) {
+            let r = BlocksField.blockRect(row: target.row, column: target.column)
+            model.placeBallForTesting(x: r.midX, y: r.midY, vx: 0, vy: 1)
+            model.tick(dt: 1.0 / 60)
+        }
+        #expect(model.score > 300, "ブロックを壊して得点が入っている")
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
+        #expect(model.score == 300, "同じブロックの点が二重に残る")
+    }
+
     @Test("続きからはステージの頭・そのステージ開始時点の残機とスコアで再開する")
     func restoresFromStageHead() {
         let store = MemorySnapshotStore()

@@ -131,6 +131,7 @@ xcrun simctl bootstatus "$UDID" -b
 
 echo "==> ビルド（Debug・署名なし）"
 command -v xcodegen >/dev/null && xcodegen generate >/dev/null
+bash "$(dirname "$0")/apply-package-resolved.sh" >/dev/null
 xcodebuild -project GameCollection.xcodeproj -scheme GameCollection \
   -configuration Debug -sdk iphonesimulator -destination "id=$UDID" \
   -derivedDataPath "$DERIVED_DATA" CODE_SIGNING_ALLOWED=NO build >/dev/null
