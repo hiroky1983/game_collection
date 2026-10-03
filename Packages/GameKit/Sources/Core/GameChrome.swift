@@ -223,6 +223,22 @@ private struct NavigationBarBackgroundMatch: ViewModifier {
 }
 #endif
 
+public extension View {
+    /// ナビバーの背景を隠し、背面の描画（3D の球場など）をバーの裏まで見せる（#1789）。
+    ///
+    /// 共通枠の `toolbarBackground`（自動）は、直前の画面でスクロール済みだとバーを塗った状態のまま
+    /// 次の画面へ持ち越される。背景をバーの裏まで続ける画面だけがこれで隠す。
+    /// 指定そのものは枠の中身なので、ゲーム側で `toolbarBackground` を直書きせずここを通す。
+    @ViewBuilder
+    func gameNavigationBarBackgroundHidden() -> some View {
+        #if os(iOS)
+        toolbarBackground(.hidden, for: .navigationBar)
+        #else
+        self
+        #endif
+    }
+}
+
 // MARK: - 盤の下の操作エリア
 
 /// 盤・場の下に置く操作エリア（#148・#528）。
