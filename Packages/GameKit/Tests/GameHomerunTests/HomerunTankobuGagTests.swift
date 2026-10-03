@@ -170,8 +170,8 @@ struct HomerunTankobuGagTests {
         #expect(pixels.count == G.lumpTextureSize * G.lumpTextureSize * 4)
         var seen = Set<[UInt8]>()
         for i in stride(from: 0, to: pixels.count, by: 4) { seen.insert(Array(pixels[i..<i + 3])) }
-        #expect(seen == [[255, 205, 196], [244, 140, 128], [196, 90, 94]].map { $0.map(UInt8.init) }.reduce(into: Set<[UInt8]>()) { $0.insert($1) },
-                "3 色だけ（ふくらみに見える陰影）")
+        let expected: Set<[UInt8]> = [[255, 205, 196], [244, 140, 128], [196, 90, 94]]
+        #expect(seen == expected, "3 色だけ（ふくらみに見える陰影）")
         #expect(G.lumpImage() != nil)
     }
 
