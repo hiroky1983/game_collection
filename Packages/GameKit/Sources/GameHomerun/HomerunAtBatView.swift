@@ -168,9 +168,7 @@ struct HomerunAtBatView: View {
         }
         // 結果画面を下までスクロールしてから「もう一回」で入ると、共通の背景色（GameChrome の toolbarBackground）が
         // ナビバーに塗られたまま打席へ持ち越される（#1789）。打席は 3D の球場がナビバーの裏まで続くので隠す。
-        #if os(iOS)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        #endif
+        .gameNavigationBarBackgroundHidden()
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
         .gameAnimation(.easeOut(duration: 0.15), value: model.isPaused)
         // 途中でやめる確認。キャンセル（外側のタップで閉じた場合も）は一時停止の画面に戻るだけ。
