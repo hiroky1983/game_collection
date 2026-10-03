@@ -6,6 +6,12 @@ import Foundation
 /// で送る。自由記述は持たず、端末には回答を残さない（台帳に残るのは「今日は済み」のフラグだけ）。
 /// 選択肢の並びを変えると GA4 上の番号の意味が変わるので、変えるときは末尾に足すか設問ごと作り直す。
 public enum HomerunSurvey {
+    /// アンケートの入口（打席前・結果の「アンケートに答えて挑戦 +1 回」）を画面に出すか。
+    /// **v1.1.9 では出さない**（会長決裁 2026-10-03・#1784。フォームの本格対応は #1693・v1.1.10 以降）。
+    /// 戻すときは `true` にするだけ。台帳の `surveyDone`・`credit` の `.survey`・`submitSurvey` は互換のため残してあり、
+    /// 入口が出ない間は `surveyDone` が立たないので回数の計算は変わらない。
+    public static let isOffered = false
+
     public struct Question: Equatable, Sendable {
         public let prompt: String
         public let choices: [String]
