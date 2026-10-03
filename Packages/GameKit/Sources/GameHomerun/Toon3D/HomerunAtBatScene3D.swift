@@ -196,7 +196,7 @@ extension HomerunAtBatLayout {
         case .load(let start):
             let k = Float(min(max(now.timeIntervalSince(start) / HomerunBatterMotion.loadDuration, 0), 1))
             return stanceSlide * (1 - k * k * (3 - 2 * k))
-        case .swing, .whiffGag:
+        case .swing, .whiffGag, .tankobu:
             return nil
         }
     }
@@ -502,7 +502,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 let clip: TimeInterval = switch c.batterMotion {
                 case .stance: 0
                 case .load: rig.playbackTime ?? 0
-                case .swing, .whiffGag: rig.swingClipTime ?? HomerunBatterMotion.loadDuration
+                case .swing, .whiffGag, .tankobu: rig.swingClipTime ?? HomerunBatterMotion.loadDuration
                 }
                 let bat = gag.map { HomerunFigureShadow.whiffGagBat(clipTime: $0.clip, turn: $0.turn) } ?? HomerunBatPath.segment(atClipTime: clip)
                 let turn = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
@@ -664,12 +664,14 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         coordinator.whiffGagUpdates?.cancel()
         coordinator.whiffGagUpdates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak coordinator] _ in
             MainActor.assumeIsolated {
-                guard let coordinator, let rig = coordinator.batterRig, rig.isWhiffGag || rig.showsFaceMark,
+                guard let coordinator, let rig = coordinator.batterRig, rig.isWhiffGag || rig.isTankobu || rig.showsFaceMark,
                       let camera = coordinator.camera else { return }
                 let now = Date().addingTimeInterval(-coordinator.clockLag)
                 rig.tick(now: now, clockHeld: coordinator.clockLag > 0)
                 if rig.isWhiffGag {
                     rig.applyWhiffGag(now: now, camera: camera.renderPose.position)
+                } else if rig.isTankobu {
+                    rig.applyTankobu(now: now, camera: camera.renderPose.position)
                 } else {
                     rig.applyFaceMark(now: now, camera: camera.renderPose.position)
                 }

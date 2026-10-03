@@ -58,6 +58,9 @@ enum HomerunBatterMotion: Equatable {
     /// 空振りで回って倒れて目を回す演出（#1681・`HomerunWhiffGag`）。振り抜き（`start`・`catchUpFrom` は `swing` と同じ）から
     /// そのまま回転・尻もち・座って頭をぐるぐるまで流し、最後のコマで止める。
     case whiffGag(start: Date, catchUpFrom: Date? = nil)
+    /// 打ち上げた球が自分の頭に落ちてたんこぶ（#1793・`HomerunTankobuGag`）。`start`・`catchUpFrom` は `swing` と同じ。振り終わりで球を待ち、
+    /// 頭に当たったら空振りの演出のクリップの途中（50 コマ目）から尻もちを流す。
+    case tankobu(start: Date, catchUpFrom: Date? = nil)
 
     /// 踏み込みの長さ（秒・20 コマ目 = 19/30 秒）。振り抜きはここから始まる。
     static let loadDuration: TimeInterval = 19.0 / 30
@@ -321,7 +324,7 @@ struct HomerunSwingPlan {
         self.whiffGag = whiffGag
     }
 
-    private var column: Int { HomerunSwingContact.column(zone: clock?.zone ?? 4) }
+    var column: Int { HomerunSwingContact.column(zone: clock?.zone ?? 4) }
 
     /// 3D の球がジャストの打点（の `approachLift` 上）に着く時刻 = 輪が的に重なる時刻 = 判定の 0（#1594 会長決裁 A）。
     /// そこで離すと、バットはその瞬間にジャストの打点のコマにある（`HomerunSwingContact.swingStart`）。
@@ -359,6 +362,8 @@ struct HomerunSwingPlan {
                 let catchUpFrom = start < release && !aimMiss ? release : nil
                 // 空振りの演出（#1681）は振り抜きからそのまま回って倒れる（演出の間の素振りは受け付けない・`HomerunModel.release`）。
                 if whiffGag, lastBall?.kind == .miss { return .whiffGag(start: start, catchUpFrom: catchUpFrom) }
+                // たんこぶ（#1793）も同じ（振り抜きから、頭に当たるまで振り終わりで待つ）。
+                if lastBall?.isTankobu == true { return .tankobu(start: start, catchUpFrom: catchUpFrom) }
                 return .swing(start: start, catchUpFrom: catchUpFrom)
             }
             // 見送り: 振らない。
@@ -384,6 +389,11 @@ struct HomerunSwingPlan {
             if let release = clock.releasedAt, let offset = clock.timingOffset, let ball = lastBall, ball.kind != .miss {
                 let contact = HomerunSwingContact.contactPoint(column: column, offsetMilliseconds: offset)
                 let hitAt = HomerunSwingContact.contactShownTime(release: release, offsetMilliseconds: offset, column: column)
+                if ball.isTankobu, now >= hitAt {
+                    let start = HomerunSwingContact.swingStart(release: release, offsetMilliseconds: offset, column: column)
+                    return HomerunTankobuGag.ballPosition(effective: HomerunTankobuGag.effective(now.timeIntervalSince(start)), contact: contact,
+                                                          contactOffset: hitAt.timeIntervalSince(start))
+                }
                 if now < hitAt {
                     // 離した瞬間の球の位置から、バットがその打点に来る時刻に打点へ着くよう寄せる（球の側を合わせる）。早いときは
                     // バットが球の来る時刻に打点へ来るので、球はほぼ投球の線のまま着く。遅いとき（打点のコマ = 離した瞬間）は、

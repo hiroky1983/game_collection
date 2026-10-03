@@ -128,8 +128,8 @@ final class HomerunBatterRig {
             controller = loadAnimation.map { model.playAnimation($0, transitionDuration: 0, startsPaused: false) }
             let ahead = now.timeIntervalSince(start)
             if ahead > 0 { controller?.time = min(ahead, HomerunBatterMotion.loadDuration) }
-        case .swing(let start, let catchUpFrom), .whiffGag(let start, let catchUpFrom):
-            let animation = isWhiffGag ? (whiffGagAnimation ?? swingAnimation) : swingAnimation
+        case .swing(let start, let catchUpFrom), .whiffGag(let start, let catchUpFrom), .tankobu(let start, let catchUpFrom):
+            let animation = isWhiffGag || isTankobu ? (whiffGagAnimation ?? swingAnimation) : swingAnimation
             controller = animation.map { model.playAnimation($0, transitionDuration: 0, startsPaused: false) }
             let ahead = HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now)
             if ahead > 0 { controller?.time = min(ahead, segmentLength) }
@@ -139,6 +139,7 @@ final class HomerunBatterRig {
             }
         }
         if !isWhiffGag { turnPivot.orientation = simd_quatf(angle: 0, axis: [0, 1, 0]) }
+        if !isTankobu { turnPivot.position = HomerunWhiffGag.pivot }
         whiffGagOverlay?.isEnabled = isWhiffGag
     }
 
@@ -152,6 +153,9 @@ final class HomerunBatterRig {
             controller.time = min(HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now), segmentLength)
             return
         }
+        // たんこぶ（#1793）は振り終わり以降の再生位置を `applyTankobu` が毎コマ決める。
+        if case .tankobu(let start, let from) = motion,
+           HomerunBatterMotion.swingOffset(start: start, catchUpFrom: from, at: now) >= HomerunBatterMotion.swingDuration { return }
         guard let catchUp, let controller else { return }
         let scheduled = now.timeIntervalSince(catchUp.start)
         if controller.time >= scheduled {
@@ -163,7 +167,39 @@ final class HomerunBatterRig {
 
     /// いま流している振り（振り抜き〜）の段の長さ（秒・20 コマ目から）。
     private var segmentLength: TimeInterval {
-        (isWhiffGag && whiffGagAnimation != nil ? HomerunWhiffGag.clipEnd : fullDuration) - HomerunBatterMotion.loadDuration
+        ((isWhiffGag || isTankobu) && whiffGagAnimation != nil ? HomerunWhiffGag.clipEnd : fullDuration) - HomerunBatterMotion.loadDuration
+    }
+
+    var isTankobu: Bool {
+        if case .tankobu = motion { return true }
+        return false
+    }
+
+    /// たんこぶの演出の間に毎コマ呼ぶ（#1793）: 振り終わりで球を待ち、頭に当たったら尻もちのクリップへ移し、座る位置を本塁から外し、
+    /// ヘルメットの上のたんこぶを膨らませ、座ってからはぐるぐる目・星を出す。骨の再生位置は予定（`HomerunTankobuGag.segmentTime`）から
+    /// 毎コマ決める（再生を終えた後の `controller.time` は読まない・`applyWhiffGag` と同じ）。
+    func applyTankobu(now: Date, camera: SIMD3<Float>) {
+        guard case .tankobu(let start, let catchUpFrom) = motion else { return }
+        let offset = HomerunBatterMotion.swingOffset(start: start, catchUpFrom: catchUpFrom, at: now)
+        let e = HomerunTankobuGag.effective(offset)
+        let segment = HomerunTankobuGag.segmentTime(effective: e)
+        if offset >= HomerunBatterMotion.swingDuration, let controller {
+            catchUp = nil
+            controller.speed = 0
+            controller.time = min(segment, segmentLength)
+        }
+        let clip = HomerunBatterMotion.loadDuration + min(segment, segmentLength)
+        whiffGagClipTime = nil
+        turnPivot.orientation = simd_quatf(angle: 0, axis: [0, 1, 0])
+        turnPivot.position = HomerunWhiffGag.pivot + HomerunTankobuGag.sitCorrection(effective: e)
+        if whiffGagOverlay == nil {
+            let overlay = HomerunWhiffGagOverlay()
+            entity.addChild(overlay.entity)
+            whiffGagOverlay = overlay
+        }
+        whiffGagOverlay?.isEnabled = true
+        let correction = HomerunTankobuGag.sitCorrection(effective: e)
+        whiffGagOverlay?.applyTankobu(clipTime: clip, since: e - HomerunTankobuGag.impactDelay, correction: correction, camera: camera)
     }
 
     var isWhiffGag: Bool {
@@ -196,16 +232,16 @@ final class HomerunBatterRig {
     /// 結果に応じて頭に重ねる記号（#1760）。モデルが決めた値を毎コマの更新で受け取る。振っていない間（構え・踏み込み）は出さない。
     var faceMark: HomerunFaceMark = .none {
         // 結果が閉じても素振りの段階が続くことがある。前の球の記号を残さない（結果の記号から構えの記号に替わった素振り中も同じ）（空振りの演出の間は演出を消さない）。
-        didSet { if !showsFaceMark, !isWhiffGag { whiffGagOverlay?.isEnabled = false } }
+        didSet { if !showsFaceMark, !isWhiffGag, !isTankobu { whiffGagOverlay?.isEnabled = false } }
     }
 
     /// 記号を毎コマ置くか（回って倒れる演出の間は演出のぐるぐる目・星を優先して置かない）。
     var showsFaceMark: Bool {
-        guard faceMark != .none, !isWhiffGag else { return false }
+        guard faceMark != .none, !isWhiffGag, !isTankobu else { return false }
         switch motion {
         case .swing: return !faceMark.isWaiting
         case .stance, .load: return faceMark.isWaiting
-        case .whiffGag: return false
+        case .whiffGag, .tankobu: return false
         }
     }
 
@@ -242,6 +278,8 @@ final class HomerunBatterRig {
         whiffGagOverlay?.isEnabled = true
         if faceMark == .waitingAngry {
             whiffGagOverlay?.applyWaitingAngry(poseClip: clip, now: now, camera: camera)
+        } else if faceMark == .waitingLump {
+            whiffGagOverlay?.applyWaitingLump(poseClip: clip, now: now)
         } else {
             whiffGagOverlay?.applyWaitingEyes(poseClip: clip, now: now)
         }

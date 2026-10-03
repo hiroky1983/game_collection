@@ -165,6 +165,8 @@ public struct HomerunBattedBall: Equatable, Sendable {
     /// フェアの打球。確定演出（ヒットストップ・寄り）を出す印で、飛距離・種別は変えない。空振り・ファウルは false。
     /// 月まで飛んだ打球（#1680）は判定（`judge`）の外で作るので false のまま（月の演出を優先する）。保存（`HomerunShot`）には持たない。
     public var isJustMeet = false
+    /// 打ち上げた球が自分の頭に落ちてたんこぶ（#1793・`HomerunTankobu`）: 飛距離 0 の当たり。種別は元のまま（`.inPlay`）。保存（`HomerunShot`）には持たない。
+    public var isTankobu = false
 
     /// 月まで飛んだか。
     public var isMoon: Bool { moon != nil }

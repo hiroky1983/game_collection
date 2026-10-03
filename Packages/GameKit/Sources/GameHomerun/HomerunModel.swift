@@ -68,6 +68,7 @@ public final class HomerunModel {
     /// 1 球の結果を見せる時間（月まで飛んだ打球・#1680 は月の演出のぶん長い）。
     public static func resultDuration(for ball: HomerunBattedBall?) -> TimeInterval {
         if let moon = ball?.moon { return HomerunMoonShot.resultDuration(moon) }
+        if ball?.isTankobu == true { return HomerunTankobuGag.resultDuration }
         // ジャストミート（#1775）は確定演出のヒットストップのぶん長い。
         let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
         if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration + held }
@@ -100,6 +101,8 @@ public final class HomerunModel {
     private(set) var whiffStreak = 0
     /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
     var whiffGagRoll: () -> Double = { Double.random(in: 0..<1) }
+    /// たんこぶの演出（#1793・`HomerunTankobu`）を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
+    var tankobuRoll: () -> Double = { Double.random(in: 0..<1) }
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
@@ -426,7 +429,7 @@ public final class HomerunModel {
     /// 流すので、振り終わりは 20 コマ目を置いた時刻（`HomerunSwingContact.swingStart`）から数える。
     func isSwinging(at now: Date) -> Bool {
         // 空振りの演出（#1681）の間は、回って座りきるまで振っている扱い（素振りで演出を切らない）。
-        if phase == .ballResult, showsWhiffGag { return true }
+        if phase == .ballResult, showsWhiffGag || lastBall?.isTankobu == true { return true }
         guard let clock = ballClock else { return false }
         let column = HomerunSwingContact.column(zone: clock.zone)
         let spans: [(begin: Date, clipStart: Date)] = [
@@ -575,7 +578,7 @@ public final class HomerunModel {
         didSwingLastBall = swing != nil
         lastMissReason = HomerunJudge.missReason(swing)
         if didSwingLastBall { swingCount += 1 }
-        let ball = challenge.swing(swing)
+        let ball = challenge.swing(swing, tankobuRoll: swing == nil ? 1 : tankobuRoll())
         self.challenge = challenge
         decideWhiffGag(swung: swing != nil, ball: ball)
         if !hasProgressed {
