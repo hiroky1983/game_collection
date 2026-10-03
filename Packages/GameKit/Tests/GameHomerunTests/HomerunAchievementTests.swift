@@ -133,7 +133,7 @@ struct HomerunAchievementTests {
         #expect(!HomerunAchievement.earned(byFinished: c).contains(.allTenHomers))
     }
 
-    @Test("合計が 1,500m を超えたときだけ「合計 1,500m 超え」。ちょうどは超えない")
+    @Test("合計が 1,500m を超えたときだけ「合計 1,500m 超え」")
     func farTotal() {
         var far = HomerunChallenge()
         for _ in 0..<HomerunChallenge.pitchCount { far.swing(justHomer) }
@@ -248,6 +248,27 @@ struct HomerunAchievementTests {
         model.backToLobby()
         model.start(now: Self.t0)
         #expect(model.unlockedThisChallenge.isEmpty)
+    }
+
+    @Test("10 球を打ち終えると挑戦単位の実績（10球すべて柵越え・合計超え）も保存と送信に載る")
+    func finishedChallengeUnlocks() throws {
+        let defaults = makeDefaults()
+        let spy = SpyService()
+        let pitches = Array(repeating: HomerunPitch(zone: 4), count: HomerunChallenge.pitchCount)
+        let model = makeModel(makeServices(spy), defaults: defaults, pitches: pitches)
+        model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
+        for _ in 0..<HomerunChallenge.pitchCount {
+            try swing(model, dy: 8)
+            model.advance(now: try #require(model.resultUntil))
+            model.atBatDidAppear(now: Self.t0)
+        }
+        #expect(model.phase == .finished)
+        #expect(model.achievements.contains(.allTenHomers))
+        #expect(model.achievements.contains(.farTotal))
+        #expect(HomerunStorage.loadAchievements(defaults).contains(.allTenHomers))
+        #expect(spy.reported.map(\.achievementID).contains(HomerunAchievement.allTenHomers.gameCenterID))
+        #expect(model.unlockedThisChallenge.contains(.allTenHomers))
     }
 
     @Test("空振りで回って倒れる演出が出たら「回って倒れた」を解除する")
