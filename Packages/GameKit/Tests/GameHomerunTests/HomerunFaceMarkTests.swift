@@ -146,13 +146,106 @@ struct HomerunFaceMarkTests {
         #expect(HomerunFaceMark.waitingAngry.isWaiting && HomerunFaceMark.waitingSparkle.isWaiting && !HomerunFaceMark.sparkle.isWaiting)
     }
 
-    @Test("怒りマークは脈打ちと弾みが最大でもヘルメットに重ならず、頭から離れすぎない（#1785）")
-    func angryMarkStaysClearOfHelmet() {
+    @Test("吹き出しは脈打ちと弾みが最大でもヘルメットに重ならず、頭から離れすぎない（#1785・#1797）")
+    func angryBubbleStaysClearOfHelmet() {
         let gap = HomerunFaceMark.angryMinClearance
         #expect(gap > 0.03, "重ならない余白")
-        let nominal = gap + HomerunFaceMark.angryHop + HomerunFaceMark.angrySize * HomerunFaceMark.angryPulseDepth * HomerunFaceMark.angryExtent
-        #expect(nominal < 0.15, "離れすぎない")
+        let nominal = gap + HomerunFaceMark.angryHop + HomerunFaceMark.angryBubbleRadius * HomerunFaceMark.angryPulseDepth
+        #expect(nominal < 0.15, "離れすぎない（尾が届く）")
         #expect(HomerunFaceMark.angryBounce(since: 0.125) <= HomerunFaceMark.angryHop)
+        #expect(HomerunFaceMark.angrySize <= HomerunFaceMark.angryBubbleRadius * 0.8, "💢 は吹き出しに余白をもって収まる")
+        #expect(HomerunFaceMark.angrySize < 0.22 * 0.7, "モック v3（0.22）より小さい（約 6 割）")
+        #expect(HomerunFaceMark.angryLift < 0.0 && HomerunFaceMark.angrySide > 0, "頭の左横・ひさしの高さ")
+    }
+
+    @Test("💢 は太さ一定の「く」の字 4 本: 斜め 4 方向・曲がり角が中心を向く・中心の空白は約 42%・外側の半径 1 に収まる（#1797）")
+    func angryStrokeShape() {
+        let strokes = HomerunFaceMark.angryStrokes
+        #expect(strokes.count == 4)
+        let half = HomerunFaceMark.angryStrokeWidth / 2
+        var angles = Set<Int>()
+        for stroke in strokes {
+            let corner = stroke.corner
+            let deg = Int((atan2(corner.y, corner.x) * 180 / .pi).rounded())
+            angles.insert((deg + 360) % 360)
+            #expect(simd_length(corner) - half > HomerunFaceMark.angryHoleRatio - 0.001, "中心の空白")
+            #expect(simd_length(corner) - half < HomerunFaceMark.angryHoleRatio + 0.001, "角の内側の縁が空白の境")
+            #expect(stroke.tips.count == 2)
+            for tip in stroke.tips {
+                #expect(simd_length(tip) > simd_length(corner), "腕は中心から離れる向き（曲がり角が中心を向く）")
+                #expect(abs(simd_length(tip) + half - 1) < 0.001, "先の外側の縁が半径 1")
+            }
+        }
+        #expect(angles == [45, 135, 225, 315])
+        #expect(HomerunFaceMark.angryStrokes == strokes, "決まった形")
+    }
+
+    // MARK: 怒りゲージ（#1797）
+
+    @Test("怒りゲージ: 振った空振りで +1、当たり（ファウル含む）で −1（0 未満にしない）、見送りは変えない")
+    func angerGaugeRule() {
+        func g(_ kind: HomerunKind, from: Int, swung: Bool = true) -> Int {
+            HomerunFaceMark.angerGauge(after: ball(kind, .nice), swung: swung, from: from)
+        }
+        #expect(g(.miss, from: 0) == 1)
+        #expect(g(.miss, from: 2) == 3)
+        #expect(g(.foul, from: 2) == 1, "ファウルは当たり")
+        #expect(g(.inPlay, from: 2) == 1)
+        #expect(g(.fenceHit, from: 2) == 1)
+        #expect(g(.homer, from: 2) == 1)
+        #expect(g(.homer, from: 0) == 0, "0 未満にしない")
+        #expect(g(.miss, from: 2, swung: false) == 2, "見送りは変えない")
+        #expect(HomerunFaceMark.angerGauge(after: nil, swung: true, from: 2) == 2)
+    }
+
+    @Test("怒りゲージが閾値に届いたら、振った空振りの次の構えは段階②（顔の赤み・湯気）。届かなければ段階①")
+    func angerStageRule() {
+        let n = HomerunFaceMark.angerStageThreshold
+        let miss = ball(.miss, .miss)
+        #expect(HomerunFaceMark.waiting(after: miss, swung: true, challengeFinished: false, anger: n - 1) == .waitingAngry)
+        #expect(HomerunFaceMark.waiting(after: miss, swung: true, challengeFinished: false, anger: n) == .waitingAngryHot)
+        #expect(HomerunFaceMark.waiting(after: miss, swung: true, challengeFinished: false, anger: n + 5) == .waitingAngryHot)
+        #expect(HomerunFaceMark.waiting(after: miss, swung: true, challengeFinished: true, anger: n) == .none, "最後の球の次は無い")
+        #expect(HomerunFaceMark.waiting(after: miss, swung: false, challengeFinished: false, anger: n) == .none, "見送りは出さない")
+        #expect(HomerunFaceMark.waiting(after: ball(.foul, .just), swung: true, challengeFinished: false, anger: n) == .none)
+        #expect(HomerunFaceMark.waitingAngryHot.isWaiting && HomerunFaceMark.waitingAngryHot.showsAngryMark)
+        #expect(HomerunFaceMark.waitingAngry.showsAngryMark && !HomerunFaceMark.waitingSparkle.showsAngryMark)
+    }
+
+    @Test("モック: 空振りを重ねて閾値で段階②・当たりで下がる・挑戦の開始で 0")
+    func angerGaugeInModel() throws {
+        let model = makeModel()
+        #expect(model.angerGauge == 0)
+        try whiff(model)
+        try next(model)
+        try whiff(model)
+        #expect(model.angerGauge == 2)
+        #expect(model.waitingFaceMark == .waitingAngry, "閾値の手前は段階①")
+        try next(model)
+        try take(model)
+        #expect(model.angerGauge == 2, "見送りは変えない")
+        try next(model)
+        try whiff(model)
+        #expect(model.angerGauge == 3)
+        #expect(model.waitingFaceMark == .waitingAngryHot, "3 回目で段階②")
+        try next(model)
+        try hit(model)
+        #expect(model.angerGauge == 2, "当たりで −1")
+        #expect(model.waitingFaceMark != .waitingAngryHot)
+        model.pause(now: Self.t0.addingTimeInterval(100))
+        model.quitChallenge()
+        model.start(now: Self.t0.addingTimeInterval(100))
+        #expect(model.angerGauge == 0, "挑戦の開始で 0")
+        #expect(model.waitingFaceMark == .none)
+    }
+
+    @Test("湯気は素早くふくらみ、ゆっくりしぼんで消える。周期で繰り返す")
+    func steamPuffShape() {
+        #expect(HomerunFaceMark.steamPuff(phase: 0) == 0)
+        #expect(abs(HomerunFaceMark.steamPuff(phase: 0.2) - 1) < 0.001)
+        #expect(HomerunFaceMark.steamPuff(phase: 0.1) < HomerunFaceMark.steamPuff(phase: 0.2))
+        #expect(HomerunFaceMark.steamPuff(phase: 0.6) < HomerunFaceMark.steamPuff(phase: 0.3))
+        #expect(HomerunFaceMark.steamPuff(phase: 3.2) == HomerunFaceMark.steamPuff(phase: 0.2))
     }
 
     @Test("1 回の空振りでも次の球で出て、見送ると消える。当たりでも消える。挑戦をやり直すと消える")
