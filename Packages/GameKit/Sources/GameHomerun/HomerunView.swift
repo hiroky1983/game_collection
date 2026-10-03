@@ -133,8 +133,8 @@ struct HomerunLobbyView: View {
             VStack(spacing: 14) {
                 introCard
                 todayCard
-                recordsCard
-                HomerunAchievementsCard(model: model)
+                // 「打席に立つ」は今日の回数のすぐ下（会長指摘 2026-10-04。下まで送らないと出てこなかった）。
+                // きろく・実績はその下でスクロールして見る。
                 Button {
                     withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
@@ -158,6 +158,8 @@ struct HomerunLobbyView: View {
                 .accessibilityHint("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
                 // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
                 HowToPlayHint(.homerun, playLog: services.playLog)
+                recordsCard
+                HomerunAchievementsCard(model: model)
             }
             .padding(Theme.pad)
             .padding(.bottom, HomerunBannerGap.belowContent)
@@ -310,14 +312,16 @@ struct HomerunResultView: View {
         ScrollView {
             VStack(spacing: 14) {
                 summaryCard
-                HomerunUnlockedCard(items: model.unlockedThisChallenge)
-                moonCard
-                sprayCard
-                breakdownCard
+                // 次の挑戦のボタンはまとめのすぐ下（会長指摘 2026-10-04。下まで送らないと出てこなかった）。
+                // 月・打球図・内訳はその下でスクロールして見る。バナーとの間隔はスクロールの末尾で取る（#1749）。
                 actions
                 if model.ledger.remaining == 0 {
                     HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
                 }
+                HomerunUnlockedCard(items: model.unlockedThisChallenge)
+                moonCard
+                sprayCard
+                breakdownCard
                 // ほかのゲームへのレコメンド（#52）。全ゲームの終局画面に置く約束（GameChromeTests）。
                 RecommendationSlot(services: services, isFinished: true)
             }

@@ -30,6 +30,21 @@ struct HomerunModuleTests {
         #expect(HomerunBannerGap.belowContent + Theme.pad > BannerSlot.height, "余白の合計はバナーの高さより大きい")
     }
 
+    @Test("次の挑戦のボタンはスクロールせずに見える位置に置く（会長指摘 2026-10-04）")
+    func actionsComeBeforeDetailCards() throws {
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        // 結果: まとめ → ボタン → 打球図・内訳。
+        let summary = try #require(view.range(of: "                summaryCard\n"))
+        let actions = try #require(view.range(of: "                actions\n"))
+        let spray = try #require(view.range(of: "                sprayCard\n"))
+        #expect(summary.lowerBound < actions.lowerBound && actions.lowerBound < spray.lowerBound, "ボタンはまとめのすぐ下")
+        // 打席前: 今日の回数 → 「打席に立つ」 → きろく・実績。
+        let today = try #require(view.range(of: "                todayCard\n"))
+        let start = try #require(view.range(of: "Label(\"打席に立つ\""))
+        let records = try #require(view.range(of: "                recordsCard\n"))
+        #expect(today.lowerBound < start.lowerBound && start.lowerBound < records.lowerBound, "打席に立つは今日の回数のすぐ下")
+    }
+
     @Test("表示名・説明・ルールに他社の登録商標を思わせる語を含めない（README §4.1 の禁止語）")
     func noTrademarkedWords() {
         let module = HomerunModule()
