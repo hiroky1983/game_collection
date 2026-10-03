@@ -137,6 +137,18 @@ struct HomerunAtBatView: View {
                         }
                         .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
+                    // 解除した実績は、結果のカードと同じ位置に、その球の演出が終わった次の構えのあいだ出す（#1794）。
+                    if model.phase == .pitching, case let unlocks = model.unlockBanner(at: now), !unlocks.isEmpty {
+                        VStack(spacing: 8) {
+                            Color.clear.frame(height: BannerSlot.height)
+                            topHUD.hidden()
+                                .frame(minHeight: HomerunAtBatHUDLayout.hudHeight)
+                                .padding(.horizontal, Theme.pad)
+                            HomerunUnlockBanner(items: unlocks)
+                                .padding(.horizontal, Theme.pad)
+                                .opacity(reduceMotion ? 1 : model.unlockBannerOpacity(at: now))
+                        }
+                    }
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                     // 一時停止は押せる帯（下 1/3）のすぐ上の右端に置く（#1550。帯の中に置くと押す指と取り合う。

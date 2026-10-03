@@ -102,6 +102,19 @@ public final class HomerunModel {
     var whiffGagRoll: () -> Double = { Double.random(in: 0..<1) }
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
+    // 実績（#1794・`HomerunModel+Achievements.swift`）。
+    /// 解除済みの実績（端末の記録）。一覧はいつもこれを見て描く。
+    public internal(set) var achievements: HomerunAchievementLog
+    /// 打席に出している「実績解禁」の表示（1 球の結果の演出が終わってから出す）と、消す時刻。消すのは View が時刻で決める
+    /// （`unlockBanner(at:)`）。Model の進行（`nextWake`）には関わらせない。次の球を打つか結果を閉じるときに片付く。
+    public internal(set) var unlockBanner: [HomerunAchievement] = []
+    public internal(set) var unlockBannerUntil: Date?
+    /// 解除したがまだ表示していない実績（1 球の結果の演出が終わるのを待つ）。
+    var pendingBanner: [HomerunAchievement] = []
+    /// いまの挑戦で解除した実績（10 球の結果に並べる）。
+    public internal(set) var unlockedThisChallenge: [HomerunAchievement] = []
+    /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
+    public internal(set) var gameCenterLinked = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
     public var showsExhausted = false
     /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
@@ -168,12 +181,12 @@ public final class HomerunModel {
     /// 照準の吸い寄せ（#1594 試作）。テストは `.off` で入力どおりの照準を確かめる。
     let aimAssist: HomerunAimAssist
 
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
     private let directionMeter: FeedbackPreference
     private let calendar: Calendar
     private let pitches: [HomerunPitch]
     /// 解析・記録・広告の窓口。nil（テスト・プレビュー）なら何も送らない。
-    private let services: GameServices?
+    let services: GameServices?
     /// このモデルで 1 回でも打席に立ったか（初回は `game_start`、以降は `game_end`（quit）を挟む始め直し）。
     private var hasCountedStart = false
     /// いまの挑戦で 1 球でも投げたか（`gameDidProgress` の冪等は解析側だが、呼ぶ回数を絞る）。
@@ -192,6 +205,7 @@ public final class HomerunModel {
         self.pitches = pitches
         ledger = HomerunStorage.loadLedger(defaults)
         records = HomerunStorage.loadRecords(defaults)
+        achievements = HomerunStorage.loadAchievements(defaults)
         refreshDay(now: now)
     }
 
@@ -311,6 +325,8 @@ public final class HomerunModel {
         isNewBest = false
         hasProgressed = false
         whiffCount = 0
+        resetUnlockDisplay()
+        unlockedThisChallenge = []
         faceMark = .none
         waitingFaceMark = .none
         beginPitch(now: now)
@@ -456,6 +472,8 @@ public final class HomerunModel {
             if challenge?.isFinished == true {
                 finish()
             } else {
+                // 解除した実績は、この球の演出が終わってから出す（演出と重ねない）。
+                showPendingUnlockBanner(now: now)
                 beginPitch(now: now)
             }
         case .idle, .finished:
@@ -507,6 +525,7 @@ public final class HomerunModel {
         guard isPaused, phase == .pitching || phase == .ballResult else { return }
         holds.remove(.paused)
         awaitsAtBat = false
+        resetUnlockDisplay()
         phase = .idle
         challenge = nil
         lastBall = nil
@@ -578,6 +597,11 @@ public final class HomerunModel {
         let ball = challenge.swing(swing)
         self.challenge = challenge
         decideWhiffGag(swung: swing != nil, ball: ball)
+        unlockBanner = []
+        unlockBannerUntil = nil
+        if let ball {
+            earn(HomerunAchievement.earned(byBall: ball, outOfPark: ball.isOutOfPark, whiffSpin: showsWhiffGag))
+        }
         if !hasProgressed {
             hasProgressed = true
             services?.gameDidProgress(gameID: Self.gameID)
@@ -593,7 +617,10 @@ public final class HomerunModel {
         pitchStart = nil
         // 10 球目を打った時点で蓄積に取り込む（結果を見せている 2 秒余りのあいだに画面を閉じても、
         // 打ち終えた挑戦は記録に残す）。
-        if challenge.isFinished { record(challenge) }
+        if challenge.isFinished {
+            record(challenge)
+            earn(HomerunAchievement.earned(byFinished: challenge))
+        }
         faceMark = .decide(ball: ball, swung: swing != nil, isNewBest: isNewBest)
         waitingFaceMark = .waiting(after: ball, swung: swing != nil, challengeFinished: challenge.isFinished)
         resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
@@ -616,6 +643,7 @@ public final class HomerunModel {
     }
 
     private func finish() {
+        resetUnlockDisplay()
         phase = .finished
         resultUntil = nil
         isHolding = false
