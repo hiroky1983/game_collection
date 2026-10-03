@@ -146,6 +146,15 @@ struct HomerunFaceMarkTests {
         #expect(HomerunFaceMark.waitingAngry.isWaiting && HomerunFaceMark.waitingSparkle.isWaiting && !HomerunFaceMark.sparkle.isWaiting)
     }
 
+    @Test("怒りマークは脈打ちと弾みが最大でもヘルメットに重ならず、頭から離れすぎない（#1785）")
+    func angryMarkStaysClearOfHelmet() {
+        let gap = HomerunFaceMark.angryMinClearance
+        #expect(gap > 0.03, "重ならない余白")
+        let nominal = gap + HomerunFaceMark.angryHop + HomerunFaceMark.angrySize * HomerunFaceMark.angryPulseDepth * HomerunFaceMark.angryExtent
+        #expect(nominal < 0.15, "離れすぎない")
+        #expect(HomerunFaceMark.angryBounce(since: 0.125) <= HomerunFaceMark.angryHop)
+    }
+
     @Test("1 回の空振りでも次の球で出て、見送ると消える。当たりでも消える。挑戦をやり直すと消える")
     func angryWaitingInModel() throws {
         let model = makeModel()

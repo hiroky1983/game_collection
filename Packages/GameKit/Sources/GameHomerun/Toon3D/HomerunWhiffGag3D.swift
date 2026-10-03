@@ -63,7 +63,7 @@ final class HomerunWhiffGagOverlay {
         }
         let red = UnlitMaterial(color: HomerunPlatformColor(red: 0.92, green: 0.15, blue: 0.12, alpha: 1))
         let mark = ModelEntity(mesh: Self.angryMark(grow: 0), materials: [red])
-        mark.addChild(ModelEntity(mesh: Self.angryMark(grow: 0.16), materials: [rim]))
+        mark.addChild(ModelEntity(mesh: Self.angryMark(grow: HomerunFaceMark.angryRimGrow), materials: [rim]))
         entity.addChild(mark)
         angry = mark
         hideMarks()
@@ -214,7 +214,7 @@ final class HomerunWhiffGagOverlay {
         var indices: [UInt32] = []
         let z: Float = grow > 0 ? -0.05 : 0
         // 弧の中心は四隅の外側。弧が中心側を向いて凹む（怒りマークの形）。
-        let centerOffset: Float = 1.05, radius: Float = 0.95, width: Float = 0.30 + grow * 2
+        let centerOffset: Float = 1.05, radius: Float = 0.95, width: Float = HomerunFaceMark.angryStrokeWidth + grow * 2
         for corner in 0..<4 {
             let base = Float(corner) * .pi / 2 + .pi / 4
             let c: SIMD3<Float> = [centerOffset * cos(base), centerOffset * sin(base), z]
