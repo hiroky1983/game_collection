@@ -450,10 +450,9 @@ launchd 常駐。ログは `~/Library/Logs/asobiba-<name>.log`、読み込みは
 アプリの運営に無関係な MCP 接続（Supabase・Canva・Sentry・Notion 等）がクラウド側の設定に
 紐づいており、ヘッドレス実行時に認証待ちで即座に詰まって毎週空振りしていた。ローカル実行は
 `claude --allowedTools` で渡したツールしか使わないため、同種の問題が構造的に起きない
-（会長発見・2026-08-24移行）。**`~/Library/LaunchAgents/com.asobiba.ai-weekly.plist` の作成と
-`launchctl bootstrap` はまだ実施していない**（このスクリプト自体は origin/main にあるだけで、
-plist を登録するまで自動実行は始まらない）。登録後は `launchctl print gui/501/com.asobiba.ai-weekly`
-で `next fire date` が来週月曜であることを確認すること。
+（会長発見・2026-08-24移行）。`~/Library/LaunchAgents/com.asobiba.ai-weekly.plist` の登録・稼働は
+一度完了していたが、**2026-09-21 に会長指示で `launchctl bootout` し停止中**（plist は残置。
+再開は会長指示のみ）。詳細と他の停止中ジョブは後述の「停止中のジョブ」を参照。
 
 当番が動作確認で起動したシミュレータは、`ai-duty.sh` が**当番自身が起動したと記録したものだけ**を自動的に shutdown する
 （2026-09-30 改定）。記録は、claude セッションの PATH の先頭に置く `xcrun` の記録係（`Scripts/duty-xcrun-shim/xcrun`。
@@ -577,6 +576,19 @@ main へマージしただけでは反映されない。会長の `git pull` を
 そのため `ai-duty.sh` は**起動時に自分自身を origin/main の最新版へ差し替えて exec し直す**
 （取得元は当番専用クローン `~/.asobiba-duty/game_collection` のみ。会長の作業ツリーには触れない）。
 この仕組み自体を有効化する一度だけの `git pull` は会長の操作が要る。
+
+### 停止中のジョブ（2026-10-03 追加）
+
+意図的に止めている launchd ジョブをここに一覧する。**経営企画室・監査当番・開発当番は、
+ここに載っているジョブが動いていないこと（レポートが出ない・ログが更新されない等）を
+問題として起票しない**。新たにジョブを止めるときはここへ追記する。
+
+| ジョブ | 停止日 | 状態 | 再開条件 |
+|---|---|---|---|
+| 週次経営会議（`Scripts/ai-weekly-meeting.sh` / `com.asobiba.ai-weekly`） | 2026-09-21 | `launchctl bootout` で停止。plist は残置（未削除） | 会長指示のみ |
+
+（#1783: この一覧が無く、週次レポートが出ていないことを経営企画室が取りこぼしと誤解して起票した。
+会長指摘により not planned でクローズ。再発防止として本節を追加）
 
 ### Issue 在庫の維持（2026-09-13 会長指示「タスクが枯渇しないように」）
 
