@@ -280,8 +280,8 @@ final class HomerunBatterRig {
             whiffGagOverlay = overlay
         }
         whiffGagOverlay?.isEnabled = true
-        if faceMark == .waitingAngry {
-            whiffGagOverlay?.applyWaitingAngry(poseClip: clip, now: now, camera: camera)
+        if faceMark.showsAngryMark {
+            whiffGagOverlay?.applyWaitingAngry(poseClip: clip, now: now, camera: camera, hot: faceMark == .waitingAngryHot)
         } else if faceMark == .waitingLump {
             whiffGagOverlay?.applyWaitingLump(poseClip: clip, now: now)
         } else {

@@ -97,6 +97,8 @@ public final class HomerunModel {
     private(set) var faceMark: HomerunFaceMark = .none
     /// 次の球の構えで見せる頭の記号（柵越えを打った次の 1 球だけ・#1762）。その球を打つ・見送ると入れ替わる。
     private(set) var waitingFaceMark: HomerunFaceMark = .none
+    /// 怒りゲージ（#1797・裏パラメータ・画面には出さない）。増減と段階は `HomerunFaceMark`。挑戦の開始で 0。
+    private(set) var angerGauge = 0
     /// 振った空振りの連続回数（怒りマーク用）。当たり・ファウルで 0 に戻り、見送りは数えず戻しもしない。
     private(set) var whiffStreak = 0
     /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
@@ -332,6 +334,7 @@ public final class HomerunModel {
         unlockedThisChallenge = []
         faceMark = .none
         waitingFaceMark = .none
+        angerGauge = 0
         beginPitch(now: now)
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID, credit: credit)
@@ -625,7 +628,8 @@ public final class HomerunModel {
             earn(HomerunAchievement.earned(byFinished: challenge))
         }
         faceMark = .decide(ball: ball, swung: swing != nil, isNewBest: isNewBest)
-        waitingFaceMark = .waiting(after: ball, swung: swing != nil, challengeFinished: challenge.isFinished)
+        angerGauge = HomerunFaceMark.angerGauge(after: ball, swung: swing != nil, from: angerGauge)
+        waitingFaceMark = .waiting(after: ball, swung: swing != nil, challengeFinished: challenge.isFinished, anger: angerGauge)
         resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball
