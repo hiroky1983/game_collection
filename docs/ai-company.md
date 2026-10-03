@@ -237,7 +237,7 @@ LP の12本追従 #296/PR #299）。**ユーザーに届いた量はまだ測れ
 | 開発部 | 実装ループ（ai-devops.md） | 実装エージェント | 直列 or worktree 分離。git stash 等の使用禁止 |
 | 品質保証部 | 敵対的検証 | verifier | 全実装の完了報告前に必須 |
 | マーケティング部 | ASO・スクリーンショット・LP（web/） | **経営企画室が直接担う**。素材制作は社長セッションから general-purpose + Canva/Figma へ委譲 | データ分析部と同じく**招集制**（独立 heartbeat なし） |
-| 定期出社組 | 週次のローカル経営会議・毎時のローカル実装当番・日次のローカル経営当番（すべて launchd） | `Scripts/ai-weekly-meeting.sh` + `Scripts/ai-duty.sh` + `Scripts/ai-management-duty.sh` | 自動 |
+| 定期出社組 | 毎時のローカル実装当番・日次のローカル経営当番（launchd）。週次のローカル経営会議は**2026-09-21 から会長指示で停止中**（`docs/ai-devops.md` の「停止中のジョブ」参照） | `Scripts/ai-weekly-meeting.sh`（停止中） + `Scripts/ai-duty.sh` + `Scripts/ai-management-duty.sh` | 自動（週次経営会議のみ会長指示で再開） |
 
 会社の実体は「このリポジトリ + プロジェクトメモリ（経営引き継ぎ書）+ GitHub ラベル運用 + ルーティン」。
 セッションをまたぐ経営の継続性はプロジェクトメモリと本文書で担保する。
@@ -252,7 +252,7 @@ LP の12本追従 #296/PR #299）。**ユーザーに届いた量はまだ測れ
 | 開発部 | **Opus（リード）** | リードが設計・統合・品質責任を持つ。並列化するときだけメンバーとして Sonnet を追加し、worktree 分離 + リードが統合。git stash 等の使用禁止 | リード1 + メンバー2 |
 | QA部（verifier） | Opus | 実装者と同格以上を維持（書いた本人が採点しない）。リリース直前の最終検証のみ Fable | 実装1件につき1 |
 | マーケティング部（ASO・素材） | Sonnet | — | 3 |
-| 定期出社組（週次経営会議・launchd 週次） | Sonnet | `Scripts/ai-weekly-meeting.sh`（2026-08-24 クラウドルーティンから移行） | 1 |
+| 定期出社組（週次経営会議・launchd 週次） | Sonnet | `Scripts/ai-weekly-meeting.sh`（2026-08-24 クラウドルーティンから移行。**2026-09-21 から会長指示で停止中**） | 1 |
 | ローカル実装当番（launchd 毎時） | Opus | 開発部リードとして稼働（Scripts/ai-duty.sh） | 1 |
 | **全社合計** | — | — | **同時 6 体まで** |
 
