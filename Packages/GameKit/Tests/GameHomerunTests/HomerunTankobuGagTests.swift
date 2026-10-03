@@ -127,6 +127,16 @@ struct HomerunTankobuGagTests {
 
     // MARK: 座る位置
 
+    @Test("当たるまでの振り抜き・球待ちの間は補正しない（体が横へずれず、バットが打点に届く）")
+    func noCorrectionBeforeImpact() {
+        for i in 0..<20 {
+            let e = G.impactDelay * Double(i) / 20
+            #expect(G.sitCorrection(effective: e) == .zero, "e=\(e)")
+        }
+        #expect(G.overlayClipTime(effective: 99) > HomerunWhiffGag.clipEnd, "目・星は最後のコマの後も回し続ける")
+        #expect(G.overlayClipTime(effective: 1.0) == HomerunBatterMotion.loadDuration + HomerunBatterMotion.swingDuration)
+    }
+
     @Test("座るあいだ頭の水平のずれを打ち消し、本塁から離れる側（局所の -z）へ寄せる。当たる前は補正しない")
     func sitCorrection() {
         #expect(simd_length(G.sitCorrection(effective: 1.0)) < 1e-6)

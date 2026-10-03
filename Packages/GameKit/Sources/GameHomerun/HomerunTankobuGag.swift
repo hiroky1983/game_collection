@@ -158,10 +158,17 @@ enum HomerunTankobuGag {
     /// 打ち消し（打者の局所・y は 0）、さらに本塁から離れる側（局所の -z = 世界の +x）へ `sitOutward` 離す。支点（`turnPivot`）の位置に足す。
     static let sitOutward: Float = 0.3
     static func sitCorrection(effective e: TimeInterval) -> SIMD3<Float> {
+        // 当たるまでは振り抜き・球待ちの姿勢のまま（補正すると振りの最中に体全体が横へずれ、バットが打点から外れる）。
+        guard e >= impactDelay else { return .zero }
         let held = HomerunWhiffGag.head(atClipTime: HomerunBatterMotion.loadDuration + HomerunBatterMotion.swingDuration).position
         let now = HomerunWhiffGag.head(atClipTime: HomerunBatterMotion.loadDuration + segmentTime(effective: e)).position
         let since = Float(smoothstep((e - impactDelay) / 0.8))
         return [-(now.x - held.x), 0, -(now.z - held.z) - sitOutward * since]
+    }
+
+    /// ぐるぐる目・星の回転を数えるクリップ時刻（秒）: 骨のクリップは最後のコマで止まるが、目・星は止めずに回し続ける。
+    static func overlayClipTime(effective e: TimeInterval) -> TimeInterval {
+        HomerunBatterMotion.loadDuration + (e >= impactDelay ? resumeSegment + (e - impactDelay) : segmentTime(effective: e))
     }
 
     // MARK: たんこぶ

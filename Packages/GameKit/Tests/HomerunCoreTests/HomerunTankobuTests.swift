@@ -47,23 +47,23 @@ struct HomerunTankobuTests {
         #expect(r3.isTankobu)
     }
 
-    @Test("擦りの帯より上のポップ・ほかの帯・ファウル・空振り・見送りは出ない")
+    @Test("擦りの帯より上のポップ・ほかの帯・ファウル・空振り・見送りは出ない（それぞれ新しい挑戦で、上限に先に当たらないようにする）")
     func nonQualifying() throws {
-        var c = HomerunChallenge()
-        let r4 = toss(&c, shallowPop, tankobuRoll: 0)
-        #expect(!r4.isTankobu)
-        let fly = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY + 2)
-        let r5 = toss(&c, fly, tankobuRoll: 0)
-        #expect(!r5.isTankobu)
-        let foul = HomerunSwing(timingOffset: 0, cursorDX: 11, cursorDY: scrape.cursorDY)
+        func tossed(_ swing: HomerunSwing?) -> HomerunBattedBall {
+            var c = HomerunChallenge()
+            return toss(&c, swing, tankobuRoll: 0)
+        }
+        #expect(!tossed(shallowPop).isTankobu)
+        #expect(!tossed(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY + 2)).isTankobu)
+        // ポップの擦りでもファウル（引っ張り 35° + 早いタイミング 13° = 45° 超）なら出さない。
+        let foul = HomerunSwing(timingOffset: 100, cursorDX: 11, cursorDY: scrape.cursorDY)
         let foulBall = HomerunJudge.judge(foul)
-        let r6 = toss(&c, foul, tankobuRoll: 0)
-        if foulBall.kind != .inPlay { #expect(!r6.isTankobu) }
-        let late = HomerunSwing(timingOffset: 300, cursorDX: 0, cursorDY: scrape.cursorDY)
-        let miss = toss(&c, late, tankobuRoll: 0)
-        #expect(miss.kind == .miss && !miss.isTankobu)
-        let r7 = toss(&c, nil, tankobuRoll: 0)
-        #expect(!r7.isTankobu)
+        #expect(foulBall.kind == .foul && foulBall.launch == .pop, "前提: ポップのファウル")
+        #expect(!tossed(foul).isTankobu)
+        let late = tossed(HomerunSwing(timingOffset: 300, cursorDX: 0, cursorDY: scrape.cursorDY))
+        #expect(late.kind == .miss && !late.isTankobu)
+        let take = tossed(nil)
+        #expect(take.kind == .miss && !take.isTankobu)
     }
 
     @Test("1 挑戦に 1 度まで。挑戦が変われば数え直す")

@@ -487,13 +487,17 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     @MainActor private static func placeFigureShadows(_ c: Coordinator, batterOrigin: SIMD3<Float>, camera: HomerunAtBatLayout.Camera) {
         let eye = camera.renderPose.position
         // 空振りの演出（#1681）の間は、体全体の回転・傾きと倒れていく体・バットに影を合わせる。
-        let gag: (clip: TimeInterval, turn: simd_quatf)? = c.batterRig.flatMap { rig in
-            guard rig.isWhiffGag, let clip = rig.whiffGagClipTime else { return nil }
-            return (clip, HomerunWhiffGag.turn(atClipTime: clip))
+        // たんこぶの演出（#1793）は体を回さず、座る位置の補正（`shift`・打者の局所）だけ掛ける。
+        let gag: (clip: TimeInterval, turn: simd_quatf, shift: SIMD3<Float>)? = c.batterRig.flatMap { rig in
+            if rig.isWhiffGag, let clip = rig.whiffGagClipTime { return (clip, HomerunWhiffGag.turn(atClipTime: clip), .zero) }
+            if rig.isTankobu, let pose = rig.tankobuPose { return (pose.clip, simd_quatf(angle: 0, axis: [0, 1, 0]), pose.correction) }
+            return nil
         }
+        let facing = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
         if let s = c.batterShadow {
-            placeFigureShadow(s, gag.map { HomerunFigureShadow.whiffGagBatter(origin: batterOrigin, clipTime: $0.clip, turn: $0.turn, camera: eye) }
-                ?? HomerunFigureShadow.batter(origin: batterOrigin, camera: eye))
+            placeFigureShadow(s, gag.map {
+                HomerunFigureShadow.whiffGagBatter(origin: batterOrigin + facing.act($0.shift), clipTime: $0.clip, turn: $0.turn, camera: eye)
+            } ?? HomerunFigureShadow.batter(origin: batterOrigin, camera: eye))
         }
         if let s = c.machineShadow { placeFigureShadow(s, HomerunFigureShadow.machine(camera: eye)) }
         if let s = c.batShadow {
@@ -504,9 +508,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                 case .load: rig.playbackTime ?? 0
                 case .swing, .whiffGag, .tankobu: rig.swingClipTime ?? HomerunBatterMotion.loadDuration
                 }
-                let bat = gag.map { HomerunFigureShadow.whiffGagBat(clipTime: $0.clip, turn: $0.turn) } ?? HomerunBatPath.segment(atClipTime: clip)
-                let turn = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
-                let strip = HomerunFigureShadow.bat(grip: batterOrigin + turn.act(bat.grip), tip: batterOrigin + turn.act(bat.tip), camera: eye)
+                let shift = gag?.shift ?? .zero
+                var bat = gag.map { HomerunFigureShadow.whiffGagBat(clipTime: $0.clip, turn: $0.turn) } ?? HomerunBatPath.segment(atClipTime: clip)
+                bat = (bat.grip + shift, bat.tip + shift)
+                let strip = HomerunFigureShadow.bat(grip: batterOrigin + facing.act(bat.grip), tip: batterOrigin + facing.act(bat.tip), camera: eye)
                 s.position = strip.center
                 s.scale = [strip.size.x, 1, strip.size.y]
                 s.orientation = simd_quatf(angle: strip.yaw, axis: [0, 1, 0])

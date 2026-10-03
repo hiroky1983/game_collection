@@ -121,6 +121,7 @@ final class HomerunBatterRig {
         catchUp = nil
         self.motion = motion
         whiffGagClipTime = nil
+        tankobuPose = nil
         switch motion {
         case .stance:
             controller = stanceAnimation.map { model.playAnimation($0, transitionDuration: 0, startsPaused: false) }
@@ -189,17 +190,20 @@ final class HomerunBatterRig {
             controller.time = min(segment, segmentLength)
         }
         let clip = HomerunBatterMotion.loadDuration + min(segment, segmentLength)
+        let correction = HomerunTankobuGag.sitCorrection(effective: e)
+        tankobuPose = (clip, correction)
         whiffGagClipTime = nil
         turnPivot.orientation = simd_quatf(angle: 0, axis: [0, 1, 0])
-        turnPivot.position = HomerunWhiffGag.pivot + HomerunTankobuGag.sitCorrection(effective: e)
+        turnPivot.position = HomerunWhiffGag.pivot + correction
         if whiffGagOverlay == nil {
             let overlay = HomerunWhiffGagOverlay()
             entity.addChild(overlay.entity)
             whiffGagOverlay = overlay
         }
         whiffGagOverlay?.isEnabled = true
-        let correction = HomerunTankobuGag.sitCorrection(effective: e)
-        whiffGagOverlay?.applyTankobu(clipTime: clip, since: e - HomerunTankobuGag.impactDelay, correction: correction, camera: camera)
+        // 目・星は座りきった後も回し続ける（骨のクリップは最後のコマで止める）。
+        whiffGagOverlay?.applyTankobu(clipTime: HomerunTankobuGag.overlayClipTime(effective: e), since: e - HomerunTankobuGag.impactDelay,
+                                      correction: correction, camera: camera)
     }
 
     var isWhiffGag: Bool {
@@ -284,6 +288,11 @@ final class HomerunBatterRig {
             whiffGagOverlay?.applyWaitingEyes(poseClip: clip, now: now)
         }
     }
+
+    /// たんこぶの演出（#1793）の、最後に置き直したときのクリップ時刻（秒）と座る位置の補正（打者の局所）。演出でなければ nil。影もこれに合わせる。
+    private(set) var tankobuPose: (clip: TimeInterval, correction: SIMD3<Float>)?
+    /// いまの支点の位置。テスト用。
+    var pivotPosition: SIMD3<Float> { turnPivot.position }
 
     /// 空振りの演出の、最後に置き直したときのクリップ時刻（秒・`applyWhiffGag`）。演出でなければ nil。影もこれに合わせる。
     private(set) var whiffGagClipTime: TimeInterval?
