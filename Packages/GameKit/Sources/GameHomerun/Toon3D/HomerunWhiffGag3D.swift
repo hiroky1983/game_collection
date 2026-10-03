@@ -16,10 +16,12 @@ final class HomerunWhiffGagOverlay {
     private var sparkles: [ModelEntity] = []
     /// 怒りマーク（#1797）: 吹き出し（白地・輪郭・尾）と中の 💢 を 1 つの根にまとめる。根を脈打たせ弾ませる。
     private var angry: Entity?
-    /// 怒りが溜まった段階②: 顔の赤い円・両頬・湯気（左右の塊 = 小さな円 3 つ）。
-    private var flush: [ModelEntity] = []
-    private var steam: [Entity] = []
-    /// たんこぶ（#1793）: ヘルメットの上のピンクの球（モックの見た目: 下側の濃い色・上の光り・輪郭なし）。
+    /// 怒りが溜まった段階②: 湯気（左右 1 つずつ・「プンッ」の絵の板）。不透明度の絵は薄れさせるときに毎コマ材質へ入れ直す。
+    private var steam: [ModelEntity] = []
+    private var steamMasks: [TextureResource] = []
+    /// 湯気の絵（右向き・左向き（鏡映）の色と不透明度・1 回だけ作る）。
+    private static var steamTextures: [(color: TextureResource, mask: TextureResource)] = []
+    /// たんこぶ（#1793）: ヘルメットの上のピンクの球（モックの見た目: 下側の濃い色・上の光り・輪郭なし）と黒い点々・白い十字の絆創膏。
     private var lump: ModelEntity?
 
     var isEnabled: Bool {
@@ -69,34 +71,26 @@ final class HomerunWhiffGagOverlay {
         }
         angry = Self.makeAngryBubble(rim: rim)
         entity.addChild(angry!)
-        let redTint = { (opacity: Float) -> UnlitMaterial in
-            var m = UnlitMaterial(color: HomerunPlatformColor(red: 0.95, green: 0.18, blue: 0.14, alpha: 1))
-            m.blending = .transparent(opacity: .init(floatLiteral: opacity))
-            return m
-        }
-        let flushDisc = Self.disc(radius: 1, segments: 32)
-        for opacity in [HomerunFaceMark.flushOpacity, HomerunFaceMark.cheekOpacity, HomerunFaceMark.cheekOpacity] {
-            let d = ModelEntity(mesh: flushDisc, materials: [redTint(opacity)])
-            entity.addChild(d)
-            flush.append(d)
-        }
-        let steamWhite = UnlitMaterial(color: HomerunPlatformColor(red: 0.97, green: 0.97, blue: 1, alpha: 1))
-        let puff = Self.disc(radius: 1, segments: 24)
-        for _ in 0..<2 {
-            let cluster = Entity()
-            // 「プンッ」と弾ける 3 つの丸（大きい 1 つと小さい 2 つ）。輪郭は黒の縁（少し大きい円を後ろに）。
-            for (offset, r) in [(SIMD3<Float>(0, 0, 0), Float(1)), ([0.9, 0.45, 0], 0.6), ([-0.8, 0.55, 0], 0.5)] as [(SIMD3<Float>, Float)] {
-                let body = ModelEntity(mesh: puff, materials: [steamWhite])
-                body.position = offset
-                body.scale = SIMD3(repeating: r)
-                let edge = ModelEntity(mesh: puff, materials: [rim])
-                edge.position = [0, 0, -0.02]
-                edge.scale = SIMD3(repeating: 1.2)
-                body.addChild(edge)
-                cluster.addChild(body)
+        #if canImport(UIKit)
+        if Self.steamTextures.isEmpty {
+            for mirrored in [false, true] {
+                guard let (color, mask) = HomerunAngrySteamArt.images(mirrored: mirrored),
+                      let colorTexture = try? TextureResource.generate(from: color, options: .init(semantic: .color)),
+                      let maskTexture = try? TextureResource.generate(from: mask, options: .init(semantic: .raw)) else { break }
+                Self.steamTextures.append((colorTexture, maskTexture))
             }
-            entity.addChild(cluster)
-            steam.append(cluster)
+        }
+        #endif
+        if Self.steamTextures.count == 2 {
+            for textures in Self.steamTextures {
+                var m = UnlitMaterial()
+                m.color = .init(tint: .white, texture: .init(textures.color))
+                m.blending = .transparent(opacity: .init(scale: 1, texture: .init(textures.mask)))
+                let puff = ModelEntity(mesh: .generatePlane(width: 1, height: 1), materials: [m])
+                entity.addChild(puff)
+                steam.append(puff)
+                steamMasks.append(textures.mask)
+            }
         }
         func flat(_ c: SIMD3<Float>) -> UnlitMaterial {
             UnlitMaterial(color: HomerunPlatformColor(red: CGFloat(c.x), green: CGFloat(c.y), blue: CGFloat(c.z), alpha: 1))
@@ -146,8 +140,7 @@ final class HomerunWhiffGagOverlay {
     }
 
     private func hideMarks() {
-        for e in sparkleEyes + sparkles + flush { e.isEnabled = false }
-        for e in steam { e.isEnabled = false }
+        for e in sparkleEyes + sparkles + steam { e.isEnabled = false }
         angry?.isEnabled = false
         lump?.isEnabled = false
         entity.position = .zero
@@ -241,7 +234,7 @@ final class HomerunWhiffGagOverlay {
         lump.isEnabled = true
     }
 
-    /// 構えの怒りマーク（#1769・#1797）: 頭の左横に吹き出しを置き、脈打たせて弾ませる。`hot` なら顔の赤みと湯気も出す（段階②）。
+    /// 構えの怒りマーク（#1769・#1797）: 頭の左横に吹き出しを置き、脈打たせて弾ませる。`hot` なら頭から湯気も出す（段階②）。
     /// `poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は動きの位相。
     func applyWaitingAngry(poseClip: TimeInterval, now: Date, camera: SIMD3<Float>, hot: Bool = false) {
         hideGag()
@@ -261,29 +254,21 @@ final class HomerunWhiffGagOverlay {
         Self.faceCamera(a, camera: camera)
         a.isEnabled = true
         guard hot else { return }
-        // 顔の赤み: 顔の円と両頬を、頭の骨の局所に貼る（顔の外 = +z）。
-        let spots: [(SIMD3<Float>, Float)] = [
-            (HomerunFaceMark.flushCenter, HomerunFaceMark.flushRadius),
-            ([-HomerunFaceMark.cheekOffset.x, HomerunFaceMark.cheekOffset.y, HomerunFaceMark.cheekOffset.z], HomerunFaceMark.cheekRadius),
-            (HomerunFaceMark.cheekOffset, HomerunFaceMark.cheekRadius),
-        ]
-        for (i, d) in flush.enumerated() {
-            d.position = head.position + head.rotation.act(spots[i].0)
-            d.orientation = head.rotation
-            d.scale = SIMD3(repeating: spots[i].1)
-            d.isEnabled = true
-        }
-        // 湯気: 左右の塊が時間をずらして「プンッ」と弾け、少し立ち上って消える。
-        for (i, cluster) in steam.enumerated() {
-            let sign: Float = i == 0 ? -1 : 1
-            let phase = t / HomerunFaceMark.steamPeriod + (i == 0 ? 0 : 0.5)
-            let puff = HomerunFaceMark.steamPuff(phase: phase)
-            let p = Float(phase - phase.rounded(.down))
-            cluster.position = top + side * (sign * HomerunFaceMark.steamSide) + up * (HomerunFaceMark.steamLift + HomerunFaceMark.steamRise * p)
-                + toCamera * HomerunFaceMark.angryForward
-            cluster.scale = SIMD3(repeating: max(HomerunFaceMark.steamSize * puff, 0.0001))
-            Self.faceCamera(cluster, camera: camera)
-            cluster.isEnabled = puff > 0.001
+        // 湯気: 左右の板が半周期ずらして「プンッ」と噴き出し、漂って薄れて消える。右（カメラから見て）はそのまま、左は鏡映の絵で尾を頭へ向ける。
+        for (i, puff) in steam.enumerated() {
+            let sign: Float = i == 0 ? 1 : -1
+            let u = Float((t / HomerunFaceMark.steamPeriod + Double(i) * 0.5).truncatingRemainder(dividingBy: 1))
+            let phase = HomerunFaceMark.steamPhase(u)
+            let move = HomerunFaceMark.steamStart + HomerunFaceMark.steamBurstMove * phase.burst + HomerunFaceMark.steamDrift * u
+            puff.position = top + side * (sign * move.x) + up * move.y + toCamera * HomerunFaceMark.steamForward
+            puff.scale = SIMD3(repeating: max(HomerunFaceMark.steamWidth * phase.size, 0.0001))
+            Self.faceCamera(puff, camera: camera)
+            puff.isEnabled = phase.fade > 0.001
+            if var model = puff.model, var m = model.materials.first as? UnlitMaterial, i < steamMasks.count {
+                m.blending = .transparent(opacity: .init(scale: phase.fade, texture: .init(steamMasks[i])))
+                model.materials = [m]
+                puff.model = model
+            }
         }
     }
 
@@ -344,41 +329,37 @@ final class HomerunWhiffGagOverlay {
         return (try? MeshResource.generate(from: [d])) ?? .generatePlane(width: radius * 2, height: radius * 2)
     }
 
-    /// 吹き出し（半径 1）とその中の 💢 の根。白地・黒の輪郭・頭の方（+x）へ向く尾。奥から 輪郭 → 白地 → 💢 の順に重ねる。
+    /// 吹き出し（半径 1）とその中の 💢 の根。白い丸・細い輪郭線（青灰色）・頭の方へ向く尾。奥から 輪郭 → 白地 → 💢 の順に重ねる。
     private static func makeAngryBubble(rim: UnlitMaterial) -> Entity {
         let white = UnlitMaterial(color: HomerunPlatformColor(red: 1, green: 1, blue: 1, alpha: 1))
+        let line = UnlitMaterial(color: HomerunPlatformColor(red: 0.30, green: 0.30, blue: 0.36, alpha: 1))
         let red = UnlitMaterial(color: HomerunPlatformColor(red: 0.92, green: 0.15, blue: 0.12, alpha: 1))
-        let grow = 1 + HomerunFaceMark.angryBubbleRim
-        let tip = HomerunFaceMark.angryTailTip
+        let grow = HomerunFaceMark.angryBubbleRim
         let root = Entity()
         func layer(_ mesh: MeshResource, _ material: UnlitMaterial, z: Float) {
             let e = ModelEntity(mesh: mesh, materials: [material])
             e.position = [0, 0, z]
             root.addChild(e)
         }
-        layer(polygon(bubbleOutline(grow: grow, tip: tip, tipGrow: HomerunFaceMark.angryBubbleRim)), rim, z: -0.04)
-        layer(polygon(bubbleOutline(grow: 1, tip: tip, tipGrow: 0)), white, z: 0)
-        let scale = HomerunFaceMark.angrySize / HomerunFaceMark.angryBubbleRadius
+        layer(disc(radius: 1 + grow), line, z: -0.012)
+        layer(polygon(bubbleTail(grow: grow)), line, z: -0.012)
+        layer(disc(radius: 1), white, z: 0)
+        layer(polygon(bubbleTail(grow: 0)), white, z: -0.004)
         let mark = ModelEntity(mesh: angryStrokesMesh(), materials: [red])
-        mark.position = [0, 0, 0.04]
-        mark.scale = SIMD3(repeating: scale)
+        mark.position = [0, 0, 0.008]
+        mark.scale = SIMD3(repeating: HomerunFaceMark.angrySize / HomerunFaceMark.angryBubbleRadius)
         root.addChild(mark)
         return root
     }
 
-    /// 吹き出しの輪郭（凸でなくなるので扇ではなく三角形の集合で作る）: 円 + 尾。尾は円の右下から先端 `tip` へ。
-    /// 返すのは三角形の頂点列（3 つずつ）。`grow` は円の半径、`tipGrow` は輪郭用に尾を太らせる幅。
-    private static func bubbleOutline(grow: Float, tip: SIMD2<Float>, tipGrow: Float, segments: Int = 40) -> [SIMD2<Float>] {
-        var tris: [SIMD2<Float>] = []
-        for i in 0..<segments {
-            let a0 = Float(i) / Float(segments) * 2 * .pi, a1 = Float(i + 1) / Float(segments) * 2 * .pi
-            tris += [.zero, SIMD2(cos(a0), sin(a0)) * grow, SIMD2(cos(a1), sin(a1)) * grow]
-        }
-        // 尾: 円の内側に潜る 2 点（-40°・+5°）と先端。輪郭は先端を外へ、根元を広げて太らせる。
-        let b0 = SIMD2<Float>(cos(-0.7), sin(-0.7)) * 0.9, b1 = SIMD2<Float>(cos(0.09), sin(0.09)) * 0.9
-        let k = 1 + tipGrow
-        tris += [b0 * k, b1 * k, tip * k]
-        return tris
+    /// 吹き出しの尾（吹き出しの半径 1 の単位）: 丸の中から頭の方へ伸びる三角。`grow` は輪郭線用の太らせ幅。返すのは三角形の頂点列。
+    private static func bubbleTail(grow: Float) -> [SIMD2<Float>] {
+        let d = HomerunFaceMark.angryTailDirection
+        let n = SIMD2<Float>(-d.y, d.x)
+        let tip = d * (1 + HomerunFaceMark.angryTailLength + grow * 1.6)
+        let base = d * 0.55
+        let half = HomerunFaceMark.angryTailHalfWidth + grow
+        return [tip, base + n * half, base - n * half]
     }
 
     /// 三角形の頂点列（xy 面・両面）。
@@ -394,9 +375,10 @@ final class HomerunWhiffGagOverlay {
         return (try? MeshResource.generate(from: [d])) ?? .generateBox(size: 1)
     }
 
-    /// 💢（xy 面・外側の半径 1・両面）: 太さ一定・端が丸い「く」の字 4 本。腕 2 本の帯と、曲がり角・先の丸い端（円）を重ねる。
-    private static func angryStrokesMesh(capSegments: Int = 14) -> MeshResource {
-        let half = HomerunFaceMark.angryStrokeWidth / 2
+    /// 💢（xy 面・外側の半径 1・両面）: `HomerunFaceMark.angryStrokeCenterline` に沿った一定の太さの帯と、両端の円（丸い端）。
+    /// 一色なので重なりは気にしない。
+    private static func angryStrokesMesh(capSegments: Int = 16) -> MeshResource {
+        let half = HomerunFaceMark.angryStrokeHalfWidth
         var tris: [SIMD2<Float>] = []
         func disc(_ c: SIMD2<Float>) {
             for i in 0..<capSegments {
@@ -404,14 +386,22 @@ final class HomerunWhiffGagOverlay {
                 tris += [c, c + SIMD2(cos(a0), sin(a0)) * half, c + SIMD2(cos(a1), sin(a1)) * half]
             }
         }
-        for stroke in HomerunFaceMark.angryStrokes {
-            disc(stroke.corner)
-            for tip in stroke.tips {
-                disc(tip)
-                let dir = simd_normalize(tip - stroke.corner)
-                let n = SIMD2(-dir.y, dir.x) * half
-                tris += [stroke.corner + n, stroke.corner - n, tip + n, tip + n, stroke.corner - n, tip - n]
+        for index in 0..<4 {
+            let line = HomerunFaceMark.angryStrokeCenterline(index)
+            var edges: [(SIMD2<Float>, SIMD2<Float>)] = []
+            for i in 0..<line.count {
+                let tangent: SIMD2<Float>
+                if i == 0 { tangent = line[1] - line[0] }
+                else if i == line.count - 1 { tangent = line[i] - line[i - 1] }
+                else { tangent = line[i + 1] - line[i - 1] }
+                let n = simd_normalize(SIMD2<Float>(-tangent.y, tangent.x)) * half
+                edges.append((line[i] + n, line[i] - n))
             }
+            for i in 0..<(edges.count - 1) {
+                tris += [edges[i].0, edges[i].1, edges[i + 1].0, edges[i + 1].0, edges[i].1, edges[i + 1].1]
+            }
+            disc(line[0])
+            disc(line[line.count - 1])
         }
         return polygon(tris)
     }
