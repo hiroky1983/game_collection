@@ -153,31 +153,35 @@ struct HomerunFaceMarkTests {
         let nominal = gap + HomerunFaceMark.angryHop + HomerunFaceMark.angryBubbleRadius * HomerunFaceMark.angryPulseDepth
         #expect(nominal < 0.15, "離れすぎない（尾が届く）")
         #expect(HomerunFaceMark.angryBounce(since: 0.125) <= HomerunFaceMark.angryHop)
-        #expect(HomerunFaceMark.angrySize <= HomerunFaceMark.angryBubbleRadius * 0.8, "💢 は吹き出しに余白をもって収まる")
-        #expect(HomerunFaceMark.angrySize < 0.22 * 0.7, "モック v3（0.22）より小さい（約 6 割）")
-        #expect(HomerunFaceMark.angryLift < 0.0 && HomerunFaceMark.angrySide > 0, "頭の左横・ひさしの高さ")
+        let markRadius = HomerunFaceMark.angrySize * HomerunFaceMark.angryExtent
+        #expect(markRadius <= HomerunFaceMark.angryBubbleRadius * 0.8, "💢 は吹き出しに余白をもって収まる")
+        #expect(markRadius < 0.22 * 0.6, "モック v3（0.22）より小さい")
+        #expect(HomerunFaceMark.angrySide > 0, "頭の左横")
+        #expect(HomerunFaceMark.angryTailDirection.x > 0 && HomerunFaceMark.angryTailDirection.y < 0, "尾は頭（右下）の方へ")
     }
 
-    @Test("💢 は太さ一定の「く」の字 4 本: 斜め 4 方向・曲がり角が中心を向く・中心の空白は約 42%・外側の半径 1 に収まる（#1797）")
+    @Test("💢 は太さ一定の「く」の字 4 本: 曲がり角が中心を向き腕は外へ・上下左右（−8°）・左右対称・中心の空白と外側の半径（会長確定 2026-10-04）")
     func angryStrokeShape() {
-        let strokes = HomerunFaceMark.angryStrokes
-        #expect(strokes.count == 4)
-        let half = HomerunFaceMark.angryStrokeWidth / 2
-        var angles = Set<Int>()
-        for stroke in strokes {
-            let corner = stroke.corner
-            let deg = Int((atan2(corner.y, corner.x) * 180 / .pi).rounded())
-            angles.insert((deg + 360) % 360)
-            #expect(simd_length(corner) - half > HomerunFaceMark.angryHoleRatio - 0.001, "中心の空白")
-            #expect(simd_length(corner) - half < HomerunFaceMark.angryHoleRatio + 0.001, "角の内側の縁が空白の境")
-            #expect(stroke.tips.count == 2)
-            for tip in stroke.tips {
-                #expect(simd_length(tip) > simd_length(corner), "腕は中心から離れる向き（曲がり角が中心を向く）")
-                #expect(abs(simd_length(tip) + half - 1) < 0.001, "先の外側の縁が半径 1")
-            }
+        let half = HomerunFaceMark.angryStrokeHalfWidth
+        var innermost: Float = 9, outermost: Float = 0
+        var cornerAngles: [Int] = []
+        for index in 0..<4 {
+            let line = HomerunFaceMark.angryStrokeCenterline(index)
+            #expect(line.count > 20)
+            let distances = line.map(simd_length)
+            let corner = distances.enumerated().min { $0.element < $1.element }!
+            #expect(corner.offset > 5 && corner.offset < line.count - 6, "曲がり角（中心にいちばん近い点）は線の真ん中あたり")
+            #expect(distances.first! > corner.element + 0.15 && distances.last! > corner.element + 0.15, "両腕は中心から外へ伸びる")
+            #expect(abs(distances.first! - distances.last!) < 0.01, "自分の軸について左右対称")
+            innermost = min(innermost, corner.element - half)
+            outermost = max(outermost, distances.max()! + half)
+            let c = line[corner.offset]
+            cornerAngles.append(((Int((atan2(c.y, c.x) * 180 / .pi).rounded()) % 360) + 360) % 360)
+            #expect(HomerunFaceMark.angryStrokeCenterline(index) == line, "決まった形")
         }
-        #expect(angles == [45, 135, 225, 315])
-        #expect(HomerunFaceMark.angryStrokes == strokes, "決まった形")
+        #expect(abs(outermost - HomerunFaceMark.angryExtent) < 0.02, "外側の半径")
+        #expect(abs(innermost / outermost - HomerunFaceMark.angryGapRatio) < 0.03, "中心の空白は直径の約 4 割")
+        #expect(cornerAngles.sorted() == [82, 172, 262, 352], "上下左右から −8°")
     }
 
     // MARK: 怒りゲージ（#1797）
@@ -239,13 +243,19 @@ struct HomerunFaceMarkTests {
         #expect(model.waitingFaceMark == .none)
     }
 
-    @Test("湯気は素早くふくらみ、ゆっくりしぼんで消える。周期で繰り返す")
-    func steamPuffShape() {
-        #expect(HomerunFaceMark.steamPuff(phase: 0) == 0)
-        #expect(abs(HomerunFaceMark.steamPuff(phase: 0.2) - 1) < 0.001)
-        #expect(HomerunFaceMark.steamPuff(phase: 0.1) < HomerunFaceMark.steamPuff(phase: 0.2))
-        #expect(HomerunFaceMark.steamPuff(phase: 0.6) < HomerunFaceMark.steamPuff(phase: 0.3))
-        #expect(HomerunFaceMark.steamPuff(phase: 3.2) == HomerunFaceMark.steamPuff(phase: 0.2))
+    @Test("湯気は最初に勢いよく噴き出して膨らみ、終わりで薄れて少し広がって消える")
+    func steamPhaseShape() {
+        let start = HomerunFaceMark.steamPhase(0), burst = HomerunFaceMark.steamPhase(HomerunFaceMark.steamBurst)
+        #expect(start.burst == 0 && start.fade == 1 && abs(start.size - 0.25) < 0.001)
+        #expect(abs(burst.burst - 1) < 0.001 && abs(burst.size - 1) < 0.001, "噴き出しきったら等倍")
+        let quarter = HomerunFaceMark.steamPhase(HomerunFaceMark.steamBurst / 4)
+        #expect(quarter.burst > 0.25, "出始めが速い（ease-out）")
+        let mid = HomerunFaceMark.steamPhase((HomerunFaceMark.steamBurst + HomerunFaceMark.steamFadeFrom) / 2)
+        #expect(mid.fade == 1 && abs(mid.size - 1) < 0.001, "漂う間は等倍で薄れない")
+        let late = HomerunFaceMark.steamPhase((HomerunFaceMark.steamFadeFrom + 1) / 2)
+        #expect(late.fade > 0.49 && late.fade < 0.51 && late.size > 1, "薄れながら少し広がる")
+        let end = HomerunFaceMark.steamPhase(1)
+        #expect(end.fade == 0 && abs(end.size - 1.18) < 0.001)
     }
 
     @Test("1 回の空振りでも次の球で出て、見送ると消える。当たりでも消える。挑戦をやり直すと消える")
