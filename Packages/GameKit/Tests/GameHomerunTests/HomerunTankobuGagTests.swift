@@ -162,39 +162,13 @@ struct HomerunTankobuGagTests {
         #expect(abs(G.throb(at: 0) - 1) < 1e-6 && G.throbDepth < 0.1)
     }
 
-    @Test("たんこぶの絵はトゥーン調の 3 段（明・中・影）。光の側が明るく、反対側が影")
-    func lumpColors() {
-        #expect(G.lumpColor(normal: G.lumpLight) == G.lumpHighlight)
-        #expect(G.lumpColor(normal: -G.lumpLight) == G.lumpShade)
-        let pixels = G.lumpPixels()
-        #expect(pixels.count == G.lumpTextureSize * G.lumpTextureSize * 4)
-        var seen = Set<[UInt8]>()
-        for i in stride(from: 0, to: pixels.count, by: 4) { seen.insert(Array(pixels[i..<i + 3])) }
-        let expected: Set<[UInt8]> = [[255, 205, 196], [244, 140, 128], [196, 90, 94]]
-        #expect(seen == expected, "3 色だけ（ふくらみに見える陰影）")
-        #expect(G.lumpImage() != nil)
-    }
-
-    @Test("たんこぶの球: 面と輪郭で表裏が逆。頂点は単位球の上")
-    func lumpMesh() {
-        let face = G.lumpMesh(flipped: false), rim = G.lumpMesh(flipped: true)
-        #expect(face.positions.count == (G.lumpRings + 1) * (G.lumpSegments + 1))
-        #expect(face.uvs.count == face.positions.count)
-        #expect(face.positions.allSatisfy { abs(simd_length($0) - 1) < 1e-5 })
-        #expect(face.indices.count == G.lumpRings * G.lumpSegments * 6 && face.indices.count == rim.indices.count)
-        // 三角形の向き: 面は外向き（法線が中心から外へ）、輪郭は内向き。
-        func outward(_ m: (positions: [SIMD3<Float>], uvs: [SIMD2<Float>], indices: [UInt32])) -> Int {
-            var n = 0
-            for t in stride(from: 0, to: m.indices.count, by: 3) {
-                let a = m.positions[Int(m.indices[t])], b = m.positions[Int(m.indices[t + 1])], c = m.positions[Int(m.indices[t + 2])]
-                let normal = simd_cross(b - a, c - a)
-                if simd_dot(normal, a + b + c) > 0 { n += 1 }
-            }
-            return n
-        }
-        let faceOut = outward(face), rimOut = outward(rim)
-        #expect(faceOut > 0 && rimOut == 0, "面は外向き・輪郭は内向き（極の面積 0 の三角形は数えない）")
-        #expect(G.lumpOutlineScale > 1)
+    @Test("たんこぶの色はモックのピンク（下側が濃く、光りは白に近い）。下側の濃い色は下へ・光りは上にのぞく")
+    func lumpLook() {
+        #expect(G.lumpPink == [1.0, 0.50, 0.62])
+        #expect(G.lumpUnderside.x < G.lumpPink.x && G.lumpUnderside.y < G.lumpPink.y && G.lumpUnderside.z < G.lumpPink.z)
+        #expect(G.lumpShine.x > G.lumpPink.x - 0.01 && G.lumpShine.y > G.lumpPink.y && G.lumpShine.z > G.lumpPink.z)
+        #expect(G.undersideOffset.y < 0 && G.undersideRadius > 1, "濃い色は下の縁だけ外へのぞく")
+        #expect(G.shineOffset.y > 0 && simd_length(G.shineOffset) + G.shineRadius > 1, "光りの点は上で、面の外へ少し出て見える")
     }
 
     // MARK: 頭の位置
