@@ -201,4 +201,25 @@ enum HomerunTankobuGag {
     /// 光りの点（ピンクの球の局所）。頭の向きと一緒に回る。
     static let shineRadius: Float = 0.28
     static let shineOffset: SIMD3<Float> = [-0.35, 0.62, 0.45]
+
+    // MARK: たんこぶの定番の描き込み（会長判定 2026-10-04: 黒い点々・白い十字の絆創膏）
+    // いずれもピンクの球の子（局所・半径 1 の単位）なので、球と一緒に膨らみ、次の球の構えでも残る。
+    // 球の向きは世界に固定（`placeLump`）なので、局所の +y = 上・+z = カメラの側（投手側）・+x = 一塁側。
+
+    /// 黒い点々を置く面の向き（球の面の点・正規化して使う）。カメラから見える上半分の手前にばらけて置き、光りの点・絆創膏とは重ねない。
+    static let dotNormals: [SIMD3<Float>] = [
+        [-0.55, 0.30, 0.78], [0.62, 0.28, 0.73], [-0.12, 0.10, 0.99], [0.30, 0.55, 0.78], [0.80, 0.50, 0.33],
+    ]
+    /// 黒い点 1 つの半径（球の局所）。上下は面に沿ってつぶす（`dotFlatten`）。
+    static let dotRadius: Float = 0.06
+    static let dotFlatten: Float = 0.5
+    /// 絆創膏を貼る面の向き（頂点から少しカメラ側へ）と、1 枚の長さ・幅・厚み（球の局所）、面から浮かせる量、細い輪郭の太さ。
+    static let bandageNormal: SIMD3<Float> = simd_normalize([0.05, 0.92, 0.38])
+    static let bandageLength: Float = 0.95
+    static let bandageWidth: Float = 0.26
+    static let bandageThickness: Float = 0.02
+    static let bandageLift: Float = 0.03
+    static let bandageOutline: Float = 0.035
+    /// 2 枚の向き（面の上で回す角度）。直角に重ね、光りの点の方向（約 25°）からどちらも 45° 外して、板が光りの点を隠さないようにする。
+    static let bandageAngles: [Float] = [-20 * .pi / 180, 70 * .pi / 180]
 }

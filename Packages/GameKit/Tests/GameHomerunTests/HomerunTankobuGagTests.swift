@@ -171,6 +171,31 @@ struct HomerunTankobuGagTests {
         #expect(G.shineOffset.y > 0 && simd_length(G.shineOffset) + G.shineRadius > 1, "光りの点は上で、面の外へ少し出て見える")
     }
 
+    @Test("黒い点々はカメラ側の上半分にばらけ、光りの点・絆創膏・ほかの点と重ならない。絆創膏は頂点あたりに白い 2 枚の十字")
+    func lumpDotsAndBandage() {
+        let dots = G.dotNormals.map(simd_normalize)
+        #expect(dots.count >= 3)
+        let shine = simd_normalize(G.shineOffset)
+        // 球の面の上の距離（弦）で見る。
+        for (i, d) in dots.enumerated() {
+            #expect(d.y >= 0 && d.z > 0, "見える側: \(d)")
+            #expect(simd_distance(d, shine) > G.shineRadius + G.dotRadius, "光りの点と重なる: \(d)")
+            #expect(simd_distance(d, G.bandageNormal) > G.bandageLength / 2 + G.dotRadius, "絆創膏の下に隠れる: \(d)")
+            for e in dots[(i + 1)...] { #expect(simd_distance(d, e) > 4 * G.dotRadius, "点がくっつく: \(d) \(e)") }
+        }
+        #expect(G.bandageNormal.y > 0.85, "頂点あたり")
+        // 光りの点は絆創膏の板の下に隠れない（板の向きと、絆創膏の中心から見た光りの点の向きがずれている）。
+        let n = G.bandageNormal, toShine = shine - n * simd_dot(shine, n)
+        let frame = simd_quatf(from: [0, 1, 0], to: n)
+        for a in G.bandageAngles {
+            let along = (frame * simd_quatf(angle: a, axis: [0, 1, 0])).act([1, 0, 0])
+            let cosine = abs(simd_dot(simd_normalize(toShine), along))
+            #expect(cosine < 0.9, "板 \(a) が光りの点の上に掛かる")
+        }
+        #expect(G.bandageAngles.count == 2 && abs(abs(G.bandageAngles[0] - G.bandageAngles[1]) - .pi / 2) < 1e-5, "直角に重ねる")
+        #expect(G.bandageLength > 3 * G.bandageWidth && G.bandageOutline < G.bandageWidth / 4, "細長い板・細い輪郭")
+    }
+
     // MARK: 頭の位置
 
     @Test("ヘルメットの頂上は頭のてっぺんより上。球の当たる点は本塁の上ではなく打者の頭の上")

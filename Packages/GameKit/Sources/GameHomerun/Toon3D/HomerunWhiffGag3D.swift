@@ -110,6 +110,35 @@ final class HomerunWhiffGagOverlay {
         let shine = ModelEntity(mesh: .generateSphere(radius: HomerunTankobuGag.shineRadius), materials: [flat(HomerunTankobuGag.lumpShine)])
         shine.position = HomerunTankobuGag.shineOffset
         lumpEntity.addChild(shine)
+        // 黒い点々（面に沿ってつぶした小さな球を半分埋める）。
+        let dotMesh = MeshResource.generateSphere(radius: HomerunTankobuGag.dotRadius)
+        for n in HomerunTankobuGag.dotNormals.map(simd_normalize) {
+            let dot = ModelEntity(mesh: dotMesh, materials: [rim])
+            dot.position = n
+            dot.orientation = simd_quatf(from: [0, 1, 0], to: n)
+            dot.scale = [1, HomerunTankobuGag.dotFlatten, 1]
+            lumpEntity.addChild(dot)
+        }
+        // 白い十字の絆創膏（白い板 2 枚を重ね、それぞれ少し大きい黒い板を下に敷いて細い輪郭にする）。
+        let bandage = Entity()
+        let n = HomerunTankobuGag.bandageNormal
+        bandage.position = n * (1 + HomerunTankobuGag.bandageLift)
+        bandage.orientation = simd_quatf(from: [0, 1, 0], to: n)
+        let white = UnlitMaterial(color: .white)
+        let L = HomerunTankobuGag.bandageLength, W = HomerunTankobuGag.bandageWidth, T = HomerunTankobuGag.bandageThickness
+        let o = HomerunTankobuGag.bandageOutline
+        for (i, angle) in HomerunTankobuGag.bandageAngles.enumerated() {
+            let strip = Entity()
+            strip.orientation = simd_quatf(angle: angle, axis: [0, 1, 0])
+            // 2 枚目は 1 枚目の上に重ねる（同じ高さだとちらつく）。
+            strip.position = [0, Float(i) * T * 1.2, 0]
+            let edge = ModelEntity(mesh: .generateBox(size: [L + 2 * o, T, W + 2 * o]), materials: [rim])
+            edge.position = [0, -T * 0.5, 0]
+            strip.addChild(edge)
+            strip.addChild(ModelEntity(mesh: .generateBox(size: [L, T, W]), materials: [white]))
+            bandage.addChild(strip)
+        }
+        lumpEntity.addChild(bandage)
         entity.addChild(lumpEntity)
         lump = lumpEntity
         hideMarks()
