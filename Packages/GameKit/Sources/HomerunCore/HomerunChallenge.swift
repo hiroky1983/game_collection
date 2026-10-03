@@ -54,6 +54,8 @@ public struct HomerunChallenge: Sendable {
     /// 10 球を投げ終えた、または月が割れた（残りの球は没収・#1680）。
     public var isFinished: Bool { results.count >= pitches.count || isMoonBroken }
 
+    /// この挑戦でたんこぶの演出（#1793）が出た回数。
+    public var tankobuCount: Int { results.filter(\.isTankobu).count }
     /// この挑戦で月まで飛んだ回数。
     public var moonCount: Int { results.filter(\.isMoon).count }
     /// この挑戦で月が割れた（2 回目の月）。
@@ -63,8 +65,9 @@ public struct HomerunChallenge: Sendable {
     public var currentPitch: HomerunPitch? { isFinished ? nil : pitches[results.count] }
 
     /// 1 球ぶん振る（`swing` が nil なら見逃し）。終了後は何もせず nil を返す。
+    /// `tankobuRoll`（0 以上 1 未満の乱数）は、ポップの擦り当たりをたんこぶの演出にするか決める（#1793・既定の 1 = 出さない）。
     @discardableResult
-    public mutating func swing(_ swing: HomerunSwing?) -> HomerunBattedBall? {
+    public mutating func swing(_ swing: HomerunSwing?, tankobuRoll: Double = 1) -> HomerunBattedBall? {
         guard !isFinished else { return nil }
         // 月まで飛ぶ（#1680）: 条件（`HomerunJudge.isMoonShot`）か、確認用の強制。見送りは月にならない。
         // ポール直撃（#1686）はふだんの判定（`judge`）の中。確認用の強制（`forcesPole`）は月の次。
@@ -74,6 +77,10 @@ public struct HomerunChallenge: Sendable {
             HomerunJudge.forcedPoleBall(swing, abilities: abilities)
         } else {
             HomerunJudge.judge(swing, abilities: abilities)
+        }
+        if let swing, tankobuCount < HomerunTankobu.perChallenge, tankobuRoll < HomerunTankobu.chance,
+           HomerunTankobu.qualifies(swing: swing, ball: result) {
+            result = HomerunTankobu.apply(to: result)
         }
         if result.isMoon, moonCount + 1 >= Self.moonBreakCount { result.moon = .broken }
         results.append(result)

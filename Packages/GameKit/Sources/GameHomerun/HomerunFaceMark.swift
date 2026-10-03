@@ -15,11 +15,13 @@ enum HomerunFaceMark: Equatable, Sendable {
     case waitingAngryHot
     /// 柵越えを打った次の球の構え（#1762）: 球を待つ間、目だけを星にする（頭の横のきらめきは出さない）。
     case waitingSparkle
+    /// たんこぶ（#1793）: 打ち上げた球が自分の頭に落ちた次の球の構えで、ヘルメットの上にたんこぶを残す。
+    case waitingLump
 
     // MARK: 発生
 
     /// 構え（次の球を待つ間）に出す記号か。構えの記号は振っていない段階（構え・踏み込み）で置く。
-    var isWaiting: Bool { self == .waitingSparkle || self == .waitingAngry || self == .waitingAngryHot }
+    var isWaiting: Bool { self == .waitingSparkle || self == .waitingAngry || self == .waitingAngryHot || self == .waitingLump }
 
     /// 💢 を出す構えか（段階①・②）。
     var showsAngryMark: Bool { self == .waitingAngry || self == .waitingAngryHot }
@@ -28,7 +30,7 @@ enum HomerunFaceMark: Equatable, Sendable {
     /// - `swung`: 振ったか（見送りは記号を出さない）。
     /// - `isNewBest`: この球で挑戦が終わり、自己ベストを更新したか。
     static func decide(ball: HomerunBattedBall?, swung: Bool, isNewBest: Bool) -> HomerunFaceMark {
-        guard swung, let ball else { return .none }
+        guard swung, let ball, !ball.isTankobu else { return .none }
         switch ball.kind {
         case .miss, .foul:
             return .none
@@ -40,10 +42,12 @@ enum HomerunFaceMark: Equatable, Sendable {
 
     /// 次の球の構えに出す記号。次の球を打つ・見送るまでの 1 球だけ。挑戦が終わる球（10 球目・月が割れた球）の次は無いので出さない。
     /// - 柵越え（場外・ポール直撃・月を含む）を打った次はキラキラ目（#1762）。
+    /// - 打ち上げた球が頭に落ちてたんこぶができた（#1793）次は、たんこぶ。
     /// - 振った空振り（見送りは数えない）の次は怒りマーク（#1769）。
     /// - 怒りゲージ（`anger`・この球を数えた後の値）が `angerStageThreshold` 以上なら、怒りマークは顔の赤みと湯気つきの段階②（#1797）。
     static func waiting(after ball: HomerunBattedBall?, swung: Bool, challengeFinished: Bool, anger: Int = 0) -> HomerunFaceMark {
         guard let ball, !challengeFinished else { return .none }
+        if ball.isTankobu { return .waitingLump }
         if ball.kind == .homer { return .waitingSparkle }
         guard swung && ball.kind == .miss else { return .none }
         return anger >= angerStageThreshold ? .waitingAngryHot : .waitingAngry
