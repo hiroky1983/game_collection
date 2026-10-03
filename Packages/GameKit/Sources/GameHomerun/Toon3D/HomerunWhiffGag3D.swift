@@ -15,6 +15,9 @@ final class HomerunWhiffGagOverlay {
     private var sparkleEyes: [ModelEntity] = []
     private var sparkles: [ModelEntity] = []
     private var angry: ModelEntity?
+    /// たんこぶ（#1793）: ヘルメットの上の膨らみ（トゥーン調の面）と輪郭（表裏を逆にした少し大きい球）。
+    private var lump: ModelEntity?
+    private static var lumpTexture: TextureResource?
 
     var isEnabled: Bool {
         get { entity.isEnabled }
@@ -66,6 +69,17 @@ final class HomerunWhiffGagOverlay {
         mark.addChild(ModelEntity(mesh: Self.angryMark(grow: HomerunFaceMark.angryRimGrow), materials: [rim]))
         entity.addChild(mark)
         angry = mark
+        if Self.lumpTexture == nil, let image = HomerunTankobuGag.lumpImage() {
+            Self.lumpTexture = try? TextureResource.generate(from: image, options: .init(semantic: .color))
+        }
+        var lumpMaterial = UnlitMaterial(color: HomerunPlatformColor(red: 0.96, green: 0.55, blue: 0.50, alpha: 1))
+        if let texture = Self.lumpTexture { lumpMaterial.color = .init(tint: .white, texture: .init(texture)) }
+        let lumpEntity = ModelEntity(mesh: Self.lumpSphere(flipped: false), materials: [lumpMaterial])
+        let outline = ModelEntity(mesh: Self.lumpSphere(flipped: true), materials: [rim])
+        outline.scale = SIMD3(repeating: HomerunTankobuGag.lumpOutlineScale)
+        lumpEntity.addChild(outline)
+        entity.addChild(lumpEntity)
+        lump = lumpEntity
         hideMarks()
         isEnabled = false
     }
@@ -73,6 +87,8 @@ final class HomerunWhiffGagOverlay {
     private func hideMarks() {
         for e in sparkleEyes + sparkles { e.isEnabled = false }
         angry?.isEnabled = false
+        lump?.isEnabled = false
+        entity.position = .zero
     }
 
     private func hideGag() {
@@ -95,7 +111,7 @@ final class HomerunWhiffGagOverlay {
         let toCamera = simd_normalize(camera - top)
         let side = simd_normalize(simd_cross(up, toCamera))
         switch mark {
-        case .none, .waitingSparkle, .waitingAngry:
+        case .none, .waitingSparkle, .waitingAngry, .waitingLump:
             break
         case .sparkle:
             for (i, s) in sparkleEyes.enumerated() {
@@ -131,6 +147,36 @@ final class HomerunWhiffGagOverlay {
             s.scale = SIMD3(repeating: HomerunFaceMark.sparkleEyeRadius * twinkle)
             s.isEnabled = true
         }
+    }
+
+    /// たんこぶの演出（#1793）の間に毎コマ呼ぶ。座ってからのぐるぐる目・星は空振りの演出と同じ（体は回さない）。ヘルメットの上のたんこぶは
+    /// 当たった瞬間（`since` = 0）から膨らませる。`correction` は座る位置の補正（`HomerunTankobuGag.sitCorrection`・打者の局所）で、
+    /// 骨と同じだけ重ねも動かす。
+    func applyTankobu(clipTime t: TimeInterval, since: TimeInterval, correction: SIMD3<Float>, camera: SIMD3<Float>) {
+        apply(clipTime: t, turn: simd_quatf(angle: 0, axis: [0, 1, 0]), camera: camera)
+        entity.position = correction
+        let size = HomerunTankobuGag.lumpRadius * HomerunTankobuGag.swell(since: since)
+        guard let lump, size > 0 else { return }
+        placeLump(lump, helmetTop: HomerunTankobuGag.helmetTop(atClipTime: t), up: HomerunWhiffGag.head(atClipTime: t).rotation.act(HomerunWhiffGag.headUp),
+                  size: size)
+    }
+
+    /// 構えのたんこぶ（#1793）: 次の球を待つ間、ヘルメットの上に残す。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻。
+    func applyWaitingLump(poseClip: TimeInterval, now: Date) {
+        hideGag()
+        hideMarks()
+        guard let lump else { return }
+        let up = HomerunWhiffGag.preSwingHead(atClipTime: poseClip).rotation.act(HomerunWhiffGag.headUp)
+        placeLump(lump, helmetTop: HomerunTankobuGag.preSwingHelmetTop(atClipTime: poseClip), up: up,
+                  size: HomerunTankobuGag.lumpRadius * HomerunTankobuGag.throb(at: now.timeIntervalSinceReferenceDate))
+    }
+
+    /// たんこぶを置く。向きは世界に固定する（光の向きを絵に焼いてあるので、頭の向きに合わせて回さない）。
+    private func placeLump(_ lump: ModelEntity, helmetTop: SIMD3<Float>, up: SIMD3<Float>, size: Float) {
+        lump.position = helmetTop + simd_normalize(up) * HomerunTankobuGag.lumpLift
+        lump.scale = SIMD3(repeating: max(size, 0.0001))
+        lump.setOrientation(simd_quatf(angle: 0, axis: [0, 1, 0]), relativeTo: nil)
+        lump.isEnabled = true
     }
 
     /// 構えの怒りマーク（#1769）: 頭の横に置き、脈打たせて弾ませる。`poseClip` は構え・踏み込みの頭の骨を引くクリップ時刻、`now` は動きの位相。
@@ -236,6 +282,16 @@ final class HomerunWhiffGagOverlay {
         d.positions = MeshBuffer(positions)
         d.primitives = .triangles(indices)
         return (try? MeshResource.generate(from: [d])) ?? .generateBox(size: 1)
+    }
+
+    /// たんこぶの球（半径 1・UV つき）。`flipped` は表裏を逆にした輪郭用（背面だけが見え、面の縁取りになる）。
+    private static func lumpSphere(flipped: Bool) -> MeshResource {
+        let m = HomerunTankobuGag.lumpMesh(flipped: flipped)
+        var d = MeshDescriptor(name: flipped ? "lumpOutline" : "lump")
+        d.positions = MeshBuffer(m.positions)
+        d.textureCoordinates = MeshBuffer(m.uvs)
+        d.primitives = .triangles(m.indices)
+        return (try? MeshResource.generate(from: [d])) ?? .generateSphere(radius: 1)
     }
 
     /// 5 つ角の星（xy 面・半径 1 の単位・両面）。

@@ -525,9 +525,15 @@ extension HomerunSwingPlan {
                                                     column: HomerunSwingContact.column(zone: clock.zone))
     }
 
+    /// たんこぶの演出（#1793）の 20 コマ目を置く実時刻（振った球がたんこぶのときだけ）。
+    var tankobuStart: Date? {
+        guard lastBall?.isTankobu == true, let clock, let release = clock.releasedAt, let offset = clock.timingOffset else { return nil }
+        return HomerunSwingContact.swingStart(release: release, offsetMilliseconds: offset, column: column)
+    }
+
     /// 打球の道（当たり以上のときだけ）。月まで飛んだ打球（#1680）は道を持たず、`HomerunMoonShot` が時刻から描く。
     var chaseTrack: HomerunBallChase.Track? {
-        guard contactAt != nil, let lastBall, !lastBall.isMoon else { return nil }
+        guard contactAt != nil, let lastBall, !lastBall.isMoon, !lastBall.isTankobu else { return nil }
         return HomerunBallChase.track(for: lastBall)
     }
 
@@ -537,6 +543,11 @@ extension HomerunSwingPlan {
         let t = now.timeIntervalSince(contactAt)
         guard t >= HomerunBallChase.cutDelay else { return nil }
         if let moon = lastBall?.moon { return HomerunMoonShot.frame(moon, at: t) }
+        if lastBall?.isTankobu == true, let start = tankobuStart {
+            let contact = HomerunSwingContact.contactPoint(column: column, offsetMilliseconds: clock?.timingOffset ?? 0)
+            return HomerunTankobuGag.frame(effective: HomerunTankobuGag.effective(now.timeIntervalSince(start)), contact: contact,
+                                           contactOffset: contactAt.timeIntervalSince(start))
+        }
         guard let track = chaseTrack else { return nil }
         return HomerunBallChase.frame(track, at: t)
     }
@@ -545,6 +556,7 @@ extension HomerunSwingPlan {
     var chaseCardAt: Date? {
         guard let contactAt else { return nil }
         if let moon = lastBall?.moon { return contactAt.addingTimeInterval(HomerunMoonShot.cardDelay(moon)) }
+        if lastBall?.isTankobu == true, let start = tankobuStart { return start.addingTimeInterval(HomerunTankobuGag.cardDelay) }
         guard let track = chaseTrack else { return nil }
         // ジャストミートの演出（#1775）の間は表示の時間が止まっていたぶん、カードも遅らせる。
         let held = HomerunJustMeet.applies(to: lastBall) ? HomerunJustMeet.extraDuration : 0
