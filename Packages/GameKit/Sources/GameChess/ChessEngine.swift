@@ -156,6 +156,28 @@ private struct ChessTTEntry {
 
 private let chessTTSize = 1 << 18  // 256K エントリ
 
+// MARK: - 手の選び方（#1462）
+
+/// 段階ごとの「最善手を打つ確率」（会長決裁 2026-09-26）。将棋 `ShogiMovePolicy`（#1461）と同じ形。
+///
+/// 難易度は**考える時間**（`SimpleChessEngine.timeLimit`）・読む深さの上限（`depth`）と、この確率で決める。
+/// 確率が外れたときは、1 手読み（＋静止探索）で全候補に点を付け、最善から `slipMargin` 以内の損で済む手
+/// （次の一手でチェックメイトされる手は除く）のうち、最善以外から乱択する。
+/// キングを取らせる手（王手放置）は合法手にならないので、どの段階でも選ばれない。
+struct ChessMovePolicy: Equatable {
+    /// 探索が出した最善手をそのまま指す確率（0...1）。
+    var bestMoveProbability: Double
+    /// 外したときに許す損の幅（駒の価値の点数）。
+    var slipMargin: Int
+
+    /// 最善手だけを選ぶ（むずかしい）。
+    static let exact = ChessMovePolicy(bestMoveProbability: 1, slipMargin: 0)
+    /// 外しを起こさず、探索の最善手だけを指す（テストが「読み」だけを固定するための口）。
+    var withoutSlip: ChessMovePolicy { .exact }
+    /// 探索を素直に回すだけでよいか。
+    var isExact: Bool { bestMoveProbability >= 1 }
+}
+
 // MARK: - Engine（公開 API）
 
 public struct SimpleChessEngine: ChessEngine {
@@ -163,61 +185,81 @@ public struct SimpleChessEngine: ChessEngine {
     let usePositional: Bool
     let useQuiescence: Bool
     let useBook: Bool
+    /// 1 手の考える時間の上限（秒）。読み終われば早く指す。段階の差は、この時間・`depth`（深さの上限）と
+    /// `policy.bestMoveProbability` だけで付ける（#1462）。
     let timeLimit: TimeInterval
-    /// 「入門」か（#1174）。読みの設定は「簡単」と同じまま、着手の選び方だけを変える
-    /// （`noviceMove`）。将棋 `SimpleMinimaxEngine` と同じ設計。
-    let isNovice: Bool
+    /// 読む局面数の上限（`nil` なら無し）。出荷値では使わない（計測・テスト用の口）。
+    let nodeLimit: Int?
+    let policy: ChessMovePolicy
     /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
-    /// 「入門」以外は乱数を使わないので、この値は見ない。
+    /// `policy` が乱数を使わない段階（むずかしい）は、この値を見ない。
     let seed: UInt64?
 
     /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
     ///
-    /// | level | 表示 | 探索深さ | 静止探索 | 位置評価 | 定跡 |
+    /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 定跡 |
     /// |---|---|---|---|---|---|
-    /// | -1 | 入門（手なりで指す） | 2 | 無し | 無し | 無し |
-    /// | 0 | 簡単（駒の損得だけ） | 2 | 無し | 無し | 無し |
-    /// | 1 | ふつう（駒の働きも見る） | 3 | 有り | 有り | 無し |
-    /// | 2 | むずかしい（定跡＋深読み） | 5 | 有り | 有り | 有り |
-    /// | 3 | ガチ（とことん読む） | 7 | 有り | 有り | 有り |
+    /// | -1 | 入門 | 0.02 秒 | 1 手先 | `noviceBestMoveProbability` | 無し |
+    /// | 0 | かんたん | 0.1 秒 | 1 手先 | `easyBestMoveProbability` | 無し |
+    /// | 1 | ふつう | 0.5 秒 | 1 手先 | `normalBestMoveProbability` | 無し |
+    /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% | 有り |
+    ///
+    /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら指す。
+    /// 下の 3 段の深さ・確率の根拠は #1566 の段階表（`docs/analytics/chess-1566-ladder.md`: すぐ下の段に対する
+    /// 得点率が 60〜70% に収まる組み合わせ）。
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
-    ///
-    /// level 0 で静止探索を切っているのは「初心者が勝てる最弱」を作るため。
-    /// 静止探索が無いと取り合いの途中で数え終えるので、駒の只捨てを見落とす。
-    /// その下の「入門」（#1174）は**深さ 2 のまま**で、`noviceMove` が駒損しない手の中から
-    /// 乱択する（深さを削ると只捨てを始めるため。将棋 #502 の測定と同じ理由）。
     public init(level: Int = CPUStrength.standard.rawValue) {
         self.init(level: level, seed: nil)
     }
 
     init(level: Int, seed: UInt64?) {
         let strength = CPUStrength.strength(for: level)
+        (usePositional, useQuiescence) = (true, true)
+        useBook = strength == .hard
         switch strength {
-        case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true, true, true, 2.0)
-        case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (3, true, true, false, 1.0)
+        case .novice: (timeLimit, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
+        case .easy:   (timeLimit, depth, policy) = (0.1, 1, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (timeLimit, depth, policy) = (0.5, 1, Self.policy(Self.normalBestMoveProbability))
+        case .hard:   (timeLimit, depth, policy) = (2.0, Self.maxDepth, .exact)
         }
-        self.isNovice = strength == .novice
+        self.nodeLimit = nil
         self.seed = seed
     }
 
-    /// テスト用の直接指定。時間切れによる打ち切りを避けたいときに `timeLimit` を大きく取る。
+    /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
+    /// 下の 3 段は `depth` に 1 手先の上限を持つ（#1566。2 手先以上は 10% 刻みのどの確率でも下の段に 60〜70% に収まらない）。
+    static let maxDepth = 32
+
+    /// 最善手を打つ確率。入門 60% は #1462 の実測（一様乱択の相手に 100 局全勝）。かんたん・ふつうは #1566 の実測
+    /// （各 400 局）で、かんたん 70% が入門に 67.0%、ふつう 80% がかんたんに 61.5% と、すぐ下の段に対する
+    /// 得点率 60〜70% に収まる、制約内で唯一の組み合わせ（`docs/analytics/chess-1566-ladder.md`）。
+    static let noviceBestMoveProbability = 0.6
+    static let easyBestMoveProbability = 0.7
+    static let normalBestMoveProbability = 0.8
+
+    /// 外したときに許す損の幅（ナイト・ビショップ 1 枚ぶん）。駒 1 枚ぶんを目安に、軽い駒（ナイト 320・ビショップ 330）を
+    /// 位置の点込みで只で失う手までが入り、ルーク（500）・クイーンを只で失う手は入らない。初心者らしい
+    /// 「駒をうっかり取られる」間違いは出しつつ、大駒を捨てて一気に負ける手は選ばない幅。
+    static let slipMargin = 350
+
+    static func policy(_ probability: Double) -> ChessMovePolicy {
+        ChessMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
+    }
+
+    /// テスト・計測用の直接指定。時間切れによる打ち切りを構造的に無くしたいときは
+    /// `timeLimit: .infinity` を渡す（`.distantFuture` を締切にする）。
     init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval,
-         isNovice: Bool = false, seed: UInt64? = nil) {
+         nodeLimit: Int? = nil, policy: ChessMovePolicy = .exact, seed: UInt64? = nil) {
         self.depth = depth
         self.usePositional = usePositional
         self.useQuiescence = useQuiescence
         self.useBook = useBook
         self.timeLimit = timeLimit
-        self.isNovice = isNovice
+        self.nodeLimit = nodeLimit
+        self.policy = policy
         self.seed = seed
     }
-
-    /// 「入門」が許す駒損の幅（#1174）。**ポーン 1 枚に満たない差**しか許さないので、
-    /// 駒を只で捨てる手・取り返される取りは候補に入らない。
-    static let noviceMargin = ChessPieceValue.base(.pawn) - 1
 
     public func bestMove(fen: String) async -> String? {
         guard var pos = ChessPosition.fromFEN(fen) else { return nil }
@@ -227,72 +269,107 @@ public struct SimpleChessEngine: ChessEngine {
         if useBook, let booked = ChessOpeningBook.move(for: fen),
            let m = ChessMove.fromUCI(booked), moves.contains(m) { return booked }
 
-        if isNovice { return noviceMove(&pos, moves: moves)?.uci }
+        let startedAt = Date()
+        if !policy.isExact {
+            var rng = SplitMix64(seed: seed ?? UInt64.random(in: .min ... .max))
+            let slipDeadline = timeLimit.isFinite
+                ? startedAt.addingTimeInterval(timeLimit * Self.slipTotalShare) : Date.distantFuture
+            if Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability,
+               let slip = slipMove(&pos, moves: moves, using: &rng, deadline: slipDeadline) {
+                return slip.uci
+            }
+        }
 
+        // 外しの手が見つからず探索に回るときも、1 手の合計が上限に収まるよう、使った時間を引いて読む。
         var ctx = ChessSearchContext(
-            maxDepth: depth, usePositional: usePositional,
-            useQuiescence: useQuiescence, timeLimit: timeLimit
-        )
+            maxDepth: depth, usePositional: usePositional, useQuiescence: useQuiescence,
+            timeLimit: Self.searchTime(limit: timeLimit, elapsed: Date().timeIntervalSince(startedAt)),
+            nodeLimit: nodeLimit)
         return ctx.search(&pos)?.uci
     }
 
-    /// 「入門」の着手（#1174）。読みの深さは「簡単」と同じ（自分の手＋相手の応手＝深さ 2）まま、
-    /// **最善からポーン 1 枚ぶんも損しない手の中から乱択する**。
-    ///
-    /// 「簡単」は同じ評価で並んだ手を指し手オーダリング（取る手が先）で選ぶので、駒得の機会は
-    /// 逃さず攻めの手が先に出る。「入門」はそこを崩して手なりに指す。駒を只で捨てる手・
-    /// 取り返されるだけの取りはポーン 1 枚より大きく損をするため候補に入らず、
-    /// 「損はしないが得も狙わない」水準に収まる（弱いが壊れてはいない）。
-    /// 時間切れでも最低限これだけは評価してから選ぶ（#1196）。1件も評価できないまま
-    /// `orderedMoves.first`（安全性未確認）へ逃げると `noviceMargin` の駒損しない保証を
-    /// すり抜ける。1件だけ評価しても自分自身としか比較できず実質フォールバックと変わらない
-    /// ため、比較に足る数（負けている手を弾ける最低限）を確保する。depth 1 の negamax なので
-    /// 数手ぶんの追加コストは無視できる。
-    static let minNoviceEvaluations = 3
-
-    func noviceMove(_ pos: inout ChessPosition, moves: [ChessMove]) -> ChessMove? {
+    /// 計測用: 手に加えて、読んだ局面数と完了した反復深化の深さを返す（#1398）。
+    /// 定跡・`policy` は通さず、探索そのものだけを見る。
+    func analyze(fen: String) -> (uci: String?, nodes: Int, depth: Int)? {
+        guard var pos = ChessPosition.fromFEN(fen), !pos.legalMoves().isEmpty else { return nil }
         var ctx = ChessSearchContext(
-            maxDepth: 1, usePositional: usePositional,
-            useQuiescence: useQuiescence, timeLimit: timeLimit
+            maxDepth: depth, usePositional: usePositional,
+            useQuiescence: useQuiescence, timeLimit: timeLimit, nodeLimit: nodeLimit
         )
-        // 先にオーダリング（MVV-LVA）しておく。時間切れで1手も読めなかった／全滅した場合の
-        // フォールバックに使う（「簡単」の反復深化が時間切れ時に使うのと同じ考え方 = 只捨てではない手）。
-        let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil])
+        let move = ctx.search(&pos)
+        return (move?.uci, ctx.nodes, ctx.completedDepth)
+    }
+
+    /// 最善手を外すときの手（#1462）。全候補に 1 手だけ読んで（自分の手のあと、取り合いが落ち着くまで）
+    /// 点を付け、点の最も高い手を除いたうち、最善から `slipMargin` 以内の損の手から乱択する。
+    /// 大駒を只で取られる手・取り返される取りは幅の外に出る。候補が無い・選んだ手がどれも次の一手で
+    /// チェックメイトされる手なら `nil`（呼び出し側が探索して最善手を指す）。`deadline` を過ぎても確認が
+    /// 終わらなければ同じく `nil`。
+    func slipMove(_ pos: inout ChessPosition, moves: [ChessMove], using rng: inout SplitMix64,
+                  deadline: Date = .distantFuture) -> ChessMove? {
+        var pool = slipPool(&pos, moves: moves)
+        while !pool.isEmpty, Date() <= deadline {
+            let i = Int.random(in: 0..<pool.count, using: &rng)
+            let move = pool.remove(at: i)
+            if !Self.allowsMateInOne(&pos, after: move) { return move }
+        }
+        return nil
+    }
+
+    /// 外しの手を探す全体（採点＋詰みの確認）に使う時間の割合（考える時間に対する）。超えたら探索に回る。
+    static let slipTotalShare = 0.4
+
+    /// 探索に使える残りの時間。使った時間と、置換表の確保・後始末ぶん（`searchOverhead`）を引く。
+    static func searchTime(limit: TimeInterval, elapsed: TimeInterval) -> TimeInterval {
+        limit.isFinite ? max(minSearchTime, limit - elapsed - searchOverhead) : limit
+    }
+
+    /// 探索の時間から引く、置換表の確保・返り値の後始末ぶん（秒）。上限を超えないための余裕。
+    static let searchOverhead = 0.005
+    /// どれだけ引いても探索に残す最低限の時間（秒）。
+    static let minSearchTime = 0.01
+
+    /// 外しの採点に使う時間の割合（考える時間に対する）。
+    static let slipBudgetShare = 0.2
+    /// 時間切れでも最低限採点する手数（比較の相手が要る）。
+    static let minSlipEvaluations = 8
+
+    /// 外しの候補（詰みの確認前）。最善（1 手読みの点が最も高い手）を除く。
+    func slipPool(_ pos: inout ChessPosition, moves: [ChessMove]) -> [ChessMove] {
+        var ctx = ChessSearchContext(maxDepth: 1, usePositional: usePositional,
+                                     useQuiescence: useQuiescence, timeLimit: .infinity, nodeLimit: nil)
+        // 取る手・成る手が先に並ぶ順に採点し、上限（考える時間の 2 割）で打ち切る。打ち切った残りの手は
+        // 候補に入らない（安全側）。
+        let deadline = timeLimit.isFinite ? Date().addingTimeInterval(timeLimit * Self.slipBudgetShare) : .distantFuture
+        // 局面数で読みを区切る計測用の設定（`nodeLimit`）でも、同じ割合で採点を打ち切る。
+        let nodeBudget = nodeLimit.map { Int(Double($0) * Self.slipBudgetShare) } ?? .max
         var scored: [(move: ChessMove, score: Int)] = []
-        let originalDeadline = ctx.deadline
-        for (index, move) in orderedMoves.enumerated() {
-            let withinSafetyFloor = index < Self.minNoviceEvaluations
-            // 期限切れなら打ち切る。ここでチェックしないと、期限切れ後の `negamax` が
-            // 「自分の手を指した直後の駒得」だけを返し続け、`noviceMargin` の判定が
-            // 取り返しを見ない只捨てを弾けなくなる（#1174 検証指摘）。ただし安全フロアの
-            // 範囲内は期限を無視して必ず評価する（#1196）。
-            if !withinSafetyFloor, Date() > originalDeadline { break }
-            // 安全フロアの範囲内は `negamax`（と内部で呼ぶ `quiesce`）の期限判定も無効化する。
-            // `deadline` だけ外側で無視しても、`negamax` は自分の先頭で期限切れなら
-            // `evaluate(pos)`（相手の応手を読まない静的評価）を即返すため、取り返される
-            // 駒取りが安全フロアの候補に残ってしまう（CodeRabbit 指摘）。
-            ctx.deadline = withinSafetyFloor ? .distantFuture : originalDeadline
+        for (index, move) in ctx.orderMoves(moves, pos: pos, killers: [nil, nil]).enumerated() {
+            if index >= Self.minSlipEvaluations, Date() > deadline || ctx.nodes >= nodeBudget { break }
             let undo = pos.make(move)
             // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
-            let score = -ctx.negamax(&pos, depth: depth - 1,
-                                     alpha: -chessMateScore * 2, beta: chessMateScore * 2, ply: 1)
+            let score = -ctx.negamax(&pos, depth: 0, alpha: -chessMateScore * 2, beta: chessMateScore * 2, ply: 1)
             pos.unmake(undo)
-            ctx.deadline = originalDeadline
-            // negamax の探索中に期限切れになった場合、返る値は不完全な評価（中断時点の
-            // evaluate(pos)）なので候補に入れない（CodeRabbit 指摘・PR #1190）。安全フロアの
-            // 範囲内は不完全でも比較材料として使う（同上の理由）。
-            if !withinSafetyFloor, Date() > originalDeadline { break }
             scored.append((move, score))
         }
-        guard let best = scored.map(\.score).max() else { return orderedMoves.first }
-        let pool = scored.filter { $0.score >= best - Self.noviceMargin }.map(\.move)
-        guard !pool.isEmpty else { return orderedMoves.first }
-        if let seed {
-            var rng = SplitMix64(seed: seed)
-            return pool[Int.random(in: 0..<pool.count, using: &rng)]
+        guard let best = scored.map(\.score).max(), let top = scored.firstIndex(where: { $0.score == best })
+        else { return [] }
+        scored.remove(at: top)
+        return scored.filter { $0.score >= best - policy.slipMargin }.map(\.move)
+    }
+
+    /// `move` を指すと、相手の次の一手でチェックメイトされる（＝即負け）か。
+    static func allowsMateInOne(_ pos: inout ChessPosition, after move: ChessMove) -> Bool {
+        let undo = pos.make(move)
+        defer { pos.unmake(undo) }
+        for reply in pos.legalMovesInPlace() {
+            let u = pos.make(reply)
+            // 詰みは王手でしかありえない。王手の返答だけ、指し手が残るか数える（全返答で数えると重い）。
+            let mated = pos.isKingInCheck(pos.sideToMove) && pos.legalMovesInPlace().isEmpty
+            pos.unmake(u)
+            if mated { return true }
         }
-        var rng = SystemRandomNumberGenerator()
-        return pool[Int.random(in: 0..<pool.count, using: &rng)]
+        return false
     }
 
     /// 静的評価（テストから覗く用）。手番側から見た点数。
@@ -313,14 +390,31 @@ struct ChessSearchContext {
     var deadline: Date
     var killers: [[ChessMove?]]
     private var tt: [ChessTTEntry]
+    /// 読む局面数の上限（#1398）。`nil` なら無し。時間の上限は安全用で、強さはこちらで決める。
+    let nodeLimit: Int?
+    /// `negamax` / `quiesce` に入った回数。
+    private(set) var nodes = 0
+    /// 最後まで読み切れた反復深化の深さ（計測用）。
+    private(set) var completedDepth = 0
 
-    init(maxDepth: Int, usePositional: Bool, useQuiescence: Bool, timeLimit: TimeInterval) {
+    init(maxDepth: Int, usePositional: Bool, useQuiescence: Bool, timeLimit: TimeInterval,
+         nodeLimit: Int? = nil) {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
         self.useQuiescence = useQuiescence
-        self.deadline = Date().addingTimeInterval(timeLimit)
+        self.nodeLimit = nodeLimit
         self.killers = [[ChessMove?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [ChessTTEntry](repeating: ChessTTEntry(), count: chessTTSize)
+        // 締切は置換表の確保が済んでから決める（#1398）。先に決めると、遅い端末では
+        // 確保にかかった時間が持ち時間から削られる。
+        // `timeLimit: .infinity` は「打ち切りを構造的に無くす」ための特別値。
+        self.deadline = timeLimit.isFinite ? Date().addingTimeInterval(timeLimit) : .distantFuture
+    }
+
+    /// 時間切れ、または読む局面数の上限に達した。
+    private var isExhausted: Bool {
+        if let nodeLimit, nodes >= nodeLimit { return true }
+        return Date() > deadline
     }
 
     // MARK: 反復深化
@@ -330,7 +424,7 @@ struct ChessSearchContext {
         var best: ChessMove? = orderedMoves.first
 
         for d in 1...maxDepth {
-            if Date() > deadline { break }
+            if isExhausted { break }
             var localBest: ChessMove?
             var bestScore = -chessMateScore * 2
             var alpha = -chessMateScore * 2
@@ -338,15 +432,20 @@ struct ChessSearchContext {
             var aborted = false
 
             for move in orderedMoves {
-                if Date() > deadline { aborted = true; break }
+                if isExhausted { aborted = true; break }
                 let undo = pos.make(move)
                 let score = -negamax(&pos, depth: d - 1, alpha: -beta, beta: -alpha, ply: 1)
                 pos.unmake(undo)
+                // 最後の根の手を読み終えた直後に時間切れ・上限到達になっていたら、この深さの
+                // 結果は途中で打ち切られた探索の値が混ざる。採用しない（#1398。将棋 #1397・
+                // 五目並べ #1226・オセロ #1133 と同じ対策）。
+                if isExhausted { aborted = true; break }
                 if score > bestScore { bestScore = score; localBest = move }
                 if score > alpha { alpha = score }
             }
 
             if !aborted, let lb = localBest {
+                completedDepth = d
                 best = lb
                 // 次の深さでは前回の最善手から読む（αβ の刈り込みが最も効く並び）。
                 orderedMoves.removeAll { $0 == lb }
@@ -362,7 +461,8 @@ struct ChessSearchContext {
     mutating func negamax(
         _ pos: inout ChessPosition, depth: Int, alpha: Int, beta: Int, ply: Int
     ) -> Int {
-        if Date() > deadline { return evaluate(pos) }
+        nodes += 1
+        if isExhausted { return evaluate(pos) }
 
         // 50手ルールに達した局面は引き分け。ここを見ないと、探索が「取れないまま
         // 延々と駒を往復させる手順」を勝ち筋と誤認する。
@@ -446,7 +546,8 @@ struct ChessSearchContext {
     mutating func quiesce(
         _ pos: inout ChessPosition, alpha: Int, beta: Int, qdepth: Int, ply: Int
     ) -> Int {
-        if Date() > deadline { return evaluate(pos) }
+        nodes += 1
+        if isExhausted { return evaluate(pos) }
 
         let moves = pos.legalMoves()
         let inCheck = pos.isKingInCheck(pos.sideToMove)

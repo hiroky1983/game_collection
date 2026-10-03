@@ -150,7 +150,7 @@ struct BlackjackDoubleDownTests {
         let (model, store) = makeModel(player: [5, 6], dealer: [10, 8], deck: [9])
         model.doubleDown()
         #expect(model.bet == 0)
-        #expect(!store.exists(for: "blackjack"), "決着したら中断データは消える")
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
     }
 }
 

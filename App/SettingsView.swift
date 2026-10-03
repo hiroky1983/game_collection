@@ -9,8 +9,11 @@ struct SettingsView: View {
     var playLog: PlayLog?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @State private var legalURL: IdentifiableURL?
     @State private var showClearPlayLogConfirm = false
+    /// 通知の許諾状態（#1603）。開いたとき・設定アプリから戻ったときに読む。未確認の間は表示を変えない。
+    @State private var notificationAuthorization: ReminderAuthorization?
 
     private var appVersion: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -107,6 +110,16 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
+                    if notificationAuthorization == .denied {
+                        Text("この端末の設定で、あそびばの通知が許可されていません。スイッチをオンにしても、お知らせは届きません。")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.ink)
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                        } label: {
+                            Label("設定アプリを開く", systemImage: "gear")
+                        }
+                    }
                 } header: {
                     Text("通知")
                 } footer: {
@@ -198,6 +211,10 @@ struct SettingsView: View {
             }
             .environment(\.editMode, .constant(.active))
             .onAppear { settings.refreshFromDefaults() }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                notificationAuthorization = await UserNotificationReminderScheduler().authorization()
+            }
             .navigationTitle("設定")
             .sheet(item: $legalURL) { item in
                 SafariView(url: item.url)

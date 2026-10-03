@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import Core
 import CoreTestSupport
@@ -29,12 +30,34 @@ struct ResumableSnapshotTests {
         )
     }
 
+    /// 判定を上書きしない最小の Module。2048 は手つかずの盤を除く上書きを持つ（#1572）ので、既定の答えは別に確かめる。
+    private struct DefaultModule: GameModule {
+        let id = "default-stub"
+        let title = "既定"
+        let description = ""
+        var icon: Image { Image(systemName: "circle") }
+        @MainActor func makeView(services: GameServices) -> AnyView { AnyView(EmptyView()) }
+    }
+
     @Test("既定のゲームは中断データの有無がそのまま答えになる")
-    func defaultFollowsSnapshotExistence() {
+    func defaultFollowsSnapshotExistence() throws {
         let store = MemorySnapshotStore()
-        #expect(!Self.registry.hasResumableSnapshot(gameID: "2048", in: store))
-        _ = Game2048Model(services: GameServices(snapshots: store, ads: NoopAdService()))
+        let registry = GameRegistry([DefaultModule()])
+        #expect(!registry.hasResumableSnapshot(gameID: "default-stub", in: store))
+        try store.save(["stage": 1], for: "default-stub")
+        #expect(registry.hasResumableSnapshot(gameID: "default-stub", in: store))
+    }
+
+    @Test("2048 は手つかずの盤を続きに数えず、動かすと数える（#1572）")
+    func game2048UntouchedIsNotResuming() {
+        let store = MemorySnapshotStore()
+        let model = Game2048Model(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(store.exists(for: "2048"), "前提が崩れた: 2048 は開いた時点で中断データを書くはず")
+        #expect(!Self.registry.hasResumableSnapshot(gameID: "2048", in: store))
+        let before = model.board
+        for direction in [Direction.left, .up, .right, .down] where model.board == before {
+            model.move(direction)
+        }
         #expect(Self.registry.hasResumableSnapshot(gameID: "2048", in: store))
     }
 
@@ -58,11 +81,18 @@ struct ResumableSnapshotTests {
             if gameID == "shogi" {
                 let model = ShogiGameModel(services: services)
                 model.newGame()
+                #expect(!Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 一手も指していない局を途中扱いした（#1599）")
+                model.tapSquare(Sq.fromUSI("7g")!)
+                model.tapSquare(Sq.fromUSI("7f")!)
                 #expect(Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 対局中の局が途中扱いにならない")
                 model.resign()
             } else {
                 let model = ChessGameModel(services: services)
                 model.newGame()
+                #expect(!Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 一手も指していない局を途中扱いした（#1599）")
+                let opening = ChessMove.fromUCI("e2e4")!
+                model.tapSquare(opening.from)
+                model.tapSquare(opening.to)
                 #expect(Self.registry.hasResumableSnapshot(gameID: gameID, in: store), "\(gameID): 対局中の局が途中扱いにならない")
                 model.resign()
             }

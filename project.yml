@@ -10,7 +10,7 @@ packages:
     path: Packages/GameKit
   GoogleMobileAds:
     url: https://github.com/googleads/swift-package-manager-google-mobile-ads
-    from: 11.0.0
+    from: 13.0.0
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     from: 12.17.0
@@ -165,8 +165,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
-        MARKETING_VERSION: "1.1.7"
-        CURRENT_PROJECT_VERSION: "11"
+        MARKETING_VERSION: "1.1.8"
+        CURRENT_PROJECT_VERSION: "12"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         # 1 = iPhone / 2 = iPad（#458）。調べた競合 30 本すべてが iPad 対応で、
@@ -179,3 +179,29 @@ targets:
         # 無いと FirebaseAnalytics が実バイナリからリンク落ちし、Crashlytics が
         # 「Firebase Analytics SDK not detected」となる（Firebase 公式要件）。
         OTHER_LDFLAGS: ["$(inherited)", "-ObjC"]
+    # 共有スキームを明示的に生成する。下の UITests ターゲットが共有スキームを持つと、fastlane は
+    # 共有スキームしか探さないため GameCollection を見失い UITests を archive してしまう（v1.1.8 出荷で発覚）
+    scheme: {}
+
+  # 画面操作の E2E（XCUITest・#1594）。シミュレータで手元実行する専用のターゲットで、CI では回さない
+  # （ci.yml は GameCollection スキームの build だけ。ここのスキームは test のときだけこのターゲットを作る）。
+  GameCollectionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - GameCollectionUITests
+    dependencies:
+      - target: GameCollection
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: 6MGM38HWDH
+        CODE_SIGN_STYLE: Automatic
+        TEST_TARGET_NAME: GameCollection
+    scheme:
+      testTargets:
+        - GameCollectionUITests

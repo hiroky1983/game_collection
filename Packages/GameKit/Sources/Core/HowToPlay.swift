@@ -159,7 +159,7 @@ public extension HowToPlayGuide {
         lines: [
             "場の札の読みの最後の字から始まる読みの札を選んで取ります。取った札が新しい場の札になり、CPUの番です。",
             "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶと-5秒。「ん」で終わる読みを選ぶとその場で負けです。",
-            "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。",
+            "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。「とことん」はノルマが無く、札が尽きるまで続きます（取った場所には山札から新しい札が出ます）。全部の札を取りきればパーフェクトで勝ちです。",
         ],
         hint: "最後の字から始まる札を取ろう",
         hintIcon: "textformat.abc"
@@ -685,15 +685,18 @@ public struct YakuTableSection<Content: View>: View {
 /// 「遊び方」シートを開く操作。`.howToPlay` が環境へ入れ、`gameChrome` がヘッダー右の所定の位置に
 /// `?` ボタンとして置く（#1418。ボタンを各自のツールバーに足す形だと、役の早見表・新規ボタンとの
 /// 並びが宣言順しだいになる）。
-struct HowToPlayTrigger {
-    let present: () -> Void
+///
+/// `public`: ヘッダーの `?` を隠す画面（`hidesHowToPlay`）が、別の場所（一時停止の画面など）から
+/// 同じシートを開けるよう、ゲーム側のモジュールからも読める（柵越えおじさんの打席・#1617）。
+public struct HowToPlayTrigger {
+    public let present: () -> Void
 }
 
 private struct HowToPlayTriggerKey: EnvironmentKey {
     nonisolated(unsafe) static var defaultValue: HowToPlayTrigger? = nil
 }
 
-extension EnvironmentValues {
+public extension EnvironmentValues {
     var howToPlayTrigger: HowToPlayTrigger? {
         get { self[HowToPlayTriggerKey.self] }
         set { self[HowToPlayTriggerKey.self] = newValue }

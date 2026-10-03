@@ -452,7 +452,14 @@ struct HubView: View {
     /// `orderedIDs` の中で数える（設定シートの `onMove` と同じ座標）。
     private func moveToTop(_ id: String) {
         guard let from = settings.orderedIDs.firstIndex(of: id), from > 0 else { return }
-        settings.move(from: IndexSet(integer: from), to: 0)
+        // 並びの入れ替えを動きで見せる（Reduce Motion では即時）。無音のままだと VoiceOver 利用者は
+        // 動いたことが分からないので、非表示（`hide`）と同じくアナウンスも流す。
+        withGameAnimation(.easeOut(duration: 0.25)) {
+            settings.move(from: IndexSet(integer: from), to: 0)
+        }
+        if let module = registry.module(id: id) {
+            AccessibilityNotification.Announcement("「\(module.title)」を先頭に移しました").post()
+        }
     }
 
     /// 長押しメニューの「非表示にする」（#662）。戻す場所が設定シートの奥にあるため、直後に案内を出す。

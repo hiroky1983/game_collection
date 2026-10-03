@@ -66,25 +66,30 @@ private func slots(_ cards: [ShiritoriCard]) -> [ShiritoriSlot] {
 @Suite("しりとりの札と手")
 struct ShiritoriRulesTests {
 
-    @Test("山札は 30 枚（#1245）。絵は全種そろい、同じ絵は 2 枚無い")
+    @Test("山札は 50 枚（#1245 で 30、#1502 で 50）。絵は全種そろい、同じ絵は 2 枚無い")
     func deckMatchesApprovedList() {
         let deck = ShiritoriCard.deck
-        #expect(deck.count == 30)
+        #expect(deck.count == 50)
         #expect(Set(deck.map(\.kind)) == Set(ObjectCardKind.allCases))
-        #expect(Set(deck.map(\.id)).count == 30)
+        #expect(Set(deck.map(\.id)).count == 50)
         // #1298: こねこ→くま・まくら→まふらー・うちわ→まいく・ねぎ→くり・まり→にく（識別子は据え置き）
         #expect(deck.map(\.primaryReading) == [
             "りんご", "ごりら", "らっこ", "こあら", "らくだ", "うさぎ", "ぎたー", "たいこ", "くま", "こっぷ",
             "りす", "すいか", "かめ", "めがね", "ねこ", "こま", "まふらー", "だちょう", "まいく", "わに",
             "ふね", "くり", "にく", "きのこ", "うま", "しか", "うし", "すず", "つき", "たこ",
+            // #1502（会長決裁 2026-09-29）
+            "うきわ", "かさ", "さかな", "なす", "きつね", "くじら", "こおり", "しまうま", "すし", "たまご",
+            "だんご", "にわとり", "たいやき", "まんじゅう", "めだまやき", "けーき", "わたあめ", "くつ", "たけ", "すいとう",
         ])
     }
 
-    @Test("裏読みは決裁済みの 1 枚だけ（こっぷ→ぐらす は #1271 で、うちわ→おうぎ は #1298 の差し替えで消えた）。読みはすべてひらがなで、空でない")
+    @Test("裏読みは決裁済みの 11 枚だけ（こっぷ→ぐらす は #1271 で、うちわ→おうぎ は #1298 の差し替えで消えた。#1502 で 10 件足した）。読みはすべてひらがなで、空でない")
     func alternateReadingsAreTheApprovedOnes() {
         let withAlternates = ShiritoriCard.deck.filter { $0.readings.count > 1 }
         #expect(Dictionary(uniqueKeysWithValues: withAlternates.map { ($0.primaryReading, Array($0.readings.dropFirst())) }) == [
-            "ねこ": ["にゃんこ"],
+            "ねこ": ["にゃんこ"], "かめ": ["うみがめ"], "くま": ["こぐま"], "きつね": ["こぎつね"],
+            "まふらー": ["すかーふ"], "にく": ["すてーき"], "きのこ": ["しいたけ"], "うし": ["ぎゅう"],
+            "すし": ["にぎり"], "にわとり": ["こっこ"], "くつ": ["しゅーず"],
         ])
         for card in ShiritoriCard.deck {
             for reading in card.readings {
@@ -197,7 +202,7 @@ struct ShiritoriRulesTests {
     /// #1297: 「わに」の唯一の後続「にゃんこ」＝ねこ札を開場札に選ぶと、盤の「わに」を取った瞬間に
     /// 相手が詰んで一発勝ちになっていた（#1287型の再発）。開場札の並び順を 30 通り総当たりで変えても、
     /// 選ばれた開場札を除いた 29 枚のどの読みの語尾も、他の札で受けられることを固定する。
-    @Test("開場札を除いた29枚でも、唯一の後続を失って詰み専用になる札が生まれない（総当たり30パターン）")
+    @Test("開場札を除いた札でも、唯一の後続を失って詰み専用になる札が生まれない（総当たり50パターン）")
     func openerNeverStripsAnotherCardsOnlyFollower() throws {
         let deck = ShiritoriCard.deck
         for rotation in deck.indices {
@@ -214,6 +219,58 @@ struct ShiritoriRulesTests {
                     #expect(!ShiritoriRules.moves(slots: otherSlots, after: tail).isEmpty,
                             "rotation \(rotation): 開場札 \(opener.id) を除くと \(card.id) の読み \(reading) に後続がない")
                 }
+            }
+        }
+    }
+}
+
+// MARK: - 勝てる盤（#1659）
+
+@Suite("ノルマの配りは勝てる盤だけ")
+struct ShiritoriWinnableDealTests {
+    private let gorilla = ShiritoriCard(.gorilla, "ごりら")   // ご → ら
+    private let otter = ShiritoriCard(.seaOtter, "らっこ")    // ら → こ
+    private let kasa = ShiritoriCard(.umbrella, "かさ")       // か → さ
+    private let trap = ShiritoriCard(.pillow, "ごはん")       // ご → ん
+
+    private func slots(_ cards: [ShiritoriCard]) -> [ShiritoriSlot] { cards.map { ShiritoriSlot(card: $0) } }
+
+    @Test("1 枚取ってノルマに届くなら勝てる・届かず途中で詰む一本道なら勝てない")
+    func winnableAndNot() {
+        // りんご → ごりら → (CPU) らっこ → プレイヤーは「こ」を受ける札が無く詰む。
+        let board = slots([gorilla, otter, kasa])
+        #expect(ShiritoriRules.isWinnable(slots: board, openerReading: "りんご", quota: 1))
+        #expect(!ShiritoriRules.isWinnable(slots: board, openerReading: "りんご", quota: 2))
+    }
+
+    @Test("CPU が続けられなくなる手があれば、ノルマに届かなくても勝てる")
+    func cpuStuckCountsAsWin() {
+        #expect(ShiritoriRules.isWinnable(slots: slots([gorilla, kasa]), openerReading: "りんご", quota: 9))
+    }
+
+    @Test("プレイヤーの手が「ん」で終わる札しか無い盤は勝てない")
+    func onlyNEndingMoveLoses() {
+        #expect(!ShiritoriRules.isWinnable(slots: slots([trap, kasa]), openerReading: "りんご", quota: 1))
+    }
+
+    @Test("探索は盤を元に戻す（呼んだあとも取られた札が残らない）")
+    func searchRestoresBoard() {
+        let board = slots([gorilla, otter, kasa])
+        _ = ShiritoriRules.isWinnable(slots: board, openerReading: "りんご", quota: 2)
+        #expect(board.allSatisfy { $0.owner == nil })
+    }
+
+    @Test("どの難易度でも、配られた盤にはプレイヤーが勝てる手順がある（100 配り × 3 難易度）")
+    func dealtBoardsAreWinnable() {
+        for quota in ShiritoriQuota.allCases {
+            for seed in UInt64(0)..<100 {
+                var generator = SplitMix64(seed: seed)
+                let deal = ShiritoriRules.deal(deck: ShiritoriCard.deck, mode: .quota, quota: quota, using: &generator)
+                #expect(
+                    ShiritoriRules.isWinnable(slots: deal.board.map { ShiritoriSlot(card: $0) },
+                                              openerReading: deal.opener.primaryReading, quota: quota.cardCount),
+                    "\(quota.label) seed \(seed)"
+                )
             }
         }
     }
@@ -267,7 +324,7 @@ struct ObjectCardArtTests {
 
     @Test("全種が 40×40 で、パレットに無い文字を使っていない")
     func spritesAreWellFormed() {
-        #expect(ObjectCardKind.allCases.count == 30)
+        #expect(ObjectCardKind.allCases.count == 50)
         #expect(ObjectCardKind.dots == 40, "#1287 で 20 → 40 に上げた。全種を同時に戻す退行も赤にする")
         for kind in ObjectCardKind.allCases {
             let sprite = kind.sprite
@@ -297,6 +354,6 @@ struct ObjectCardArtTests {
     @Test("VoiceOver 用の名前が全種にある")
     func everyKindHasAName() {
         for kind in ObjectCardKind.allCases { #expect(!kind.displayName.isEmpty) }
-        #expect(Set(ObjectCardKind.allCases.map(\.displayName)).count == 30)
+        #expect(Set(ObjectCardKind.allCases.map(\.displayName)).count == 50)
     }
 }

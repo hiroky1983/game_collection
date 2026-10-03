@@ -51,29 +51,6 @@ extension HomerunToonModel {
         return m
     }
 
-    /// 審判（捕手の後ろ・前かがみ。チャコールの服・同じケージ付きマスク）。捕手に大半が隠れる「野球らしさ」の部品。+z を向く。
-    static func umpire() -> HomerunToonModel {
-        typealias C = HomerunToonPalette
-        let ump: UInt32 = 0x3A3F52, cage: UInt32 = 0xB4B4C0
-        var m = HomerunToonModel()
-        for sx: Float in [-1, 1] {
-            m.limb([sx * 0.6, 0.3, -0.2], [sx * 0.55, 1.6, 0.05], r: 0.36, 0x6A6E7E)
-            m.box(0.66, 0.3, 0.9, C.eye, at: [sx * 0.6, 0.15, -0.1], radius: 0.1)
-        }
-        m.box(2.3, 1.9, 1.1, ump, at: [0, 2.5, 0.2], radius: 0.5)   // 前かがみの胴（胸当て込み）
-        for sx: Float in [-1, 1] {
-            m.limb([sx * 1.15, 2.9, 0.3], [sx * 1.3, 1.85, 0.75], r: 0.25, ump)
-            m.sphere(0.26, C.skin, at: [sx * 1.3, 1.75, 0.8])
-        }
-        m.group(translation([0, 3.65, 0.55]) * rotation(angle: 0.25, axis: [1, 0, 0])) { h in
-            h.sphere(0.9, C.skin, at: [0, 0, 0])
-            h.sphere(0.96, ump, at: [0, 0.4, -0.1])
-            h.cage(color: cage, r: 0.05, outline: 0.02, front: 1.1, halfWidth: 0.7, top: 0.55, bottom: -0.7,
-                   rows: [0.2, -0.15, -0.45], columns: [])
-        }
-        return m
-    }
-
     /// ケージ付きマスクの枠（角丸の四角 + 横棒 + 縦棒）。棒は細く（打席ではストライクゾーンの 9 分割と重なって見えないよう、格子に見せない太さにする）。
     fileprivate mutating func cage(color: UInt32, r: Float, outline: Float, front z: Float, halfWidth w: Float, top: Float, bottom: Float,
                                    rows: [Float], columns: [Float]) {

@@ -101,14 +101,16 @@ let package = Package(
         // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
         // 「次に待つ時間」を返して View の `.task` が待つ形（ぱっと暗算と同じ）。
         .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine"]),
-        // 柵越えおじさんのロジック層（#1348・企画倉庫・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積。
-        // 画面（RealityKit）は後続の段で `GameHomerun` として足す。`Game` 接頭辞のディレクトリは
-        // 画面の走査テスト（GameChromeTests）が gameChrome を要求するため、画面を持たない間はこの名前にする。
+        // 柵越えおじさんのロジック層（#1348・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積。
+        // 画面は `GameHomerun`。`Game` 接頭辞のディレクトリは画面の走査テスト（GameChromeTests）が
+        // gameChrome を要求するため、画面を持たないロジック層はこの名前にしている。
         .target(name: "HomerunCore",        dependencies: ["Core"]),
-        // 柵越えおじさんの画面（#1348 の段 3・企画倉庫）。2D の仮絵で一回遊べる形。判定・台帳・蓄積は HomerunCore。
+        // 柵越えおじさんの画面（#1348・企画倉庫。v1.1.8 では非公開・会長指示 2026-10-02）。打席・外野は 3D（RealityKit）。判定・台帳・蓄積は HomerunCore。
         // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
-        // 3D（RealityKit）・広告/アンケートでの回数回復・解析・Game Center は後続の段で足す。
-        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"]),
+        // 広告/アンケートでの回数回復・解析・Game Center への送信も入っている。
+        // 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）を同梱する。
+        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"],
+                resources: [.copy("Resources/HomerunBatter.usdz")]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
@@ -211,7 +213,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -237,7 +239,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -246,7 +248,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。

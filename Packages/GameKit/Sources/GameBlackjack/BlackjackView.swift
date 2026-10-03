@@ -55,6 +55,14 @@ public struct BlackjackView: View {
                      services: services, gameID: model.gameID)
         .gameChrome(title: "ブラックジャック", review: services.review)
         .howToPlay(.blackjack)
+        // 勝敗が決まったら読み上げる（#1574）。バッジは見た目だけなので VoiceOver では気づけない。
+        .onChange(of: model.outcome) {
+            if let outcome = model.outcome {
+                AccessibilityNotification.Announcement(
+                    BlackjackAccessibility.outcomeAnnouncement(
+                        outcome: outcome, isSplit: model.hands.count > 1)).post()
+            }
+        }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。
@@ -116,7 +124,9 @@ public struct BlackjackView: View {
             }
             VStack(spacing: 6) {
                 Text("ベットするとカードが配られます")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .themeBody(15, weight: .bold, maxScale: 1.5)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                 Text("21 に近いほうが勝ち。ディーラーは 17 以上で止まります。")
                     .themeBody(13)
@@ -140,11 +150,15 @@ public struct BlackjackView: View {
                 Spacer()
                 if model.phase == .result || model.phase == .dealerTurn {
                     Text("\(model.dealerValue)")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .themeBody(14, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(model.dealerValue > 21 ? Theme.coral : Theme.purple)
                 } else if !model.dealerHand.isEmpty {
                     Text("\(model.dealerVisibleValue) + ?")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .themeBody(14, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                         .accessibilityLabel(BlackjackAccessibility.dealerPartialValueLabel(
                             visibleValue: model.dealerVisibleValue
@@ -201,7 +215,9 @@ public struct BlackjackView: View {
                 Spacer()
                 if !model.playerHand.isEmpty {
                     Text("\(model.playerValue)")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .themeBody(14, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(model.playerValue > 21 ? Theme.coral : Theme.teal)
                 }
                 // 勝敗バッジはフェードで出す（#209）。`.gameAnimation` はこの ZStack にだけ置く
@@ -243,21 +259,25 @@ public struct BlackjackView: View {
                     .themeBody(13)
                     .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
                 Text("\(hand.bet)枚\(hand.isDoubled ? "（ダブル）" : "")")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
                 if isActive {
                     Text("操作中")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .themeCaption(10, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Capsule().fill(Theme.Fill.teal))
                 }
                 Spacer(minLength: 0)
                 Text("\(hand.value)")
-                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .themeBody(14, weight: .black, maxScale: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                     .foregroundStyle(hand.isBusted ? Theme.coral : Theme.teal)
                 if let outcome = hand.outcome {
                     outcomeBadge(outcome)
@@ -285,31 +305,41 @@ public struct BlackjackView: View {
         switch outcome {
         case .playerBlackjack:
             Text("ブラックジャック！")
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .themeCaption(12, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.yellow))
         case .win:
             Text("勝ち！")
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .themeCaption(12, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.teal))
         case .push:
             Text("引き分け")
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .themeCaption(12, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.fillMuted))
         case .lose:
             Text("負け")
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .themeCaption(12, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.coral))
         case .bust:
             Text("バスト")
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .themeCaption(12, weight: .black, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.coral))
@@ -348,7 +378,9 @@ public struct BlackjackView: View {
     private var bettingView: some View {
         VStack(spacing: 8) {
             Text("ベット額を選んでください")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .themeCaption(13, weight: .semibold, maxScale: 1.5)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.inkSub)
             HStack(spacing: 10) {
                 ForEach(betOptions, id: \.self) { amount in
@@ -443,10 +475,14 @@ public struct BlackjackView: View {
                     // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
                     // 「なくなりました」ではなく「足りません」と言う。
                     Text("チップが足りなくなりました")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .themeBody(16, weight: .bold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.coral)
                     Text(sessionOverSubtitle)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .themeCaption(12, weight: .medium, maxScale: 1.5)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                         // SE では縦が詰まり、2 行の文言が 1 行目の途中で切られていた（#523 の撮影で発覚）。
                         .fixedSize(horizontal: false, vertical: true)

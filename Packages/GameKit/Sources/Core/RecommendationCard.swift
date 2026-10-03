@@ -66,7 +66,11 @@ public struct RecommendationCard: View {
                         .background(Capsule().fill(accent))
                 }
             }
-            .buttonStyle(.plain)
+            // `.plain` は押下フィードバックも消す（Theme.swift の PopButtonStyle）ので `.pop` にする。
+            .buttonStyle(.pop)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(caption)\(module.title)")
+            .accessibilityHint("「\(module.title)」を開いて新しく始めます")
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark")

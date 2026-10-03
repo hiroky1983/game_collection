@@ -22,4 +22,20 @@ public enum BlackjackAccessibility {
     public static func dealerPartialValueLabel(visibleValue: Int) -> String {
         "見えているカードの合計\(visibleValue)、1枚は伏せています"
     }
+
+    /// 勝敗が決まったときの読み上げ文（#1574）。画面の勝敗バッジと同じ言葉で読ませる。
+    ///
+    /// - Parameter isSplit: スプリットしたラウンドか。手ごとに勝敗が割れうるので、
+    ///   バッジに出るのは収支のまとめであることを添える。
+    public static func outcomeAnnouncement(outcome: BlackjackOutcome, isSplit: Bool = false) -> String {
+        let result: String
+        switch outcome {
+        case .playerBlackjack: result = "ブラックジャック！勝ちです"
+        case .win:             result = "勝ちです"
+        case .push:            result = "引き分けです"
+        case .lose:            result = "負けです"
+        case .bust:            result = "バストして負けです"
+        }
+        return isSplit ? "全体の結果は、\(result)" : result
+    }
 }

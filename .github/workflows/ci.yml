@@ -89,8 +89,12 @@ jobs:
         run: |
           brew install xcodegen
           xcodegen generate
+          # 依存の版は Config/Package.resolved で固定する（#1579）。project.yml の指定と食い違うと
+          # -disableAutomaticPackageResolution で落ちる（版を上げるときは Config/Package.resolved も更新する）
+          bash Scripts/apply-package-resolved.sh
           xcodebuild -project GameCollection.xcodeproj \
             -scheme GameCollection \
+            -disableAutomaticPackageResolution \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             build

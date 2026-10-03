@@ -158,6 +158,18 @@ struct GameOverflowBarTests {
         #expect(badge.contains("TurnBadge(isYourTurn:"))
     }
 
+    @Test("花札: 試合の結果の「もう一度」は結果カードのすぐ下に置く（下の操作エリアに置くと広告の直上へ押し下げられる・#1519）")
+    func hanafudaMatchResultButtonSitsUnderTheCard() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHanafuda/HanafudaView.swift"))
+        let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source))
+        let card = try #require(body.range(of: "matchResultCard"))
+        let button = try #require(body.range(of: #"actionButton("もう一度""#, range: card.upperBound..<body.endIndex))
+        let hint = try #require(body.range(of: "HowToPlayHint("))
+        #expect(button.upperBound < hint.lowerBound, "「もう一度」が結果カードの枠の外（広告側）に出ている")
+        let actionArea = try #require(SourceScan.declaration(of: "private var actionArea: some View", in: source))
+        #expect(!actionArea.contains("もう一度"), "操作エリアに「もう一度」が残っている（広告の直上へ押し下げられる）")
+    }
+
     @Test("あきらめるは確認付きで「⋯」メニューに入っている（ナンプレ・マインスイーパー）",
           arguments: ["GameSudoku", "GameMinesweeper"])
     func giveUpLivesInTheMenu(module: String) throws {

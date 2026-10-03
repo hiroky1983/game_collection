@@ -57,8 +57,8 @@ public struct ShiritoriView: View {
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
         .sheet(isPresented: $showSetup) {
-            ShiritoriSetupSheet(quota: model.quota) { quota in
-                model.startGame(quota: quota)
+            ShiritoriSetupSheet(quota: model.quota, mode: model.mode) { quota, mode in
+                model.startGame(quota: quota, mode: mode)
                 showSetup = false
             } onCancel: { showSetup = false }
         }
@@ -66,6 +66,11 @@ public struct ShiritoriView: View {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-shiritoriCPUCursorProbe") {
                 model.debugShowCPUCursor()
+                return
+            }
+            if ProcessInfo.processInfo.arguments.contains("-shiritoriEndlessProbe") {
+                // 撮影用: とことんモードの対局を開始シートを出さずに始める（シミュレータは自動タップできない・#1502）。
+                model.startGame(mode: .endless)
                 return
             }
             #endif
@@ -107,7 +112,7 @@ public struct ShiritoriView: View {
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } trailing: {
-                Text(model.quota.label)
+                Text(model.mode == .endless ? model.mode.label : model.quota.label)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
@@ -184,11 +189,16 @@ public struct ShiritoriView: View {
                 .foregroundStyle(Theme.teal)
             Label("CPU \(model.cpuCount)", systemImage: "cpu")
                 .foregroundStyle(Theme.coral)
+            if model.mode == .endless {
+                Label("山札 \(model.stockCount)", systemImage: "square.stack.fill")
+                    .foregroundStyle(Theme.inkSub)
+            }
         }
         .font(.system(size: 12, weight: .bold, design: .rounded))
         .lineLimit(1).minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("あなた\(model.playerCount)枚、CPU\(model.cpuCount)枚")
+        .accessibilityLabel("あなた\(model.playerCount)枚、CPU\(model.cpuCount)枚"
+                            + (model.mode == .endless ? "、山札\(model.stockCount)枚" : ""))
     }
 
     // MARK: - 盤
@@ -261,14 +271,15 @@ public struct ShiritoriView: View {
                 Image(systemName: model.didPlayerWin ? "crown.fill" : "flag.checkered")
                     .font(.system(size: 20))
                     .foregroundStyle(model.didPlayerWin ? Theme.yellow : Theme.inkSub)
-                Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin))
+                Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
+                                                              mode: model.mode))
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .foregroundStyle(model.didPlayerWin ? Theme.teal : Theme.ink)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
             }
             Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
-                                                          ending: model.ending ?? .timeUp))
+                                                          ending: model.ending ?? .timeUp, mode: model.mode))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)
@@ -293,7 +304,7 @@ private struct ShiritoriBoardAnimationState: Equatable {
 // MARK: - 盤の寸法
 
 enum ShiritoriBoardLayout {
-    /// 29 枚が 6 列 × 5 行（6・6・6・6・5）に収まる。iPhone SE でも広告枠を含めて縦に収まる本数。
+    /// 30 枚が 6 列 × 5 行にぴったり収まる（#1660: 29 枚の頃は右下が歯抜けだった）。iPhone SE でも広告枠を含めて縦に収まる本数。
     static let columns = 6
 }
 
@@ -385,13 +396,16 @@ struct ShiritoriCardTile: View {
 
 struct ShiritoriSetupSheet: View {
     @State private var quota: ShiritoriQuota
-    let onStart: (ShiritoriQuota) -> Void
+    @State private var mode: ShiritoriMode
+    let onStart: (ShiritoriQuota, ShiritoriMode) -> Void
     let onCancel: () -> Void
 
     init(quota: ShiritoriQuota,
-         onStart: @escaping (ShiritoriQuota) -> Void,
+         mode: ShiritoriMode,
+         onStart: @escaping (ShiritoriQuota, ShiritoriMode) -> Void,
          onCancel: @escaping () -> Void) {
         _quota = State(initialValue: quota)
+        _mode = State(initialValue: mode)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -399,8 +413,36 @@ struct ShiritoriSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
-            onStart: { onStart(quota) }, onCancel: onCancel
+            onStart: { onStart(quota, mode) }, onCancel: onCancel
         ) {
+            GameSetupSection("あそびかた") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(ShiritoriMode.allCases.enumerated()), id: \.element) { step, item in
+                            GameSetupChooser(
+                                title: item.label, subtitle: "",
+                                selected: mode == item,
+                                accent: DifficultyTile.accent(step: step, of: ShiritoriMode.allCases.count),
+                                metrics: DifficultyTile.metrics
+                            ) { mode = item }
+                        }
+                    }
+                    Text(mode.summary)
+                        .themeBody(13)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(2).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            // とことんにはノルマが無いので、むずかしさは選ばせない。
+            if mode == .quota {
+                difficultySection
+            }
+        }
+    }
+
+    private var difficultySection: some View {
+        Group {
             GameSetupSection("むずかしさ") {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
@@ -434,6 +476,7 @@ struct ShiritoriRuleSheet: View {
         ("「ん」で終わると負け", "「ん」で終わる読みの札を選んだ人は、その場で負けです"),
         ("勝ち負け", "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです"),
         ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),
+        ("とことん", "ノルマは無く、札が尽きるか、どちらかが続けられなくなるまで続きます。札を取ると空いた場所に山札から新しい札が出ます（山札が尽きたら出ません）。盤と山札の札を全部なくすとパーフェクトで勝ち。時間切れは負けです"),
     ]
 
     var body: some View {

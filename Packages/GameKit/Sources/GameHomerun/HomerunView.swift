@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 import HomerunCore
 
-/// 柵越えおじさん（#1348）の画面。段 3 = 2D の仮絵で一回遊べる形（3D は後続の段）。
+/// 柵越えおじさん（#1348）の画面。打席・外野は 3D（RealityKit。macOS の `swift test` では 2D の絵に落ちる）。
 ///
 /// 打席前（`36-lobby-3D`）→ 打席（`31-at-bat-3D`・全画面でバナー無し）→ 10 球の結果（`34-result-spray`）。
 /// **打席（と外野カメラ）にはバナーを出さない**（受け入れ条件・既存ゲームとの意図した違い）。バナーは打席前と結果だけ。
@@ -26,14 +26,20 @@ public struct HomerunView: View {
         content
             // 打席前 → 打席 → 結果の差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
             .gameAnimation(.easeInOut(duration: 0.2), value: model.phase == .idle)
-            .gameChrome(title: "柵越えおじさん", review: services.review)
+            // 打席中は左上の戻るを出さない（#1550。誤タップで挑戦が終わらないように。やめるのは一時停止から確認つきで）。
+            // 打席中は右上の「?」も出さない（#1617。一時停止の画面に「遊び方」を置き、そこから開く）。
+            .gameChrome(title: "柵越えおじさん", review: services.review,
+                        hidesBackButton: model.phase == .pitching || model.phase == .ballResult,
+                        hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult)
             // 遊び方を読んでいるあいだは投球を止め、閉じたらその球を投げ直す。
             .howToPlay(.homerun, onPresent: { model.hold(.sheet, true, now: Date()) },
                        onDismiss: { model.hold(.sheet, false, now: Date()) }) {
                 HomerunRuleSheet()
             }
             .sheet(isPresented: Bindable(model).showsExhausted) {
-                HomerunExhaustedSheet(canWatchAd: model.ledger.canWatchAd) { model.showsExhausted = false }
+                HomerunExhaustedSheet(canWatchAd: model.ledger.canWatchAd, returnReminder: services.returnReminder) {
+                    model.showsExhausted = false
+                }
                     .presentationDetents([.medium])
             }
             // 回数の提示（#780）。使い切ってボタンが出ているあいだを 1 回の提示として数える。
@@ -55,6 +61,10 @@ public struct HomerunView: View {
             }
             // 進行の待ちは Model が決め、ここは待つだけ。進行が変わるたびに `step` が進んで前の待ちが止まる。
             .task(id: model.step) { await runClock() }
+            #if os(iOS) && canImport(RealityKit)
+            // 打席の 3D は画面の中では使い回し（もう一回で作り直すと前の打席の画のまま止まる・#1594）、離れたら手放す。
+            .onDisappear { HomerunAtBatSceneReuse.drop() }
+            #endif
     }
 
     /// 回復のボタンが出ているか（打席前と結果で、残りが 0 のあいだ。上限に達していれば出さない）。
@@ -203,6 +213,13 @@ struct HomerunLobbyView: View {
                 Spacer()
                 stat("通算 柵越え", "\(r.homers) 本")
             }
+            // 実績「月まで飛ばした」（#1680）。出したことがある人にだけ出す（隠し演出なので先に存在を知らせない）。
+            if r.moonShots > 0 {
+                Label("月まで飛ばした \(r.moonShots) 回", systemImage: "moon.stars.fill")
+                    .themeCaption(13)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityElement(children: .combine)
+            }
         }
         .padding(14)
         .popCard()
@@ -239,6 +256,7 @@ struct HomerunResultView: View {
         ScrollView {
             VStack(spacing: 14) {
                 summaryCard
+                moonCard
                 sprayCard
                 breakdownCard
                 actions
@@ -256,10 +274,12 @@ struct HomerunResultView: View {
         let total = model.challenge?.totalDistance ?? 0
         let homers = model.challenge?.homerCount ?? 0
         return HStack(spacing: 14) {
-            OjisanCanvas(parts: OjisanArt.poseParts(.mascotFront))
+            HomerunOjisan3DStillView()
                 .frame(width: 80, height: 80)
             VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
+                Text(verbatim: model.challenge?.isMoonBroken == true
+                     ? "\(balls.count) 球で終了（月が割れた）"
+                     : "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
                 Text(verbatim: HomerunText.meters(total))
                     .font(.system(size: 44, weight: .black, design: .rounded).monospacedDigit())
                     .foregroundStyle(Theme.ink)
@@ -276,6 +296,35 @@ struct HomerunResultView: View {
         .padding(14)
         .popCard()
         .accessibilityElement(children: .combine)
+    }
+
+    /// 月まで飛んだ（#1680）挑戦だけに出す。距離は 384,400 km と出し（合計・自己ベストには 180m で数えてある）、月が割れたら
+    /// 挑戦の終わりとプレイ回数 +2 を知らせる。打球の分布（`sprayCard`）とは別のカード。
+    @ViewBuilder private var moonCard: some View {
+        if let challenge = model.challenge, challenge.moonCount > 0 {
+            HStack(spacing: 12) {
+                Image(systemName: challenge.isMoonBroken ? "moon.circle.fill" : "moon.stars.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(Theme.yellow)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(challenge.isMoonBroken ? "月が割れた！" : "月まで飛んだ！")
+                        .themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
+                    Text(verbatim: HomerunText.moonDistance)
+                        .font(.system(size: 26, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Theme.ink)
+                    if challenge.isMoonBroken {
+                        Text("挑戦はここで終わり。プレイ回数 +\(HomerunLedger.moonBonus) をプレゼント")
+                            .themeCaption(12).foregroundStyle(Theme.coral)
+                    } else {
+                        Text("記録には 180 m として数えます").themeCaption(11).foregroundStyle(Theme.inkSub)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .popCard()
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private func chip(_ text: String, systemImage: String?, fill: Color) -> some View {
@@ -321,7 +370,7 @@ struct HomerunResultView: View {
             }
             if let longest = balls.enumerated().max(by: { $0.element.distance < $1.element.distance }),
                longest.element.distance > 0 {
-                Text(verbatim: "最長 \(HomerunText.meters(longest.element.distance))（\(longest.offset + 1) 球目・\(HomerunText.place(longest.element))・\(HomerunText.timing(longest.element.timing))）")
+                Text(verbatim: "最長 \(HomerunText.distance(of: longest.element))（\(longest.offset + 1) 球目・\(HomerunText.place(longest.element))・\(HomerunText.timing(longest.element.timing))）")
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -363,7 +412,7 @@ struct HomerunBallTile: View {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(iconColor)
-            Text(verbatim: ball.distance > 0 ? HomerunText.meters(ball.distance) : HomerunText.kind(ball.kind))
+            Text(verbatim: ball.distance > 0 ? HomerunText.distance(of: ball) : HomerunText.kind(ball.kind))
                 .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -378,7 +427,8 @@ struct HomerunBallTile: View {
     }
 
     private var icon: String {
-        switch ball.kind {
+        if ball.isMoon { return "moon.fill" }
+        return switch ball.kind {
         case .homer: "star.fill"
         case .miss: "xmark"
         case .foul: "f.cursive"
@@ -399,10 +449,17 @@ struct HomerunBallTile: View {
 // MARK: - 使い切りシート
 
 /// 残り 0 で打席に立とうとしたときのシート。広告での回復のボタンは打席前と結果にある（アラートと提示の計測を
-/// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 は後続の段。
+/// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 のボタンも同じく打席前と結果にある。
 struct HomerunExhaustedSheet: View {
     let canWatchAd: Bool
+    /// 「戻ったら知らせる」（#1576）。nil（テスト・プレビュー）ではトグルを出さない。
+    var returnReminder: ChallengeReturnReminderService?
     let onClose: () -> Void
+
+    @State private var notifiesOnReturn = false
+    @State private var reminderNote: String?
+    /// ユーザーが触ったか。開いた直後の「予約済みか」の読み直しが、先に押された操作を上書きしないための印。
+    @State private var touchedReminder = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -415,6 +472,15 @@ struct HomerunExhaustedSheet: View {
                 .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
+            // 残りは分単位の表示なので、1 分ごとに描き直す（端末の時刻・タイムゾーンで 0:00 を数える）。
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                Text(HomerunReturnPolicy.remainingText(from: context.date, calendar: .current))
+                    .themeBody(16, weight: .heavy)
+                    .foregroundStyle(Theme.coral)
+            }
+            if let returnReminder {
+                reminderToggle(returnReminder)
+            }
             if canWatchAd {
                 Text("閉じると出てくる「広告を見て挑戦 +1 回」で、今日の回数を増やせます。")
                     .themeCaption(12)
@@ -429,6 +495,57 @@ struct HomerunExhaustedSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background.ignoresSafeArea())
+    }
+
+    /// 「戻ったら知らせる」。既定オフで、オンにした 1 回だけ翌 0:00 過ぎの通知を予約する。
+    /// 予約の有無は OS が持つので、開くたびに予約済みかを読み直してトグルに反映する。
+    private func reminderToggle(_ service: ChallengeReturnReminderService) -> some View {
+        VStack(spacing: 4) {
+            Toggle(isOn: Binding(get: { notifiesOnReturn }, set: { setReminder($0, service) })) {
+                Text("戻ったら知らせる").themeBody(15)
+            }
+            .tint(Theme.coral)
+            .disabled(!service.isNotificationsEnabled)
+            if let note = service.isNotificationsEnabled ? reminderNote : "設定の「通知」をオンにすると使えます。" {
+                Text(note).themeCaption(12).foregroundStyle(Theme.inkSub).multilineTextAlignment(.center)
+            }
+        }
+        .task {
+            let pending = await service.pendingFireDate()
+            guard !touchedReminder else { return }
+            notifiesOnReturn = HomerunReturnPolicy.isReminderActive(pendingFireDate: pending, now: Date())
+        }
+    }
+
+    private func setReminder(_ on: Bool, _ service: ChallengeReturnReminderService) {
+        reminderNote = nil
+        touchedReminder = true
+        guard on else {
+            notifiesOnReturn = false
+            service.cancel()
+            return
+        }
+        notifiesOnReturn = true
+        Task {
+            let content = HomerunReturnPolicy.notificationContent
+            let fireDate = HomerunReturnPolicy.reminderFireDate(after: Date(), calendar: .current)
+            switch await service.enable(fireDate: fireDate, title: content.title, body: content.body) {
+            case .scheduled:
+                break
+            case .superseded:
+                // トグルをオフにした（または設定で通知をオフにした）操作が先に届いている。表示も合わせる。
+                notifiesOnReturn = false
+            case .notificationsOff:
+                notifiesOnReturn = false
+                reminderNote = "設定の「通知」をオンにすると使えます。"
+            case .denied:
+                notifiesOnReturn = false
+                reminderNote = "端末の設定で通知が許可されていません。"
+            case .expired:
+                notifiesOnReturn = false
+                reminderNote = "回数が戻りました。"
+            }
+        }
     }
 }
 

@@ -23,4 +23,12 @@ public enum GomokuAccessibility {
         if isHint { parts.append("ヒントの手") }
         return parts.joined(separator: "、")
     }
+
+    /// 禁じ手で着手を断ったときの読み上げ文（#1574）。
+    ///
+    /// 画面の帯（`GomokuView.forbiddenNotice`）は見せるだけの表示で、VoiceOver 利用者は
+    /// 触って探さない限り「なぜ石が置けないのか」に気づけない。帯と同じ文言を自動で読ませる。
+    public static func forbiddenAnnouncement(reason: GomokuForbidden) -> String {
+        "\(reason.label)は打てません（禁じ手）"
+    }
 }

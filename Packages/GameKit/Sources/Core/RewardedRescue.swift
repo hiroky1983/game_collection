@@ -200,6 +200,14 @@ public enum RewardGuard: Sendable {
 
 // MARK: - 広告コンティニューの幕
 
+/// 失敗パネル（盤に重ねる広告コンティニューの幕）の寸法。2048・ブロックならべ・ナンプレ・フルーツ・
+/// マインスイーパーで内側余白を揃えるための唯一の出どころ（#1520。#1486 の「余白を揃える」の実装）。
+/// `View` の `static let` は MainActor 隔離になり init の既定値に使えないため、別の enum に置く。
+public enum RewardedPanelLayout {
+    /// 幕の内側の余白。横幅いっぱいのボタンが盤の端に接しないようにする。
+    public static let contentPadding: CGFloat = 16
+}
+
 /// 決着した盤に被せる「広告を見て続ける」の幕（#829）。
 ///
 /// 2048・ブロックならべ・ナンプレに、黒の幕・見出し・救済ボタン・二次ボタンという同じ組み方が
@@ -234,7 +242,7 @@ public struct RewardedContinueOverlay<Detail: View>: View {
         title: LocalizedStringKey,
         titleFont: Font = .title2.bold(),
         cornerRadius: CGFloat = 8,
-        contentPadding: CGFloat = 0,
+        contentPadding: CGFloat = RewardedPanelLayout.contentPadding,
         detail: Detail,
         rescueLabel: LocalizedStringKey,
         canContinue: Bool = true,

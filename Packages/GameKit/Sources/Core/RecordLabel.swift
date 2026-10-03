@@ -33,7 +33,7 @@ public struct RecordLabel: View {
                         RecordBadge("自己ベスト更新！", accent: accent)
                     }
                     Text(line)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .themeCaption(13, weight: .semibold, maxScale: 1.3)
                         .foregroundStyle(textColor)
                 }
                 .accessibilityElement(children: .combine)
@@ -138,9 +138,9 @@ public struct RecordBadge: View {
     public var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "star.fill")
-                .font(.system(size: 10, weight: .bold))
+                .themeCaption(10, maxScale: 1.3)
             Text(text)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .themeCaption(12, maxScale: 1.3)
         }
         .foregroundStyle(accent)
         .padding(.horizontal, 10).padding(.vertical, 4)

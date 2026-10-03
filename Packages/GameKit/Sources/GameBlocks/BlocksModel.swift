@@ -18,6 +18,11 @@ public final class BlocksModel {
 
     public private(set) var field: BlocksField
     public private(set) var score: Int
+    /// このステージを始めた時点の得点（#1622）。
+    ///
+    /// 復元・コンティニューはブロックが全部戻るステージ頭から再開するので、保存する得点も
+    /// ここに揃える。ステージ内で加算済みの点を持ち越すと、同じブロックの点が二重に入る。
+    private var stageStartScore: Int
     public private(set) var lives: Int
     /// 1 始まりのステージ番号。
     public private(set) var stageNumber: Int
@@ -103,6 +108,7 @@ public final class BlocksModel {
         self.services = services
         self.preference = preference
         self.score = score
+        self.stageStartScore = score
         self.lives = lives
         self.continueUsed = continueUsed
         self.stageNumber = min(max(1, stage), BlocksRules.stageCount)
@@ -251,6 +257,8 @@ public final class BlocksModel {
         recordResult = nil
         continueUsed = true
         lives = BlocksRules.continueLives
+        // ブロックが全部戻るので、このステージで加算済みの点は戻す（#1622）。
+        score = stageStartScore
         startStage()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
@@ -266,6 +274,7 @@ public final class BlocksModel {
         fieldGeneration += 1
         syncEffects()
         phase = .ready
+        stageStartScore = score
         persist()
     }
 
@@ -355,10 +364,13 @@ public final class BlocksModel {
         // 表示中のステージ番号のまま保存すると、崩し終えたステージをボーナス込みの
         // 得点でもう一度遊べてしまう。
         let resumeStage = phase == .stageCleared ? stageNumber + 1 : stageNumber
+        // 落球直後などステージの途中は、復元でブロックが全部戻るので開始時点の得点で保存する（#1622）。
+        // クリア表示中は進み先のステージ頭なので、ボーナス込みの現在値でよい。
+        let resumeScore = phase == .stageCleared ? score : stageStartScore
         try? services?.snapshots.save(
             BlocksSnapshot(
                 stage: resumeStage,
-                score: score,
+                score: resumeScore,
                 lives: lives,
                 continueUsed: continueUsed
             ),

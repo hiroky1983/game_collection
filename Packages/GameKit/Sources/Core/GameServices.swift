@@ -48,6 +48,8 @@ public struct GameServices {
     /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
     /// テスト・プレビューでは nil（予約しない）。
     public let reengagement: ReengagementReminderService?
+    /// 挑戦回数が戻ったら知らせる通知（#1576）。テスト・プレビューでは nil（トグルを出さない）。
+    public let returnReminder: ChallengeReturnReminderService?
 
     public init(
         snapshots: SnapshotStore,
@@ -60,7 +62,8 @@ public struct GameServices {
         gameCenter: GameCenterReporter? = nil,
         screenGeneration: GameScreenGeneration = GameScreenGeneration(),
         reminders: ResumeReminderService? = nil,
-        reengagement: ReengagementReminderService? = nil
+        reengagement: ReengagementReminderService? = nil,
+        returnReminder: ChallengeReturnReminderService? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -73,6 +76,7 @@ public struct GameServices {
         self.screenGeneration = screenGeneration
         self.reminders = reminders
         self.reengagement = reengagement
+        self.returnReminder = returnReminder
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。

@@ -61,7 +61,8 @@ enum AppEnvironment {
         analytics: analytics,
         gameCenter: gameCenter,
         reminders: reminders,
-        reengagement: reengagement
+        reengagement: reengagement,
+        returnReminder: returnReminder
     )
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
@@ -93,7 +94,17 @@ enum AppEnvironment {
             guard let module = registry.module(id: gameID) else { return nil }
             guard !settings.hiddenIDs.contains(gameID) else { return nil }
             return module.title
-        }
+        },
+        // 戻る理由として、ハブのカードと同じ自己ベスト等の 1 行を本文に添える（#1604）。端末内で組み立てるだけ。
+        recordSummary: { gameID in playLog.summaryLine(gameID: gameID) }
+    )
+
+    /// 挑戦回数が戻ったら知らせる通知（#1576）。使い切りシートのトグルを入れたときだけ 1 回予約する
+    /// （自動では予約しない明示操作なので、#663・#1193 と違って撮影・DEBUG でも止めない）。
+    /// 許可は #663・#1193 と同じ設定トグルに従う。
+    static let returnReminder = ChallengeReturnReminderService(
+        scheduler: UserNotificationChallengeReturnScheduler(),
+        isEnabled: { settings.notificationsEnabled }
     )
 
     /// 再エンゲージメント通知（#1193）の対象判定に渡す、登録ゲームぶんの通算プレイ回数・最終プレイ日時。
@@ -250,9 +261,10 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
-        // 柵越えおじさん（企画倉庫・#1348）。上の 6 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // いまは段 3（2D の仮絵で一回遊べる形）で、3D・回数回復（広告/アンケート）・解析・Game Center は後続の段。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // 柵越えおじさん（企画倉庫・#1348）。v1.1.8 では非公開（会長指示 2026-10-02）。上の 6 本と同じ扱いで、
+        // 出荷する版が決まるまでハブには並べない。3D の打席・回数回復（広告/アンケート）・解析・Game Center への送信まで入っている。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す
+        // （`RecommendationPolicy` の "homerun" の行と、チャリンコおじさんの第3候補も戻す）。
         // HomerunModule(),
     ])
 

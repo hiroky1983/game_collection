@@ -546,7 +546,12 @@ public final class GameAnalytics {
     public func recordGameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         guard allowedGameIDs.contains(gameID) else { return }
         // アプリが終了してから「続きから」で開いた局は、休憩前の計測状態を取り戻す（#1374）。
-        if resume { adoptRest(gameID: gameID) }
+        if resume {
+            adoptRest(gameID: gameID)
+            // 同じプロセスのまま「続きから」で戻った局は休憩の印が残っている。復元した Model は
+            // `startPlay` を呼ばないので、ここで外して計時を再開する（#1600）。
+            if resting.remove(gameID) != nil { resumeClock(gameID: gameID) }
+        }
         service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
     }
 

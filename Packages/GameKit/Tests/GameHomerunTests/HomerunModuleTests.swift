@@ -50,8 +50,35 @@ struct HomerunModuleTests {
         #expect(code.contains(".onChange(of: scenePhase)") && code.contains("model.hold(.inactive"),
                 "バックグラウンドでは投球を止める")
         #expect(code.contains("onPresent: { model.hold(.sheet, true"), "遊び方を読んでいるあいだは投球を止める")
-        #expect(!code.contains("#if DEBUG"), "ゲームの出し分けを DEBUG で分けない")
+        #expect(code.contains("hidesBackButton: model.phase == .pitching || model.phase == .ballResult"),
+                "打席中は左上の戻るを出さない（#1550）")
+        #expect(code.contains("hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult"),
+                "打席中は右上の「?」も出さない。一時停止の画面から開く（#1617）")
+        #expect(!atBat.contains("GameControlMenu("), "打席の「⋯」は一時停止ボタンに置き換えた（#1550）")
+        #expect(atBat.contains("model.pause(now:") && atBat.contains("model.quitChallenge()"),
+                "一時停止ボタン・途中でやめる（確認つき）")
+        #expect(atBat.contains(".confirmationDialog("), "途中でやめる前に確認を出す")
+        #expect(atBat.contains("howToPlay.present()") && atBat.contains("\"遊び方\""),
+                "一時停止の画面に遊び方ボタンを置き、ヘッダーと同じシートを開く（#1617）")
+        #expect(atBat.contains("BoardGameControlMetrics.minTapTarget"),
+                "一時停止ボタンの寸法は「⋯」（GameControlMenu）側の定数を参照する（コピーで別の数字を書かない・#1617）")
+        #expect(!atBat.contains("pauseButtonSide"), "一時停止ボタン専用の寸法定数は持たない（#1617）")
+        // 動作確認用の強制（`HomerunModel+Debug.swift`）だけは出荷ビルドから外すため #if DEBUG で囲む（v1.1.8・会長指示 2026-10-02）。
+        let debugFile = SourceScan.strippingComments(
+            try SourceScan.packageSource("Sources/GameHomerun/HomerunModel+Debug.swift")
+        )
+        #expect(!code.replacingOccurrences(of: debugFile, with: "").contains("#if DEBUG"), "ゲームの出し分けを DEBUG で分けない")
         #expect(!code.contains("Task.sleep(nanoseconds"))
+    }
+
+    @Test("押す・離すの時刻は Date() で渡し、ジェスチャーの value.time を Model に渡さない（#1594・会長 QA）")
+    func gesturePassesWallClockToModel() throws {
+        // value.time は起動からの経過を基準日に足した値で、Model の壁時計（pitchStart）と約 8 億秒ずれる。
+        // 渡すと timingOffset が nil になり、離しても判定されず全球「見送り」になっていた。
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(!atBat.contains("value.time"), "ジェスチャーの時刻は Model の時計と基準が違う")
+        #expect(atBat.contains("model.press(at: value.location, now: Date())"))
+        #expect(atBat.contains("model.release(at: value.location, now: Date())"))
     }
 
     @Test("Model は時計を読まない（時刻はすべて引数で受ける）")
@@ -64,7 +91,7 @@ struct HomerunModuleTests {
         #expect(!model.contains("ContinuousClock"))
     }
 
-    @Test("App の registry には企画倉庫としてコメントアウトで載っている（ハブには出さない）")
+    @Test("App の registry には企画倉庫としてコメントアウトで載っている（v1.1.8 では非公開・会長指示 2026-10-02）")
     func registryLineIsCommentedOut() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
@@ -74,6 +101,43 @@ struct HomerunModuleTests {
         #expect(!lines.contains("HomerunModule(),"), "出荷を決める Issue まではハブに並べない")
         #expect(lines.contains("import GameHomerun"))
         #expect(source.contains("企画倉庫・#1348"))
+        #expect(source.contains("v1.1.8 では非公開（会長指示 2026-10-02）"))
+    }
+
+    @Test("動作確認用の強制（回数無制限・月・ポール・空振りの演出）は出荷ビルドでは鍵が残っていても効かない")
+    func debugOverridesAreIgnoredInReleaseBuild() throws {
+        let defaults = UserDefaults(suiteName: "HomerunDebugOverrides.\(UUID())")!
+        for key in [HomerunModel.debugUnlimitedKey, HomerunModel.debugForceMoonKey,
+                    HomerunModel.debugForcePoleKey, HomerunModel.debugForceWhiffGagKey] {
+            defaults.set(true, forKey: key)
+        }
+        // 出荷ビルドの経路（DEBUG でない）は鍵を読まない。
+        #expect(HomerunDebugOverrides.current(defaults, isDebugBuild: false) == .none)
+        // DEBUG ビルドの経路では鍵どおりに効く（会長 QA 用）。
+        #expect(HomerunDebugOverrides.current(defaults, isDebugBuild: true)
+                == HomerunDebugOverrides(unlimited: true, forcesMoon: true, forcesPole: true, forcesWhiffGag: true))
+        // テストは DEBUG でビルドされる（`swift test` の既定）ので、既定引数は DEBUG の経路。
+        #expect(HomerunDebugOverrides.isDebugBuild)
+    }
+
+    @Test("動作確認用の鍵の宣言と読み取りは HomerunModel+Debug.swift の #if DEBUG の中だけにある")
+    func debugKeysAreReadOnlyInsideDebugFile() throws {
+        let debugFile = SourceScan.strippingComments(
+            try SourceScan.packageSource("Sources/GameHomerun/HomerunModel+Debug.swift")
+        )
+        let rest = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
+            .replacingOccurrences(of: debugFile, with: "")
+        for key in ["debugUnlimitedKey", "debugForceMoonKey", "debugForcePoleKey", "debugForceWhiffGagKey",
+                    "homerun_debug"] {
+            #expect(!rest.contains(key), "\(key) を Debug ファイルの外で読んでいる（出荷ビルドで効いてしまう）")
+        }
+        // 宣言（extension）と読み取り（current の中）は両方 #if DEBUG の内側。
+        let extensionStart = try #require(debugFile.range(of: "extension HomerunModel"))
+        #expect(debugFile[..<extensionStart.lowerBound].hasSuffix("#if DEBUG\n"))
+        let reads = SourceScan.functionSource(startingWith: "static func current(", in: debugFile)
+        let guardIndex = try #require(reads.range(of: "#if DEBUG"))
+        let readIndex = try #require(reads.range(of: "defaults.bool(forKey:"))
+        #expect(guardIndex.lowerBound < readIndex.lowerBound)
     }
 }
 
@@ -127,19 +191,23 @@ struct HomerunGeometryTests {
 
     @Test("内訳の呼び名と結果の一言")
     func summary() {
-        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 22))
-        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 22))
+        let homerLeft = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: -5, cursorDY: 4))
+        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 9))
         let miss = HomerunJudge.judge(nil)
-        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 22))
+        let center = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 4))
         #expect(homerLeft.kind == .homer && homerLeft.direction < -7)
         #expect(foul.kind == .foul)
-        #expect(HomerunText.place(homerLeft) == HomerunSector(direction: homerLeft.direction).label)
+        // 左中間の 164m はスタンドの後端（約 145m）を越えるので「場外」（#1654）。スタンドに落ちる柵越えは方向の呼び名。
+        #expect(homerLeft.isOutOfPark && HomerunText.place(homerLeft) == "場外")
+        var inStands = homerLeft
+        inStands.distance = 125
+        #expect(HomerunText.place(inStands) == HomerunSector(direction: homerLeft.direction).label)
         #expect(HomerunText.place(foul) == "ファウル")
         #expect(HomerunText.place(miss) == "—")
         #expect(HomerunText.spraySummary([homerLeft, foul, miss, center, center])
                 == "左 1 ／ 中 2 ／ 右 0 ／ ファウル 1 ／ 空振り 1")
         #expect(HomerunText.spoken(miss, number: 3) == "3球目、空振り")
-        #expect(HomerunText.spoken(center, number: 1) == "1球目、柵越え、135メートル、センター、ジャスト")
+        #expect(HomerunText.spoken(center, number: 1) == "1球目、場外、180メートル、センター、ジャスト")
     }
 
     @Test("スプレーチャートは本塁が原点で中堅が上。空振りは本塁、ファウルはラインの外")
@@ -149,10 +217,72 @@ struct HomerunGeometryTests {
         let left = HomerunSprayGeometry.point(direction: -45, distance: 100)
         #expect(left.x < 0 && left.y < 0)
         #expect(HomerunSprayGeometry.mark(for: HomerunJudge.judge(nil)) == .zero)
-        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 22))
+        let foul = HomerunJudge.judge(HomerunSwing(timingOffset: -100, cursorDX: -11, cursorDY: 9))
         let fp = HomerunSprayGeometry.mark(for: foul)
         #expect(fp.x < 0, "引っ張りのファウルは左側")
         #expect(abs(atan2(fp.x, -fp.y) * 180 / .pi) > 45, "ファウルラインの外")
+    }
+
+    @Test("スプレーチャートは最大飛距離（180m）まで枠の内側に描く。場外の線は柵の外・180m の内側（#1676）",
+          arguments: [CGSize(width: 180, height: 130),   // 1 球の結果の小さな扇
+                      CGSize(width: 287, height: 213),   // SE の結果カード（375 - 余白）
+                      CGSize(width: 382, height: 283)])  // Pro Max の結果カード
+    func sprayFitsMaxDistance(size: CGSize) {
+        #expect(HomerunSprayGeometry.maxMeters >= HomerunJudge.bestDistance)
+        for inset in [CGFloat(10), 16] {
+            let layout = HomerunSprayGeometry.layout(in: size, inset: inset)
+            let frame = CGRect(origin: .zero, size: size).insetBy(dx: inset - 0.001, dy: inset - 0.001)
+            for deg in stride(from: -45.0, through: 45.0, by: 1) {
+                let far = layout.map(HomerunSprayGeometry.point(direction: deg, distance: HomerunJudge.bestDistance))
+                #expect(frame.contains(far), "\(deg)° の 180m が余白の内側（\(size)・\(far)）")
+                let fence = HomerunJudge.fence(atDirection: deg)
+                let out = HomerunBallChase.outOfParkDistance(atDirection: deg)
+                #expect(fence < out && out < HomerunJudge.bestDistance)
+            }
+            // 180m より遠い当たりも縁で止まる（外に出ない）。
+            let beyond = layout.map(HomerunSprayGeometry.point(direction: 0, distance: 250))
+            #expect(frame.contains(beyond))
+            // 柵（中堅 122m）は扇の半分より外: 柵の中が小さくなりすぎない。
+            #expect(HomerunJudge.fence(atDirection: 0) / HomerunSprayGeometry.maxMeters > 0.6)
+        }
+        // 以前の切れ方（中堅 150m 以上が扇の外）の再現: 場外の★が上端に収まる。
+        var homer = HomerunJudge.judge(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: 0))
+        homer.kind = .homer
+        homer.distance = 172
+        let layout = HomerunSprayGeometry.layout(in: CGSize(width: 287, height: 213), inset: 16)
+        #expect(layout.map(HomerunSprayGeometry.mark(for: homer)).y >= 16)
+    }
+
+    @Test("番号の札は同じ所に落ちた球どうしでも重ならない（#1676）")
+    func sprayLabelsDoNotOverlap() {
+        let same = CGPoint(x: 140, y: 40)
+        let marks = [same, same, CGPoint(x: 144, y: 42), CGPoint(x: 80, y: 120)]
+        let labels = HomerunSprayGeometry.labelCenters(for: marks, in: CGRect(x: 0, y: 0, width: 287, height: 213))
+        let size = HomerunSprayGeometry.labelSize
+        for i in labels.indices {
+            for j in labels.indices where j > i {
+                let a = CGRect(x: labels[i].x - size.width / 2, y: labels[i].y - size.height / 2, width: size.width, height: size.height)
+                let b = CGRect(x: labels[j].x - size.width / 2, y: labels[j].y - size.height / 2, width: size.width, height: size.height)
+                #expect(!a.intersects(b), "札 \(i + 1) と \(j + 1)")
+            }
+        }
+        #expect(labels[3] == CGPoint(x: 90, y: 111), "離れた球は今まで通り右上")
+    }
+
+    @Test("空振りが 2 球でも番号の札は描く枠の内側に収まる（#1676）")
+    func sprayLabelsStayInsideFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 287, height: 213)
+        let layout = HomerunSprayGeometry.layout(in: frame.size, inset: 16)
+        let miss = CGPoint(x: layout.home.x, y: layout.home.y - 8)
+        let labels = HomerunSprayGeometry.labelCenters(for: [miss, miss], in: frame)
+        let size = HomerunSprayGeometry.labelSize
+        for (i, c) in labels.enumerated() {
+            let rect = CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
+            #expect(frame.contains(rect), "札 \(i + 1)")
+        }
+        // 枠を十分広く取ると、2 枚目が下にはみ出す（テストが効いている対照）。
+        let loose = HomerunSprayGeometry.labelCenters(for: [miss, miss], in: CGRect(x: -500, y: -500, width: 2000, height: 2000))
+        #expect(loose[1].y + size.height / 2 > frame.maxY)
     }
 
     @Test("合計飛距離（m）は順位表 homerunDistance へ送る")
@@ -185,5 +315,63 @@ struct HomerunGeometryTests {
     func atBatGatesMeterOnSetting() throws {
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
         #expect(atBat.contains("model.showsDirectionMeter"))
+    }
+
+    @Test("打席のカメラは既定で前。後ろに切り替えると保存され、次のモデルに引き継がれる")
+    @MainActor func atBatCameraPreference() {
+        let suite = "asobiba.homerun.camera.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let first = HomerunModel(defaults: defaults)
+        #expect(first.atBatCamera == .front)
+        first.atBatCamera = .back
+        #expect(defaults.string(forKey: HomerunModel.atBatCameraKey) == "back")
+        #expect(HomerunModel(defaults: defaults).atBatCamera == .back)
+        first.atBatCamera = .front
+        #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
+        // 知らない値（将来の案を消したときなど）は前に戻す。
+        defaults.set("broadcastHigh", forKey: HomerunModel.atBatCameraKey)
+        #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
+    }
+
+    @Test("一時停止の画面のカメラは前 / 後ろのチェック付き 2 択で、選んだ方にだけチェックが付く")
+    @MainActor func atBatMenuHasCameraChoices() {
+        let suite = "asobiba.homerun.menu.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let model = HomerunModel(defaults: defaults)
+        var items = HomerunAtBatView.cameraChoices(for: model)
+        #expect(items.map(\.title) == ["カメラ: 前", "カメラ: 後ろ"])
+        #expect(items.map(\.isChecked) == [true, false])
+        items[1].action()
+        #expect(model.atBatCamera == .back)
+        items = HomerunAtBatView.cameraChoices(for: model)
+        #expect(items.map(\.isChecked) == [false, true])
+        items[0].action()
+        #expect(model.atBatCamera == .front)
+    }
+
+    @Test("投球中にカメラを切り替えても、球・カーソル・進行は変わらない（見た目だけ）")
+    @MainActor func switchingCameraMidPitchKeepsThePlay() {
+        let suite = "asobiba.homerun.switch.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let model = HomerunModel(defaults: defaults)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        #expect(model.start(now: now))
+        model.press(at: CGPoint(x: 100, y: 100))
+        model.drag(to: CGPoint(x: 120, y: 90))
+        let before = (model.phase, model.step, model.cursor, model.ballPoint, model.pitchStart, model.pitchNumber, model.ledger)
+        model.atBatCamera = .back
+        #expect(model.phase == before.0 && model.step == before.1 && model.cursor == before.2)
+        #expect(model.ballPoint == before.3 && model.pitchStart == before.4 && model.pitchNumber == before.5 && model.ledger == before.6)
+        #expect(model.isHolding)
+    }
+
+    @Test("打席のカメラは一時停止の画面の 2 択から選び（#1550）、3D はモデルの設定から読む")
+    func atBatCameraFromPausePanel() throws {
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(atBat.contains("Self.cameraChoices(for: model)"))
+        #expect(atBat.contains("cameraPreset: model.atBatCamera"))
     }
 }
