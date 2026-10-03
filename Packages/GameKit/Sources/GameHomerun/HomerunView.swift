@@ -653,7 +653,7 @@ struct HomerunRecoveryButton: View {
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
             }
-            if ledger.canDoSurvey { surveyButton }
+            if HomerunSurvey.isOffered && ledger.canDoSurvey { surveyButton }
         }
         .sheet(isPresented: $showsSurvey, onDismiss: {
             if surveyFailedOnSubmit { surveyFailedOnSubmit = false; surveyNotApplied = true }
