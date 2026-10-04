@@ -169,9 +169,17 @@ struct HomerunSoundCuesTests {
 
     @Test("10 球の結果: 最後の球で実績を解除したときだけ実績解禁。打席前は何も鳴らさない")
     func finishedAndIdle() {
-        let finished = HomerunSwingPlan(phase: .finished, clock: nil, lastBall: nil)
-        #expect(cues(finished, finish: true) == [HomerunSoundCue(at: t0, sound: .achievement)])
+        let finished = HomerunSwingPlan(phase: .finished, clock: HomerunModel.BallClock(pitchStart: t0, zone: 4), lastBall: nil)
+        let first = cues(finished, finish: true)
+        #expect(first.map(\.sound) == [.achievement])
+        #expect(first.first?.at == t0)
         #expect(cues(finished, finish: false).isEmpty)
+        // 結果の画面で遊び方を開閉する・バックグラウンドから戻ると出し直される。鳴らす時刻は変わっても鍵は同じ（2 回鳴らない）。
+        let again = HomerunSoundCues.cues(plan: finished, bannerShownAt: nil, unlockedAtFinish: true, now: t0.addingTimeInterval(5))
+        #expect(again.first?.key == first.first?.key)
+        let played = HomerunSoundPlayer.Played()
+        #expect(played.insert(first[0], now: t0))
+        #expect(!played.insert(again[0], now: t0.addingTimeInterval(5)))
         #expect(cues(HomerunSwingPlan(phase: .idle, clock: nil, lastBall: nil)).isEmpty)
     }
 

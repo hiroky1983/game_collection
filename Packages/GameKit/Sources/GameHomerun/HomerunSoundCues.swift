@@ -7,6 +7,16 @@ import SwiftUI
 struct HomerunSoundCue: Hashable {
     var at: Date
     var sound: HomerunSound
+    /// 「同じ予定か」を見分ける時刻（出し直しで 2 回鳴らさない鍵）。nil なら `at`。鳴らす時刻が出し直すたびに変わる予定
+    /// （10 球の結果に入ったときの実績解禁）だけ、変わらない時刻を入れる。
+    var identity: Date? = nil
+
+    var key: Key { Key(sound: sound, at: identity ?? at) }
+
+    struct Key: Hashable {
+        var sound: HomerunSound
+        var at: Date
+    }
 }
 
 /// 柵越えおじさんの効果音を**いつ鳴らすか**（純粋な値）。音そのものは `HomerunSound`（CoreEngine）。
@@ -31,7 +41,10 @@ enum HomerunSoundCues {
         case .idle:
             return []
         case .finished:
-            return unlockedAtFinish ? [HomerunSoundCue(at: now, sound: .achievement)] : []
+            // 鳴らすのは結果に入った時刻（`now`）。同じ挑戦の結果で遊び方を開閉する・バックグラウンドから戻るたびに
+            // 出し直されるので、鍵は最後の球の時刻にする（1 挑戦に 1 回だけ鳴る）。
+            guard unlockedAtFinish else { return [] }
+            return [HomerunSoundCue(at: now, sound: .achievement, identity: plan.clock?.pitchStart ?? .distantPast)]
         case .pitching:
             guard let clock = plan.clock else { return [] }
             // 怒りマークは構えに入った瞬間（マシンが込め始める時刻）から出ている。
@@ -132,12 +145,14 @@ struct HomerunSoundPlayer: ViewModifier {
     @State private var played = Played()
 
     final class Played {
-        var keys: Set<HomerunSoundCue> = []
+        var keys: [HomerunSoundCue.Key: Date] = [:]
 
-        /// 初めてなら記録して true。古い記録は捨てる。
+        /// 初めてなら記録して true。古い記録（鳴らしてから 10 分）は捨てる。
         func insert(_ cue: HomerunSoundCue, now: Date) -> Bool {
-            keys = keys.filter { now.timeIntervalSince($0.at) < 30 }
-            return keys.insert(cue).inserted
+            keys = keys.filter { now.timeIntervalSince($0.value) < 600 }
+            guard keys[cue.key] == nil else { return false }
+            keys[cue.key] = now
+            return true
         }
     }
 
