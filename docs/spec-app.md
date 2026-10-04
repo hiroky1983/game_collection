@@ -322,6 +322,21 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **動作確認**: DEBUG ビルドの起動引数 `-homerunForcePole` で、振れば必ずポールに当たる（向きは振った方向の側・
   `HomerunModel.debugForcePoleKey`）。月の強制が優先
 
+### 柵越えおじさん: 場面の効果音（会長指示 2026-10-04・v1.1.9）
+
+打ち出し・風切り・当たり（芯 / 普通 / 詰まり / ジャストミートの止め）・柵越え / 場外の歓声（合成の代用）・ポール直撃・ミット・
+月への上昇 / 月が割れる・たんこぶ・回って倒れる・怒りマーク・実績解禁の 16 場面。音源ファイルは同梱せず、`SoundSynth`
+（ノイズ + 帯域フィルタ・周波数の滑らかな変化・減衰の違う正弦波の重ね合わせ）で起動後に合成する（`HomerunSound`）。
+
+- **入口**: `GameServices.homerunSound`（`HomerunSoundService`）。触覚と 1 対 1 の `feedback` とは別（触覚の無い瞬間にも鳴り、
+  場面の音どうしは止め合わずに重ねる）。App の実体は `SoundFeedbackService` を共有し、`.ambient` の音声セッションと
+  設定の「効果音」のオン / オフ（`GatedHomerunSoundService`）に従う
+- **鳴らす時刻**: `HomerunSoundCues`（純粋な関数）が演出と同じ式（打点・打球の道・月・たんこぶ・空振りの演出の時刻）から出し、
+  `HomerunSoundPlayer`（View の `.task(id: step)`）が待って鳴らす。止めている間は鳴らさない
+- **差し替え**: 場面 → 合成の式の対応は `HomerunSound.samples` の 1 か所（いまは試作の A 案）
+- **長さ**: 操作に直結する音は 0.3 秒未満、見せ場の余韻・歓声・上昇音（`HomerunSound.longSounds`）だけ 3.5 秒未満まで
+- **動作確認**: DEBUG ビルドは鳴らした音を `[HomerunSFX] <壁時計の秒> <音>` で標準出力へ書く（録画に音を重ねる用）
+
 ---
 
 ## 広告仕様

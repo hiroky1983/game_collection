@@ -53,7 +53,7 @@ enum AppEnvironment {
         // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
         feedback: CompositeFeedbackService([
             GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
-            GatedFeedbackService(base: SoundFeedbackService()) { settings.soundEnabled },
+            GatedFeedbackService(base: sound) { settings.soundEnabled },
         ]),
         recommendations: recommendations,
         review: review,
@@ -62,8 +62,14 @@ enum AppEnvironment {
         gameCenter: gameCenter,
         reminders: reminders,
         reengagement: reengagement,
-        returnReminder: returnReminder
+        returnReminder: returnReminder,
+        // 柵越えおじさんの場面の音（打ち出し・カキーン・歓声等）。触覚とは対応しないので `feedback` とは別の入口で、
+        // 設定の「効果音」のオン / オフだけを共有する。音声セッションの扱いを 1 か所に保つため、実体は同じ `sound`。
+        homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled }
     )
+
+    /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
+    static let sound = SoundFeedbackService()
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
     /// 撮影モードと DEBUG ビルドでは予約しない（撮影・開発中の動作確認の端末に溜めない）。

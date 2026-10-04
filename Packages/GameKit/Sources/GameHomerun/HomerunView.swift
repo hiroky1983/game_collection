@@ -62,6 +62,8 @@ public struct HomerunView: View {
             }
             // 進行の待ちは Model が決め、ここは待つだけ。進行が変わるたびに `step` が進んで前の待ちが止まる。
             .task(id: model.step) { await runClock() }
+            // 場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。鳴らす時刻は演出と同じ式から決める（`HomerunSoundCues`）。
+            .modifier(HomerunSoundPlayer(model: model, service: services.homerunSound))
             #if os(iOS) && canImport(RealityKit)
             // 打席の 3D は画面の中では使い回し（もう一回で作り直すと前の打席の画のまま止まる・#1594）、離れたら手放す。
             .onDisappear { HomerunAtBatSceneReuse.drop() }

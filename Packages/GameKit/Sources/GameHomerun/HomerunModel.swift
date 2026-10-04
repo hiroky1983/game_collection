@@ -118,6 +118,8 @@ public final class HomerunModel {
     var pendingBanner: [HomerunAchievement] = []
     /// いまの挑戦で解除した実績（10 球の結果に並べる）。
     public internal(set) var unlockedThisChallenge: [HomerunAchievement] = []
+    /// 挑戦の最後の球で実績を解除したか（打席の「実績解禁」を出さずに 10 球の結果へ進んだ・効果音 `HomerunSoundCues`）。
+    public private(set) var unlockedAtFinish = false
     /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
     public internal(set) var gameCenterLinked = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
@@ -652,6 +654,7 @@ public final class HomerunModel {
     }
 
     private func finish() {
+        unlockedAtFinish = !pendingBanner.isEmpty
         resetUnlockDisplay()
         phase = .finished
         resultUntil = nil
