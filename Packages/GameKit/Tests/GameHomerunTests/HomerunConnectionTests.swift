@@ -150,7 +150,7 @@ struct HomerunConnectionTests {
         #expect(model.ledger.canStart)
     }
 
-    @Test("アンケート +1・月のご褒美 +2 は今どおり回数に足す（広告でのプレイとは別）")
+    @Test("アンケート +1・月のご褒美 +1 は今どおり回数に足す（広告でのプレイとは別）")
     func surveyAndMoonStillAddToCount() throws {
         let model = makeModel()
         try useUpFree(model)
