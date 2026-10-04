@@ -22,7 +22,7 @@ public enum HomerunReturnPolicy {
         return max(1, Int((seconds / 60).rounded(.up)))
     }
 
-    /// 使い切りシートの「あと約◯時間◯分で戻ります」。
+    /// 回数 0 の打席前に出す「あと約◯時間◯分で戻ります」。
     public static func remainingText(from now: Date, calendar: Calendar) -> String {
         let minutes = minutesUntilReset(from: now, calendar: calendar)
         let hours = minutes / 60
