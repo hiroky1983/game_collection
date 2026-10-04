@@ -159,7 +159,8 @@ struct HomerunLobbyView: View {
                 // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
                 HowToPlayHint(.homerun, playLog: services.playLog)
                 recordsCard
-                HomerunAchievementsCard(model: model)
+                // 実績の一覧は別ページ（会長指示 2026-10-04）。ここは「実績 n / 8 ›」の 1 行だけ。
+                HomerunAchievementsLink(model: model)
             }
             .padding(Theme.pad)
             .padding(.bottom, HomerunBannerGap.belowContent)
@@ -312,12 +313,6 @@ struct HomerunResultView: View {
         ScrollView {
             VStack(spacing: 14) {
                 summaryCard
-                // 次の挑戦のボタンはまとめのすぐ下（会長指摘 2026-10-04。下まで送らないと出てこなかった）。
-                // 月・打球図・内訳はその下でスクロールして見る。バナーとの間隔はスクロールの末尾で取る（#1749）。
-                actions
-                if model.ledger.remaining == 0 {
-                    HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
-                }
                 HomerunUnlockedCard(items: model.unlockedThisChallenge)
                 moonCard
                 sprayCard
@@ -326,7 +321,31 @@ struct HomerunResultView: View {
                 RecommendationSlot(services: services, isFinished: true)
             }
             .padding(Theme.pad)
-            .padding(.bottom, HomerunBannerGap.belowContent)
+        }
+        // 次の挑戦のボタンはバナーの上に固定する（会長指示 2026-10-04。下まで送らないと出てこなかった）。
+        // `.safeAreaInset` なのでスクロールし切ると中身の末尾が欄のすぐ上で止まり、欄に収まって見える。
+        .safeAreaInset(edge: .bottom, spacing: 0) { actionBar }
+    }
+
+    /// バナーの上に固定する次の挑戦の欄。ボタンとバナーの間は `HomerunBannerGap` で空ける（#1749）。
+    private var actionBar: some View {
+        VStack(spacing: 10) {
+            actions
+            if model.ledger.remaining == 0 {
+                HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
+            }
+        }
+        .padding(Theme.pad)
+        .padding(.bottom, HomerunBannerGap.belowContent)
+        .frame(maxWidth: .infinity)
+        .background(Theme.background)
+        // 境目: スクロールする中身が欄の手前でなじむよう、上に短いぼかしを重ねる（押せる範囲は増やさない）。
+        .overlay(alignment: .top) {
+            LinearGradient(colors: [Theme.background.opacity(0), Theme.background],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: 14)
+                .offset(y: -14)
+                .allowsHitTesting(false)
         }
     }
 

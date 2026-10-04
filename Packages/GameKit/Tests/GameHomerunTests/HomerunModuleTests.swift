@@ -20,29 +20,32 @@ struct HomerunModuleTests {
         #expect(!module.resumesFromSnapshot, "1 挑戦は途中から戻せない")
     }
 
-    @Test("打席前・結果のスクロール末尾にバナーとの間隔を確保する（#1749。誤タップ誘発の回避）")
+    @Test("打席前のスクロール末尾・結果の固定欄にバナーとの間隔を確保する（#1749。誤タップ誘発の回避）")
     func scrollEndsKeepGapAboveBanner() throws {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         let gap = ".padding(.bottom, HomerunBannerGap.belowContent)"
         let parts = view.components(separatedBy: gap)
-        #expect(parts.count - 1 == 2, "打席前・結果の ScrollView に 1 つずつ")
+        #expect(parts.count - 1 == 2, "打席前の ScrollView と結果の固定欄に 1 つずつ")
         #expect(parts.dropLast().allSatisfy { $0.suffix(60).contains(".padding(Theme.pad)") }, "中身の余白の直後に足す")
         #expect(HomerunBannerGap.belowContent + Theme.pad > BannerSlot.height, "余白の合計はバナーの高さより大きい")
     }
 
-    @Test("次の挑戦のボタンはスクロールせずに見える位置に置く（会長指摘 2026-10-04）")
-    func actionsComeBeforeDetailCards() throws {
+    @Test("結果の次の挑戦のボタンはバナーの上に固定し、打席前の打席に立つは今日の回数のすぐ下（会長指示 2026-10-04）")
+    func actionsAreVisibleWithoutScrolling() throws {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
-        // 結果: まとめ → ボタン → 打球図・内訳。
-        let summary = try #require(view.range(of: "                summaryCard\n"))
-        let actions = try #require(view.range(of: "                actions\n"))
-        let spray = try #require(view.range(of: "                sprayCard\n"))
-        #expect(summary.lowerBound < actions.lowerBound && actions.lowerBound < spray.lowerBound, "ボタンはまとめのすぐ下")
-        // 打席前: 今日の回数 → 「打席に立つ」 → きろく・実績。
+        // 結果: ボタンはスクロールの中に置かず、`.safeAreaInset` の固定欄 1 か所だけ。
+        #expect(view.contains(".safeAreaInset(edge: .bottom, spacing: 0) { actionBar }"))
+        #expect(view.components(separatedBy: "            actions\n").count - 1 == 1, "ボタン欄は 1 か所だけ")
+        let bar = try #require(view.range(of: "private var actionBar: some View {"))
+        let actions = try #require(view.range(of: "            actions\n"))
+        #expect(bar.lowerBound < actions.lowerBound, "ボタンは固定欄の中")
+        // 打席前: 今日の回数 → 「打席に立つ」 → きろく・実績（1 行）。
         let today = try #require(view.range(of: "                todayCard\n"))
         let start = try #require(view.range(of: "Label(\"打席に立つ\""))
         let records = try #require(view.range(of: "                recordsCard\n"))
         #expect(today.lowerBound < start.lowerBound && start.lowerBound < records.lowerBound, "打席に立つは今日の回数のすぐ下")
+        #expect(view.contains("HomerunAchievementsLink(model: model)"), "実績は 1 行で別ページへ")
+        #expect(!view.contains("HomerunAchievementsCard("), "打席前に一覧を並べない")
     }
 
     @Test("表示名・説明・ルールに他社の登録商標を思わせる語を含めない（README §4.1 の禁止語）")

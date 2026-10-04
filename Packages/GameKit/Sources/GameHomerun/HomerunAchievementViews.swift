@@ -65,6 +65,53 @@ struct HomerunAchievementsCard: View {
     }
 }
 
+/// 打席前に置く実績の 1 行（会長指示 2026-10-04）。押すと一覧（`HomerunAchievementsPage`）へ移る。
+struct HomerunAchievementsLink: View {
+    let model: HomerunModel
+
+    var body: some View {
+        NavigationLink {
+            HomerunAchievementsPage(model: model)
+        } label: {
+            HStack {
+                Label("実績", systemImage: "trophy.fill")
+                    .themeBody(16)
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+                Text(verbatim: "\(model.achievements.count) / \(HomerunAchievement.allCases.count)")
+                    .themeBody(16, weight: .heavy)
+                    .foregroundStyle(Theme.inkSub)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.inkSub)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("実績 \(model.achievements.count) / \(HomerunAchievement.allCases.count)")
+        .accessibilityHint("実績の一覧を開きます")
+    }
+}
+
+/// 実績の一覧のページ（打席前の 1 行から移る）。中身は `HomerunAchievementsCard` のまま。
+struct HomerunAchievementsPage: View {
+    let model: HomerunModel
+
+    var body: some View {
+        ScrollView {
+            HomerunAchievementsCard(model: model)
+                .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle("実績")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+}
+
 /// 打席に重ねる「実績解禁」（#1794）。1 球の結果の演出が終わってから、次の球の構えのあいだに出す。
 struct HomerunUnlockBanner: View {
     let items: [HomerunAchievement]
