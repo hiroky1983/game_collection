@@ -86,8 +86,8 @@ struct HomerunConnectionTests {
         let model = makeModel()
         try useUpFree(model)
         let day = model.dayKey(at: Self.t0)
-        let limit = try #require(HomerunLedger.adLimitPerDay, "上限は 10 本（会長決裁 2026-10-02）")
-        #expect(limit == 10)
+        let limit = try #require(HomerunLedger.adLimitPerDay, "上限は 5 本（会長決裁 2026-10-04）")
+        #expect(limit == 5)
         for i in 1...limit {
             #expect(model.startWithAd(forDay: day, now: Self.t0), "\(i) 本目は遊べる")
             model.atBatDidAppear(now: Self.t0)
