@@ -20,19 +20,29 @@ struct HomerunModuleTests {
         #expect(!module.resumesFromSnapshot, "1 挑戦は途中から戻せない")
     }
 
-    @Test("打席前・結果の押せる欄はバナーの上に固定し、欄の中でバナーとの間隔を取る（会長指示 2026-10-04・#1749）")
-    func actionBarsKeepGapAboveBanner() throws {
+    @Test("ボタン欄の置き方は画面ごとの設定値で選び、どの置き方でも欄の中でバナーとの間隔を取る（会長指示 2026-10-04・#1749）")
+    func actionPlacementAndGapAboveBanner() throws {
+        // 初期値: 結果は下に固定、打席前は自動（収まれば中身のすぐ下）。
+        #expect(HomerunActionLayout.result == .pinned)
+        #expect(HomerunActionLayout.lobby == .auto)
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
-        // 欄は共通の 1 つ（`HomerunActionBar`）で、中身の余白の直後にバナーとの間隔を足す。
+        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.lobby)"))
+        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.result)"))
+        // 間隔は欄の 1 か所（固定・すぐ下・自動の共通）で、中身の余白の直後に足す。
         let gap = ".padding(.bottom, HomerunBannerGap.belowContent)"
         let parts = view.components(separatedBy: gap)
-        #expect(parts.count - 1 == 1, "間隔は共通の欄の 1 か所だけ")
+        #expect(parts.count - 1 == 1, "間隔はボタン欄の 1 か所だけ")
         #expect(parts.first?.suffix(60).contains(".padding(Theme.pad)") == true, "中身の余白の直後に足す")
         #expect(HomerunBannerGap.belowContent + Theme.pad > BannerSlot.height, "余白の合計はバナーの高さより大きい")
-        // 打席前・結果の 2 か所で、スクロールの `.safeAreaInset` に置く（送り切ると中身が欄のすぐ上で止まる）。
-        #expect(view.components(separatedBy: ".safeAreaInset(edge: .bottom, spacing: 0) {").count - 1 == 2)
-        #expect(view.contains("HomerunActionBar { startActions }"), "打席前の欄")
-        #expect(view.contains("HomerunActionBar { actions }"), "結果の欄")
+        // 固定はスクロールの `.safeAreaInset`、自動は「すぐ下」→「固定」の順に収まる方を選ぶ。
+        let scroll = try #require(view.range(of: "struct HomerunActionScroll"))
+        let body = view[scroll.upperBound...].prefix(2500)
+        #expect(body.contains(".safeAreaInset(edge: .bottom, spacing: 0) {"))
+        let fits = try #require(body.range(of: "ViewThatFits(in: .vertical) {"))
+        let after = body[fits.upperBound...].prefix(120)
+        let inline = try #require(after.range(of: "inline"))
+        let pinned = try #require(after.range(of: "pinned"))
+        #expect(inline.lowerBound < pinned.lowerBound, "自動は収まるならすぐ下を優先")
     }
 
     @Test("打席前は今日の挑戦のカードを置かず、残り回数は打席に立つの中のボールで見せる（会長指示 2026-10-04）")
@@ -48,11 +58,10 @@ struct HomerunModuleTests {
         #expect(!view.contains("HomerunAchievementsCard("), "打席前に一覧を並べない")
     }
 
-    @Test("固定欄のボタンは主ボタンが上の縦並びで、打席に立つ・もう一回は同じ部品（会長指示 2026-10-04）")
+    @Test("ボタン欄は主ボタンが上の縦並びで、打席に立つ・もう一回は同じ部品（会長指示 2026-10-04）")
     func actionBarStacksPrimaryOnTop() throws {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
-        let bar = try #require(view.range(of: "struct HomerunActionBar"))
-        #expect(view[bar.upperBound...].prefix(400).contains("VStack(spacing: 10) { content }"))
+        #expect(view.contains("VStack(spacing: 10) { actions }"), "ボタン欄は縦並び")
         // 同じ部品で文言だけ違う。文字で回数を出す「もう一回（残り N）」・「今日はおしまい」は使わない。
         #expect(view.contains("HomerunStartButton(model: model, title: \"打席に立つ\")"))
         #expect(view.contains("HomerunStartButton(model: model, title: \"もう一回\")"))
@@ -65,7 +74,7 @@ struct HomerunModuleTests {
         // 結果: もう一回 → （回数 0 なら広告を見てプレイ）→ 打席前へ。横並びにしない。
         let actions = try #require(view.range(of: "@ViewBuilder private var actions: some View {"))
         let tail = view[actions.upperBound...]
-        let barStart = try #require(tail.range(of: "\nstruct HomerunActionBar"))
+        let barStart = try #require(tail.range(of: "\nenum HomerunActionPlacement"))
         let body = String(tail[..<barStart.lowerBound])
         #expect(!body.contains("HStack("), "結果のボタンは縦並び")
         let again = try #require(body.range(of: "title: \"もう一回\""))

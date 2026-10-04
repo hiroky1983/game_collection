@@ -111,11 +111,12 @@ struct HomerunLobbyView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            lobbyScroll
-                // 「打席に立つ」（回数 0 なら広告を見てプレイも）はバナーの上に固定する（会長指示 2026-10-04）。
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    HomerunActionBar { startActions }
-                }
+            // 「打席に立つ」（回数 0 なら広告を見てプレイも）の置き方は `HomerunActionLayout.lobby`（会長指示 2026-10-04）。
+            HomerunActionScroll(placement: HomerunActionLayout.lobby) {
+                lobbyContent
+            } actions: {
+                startActions
+            }
             BannerSlot(ads: services.ads)
         }
         // Game Center の解除済みを読んで端末の記録と合わせる（連携の有無・通信の有無で一覧は変わらない。読めなければ何もしない）。
@@ -126,32 +127,29 @@ struct HomerunLobbyView: View {
         #endif
     }
 
-    private var lobbyScroll: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                introCard
-                // 回数 0 の「戻ったら知らせる」はスクロールの中の上の方（SE でも送らずに見える位置）。
-                if !model.ledger.canStart, let returnReminder = services.returnReminder {
-                    HomerunReturnReminderToggle(service: returnReminder)
-                }
-                // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ（きろくのカードも置かない）。
-                HomerunRecordsLink(model: model)
-                Text("挑戦回数は打席に立った時点で1つ減ります")
-                    .themeCaption(11)
-                    .foregroundStyle(Theme.inkSub)
-                Toggle(isOn: Bindable(model).showsDirectionMeter) {
-                    Text("方向メーターを表示").themeBody(14).foregroundStyle(Theme.ink)
-                }
-                .tint(Theme.coral)
-                .accessibilityHint("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
-                // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
-                HowToPlayHint(.homerun, playLog: services.playLog)
+    private var lobbyContent: some View {
+        VStack(spacing: 14) {
+            introCard
+            // 回数 0 の「戻ったら知らせる」はスクロールの中の上の方（SE でも送らずに見える位置）。
+            if !model.ledger.canStart, let returnReminder = services.returnReminder {
+                HomerunReturnReminderToggle(service: returnReminder)
             }
-            .padding(Theme.pad)
+            // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ（きろくのカードも置かない）。
+            HomerunRecordsLink(model: model)
+            Text("挑戦回数は打席に立った時点で1つ減ります")
+                .themeCaption(11)
+                .foregroundStyle(Theme.inkSub)
+            Toggle(isOn: Bindable(model).showsDirectionMeter) {
+                Text("方向メーターを表示").themeBody(14).foregroundStyle(Theme.ink)
+            }
+            .tint(Theme.coral)
+            .accessibilityHint("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
+            // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
+            HowToPlayHint(.homerun, playLog: services.playLog)
         }
     }
 
-    /// 固定欄の中身。今日の残り回数はボタンの中のボールで見せる（「今日の挑戦」のカードは廃止・会長指示 2026-10-04）。
+    /// ボタン欄の中身。今日の残り回数はボタンの中のボールで見せる（「今日の挑戦」のカードは廃止・会長指示 2026-10-04）。
     /// 回数 0 では押せない灰色にし、すぐ下に回復までの残りを出す（使い切りのシートは廃止・会長決裁 2026-10-04）。
     @ViewBuilder private var startActions: some View {
         HomerunStartButton(model: model, title: "打席に立つ")
@@ -244,28 +242,25 @@ struct HomerunResultView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            resultScroll
+            // 次の挑戦のボタンの置き方は `HomerunActionLayout.result`（会長指示 2026-10-04）。
+            HomerunActionScroll(placement: HomerunActionLayout.result) {
+                resultContent
+            } actions: {
+                actions
+            }
             BannerSlot(ads: services.ads)
         }
     }
 
-    private var resultScroll: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                summaryCard
-                HomerunUnlockedCard(items: model.unlockedThisChallenge)
-                moonCard
-                sprayCard
-                breakdownCard
-                // ほかのゲームへのレコメンド（#52）。全ゲームの終局画面に置く約束（GameChromeTests）。
-                RecommendationSlot(services: services, isFinished: true)
-            }
-            .padding(Theme.pad)
-        }
-        // 次の挑戦のボタンはバナーの上に固定する（会長指示 2026-10-04。下まで送らないと出てこなかった）。
-        // `.safeAreaInset` なのでスクロールし切ると中身の末尾が欄のすぐ上で止まり、欄に収まって見える。
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            HomerunActionBar { actions }
+    private var resultContent: some View {
+        VStack(spacing: 14) {
+            summaryCard
+            HomerunUnlockedCard(items: model.unlockedThisChallenge)
+            moonCard
+            sprayCard
+            breakdownCard
+            // ほかのゲームへのレコメンド（#52）。全ゲームの終局画面に置く約束（GameChromeTests）。
+            RecommendationSlot(services: services, isFinished: true)
         }
     }
 
@@ -378,7 +373,7 @@ struct HomerunResultView: View {
         .popCard()
     }
 
-    /// 固定欄の中身。主ボタンが上の縦並び（会長指示 2026-10-04）。「もう一回」は打席前の「打席に立つ」と同じ部品
+    /// ボタン欄の中身。主ボタンが上の縦並び（会長指示 2026-10-04）。「もう一回」は打席前の「打席に立つ」と同じ部品
     /// （ボタンの中に残り回数のボール。回数 0 は押せない灰色＋すぐ下に回復までの残り）。回数 0 ではその下に
     /// 広告を見てプレイ（上限に達したら知らせ）、いちばん下が打席前へ。
     @ViewBuilder private var actions: some View {
@@ -395,25 +390,76 @@ struct HomerunResultView: View {
     }
 }
 
-/// 打席前・結果でバナーの上に固定する押せる欄（会長指示 2026-10-04）。スクロールの `.safeAreaInset` に置くので、
-/// 送り切ると中身の末尾が欄のすぐ上で止まり、欄に収まって見える。ボタンとバナーの間は `HomerunBannerGap` で空ける（#1749）。
-struct HomerunActionBar<Content: View>: View {
+/// 打席前・結果のボタン欄の置き方（会長指示 2026-10-04。画面ごとに `HomerunActionLayout` で選ぶ）。
+enum HomerunActionPlacement: Equatable {
+    /// 下に固定: バナーの上に固定し、スクロールの中身はその上（送り切ると中身の末尾が欄のすぐ上で止まる）。
+    case pinned
+    /// 中身のすぐ下: スクロールの中身の最後に続けて置く。
+    case inline
+    /// 自動: 中身がスクロールするほど長いなら下に固定、画面に収まるなら中身のすぐ下。
+    case auto
+}
+
+/// 画面ごとのボタン欄の置き方。**会長が画面ごとに決める設定値はここだけ**（会長指示 2026-10-04）。
+enum HomerunActionLayout {
+    /// 打席前（打席に立つ／回数 0 なら広告を見てプレイ）。
+    static let lobby: HomerunActionPlacement = .auto
+    /// 結果（もう一回／回数 0 なら広告を見てプレイ／打席前へ）。
+    static let result: HomerunActionPlacement = .pinned
+}
+
+/// スクロールする中身と、その下のボタン欄。置き方は `placement` で切り替える。ボタンとバナーの間は、どの置き方でも
+/// 欄の中で `Theme.pad + HomerunBannerGap.belowContent` 空ける（#1749）。
+struct HomerunActionScroll<Content: View, Actions: View>: View {
+    let placement: HomerunActionPlacement
     @ViewBuilder let content: Content
+    @ViewBuilder let actions: Actions
 
     var body: some View {
-        VStack(spacing: 10) { content }
+        switch placement {
+        case .pinned:
+            pinned
+        case .inline:
+            ScrollView { inline }
+        case .auto:
+            // 中身＋欄がそのまま収まれば中身のすぐ下、収まらなければ下に固定（文字の大きさ・端末の高さで自動で切り替わる）。
+            ViewThatFits(in: .vertical) {
+                inline
+                pinned
+            }
+            // 収まったときは上に詰める（バナーとの間に空きが出ても、欄は中身のすぐ下）。
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var inline: some View {
+        VStack(spacing: 0) {
+            content.padding([.horizontal, .top], Theme.pad)
+            actionBlock
+        }
+    }
+
+    private var pinned: some View {
+        ScrollView { content.padding(Theme.pad) }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                actionBlock
+                    .background(Theme.background)
+                    // 境目: スクロールする中身が欄の手前でなじむよう、上に短いぼかしを重ねる（押せる範囲は増やさない）。
+                    .overlay(alignment: .top) {
+                        LinearGradient(colors: [Theme.background.opacity(0), Theme.background],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(height: 14)
+                            .offset(y: -14)
+                            .allowsHitTesting(false)
+                    }
+            }
+    }
+
+    private var actionBlock: some View {
+        VStack(spacing: 10) { actions }
             .padding(Theme.pad)
             .padding(.bottom, HomerunBannerGap.belowContent)
             .frame(maxWidth: .infinity)
-            .background(Theme.background)
-            // 境目: スクロールする中身が欄の手前でなじむよう、上に短いぼかしを重ねる（押せる範囲は増やさない）。
-            .overlay(alignment: .top) {
-                LinearGradient(colors: [Theme.background.opacity(0), Theme.background],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(height: 14)
-                    .offset(y: -14)
-                    .allowsHitTesting(false)
-            }
     }
 }
 
