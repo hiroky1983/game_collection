@@ -37,12 +37,6 @@ public struct HomerunView: View {
                        onDismiss: { model.hold(.sheet, false, now: Date()) }) {
                 HomerunRuleSheet()
             }
-            .sheet(isPresented: Bindable(model).showsExhausted) {
-                HomerunExhaustedSheet(canWatchAd: model.ledger.canWatchAd, returnReminder: services.returnReminder) {
-                    model.showsExhausted = false
-                }
-                    .presentationDetents([.medium])
-            }
             // 回数の提示（#780）。使い切ってボタンが出ているあいだを 1 回の提示として数える。
             .rewardOffer(challengeRescue, for: .challenge, isPresented: offersRecovery,
                          services: services, gameID: HomerunModel.gameID)
@@ -139,15 +133,19 @@ struct HomerunLobbyView: View {
                 Button {
                     withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
-                    Label("打席に立つ", systemImage: "figure.baseball")
-                        .themeBody(18)
-                        .frame(maxWidth: .infinity)
-                        .foregroundStyle(Theme.onAccent)
+                    HomerunStartLabel(model: model)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                // 回数 0 では押せない灰色にし、回復までの残りを出す（使い切りのシートは廃止・会長決裁 2026-10-04）。
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .tint(model.ledger.canStart ? Theme.Fill.coral : Theme.inkSub.opacity(0.3))
+                .disabled(!model.ledger.canStart)
                 .accessibilityHint(model.ledger.canStart ? "挑戦回数を1回使って10球の打席を始めます" : "今日の挑戦は使い切りました")
                 if !model.ledger.canStart {
+                    HomerunResetCountdown()
                     HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
+                    if let returnReminder = services.returnReminder {
+                        HomerunReturnReminderToggle(service: returnReminder)
+                    }
                 }
                 Text("挑戦回数は打席に立った時点で1つ減ります")
                     .themeCaption(11)
@@ -466,6 +464,8 @@ struct HomerunResultView: View {
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                // 「今日はおしまい」は押しても何も起きない（使い切りのシートは廃止・会長決裁 2026-10-04）。
+                .disabled(remaining == 0)
             }
             Button {
                 withGameAnimation { model.backToLobby() }
@@ -520,68 +520,75 @@ struct HomerunBallTile: View {
     }
 }
 
-// MARK: - 使い切りシート
+// MARK: - 回数 0 の打席前（回復までの残り・戻ったら知らせる）
 
-/// 残り 0 で打席に立とうとしたときのシート。広告での回復のボタンは打席前と結果にある（アラートと提示の計測を
-/// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 のボタンも同じく打席前と結果にある。
-struct HomerunExhaustedSheet: View {
-    let canWatchAd: Bool
-    /// 「戻ったら知らせる」（#1576）。nil（テスト・プレビュー）ではトグルを出さない。
-    var returnReminder: ChallengeReturnReminderService?
-    let onClose: () -> Void
+/// 「打席に立つ」の中身。回数 0 のときは押せない灰色のボタンになり、回復（0:00）までの残りを読み上げにも含める
+/// （会長決裁 2026-10-04。以前は押すと使い切りのシートが出ていた）。残りの文字はボタンのすぐ下（`HomerunResetCountdown`）に
+/// 出す。ボタンの中にも置いて比べたが、押せない灰色の上の小さな灰色の文字は読みにくかった。
+struct HomerunStartLabel: View {
+    let model: HomerunModel
+
+    var body: some View {
+        if model.ledger.canStart {
+            Label("打席に立つ", systemImage: "figure.baseball")
+                .themeBody(18)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(Theme.onAccent)
+        } else {
+            // 残りは分単位の表示なので、1 分ごとに描き直す（端末の時刻・タイムゾーンで 0:00 を数える）。
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let remaining = HomerunReturnPolicy.remainingText(from: context.date, calendar: .current)
+                Label("打席に立つ", systemImage: "figure.baseball")
+                    .themeBody(18)
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.inkSub)
+                // 押せないボタンでも、VoiceOver で残りが分かるように（下の残りの文字は読み上げから外している）。
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "打席に立つ。\(remaining)"))
+            }
+            // 画面を開いたまま 0:00 を越えたら、その場で回数を戻す（ボタンが押せる色に戻る）。
+            .task(id: model.ledger.dayKey) {
+                let reset = HomerunReturnPolicy.nextReset(after: Date(), calendar: .current)
+                do { try await Task.sleep(for: .seconds(max(0, reset.timeIntervalSinceNow) + 1)) } catch { return }
+                model.refreshDay(now: Date())
+            }
+        }
+    }
+}
+
+/// 回復までの残り（`HomerunReturnPolicy.remainingText`）。押せない「打席に立つ」のすぐ下に出す。読み上げはボタン側で済ませる。
+struct HomerunResetCountdown: View {
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            Text(verbatim: HomerunReturnPolicy.remainingText(from: context.date, calendar: .current))
+                .themeBody(15, weight: .heavy)
+                .foregroundStyle(Theme.coral)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 「戻ったら知らせる」（#1576）。回数 0 の打席前に出す（以前は使い切りのシートの中）。
+/// 既定オフで、オンにした 1 回だけ翌 0:00 過ぎの通知を予約する。予約の有無は OS が持つので、
+/// 出るたびに予約済みかを読み直してトグルに反映する。
+struct HomerunReturnReminderToggle: View {
+    let service: ChallengeReturnReminderService
 
     @State private var notifiesOnReturn = false
     @State private var reminderNote: String?
-    /// ユーザーが触ったか。開いた直後の「予約済みか」の読み直しが、先に押された操作を上書きしないための印。
+    /// ユーザーが触ったか。出た直後の「予約済みか」の読み直しが、先に押された操作を上書きしないための印。
     @State private var touchedReminder = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "moon.zzz.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Theme.purple)
-                .accessibilityHidden(true)
-            Text("今日の挑戦は使い切りました").themeBody(19, weight: .heavy).foregroundStyle(Theme.ink)
-            Text("明日また挑戦できます（0:00 に \(HomerunLedger.freePerDay) 回に戻ります）。")
-                .themeBody(14)
-                .foregroundStyle(Theme.inkSub)
-                .multilineTextAlignment(.center)
-            // 残りは分単位の表示なので、1 分ごとに描き直す（端末の時刻・タイムゾーンで 0:00 を数える）。
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                Text(HomerunReturnPolicy.remainingText(from: context.date, calendar: .current))
-                    .themeBody(16, weight: .heavy)
-                    .foregroundStyle(Theme.coral)
-            }
-            if let returnReminder {
-                reminderToggle(returnReminder)
-            }
-            if canWatchAd {
-                Text("閉じると出てくる「広告を見てプレイ」で、広告を見てすぐに 1 回挑戦できます。")
-                    .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-            }
-            Button(action: onClose) {
-                Text("閉じる").themeBody(16).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background.ignoresSafeArea())
-    }
-
-    /// 「戻ったら知らせる」。既定オフで、オンにした 1 回だけ翌 0:00 過ぎの通知を予約する。
-    /// 予約の有無は OS が持つので、開くたびに予約済みかを読み直してトグルに反映する。
-    private func reminderToggle(_ service: ChallengeReturnReminderService) -> some View {
         VStack(spacing: 4) {
             Toggle(isOn: Binding(get: { notifiesOnReturn }, set: { setReminder($0, service) })) {
-                Text("戻ったら知らせる").themeBody(15)
+                Text("戻ったら知らせる").themeBody(14).foregroundStyle(Theme.ink)
             }
             .tint(Theme.coral)
             .disabled(!service.isNotificationsEnabled)
             if let note = service.isNotificationsEnabled ? reminderNote : "設定の「通知」をオンにすると使えます。" {
-                Text(note).themeCaption(12).foregroundStyle(Theme.inkSub).multilineTextAlignment(.center)
+                Text(note).themeCaption(12).foregroundStyle(Theme.inkSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .task {
