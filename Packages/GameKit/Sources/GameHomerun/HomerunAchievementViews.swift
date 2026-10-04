@@ -20,7 +20,7 @@ struct HomerunAchievementsCard: View {
                     .foregroundStyle(Theme.inkSub)
             }
             // 1 列の縦並び（文字を大きく読ませる・会長指示 2026-10-04。以前は横 2 列のグリッド）。
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 ForEach(HomerunAchievement.allCases, id: \.self) { achievement in
                     tile(achievement)
                 }
@@ -58,7 +58,7 @@ struct HomerunAchievementsCard: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(unlocked ? "\(achievement.title)。\(achievement.detail)" : "未解除の実績")
     }
