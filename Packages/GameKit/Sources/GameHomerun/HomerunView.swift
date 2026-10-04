@@ -134,7 +134,8 @@ struct HomerunLobbyView: View {
                 introCard
                 todayCard
                 recordsCard
-                HomerunAchievementsCard(model: model)
+                // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ。
+                HomerunRecordsLink(model: model)
                 Button {
                     withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
@@ -217,13 +218,6 @@ struct HomerunLobbyView: View {
                 stat("最長の 1 本", HomerunText.meters(Double(r.longestTenths) / 10))
                 Spacer()
                 stat("通算 柵越え", "\(r.homers) 本")
-            }
-            // 実績「月まで飛ばした」（#1680）。出したことがある人にだけ出す（隠し演出なので先に存在を知らせない）。
-            if r.moonShots > 0 {
-                Label("月まで飛ばした \(r.moonShots) 回", systemImage: "moon.stars.fill")
-                    .themeCaption(13)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityElement(children: .combine)
             }
         }
         .padding(14)
