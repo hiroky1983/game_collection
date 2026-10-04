@@ -36,7 +36,7 @@ struct HomerunSoundCuesTests {
         #expect(sounds(list) == [.machine, .mitt])
         #expect(list.first { $0.sound == .machine }?.at == t0)
         let mitt = try #require(list.first { $0.sound == .mitt }?.at)
-        #expect(mitt > arrival)
+        #expect(mitt > arrival.addingTimeInterval(HomerunTiming.hitWindow / 1000), "当たり窓の終わり際に当てた球より先に鳴らない")
         #expect(mitt < arrival.addingTimeInterval(HomerunModel.lateLimit), "見送りで締めるより前に鳴る（締めた後の予定では過去になる）")
     }
 

@@ -95,13 +95,15 @@ enum HomerunSoundCues {
         return .hitGood
     }
 
-    /// 投球がミットに収まる時刻（打たなかった球）。3D の球と同じ式（`HomerunBallFlight.pitchPosition`）。
+    /// 投球がミットに収まる時刻（打たなかった球）。3D の球と同じ式（`HomerunBallFlight.pitchPosition`・輪が重なって約 0.07 秒後）。
+    /// ただし当たり窓の終わり（輪が重なって `HomerunTiming.hitWindow` 後）より前には鳴らさない: 投球中に予定した音なので、
+    /// 窓の終わり際に振って当てた球で「バスッ」の後に「カーン」が鳴ってしまう（差は約 0.04 秒で聞き分けられない）。
     static func mittTime(_ clock: HomerunModel.BallClock) -> Date {
         let column = HomerunSwingContact.column(zone: clock.zone)
         let travel = clock.arrival.timeIntervalSince(clock.pitchStart)
         let reach = HomerunBallFlight.mittReach(target: HomerunSwingContact.approachTarget(column: column),
                                                 mitt: HomerunBallFlight.mittPoint(), travel: travel)
-        return clock.arrival.addingTimeInterval(reach)
+        return clock.arrival.addingTimeInterval(max(reach, HomerunTiming.hitWindow / 1000 + 0.01))
     }
 
     /// 打球が柵の上を越える（本塁からの水平距離が柵に達する）までの時間（打球の道の時刻・秒）。届かなければ飛んでいる時間。
