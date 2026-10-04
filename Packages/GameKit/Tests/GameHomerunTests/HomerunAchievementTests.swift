@@ -515,8 +515,22 @@ struct HomerunAchievementTests {
     @Test("打席前は「記録と実績 ›」の 1 行で別ページへ。打席前に実績の一覧・月の回数を並べない")
     func lobbyLinksToRecordsPage() throws {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
-        #expect(view.contains("HomerunRecordsLink(model: model)"))
+        #expect(view.contains("HomerunRecordsLink(model: model, ads: services.ads)"))
         #expect(!view.contains("HomerunAchievementsCard("))
         #expect(!view.contains("r.moonShots"))
+    }
+
+    @Test("記録と実績のページは、記録と実績のあいだに 300×250 を 1 枠だけ置き、下の固定バナーは置かない（会長決裁 2026-10-04）")
+    func recordsPageHasOneMediumRectangleBetweenCards() throws {
+        let page = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunRecordsPage.swift"))
+        #expect(page.components(separatedBy: "MediumRectangleSlot(").count - 1 == 1, "広告は 1 枠")
+        #expect(!page.contains("BannerSlot("), "このページは画面下の固定バナーを置かない")
+        let records = try #require(page.range(of: "HomerunRecordsCard(records:"))
+        let ad = try #require(page.range(of: "MediumRectangleSlot(ads: ads)"))
+        let achievements = try #require(page.range(of: "HomerunAchievementsCard(model:"))
+        #expect(records.lowerBound < ad.lowerBound && ad.lowerBound < achievements.lowerBound, "記録 → 広告 → 実績の順")
+        #expect(page.contains(".padding(.vertical, HomerunRecordsAdGap.around)"), "広告の上下に余白（#1749）")
+        #expect(HomerunRecordsAdGap.around >= 16)
+        #expect(MediumRectangleSlot.size == CGSize(width: 300, height: 250), "読み込み前も 300×250 を確保する")
     }
 }

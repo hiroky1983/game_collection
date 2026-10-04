@@ -135,7 +135,7 @@ struct HomerunLobbyView: View {
                 todayCard
                 recordsCard
                 // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ。
-                HomerunRecordsLink(model: model)
+                HomerunRecordsLink(model: model, ads: services.ads)
                 Button {
                     withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
