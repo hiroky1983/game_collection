@@ -144,6 +144,83 @@ struct HomerunAchievementTests {
         #expect(!HomerunAchievement.earned(byFinished: near).contains(.farTotal))
     }
 
+    @Test("たんこぶになった球で「ゴツン！」。抽選に外れた同じ当たりでは解除されない")
+    func tankobu() {
+        let scrape = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunTankobu.scrapeFloor + 2)
+        var hit = HomerunChallenge()
+        let lump = hit.swing(scrape, tankobuRoll: 0)!
+        #expect(lump.isTankobu)
+        #expect(HomerunAchievement.earned(byBall: lump, outOfPark: false, whiffSpin: false).contains(.tankobu))
+        var spared = HomerunChallenge()
+        let plain = spared.swing(scrape, tankobuRoll: 0.99)!
+        #expect(!plain.isTankobu)
+        #expect(!HomerunAchievement.earned(byBall: plain, outOfPark: false, whiffSpin: false).contains(.tankobu))
+    }
+
+    @Test("同じ挑戦で月に 2 回当てて割れたら「月を割った」。1 回だけでは解除されない")
+    func moonBroken() {
+        let moon = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY)
+        var once = HomerunChallenge()
+        let first = once.swing(moon)!
+        #expect(first.isMoon && !once.isMoonBroken)
+        #expect(!HomerunAchievement.earned(byFinished: once).contains(.moonBroken))
+        #expect(!HomerunAchievement.earned(byBall: first, outOfPark: false, whiffSpin: false).contains(.moonBroken))
+        var twice = once
+        twice.swing(moon)
+        #expect(twice.isMoonBroken && twice.isFinished)
+        #expect(HomerunAchievement.earned(byFinished: twice).contains(.moonBroken))
+    }
+
+    @Test("実績は 10 件。月の 2 つは隣り合う")
+    func listHasTen() {
+        let all = HomerunAchievement.allCases
+        #expect(all.count == 10)
+        let moon = all.firstIndex(of: .moon)!
+        #expect(all[moon + 1] == .moonBroken)
+        #expect(all.contains(.tankobu))
+    }
+
+    @Test("モデル: たんこぶの球は結果の演出が終わってから「実績解禁」に出て、Game Center に送る")
+    func tankobuUnlocksThroughModel() throws {
+        let defaults = makeDefaults()
+        let spy = SpyService()
+        let model = makeModel(makeServices(spy), defaults: defaults)
+        model.tankobuRoll = { 0 }
+        model.whiffGagRoll = { 0.9 }
+        model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
+        let release = try #require(model.arrival)
+        let ball = try #require(try swing(model, dy: HomerunTankobu.scrapeFloor + 2))
+        #expect(ball.isTankobu)
+        #expect(model.achievements.contains(.tankobu))
+        #expect(spy.reported.map(\.achievementID).contains(HomerunAchievement.tankobu.gameCenterID))
+        #expect(!model.unlockBanner(at: release).contains(.tankobu), "たんこぶの演出の間は出さない")
+        let close = try #require(model.resultUntil)
+        model.advance(now: close)
+        #expect(model.unlockBanner(at: close).contains(.tankobu))
+    }
+
+    @Test("モデル: 2 回目の月で割れて挑戦が終わったとき「月を割った」が結果の画面に並ぶ")
+    func moonBrokenUnlocksThroughModel() throws {
+        let defaults = makeDefaults()
+        let spy = SpyService()
+        let model = makeModel(makeServices(spy), defaults: defaults,
+                              pitches: [HomerunPitch(zone: 4), HomerunPitch(zone: 4), HomerunPitch(zone: 4)])
+        model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
+        let first = try #require(try swing(model, dy: HomerunLaunch.fly.centerDY))
+        #expect(first.isMoon)
+        #expect(!model.achievements.contains(.moonBroken), "1 回目の月では割れない")
+        model.advance(now: try #require(model.resultUntil))
+        model.atBatDidAppear(now: Self.t0)
+        let second = try #require(try swing(model, dy: HomerunLaunch.fly.centerDY))
+        #expect(second.moon == .broken)
+        #expect(model.challenge?.isFinished == true)
+        #expect(model.achievements.contains(.moonBroken))
+        #expect(model.unlockedThisChallenge.contains(.moonBroken))
+        #expect(spy.reported.map(\.achievementID).contains(HomerunAchievement.moonBroken.gameCenterID))
+    }
+
     // MARK: 記録
 
     @Test("解除は新しく解除したものだけを返し、保存して読み戻せる。知らない値は持ち続ける")

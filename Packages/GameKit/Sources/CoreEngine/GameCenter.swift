@@ -303,10 +303,12 @@ public enum GameCenterAchievements {
         "asobiba.homerun.achievement.outofpark",
         "asobiba.homerun.achievement.polehit",
         "asobiba.homerun.achievement.moon",
+        "asobiba.homerun.achievement.moonbroken",
         "asobiba.homerun.achievement.alltenhomers",
         "asobiba.homerun.achievement.justmeet",
         "asobiba.homerun.achievement.fartotal",
         "asobiba.homerun.achievement.whiffspin",
+        "asobiba.homerun.achievement.tankobu",
     ]
 
     /// 現在の進捗から実績の達成率を組み立てる。**純粋関数**（保存も送信もしない）。

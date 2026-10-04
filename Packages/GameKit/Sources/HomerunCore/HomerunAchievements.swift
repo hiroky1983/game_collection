@@ -11,6 +11,8 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
     case poleHit
     /// 月まで飛ばした（#1680）。
     case moon
+    /// 1 挑戦の中で月に 2 回当てて月を割った（`HomerunChallenge.isMoonBroken`・会長指示 2026-10-04）。
+    case moonBroken
     /// 1 挑戦の 10 球がすべて柵越え。
     case allTenHomers
     /// ジャストミート（#1775）。
@@ -19,6 +21,8 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
     case farTotal
     /// 空振りで回って倒れた（#1681 の演出が出た）。
     case whiffSpin
+    /// 打ち上げた球が自分の頭に落ちてたんこぶになった（#1793・会長指示 2026-10-04）。
+    case tankobu
 
     /// `farTotal` の合計飛距離（m）。10 球すべて芯なら約 1,800m、ナイスの柵越えを 10 本そろえて約 1,300〜1,450m。
     public static let farTotalMeters = 1500.0
@@ -33,10 +37,12 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .outOfPark: "場外ホームラン"
         case .poleHit: "ポール直撃"
         case .moon: "月まで飛ばした"
+        case .moonBroken: "月を割った"
         case .allTenHomers: "10球すべて柵越え"
         case .justMeet: "ジャストミート"
         case .farTotal: "合計 1,500m 超え"
         case .whiffSpin: "回って倒れた"
+        case .tankobu: "ゴツン！"
         }
     }
 
@@ -47,10 +53,12 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .outOfPark: "スタンドの最後列まで越えて場外へ飛ばした"
         case .poleHit: "ファウルポールに当てて柵を越えた"
         case .moon: "打球が月まで届いた"
+        case .moonBroken: "同じ挑戦で月に 2 回当てて、月を割った"
         case .allTenHomers: "1 挑戦の 10 球をすべて柵越えにした"
         case .justMeet: "タイミングも芯もぴったりでとらえた"
         case .farTotal: "1 挑戦の合計飛距離が 1,500m を超えた"
         case .whiffSpin: "空振りの勢いで回って倒れた"
+        case .tankobu: "打ち上げた球が自分の頭に落ちてきた"
         }
     }
 
@@ -66,10 +74,12 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         if ball.isMoon { result.append(.moon) }
         if ball.isJustMeet { result.append(.justMeet) }
         if whiffSpin { result.append(.whiffSpin) }
+        if ball.isTankobu { result.append(.tankobu) }
         return result
     }
 
-    /// 10 球を投げ終えた挑戦で解除される実績（月が割れて途中で終わった挑戦は 10 球に届かないので `allTenHomers` にならない）。
+    /// 終わった挑戦（10 球を投げ終えた・月が割れて途中で終わった）で解除される実績
+    /// （月が割れて途中で終わった挑戦は 10 球に届かないので `allTenHomers` にならない）。
     public static func earned(byFinished challenge: HomerunChallenge) -> [HomerunAchievement] {
         var result: [HomerunAchievement] = []
         let balls = challenge.results
@@ -77,6 +87,7 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
             result.append(.allTenHomers)
         }
         if challenge.totalDistance > farTotalMeters { result.append(.farTotal) }
+        if challenge.isMoonBroken { result.append(.moonBroken) }
         return result
     }
 }
