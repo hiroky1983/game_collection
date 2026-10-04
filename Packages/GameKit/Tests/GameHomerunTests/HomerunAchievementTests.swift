@@ -171,15 +171,17 @@ struct HomerunAchievementTests {
         #expect(HomerunAchievement.earned(byFinished: twice).contains(.moonBroken))
     }
 
-    @Test("実績は 17 件。月の 2 つは隣り合い、距離は 1 挑戦 → 通算の段階順で末尾にまとまる")
-    func listHas17() {
+    @Test("実績は 21 件。月の 2 つは隣り合い、末尾は 1 挑戦の距離 → 通算の距離 → 通算の柵越え本数の段階順")
+    func listHas21() {
         let all = HomerunAchievement.allCases
-        #expect(all.count == 17)
+        #expect(all.count == 21)
         let moon = all.firstIndex(of: .moon)!
         #expect(all[moon + 1] == .moonBroken)
         #expect(all.contains(.tankobu))
-        #expect(Array(all.suffix(8)) == [.farTotal1000, .farTotal, .career3000, .career5000, .career8000,
-                                          .career10000, .career50000, .career100000])
+        #expect(Array(all.suffix(12)) == [.farTotal1000, .farTotal, .career3000, .career5000, .career8000,
+                                           .career10000, .career50000, .career100000,
+                                           .careerHomers10, .careerHomers30, .careerHomers50, .careerHomers100])
+        #expect(all.compactMap(\.careerHomers) == [10, 30, 50, 100])
         #expect(all.compactMap(\.challengeMeters) == [1000, 1500])
         #expect(all.compactMap(\.careerMeters) == [3000, 5000, 8000, 10000, 50000, 100_000])
     }
@@ -192,6 +194,8 @@ struct HomerunAchievementTests {
         #expect(HomerunAchievement.career100000.title == "通算 100,000m")
         #expect(HomerunAchievement.farTotal1000.detail == "1 挑戦の合計飛距離が 1,000m を超えた")
         #expect(HomerunAchievement.career50000.detail == "これまでの飛距離の合計が 50,000m に届いた")
+        #expect(HomerunAchievement.careerHomers10.title == "通算 柵越え 10本")
+        #expect(HomerunAchievement.careerHomers100.title == "通算 柵越え 100本")
     }
 
     @Test("1 挑戦の合計: しきい値の手前・ちょうどでは解除されず、超えたら解除（1,000m・1,500m）")
@@ -218,11 +222,25 @@ struct HomerunAchievementTests {
         #expect(HomerunAchievement.earned(byCareerTenths: 9_000 * 10) == [.career3000, .career5000, .career8000])
     }
 
+    @Test("通算の柵越え本数: 手前では解除されず、ちょうど届いたら・超えたら解除（10・30・50・100 本）")
+    func careerHomerThresholds() {
+        let steps: [(HomerunAchievement, Int)] = [(.careerHomers10, 10), (.careerHomers30, 30),
+                                                  (.careerHomers50, 50), (.careerHomers100, 100)]
+        for (achievement, count) in steps {
+            #expect(!HomerunAchievement.earned(byCareerHomers: count - 1).contains(achievement), "\(count) 本の手前")
+            #expect(HomerunAchievement.earned(byCareerHomers: count).contains(achievement), "\(count) 本ちょうど")
+            #expect(HomerunAchievement.earned(byCareerHomers: count + 1).contains(achievement), "\(count) 本超え")
+        }
+        #expect(HomerunAchievement.earned(byCareerHomers: 0).isEmpty)
+        #expect(HomerunAchievement.earned(byCareerHomers: 49) == [.careerHomers10, .careerHomers30])
+    }
+
     @Test("モデル: この版より前から累計が超えている人は、次に挑戦を終えたときにまとめて解除される")
     func careerFromExistingRecords() throws {
         let defaults = makeDefaults()
         var old = HomerunRecords()
         old.totalDistanceTenths = 12_000 * 10
+        old.homers = 35
         HomerunStorage.saveRecords(old, defaults)
         let spy = SpyService()
         let model = makeModel(makeServices(spy), defaults: defaults, pitches: [HomerunPitch(zone: 4)])
@@ -237,6 +255,8 @@ struct HomerunAchievementTests {
             #expect(spy.reported.map(\.achievementID).contains(a.gameCenterID))
         }
         #expect(!model.achievements.contains(.career50000))
+        #expect(model.achievements.contains(.careerHomers10) && model.achievements.contains(.careerHomers30))
+        #expect(!model.achievements.contains(.careerHomers50))
     }
 
     @Test("モデル: たんこぶの球は結果の演出が終わってから「実績解禁」に出て、Game Center に送る")

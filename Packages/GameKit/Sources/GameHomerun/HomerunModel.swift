@@ -626,7 +626,8 @@ public final class HomerunModel {
         if challenge.isFinished {
             record(challenge)
             earn(HomerunAchievement.earned(byFinished: challenge)
-                 + HomerunAchievement.earned(byCareerTenths: records.totalDistanceTenths))
+                 + HomerunAchievement.earned(byCareerTenths: records.totalDistanceTenths)
+                 + HomerunAchievement.earned(byCareerHomers: records.homers))
         }
         faceMark = .decide(ball: ball, swung: swing != nil, isNewBest: isNewBest)
         angerGauge = HomerunFaceMark.angerGauge(after: ball, swung: swing != nil, from: angerGauge)

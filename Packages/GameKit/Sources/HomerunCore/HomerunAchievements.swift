@@ -33,6 +33,11 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
     case career10000
     case career50000
     case career100000
+    /// 通算の柵越えの本数（`HomerunRecords.homers`）が 10 本に届いた。
+    case careerHomers10
+    case careerHomers30
+    case careerHomers50
+    case careerHomers100
 
     /// `farTotal` の合計飛距離（m）。10 球すべて芯なら約 1,800m、ナイスの柵越えを 10 本そろえて約 1,300〜1,450m。
     public static let farTotalMeters = 1500.0
@@ -55,6 +60,17 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .career10000: 10000
         case .career50000: 50000
         case .career100000: 100_000
+        default: nil
+        }
+    }
+
+    /// 通算の柵越え本数の実績のしきい値（本）。通算がこれに**届いた**（以上）ら解除。
+    public var careerHomers: Int? {
+        switch self {
+        case .careerHomers10: 10
+        case .careerHomers30: 30
+        case .careerHomers50: 50
+        case .careerHomers100: 100
         default: nil
         }
     }
@@ -89,6 +105,7 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .farTotal1000, .farTotal: "1 挑戦で \(Self.meters(challengeMeters ?? 0))"
         case .career3000, .career5000, .career8000, .career10000, .career50000, .career100000:
             "通算 \(Self.meters(careerMeters ?? 0))"
+        case .careerHomers10, .careerHomers30, .careerHomers50, .careerHomers100: "通算 柵越え \(careerHomers ?? 0)本"
         }
     }
 
@@ -107,6 +124,8 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .farTotal1000, .farTotal: "1 挑戦の合計飛距離が \(Self.meters(challengeMeters ?? 0)) を超えた"
         case .career3000, .career5000, .career8000, .career10000, .career50000, .career100000:
             "これまでの飛距離の合計が \(Self.meters(careerMeters ?? 0)) に届いた"
+        case .careerHomers10, .careerHomers30, .careerHomers50, .careerHomers100:
+            "これまでに柵越えを \(careerHomers ?? 0) 本打った"
         }
     }
 
@@ -148,6 +167,11 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
     /// 挑戦を記録に取り込んだあとに呼ぶので、この版より前から累計が超えていた人も次に挑戦を終えたときにまとめて解除される。
     public static func earned(byCareerTenths tenths: Int) -> [HomerunAchievement] {
         allCases.filter { a in a.careerMeters.map { tenths >= Int($0 * 10) } ?? false }
+    }
+
+    /// 通算の柵越え本数（`HomerunRecords.homers`）で解除される実績（届いた段階全部）。呼ぶ時機は `earned(byCareerTenths:)` と同じ。
+    public static func earned(byCareerHomers homers: Int) -> [HomerunAchievement] {
+        allCases.filter { a in a.careerHomers.map { homers >= $0 } ?? false }
     }
 }
 
