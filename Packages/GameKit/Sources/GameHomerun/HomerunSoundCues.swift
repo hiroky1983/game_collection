@@ -15,8 +15,9 @@ struct HomerunSoundCue: Hashable {
 /// 空振りの演出の時刻）から、1 つの進行（`HomerunModel.step`）の間に鳴らす音と時刻の一覧を出す。待って鳴らすのは
 /// `HomerunSoundPlayer`（View の `.task`）。演出の時間を詰め直したら音も自動で付いてくる。
 enum HomerunSoundCues {
-    /// 空振りの演出（`HomerunWhiffGag`）で尻もちをつくコマ（クリップの 1 始まり）。後ろへ傾けきって戻し始める所（`leanFrames.release`）。
-    static let fallFrame: Double = 66
+    /// 空振りの演出（`HomerunWhiffGag`）で尻もちをつくコマ（クリップの 1 始まり）。シミュレータの録画で、回り終えて地面に
+    /// 尻が着くコマを測った値（座り込みきるのは 92 コマ目ごろ・`HomerunWhiffGag.cardDelay`）。
+    static let fallFrame: Double = 85
     /// 月まで飛ぶ打球で、当たってから上昇音を鳴らし始めるまで（秒）。カキーンの頭と重ならないよう少し空ける。
     static let moonRiseDelay: TimeInterval = 0.25
 
