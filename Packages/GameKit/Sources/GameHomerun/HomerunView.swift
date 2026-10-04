@@ -135,7 +135,7 @@ struct HomerunLobbyView: View {
                 HomerunReturnReminderToggle(service: returnReminder)
             }
             // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ（きろくのカードも置かない）。
-            HomerunRecordsLink(model: model)
+            HomerunRecordsLink(model: model, ads: services.ads)
             Text("挑戦回数は打席に立った時点で1つ減ります")
                 .themeCaption(11)
                 .foregroundStyle(Theme.inkSub)

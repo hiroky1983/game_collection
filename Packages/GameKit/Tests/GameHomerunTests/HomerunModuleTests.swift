@@ -54,7 +54,7 @@ struct HomerunModuleTests {
         let meter = try #require(view.range(of: "HomerunCountMeter(allowance: ledger.allowance", range: label.upperBound..<view.endIndex))
         let end = try #require(view.range(of: "struct HomerunResetCountdown", range: label.upperBound..<view.endIndex))
         #expect(meter.lowerBound < end.lowerBound, "打席に立つの中に残り回数のボール")
-        #expect(view.contains("HomerunRecordsLink(model: model)"), "記録と実績は 1 行で別ページへ")
+        #expect(view.contains("HomerunRecordsLink(model: model, ads: services.ads)"), "記録と実績は 1 行で別ページへ")
         #expect(!view.contains("HomerunAchievementsCard("), "打席前に一覧を並べない")
     }
 

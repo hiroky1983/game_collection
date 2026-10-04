@@ -67,6 +67,7 @@ Packages/GameKit/
 
 **`AdService`**: 広告サービスの境界
 - `makeBannerView(width:) -> AnyView?` — バナー広告
+- `makeMediumRectangleView() -> AnyView?` — ページ内の 300×250 広告（`MediumRectangleSlot`。既定実装は nil）
 - `showInterstitial() async` — インタースティシャル広告（待機付き。プロトコルには残っているが呼び出し箇所は無い）
 - `showRewardedAd() async -> Bool` — リワード広告（視聴完了で true）。`GameServices` 経由で
   呼ぶと `game_id` / `purpose` 付きで `reward_ad` イベントも送られる（v1.1.5 からは要求時に
@@ -336,6 +337,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | 種別 | 配置 |
 |------|------|
 | バナー (320×50 適応型) | ハブ画面・各ゲーム画面の最下部 |
+| ミディアムレクタングル (300×250) | 柵越えおじさんの「記録と実績」ページの記録と実績のあいだに 1 枠（このページは下部バナーなし・会長決裁 2026-10-04） |
 | リワード | ほぼ全ゲーム共通の「救済」導線（`RewardedRescue` 経由。下表） |
 
 報酬を約束する広告（リワード）は**視聴完了したときだけ**報酬を渡す（`showRewardedAd()` が `true` を返した場合のみ）。
