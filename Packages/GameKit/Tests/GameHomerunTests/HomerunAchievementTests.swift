@@ -4,6 +4,7 @@ import Core
 import CoreTestSupport
 import HomerunCore
 @testable import GameHomerun
+import GameKitTestSupport
 
 /// 実績（#1794）: 判定（純粋関数）・端末の記録・打席への表示・Game Center との突き合わせ。
 @Suite("柵越えおじさんの実績")
@@ -481,5 +482,41 @@ struct HomerunAchievementTests {
     func unlinkedNotice() {
         #expect(HomerunAchievementsCard.unlinkedNotice.contains("Game Center と連携していないと"))
         #expect(HomerunAchievementsCard.unlinkedNotice.contains("消えます"))
+    }
+
+    // MARK: 記録と実績のページ
+
+    @Test("記録: 月の 2 行は 0 回のあいだ「？？？」で伏せ、1 回以上で回数を出す。行は常に 7 行")
+    func recordsRowsHideMoonUntilFound() {
+        let empty = HomerunRecordsCard.rows(HomerunRecords())
+        #expect(empty.count == 7)
+        #expect(empty.map(\.title).prefix(5) == ["自己ベスト（1 挑戦の合計）", "最長の 1 本", "通算の飛距離", "通算 柵越え", "挑戦回数"])
+        #expect(empty.suffix(2).allSatisfy { $0.isHidden && $0.title == "？？？" && $0.value == "？？？" })
+
+        let moon = HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.fly.centerDY)
+        var once = HomerunChallenge()
+        once.swing(moon)
+        var r = HomerunRecords()
+        r.record(once)
+        let shot = HomerunRecordsCard.rows(r)
+        #expect(shot[5] == HomerunRecordsCard.Row(title: "月まで飛ばした", value: "1 回"))
+        #expect(shot[6].isHidden, "割れていなければ伏せたまま")
+
+        var twice = HomerunChallenge()
+        twice.swing(moon)
+        twice.swing(moon)
+        r.record(twice)
+        let broken = HomerunRecordsCard.rows(r)
+        #expect(broken[5] == HomerunRecordsCard.Row(title: "月まで飛ばした", value: "3 回"))
+        #expect(broken[6] == HomerunRecordsCard.Row(title: "月を割った", value: "1 回"))
+        #expect(broken[4].value == "2 回")
+    }
+
+    @Test("打席前は「記録と実績 ›」の 1 行で別ページへ。打席前に実績の一覧・月の回数を並べない")
+    func lobbyLinksToRecordsPage() throws {
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        #expect(view.contains("HomerunRecordsLink(model: model)"))
+        #expect(!view.contains("HomerunAchievementsCard("))
+        #expect(!view.contains("r.moonShots"))
     }
 }
