@@ -14,13 +14,13 @@ public enum HomerunSound: String, CaseIterable, Sendable {
     case machine
     /// 02 振った（風切り・ブンッ）。空振り・当たり・素振りのどれでも振った瞬間に鳴らす。
     case swing
-    /// 03a 当たり: 芯（カキーン）。
+    /// 03a 当たり: 芯（木のバットのカーン）。
     case hitJust
-    /// 03b 当たり: 普通（カーン）。
+    /// 03b 当たり: 普通（木のバットのコーン・少しこもる）。
     case hitGood
-    /// 03c 当たり: 詰まり・擦り（ゴッ）。
+    /// 03c 当たり: 詰まり・擦り（ゴッ／バキッ）。
     case hitWeak
-    /// 04 ジャストミートの止め（J4・ドンッ+カキーン）。
+    /// 04 ジャストミートの止め（J4・ドンッ+木のカーン）。
     case justMeet
     /// 05a 柵越え確定（合成の「ワッ」・歓声の代用）。
     case homerun
@@ -45,9 +45,9 @@ public enum HomerunSound: String, CaseIterable, Sendable {
 
     /// 0.3 秒を超えてよい音（`SoundEffect` の「`fanfare` 以外は 0.3 秒未満」の例外）。
     /// 操作のたびに鳴る音ではなく、1 球の演出の見せ場に 1 回だけ鳴る余韻・歓声・上昇音なので長くてよい。
-    /// 操作に直結する音（マシン・風切り・詰まり・ミット・たんこぶ・倒れる・怒り）は短いまま。
+    /// 操作に直結する音（マシン・風切り・普通と詰まりの当たり・ミット・たんこぶ・倒れる・怒り）は短いまま。
     public static let longSounds: Set<HomerunSound> = [
-        .hitJust, .hitGood, .justMeet, .homerun, .outOfPark, .foulPole, .moonRise, .moonCrack, .achievement,
+        .hitJust, .justMeet, .homerun, .outOfPark, .foulPole, .moonRise, .moonCrack, .achievement,
     ]
 
     /// そのまま `AVAudioPlayer(data:)` に渡せる WAV バイト列。
@@ -103,29 +103,40 @@ private enum Recipe {
         return S.normalize(out, peak: 0.32)
     }
 
-    /// カキーン（芯）: アタックの破裂音 + 高く澄んだ金属の鳴り（非整数倍音）。
+    /// 木のバットの打撃音（会長指摘 2026-10-04「金属音っぽい。木のバットに当たる音に」）。金属の長い鳴り（高い倍音の持続）は
+    /// 使わず、乾いた短い破裂（`woodCrack`）+ 中低域の胴鳴り（数十 ms で消える部分音）で作る。
+    /// 帯域ノイズの破裂: 木が弾ける「カッ」。金属の高域（4kHz 以上）の破裂より低い 1.5〜3kHz に置く。
+    static func woodCrack(_ s: inout S, center: Double, amplitude: Double, decay: Double) -> [Double] {
+        s.noise(0.04, .bandPass, from: center, to: center * 0.8, q: 0.9, amplitude: amplitude, attack: 0.0005, decay: decay)
+    }
+
+    /// カーン（芯・木）: 澄んで抜ける乾いた破裂 + 中域の胴鳴り（約 0.1 秒で消える）。
     static func hitJustA(_ s: inout S) -> [Double] {
-        var out = s.crack(0.012, amplitude: 1)
-        S.mix(&out, S.partials(0.75, [(1580, 0.55, 0.30), (2390, 0.40, 0.22), (3460, 0.28, 0.14), (4710, 0.18, 0.08),
-                                      (980, 0.20, 0.10)]), at: 0.002)
+        var out = woodCrack(&s, center: 2600, amplitude: 1.0, decay: 0.006)
+        S.mix(&out, S.partials(0.32, [(880, 0.55, 0.055), (1390, 0.35, 0.035), (2150, 0.18, 0.02), (520, 0.30, 0.045)]),
+              at: 0.001)
+        S.mix(&out, S.tone(0.12, from: 210, to: 160, amplitude: 0.35, attack: 0.001, decay: 0.03))
         return S.normalize(out, peak: 0.42)
     }
 
-    /// カーン（普通）: 鳴りが短く、高い倍音が少ない。
+    /// コーン（普通・木）: 芯より少しこもる（破裂を低く弱く・胴鳴りを低く短く）。
     static func hitGoodA(_ s: inout S) -> [Double] {
-        var out = s.crack(0.012, amplitude: 0.8)
-        S.mix(&out, S.partials(0.35, [(1320, 0.5, 0.10), (2010, 0.3, 0.06), (760, 0.25, 0.05)]), at: 0.002)
+        var out = woodCrack(&s, center: 1800, amplitude: 0.7, decay: 0.006)
+        S.mix(&out, S.partials(0.25, [(690, 0.5, 0.04), (1080, 0.28, 0.025), (410, 0.32, 0.035)]), at: 0.001)
+        S.mix(&out, s.noise(0.06, .lowPass, from: 900, q: 0.7, amplitude: 0.3, attack: 0.001, decay: 0.015))
         return S.normalize(out, peak: 0.36)
     }
 
-    /// ゴッ（詰まり・擦り）: 鳴らない。低い打撃と短いノイズだけ。
+    /// ゴッ／バキッ（詰まり・擦り・木）: 鳴らない鈍い打撃 + 木が軋む短い割れ。
     static func hitWeakA(_ s: inout S) -> [Double] {
-        var out = s.noise(0.10, .lowPass, from: 900, q: 0.8, attack: 0.001, decay: 0.025)
-        S.mix(&out, S.tone(0.10, from: 240, to: 150, amplitude: 0.8, attack: 0.001, decay: 0.03))
+        var out = s.noise(0.10, .lowPass, from: 800, q: 0.8, attack: 0.001, decay: 0.022)
+        S.mix(&out, S.tone(0.10, from: 220, to: 140, amplitude: 0.8, attack: 0.001, decay: 0.028))
+        S.mix(&out, s.noise(0.05, .bandPass, from: 1300, to: 900, q: 1.6, amplitude: 0.45, attack: 0.0005, decay: 0.009),
+              at: 0.006)
         return S.normalize(out, peak: 0.32)
     }
 
-    /// ジャストミートの止め: 低いドンッ + 芯のカキーン を重ねる。
+    /// ジャストミートの止め: 低いドンッ + 芯の木の打撃音（カーン）を重ねる。
     static func justMeetA(_ s: inout S) -> [Double] {
         var out = S.tone(0.5, from: 110, to: 45, attack: 0.002, decay: 0.14)
         S.mix(&out, s.noise(0.25, .lowPass, from: 1500, to: 300, q: 0.7, amplitude: 0.7, attack: 0.001, decay: 0.05))
