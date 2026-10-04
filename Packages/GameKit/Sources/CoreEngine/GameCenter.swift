@@ -306,9 +306,16 @@ public enum GameCenterAchievements {
         "asobiba.homerun.achievement.moonbroken",
         "asobiba.homerun.achievement.alltenhomers",
         "asobiba.homerun.achievement.justmeet",
-        "asobiba.homerun.achievement.fartotal",
         "asobiba.homerun.achievement.whiffspin",
         "asobiba.homerun.achievement.tankobu",
+        "asobiba.homerun.achievement.fartotal1000",
+        "asobiba.homerun.achievement.fartotal",
+        "asobiba.homerun.achievement.career3000",
+        "asobiba.homerun.achievement.career5000",
+        "asobiba.homerun.achievement.career8000",
+        "asobiba.homerun.achievement.career10000",
+        "asobiba.homerun.achievement.career50000",
+        "asobiba.homerun.achievement.career100000",
     ]
 
     /// 現在の進捗から実績の達成率を組み立てる。**純粋関数**（保存も送信もしない）。

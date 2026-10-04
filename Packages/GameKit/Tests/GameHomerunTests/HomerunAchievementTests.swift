@@ -133,7 +133,7 @@ struct HomerunAchievementTests {
         #expect(!HomerunAchievement.earned(byFinished: c).contains(.allTenHomers))
     }
 
-    @Test("合計が 1,500m を超えたときだけ「合計 1,500m 超え」")
+    @Test("10 球の挑戦の合計が 1,500m を超えたときだけ「1 挑戦で 1,500m」")
     func farTotal() {
         var far = HomerunChallenge()
         for _ in 0..<HomerunChallenge.pitchCount { far.swing(justHomer) }
@@ -171,13 +171,72 @@ struct HomerunAchievementTests {
         #expect(HomerunAchievement.earned(byFinished: twice).contains(.moonBroken))
     }
 
-    @Test("実績は 10 件。月の 2 つは隣り合う")
-    func listHasTen() {
+    @Test("実績は 17 件。月の 2 つは隣り合い、距離は 1 挑戦 → 通算の段階順で末尾にまとまる")
+    func listHas17() {
         let all = HomerunAchievement.allCases
-        #expect(all.count == 10)
+        #expect(all.count == 17)
         let moon = all.firstIndex(of: .moon)!
         #expect(all[moon + 1] == .moonBroken)
         #expect(all.contains(.tankobu))
+        #expect(Array(all.suffix(8)) == [.farTotal1000, .farTotal, .career3000, .career5000, .career8000,
+                                          .career10000, .career50000, .career100000])
+        #expect(all.compactMap(\.challengeMeters) == [1000, 1500])
+        #expect(all.compactMap(\.careerMeters) == [3000, 5000, 8000, 10000, 50000, 100_000])
+    }
+
+    @Test("距離の実績の名前は 1 挑戦 / 通算が分かり、3 桁区切りで出る")
+    func distanceTitles() {
+        #expect(HomerunAchievement.farTotal1000.title == "1 挑戦で 1,000m")
+        #expect(HomerunAchievement.farTotal.title == "1 挑戦で 1,500m")
+        #expect(HomerunAchievement.career3000.title == "通算 3,000m")
+        #expect(HomerunAchievement.career100000.title == "通算 100,000m")
+        #expect(HomerunAchievement.farTotal1000.detail == "1 挑戦の合計飛距離が 1,000m を超えた")
+        #expect(HomerunAchievement.career50000.detail == "これまでの飛距離の合計が 50,000m に届いた")
+    }
+
+    @Test("1 挑戦の合計: しきい値の手前・ちょうどでは解除されず、超えたら解除（1,000m・1,500m）")
+    func challengeTotalThresholds() {
+        #expect(HomerunAchievement.earned(byChallengeTotal: 999.9).isEmpty)
+        #expect(HomerunAchievement.earned(byChallengeTotal: 1000).isEmpty)
+        #expect(HomerunAchievement.earned(byChallengeTotal: 1000.1) == [.farTotal1000])
+        #expect(HomerunAchievement.earned(byChallengeTotal: 1499.9) == [.farTotal1000])
+        #expect(HomerunAchievement.earned(byChallengeTotal: 1500) == [.farTotal1000])
+        #expect(HomerunAchievement.earned(byChallengeTotal: 1500.1) == [.farTotal1000, .farTotal])
+    }
+
+    @Test("通算: しきい値の手前では解除されず、ちょうど届いたら・超えたら解除（6 段階）")
+    func careerThresholds() {
+        let steps: [(HomerunAchievement, Int)] = [(.career3000, 3000), (.career5000, 5000), (.career8000, 8000),
+                                                  (.career10000, 10000), (.career50000, 50000), (.career100000, 100_000)]
+        for (achievement, meters) in steps {
+            let tenths = meters * 10
+            #expect(!HomerunAchievement.earned(byCareerTenths: tenths - 1).contains(achievement), "\(meters)m の手前")
+            #expect(HomerunAchievement.earned(byCareerTenths: tenths).contains(achievement), "\(meters)m ちょうど")
+            #expect(HomerunAchievement.earned(byCareerTenths: tenths + 1).contains(achievement), "\(meters)m 超え")
+        }
+        #expect(HomerunAchievement.earned(byCareerTenths: 0).isEmpty)
+        #expect(HomerunAchievement.earned(byCareerTenths: 9_000 * 10) == [.career3000, .career5000, .career8000])
+    }
+
+    @Test("モデル: この版より前から累計が超えている人は、次に挑戦を終えたときにまとめて解除される")
+    func careerFromExistingRecords() throws {
+        let defaults = makeDefaults()
+        var old = HomerunRecords()
+        old.totalDistanceTenths = 12_000 * 10
+        HomerunStorage.saveRecords(old, defaults)
+        let spy = SpyService()
+        let model = makeModel(makeServices(spy), defaults: defaults, pitches: [HomerunPitch(zone: 4)])
+        #expect(!model.achievements.contains(.career3000), "開いただけでは解除しない（挑戦を終えたとき）")
+        model.start(now: Self.t0)
+        model.atBatDidAppear(now: Self.t0)
+        try swing(model, dy: 30) // 当たりが外れても累計はそのまま超えている
+        #expect(model.challenge?.isFinished == true)
+        for a in [HomerunAchievement.career3000, .career5000, .career8000, .career10000] {
+            #expect(model.achievements.contains(a))
+            #expect(model.unlockedThisChallenge.contains(a))
+            #expect(spy.reported.map(\.achievementID).contains(a.gameCenterID))
+        }
+        #expect(!model.achievements.contains(.career50000))
     }
 
     @Test("モデル: たんこぶの球は結果の演出が終わってから「実績解禁」に出て、Game Center に送る")

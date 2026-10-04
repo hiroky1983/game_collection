@@ -17,15 +17,59 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
     case allTenHomers
     /// ジャストミート（#1775）。
     case justMeet
-    /// 1 挑戦の合計飛距離が `farTotalMeters` を超えた。
-    case farTotal
     /// 空振りで回って倒れた（#1681 の演出が出た）。
     case whiffSpin
     /// 打ち上げた球が自分の頭に落ちてたんこぶになった（#1793・会長指示 2026-10-04）。
     case tankobu
+    // 距離の実績（会長指示 2026-10-04）: 1 挑戦の合計 → 通算の飛距離、の段階順に並べる。
+    /// 1 挑戦の合計飛距離が 1,000m を超えた。
+    case farTotal1000
+    /// 1 挑戦の合計飛距離が `farTotalMeters`（1,500m）を超えた。
+    case farTotal
+    /// 通算の飛距離（`HomerunRecords.totalDistanceTenths`・挑戦をまたいだ累計）が 3,000m に届いた。
+    case career3000
+    case career5000
+    case career8000
+    case career10000
+    case career50000
+    case career100000
 
     /// `farTotal` の合計飛距離（m）。10 球すべて芯なら約 1,800m、ナイスの柵越えを 10 本そろえて約 1,300〜1,450m。
     public static let farTotalMeters = 1500.0
+
+    /// 1 挑戦の合計飛距離の実績のしきい値（m）。合計がこれを**超えた**ら解除。
+    public var challengeMeters: Double? {
+        switch self {
+        case .farTotal1000: 1000
+        case .farTotal: Self.farTotalMeters
+        default: nil
+        }
+    }
+
+    /// 通算の飛距離の実績のしきい値（m）。累計がこれに**届いた**（以上）ら解除。月の当たりは記録どおり 180m で数える。
+    public var careerMeters: Double? {
+        switch self {
+        case .career3000: 3000
+        case .career5000: 5000
+        case .career8000: 8000
+        case .career10000: 10000
+        case .career50000: 50000
+        case .career100000: 100_000
+        default: nil
+        }
+    }
+
+    /// 「1,000m」のような 3 桁区切りの表記（端末の地域設定に左右されないよう固定で組む）。
+    private static func meters(_ value: Double) -> String {
+        var digits = String(Int(value))
+        var parts: [String] = []
+        while digits.count > 3 {
+            parts.insert(String(digits.suffix(3)), at: 0)
+            digits.removeLast(3)
+        }
+        parts.insert(digits, at: 0)
+        return parts.joined(separator: ",") + "m"
+    }
 
     /// App Store Connect に登録する実績 ID。`GameCenterAchievements.homerunIDs`（Core）と一致することをテストが縛る。
     public var gameCenterID: String { "asobiba.homerun.achievement.\(rawValue.lowercased())" }
@@ -40,9 +84,11 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .moonBroken: "月を割った"
         case .allTenHomers: "10球すべて柵越え"
         case .justMeet: "ジャストミート"
-        case .farTotal: "合計 1,500m 超え"
         case .whiffSpin: "回って倒れた"
         case .tankobu: "ゴツン！"
+        case .farTotal1000, .farTotal: "1 挑戦で \(Self.meters(challengeMeters ?? 0))"
+        case .career3000, .career5000, .career8000, .career10000, .career50000, .career100000:
+            "通算 \(Self.meters(careerMeters ?? 0))"
         }
     }
 
@@ -56,9 +102,11 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         case .moonBroken: "同じ挑戦で月に 2 回当てて、月を割った"
         case .allTenHomers: "1 挑戦の 10 球をすべて柵越えにした"
         case .justMeet: "タイミングも芯もぴったりでとらえた"
-        case .farTotal: "1 挑戦の合計飛距離が 1,500m を超えた"
         case .whiffSpin: "空振りの勢いで回って倒れた"
         case .tankobu: "打ち上げた球が自分の頭に落ちてきた"
+        case .farTotal1000, .farTotal: "1 挑戦の合計飛距離が \(Self.meters(challengeMeters ?? 0)) を超えた"
+        case .career3000, .career5000, .career8000, .career10000, .career50000, .career100000:
+            "これまでの飛距離の合計が \(Self.meters(careerMeters ?? 0)) に届いた"
         }
     }
 
@@ -86,9 +134,20 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
         if balls.count == HomerunChallenge.pitchCount, balls.allSatisfy({ $0.kind == .homer }) {
             result.append(.allTenHomers)
         }
-        if challenge.totalDistance > farTotalMeters { result.append(.farTotal) }
         if challenge.isMoonBroken { result.append(.moonBroken) }
+        result += earned(byChallengeTotal: challenge.totalDistance)
         return result
+    }
+
+    /// 1 挑戦の合計飛距離（m）で解除される実績（しきい値を超えたもの全部）。
+    public static func earned(byChallengeTotal meters: Double) -> [HomerunAchievement] {
+        allCases.filter { a in a.challengeMeters.map { meters > $0 } ?? false }
+    }
+
+    /// 通算の飛距離（`HomerunRecords.totalDistanceTenths`・0.1m 単位）で解除される実績（届いた段階全部）。
+    /// 挑戦を記録に取り込んだあとに呼ぶので、この版より前から累計が超えていた人も次に挑戦を終えたときにまとめて解除される。
+    public static func earned(byCareerTenths tenths: Int) -> [HomerunAchievement] {
+        allCases.filter { a in a.careerMeters.map { tenths >= Int($0 * 10) } ?? false }
     }
 }
 
