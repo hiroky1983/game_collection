@@ -44,7 +44,7 @@ struct HomerunModuleTests {
         let start = try #require(view.range(of: "Label(\"打席に立つ\""))
         let records = try #require(view.range(of: "                recordsCard\n"))
         #expect(today.lowerBound < start.lowerBound && start.lowerBound < records.lowerBound, "打席に立つは今日の回数のすぐ下")
-        #expect(view.contains("HomerunAchievementsLink(model: model)"), "実績は 1 行で別ページへ")
+        #expect(view.contains("HomerunRecordsLink(model: model)"), "記録と実績は 1 行で別ページへ")
         #expect(!view.contains("HomerunAchievementsCard("), "打席前に一覧を並べない")
     }
 

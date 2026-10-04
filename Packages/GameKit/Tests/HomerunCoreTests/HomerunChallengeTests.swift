@@ -70,9 +70,9 @@ struct HomerunChallengeTests {
         #expect(!l.canStart)
     }
 
-    @Test("台帳: 回数が尽きたら広告でプレイ。回数は増えず adPlays で数え、1 日 10 本まで（#1694）")
+    @Test("台帳: 回数が尽きたら広告でプレイ。回数は増えず adPlays で数え、1 日 5 本まで（#1694）")
     func ledgerAdPlay() throws {
-        #expect(HomerunLedger.adLimitPerDay == 10, "会長決裁 2026-10-02")
+        #expect(HomerunLedger.adLimitPerDay == 5, "会長決裁 2026-10-04")
         let limit = try #require(HomerunLedger.adLimitPerDay)
         var l = HomerunLedger(dayKey: 20261002)
         #expect(!l.canPlayWithAd, "回数があるうちは出さない")

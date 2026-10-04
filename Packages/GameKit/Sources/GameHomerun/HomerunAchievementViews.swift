@@ -10,8 +10,6 @@ struct HomerunAchievementsCard: View {
     /// Game Center に連携していない人への注意（機種変更・アプリの削除で端末の記録が消えるため）。
     static let unlinkedNotice = "Game Center と連携していないと、機種変更やアプリの削除で実績が消えます"
 
-    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -21,7 +19,8 @@ struct HomerunAchievementsCard: View {
                     .themeBody(16, weight: .heavy)
                     .foregroundStyle(Theme.inkSub)
             }
-            LazyVGrid(columns: columns, spacing: 10) {
+            // 1 列の縦並び（文字を大きく読ませる・会長指示 2026-10-04。以前は横 2 列のグリッド）。
+            VStack(alignment: .leading, spacing: 14) {
                 ForEach(HomerunAchievement.allCases, id: \.self) { achievement in
                     tile(achievement)
                 }
@@ -39,76 +38,29 @@ struct HomerunAchievementsCard: View {
 
     private func tile(_ achievement: HomerunAchievement) -> some View {
         let unlocked = model.achievements.contains(achievement)
-        return HStack(alignment: .top, spacing: 8) {
+        return HStack(alignment: .top, spacing: 10) {
             Image(systemName: unlocked ? "trophy.fill" : "lock.fill")
-                .font(.system(size: 18))
+                .font(.system(size: 22))
                 .foregroundStyle(unlocked ? Theme.yellow : Theme.inkSub.opacity(0.5))
-                .frame(width: 22)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: unlocked ? achievement.title : "？？？")
-                    .themeBody(13, weight: .heavy)
+                    .themeBody(17, weight: .heavy)
                     .foregroundStyle(unlocked ? Theme.ink : Theme.inkSub)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 if unlocked {
                     Text(verbatim: achievement.detail)
-                        .themeCaption(10)
+                        .themeCaption(13)
                         .foregroundStyle(Theme.inkSub)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(unlocked ? "\(achievement.title)。\(achievement.detail)" : "未解除の実績")
-    }
-}
-
-/// 打席前に置く実績の 1 行（会長指示 2026-10-04）。押すと一覧（`HomerunAchievementsPage`）へ移る。
-struct HomerunAchievementsLink: View {
-    let model: HomerunModel
-
-    var body: some View {
-        NavigationLink {
-            HomerunAchievementsPage(model: model)
-        } label: {
-            HStack {
-                Label("実績", systemImage: "trophy.fill")
-                    .themeBody(16)
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                Text(verbatim: "\(model.achievements.count) / \(HomerunAchievement.allCases.count)")
-                    .themeBody(16, weight: .heavy)
-                    .foregroundStyle(Theme.inkSub)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Theme.inkSub)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .popCard()
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("実績 \(model.achievements.count) / \(HomerunAchievement.allCases.count)")
-        .accessibilityHint("実績の一覧を開きます")
-    }
-}
-
-/// 実績の一覧のページ（打席前の 1 行から移る）。中身は `HomerunAchievementsCard` のまま。
-struct HomerunAchievementsPage: View {
-    let model: HomerunModel
-
-    var body: some View {
-        ScrollView {
-            HomerunAchievementsCard(model: model)
-                .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("実績")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 }
 

@@ -133,8 +133,9 @@ struct HomerunLobbyView: View {
             VStack(spacing: 14) {
                 introCard
                 todayCard
-                // 「打席に立つ」は今日の回数のすぐ下（会長指摘 2026-10-04。下まで送らないと出てこなかった）。
-                // きろく・実績はその下でスクロールして見る。
+                recordsCard
+                // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ。
+                HomerunRecordsLink(model: model)
                 Button {
                     withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
@@ -158,9 +159,6 @@ struct HomerunLobbyView: View {
                 .accessibilityHint("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
                 // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
                 HowToPlayHint(.homerun, playLog: services.playLog)
-                recordsCard
-                // 実績の一覧は別ページ（会長指示 2026-10-04）。ここは「実績 n / 8 ›」の 1 行だけ。
-                HomerunAchievementsLink(model: model)
             }
             .padding(Theme.pad)
             .padding(.bottom, HomerunBannerGap.belowContent)
@@ -220,13 +218,6 @@ struct HomerunLobbyView: View {
                 stat("最長の 1 本", HomerunText.meters(Double(r.longestTenths) / 10))
                 Spacer()
                 stat("通算 柵越え", "\(r.homers) 本")
-            }
-            // 実績「月まで飛ばした」（#1680）。出したことがある人にだけ出す（隠し演出なので先に存在を知らせない）。
-            if r.moonShots > 0 {
-                Label("月まで飛ばした \(r.moonShots) 回", systemImage: "moon.stars.fill")
-                    .themeCaption(13)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityElement(children: .combine)
             }
         }
         .padding(14)

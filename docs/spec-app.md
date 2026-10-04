@@ -271,7 +271,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   **見終えたら確認を挟まずにその場で 1 挑戦を始めて打席へ入る**（`HomerunModel.startWithAd`）。回数は増やさない・貯められない
   （v1.1.7 までの「広告を見て挑戦 +1 回」は廃止）。見なかった・読み込めなかった・視聴中に 0:00 をまたいだときは始めず、
   `RewardedRescue` の失敗の知らせを出す。計測は従来どおり `reward_request` / `reward_ad`（purpose `challenge`）
-- **1 日の上限**: `HomerunLedger.adLimitPerDay`（定数 1 つ・**10 本**・nil で無制限。会長決裁 2026-10-02）。画面には上限の本数を出さず、
+- **1 日の上限**: `HomerunLedger.adLimitPerDay`（定数 1 つ・**5 本**・nil で無制限。会長決裁 2026-10-02・10 本→2026-10-04 に 5 本へ変更）。画面には上限の本数を出さず、
   達したときだけ「今日はここまで。0:00 に 3 回に戻ります」
 - **台帳での見分け**: 広告で始めた挑戦は `adPlays`（保存キー `adPlays`・0 のときは書かない）に数え、回数の `used` には数えない。
   挑戦中は `HomerunModel.startedWithAd` が true（#1685 の計測で枠を見分ける材料）
