@@ -78,7 +78,6 @@ struct HomerunConnectionTests {
         #expect(model.ledger.used == before.used, "回数から引かない（広告の 1 本で遊ぶ）")
         #expect(model.ledger.adPlays == 1, "台帳の上で広告での挑戦と分かる")
         #expect(HomerunStorage.loadLedger(defaults).adPlays == 1, "保存される")
-        #expect(!model.showsExhausted)
     }
 
     @Test("広告でのプレイは 1 日 adLimitPerDay 本まで")

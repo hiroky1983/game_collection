@@ -102,7 +102,7 @@ enum AppEnvironment {
         recordSummary: { gameID in playLog.summaryLine(gameID: gameID) }
     )
 
-    /// 挑戦回数が戻ったら知らせる通知（#1576）。使い切りシートのトグルを入れたときだけ 1 回予約する
+    /// 挑戦回数が戻ったら知らせる通知（#1576）。打席前（回数 0）のトグルを入れたときだけ 1 回予約する
     /// （自動では予約しない明示操作なので、#663・#1193 と違って撮影・DEBUG でも止めない）。
     /// 許可は #663・#1193 と同じ設定トグルに従う。
     static let returnReminder = ChallengeReturnReminderService(
