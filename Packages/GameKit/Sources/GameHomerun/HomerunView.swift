@@ -134,8 +134,7 @@ struct HomerunLobbyView: View {
                 if !model.ledger.canStart, let returnReminder = services.returnReminder {
                     HomerunReturnReminderToggle(service: returnReminder)
                 }
-                recordsCard
-                // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ。
+                // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ（きろくのカードも置かない）。
                 HomerunRecordsLink(model: model)
                 Text("挑戦回数は打席に立った時点で1つ減ります")
                     .themeCaption(11)
@@ -155,17 +154,8 @@ struct HomerunLobbyView: View {
     /// 固定欄の中身。今日の残り回数はボタンの中のボールで見せる（「今日の挑戦」のカードは廃止・会長指示 2026-10-04）。
     /// 回数 0 では押せない灰色にし、すぐ下に回復までの残りを出す（使い切りのシートは廃止・会長決裁 2026-10-04）。
     @ViewBuilder private var startActions: some View {
-        Button {
-            withGameAnimation { _ = model.start(now: Date()) }
-        } label: {
-            HomerunStartLabel(model: model)
-        }
-        .buttonStyle(.borderedProminent).controlSize(.large)
-        .tint(model.ledger.canStart ? Theme.Fill.coral : Theme.inkSub.opacity(0.3))
-        .disabled(!model.ledger.canStart)
-        .accessibilityHint(model.ledger.canStart ? "挑戦回数を1回使って10球の打席を始めます" : "今日の挑戦は使い切りました")
+        HomerunStartButton(model: model, title: "打席に立つ")
         if !model.ledger.canStart {
-            HomerunResetCountdown()
             HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
         }
     }
@@ -188,32 +178,6 @@ struct HomerunLobbyView: View {
         }
         .padding(14)
         .popCard()
-    }
-
-    private var recordsCard: some View {
-        let r = model.records
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("きろく").themeBody(16).foregroundStyle(Theme.ink)
-            HStack(alignment: .top) {
-                stat("自己ベスト", HomerunText.meters(Double(r.bestTotalTenths) / 10))
-                Spacer()
-                stat("最長の 1 本", HomerunText.meters(Double(r.longestTenths) / 10))
-                Spacer()
-                stat("通算 柵越え", "\(r.homers) 本")
-            }
-        }
-        .padding(14)
-        .popCard()
-    }
-
-    private func stat(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
-            Text(verbatim: value)
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
-        }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -414,28 +378,13 @@ struct HomerunResultView: View {
         .popCard()
     }
 
-    /// 固定欄の中身。主ボタンが上の縦 2 段（無料の回数があれば もう一回、回数 0 で広告が見られれば 広告を見てプレイ。
-    /// 下は 打席前へ）。会長指示 2026-10-04。
+    /// 固定欄の中身。主ボタンが上の縦並び（会長指示 2026-10-04）。「もう一回」は打席前の「打席に立つ」と同じ部品
+    /// （ボタンの中に残り回数のボール。回数 0 は押せない灰色＋すぐ下に回復までの残り）。回数 0 ではその下に
+    /// 広告を見てプレイ（上限に達したら知らせ）、いちばん下が打席前へ。
     @ViewBuilder private var actions: some View {
-        let ledger = model.ledger
-        let remaining = ledger.remaining
-        if ledger.canPlayWithAd {
+        HomerunStartButton(model: model, title: "もう一回")
+        if !model.ledger.canStart {
             HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
-        } else {
-            Button {
-                withGameAnimation { _ = model.start(now: Date()) }
-            } label: {
-                Label(remaining > 0 ? "もう一回（残り \(remaining)）" : "今日はおしまい",
-                      systemImage: "arrow.counterclockwise")
-                    .themeBody(16)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(remaining > 0 ? Theme.onAccent : Theme.inkSub)
-            }
-            .buttonStyle(.borderedProminent).controlSize(.large)
-            .tint(remaining > 0 ? Theme.Fill.coral : Theme.inkSub.opacity(0.3))
-            // 「今日はおしまい」は押しても何も起きない（使い切りのシートは廃止・会長決裁 2026-10-04）。
-            .disabled(remaining == 0)
         }
         Button {
             withGameAnimation { model.backToLobby() }
@@ -443,10 +392,6 @@ struct HomerunResultView: View {
             Text("打席前へ").themeBody(16).frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
-        // 広告の上限に達したときの知らせ・アンケート（広告を見てプレイが出ていないときだけ）。
-        if remaining == 0 && !ledger.canPlayWithAd {
-            HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
-        }
     }
 }
 
@@ -517,17 +462,41 @@ struct HomerunBallTile: View {
 
 // MARK: - 回数 0 の打席前（回復までの残り・戻ったら知らせる）
 
-/// 「打席に立つ」の中身。回数 0 のときは押せない灰色のボタンになり、回復（0:00）までの残りを読み上げにも含める
-/// （会長決裁 2026-10-04。以前は押すと使い切りのシートが出ていた）。残りの文字はボタンのすぐ下（`HomerunResetCountdown`）に
-/// 出す。ボタンの中にも置いて比べたが、押せない灰色の上の小さな灰色の文字は読みにくかった。
+/// 1 挑戦を始めるボタン。打席前の「打席に立つ」と結果の「もう一回」で**同じ部品**を使い、文言だけ変える（会長指示 2026-10-04）。
+/// 回数 0 では押せない灰色にし、すぐ下に回復までの残り（`HomerunResetCountdown`）を出す（使い切りのシートは廃止）。
+struct HomerunStartButton: View {
+    let model: HomerunModel
+    let title: String
+
+    var body: some View {
+        let canStart = model.ledger.canStart
+        Button {
+            withGameAnimation { _ = model.start(now: Date()) }
+        } label: {
+            HomerunStartLabel(model: model, title: title)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large)
+        .tint(canStart ? Theme.Fill.coral : Theme.inkSub.opacity(0.3))
+        .disabled(!canStart)
+        .accessibilityHint(canStart ? "挑戦回数を1回使って10球の打席を始めます" : "今日の挑戦は使い切りました")
+        if !canStart {
+            HomerunResetCountdown()
+        }
+    }
+}
+
+/// 「打席に立つ」「もう一回」の中身。残り回数をボールで並べる。回数 0 のときは押せない灰色のボタンになり、回復（0:00）までの
+/// 残りを読み上げにも含める（会長決裁 2026-10-04）。残りの文字はボタンのすぐ下（`HomerunResetCountdown`）に出す。
+/// ボタンの中にも置いて比べたが、押せない灰色の上の小さな灰色の文字は読みにくかった。
 struct HomerunStartLabel: View {
     let model: HomerunModel
+    let title: String
 
     var body: some View {
         let ledger = model.ledger
         if ledger.canStart {
             HStack(spacing: 12) {
-                Label("打席に立つ", systemImage: "figure.baseball")
+                Label(title, systemImage: "figure.baseball")
                     .themeBody(18)
                     .foregroundStyle(Theme.onAccent)
                 // 今日の残り回数（残りだけ白いボール）。「今日の挑戦」のカードの代わり（会長指示 2026-10-04）。
@@ -536,13 +505,13 @@ struct HomerunStartLabel: View {
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "打席に立つ。今日の残り \(ledger.remaining) 回"))
+            .accessibilityLabel(Text(verbatim: "\(title)。今日の残り \(ledger.remaining) 回"))
         } else {
             // 残りは分単位の表示なので、1 分ごとに描き直す（端末の時刻・タイムゾーンで 0:00 を数える）。
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 let remaining = HomerunReturnPolicy.remainingText(from: context.date, calendar: .current)
                 HStack(spacing: 12) {
-                    Label("打席に立つ", systemImage: "figure.baseball")
+                    Label(title, systemImage: "figure.baseball")
                         .themeBody(18)
                     HomerunCountMeter(allowance: ledger.allowance, remaining: 0,
                                       lit: Theme.inkSub, unlit: Theme.inkSub.opacity(0.35))
@@ -551,7 +520,7 @@ struct HomerunStartLabel: View {
                 .foregroundStyle(Theme.inkSub)
                 // 押せないボタンでも、VoiceOver で残りが分かるように（下の残りの文字は読み上げから外している）。
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "打席に立つ。\(remaining)"))
+                .accessibilityLabel(Text(verbatim: "\(title)。\(remaining)"))
             }
             // 画面を開いたまま 0:00 を越えたら、その場で回数を戻す（ボタンが押せる色に戻る）。
             .task(id: model.ledger.dayKey) {

@@ -512,11 +512,14 @@ struct HomerunAchievementTests {
         #expect(broken[4].value == "2 回")
     }
 
-    @Test("打席前は「記録と実績 ›」の 1 行で別ページへ。打席前に実績の一覧・月の回数を並べない")
+    @Test("打席前は「記録と実績 ›」の 1 行で別ページへ。打席前に実績の一覧・きろくのカード・月の回数を並べない")
     func lobbyLinksToRecordsPage() throws {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         #expect(view.contains("HomerunRecordsLink(model: model)"))
         #expect(!view.contains("HomerunAchievementsCard("))
         #expect(!view.contains("r.moonShots"))
+        // きろく（自己ベスト・最長の 1 本・通算柵越え）は記録と実績のページだけ（会長指示 2026-10-04）。
+        #expect(!view.contains("recordsCard"))
+        #expect(!view.contains("Text(\"きろく\")"))
     }
 }

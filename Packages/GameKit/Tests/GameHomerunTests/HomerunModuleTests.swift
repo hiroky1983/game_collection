@@ -48,27 +48,36 @@ struct HomerunModuleTests {
         #expect(!view.contains("HomerunAchievementsCard("), "打席前に一覧を並べない")
     }
 
-    @Test("固定欄のボタンは主ボタンが上の縦並び（会長指示 2026-10-04）")
+    @Test("固定欄のボタンは主ボタンが上の縦並びで、打席に立つ・もう一回は同じ部品（会長指示 2026-10-04）")
     func actionBarStacksPrimaryOnTop() throws {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
-        // 欄は VStack（縦）。結果の中身に横並び（HStack）を残さない。
         let bar = try #require(view.range(of: "struct HomerunActionBar"))
         #expect(view[bar.upperBound...].prefix(400).contains("VStack(spacing: 10) { content }"))
+        // 同じ部品で文言だけ違う。文字で回数を出す「もう一回（残り N）」・「今日はおしまい」は使わない。
+        #expect(view.contains("HomerunStartButton(model: model, title: \"打席に立つ\")"))
+        #expect(view.contains("HomerunStartButton(model: model, title: \"もう一回\")"))
+        #expect(!view.contains("もう一回（残り"))
+        #expect(!view.contains("今日はおしまい"))
+        // 回数 0 の扱いも部品の中（押せない灰色＋すぐ下に残り時間）。
+        let button = try #require(view.range(of: "struct HomerunStartButton: View {"))
+        let buttonBody = view[button.upperBound...].prefix(1000)
+        #expect(buttonBody.contains(".disabled(!canStart)") && buttonBody.contains("HomerunResetCountdown()"))
+        // 結果: もう一回 → （回数 0 なら広告を見てプレイ）→ 打席前へ。横並びにしない。
         let actions = try #require(view.range(of: "@ViewBuilder private var actions: some View {"))
         let tail = view[actions.upperBound...]
         let barStart = try #require(tail.range(of: "\nstruct HomerunActionBar"))
         let body = String(tail[..<barStart.lowerBound])
         #expect(!body.contains("HStack("), "結果のボタンは縦並び")
-        let primary = try #require(body.range(of: "もう一回"))
+        let again = try #require(body.range(of: "title: \"もう一回\""))
+        let ad = try #require(body.range(of: "HomerunRecoveryButton("))
         let back = try #require(body.range(of: "打席前へ"))
-        #expect(primary.lowerBound < back.lowerBound, "もう一回（または広告を見てプレイ）が上、打席前へが下")
-        // 打席前: 打席に立つ → 回復までの残り → 広告を見てプレイ。
+        #expect(again.lowerBound < ad.lowerBound && ad.lowerBound < back.lowerBound)
+        // 打席前: 打席に立つ → 広告を見てプレイ。
         let lobby = try #require(view.range(of: "@ViewBuilder private var startActions: some View {"))
-        let lobbyBody = view[lobby.upperBound...].prefix(1200)
-        let start = try #require(lobbyBody.range(of: "HomerunStartLabel(model: model)"))
-        let countdown = try #require(lobbyBody.range(of: "HomerunResetCountdown()"))
-        let ad = try #require(lobbyBody.range(of: "HomerunRecoveryButton("))
-        #expect(start.lowerBound < countdown.lowerBound && countdown.lowerBound < ad.lowerBound)
+        let lobbyBody = view[lobby.upperBound...].prefix(600)
+        let start = try #require(lobbyBody.range(of: "title: \"打席に立つ\""))
+        let lobbyAd = try #require(lobbyBody.range(of: "HomerunRecoveryButton("))
+        #expect(start.lowerBound < lobbyAd.lowerBound)
     }
 
     @Test("表示名・説明・ルールに他社の登録商標を思わせる語を含めない（README §4.1 の禁止語）")
