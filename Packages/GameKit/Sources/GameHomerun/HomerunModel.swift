@@ -609,7 +609,7 @@ public final class HomerunModel {
             services?.gameDidProgress(gameID: Self.gameID)
         }
         lastBall = ball
-        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +2（当日分・上限なし）。
+        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +1（当日分・上限なし・会長決裁 2026-10-04 で +2→+1）。
         if ball?.moon == .broken {
             refreshDay(now: now)
             ledger.grantMoonBonus()

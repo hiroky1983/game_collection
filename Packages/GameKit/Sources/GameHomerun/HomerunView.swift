@@ -293,7 +293,7 @@ struct HomerunResultView: View {
     }
 
     /// 月まで飛んだ（#1680）挑戦だけに出す。距離は 384,400 km と出し（合計・自己ベストには 180m で数えてある）、月が割れたら
-    /// 挑戦の終わりとプレイ回数 +2 を知らせる。打球の分布（`sprayCard`）とは別のカード。
+    /// 挑戦の終わりとプレイ回数 +1 を知らせる。打球の分布（`sprayCard`）とは別のカード。
     @ViewBuilder private var moonCard: some View {
         if let challenge = model.challenge, challenge.moonCount > 0 {
             HStack(spacing: 12) {

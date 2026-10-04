@@ -4,7 +4,7 @@ import simd
 import HomerunCore
 @testable import GameHomerun
 
-/// 月まで飛ぶ隠し演出（#1680）の進行（台帳の +2・記録・強制の起動引数）と見せ方（カメラ・夜空・月）。
+/// 月まで飛ぶ隠し演出（#1680）の進行（台帳の +1・記録・強制の起動引数）と見せ方（カメラ・夜空・月）。
 @Suite("柵越えおじさんの月まで飛ぶ隠し演出（画面の進行）")
 @MainActor
 struct HomerunMoonModelTests {
@@ -39,8 +39,8 @@ struct HomerunMoonModelTests {
 
     private let moonDY = HomerunLaunch.fly.centerDY
 
-    @Test("2 回目の月で挑戦が終わり、残りの球は没収・その時点で記録し、今日のプレイ回数が +2 されて保存される")
-    func secondMoonEndsChallengeAndGrantsTwo() throws {
+    @Test("2 回目の月で挑戦が終わり、残りの球は没収・その時点で記録し、今日のプレイ回数が +1 されて保存される")
+    func secondMoonEndsChallengeAndGrantsOne() throws {
         let f = Fixture()
         let model = f.model()
         #expect(model.start(now: Fixture.t0))
@@ -56,10 +56,10 @@ struct HomerunMoonModelTests {
         #expect(second?.moon == .broken)
         #expect(model.challenge?.isFinished == true)
         #expect(model.challenge?.results.count == 2)
-        // +2（当日分）。保存も済み。
+        // +1（当日分）。保存も済み。
         #expect(model.ledger.bonus == HomerunLedger.moonBonus)
-        #expect(model.ledger.remaining == 4)
-        #expect(HomerunStorage.loadLedger(f.defaults).remaining == 4)
+        #expect(model.ledger.remaining == 3)
+        #expect(HomerunStorage.loadLedger(f.defaults).remaining == 3)
         // 割れた時点で記録（180m × 2）。
         #expect(model.records.challenges == 1)
         #expect(model.records.bestTotalTenths == 3600)

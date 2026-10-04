@@ -183,7 +183,7 @@ public struct HomerunBattedBall: Equatable, Sendable {
 public enum HomerunMoon: Int, Codable, Equatable, Sendable {
     /// 1 回目: 月に当たってヒビが入る。
     case hit = 0
-    /// 2 回目（同じ挑戦の中）: 月が半分に割れ、その挑戦は終わる（残りの球は没収・プレイ回数 +2）。
+    /// 2 回目（同じ挑戦の中）: 月が半分に割れ、その挑戦は終わる（残りの球は没収・プレイ回数 +1）。
     case broken = 1
 
     /// 画面に出す飛距離（km・地球から月までのおおよその距離）。記録・合計には `HomerunJudge.moonCountedDistance`（m）で数える。

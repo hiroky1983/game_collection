@@ -102,25 +102,25 @@ struct HomerunMoonTests {
 
     // MARK: 台帳
 
-    @Test("台帳: 月が割れたら当日分として +2（上限なし・何回でも）・0:00 で消える")
+    @Test("台帳: 月が割れたら当日分として +1（上限なし・何回でも）・0:00 で消える")
     func ledgerMoonBonus() {
         var l = HomerunLedger(dayKey: 20261001, legacyAdGrants: 5)  // 以前の版で貯めた広告分
         l.grantSurvey()
         #expect(l.allowance == 9)
         l.grantMoonBonus()
-        #expect(l.bonus == 2)
-        #expect(l.allowance == 11)
-        #expect(l.remaining == 11)
+        #expect(l.bonus == 1)
+        #expect(l.allowance == 10)
+        #expect(l.remaining == 10)
         l.grantMoonBonus()
-        #expect(l.allowance == 13)
-        for _ in 0..<13 { l.consume() }
+        #expect(l.allowance == 11)
+        for _ in 0..<11 { l.consume() }
         #expect(!l.canStart)
         l.roll(to: 20261002)
         #expect(l.bonus == 0)
         #expect(l.allowance == HomerunLedger.freePerDay)
     }
 
-    @Test("台帳の保存の互換: 以前の保存（ボーナスのキー無し）が読める・ボーナス 0 はキーを書かない・+2 は読み戻せる")
+    @Test("台帳の保存の互換: 以前の保存（ボーナスのキー無し）が読める・ボーナス 0 はキーを書かない・+1 は読み戻せる")
     func ledgerCompatibility() throws {
         let old = Data(#"{"dayKey":20261001,"used":2,"adsWatched":1,"surveyDone":true}"#.utf8)
         let decoded = try JSONDecoder().decode(HomerunLedger.self, from: old)
@@ -137,7 +137,7 @@ struct HomerunMoonTests {
         let data = try JSONEncoder().encode(granted)
         let back = try JSONDecoder().decode(HomerunLedger.self, from: data)
         #expect(back == granted)
-        #expect(back.remaining == 2)
+        #expect(back.remaining == 1)
 
         let suite = "homerun-moon-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
