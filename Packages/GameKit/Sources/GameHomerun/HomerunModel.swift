@@ -120,8 +120,6 @@ public final class HomerunModel {
     public internal(set) var unlockedThisChallenge: [HomerunAchievement] = []
     /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
     public internal(set) var gameCenterLinked = false
-    /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
-    public var showsExhausted = false
     /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
     public var showsDirectionMeter: Bool {
         didSet { directionMeter.isEnabled = showsDirectionMeter }
@@ -283,7 +281,8 @@ public final class HomerunModel {
         if ledger != before { HomerunStorage.saveLedger(ledger, defaults) }
     }
 
-    /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
+    /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ始めず false
+    /// （打席前は回数 0 で「打席に立つ」を押せなくしている。使い切りのシートは廃止・会長決裁 2026-10-04）。
     /// 動作確認用の強制（回数無制限・月・ポール）は DEBUG ビルドだけで効く（`HomerunDebugOverrides`）。
     @discardableResult
     public func start(now: Date) -> Bool {
@@ -294,10 +293,7 @@ public final class HomerunModel {
         var credit: AnalyticsCredit?
         if !debug.unlimited {
             credit = ledger.nextCredit.map(Self.analyticsCredit)
-            guard ledger.consume() else {
-                showsExhausted = true
-                return false
-            }
+            guard ledger.consume() else { return false }
             HomerunStorage.saveLedger(ledger, defaults)
         }
         beginChallenge(now: now, withAd: false, credit: credit)
@@ -613,7 +609,7 @@ public final class HomerunModel {
             services?.gameDidProgress(gameID: Self.gameID)
         }
         lastBall = ball
-        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +2（当日分・上限なし）。
+        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +1（当日分・上限なし・会長決裁 2026-10-04 で +2→+1）。
         if ball?.moon == .broken {
             refreshDay(now: now)
             ledger.grantMoonBonus()

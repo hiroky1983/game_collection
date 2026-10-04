@@ -78,7 +78,6 @@ struct HomerunConnectionTests {
         #expect(model.ledger.used == before.used, "回数から引かない（広告の 1 本で遊ぶ）")
         #expect(model.ledger.adPlays == 1, "台帳の上で広告での挑戦と分かる")
         #expect(HomerunStorage.loadLedger(defaults).adPlays == 1, "保存される")
-        #expect(!model.showsExhausted)
     }
 
     @Test("広告でのプレイは 1 日 adLimitPerDay 本まで")
@@ -150,7 +149,7 @@ struct HomerunConnectionTests {
         #expect(model.ledger.canStart)
     }
 
-    @Test("アンケート +1・月のご褒美 +2 は今どおり回数に足す（広告でのプレイとは別）")
+    @Test("アンケート +1・月のご褒美 +1 は今どおり回数に足す（広告でのプレイとは別）")
     func surveyAndMoonStillAddToCount() throws {
         let model = makeModel()
         try useUpFree(model)

@@ -12,7 +12,7 @@ import HomerunCore
 ///    球は逆に遠ざかって小さくなり、月面に吸い込まれて当たる（会長 QA 2026-10-01）。大気圏を抜ける（空が夜になる）ところで
 ///    球が燃え、オレンジ〜赤の炎と火の尾をまとった火の玉になる（`Fireball`・月の黄土色と夜空の紺の上でも見えるように）
 /// 4. 球が月に当たる（`impact`）: 白く光り、月が揺れてヒビが入る（1 回目）。2 回目は続けて月が半分に割れて左右へ離れる
-/// 5. 結果のカード（1 回目「月まで飛んだ！ 384,400 km」・2 回目「月が割れた！」と「プレイ回数 +2」）
+/// 5. 結果のカード（1 回目「月まで飛んだ！ 384,400 km」・2 回目「月が割れた！」と「プレイ回数 +1」）
 ///
 /// 月・夜空・星は打席の 3D（`HomerunAtBatScene3DView`）に足すだけで、新しい `ARView` は作らない。月はクレーターの模様を貼った球
 /// （割れた後は半球 2 つ）にインクの輪郭線を付けたトゥーン調（`HomerunMoonArt`）。Meshy は使わない。
@@ -143,7 +143,7 @@ enum HomerunMoonShot {
     static func cardDelay(_ moon: HomerunMoon) -> TimeInterval { impact + cardDelayAfterImpact(moon) }
 
     /// 1 球の結果を見せる時間（`HomerunModel.resultDuration`）: 離してから当たるまでの最大 + カードまで + カードを読む時間。
-    /// 2 回目はカードに「挑戦はここまで」「プレイ回数 +2」が増えるので 1 秒長く読ませる。
+    /// 2 回目はカードに「挑戦はここまで」「プレイ回数 +1」が増えるので 1 秒長く読ませる。
     static func resultDuration(_ moon: HomerunMoon) -> TimeInterval {
         HomerunBallChase.contactLeadMax + cardDelay(moon) + HomerunBallChase.cardHold + (moon == .broken ? 1 : 0)
     }
