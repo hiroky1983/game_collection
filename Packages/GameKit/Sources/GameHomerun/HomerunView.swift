@@ -30,8 +30,8 @@ public struct HomerunView: View {
             // 打席中は左上の戻るを出さない（#1550。誤タップで挑戦が終わらないように。やめるのは一時停止から確認つきで）。
             // 打席中は右上の「?」も出さない（#1617。一時停止の画面に「遊び方」を置き、そこから開く）。
             .gameChrome(title: "柵越えおじさん", review: services.review,
-                        hidesBackButton: model.phase == .pitching || model.phase == .ballResult,
-                        hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult)
+                        hidesBackButton: model.phase == .pitching || model.phase == .ballResult || model.phase == .finale,
+                        hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult || model.phase == .finale)
             // 遊び方を読んでいるあいだは投球を止め、閉じたらその球を投げ直す。
             .howToPlay(.homerun, onPresent: { model.hold(.sheet, true, now: Date()) },
                        onDismiss: { model.hold(.sheet, false, now: Date()) }) {
@@ -75,8 +75,14 @@ public struct HomerunView: View {
         case .idle:
             HomerunLobbyView(model: model, services: services, challengeRescue: challengeRescue)
                 .transition(.opacity)
-        case .pitching, .ballResult:
+        case .pitching, .ballResult, .finale:
             HomerunAtBatView(model: model, ads: services.ads)
+                // 10 球（または月が割れて）終わったら、結果画面の前に打席の上へ結果の演出を重ねる（会長決裁 2026-10-05）。
+                .overlay {
+                    if model.phase == .finale {
+                        HomerunFinaleView(model: model).transition(.opacity)
+                    }
+                }
                 .transition(.opacity)
         case .finished:
             HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)

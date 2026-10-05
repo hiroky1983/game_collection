@@ -116,7 +116,9 @@ let package = Package(
                             // 打席の操作の説明の図の元絵（#1763。ゾーン・カーソル無しの打席・前カメラ・2x 相当）。
                             .copy("Resources/HomerunTutorialShot.jpg"),
                             // 打席前・結果画面のおじさん（#1772。3D の構えを書き出した透明 PNG・3x）。撮り直し手順は HomerunToonView.swift。
-                            .copy("Resources/HomerunOjisanStance.png")]),
+                            .copy("Resources/HomerunOjisanStance.png"),
+                            // 10 球後の結果の演出のおじさんの絵 5 枚（会長作成・2026-10-05・長辺 750px の透明 PNG）。
+                            .copy("Resources/Finale")]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),

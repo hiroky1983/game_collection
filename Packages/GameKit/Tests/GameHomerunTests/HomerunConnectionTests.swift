@@ -42,12 +42,14 @@ struct HomerunConnectionTests {
     /// 見送りで 1 球進めて結果を閉じる。
     private func skip(_ model: HomerunModel) throws {
         model.advance(now: try #require(model.nextWake))
-        model.advance(now: try #require(model.resultUntil))
+        try skipResult(model)
     }
 
     /// 結果を閉じて次へ（最後の球なら終了）。
     private func skipResult(_ model: HomerunModel) throws {
         model.advance(now: try #require(model.resultUntil))
+        // 最後の球なら、結果の演出（`.finale`）も閉じて結果画面へ。
+        if model.phase == .finale { model.advance(now: try #require(model.finaleUntil)) }
     }
 
     // MARK: 広告を見てプレイ（#1694）

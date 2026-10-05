@@ -270,11 +270,9 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
-        // 柵越えおじさん（企画倉庫・#1348）。v1.1.8 では非公開（会長指示 2026-10-02）。上の 6 本と同じ扱いで、
-        // 出荷する版が決まるまでハブには並べない。3D の打席・回数回復（広告/アンケート）・解析・Game Center への送信まで入っている。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す
-        // （`RecommendationPolicy` の "homerun" の行と、チャリンコおじさんの第3候補も戻す）。
-        // HomerunModule(),
+        // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告/アンケート）・
+        // 解析・Game Center への送信まで入っている。
+        HomerunModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

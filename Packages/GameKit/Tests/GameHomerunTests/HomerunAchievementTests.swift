@@ -399,6 +399,8 @@ struct HomerunAchievementTests {
         model.atBatDidAppear(now: Self.t0)
         try swing(model, dy: 8)
         model.advance(now: try #require(model.resultUntil))
+        #expect(model.phase == .finale)
+        model.advance(now: try #require(model.finaleUntil))
         #expect(model.phase == .finished)
         #expect(model.unlockBanner(at: Self.t0).isEmpty)
         #expect(Set(model.unlockedThisChallenge) == [.firstHomer, .justMeet, .outOfPark])
@@ -420,6 +422,8 @@ struct HomerunAchievementTests {
             model.advance(now: try #require(model.resultUntil))
             model.atBatDidAppear(now: Self.t0)
         }
+        #expect(model.phase == .finale)
+        model.advance(now: try #require(model.finaleUntil))
         #expect(model.phase == .finished)
         #expect(model.achievements.contains(.allTenHomers))
         #expect(model.achievements.contains(.farTotal))
