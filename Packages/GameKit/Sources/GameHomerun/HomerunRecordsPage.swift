@@ -5,10 +5,11 @@ import HomerunCore
 /// 打席前に置く「記録と実績 ›」の 1 行（会長指示 2026-10-04）。押すと `HomerunRecordsPage` へ移る。
 struct HomerunRecordsLink: View {
     let model: HomerunModel
+    let ads: AdService
 
     var body: some View {
         NavigationLink {
-            HomerunRecordsPage(model: model)
+            HomerunRecordsPage(model: model, ads: ads)
         } label: {
             HStack {
                 Label("記録と実績", systemImage: "trophy.fill")
@@ -33,13 +34,18 @@ struct HomerunRecordsLink: View {
 }
 
 /// 「記録と実績」のページ（会長指示 2026-10-04）。上に通算の記録、その下に実績の一覧（`HomerunAchievementsCard`）。
+/// 記録と実績のあいだに 300×250 の広告を 1 枠（会長決裁 2026-10-04）。このページは画面下の固定バナーを置かない（広告は 1 枠）。
+/// 戻るボタン・押せる要素から離すため、広告の上下に `HomerunRecordsAdGap.around` の余白を取る（#1749）。
 struct HomerunRecordsPage: View {
     let model: HomerunModel
+    let ads: AdService
 
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
                 HomerunRecordsCard(records: model.records)
+                MediumRectangleSlot(ads: ads)
+                    .padding(.vertical, HomerunRecordsAdGap.around)
                 HomerunAchievementsCard(model: model)
             }
             .padding(Theme.pad)
@@ -50,6 +56,11 @@ struct HomerunRecordsPage: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
     }
+}
+
+/// 「記録と実績」ページの広告の上下に足す余白（#1749。VStack の間隔 14pt と合わせて上下とも 38pt 空く）。
+enum HomerunRecordsAdGap {
+    static let around: CGFloat = 24
 }
 
 /// 通算の記録（`HomerunRecords` の既存の値）を、実績と同じ大きめの文字で 1 列に並べる。

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 日次台帳（README §3.4）: 無料 3・アンケート +1（1 日 1 回）・広告でプレイ（1 日 5 本・回数とは別）・月が割れたら +2（#1680・回数の上限なし）・0:00 リセット。
+/// 日次台帳（README §3.4）: 無料 3・アンケート +1（1 日 1 回）・広告でプレイ（1 日 5 本・回数とは別）・月が割れたら +1（#1680・会長決裁 2026-10-04 で +2→+1・回数の上限なし）・0:00 リセット。
 /// 回数を使い切ったら「広告を見てプレイ」（#1694）: 広告 1 本でその場の 1 挑戦だけ遊べる。**回数は増やさない**（貯められない）。
 /// 減算は打席に立った時点。「プレイ記録を消去」で補充されないよう、保存先は `PlayLog.allKeys` に入れない。
 public struct HomerunLedger: Codable, Equatable, Sendable {
@@ -11,7 +11,8 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
     public static let adLimitPerDay: Int? = 5
     public static let surveyBonus = 1
     /// 月が割れたとき（#1680）のプレゼント。当日分として足す（0:00 で消える）。1 日の全体の上限は無い（会長決裁 2026-10-01）。
-    public static let moonBonus = 2
+    /// +2 → +1（会長決裁 2026-10-04）。
+    public static let moonBonus = 1
 
     /// 消費する枠の種別（#1685）。
     public enum Credit: Equatable, Sendable {
