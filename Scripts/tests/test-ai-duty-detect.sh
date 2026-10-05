@@ -543,6 +543,35 @@ check "duty:heavy と通常の孤児が混ざっていれば通常のほうだ�
 check "取得に失敗して空なら件数を出さない（呼び出し側が 0 に倒す）" "" \
   "$(count_orphans "" 1800 '[]')"
 
+# #1534: 決裁待ちのドラフト PR と、release 向け PR が出ている Issue で空振り起動していた
+echo "== 21b. 仕事6（放置 PR）のドラフト除外と仕事9 の本文紐づけ =="
+check "非ドラフトの CLEAN・auto-merge 未設定は数える" "1" \
+  "$(count_stalled '[{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"closingIssuesReferences":[]}]' '[]')"
+check "ドラフトの CLEAN・auto-merge 未設定は数えない（#1534）" "0" \
+  "$(count_stalled '[{"isDraft":true,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"closingIssuesReferences":[]}]' '[]')"
+check "ドラフトと非ドラフトが混ざれば非ドラフトだけ数える" "1" \
+  "$(count_stalled '[{"isDraft":true,"mergeStateStatus":"CLEAN","autoMergeRequest":null},{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":null}]' '[]')"
+check "非ドラフトでも auto-merge 済み・CLEAN でなければ数えない" "0" \
+  "$(count_stalled '[{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":{"enabledAt":"x"}},{"isDraft":false,"mergeStateStatus":"BLOCKED","autoMergeRequest":null}]' '[]')"
+check "他スロットの Issue を Closes する PR は数えない" "0" \
+  "$(count_stalled '[{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"closingIssuesReferences":[{"number":9}]}]' '[9]')"
+check "本文の Closes #N を紐づけとして数える（release 向けで closingIssuesReferences が空）" "[1511]" \
+  "$(pr_linked_issue_numbers '[{"body":"Closes #1511\n本文","closingIssuesReferences":{"nodes":[]}}]')"
+check "本文の「関連: #N」も紐づけとして数える（#1527 の形）" "[1501]" \
+  "$(pr_linked_issue_numbers '[{"body":"関連: #1501","closingIssuesReferences":{"nodes":[]}}]')"
+check "closingIssuesReferences と本文の和集合（重複は1つ）" "[7,8]" \
+  "$(pr_linked_issue_numbers '[{"body":"fixes #8 / Closes #7","closingIssuesReferences":{"nodes":[{"number":7}]}}]')"
+check "本文が無い・空なら空配列" "[]" \
+  "$(pr_linked_issue_numbers '[{"body":null,"closingIssuesReferences":{"nodes":[]}},{"body":"","closingIssuesReferences":[]}]')"
+check "単語の途中（disclose / prefs）は紐づけと読まない" "[]" \
+  "$(pr_linked_issue_numbers '[{"body":"disclose #7 / prefs #8","closingIssuesReferences":[]}]')"
+check "本文参照の Issue は孤児に数えない・参照の無い Issue は数える" "1" \
+  "$(count_orphans "$(orphan_issues "1511|ai:approved,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 "$(pr_linked_issue_numbers '[{"body":"Closes #1511","closingIssuesReferences":{"nodes":[]}}]')")"
+check "呼び出し側: 仕事6 が isDraft を取得して純粋関数に渡している（取り忘れると全件が非ドラフト扱い）" "1" \
+  "$(grep -c 'STALLED=$(count_stalled "$(gh pr list .*--json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences' "$TARGET")"
+check "呼び出し側: 仕事9 が PR 本文を取得して紐づけ判定に通している" "1" \
+  "$(grep -c '^LINKED_ISSUES=$(pr_linked_issue_numbers' "$TARGET")"
+
 # 呼び出し側の配線（--json に labels を足し忘れると、純粋関数のテストは緑のまま全件が未承認扱いになる）。
 # 仕事9 のブロックをそのまま切り出し、gh だけをスタブに差し替える。スタブは実物と同じく --json で頼んだ欄しか返さない
 ORPHAN_BLOCK=$(awk '/^# 仕事9: 孤児化した ai:in-progress の回収/ { f = 1 } /^# 仕事10:/ { f = 0 } f' "$TARGET")
