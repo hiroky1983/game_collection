@@ -833,6 +833,55 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **動作確認**: DEBUG ビルドの起動引数 `-homerunForcePole` で、振れば必ずポールに当たる（向きは振った方向の側・
   `HomerunModel.debugForcePoleKey`）。月の強制が優先
 
+### 柵越えおじさん: 実績（#1794・v1.1.9）
+
+打席前の「記録と実績」のページ（`HomerunRecordsPage`・`HomerunAchievementsCard`）に、実績 21 種を出す。**名前も条件も解除するまで一覧には出さず、
+未解除はすべて「？？？」の枠**にする（解除後に `title` / `detail` を見せる）。
+
+- **種類**（`HomerunAchievement`・`HomerunCore`）: 1 球の結果（はじめての柵越え・場外・ポール直撃・月まで飛ばした・ジャストミート・
+  空振りで回って倒れた・たんこぶ「ゴツン！」）／終えた挑戦（10 球すべて柵越え・月を割った・1 挑戦の合計 1,000m 超と 1,500m 超）／
+  通算（飛距離 3,000・5,000・8,000・10,000・50,000・100,000m に届く・柵越え 10・30・50・100 本に届く）。
+  判定は打球・挑戦・蓄積（`HomerunRecords`）だけから決まる純関数（`earned(byBall:…)` ほか）。通算の実績は挑戦を記録に取り込んだあとに判定するので、
+  この版より前から累計が超えていた人も次に挑戦を終えたときにまとめて解除される
+- **保存**: `HomerunAchievementLog`（実績の `rawValue` の配列）を `UserDefaults` のキー `homerun_achievements_v1`（`HomerunStorage.achievementsKey`）に持つ。
+  知らない値（将来の版が足したもの）は読み捨てずに持ち続け、一覧・件数には出さない。
+  **`PlayLog.homerunKeys` に入っており「プレイ記録を消去」の対象**（`homerun_records_v1` と同じ。日次台帳 `homerun_ledger_v1` は対象外）。
+  Game Center に連携している人は、次にロビーを開いたとき Game Center 側の解除済みが端末へ戻る
+- **解除の表示**: 1 球の結果の演出が終わったところで打席に「実績解禁」を出す（`HomerunModel.unlockBannerDuration`・2.6 秒）。
+  挑戦の結果には、その挑戦で解除したもの（`unlockedThisChallenge`）を並べる
+- **Game Center**: 実績 ID は `asobiba.homerun.achievement.<rawValue の小文字>`（`HomerunAchievement.gameCenterID`）。全量は
+  `GameCenterAchievements.homerunIDs`（Core）で、`GameHomerunTests` が両者の一致を縛る。ハブの「記録」画面の道しるべ（`allIDs`）には**入れない**。
+  解除した瞬間に `GameCenterReporter.reportUnlocked`（未サインインなら何もしない）で送る
+- **ロビーを開くたびの同期**: `HomerunModel.syncGameCenterAchievements`（`HomerunView` の `.task`）が `fetchUnlockedAchievementIDs`
+  （`GameCenterService.unlockedAchievementIDs()`・プロトコルに追加）で Game Center 側の解除済みを読み、端末の記録と**和集合**に合わせ、
+  端末にだけあるぶん（あとから連携した人のそれまでの分）を送る。未連携・読めなかったとき（オフライン等）は何もしない
+- **前提**: App Store Connect への実績の登録は、柵越えおじさんをハブに載せる版が決まった時点の**会長操作**で、それまで未登録。
+  ハブ非公開の間は Game Center に出ない（端末内の記録・一覧は動く）
+
+### 柵越えおじさん: たんこぶ（#1793・v1.1.9）
+
+打ち上げた球が自分の頭に落ちて、ヘルメットの上にたんこぶができるギャグ演出（`HomerunCore/HomerunTankobu`・見た目は `GameHomerun/HomerunTankobuGag`）。
+
+- **発生**: ポップフライになる当たり（`HomerunLaunch.pop`）のうち、球の結構下を擦って当てたもの（カーソルの縦のずれが
+  `HomerunTankobu.scrapeFloor` 以上＝ポップの帯の芯の基準点より下）で、フェアに落ちるもの（ファウル・空振りは除く）。
+  条件を満たした当たり 1 回あたりの確率は `HomerunTankobu.chance`（1/5）、**1 挑戦に 1 回まで**（`perChallenge`）。
+  乱数は `HomerunModel.tankobuRoll`（テストで差し替える）。値は初期値で、会長 QA で調整する前提のため `HomerunTankobu` の定数に集めてある
+- **結果**: 打球を置き換え（`HomerunTankobu.apply`）、**飛距離 0・方向 0**（真上に上がって落ちてくる）。種別・タイミングは元のまま。
+  1 球として記録には数える（飛距離 0 として合計・集計に入る）。`isTankobu` の打球にはキラキラ目などの結果の記号を付けない
+- **見せ方**: 球が頭に落ちて座り込み、次の球の構えでヘルメットの上にたんこぶを残す（`HomerunFaceMark.waitingLump`）。
+  結果の間は `HomerunTankobuGag.resultDuration`。音は `HomerunSound.tankobu`
+- **実績**: 「ゴツン！」（`HomerunAchievement.tankobu`）
+
+### 柵越えおじさん: 怒りマークと怒りゲージ（#1769・#1797・v1.1.9）
+
+振った空振り（見送りは除く）の次の球の構えで、頭の横に白い吹き出しに入れた赤い 💢 を出す（`HomerunFaceMark.waitingAngry`・弾ませてプンプンさせる）。
+判定・飛距離は変えない。
+
+- **怒りゲージ**（裏パラメータ・画面には出さない・`HomerunModel.angerGauge`）: 振った空振りで `angerWhiffGain`（1）増え、
+  当たり（ファウル含む）で `angerHitRelief`（1）減る（0 未満にしない）。見送りは変えない。挑戦の開始で 0。数値は `HomerunFaceMark` の定数に集めてある
+- **段階②**: ゲージが `angerStageThreshold`（3）以上のとき、💢 に加えて**頭から湯気**を出す（`waitingAngryHot`。会長確定 2026-10-04。**顔の赤みは入れない**）
+- **他の構え記号との優先**: たんこぶ > 柵越えの次のキラキラ目（`waitingSparkle`）> 怒りマーク。挑戦が終わる球（10 球目・月が割れた球）の次は出さない
+
 ---
 
 ## 広告仕様
