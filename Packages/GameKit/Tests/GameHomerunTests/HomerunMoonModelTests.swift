@@ -70,6 +70,10 @@ struct HomerunMoonModelTests {
         // 月の演出のぶん結果を長く見せ、その後は 10 球の結果（Game over）へ。
         #expect(model.resultUntil == model.ballClock?.releasedAt?.addingTimeInterval(HomerunMoonShot.resultDuration(.broken)))
         model.advance(now: close2)
+        // 結果画面の前に結果の演出（月が割れた＝下敷きの絵）を挟む。
+        #expect(model.phase == .finale)
+        #expect(model.finale == .moonBroken)
+        model.advance(now: try #require(model.finaleUntil))
         #expect(model.phase == .finished)
         #expect(model.ledger.canStart)
     }
