@@ -14,7 +14,7 @@ node docs/analytics/fetch-kpi.mjs ga4 28  # 個別実行・日数指定
 
 | サブコマンド | 読むもの | 備考 |
 |---|---|---|
-| `asc-sales [日数]` | ASC 売上レポート（日次）の初回 DL・再 DL・アップデート | 最新の確定日は 2〜3 日前まで。未確定の日は「未確定」と出る。日付は UTC |
+| `asc-sales [日数]` | ASC 売上レポート（日次）の初回 DL・再 DL・アップデート | 日付は太平洋時間。レポートの無い日は 404 で「レポート無し（0件または未確定）」と出る（販売 0 件の日にもレポートは無い）。他の失敗は表にエラーを出し、終了コード 1 |
 | `asc-analytics` | App Analytics レポートの有無と中身 | ONGOING の依頼を 2026-10-06 に1本作成済み。最初のレポートは作成の 1〜2 日後から。依頼が無い環境では `--create-analytics-request` で作る |
 | `ga4 [日数]` | アクティブユーザー・イベント別・ゲーム別 `game_start` | `customUser:build_channel = appstore` に固定（#347） |
 | `ga4-reward [日数]` | リワードの `purpose` 別の受諾率・先読み不足率・完了率 | 式は `docs/spec-app.md`「解析仕様」の `reward_offer` の項 |

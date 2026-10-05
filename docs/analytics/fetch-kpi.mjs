@@ -49,6 +49,8 @@ async function asc(path, { method = "GET", json, raw = false } = {}) {
 }
 
 const ymd = (d) => d.toISOString().slice(0, 10);
+// ASC の日次売上レポートの「日」は太平洋時間。UTC の日付で引くと JST の午前に直近の確定日を取り逃す
+const ymdPT = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(d);
 const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 const tsv = (buf) => {
   const [head, ...rows] = gunzipSync(buf).toString("utf8").trim().split("\n").map((l) => l.split("\t"));
@@ -57,14 +59,15 @@ const tsv = (buf) => {
 const table = (head, rows) => [`| ${head.join(" | ")} |`, `|${head.map(() => "---").join("|")}|`, ...rows.map((r) => `| ${r.join(" | ")} |`)].join("\n");
 
 // 売上レポート（日次・SUMMARY）。Product Type 1/1F/1T=初回 DL、7/7F/7T=アップデート、3/3F/3T=再 DL。
-// 当日分は未確定で 404 になる（Apple 側の確定は翌日以降・太平洋時間基準）ので、404 の日は「未確定」と出す。
+// レポートの無い日は 404（確定前の日と、販売 0 件の日の両方）。404 以外の失敗は表に出して最後に例外にする。
 async function ascSales(days = 14) {
   const FIRST = new Set(["1", "1F", "1T", "1E", "1EP", "1EU"]);
   const UPDATE = new Set(["7", "7F", "7T"]);
   const REDL = new Set(["3", "3F", "3T"]);
   const rows = [];
+  let failed = 0;
   for (let i = days; i >= 1; i--) {
-    const date = ymd(daysAgo(i));
+    const date = ymdPT(daysAgo(i));
     const q = new URLSearchParams({
       "filter[frequency]": "DAILY", "filter[reportType]": "SALES", "filter[reportSubType]": "SUMMARY",
       "filter[vendorNumber]": VENDOR, "filter[reportDate]": date, "filter[version]": "1_0",
@@ -74,11 +77,13 @@ async function ascSales(days = 14) {
       const sum = (set) => recs.filter((r) => set.has(r["Product Type Identifier"])).reduce((a, r) => a + Number(r.Units || 0), 0);
       rows.push([date, sum(FIRST), sum(REDL), sum(UPDATE)]);
     } catch (e) {
-      rows.push([date, ...(String(e).includes(" 404 ") ? ["未確定", "未確定", "未確定"] : [`エラー: ${String(e).slice(0, 80)}`, "", ""])]);
+      if (String(e).includes(" 404 ")) rows.push([date, "レポート無し", "（0件または未確定）", ""]);
+      else { failed++; rows.push([date, `エラー: ${String(e).slice(0, 80)}`, "", ""]); }
     }
   }
   console.log("## ASC 売上レポート（日次・自社アプリのみ。単位: 件）\n");
-  console.log(table(["日（UTC）", "初回DL", "再DL", "アップデート"], rows));
+  console.log(table(["日（太平洋時間）", "初回DL", "再DL", "アップデート"], rows));
+  if (failed) throw new Error(`売上レポートの取得に ${failed} 日分失敗した（合計は確定値にならないので出さない）`);
   const n = (i) => rows.reduce((a, r) => a + (Number(r[i]) || 0), 0);
   console.log(`\n合計: 初回DL ${n(1)} / 再DL ${n(2)} / アップデート ${n(3)}`);
 }
@@ -192,7 +197,21 @@ async function ga4Reward(days = 7) {
         count("reward_request", p), count("reward_ad", p), pct(count("reward_ad", p), count("reward_request", p))];
     }),
   ));
-  console.log("\n完了率の分母（reward_request）は、確認を挟まず広告へ進む面（ナンプレ等のヒント）や再生の途中離脱で purpose と揃わず、100% を超えることがある。\n提示率は分母（game_end の loss・game_start）が purpose と 1 対 1 でないため、必要なときは ga4 の表から手で割る。");
+  const per = await ga4Report({
+    dateRanges: dateRange(days), dimensions: [{ name: "customEvent:game_id" }, { name: "eventName" }, { name: "customEvent:result" }],
+    metrics: [{ name: "eventCount" }],
+    dimensionFilter: andFilter(onlyAppStore, evFilter("game_start", "game_end")), limit: 1000,
+  });
+  const base = {};
+  for (const r of per.rows || []) {
+    const [g, ev, res] = r.dimensionValues.map((d) => d.value), c = Number(r.metricValues[0].value);
+    const b = (base[g] ||= { start: 0, loss: 0 });
+    if (ev === "game_start") b.start += c;
+    else if (res === "loss") b.loss += c;
+  }
+  console.log("\n### 提示率の分母（game_id 別。コンティニュー・復活は loss、待った・戻す・並べ替えは game_start で割る）\n");
+  console.log(table(["game_id", "game_start", "game_end(loss)"], Object.entries(base).sort((a, b) => b[1].start - a[1].start).map(([g, b]) => [g, b.start, b.loss])));
+  console.log("\n完了率の分母（reward_request）は、確認を挟まず広告へ進む面（ナンプレ等のヒント）や再生の途中離脱で purpose と揃わず、100% を超えることがある。\n提示率は、purpose と分母のゲーム・場面が 1 対 1 でないため自動では出さない。上の分母の表から場面ごとに手で割る。");
 }
 
 async function admob(days = 7) {
