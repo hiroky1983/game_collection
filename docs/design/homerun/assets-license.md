@@ -165,3 +165,18 @@ OpenAI 公式ヘルプセンター（FAQ）の記載として広く引用され�
 | アセット | 内容 | 出所 | 作成日 |
 |---|---|---|---|
 | `Packages/GameKit/Sources/GameHomerun/Resources/HomerunHubHeroArtLogo.jpg` | ハブ先頭の特別枠に使うロゴ入り横長画像（元 1536×1024 を 1206×804 の JPEG に縮小） | ChatGPT で生成・会長が作成。権利上の問題なしと会長が確認（#1761） | 2026-10-02 |
+
+## 追記: 10 球後の結果の演出のおじさん 5 枚（PR #1811）
+
+いずれも ChatGPT で生成・会長が作成。権利上の問題なしと会長が確認（2026-10-05）。元の透明 PNG を長辺 750px に縮小して同梱
+（切り抜き等の加工はしていない）。置き場所は `Packages/GameKit/Sources/GameHomerun/Resources/Finale/`。
+
+| アセット | 区分（表示名） | 元画像（会長から受領したファイル名・寸法） | 作成日 |
+|---|---|---|---|
+| `HomerunFinalePerfect.png` | パーフェクト（ガッツポーズ） | 歓喜のベテラン野球選手.png（1269×1240） | 2026-10-05 |
+| `HomerunFinaleExcellent.png` | エクセレント（万歳ジャンプ） | 野球選手の歓喜のジャンプ.png（1024×1536） | 2026-10-05 |
+| `HomerunFinaleGood.png` | グッド（親指を立てる） | 自信満々のベースボールおじさんマーシャル.png（1269×1240） | 2026-10-05 |
+| `HomerunFinaleDonmai.png` | ドンマイ（うずくまって泣く） | 敗北ポーズ 野球選手.png（1312×1199） | 2026-10-05 |
+| `HomerunFinaleMoonBroken.png` | 月が割れた（隕石の下敷き） | 隕石 野球選手.png（1312×1199） | 2026-10-05 |
+
+ChatGPT 生成物の所有権・商用利用の扱いは本書 4 章（OpenAI の規約）と同じ。帰属表示は不要。
