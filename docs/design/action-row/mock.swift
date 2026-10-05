@@ -105,6 +105,8 @@ enum RowStyle: String { case current = "現状", a = "A", b = "B", c = "C" }
 /// いまの「⋯」の行（GameOverflowBar）。左端に表示だけの文字、右端に丸 44pt。
 struct RowCurrent: View {
     var caption: String?
+    /// 上下の余白。盤ゲーム 5 本は 1pt（`BoardGameControlMetrics.rowVerticalPadding`）、ナンプレは 4pt、他は既定の 8pt。
+    var verticalPadding: CGFloat = 8
     var body: some View {
         HStack(spacing: 8) {
             if let caption { Text(caption).rounded(12, .bold).foregroundStyle(T.inkSub) }
@@ -112,7 +114,7 @@ struct RowCurrent: View {
             MoreButton()
         }
         .frame(minHeight: 44)
-        .padding(.vertical, 8)
+        .padding(.vertical, verticalPadding)
     }
 }
 
@@ -262,9 +264,9 @@ struct MoreButton: View {
     }
 }
 
-@ViewBuilder func actionRow(_ style: RowStyle, _ actions: [Action], caption: String?) -> some View {
+@ViewBuilder func actionRow(_ style: RowStyle, _ actions: [Action], caption: String?, currentPadding: CGFloat = 8) -> some View {
     switch style {
-    case .current: RowCurrent(caption: caption)
+    case .current: RowCurrent(caption: caption, verticalPadding: currentPadding)
     case .a: RowA(actions: actions)
     case .b: RowB(actions: actions)
     case .c: RowC(actions: actions)
@@ -701,7 +703,7 @@ struct Screen: View {
                     // 大富豪は進行ボタン（出す・パス）が段の位置を占める。補助操作は投了だけなので「⋯」に残る
                     EmptyView()
                 } else {
-                    actionRow(style, actions, caption: caption)
+                    actionRow(style, actions, caption: caption, currentPadding: currentRowPadding)
                 }
                 GapMarker(minimum: gapMinimum)
                 Banner()
@@ -719,6 +721,15 @@ struct Screen: View {
         case .daifugo: "大富豪"
         case .concentration: "神経衰弱"
         case .runner: "チャリンコおじさん"
+        }
+    }
+
+    /// いまの「⋯」の行の上下余白（release/v1.1.10 の実値）。
+    var currentRowPadding: CGFloat {
+        switch group {
+        case .shogi, .go: 1      // BoardGameControlMetrics.rowVerticalPadding → 行は 46pt
+        case .sudoku: 4          // SudokuView: verticalPadding: 4 → 52pt
+        default: 8               // GameOverflowBar の既定 → 60pt
         }
     }
 
@@ -890,8 +901,8 @@ MainActor.assumeIsolated {
     let dir = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ".")
 
     // 現状（比較の基準）
-    sheet(dir, "00-current-shogi.png", "現状・対局系（将棋）", "待った・ヒント・投了はすべて右下の「⋯」の中。段には何も出ていない（v1.1.7 の #1468 以降）", .shogi, .current, [])
-    sheet(dir, "00-current-sudoku.png", "現状・入力系（ナンプレ）", "キーパッドの下に「⋯」だけ。戻す・メモ・拡大・ヒント（広告）・諦めるは「⋯」の中", .sudoku, .current, [])
+    sheet(dir, "00-current-shogi.png", "現状・対局系（将棋）", "待った・ヒント・投了はすべて右下の「⋯」の中。行の高さは 44 + 1×2 = 46pt（盤ゲーム 5 本）。段を 60pt にすると SE では盤がその差ぶん縮みうる", .shogi, .current, [])
+    sheet(dir, "00-current-sudoku.png", "現状・入力系（ナンプレ）", "キーパッドの下に「⋯」だけ（行の高さ 44 + 4×2 = 52pt）。戻す・メモ・拡大・ヒント（広告）・諦めるは「⋯」の中", .sudoku, .current, [])
 
     // 対局系
     sheet(dir, "01-shogi-A.png", "案A・対局系（将棋：待った → ヒント → ⋯）", "役割の色（待った＝ティール・ヒント＝黄）で塗ったカプセルを等幅で並べ、右端に今の「⋯」。広告が要るときは「▶ 広告を見て」、無料のあいだは「あと◯回」を 2 行目に", .shogi, .a, shogiActions)
