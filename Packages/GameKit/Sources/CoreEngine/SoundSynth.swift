@@ -16,11 +16,11 @@ import Foundation
 public struct SoundSynth {
     public static let sampleRate = ToneGenerator.sampleRate
 
-    /// ノイズ用の乱数（SplitMix64）。
-    private var state: UInt64
+    /// ノイズ用の乱数（共通部品の SplitMix64。定数を写さず `SplitMix64` に寄せる）。
+    private var generator: SplitMix64
 
     public init(seed: UInt64) {
-        state = seed
+        generator = SplitMix64(seed: seed)
     }
 
     /// 秒 → サンプル数（切り捨て・試作と同じ）。
@@ -31,11 +31,7 @@ public struct SoundSynth {
     // MARK: 乱数
 
     private mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
+        generator.next()
     }
 
     /// `lower...upper` の一様乱数。
