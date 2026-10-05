@@ -322,18 +322,25 @@ private struct HomerunFinaleConfetti: View {
     var body: some View {
         ZStack {
             ForEach(0..<count, id: \.self) { i in
-                let seed = Double(i) * 12.9898
-                let x = (sin(seed) * 0.5 + 0.5) * size.width
-                let delay = (sin(seed * 3.1) * 0.5 + 0.5) * 0.8
-                let speed = 220 + (sin(seed * 7.7) * 0.5 + 0.5) * 220
-                let y = -20 + max(0, t - 0.3 - delay) * speed
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Self.palette[i % Self.palette.count])
-                    .frame(width: 9, height: 14)
-                    .rotationEffect(.radians(t * (3 + Double(i % 5))))
-                    .position(x: x + sin(t * 3 + seed) * 18, y: y)
+                piece(i)
             }
         }
+    }
+
+    private func piece(_ i: Int) -> some View {
+        let seed: Double = Double(i) * 12.9898
+        let delay: Double = (sin(seed * 3.1) * 0.5 + 0.5) * 0.8
+        let speed: Double = 220 + (sin(seed * 7.7) * 0.5 + 0.5) * 220
+        let falling: Double = max(0, t - 0.3 - delay)
+        let sway: Double = sin(t * 3 + seed) * 18
+        let x: CGFloat = CGFloat(sin(seed) * 0.5 + 0.5) * size.width + CGFloat(sway)
+        let y: CGFloat = CGFloat(-20 + falling * speed)
+        let spin: Double = t * (3 + Double(i % 5))
+        return RoundedRectangle(cornerRadius: 2)
+            .fill(Self.palette[i % Self.palette.count])
+            .frame(width: 9, height: 14)
+            .rotationEffect(.radians(spin))
+            .position(x: x, y: y)
     }
 }
 
@@ -343,12 +350,17 @@ private struct HomerunFinaleRain: View {
     var body: some View {
         ZStack {
             ForEach(0..<30, id: \.self) { i in
-                let seed = Double(i) * 4.37
-                let x = (sin(seed) * 0.5 + 0.5) * size.width
-                let y = ((cos(seed * 2.3) * 0.5 + 0.5) * size.height + t * 520).truncatingRemainder(dividingBy: max(size.height, 1))
-                Capsule().fill(.white.opacity(0.35)).frame(width: 2, height: 18).position(x: x, y: y)
+                drop(Double(i) * 4.37)
             }
         }
+    }
+
+    private func drop(_ seed: Double) -> some View {
+        let x: CGFloat = CGFloat(sin(seed) * 0.5 + 0.5) * size.width
+        let start: CGFloat = CGFloat(cos(seed * 2.3) * 0.5 + 0.5) * size.height
+        let fall: CGFloat = CGFloat(t * 520)
+        let y: CGFloat = (start + fall).truncatingRemainder(dividingBy: max(size.height, 1))
+        return Capsule().fill(Color.white.opacity(0.35)).frame(width: 2, height: 18).position(x: x, y: y)
     }
 }
 
@@ -357,11 +369,22 @@ private struct HomerunFinaleStars: View {
     var body: some View {
         ZStack {
             ForEach(0..<40, id: \.self) { i in
-                let seed = Double(i) * 7.13
-                Circle().fill(.white.opacity(0.4 + 0.5 * (sin(seed * 5) * 0.5 + 0.5)))
-                    .frame(width: 2 + 2 * (sin(seed * 9) * 0.5 + 0.5))
-                    .position(x: (sin(seed) * 0.5 + 0.5) * size.width, y: (cos(seed * 1.7) * 0.5 + 0.5) * size.height * 0.55)
+                star(Double(i) * 7.13)
             }
         }
+    }
+
+    /// 0〜1 に寄せた sin（星ごとのばらつき）。
+    private func wave(_ x: Double) -> Double { sin(x) * 0.5 + 0.5 }
+
+    // CI（Xcode 26.6）で型推論が時間切れにならないよう、式を型を明示した小さな値に分ける。
+    private func star(_ seed: Double) -> some View {
+        let opacity: Double = 0.4 + 0.5 * wave(seed * 5)
+        let diameter: CGFloat = 2 + 2 * CGFloat(wave(seed * 9))
+        let x: CGFloat = CGFloat(wave(seed)) * size.width
+        let y: CGFloat = CGFloat(cos(seed * 1.7) * 0.5 + 0.5) * size.height * 0.55
+        return Circle().fill(Color.white.opacity(opacity))
+            .frame(width: diameter)
+            .position(x: x, y: y)
     }
 }
