@@ -617,6 +617,12 @@ main へマージしただけでは反映されない。会長の `git pull` を
 - `bundle exec fastlane beta` で TestFlight に自動アップロード（`fastlane/Fastfile`）。
 - ビルド番号は日時 (`YYYYMMDDHHmm`) で自動採番。`MARKETING_VERSION` は `project.yml` で管理。
 - リリースノートは環境変数 `TESTFLIGHT_CHANGELOG` で渡す（AI がマージ済み PR から生成する）。
+- 署名は Admin 権限の ASC API キー（`~/.appstoreconnect/asc-key.json`）で行い、Xcode のログイン状態と
+  キーチェーンの証明書に頼らない（#1041。証明書が無ければ `-allowProvisioningUpdates` が API キーで発行する）。
+  開始時に `Scripts/check-signing-prereqs.sh` が前提（Distribution 証明書か API キー）を確かめ、無ければ
+  理由を出して落とす。`bundle exec fastlane signing_check` は証明書の枚数を**読み取るだけ**で確かめる
+  （Distribution は上限あり。当たっても自動では失効させず会長が判断する）。
+- 出荷は `Scripts/ship-beta.sh` で実行するとログが `~/Library/Logs/asobiba-ship/` に全量残る（`tail` で切らない）。
 
 ### 審査提出（Phase 1.5、TestFlight 運用が安定してから）
 
