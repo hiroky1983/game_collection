@@ -40,6 +40,9 @@ enum HomerunSoundCues {
         switch plan.phase {
         case .idle:
             return []
+        case .finale:
+            // 10 球の結果に入る前の演出（`HomerunFinale`）は音を持たない。鳴らすのは結果に入ってから。
+            return []
         case .finished:
             // 鳴らすのは結果に入った時刻（`now`）。同じ挑戦の結果で遊び方を開閉する・バックグラウンドから戻るたびに
             // 出し直されるので、鍵は最後の球の時刻にする（1 挑戦に 1 回だけ鳴る）。
