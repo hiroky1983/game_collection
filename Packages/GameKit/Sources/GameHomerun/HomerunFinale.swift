@@ -135,7 +135,8 @@ struct HomerunFinaleScene: View {
         let count = ease((t - 0.6) / 0.9)
         let side = min(size.width * 0.58, 250.0) * 1.15
         return ZStack {
-            Color.black.opacity(0.35 * bgIn)
+            // 打席に重ねない別ページなので、下敷きは透けない黒（#1818）。
+            Color.black
             LinearGradient(colors: finale.colors, startPoint: .top, endPoint: .bottom)
                 .opacity(0.92 * bgIn)
             if finale.hasRays {
