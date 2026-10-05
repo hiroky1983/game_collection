@@ -62,7 +62,20 @@ private func skipPitch(_ model: HomerunModel) throws -> Date {
     model.advance(now: deadline)
     let close = try #require(model.resultUntil)
     model.advance(now: close)
+    // 最後の球なら、結果の演出（`.finale`）も閉じて結果画面へ。
+    if model.phase == .finale {
+        let end = try #require(model.finaleUntil)
+        model.advance(now: end)
+        return end
+    }
     return close
+}
+
+/// 結果を閉じ、最後の球なら結果の演出も閉じて結果画面へ進める。
+@MainActor
+private func closeResult(_ model: HomerunModel) throws {
+    model.advance(now: try #require(model.resultUntil))
+    if model.phase == .finale { model.advance(now: try #require(model.finaleUntil)) }
 }
 
 @Suite("柵越えおじさんの進行")
@@ -520,7 +533,7 @@ struct HomerunModelTests {
         #expect(model.phase == .ballResult)
         #expect(HomerunStorage.loadRecords(f.defaults).challenges == 1)
         #expect(HomerunStorage.loadRecords(f.defaults).pitches == 10)
-        model.advance(now: try #require(model.resultUntil))
+        try closeResult(model)
         #expect(model.phase == .finished)
         #expect(HomerunStorage.loadRecords(f.defaults).challenges == 1, "終了で二重に取り込まない")
     }

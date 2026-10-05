@@ -25,9 +25,15 @@ public final class HomerunModel {
         case pitching
         /// 1 球の結果を見せている。
         case ballResult
+        /// 10 球（または月が割れて）終わったあと、結果画面の前に挟む演出（`HomerunFinale`・会長決裁 2026-10-05）。
+        /// `finaleDuration` 秒で結果画面へ進む。タップで飛ばせる（`skipFinale`）。
+        case finale
         /// 10 球が終わった。
         case finished
     }
+
+    /// 結果の演出（`.finale`）を見せる時間。
+    public static let finaleDuration: TimeInterval = 3.2
 
     /// 進行を止めている理由（1 つでも残っていれば止まったまま）。
     public struct Hold: OptionSet, Sendable {
@@ -262,15 +268,19 @@ public final class HomerunModel {
         return CGPoint(x: cursor.x + (ball.x - cursor.x) * k, y: cursor.y + (ball.y - cursor.y) * k)
     }
 
-    /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻）。止まっているあいだは nil。
+    /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻・結果の演出を閉じる時刻）。止まっているあいだは nil。
     public var nextWake: Date? {
         guard !isHeld, !awaitsAtBat else { return nil }
         switch phase {
         case .pitching: return arrival?.addingTimeInterval(Self.lateLimit)
         case .ballResult: return resultEnd
+        case .finale: return finaleUntil
         case .idle, .finished: return nil
         }
     }
+
+    /// いまの挑戦の結果の演出の区分（`.finale` の間に画面が描く）。挑戦が無ければ nil。
+    public var finale: HomerunFinale? { challenge.map(HomerunFinale.init(challenge:)) }
 
     // MARK: 打席前
 
@@ -472,15 +482,24 @@ public final class HomerunModel {
         case .ballResult:
             guard let resultEnd, now >= resultEnd else { return }
             if challenge?.isFinished == true {
-                finish()
+                beginFinale(now: now)
             } else {
                 // 解除した実績は、この球の演出が終わってから出す（演出と重ねない）。
                 showPendingUnlockBanner(now: now)
                 beginPitch(now: now)
             }
+        case .finale:
+            guard let finaleUntil, now >= finaleUntil else { return }
+            finish()
         case .idle, .finished:
             break
         }
+    }
+
+    /// 結果の演出をタップで飛ばして結果画面へ進む。演出の間でなければ何もしない。
+    public func skipFinale() {
+        guard phase == .finale else { return }
+        finish()
     }
 
     /// 進行を止める / 再開する。投球中に止めたら、戻ったときに**その球を投げ直す**（台帳は戻さない）。
@@ -503,6 +522,13 @@ public final class HomerunModel {
                 // ずらさないと、打球が飛んでいる間に止めて戻ったとき、追う様子を見せないまま止まった球とカードが出る）。
                 if let heldSince, now > heldSince { ballClock?.shift(by: now.timeIntervalSince(heldSince)) }
                 resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall))
+            case .finale:
+                // 止めていた間ぶん、演出の時刻を後ろへずらす（止めた所から続ける）。
+                if let heldSince, now > heldSince {
+                    let held = now.timeIntervalSince(heldSince)
+                    finaleStart = finaleStart?.addingTimeInterval(held)
+                    finaleUntil = finaleUntil?.addingTimeInterval(held)
+                }
             case .idle, .finished: break
             }
             step += 1
@@ -645,13 +671,34 @@ public final class HomerunModel {
             outcome: challenge.homerCount > 0 ? .win : .loss,
             score: GameScore(metric: .points, points: Int(challenge.totalDistance))
         )
+        // 評価のお願いは、10 球目（月が割れた球）の結果と結果の演出を見せ終えて結果画面に移ってから出す
+        // （`finish` で表に戻す・チャリンコおじさんの #1143 と同じ仕組み）。`gameDidFinish` が伏せを解くので、その後で伏せる。
+        services?.deferReviewRequestUntilResultIsVisible()
+    }
+
+    /// 結果の演出の始まり・終わりの時刻（`.finale` の間だけ値がある）。
+    public private(set) var finaleStart: Date?
+    public private(set) var finaleUntil: Date?
+
+    private func beginFinale(now: Date) {
+        resetUnlockDisplay()
+        phase = .finale
+        resultUntil = nil
+        isHolding = false
+        finaleStart = now
+        finaleUntil = now.addingTimeInterval(Self.finaleDuration)
+        step += 1
     }
 
     private func finish() {
         resetUnlockDisplay()
         phase = .finished
         resultUntil = nil
+        finaleStart = nil
+        finaleUntil = nil
         isHolding = false
         step += 1
+        // 結果画面が見えたので、伏せていた評価のお願いを表に戻す。
+        services?.resultDidBecomeVisible()
     }
 }

@@ -300,7 +300,7 @@ struct HomerunSwingPlan {
         switch phase {
         case .ballResult: resultFaceMark
         case .pitching: waitingFaceMark
-        case .idle, .finished: .none
+        case .idle, .finished, .finale: .none
         }
     }
 
@@ -368,7 +368,7 @@ struct HomerunSwingPlan {
             }
             // 見送り: 振らない。
             return .stance
-        case .idle, .finished:
+        case .idle, .finished, .finale:
             return .stance
         }
     }
@@ -410,7 +410,7 @@ struct HomerunSwingPlan {
             }
             // 空振り・見送り: そのままミットへ入って止まり、消える（#1655）。
             return pitched
-        case .idle, .finished:
+        case .idle, .finished, .finale:
             return nil
         }
     }
