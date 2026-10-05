@@ -90,7 +90,7 @@ struct HomerunModuleTests {
         let canStartBranch = try #require(body.range(of: "if model.ledger.canStart {"))
         let elseBranch = try #require(body.range(of: "} else {"))
         #expect(canStartBranch.lowerBound < again.lowerBound && again.lowerBound < elseBranch.lowerBound)
-        let countdown = try #require(body.range(of: "HomerunResetCountdown(lead: \"あと\", ending: \"無料枠が戻ります\")"))
+        let countdown = try #require(body.range(of: "HomerunResetCountdown(lead: \"あと\", ending: \"無料枠が戻ります\", readsAloud: true)"))
         #expect(elseBranch.lowerBound < ad.lowerBound && ad.lowerBound < countdown.lowerBound
                 && countdown.lowerBound < back.lowerBound)
         // 結果では上限に達しても「今日はここまで…」を出さない（残りの 1 行だけ・会長決定 2026-10-05）。

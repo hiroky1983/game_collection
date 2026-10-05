@@ -393,7 +393,14 @@ struct HomerunResultView: View {
         } else {
             HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue,
                                   showsLimitNotice: false)
-            HomerunResetCountdown(lead: "あと", ending: "無料枠が戻ります")
+            HomerunResetCountdown(lead: "あと", ending: "無料枠が戻ります", readsAloud: true)
+                // 結果画面には `HomerunStartLabel` の更新が無いので、開いたまま 0:00 を越えたらここで回数を戻す。
+                .task(id: model.ledger.dayKey) {
+                    model.refreshDay(now: Date())
+                    let reset = HomerunReturnPolicy.nextReset(after: Date(), calendar: .current)
+                    do { try await Task.sleep(for: .seconds(max(0, reset.timeIntervalSinceNow) + 1)) } catch { return }
+                    model.refreshDay(now: Date())
+                }
         }
         Button {
             withGameAnimation { model.backToLobby() }
@@ -620,9 +627,11 @@ struct HomerunStartLabel: View {
 
 /// 回復までの残り（`HomerunReturnPolicy.remainingText`）。押せない「打席に立つ」のすぐ下に出す。読み上げはボタン側で済ませる。
 /// 結果画面では「広告を見てプレイ」の下に「あと◯時間◯分で無料枠が戻ります」で出す（`lead`・`ending`・会長指示 2026-10-05）。
+/// 結果画面には読み上げを済ませるボタンが無いので、ここで読み上げる（`readsAloud`）。
 struct HomerunResetCountdown: View {
     var lead: String = "あと約"
     var ending: String = "戻ります"
+    var readsAloud = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -631,7 +640,7 @@ struct HomerunResetCountdown: View {
                 .themeBody(15, weight: .heavy)
                 .foregroundStyle(Theme.coral)
         }
-        .accessibilityHidden(true)
+        .accessibilityHidden(!readsAloud)
     }
 }
 
