@@ -14,7 +14,7 @@ struct ReengagementReminderWiringTests {
     @Test("ReengagementReminderService が GameServices に渡り、開いたら取り消しが届く")
     func servicesAreWired() throws {
         let source = try SourceScan.appSources()
-        #expect(Self.matches(#"reminders: reminders,\s*reengagement: reengagement,\s*returnReminder: returnReminder\s*\)"#, in: source),
+        #expect(Self.matches(#"reminders: reminders,\s*reengagement: reengagement,\s*returnReminder: returnReminder\b"#, in: source),
                 "ReengagementReminderService が GameServices に渡っていない")
     }
 

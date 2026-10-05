@@ -124,6 +124,8 @@ public final class HomerunModel {
     var pendingBanner: [HomerunAchievement] = []
     /// いまの挑戦で解除した実績（10 球の結果に並べる）。
     public internal(set) var unlockedThisChallenge: [HomerunAchievement] = []
+    /// 挑戦の最後の球で実績を解除したか（打席の「実績解禁」を出さずに 10 球の結果へ進んだ・効果音 `HomerunSoundCues`）。
+    public private(set) var unlockedAtFinish = false
     /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
     public internal(set) var gameCenterLinked = false
     /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
@@ -160,6 +162,8 @@ public final class HomerunModel {
         /// 的が出る前（マシンが込めている間）に離して素振りした時刻（最後の 1 回）。3D の打者がその場で振るためだけのもので、
         /// 判定・球数・台帳・記録には使わない（その球はそのまま投げられてくる）。
         public var practiceSwingAt: Date? = nil
+        /// `shift(by:)` でずらした累計（秒）。効果音が「止める前に鳴らした音」を見分ける鍵から引く（`HomerunSoundCue.shifted`）。
+        public var shifted: TimeInterval = 0
         /// 輪が的に重なる時刻。
         public var arrival: Date { pitchStart.addingTimeInterval(TimeInterval(HomerunPitch.travelMilliseconds) / 1000) }
 
@@ -169,6 +173,7 @@ public final class HomerunModel {
             pressedAt = pressedAt?.addingTimeInterval(seconds)
             releasedAt = releasedAt?.addingTimeInterval(seconds)
             practiceSwingAt = practiceSwingAt?.addingTimeInterval(seconds)
+            shifted += seconds
         }
     }
     public private(set) var ballClock: BallClock?
@@ -681,6 +686,8 @@ public final class HomerunModel {
     public private(set) var finaleUntil: Date?
 
     private func beginFinale(now: Date) {
+        // 最後の球で解除したか（結果に入ったときの効果音）。演出の前に片付けるので、その前に控えておく。
+        unlockedAtFinish = !pendingBanner.isEmpty
         resetUnlockDisplay()
         phase = .finale
         resultUntil = nil

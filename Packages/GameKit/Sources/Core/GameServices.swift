@@ -50,6 +50,9 @@ public struct GameServices {
     public let reengagement: ReengagementReminderService?
     /// 挑戦回数が戻ったら知らせる通知（#1576）。テスト・プレビューでは nil（トグルを出さない）。
     public let returnReminder: ChallengeReturnReminderService?
+    /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
+    /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
+    public let homerunSound: HomerunSoundService
 
     public init(
         snapshots: SnapshotStore,
@@ -63,7 +66,8 @@ public struct GameServices {
         screenGeneration: GameScreenGeneration = GameScreenGeneration(),
         reminders: ResumeReminderService? = nil,
         reengagement: ReengagementReminderService? = nil,
-        returnReminder: ChallengeReturnReminderService? = nil
+        returnReminder: ChallengeReturnReminderService? = nil,
+        homerunSound: HomerunSoundService = NoopHomerunSoundService()
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -77,6 +81,7 @@ public struct GameServices {
         self.reminders = reminders
         self.reengagement = reengagement
         self.returnReminder = returnReminder
+        self.homerunSound = homerunSound
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。

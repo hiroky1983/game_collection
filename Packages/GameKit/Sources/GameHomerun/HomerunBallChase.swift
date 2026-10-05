@@ -136,6 +136,8 @@ enum HomerunBallChase {
         var duration: TimeInterval { segments.reduce(0) { $0 + $1.duration } }
         /// 場外（#1654）: 道の終わり（スタンドの後端の `vanishBeyond` m 先）で球が消える。消えた後は球も影も描かない。
         var vanishesAtEnd = false
+        /// 柵越えの打球が中堅のバックスクリーンに当たる（最初の区間の終わり = スクリーンの面）。ぶつかる音（`HomerunSound.backScreen`）用。
+        var hitsBattersEye = false
 
         /// 当たってから `t` 秒の点。止まった後は止まった点のまま。
         func point(at t: TimeInterval) -> Point {
@@ -210,7 +212,9 @@ enum HomerunBallChase {
             return Track(direction: ball.direction, segments: fitted(outOfPark(ball), into: limit(for: ball.kind) - restHold),
                          vanishesAtEnd: true)
         case .homer:
-            segments = homer(ball)
+            let (homerSegments, hitsScreen) = homer(ball)
+            return Track(direction: ball.direction, segments: fitted(homerSegments, into: limit(for: ball.kind) - restHold),
+                         hitsBattersEye: hitsScreen)
         }
         return Track(direction: ball.direction, segments: fitted(segments, into: limit(for: ball.kind) - restHold))
     }
@@ -280,8 +284,8 @@ enum HomerunBallChase {
     }
 
     /// 柵越え: 柵の上を越えてスタンドに落ち、小さく弾んで止まる。中堅のバックスクリーンに向かう打球は、スクリーンの
-    /// 上を越えなければスクリーンに当たって足元へ落ちる。
-    private static func homer(_ ball: HomerunBattedBall) -> [Segment] {
+    /// 上を越えなければスクリーンに当たって足元へ落ちる（そのとき `hitsScreen` が true）。
+    private static func homer(_ ball: HomerunBattedBall) -> (segments: [Segment], hitsScreen: Bool) {
         let fence = ball.fence
         let front = fence + 2   // スタンドの前縁（`HomerunToonModel.standFront`・外野）
         typealias Stand = HomerunToonModel.Stand
@@ -303,7 +307,7 @@ enum HomerunBallChase {
                 let u = (screenS - start.s) / (distance - start.s)
                 f = make(from: start, to: atScreen, .arc(bulge: bulge * u * u))
                 let foot = Point(s: screenS - 1.5, y: ballRadius)
-                return [f, make(from: atScreen, to: foot, .arc(bulge: 0.2))]
+                return ([f, make(from: atScreen, to: foot, .arc(bulge: 0.2))], true)
             }
         }
         // 小さく弾んで 1.2m 奥に止まる。奥の列の座面は高いので、止まる高さはその所の座面に合わせる（同じ高さのままだと
@@ -312,7 +316,7 @@ enum HomerunBallChase {
         let hopS = min(landing.s + 1.2, front + Double(standBackEdgeDepth) - ballRadius)
         let hopY = abs(ball.direction) < 6 ? landing.y : max(standSurface(depth: hopS - front) + ballRadius, landing.y)
         let hop = make(from: landing, to: Point(s: hopS, y: hopY), .arc(bulge: 0.5))
-        return [f, hop]
+        return ([f, hop], false)
     }
 
     /// バックスクリーン（`HomerunToonModel.stadium` の中堅の板: 幅 26m・高さ 15m・z = 125.5 の厚さ 1m）の手前の面。
