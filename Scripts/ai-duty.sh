@@ -703,6 +703,29 @@ count_orphans() {
              | select(($busy | index($i.number)) == null)] | length' 2>/dev/null || echo 0
 }
 
+# 仕事9 用: オープン PR に紐づく Issue 番号の JSON 配列を作る（#1534）。
+# GitHub は base が main 以外（release ブランチ向け）の PR に closingIssuesReferences を作らないので、
+# それだけだと release 向け PR が出ている実装済み Issue を孤児と誤検知し続ける。本文中の
+# `Closes|Fixes|Resolves|Refs|関連 #N` も紐づけとして数える。
+# 引数: $1 = [{body, closingIssuesReferences: ({nodes: [...]} か配列)}] の JSON
+pr_linked_issue_numbers() {
+  printf '%s' "$1" | jq -c '[.[]
+      | ((.closingIssuesReferences // [] | if type == "array" then . else (.nodes // []) end)[] | .number),
+        ((.body // "") | [scan("(?i)(?<![A-Za-z])(?:closes?|fixes?|resolves?|refs?|関連)\\s*[:：]?\\s*#([0-9]+)")[0] | tonumber][])
+      ] | unique' 2>/dev/null || echo '[]'
+}
+
+# 仕事6 用: マージ可能なのに放置されている PR（CLEAN・auto-merge 未設定）を数える（#1534）。
+# ドラフトは定義上「マージしない」PR で、`gh pr merge --auto` も仕込めないため対象外
+# （決裁待ちのドラフトが空振り起動を繰り返した）。仕事4（競合）はドラフトも数えるので別
+# 引数: $1 = gh pr list --json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences の出力
+#       $2 = 他スロットが確保中の Issue 番号の JSON 配列
+count_stalled() {
+  printf '%s' "$1" | jq --argjson busy "${2:-[]}" "$DUTY_JQ_BUSY_LIB"'[.[] | select(linked_to_busy($busy) | not)
+      | select(.isDraft != true)
+      | select(.mergeStateStatus == "CLEAN") | select(.autoMergeRequest == null)] | length' 2>/dev/null || echo 0
+}
+
 # 他スロットが確保中の Issue 番号（空白区切り）を JSON 配列にする。数字以外は落とすので jq にそのまま渡せる
 numbers_to_json() {
   local n out=""
@@ -1062,9 +1085,8 @@ query {
 
 # 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
 # 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
-STALLED=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest,closingIssuesReferences 2>/dev/null \
-  | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.[] | select(linked_to_busy($busy) | not)
-      | select(.mergeStateStatus == "CLEAN") | select(.autoMergeRequest == null)] | length' 2>/dev/null || echo 0)
+STALLED=$(count_stalled "$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences 2>/dev/null)" "$OTHER_CLAIMS_JSON")
+STALLED="${STALLED:-0}"
 
 # 仕事7: App Store で公開済みなのに main へ未マージの release ブランチ
 # 規程（ai-devops.md）では「公開後に release/vX.Y.Z → main をマージしタグを打つ」のは AI の責務だが、
@@ -1147,10 +1169,11 @@ LINKED_ISSUES=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     pullRequests(states: OPEN, first: 50) {
-      nodes { closingIssuesReferences(first: 10) { nodes { number } } }
+      nodes { body closingIssuesReferences(first: 10) { nodes { number } } }
     }
   }
-}' --jq '[.data.repository.pullRequests.nodes[].closingIssuesReferences.nodes[].number]' 2>/dev/null)
+}' --jq '.data.repository.pullRequests.nodes' 2>/dev/null)
+LINKED_ISSUES=$(pr_linked_issue_numbers "${LINKED_ISSUES:-[]}")
 # 取得に失敗したら「全部が紐づいている」とみなすのではなく空集合に倒すが、その場合でも
 # 経過時間ガードが効くため、当番が起きて状況を確認するだけで実害は無い
 LINKED_ISSUES="${LINKED_ISSUES:-[]}"
