@@ -124,21 +124,27 @@ public struct DaifugoView: View {
         }
     }
 
+    /// CPU の席・場のラベルが文字サイズ設定で拡大する上限倍率（#1782）。3 人を横に並べる密な帯なので、
+    /// 際限なく拡大すると席が押し合う。上限を超える分は `minimumScaleFactor` で縮めて 1 行に収める。
+    private static let seatTextMaxScale: CGFloat = 1.6
+
     private func cpuCard(_ index: Int) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 12, weight: .bold))
+                    .themeCaption(12, maxScale: Self.seatTextMaxScale)
                     .foregroundStyle(model.currentPlayer == index && model.phase == .playing ? Theme.coral : Theme.inkSub)
                 Text(model.playerName(index))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, maxScale: Self.seatTextMaxScale)
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(1).minimumScaleFactor(0.6)
             }
             Text("残り\(model.hands[index].count)枚")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .themeCaption(11, weight: .semibold, maxScale: Self.seatTextMaxScale)
                 .foregroundStyle(Theme.inkSub)
+                .lineLimit(1).minimumScaleFactor(0.6)
             Text(model.lastActions[index].isEmpty ? " " : model.lastActions[index])
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .themeCaption(10, maxScale: Self.seatTextMaxScale)
                 .foregroundStyle(Theme.onAccent)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .padding(.horizontal, 6).padding(.vertical, 3)
@@ -197,9 +203,9 @@ public struct DaifugoView: View {
             let isHuman = model.fieldOwner == DaifugoModel.humanIndex
             HStack(spacing: 4) {
                 Image(systemName: isHuman ? "person.fill" : "cpu")
-                    .font(.system(size: 10, weight: .bold))
+                    .themeCaption(10, maxScale: Self.seatTextMaxScale)
                 Text("\(ownerName)が出した")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .themeCaption(11, maxScale: Self.seatTextMaxScale)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             .foregroundStyle(Theme.onAccent)
@@ -207,8 +213,9 @@ public struct DaifugoView: View {
             .background(Capsule().fill(isHuman ? Theme.Fill.teal : Theme.Fill.purple))
         } else {
             Text(model.field.isEmpty ? "場は流れています（好きな組を出せます）" : "場")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .themeCaption(11, weight: .semibold, maxScale: Self.seatTextMaxScale)
                 .foregroundStyle(Theme.inkSub)
+                .lineLimit(1).minimumScaleFactor(0.6)
         }
     }
 
