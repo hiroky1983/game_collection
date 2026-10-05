@@ -66,6 +66,13 @@ struct HomerunReturnPolicyTests {
         // 0:00 直後は丸 1 日ぶん（24 時間）。
         #expect(HomerunReturnPolicy.remainingText(from: date(2026, 9, 30, 0, 0, in: tokyo), calendar: tokyo)
                 == "あと約24時間で戻ります")
+        // 結果画面の文言（「約」なし・会長指示 2026-10-05）。打席前の既定の文言は変えない。
+        #expect(HomerunReturnPolicy.remainingText(from: date(2026, 9, 30, 21, 30, in: tokyo), calendar: tokyo,
+                                                  lead: "あと", ending: "無料枠が戻ります")
+                == "あと2時間30分で無料枠が戻ります")
+        #expect(HomerunReturnPolicy.remainingText(from: date(2026, 9, 30, 23, 15, in: tokyo), calendar: tokyo,
+                                                  lead: "あと", ending: "無料枠が戻ります")
+                == "あと45分で無料枠が戻ります")
     }
 
     @Test("通知の予約時刻は翌 0:00 の少し後で、常に 1 点に定まる")
