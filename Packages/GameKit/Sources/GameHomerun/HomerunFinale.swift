@@ -97,7 +97,8 @@ struct HomerunFinaleView: View {
         TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: reduceMotion)) { timeline in
             let t = reduceMotion ? HomerunModel.finaleDuration : timeline.date.timeIntervalSince(model.finaleStart ?? timeline.date)
             GeometryReader { geo in
-                content(finale, t: t, size: geo.size, homers: homers, total: total)
+                HomerunFinaleScene(finale: finale, t: t, size: geo.size, homers: homers, total: total,
+                                   isNewBest: model.isNewBest, reduceMotion: reduceMotion)
                     .frame(width: geo.size.width, height: geo.size.height)
             }
             .ignoresSafeArea()
@@ -113,6 +114,19 @@ struct HomerunFinaleView: View {
     static func accessibilityText(_ finale: HomerunFinale, homers: Int, total: Double, isNewBest: Bool) -> String {
         "\(finale.title) 柵越え \(homers) 本、合計 \(HomerunText.meters(total))" + (isNewBest ? "、ニューレコード" : "")
     }
+}
+
+/// 演出の、時刻 `t`（演出の始まりからの秒）の 1 コマ。モデルを持たない。
+struct HomerunFinaleScene: View {
+    let finale: HomerunFinale
+    let t: TimeInterval
+    let size: CGSize
+    let homers: Int
+    let total: Double
+    let isNewBest: Bool
+    let reduceMotion: Bool
+
+    var body: some View { content(finale, t: t, size: size, homers: homers, total: total) }
 
     private func content(_ finale: HomerunFinale, t: TimeInterval, size: CGSize, homers: Int, total: Double) -> some View {
         let bgIn = ease(t / 0.25)
@@ -157,6 +171,13 @@ struct HomerunFinaleView: View {
                 HomerunFinaleArt(name: finale.artName)
                     .frame(width: side, height: side)
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 6)
+                    // ニューレコードの判子は絵の左下（足元の外側）。どの区分の絵でも顔にかからない（会長指摘 2026-10-05）。
+                    .overlay(alignment: .bottomLeading) {
+                        if isNewBest {
+                            stamp(t: t, appear: spring((t - 1.5) / 0.4), size: 84)
+                                .offset(x: -22, y: 6)
+                        }
+                    }
                     .offset(y: finale == .donmai ? 18 : 0)
                     .scaleEffect(0.55 + 0.45 * ojisanIn)
                     .opacity(clamp((t - 0.1) / 0.15))
@@ -167,6 +188,11 @@ struct HomerunFinaleView: View {
                 }
                 .opacity(clamp((t - 0.55) / 0.15))
                 .padding(.top, 14)
+                // ニューレコードの帯は本数・距離の下に水平に（おじさんの絵に重ねない）。
+                if isNewBest {
+                    band(appear: spring((t - 1.5) / 0.4), width: size.width)
+                        .padding(.top, 18)
+                }
                 Spacer()
                 Text("タップで次へ")
                     .font(.system(size: 14, weight: .bold))
@@ -175,11 +201,42 @@ struct HomerunFinaleView: View {
                     .padding(.bottom, size.height * 0.06)
             }
             .frame(width: size.width, height: size.height)
-
-            if model.isNewBest {
-                newRecord(t: t, appear: spring((t - 1.5) / 0.4), size: size)
-            }
         }
+    }
+
+    /// ニューレコードの帯（本数・距離の下・水平）。右から滑り込む。
+    private func band(appear: Double, width: CGFloat) -> some View {
+        Text("ニューレコード！")
+            .font(.system(size: 24, weight: .black, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .frame(width: width)
+            .background(
+                LinearGradient(colors: [Color(red: 0.95, green: 0.15, blue: 0.35), Color(red: 1, green: 0.4, blue: 0.2)],
+                               startPoint: .leading, endPoint: .trailing)
+            )
+            .overlay(Rectangle().stroke(.yellow, lineWidth: 3).padding(.vertical, 3))
+            .shadow(color: .black.opacity(0.3), radius: 6, y: 4)
+            .offset(x: (1 - appear) * width * 1.2)
+    }
+
+    /// ニューレコードの「自己ベスト更新」の判子（おじさんの絵の左下・足元の外側）。
+    private func stamp(t: TimeInterval, appear: Double, size: CGFloat) -> some View {
+        Circle()
+            .fill(Color.yellow)
+            .overlay(Circle().stroke(Color(red: 0.9, green: 0.2, blue: 0.2), lineWidth: 5).padding(5))
+            .overlay(
+                VStack(spacing: -2) {
+                    Text("自己").font(.system(size: size * 0.16, weight: .black))
+                    Text("ベスト").font(.system(size: size * 0.18, weight: .black))
+                    Text("更新").font(.system(size: size * 0.16, weight: .black))
+                }
+                .foregroundStyle(Color(red: 0.85, green: 0.15, blue: 0.15))
+            )
+            .frame(width: size, height: size)
+            .rotationEffect(.degrees(-12))
+            .scaleEffect((0.2 + 0.8 * appear) * (reduceMotion ? 1 : 1 + 0.05 * sin(t * 8)))
+            .opacity(appear > 0.01 ? 1 : 0)
     }
 
     private func statChip(_ label: String, _ value: String) -> some View {
@@ -192,42 +249,6 @@ struct HomerunFinaleView: View {
         .padding(.vertical, 8).padding(.horizontal, 12)
         .background(RoundedRectangle(cornerRadius: 16).fill(.white))
         .shadow(color: .black.opacity(0.2), radius: 0, y: 4)
-    }
-
-    /// ニューレコード（区分の演出に重ねる）: 斜めのリボン + 「自己ベスト更新」の判子。
-    private func newRecord(t: TimeInterval, appear: Double, size: CGSize) -> some View {
-        ZStack {
-            Text("ニューレコード！")
-                .font(.system(size: 26, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.vertical, 10)
-                .frame(width: size.width * 1.3)
-                .background(
-                    LinearGradient(colors: [Color(red: 0.95, green: 0.15, blue: 0.35), Color(red: 1, green: 0.4, blue: 0.2)],
-                                   startPoint: .leading, endPoint: .trailing)
-                )
-                .overlay(Rectangle().stroke(.yellow, lineWidth: 3).padding(.vertical, 3))
-                .shadow(color: .black.opacity(0.3), radius: 6, y: 4)
-                .rotationEffect(.degrees(-12))
-                .offset(x: (1 - appear) * size.width * 1.2)
-                .position(x: size.width / 2, y: size.height * 0.29)
-            Circle()
-                .fill(Color.yellow)
-                .overlay(Circle().stroke(Color(red: 0.9, green: 0.2, blue: 0.2), lineWidth: 5).padding(5))
-                .overlay(
-                    VStack(spacing: -2) {
-                        Text("自己").font(.system(size: 15, weight: .black))
-                        Text("ベスト").font(.system(size: 17, weight: .black))
-                        Text("更新").font(.system(size: 15, weight: .black))
-                    }
-                    .foregroundStyle(Color(red: 0.85, green: 0.15, blue: 0.15))
-                )
-                .frame(width: 92, height: 92)
-                .rotationEffect(.degrees(14))
-                .scaleEffect((0.2 + 0.8 * appear) * (reduceMotion ? 1 : 1 + 0.05 * sin(t * 8)))
-                .opacity(appear > 0.01 ? 1 : 0)
-                .position(x: size.width * 0.8, y: size.height * 0.43)
-        }
     }
 
     private func clamp(_ x: Double) -> Double { min(1, max(0, x)) }
