@@ -85,9 +85,20 @@ struct SoundSynthTests {
 @Suite("柵越えおじさんの場面の音（HomerunSound）")
 struct HomerunSoundTests {
 
-    @Test("全 16 場面がそろっている（試作の 01〜10）")
+    @Test("全 18 場面がそろっている（試作の 01〜10 + フェンス・バックスクリーン直撃）")
     func allScenes() {
-        #expect(HomerunSound.allCases.count == 16)
+        #expect(HomerunSound.allCases.count == 18)
+    }
+
+    @Test("バットに当たる音は当面すべてジャストミートと同じ波形（会長指示 2026-10-05）", arguments: [HomerunSound.hitJust, .hitGood, .hitWeak])
+    func hitSoundsMatchJustMeet(sound: HomerunSound) {
+        #expect(sound.samples == HomerunSound.justMeet.samples)
+    }
+
+    @Test("フェンス直撃は短く、バックスクリーン直撃は低く重い（フェンスより長い）")
+    func wallHits() {
+        #expect(HomerunSound.fenceHit.duration < 0.3)
+        #expect(HomerunSound.backScreen.duration > HomerunSound.fenceHit.duration)
     }
 
     @Test("WAV として正しく、長さが波形と一致する", arguments: HomerunSound.allCases)

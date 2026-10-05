@@ -14,13 +14,13 @@ public enum HomerunSound: String, CaseIterable, Sendable {
     case machine
     /// 02 振った（風切り・ブンッ）。空振り・当たり・素振りのどれでも振った瞬間に鳴らす。
     case swing
-    /// 03a 当たり: 芯（木のバットのカーン）。
+    /// 03a 当たり: 芯。バットに当たる音は当面すべてジャストミートと同じ音（会長指示 2026-10-05「一旦同じでいいから変えて」）。
     case hitJust
-    /// 03b 当たり: 普通（木のバットのコーン・少しこもる）。
+    /// 03b 当たり: 普通（音はジャストミートと同じ）。
     case hitGood
-    /// 03c 当たり: 詰まり・擦り（ゴッ／バキッ）。
+    /// 03c 当たり: 詰まり・擦り（音はジャストミートと同じ）。
     case hitWeak
-    /// 04 ジャストミートの止め（J4・ドンッ+木のカーン）。
+    /// 04 ジャストミートの止め（J4・参考音に寄せた「カーン」と球場の響き）。
     case justMeet
     /// 05a 柵越え確定（合成の「ワッ」・歓声の代用）。
     case homerun
@@ -42,12 +42,17 @@ public enum HomerunSound: String, CaseIterable, Sendable {
     case angry
     /// 10 実績解禁（キラーン）。
     case achievement
+    /// 11a フェンス直撃（柵にぶつかる・ドスッ）。会長指示 2026-10-05「フェンスやバックスクリーンにあたったときにぶつかる音もほしい」。
+    case fenceHit
+    /// 11b バックスクリーン直撃（大きな板にぶつかる・バーン）。
+    case backScreen
 
     /// 0.3 秒を超えてよい音（`SoundEffect` の「`fanfare` 以外は 0.3 秒未満」の例外）。
     /// 操作のたびに鳴る音ではなく、1 球の演出の見せ場に 1 回だけ鳴る余韻・歓声・上昇音なので長くてよい。
-    /// 操作に直結する音（マシン・風切り・普通と詰まりの当たり・ミット・たんこぶ・倒れる・怒り）は短いまま。
+    /// 当たりの音は当面すべてジャストミートと同じ音（球場の響きを含む約 0.77 秒）なので、普通・詰まりの当たりも含める。
+    /// 操作に直結する音（マシン・風切り・ミット・たんこぶ・倒れる・怒り）とフェンス直撃は短いまま。
     public static let longSounds: Set<HomerunSound> = [
-        .hitJust, .justMeet, .homerun, .outOfPark, .foulPole, .moonRise, .moonCrack, .achievement,
+        .hitJust, .hitGood, .hitWeak, .justMeet, .homerun, .outOfPark, .foulPole, .moonRise, .moonCrack, .achievement, .backScreen,
     ]
 
     /// そのまま `AVAudioPlayer(data:)` に渡せる WAV バイト列。
@@ -63,9 +68,8 @@ public enum HomerunSound: String, CaseIterable, Sendable {
         switch self {
         case .machine: return Recipe.machineA(&s)
         case .swing: return Recipe.swingA(&s)
-        case .hitJust: return Recipe.hitJustA(&s)
-        case .hitGood: return Recipe.hitGoodA(&s)
-        case .hitWeak: return Recipe.hitWeakA(&s)
+        // バットに当たる音は当面すべてジャストミートと同じ波形（種もジャストミートのもの）。
+        case .hitJust, .hitGood, .hitWeak: return HomerunSound.justMeet.samples
         case .justMeet: return Recipe.justMeetA(&s)
         case .homerun: return Recipe.homerunA(&s)
         case .outOfPark: return Recipe.outOfParkA(&s)
@@ -77,6 +81,8 @@ public enum HomerunSound: String, CaseIterable, Sendable {
         case .fall: return Recipe.fallA(&s)
         case .angry: return Recipe.angryA(&s)
         case .achievement: return Recipe.achievementA(&s)
+        case .fenceHit: return Recipe.fenceHitA(&s)
+        case .backScreen: return Recipe.backScreenA(&s)
         }
     }
 
@@ -100,39 +106,6 @@ private enum Recipe {
     static func swingA(_ s: inout S) -> [Double] {
         let out = s.noise(0.26, .bandPass, from: 380, to: 1400, q: 2.2,
                           envelope: S.bellEnvelope(length: S.count(0.26), peak: 0.55, power: 2.2))
-        return S.normalize(out, peak: 0.32)
-    }
-
-    /// 木のバットの打撃音（会長指摘 2026-10-04「金属音っぽい。木のバットに当たる音に」）。金属の長い鳴り（高い倍音の持続）は
-    /// 使わず、乾いた短い破裂（`woodCrack`）+ 中低域の胴鳴り（数十 ms で消える部分音）で作る。
-    /// 帯域ノイズの破裂: 木が弾ける「カッ」。金属の高域（4kHz 以上）の破裂より低い 1.5〜3kHz に置く。
-    static func woodCrack(_ s: inout S, center: Double, amplitude: Double, decay: Double) -> [Double] {
-        s.noise(0.04, .bandPass, from: center, to: center * 0.8, q: 0.9, amplitude: amplitude, attack: 0.0005, decay: decay)
-    }
-
-    /// カーン（芯・木）: 澄んで抜ける乾いた破裂 + 中域の胴鳴り（約 0.1 秒で消える）。
-    static func hitJustA(_ s: inout S) -> [Double] {
-        var out = woodCrack(&s, center: 2600, amplitude: 1.0, decay: 0.006)
-        S.mix(&out, S.partials(0.32, [(880, 0.55, 0.055), (1390, 0.35, 0.035), (2150, 0.18, 0.02), (520, 0.30, 0.045)]),
-              at: 0.001)
-        S.mix(&out, S.tone(0.12, from: 210, to: 160, amplitude: 0.35, attack: 0.001, decay: 0.03))
-        return S.normalize(out, peak: 0.42)
-    }
-
-    /// コーン（普通・木）: 芯より少しこもる（破裂を低く弱く・胴鳴りを低く短く）。
-    static func hitGoodA(_ s: inout S) -> [Double] {
-        var out = woodCrack(&s, center: 1800, amplitude: 0.7, decay: 0.006)
-        S.mix(&out, S.partials(0.25, [(690, 0.5, 0.04), (1080, 0.28, 0.025), (410, 0.32, 0.035)]), at: 0.001)
-        S.mix(&out, s.noise(0.06, .lowPass, from: 900, q: 0.7, amplitude: 0.3, attack: 0.001, decay: 0.015))
-        return S.normalize(out, peak: 0.36)
-    }
-
-    /// ゴッ／バキッ（詰まり・擦り・木）: 鳴らない鈍い打撃 + 木が軋む短い割れ。
-    static func hitWeakA(_ s: inout S) -> [Double] {
-        var out = s.noise(0.10, .lowPass, from: 800, q: 0.8, attack: 0.001, decay: 0.022)
-        S.mix(&out, S.tone(0.10, from: 220, to: 140, amplitude: 0.8, attack: 0.001, decay: 0.028))
-        S.mix(&out, s.noise(0.05, .bandPass, from: 1300, to: 900, q: 1.6, amplitude: 0.45, attack: 0.0005, decay: 0.009),
-              at: 0.006)
         return S.normalize(out, peak: 0.32)
     }
 
@@ -195,6 +168,24 @@ private enum Recipe {
         S.mix(&out, S.partials(1.2, [(523, 0.5, 0.45), (529, 0.35, 0.45), (1440, 0.35, 0.25), (2820, 0.2, 0.12),
                                      (4650, 0.1, 0.05)]))
         return S.normalize(out, peak: 0.40)
+    }
+
+    /// フェンス直撃 ドスッ: クッションの張られた柵。低い打撃 + こもったノイズ + 板の短い鳴り（高い音は鳴らさない）。
+    static func fenceHitA(_ s: inout S) -> [Double] {
+        var out = S.tone(0.25, from: 140, to: 80, attack: 0.001, decay: 0.05)
+        S.mix(&out, s.noise(0.2, .lowPass, from: 900, to: 400, q: 0.7, amplitude: 0.8, attack: 0.001, decay: 0.03))
+        S.mix(&out, S.partials(0.2, [(310, 0.3, 0.04), (520, 0.15, 0.025)]))
+        return S.normalize(out, peak: 0.38)
+    }
+
+    /// バックスクリーン直撃 バーン: 大きな板。フェンスより低く重い打撃 + 板の低い鳴り + 球場に返る弱い反響。
+    static func backScreenA(_ s: inout S) -> [Double] {
+        var out = S.tone(0.6, from: 95, to: 60, attack: 0.001, decay: 0.12)
+        S.mix(&out, s.noise(0.4, .lowPass, from: 1200, to: 300, q: 0.7, amplitude: 0.9, attack: 0.001, decay: 0.06))
+        S.mix(&out, S.partials(0.6, [(180, 0.4, 0.15), (265, 0.3, 0.12), (410, 0.2, 0.08), (690, 0.1, 0.05)]))
+        let dry = out
+        S.mix(&out, dry, at: 0.11, gain: 0.2)
+        return S.normalize(out, peak: 0.42)
     }
 
     /// バスッ: こもったノイズ + 低い打撃。

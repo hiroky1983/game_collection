@@ -96,8 +96,16 @@ enum HomerunSoundCues {
                     cues.append(HomerunSoundCue(at: contact.addingTimeInterval(held + fenceCrossing(track, fence: ball.fence)),
                                                 sound: .outOfPark))
                 } else {
+                    if track.hitsBattersEye {
+                        // バックスクリーン直撃: 最初の区間がスクリーンの面で終わる。ぶつかる音と歓声を同時に。
+                        cues.append(HomerunSoundCue(at: contact.addingTimeInterval(held + track.flightDuration), sound: .backScreen))
+                    }
                     cues.append(HomerunSoundCue(at: contact.addingTimeInterval(held + track.flightDuration), sound: .homerun))
                 }
+            } else if ball.kind == .fenceHit, let track = plan.chaseTrack {
+                // フェンス直撃: 最初の区間が柵の面に当たる所で終わる（会長指示 2026-10-05「ぶつかる音もほしい」）。
+                let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
+                cues.append(HomerunSoundCue(at: contact.addingTimeInterval(held + track.flightDuration), sound: .fenceHit))
             }
         }
         return cues

@@ -123,6 +123,44 @@ struct HomerunSoundCuesTests {
         #expect(abs(poleCue.at.timeIntervalSince(polePlan.contactAt!) - poleTrack.flightDuration - poleHeld) < 1e-9)
     }
 
+    @Test("フェンス直撃は柵に当たる瞬間、バックスクリーン直撃はスクリーンに当たる瞬間にぶつかる音（歓声も同時）")
+    func wallHits() throws {
+        var fence = HomerunJudge.judge(swing(dx: 1, dy: HomerunLaunch.fly.centerDY + 3))
+        fence.kind = .fenceHit
+        fence.direction = 10
+        fence.fence = HomerunJudge.fence(atDirection: 10)
+        fence.distance = fence.fence - 3
+        fence.isJustMeet = false
+        let plan = result(fence)
+        let contact = try #require(plan.contactAt)
+        let track = try #require(plan.chaseTrack)
+        let held = HomerunJustMeet.applies(to: fence) ? HomerunJustMeet.extraDuration : 0
+        let thud = try #require(cues(plan).first { $0.sound == .fenceHit })
+        #expect(abs(thud.at.timeIntervalSince(contact) - track.flightDuration - held) < 1e-9)
+        #expect(!cues(plan).contains { $0.sound == .backScreen || $0.sound == .homerun })
+
+        var screen = HomerunJudge.judge(swing(dx: 1, dy: HomerunLaunch.liner.centerDY))
+        screen.kind = .homer
+        screen.direction = 0
+        screen.fence = HomerunJudge.fence(atDirection: 0)
+        screen.distance = screen.fence + 12
+        screen.isJustMeet = false
+        let screenPlan = result(screen)
+        let screenTrack = try #require(screenPlan.chaseTrack)
+        #expect(screenTrack.hitsBattersEye)
+        let bang = try #require(cues(screenPlan).first { $0.sound == .backScreen })
+        let cheer = try #require(cues(screenPlan).first { $0.sound == .homerun })
+        #expect(bang.at == cheer.at)
+        #expect(abs(bang.at.timeIntervalSince(screenPlan.contactAt!) - screenTrack.flightDuration) < 1e-9)
+
+        // スタンドに落ちるふつうの柵越えでは鳴らさない。
+        var stands = screen
+        stands.direction = 30
+        stands.fence = HomerunJudge.fence(atDirection: 30)
+        stands.distance = stands.fence + 10
+        #expect(!cues(result(stands)).contains { $0.sound == .backScreen || $0.sound == .fenceHit })
+    }
+
     @Test("月: 当たって少し後から上昇音、月に当たる瞬間に割れる音")
     func moon() throws {
         let ball = HomerunJudge.moonBall(swing(dy: HomerunLaunch.fly.centerDY))
