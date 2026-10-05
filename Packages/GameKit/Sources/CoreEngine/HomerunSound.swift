@@ -136,11 +136,23 @@ private enum Recipe {
         return S.normalize(out, peak: 0.32)
     }
 
-    /// ジャストミートの止め: 低いドンッ + 芯の木の打撃音（カーン）を重ねる。
+    /// ジャストミートの止め（会長指示 2026-10-05: 参考音に寄せる・高音は気持ち抑える。参考音の波形は使わず、
+    /// 分析した特徴から合成）: 1.37kHz 付近が主役の「カーン」。当たりの破裂と速く消える鳴り（約 20ms）のあと、
+    /// 70ms 遅れて同じ帯域の球場の響きが立ち上がり、約 0.7 秒かけて消える。1.5kHz より上は参考音より数 dB 弱い。
     static func justMeetA(_ s: inout S) -> [Double] {
-        var out = S.tone(0.5, from: 110, to: 45, attack: 0.002, decay: 0.14)
-        S.mix(&out, s.noise(0.25, .lowPass, from: 1500, to: 300, q: 0.7, amplitude: 0.7, attack: 0.001, decay: 0.05))
-        S.mix(&out, hitJustA(&s), gain: 1.4)
+        var out = s.noise(0.05, .bandPass, from: 1500, to: 1200, q: 0.9, amplitude: 1.0, attack: 0.0003, decay: 0.012)
+        S.mix(&out, s.crack(0.004, amplitude: 0.56))
+        S.mix(&out, s.noise(0.03, .bandPass, from: 3600, to: 3000, q: 0.8, amplitude: 1.6, attack: 0.0003, decay: 0.006))
+        S.mix(&out, S.partials(0.12, [(1370, 0.9, 0.02), (1290, 0.45, 0.016), (1430, 0.4, 0.016), (1110, 0.35, 0.014),
+                                      (1214, 0.3, 0.014), (800, 0.25, 0.014), (640, 0.2, 0.012), (2014, 0.4, 0.008)],
+                               attack: 0.0005))
+        S.mix(&out, S.tone(0.12, from: 120, to: 70, amplitude: 0.04, attack: 0.001, decay: 0.03))
+        // 球場の響き（鳴りと帯域ノイズ）。
+        let tail = 0.7
+        S.mix(&out, S.partials(tail, [(1370, 0.12, 0.085), (1330, 0.07, 0.08), (1094, 0.05, 0.07), (824, 0.04, 0.07)],
+                               attack: 0.012), at: 0.07)
+        S.mix(&out, s.noise(tail, .bandPass, from: 1380, to: 1340, q: 3, amplitude: 0.38, attack: 0.012, decay: 0.075), at: 0.07)
+        S.mix(&out, s.noise(tail, .bandPass, from: 900, to: 800, q: 2, amplitude: 0.15, attack: 0.012, decay: 0.07), at: 0.07)
         return S.normalize(out, peak: 0.50)
     }
 
