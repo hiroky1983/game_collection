@@ -108,6 +108,8 @@ public struct HomerunView: View {
 /// スクロールし切ったとき、最後の要素の下に `Theme.pad` + これだけの余白が残る（SE でも合計 72pt > バナーの高さ 50pt）。
 enum HomerunBannerGap {
     static let belowContent: CGFloat = 56
+    /// 結果画面だけ、ボタン欄と下の 300×250 を少し近づける（会長指示 2026-10-05。打席前は `belowContent` のまま）。
+    static let belowResultActions: CGFloat = 40
 }
 
 // MARK: - 打席前
@@ -125,7 +127,7 @@ struct HomerunLobbyView: View {
             } actions: {
                 startActions
             }
-            BannerSlot(ads: services.ads)
+            MediumRectangleSlot(ads: services.ads)
         }
         // Game Center の解除済みを読んで端末の記録と合わせる（連携の有無・通信の有無で一覧は変わらない。読めなければ何もしない）。
         .task { await model.syncGameCenterAchievements() }
@@ -249,14 +251,14 @@ struct HomerunResultView: View {
     private var balls: [HomerunBattedBall] { model.challenge?.results ?? [] }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 次の挑戦のボタンの置き方は `HomerunActionLayout.result`（会長指示 2026-10-04）。
-            HomerunActionScroll(placement: HomerunActionLayout.result) {
-                resultContent
-            } actions: {
-                actions
-            }
-            BannerSlot(ads: services.ads)
+        // 次の挑戦のボタンの置き方は `HomerunActionLayout.result`（会長指示 2026-10-04）。下に固定はやめ、
+        // 中身 → ボタン → 300×250 を 1 本のスクロールに並べる（会長決定 2026-10-05）。
+        HomerunActionScroll(placement: HomerunActionLayout.result, bannerGap: HomerunBannerGap.belowResultActions) {
+            resultContent
+        } actions: {
+            actions
+        } footer: {
+            MediumRectangleSlot(ads: services.ads)
         }
     }
 
@@ -265,8 +267,8 @@ struct HomerunResultView: View {
             summaryCard
             HomerunUnlockedCard(items: model.unlockedThisChallenge)
             moonCard
-            sprayCard
             breakdownCard
+            sprayCard
             // ほかのゲームへのレコメンド（#52）。全ゲームの終局画面に置く約束（GameChromeTests）。
             RecommendationSlot(services: services, isFinished: true)
         }
@@ -382,12 +384,16 @@ struct HomerunResultView: View {
     }
 
     /// ボタン欄の中身。主ボタンが上の縦並び（会長指示 2026-10-04）。「もう一回」は打席前の「打席に立つ」と同じ部品
-    /// （ボタンの中に残り回数のボール。回数 0 は押せない灰色＋すぐ下に回復までの残り）。回数 0 ではその下に
-    /// 広告を見てプレイ（上限に達したら知らせ）、いちばん下が打席前へ。
+    /// （ボタンの中に残り回数のボール）。回数 0 では「もう一回」を出さず（会長指示 2026-10-05）、広告を見てプレイ
+    /// （上限に達しても「今日はここまで」は出さない・会長決定 2026-10-05）とその下に「あと◯時間◯分で無料枠が戻ります」、
+    /// いちばん下が打席前へ。
     @ViewBuilder private var actions: some View {
-        HomerunStartButton(model: model, title: "もう一回")
-        if !model.ledger.canStart {
-            HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
+        if model.ledger.canStart {
+            HomerunStartButton(model: model, title: "もう一回")
+        } else {
+            HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue,
+                                  showsLimitNotice: false)
+            HomerunResetCountdown(lead: "あと", ending: "無料枠が戻ります")
         }
         Button {
             withGameAnimation { model.backToLobby() }
@@ -412,23 +418,42 @@ enum HomerunActionPlacement: Equatable {
 enum HomerunActionLayout {
     /// 打席前（打席に立つ／回数 0 なら広告を見てプレイ）。
     static let lobby: HomerunActionPlacement = .auto
-    /// 結果（もう一回／回数 0 なら広告を見てプレイ／打席前へ）。
-    static let result: HomerunActionPlacement = .pinned
+    /// 結果（もう一回／回数 0 なら広告を見てプレイ／打席前へ）。中身・ボタン・広告を 1 本のスクロールに（会長決定 2026-10-05）。
+    static let result: HomerunActionPlacement = .inline
 }
 
 /// スクロールする中身と、その下のボタン欄。置き方は `placement` で切り替える。ボタンとバナーの間は、どの置き方でも
 /// 欄の中で `Theme.pad + HomerunBannerGap.belowContent` 空ける（#1749）。
-struct HomerunActionScroll<Content: View, Actions: View>: View {
+struct HomerunActionScroll<Content: View, Actions: View, Footer: View>: View {
     let placement: HomerunActionPlacement
-    @ViewBuilder let content: Content
-    @ViewBuilder let actions: Actions
+    /// ボタン欄の下に足す、広告との間隔。
+    let bannerGap: CGFloat
+    let content: Content
+    let actions: Actions
+    /// 中身のすぐ下（`.inline`）のとき、ボタン欄の下に続けて同じスクロールに載せるもの（結果画面の 300×250・会長指示 2026-10-05）。
+    let footer: Footer
+
+    init(placement: HomerunActionPlacement, bannerGap: CGFloat = HomerunBannerGap.belowContent,
+         @ViewBuilder content: () -> Content, @ViewBuilder actions: () -> Actions, @ViewBuilder footer: () -> Footer) {
+        self.placement = placement
+        self.bannerGap = bannerGap
+        self.content = content()
+        self.actions = actions()
+        self.footer = footer()
+    }
 
     var body: some View {
         switch placement {
         case .pinned:
             pinned
         case .inline:
-            ScrollView { inline }
+            // 画面全体を 1 本のスクロールにする（中身 → ボタン欄 → `footer`）。
+            ScrollView {
+                VStack(spacing: 0) {
+                    inline
+                    footer
+                }
+            }
         case .auto:
             // 中身＋欄がそのまま収まれば中身のすぐ下、収まらなければ下に固定（文字の大きさ・端末の高さで自動で切り替わる）。
             ViewThatFits(in: .vertical) {
@@ -466,8 +491,15 @@ struct HomerunActionScroll<Content: View, Actions: View>: View {
     private var actionBlock: some View {
         VStack(spacing: 10) { actions }
             .padding(Theme.pad)
-            .padding(.bottom, HomerunBannerGap.belowContent)
+            .padding(.bottom, bannerGap)
             .frame(maxWidth: .infinity)
+    }
+}
+
+extension HomerunActionScroll where Footer == EmptyView {
+    init(placement: HomerunActionPlacement, bannerGap: CGFloat = HomerunBannerGap.belowContent,
+         @ViewBuilder content: () -> Content, @ViewBuilder actions: () -> Actions) {
+        self.init(placement: placement, bannerGap: bannerGap, content: content, actions: actions, footer: { EmptyView() })
     }
 }
 
@@ -587,10 +619,15 @@ struct HomerunStartLabel: View {
 }
 
 /// 回復までの残り（`HomerunReturnPolicy.remainingText`）。押せない「打席に立つ」のすぐ下に出す。読み上げはボタン側で済ませる。
+/// 結果画面では「広告を見てプレイ」の下に「あと◯時間◯分で無料枠が戻ります」で出す（`lead`・`ending`・会長指示 2026-10-05）。
 struct HomerunResetCountdown: View {
+    var lead: String = "あと約"
+    var ending: String = "戻ります"
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
-            Text(verbatim: HomerunReturnPolicy.remainingText(from: context.date, calendar: .current))
+            Text(verbatim: HomerunReturnPolicy.remainingText(from: context.date, calendar: .current,
+                                                             lead: lead, ending: ending))
                 .themeBody(15, weight: .heavy)
                 .foregroundStyle(Theme.coral)
         }
@@ -672,6 +709,9 @@ struct HomerunRecoveryButton: View {
     let model: HomerunModel
     let services: GameServices
     let challengeRescue: RewardedRescue
+    /// 広告でのプレイの上限に達したとき「今日はここまで…」を出すか。結果画面は下に「あと◯時間◯分で無料枠が戻ります」が
+    /// あるので出さない（会長決定 2026-10-05）。
+    var showsLimitNotice = true
     @State private var showsSurvey = false
     @State private var surveyNotApplied = false
     /// 適用できなかった知らせは、シートが閉じ終わってから出す（閉じる最中に同じ親からアラートを出すと iOS が無視する）。
@@ -702,7 +742,7 @@ struct HomerunRecoveryButton: View {
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 .tint(challengeRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal)
                 .disabled(challengeRescue.isWatching)
-            } else if !ledger.canWatchAd {
+            } else if !ledger.canWatchAd && showsLimitNotice {
                 // 上限の本数は画面に出さない（会長決裁 2026-10-02）。達したときだけ知らせる。
                 Text("今日はここまで。0:00 に \(HomerunLedger.freePerDay) 回に戻ります")
                     .themeCaption(12)

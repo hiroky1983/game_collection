@@ -22,21 +22,26 @@ struct HomerunModuleTests {
 
     @Test("ボタン欄の置き方は画面ごとの設定値で選び、どの置き方でも欄の中でバナーとの間隔を取る（会長指示 2026-10-04・#1749）")
     func actionPlacementAndGapAboveBanner() throws {
-        // 初期値: 結果は下に固定、打席前は自動（収まれば中身のすぐ下）。
-        #expect(HomerunActionLayout.result == .pinned)
+        // 初期値: 結果は中身・ボタン・広告を 1 本のスクロールに（会長決定 2026-10-05）、打席前は自動（収まれば中身のすぐ下）。
+        #expect(HomerunActionLayout.result == .inline)
         #expect(HomerunActionLayout.lobby == .auto)
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.lobby)"))
-        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.result)"))
+        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.result, bannerGap: HomerunBannerGap.belowResultActions) {"),
+                "結果だけ広告との間隔を詰める（会長指示 2026-10-05）")
+        #expect(view.contains("} footer: {\n            MediumRectangleSlot(ads: services.ads)"), "結果の 300×250 はボタンの下に同じスクロールで")
         // 間隔は欄の 1 か所（固定・すぐ下・自動の共通）で、中身の余白の直後に足す。
-        let gap = ".padding(.bottom, HomerunBannerGap.belowContent)"
+        let gap = ".padding(.bottom, bannerGap)"
+        #expect(view.contains("bannerGap: CGFloat = HomerunBannerGap.belowContent"), "既定（打席前）は従来の間隔")
+        // 結果だけ少し近づける（会長指示 2026-10-05）。
+        #expect(HomerunBannerGap.belowResultActions < HomerunBannerGap.belowContent)
         let parts = view.components(separatedBy: gap)
         #expect(parts.count - 1 == 1, "間隔はボタン欄の 1 か所だけ")
         #expect(parts.first?.suffix(60).contains(".padding(Theme.pad)") == true, "中身の余白の直後に足す")
         #expect(HomerunBannerGap.belowContent + Theme.pad > BannerSlot.height, "余白の合計はバナーの高さより大きい")
         // 固定はスクロールの `.safeAreaInset`、自動は「すぐ下」→「固定」の順に収まる方を選ぶ。
         let scroll = try #require(view.range(of: "struct HomerunActionScroll"))
-        let body = view[scroll.upperBound...].prefix(2500)
+        let body = view[scroll.upperBound...].prefix(6000)
         #expect(body.contains(".safeAreaInset(edge: .bottom, spacing: 0) {"))
         let fits = try #require(body.range(of: "ViewThatFits(in: .vertical) {"))
         let after = body[fits.upperBound...].prefix(120)
@@ -71,7 +76,7 @@ struct HomerunModuleTests {
         let button = try #require(view.range(of: "struct HomerunStartButton: View {"))
         let buttonBody = view[button.upperBound...].prefix(1000)
         #expect(buttonBody.contains(".disabled(!canStart)") && buttonBody.contains("HomerunResetCountdown()"))
-        // 結果: もう一回 → （回数 0 なら広告を見てプレイ）→ 打席前へ。横並びにしない。
+        // 結果: もう一回（回数 0 なら出さず、広告を見てプレイ → 無料枠が戻るまでの残り）→ 打席前へ。横並びにしない。
         let actions = try #require(view.range(of: "@ViewBuilder private var actions: some View {"))
         let tail = view[actions.upperBound...]
         let barStart = try #require(tail.range(of: "\nenum HomerunActionPlacement"))
@@ -81,11 +86,24 @@ struct HomerunModuleTests {
         let ad = try #require(body.range(of: "HomerunRecoveryButton("))
         let back = try #require(body.range(of: "打席前へ"))
         #expect(again.lowerBound < ad.lowerBound && ad.lowerBound < back.lowerBound)
+        // 回数 0 では「もう一回」を出さない（会長指示 2026-10-05）。残りは広告を見てプレイの下に結果用の文言で。
+        let canStartBranch = try #require(body.range(of: "if model.ledger.canStart {"))
+        let elseBranch = try #require(body.range(of: "} else {"))
+        #expect(canStartBranch.lowerBound < again.lowerBound && again.lowerBound < elseBranch.lowerBound)
+        let countdown = try #require(body.range(of: "HomerunResetCountdown(lead: \"あと\", ending: \"無料枠が戻ります\")"))
+        #expect(elseBranch.lowerBound < ad.lowerBound && ad.lowerBound < countdown.lowerBound
+                && countdown.lowerBound < back.lowerBound)
+        // 結果では上限に達しても「今日はここまで…」を出さない（残りの 1 行だけ・会長決定 2026-10-05）。
+        #expect(body.contains("HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue,\n                                  showsLimitNotice: false)"))
+        let recovery = try #require(view.range(of: "struct HomerunRecoveryButton: View {"))
+        let recoveryBody = view[recovery.upperBound...].prefix(3000)
+        #expect(recoveryBody.contains("var showsLimitNotice = true"), "打席前は従来どおり出す")
+        #expect(recoveryBody.contains("} else if !ledger.canWatchAd && showsLimitNotice {"))
         // 打席前: 打席に立つ → 広告を見てプレイ。
         let lobby = try #require(view.range(of: "@ViewBuilder private var startActions: some View {"))
         let lobbyBody = view[lobby.upperBound...].prefix(600)
         let start = try #require(lobbyBody.range(of: "title: \"打席に立つ\""))
-        let lobbyAd = try #require(lobbyBody.range(of: "HomerunRecoveryButton("))
+        let lobbyAd = try #require(lobbyBody.range(of: "HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)"))
         #expect(start.lowerBound < lobbyAd.lowerBound)
     }
 
@@ -104,8 +122,10 @@ struct HomerunModuleTests {
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
-        // バナーは打席前・打席・結果の 3 か所（打席は #1696 で上部に足した。#1348 の無バナーは改めた）。
-        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 3, "打席前・打席・結果に 1 つずつ")
+        // バナーは打席の 1 か所（#1696 で上部に足した。#1348 の無バナーは改めた）。打席前・結果の一番下は 300×250。
+        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席に 1 つ")
+        let screens = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        #expect(screens.components(separatedBy: "MediumRectangleSlot(ads: services.ads)").count - 1 == 2, "打席前・結果の一番下に 1 つずつ")
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
         #expect(atBat.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席にも 1 つ置く（#1696）")
         // 打席のバナーは上端（HUD より先に積む）。押せる帯（下 1/3）の中には置かない。
