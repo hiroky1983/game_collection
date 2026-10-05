@@ -22,17 +22,20 @@ struct HomerunModuleTests {
 
     @Test("ボタン欄の置き方は画面ごとの設定値で選び、どの置き方でも欄の中でバナーとの間隔を取る（会長指示 2026-10-04・#1749）")
     func actionPlacementAndGapAboveBanner() throws {
-        // 初期値: 結果は中身・ボタン・広告を 1 本のスクロールに（会長決定 2026-10-05）、打席前は自動（収まれば中身のすぐ下）。
+        // 初期値: 結果は中身・ボタン・広告を 1 本のスクロールに（会長決定 2026-10-05）、打席前も同じく 1 本のスクロール（会長決裁 2026-10-06・#1819）。
         #expect(HomerunActionLayout.result == .inline)
-        #expect(HomerunActionLayout.lobby == .auto)
+        #expect(HomerunActionLayout.lobby == .inline)
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
-        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.lobby)"))
+        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.lobby, bannerGap: HomerunBannerGap.belowResultActions) {"),
+                "打席前も結果と同じ間隔（会長決裁 2026-10-06）")
         #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.result, bannerGap: HomerunBannerGap.belowResultActions) {"),
                 "結果だけ広告との間隔を詰める（会長指示 2026-10-05）")
         #expect(view.contains("} footer: {\n            MediumRectangleSlot(ads: services.ads)"), "結果の 300×250 はボタンの下に同じスクロールで")
+        #expect(view.components(separatedBy: "} footer: {\n            MediumRectangleSlot(ads: services.ads)").count - 1 == 2,
+                "打席前の 300×250 も結果と同じくボタンの下に同じスクロールで（下に固定しない）")
         // 間隔は欄の 1 か所（固定・すぐ下・自動の共通）で、中身の余白の直後に足す。
         let gap = ".padding(.bottom, bannerGap)"
-        #expect(view.contains("bannerGap: CGFloat = HomerunBannerGap.belowContent"), "既定（打席前）は従来の間隔")
+        #expect(view.contains("bannerGap: CGFloat = HomerunBannerGap.belowContent"), "既定の間隔")
         // 結果だけ少し近づける（会長指示 2026-10-05）。
         #expect(HomerunBannerGap.belowResultActions < HomerunBannerGap.belowContent)
         let parts = view.components(separatedBy: gap)
