@@ -172,17 +172,17 @@ struct HomerunModuleTests {
         #expect(!model.contains("ContinuousClock"))
     }
 
-    @Test("App の registry には企画倉庫としてコメントアウトで載っている（v1.1.8 では非公開・会長指示 2026-10-02）")
-    func registryLineIsCommentedOut() throws {
+    @Test("App の registry にハブ公開として載っている（v1.1.9・#1348）")
+    func registryLineIsLive() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
         )
         let lines = source.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-        #expect(lines.contains("// HomerunModule(),"))
-        #expect(!lines.contains("HomerunModule(),"), "出荷を決める Issue まではハブに並べない")
+        #expect(lines.contains("HomerunModule(),"))
+        #expect(!lines.contains("// HomerunModule(),"), "v1.1.9 でハブに公開済み")
         #expect(lines.contains("import GameHomerun"))
-        #expect(source.contains("企画倉庫・#1348"))
-        #expect(source.contains("v1.1.8 では非公開（会長指示 2026-10-02）"))
+        #expect(source.contains("柵越えおじさん（#1348）"))
+        #expect(source.contains("v1.1.9 でハブに公開"))
     }
 
     @Test("アンケートの入口は v1.1.9 では出さない（会長決裁 2026-10-03・#1784）が、台帳の互換は残る")
