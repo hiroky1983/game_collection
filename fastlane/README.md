@@ -31,6 +31,14 @@ GameKit の全テストを実行
 
 TestFlight へアップロード（ビルド番号は project.yml の CURRENT_PROJECT_VERSION を使用）
 
+### ios signing_check
+
+```sh
+[bundle exec] fastlane ios signing_check
+```
+
+API キーだけで Distribution 証明書を読み取る（取得のみ。作成も失効もしない）（#1041）
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
