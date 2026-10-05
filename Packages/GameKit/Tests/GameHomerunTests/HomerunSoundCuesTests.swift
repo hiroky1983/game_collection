@@ -205,6 +205,20 @@ struct HomerunSoundCuesTests {
         #expect(list.first?.at == pitching.first { $0.sound == .mitt }?.at)
     }
 
+    @Test("1 球の結果の間に止めて戻っても（時刻が全部ずれても）、止める前に鳴らした音は同じ予定として見分けられる")
+    func keysSurviveHoldShift() throws {
+        let ball = HomerunJudge.judge(swing(t: 40, dx: 5, dy: HomerunLaunch.liner.centerDY))
+        let before = cues(result(ball, offset: 40))
+        var plan = result(ball, offset: 40)
+        var clock = try #require(plan.clock)
+        clock.shift(by: 7.3)
+        plan = HomerunSwingPlan(phase: .ballResult, clock: clock, lastBall: ball, whiffGag: false)
+        let after = cues(plan)
+        #expect(!before.isEmpty)
+        #expect(Set(before.map(\.key)) == Set(after.map(\.key)))
+        #expect(after.allSatisfy { $0.shifted == 7.3 })
+    }
+
     @Test("10 球の結果: 最後の球で実績を解除したときだけ実績解禁。打席前は何も鳴らさない")
     func finishedAndIdle() {
         let finished = HomerunSwingPlan(phase: .finished, clock: HomerunModel.BallClock(pitchStart: t0, zone: 4), lastBall: nil)

@@ -162,6 +162,8 @@ public final class HomerunModel {
         /// 的が出る前（マシンが込めている間）に離して素振りした時刻（最後の 1 回）。3D の打者がその場で振るためだけのもので、
         /// 判定・球数・台帳・記録には使わない（その球はそのまま投げられてくる）。
         public var practiceSwingAt: Date? = nil
+        /// `shift(by:)` でずらした累計（秒）。効果音が「止める前に鳴らした音」を見分ける鍵から引く（`HomerunSoundCue.shifted`）。
+        public var shifted: TimeInterval = 0
         /// 輪が的に重なる時刻。
         public var arrival: Date { pitchStart.addingTimeInterval(TimeInterval(HomerunPitch.travelMilliseconds) / 1000) }
 
@@ -171,6 +173,7 @@ public final class HomerunModel {
             pressedAt = pressedAt?.addingTimeInterval(seconds)
             releasedAt = releasedAt?.addingTimeInterval(seconds)
             practiceSwingAt = practiceSwingAt?.addingTimeInterval(seconds)
+            shifted += seconds
         }
     }
     public private(set) var ballClock: BallClock?

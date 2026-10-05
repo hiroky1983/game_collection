@@ -11,11 +11,18 @@ struct HomerunSoundCue: Hashable {
     /// （10 球の結果に入ったときの実績解禁）だけ、変わらない時刻を入れる。
     var identity: Date? = nil
 
-    var key: Key { Key(sound: sound, at: identity ?? at) }
+    /// 一時停止で `BallClock` の時刻をずらした累計（秒）。ずらす前に鳴らした音を、ずらした後の出し直しでも同じ予定と
+    /// 見分けるため、鍵の時刻から引く。
+    var shifted: TimeInterval = 0
+
+    /// 時刻は引き算の丸め誤差で 1 ulp ずれうるので、ミリ秒に丸めて比べる。
+    var key: Key {
+        Key(sound: sound, atMilliseconds: Int(((identity ?? at).timeIntervalSinceReferenceDate - shifted) * 1000))
+    }
 
     struct Key: Hashable {
         var sound: HomerunSound
-        var at: Date
+        var atMilliseconds: Int
     }
 }
 
@@ -107,6 +114,10 @@ enum HomerunSoundCues {
                 let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
                 cues.append(HomerunSoundCue(at: contact.addingTimeInterval(held + track.flightDuration), sound: .fenceHit))
             }
+        }
+        // 1 球の結果の間に止めて戻ると時刻が全部ずれる。止める前に鳴らした音を鳴らし直さないよう、ずらした累計を持たせる。
+        if plan.phase == .ballResult, let shifted = plan.clock?.shifted, shifted != 0 {
+            for index in cues.indices { cues[index].shifted = shifted }
         }
         return cues
     }
