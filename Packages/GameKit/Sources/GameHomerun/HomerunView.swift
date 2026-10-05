@@ -75,14 +75,15 @@ public struct HomerunView: View {
         case .idle:
             HomerunLobbyView(model: model, services: services, challengeRescue: challengeRescue)
                 .transition(.opacity)
-        case .pitching, .ballResult, .finale:
+        case .pitching, .ballResult:
             HomerunAtBatView(model: model, ads: services.ads)
-                // 10 球（または月が割れて）終わったら、結果画面の前に打席の上へ結果の演出を重ねる（会長決裁 2026-10-05）。
-                .overlay {
-                    if model.phase == .finale {
-                        HomerunFinaleView(model: model).transition(.opacity)
-                    }
-                }
+                .transition(.opacity)
+        case .finale:
+            // 10 球（または月が割れて）終わったら、結果画面の前に結果の演出を挟む（会長決裁 2026-10-05）。打席の上へ重ねると
+            // 透けるうえ、打席のバナーが演出の裏で覆われる（Google の Content obscuring に当たる）ので、結果と同じく
+            // 画面ごと差し替える（#1818）。打席が外れるのでバナーも階層から無くなる。
+            HomerunFinaleView(model: model)
+                .gameNavigationBarBackgroundHidden()
                 .transition(.opacity)
         case .finished:
             HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)
