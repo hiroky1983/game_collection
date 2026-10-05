@@ -683,6 +683,8 @@ public final class HomerunModel {
     public private(set) var finaleUntil: Date?
 
     private func beginFinale(now: Date) {
+        // 最後の球で解除したか（結果に入ったときの効果音）。演出の前に片付けるので、その前に控えておく。
+        unlockedAtFinish = !pendingBanner.isEmpty
         resetUnlockDisplay()
         phase = .finale
         resultUntil = nil
@@ -693,7 +695,6 @@ public final class HomerunModel {
     }
 
     private func finish() {
-        unlockedAtFinish = !pendingBanner.isEmpty
         resetUnlockDisplay()
         phase = .finished
         resultUntil = nil

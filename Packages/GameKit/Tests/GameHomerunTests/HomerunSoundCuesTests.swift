@@ -196,6 +196,9 @@ struct HomerunSoundCuesTests {
         _ = model.release(at: CGPoint(x: 0, y: HomerunLaunch.liner.centerDY), now: at)
         #expect(model.phase == .ballResult)
         model.advance(now: at.addingTimeInterval(60))
+        // 最後の球の後は結果の演出（`.finale`）を挟む。演出を閉じてから結果に入る。
+        #expect(model.phase == .finale)
+        model.advance(now: try #require(model.finaleUntil))
         #expect(model.phase == .finished)
         #expect(model.unlockedAtFinish, "1 球目の柵越え・初プレイの実績が最後の球で解除される")
     }
