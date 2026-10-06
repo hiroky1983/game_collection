@@ -321,14 +321,14 @@ struct HubView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showRecords = true } label: {
                         Image(systemName: "trophy.fill")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, weight: .semibold)
                     }
                     .accessibilityLabel("きろく")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, weight: .semibold)
                     }
                     // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
                     .accessibilityLabel("設定")
@@ -573,7 +573,7 @@ private struct GameCard: View {
                     .frame(width: layout.scaled(44), height: layout.scaled(44))
                     .overlay {
                         module.icon
-                            .font(.system(size: layout.scaled(22), weight: .bold))
+                            .font(.system(size: layout.scaled(22), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
                             .foregroundStyle(Theme.onAccent)
                     }
                     .shadow(color: accent.opacity(0.4), radius: 5, y: 3)

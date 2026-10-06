@@ -67,10 +67,10 @@ public struct BlockPuzzleView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("スコア")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
@@ -79,7 +79,7 @@ public struct BlockPuzzleView: View {
             if model.lastClearedLines > 0 {
                 Text(model.combo > 1 ? "\(model.lastClearedLines)本消し \(model.combo)連鎖"
                                      : "\(model.lastClearedLines)本消し")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .scaledFont(16, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.coral)
                     // `lastClearedLines` は「2本消し」が連続すると値が変わらないため、
                     // `.id` を消去のたびに増える通し番号にして毎回ビューを差し替え、

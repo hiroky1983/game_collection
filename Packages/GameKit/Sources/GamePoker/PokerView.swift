@@ -720,7 +720,7 @@ public struct PokerView: View {
                 let titleColor = winner == .player ? Theme.teal : winner == .tie ? Theme.teal : Theme.coral
                 let subtitle = sessionOverSubtitle
                 Image(systemName: icon)
-                    .font(.system(size: 24))
+                    .scaledFont(24)
                     .foregroundStyle(iconColor)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {

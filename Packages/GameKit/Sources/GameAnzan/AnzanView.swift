@@ -125,7 +125,7 @@ public struct AnzanView: View {
         VStack(spacing: 2) {
             Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
             Text(verbatim: value)
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(22, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
         }
@@ -173,12 +173,12 @@ public struct AnzanView: View {
     private var flashContent: some View {
         if model.isShowingReady {
             Text("よーい")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .scaledFont(34, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(Theme.Fill.yellow)
                 .transition(.opacity)
         } else if let number = model.displayedNumber {
             Text(verbatim: "\(number)")
-                .font(.system(size: 88, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(88, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                 .minimumScaleFactor(0.5)
                 .foregroundStyle(.white)
                 .transition(.scale(scale: 0.85).combined(with: .opacity))
@@ -191,7 +191,7 @@ public struct AnzanView: View {
                 .themeBody(15)
                 .foregroundStyle(.white.opacity(0.85))
             Text(verbatim: model.input.isEmpty ? "?" : model.input)
-                .font(.system(size: 56, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(56, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                 .minimumScaleFactor(0.5)
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
@@ -231,7 +231,7 @@ public struct AnzanView: View {
     private var resultContent: some View {
         VStack(spacing: 8) {
             Text(model.isCorrect ? "せいかい！" : "ざんねん…")
-                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(model.isCorrect ? Theme.Fill.yellow : .white)
             Text(verbatim: AnzanLogic.expression(model.numbers))
                 .themeBody(14)
@@ -313,13 +313,13 @@ public struct AnzanView: View {
                 switch key {
                 case let .digit(digit):
                     Text(verbatim: "\(digit)")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .scaledFont(24, weight: .heavy, design: .rounded)
                 case .backspace:
                     Image(systemName: "delete.left.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .scaledFont(20, weight: .bold)
                 case .submit:
                     Text("決定")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .scaledFont(18, weight: .heavy, design: .rounded)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 50)

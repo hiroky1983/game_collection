@@ -15,7 +15,7 @@ public struct GameClockLabel: View {
 
     public var body: some View {
         Label(text, systemImage: "clock")
-            .font(.system(size: size, weight: .bold, design: .monospaced))
+            .scaledFont(size, weight: .bold, design: .monospaced)
             .foregroundStyle(Theme.teal)
     }
 }

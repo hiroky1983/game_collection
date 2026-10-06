@@ -357,7 +357,7 @@ public struct MahjongView: View {
     private func doraChip(scale s: CGFloat) -> some View {
         HStack(spacing: 5 * s) {
             Text("ドラ")
-                .font(.system(size: 11 * s, weight: .black, design: .rounded))
+                .font(.system(size: 11 * s, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Theme.Fixed.ink)
             ForEach(Array(model.doraIndicators.enumerated()), id: \.offset) { _, tile in
                 MahjongTileView(tile: tile, width: 20 * s, height: 27 * s)

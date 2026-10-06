@@ -125,6 +125,7 @@ public enum Theme {
     // `Font.system(size:)` は固定 pt で文字サイズ設定（Dynamic Type）を無視するため廃止した（#189）。
     // 盤面の駒・カードの数字など「図形のジオメトリに従うべき文字」は拡大させたくないので、
     // 従来どおり呼び出し側で `.font(.system(size:))` を直接指定する。
+    // その場合は行末に `// fixed-size: 理由` を付ける（付けない固定サイズは FixedFontSizeScanTests が落とす・#1858）。
 }
 
 /// Dynamic Type（文字サイズ設定）に追従するテーマフォント（#189）。
@@ -135,20 +136,22 @@ public struct ScaledThemeFont: ViewModifier {
     @ScaledMetric private var size: CGFloat
     private let base: CGFloat
     private let weight: Font.Weight
+    private let design: Font.Design
     private let maxScale: CGFloat
 
     /// `maxScale` は基準 pt に対する拡大の上限倍率（#1469）。帯・ボタンなど、拡大が際限なく続くと
     /// 隣の要素を押し出したり盤に重なったりする密な場所だけが指定する。既定（無指定）は上限なし。
-    init(size: CGFloat, weight: Font.Weight, relativeTo textStyle: Font.TextStyle,
-         maxScale: CGFloat = .infinity) {
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design = .rounded,
+         relativeTo textStyle: Font.TextStyle, maxScale: CGFloat = .infinity) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
         base = size
         self.weight = weight
+        self.design = design
         self.maxScale = maxScale
     }
 
     public func body(content: Content) -> some View {
-        content.font(.system(size: min(size, base * maxScale), weight: weight, design: .rounded))
+        content.font(.system(size: min(size, base * maxScale), weight: weight, design: design)) // fixed-size: 拡大後の値を計算した結果を渡す実体
     }
 }
 
@@ -266,6 +269,18 @@ public extension View {
     func themeCaption(_ size: CGFloat = 11, weight: Font.Weight = .bold,
                      maxScale: CGFloat = .infinity) -> some View {
         modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .caption, maxScale: maxScale))
+    }
+
+    /// 固定 pt の `.font(.system(size:))` の置き換え。Dynamic Type に追従する（#1858）。
+    ///
+    /// 標準の文字サイズでは倍率 1.0 なので見た目は変わらない。拡大は `maxScale` 倍で頭打ちにして、
+    /// 帯・ボタンなど密な場所が最大サイズで崩れないようにする。基準のテキストスタイルは大きさから決める
+    /// （小さい文字ほど拡大幅を抑える）。数字を等幅にしたいときは呼び出し側で `.monospacedDigit()` を足す。
+    func scaledFont(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+                    maxScale: CGFloat = 1.4) -> some View {
+        let style: Font.TextStyle = size <= 13 ? .caption : size <= 17 ? .body : size <= 22 ? .title3 : .title
+        return modifier(ScaledThemeFont(size: size, weight: weight, design: design,
+                                        relativeTo: style, maxScale: maxScale))
     }
 
     /// 新規ゲームシートの高さ。アクセシビリティ相当の文字サイズのときだけ `.large` で開く（#189）。

@@ -210,9 +210,9 @@ public struct PlayingCardFace: View {
         case .pip(let suit, _):
             VStack(spacing: metrics.pipSpacing) {
                 Text(figure.rankLabel)
-                    .font(.system(size: metrics.rankFont, weight: .black, design: .rounded))
+                    .font(.system(size: metrics.rankFont, weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                 Text(suit.symbol)
-                    .font(.system(size: metrics.suitFont))
+                    .font(.system(size: metrics.suitFont)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
             }
             .foregroundStyle(PlayingCardInk.color(for: suit))
 
@@ -222,7 +222,7 @@ public struct PlayingCardFace: View {
                     .frame(width: metrics.suitFont * 1.3, height: metrics.suitFont * 1.3)
                 // 「JOKER」は5文字あるので、数字1〜2文字のランクより小さく組まないと札からはみ出す。
                 Text("JOKER")
-                    .font(.system(size: metrics.rankFont * 0.42, weight: .black, design: .rounded))
+                    .font(.system(size: metrics.rankFont * 0.42, weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                     .foregroundStyle(PlayingCardInk.black)
             }
         }
@@ -241,7 +241,7 @@ public struct PlayingCardBack: View {
         ZStack {
             CardStyle.backFrame(cornerRadius: metrics.cornerRadius)
             Image(systemName: "suit.spade.fill")
-                .font(.system(size: metrics.backMotifFont, weight: .bold))
+                .font(.system(size: metrics.backMotifFont, weight: .bold)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                 .foregroundStyle(.white.opacity(CardStyle.backMotifOpacity))
         }
     }

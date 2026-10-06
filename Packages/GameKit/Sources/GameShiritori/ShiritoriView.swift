@@ -127,7 +127,7 @@ public struct ShiritoriView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } trailing: {
                 Text(model.mode == .endless ? model.mode.label : model.quota.label)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Fill.purple))
@@ -143,7 +143,7 @@ public struct ShiritoriView: View {
         let urgent = model.timeRemaining <= 10 && model.phase == .playing
         return HStack(spacing: 8) {
             Image(systemName: "timer")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundStyle(urgent ? Theme.coral : Theme.inkSub)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -154,7 +154,7 @@ public struct ShiritoriView: View {
             }
             .frame(height: 8)
             Text(model.isPaused ? "一時停止" : "\(seconds)びょう")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .monospacedDigit()
                 .foregroundStyle(urgent ? Theme.coral : Theme.ink)
                 .frame(minWidth: 52, alignment: .trailing)
@@ -180,11 +180,11 @@ public struct ShiritoriView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(ShiritoriPresentation.prompt(tail: model.requiredTail, isPlayerTurn: model.isPlayerTurn, phase: model.phase))
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .scaledFont(15, weight: .black, design: .rounded)
                     .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Text(model.lastEvent.map(ShiritoriPresentation.eventText) ?? " ")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(isMiss ? Theme.coral : Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 scoreLine
@@ -208,7 +208,7 @@ public struct ShiritoriView: View {
                     .foregroundStyle(Theme.inkSub)
             }
         }
-        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .scaledFont(12, weight: .bold, design: .rounded)
         .lineLimit(1).minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("あなた\(model.playerCount)枚、CPU\(model.cpuCount)枚"
@@ -318,18 +318,18 @@ public struct ShiritoriView: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: model.didPlayerWin ? "crown.fill" : "flag.checkered")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundStyle(model.didPlayerWin ? Theme.yellow : Theme.inkSub)
                 Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
                                                               mode: model.mode))
-                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .scaledFont(16, weight: .black, design: .rounded)
                     .foregroundStyle(model.didPlayerWin ? Theme.teal : Theme.ink)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
             }
             Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
                                                           ending: model.ending ?? .timeUp, mode: model.mode))
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -395,7 +395,7 @@ struct ShiritoriCardTile: View {
             // 常に描画して高さを確保する（グリッドの行の高さが札ごとにばらつかないように）。
             // 隠すときは不透明度だけ0にする（VoiceOver は `boardArea` 側の `accessibilityLabel` が別に持つ）。
             Text(reading)
-                .font(.system(size: isCurrent ? 14 : 10, weight: .bold, design: .rounded))
+                .scaledFont(isCurrent ? 14 : 10, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .opacity(showsReading ? 1 : 0)
@@ -428,11 +428,11 @@ struct ShiritoriCardTile: View {
     private var ownerBadge: some View {
         switch owner {
         case .player:
-            Image(systemName: "person.fill").font(.system(size: 9, weight: .bold))
+            Image(systemName: "person.fill").scaledFont(9, weight: .bold)
                 .foregroundStyle(Theme.onAccent).padding(3)
                 .background(Circle().fill(Theme.teal)).offset(x: 3, y: -3)
         case .cpu:
-            Image(systemName: "cpu").font(.system(size: 9, weight: .bold))
+            Image(systemName: "cpu").scaledFont(9, weight: .bold)
                 .foregroundStyle(Theme.onAccent).padding(3)
                 .background(Circle().fill(Theme.coral)).offset(x: 3, y: -3)
         case nil:

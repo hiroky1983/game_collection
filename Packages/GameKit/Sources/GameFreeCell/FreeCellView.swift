@@ -164,7 +164,7 @@ public struct FreeCellView: View {
                         .foregroundStyle(Theme.teal)
                 } else {
                     Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .scaledFont(15, weight: .bold, design: .monospaced)
                         .foregroundStyle(Theme.coral)
                 }
             }
@@ -175,7 +175,7 @@ public struct FreeCellView: View {
             // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
             // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
             Text(verbatim: "配札 #" + String(model.dealNumber))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .scaledFont(10, weight: .bold, design: .monospaced)
                 .foregroundStyle(Theme.inkSub)
 
             GameClockLabel(RecordFormat.time(model.elapsedSeconds))

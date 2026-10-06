@@ -475,7 +475,7 @@ public struct BlackjackView: View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
-                    .font(.system(size: 24))
+                    .scaledFont(24)
                     .foregroundStyle(Theme.coral)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {

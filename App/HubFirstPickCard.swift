@@ -26,7 +26,7 @@ struct HubFirstPickCard: View {
                 .frame(width: layout.scaled(36), height: layout.scaled(36))
                 .overlay {
                     module.icon
-                        .font(.system(size: layout.scaled(18), weight: .bold))
+                        .font(.system(size: layout.scaled(18), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
                         .foregroundStyle(Theme.onAccent)
                 }
             VStack(alignment: .leading, spacing: 2) {

@@ -276,9 +276,9 @@ extension MahjongView {
         if let message {
             HStack(spacing: 4) {
                 Image(systemName: "info.circle.fill")
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, weight: .bold)
                 Text(message)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold, design: .rounded)
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
             .foregroundStyle(model.isPlayerFuriten ? Theme.inkSub : Theme.coral)

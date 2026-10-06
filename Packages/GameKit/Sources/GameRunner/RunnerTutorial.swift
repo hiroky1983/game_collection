@@ -98,16 +98,16 @@ struct RunnerTutorialSteps: View {
             ForEach(RunnerTutorial.steps) { step in
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: step.symbol)
-                        .font(.system(size: fontSize + 7, weight: .heavy))
+                        .scaledFont(fontSize + 7, weight: .heavy)
                         .foregroundStyle(Theme.coral)
                         .frame(width: fontSize + 11)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(step.text)
-                            .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                            .scaledFont(fontSize, weight: .bold, design: .rounded)
                             .foregroundStyle(Theme.ink)
                         if let note = step.note {
                             Text(note)
-                                .font(.system(size: fontSize - 2, weight: .bold, design: .rounded))
+                                .scaledFont(fontSize - 2, weight: .bold, design: .rounded)
                                 .foregroundStyle(Theme.coral)
                         }
                     }

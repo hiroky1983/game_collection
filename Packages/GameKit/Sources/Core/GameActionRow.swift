@@ -110,7 +110,7 @@ struct GameActionCapsule: View {
     private var label: some View {
         HStack(spacing: 5) {
             Image(systemName: item.systemImage)
-                .font(.system(size: 16, weight: .bold))
+                .scaledFont(16, weight: .bold)
             VStack(alignment: .leading, spacing: -1) {
                 Text(item.title).themeBody(14, weight: .bold, maxScale: 1.3)
                 secondLine
@@ -128,7 +128,7 @@ struct GameActionCapsule: View {
                     Text(note)
                 }
                 if item.badge.needsAd {
-                    Image(systemName: "play.rectangle.fill").font(.system(size: 9))
+                    Image(systemName: "play.rectangle.fill").scaledFont(9)
                 }
                 if let text = item.badge.text {
                     Text(text)

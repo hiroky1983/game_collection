@@ -42,7 +42,7 @@ public struct RecommendationCard: View {
                         .frame(width: Self.iconSide, height: Self.iconSide)
                         .overlay {
                             module.icon
-                                .font(.system(size: 18, weight: .bold))
+                                .scaledFont(18, weight: .bold)
                                 .foregroundStyle(Theme.onAccent)
                         }
                     VStack(alignment: .leading, spacing: 2) {
@@ -136,7 +136,7 @@ struct RecommendationDismissButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundStyle(Theme.inkSub)
                 .frame(minWidth: Self.side, minHeight: Self.side)
                 .contentShape(Rectangle())

@@ -73,7 +73,7 @@ public struct BoardGameResultCard: View {
             VStack(spacing: 12) {
                 VStack(spacing: 10) {
                     Image(systemName: symbol.name)
-                        .font(.system(size: 40))
+                        .scaledFont(40, maxScale: 1.2)
                         .foregroundStyle(symbol.color)
                     Text(verdict.title)
                         .themeBody(24, weight: .bold, maxScale: 1.5)

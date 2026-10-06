@@ -600,9 +600,9 @@ struct SolitaireCardIndex: View {
                     .frame(width: metrics.rankFont * 0.8, height: metrics.rankFont * 0.8)
             } else {
                 Text(card.rankLabel)
-                    .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded))
+                    .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                 Text(card.suit?.symbol ?? "")
-                    .font(.system(size: metrics.suitFont * 0.66))
+                    .font(.system(size: metrics.suitFont * 0.66)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
             }
         }
         .foregroundStyle(color)

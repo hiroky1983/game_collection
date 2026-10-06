@@ -49,7 +49,7 @@ struct RunnerStartSheet: View {
                     }
                 }
                 Text(mode.summary)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

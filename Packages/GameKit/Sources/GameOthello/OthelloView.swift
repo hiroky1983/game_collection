@@ -251,14 +251,14 @@ public struct OthelloView: View {
                     if let w = model.winner {
                         let isWin = w == model.humanSide
                         Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                            .font(.system(size: 40))
+                            .scaledFont(40, maxScale: 1.2)
                             .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
                         Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
                             .themeBody(24, weight: .bold)
                             .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                     } else {
                         Image(systemName: "equal.circle.fill")
-                            .font(.system(size: 40))
+                            .scaledFont(40, maxScale: 1.2)
                             .foregroundStyle(Theme.inkSub)
                         Text("引き分け")
                             .themeBody(24, weight: .bold)

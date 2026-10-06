@@ -167,10 +167,10 @@ struct RunnerStoryReplayList: View {
                 Button { onSelect(scene) } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "play.rectangle.fill")
-                            .font(.system(size: 13, weight: .bold))
+                            .scaledFont(13, weight: .bold)
                             .foregroundStyle(Theme.inkSub)
                         Text(scene.title)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .scaledFont(14, weight: .bold, design: .rounded)
                             .foregroundStyle(Theme.ink)
                         Spacer(minLength: 0)
                     }

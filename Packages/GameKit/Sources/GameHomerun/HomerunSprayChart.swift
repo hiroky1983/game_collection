@@ -73,11 +73,11 @@ struct HomerunSprayChart: View {
             if numbered {
                 for (deg, label) in [(-45.0, "100"), (0.0, "122"), (45.0, "100")] {
                     let p = map(HomerunSprayGeometry.point(direction: deg, distance: HomerunJudge.fence(atDirection: deg) + 9))
-                    ctx.draw(Text(verbatim: label).font(.system(size: 10, weight: .bold, design: .rounded))
+                    ctx.draw(Text(verbatim: label).font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                         .foregroundStyle(Theme.inkSub), at: p)
                 }
                 let outLabel = map(HomerunSprayGeometry.point(direction: -22, distance: HomerunBallChase.outOfParkDistance(atDirection: -22) + 8))
-                ctx.draw(Text(verbatim: "場外").font(.system(size: 10, weight: .bold, design: .rounded))
+                ctx.draw(Text(verbatim: "場外").font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                     .foregroundStyle(Theme.inkSub), at: outLabel)
             }
 
@@ -91,21 +91,21 @@ struct HomerunSprayChart: View {
                 let p = map(HomerunSprayGeometry.mark(for: ball))
                 switch ball.kind {
                 case .homer:
-                    ctx.draw(Text(verbatim: "★").font(.system(size: 18, weight: .black)).foregroundStyle(Theme.yellow), at: p)
+                    ctx.draw(Text(verbatim: "★").font(.system(size: 18, weight: .black)).foregroundStyle(Theme.yellow), at: p) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                 case .inPlay, .fenceHit:
                     let r = 5.5
                     let dot = Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
                     ctx.fill(dot, with: .color(ball.kind == .fenceHit ? Theme.coral : Theme.teal))
                     ctx.stroke(dot, with: .color(.white), lineWidth: 1.5)
                 case .foul:
-                    ctx.draw(Text(verbatim: "F").font(.system(size: 13, weight: .black, design: .rounded))
+                    ctx.draw(Text(verbatim: "F").font(.system(size: 13, weight: .black, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                         .foregroundStyle(Theme.inkSub), at: p)
                 case .miss:
-                    ctx.draw(Text(verbatim: "×").font(.system(size: 14, weight: .black))
+                    ctx.draw(Text(verbatim: "×").font(.system(size: 14, weight: .black)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                         .foregroundStyle(Theme.inkSub), at: CGPoint(x: p.x, y: p.y - 8))
                 }
                 if numbered {
-                    ctx.draw(Text(verbatim: "\(index + 1)").font(.system(size: 9, weight: .bold, design: .rounded))
+                    ctx.draw(Text(verbatim: "\(index + 1)").font(.system(size: 9, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                         .foregroundStyle(Theme.ink), at: labels[index])
                 }
             }

@@ -30,7 +30,7 @@ struct PokerStartSheet: View {
                     }
                 }
                 Text(rules.summary)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -72,10 +72,10 @@ struct PokerStartSheet: View {
             HStack {
                 Image(systemName: systemImage)
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .scaledFont(15, weight: .semibold, design: .rounded)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                     .foregroundStyle(Theme.inkSub)
             }
             .foregroundStyle(Theme.coral)
@@ -89,12 +89,12 @@ struct PokerStartSheet: View {
     private func ruleRow(_ num: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Text(num)
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .scaledFont(12, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .frame(width: 20, height: 20)
                 .background(Circle().fill(Theme.Fill.coral))
             Text(text)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .scaledFont(13, weight: .medium, design: .rounded)
                 .foregroundStyle(Theme.ink)
             Spacer()
         }
@@ -111,30 +111,30 @@ struct BonusTableSheet: View {
                 footer: "勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。"
             ) {
                 Text("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 ForEach(PokerBonusTable.payouts) { payout in
                     HStack(spacing: 8) {
                         Text(payout.rank.description)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .scaledFont(14, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.coral)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer()
                         Text("+\(payout.chips)枚")
-                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .scaledFont(16, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.yellow)
                     }
                 }
                 HStack(spacing: 8) {
                     Text("ワンペア・ハイカード")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .scaledFont(14, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Spacer()
                     Text("なし")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .scaledFont(14, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                 }
             }
@@ -217,9 +217,9 @@ struct MiniCardView: View {
                 )
             VStack(spacing: 0) {
                 Text(card.rankLabel)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .scaledFont(13, weight: .black, design: .rounded)
                 Text(card.suit.symbol)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
             }
             .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
         }

@@ -140,10 +140,10 @@ public struct ConcentrationView: View {
     private func scoreChip(label: String, score: Int, color: Color, isActive: Bool) -> some View {
         HStack(spacing: 6) {
             Text(label)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
             Text("\(score)")
-                .font(.system(size: 20, weight: .black, design: .rounded))
+                .scaledFont(20, weight: .black, design: .rounded)
                 .foregroundStyle(isActive ? Theme.onAccent : Theme.ink)
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -257,17 +257,17 @@ public struct ConcentrationView: View {
                 if let winner = model.winner {
                     let isWin = winner == .human
                     Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                        .font(.system(size: 52))
+                        .scaledFont(52, maxScale: 1.2)
                         .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
                     Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .scaledFont(26, weight: .black, design: .rounded)
                         .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                 } else {
                     Image(systemName: "equal.circle.fill")
-                        .font(.system(size: 52))
+                        .scaledFont(52, maxScale: 1.2)
                         .foregroundStyle(Theme.inkSub)
                     Text("引き分け")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .scaledFont(26, weight: .black, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                 }
             }
@@ -362,7 +362,7 @@ private struct CardView: View {
                     )
                 CardStyle.backFrame(cornerRadius: 10)
                 Image(systemName: "questionmark")
-                    .font(.system(size: 18, weight: .bold))
+                    .scaledFont(18, weight: .bold)
                     .foregroundStyle(.white.opacity(0.6))
             }
         }

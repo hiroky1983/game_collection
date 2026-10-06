@@ -47,19 +47,19 @@ public struct MahjongYakuSheet: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(yaku.name)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .scaledFont(15, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
                 Text(yaku.reading)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Spacer(minLength: 6)
                 Text(yaku.hanText)
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .scaledFont(13, weight: .heavy, design: .rounded)
                     .foregroundStyle(Theme.coral)
                     .fixedSize()
             }
             Text(yaku.requirement)
-                .font(.system(size: 12, design: .rounded))
+                .scaledFont(12, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)
             exampleTiles(yaku)

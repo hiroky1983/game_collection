@@ -378,7 +378,7 @@ public struct RunnerView: View {
             let ratio = min(1, max(0, remaining / RunnerRules.invincibleDuration))
             HStack(spacing: 8) {
                 Text("無敵")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .scaledFont(13, weight: .heavy, design: .rounded)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Theme.onAccent.opacity(0.25))
@@ -388,7 +388,7 @@ public struct RunnerView: View {
                 }
                 .frame(width: 72, height: 6)
                 Text(String(format: "%.1f", remaining))
-                    .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(13, weight: .heavy, design: .rounded).monospacedDigit()
             }
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -593,9 +593,9 @@ public struct RunnerView: View {
             }
             HStack(spacing: 8) {
                 Image(systemName: "hand.tap.fill")
-                    .font(.system(size: 17, weight: .heavy))
+                    .scaledFont(17, weight: .heavy)
                 Text("タップでスタート")
-                    .font(.system(size: 19, weight: .heavy, design: .rounded))
+                    .scaledFont(19, weight: .heavy, design: .rounded)
             }
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 22).padding(.vertical, 12)
@@ -635,17 +635,17 @@ public struct RunnerView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .scaledFont(20, weight: .heavy)
                 VStack(alignment: .leading, spacing: 1) {
                     if resumingFromCheckpoint {
                         Text("つづきから")
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .scaledFont(20, weight: .heavy, design: .rounded)
                     } else {
                         Text("ワールド \(world.number) \(world.displayName)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .scaledFont(11, weight: .bold, design: .rounded)
                             .opacity(0.8)
                         Text(RunnerAccessibility.stageHeadline(number: number))
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .scaledFont(20, weight: .heavy, design: .rounded)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }

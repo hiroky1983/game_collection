@@ -409,7 +409,7 @@ public struct SudokuView: View {
                 .opacity(flashing.contains(index) ? 1 : 0)
             if digit != 0 {
                 Text("\(digit)")
-                    .font(.system(size: side * 0.58, weight: isGiven ? .black : .semibold, design: .rounded))
+                    .font(.system(size: side * 0.58, weight: isGiven ? .black : .semibold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(digitColor(isGiven: isGiven, isError: isError, isHinted: isHinted))
                     .minimumScaleFactor(0.5)
             } else if !noteDigits.isEmpty {
@@ -449,7 +449,7 @@ public struct SudokuView: View {
                     ForEach(0..<3, id: \.self) { c in
                         let digit = r * 3 + c + 1
                         Text(noteDigits.contains(digit) ? "\(digit)" : " ")
-                            .font(.system(size: side * 0.22, weight: .semibold, design: .rounded))
+                            .font(.system(size: side * 0.22, weight: .semibold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                             .foregroundStyle(Theme.inkSub)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -564,7 +564,7 @@ public struct SudokuView: View {
             model.enter(digit: digit)
         } label: {
             Text("\(digit)")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .scaledFont(20, weight: .bold, design: .rounded)
                 // 使い切った数字は文字だけを薄くする（#666）。ボタンの面は残し、並びの位置は変えない。
                 .opacity(exhausted ? SudokuMetrics.exhaustedDigitOpacity : 1)
                 .frame(maxWidth: .infinity)
@@ -587,7 +587,7 @@ public struct SudokuView: View {
             model.erase()
         } label: {
             Image(systemName: "delete.left")
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, weight: .bold)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: SudokuMetrics.padButtonMinSide)
                 .background(

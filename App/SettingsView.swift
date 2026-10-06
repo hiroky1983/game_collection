@@ -245,7 +245,7 @@ struct SettingsView: View {
                     .frame(width: 32, height: 32)
                     .overlay {
                         module.icon
-                            .font(.system(size: 16, weight: .bold))
+                            .scaledFont(16, weight: .bold)
                             .foregroundStyle(Theme.onAccent)
                     }
                     .accessibilityHidden(true)

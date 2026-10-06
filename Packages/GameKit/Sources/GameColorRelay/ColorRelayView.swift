@@ -86,12 +86,12 @@ public struct ColorRelayView: View {
                 .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
             Image(systemName: model.isClockwise ? "arrow.clockwise" : "arrow.counterclockwise")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundStyle(Theme.inkSub)
                 .accessibilityLabel(model.isClockwise ? "順回り" : "逆回り")
             Spacer()
             Text(turnLabel)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
@@ -121,17 +121,17 @@ public struct ColorRelayView: View {
         return VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                     .foregroundStyle(isCurrent ? Theme.coral : Theme.inkSub)
                 Text(model.playerName(index))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
             Text("残り\(model.hands[index].count)枚")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(model.lastActions[index].isEmpty ? " " : model.lastActions[index])
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .scaledFont(10, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .padding(.horizontal, 6).padding(.vertical, 3)
@@ -156,7 +156,7 @@ public struct ColorRelayView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
                 Text("場")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .scaledFont(11, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             activeColorChip
@@ -185,7 +185,7 @@ public struct ColorRelayView: View {
             .disabled(!model.canDraw)
             .accessibilityLabel("山から1枚引く")
             Text("山 \(model.drawPile.count)枚")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
     }
@@ -201,10 +201,10 @@ public struct ColorRelayView: View {
                         .strokeBorder(Color.white.opacity(0.7), lineWidth: 2)
                 )
             Text("いまの色")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(model.activeColor.name)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .scaledFont(11, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
         }
         .gameAnimation(.easeInOut(duration: 0.18), value: model.activeColor)
@@ -224,7 +224,7 @@ public struct ColorRelayView: View {
                 Spacer()
                 if !model.lastActions[ColorRelayModel.humanIndex].isEmpty {
                     Text(model.lastActions[ColorRelayModel.humanIndex])
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .scaledFont(11, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.teal)
                         .lineLimit(1).minimumScaleFactor(0.6)
                 }
@@ -285,9 +285,9 @@ public struct ColorRelayView: View {
         if let message {
             HStack(spacing: 4) {
                 Image(systemName: "info.circle.fill")
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, weight: .bold)
                 Text(message)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold, design: .rounded)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
@@ -320,7 +320,7 @@ public struct ColorRelayView: View {
         case .playing where model.needsColorChoice:
             VStack(spacing: 6) {
                 Text("次の色を選ぶ")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 HStack(spacing: 8) {
                     ForEach(RelayColor.allCases, id: \.self) { color in
@@ -394,7 +394,7 @@ public struct ColorRelayView: View {
                     .fill(color.color)
                     .frame(height: 28)
                 Text(color.name)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
             .frame(maxWidth: .infinity, minHeight: ColorRelayHandLayout.minimumTapTarget)
@@ -414,10 +414,10 @@ public struct ColorRelayView: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.yellow : Theme.inkSub)
                 Text(resultHeadline)
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.teal : Theme.ink)
                 Spacer()
             }
@@ -425,18 +425,18 @@ public struct ColorRelayView: View {
                 ForEach(Array(model.ranking.enumerated()), id: \.element) { place, player in
                     HStack(spacing: 8) {
                         Text("\(place + 1)位")
-                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .scaledFont(12, weight: .black, design: .rounded)
                             // 1 位だけ差し色の面。他は濃いグレーの面なので文字色を分ける（#220）。
                             .foregroundStyle(place == 0 ? Theme.onAccent : .white)
                             .frame(width: 44)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(player == ColorRelayModel.humanIndex ? Theme.coral : Theme.ink)
                         Spacer()
                         Text(place == 0 ? "あがり" : "残り\(model.hands[player].count)枚")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .scaledFont(12, weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
                 }
@@ -583,19 +583,19 @@ struct ColorRelayCardView: View {
         switch card.kind {
         case .number(let n):
             Text("\(n)")
-                .font(.system(size: font, weight: .black, design: .rounded))
+                .font(.system(size: font, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(faceColor)
         case .skip:
             Image(systemName: "circle.slash")
-                .font(.system(size: font * 0.85, weight: .black))
+                .font(.system(size: font * 0.85, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(faceColor)
         case .reverse:
             Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: font * 0.8, weight: .black))
+                .font(.system(size: font * 0.8, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(faceColor)
         case .drawTwo:
             Text("+2")
-                .font(.system(size: font * 0.85, weight: .black, design: .rounded))
+                .font(.system(size: font * 0.85, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(faceColor)
         case .wild:
             FourColorMark(size: font * 1.1)
@@ -603,7 +603,7 @@ struct ColorRelayCardView: View {
             VStack(spacing: 1) {
                 FourColorMark(size: font * 0.7)
                 Text("+4")
-                    .font(.system(size: font * 0.5, weight: .black, design: .rounded))
+                    .font(.system(size: font * 0.5, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(Theme.fillStrong)
             }
         }
@@ -632,25 +632,25 @@ struct ColorRelayCardView: View {
         switch card.kind {
         case .number(let n):
             Text("\(n)")
-                .font(.system(size: font, weight: .black, design: .rounded))
+                .font(.system(size: font, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(.white)
         case .skip:
             Image(systemName: "circle.slash")
-                .font(.system(size: font * 0.9, weight: .black))
+                .font(.system(size: font * 0.9, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(.white)
         case .reverse:
             Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: font * 0.85, weight: .black))
+                .font(.system(size: font * 0.85, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(.white)
         case .drawTwo:
             Text("+2")
-                .font(.system(size: font * 0.9, weight: .black, design: .rounded))
+                .font(.system(size: font * 0.9, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(.white)
         case .wild:
             FourColorMark(size: font, spacing: 1)
         case .wildDrawFour:
             Text("+4")
-                .font(.system(size: font * 0.9, weight: .black, design: .rounded))
+                .font(.system(size: font * 0.9, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(.white)
         }
     }
