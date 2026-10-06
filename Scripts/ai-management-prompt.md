@@ -146,7 +146,7 @@ LAST=$(cat "$STATE" 2>/dev/null || echo 0)
 | 発火条件（いずれか） | やること | 成果物の置き場所 |
 |---|---|---|
 | 1節の分析で「競合状況・市場規模・類似アプリの実績」が判断材料に要るのに手元に無い | データ分析部の仕事として競合調査（`WebSearch`・iTunes Lookup API） | 対象 Issue のコメント（`<!-- ai-management-research -->` を先頭行に付ける） |
-| App Store の公開版が上がった（`https://itunes.apple.com/lookup?id=6781719499&country=jp` の `version` が前回記録より進んだ） | 公開状況の確認・記録 | 直近のリリース Issue のコメント（同マーカー） |
+| App Store の公開版が上がった（`https://itunes.apple.com/lookup?id=6781719499&country=jp&t=$(date +%s)` の `version` が前回記録より進んだ。キャッシュバスタ必須、無いとエッジキャッシュの古い版を返す） | 公開状況の確認・記録 | 直近のリリース Issue のコメント（同マーカー） |
 | ストアのレビュー・評価が前回実行時から増えた | レビュー内容の確認 | 同上 |
 | ASO 系 Issue（`ai:approved` 済み）が着手待ちで、文言・キーワード案が未作成 | マーケティング部の仕事としてキーワード・文言案を作成 | 対象 Issue のコメント（同マーカー） |
 
