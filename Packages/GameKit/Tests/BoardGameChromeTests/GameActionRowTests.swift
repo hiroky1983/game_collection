@@ -87,8 +87,33 @@ struct GameActionRowTests {
             #expect(SourceScan.matchCount(of: #"GameActionItem\(\s*id: "\#(id)""#, in: source) == 0, "\(module) の \(id) が段に出ている")
         }
         if rowIDs.isEmpty {
-            #expect(!source.contains("actions:"), "\(module) に段がある（ゲーム中に広告の操作が無いので「⋯」だけのはず）")
+            #expect(SourceScan.matchCount(of: #"GameActionItem\("#, in: source) == 0,
+                    "\(module) に段がある（ゲーム中に広告の操作が無いので「⋯」だけのはず）")
         }
+    }
+
+    /// 麻雀ソリティアのヒント・並べ替えは毎回広告（上限なし）、神経衰弱の待ったは 1 局 1 回無料のあと広告。
+    @Test("麻雀ソリティアと神経衰弱の 2 行目は広告の有無を ▶ で見せる")
+    func mahjongAndConcentrationBadges() throws {
+        let mahjong = SourceScan.strippingComments(try SourceScan.moduleSources("GameMahjongSolitaire"))
+        #expect(SourceScan.matchCount(of: #"id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: \.hint, badge: \.ad\(\)"#, in: mahjong) == 1,
+                "麻雀ソリティアのヒントの 2 行目が「▶ 広告を見て」でない")
+        #expect(SourceScan.matchCount(of: #"id: "shuffle", title: "並べ替え", systemImage: "shuffle", role: \.primary, badge: \.ad\(\)"#, in: mahjong) == 1,
+                "麻雀ソリティアの並べ替えの 2 行目が「▶ 広告を見て」でない")
+        let concentration = SourceScan.strippingComments(try SourceScan.moduleSources("GameConcentration"))
+        #expect(concentration.contains("badge: model.mattaUsed ? .ad() : .count(1)"),
+                "神経衰弱の待ったの 2 行目が無料 1 回 → 広告になっていない")
+    }
+
+    /// 専用の読み上げ文（「1手戻す、残り3回」など残り回数を含む）を渡した項目では 2 行目を重ねて読まない。
+    /// 渡していない項目（盤ゲームの待った・麻雀ソリティア）は題 + 2 行目を読む。
+    @Test("読み上げ文を渡した項目では 2 行目を重ねて読まない")
+    func accessibilityValueIsNotDuplicated() throws {
+        let source = try Self.rowSource()
+        let capsule = try #require(SourceScan.declaration(of: "struct GameActionCapsule: View", in: source))
+        #expect(capsule.contains("guard item.accessibilityLabel == nil else { return \"\" }"))
+        let bar = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/BoardGameControlBar.swift"))
+        #expect(!bar.contains(#"accessibilityLabel: "待った""#), "盤ゲームの待ったに題と同じ読み上げ文を渡していて 2 行目が読まれない")
     }
 
     @Test("盤ゲーム 5 本の共通の行は待った・ヒントを段に、ゲーム固有の項目（囲碁のパス）と投了を「⋯」に置く")

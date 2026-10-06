@@ -168,7 +168,6 @@ public struct ConcentrationView: View {
                     badge: model.mattaUsed ? .ad() : .count(1),
                     note: model.canMatta ? "今だけ！" : nil,
                     isEnabled: model.canMatta,
-                    accessibilityLabel: "待った",
                     accessibilityHint: model.canMatta ? "ミスマッチの札が裏返る前なら、直前のめくりをやり直せます" : "ミスマッチの直後だけ使えます"
                 ) {
                     // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める

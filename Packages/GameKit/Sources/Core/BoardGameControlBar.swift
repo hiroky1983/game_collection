@@ -123,7 +123,6 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
                 role: .undo,
                 badge: model.undoUsed ? .ad() : .count(1),
                 isEnabled: model.canUndo && !hintIsWatching,
-                accessibilityLabel: "待った",
                 accessibilityHint: model.canUndo ? "あなたの直前の1手を、CPU の応手ごと取り消します" : "いまは使えません"
             ) { showUndoConfirm = true }
         ]

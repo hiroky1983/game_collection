@@ -55,6 +55,8 @@ public struct GameActionItem: Identifiable {
     /// そのボタン自身の状態を知らせるものの置き場所（段のボタンの幅を変えずに出せる）。
     public let note: String?
     public let isEnabled: Bool
+    /// 読み上げ。渡した文字に 2 行目の内容（残り回数・広告）まで含めること（渡すと 2 行目は読み上げに足さない。
+    /// 「1手戻す、残り3回」のあとに「あと3回」を重ねて読まないため）。nil なら題と 2 行目をそのまま読む。
     public let accessibilityLabel: String?
     public let accessibilityHint: String?
     public let action: () -> Void
@@ -137,8 +139,10 @@ struct GameActionCapsule: View {
         }
     }
 
+    /// 2 行目の読み上げ。専用の読み上げ文（残り回数まで含む）を渡された項目では重ねて読まない。
     private var accessibilityValue: String {
-        [item.note, item.badge.accessibilityValue].compactMap { $0 }.joined(separator: "、")
+        guard item.accessibilityLabel == nil else { return "" }
+        return [item.note, item.badge.accessibilityValue].compactMap { $0 }.joined(separator: "、")
     }
 }
 

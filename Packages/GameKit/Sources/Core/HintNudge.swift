@@ -124,33 +124,45 @@ private struct HintNudgeModifier: ViewModifier {
 }
 
 /// 段のヒントのカプセルを光らせる。
+///
+/// 光は overlay の**子**として足し引きする。`content` 側を if/else で分けると、光の出入りのたびに
+/// Button が別物として作り直され、押している最中に促しが切り替わると押下が途切れる。
 private struct HintNudgeGlowModifier: ViewModifier {
     let isOn: Bool
     let reduceMotion: Bool
 
     func body(content: Content) -> some View {
-        if isOn, !reduceMotion {
+        content.overlay {
+            if isOn {
+                HintNudgeGlowRing(pulses: !reduceMotion)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+/// 白い縁（枠の内側）+ 黄色のにじみ（縁の影）。枠の内側に描くので、段の高さも隣のカプセルの位置も変えない。
+private struct HintNudgeGlowRing: View {
+    /// 脈打たせるか（Reduce Motion では false）。
+    let pulses: Bool
+
+    var body: some View {
+        if pulses {
             // 2 つの位相を行き来して脈打たせる（`phaseAnimator` は trigger を渡さなければ繰り返す）。
-            content
-                .phaseAnimator([false, true]) { view, bright in
-                    glowing(view, intensity: bright ? 1 : 0.35)
-                } animation: { _ in
-                    .easeInOut(duration: 0.8)
-                }
-        } else if isOn {
-            glowing(content, intensity: 1)
+            ring.phaseAnimator([false, true]) { view, bright in
+                view.opacity(bright ? 1 : 0.45)
+            } animation: { _ in
+                .easeInOut(duration: 0.8)
+            }
         } else {
-            content
+            ring
         }
     }
 
-    private func glowing<V: View>(_ view: V, intensity: Double) -> some View {
-        view
-            .overlay(
-                Capsule().strokeBorder(Color.white.opacity(0.9), lineWidth: 2.5)
-                    .allowsHitTesting(false)
-            )
-            .shadow(color: Theme.yellow.opacity(intensity), radius: 8)
+    private var ring: some View {
+        Capsule().strokeBorder(Color.white.opacity(0.9), lineWidth: 2.5)
+            .shadow(color: Theme.yellow, radius: 8)
     }
 }
 
