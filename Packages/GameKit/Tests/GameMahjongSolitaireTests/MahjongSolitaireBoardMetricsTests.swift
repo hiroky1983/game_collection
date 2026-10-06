@@ -173,11 +173,13 @@ struct MahjongSolitaireBoardMetricsTests {
 
     // MARK: - 操作ボタンと演出（#199）
 
-    @Test("戻す・並べ替え・ヒントは「⋯」メニューに入っていて、画面ごとの手描きボタンは無い")
+    @Test("戻す（回数制）・並べ替え・ヒント（広告）は段に入っていて、画面ごとの手描きボタンは無い")
     func controlsLiveInTheMenu() throws {
         let source = SourceScan.strippingComments(try Self.viewSource())
+        // 広告が絡む操作だけ段に出す（会長決裁 2026-10-06・#1856）。戻すは回数制で使い切ると広告で補充（#1855）なので段。
+        #expect(SourceScan.matchCount(of: #"GameControlMenuItem\(\s*id: "undo""#, in: source) == 0, "戻すが「⋯」メニューに残っている")
         for id in ["undo", "shuffle", "hint"] {
-            #expect(source.contains("id: \"\(id)\""), "\(id) が「⋯」メニューに無い")
+            #expect(SourceScan.matchCount(of: #"GameActionItem\(\s*id: "\#(id)""#, in: source) == 1, "\(id) が段に無い")
         }
         #expect(SourceScan.matchCount(of: #"controlButton\("#, in: source) == 0)
         #expect(SourceScan.matchCount(of: #"GameControlButton\("#, in: source) == 0)

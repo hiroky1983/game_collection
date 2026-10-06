@@ -3,7 +3,6 @@ import Core
 
 public struct SudokuView: View {
     @State private var model: SudokuModel
-    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     @State private var showNewGame = true
     /// 帯のタイマー（等幅）の文字サイズ。他の帯の文字と同じく文字サイズ設定に追従させる（#1469）。
@@ -14,6 +13,9 @@ public struct SudokuView: View {
     @State private var hintRescue = RewardedRescue()
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
+    /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
+    @State private var showUndoRefillPrompt = false
+    @State private var undoRescue = RewardedRescue()
     @State private var zoomMode = false
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
@@ -110,6 +112,22 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
             )
         )
+        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+            Button("広告を見て\(SudokuUndoBudget.refill)回補充する") { requestUndoRefill() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴すると「戻す」を\(SudokuUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: "「戻す」を補充できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "「戻す」を補充できませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、局が終わったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。"
+            )
+        )
         .rewardedRescueAlerts(
             continueRescue,
             notEarned: "コンティニューできませんでした",
@@ -118,21 +136,13 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったか、この局を諦めたため、コンティニューできませんでした。"
             )
         )
-        // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
-        // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
-        .onDisappear { model.pauseTimer() }
-        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
-        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
-        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
-                model.pauseTimer()
-            } else if !hintRescue.isWatching && !continueRescue.isWatching {
-                model.resumeTimerIfNeeded()
-            }
-        }
-        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([hintRescue, continueRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [hintRescue, continueRescue, undoRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -267,9 +277,7 @@ public struct SudokuView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .opacity(model.hasPuzzle ? 1 : 0)
         } trailing: {
-            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: min(timerFontSize, 14 * 1.5), weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), size: min(timerFontSize, 14 * 1.5))
                 // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                 .opacity(model.hasPuzzle ? 1 : 0)
                 .fixedSize(horizontal: true, vertical: false)
@@ -596,12 +604,41 @@ public struct SudokuView: View {
     // MARK: - 操作ボタン
 
     private var gameControls: some View {
-        // 戻す・メモ・ヒント・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
-        GameOverflowBar(menuItems: controlMenuItems, verticalPadding: 4, nudge: hintNudge)
+        // 戻す（回数制・使い切ると広告で補充）・ヒント（広告）はキーパッドの下の段のカプセルに出し、
+        // メモ・拡大・諦める（広告なし）は右下の「⋯」に残す（#1468・#1856・#1855・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
+        GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, verticalPadding: 4, nudge: hintNudge)
             .lineLimit(1)
     }
 
-    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// 段: 戻す → ヒント（ソリティア系と同じく戻すが先頭）。
+    /// 戻すは回数制（無料のあと広告で補充・#1855）で 2 行目に「あと n 回」、使い切ったら「▶ 広告を見て」。
+    /// ヒントは毎回広告・1 局 3 回までで、2 行目に「▶ あと n 回」で広告と残りを出す。
+    private var controlActions: [GameActionItem] {
+        [
+            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
+                accessibilityLabel: model.undosRemaining > 0
+                    ? "元に戻す（残り\(model.undosRemaining)回）"
+                    : "元に戻す（広告を見て補充）",
+                accessibilityHint: model.canUndo
+                    ? "直前の1手を取り消します。ミスの回数は戻りません"
+                    : "取り消せる手がありません"
+            ) { requestUndo() },
+            GameActionItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+                badge: .ad(remaining: model.remainingHints),
+                isEnabled: model.canHint && !hintRescue.isWatching,
+                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
+                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
+            ) { requestHint() },
+        ]
+    }
+
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、段のヒントを光らせるだけ。
     /// ヒントが尽きた・決着した・広告の視聴中は出さない。マスを選んでいなくても出す（選ぶところから促したいため）。
     private var hintNudge: HintNudge {
         HintNudge(
@@ -611,29 +648,14 @@ public struct SudokuView: View {
         )
     }
 
-    /// 「⋯」に入れる操作。ヒントは広告を見て答えが入る（残り回数付き）。
+    /// 「⋯」に入れる操作（広告の無いもの）。
     private var controlMenuItems: [GameControlMenuItem] {
         [
-            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
-            GameControlMenuItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo,
-                accessibilityLabel: "元に戻す",
-                accessibilityHint: model.canUndo
-                    ? "直前の1手を取り消します。ミスの回数は戻りません"
-                    : "取り消せる手がありません"
-            ) { model.undo() },
             GameControlMenuItem(
                 id: "note", title: "メモ", systemImage: "pencil.tip", isChecked: model.noteMode,
                 accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"
             ) { model.toggleNoteMode() },
             zoomMenuItem,
-            GameControlMenuItem(
-                id: "hint", title: "ヒント（残り\(model.remainingHints)）", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !hintRescue.isWatching,
-                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
-                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
-            ) { requestHint() },
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },
@@ -646,6 +668,32 @@ public struct SudokuView: View {
             id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
             accessibilityLabel: zoomMode ? "盤全体を表示" : "盤を拡大"
         ) { zoomMode.toggle() }
+    }
+
+    /// 「戻す」の入口を 1 本にまとめる（ソリティア・フリーセルと同じ契約・#1855）。
+    ///
+    /// 残り回数があればそのまま戻し、使い切っていたら**提案を出すだけ**にする。
+    /// 押した瞬間に広告を出さないのが要（「戻すつもりが広告を見せられた」を避ける）。
+    private func requestUndo() {
+        guard !undoRescue.isWatching else { return }
+        if model.needsUndoRefill {
+            showUndoRefillPrompt = true
+        } else {
+            model.undo()
+        }
+    }
+
+    /// リワード広告 → 「戻す」の補充。どの局への補充かを広告を出す前に控え、
+    /// ロード中に始めた新しい局へは乗せない（#815 と同じ）。
+    private func requestUndoRefill() {
+        guard !undoRescue.isWatching else { return }
+        let game = model.gameSerial
+        undoRescue.request(
+            services, gameID: model.gameID, purpose: .undo,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantUndos(forGame: game)
+        }
     }
 
     /// リワード広告を最後まで見たときだけヒントを与える（既存のコンティニューと同じ形・#262）。

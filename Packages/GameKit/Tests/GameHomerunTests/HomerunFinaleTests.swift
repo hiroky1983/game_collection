@@ -4,6 +4,7 @@ import Core
 import CoreTestSupport
 import HomerunCore
 @testable import GameHomerun
+import GameKitTestSupport
 
 /// 10 球後の結果の演出（会長決裁 2026-10-05）: 区分の判定・結果画面の前に挟む進行・評価のお願いの順序。
 @Suite("柵越えおじさんの結果の演出")
@@ -174,5 +175,23 @@ struct HomerunFinaleTests {
         #expect(review.pendingRequestID == nil)
         model.skipFinale()
         #expect(review.pendingRequestID != nil)
+    }
+
+    @Test("演出は打席に重ねず別ページで出す。打席のバナーは演出の間は階層に無く、下敷きは透けない（#1818）")
+    func finaleIsSeparatePageWithOpaqueBackdrop() throws {
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        let finale = try #require(view.range(of: "case .finale:"))
+        let finished = try #require(view.range(of: "case .finished:", range: finale.upperBound..<view.endIndex))
+        let branch = view[finale.upperBound..<finished.lowerBound]
+        #expect(branch.contains("HomerunFinaleView(model: model)"), "演出は自分の分岐で出す")
+        #expect(!branch.contains("HomerunAtBatView("), "演出の分岐に打席（とそのバナー）を残さない")
+        // 打席の分岐は演出を持たない（重ね直しの再発防止）。
+        let atBat = try #require(view.range(of: "case .pitching, .ballResult:"))
+        #expect(!view[atBat.upperBound..<finale.lowerBound].contains("HomerunFinaleView"), "打席に演出を重ねない")
+        #expect(!view.contains(".overlay {\n                    if model.phase == .finale"))
+        // 下敷きは不透明な黒（演出の絵がその上に重なる）。
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunFinale.swift"))
+        let scene = try #require(source.range(of: "return ZStack {\n"))
+        #expect(source[scene.upperBound...].drop(while: \.isWhitespace).hasPrefix("Color.black\n"), "最下層は不透明な黒")
     }
 }

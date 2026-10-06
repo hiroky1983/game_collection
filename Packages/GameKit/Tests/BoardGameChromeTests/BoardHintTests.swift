@@ -133,16 +133,17 @@ struct BoardHintButtonSourceTests {
         #expect(!source.contains("lightbulb"), "\(path) がヒントのアイコンを持ち直している")
     }
 
-    /// 共通の操作行の中身。ヒントは「⋯」メニューの中で電球 + 残り回数を出し、押せない状態は `canUseHint` に結線する（#1421）。
-    /// 無料枠を使い切ったあとは文言が「広告を見てヒント」に変わる（#1500）。操作行の高さは 44pt 固定で、
+    /// 共通の操作行の中身。ヒントは盤の下の段のカプセル（電球 + 2 行目に残り回数）で、押せない状態は `canUseHint` に結線する（#1421・#1856）。
+    /// 無料枠を使い切ったあとは 2 行目が「▶ あと n 回」（広告ぶんの残り）に変わる（#1500 と同じ数）。操作行の高さは 44pt 固定で、
     /// 決着で入れ替わっても盤が縮まない（#139）。
-    @Test("共通の操作行はヒントをメニューに入れ、押せない状態を結線し、高さを固定する")
+    @Test("共通の操作行はヒントを段に出し、押せない状態を結線し、高さを固定する")
     func controlBarWiresHintMenuAndFixedHeight() throws {
         let source = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/Core/BoardGameControlBar.swift")
         )
-        #expect(source.contains("\"ヒント（残り\\(hint.remaining)回）\""), "残り回数を文字に出していない")
-        #expect(source.contains("\"広告を見てヒント（残り\\(hint.remaining)回）\""), "無料枠を使い切った後の広告文言が無い")
+        #expect(source.contains("badge: hint.needsAd ? .ad(remaining: hint.remaining) : .count(hint.remaining)"),
+                "残り回数と広告の有無を 2 行目に出していない")
+        #expect(source.contains("role: .hint"), "ヒントのカプセルが役割の色（黄）になっていない")
         #expect(source.contains("systemImage: \"lightbulb.fill\""))
         #expect(source.contains("isEnabled: hint.isEnabled"))
         #expect(source.contains("isEnabled = model.canUseHint"))

@@ -133,9 +133,13 @@ public struct SpiderView: View {
             }
             #endif
         }
-        .onDisappear { model.pauseTimer() }
-        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [undoRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498 と同じ）。
@@ -177,9 +181,7 @@ public struct SpiderView: View {
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.inkSub)
 
-            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.statusLabel(
@@ -537,17 +539,10 @@ public struct SpiderView: View {
     }
 
     private var gameControls: some View {
-        // 戻す・配る・拡大は右下の「⋯」にまとめる（#1422・#1468）。
+        // 戻す（無料 3 回のあと広告）は盤の下の段のカプセルに出し、配る・拡大（広告なし）は右下の「⋯」に残す
+        // （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
         GameOverflowBar(
             menuItems: [
-                // 残り回数を文言に含める。押せない間も項目は残す。
-                GameControlMenuItem(
-                    id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
-                    isEnabled: model.canUndo && !undoRescue.isWatching,
-                    accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
-                    accessibilityHint: SpiderAccessibility.undoButtonHint(
-                        canUndo: model.canUndo, remaining: model.undosRemaining)
-                ) { requestUndo() },
                 GameControlMenuItem(
                     id: "deal", title: "配る（残り\(model.board.dealsRemaining)）",
                     systemImage: "rectangle.stack.badge.plus",
@@ -564,7 +559,18 @@ public struct SpiderView: View {
                         : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
                 ) { zoomMode.toggle() },
             ],
-            // 「配る」が拒否された理由。空の列が埋まると自動で消える。
+            actions: [
+                // 残り回数は 2 行目に出し、無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す。
+                GameActionItem(
+                    id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                    badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                    isEnabled: model.canUndo && !undoRescue.isWatching,
+                    accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                    accessibilityHint: SpiderAccessibility.undoButtonHint(
+                        canUndo: model.canUndo, remaining: model.undosRemaining)
+                ) { requestUndo() },
+            ],
+            // 「配る」が拒否された理由。段と「⋯」のあいだに出て、空の列が埋まると自動で消える。
             caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
                 ? GameOverflowCaption("空の列を埋めると配れます", color: Theme.coral)
                 : nil

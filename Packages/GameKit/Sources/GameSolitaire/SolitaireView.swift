@@ -159,9 +159,13 @@ public struct SolitaireView: View {
             }
             #endif
         }
-        .onDisappear { model.pauseTimer() }
-        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([jokerRescue, undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [jokerRescue, undoRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498）。
@@ -175,23 +179,31 @@ public struct SolitaireView: View {
 
     private var statusBar: some View {
         GameStatusBar {
-            Group {
-                if model.phase == .won {
-                    Label("クリア！", systemImage: "flag.checkered")
-                        .themeBody(15)
-                        .foregroundStyle(Theme.teal)
-                } else {
-                    Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Theme.coral)
+            HStack(spacing: 8) {
+                Group {
+                    if model.phase == .won {
+                        Label("クリア！", systemImage: "flag.checkered")
+                            .themeBody(15)
+                            .foregroundStyle(Theme.teal)
+                    } else {
+                        Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
+                            .font(.system(size: 15, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Theme.coral)
+                    }
+                }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                // 標準以外のルールで遊んでいるときだけルール名を出す（#498）。既定の 1 枚めくりは「標準」そのものなので出さない。
+                // 以前は「⋯」の行の左端にあったが、盤の下は操作の段になった（#1856）ので帯（表示だけの場所）へ移した。
+                if model.rules.drawMode != .one {
+                    Text(model.rules.drawMode.label)
+                        .themeCaption(11, maxScale: 1.3)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
                 }
             }
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
         } trailing: {
-            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }
         // 3 つの数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
@@ -200,7 +212,8 @@ public struct SolitaireView: View {
             elapsedSeconds: model.elapsedSeconds,
             moveCount: model.moveCount,
             isDeadEnd: model.isDeadEnd,
-            isLost: model.isLost
+            isLost: model.isLost,
+            ruleLabel: model.rules.drawMode != .one ? model.rules.drawMode.label : nil
         ))
     }
 

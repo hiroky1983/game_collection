@@ -42,26 +42,21 @@ struct SolitaireControlsView: View {
     }
 
     private var gameControls: some View {
-        // 戻す・ジョーカー・自動で上がるは右下の「⋯」にまとめる（#1422・#1468）。
-        // 標準以外のルールで遊んでいるときだけ、ルール名を左端に表示だけ出す（#498）。
-        // 既定の1枚めくりは「標準」そのものなので出さない。
-        GameOverflowBar(
-            menuItems: menuItems,
-            caption: model.rules.drawMode != .one
-                ? GameOverflowCaption(model.rules.drawMode.label,
-                                      accessibilityLabel: "このゲームのルールは\(model.rules.drawMode.label)")
-                : nil
-        )
-        .overlay(alignment: .top) {
-            if model.isPlacingJoker { jokerPlacingBanner }
-        }
+        // 戻す（無料 3 回のあと広告）は盤の下の段のカプセルに出し、ジョーカー・自動で上がる（広告なし）は右下の「⋯」に残す
+        // （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
+        // 標準以外のルール（3枚めくり）の表示は状態の帯へ移した（`SolitaireView.statusBar`・#498）。
+        GameOverflowBar(menuItems: menuItems, actions: actions)
+            .overlay(alignment: .top) {
+                if model.isPlacingJoker { jokerPlacingBanner }
+            }
     }
 
-    private var menuItems: [GameControlMenuItem] {
+    /// 段: 戻す。残り回数は 2 行目に出し（#476 仕様3）、無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す（#198）。
+    private var actions: [GameActionItem] {
         [
-            // 残り回数を文言に含める（#476 仕様3）。押せない間も項目は残す（#198）。
-            GameControlMenuItem(
-                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
                 isEnabled: model.canUndo && !isWatchingUndoAd,
                 accessibilityLabel: SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining),
                 accessibilityHint: SolitaireAccessibility.undoButtonHint(
@@ -69,6 +64,12 @@ struct SolitaireControlsView: View {
                     remaining: model.undosRemaining
                 )
             ) { onUndo() },
+        ]
+    }
+
+    /// 「⋯」に入れる操作（広告の無いもの）。
+    private var menuItems: [GameControlMenuItem] {
+        [
             // ジョーカーの所持を**常時**見せる（#406 の決裁1）。押すと「置く列を選ぶ」モードに入り、
             // もう一度押すと抜ける。
             GameControlMenuItem(

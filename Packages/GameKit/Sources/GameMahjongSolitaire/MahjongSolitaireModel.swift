@@ -10,6 +10,17 @@ public enum MahjongSolitairePhase: String, Codable, Sendable, Equatable {
     case won
 }
 
+/// 「戻す」の回数制（#1855）。**ソリティア・スパイダー・フリーセルと同じ経済**を使う。
+///
+/// 値は `Core.RewardedUndoBudget` が持ち、ここは麻雀ソリティアの文脈に名前を残すための転送
+/// （`FreeCellUndoBudget` と同じ作り）。戻せる手数（直前の 1 手だけ）はこの型では変えない。
+public enum MahjongSolitaireUndoBudget {
+    /// 1 局につき無料で戻せる回数。配り直し・新規ゲームでここまで戻る。
+    public static let free = RewardedUndoBudget.free
+    /// リワード広告 1 本の視聴完了で補充する回数。
+    public static let refill = RewardedUndoBudget.refill
+}
+
 /// 中断スナップショット。位置は不変なので絵柄の配列と経過時間だけで盤面を復元できる。
 struct MahjongSolitaireSnapshot: Codable {
     let faces: [MahjongFace?]
@@ -22,6 +33,9 @@ struct MahjongSolitaireSnapshot: Codable {
     /// どのレイアウトの盤面か（#239）。`undoCount` と同じ理由で**任意項目**にしてあり、
     /// これを持たない古いスナップショットは亀甲として復元する（`MahjongSolitaireLayout.named`）。
     let layoutID: String?
+    /// 「戻す」の残り回数（#1855）。`undoCount` と同じ理由で**任意項目**にしてあり、
+    /// これを持たない既存の中断データは無料枠いっぱいから再開する。
+    let undosRemaining: Int?
 }
 
 /// 直前に取った 2 枚。位置は不変なので、添字と絵柄を戻せば盤面はそのまま復元できる。
@@ -59,6 +73,8 @@ public final class MahjongSolitaireModel {
     public private(set) var hintCount: Int = 0
     /// アンドゥの利用回数（#198）。リザルトに出して記録の公平性を保つ。
     public private(set) var undoCount: Int = 0
+    /// 「戻す」の残り回数（#1855）。無料枠から始まり、広告の視聴完了で補充する。
+    public private(set) var undosRemaining = MahjongSolitaireUndoBudget.free
     /// 生成直後（およびシャッフル直後）の盤面を取り切れる順序。
     /// **クリア可能な盤面しか配っていないことの根拠**であり、テストではこの順にタップして完走させる。
     /// プレイヤーが別の順で取り始めた時点で無効になる（ヒントはこの順序ではなく現在の盤面から探す）。
@@ -69,11 +85,13 @@ public final class MahjongSolitaireModel {
     /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に配り直されたらヒント・並べ替えを適用しない）。
     public private(set) var dealSerial = 0
 
-    private var timerTask: Task<Void, Never>?
-    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
-    private var elapsedClock: ElapsedClock?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: MahjongSolitaireModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
-    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
     private let services: GameServices?
     private var seed: UInt64?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -116,6 +134,12 @@ public final class MahjongSolitaireModel {
     /// 1 手戻せるか。取った直後だけ true。
     public var canUndo: Bool { phase == .playing && lastTake != nil }
 
+    /// 残り回数が 1 回以上あるか。
+    public var hasUndoCredit: Bool { undosRemaining > 0 }
+
+    /// 戻せる手はあるのに回数を使い切っている。View はこのとき広告の提案を出す。
+    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
+
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
     ///   - faces: テスト用に盤面を直接与える経路（本番では使わない）。
@@ -145,6 +169,7 @@ public final class MahjongSolitaireModel {
             self.shuffleCount = snapshot.shuffleCount
             self.hintCount = snapshot.hintCount
             self.undoCount = snapshot.undoCount ?? 0
+            self.undosRemaining = max(0, snapshot.undosRemaining ?? MahjongSolitaireUndoBudget.free)
             isFreshBoard = false
         } else if let faces, faces.count == layout.count {
             self.layout = layout
@@ -225,9 +250,10 @@ public final class MahjongSolitaireModel {
     ///
     /// 戻せるのは 1 手ぶんだけで、戻した時点で履歴は空になる。並べ替えや新規ゲームを挟むと戻せない。
     /// 利用回数は `undoCount` に積み、リザルトに出す（ヒント・並べ替えと同じ扱い。記録からは除外しない）。
+    /// **1 局につき無料 `MahjongSolitaireUndoBudget.free` 回まで**（使い切ったら `grantUndos(forDeal:)` で補充）。
     @discardableResult
     public func undoLastTake() -> Bool {
-        guard phase == .playing, let take = lastTake else {
+        guard phase == .playing, let take = lastTake, hasUndoCredit else {
             services?.feedback.notify(.warning)
             return false
         }
@@ -238,11 +264,25 @@ public final class MahjongSolitaireModel {
         selectedIndex = nil
         hintPair = []
         undoCount += 1
+        undosRemaining -= 1
         services?.feedback.impact(.medium)
         refreshDerivedState()
         // 1 手目を戻して満杯に戻った場合、`persist()` は「配ったばかりの盤面」として保存を消す。
         // ハブに「続きから」を出さないための既存のガードで、意図どおり（利用回数はメモリ上に残るので
         // この局のリザルトには出る。中断を挟むと 0 に戻るが、盤面ごと配り直しになる状態のため矛盾しない）。
+        persist()
+        return true
+    }
+
+    /// リワード広告の**視聴完了後**に「戻す」を補充する（#1855）。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `dealSerial`。**広告のロード〜視聴の間に配り直されたら
+    ///   補充しない**（`newGame()` は残数を無料枠へ戻すので、そのまま足すと無料 + 補充から始まる）。
+    @discardableResult
+    public func grantUndos(forDeal serial: Int) -> Bool {
+        guard phase == .playing, serial == dealSerial else { return false }
+        undosRemaining += MahjongSolitaireUndoBudget.refill
+        services?.feedback.notify(.success)
         persist()
         return true
     }
@@ -328,12 +368,12 @@ public final class MahjongSolitaireModel {
         shuffleCount = 0
         hintCount = 0
         undoCount = 0
+        undosRemaining = MahjongSolitaireUndoBudget.free
         lastTake = nil
         recordResult = nil
         refreshDerivedState()
         // 画面は開いたままなので、ここで計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
@@ -372,12 +412,11 @@ public final class MahjongSolitaireModel {
     public func pauseTimer() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isCounting { persist() }
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
     }
 
     /// 計時が動いているか（テスト用）。
-    public var isCounting: Bool { timerTask != nil }
+    public var isCounting: Bool { stopwatch.isRunning }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
     ///
@@ -395,7 +434,7 @@ public final class MahjongSolitaireModel {
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
     public func resumeTimerIfNeeded() {
-        guard phase == .playing, timerTask == nil else { return }
+        guard phase == .playing, !stopwatch.isRunning else { return }
         startTimer()
     }
 
@@ -434,8 +473,7 @@ public final class MahjongSolitaireModel {
     private func finish() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         selectedIndex = nil
         hintPair = []
         // 取り切った局はもう戻せない（記録が確定した後に盤面を巻き戻せてしまわないように）。
@@ -465,23 +503,14 @@ public final class MahjongSolitaireModel {
             shuffleCount: shuffleCount,
             hintCount: hintCount,
             undoCount: undoCount,
-            layoutID: layout.id
+            layoutID: layout.id,
+            undosRemaining: undosRemaining
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
-        elapsedClock = clock
-        // `[weak self]`: 画面を離れたあともモデルを握り続けて計時が進まないようにする（#1369）。
-        timerTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: clock.untilNextSecond)
-                guard !Task.isCancelled, let self else { break }
-                self.syncElapsed()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
@@ -497,9 +526,8 @@ public final class MahjongSolitaireModel {
     /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
     /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
     func syncElapsed() {
-        guard let clock = elapsedClock, timerTask != nil else { return }
-        let before = elapsedSeconds
-        elapsedSeconds = max(before, clock.seconds)
-        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 }

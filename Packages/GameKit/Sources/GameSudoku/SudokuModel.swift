@@ -25,6 +25,17 @@ public struct SudokuUnitFlash: Equatable, Sendable {
     public let serial: Int
 }
 
+/// 「戻す」の回数制（#1855）。**ソリティア・スパイダー・フリーセルと同じ経済**を使う。
+///
+/// 値は `Core.RewardedUndoBudget` が持ち、ここはナンプレの文脈に名前を残すための転送
+/// （`FreeCellUndoBudget` と同じ作り）。戻せる手数（直前の 1 手だけ）はこの型では変えない。
+public enum SudokuUndoBudget {
+    /// 1 局につき無料で戻せる回数。新規ゲームでここまで戻る。
+    public static let free = RewardedUndoBudget.free
+    /// リワード広告 1 本の視聴完了で補充する回数。
+    public static let refill = RewardedUndoBudget.refill
+}
+
 /// 中断スナップショット（#115 の「続きから」）。
 ///
 /// 盤 81 + 正解 81 + メモ 81（1 マス 9 ビットの整数 1 個）+ 既出フラグ 81 の**固定長**で、
@@ -45,6 +56,8 @@ struct SudokuSnapshot: Codable {
     /// この局で広告のコンティニューを使ったか（#730）。再起動で順位表の資格が復活しないよう保存する
     /// （マインスイーパーの `continueUsed` と同じ理由）。旧形式には無いので optional で、無ければ未使用として読む。
     var continueUsed: Bool? = nil
+    /// 「戻す」の残り回数（#1855）。旧形式には無いので optional で、無ければ無料枠いっぱいとして読む。
+    var undosRemaining: Int? = nil
 }
 
 @MainActor
@@ -111,6 +124,15 @@ public final class SudokuModel {
     /// 保存しない）ため false になる。`failed`（ミス上限）からは戻せない（下の `fail()` 参照）。
     public var canUndo: Bool { state == .playing && lastUndoStep != nil }
 
+    /// 「戻す」の残り回数（#1855）。無料枠から始まり、広告の視聴完了で補充する。
+    public private(set) var undosRemaining = SudokuUndoBudget.free
+
+    /// 残り回数が 1 回以上あるか。
+    public var hasUndoCredit: Bool { undosRemaining > 0 }
+
+    /// 戻せる手はあるのに回数を使い切っている。View はこのとき広告の提案を出す。
+    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
+
     private let services: GameServices?
     /// 生成タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
     /// `state = .generating` が確定した直後・生成の開始前に await する。
@@ -119,11 +141,19 @@ public final class SudokuModel {
     @ObservationIgnored var generationGate: (@MainActor () async -> Void)?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "sudoku"
-    private var timerTask: Task<Void, Never>?
-    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
-    private var elapsedClock: ElapsedClock?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: SudokuModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
-    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
+    /// 画面を離れている（`pauseTimer()` 〜 `resumeTimerIfNeeded()`）間は true（#1857・#1848）。
+    /// 生成の完了がこの間に来たら、盤は用意しても保存・計時開始・`game_start` はしない。
+    /// 画面を離れたきり戻らない旧モデルが、開き直した新しいモデルの中断データを空の盤で上書きしないため。
+    private var isSuspended = false
+    /// 離れている間に生成が終わった局の `game_start`。戻ってきたとき（`resumeTimerIfNeeded()`）に送る。
+    private var pendingGameStart = false
     /// テスト用の固定種。nil ならシステムの乱数を使う。
     private var seed: UInt64?
 
@@ -220,6 +250,7 @@ public final class SudokuModel {
                 hintedCells    = Set(snapshot.hintedCells.filter { (0..<SudokuEngine.cellCount).contains($0) })
                 mistakes       = snapshot.mistakes ?? 0
                 continueUsed   = snapshot.continueUsed ?? false
+                undosRemaining = max(0, snapshot.undosRemaining ?? SudokuUndoBudget.free)
                 // 復元した時点で揃っているユニットは光らせ済みとして扱う（中断をまたいで光り直させない）。
                 celebratedUnits = Self.completedUnits(board: board, solution: solution)
                 // ミス上限のまま閉じていたら `failed` に戻す（コンティニューの選択からやり直せる）。
@@ -241,8 +272,8 @@ public final class SudokuModel {
         // 2 回飛んで「1 プレイ 1 組」の不変条件（#158）が崩れる。
         guard state != .generating else { return }
         gameSerial    += 1
-        timerTask?.cancel()
-        timerTask      = nil
+        pendingGameStart = false
+        stopwatch.stop()
         state          = .generating
         selected       = nil
         elapsedSeconds = 0
@@ -270,6 +301,7 @@ public final class SudokuModel {
         continueUsed    = false
         noteMode        = false
         lastUndoStep    = nil
+        undosRemaining  = SudokuUndoBudget.free
         unitFlash       = nil
         mistakeShakes   = [:]
         // 出題の数字だけで揃っているユニットは、プレイヤーが揃えたものではないので光らせない。
@@ -277,6 +309,12 @@ public final class SudokuModel {
         self.difficulty = difficulty
         state           = .playing
 
+        // 生成の途中で画面を離れていたら、見ていない盤は保存も計時もせず、`game_start` も送らない。
+        // 戻ってきたとき `resumeTimerIfNeeded()` が続きを行う（#1857・#1848）。
+        guard !isSuspended else {
+            pendingGameStart = true
+            return
+        }
         persist()
         startTimer()
         // 盤が出来て計時が始まるここが 1 プレイの開始（#158）。
@@ -285,7 +323,16 @@ public final class SudokuModel {
 
     /// 中断から復帰したときに計時を再開する（`onAppear` / `task` から呼ぶ）。
     public func resumeTimerIfNeeded() {
-        guard state == .playing, timerTask == nil else { return }
+        isSuspended = false
+        guard state == .playing, !stopwatch.isRunning else { return }
+        // 離れている間に生成が終わった局は、ここで初めて保存・計時開始・`game_start` を行う。
+        if pendingGameStart {
+            pendingGameStart = false
+            persist()
+            startTimer()
+            services?.gameDidRestart(gameID: gameID, level: difficulty.analyticsLevel)
+            return
+        }
         startTimer()
     }
 
@@ -300,13 +347,14 @@ public final class SudokuModel {
     /// 保存し直す経過秒が無いので触らない（生成中に画面を離れたときに `persist()` が
     /// 中断データを消してしまうのを避ける）。
     public func pauseTimer() {
+        isSuspended = true
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isTimerRunning { persist() }
         stopTimer()
     }
 
     /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
-    var isTimerRunning: Bool { timerTask != nil }
+    var isTimerRunning: Bool { stopwatch.isRunning }
 
     // MARK: - Actions
 
@@ -381,9 +429,12 @@ public final class SudokuModel {
     /// 深さ 1 でも「誤答 → 戻す → 別の数字を試す」を繰り返すだけでミス上限（#322）が形骸化し、
     /// 広告コンティニューの導線ごと骨抜きになっていた。盤面は戻すがミスは戻さないのが業界標準で、
     /// 誤タップの救済という undo 本来の目的（#353）はそのまま果たせる。
+    ///
+    /// **1 局につき無料 `SudokuUndoBudget.free` 回まで**（使い切ったら `grantUndos(forGame:)` で補充・#1855）。
     public func undo() {
-        guard state == .playing, let step = lastUndoStep else { return }
+        guard state == .playing, let step = lastUndoStep, hasUndoCredit else { return }
         lastUndoStep = nil
+        undosRemaining -= 1
         board[step.index] = step.previousBoard
         notes[step.index] = step.previousNotes
         for (peer, mask) in step.changedPeerNotes { notes[peer] = mask }
@@ -450,6 +501,20 @@ public final class SudokuModel {
     public func applyHint(forGame serial: Int, at index: Int) -> Bool {
         guard serial == gameSerial else { return false }
         return applyHint(at: index)
+    }
+
+    /// リワード広告の**視聴完了後**に「戻す」を補充する（#1855）。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `gameSerial`。広告のロード中に新規ゲームを始めたら
+    ///   補充しない（`newGame` は残数を無料枠へ戻すので、そのまま足すと無料 + 補充から始まる）。
+    /// - Returns: 補充できたか。false のとき View は「補充できなかった」と伝える。
+    @discardableResult
+    public func grantUndos(forGame serial: Int) -> Bool {
+        guard state == .playing, serial == gameSerial else { return false }
+        undosRemaining += SudokuUndoBudget.refill
+        services?.feedback.notify(.success)
+        persist()
+        return true
     }
 
     /// ミスが上限に達した。負けの記録はまだ付けない（コンティニューで続けられるため）。
@@ -551,16 +616,7 @@ public final class SudokuModel {
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
-        elapsedClock = clock
-        timerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: clock.untilNextSecond)
-                guard !Task.isCancelled else { break }
-                syncElapsed()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
@@ -577,16 +633,14 @@ public final class SudokuModel {
     /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
     /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
     func syncElapsed() {
-        guard let clock = elapsedClock, timerTask != nil else { return }
-        let before = elapsedSeconds
-        elapsedSeconds = max(before, clock.seconds)
-        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 
     private func stopTimer() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
     }
 
     private func persist() {
@@ -605,7 +659,8 @@ public final class SudokuModel {
             difficulty: difficulty,
             hintedCells: Array(hintedCells),
             mistakes: mistakes,
-            continueUsed: continueUsed
+            continueUsed: continueUsed,
+            undosRemaining: undosRemaining
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }

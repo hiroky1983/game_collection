@@ -142,11 +142,13 @@ public final class MinesweeperModel {
     /// 中断データには書かない（再開時はオフ）。
     public private(set) var flagMode = false
 
-    private var timerTask: Task<Void, Never>?
-    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
-    private var elapsedClock: ElapsedClock?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: MinesweeperModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
-    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "minesweeper"
@@ -241,8 +243,7 @@ public final class MinesweeperModel {
 
     public func newGame(rows: Int, cols: Int, mines: Int) {
         gameSerial += 1
-        timerTask?.cancel()
-        timerTask      = nil
+        stopwatch.stop()
         self.rows       = rows
         self.cols       = cols
         self.totalMines = mines
@@ -267,7 +268,7 @@ public final class MinesweeperModel {
     // MARK: - Timer resume (call from onAppear when restoring saved game)
 
     public func resumeTimerIfNeeded() {
-        guard gameState == .playing, timerTask == nil else { return }
+        guard gameState == .playing, !stopwatch.isRunning else { return }
         startTimer()
     }
 
@@ -283,12 +284,11 @@ public final class MinesweeperModel {
     public func pauseTimer() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isTimerRunning { persist() }
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
     }
 
     /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
-    var isTimerRunning: Bool { timerTask != nil }
+    var isTimerRunning: Bool { stopwatch.isRunning }
 
     // MARK: - Bounds
 
@@ -407,8 +407,7 @@ public final class MinesweeperModel {
         hitMine = (hitRow, hitCol)
         revealAllMines()
         gameState = .lost
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         services?.feedback.notify(.error)
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
     }
@@ -419,8 +418,7 @@ public final class MinesweeperModel {
             syncElapsed()
             flagAllMines()
             gameState = .won
-            timerTask?.cancel()
-            timerTask = nil
+            stopwatch.stop()
             services?.feedback.notify(.success)
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         } else {
@@ -480,8 +478,7 @@ public final class MinesweeperModel {
         if revealedCount == safeCellCount {
             flagAllMines()
             gameState = .won
-            timerTask?.cancel()
-            timerTask = nil
+            stopwatch.stop()
             services?.feedback.notify(.success)
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         }
@@ -521,8 +518,7 @@ public final class MinesweeperModel {
         gameState = .lost
         services?.feedback.notify(.error)
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         services?.snapshots.clear(for: gameID)
     }
 
@@ -656,16 +652,7 @@ public final class MinesweeperModel {
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
-        elapsedClock = clock
-        timerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: clock.untilNextSecond)
-                guard !Task.isCancelled else { break }
-                syncElapsed()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
@@ -682,10 +669,9 @@ public final class MinesweeperModel {
     /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
     /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
     func syncElapsed() {
-        guard let clock = elapsedClock, timerTask != nil else { return }
-        let before = elapsedSeconds
-        elapsedSeconds = max(before, clock.seconds)
-        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 
     /// 復元してよい中断データか。行数・列数が正で、`cells` の形と地雷数がそれに合っていること。

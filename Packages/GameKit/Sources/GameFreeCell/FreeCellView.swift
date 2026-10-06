@@ -124,9 +124,13 @@ public struct FreeCellView: View {
             }
             #endif
         }
-        .onDisappear { model.pauseTimer() }
-        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [undoRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。
@@ -174,9 +178,7 @@ public struct FreeCellView: View {
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.inkSub)
 
-            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }
         // 数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
@@ -589,17 +591,9 @@ public struct FreeCellView: View {
     }
 
     private var gameControls: some View {
-        // 戻す・拡大・自動で上がるは右下の「⋯」にまとめる（#1422・#1468）。
+        // 戻す を盤の下の段に置き、拡大・自動で上がるは右下の「⋯」に残す（#1468・#1856・案A）。
         // 「動かせる枚数」の表示は操作行と一緒になくなる（会長決裁 2026-09-26。必要なら別の場所を相談）。
         GameOverflowBar(menuItems: [
-            // 残り回数を文言に含める（#476 と同じ見せ方）。押せない間も項目は残す（#198）。
-            GameControlMenuItem(
-                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo && !undoRescue.isWatching,
-                accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
-                accessibilityHint: FreeCellAccessibility.undoButtonHint(
-                    canUndo: model.canUndo, remaining: model.undosRemaining)
-            ) { requestUndo() },
             // 拡大（#604）。ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
             // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
             GameControlMenuItem(
@@ -615,6 +609,16 @@ public struct FreeCellView: View {
                 isEnabled: model.canAutoFinish,
                 accessibilityHint: "残りの札をまとめて組札へ送ります"
             ) { model.autoFinish() },
+        ], actions: [
+            // 残り回数は 2 行目に出す（#476 と同じ見せ方）。無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す（#198）。
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                accessibilityHint: FreeCellAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining)
+            ) { requestUndo() },
         ])
     }
 

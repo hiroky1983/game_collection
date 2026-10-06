@@ -75,14 +75,15 @@ public struct HomerunView: View {
         case .idle:
             HomerunLobbyView(model: model, services: services, challengeRescue: challengeRescue)
                 .transition(.opacity)
-        case .pitching, .ballResult, .finale:
+        case .pitching, .ballResult:
             HomerunAtBatView(model: model, ads: services.ads)
-                // 10 球（または月が割れて）終わったら、結果画面の前に打席の上へ結果の演出を重ねる（会長決裁 2026-10-05）。
-                .overlay {
-                    if model.phase == .finale {
-                        HomerunFinaleView(model: model).transition(.opacity)
-                    }
-                }
+                .transition(.opacity)
+        case .finale:
+            // 10 球（または月が割れて）終わったら、結果画面の前に結果の演出を挟む（会長決裁 2026-10-05）。打席の上へ重ねると
+            // 透けるうえ、打席のバナーが演出の裏で覆われる（Google の Content obscuring に当たる）ので、結果と同じく
+            // 画面ごと差し替える（#1818）。打席が外れるのでバナーも階層から無くなる。
+            HomerunFinaleView(model: model)
+                .gameNavigationBarBackgroundHidden()
                 .transition(.opacity)
         case .finished:
             HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)
@@ -108,7 +109,7 @@ public struct HomerunView: View {
 /// スクロールし切ったとき、最後の要素の下に `Theme.pad` + これだけの余白が残る（SE でも合計 72pt > バナーの高さ 50pt）。
 enum HomerunBannerGap {
     static let belowContent: CGFloat = 56
-    /// 結果画面だけ、ボタン欄と下の 300×250 を少し近づける（会長指示 2026-10-05。打席前は `belowContent` のまま）。
+    /// 結果画面と打席前は、ボタン欄と下の 300×250 を少し近づける（会長指示 2026-10-05・打席前は 2026-10-06 に同じ値へ）。
     static let belowResultActions: CGFloat = 40
 }
 
@@ -120,13 +121,13 @@ struct HomerunLobbyView: View {
     let challengeRescue: RewardedRescue
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 「打席に立つ」（回数 0 なら広告を見てプレイも）の置き方は `HomerunActionLayout.lobby`（会長指示 2026-10-04）。
-            HomerunActionScroll(placement: HomerunActionLayout.lobby) {
-                lobbyContent
-            } actions: {
-                startActions
-            }
+        // 「打席に立つ」（回数 0 なら広告を見てプレイも）の置き方は `HomerunActionLayout.lobby`（会長指示 2026-10-04）。
+        // 結果画面と同じく、中身 → ボタン → 300×250 を 1 本のスクロールに並べる（会長決裁 2026-10-06・#1819）。
+        HomerunActionScroll(placement: HomerunActionLayout.lobby, bannerGap: HomerunBannerGap.belowResultActions) {
+            lobbyContent
+        } actions: {
+            startActions
+        } footer: {
             MediumRectangleSlot(ads: services.ads)
         }
         // Game Center の解除済みを読んで端末の記録と合わせる（連携の有無・通信の有無で一覧は変わらない。読めなければ何もしない）。
@@ -423,8 +424,8 @@ enum HomerunActionPlacement: Equatable {
 
 /// 画面ごとのボタン欄の置き方。**会長が画面ごとに決める設定値はここだけ**（会長指示 2026-10-04）。
 enum HomerunActionLayout {
-    /// 打席前（打席に立つ／回数 0 なら広告を見てプレイ）。
-    static let lobby: HomerunActionPlacement = .auto
+    /// 打席前（打席に立つ／回数 0 なら広告を見てプレイ）。結果と同じく 1 本のスクロールに（会長決裁 2026-10-06・#1819）。
+    static let lobby: HomerunActionPlacement = .inline
     /// 結果（もう一回／回数 0 なら広告を見てプレイ／打席前へ）。中身・ボタン・広告を 1 本のスクロールに（会長決定 2026-10-05）。
     static let result: HomerunActionPlacement = .inline
 }
