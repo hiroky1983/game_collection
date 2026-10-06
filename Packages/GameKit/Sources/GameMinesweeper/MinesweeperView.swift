@@ -3,7 +3,6 @@ import Core
 
 public struct MinesweeperView: View {
     @State private var model: MinesweeperModel
-    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     @State private var showNewGame = true
     @State private var zoomMode = false
@@ -87,19 +86,13 @@ public struct MinesweeperView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
             )
         )
-        // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
-        // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
-        .onDisappear { model.pauseTimer() }
-        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
-        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
-        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
-                model.pauseTimer()
-            } else if !continueRescue.isWatching {
-                model.resumeTimerIfNeeded()
-            }
-        }
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [continueRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -319,10 +312,7 @@ public struct MinesweeperView: View {
                     .accessibilityHidden(true)
             }
         } trailing: {
-            Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
-                  systemImage: "clock")
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(String(format: "%03d", min(model.elapsedSeconds, 999)))
                 .fixedSize(horizontal: true, vertical: false)
         }
     }

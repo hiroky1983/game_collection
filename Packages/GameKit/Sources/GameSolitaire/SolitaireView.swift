@@ -22,7 +22,6 @@ public struct SolitaireView: View {
     @State private var draft = SolitaireRuleSet.standard
     /// ジョーカー補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var jokerRescue = RewardedRescue()
-    @Environment(\.scenePhase) private var scenePhase
     /// 無料の「戻す」を使い切った状態でボタンを押したときの提案（#476）。
     /// **自動再生はしない**。ここで「見る」を選んだときだけ広告を出す。
     @State private var showUndoRefillPrompt = false
@@ -160,19 +159,13 @@ public struct SolitaireView: View {
             }
             #endif
         }
-        .onDisappear { model.pauseTimer() }
-        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1781）。
-        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
-        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
-                model.pauseTimer()
-            } else if !jokerRescue.isWatching && !undoRescue.isWatching {
-                model.resumeTimerIfNeeded()
-            }
-        }
-        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([jokerRescue, undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [jokerRescue, undoRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498）。
@@ -200,9 +193,7 @@ public struct SolitaireView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
         } trailing: {
-            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }
         // 3 つの数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)

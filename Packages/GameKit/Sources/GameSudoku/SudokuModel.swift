@@ -141,11 +141,19 @@ public final class SudokuModel {
     @ObservationIgnored var generationGate: (@MainActor () async -> Void)?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "sudoku"
-    private var timerTask: Task<Void, Never>?
-    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
-    private var elapsedClock: ElapsedClock?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: SudokuModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
-    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
+    /// 画面を離れている（`pauseTimer()` 〜 `resumeTimerIfNeeded()`）間は true（#1857・#1848）。
+    /// 生成の完了がこの間に来たら、盤は用意しても保存・計時開始・`game_start` はしない。
+    /// 画面を離れたきり戻らない旧モデルが、開き直した新しいモデルの中断データを空の盤で上書きしないため。
+    private var isSuspended = false
+    /// 離れている間に生成が終わった局の `game_start`。戻ってきたとき（`resumeTimerIfNeeded()`）に送る。
+    private var pendingGameStart = false
     /// テスト用の固定種。nil ならシステムの乱数を使う。
     private var seed: UInt64?
 
@@ -264,8 +272,8 @@ public final class SudokuModel {
         // 2 回飛んで「1 プレイ 1 組」の不変条件（#158）が崩れる。
         guard state != .generating else { return }
         gameSerial    += 1
-        timerTask?.cancel()
-        timerTask      = nil
+        pendingGameStart = false
+        stopwatch.stop()
         state          = .generating
         selected       = nil
         elapsedSeconds = 0
@@ -301,6 +309,12 @@ public final class SudokuModel {
         self.difficulty = difficulty
         state           = .playing
 
+        // 生成の途中で画面を離れていたら、見ていない盤は保存も計時もせず、`game_start` も送らない。
+        // 戻ってきたとき `resumeTimerIfNeeded()` が続きを行う（#1857・#1848）。
+        guard !isSuspended else {
+            pendingGameStart = true
+            return
+        }
         persist()
         startTimer()
         // 盤が出来て計時が始まるここが 1 プレイの開始（#158）。
@@ -309,7 +323,16 @@ public final class SudokuModel {
 
     /// 中断から復帰したときに計時を再開する（`onAppear` / `task` から呼ぶ）。
     public func resumeTimerIfNeeded() {
-        guard state == .playing, timerTask == nil else { return }
+        isSuspended = false
+        guard state == .playing, !stopwatch.isRunning else { return }
+        // 離れている間に生成が終わった局は、ここで初めて保存・計時開始・`game_start` を行う。
+        if pendingGameStart {
+            pendingGameStart = false
+            persist()
+            startTimer()
+            services?.gameDidRestart(gameID: gameID, level: difficulty.analyticsLevel)
+            return
+        }
         startTimer()
     }
 
@@ -324,13 +347,14 @@ public final class SudokuModel {
     /// 保存し直す経過秒が無いので触らない（生成中に画面を離れたときに `persist()` が
     /// 中断データを消してしまうのを避ける）。
     public func pauseTimer() {
+        isSuspended = true
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isTimerRunning { persist() }
         stopTimer()
     }
 
     /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
-    var isTimerRunning: Bool { timerTask != nil }
+    var isTimerRunning: Bool { stopwatch.isRunning }
 
     // MARK: - Actions
 
@@ -592,16 +616,7 @@ public final class SudokuModel {
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
-        elapsedClock = clock
-        timerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: clock.untilNextSecond)
-                guard !Task.isCancelled else { break }
-                syncElapsed()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
@@ -618,16 +633,14 @@ public final class SudokuModel {
     /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
     /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
     func syncElapsed() {
-        guard let clock = elapsedClock, timerTask != nil else { return }
-        let before = elapsedSeconds
-        elapsedSeconds = max(before, clock.seconds)
-        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 
     private func stopTimer() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
     }
 
     private func persist() {

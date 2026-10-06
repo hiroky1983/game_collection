@@ -23,11 +23,22 @@ struct TimedGamesPauseInBackgroundTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        let range = try #require(source.range(of: ".onChange(of: scenePhase)"))
-        // 後ろに続く `.pausesTimerWhileWatching` などの呼び出しを拾わないよう、このクロージャの閉じまでで切る。
+        // 結線は共通の `gameTimerLifecycle`（#1857）に寄った。View はそこへ止める・再開する呼び出しを渡す。
+        let range = try #require(source.range(of: ".gameTimerLifecycle("))
         let rest = source[range.upperBound...]
-        let body = String(rest[..<(try #require(rest.range(of: "\n        }\n"))).lowerBound])
+        let body = String(rest[..<(try #require(rest.range(of: "\n        )\n"))).lowerBound])
         #expect(body.contains("model.pauseTimer()"))
         #expect(body.contains("model.resumeTimerIfNeeded()"))
+    }
+
+    @Test("gameTimerLifecycle は scenePhase が active でなくなったら止め、戻ったら再開する")
+    func lifecycleModifierObservesScenePhase() throws {
+        let source = try SourceScan.packageSource("Sources/Core/GameClockLabel.swift")
+        let range = try #require(source.range(of: ".onChange(of: scenePhase)"))
+        let rest = source[range.upperBound...]
+        let body = String(rest[..<(try #require(rest.range(of: "\n            }\n"))).lowerBound])
+        #expect(body.contains("pause()"))
+        #expect(body.contains("resume()"))
+        #expect(source.contains(".onDisappear { pause() }"))
     }
 }

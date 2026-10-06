@@ -85,11 +85,13 @@ public final class MahjongSolitaireModel {
     /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に配り直されたらヒント・並べ替えを適用しない）。
     public private(set) var dealSerial = 0
 
-    private var timerTask: Task<Void, Never>?
-    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
-    private var elapsedClock: ElapsedClock?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: MahjongSolitaireModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
-    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
     private let services: GameServices?
     private var seed: UInt64?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -371,8 +373,7 @@ public final class MahjongSolitaireModel {
         recordResult = nil
         refreshDerivedState()
         // 画面は開いたままなので、ここで計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
@@ -411,12 +412,11 @@ public final class MahjongSolitaireModel {
     public func pauseTimer() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if isCounting { persist() }
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
     }
 
     /// 計時が動いているか（テスト用）。
-    public var isCounting: Bool { timerTask != nil }
+    public var isCounting: Bool { stopwatch.isRunning }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
     ///
@@ -434,7 +434,7 @@ public final class MahjongSolitaireModel {
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
     public func resumeTimerIfNeeded() {
-        guard phase == .playing, timerTask == nil else { return }
+        guard phase == .playing, !stopwatch.isRunning else { return }
         startTimer()
     }
 
@@ -473,8 +473,7 @@ public final class MahjongSolitaireModel {
     private func finish() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         selectedIndex = nil
         hintPair = []
         // 取り切った局はもう戻せない（記録が確定した後に盤面を巻き戻せてしまわないように）。
@@ -511,17 +510,7 @@ public final class MahjongSolitaireModel {
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
-        elapsedClock = clock
-        // `[weak self]`: 画面を離れたあともモデルを握り続けて計時が進まないようにする（#1369）。
-        timerTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: clock.untilNextSecond)
-                guard !Task.isCancelled, let self else { break }
-                self.syncElapsed()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
@@ -537,9 +526,8 @@ public final class MahjongSolitaireModel {
     /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
     /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
     func syncElapsed() {
-        guard let clock = elapsedClock, timerTask != nil else { return }
-        let before = elapsedSeconds
-        elapsedSeconds = max(before, clock.seconds)
-        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 }

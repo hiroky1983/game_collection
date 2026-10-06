@@ -83,11 +83,13 @@ public final class SpiderModel {
     public private(set) var lastDealtCardIDs: Set<Int> = []
 
     private var moves: [SpiderMove] = []
-    private var timerTask: Task<Void, Never>?
-    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
-    private var elapsedClock: ElapsedClock?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: SpiderModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
-    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "spider"
@@ -113,7 +115,7 @@ public final class SpiderModel {
     public private(set) var dealSerial: Int = 0
 
     /// 計時が動いているか（テスト用）。
-    public var isCounting: Bool { timerTask != nil }
+    public var isCounting: Bool { stopwatch.isRunning }
 
     /// - Parameters:
     ///   - seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
@@ -270,8 +272,7 @@ public final class SpiderModel {
         recordResult = nil
         dealSerial += 1
         refreshDerivedState()
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
@@ -281,7 +282,7 @@ public final class SpiderModel {
     // MARK: - 計時
 
     public func resumeTimerIfNeeded() {
-        guard phase == .playing, timerTask == nil else { return }
+        guard phase == .playing, !stopwatch.isRunning else { return }
         startTimer()
     }
 
@@ -289,8 +290,7 @@ public final class SpiderModel {
     public func pauseTimer() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         persist()
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
@@ -357,8 +357,7 @@ public final class SpiderModel {
     private func finish() {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         selection = nil
         isDeadEnd = false
         services?.feedback.notify(.success)
@@ -383,16 +382,7 @@ public final class SpiderModel {
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
-        elapsedClock = clock
-        timerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: clock.untilNextSecond)
-                guard !Task.isCancelled else { break }
-                syncElapsed()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん（テストは実時間を待たずに検証できる・#375）。
@@ -404,10 +394,9 @@ public final class SpiderModel {
     /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
     /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
     func syncElapsed() {
-        guard let clock = elapsedClock, timerTask != nil else { return }
-        let before = elapsedSeconds
-        elapsedSeconds = max(before, clock.seconds)
-        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 
     #if DEBUG

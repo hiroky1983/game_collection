@@ -886,3 +886,78 @@ struct SudokuTimerPersistenceTests {
         model.pauseTimer()
     }
 }
+
+@Suite("数独 Model: 盤の生成中に離れた旧モデルの後始末（#1848・#1857）")
+@MainActor
+struct SudokuModelLeaveDuringGenerationTests {
+
+    private func makeServices(store: MemorySnapshotStore, spy: SpyAnalyticsService) -> GameServices {
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["sudoku"])
+        return GameServices(snapshots: store, ads: NoopAdService(), analytics: analytics)
+    }
+
+    /// 生成の手前で止めた旧モデルを作り、画面を離れた状態にする。
+    private func makeLeftModel(
+        services: GameServices, gate: TaskGate
+    ) async throws -> (model: SudokuModel, generating: Task<Void, Never>) {
+        let old = SudokuModel(services: services, seed: 2026)
+        old.generationGate = { await gate.wait() }
+        let generating = Task { await old.newGame(difficulty: .easy) }
+        await gate.waitUntilArrived()
+        try #require(old.isGenerating, "前提: 生成中で止まっている")
+        old.pauseTimer()   // 画面を離れる
+        return (old, generating)
+    }
+
+    @Test("生成中に離れて開き直しても、旧モデルは生成が終わった後に保存・計時開始・game_start をしない")
+    func leftModelDoesNotSaveStartTimerOrCountStart() async throws {
+        let store = MemorySnapshotStore()
+        let spy = SpyAnalyticsService()
+        let services = makeServices(store: store, spy: spy)
+        let gate = TaskGate()
+        let (old, generating) = try await makeLeftModel(services: services, gate: gate)
+        defer { gate.release() }
+
+        // 開き直した新しいモデル。別の盤で遊んで中断データを残す。
+        let fresh = SudokuModel(services: services, seed: 7)
+        await fresh.newGame(difficulty: .easy)
+        for _ in 0..<3 { fresh.tick() }
+        fresh.pauseTimer()
+        let saved = try #require(store.load(SudokuSnapshot.self, for: "sudoku"))
+        #expect(saved.board == fresh.board)
+        #expect(spy.starts.count == 1, "前提: 新しいモデルの game_start だけ")
+        let saves = store.saveCount
+
+        gate.release()
+        await generating.value
+
+        #expect(old.state == .playing, "盤自体は用意される（戻ってきたとき続けられるように）")
+        #expect(!old.isTimerRunning, "旧モデルは計時を始めない")
+        #expect(store.saveCount == saves, "旧モデルは中断データを書かない")
+        #expect(store.load(SudokuSnapshot.self, for: "sudoku")?.board == fresh.board, "新しいモデルの中断データが残る")
+        #expect(spy.starts.count == 1, "旧モデルは game_start を送らない")
+    }
+
+    @Test("背面に回っただけで戻ってきたときは、続きから計時・保存・game_start が行われる")
+    func returningModelCompletesTheStart() async throws {
+        let store = MemorySnapshotStore()
+        let spy = SpyAnalyticsService()
+        let services = makeServices(store: store, spy: spy)
+        let gate = TaskGate()
+        let (model, generating) = try await makeLeftModel(services: services, gate: gate)
+        defer { model.pauseTimer(); gate.release() }
+
+        gate.release()
+        await generating.value
+        try #require(spy.starts.isEmpty, "前提: 離れている間は数えない")
+
+        model.resumeTimerIfNeeded()   // 前面に戻る
+
+        #expect(model.isTimerRunning)
+        #expect(store.exists(for: "sudoku"))
+        #expect(spy.starts.count == 1)
+
+        model.resumeTimerIfNeeded()
+        #expect(spy.starts.count == 1, "二重には送らない")
+    }
+}
