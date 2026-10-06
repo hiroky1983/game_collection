@@ -188,10 +188,11 @@ enum RunnerStoryArt {
                 .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 186, y: groundY - 66)
                 .overlaying(bust(.gaze), x: 0, y: bustY)
         case .kyotoNaraToBeContinued:
-            // 「つづく」。文字は台詞側に出すので、絵は石畳の先に小さくなった鹿（等倍）と宝くじだけにする。
+            // 「つづく」。文字は台詞側に出すので、絵は石畳の右端へ去っていく鹿と宝くじだけにする
+            // （おじさんは出さない。等倍の鹿に宝くじを咥えさせると宝くじのほうが大きく、頭が隠れる）。
             return backdrop(.kyotoNara)
-                .overlaying(fit(deer().flippedHorizontally()), x: 168, y: groundY - 42)
-                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 196, y: groundY - 34)
+                .overlaying(fit(deer().flippedHorizontally(), times: 2), x: 116, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 198, y: groundY - 66)
         }
     }
 
