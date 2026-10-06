@@ -1107,7 +1107,9 @@ REL_BRANCH=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/re
 if [ -n "${REL_BRANCH:-}" ]; then
   AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...$REL_BRANCH" --jq '.ahead_by' 2>/dev/null || echo 0)
   if [ "${AHEAD:-0}" -gt 0 ]; then
-    STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp" 2>/dev/null \
+    # エッジキャッシュが古い版を返すことがある（v1.1.9 公開を検知できず#1722 が取り残された不具合）。
+    # クエリにキャッシュバスタを付けて毎回取り直す。
+    STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
       | jq -r '.results[0].version // empty' 2>/dev/null)
     REL_VER="${REL_BRANCH#release/v}"
     # 公開バージョン >= release ブランチのバージョン（= 世に出た）なら仕事あり
@@ -1294,7 +1296,8 @@ if [ -n "$SHIP_REFS" ]; then
   # 公開バージョンは仕事7 が取れていればそれを使う（仕事7 は最大の版が先行していないと取りに行かない）
   SHIP_STORE_VER="${STORE_VER:-}"
   if [ -z "$SHIP_STORE_VER" ]; then
-    SHIP_STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp" 2>/dev/null \
+    # 上と同じ理由（エッジキャッシュ対策）でキャッシュバスタを付ける。
+    SHIP_STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
       | jq -r '.results[0].version // empty' 2>/dev/null)
   fi
   SHIP_TAGS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/tags/v" \

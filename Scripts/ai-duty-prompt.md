@@ -336,8 +336,9 @@ App Store で公開されたバージョンが `release/vX.Y.Z` に追いつい�
 という申告ではなく App Store の公開バージョンを直接見て行う**ため、リリース Issue が閉じられていても
 取りこぼさない（#68 が審査提出の時点で close され、実際に宙に浮いた）。
 
-1. `curl -s "https://itunes.apple.com/lookup?id=6781719499&country=jp"` の `version` /
+1. `curl -s "https://itunes.apple.com/lookup?id=6781719499&country=jp&t=$(date +%s)"` の `version` /
    `currentVersionReleaseDate` を自分でも確認する（公開前に main へ入れてしまわないための二重チェック）。
+   クエリにキャッシュバスタ（`&t=...`）を付けないとエッジキャッシュの古い版が返る（v1.1.9 で発生）。
 2. `gh pr create --base main --head release/vX.Y.Z --title "release: vX.Y.Z を main へ取り込み（App Store 公開済み）"`。
    本文に公開バージョンと公開日を根拠として書く。運用系の変更が main 側に先行していてコンフリクトする
    場合は 1-c の手順で両側の意図を保って解消する。
