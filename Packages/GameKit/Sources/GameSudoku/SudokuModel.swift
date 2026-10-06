@@ -25,6 +25,17 @@ public struct SudokuUnitFlash: Equatable, Sendable {
     public let serial: Int
 }
 
+/// 「戻す」の回数制（#1855）。**ソリティア・スパイダー・フリーセルと同じ経済**を使う。
+///
+/// 値は `Core.RewardedUndoBudget` が持ち、ここはナンプレの文脈に名前を残すための転送
+/// （`FreeCellUndoBudget` と同じ作り）。戻せる手数（直前の 1 手だけ）はこの型では変えない。
+public enum SudokuUndoBudget {
+    /// 1 局につき無料で戻せる回数。新規ゲームでここまで戻る。
+    public static let free = RewardedUndoBudget.free
+    /// リワード広告 1 本の視聴完了で補充する回数。
+    public static let refill = RewardedUndoBudget.refill
+}
+
 /// 中断スナップショット（#115 の「続きから」）。
 ///
 /// 盤 81 + 正解 81 + メモ 81（1 マス 9 ビットの整数 1 個）+ 既出フラグ 81 の**固定長**で、
@@ -45,6 +56,8 @@ struct SudokuSnapshot: Codable {
     /// この局で広告のコンティニューを使ったか（#730）。再起動で順位表の資格が復活しないよう保存する
     /// （マインスイーパーの `continueUsed` と同じ理由）。旧形式には無いので optional で、無ければ未使用として読む。
     var continueUsed: Bool? = nil
+    /// 「戻す」の残り回数（#1855）。旧形式には無いので optional で、無ければ無料枠いっぱいとして読む。
+    var undosRemaining: Int? = nil
 }
 
 @MainActor
@@ -110,6 +123,15 @@ public final class SudokuModel {
     /// 「元に戻す」を押せるか。中断・再開をまたぐと履歴は持ち越さない（`lastUndoStep` は
     /// 保存しない）ため false になる。`failed`（ミス上限）からは戻せない（下の `fail()` 参照）。
     public var canUndo: Bool { state == .playing && lastUndoStep != nil }
+
+    /// 「戻す」の残り回数（#1855）。無料枠から始まり、広告の視聴完了で補充する。
+    public private(set) var undosRemaining = SudokuUndoBudget.free
+
+    /// 残り回数が 1 回以上あるか。
+    public var hasUndoCredit: Bool { undosRemaining > 0 }
+
+    /// 戻せる手はあるのに回数を使い切っている。View はこのとき広告の提案を出す。
+    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
 
     private let services: GameServices?
     /// 生成タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
@@ -220,6 +242,7 @@ public final class SudokuModel {
                 hintedCells    = Set(snapshot.hintedCells.filter { (0..<SudokuEngine.cellCount).contains($0) })
                 mistakes       = snapshot.mistakes ?? 0
                 continueUsed   = snapshot.continueUsed ?? false
+                undosRemaining = max(0, snapshot.undosRemaining ?? SudokuUndoBudget.free)
                 // 復元した時点で揃っているユニットは光らせ済みとして扱う（中断をまたいで光り直させない）。
                 celebratedUnits = Self.completedUnits(board: board, solution: solution)
                 // ミス上限のまま閉じていたら `failed` に戻す（コンティニューの選択からやり直せる）。
@@ -270,6 +293,7 @@ public final class SudokuModel {
         continueUsed    = false
         noteMode        = false
         lastUndoStep    = nil
+        undosRemaining  = SudokuUndoBudget.free
         unitFlash       = nil
         mistakeShakes   = [:]
         // 出題の数字だけで揃っているユニットは、プレイヤーが揃えたものではないので光らせない。
@@ -381,9 +405,12 @@ public final class SudokuModel {
     /// 深さ 1 でも「誤答 → 戻す → 別の数字を試す」を繰り返すだけでミス上限（#322）が形骸化し、
     /// 広告コンティニューの導線ごと骨抜きになっていた。盤面は戻すがミスは戻さないのが業界標準で、
     /// 誤タップの救済という undo 本来の目的（#353）はそのまま果たせる。
+    ///
+    /// **1 局につき無料 `SudokuUndoBudget.free` 回まで**（使い切ったら `grantUndos(forGame:)` で補充・#1855）。
     public func undo() {
-        guard state == .playing, let step = lastUndoStep else { return }
+        guard state == .playing, let step = lastUndoStep, hasUndoCredit else { return }
         lastUndoStep = nil
+        undosRemaining -= 1
         board[step.index] = step.previousBoard
         notes[step.index] = step.previousNotes
         for (peer, mask) in step.changedPeerNotes { notes[peer] = mask }
@@ -450,6 +477,20 @@ public final class SudokuModel {
     public func applyHint(forGame serial: Int, at index: Int) -> Bool {
         guard serial == gameSerial else { return false }
         return applyHint(at: index)
+    }
+
+    /// リワード広告の**視聴完了後**に「戻す」を補充する（#1855）。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `gameSerial`。広告のロード中に新規ゲームを始めたら
+    ///   補充しない（`newGame` は残数を無料枠へ戻すので、そのまま足すと無料 + 補充から始まる）。
+    /// - Returns: 補充できたか。false のとき View は「補充できなかった」と伝える。
+    @discardableResult
+    public func grantUndos(forGame serial: Int) -> Bool {
+        guard state == .playing, serial == gameSerial else { return false }
+        undosRemaining += SudokuUndoBudget.refill
+        services?.feedback.notify(.success)
+        persist()
+        return true
     }
 
     /// ミスが上限に達した。負けの記録はまだ付けない（コンティニューで続けられるため）。
@@ -605,7 +646,8 @@ public final class SudokuModel {
             difficulty: difficulty,
             hintedCells: Array(hintedCells),
             mistakes: mistakes,
-            continueUsed: continueUsed
+            continueUsed: continueUsed,
+            undosRemaining: undosRemaining
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }

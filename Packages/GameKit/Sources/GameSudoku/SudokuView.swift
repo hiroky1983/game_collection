@@ -14,6 +14,9 @@ public struct SudokuView: View {
     @State private var hintRescue = RewardedRescue()
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
+    /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
+    @State private var showUndoRefillPrompt = false
+    @State private var undoRescue = RewardedRescue()
     @State private var zoomMode = false
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
@@ -110,6 +113,22 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
             )
         )
+        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+            Button("広告を見て\(SudokuUndoBudget.refill)回補充する") { requestUndoRefill() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴すると「戻す」を\(SudokuUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: "「戻す」を補充できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "「戻す」を補充できませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、局が終わったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。"
+            )
+        )
         .rewardedRescueAlerts(
             continueRescue,
             notEarned: "コンティニューできませんでした",
@@ -127,12 +146,12 @@ public struct SudokuView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active {
                 model.pauseTimer()
-            } else if !hintRescue.isWatching && !continueRescue.isWatching {
+            } else if !hintRescue.isWatching && !continueRescue.isWatching && !undoRescue.isWatching {
                 model.resumeTimerIfNeeded()
             }
         }
         // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([hintRescue, continueRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        .pausesTimerWhileWatching([hintRescue, continueRescue, undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -616,13 +635,13 @@ public struct SudokuView: View {
         [
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
             GameControlMenuItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo,
-                accessibilityLabel: "元に戻す",
+                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                accessibilityLabel: "元に戻す（残り\(model.undosRemaining)回）",
                 accessibilityHint: model.canUndo
                     ? "直前の1手を取り消します。ミスの回数は戻りません"
                     : "取り消せる手がありません"
-            ) { model.undo() },
+            ) { requestUndo() },
             GameControlMenuItem(
                 id: "note", title: "メモ", systemImage: "pencil.tip", isChecked: model.noteMode,
                 accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"
@@ -646,6 +665,32 @@ public struct SudokuView: View {
             id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
             accessibilityLabel: zoomMode ? "盤全体を表示" : "盤を拡大"
         ) { zoomMode.toggle() }
+    }
+
+    /// 「戻す」の入口を 1 本にまとめる（ソリティア・フリーセルと同じ契約・#1855）。
+    ///
+    /// 残り回数があればそのまま戻し、使い切っていたら**提案を出すだけ**にする。
+    /// 押した瞬間に広告を出さないのが要（「戻すつもりが広告を見せられた」を避ける）。
+    private func requestUndo() {
+        guard !undoRescue.isWatching else { return }
+        if model.needsUndoRefill {
+            showUndoRefillPrompt = true
+        } else {
+            model.undo()
+        }
+    }
+
+    /// リワード広告 → 「戻す」の補充。どの局への補充かを広告を出す前に控え、
+    /// ロード中に始めた新しい局へは乗せない（#815 と同じ）。
+    private func requestUndoRefill() {
+        guard !undoRescue.isWatching else { return }
+        let game = model.gameSerial
+        undoRescue.request(
+            services, gameID: model.gameID, purpose: .undo,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantUndos(forGame: game)
+        }
     }
 
     /// リワード広告を最後まで見たときだけヒントを与える（既存のコンティニューと同じ形・#262）。
