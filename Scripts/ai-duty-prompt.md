@@ -288,17 +288,20 @@ main より先行している / その release ブランチを base にするオ
    困る会長操作は止めるもの。Featuring 応募のように版と無関係なものは止めない）。あわせて、その版で増えた
    ゲーム・機能に対して App Store の入稿物（説明文・新機能欄の文言・スクリーンショット）の Issue が
    マイルストーンにあり close 済みかを確かめる（v1.1.3 の #471・#472・#473 が前例）。足りなければ依頼に書く。
-3. **版数を確認し、必要なら更新 PR を出す**:
+3. **版数更新 PR を `Scripts/bump-marketing-version.sh` で出す（必ず実行する。手で `project.yml` を書き換えない）**:
    ```bash
-   git show "origin/release/v$V:project.yml" | grep -nE 'MARKETING_VERSION|CURRENT_PROJECT_VERSION'
-   PREV=$(git tag -l 'v*-submitted' | sed 's/^v//; s/-submitted$//' | sort -V | tail -1)
-   git show "v${PREV}-submitted:project.yml" | grep -n 'CURRENT_PROJECT_VERSION'   # 直前に提出したビルド番号
+   bash Scripts/bump-marketing-version.sh "$V"
    ```
-   `MARKETING_VERSION` が `X.Y.Z` でない、または `CURRENT_PROJECT_VERSION` が直前に提出した版の値より大きくない
-   （fastlane はビルド番号を自動採番しない）なら、`origin/release/vX.Y.Z` からブランチを切って `project.yml` の
-   2行だけを更新し、**base を `release/vX.Y.Z`** にした PR（`risk:logic`）を出して通常のフロー（1-b・1-b-2）で
-   マージまで進める。PR が開いている間は仕事13 が鳴り止み、マージされると HEAD が変わって再び鳴るので、
-   このセッションでマージしきれなければ次回の起動で 4. から続ければよい。既に両方とも正しければ PR は不要。
+   スクリプトが `MARKETING_VERSION` を `X.Y.Z` に、`CURRENT_PROJECT_VERSION` を既存タグ時点のどのビルド番号より
+   大きい値にした `project.yml` 2行だけの PR（**base `release/vX.Y.Z`**・`risk:logic`・タイトル固定
+   `chore(release): バージョンを X.Y.Z (build N) に更新`）を出す。既に両方とも正しければ「PR は不要」と出て何も作らない。
+   **後方の番号を出さない検査**（App Store の公開版・既存の `vX.Y.Z` / `vX.Y.Z-submitted` タグ・凍結済み release
+   ブランチのどれよりも大きいこと。取得できないときも止まる）に掛かって止まったら、PR を手で作らず理由を
+   マイルストーンの `ops:chairman` Issue に書いて会長に確認する（版番号の付け方そのものがずれている）。
+   出した PR は通常のフロー（1-b・1-b-2）でマージまで進める。PR が開いている間は仕事13 が鳴り止み、マージされると
+   HEAD が変わって再び鳴るので、このセッションでマージしきれなければ次回の起動で 4. から続ければよい。
+   （社長が `Scripts/ship-beta.sh` で TestFlight へ上げるときも同じスクリプトが自動で走るため、当番が出す前に
+   社長側で更新済みのことがある。そのときはスクリプトが「PR は不要」と出す。）
 4. **`Scripts/check-marketing-version.sh` が通ることを確かめる**（release ブランチの最新の `project.yml` で）:
    ```bash
    git fetch origin "release/v$V"
