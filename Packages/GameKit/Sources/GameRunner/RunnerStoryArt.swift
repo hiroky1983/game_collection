@@ -78,6 +78,9 @@ enum RunnerStoryArt {
         case harborWatch
         /// 港町: 「つづく」。
         case harborToBeContinued
+
+        /// 京都・奈良（#1824）: 石畳で掴みかける。締めの残りのコマは話のつなぎの決裁後に足す。
+        case kyotoNaraReach
     }
 
     // MARK: 1 コマを組む
@@ -163,6 +166,8 @@ enum RunnerStoryArt {
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
                 .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 8)
                 .overlaying(fit(cargoShip()), x: 116, y: groundY - 30)
+
+        case .kyotoNaraReach: return reachPanel(.kyotoNara)
         }
     }
 

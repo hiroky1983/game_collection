@@ -84,6 +84,12 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
                 RunnerStoryPanel(art: .harborWatch, line: "どこまで行く気や。ほな、追いかけよか"),
                 RunnerStoryPanel(art: .harborToBeContinued, line: "つづく"),
             ]
+        case .ending(.kyotoNara):
+            // #1824 のモック段階の仮置き。話のつなぎ（宝くじがなぜ古都へ・次はどこへ）は会長決裁待ちで、
+            // 台詞・コマは 31〜36 面の実装のときに決める。
+            return [
+                RunnerStoryPanel(art: .kyotoNaraReach, line: "今度こそ、今度こそや"),
+            ]
         }
     }
 }
