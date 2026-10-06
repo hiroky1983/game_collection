@@ -126,6 +126,18 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
   どの版も指さない）。判定の物差しは当番の仕事13（未提出の最も古い release ブランチ）と同じで、そこから
   出荷準備に入った版を除いた次の版が次版になる。該当する版が無ければ、`release/vX.Y.Z` とマイルストーンを
   新設して積む（当番プロンプト「コード実装系」の手順）。
+  **合図の版数更新 PR は `Scripts/bump-marketing-version.sh` だけが作る**（2026-10-06・会長指示「多分毎回起こってるから
+  ちゃんとルール化してくれ」）。タイトルは `chore(release): バージョンを X.Y.Z (build N) に更新`、head は
+  `chore/release-version-vX.Y.Z-b<N>` に固定され、出荷準備に入る 2 つの入口から機械的に呼ばれる:
+  社長の TestFlight アップロード（`Scripts/ship-beta.sh` が release ブランチ上で毎回呼び、ずれていれば PR を出して
+  マージまで待つ）と、当番の仕事13（`ai-duty-prompt.md` 2.5 の 3.）。手で `project.yml` を書き換えて PR を作らない
+  （v1.1.7〜v1.1.9 は手書きでタイトルが `chore:` に揺れ、この合図として読めなくなっていた）。
+  版数をブランチ作成時に上げる案は採らない: 上げた事実が「出荷準備に入った」合図を兼ねているため、作成時に上げると
+  どの版も最初から出荷準備中に見えて次版の判定が壊れる。
+  **後方の番号は出さない**（2026-10-06・会長指示）: スクリプトは新しい版が App Store の公開版
+  （iTunes Lookup・キャッシュバスタ付き）・既存の `vX.Y.Z` / `vX.Y.Z-submitted` タグ・凍結済み release ブランチの
+  どれよりも数値で大きく、ビルド番号が既存タグ時点のどのビルド番号よりも大きいことを確かめ、満たさないとき・
+  比較対象を取得できないときは何も作らずに止まる（検証は `Scripts/tests/test-bump-marketing-version.sh`）。
 - **Issue は起票時にマイルストーン（対象バージョン）を必ず設定し、タイトルの先頭に `[vX.Y.Z]` プレフィックスを付ける**
   （2026-08-28 追加・会長指示。スマホの Issue 一覧ではマイルストーンが見えないため、タイトルだけで対象
   バージョンが分かるようにする）。マイルストーンを変更したらプレフィックスも揃えて直す。
@@ -506,7 +518,7 @@ launchd 常駐。ログは `~/Library/Logs/asobiba-<name>.log`、読み込みは
 手動起動に依存していた。`ai-duty.sh` は**未提出（`-submitted` タグも `lock_branch` も無い）かつ未公開の release
 ブランチのうち最も古い版**（最大の版ではない。次に出るのはそれなので）が、main より先行・その版を base にする
 オープン PR 0本・マイルストーンの残作業（`ai:approved` 付きで `blocked` / `ringi:pending` / `ops:chairman` の無い
-オープン Issue）0件のときに当番を起こす。当番は版数の確認・更新 PR と会長への実機確認の依頼までを行う
+オープン Issue）0件のときに当番を起こす。当番は版数更新 PR（`Scripts/bump-marketing-version.sh`）と会長への実機確認の依頼までを行う
 （`ai-duty-prompt.md` 2.5。`fastlane beta` と提出は会長）。停止条件は二段で、提出（タグか凍結）で恒久に、
 依頼コメント `出荷準備: vX.Y.Z @<HEAD の SHA7>` で HEAD が動くまで止まる。判定は純粋関数に切り出してあり
 `bash Scripts/tests/test-ai-duty-detect.sh` で発火・停止の両方を検証する。
@@ -637,7 +649,12 @@ main へマージしただけでは反映されない。会長の `git pull` を
 ### 配信（Phase 1）
 
 - `bundle exec fastlane beta` で TestFlight に自動アップロード（`fastlane/Fastfile`）。
-- ビルド番号は日時 (`YYYYMMDDHHmm`) で自動採番。`MARKETING_VERSION` は `project.yml` で管理。
+- ビルド番号は `project.yml` の `CURRENT_PROJECT_VERSION`（fastlane は自動採番しない。旧記述の日時採番は廃止済み）、`MARKETING_VERSION` も `project.yml` で管理。
+- **`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` の更新は `Scripts/bump-marketing-version.sh` で行う**（手で書き換えない）。
+  `Scripts/ship-beta.sh` は release ブランチ上で毎回これを `--wait` 付きで呼び、ずれていれば版数更新 PR を出して
+  必須チェック → マージ（state=MERGED を確認）→ 手元への fast-forward まで済ませてから `fastlane beta` に進む。
+  正しければ何もしない。`bundle exec fastlane beta` を直接叩いた場合は従来どおり `check-marketing-version.sh` が
+  落とし、このスクリプトを案内する（定義と後方の番号を出さない検査は「ブランチ戦略」の「次版」の項）。
 - リリースノートは環境変数 `TESTFLIGHT_CHANGELOG` で渡す（AI がマージ済み PR から生成する）。
 - 署名は Admin 権限の ASC API キー（`~/.appstoreconnect/asc-key.json`）で行い、Xcode のログイン状態と
   キーチェーンの証明書に頼らない（#1041。証明書が無ければ `-allowProvisioningUpdates` が API キーで発行する）。
@@ -702,6 +719,9 @@ v1.1.0〜v1.1.3 を実際に TestFlight 配信 → 審査提出まで複数回�
   （`project.yml` の `MARKETING_VERSION` は元々 `release/v1.1.2` 上でも `"1.1.1"` のままだったため
   変更不要だった。バージョン番号の更新は配信直前の手作業であり、ブランチ作成時点では一致しないのが
   正常な設計のため）。両マイルストーンに残っていたオープン Issue は全て `v1.1.1` へ付け替えた。
+  （2026-10-06 追記: この「配信直前の手作業」が毎回漏れ、v1.1.10 でも `release/v1.1.10` が `1.1.9` のままだった。
+  以後は手作業をやめ、`Scripts/bump-marketing-version.sh` を `ship-beta.sh` と当番の仕事13 から機械的に呼ぶ。
+  ブランチ作成時点で一致しないのが正常、という設計はそのまま。詳細は「ブランチ戦略」の「次版」の項）
 - **2026-08-24（続き）: 次版の番号は `v1.1.3` ではなく `v1.1.2` を再利用している**。統合を決めた時点で
   既に `release/v1.1.3` ブランチとマイルストーンが動いていた（PR #229 / #234 / #245 の base）ため、
   統合で空いた番号を飛ばさないよう、同日 14:23 に `release/v1.1.3` → `release/v1.1.2`、マイルストーンも

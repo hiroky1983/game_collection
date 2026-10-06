@@ -2,7 +2,8 @@
 # release/vX.Y.Z から配信するとき、project.yml の MARKETING_VERSION が
 # ブランチ名の X.Y.Z と一致していることを確認する（#161）。
 #
-# MARKETING_VERSION の更新は release ブランチの作成時ではなく**配信直前**の手作業なので、
+# MARKETING_VERSION の更新は release ブランチの作成時ではなく**出荷準備に入ったとき**（Scripts/bump-marketing-version.sh。
+# ship-beta.sh と当番の仕事13 が自動で呼ぶ）なので、
 # ブランチを作った直後の不一致は正常な途中状態である。よって CI で常時検証はせず、
 # 「一致していなければならない唯一の瞬間」= `fastlane beta` の実行前だけで落とす。
 # v1.1.1 では 1.1.0 のまま TestFlight へ上げる直前まで気づかれず、審査中の v1.1.0 build 5 と
@@ -76,8 +77,9 @@ check-marketing-version: MARKETING_VERSION がブランチ名と一致しませ�
   ブランチ        : ${BRANCH}（期待するバージョン: ${EXPECTED}）
   project.yml     : MARKETING_VERSION = ${ACTUAL}
 
-配信前に project.yml の MARKETING_VERSION を $EXPECTED に更新してください
-（更新後は xcodegen generate が fastlane beta 内で走るため手動生成は不要です）。
+版数更新 PR を出してください: bash Scripts/bump-marketing-version.sh $EXPECTED
+（Scripts/ship-beta.sh から上げれば、この PR の作成・マージ待ちまで自動で行います。
+ 手で project.yml を書き換えない。後方の番号を出さない検査はスクリプト側にあります）。
 EOF
   exit 1
 fi
