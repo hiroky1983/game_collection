@@ -36,6 +36,39 @@ struct AdMobBannerView: UIViewRepresentable {
     func updateUIView(_ uiView: BannerView, context: Context) {}
 }
 
+// MARK: - Medium Rectangle（300×250）
+
+/// ページの中に置く 300×250 の広告。読み込み・表示の作法はバナーと同じ（サイズとユニットだけ違う）。
+@MainActor
+final class AdMobMediumRectangleViewModel: NSObject, @preconcurrency BannerViewDelegate {
+    let bannerView: BannerView
+
+    override init() {
+        bannerView = BannerView(adSize: AdSizeMediumRectangle)
+        bannerView.adUnitID = AdConfig.effectiveMediumRectangleID
+        super.init()
+        bannerView.delegate = self
+    }
+
+    func load() {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.windows.first?.rootViewController else { return }
+        bannerView.rootViewController = root
+        bannerView.load(Request())
+    }
+}
+
+struct AdMobMediumRectangleView: UIViewRepresentable {
+    let viewModel: AdMobMediumRectangleViewModel
+
+    func makeUIView(context: Context) -> BannerView {
+        viewModel.load()
+        return viewModel.bannerView
+    }
+
+    func updateUIView(_ uiView: BannerView, context: Context) {}
+}
+
 // MARK: - Full Screen Delegate
 
 @MainActor
@@ -106,6 +139,10 @@ public final class AdMobAdService: AdService {
     @MainActor public func makeBannerView(width: CGFloat) -> AnyView? {
         let vm = AdMobBannerViewModel(width: width)
         return AnyView(AdMobBannerView(viewModel: vm))
+    }
+
+    @MainActor public func makeMediumRectangleView() -> AnyView? {
+        AnyView(AdMobMediumRectangleView(viewModel: AdMobMediumRectangleViewModel()))
     }
 
     @MainActor public func showInterstitial() async {

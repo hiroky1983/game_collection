@@ -522,10 +522,10 @@ public struct RuleListSheet<Figures: View>: View {
                 ForEach(rules, id: \.0) { rule in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(rule.0)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .themeBody(14, weight: .black)
                             .foregroundStyle(Theme.coral)
                         Text(rule.1)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .themeBody(13, weight: .medium)
                             .foregroundStyle(Theme.ink)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -575,12 +575,12 @@ public struct RuleFigureCard<Content: View>: View {
                 HStack(spacing: 6) {
                     if let title {
                         Text(title)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .themeBody(14, weight: .black)
                             .foregroundStyle(Theme.coral)
                     }
                     if let detail {
                         Text(detail)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .themeCaption(12, weight: .medium)
                             .foregroundStyle(Theme.inkSub)
                     }
                 }
@@ -658,7 +658,7 @@ public struct YakuTableSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 6) {
             if let header {
                 Text(header)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .themeBody(13, weight: .black)
                     .foregroundStyle(Theme.inkSub)
                     .padding(.horizontal, 4)
             }
@@ -670,7 +670,7 @@ public struct YakuTableSection<Content: View>: View {
             .background(RuleCardBackground())
             if let footer {
                 Text(footer)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(12, weight: .medium)
                     .foregroundStyle(Theme.inkSub)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)

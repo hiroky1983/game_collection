@@ -9,6 +9,8 @@ public protocol AdService {
     /// 呼び出し側が `.padding()` などで余白を取っている場合に実際の表示幅より広いサイズで
     /// 広告を要求してしまい、左右に黒い余白（レターボックス）が出る（#マージ済みPRの会長指摘）。
     @MainActor func makeBannerView(width: CGFloat) -> AnyView?
+    /// ページの中に置く 300×250 の広告ビュー（`MediumRectangleSlot`）。広告無効・未対応の実装は nil。
+    @MainActor func makeMediumRectangleView() -> AnyView?
     /// インタースティシャル広告を表示し、閉じられるまで待つ。ロード失敗時は即 return。
     @MainActor func showInterstitial() async
     /// リワード広告を表示し、視聴完了なら true を返す。ロード失敗・キャンセル時は false。
@@ -19,6 +21,9 @@ public protocol AdService {
 }
 
 public extension AdService {
+    /// 300×250 を持たない実装（テスト・広告を出さない構成）は枠だけ確保して何も出さない。
+    @MainActor func makeMediumRectangleView() -> AnyView? { nil }
+
     /// 先読みを持たない実装（テスト・広告を出さない構成）は、待たせずに結果を返すので常に true。
     @MainActor var isRewardedAdReady: Bool { true }
 }

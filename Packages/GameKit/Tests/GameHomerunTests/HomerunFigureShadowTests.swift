@@ -18,10 +18,10 @@ struct HomerunFigureShadowTests {
         #expect(s.radius == Shadow.batterRadius)
     }
 
-    @Test("後ろのカメラの構えで外・捕手側へずらした打者にも、影が同じだけ付いて動く")
+    @Test("構えで外・捕手側へずらした打者にも、影が同じだけ付いて動く")
     func batterFollowsSlide() {
-        let camera = Layout.CameraPreset.back.camera.renderPose.position
-        let offset = Layout.batterOffset(slide: Layout.backStanceSlide)
+        let camera = Layout.camera.renderPose.position
+        let offset = Layout.batterOffset(slide: Layout.stanceSlide)
         let base = Shadow.batter(origin: Layout.batter.position, camera: camera)
         let slid = Shadow.batter(origin: Layout.batter.position + offset, camera: camera)
         #expect(simd_length((slid.center - base.center) - offset) < 1e-5)
@@ -33,26 +33,25 @@ struct HomerunFigureShadowTests {
         #expect(step > 0 && step < HomerunBallShadow.opacitySteps)
     }
 
-    @Test("前・後ろのカメラとも、画面で線にならない楕円（横 : 縦 ≥ 2 : 1 相当）に伸ばし、奥行きは両足の幅（0.57m）を覆う")
+    @Test("打席のカメラから見て、画面で線にならない楕円（横 : 縦 ≥ 2 : 1 相当）に伸ばし、奥行きは両足の幅（0.57m）を覆う")
     func notALineFromLowCameras() {
-        for preset in Layout.CameraPreset.allCases {
-            let camera = preset.camera
-            let eye = camera.renderPose.position
-            let s = Shadow.batter(origin: Layout.batter.position, camera: eye)
-            let toShadow = s.center - eye
-            let sinElevation = -toShadow.y / simd_length(toShadow)
-            // 画面の縦の長さ ≒ 奥行き × sin(見下ろす角)。横に対する比が screenAspect 以上（上限の伸ばしに当たらない範囲）。
-            let aspect = s.stretch * sinElevation
-            #expect(aspect >= HomerunBallShadow.screenAspect - 1e-4, "\(preset)")
-            #expect(s.radius * s.stretch >= 0.57 / 2, "\(preset)")
-        }
+        let eye = Layout.camera.renderPose.position
+        let s = Shadow.batter(origin: Layout.batter.position, camera: eye)
+        let toShadow = s.center - eye
+        let sinElevation = -toShadow.y / simd_length(toShadow)
+        // 画面の縦の長さ ≒ 奥行き × sin(見下ろす角)。横に対する比が screenAspect 以上（上限の伸ばしに当たらない範囲）。
+        let aspect = s.stretch * sinElevation
+        #expect(aspect >= HomerunBallShadow.screenAspect - 1e-4)
+        #expect(s.radius * s.stretch >= 0.57 / 2)
     }
 
-    @Test("鏡映するカメラ（後ろ）では描画のカメラ（x を鏡映した位置）から見た向きへ伸ばす")
+    @Test("鏡映するカメラ（`Camera.mirrored`）では描画のカメラ（x を鏡映した位置）から見た向きへ伸ばす")
     func mirroredCameraUsesRenderPose() {
-        let back = Layout.CameraPreset.back.camera
-        #expect(back.mirrored)
-        let eye = back.renderPose.position
+        // 鏡映の仕組みのテスト（打席のカメラは反転しない）。本塁の後ろ・三塁側から見下ろす、反転するカメラを手で作る。
+        let mirrored = Layout.Camera.aimed(from: [-0.5, 2.6, -5.5], at: Layout.zoneWorldCenter, yFraction: Layout.zoneScreenFraction,
+                                           verticalFieldOfView: 50, mirrored: true)
+        let eye = mirrored.renderPose.position
+        #expect(eye.x > 0, "描画のカメラは x を鏡映した位置")
         let s = Shadow.batter(origin: Layout.batter.position, camera: eye)
         let dir = simd_normalize(SIMD2(s.center.x - eye.x, s.center.z - eye.z))
         #expect(abs(sin(s.yaw) - dir.x) < 1e-4)
@@ -83,7 +82,7 @@ struct HomerunFigureShadowTests {
 
     @Test("バットの影: 低い前のカメラでは、視線に沿う太さを体の影と同じ割合で伸ばす（横向きのバットが線につぶれない）")
     func batShadowStretchesForLowCamera() {
-        let eye = Layout.CameraPreset.front.camera.renderPose.position
+        let eye = Layout.camera.renderPose.position
         let across = Shadow.bat(grip: [0.6, 1.0, 0.2], tip: [-0.2, 1.0, 0.2], camera: eye)
         let body = Shadow.batter(origin: Layout.batter.position, camera: eye)
         #expect(body.stretch > 2)

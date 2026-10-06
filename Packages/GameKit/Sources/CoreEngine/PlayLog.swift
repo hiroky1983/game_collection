@@ -107,7 +107,9 @@ public final class PlayLog {
     /// 柵越えおじさんの蓄積（#1348・通算・集計・直近 20 挑戦）。ゲームのフォルダはここを参照できない（`Core` が上流）ので
     /// 文字列で持ち、`GameHomerunTests` が `HomerunStorage.recordsKey` と一致することを確かめる。
     /// **日次台帳（`homerun_ledger_v1`）は入れない**（消去で回数が補充される穴になるため）。
-    public static let homerunKeys = ["homerun_records_v1"]
+    /// 解除済みの実績（#1794・`homerun_achievements_v1`）も同じく消去の対象（Game Center に連携している人は、次に開いたときに
+    /// Game Center 側の解除済みが端末へ戻る）。
+    public static let homerunKeys = ["homerun_records_v1", "homerun_achievements_v1"]
 
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
     public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + homerunKeys

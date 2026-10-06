@@ -144,7 +144,7 @@ struct AnalyticsEventShapeTests {
         #expect(recent.parameters["resume"] == .int(0), "resume は 0 / 1 の整数")
 
         // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
-        for source in [GameOpenSource.recommendation, .notification, .firstPick] {
+        for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction] {
             let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
             #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
         }
@@ -171,10 +171,10 @@ struct AnalyticsEventShapeTests {
         ])
     }
 
-    @Test("source は hub / recent / recommendation / notification / first_pick の5値に閉じている（#659・#721）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero の7値に閉じている（#659・#721）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
-            "hub", "recent", "recommendation", "notification", "first_pick",
+            "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
         ])
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
@@ -242,6 +242,15 @@ struct AnalyticsEventShapeTests {
         #expect(Set(caused.parameters.keys) == ["game_id", "result", "duration_sec", "cause"])
 
         // `mode`（#783）: 付けたときだけ鍵が出る。開始と終わりで同じ値
+        // 回数制のゲームだけ消費枠 `credit` を送る（#1685）。載せなければ鍵ごと無い。
+        for credit in AnalyticsCredit.allCases {
+            #expect(AnalyticsEvent.gameStart(gameID: "homerun", credit: credit).parameters["credit"] == .string(credit.rawValue))
+            #expect(AnalyticsEvent.gameEnd(gameID: "homerun", result: .loss, durationSec: 5, credit: credit)
+                .parameters["credit"] == .string(credit.rawValue))
+        }
+        #expect(AnalyticsCredit.allCases.map(\.rawValue) == ["free", "survey", "ad", "bonus"])
+        #expect(AnalyticsEvent.gameEnd(gameID: "2048", result: .win, durationSec: 1).parameters["credit"] == nil)
+
         let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: .singleHand)
         #expect(moded.parameters == ["game_id": .string("mahjong4"), "mode": .string("single_hand")])
         let modedEnd = AnalyticsEvent.gameEnd(gameID: "mahjong4", result: .loss, durationSec: 90, mode: .tonpuu)
@@ -925,7 +934,7 @@ struct AllGamesAnalyticsTests {
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。スート数は `level` に載る。
         #expect(spy.starts == ["spider", "spider"])
         let levels = spy.events.compactMap { event -> AnalyticsLevel? in
-            if case let .gameStart(_, level, _, _) = event { return level } else { return nil }
+            if case let .gameStart(_, level, _, _, _) = event { return level } else { return nil }
         }
         #expect(levels == [.normal, .hard], "2 スート = normal・4 スート = hard")
     }
@@ -1439,7 +1448,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1449,14 +1458,14 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
     }

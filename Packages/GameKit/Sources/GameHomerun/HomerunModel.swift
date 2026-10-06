@@ -25,9 +25,15 @@ public final class HomerunModel {
         case pitching
         /// 1 球の結果を見せている。
         case ballResult
+        /// 10 球（または月が割れて）終わったあと、結果画面の前に挟む演出（`HomerunFinale`・会長決裁 2026-10-05）。
+        /// `finaleDuration` 秒で結果画面へ進む。タップで飛ばせる（`skipFinale`）。
+        case finale
         /// 10 球が終わった。
         case finished
     }
+
+    /// 結果の演出（`.finale`）を見せる時間。
+    public static let finaleDuration: TimeInterval = 3.2
 
     /// 進行を止めている理由（1 つでも残っていれば止まったまま）。
     public struct Hold: OptionSet, Sendable {
@@ -68,8 +74,11 @@ public final class HomerunModel {
     /// 1 球の結果を見せる時間（月まで飛んだ打球・#1680 は月の演出のぶん長い）。
     public static func resultDuration(for ball: HomerunBattedBall?) -> TimeInterval {
         if let moon = ball?.moon { return HomerunMoonShot.resultDuration(moon) }
-        if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration }
-        return resultDuration(for: ball?.kind ?? .miss)
+        if ball?.isTankobu == true { return HomerunTankobuGag.resultDuration }
+        // ジャストミート（#1775）は確定演出のヒットストップのぶん長い。
+        let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
+        if ball?.isPoleHit == true { return HomerunBallChase.poleResultDuration + held }
+        return resultDuration(for: ball?.kind ?? .miss) + held
     }
 
     // MARK: 状態
@@ -90,22 +99,44 @@ public final class HomerunModel {
     public private(set) var showsWhiffGag = false
     /// いまの挑戦で振った空振りの回数（2 回目は必ず演出を出す）。
     private(set) var whiffCount = 0
+    /// 直前の 1 球の結果に重ねる頭の記号（キラキラ目・怒りマーク・#1760）。結果の間だけ見せる（見せる局面の判断は `HomerunSwingPlan`）。
+    private(set) var faceMark: HomerunFaceMark = .none
+    /// 次の球の構えで見せる頭の記号（柵越えを打った次の 1 球だけ・#1762）。その球を打つ・見送ると入れ替わる。
+    private(set) var waitingFaceMark: HomerunFaceMark = .none
+    /// 怒りゲージ（#1797・裏パラメータ・画面には出さない）。増減と段階は `HomerunFaceMark`。挑戦の開始で 0。
+    private(set) var angerGauge = 0
+    /// 振った空振りの連続回数（怒りマーク用）。当たり・ファウルで 0 に戻り、見送りは数えず戻しもしない。
+    private(set) var whiffStreak = 0
     /// 演出を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
     var whiffGagRoll: () -> Double = { Double.random(in: 0..<1) }
+    /// たんこぶの演出（#1793・`HomerunTankobu`）を出すかを決める乱数（0 以上 1 未満）。テストは差し替えて固定する。
+    var tankobuRoll: () -> Double = { Double.random(in: 0..<1) }
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
-    /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
-    public var showsExhausted = false
-    /// 方向メーター（打席の右上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
+    // 実績（#1794・`HomerunModel+Achievements.swift`）。
+    /// 解除済みの実績（端末の記録）。一覧はいつもこれを見て描く。
+    public internal(set) var achievements: HomerunAchievementLog
+    /// 打席に出している「実績解禁」の表示（1 球の結果の演出が終わってから出す）と、消す時刻。消すのは View が時刻で決める
+    /// （`unlockBanner(at:)`）。Model の進行（`nextWake`）には関わらせない。次の球を打つか結果を閉じるときに片付く。
+    public internal(set) var unlockBanner: [HomerunAchievement] = []
+    public internal(set) var unlockBannerUntil: Date?
+    /// 解除したがまだ表示していない実績（1 球の結果の演出が終わるのを待つ）。
+    var pendingBanner: [HomerunAchievement] = []
+    /// いまの挑戦で解除した実績（10 球の結果に並べる）。
+    public internal(set) var unlockedThisChallenge: [HomerunAchievement] = []
+    /// 挑戦の最後の球で実績を解除したか（打席の「実績解禁」を出さずに 10 球の結果へ進んだ・効果音 `HomerunSoundCues`）。
+    public private(set) var unlockedAtFinish = false
+    /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
+    public internal(set) var gameCenterLinked = false
+    /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
     public var showsDirectionMeter: Bool {
         didSet { directionMeter.isEnabled = showsDirectionMeter }
     }
-    /// 打席のカメラ（前 / 後ろ・#1506）。既定は前。選んだ方は保存して次回も使う。見た目だけで、判定・座標・解析は変えない
-    /// （投球中に切り替えても同じ球のまま続く）。
-    var atBatCamera: HomerunAtBatLayout.CameraPreset {
-        didSet { defaults.set(atBatCamera.rawValue, forKey: Self.atBatCameraKey) }
-    }
-    static let atBatCameraKey = "homerun_atBatCamera_v1"
+    /// 操作の説明（#1763）を見たか。初めて打席に入ったとき 1 球目の前に自動で出し、見たら端末に記録して 2 回目以降は
+    /// 自動では出さない（一時停止の「操作の説明」からはいつでも開ける）。
+    static let tutorialSeenKey = "homerun_tutorialSeen_v1"
+    var hasSeenTutorial: Bool { defaults.bool(forKey: Self.tutorialSeenKey) }
+    func markTutorialSeen() { defaults.set(true, forKey: Self.tutorialSeenKey) }
     /// 進行が変わるたびに進む。View は `.task(id:)` の鍵にする。
     public private(set) var step = 0
     public private(set) var holds: Hold = []
@@ -131,6 +162,8 @@ public final class HomerunModel {
         /// 的が出る前（マシンが込めている間）に離して素振りした時刻（最後の 1 回）。3D の打者がその場で振るためだけのもので、
         /// 判定・球数・台帳・記録には使わない（その球はそのまま投げられてくる）。
         public var practiceSwingAt: Date? = nil
+        /// `shift(by:)` でずらした累計（秒）。効果音が「止める前に鳴らした音」を見分ける鍵から引く（`HomerunSoundCue.shifted`）。
+        public var shifted: TimeInterval = 0
         /// 輪が的に重なる時刻。
         public var arrival: Date { pitchStart.addingTimeInterval(TimeInterval(HomerunPitch.travelMilliseconds) / 1000) }
 
@@ -140,6 +173,7 @@ public final class HomerunModel {
             pressedAt = pressedAt?.addingTimeInterval(seconds)
             releasedAt = releasedAt?.addingTimeInterval(seconds)
             practiceSwingAt = practiceSwingAt?.addingTimeInterval(seconds)
+            shifted += seconds
         }
     }
     public private(set) var ballClock: BallClock?
@@ -161,12 +195,12 @@ public final class HomerunModel {
     /// 照準の吸い寄せ（#1594 試作）。テストは `.off` で入力どおりの照準を確かめる。
     let aimAssist: HomerunAimAssist
 
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
     private let directionMeter: FeedbackPreference
     private let calendar: Calendar
     private let pitches: [HomerunPitch]
     /// 解析・記録・広告の窓口。nil（テスト・プレビュー）なら何も送らない。
-    private let services: GameServices?
+    let services: GameServices?
     /// このモデルで 1 回でも打席に立ったか（初回は `game_start`、以降は `game_end`（quit）を挟む始め直し）。
     private var hasCountedStart = false
     /// いまの挑戦で 1 球でも投げたか（`gameDidProgress` の冪等は解析側だが、呼ぶ回数を絞る）。
@@ -181,11 +215,11 @@ public final class HomerunModel {
         self.defaults = defaults
         self.directionMeter = directionMeter
         showsDirectionMeter = directionMeter.isEnabled
-        atBatCamera = defaults.string(forKey: Self.atBatCameraKey).flatMap(HomerunAtBatLayout.CameraPreset.init(rawValue:)) ?? .front
         self.calendar = calendar
         self.pitches = pitches
         ledger = HomerunStorage.loadLedger(defaults)
         records = HomerunStorage.loadRecords(defaults)
+        achievements = HomerunStorage.loadAchievements(defaults)
         refreshDay(now: now)
     }
 
@@ -239,15 +273,19 @@ public final class HomerunModel {
         return CGPoint(x: cursor.x + (ball.x - cursor.x) * k, y: cursor.y + (ball.y - cursor.y) * k)
     }
 
-    /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻）。止まっているあいだは nil。
+    /// 次に起こしてほしい時刻（投球の締め切り・結果を閉じる時刻・結果の演出を閉じる時刻）。止まっているあいだは nil。
     public var nextWake: Date? {
         guard !isHeld, !awaitsAtBat else { return nil }
         switch phase {
         case .pitching: return arrival?.addingTimeInterval(Self.lateLimit)
         case .ballResult: return resultEnd
+        case .finale: return finaleUntil
         case .idle, .finished: return nil
         }
     }
+
+    /// いまの挑戦の結果の演出の区分（`.finale` の間に画面が描く）。挑戦が無ければ nil。
+    public var finale: HomerunFinale? { challenge.map(HomerunFinale.init(challenge:)) }
 
     // MARK: 打席前
 
@@ -258,36 +296,74 @@ public final class HomerunModel {
         if ledger != before { HomerunStorage.saveLedger(ledger, defaults) }
     }
 
-    /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ使い切りシートを出す。
+    /// 打席に立つ。**この時点で挑戦回数を 1 減らす**（途中でやめても戻らない）。回数が無ければ始めず false
+    /// （打席前は回数 0 で「打席に立つ」を押せなくしている。使い切りのシートは廃止・会長決裁 2026-10-04）。
     /// 動作確認用の強制（回数無制限・月・ポール）は DEBUG ビルドだけで効く（`HomerunDebugOverrides`）。
     @discardableResult
     public func start(now: Date) -> Bool {
         guard phase == .idle || phase == .finished else { return false }
         refreshDay(now: now)
         let debug = HomerunDebugOverrides.current(defaults)
+        // 消費した枠（#1685）。DEBUG の回数無制限（`-homerunUnlimited`）では台帳を使わないので載せない。
+        var credit: AnalyticsCredit?
         if !debug.unlimited {
-            guard ledger.consume() else {
-                showsExhausted = true
-                return false
-            }
+            credit = ledger.nextCredit.map(Self.analyticsCredit)
+            guard ledger.consume() else { return false }
             HomerunStorage.saveLedger(ledger, defaults)
         }
+        beginChallenge(now: now, withAd: false, credit: credit)
+        return true
+    }
+
+    /// 回数を使い切ったあと、広告を見終えたところで呼ぶ（#1694）。**回数は増やさず**、その場で 1 挑戦を始めて打席へ入る
+    /// （シートや確認は挟まない）。広告を出す前に控えた日付で照合する（見ている間に 0:00 をまたぐと台帳が作り直されて
+    /// 無料分が戻っているので、前の日の広告では始めない）。回数が残っている・広告の上限（`HomerunLedger.adLimitPerDay`）
+    /// に達している・打席前/結果でなければ始めず false（→ 「始められなかった」の知らせ）。
+    @discardableResult
+    public func startWithAd(forDay dayKey: Int, now: Date) -> Bool {
+        guard phase == .idle || phase == .finished else { return false }
+        refreshDay(now: now)
+        guard ledger.dayKey == dayKey, ledger.consumeAdPlay() else { return false }
+        HomerunStorage.saveLedger(ledger, defaults)
+        beginChallenge(now: now, withAd: true, credit: .ad)
+        return true
+    }
+
+    /// いまの挑戦を広告を見て始めたか（#1694。台帳の `adPlays` と合わせ、計測 #1685 で枠を見分ける材料）。
+    public private(set) var startedWithAd = false
+
+    private func beginChallenge(now: Date, withAd: Bool, credit: AnalyticsCredit?) {
+        startedWithAd = withAd
+        let debug = HomerunDebugOverrides.current(defaults)
         challenge = HomerunChallenge(pitches: pitches, forcesMoon: debug.forcesMoon, forcesPole: debug.forcesPole)
         awaitsAtBat = true
         lastBall = nil
         isNewBest = false
         hasProgressed = false
         whiffCount = 0
+        resetUnlockDisplay()
+        unlockedThisChallenge = []
+        faceMark = .none
+        waitingFaceMark = .none
+        angerGauge = 0
         beginPitch(now: now)
         if hasCountedStart {
-            services?.gameDidRestart(gameID: Self.gameID)
+            services?.gameDidRestart(gameID: Self.gameID, credit: credit)
         } else {
-            services?.gameDidStart(gameID: Self.gameID)
+            services?.gameDidStart(gameID: Self.gameID, credit: credit)
             hasCountedStart = true
         }
         // 1 挑戦は途中から戻せない（中断データを持たない）。画面を離れたら休憩ではなく離脱として数える。
         services?.gameWillNotResume(gameID: Self.gameID)
-        return true
+    }
+
+    private static func analyticsCredit(_ credit: HomerunLedger.Credit) -> AnalyticsCredit {
+        switch credit {
+        case .free:   return .free
+        case .bonus:  return .bonus
+        case .survey: return .survey
+        case .ad:     return .ad
+        }
     }
 
     /// 打席の画面（3D）が描き始めたときに View が 1 回呼ぶ。1 球目のマシンの込める動きを今から数え直す（打席の 3D を作って
@@ -305,18 +381,7 @@ public final class HomerunModel {
     /// ボールの位置を出さない。
     public private(set) var awaitsAtBat = false
 
-    /// 広告を見た報酬として今日の挑戦回数を 1 回増やす。**広告を出す前の日付で照合する**（見ている間に
-    /// 0:00 をまたぐと台帳が作り直されており、前の日の広告で今日の回数が増えるのを防ぐ）。
-    /// 上限（1 日 5 本）に達していれば増やさず false（→ 「適用できなかった」の知らせ）。
-    @discardableResult
-    public func grantAdChallenge(forDay dayKey: Int, now: Date) -> Bool {
-        refreshDay(now: now)
-        guard ledger.dayKey == dayKey, ledger.grantAd() else { return false }
-        HomerunStorage.saveLedger(ledger, defaults)
-        return true
-    }
-
-    /// アンケートに答えた報酬として今日の挑戦回数を 1 回増やす（1 日 1 回）。日付の照合は `grantAdChallenge` と同じ。
+    /// アンケートに答えた報酬として今日の挑戦回数を 1 回増やす（1 日 1 回）。日付の照合は `startWithAd` と同じ。
     /// 回答は選択肢の番号だけを `survey_answer` で送り、端末には残さない（台帳の「済み」フラグだけ）。
     /// 未回答の設問がある・すでに済み・日付が変わっていれば増やさず false（回答も送らない）。
     @discardableResult
@@ -328,7 +393,7 @@ public final class HomerunModel {
         return true
     }
 
-    /// 広告を出す前に控える「今日」の鍵（`grantAdChallenge(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
+    /// 広告を出す前に控える「今日」の鍵（`startWithAd(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
     /// 作る（画面を開いたまま 0:00 を過ぎても、日付の更新は前面へ戻るか打席に立つまで走らないため、
     /// 台帳の日付を控えると、日をまたいでいない広告まで「前の日」として弾いてしまう）。
     public func dayKey(at now: Date) -> Int { HomerunLedger.dayKey(for: now, calendar: calendar) }
@@ -394,7 +459,7 @@ public final class HomerunModel {
     /// 流すので、振り終わりは 20 コマ目を置いた時刻（`HomerunSwingContact.swingStart`）から数える。
     func isSwinging(at now: Date) -> Bool {
         // 空振りの演出（#1681）の間は、回って座りきるまで振っている扱い（素振りで演出を切らない）。
-        if phase == .ballResult, showsWhiffGag { return true }
+        if phase == .ballResult, showsWhiffGag || lastBall?.isTankobu == true { return true }
         guard let clock = ballClock else { return false }
         let column = HomerunSwingContact.column(zone: clock.zone)
         let spans: [(begin: Date, clipStart: Date)] = [
@@ -422,13 +487,24 @@ public final class HomerunModel {
         case .ballResult:
             guard let resultEnd, now >= resultEnd else { return }
             if challenge?.isFinished == true {
-                finish()
+                beginFinale(now: now)
             } else {
+                // 解除した実績は、この球の演出が終わってから出す（演出と重ねない）。
+                showPendingUnlockBanner(now: now)
                 beginPitch(now: now)
             }
+        case .finale:
+            guard let finaleUntil, now >= finaleUntil else { return }
+            finish()
         case .idle, .finished:
             break
         }
+    }
+
+    /// 結果の演出をタップで飛ばして結果画面へ進む。演出の間でなければ何もしない。
+    public func skipFinale() {
+        guard phase == .finale else { return }
+        finish()
     }
 
     /// 進行を止める / 再開する。投球中に止めたら、戻ったときに**その球を投げ直す**（台帳は戻さない）。
@@ -451,6 +527,13 @@ public final class HomerunModel {
                 // ずらさないと、打球が飛んでいる間に止めて戻ったとき、追う様子を見せないまま止まった球とカードが出る）。
                 if let heldSince, now > heldSince { ballClock?.shift(by: now.timeIntervalSince(heldSince)) }
                 resultUntil = now.addingTimeInterval(Self.resultDuration(for: lastBall))
+            case .finale:
+                // 止めていた間ぶん、演出の時刻を後ろへずらす（止めた所から続ける）。
+                if let heldSince, now > heldSince {
+                    let held = now.timeIntervalSince(heldSince)
+                    finaleStart = finaleStart?.addingTimeInterval(held)
+                    finaleUntil = finaleUntil?.addingTimeInterval(held)
+                }
             case .idle, .finished: break
             }
             step += 1
@@ -475,6 +558,7 @@ public final class HomerunModel {
         guard isPaused, phase == .pitching || phase == .ballResult else { return }
         holds.remove(.paused)
         awaitsAtBat = false
+        resetUnlockDisplay()
         phase = .idle
         challenge = nil
         lastBall = nil
@@ -543,15 +627,20 @@ public final class HomerunModel {
         didSwingLastBall = swing != nil
         lastMissReason = HomerunJudge.missReason(swing)
         if didSwingLastBall { swingCount += 1 }
-        let ball = challenge.swing(swing)
+        let ball = challenge.swing(swing, tankobuRoll: swing == nil ? 1 : tankobuRoll())
         self.challenge = challenge
         decideWhiffGag(swung: swing != nil, ball: ball)
+        unlockBanner = []
+        unlockBannerUntil = nil
+        if let ball {
+            earn(HomerunAchievement.earned(byBall: ball, outOfPark: ball.isOutOfPark, whiffSpin: showsWhiffGag))
+        }
         if !hasProgressed {
             hasProgressed = true
             services?.gameDidProgress(gameID: Self.gameID)
         }
         lastBall = ball
-        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +2（当日分・上限なし）。
+        // 月が割れた（#1680）: 残りの球は没収（挑戦は `isFinished`）・今日のプレイ回数を +1（当日分・上限なし・会長決裁 2026-10-04 で +2→+1）。
         if ball?.moon == .broken {
             refreshDay(now: now)
             ledger.grantMoonBonus()
@@ -561,7 +650,15 @@ public final class HomerunModel {
         pitchStart = nil
         // 10 球目を打った時点で蓄積に取り込む（結果を見せている 2 秒余りのあいだに画面を閉じても、
         // 打ち終えた挑戦は記録に残す）。
-        if challenge.isFinished { record(challenge) }
+        if challenge.isFinished {
+            record(challenge)
+            earn(HomerunAchievement.earned(byFinished: challenge)
+                 + HomerunAchievement.earned(byCareerTenths: records.totalDistanceTenths)
+                 + HomerunAchievement.earned(byCareerHomers: records.homers))
+        }
+        faceMark = .decide(ball: ball, swung: swing != nil, isNewBest: isNewBest)
+        angerGauge = HomerunFaceMark.angerGauge(after: ball, swung: swing != nil, from: angerGauge)
+        waitingFaceMark = .waiting(after: ball, swung: swing != nil, challengeFinished: challenge.isFinished, anger: angerGauge)
         resultUntil = now.addingTimeInterval(Self.resultDuration(for: ball))
         step += 1
         return ball
@@ -579,12 +676,36 @@ public final class HomerunModel {
             outcome: challenge.homerCount > 0 ? .win : .loss,
             score: GameScore(metric: .points, points: Int(challenge.totalDistance))
         )
+        // 評価のお願いは、10 球目（月が割れた球）の結果と結果の演出を見せ終えて結果画面に移ってから出す
+        // （`finish` で表に戻す・チャリンコおじさんの #1143 と同じ仕組み）。`gameDidFinish` が伏せを解くので、その後で伏せる。
+        services?.deferReviewRequestUntilResultIsVisible()
+    }
+
+    /// 結果の演出の始まり・終わりの時刻（`.finale` の間だけ値がある）。
+    public private(set) var finaleStart: Date?
+    public private(set) var finaleUntil: Date?
+
+    private func beginFinale(now: Date) {
+        // 最後の球で解除したか（結果に入ったときの効果音）。演出の前に片付けるので、その前に控えておく。
+        unlockedAtFinish = !pendingBanner.isEmpty
+        resetUnlockDisplay()
+        phase = .finale
+        resultUntil = nil
+        isHolding = false
+        finaleStart = now
+        finaleUntil = now.addingTimeInterval(Self.finaleDuration)
+        step += 1
     }
 
     private func finish() {
+        resetUnlockDisplay()
         phase = .finished
         resultUntil = nil
+        finaleStart = nil
+        finaleUntil = nil
         isHolding = false
         step += 1
+        // 結果画面が見えたので、伏せていた評価のお願いを表に戻す。
+        services?.resultDidBecomeVisible()
     }
 }

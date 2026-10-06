@@ -34,7 +34,7 @@ public struct RecommendationCard: View {
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: RecommendationDismissButton.leadingGap) {
             Button(action: onOpen) {
                 HStack(spacing: 12) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -72,16 +72,10 @@ public struct RecommendationCard: View {
             .accessibilityLabel("\(caption)\(module.title)")
             .accessibilityHint("「\(module.title)」を開いて新しく始めます")
 
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Theme.inkSub)
-                    .padding(6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("閉じる")
+            RecommendationDismissButton(action: onDismiss)
         }
-        .padding(.horizontal, 12).padding(.vertical, Self.verticalPadding)
+        .padding(.leading, 12).padding(.trailing, RecommendationDismissButton.trailingInset)
+        .padding(.vertical, RecommendationDismissButton.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -118,6 +112,37 @@ public struct RecommendationCard: View {
         .hidden()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// カード右端の「閉じる（×）」。隣の「あそぶ」との押し間違いを防ぐため 44pt 四方を確保する（#1735）。
+///
+/// 枠と `contentShape` を Button の label の中に入れる（外へはみ出させると当たり判定が効かない）。
+/// 44pt 化で行が伸びるぶん、カードの縦余白を詰め、右余白も詰めて、カードの外寸と×の見た目の位置は変えない
+/// （`placeholderMinimumHeight` の契約）。
+struct RecommendationDismissButton: View {
+    static let side: CGFloat = BoardGameControlMetrics.minTapTarget
+    /// 行が 44pt になるぶん縦余白を詰める。アイコン行（`iconSide`）+ 余白 2 つの合計は元と同じ。
+    static let cardVerticalPadding: CGFloat =
+        RecommendationCard.verticalPadding - (side - RecommendationCard.iconSide) / 2
+    /// 元は 12pt 余白 + 24pt の×（中心まで 24pt）。44pt の×の中心を同じ位置に置く。
+    static let trailingInset: CGFloat = 12 + 12 - side / 2
+    /// 「あそぶ」側との間隔。元は 12pt + ×の余白 6pt。44pt の枠の中の余白（（44-12）/2）のぶんを引く。
+    /// 本体（`あそぶ` の行）の幅は元と同じなので、文字が新しく省略されることは無い。
+    static let leadingGap: CGFloat = 12 + 6 - (side - 12) / 2
+
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.inkSub)
+                .frame(minWidth: Self.side, minHeight: Self.side)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("閉じる")
     }
 }
 

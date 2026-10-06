@@ -50,6 +50,9 @@ public struct GameServices {
     public let reengagement: ReengagementReminderService?
     /// 挑戦回数が戻ったら知らせる通知（#1576）。テスト・プレビューでは nil（トグルを出さない）。
     public let returnReminder: ChallengeReturnReminderService?
+    /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
+    /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
+    public let homerunSound: HomerunSoundService
 
     public init(
         snapshots: SnapshotStore,
@@ -63,7 +66,8 @@ public struct GameServices {
         screenGeneration: GameScreenGeneration = GameScreenGeneration(),
         reminders: ResumeReminderService? = nil,
         reengagement: ReengagementReminderService? = nil,
-        returnReminder: ChallengeReturnReminderService? = nil
+        returnReminder: ChallengeReturnReminderService? = nil,
+        homerunSound: HomerunSoundService = NoopHomerunSoundService()
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -77,6 +81,7 @@ public struct GameServices {
         self.reminders = reminders
         self.reengagement = reengagement
         self.returnReminder = returnReminder
+        self.homerunSound = homerunSound
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -87,8 +92,10 @@ public struct GameServices {
     ///   - level: 難易度・段階（#500）。持たないゲームは省略し、`level` の鍵ごと送らない。
     ///   - mode: 遊び方の区分（#783・#820。値の全量は `AnalyticsMode`）。持たないゲームは省略。
     @MainActor
-    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
-        analytics?.startPlay(gameID: gameID, level: level, mode: mode)
+    public func gameDidStart(
+        gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil, credit: AnalyticsCredit? = nil
+    ) {
+        analytics?.startPlay(gameID: gameID, level: level, mode: mode, credit: credit)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
@@ -97,8 +104,10 @@ public struct GameServices {
     ///
     /// 前のプレイが未決着のまま捨てられていれば、始め直す前に `game_end`（`quit`）が出る（#500）。
     @MainActor
-    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
-        analytics?.restartPlay(gameID: gameID, level: level, mode: mode)
+    public func gameDidRestart(
+        gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil, credit: AnalyticsCredit? = nil
+    ) {
+        analytics?.restartPlay(gameID: gameID, level: level, mode: mode, credit: credit)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 

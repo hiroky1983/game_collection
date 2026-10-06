@@ -63,7 +63,7 @@ private final class Rig {
     private func sample() {
         // 空振りの演出（#1681）も振り抜きは同じ時刻から始まる。
         switch HomerunSwingPlan(model: model).batterMotion(at: now) {
-        case .swing(let start, _), .whiffGag(let start, _):
+        case .swing(let start, _), .whiffGag(let start, _), .tankobu(let start, _):
             if visualSwings.last != start { visualSwings.append(start) }
         case .stance, .load:
             break

@@ -38,6 +38,17 @@ public struct FreeCellView: View {
 
     public init(services: GameServices) {
         self.services = services
+        #if DEBUG
+        // 確認用（#1755）: クリアカードを遊ばずに出す。記録・中断データ・解析に触れない局で開く。
+        if ProcessInfo.processInfo.arguments.contains("-freeCellWon") {
+            _model = State(initialValue: FreeCellModel.clearPreviewForTesting(remainingMoves: 0))
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("-freeCellAlmostWon") {
+            _model = State(initialValue: FreeCellModel.clearPreviewForTesting(remainingMoves: 1))
+            return
+        }
+        #endif
         _model = State(initialValue: FreeCellModel(services: services))
     }
 
@@ -50,6 +61,9 @@ public struct FreeCellView: View {
             // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             board
                 .cardTable(topInset: CardTableStyle.cardTopInset)
+                // クリアは盤に重ねる共通のカードで示す（#1755）。
+                .gameClearCard(isPresented: model.phase == .won,
+                               details: ["\(model.moveCount)手 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
                 .padding(.horizontal, FreeCellMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea

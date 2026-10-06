@@ -44,6 +44,15 @@ public protocol GameCenterService {
         _ achievements: [GameCenterAchievement],
         completion: @escaping @MainActor (Bool) -> Void
     )
+
+    /// Game Center 側で解除済み（達成率 100）の実績 ID を読む（#1794。端末の記録と和集合で合わせる）。
+    /// 読めなかった（オフライン・失敗）ときは nil。呼び出し側はこれを待たずに進める（`Task` の中で呼ぶ）。
+    @MainActor func unlockedAchievementIDs() async -> Set<String>?
+}
+
+extension GameCenterService {
+    /// 読む手段を持たない実装（テスト・プレビュー）は「読めなかった」扱い。
+    @MainActor public func unlockedAchievementIDs() async -> Set<String>? { nil }
 }
 
 /// 何もしない実装。テスト・プレビュー・撮影モード用。
@@ -286,6 +295,33 @@ public enum GameCenterAchievements {
     /// 登録が必要な実績 ID の全量。
     public static let allIDs = [firstWin, wins10, wins50, playAll]
 
+    /// 柵越えおじさん（#1794）の実績 ID の全量。ゲームのフォルダはここを参照できない（`Core` が上流）ので文字列で持ち、
+    /// `HomerunAchievement.gameCenterID` との一致は `GameHomerunTests` が縛る。ゲーム別の実績なので、ハブの
+    /// 「記録」画面の道しるべ（`allIDs` と 1 対 1）には入れない。ハブに載せる版が決まったとき App Store Connect に登録する（会長操作）。
+    public static let homerunIDs = [
+        "asobiba.homerun.achievement.firsthomer",
+        "asobiba.homerun.achievement.outofpark",
+        "asobiba.homerun.achievement.polehit",
+        "asobiba.homerun.achievement.moon",
+        "asobiba.homerun.achievement.moonbroken",
+        "asobiba.homerun.achievement.alltenhomers",
+        "asobiba.homerun.achievement.justmeet",
+        "asobiba.homerun.achievement.whiffspin",
+        "asobiba.homerun.achievement.tankobu",
+        "asobiba.homerun.achievement.fartotal1000",
+        "asobiba.homerun.achievement.fartotal",
+        "asobiba.homerun.achievement.career3000",
+        "asobiba.homerun.achievement.career5000",
+        "asobiba.homerun.achievement.career8000",
+        "asobiba.homerun.achievement.career10000",
+        "asobiba.homerun.achievement.career50000",
+        "asobiba.homerun.achievement.career100000",
+        "asobiba.homerun.achievement.careerhomers10",
+        "asobiba.homerun.achievement.careerhomers30",
+        "asobiba.homerun.achievement.careerhomers50",
+        "asobiba.homerun.achievement.careerhomers100",
+    ]
+
     /// 現在の進捗から実績の達成率を組み立てる。**純粋関数**（保存も送信もしない）。
     ///
     /// - Parameters:
@@ -344,6 +380,22 @@ public final class GameCenterReporter {
         self.isAvailable = isAvailable
     }
 
+    /// Game Center が使える状態か（サインイン済みか）。実績一覧の注意文の出し分けに使う。
+    public var isSignedIn: Bool { isAvailable() }
+
+    /// 解除した実績をその場で送る（ゲーム別の実績・#1794）。未サインインなら何もしない。
+    /// 送信済みの控え・失敗時の巻き戻しは `gameDidFinish` の実績と同じ（`sendAchievements`）。
+    public func reportUnlocked(_ ids: [String]) {
+        guard isAvailable() else { return }
+        sendAchievements(ids.map { GameCenterAchievement(achievementID: $0, percentComplete: 100) })
+    }
+
+    /// Game Center 側の解除済みの実績 ID。未サインイン・読めなかったときは nil。
+    public func fetchUnlockedAchievementIDs() async -> Set<String>? {
+        guard isAvailable() else { return nil }
+        return await service.unlockedAchievementIDs()
+    }
+
     /// 決着したときに `GameServices.gameDidFinish` から呼ぶ唯一の入口。
     ///
     /// - Parameters:
@@ -365,8 +417,13 @@ public final class GameCenterReporter {
             totalWins: totalWins,
             playedGameCount: playedGameCount,
             registeredGameCount: allowedGameIDs.count
-        ).filter { $0.percentComplete > (reportedPercent[$0.achievementID] ?? 0) }
+        )
+        sendAchievements(updated)
+    }
 
+    /// 控えより進んだ進捗だけを送る。
+    private func sendAchievements(_ candidates: [GameCenterAchievement]) {
+        let updated = candidates.filter { $0.percentComplete > (reportedPercent[$0.achievementID] ?? 0) }
         guard !updated.isEmpty else { return }
 
         // 控えは送信「前」に進めておく（同じ決着の中で二重に送らないため）。ただし送信が

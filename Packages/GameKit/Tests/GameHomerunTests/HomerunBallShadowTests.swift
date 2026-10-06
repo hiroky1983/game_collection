@@ -65,7 +65,7 @@ struct HomerunBallShadowTests {
         #expect(Shadow.stretch(sinElevation: 0.01) == Shadow.maxStretch)
         #expect(Shadow.stretch(sinElevation: 0) == Shadow.maxStretch)
         // 前のカメラ（本塁から 28m・高さ 4.5m）から本塁の上の球: 見下ろす角 ≒ 9°（正弦 0.155）→ 約 3.2 倍。向きはカメラから影へ（−z）。
-        let front = HomerunAtBatLayout.CameraPreset.front.camera.position
+        let front = HomerunAtBatLayout.camera.position
         let s = Shadow.shape(ball: [0, 0.8, 0], ballRadius: r, camera: front)
         #expect(abs(s.stretch - Shadow.screenAspect / (4.4 / hypot(4.4, 28))) < 0.05)
         #expect(abs(s.yaw - .pi) < 1e-4)

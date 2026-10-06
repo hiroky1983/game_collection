@@ -62,7 +62,20 @@ private func skipPitch(_ model: HomerunModel) throws -> Date {
     model.advance(now: deadline)
     let close = try #require(model.resultUntil)
     model.advance(now: close)
+    // 最後の球なら、結果の演出（`.finale`）も閉じて結果画面へ。
+    if model.phase == .finale {
+        let end = try #require(model.finaleUntil)
+        model.advance(now: end)
+        return end
+    }
     return close
+}
+
+/// 結果を閉じ、最後の球なら結果の演出も閉じて結果画面へ進める。
+@MainActor
+private func closeResult(_ model: HomerunModel) throws {
+    model.advance(now: try #require(model.resultUntil))
+    if model.phase == .finale { model.advance(now: try #require(model.finaleUntil)) }
 }
 
 @Suite("柵越えおじさんの進行")
@@ -445,10 +458,10 @@ struct HomerunModelTests {
         model.start(now: Fixture.t0)
         model.atBatDidAppear(now: Fixture.t0)
         let hitAt = try arrival(model)
-        // 芯の基準点から 2pt 下（月まで飛ぶ 1pt・#1680 の外の柵越え）。
+        // 芯の基準点から 2pt 下（月まで飛ぶ 0.5pt・#1680 の外の柵越え）。
         let ball = try #require(try swing(model, dx: 0, dy: 6, offset: 0))
         #expect(ball.kind == .homer && !ball.isMoon)
-        #expect(model.resultUntil == hitAt.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind)))
+        #expect(model.resultUntil == hitAt.addingTimeInterval(HomerunModel.resultDuration(for: ball)))
         #expect(HomerunModel.resultDuration(for: .miss) < HomerunModel.resultDuration(for: .homer))
         let close = try #require(model.resultUntil)
         // 結果を見せているあいだに押してずらしておく。
@@ -520,7 +533,7 @@ struct HomerunModelTests {
         #expect(model.phase == .ballResult)
         #expect(HomerunStorage.loadRecords(f.defaults).challenges == 1)
         #expect(HomerunStorage.loadRecords(f.defaults).pitches == 10)
-        model.advance(now: try #require(model.resultUntil))
+        try closeResult(model)
         #expect(model.phase == .finished)
         #expect(HomerunStorage.loadRecords(f.defaults).challenges == 1, "終了で二重に取り込まない")
     }
@@ -604,36 +617,36 @@ struct HomerunModelTests {
         #expect(model.start(now: Fixture.t0.addingTimeInterval(5)), "続けて次の挑戦に立てる（回数が残っていれば）")
     }
 
+    // 鍵（`debugUnlimitedKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言なので、
+    // 参照するこのテストも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+    #if DEBUG
     @Test("動作確認用の回数無制限: 立っても回数が減らず、使い切りでも立てる。既定はオフ")
     func debugUnlimitedChallenges() throws {
         let f = Fixture()
         HomerunStorage.saveLedger(HomerunLedger(dayKey: Fixture.todayKey, used: 3), f.defaults)
         let model = f.model()
         #expect(!model.start(now: Fixture.t0), "既定（鍵なし）は出荷の挙動")
-        model.showsExhausted = false
         f.defaults.set(true, forKey: HomerunModel.debugUnlimitedKey)
         #expect(model.start(now: Fixture.t0))
-        #expect(model.ledger.remaining == 0 && !model.showsExhausted)
+        #expect(model.ledger.remaining == 0)
     }
+    #endif
 
-    @Test("回数が無ければ打席に立てず使い切りシートを出す。日付が進めば 0:00 で補充")
+    @Test("回数が無ければ打席に立てない。日付が進めば 0:00 で補充")
     func exhaustedThenNextDay() throws {
         let f = Fixture()
         HomerunStorage.saveLedger(HomerunLedger(dayKey: Fixture.todayKey, used: 3), f.defaults)
         let model = f.model()
         #expect(model.ledger.remaining == 0)
         #expect(!model.start(now: Fixture.t0))
-        #expect(model.showsExhausted)
         #expect(model.phase == .idle)
         #expect(model.ledger.used == 3, "失敗した開始で消費しない")
         #expect(model.challenge == nil)
 
-        model.showsExhausted = false
         let tomorrow = Fixture.t0.addingTimeInterval(24 * 3600)
         #expect(model.start(now: tomorrow))
         #expect(model.ledger.used == 1)
         #expect(model.ledger.dayKey == HomerunLedger.dayKey(for: tomorrow, calendar: Fixture.calendar))
-        #expect(!model.showsExhausted)
     }
 
     @Test("時計を戻しても補充されない")

@@ -81,7 +81,7 @@ extension HomerunToonModel {
 
 extension HomerunAtBatLayout {
     /// バッティングマシンはマウンドの上（投手板の 0.84m 本塁側・高さ 0.3m）に本塁を向けて置く（#1612 会長決裁: 置き場所 1）。
-    /// 前のカメラ（28m）では画角の下に外れて映らない（投手のときと同じ）。後ろのカメラでは画面の上の方に小さく映る。
+    /// 打席のカメラ（28m）では画角の下に外れて映らない（投手のときと同じ）。
     static let machine = Placement(position: [0, 0.3, 17.6], yaw: 0)
 
     /// マシンの局所座標の点を打席の世界座標（前のカメラの置き方・鏡映なし）へ置く。
@@ -198,17 +198,17 @@ final class HomerunMachineRig {
         typealias M = HomerunMachineMotion
         var wheels: [Entity] = []
         for c in M.wheelCenters {
-            let w = HomerunToonScene.entity(for: .machineWheel())
+            let w = HomerunAtBatAssets.machineWheel()
             w.position = c
             wheels.append(w)
         }
         self.wheels = wheels
-        lever = HomerunToonScene.entity(for: .machineLever())
+        lever = HomerunAtBatAssets.machineLever()
         lever.position = M.leverPivot
-        loadedBall = HomerunToonScene.entity(for: .machineBall())
-        hopperBall = HomerunToonScene.entity(for: .machineBall())
+        loadedBall = HomerunAtBatAssets.machineBall()
+        hopperBall = HomerunAtBatAssets.machineBall()
         hopperBall.position = M.hopper
-        entity.addChild(HomerunToonScene.entity(for: .machineBody()))
+        entity.addChild(HomerunAtBatAssets.machineBody())
         for e in wheels + [lever, loadedBall, hopperBall] { entity.addChild(e) }
         let p = HomerunAtBatLayout.machine
         entity.position = p.position

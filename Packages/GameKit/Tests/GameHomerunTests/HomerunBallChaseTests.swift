@@ -113,6 +113,7 @@ struct HomerunBallChaseTests {
             #expect(overFence.y >= Chase.fenceClearance - 1e-6, "柵の上 \(overFence.y)m で越えていない（\(ball.direction)°）")
             let screen = Chase.battersEyeZ / cos(ball.direction * .pi / 180)
             let hitsScreen = abs(screen * sin(ball.direction * .pi / 180)) < Chase.battersEyeHalfWidth && tr.rest.s < screen - 1
+            #expect(tr.hitsBattersEye == hitsScreen, "バックスクリーン直撃の印が道と食い違う（\(ball.direction)°）")
             if hitsScreen {
                 // バックスクリーン直撃: スクリーンの面で跳ね返り、足元に落ちる。
                 #expect(abs(tr.landing.s - (screen - Chase.ballRadius)) < 1e-6)
@@ -285,9 +286,11 @@ struct HomerunBallChaseTests {
             let first = try #require(plan.chaseFrame(at: contact.addingTimeInterval(Chase.cutDelay)))
             #expect(first == Chase.frame(tr, at: Chase.cutDelay))
             let card = try #require(plan.chaseCardAt)
-            #expect(abs(card.timeIntervalSince(contact) - (tr.duration + Chase.restHold)) < 1e-6)
+            // ジャストミート（#1775）はヒットストップのぶんカードが遅れる。
+            let held = HomerunJustMeet.applies(to: ball) ? HomerunJustMeet.extraDuration : 0
+            #expect(abs(card.timeIntervalSince(contact) - (tr.duration + Chase.restHold + held)) < 1e-6)
             // 次の球（`resultUntil`）までにカードを `cardHold` 秒以上見せる。
-            let resultEnd = release.addingTimeInterval(HomerunModel.resultDuration(for: ball.kind))
+            let resultEnd = release.addingTimeInterval(HomerunModel.resultDuration(for: ball))
             #expect(resultEnd.timeIntervalSince(card) >= Chase.cardHold - 1e-6, "\(ball.kind): カードが \(resultEnd.timeIntervalSince(card)) 秒しか出ない")
             // カードを出した後も止まった球を映し続ける。
             #expect(plan.chaseFrame(at: card.addingTimeInterval(1)) == Chase.frame(tr, at: tr.duration))

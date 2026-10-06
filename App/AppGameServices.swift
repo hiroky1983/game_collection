@@ -53,7 +53,7 @@ enum AppEnvironment {
         // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
         feedback: CompositeFeedbackService([
             GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
-            GatedFeedbackService(base: SoundFeedbackService()) { settings.soundEnabled },
+            GatedFeedbackService(base: sound) { settings.soundEnabled },
         ]),
         recommendations: recommendations,
         review: review,
@@ -62,8 +62,14 @@ enum AppEnvironment {
         gameCenter: gameCenter,
         reminders: reminders,
         reengagement: reengagement,
-        returnReminder: returnReminder
+        returnReminder: returnReminder,
+        // 柵越えおじさんの場面の音（打ち出し・カキーン・歓声等）。触覚とは対応しないので `feedback` とは別の入口で、
+        // 設定の「効果音」のオン / オフだけを共有する。音声セッションの扱いを 1 か所に保つため、実体は同じ `sound`。
+        homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled }
     )
+
+    /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
+    static let sound = SoundFeedbackService()
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
     /// 撮影モードと DEBUG ビルドでは予約しない（撮影・開発中の動作確認の端末に溜めない）。
@@ -80,6 +86,9 @@ enum AppEnvironment {
             return module.title
         }
     )
+
+    /// ホーム画面アイコン長押し（#1642）。項目の組み直しは `GameCollectionApp` がバックグラウンドへ入るたびに行う。
+    static let quickActions = QuickActionService()
 
     /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
     /// アプリがバックグラウンドに入るたびに対象を判定し直す（`GameCollectionApp` から呼ぶ）。
@@ -99,7 +108,7 @@ enum AppEnvironment {
         recordSummary: { gameID in playLog.summaryLine(gameID: gameID) }
     )
 
-    /// 挑戦回数が戻ったら知らせる通知（#1576）。使い切りシートのトグルを入れたときだけ 1 回予約する
+    /// 挑戦回数が戻ったら知らせる通知（#1576）。打席前（回数 0）のトグルを入れたときだけ 1 回予約する
     /// （自動では予約しない明示操作なので、#663・#1193 と違って撮影・DEBUG でも止めない）。
     /// 許可は #663・#1193 と同じ設定トグルに従う。
     static let returnReminder = ChallengeReturnReminderService(
@@ -261,11 +270,9 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
-        // 柵越えおじさん（企画倉庫・#1348）。v1.1.8 では非公開（会長指示 2026-10-02）。上の 6 本と同じ扱いで、
-        // 出荷する版が決まるまでハブには並べない。3D の打席・回数回復（広告/アンケート）・解析・Game Center への送信まで入っている。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す
-        // （`RecommendationPolicy` の "homerun" の行と、チャリンコおじさんの第3候補も戻す）。
-        // HomerunModule(),
+        // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告/アンケート）・
+        // 解析・Game Center への送信まで入っている。
+        HomerunModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

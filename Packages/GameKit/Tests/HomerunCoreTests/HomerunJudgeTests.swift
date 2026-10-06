@@ -362,3 +362,61 @@ struct HomerunJudgeTests {
         #expect(HomerunSector(direction: 21.1) == .right)
     }
 }
+
+@Suite("ジャストミートの判定（#1775）")
+struct HomerunJustMeetJudgeTests {
+    private func swing(t: Double = 0, dx: Double = 0, band: HomerunLaunch = .fly, dy: Double = 0) -> HomerunSwing {
+        HomerunSwing(timingOffset: t, cursorDX: dx, cursorDY: band.centerDY + dy)
+    }
+
+    @Test("ジャストの窓の中で芯の円の中に当たるとジャストミート。飛距離・種別は同じ式のまま")
+    func justInCore() {
+        for t in [-25.0, -10, 0, 10, 25] {
+            for band in [HomerunLaunch.grounder, .liner, .fly, .pop] {
+                let ball = HomerunJudge.judge(swing(t: t, band: band))
+                #expect(ball.isJustMeet, "\(t)ms・\(band)")
+            }
+        }
+        // 芯の円の縁（11pt）まで。
+        #expect(HomerunJudge.judge(swing(dx: HomerunJudge.coreRadius)).isJustMeet)
+        #expect(HomerunJudge.judge(swing(dy: HomerunJudge.coreRadius)).isJustMeet)
+    }
+
+    @Test("ナイス以下・芯の円の外・空振り・ファウルはジャストミートではない")
+    func notJust() {
+        #expect(!HomerunJudge.judge(swing(t: 26)).isJustMeet)
+        #expect(!HomerunJudge.judge(swing(t: -60)).isJustMeet)
+        #expect(!HomerunJudge.judge(swing(t: 100)).isJustMeet)
+        // 当たりにはなるが芯の円の外（当たり判定の半径の中）。
+        let edge = HomerunJudge.judge(swing(dx: HomerunJudge.coreRadius + 0.5))
+        #expect(edge.kind != .miss && !edge.isJustMeet)
+        // 空振り（ジャストでも照準が外れた）・見送り。
+        let aim = HomerunJudge.judge(swing(dx: 100))
+        #expect(aim.kind == .miss && aim.timing == .just && !aim.isJustMeet)
+        #expect(!HomerunJudge.judge(nil).isJustMeet)
+        // ファウル（方向が ±45° を越える・ポールの幅の外）。ジャストの窓の中では方向が 45° を越えない（35 + 15 × 25/110）ので、ファウルは必ずジャスト以外。
+        let foul = HomerunJudge.judge(swing(t: 110, dx: HomerunJudge.fullDeflection))
+        #expect(foul.kind == .foul && !foul.isJustMeet)
+    }
+
+    @Test("ミートの能力値で芯の円が広がれば、その分ジャストミートの範囲も広がる")
+    func meetWidensCore() {
+        let wide = HomerunAbilities(meet: 2)
+        let s = swing(dx: HomerunJudge.coreRadius + 5)
+        #expect(!HomerunJudge.judge(s).isJustMeet)
+        #expect(HomerunJudge.judge(s, abilities: wide).isJustMeet)
+    }
+
+    @Test("ポールに当たった柵越えでもジャストミートの印は残る。確認用の強制ポールも判定を引き継ぐ")
+    func poleKeepsMark() {
+        let forced = HomerunJudge.forcedPoleBall(swing())
+        #expect(forced.kind == .homer && forced.isJustMeet == HomerunJudge.judge(swing()).isJustMeet)
+        let pole = HomerunJudge.poleBall(direction: 45, distance: 120, timing: .just, launch: .fly, isJustMeet: true)
+        #expect(pole.isJustMeet)
+    }
+
+    @Test("月まで飛んだ打球（判定の外で作る）にはジャストミートの印を付けない")
+    func moonBallIsNotMarked() {
+        #expect(!HomerunJudge.moonBall(swing()).isJustMeet)
+    }
+}

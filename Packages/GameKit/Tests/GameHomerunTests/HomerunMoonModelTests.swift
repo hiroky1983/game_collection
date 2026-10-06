@@ -4,7 +4,7 @@ import simd
 import HomerunCore
 @testable import GameHomerun
 
-/// 月まで飛ぶ隠し演出（#1680）の進行（台帳の +2・記録・強制の起動引数）と見せ方（カメラ・夜空・月）。
+/// 月まで飛ぶ隠し演出（#1680）の進行（台帳の +1・記録・強制の起動引数）と見せ方（カメラ・夜空・月）。
 @Suite("柵越えおじさんの月まで飛ぶ隠し演出（画面の進行）")
 @MainActor
 struct HomerunMoonModelTests {
@@ -39,8 +39,8 @@ struct HomerunMoonModelTests {
 
     private let moonDY = HomerunLaunch.fly.centerDY
 
-    @Test("2 回目の月で挑戦が終わり、残りの球は没収・その時点で記録し、今日のプレイ回数が +2 されて保存される")
-    func secondMoonEndsChallengeAndGrantsTwo() throws {
+    @Test("2 回目の月で挑戦が終わり、残りの球は没収・その時点で記録し、今日のプレイ回数が +1 されて保存される")
+    func secondMoonEndsChallengeAndGrantsOne() throws {
         let f = Fixture()
         let model = f.model()
         #expect(model.start(now: Fixture.t0))
@@ -56,10 +56,10 @@ struct HomerunMoonModelTests {
         #expect(second?.moon == .broken)
         #expect(model.challenge?.isFinished == true)
         #expect(model.challenge?.results.count == 2)
-        // +2（当日分）。保存も済み。
+        // +1（当日分）。保存も済み。
         #expect(model.ledger.bonus == HomerunLedger.moonBonus)
-        #expect(model.ledger.remaining == 4)
-        #expect(HomerunStorage.loadLedger(f.defaults).remaining == 4)
+        #expect(model.ledger.remaining == 3)
+        #expect(HomerunStorage.loadLedger(f.defaults).remaining == 3)
         // 割れた時点で記録（180m × 2）。
         #expect(model.records.challenges == 1)
         #expect(model.records.bestTotalTenths == 3600)
@@ -70,6 +70,10 @@ struct HomerunMoonModelTests {
         // 月の演出のぶん結果を長く見せ、その後は 10 球の結果（Game over）へ。
         #expect(model.resultUntil == model.ballClock?.releasedAt?.addingTimeInterval(HomerunMoonShot.resultDuration(.broken)))
         model.advance(now: close2)
+        // 結果画面の前に結果の演出（月が割れた＝下敷きの絵）を挟む。
+        #expect(model.phase == .finale)
+        #expect(model.finale == .moonBroken)
+        model.advance(now: try #require(model.finaleUntil))
         #expect(model.phase == .finished)
         #expect(model.ledger.canStart)
     }
@@ -90,6 +94,9 @@ struct HomerunMoonModelTests {
         #expect(HomerunMoonShot.resultDuration(.broken) > HomerunMoonShot.resultDuration(.hit))
     }
 
+    // 鍵（`debugForceMoonKey`・`debugForcePoleKey`）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの
+    // 宣言なので、参照するこの 2 つのテストも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+    #if DEBUG
     @Test("確認用の鍵（DEBUG の -homerunForceMoon）が立っていれば、どこで振っても月になる")
     func forcedByDebugKey() throws {
         let f = Fixture()
@@ -126,6 +133,7 @@ struct HomerunMoonModelTests {
         plain.start(now: Fixture.t0)
         #expect(plain.challenge?.forcesPole == false)
     }
+    #endif
 
     // MARK: 見せ方
 

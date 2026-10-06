@@ -274,7 +274,7 @@ struct BoardGameChromeSourceTests {
         #expect(frame < shape)
         #expect(!symbol.contains { $0.contains(".padding(") }, "navSymbol の中で余白を詰めている")
 
-        let body = try Self.lines(ofFunction: "public var body: some View {", inside: "public struct ReviewNavBar")
+        let body = try Self.lines(ofFunction: "private var navRow: some View {", inside: "public struct ReviewNavBar")
         let inset = ".padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)"
         for name in ["backward.frame.fill", "forward.frame.fill"] {
             guard let button = body.firstIndex(where: { $0.contains("Self.navSymbol(\"\(name)\")") }) else {
@@ -291,14 +291,17 @@ struct BoardGameChromeSourceTests {
 @Suite("検討ナビの記号ボタン")
 struct ReviewNavBarTapTargetTests {
 
-    /// 44pt の枠を入れても、帯の高さは「もう一度」のカプセルで決まったまま（決着で盤が縮まない・#139）。
-    @Test("帯の高さは従来と同じ")
+    /// 44pt の枠を入れても、検討ナビの段の高さは従来の帯（カプセル入り）のまま。
+    /// 終局後は、その下に他の 8 本と同じ `GameReplayBar` が 4pt 空けて付く（#1689）。
+    @Test("帯の高さは従来の検討ナビ + 4pt + 「もう一回」の行")
     func barHeightMatchesLegacyBar() throws {
         let legacy = try Self.render(Self.legacyBar)
+        let replay = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}))
         let bar = try Self.render(
-            ReviewNavBar(ply: 3, total: 10, onBack: {}, onForward: {}, onNewGame: {})
+            ReviewNavBar(ply: 3, total: 10, onBack: {}, onForward: {}, onReplay: {}, onChangeSettings: {})
         )
-        #expect(bar.height == legacy.height)
+        #expect(bar.height <= legacy.height + 4 + replay.height)
+        #expect(legacy.height + 4 + replay.height - bar.height <= 2)
     }
 
     @Test("詰めたあとの ◀ ▶ はカプセルより低く、44pt の枠は残る")
@@ -404,5 +407,106 @@ extension BoardGameChromeSourceTests {
         #expect(!handDrawnBranch.contains { $0.hasPrefix(".buttonStyle(") })
         #expect(tapTargetBranch.contains(".buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.coral))"))
         #expect(!tapTargetBranch.contains { $0.hasPrefix(".background(") })
+    }
+}
+
+/// 終局後の「もう一回」「設定を変える」（#1689）。
+@MainActor
+@Suite("終局後の GameReplayBar")
+struct GameReplayBarTests {
+
+    /// 従来の「もう一度」1 つの行（五目並べ・オセロ・囲碁）。2 つ目のボタンが増えても高さは変わらない
+    /// （対局中の操作列と高さが揃う契約・#148。決着で盤が縮まない）。
+    @Test("高さは従来の「もう一度」1 つの行と同じ")
+    func heightMatchesLegacySingleButtonRow() throws {
+        let legacy = try Self.render(
+            HStack(spacing: 12) {
+                Spacer(minLength: 0)
+                Button {} label: {
+                    Label("もう一度", systemImage: "arrow.clockwise")
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.Fill.coral))
+                }
+                Spacer(minLength: 0)
+            }
+            .themeBody(14)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
+        )
+        let bar = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}))
+        // 記号（SF Symbols）を外したぶん最大 1px 低い。**高くはならない**（盤が縮まない）ことが契約。
+        #expect(bar.height <= legacy.height)
+        #expect(legacy.height - bar.height <= 1)
+    }
+
+    /// 記録ラベルを左に置く 2 本（マインスイーパー・ナンプレ）も、ラベルの有無で高さが変わらない。
+    @Test("左端に記録ラベルを置いても高さは変わらない")
+    func leadingLabelDoesNotChangeHeight() throws {
+        let plain = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}))
+        let withLabel = try Self.render(
+            GameReplayBar(onReplay: {}, onChangeSettings: {}) { Text("3連勝") }
+        )
+        #expect(withLabel.height == plain.height)
+    }
+
+    /// 幅が足りなくても折り返さず、高さを保ったまま短い文言に切り替わる（会長決裁 2026-10-02）。
+    @Test("狭い幅でも高さは変わらない（折り返さない）")
+    func narrowWidthKeepsHeight() throws {
+        let wide = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}))
+        let narrow = try Self.render(
+            GameReplayBar(onReplay: {}, onChangeSettings: {}).frame(width: 300)
+        )
+        #expect(narrow.height == wide.height)
+    }
+
+    @Test("文言は会長決裁どおり")
+    func wording() {
+        #expect(GameReplayBarText.replay == "同じ条件でもう一回")
+        #expect(GameReplayBarText.replayShort == "もう一回")
+        #expect(GameReplayBarText.changeSettings == "設定を変える")
+    }
+
+    /// 9 本が自作のボタンではなく共通部品に乗っていて、「同じ条件」の始め直しを持つこと。
+    /// 文言・見た目はこの部品が持つので、画面側に「もう一度」「次のゲーム」が残っていないこと。
+    @Test("9 本は GameReplayBar に乗り、終局後に自作の「もう一度」を持たない",
+          arguments: [
+            ("GameShogi", "ShogiView"), ("GameChess", "ChessView"), ("GameGomoku", "GomokuView"),
+            ("GameOthello", "OthelloView"), ("GameGo", "GoView"), ("GameMinesweeper", "MinesweeperView"),
+            ("GameSudoku", "SudokuView"), ("GameConcentration", "ConcentrationView"),
+            ("GameShiritori", "ShiritoriView"),
+          ])
+    func nineGamesUseTheSharedBar(module: String, view: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(module)/\(view).swift"))
+        let usesBar = source.contains("GameReplayBar(") || source.contains("ReviewNavBar(")
+        #expect(usesBar, "\(view) が共通の終局後ボタンを使っていない")
+        #expect(!source.contains("\"もう一度\""), "\(view) に自作の「もう一度」が残っている")
+        #expect(!source.contains("\"次のゲーム\""), "\(view) に自作の「次のゲーム」が残っている")
+        #expect(source.contains("onChangeSettings:"), "\(view) に「設定を変える」が無い")
+    }
+
+    private static func render(_ view: some View) throws -> CGImage {
+        let renderer = ImageRenderer(
+            content: view.buttonStyle(.borderless).environment(\.colorScheme, .light)
+        )
+        renderer.scale = 1
+        return try #require(renderer.cgImage)
+    }
+}
+
+/// 結果カード（#1753）の読み上げ文。勝敗・理由・決め手・補足を 1 回で読ませる。
+@Suite("BoardGameResultCard")
+struct BoardGameResultCardTests {
+    @Test("読み上げは勝敗・理由・決め手・補足の順で、感嘆符を含まない")
+    func accessibilityLabelOrder() {
+        let label = BoardGameResultCard.accessibilityLabel(
+            verdict: .win, reason: "詰み", decisiveMove: "▲５三金", details: ["黒 10 目"])
+        #expect(label == "あなたの勝ち。詰み。決め手 ▲５三金。黒 10 目")
+    }
+
+    @Test("決め手も補足も無ければ勝敗と理由だけ")
+    func accessibilityLabelMinimal() {
+        let label = BoardGameResultCard.accessibilityLabel(
+            verdict: .draw, reason: "千日手", decisiveMove: nil, details: [])
+        #expect(label == "引き分け。千日手")
     }
 }

@@ -48,4 +48,10 @@ struct AppGameCenterService: GameCenterService {
             }
         }
     }
+
+    /// 解除済み（達成率 100）の実績 ID を読む（#1794）。失敗（オフライン等）は nil で、呼び出し側は何もせず進む。
+    func unlockedAchievementIDs() async -> Set<String>? {
+        guard let achievements = try? await GKAchievement.loadAchievements() else { return nil }
+        return Set(achievements.filter(\.isCompleted).map(\.identifier))
+    }
 }

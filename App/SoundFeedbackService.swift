@@ -19,6 +19,11 @@ final class SoundFeedbackService: FeedbackService {
     private var throttle = SoundThrottle()
     /// 触覚に添える音なので控えめに。
     private let volume: Float = 0.6
+    /// 柵越えおじさんの場面の音（`HomerunSoundService`）。`players` とは別に持ち、**互いを止めない**
+    /// （カキーンの余韻が月への上昇音で切れない）。`SoundEffect` を鳴らしたときの「他の音を止める」も、こちらには掛けない。
+    private var homerunPlayers: [HomerunSound: AVAudioPlayer] = [:]
+    /// 合成を裏で進めている間か（`prepare` の二重起動を防ぐ）。
+    private var isPreparingHomerun = false
 
     func impact(_ style: FeedbackImpact) {
         play(SoundEffect(style))
@@ -80,6 +85,53 @@ final class SoundFeedbackService: FeedbackService {
         player.volume = volume
         player.prepareToPlay()
         players[effect] = player
+        return player
+    }
+}
+
+// MARK: - 柵越えおじさんの場面の音
+
+extension SoundFeedbackService: HomerunSoundService {
+    /// 重ねて鳴らす。同じ音が鳴っている途中なら頭から鳴らし直す（同じ音は重ねない）。他の音は止めない。
+    func play(_ sound: HomerunSound) {
+        configureSessionIfNeeded()
+        let player: AVAudioPlayer
+        if let cached = homerunPlayers[sound] {
+            player = cached
+        } else {
+            // 準備（`prepare`）が間に合わなかったときだけ、その場で合成する。
+            guard let made = makeHomerunPlayer(sound.wavData) else { return }
+            homerunPlayers[sound] = made
+            player = made
+        }
+        player.currentTime = 0
+        if !player.play() {
+            try? AVAudioSession.sharedInstance().setActive(true)
+            player.play()
+        }
+    }
+
+    /// 16 音の合成（場外の歓声など長いもので数十 ms）を画面を開いたときに裏で済ませ、初めて鳴らす瞬間に詰まらないようにする。
+    func prepare() {
+        guard !isPreparingHomerun, homerunPlayers.count < HomerunSound.allCases.count else { return }
+        isPreparingHomerun = true
+        Task.detached(priority: .utility) { [weak self] in
+            let data = HomerunSound.allCases.map { ($0, $0.wavData) }
+            await self?.installHomerunPlayers(data)
+        }
+    }
+
+    private func installHomerunPlayers(_ data: [(HomerunSound, Data)]) {
+        for (sound, wav) in data where homerunPlayers[sound] == nil {
+            homerunPlayers[sound] = makeHomerunPlayer(wav)
+        }
+        isPreparingHomerun = false
+    }
+
+    private func makeHomerunPlayer(_ wav: Data) -> AVAudioPlayer? {
+        guard let player = try? AVAudioPlayer(data: wav) else { return nil }
+        player.volume = volume
+        player.prepareToPlay()
         return player
     }
 }

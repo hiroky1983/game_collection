@@ -3,6 +3,7 @@ import Core
 
 public struct MinesweeperView: View {
     @State private var model: MinesweeperModel
+    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     @State private var showNewGame = true
     @State private var zoomMode = false
@@ -89,6 +90,16 @@ public struct MinesweeperView: View {
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
+        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
+        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
+        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                model.pauseTimer()
+            } else if !continueRescue.isWatching {
+                model.resumeTimerIfNeeded()
+            }
+        }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -250,26 +261,21 @@ public struct MinesweeperView: View {
 
     // MARK: - Result Controls
 
-    /// 記録と「次のゲーム」は 1 段にまとめ、プレイ中の `gameControls` と同じ高さに収める（#148）。
+    /// 記録と「もう一回」「設定を変える」は 1 段にまとめ、プレイ中の `gameControls` と同じ高さに収める（#148）。
     /// 3 段のままだと盤の下が伸び、決着の瞬間に盤が縮む。結果（クリア / ゲームオーバー）と
     /// 所要時間はステータスバーが出しているため、入れ替えても情報は失われない。
     private var resultControls: some View {
-        HStack(spacing: 12) {
+        GameReplayBar(
+            onReplay: {
+                // 同じ難易度（盤の大きさと地雷数）で始め直す。後始末は新規ゲームシートと同じ。
+                model.newGame(rows: model.rows, cols: model.cols, mines: model.totalMines)
+                zoomMode = false
+                showContinue = false
+            },
+            onChangeSettings: { showNewGame = true }
+        ) {
             RecordLabel(model.recordResult)
-                .lineLimit(1).minimumScaleFactor(0.7)
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Status Bar

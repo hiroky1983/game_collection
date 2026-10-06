@@ -13,6 +13,8 @@ public struct ChessView: View {
     @State private var hintRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（将棋 #200 と同じ）。
     @State private var pieceLayout: ChessPieceLayout
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
     /// 表示中の「チェック」の合図の契機 ID。nil なら出していない。
     @State private var checkBannerID: Int?
     /// 駒の意匠（#598）。見た目だけの設定なので局には焼き込まず、保存値をここで持って
@@ -44,6 +46,7 @@ public struct ChessView: View {
             CapturedAreaView(model: model, owner: model.humanSide.opponent, style: pieceStyle)
             board
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             CapturedAreaView(model: model, owner: model.humanSide, style: pieceStyle)
             controlArea
             HowToPlayHint(.chess, playLog: services.playLog)
@@ -52,6 +55,9 @@ public struct ChessView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "チェス", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -146,6 +152,8 @@ public struct ChessView: View {
                 Color.black.opacity(0.35).ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture { model.cancelPromotion() }
+                    // 暗幕のタップは VoiceOver の代わりに「やめる」ボタンがある。読ませる要素にしない（#1641）。
+                    .accessibilityHidden(true)
                 VStack(spacing: 18) {
                     Text("何に成りますか？")
                         .themeBody(18, weight: .bold)
@@ -162,7 +170,8 @@ public struct ChessView: View {
                                         style: pieceStyle
                                     )
                                     Text(type.japaneseName)
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
+                                        .lineLimit(1).minimumScaleFactor(0.5)
                                         .foregroundStyle(Theme.inkSub)
                                 }
                                 .frame(width: 66, height: 76)
@@ -179,6 +188,10 @@ public struct ChessView: View {
                 .padding(24)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
                 .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
+                // 札を盤の後ろ扱いにせず、VoiceOver を札の中だけで動かす（#1641。FreeCell の暗幕パネルと同じ形）。
+                .accessibilityElement(children: .contain)
+                .accessibilityAddTraits(.isModal)
+                .accessibilityLabel(ChessAccessibility.promotionPromptLabel)
                 .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
@@ -187,6 +200,10 @@ public struct ChessView: View {
         // 中身を足したときに静かに盤のタップを塞ぐ。
         .allowsHitTesting(model.pendingPromotion != nil)
         .gameAnimation(ChessMotion.promotionPrompt, value: model.pendingPromotion != nil)
+        // 札が出たことを告げ、VoiceOver のフォーカスを札へ移す（#1641）。
+        .onChange(of: model.pendingPromotion != nil) { _, shown in
+            if shown { AccessibilityNotification.ScreenChanged(nil).post() }
+        }
     }
 
     // MARK: - 盤
@@ -392,6 +409,19 @@ public struct ChessView: View {
         .accessibilityHidden(true)
     }
 
+    /// 終局の結果カード（#1753）。
+    @ViewBuilder
+    private var resultCard: some View {
+        if let verdict = model.endVerdict, let result = model.result {
+            BoardGameResultCard(
+                verdict: verdict,
+                reason: result.reasonText,
+                decisiveMove: model.decisiveMoveText,
+                record: model.recordResult
+            ) { resultCardClosed = true }
+        }
+    }
+
     // MARK: - ステータス
 
     private var statusBar: some View {
@@ -422,8 +452,9 @@ public struct ChessView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度）で中身が入れ替わるが、
-    /// どちらも**同じ余白の1行**なので高さは変わらない（#139 の「決着で盤が縮まない」契約）。
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一回）で中身が入れ替わるが、
+    /// 終局後は検討ナビの下に「もう一回」「設定を変える」の段が付くため、対局中より約 40pt 高くなる（#1689）。
+    /// 盤が高さで決まる端末（SE など）では決着の瞬間に盤がわずかに縮みうる（#139 の契約は緩めた）。
     private var controlArea: some View {
         ZStack(alignment: .top) {
             if model.gameOver {
@@ -443,14 +474,15 @@ public struct ChessView: View {
         )
     }
 
-    /// 検討ナビと「もう一度」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
+    /// 検討ナビと「もう一回」「設定を変える」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
     private var reviewControls: some View {
         ReviewNavBar(
             ply: model.reviewPly,
             total: model.moves.count,
             onBack: { model.reviewStepBack() },
             onForward: { model.reviewStepForward() },
-            onNewGame: { showNewGame = true }
+            onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
+            onChangeSettings: { showNewGame = true }
         )
     }
 }
@@ -535,7 +567,7 @@ struct ChessNewGameSheet: View {
         self.onCancel = onCancel
     }
 
-    /// 副題が「駒の働きも見る」と長めなので、1 行に縮めて収める。
+    /// 副題が「浅い読み・ミス少なめ」と長めなので、1 行に縮めて収める。
     private static let metrics = GameSetupChooser.Metrics(subtitleMinimumScale: 0.7)
 
     var body: some View {
@@ -556,8 +588,9 @@ struct ChessNewGameSheet: View {
             }
             GameSetupSection("CPUの強さ") {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleChessEngine.init(level:)`。
+                // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率（入門〜ふつうは 1 手先）。
                 CPUStrengthPicker(level: $level, details: [
-                    "手なりで指す", "駒の損得だけ", "駒の働きも見る", "定跡＋深読み",
+                    "浅い読み・ミス多め", "浅い読み・ミスあり", "浅い読み・ミス少なめ", "定跡＋深読み",
                 ])
             }
             GameSetupSection("駒の見た目") {

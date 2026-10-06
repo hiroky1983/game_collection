@@ -10,7 +10,6 @@ import XCTest
 ///   -destination "id=<UDID>" -only-testing:GameCollectionUITests/HomerunWhiffGagE2ETests
 /// ```
 /// 環境変数（`TEST_RUNNER_` を付けて xcodebuild に渡す）:
-/// - `E2E_CAMERA`: 打席のカメラ（`front` / `back`・既定 `front`）
 /// - `E2E_SHOT_DIR`: 結果のスクリーンショット（演出の後）を書き出すフォルダ
 @MainActor
 final class HomerunWhiffGagE2ETests: XCTestCase {
@@ -18,8 +17,7 @@ final class HomerunWhiffGagE2ETests: XCTestCase {
         let env = ProcessInfo.processInfo.environment
         HomerunE2ETests.skipQuiescenceWait()
         let app = XCUIApplication()
-        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode", "-homerunForceWhiffGag",
-                               "-homerun_atBatCamera_v1", env["E2E_CAMERA"] ?? "front"]
+        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode", "-homerunForceWhiffGag"]
         app.launch()
         let start = app.buttons["打席に立つ"]
         XCTAssertTrue(start.waitForExistence(timeout: 15), "打席に立つ が出ない")

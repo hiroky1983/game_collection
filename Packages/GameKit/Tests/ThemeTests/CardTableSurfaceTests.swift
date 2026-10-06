@@ -173,8 +173,9 @@ struct CardTableSurfaceTests {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
         #expect(!source.contains("@Environment(\\.cardTableInk)"),
                 "\(module) が画面の View 本体で cardTableInk を読んでいる（盤に付けた卓の値は届かない）")
-        // 卓の上に色の要る部品を持つゲームは、器を通して読む。
-        if module == "GameFreeCell" || module == "GameMahjongSolitaire" {
+        // 卓の上に色の要る部品を持つゲームは、器を通して読む。麻雀ソリティアのクリア表示は共通の
+        // `GameClearCard`（素材の上に Theme.ink で描く）になり、卓の色を読まなくなった（#1755）。
+        if module == "GameFreeCell" {
             #expect(source.contains("CardTableInkReader {"), "\(module) が CardTableInkReader を使っていない")
         }
     }

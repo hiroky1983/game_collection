@@ -366,3 +366,22 @@ struct GomokuAdHintTests {
         #expect(restored.needsAdForHint, "無料枠を使い切った状態のまま再開している")
     }
 }
+
+/// ヒントの考える時間は「むずかしい」+0.5 秒（#1739）。深さ・確率・定跡は「むずかしい」のまま。
+@Suite("五目並べ ヒントの考える時間（#1739）")
+struct GomokuHintThinkingTimeTests {
+    @Test("ヒントは むずかしい より 0.5 秒長く考える")
+    func hintThinksHalfSecondLongerThanHard() {
+        let hard = SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: nil)
+        let hint = SimpleGomokuEngine.hint(forbiddenMoves: false)
+        #expect(BoardHintBudget.extraThinkingTime == 0.5)
+        #expect(hint.timeLimit == hard.timeLimit + 0.5)
+        #expect(hint.depth == hard.depth)
+        #expect(hint.policy.isExact)
+    }
+
+    @Test("対局 CPU の むずかしい の考える時間は変えない")
+    func hardCPUKeepsItsTime() {
+        #expect(SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: nil).timeLimit == 2.0)
+    }
+}

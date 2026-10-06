@@ -401,9 +401,10 @@ public protocol BoardHintModel: AnyObject {
 
 // MARK: - 検討ナビ
 
-/// 終局後の検討ナビ（1手戻す / 手数 / 1手進める）と「もう一度」を 1 段にまとめた帯（#139・#530）。
+/// 終局後の検討ナビ（1手戻す / 手数 / 1手進める）と、その下の「もう一回」「設定を変える」（`GameReplayBar`・#1689）。
 ///
-/// 2 段のままだと盤の下が伸び、決着の瞬間に盤が縮む。対局中の操作列と同じ高さに収める。
+/// 以前は検討ナビと「もう一度」を 1 段にまとめていた（#139・#530）が、2 つ目のボタンが増えて 1 段には
+/// 収まらないため、他の 8 本と同じ `GameReplayBar` を検討ナビの下に置く 2 段にした。
 ///
 /// 記号だけのボタンは VoiceOver が SF Symbols の名前を推測して読み、何をするボタンかが
 /// 伝わらない。読み上げ文はこの共通実装に持たせる——**将棋側の実装にはこの指定が無く、
@@ -424,23 +425,34 @@ public struct ReviewNavBar: View {
     public let total: Int
     public let onBack: () -> Void
     public let onForward: () -> Void
-    public let onNewGame: () -> Void
+    /// 終局後の「同じ条件でもう一回」と「設定を変える」（`GameReplayBar`・#1689）。
+    public let onReplay: () -> Void
+    public let onChangeSettings: () -> Void
 
     public init(
         ply: Int,
         total: Int,
         onBack: @escaping () -> Void,
         onForward: @escaping () -> Void,
-        onNewGame: @escaping () -> Void
+        onReplay: @escaping () -> Void,
+        onChangeSettings: @escaping () -> Void
     ) {
         self.ply = ply
         self.total = total
         self.onBack = onBack
         self.onForward = onForward
-        self.onNewGame = onNewGame
+        self.onReplay = onReplay
+        self.onChangeSettings = onChangeSettings
     }
 
     public var body: some View {
+        VStack(spacing: 4) {
+            navRow
+            GameReplayBar(onReplay: onReplay, onChangeSettings: onChangeSettings)
+        }
+    }
+
+    private var navRow: some View {
         HStack(spacing: 12) {
             // 44pt の枠の透明な部分が記号と手数の間を空けるので、この 3 つは間隔 0 で並べる。
             HStack(spacing: 0) {
@@ -458,13 +470,6 @@ public struct ReviewNavBar: View {
             }
 
             Spacer(minLength: 8)
-
-            Button(action: onNewGame) {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)

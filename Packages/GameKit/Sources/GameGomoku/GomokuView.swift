@@ -11,6 +11,8 @@ public struct GomokuView: View {
     @State private var undoRescue = RewardedRescue()
     /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
     @State private var hintRescue = RewardedRescue()
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
 
     public init(services: GameServices) {
         self.services = services
@@ -25,11 +27,12 @@ public struct GomokuView: View {
         // 盤へ回している（#1663。SE では高さが盤の大きさを決めていた）。
         VStack(spacing: 6) {
             statusBar
-            // 盤は左右の余白（Theme.pad）の半分まで広げる。盤の外周の余白（`boardInset`）も
-            // 詰めてあるので、枠の外へはみ出すのは木地の縁だけ。
+            // 盤は左右の余白（Theme.pad）の半分まで広げる。盤の外周の余白（`GomokuBoardMetrics.inset`）も
+            // 印が欠けない最小限に詰めてあるので、枠の外へはみ出すのは木地の縁だけ。
             board
                 .padding(.horizontal, -Theme.pad / 2)
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             playersRow
             controlArea
             HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
@@ -39,6 +42,9 @@ public struct GomokuView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "五目並べ", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -111,32 +117,23 @@ public struct GomokuView: View {
         }
     }
 
-    /// 「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#148）。
+    /// 「もう一回」「設定を変える」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#148）。
     /// 記録ラベルは行を増やさずステータスバーへ同居させている。
     private var resultControls: some View {
-        HStack(spacing: 12) {
-            Spacer(minLength: 0)
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        GameReplayBar(
+            onReplay: {
+                model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                              forbiddenMoves: model.forbiddenMovesEnabled)
+            },
+            onChangeSettings: { showNewGame = true }
+        )
     }
 
     // MARK: - Board
 
-    /// 盤の木地の縁から端の線までの余白。石が端の線に乗っても欠けない最小限（石の半径は 1 マスの約 0.45 = 24pt 前後で約 11pt）。
-    private static let boardInset: CGFloat = 12
-
     private var board: some View {
         GeometryReader { geo in
-            let pad = Self.boardInset
+            let pad = GomokuBoardMetrics.inset(forWidth: geo.size.width)
             let inner = geo.size.width - pad * 2
             let spacing = inner / CGFloat(gomokuBoardSize - 1)
 
@@ -222,7 +219,7 @@ public struct GomokuView: View {
     private var forbiddenNotice: some View {
         if case .forbidden(let reason) = model.lastRejection {
             Text(GomokuAccessibility.forbiddenAnnouncement(reason: reason))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(Theme.Fill.coral))
@@ -293,14 +290,28 @@ public struct GomokuView: View {
                 .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                 .frame(width: 18, height: 18)
             Text(isYou ? "あなた" : "CPU")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
             Text(stone == .black ? "黒・先手" : "白・後手")
-                .font(.system(size: 13, design: .rounded))
+                .themeCaption(13, weight: .regular, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
+    }
+
+    /// 終局の結果カード（#1753）。五連の線が残っていれば五連、無ければ投了。
+    @ViewBuilder
+    private var resultCard: some View {
+        if model.gameOver {
+            let verdict: BoardGameResultCard.Verdict = model.isDraw ? .draw
+                : (model.winner == model.humanSide ? .win : .loss)
+            BoardGameResultCard(
+                verdict: verdict,
+                reason: model.isDraw ? "盤が埋まった" : (model.winningLine != nil ? "五連" : "投了"),
+                record: model.recordResult
+            ) { resultCardClosed = true }
+        }
     }
 
     // MARK: - Status Bar
@@ -472,6 +483,29 @@ private struct GomokuBoardCanvas: View, Animatable {
                 }
             }
         }
+    }
+}
+
+// MARK: - 盤の寸法
+
+/// 盤の外周の余白（木地の縁から端の線まで）の求め方（#1706）。View の `static` は MainActor 隔離になるため、別の enum に置く。
+///
+/// 余白が狭いと、盤の端の交点に置いた石につく印（勝ち筋のリング・直前手のリング・石の落ち影）が
+/// `Canvas` の描画範囲の外へ出て欠ける。印のはみ出しは石の半径（1 マスの 0.46 倍）に比例するので、
+/// 余白も盤の幅に合わせて決める（幅を固定の余白で割ると、広い端末ほど端の印が切れる）。
+enum GomokuBoardMetrics {
+    /// 石の半径が 1 マスに占める割合（`GomokuBoardCanvas` の石・`GomokuWinLineCanvas` のリングと揃える）。
+    static let stoneRadiusRatio: CGFloat = 0.46
+    /// 石の外周から印の外縁までの最大のはみ出し。勝ち筋のリング（半径 +3・線幅 3 の外半分 1.5）が最大。
+    static let markOverhang: CGFloat = 4.5
+    /// 外縁と描画範囲の端のあいだに残す余裕。
+    static let margin: CGFloat = 1
+
+    /// 盤の幅 `width` に対する余白。`inset = stoneRadiusRatio * (width - 2 * inset) / (gomokuBoardSize - 1) + markOverhang + margin` を解いたもの。
+    static func inset(forWidth width: CGFloat) -> CGFloat {
+        let divisions = CGFloat(gomokuBoardSize - 1)
+        let k = stoneRadiusRatio / divisions
+        return (k * width + markOverhang + margin) / (1 + 2 * k)
     }
 }
 

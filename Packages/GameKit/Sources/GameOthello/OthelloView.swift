@@ -246,46 +246,61 @@ public struct OthelloView: View {
         ZStack {
             Color.black.opacity(0.45)
             VStack(spacing: 12) {
-                if let w = model.winner {
-                    let isWin = w == model.humanSide
-                    Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
-                    Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
-                        .themeBody(24, weight: .bold)
-                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
-                } else {
-                    Image(systemName: "equal.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(Theme.inkSub)
-                    Text("引き分け")
-                        .themeBody(24, weight: .bold)
-                        .foregroundStyle(Theme.inkSub)
+                // 記号・勝敗文・スコアは 1 回で読ませる（RecordLabel は共有ボタンを持つので外に置く・#1716）
+                VStack(spacing: 12) {
+                    if let w = model.winner {
+                        let isWin = w == model.humanSide
+                        Image(systemName: isWin ? "trophy.fill" : "flag.fill")
+                            .font(.system(size: 40))
+                            .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                        Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
+                            .themeBody(24, weight: .bold)
+                            .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                    } else {
+                        Image(systemName: "equal.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundStyle(Theme.inkSub)
+                        Text("引き分け")
+                            .themeBody(24, weight: .bold)
+                            .foregroundStyle(Theme.inkSub)
+                    }
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color(hex: 0x1A1A1A))
+                            .frame(width: 22, height: 22)
+                        Text("\(model.blackScore)")
+                            .themeBody(30, weight: .black)
+                            .foregroundStyle(Theme.ink)
+                        Text("–")
+                            .themeBody(22, weight: .semibold)
+                            .foregroundStyle(Theme.inkSub)
+                        Text("\(model.whiteScore)")
+                            .themeBody(30, weight: .black)
+                            .foregroundStyle(Theme.ink)
+                        Circle()
+                            .fill(Color(hex: 0xF0ECD8))
+                            .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
+                            .frame(width: 22, height: 22)
+                    }
                 }
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(Color(hex: 0x1A1A1A))
-                        .frame(width: 22, height: 22)
-                    Text("\(model.blackScore)")
-                        .themeBody(30, weight: .black)
-                        .foregroundStyle(Theme.ink)
-                    Text("–")
-                        .themeBody(22, weight: .semibold)
-                        .foregroundStyle(Theme.inkSub)
-                    Text("\(model.whiteScore)")
-                        .themeBody(30, weight: .black)
-                        .foregroundStyle(Theme.ink)
-                    Circle()
-                        .fill(Color(hex: 0xF0ECD8))
-                        .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
-                        .frame(width: 22, height: 22)
-                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(resultAccessibilityLabel)
                 RecordLabel(model.recordResult)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+    }
+
+    private var resultAccessibilityLabel: String {
+        let verdict: String
+        if let w = model.winner {
+            verdict = w == model.humanSide ? "あなたの勝ち" : "CPUの勝ち"
+        } else {
+            verdict = "引き分け"
+        }
+        return "\(verdict) 黒 \(model.blackScore) 対 白 \(model.whiteScore)"
     }
 
     // MARK: - 盤の下の操作エリア
@@ -310,22 +325,13 @@ public struct OthelloView: View {
         }
     }
 
-    /// 「もう一度」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
+    /// 「もう一回」「設定を変える」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
     /// 全幅の大ボタンのままだと盤の下が伸び、決着の瞬間に盤が縮む。
     private var newGameButton: some View {
-        HStack(spacing: 12) {
-            Spacer(minLength: 0)
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer(minLength: 0)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+        GameReplayBar(
+            onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
+            onChangeSettings: { showNewGame = true }
+        )
     }
 }
 

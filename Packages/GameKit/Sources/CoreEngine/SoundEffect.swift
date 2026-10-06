@@ -169,7 +169,7 @@ public enum ToneGenerator {
         return riff(samples: samples, sampleRate: Int(sampleRate))
     }
 
-    private static func riff(samples: [Int16], sampleRate: Int) -> Data {
+    static func riff(samples: [Int16], sampleRate: Int) -> Data {
         let channels = 1
         let bitsPerSample = 16
         let blockAlign = channels * bitsPerSample / 8

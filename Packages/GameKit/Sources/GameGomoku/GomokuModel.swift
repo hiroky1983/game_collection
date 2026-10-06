@@ -357,7 +357,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 五目並べの level 0（弱）は探索せず確率で見逃すので、合わせると最善手にならない（#665）。
-                await SimpleGomokuEngine(level: BoardHintBudget.engineLevel, forbiddenMoves: renju)
+                await SimpleGomokuEngine.hint(forbiddenMoves: renju)
                     .bestMove(board: b, stone: stone)
             }.value
         } commit: { move in
@@ -393,7 +393,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let stone = currentStone
             let renju = forbiddenMovesEnabled
             return await Task.detached(priority: .userInitiated) {
-                await SimpleGomokuEngine(level: BoardHintBudget.engineLevel, forbiddenMoves: renju)
+                await SimpleGomokuEngine.hint(forbiddenMoves: renju)
                     .bestMove(board: b, stone: stone)
             }.value
         } commit: { move in

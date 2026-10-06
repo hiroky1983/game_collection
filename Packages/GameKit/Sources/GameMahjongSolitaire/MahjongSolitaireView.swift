@@ -29,6 +29,7 @@ private struct HintAlerts: ViewModifier {
 
 public struct MahjongSolitaireView: View {
     @State private var model: MahjongSolitaireModel
+    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     /// 盤面全体を 1 画面に収める表示にしているか。
     ///
@@ -180,6 +181,16 @@ public struct MahjongSolitaireView: View {
         }
         // 画面を離れたら計時を止める（#1369）。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
+        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
+        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
+        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                model.pauseTimer()
+            } else if !showSetup && !isWatchingRewardAd {
+                model.resumeTimerIfNeeded()
+            }
+        }
         // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
         .pausesTimerWhileWatching([shuffleRescue, hintRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
@@ -286,23 +297,13 @@ public struct MahjongSolitaireView: View {
     private var board: some View {
         Group {
             if showsClearDisplay {
-                // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
-                // 文字色は卓の上（白系）と地の上（`Theme.ink` 系）で `cardTableInk` から取る（#1501）。
-                // 画面の View 本体で `@Environment` を読んでも盤に付けた卓の値は届かないので、盤の中で読む。
-                CardTableInkReader { ink in
-                    VStack(spacing: 12) {
-                        Text("🎉").font(.system(size: 64))
-                        Text("全部取り切った！")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(ink.label)
-                        // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
-                        // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
-                        Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(ink.labelSub)
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                }
+                // 取り切った直後は盤面が空になるので、代わりに共通のクリアカードを置く（#1755）。
+                // 補助の利用実績は **0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
+                // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
+                GameClearCard(title: "全部取り切った！", details: [
+                    "タイム \(RecordFormat.time(model.elapsedSeconds))",
+                    "ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回",
+                ])
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 GeometryReader { geo in

@@ -37,9 +37,17 @@ public struct BlackjackView: View {
                 preDealTable
                 Spacer(minLength: 0)
             } else {
-                dealerArea
-                Spacer(minLength: 4)
-                playerArea
+                // ディーラーとあなたの境目（= 卓の中央）に勝敗を重ねる（#1754）。画面全体の中央に
+                // 重ねるとあなたの手札を覆ってしまうので、この 2 つだけを囲んで中央を取る。
+                // 手ごとのバッジ（`outcomeBadge`）は残す——スプリットでは手ごとの勝敗が行に要るし、
+                // バナーが消えたあとも結果が読める。勝敗の読み上げ（#1574）もこの重ねが担う
+                // （出る瞬間に、理由と増減まで添えて読む）。
+                VStack(spacing: 10) {
+                    dealerArea
+                    Spacer(minLength: 4)
+                    playerArea
+                }
+                .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
             }
             HowToPlayHint(.blackjack, playLog: services.playLog)
             if model.sessionOver {
@@ -55,14 +63,6 @@ public struct BlackjackView: View {
                      services: services, gameID: model.gameID)
         .gameChrome(title: "ブラックジャック", review: services.review)
         .howToPlay(.blackjack)
-        // 勝敗が決まったら読み上げる（#1574）。バッジは見た目だけなので VoiceOver では気づけない。
-        .onChange(of: model.outcome) {
-            if let outcome = model.outcome {
-                AccessibilityNotification.Announcement(
-                    BlackjackAccessibility.outcomeAnnouncement(
-                        outcome: outcome, isSplit: model.hands.count > 1)).post()
-            }
-        }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。
@@ -70,6 +70,12 @@ public struct BlackjackView: View {
             // タップ起点の操作をここから起こす（#437 の `-simulateChord`・#438 の
             // `-simulate2048Move` と同型。撮った画がコードの実行結果であることを担保する）。
             let args = ProcessInfo.processInfo.arguments
+            // 撮影用（#1754）: 100枚を賭けて、そのままスタンドして決着の画を出す。配りは乱数なので
+            // 勝敗は撮るたびに変わる（実際のモデルの経路を通る）。
+            if args.contains("-blackjackAutoPlay"), model.phase == .betting {
+                model.placeBet(100)
+                if model.phase == .playerTurn { model.stand() }
+            }
             if let i = args.firstIndex(of: "-simulateBlackjackAction"), i + 1 < args.count {
                 switch args[i + 1] {
                 case "double": model.doubleDown()
@@ -471,6 +477,7 @@ public struct BlackjackView: View {
                 Image(systemName: "xmark.octagon.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(Theme.coral)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
                     // 「なくなりました」ではなく「足りません」と言う。

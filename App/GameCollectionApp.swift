@@ -78,6 +78,13 @@ struct GameCollectionApp: App {
                     games: AppEnvironment.reengagementCandidateInputs(),
                     availableIDs: AppEnvironment.settings.visibleModules(from: AppEnvironment.registry).map(\.id)
                 )
+                // ホーム画面アイコン長押し（#1642）の項目も、アプリを離れる時点の状態で組み直す。
+                AppEnvironment.quickActions.refresh(
+                    registry: AppEnvironment.registry,
+                    settings: AppEnvironment.settings,
+                    snapshots: AppEnvironment.services.snapshots,
+                    playLog: AppEnvironment.playLog
+                )
             }
         }
     }
