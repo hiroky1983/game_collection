@@ -65,7 +65,8 @@ enum AppEnvironment {
         returnReminder: returnReminder,
         // 柵越えおじさんの場面の音（打ち出し・カキーン・歓声等）。触覚とは対応しないので `feedback` とは別の入口で、
         // 設定の「効果音」のオン / オフだけを共有する。音声セッションの扱いを 1 か所に保つため、実体は同じ `sound`。
-        homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled }
+        homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled },
+        isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) }
     )
 
     /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
