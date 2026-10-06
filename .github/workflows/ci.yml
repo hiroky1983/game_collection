@@ -13,7 +13,51 @@ permissions:
   contents: read
 
 jobs:
+  # アプリに関係する変更があるかの判定（会長指示 2026-09-27「Swift が無ければ CI のテストを回さない」）。
+  # test / build は main の必須チェックなので、ワークフローの `paths` で起動ごと止めると結果が報告されず
+  # PR が永久にマージできなくなる。起動はさせ、ジョブを if でスキップする（スキップは合格として数えられる）。
+  # 「Swift が無ければ」ではなく逆向きに、変更が全部 docs/・Scripts/・web/・.github/（ci.yml を除く）・*.md に収まる PR だけを
+  # スキップする。project.yml・Package.resolved・xcassets・Info.plist・xcstrings など Swift 以外でも
+  # アプリを壊す変更を見逃さないため。push（main・release）は常に全部回す。
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      app: ${{ steps.detect.outputs.app }}
+    steps:
+      - id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # 一覧が取れなければ安全側（全部回す）に倒す
+          if ! files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename'); then
+            echo "app=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          printf '%s\n' "$files"
+          # classify:begin（Scripts/tests/test-ci-detect-app-changes.sh がこの範囲を取り出して検証する）
+          # .github/ は運用系だが、ci.yml 自身は CI の壊れを見逃さないため必ず全部回す
+          others=$(printf '%s\n' "$files" | grep -v -E '^(docs/|Scripts/|web/)|\.md$|^\.github/' | grep -v '^$' || true)
+          if printf '%s\n' "$files" | grep -q -x -F '.github/workflows/ci.yml'; then
+            others=".github/workflows/ci.yml"
+          fi
+          # classify:end
+          if [ -n "$others" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "アプリに関係する変更が無いため test / build をスキップする"
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     # パブリックリポジトリのため GitHub ホステッド macOS ランナーは無料
     runs-on: macos-latest
     timeout-minutes: 40
@@ -32,6 +76,8 @@ jobs:
         run: swift test --package-path Packages/GameKit --skip '^GameShogiTests\.SelfPlayTests/'
 
   build:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: macos-latest
     timeout-minutes: 40
     steps:

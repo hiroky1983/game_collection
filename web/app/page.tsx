@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { games } from "./lib/games";
 import {
-  APP_SIZE_MB,
   APP_STORE_URL,
   MIN_IOS_VERSION,
   SITE_NAME,
   SITE_URL,
 } from "./lib/site";
+import GameMark from "./components/GameMark";
 
 /// 収録本数とゲーム名の列挙は `games` から導出する（本数をベタ書きすると追加のたびに直し漏れる）。
 /// 「収録」と言えるのは配信済み（`comingSoon` 無し）のものだけ。配信予定のゲームは別枠で見せる
@@ -19,7 +19,7 @@ const gameNames = releasedGames.map((g) => g.name).join("・");
 const points = [
   { icon: "✈️", title: "オフラインで遊べる", desc: `通信不要。電波の無い場所でも${gameCount}本すべて動きます` },
   { icon: "🔓", title: "登録もログインも不要", desc: "入れてすぐ遊べます。アカウント作成はありません" },
-  { icon: "🪶", title: `約${APP_SIZE_MB}と軽い`, desc: "ダウンロードもインストールもすぐ終わります" },
+  { icon: "🧺", title: `${gameCount}本がアプリ1つに`, desc: "ゲームごとに探して入れる手間はありません。ホーム画面もアプリ1つぶんです" },
   {
     icon: "🤫",
     title: "広告は控えめ",
@@ -64,7 +64,7 @@ export default function Home() {
           <strong className="font-semibold text-gray-700 dark:text-gray-200">
             すべてオフラインで遊べて、通信も会員登録も不要
           </strong>
-          。広告は控えめ、アプリは約{APP_SIZE_MB}と軽量です。
+          。広告は控えめです。
         </p>
         <a
           href={APP_STORE_URL}
@@ -97,7 +97,7 @@ export default function Home() {
             href={`/games/${g.slug}`}
             className="bg-white dark:bg-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
           >
-            <span className="text-3xl">{g.emoji}</span>
+            <GameMark game={g} scale={3} className="text-3xl" />
             <div>
               <p className="font-bold text-gray-900 dark:text-white">{g.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{g.tagline}</p>
@@ -119,7 +119,7 @@ export default function Home() {
                 href={`/games/${g.slug}`}
                 className="bg-white dark:bg-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
               >
-                <span className="text-3xl">{g.emoji}</span>
+                <GameMark game={g} scale={3} className="text-3xl" />
                 <div>
                   <p className="font-bold text-gray-900 dark:text-white">
                     {g.name}

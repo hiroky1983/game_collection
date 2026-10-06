@@ -9,6 +9,10 @@ import Foundation
 //                                        深さ（読む深さの上限）は整数か shipped。省くと出荷値（#1566）
 //                                        段階は novice / easy / normal / hard
 //   random <段階> <確率|shipped> <局面数>  合法手（空いている交点）から一様乱択する相手と先後入れ替えで局面数×2 局
+//   hint <局面数> [<追加秒>]              毎手ヒントどおりに指す側 対 むずかしい（#1491）。先後入れ替えで局面数×2 局。
+//                                        ヒントはアプリと同じ `BoardHintBudget.engineLevel`（= むずかしい）の読みで、
+//                                        考える時間だけ「むずかしい + 追加秒」（既定 0.5）にする。ヒントは対局者の段階に依存しない
+//   hinttiming [positions] [<追加秒>]     ヒントの 1 手の時間（実時間・上限 むずかしい + 追加秒）: 平均・最大・上限で打ち切られた割合
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: NPS（match / random で使う 1 秒あたりの局面数）・CONCURRENCY（既定 4）・
 // FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）。
@@ -105,6 +109,39 @@ struct Bench {
                     print("TIMING \(s.label)\(slipping ? "（外す手番）" : "") 上限 \(limit)s: 実時間 平均 \(f(wall.reduce(0, +) / Double(wall.count)))s 最大 \(f(wall.max()!))s / CPU 時間 平均 \(f(cpu.reduce(0, +) / Double(cpu.count)))s 最大 \(f(cpu.max()!))s / 上限で打ち切り \(cut)/\(wall.count)（\(cut * 100 / wall.count)%）")
                 }
             }
+        case "hinttiming":
+            let n = args.count > 2 ? Int(args[2]) ?? 40 : 40
+            let extra = args.count > 3 ? Double(args[3]) ?? 0.5 : 0.5
+            let limit = SimpleGomokuEngine(level: CPUStrength.hard.rawValue).timeLimit + extra
+            let positions = await samplePositions(count: n)
+            var wall: [Double] = []
+            var depths: [Int] = []
+            for (i, (board, stone)) in positions.enumerated() {
+                let e = SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: UInt64(i + 1), timeLimit: limit)
+                let t = Date()
+                _ = await e.bestMove(board: board, stone: stone)
+                wall.append(Date().timeIntervalSince(t))
+                depths.append(SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: UInt64(i + 1), timeLimit: limit)
+                    .analyze(board: board, stone: stone).depth)
+            }
+            depths.sort()
+            let cut = wall.filter { $0 >= limit * 0.95 }.count
+            print("HINTTIMING 上限 \(limit)s: 実時間 平均 \(f(wall.reduce(0, +) / Double(wall.count)))s 最大 \(f(wall.max()!))s / 上限で打ち切り \(cut)/\(wall.count)（\(cut * 100 / wall.count)%） / 読み切った深さ 中央値 \(depths[depths.count / 2]) 最大 \(depths.last!)")
+        case "hint":
+            guard let nps = Double(env["NPS"] ?? "") else { print("NPS を渡してください"); return }
+            let conc = Int(env["CONCURRENCY"] ?? "") ?? 4
+            let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
+            let openings = args.count > 2 ? Int(args[2]) ?? 4 : 4
+            let extra = args.count > 3 ? Double(args[3]) ?? 0.5 : 0.5
+            let hardTime = SimpleGomokuEngine(level: CPUStrength.hard.rawValue).timeLimit
+            let t0 = Date()
+            // ヒント側: アプリのヒントと同じ設定（level = むずかしい・確率 100%・深さ上限なし）で、読む局面数だけ (むずかしい + 追加秒) × NPS。
+            let t = await CPUBenchLadder.run(
+                upper: { SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: $0, timeLimit: .infinity,
+                                            nodeLimit: Int((hardTime + extra) * nps)) },
+                lower: { CPUBenchLadder.engine(.hard, nodesPerSecond: nps, seed: $0) },
+                openings: openings, concurrency: conc, firstOpening: first)
+            print("HINT ヒントどおり(むずかしい+\(extra)s) 対 むずかしい NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 ヒント側の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 勝率 \(String(format: "%.1f", t.upperScore * 100))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
         case "match", "random":
             guard let nps = Double(env["NPS"] ?? "") else { print("NPS を渡してください"); return }
             let conc = Int(env["CONCURRENCY"] ?? "") ?? 4

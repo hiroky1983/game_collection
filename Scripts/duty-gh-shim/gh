@@ -95,6 +95,7 @@ fi
 # サブコマンドも同じく表と照合して探す（フラグとその値を読み飛ばすため）。
 # 特定できなければ**断る**。素通しに倒すと、上の 1. と同じ抜け道が subcommand 側に残る
 SUB=""
+SUB_IDX=-1
 SUBS=""
 case "$CMD" in
   issue) SUBS="$ISSUE_SUBS" ;;
@@ -107,10 +108,53 @@ if [ -n "$SUBS" ]; then
       -*) continue ;;
     esac
     case "$SUBS" in
-      *" ${ARGS[$_i]} "*) SUB="${ARGS[$_i]}"; break ;;
+      *" ${ARGS[$_i]} "*) SUB="${ARGS[$_i]}"; SUB_IDX=$_i; break ;;
     esac
   done
   [ -n "$SUB" ] || die "$CMD のサブコマンドを特定できないため実行しません（入力フィルタを適用できないため）"
+fi
+
+# ---- マージ保留（ai:hold）の機械的なガード（Issue #1797/#1798 の事故・2026-10-04） ---------
+# 社長・会長が PR に「マージ保留」とコメントし Issue の ai:approved を外しても、当番がそれに
+# 気づかず（プロンプトの遵守に依存していた）17分後にマージした実害があった。プロンプトへの
+# 記述だけでは #164 と同じ理由（AI の遵守に依存し保証にならない）で不十分なため、`gh pr merge`
+# だけはここで PATH 差し替え経由の機械的なゲートを掛ける。判定は **`ai:hold` ラベルの有無**
+# という曖昧さの無い信号だけに絞る（ai:approved の剥がし・コメントでの保留表明は文脈判断が
+# 要るため、ここでは弾かずプロンプト側の手順に委ねる。Scripts/ai-duty-prompt.md 参照）。
+#   - PR 自身に ai:hold が付いていれば弾く
+#   - PR 本文の先頭に必ず書かれる `Closes #<Issue番号>`（docs/ai-devops.md の規約）を読み、
+#     紐づく Issue に ai:hold が付いていれば弾く（GitHub の closingIssuesReferences は
+#     release ブランチ向け PR では既定ブランチでないため埋まらないので使えない。本文の
+#     表記を直接読む）
+#   - 確認そのものが失敗した（gh/jq エラー）場合も fail closed で弾く。安全側に倒す
+if [ "$CMD" = "pr" ] && [ "$SUB" = "merge" ]; then
+  MERGE_TARGET=""
+  for ((_i = SUB_IDX + 1; _i < ${#ARGS[@]}; _i++)); do
+    case "${ARGS[$_i]}" in
+      -*) continue ;;
+    esac
+    MERGE_TARGET="${ARGS[$_i]}"
+    break
+  done
+  MERGE_VIEW_ARGS=(pr view)
+  [ -n "$MERGE_TARGET" ] && MERGE_VIEW_ARGS+=("$MERGE_TARGET")
+  MERGE_VIEW_ARGS+=(--json number,labels,body)
+  MERGE_PR_INFO="$("$GH_REAL" "${MERGE_VIEW_ARGS[@]}" 2>&1)" \
+    || die "マージ前チェック: gh pr view に失敗したため gh pr merge を実行しません（${MERGE_PR_INFO}）"
+  MERGE_PR_NUM="$(printf '%s' "$MERGE_PR_INFO" | jq -r '.number' 2>/dev/null)" \
+    || die "マージ前チェック: PR 情報を解釈できないため gh pr merge を実行しません"
+  if printf '%s' "$MERGE_PR_INFO" | jq -e '([.labels[]?.name]) | index("ai:hold") != null' >/dev/null 2>&1; then
+    die "マージ保留: PR #$MERGE_PR_NUM に ai:hold が付いています。会長・社長が外すまで当番はマージしません"
+  fi
+  MERGE_CLOSES_ISSUES="$(printf '%s' "$MERGE_PR_INFO" | jq -r '.body // ""' 2>/dev/null \
+    | grep -oiE 'Closes #[0-9]+' | grep -oE '[0-9]+' | sort -u)"
+  for MERGE_ISSUE_N in $MERGE_CLOSES_ISSUES; do
+    MERGE_ISSUE_INFO="$("$GH_REAL" issue view "$MERGE_ISSUE_N" --json number,labels 2>&1)" \
+      || die "マージ前チェック: Issue #$MERGE_ISSUE_N の確認に失敗したため gh pr merge を実行しません（${MERGE_ISSUE_INFO}）"
+    if printf '%s' "$MERGE_ISSUE_INFO" | jq -e '([.labels[]?.name]) | index("ai:hold") != null' >/dev/null 2>&1; then
+      die "マージ保留: PR #$MERGE_PR_NUM が Closes する Issue #$MERGE_ISSUE_N に ai:hold が付いています。会長・社長が外すまで当番はマージしません"
+    fi
+  done
 fi
 
 # INTERCEPT: 自由記述を返しうる経路だけを列挙する。

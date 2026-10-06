@@ -156,6 +156,11 @@ App Store Connect で **「日本語」ローカライズを追加**し、上記
 
 ## 9. スクリーンショット（`docs/aso/screenshots/`）
 
+> ⚠️ **この節は v1.1.2 までの入稿で役目を終えた**（2026-09-07・#184）。収録が16本になった v1.1.3 では
+> 撮影リストが18画面になり、`docs/aso/screenshots/` の実体も入れ替わっている。
+> **v1.1.3 以降の入稿は [`metadata-v1.1.1.md`](metadata-v1.1.1.md) §11 の表を使うこと。**
+> 本節が指している10枚は git 履歴（`v1.1.2` タグ）にのみ残る。
+
 `bash Scripts/capture-aso-screenshots.sh` で再生成できる。iPhone 17 Pro Max（6.9インチ）= **1320×2868 px**
 で撮影済み。App Store Connect の 6.9インチ枠にそのまま入稿できる（他サイズは Apple 側で自動縮小される）。
 

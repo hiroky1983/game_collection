@@ -16,7 +16,7 @@ export default function PrivacyPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">プライバシーポリシー</h1>
-        <p className="text-sm text-gray-400">最終更新日：2026年6月19日</p>
+        <p className="text-sm text-gray-400">最終更新日：2026年9月23日</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
@@ -28,7 +28,10 @@ export default function PrivacyPage() {
         <p>本アプリは以下の情報を収集する場合があります。</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>広告配信のための端末識別情報（広告ID）</li>
-          <li>アプリの利用状況に関する匿名の統計情報</li>
+          <li>アプリの利用状況に関する匿名の統計情報（プレイしたゲーム・プレイ時間・成績などで、個人を特定する情報は含みません）</li>
+          <li>クラッシュ・不具合の発生時に、アプリの安定性向上のための診断情報（端末の機種・OSバージョン・発生箇所など）</li>
+          <li>広告表示の最適化のため、Google の広告・解析SDKがおおよその位置情報（市区町村程度の粒度）を利用する場合があります</li>
+          <li>Game Center にサインインしている場合、スコア・ランキング・実績（Apple のGame Centerサービスを通じて送信・表示されます）</li>
         </ul>
         <p className="mt-2">
           氏名・住所・メールアドレスなど、個人を直接特定できる情報は一切収集しません。
@@ -37,24 +40,52 @@ export default function PrivacyPage() {
 
       <Section title="2. ゲームデータの保存">
         <p>
-          各ゲームの進行状況・スコア・設定はすべてお使いのデバイス内にのみ保存されます。
-          外部サーバーへのデータ送信は行っておらず、インターネット接続なしでもご利用いただけます。
+          各ゲームの進行状況・設定はお使いのデバイス内にのみ保存されます。
+        </p>
+        <p>
+          ベストスコアなどの記録は、Game Center にサインインしている場合に限り Apple のサーバーへ送信されます（サインインしていない場合は端末内のみに保存されます）。
+        </p>
+        <p>
+          「続きのお知らせ」「久しぶり通知」などのお知らせは、端末内で処理するローカル通知です。これらの通知のために外部サーバーへ情報を送信することはありません。
+        </p>
+        <p>
+          基本的にインターネット接続なしでもご利用いただけますが、広告の表示・統計情報の送信・Game Centerとの連携には接続が必要です。
         </p>
       </Section>
 
-      <Section title="3. 広告について（Google AdMob）">
-        <p>
-          本アプリはGoogle AdMob（Google LLC）を使用して広告を表示しています。
-          AdMobはより関連性の高い広告を表示するために、広告IDなどの情報を利用する場合があります。
-        </p>
+      <Section title="3. 使用している外部サービス">
+        <p>本アプリは以下の外部サービスを利用しています。</p>
+        <ul className="list-disc pl-5 space-y-2">
+          <li>
+            <span className="font-semibold">Google AdMob</span>（広告配信）：より関連性の高い広告を表示するために、広告IDなどの情報を利用する場合があります。
+          </li>
+          <li>
+            <span className="font-semibold">Firebase Analytics</span>（Google）：アプリの利用状況を、上記1に記載の匿名の統計情報として収集します。
+          </li>
+          <li>
+            <span className="font-semibold">Firebase Crashlytics</span>（Google）：クラッシュ発生時に、アプリの安定性向上のための診断情報を自動的に送信します。設定の「利用状況の送信」をオフにした場合も、この診断情報の送信は継続します。
+          </li>
+          <li>
+            <span className="font-semibold">Apple Game Center</span>：サインインしている場合、スコア・実績の送信および表示に利用します。Apple のアカウントに基づくため、本アプリが別途これらの情報を保持することはありません。
+          </li>
+        </ul>
         <p>
           iOSでは、App Tracking Transparency（ATT）に基づきトラッキングの許可をお伺いする場合があります。
           許可しない場合でもすべての機能を制限なくご利用いただけます。
         </p>
         <p>
-          Googleのプライバシーポリシーについては
+          Googleのプライバシーポリシーは
           <a
             href="https://policies.google.com/privacy"
+            className="text-orange-500 underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            こちら
+          </a>
+          、Appleのプライバシーポリシーは
+          <a
+            href="https://www.apple.com/legal/privacy/"
             className="text-orange-500 underline"
             target="_blank"
             rel="noopener noreferrer"
@@ -72,6 +103,8 @@ export default function PrivacyPage() {
         <ul className="list-disc pl-5 space-y-1">
           <li>法令に基づき開示が必要な場合</li>
           <li>広告配信のためにGoogle AdMobと共有する場合（上記3の範囲内）</li>
+          <li>利用状況の解析・アプリの安定性向上のためにGoogle（Firebase Analytics・Crashlytics）と共有する場合（上記3の範囲内）</li>
+          <li>スコア・実績の記録・表示のためにApple（Game Center）と共有する場合（サインインしている場合のみ）</li>
         </ul>
       </Section>
 
@@ -93,7 +126,6 @@ export default function PrivacyPage() {
         <p>
           本ポリシーは必要に応じて変更される場合があります。
           変更後のポリシーは本ページに掲載した時点で効力を生じます。
-          重要な変更がある場合は、アプリ内でお知らせします。
         </p>
       </Section>
 
