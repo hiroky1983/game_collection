@@ -71,6 +71,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
     var afterEndgameComputeForTesting: (@MainActor () async -> Void)?
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
+    /// 「対局続行」の回数。手数が変わらないので、CPU の再起動はこの値の変化で促す（#1846）。
+    private var resumeCount = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// 拒否されたタップの通し番号（#202）。View はこの値の変化を震え演出のトリガーにする。
@@ -106,7 +108,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
     public var capturedByCPU: Int { state.captures[humanSide.opponent.rawValue] }
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー（#140 と同じ理由で対局の通し番号と組にする）。
-    public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: moves.count) }
+    public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: moves.count, epoch: resumeCount) }
 
     public init(services: GameServices? = nil) {
         self.services = services
@@ -320,6 +322,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         guard phase == .scoring else { return }
         state.resumePlay()
         phase = .playing
+        // 終局確認中は `isAITurn` が false で CPU が見送られている。続行で手番が CPU なら再起動させる。
+        resumeCount += 1
         endgame = nil
         // 連続パスを解いた盤なので、直前のパスの札は残さない（#664）。
         passBannerDismissID += 1

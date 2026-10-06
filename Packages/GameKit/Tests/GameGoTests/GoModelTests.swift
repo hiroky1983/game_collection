@@ -123,6 +123,27 @@ struct GoModelFlowTests {
         #expect(model.board[4, 4] == .black, "続行後は打てる")
     }
 
+    @Test("CPU の番で「対局続行」すると CPU の起動キーが変わり、CPU が打つ（#1846）")
+    func resumingOnCPUTurnRestartsTheCPU() async {
+        let model = GoModel(services: makeServices())
+        model.newGame(humanSide: .white, level: .easy)
+        model.applyMoveForTesting(.pass)   // CPU（黒）が最後にパス
+        model.pass()                       // 人間もパス → 終局確認
+        await model.evaluateEndgameIfNeeded()
+        #expect(model.phase == .scoring)
+        let keyBefore = model.aiTurnKey
+        let movesBefore = model.moveCount
+
+        model.resumePlay()
+        #expect(model.phase == .playing)
+        #expect(model.isAITurn, "続行後の手番は CPU のまま")
+        #expect(model.aiTurnKey != keyBefore, "手数が同じでも .task が再起動される")
+
+        await model.performAIMoveIfNeeded()
+        #expect(model.moveCount == movesBefore + 1, "CPU が着手する")
+        #expect(!model.isAITurn)
+    }
+
     /// 終局計算は detached で走るため、計算中に「対局続行→着手→再び両者パス」と進むと
     /// **続行前の盤面**の結果が、同じ対局・同じ scoring 段階へ届くことがある（#512）。
     @Test("対局続行して打ったあとに届いた古い終局計算は採用しない（#512）")
