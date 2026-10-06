@@ -9,9 +9,12 @@
 public struct AITurnKey: Hashable, Sendable {
     public let gameSerial: Int
     public let ply: Int
+    /// 手数が進まないまま CPU の手番が再開する局面（囲碁の「対局続行」・#1846）で進める値。
+    public let epoch: Int
 
-    public init(gameSerial: Int, ply: Int) {
+    public init(gameSerial: Int, ply: Int, epoch: Int = 0) {
         self.gameSerial = gameSerial
         self.ply = ply
+        self.epoch = epoch
     }
 }
