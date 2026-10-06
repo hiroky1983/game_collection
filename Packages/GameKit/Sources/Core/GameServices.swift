@@ -53,6 +53,9 @@ public struct GameServices {
     /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
     /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
     public let homerunSound: HomerunSoundService
+    /// 「続きから戻れる途中の局か」の判定（#1847）。ハブの「続きから」と同じ `GameModule.hasResumableSnapshot` を
+    /// App 層が差し込む。nil（テスト・プレビュー）のときは「中断データが在る」だけで見る。
+    public let isResumable: ((String, SnapshotStore) -> Bool)?
 
     public init(
         snapshots: SnapshotStore,
@@ -67,7 +70,8 @@ public struct GameServices {
         reminders: ResumeReminderService? = nil,
         reengagement: ReengagementReminderService? = nil,
         returnReminder: ChallengeReturnReminderService? = nil,
-        homerunSound: HomerunSoundService = NoopHomerunSoundService()
+        homerunSound: HomerunSoundService = NoopHomerunSoundService(),
+        isResumable: ((String, SnapshotStore) -> Bool)? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -82,6 +86,7 @@ public struct GameServices {
         self.reengagement = reengagement
         self.returnReminder = returnReminder
         self.homerunSound = homerunSound
+        self.isResumable = isResumable
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -166,7 +171,8 @@ public struct GameServices {
     /// **離脱（盤面を捨てた）**を切り分ける（#500）。呼び出し側（ハブ）は判定を持たない。
     @MainActor
     public func gameDidLeave(gameID: String) {
-        let hasSnapshot = snapshots.exists(for: gameID)
+        // 手つかずの盤は中断データが在っても「続き」ではない（#1847）。ハブの「続きから」と同じ判定を使う。
+        let hasSnapshot = isResumable?(gameID, snapshots) ?? snapshots.exists(for: gameID)
         analytics?.leaveGame(gameID: gameID, isResumable: hasSnapshot)
         // 中断データを持って戻ったときだけ、1 日ほど後のお知らせを予約する（#663）。
         reminders?.gameDidLeave(gameID: gameID, hasSnapshot: hasSnapshot)

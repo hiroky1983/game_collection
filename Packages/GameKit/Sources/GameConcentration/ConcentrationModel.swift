@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import Core
 
-private struct ConcentrationSnapshot: Codable {
+struct ConcentrationSnapshot: Codable {
     let symbols: [String]
     let isFaceUp: [Bool]
     let isMatched: [Bool]

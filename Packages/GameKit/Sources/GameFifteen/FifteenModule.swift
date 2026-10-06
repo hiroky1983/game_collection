@@ -13,4 +13,10 @@ public struct FifteenModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(FifteenView(services: services))
     }
+
+    /// 開いただけで一度も動かしていない盤は「続き」ではない（#1847）。タイルを動かすと手数が増える。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(FifteenSnapshot.self, for: id) else { return false }
+        return snap.moves > 0
+    }
 }
