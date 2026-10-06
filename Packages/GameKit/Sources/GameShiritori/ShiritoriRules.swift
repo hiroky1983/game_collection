@@ -17,7 +17,9 @@ public struct ShiritoriSlot: Equatable, Sendable {
     public var claimedReading: String?
 
     /// 一覧に出す読み。取られるまでは表読みだけ（裏読みのネタばらしをしない）。
-    public var displayReading: String { claimedReading ?? card.primaryReading }
+    public var displayReading: String {
+        owner == nil ? card.primaryReading : claimedReading ?? card.primaryReading
+    }
 
     public init(card: ShiritoriCard, owner: ShiritoriOwner? = nil, claimedReading: String? = nil) {
         self.card = card

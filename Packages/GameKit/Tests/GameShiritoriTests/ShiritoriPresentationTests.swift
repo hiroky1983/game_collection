@@ -56,6 +56,7 @@ struct ShiritoriPresentationTests {
         #expect(ShiritoriPresentation.slotLabel(ShiritoriSlot(card: card, owner: .cpu)) == "りんご、りんご、CPUが取りました")
         let drum = ShiritoriCard(.drum, "たいこ", "どらむ")
         #expect(ShiritoriPresentation.slotLabel(ShiritoriSlot(card: drum, owner: .cpu, claimedReading: "どらむ")) == "\(drum.kind.displayName)、どらむ、CPUが取りました")
+        #expect(ShiritoriSlot(card: drum, claimedReading: "どらむ").displayReading == "たいこ")   // 未取得なら裏読みを出さない
         #expect(ShiritoriPresentation.currentLabel(card: nil, reading: "") == "場の札はまだありません")
         #expect(ShiritoriPresentation.currentLabel(card: card, reading: "りんご") == "場の札はりんご、読みはりんご")
     }
