@@ -649,7 +649,7 @@ main へマージしただけでは反映されない。会長の `git pull` を
 ### 配信（Phase 1）
 
 - `bundle exec fastlane beta` で TestFlight に自動アップロード（`fastlane/Fastfile`）。
-- ビルド番号は日時 (`YYYYMMDDHHmm`) で自動採番。`MARKETING_VERSION` は `project.yml` で管理。
+- ビルド番号は `project.yml` の `CURRENT_PROJECT_VERSION`（fastlane は自動採番しない。旧記述の日時採番は廃止済み）、`MARKETING_VERSION` も `project.yml` で管理。
 - **`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` の更新は `Scripts/bump-marketing-version.sh` で行う**（手で書き換えない）。
   `Scripts/ship-beta.sh` は release ブランチ上で毎回これを `--wait` 付きで呼び、ずれていれば版数更新 PR を出して
   必須チェック → マージ（state=MERGED を確認）→ 手元への fast-forward まで済ませてから `fastlane beta` に進む。

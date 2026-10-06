@@ -43,9 +43,9 @@ check_plan() {
   got="$(bash "$TARGET" plan "$@" 2>/dev/null)"
   rc=$?
   if [ "$want" = "FAIL" ]; then
-    if [ "$rc" -eq 1 ] && [ -z "$got" ]; then ok "$desc"; else ng "$desc (期待: 止まる / 実際: 終了コード $rc・出力 [$got])"; fi
+    if [ "$rc" -eq 1 ] && [ -z "$got" ]; then ok "$desc"; else ng "$desc (期待: 止まる / 実際: 終了コード ${rc}・出力 [$got])"; fi
   else
-    if [ "$rc" -eq 0 ] && [ "$got" = "$want" ]; then ok "$desc"; else ng "$desc (期待: [$want] / 実際: 終了コード $rc・出力 [$got])"; fi
+    if [ "$rc" -eq 0 ] && [ "$got" = "$want" ]; then ok "$desc"; else ng "$desc (期待: [$want] / 実際: 終了コード ${rc}・出力 [$got])"; fi
   fi
 }
 
@@ -78,7 +78,7 @@ P="$(yml 1.1.9 13)"
 cp "$P" "$TMP/before.yml"
 bash "$TARGET" rewrite "$P" 1.1.10 14
 CHANGED="$(diff "$TMP/before.yml" "$P" | grep -c '^>')"
-if [ "$CHANGED" = 2 ]; then ok "変わった行はちょうど 2 行"; else ng "変わった行が 2 行ではない（$CHANGED）"; fi
+if [ "$CHANGED" = 2 ]; then ok "変わった行はちょうど 2 行"; else ng "変わった行が 2 行ではない（${CHANGED}）"; fi
 if grep -qx '        MARKETING_VERSION: "1.1.10"' "$P" && grep -qx '        CURRENT_PROJECT_VERSION: "14"' "$P"; then
   ok "インデントと引用符を保って書き換える"
 else
@@ -120,6 +120,14 @@ case "$1 $2" in
   "api "*) [[ "$2" == *protection ]] && echo "${FAKE_LOCK:-false}"; exit 0 ;;
   "pr list") exit 0 ;;
   "pr create") echo "https://github.com/hiroky1983/game_collection/pull/9999"; exit 0 ;;
+  "pr checks")
+    # FAKE_NOCHECKS_FILE に数字があれば、その回数だけ「まだチェックが付いていない」を返す
+    n="$(cat "${FAKE_NOCHECKS_FILE:-/dev/null}" 2>/dev/null)"
+    if [ -n "$n" ] && [ "$n" -gt 0 ]; then echo $((n - 1)) >"$FAKE_NOCHECKS_FILE"; echo "no checks reported on the 'x' branch"; exit 1; fi
+    [ "${FAKE_CHECKS:-pass}" = pass ] && exit 0
+    echo "test fail"; exit 1 ;;
+  "pr merge") exit "${FAKE_MERGE_RC:-0}" ;;
+  "pr view") echo "${FAKE_STATE:-MERGED}"; exit 0 ;;
 esac
 exit 0
 EOF
@@ -176,6 +184,54 @@ fi
 
 # 公開版を取得できなければ止める（BUMP_STORE_VERSION に壊れた値）
 if run_main "unknown"; then ng "公開版が取れないのに止まらない"; else ok "公開版を取得できなければ止める"; fi
+
+clear_chore() {
+  local r
+  for r in $(git --git-dir="$ORIGIN" for-each-ref --format='%(refname)' 'refs/heads/chore/'); do
+    git --git-dir="$ORIGIN" update-ref -d "$r"
+  done
+  : >"$FAKE_GH_LOG"
+}
+# 引数: 環境変数の代入… → --wait 付きで本体を実行（公開版は 1.1.9）
+run_wait() { (cd "$WORK" && env PATH="$TMP/bin:$PATH" BUMP_STORE_VERSION=1.1.9 BUMP_POLL_SECONDS=0 "$@" bash "$TARGET" --wait >"$TMP/out.txt" 2>&1); }
+
+echo "== 4-b. --dry-run は何も作らない =="
+clear_chore
+if (cd "$WORK" && PATH="$TMP/bin:$PATH" BUMP_STORE_VERSION=1.1.9 bash "$TARGET" --dry-run >"$TMP/out.txt" 2>&1) \
+   && grep -q 'build 14' "$TMP/out.txt" \
+   && [ -z "$(git --git-dir="$ORIGIN" for-each-ref 'refs/heads/chore/')" ] && ! grep -q 'pr create' "$FAKE_GH_LOG"; then
+  ok "--dry-run は予定（build 14）を出すだけで push も PR も作らない"
+else
+  ng "--dry-run の挙動が違う: $(cat "$TMP/out.txt")"
+fi
+
+echo "== 4-c. --wait: チェック待ち → マージ → MERGED の確認 =="
+clear_chore
+echo 2 >"$TMP/nochecks"
+if run_wait FAKE_NOCHECKS_FILE="$TMP/nochecks" && grep -q '^pr merge 9999' "$FAKE_GH_LOG" && grep -q '^pr view 9999' "$FAKE_GH_LOG"; then
+  ok "チェックが付くのを待ち、通ったらマージして state を確かめる"
+else
+  ng "--wait の成功経路が違う: $(cat "$TMP/out.txt")"
+fi
+clear_chore
+if run_wait FAKE_CHECKS=fail; then ng "必須チェックが落ちているのに成功した"; else
+  if grep -q '^pr merge' "$FAKE_GH_LOG"; then ng "必須チェックが落ちているのにマージを試みた"; else ok "必須チェックが落ちたらマージせず止める"; fi
+fi
+clear_chore
+if run_wait FAKE_MERGE_RC=1; then ng "マージに失敗したのに成功した"; else ok "マージに失敗したら止める"; fi
+clear_chore
+if run_wait FAKE_STATE=OPEN; then ng "state が MERGED でないのに成功した"; else ok "マージ後の state が MERGED でなければ止める（握りつぶさない）"; fi
+
+echo "== 4-d. 過去タグのビルド番号が読めなければ止める（黙って床から外さない）=="
+clear_chore
+printf 'settings:\n        MARKETING_VERSION: "1.1.7"\n        CURRENT_PROJECT_VERSION: "13"\n        CURRENT_PROJECT_VERSION: "50"\n' >"$TMP/broken.yml"
+BLOB="$(git -C "$WORK" hash-object -w "$TMP/broken.yml")"
+TREE="$(printf '100644 blob %s\tproject.yml\n' "$BLOB" | git -C "$WORK" mktree)"
+BROKEN="$(git -C "$WORK" commit-tree "$TREE" -m broken)"
+git -C "$WORK" tag v1.1.7-submitted "$BROKEN"
+if run_main 1.1.9; then ng "値が割れたタグがあるのに止まらない（build 50 以下を出しうる）"; else ok "値が割れたタグがあれば止める"; fi
+if [ -z "$(git --git-dir="$ORIGIN" for-each-ref 'refs/heads/chore/')" ]; then ok "そのときも何も push しない"; else ng "止めたのに push している"; fi
+git -C "$WORK" tag -d v1.1.7-submitted >/dev/null
 
 echo "== 5. 仕込み忘れの検出 =="
 grep -q 'Scripts/bump-marketing-version.sh --wait' "$ROOT/Scripts/ship-beta.sh" \

@@ -25,6 +25,7 @@
 #     X.Y.Z を省略すると現在のブランチ名（release/vX.Y.Z）から取る。
 #     --wait: 必須チェックの完了を待ってマージし、state=MERGED を確かめてから終わる（ship-beta.sh 用）。
 #             付けないときは PR を出して終わる（当番は通常のレビュー・マージのフローに載せる）。
+#     --dry-run: 床を集めて判定し、出す予定の番号を表示するだけ（push も PR も作らない）。
 #   Scripts/bump-marketing-version.sh plan <X.Y.Z> <project.yml> <床の版（空白区切り）> <床のビルド番号（空白区切り）>
 #     ネットワークに触らない判定だけ。出力は "X.Y.Z B"（更新不要なら "noop X.Y.Z B"）。後方の番号なら終了コード 1。
 #   Scripts/bump-marketing-version.sh rewrite <project.yml> <X.Y.Z> <B>
@@ -140,10 +141,12 @@ esac
 
 # ---- 本体: 床を集めて判定し、PR を出す ----
 WAIT=0
+DRY=0
 V=""
 for a in "$@"; do
   case "$a" in
     --wait) WAIT=1 ;;
+    --dry-run) DRY=1 ;;
     -*) die "知らないオプションです: $a" ;;
     *) V="$a" ;;
   esac
@@ -182,10 +185,14 @@ FLOOR_BUILDS=""
 for t in $(git tag -l 'v*'); do
   tv="${t#v}"
   tv="${tv%-submitted}"
+  # vX.Y.Z・vX.Y.Z-submitted 以外の名前（旧命名の v1.1.0-build5 等）は版のタグではないので見ない。
+  # 同じ版の vX.Y.Z / -submitted タグが床を担う
   is_xyz "$tv" || continue
   FLOOR_VERS="$FLOOR_VERS $tv"
   tb="$(git show "$t:project.yml" 2>/dev/null | awk '$1 == "CURRENT_PROJECT_VERSION:" { print $2 }' | tr -d '\015\042\047' | sort -u)"
-  is_uint "$tb" && FLOOR_BUILDS="$FLOOR_BUILDS $tb"
+  # 読めない・値が割れているタグを黙って飛ばすと、そのタグのビルド番号以下を出しうるので止める
+  is_uint "$tb" || die "タグ ${t} の project.yml から CURRENT_PROJECT_VERSION を 1 つに読めません（[$(printf '%s' "$tb" | tr '\n' ' ')]）。比べられないので止めます"
+  FLOOR_BUILDS="$FLOOR_BUILDS $tb"
 done
 
 # 床 3: 凍結（lock_branch）済みの release ブランチ。自分以上の版のものだけ見ればよい
@@ -207,6 +214,10 @@ case "$RESULT" in
     ;;
 esac
 NEW_B="${RESULT##* }"
+if [ "$DRY" -eq 1 ]; then
+  echo "bump-marketing-version: （dry-run）$BASE を MARKETING_VERSION ${V}・build ${NEW_B} に上げる PR を出す予定です（床の版: ${FLOOR_VERS}）"
+  exit 0
+fi
 TITLE="chore(release): バージョンを ${V} (build ${NEW_B}) に更新"
 HEAD_BRANCH="chore/release-version-v${V}-b${NEW_B}"
 
@@ -244,15 +255,17 @@ fi
 
 # --wait: 必須チェックを待ってマージし、本当にマージされたことまで確かめる
 for _ in $(seq 1 20); do
-  gh pr checks "$PR" -R "$REPO" --required >/dev/null 2>&1
-  rc=$?
-  # 0 = 全部成功 / 8 = 実行中。それ以外（まだチェックが付いていない等）は少し待って取り直す
-  [ "$rc" -eq 0 ] || [ "$rc" -eq 8 ] && break
-  sleep 15
+  out="$(gh pr checks "$PR" -R "$REPO" --required 2>&1)"
+  # 0 = 全部成功 / 8 = 実行中。まだチェックが付いていないときだけ少し待って取り直す
+  # （失敗が確定しているときは待たずに下の --watch --fail-fast で止める）
+  case "$out" in
+    *"no checks reported"* | *"no required checks reported"*) sleep "${BUMP_POLL_SECONDS:-15}" ;;
+    *) break ;;
+  esac
 done
 gh pr checks "$PR" -R "$REPO" --required --watch --fail-fast --interval 30 >/dev/null \
   || die "PR #$PR の必須チェックが通りませんでした。PR を確認してください"
 gh pr merge "$PR" -R "$REPO" --merge || die "PR #$PR をマージできません（未解決のレビュースレッド等）。PR を確認してください"
 STATE="$(gh pr view "$PR" -R "$REPO" --json state --jq '.state')"
-[ "$STATE" = "MERGED" ] || die "PR #$PR の状態が MERGED ではありません（$STATE）"
+[ "$STATE" = "MERGED" ] || die "PR #$PR の状態が MERGED ではありません（${STATE}）"
 echo "bump-marketing-version: PR #$PR をマージしました（$BASE は MARKETING_VERSION ${V}・build ${NEW_B}）"
