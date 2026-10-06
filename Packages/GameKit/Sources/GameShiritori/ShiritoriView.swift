@@ -354,8 +354,11 @@ public struct ShiritoriView: View {
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            RecordLabel(model.recordResult)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 結果カードが開いているあいだはカードが持つので出さない（二重になり、SE では高さも溢れる）。
+            if resultCardClosed {
+                RecordLabel(model.recordResult)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
