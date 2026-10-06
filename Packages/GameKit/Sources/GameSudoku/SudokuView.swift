@@ -3,7 +3,6 @@ import Core
 
 public struct SudokuView: View {
     @State private var model: SudokuModel
-    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     @State private var showNewGame = true
     /// 帯のタイマー（等幅）の文字サイズ。他の帯の文字と同じく文字サイズ設定に追従させる（#1469）。
@@ -137,21 +136,13 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったか、この局を諦めたため、コンティニューできませんでした。"
             )
         )
-        // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
-        // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
-        .onDisappear { model.pauseTimer() }
-        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
-        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
-        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
-                model.pauseTimer()
-            } else if !hintRescue.isWatching && !continueRescue.isWatching && !undoRescue.isWatching {
-                model.resumeTimerIfNeeded()
-            }
-        }
-        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
-        .pausesTimerWhileWatching([hintRescue, continueRescue, undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
+        // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
+        // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .gameTimerLifecycle(
+            rescues: [hintRescue, continueRescue, undoRescue],
+            pause: { model.pauseTimer() },
+            resume: { model.resumeTimerIfNeeded() }
+        )
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -286,9 +277,7 @@ public struct SudokuView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .opacity(model.hasPuzzle ? 1 : 0)
         } trailing: {
-            Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: min(timerFontSize, 14 * 1.5), weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.teal)
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), size: min(timerFontSize, 14 * 1.5))
                 // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                 .opacity(model.hasPuzzle ? 1 : 0)
                 .fixedSize(horizontal: true, vertical: false)

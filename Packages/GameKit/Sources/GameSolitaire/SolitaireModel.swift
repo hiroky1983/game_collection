@@ -78,7 +78,13 @@ public final class SolitaireModel {
     private var moves: [SolitaireMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。`isDeadEnd` と同じ理由で控えておく。
     private var autoFinishPlan: [SolitaireMove]?
-    private var timerTask: Task<Void, Never>?
+    /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
+    private let stopwatch = GameStopwatch(persistInterval: SolitaireModel.persistInterval)
+    /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
+    var clockNow: ElapsedClock.Now {
+        get { stopwatch.now }
+        set { stopwatch.now = newValue }
+    }
     /// この局でもらったジョーカーの累計枚数（`SolitaireSnapshot.jokerGrants`）。
     private var jokerGrants: Int
     /// 敗北確定の探索。盤面が動くたびに作り直す。
@@ -156,7 +162,7 @@ public final class SolitaireModel {
     public var canAutoFinish: Bool { phase == .playing && autoFinishPlan != nil }
 
     /// 計時が動いているか（テスト用）。
-    public var isCounting: Bool { timerTask != nil }
+    public var isCounting: Bool { stopwatch.isRunning }
 
     /// - Parameters:
     ///   - seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
@@ -487,8 +493,7 @@ public final class SolitaireModel {
         dealSerial += 1
         refreshDerivedState()
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
@@ -499,7 +504,7 @@ public final class SolitaireModel {
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
     public func resumeTimerIfNeeded() {
-        guard phase == .playing, timerTask == nil else { return }
+        guard phase == .playing, !stopwatch.isRunning else { return }
         startTimer()
         // `pauseTimer()` で止めた敗北確定の探索も入れ直す（未判定の局面なら仕込み直される）。
         scheduleLostCheck()
@@ -513,9 +518,9 @@ public final class SolitaireModel {
     /// `persistInterval` 秒ぶんの計時が失われるのを防ぐため（#240 と同じ理由）。
     /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
     public func pauseTimer() {
+        syncElapsed()   // 止める前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         persist()
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         // 画面を離れたら敗北確定の探索も止める（結果を出す先が無いのに CPU を回さない）。
         cancelLostCheck()
     }
@@ -698,9 +703,9 @@ public final class SolitaireModel {
     }
 
     private func finish() {
+        syncElapsed()   // 確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
-        timerTask?.cancel()
-        timerTask = nil
+        stopwatch.stop()
         cancelLostCheck()
         selection = nil
         isPlacingJoker = false
@@ -730,14 +735,7 @@ public final class SolitaireModel {
     }
 
     private func startTimer() {
-        timerTask?.cancel()
-        timerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !Task.isCancelled else { break }
-                tick()
-            }
-        }
+        stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
     /// 計時の 1 秒ぶん。タイマーのループから切り出してあるので、テストは実時間を待たずに
@@ -745,6 +743,14 @@ public final class SolitaireModel {
     func tick() {
         elapsedSeconds += 1
         if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
+    /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
+    /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
+    func syncElapsed() {
+        guard let advanced = stopwatch.advance(from: elapsedSeconds) else { return }
+        elapsedSeconds = advanced.seconds
+        if advanced.crossedPersistBoundary { persist() }
     }
 
     #if DEBUG
