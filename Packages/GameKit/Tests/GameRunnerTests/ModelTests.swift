@@ -640,6 +640,35 @@ struct RunnerStageSelectTests {
         #expect(!notYet.isStageReached(19))
     }
 
+    /// 同じ経路の 36 面版（#1824）: **v1.1.10 以前で全 30 面をクリアした人は、36 面の版で 31 面を選べる**。
+    /// 旧版の中断データの到達点は最終面の 30 で頭打ちなので、記録（30 面クリア）を根拠に 31 面を開ける。
+    /// 上の 18 → 19 のテストは値を直書きしているので、面を足すたびに「最後の面 → 次の面」の形でも押さえる。
+    @Test("v1.1.10 以前で 30 面をクリアしていた人は、中断データが 30 のままでも 31 面を選べる")
+    func clearedThirtiethStageOfOlderVersionUnlocksKyotoNara() {
+        let store = MemorySnapshotStore()
+        store.inject(Data(#"{"stage":30,"bestSeconds":[],"reachedStage":30}"#.utf8), for: "runner")
+        let log = makePlayLog("cleared-30")
+        log.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 30))
+        let model = RunnerModel(services: makeServices(store: store, log: log),
+                                preference: makePreference("select-cleared-30"))
+        #expect(model.stageNumber == 30, "再開する面は中断データのまま")
+        #expect(model.reachedStage == 31)
+        #expect(model.isStageReached(31))
+        #expect(!model.isStageReached(32))
+        #expect(RunnerWorld.world(forStage: model.reachedStage) == .kyotoNara)
+        #expect(store.load(RunnerSnapshot.self, for: "runner")?.reachedStage == 31)
+
+        // 対照: 30 面に着いただけでクリアしていない人（記録は 29 面まで）は 31 面を選べない。
+        let reachedOnly = MemorySnapshotStore()
+        reachedOnly.inject(Data(#"{"stage":30,"bestSeconds":[],"reachedStage":30}"#.utf8), for: "runner")
+        let log29 = makePlayLog("cleared-29")
+        log29.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 29))
+        let notYet = RunnerModel(services: makeServices(store: reachedOnly, log: log29),
+                                 preference: makePreference("select-cleared-29"))
+        #expect(notYet.reachedStage == 30)
+        #expect(!notYet.isStageReached(31))
+    }
+
     /// 同じく F: **v1.1.4 の「全 15 面クリア」**（到達点の鍵が無く、ステージごとのタイムを持つ旧形式）も
     /// 記録から次の面を開ける。エンドレスの記録（区分 `endless`）は面の番号ではないので根拠にしない。
     @Test("v1.1.4 で全 15 面をクリアしていた人は 16 面を選べ、エンドレスの記録では開かない")
