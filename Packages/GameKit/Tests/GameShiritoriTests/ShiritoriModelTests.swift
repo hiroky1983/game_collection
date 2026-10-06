@@ -850,7 +850,7 @@ struct ShiritoriTimeExtensionTests {
         model.tick(ShiritoriTime.initial)
 
         func ends() -> [AnalyticsResult] {
-            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _) = $0 { return result } else { return nil } }
+            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _, _) = $0 { return result } else { return nil } }
         }
         func starts() -> Int { spy.events.filter { if case .gameStart = $0 { return true } else { return false } }.count }
         #expect(ends() == [.loss] && starts() == 1)
