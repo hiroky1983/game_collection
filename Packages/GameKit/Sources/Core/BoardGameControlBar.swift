@@ -94,6 +94,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     private var overflowBar: some View {
         GameOverflowBar(
             menuItems: menuItems,
+            actions: actions,
             verticalPadding: BoardGameControlMetrics.rowVerticalPadding,
             // 投了・待ったの確認が開いている間は促しの待ちを止める（閉じた直後に吹き出しが出るのを防ぐ）。
             nudge: hint.map {
@@ -105,28 +106,32 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
         .boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)
     }
 
-    private var menuItems: [GameControlMenuItem] {
+    /// 段（案A の試作・#1834）: 待った →（ゲーム固有: 囲碁のパス）→ ヒント。投了だけ「⋯」に残す。
+    private var actions: [GameActionItem] {
         // 待った・ヒントは別々の広告救済を持つ（`undoRescue` / `hint.rescue`）。片方の視聴中に
         // もう片方も広告を要求すると、2本目のロードが失敗して見ていないのに失敗アラートが出る
         // （麻雀ソリティアの PR #577 と同型の穴）。同じメニューに同居させる以上、互いの視聴中は塞ぐ。
         let hintIsWatching = hint?.rescue.isWatching ?? false
         var items = [
-            GameControlMenuItem(
+            GameActionItem(
                 id: "undo",
-                title: model.undoUsed ? "待った（広告を見て）" : "待った（無料）",
+                title: "待った",
                 systemImage: "arrow.uturn.backward",
+                role: .undo,
+                badge: model.undoUsed ? .ad : .free(1),
                 isEnabled: model.canUndo && !hintIsWatching,
                 accessibilityLabel: "待った",
                 accessibilityHint: model.canUndo ? "あなたの直前の1手を、CPU の応手ごと取り消します" : "いまは使えません"
             ) { showUndoConfirm = true }
         ]
-        items += extraItems
+        items += extraItems.map { GameActionItem(menuItem: $0) }
         if let hint {
-            items.append(GameControlMenuItem(
+            items.append(GameActionItem(
                 id: "hint",
-                title: hint.isThinking ? "ヒント（読み中…）"
-                    : (hint.needsAd ? "広告を見てヒント（残り\(hint.remaining)回）" : "ヒント（残り\(hint.remaining)回）"),
+                title: hint.isThinking ? "読み中…" : "ヒント",
                 systemImage: "lightbulb.fill",
+                role: .hint,
+                badge: hint.needsAd ? .ad : .free(hint.remaining),
                 isEnabled: hint.isEnabled && !undoRescue.isWatching,
                 accessibilityHint: hint.isEnabled
                     ? (hint.needsAd ? "広告を視聴すると、最善手をもう1手示します。使った対局は順位表に送りません"
@@ -135,9 +140,12 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
                 action: hint.request
             ))
         }
-        items.append(GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true) {
-            showResignConfirm = true
-        })
         return items
+    }
+
+    private var menuItems: [GameControlMenuItem] {
+        [GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true) {
+            showResignConfirm = true
+        }]
     }
 }

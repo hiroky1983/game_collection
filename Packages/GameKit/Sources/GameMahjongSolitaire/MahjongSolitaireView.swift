@@ -409,7 +409,35 @@ public struct MahjongSolitaireView: View {
 
     /// プレイ中の操作は右下の「⋯」にまとめる（#1422・#1468）。戻す・並べ替え・全体表示⇄拡大・ヒント。
     private var gameControls: some View {
-        GameOverflowBar(menuItems: controlMenuItems, nudge: hintNudge)
+        GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, nudge: hintNudge)
+    }
+
+    /// 試作の確認用（#1834）: `-actionRowShuffleInMenu` 付きで起動すると、並べ替えを段から「⋯」へ戻す
+    /// （社長の推奨「SE の上限は 2 個 + ⋯」の形）。
+    private static let shuffleInMenu = ProcessInfo.processInfo.arguments.contains("-actionRowShuffleInMenu")
+
+    /// 段（案A の試作・#1834）: 戻す → ヒント（広告）→ 並べ替え（広告）。拡大は「⋯」へ。
+    private var controlActions: [GameActionItem] {
+        var items = [
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                isEnabled: model.canUndo,
+                accessibilityLabel: "直前に取った2枚を戻す",
+                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
+            ) { model.undoLastTake() },
+            GameActionItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint, badge: .ad,
+                isEnabled: model.canHint && !isWatchingRewardAd,
+                accessibilityHint: "広告を見ると取れる組が1組光ります"
+            ) { showHintConfirm = true },
+        ]
+        if !Self.shuffleInMenu {
+            items.append(GameActionItem(
+                id: "shuffle", title: "並べ替え", systemImage: "shuffle", role: .primary, badge: .ad,
+                isEnabled: !isWatchingRewardAd
+            ) { showShuffleConfirm = true })
+        }
+        return items
     }
 
     /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
@@ -427,31 +455,21 @@ public struct MahjongSolitaireView: View {
     /// 手詰まりなら操作行は `deadlockOverlay` に覆われるので実際には届かないが、
     /// 覆いに頼らず二重の歯止めにしておく。ヒントの広告をロードしている最中も押させない。
     private var controlMenuItems: [GameControlMenuItem] {
-        [
-            // 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。押せない間も項目は残す。
-            GameControlMenuItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo,
-                accessibilityLabel: "直前に取った2枚を戻す",
-                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
-            ) { model.undoLastTake() },
+        var items: [GameControlMenuItem] = []
+        if Self.shuffleInMenu {
             // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。確認ダイアログ → 視聴 → 並べ替えの順に進む。
             // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
-            GameControlMenuItem(
+            items.append(GameControlMenuItem(
                 id: "shuffle", title: "並べ替え", systemImage: "shuffle",
                 isEnabled: !isWatchingRewardAd
-            ) { showShuffleConfirm = true },
-            // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
-            GameControlMenuItem(
-                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
-                accessibilityLabel: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
-            ) { showsWholeBoard.toggle() },
-            GameControlMenuItem(
-                id: "hint", title: "ヒント", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !isWatchingRewardAd,
-                accessibilityHint: "広告を見ると取れる組が1組光ります"
-            ) { showHintConfirm = true },
-        ]
+            ) { showShuffleConfirm = true })
+        }
+        // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
+        items.append(GameControlMenuItem(
+            id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
+            accessibilityLabel: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
+        ) { showsWholeBoard.toggle() })
+        return items
     }
 
     // MARK: - 盤の下の操作エリア

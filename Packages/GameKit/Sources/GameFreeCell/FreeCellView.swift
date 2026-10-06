@@ -602,15 +602,8 @@ public struct FreeCellView: View {
     private var gameControls: some View {
         // 戻す・拡大・自動で上がるは右下の「⋯」にまとめる（#1422・#1468）。
         // 「動かせる枚数」の表示は操作行と一緒になくなる（会長決裁 2026-09-26。必要なら別の場所を相談）。
+        // 段（案A の試作・#1834）: 戻す。拡大・自動で上がるは「⋯」へ。
         GameOverflowBar(menuItems: [
-            // 残り回数を文言に含める（#476 と同じ見せ方）。押せない間も項目は残す（#198）。
-            GameControlMenuItem(
-                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo && !undoRescue.isWatching,
-                accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
-                accessibilityHint: FreeCellAccessibility.undoButtonHint(
-                    canUndo: model.canUndo, remaining: model.undosRemaining)
-            ) { requestUndo() },
             // 拡大（#604）。ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
             // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
             GameControlMenuItem(
@@ -626,6 +619,16 @@ public struct FreeCellView: View {
                 isEnabled: model.canAutoFinish,
                 accessibilityHint: "残りの札をまとめて組札へ送ります"
             ) { model.autoFinish() },
+        ], actions: [
+            // 残り回数は 2 行目に出す（#476 と同じ見せ方）。押せない間も項目は残す（#198）。
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .free(model.undosRemaining) : .ad,
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                accessibilityHint: FreeCellAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining)
+            ) { requestUndo() },
         ])
     }
 

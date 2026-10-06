@@ -43,7 +43,18 @@ public struct BannerSlot: View {
     public var body: some View {
         GeometryReader { geo in
             Group {
-                if let b = banner { b } else { Color.clear }
+                if let b = banner {
+                    b
+                } else if ProcessInfo.processInfo.arguments.contains("-actionRowBannerPlaceholder") {
+                    // 試作の確認用（#1834・試作ブランチ限り）: 撮影モードで広告の位置を測るための枠。
+                    Text("広告バナー（50pt）")
+                        .themeCaption(12)
+                        .foregroundStyle(Theme.inkSub)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.inkSub.opacity(0.25))
+                } else {
+                    Color.clear
+                }
             }
             .frame(width: Self.bannerWidth(containerWidth: geo.size.width), height: Self.height)
             // 枠より狭いバナー（iPad）は中央に置く。

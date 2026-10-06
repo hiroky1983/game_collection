@@ -47,21 +47,20 @@ struct SolitaireControlsView: View {
         // 既定の1枚めくりは「標準」そのものなので出さない。
         GameOverflowBar(
             menuItems: menuItems,
-            caption: model.rules.drawMode != .one
-                ? GameOverflowCaption(model.rules.drawMode.label,
-                                      accessibilityLabel: "このゲームのルールは\(model.rules.drawMode.label)")
-                : nil
+            actions: actions
         )
         .overlay(alignment: .top) {
             if model.isPlacingJoker { jokerPlacingBanner }
         }
     }
 
-    private var menuItems: [GameControlMenuItem] {
+    /// 段（案A の試作・#1834）: 戻す → ジョーカー。「自動で上がる」と「3枚めくり」の表示は「⋯」へ。
+    private var actions: [GameActionItem] {
         [
-            // 残り回数を文言に含める（#476 仕様3）。押せない間も項目は残す（#198）。
-            GameControlMenuItem(
-                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+            // 残り回数は 2 行目に出す（#476 仕様3）。押せない間も項目は残す（#198）。
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .free(model.undosRemaining) : .ad,
                 isEnabled: model.canUndo && !isWatchingUndoAd,
                 accessibilityLabel: SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining),
                 accessibilityHint: SolitaireAccessibility.undoButtonHint(
@@ -71,10 +70,11 @@ struct SolitaireControlsView: View {
             ) { onUndo() },
             // ジョーカーの所持を**常時**見せる（#406 の決裁1）。押すと「置く列を選ぶ」モードに入り、
             // もう一度押すと抜ける。
-            GameControlMenuItem(
+            GameActionItem(
                 id: "joker",
                 title: model.isPlacingJoker ? "ジョーカーをやめる" : "ジョーカー",
                 systemImage: model.isPlacingJoker ? "xmark.circle.fill" : "questionmark.app.fill",
+                role: .declaration,
                 isEnabled: model.hasJoker || model.isPlacingJoker,
                 accessibilityLabel: SolitaireAccessibility.jokerButtonLabel(
                     hasJoker: model.hasJoker,
@@ -87,6 +87,11 @@ struct SolitaireControlsView: View {
             ) {
                 if model.isPlacingJoker { model.cancelPlacingJoker() } else { model.beginPlacingJoker() }
             },
+        ]
+    }
+
+    private var menuItems: [GameControlMenuItem] {
+        var items = [
             // 「あとは組札へ積むだけ」になった局面でだけ押せる。終盤の 52 回タップを 1 回に畳む。
             GameControlMenuItem(
                 id: "autoFinish", title: "自動で上がる", systemImage: "wand.and.stars",
@@ -94,6 +99,15 @@ struct SolitaireControlsView: View {
                 accessibilityHint: "残りの札をまとめて組札へ送ります"
             ) { model.autoFinish() },
         ]
+        // 標準以外のルールで遊んでいるときだけ、ルール名を表示だけの項目として出す（#498。段があるので左端には出せない）。
+        if model.rules.drawMode != .one {
+            items.append(GameControlMenuItem(
+                id: "rule", title: "ルール: \(model.rules.drawMode.label)", systemImage: "info.circle",
+                isEnabled: false,
+                accessibilityLabel: "このゲームのルールは\(model.rules.drawMode.label)"
+            ) {})
+        }
+        return items
     }
 
     /// 置き先を選んでいる最中の案内。盤に被せず操作列の上に出す（列をタップさせる必要があるため）。

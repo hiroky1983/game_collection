@@ -157,11 +157,14 @@ public struct ConcentrationView: View {
 
     private var mattaControls: some View {
         // 待ったは右下の「⋯」へ（#1422・#1468）。押せる間（ミスマッチの猶予中）だけ有効になる。
+        // 段（案A の試作・#1834）: 待った。「⋯」に残る項目は無いので「⋯」は出ない。
+        // 「ミスマッチ… 待ったは今だけ」の左端の表示は段があるあいだ出せない（試作では落としている）。
         GameOverflowBar(
-            menuItems: [
-                GameControlMenuItem(
-                    id: "matta", title: model.mattaUsed ? "待った（広告を見て）" : "待った（無料）",
-                    systemImage: "arrow.uturn.backward",
+            actions: [
+                GameActionItem(
+                    id: "matta", title: "待った",
+                    systemImage: "arrow.uturn.backward", role: .undo,
+                    badge: model.mattaUsed ? .ad : .free(1),
                     isEnabled: model.canMatta,
                     accessibilityLabel: "待った"
                 ) {

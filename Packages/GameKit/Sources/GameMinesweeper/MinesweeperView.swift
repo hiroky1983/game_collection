@@ -154,12 +154,8 @@ public struct MinesweeperView: View {
 
     private var gameControls: some View {
         // 旗モード・拡大・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
+        // 段（案A の試作・#1834）: 旗モード（切り替え）。拡大・諦めるは「⋯」へ。
         GameOverflowBar(menuItems: [
-            // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
-            GameControlMenuItem(
-                id: "flag", title: "旗モード", systemImage: "flag.fill", isChecked: model.flagMode,
-                accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
-            ) { model.toggleFlagMode() },
             GameControlMenuItem(
                 id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
                 accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
@@ -168,6 +164,12 @@ public struct MinesweeperView: View {
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },
+        ], actions: [
+            // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
+            GameActionItem(
+                id: "flag", title: "旗モード", systemImage: "flag.fill", role: .declaration, isOn: model.flagMode,
+                accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
+            ) { model.toggleFlagMode() },
         ])
     }
 

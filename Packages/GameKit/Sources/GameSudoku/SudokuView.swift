@@ -42,7 +42,9 @@ public struct SudokuView: View {
         }
         #endif
         _model = State(initialValue: SudokuModel(services: services))
-        _showNewGame = State(initialValue: !services.snapshots.exists(for: "sudoku"))
+        // 試作の撮影用（#1834・試作ブランチ限り）: 開始シートを飛ばして撮る。
+        let skip = ProcessInfo.processInfo.arguments.contains("-actionRowSkipStartSheet")
+        _showNewGame = State(initialValue: !skip && !services.snapshots.exists(for: "sudoku"))
     }
 
     public var body: some View {
@@ -135,6 +137,10 @@ public struct SudokuView: View {
         .pausesTimerWhileWatching([hintRescue, continueRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
             model.resumeTimerIfNeeded()
+            // 試作の撮影用（#1834・試作ブランチ限り）: シートを飛ばしたときは「ふつう」で局を始める。
+            if ProcessInfo.processInfo.arguments.contains("-actionRowSkipStartSheet"), !model.hasPuzzle {
+                await model.newGame(difficulty: .normal)
+            }
             #if DEBUG
             // 確認用（#1755）: `-sudokuWon` はクリア済み、`-sudokuAlmostWon` は残り 1 マスの盤にする。
             if let remaining = Self.clearPreviewRemaining {
@@ -597,8 +603,32 @@ public struct SudokuView: View {
 
     private var gameControls: some View {
         // 戻す・メモ・ヒント・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
-        GameOverflowBar(menuItems: controlMenuItems, verticalPadding: 4, nudge: hintNudge)
+        GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, verticalPadding: 4, nudge: hintNudge)
             .lineLimit(1)
+    }
+
+    /// 段（案A の試作・#1834）: 戻す → メモ（切り替え）→ ヒント（広告）。拡大・諦めるは「⋯」へ。
+    private var controlActions: [GameActionItem] {
+        [
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                isEnabled: model.canUndo,
+                accessibilityLabel: "元に戻す",
+                accessibilityHint: model.canUndo
+                    ? "直前の1手を取り消します。ミスの回数は戻りません"
+                    : "取り消せる手がありません"
+            ) { model.undo() },
+            GameActionItem(
+                id: "note", title: "メモ", systemImage: "pencil.tip", role: .declaration, isOn: model.noteMode,
+                accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"
+            ) { model.toggleNoteMode() },
+            GameActionItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint, badge: .ad,
+                isEnabled: model.canHint && !hintRescue.isWatching,
+                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
+                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
+            ) { requestHint() },
+        ]
     }
 
     /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
@@ -614,26 +644,7 @@ public struct SudokuView: View {
     /// 「⋯」に入れる操作。ヒントは広告を見て答えが入る（残り回数付き）。
     private var controlMenuItems: [GameControlMenuItem] {
         [
-            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
-            GameControlMenuItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo,
-                accessibilityLabel: "元に戻す",
-                accessibilityHint: model.canUndo
-                    ? "直前の1手を取り消します。ミスの回数は戻りません"
-                    : "取り消せる手がありません"
-            ) { model.undo() },
-            GameControlMenuItem(
-                id: "note", title: "メモ", systemImage: "pencil.tip", isChecked: model.noteMode,
-                accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"
-            ) { model.toggleNoteMode() },
             zoomMenuItem,
-            GameControlMenuItem(
-                id: "hint", title: "ヒント（残り\(model.remainingHints)）", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !hintRescue.isWatching,
-                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
-                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
-            ) { requestHint() },
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },

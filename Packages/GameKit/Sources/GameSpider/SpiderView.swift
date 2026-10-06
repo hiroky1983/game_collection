@@ -549,24 +549,10 @@ public struct SpiderView: View {
 
     private var gameControls: some View {
         // 戻す・配る・拡大は右下の「⋯」にまとめる（#1422・#1468）。
+        // 段（案A の試作・#1834）: 戻す → 配る。拡大は「⋯」へ。
+        // 「配る」が拒否された理由（左端の表示）は段があるあいだ出せない（試作では落としている）。
         GameOverflowBar(
             menuItems: [
-                // 残り回数を文言に含める。押せない間も項目は残す。
-                GameControlMenuItem(
-                    id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
-                    isEnabled: model.canUndo && !undoRescue.isWatching,
-                    accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
-                    accessibilityHint: SpiderAccessibility.undoButtonHint(
-                        canUndo: model.canUndo, remaining: model.undosRemaining)
-                ) { requestUndo() },
-                GameControlMenuItem(
-                    id: "deal", title: "配る（残り\(model.board.dealsRemaining)）",
-                    systemImage: "rectangle.stack.badge.plus",
-                    isEnabled: model.board.dealsRemaining > 0,
-                    accessibilityLabel: SpiderAccessibility.stockLabel(
-                        dealsRemaining: model.board.dealsRemaining,
-                        isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile)
-                ) { model.tapStock() },
                 GameControlMenuItem(
                     id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
                     accessibilityLabel: zoomMode ? "盤全体を表示" : "札を拡大",
@@ -575,7 +561,26 @@ public struct SpiderView: View {
                         : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
                 ) { zoomMode.toggle() },
             ],
-            // 「配る」が拒否された理由。空の列が埋まると自動で消える。
+            actions: [
+                // 残り回数は 2 行目に出す。押せない間も項目は残す。
+                GameActionItem(
+                    id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                    badge: model.undosRemaining > 0 ? .free(model.undosRemaining) : .ad,
+                    isEnabled: model.canUndo && !undoRescue.isWatching,
+                    accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                    accessibilityHint: SpiderAccessibility.undoButtonHint(
+                        canUndo: model.canUndo, remaining: model.undosRemaining)
+                ) { requestUndo() },
+                GameActionItem(
+                    id: "deal", title: "配る",
+                    systemImage: "rectangle.stack.badge.plus", role: .primary,
+                    badge: .count(model.board.dealsRemaining),
+                    isEnabled: model.board.dealsRemaining > 0,
+                    accessibilityLabel: SpiderAccessibility.stockLabel(
+                        dealsRemaining: model.board.dealsRemaining,
+                        isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile)
+                ) { model.tapStock() },
+            ],
             caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
                 ? GameOverflowCaption("空の列を埋めると配れます", color: Theme.coral)
                 : nil

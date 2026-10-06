@@ -26,13 +26,18 @@ public struct GameOverflowBar: View {
     /// - Parameter verticalPadding: 行の上下の余白。盤の大きさを決める高さの計算に効くので、
     ///   従来の操作行の余白を持つゲーム（ナンプレは 4pt）は、その値を渡して外寸を据え置く（#139）。
     /// - Parameter nudge: ヒントを促す吹き出し（#1424）。ヒントが「⋯」にあるゲームだけ渡す。
+    /// 段に並べる操作（#1834 案A の試作）。空なら従来どおり「⋯」だけの行。
+    private let actions: [GameActionItem]
+
     public init(
         menuItems: [GameControlMenuItem] = [],
+        actions: [GameActionItem] = [],
         verticalPadding: CGFloat = 8,
         nudge: HintNudge? = nil,
         caption: GameOverflowCaption? = nil
     ) {
         self.menuItems = menuItems
+        self.actions = actions
         self.verticalPadding = verticalPadding
         self.nudge = nudge
         self.caption = caption
@@ -40,15 +45,20 @@ public struct GameOverflowBar: View {
 
     public var body: some View {
         HStack(spacing: 8) {
-            if let caption {
-                Text(caption.text)
-                    .themeCaption(12, maxScale: 1.3)
-                    .foregroundStyle(caption.color)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .accessibilityLabel(caption.accessibilityLabel ?? caption.text)
+            if !actions.isEmpty {
+                // 段（案A）: 等幅のカプセル。左端の表示（caption）は段があるときは出さない（試作）。
+                ForEach(actions) { GameActionCapsule(item: $0) }
+            } else {
+                if let caption {
+                    Text(caption.text)
+                        .themeCaption(12, maxScale: 1.3)
+                        .foregroundStyle(caption.color)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                        .accessibilityLabel(caption.accessibilityLabel ?? caption.text)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
             if !menuItems.isEmpty {
                 GameControlMenu(items: menuItems, isOpen: $isMenuOpen)
             }

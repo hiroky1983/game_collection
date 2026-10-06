@@ -17,7 +17,9 @@ public struct GoView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: GoModel(services: services))
-        _showNewGame = State(initialValue: !services.snapshots.exists(for: "go"))
+        // 試作の撮影用（#1834・試作ブランチ限り）: 開始シートを飛ばして初期局面を撮る。
+        let skip = ProcessInfo.processInfo.arguments.contains("-actionRowSkipStartSheet")
+        _showNewGame = State(initialValue: !skip && !services.snapshots.exists(for: "go"))
     }
 
     public var body: some View {
