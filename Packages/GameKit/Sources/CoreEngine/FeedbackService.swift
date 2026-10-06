@@ -135,7 +135,7 @@ public extension FeedbackPreference {
         FeedbackPreference(key: "blocksSlowMode_v1", defaultValue: false)
     }
 
-    /// 柵越えおじさんの方向メーター（打席の右上）の表示（#1348）。**既定はオン**。
+    /// 柵越えおじさんの方向メーター（打席の左上）の表示（#1348）。**既定はオン**。
     /// 上級者向けに消せる。消しても判定は変わらない（表示だけ）。ゲームの打席前の画面から切り替える。
     static var homerunDirectionMeter: FeedbackPreference {
         FeedbackPreference(key: "homerunDirectionMeter_v1")

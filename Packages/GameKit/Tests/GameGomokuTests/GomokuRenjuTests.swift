@@ -268,6 +268,7 @@ struct GomokuRenjuModelTests {
         #expect(restored.board[7, 7] == .black)
     }
 
+    #if DEBUG   // applyRenjuBlockedPreviewForTesting は DEBUG 限定
     /// 撮影用のプレビュー（`-gomokuRenjuBlocked`）が、狙いどおり三三で断られた状態で止まること。
     /// CPU の手番になると撮影中に盤が動いてしまうので、人間（黒）の手番であることも見る。
     @Test func renjuBlockedPreviewStopsAtARejection() {
@@ -280,6 +281,7 @@ struct GomokuRenjuModelTests {
         #expect(model.gameOver == false)
         #expect(model.isAITurn == false)
     }
+    #endif
 
     /// 新規対局で明示的にオフへ戻せること（前の対局の設定が残らない）。
     @Test func newGameCanTurnItBackOff() {

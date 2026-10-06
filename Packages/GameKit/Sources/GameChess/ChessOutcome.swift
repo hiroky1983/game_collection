@@ -35,6 +35,18 @@ public enum ChessResult: Equatable, Sendable {
         }
     }
 
+    /// 結果カードに出す理由（#1753）。
+    public var reasonText: String {
+        switch self {
+        case .checkmate: return "チェックメイト"
+        case .stalemate: return "ステイルメイト"
+        case .fiftyMoveRule: return "50手ルール"
+        case .threefoldRepetition: return "同じ局面が3回"
+        case .insufficientMaterial: return "駒が足りない"
+        case .resignation: return "投了"
+        }
+    }
+
     /// ステータス行に出す文言。`humanSide` から見た言い方にする。
     public func text(humanSide: ChessColor) -> String {
         switch self {

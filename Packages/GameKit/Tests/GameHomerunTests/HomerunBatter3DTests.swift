@@ -34,7 +34,7 @@ struct HomerunBatter3DTests {
     @Test("3D を置く SwiftUI の View は当たり判定を持たない（allowsHitTesting(false)）")
     func sceneViewsDoNotHitTest() throws {
         let source = try toon3DSources()
-        for header in ["struct HomerunAtBatScene3DView", "struct HomerunOjisan3DView"] {
+        for header in ["struct HomerunAtBatScene3DView", "struct HomerunOjisanImageView"] {
             let body = try #require(SourceScan.declaration(of: header, in: source), "\(header) が無い")
             #expect(body.contains(".allowsHitTesting(false)"), "\(header) に当たり判定が残っている")
         }
@@ -48,6 +48,24 @@ struct HomerunBatter3DTests {
     }
 
     #if canImport(RealityKit)
+    @Test("たんこぶの演出（#1793）: 当たるまでは支点を動かさず、当たったあとだけ座る位置を補正する。座りきった後も目・星は出ている")
+    @MainActor
+    func tankobuRigMovesPivotOnlyAfterImpact() throws {
+        let rig = try #require(HomerunBatterRig(), "USDZ が読めない")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        rig.show(.tankobu(start: start), now: start)
+        for offset in [0.0, 0.1, 0.5, 1.0, HomerunTankobuGag.impactDelay - 0.01] {
+            rig.applyTankobu(now: start.addingTimeInterval(offset), camera: [0, 4, 28])
+            #expect(rig.pivotPosition == HomerunWhiffGag.pivot, "当たる前（\(offset) 秒）に体がずれた")
+        }
+        rig.applyTankobu(now: start.addingTimeInterval(HomerunTankobuGag.impactDelay + HomerunTankobuGag.hitStop + 2), camera: [0, 4, 28])
+        #expect(rig.pivotPosition != HomerunWhiffGag.pivot, "座るあいだは補正が入る")
+        #expect(rig.tankobuPose != nil && rig.overlay?.isEnabled == true)
+        // 別の段階へ切り替えたら補正を戻す。
+        rig.show(.stance, now: start)
+        #expect(rig.pivotPosition == HomerunWhiffGag.pivot && rig.tankobuPose == nil)
+    }
+
     @Test("打者を読むと 44 コマ（30fps で約 1.43 秒）のスイングが 1 本あり、バットは右手の骨の子")
     @MainActor
     func rigLoads() throws {

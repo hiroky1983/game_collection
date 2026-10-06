@@ -161,6 +161,12 @@ public struct HomerunBattedBall: Equatable, Sendable {
     /// 月まで飛んだ（#1680 の隠し演出）。nil は普通の打球。1 挑戦（`HomerunChallenge.swing`）が条件
     /// （`HomerunJudge.isMoonShot`）を見て `.hit` を付け、同じ挑戦の 2 回目は `.broken` にする。保存（`HomerunShot`）には持たない。
     public var moon: HomerunMoon? = nil
+    /// ジャストミート（#1775）: タイミングがジャストの窓（±`HomerunTiming.justWindow` ms）の中で、芯の円（半径 `HomerunJudge.coreRadius` × ミート）の中に当たった
+    /// フェアの打球。確定演出（ヒットストップ・寄り）を出す印で、飛距離・種別は変えない。空振り・ファウルは false。
+    /// 月まで飛んだ打球（#1680）は判定（`judge`）の外で作るので false のまま（月の演出を優先する）。保存（`HomerunShot`）には持たない。
+    public var isJustMeet = false
+    /// 打ち上げた球が自分の頭に落ちてたんこぶ（#1793・`HomerunTankobu`）: 飛距離 0 の当たり。種別は元のまま（`.inPlay`）。保存（`HomerunShot`）には持たない。
+    public var isTankobu = false
 
     /// 月まで飛んだか。
     public var isMoon: Bool { moon != nil }
@@ -177,7 +183,7 @@ public struct HomerunBattedBall: Equatable, Sendable {
 public enum HomerunMoon: Int, Codable, Equatable, Sendable {
     /// 1 回目: 月に当たってヒビが入る。
     case hit = 0
-    /// 2 回目（同じ挑戦の中）: 月が半分に割れ、その挑戦は終わる（残りの球は没収・プレイ回数 +2）。
+    /// 2 回目（同じ挑戦の中）: 月が半分に割れ、その挑戦は終わる（残りの球は没収・プレイ回数 +1）。
     case broken = 1
 
     /// 画面に出す飛距離（km・地球から月までのおおよその距離）。記録・合計には `HomerunJudge.moonCountedDistance`（m）で数える。
@@ -216,9 +222,10 @@ public enum HomerunJudge {
     public static let moonTimingWindow = 50.0
     /// 月まで飛ぶカーソルの幅（pt）: フライの芯の基準点（`HomerunLaunch.fly.centerDY`・ボールの中心の 4pt 下）からの距離がこれ以内。
     /// ボールの中心（何もずらさず真ん中の球を打ったとき・照準の吸い寄せが寄せる先）は基準点から 4pt 離れているので入らない。
-    /// 1pt はゾーン（88pt）の 1/88。会長指示（2026-10-01）「ちょっと打ちやすく」で 0.5pt から広げた
-    /// （発生率の見込み: ふつうの遊び方で 1 挑戦あたり約 11%・芯を狙う人で約 35%。見積もりは #1680 の PR の説明）。
-    public static let moonCursorRadius = 1.0
+    /// 0.5pt はゾーン（88pt）の 1/176・指で 1pt 動かして照準の吸い寄せで半分戻る世界なので、狙って合わせる余地はほぼ無い
+    /// （発生率の見込み: ふつうの遊び方で 1 挑戦あたり約 3%・芯を狙う人で約 10%。見積もりは #1680 の PR の説明）。
+    /// 一度 1pt に広げた（会長指示 2026-10-01「ちょっと打ちやすく」・#1680）が、会長決裁（2026-10-02・#1743）で 0.5pt に戻した。
+    public static let moonCursorRadius = 0.5
     /// 月まで飛んだ打球を記録（自己ベスト・合計・最長）に数える距離（m）= 最高の当たりの飛距離（会長決裁: 180m として数える）。
     public static var moonCountedDistance: Double { bestDistance }
 
@@ -241,10 +248,11 @@ public enum HomerunJudge {
     }
 
     /// ポールに当たった打球（柵越え・方向はポールの線 ±45° に置く）。`distance` は柵を越えた飛距離（記録にもこの値で数える）。
-    static func poleBall(direction: Double, distance: Double, timing: HomerunTiming, launch: HomerunLaunch) -> HomerunBattedBall {
+    static func poleBall(direction: Double, distance: Double, timing: HomerunTiming, launch: HomerunLaunch,
+                         isJustMeet: Bool = false) -> HomerunBattedBall {
         let pole = direction < 0 ? -foulLimit : foulLimit
         return HomerunBattedBall(direction: pole, distance: distance, kind: .homer, timing: timing, launch: launch,
-                                 fence: fence(atDirection: pole))
+                                 fence: fence(atDirection: pole), isJustMeet: isJustMeet)
     }
 
     /// 確認用（DEBUG の起動引数 `-homerunForcePole`）: 振れば（見送り以外）必ずポールに当たる。向きはふだんの方向の符号
@@ -254,7 +262,8 @@ public enum HomerunJudge {
         let side = direction(swing) > 0 ? 1.0 : -1.0
         let distance = normal.distance >= fence(atDirection: foulLimit) ? normal.distance : 110
         let timing = normal.timing == .miss ? HomerunTiming.just : normal.timing
-        return poleBall(direction: side * foulLimit, distance: distance, timing: timing, launch: normal.launch ?? .fly)
+        return poleBall(direction: side * foulLimit, distance: distance, timing: timing, launch: normal.launch ?? .fly,
+                        isJustMeet: normal.isJustMeet)
     }
 
     /// 月まで飛ぶ条件は判定（`judge`・ふだんの飛距離の式）には入れず、1 挑戦（`HomerunChallenge.swing`）が振るたびに見る
@@ -337,6 +346,7 @@ public enum HomerunJudge {
         }
         let direction = direction(swing)
         let fence = fence(atDirection: direction)
+        let isJustMeet = timing == .just && fromCenter <= coreRadius * max(abilities.meet, 0.01)
         var distance = (timing.baseDistance + abilities.power) * launch.distanceFactor * core * abilities.bat
         if launch == .fly {
             distance += sweetSpotExtra * sweetSpot(timingOffset: swing.timingOffset, distanceFromBandCenter: fromCenter,
@@ -344,7 +354,7 @@ public enum HomerunJudge {
         }
         // ファウルポール（#1686）: ポールの幅の中で柵を越える飛距離なら、45° の内外どちらでもポールに当たって柵越え。
         if isPoleDirection(direction), distance >= Self.fence(atDirection: foulLimit) {
-            return poleBall(direction: direction, distance: distance, timing: timing, launch: launch)
+            return poleBall(direction: direction, distance: distance, timing: timing, launch: launch, isJustMeet: isJustMeet)
         }
         if abs(direction) > foulLimit {
             return HomerunBattedBall(direction: direction, distance: 0, kind: .foul, timing: timing, launch: launch, fence: fence)
@@ -353,7 +363,8 @@ public enum HomerunJudge {
         if distance >= fence { kind = .homer }
         else if distance >= fence - fenceHitMargin { kind = .fenceHit }
         else { kind = .inPlay }
-        return HomerunBattedBall(direction: direction, distance: distance, kind: kind, timing: timing, launch: launch, fence: fence)
+        return HomerunBattedBall(direction: direction, distance: distance, kind: kind, timing: timing, launch: launch, fence: fence,
+                                 isJustMeet: isJustMeet)
     }
 }
 

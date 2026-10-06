@@ -32,6 +32,18 @@ public struct SolitaireView: View {
 
     public init(services: GameServices) {
         self.services = services
+        #if DEBUG
+        // 確認用（#1755）: クリアカードを遊ばずに出す。記録・中断データ・解析に触れない局で開く
+        // （通常の局を先に作ると、それだけで中断データの読み込みと解析の開始が走るので作らない）。
+        if ProcessInfo.processInfo.arguments.contains("-solitaireWon") {
+            _model = State(initialValue: SolitaireModel.clearPreviewForTesting(remainingMoves: 0))
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("-solitaireAlmostWon") {
+            _model = State(initialValue: SolitaireModel.clearPreviewForTesting(remainingMoves: 1))
+            return
+        }
+        #endif
         _model = State(initialValue: SolitaireModel(services: services))
     }
 
@@ -44,6 +56,9 @@ public struct SolitaireView: View {
             // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             SolitaireBoardView(model: model, services: services)
                 .cardTable(topInset: CardTableStyle.cardTopInset)
+                // クリアは盤に重ねる共通のカードで示す（#1755）。
+                .gameClearCard(isPresented: model.phase == .won,
+                               details: ["\(model.moveCount)手 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
                 .padding(.horizontal, CardStackLayout.boardSideInset)
                 .layoutPriority(1)
             SolitaireControlsView(

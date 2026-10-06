@@ -124,6 +124,17 @@ public struct PokerView: View {
                 hasPlayedOnce = true
                 if model.phase == .idle { model.startGame() }
             }
+            // 撮影用（#1754）: 開始シートを飛ばし、チェック・交換なしで最後までコールして決着の画を出す。
+            // 配りは乱数なので勝敗は撮るたびに変わる（実際のモデルの経路を通る）。
+            if ProcessInfo.processInfo.arguments.contains("-pokerAutoPlay") {
+                showStartSheet = false
+                hasPlayedOnce = true
+                if model.phase == .idle { model.startGame() }
+                model.bet1Action(.check)
+                model.confirmExchange()
+                model.bet2Action(.check)
+                if model.phase == .betting2 { model.callCPUBet() }
+            }
             // 撮影用（#496）: 開始シートをボーナスルールを選んだ状態で出す。
             if ProcessInfo.processInfo.arguments.contains("-pokerBonusPreview") {
                 selectedRules = .bonus
@@ -173,7 +184,18 @@ public struct PokerView: View {
             verticalSlack
             cpuArea
             verticalSlack
+            // 1 局の勝敗を卓の中央（ポット = CPU とあなたの境目）に大きく出す（#1754）。画面全体の中央に
+            // 重ねるとあなたの手札を覆ってしまうので、ポットの位置に重ねる。13pt のバッジ（`resultBadge`）は残す
+            // ——バナーは数秒で消えるので、消えたあとも手札の横で勝敗が読める。
+            // CPU の 5 枚を返す決着は、返り終わってから出す（先に出すと勝敗の答えを見せてから返すことになる・#667）。
             potArea
+                .handResultOverlay(
+                    model.handResult,
+                    appearDelay: model.cpuFolded || model.playerFolded || Motion.isReduceMotionEnabled
+                        ? .zero : PokerMotion.showdownRevealDelay
+                )
+                // 後ろに並ぶ手札の枠より手前に描く（兄弟は並び順に重なるため、無いとバナーの下半分が隠れる）。
+                .zIndex(1)
             verticalSlack
             playerArea
             verticalSlack
@@ -557,6 +579,7 @@ public struct PokerView: View {
         return HStack(spacing: 6) {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(Theme.yellow)
+                .accessibilityHidden(true)
             Text("役ボーナス \(who) +\(chips)枚")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
@@ -589,6 +612,7 @@ public struct PokerView: View {
                     CardView(card: state.baseCard, faceUp: true)
                     Image(systemName: "arrow.right")
                         .foregroundStyle(Theme.inkSub)
+                        .accessibilityHidden(true)
                     if let drawn = state.drawnCard {
                         CardView(card: drawn, faceUp: true)
                     } else {
@@ -604,6 +628,7 @@ public struct PokerView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.up.right.circle.fill")
                         .foregroundStyle(Theme.yellow)
+                        .accessibilityHidden(true)
                     Text("獲得 \(model.pendingWinnings)枚 をダブルアップに賭けますか？")
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .lineLimit(2)
@@ -697,6 +722,7 @@ public struct PokerView: View {
                 Image(systemName: icon)
                     .font(.system(size: 24))
                     .foregroundStyle(iconColor)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .themeBody(16, weight: .bold, maxScale: 1.5)

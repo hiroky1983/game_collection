@@ -119,6 +119,8 @@ public enum ShiritoriTime {
     public static let successBonus: Double = 10
     /// お手つき 1 回で減る秒数。
     public static let missPenalty: Double = 5
+    /// 時間切れの負けから広告を見て続けたときに足す秒数（#1717）。
+    public static let adExtension: Double = 30
 }
 
 // MARK: - ルール

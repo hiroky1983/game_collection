@@ -3,6 +3,8 @@ enum AdConfig {
     static let bannerID       = "ca-app-pub-1869410932032409/5642245468"
     static let interstitialID = "ca-app-pub-1869410932032409/6461337269"
     static let rewardedID     = "ca-app-pub-1869410932032409/8789412276"
+    /// 300×250（ミディアムレクタングル。柵越えおじさんの「記録と実績」ページ）専用のユニット（会長作成 2026-10-04）。
+    static let mediumRectangleID = "ca-app-pub-1869410932032409/1561894998"
 
     /// 本番ユニット ID を使ってよいのは App Store 配布ビルドだけ（#347）。
     /// 開発ビルドに加えて TestFlight（リリース前実機確認）もテスト ID に倒す。
@@ -29,5 +31,11 @@ enum AdConfig {
         isProductionAdsAllowed
             ? rewardedID
             : "ca-app-pub-3940256099942544/1712485313" // Google 公式テスト ID
+    }
+
+    static var effectiveMediumRectangleID: String {
+        isProductionAdsAllowed
+            ? mediumRectangleID
+            : "ca-app-pub-3940256099942544/2934735716" // Google 公式テスト ID（固定サイズのバナー）
     }
 }

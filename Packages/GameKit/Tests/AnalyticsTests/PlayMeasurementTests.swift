@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -96,8 +96,8 @@ struct QuitTrackingTests {
 
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
-            case let .gameStart(_, _, mode, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _): return ("end", mode)
+            case let .gameStart(_, _, mode, _, _):     return ("start", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -743,8 +743,8 @@ struct RewardAdCallSiteTests {
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
         // 麻雀の最終局延長（#1201）で 1 か所増えて 17。ルーレットのチップ切れ復活（#1318）で 18。
         // いろリレーの引き札の免除（#1320）で 19。ぱっと暗算の見直し（#1321）で 20。スピードのタイム（#1323）で 21。柵越えおじさんの挑戦回数（#1348）で 22。
-        // 将棋・チェス・五目並べのヒント（無料枠を使い切った後の広告・#1500）で3か所増えて25。
-        #expect(counts.values.reduce(0, +) == 25, "リワード広告の面は25箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        // 将棋・チェス・五目並べのヒント（無料枠を使い切った後の広告・#1500）で3か所増えて25。しりとりの時間切れ延長（#1717）で 26。
+        #expect(counts.values.reduce(0, +) == 26, "リワード広告の面は26箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 

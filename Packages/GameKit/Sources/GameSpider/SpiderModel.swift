@@ -84,6 +84,10 @@ public final class SpiderModel {
 
     private var moves: [SpiderMove] = []
     private var timerTask: Task<Void, Never>?
+    /// 計時の基準。経過秒はここから実経過時間で求める（#1751）。タイマーを張り直すたびに作り直す。
+    private var elapsedClock: ElapsedClock?
+    /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
+    var clockNow: ElapsedClock.Now = { ContinuousClock.now }
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "spider"
@@ -248,6 +252,7 @@ public final class SpiderModel {
     /// **1 手でも指した盤面を捨てたときは敗北として記録する**（判定の境目は `canUndo`。#397 と同じ）。
     /// - Parameter rules: 次の局に焼き込むルール。省略すると**今の局と同じルール**で配り直す。
     public func newGame(rules: SpiderRuleSet? = nil) {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
@@ -282,6 +287,7 @@ public final class SpiderModel {
 
     /// 画面を離れるときに計時を止める（`onDisappear` から呼ぶ。理由は `FreeCellModel.pauseTimer`）。
     public func pauseTimer() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         persist()
         timerTask?.cancel()
         timerTask = nil
@@ -349,6 +355,7 @@ public final class SpiderModel {
     }
 
     private func finish() {
+        syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         phase = .won
         timerTask?.cancel()
         timerTask = nil
@@ -377,11 +384,13 @@ public final class SpiderModel {
 
     private func startTimer() {
         timerTask?.cancel()
+        let clock = ElapsedClock(base: elapsedSeconds, now: clockNow)
+        elapsedClock = clock
         timerTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(for: clock.untilNextSecond)
                 guard !Task.isCancelled else { break }
-                tick()
+                syncElapsed()
             }
         }
     }
@@ -390,6 +399,15 @@ public final class SpiderModel {
     func tick() {
         elapsedSeconds += 1
         if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
+    /// タイマーのループが秒の境目ごとに呼ぶ。経過秒を実経過時間（`ElapsedClock`）に合わせ、保存間隔（`persistInterval` 秒）の境目を跨いだら保存する。
+    /// 計時中でないときは何もしない。`tick()` は 1 秒ぶんを直接進めるテスト用の入口として残している。
+    func syncElapsed() {
+        guard let clock = elapsedClock, timerTask != nil else { return }
+        let before = elapsedSeconds
+        elapsedSeconds = max(before, clock.seconds)
+        if elapsedSeconds / Self.persistInterval != before / Self.persistInterval { persist() }
     }
 
     #if DEBUG
@@ -433,6 +451,27 @@ public final class SpiderModel {
         lastDealtCardIDs = []
         didDismissDeadEndPrompt = false
         refreshDerivedState()
+    }
+
+    /// 確認用（#1755）: クリア直前／クリア済みの局を作る（ソリティアの `clearPreviewForTesting` と同じ）。
+    ///
+    /// **`services` を持たない局として作る**ので、中断データ・記録・解析には一切触れない。
+    /// 4 スートはソルバーが重いので、標準ルール（1 スート）で作る。
+    /// - Parameter remainingMoves: 勝ち筋の残り手数。0 ならクリア済みの盤で返す。
+    public static func clearPreviewForTesting(remainingMoves: Int) -> SpiderModel {
+        let model = SpiderModel(services: nil)
+        let deal = SpiderDealer.deal(seed: model.dealNumber, suits: model.rules.suitCount)
+        guard let solution = SpiderSolver.solve(
+            deal, maxStates: SpiderSolver.defaultMaxStates(for: model.rules.suitCount)
+        ).solution else { return model }
+        for move in solution.dropLast(max(0, remainingMoves)) {
+            guard model.board.apply(move) else { break }
+            model.moves.append(move)
+        }
+        model.elapsedSeconds = 205
+        model.refreshDerivedState()
+        if model.board.isWon { model.finish() }
+        return model
     }
     #endif
 }

@@ -1,9 +1,11 @@
 import Foundation
 
-/// 保存先。蓄積は「プレイ記録を消去」の対象（`allKeys` に入れる）、台帳は対象外（補充の穴を塞ぐ）。
+/// 保存先。蓄積・実績は「プレイ記録を消去」の対象（`allKeys` に入れる）、台帳は対象外（補充の穴を塞ぐ）。
 public enum HomerunStorage {
     public static let recordsKey = "homerun_records_v1"
     public static let ledgerKey = "homerun_ledger_v1"
+    /// 解除済みの実績（#1794）。蓄積と同じく「プレイ記録を消去」の対象。
+    public static let achievementsKey = "homerun_achievements_v1"
 
     public static func loadRecords(_ defaults: UserDefaults = .standard) -> HomerunRecords {
         load(HomerunRecords.self, key: recordsKey, defaults) ?? HomerunRecords()
@@ -19,6 +21,14 @@ public enum HomerunStorage {
 
     public static func saveLedger(_ ledger: HomerunLedger, _ defaults: UserDefaults = .standard) {
         save(ledger, key: ledgerKey, defaults)
+    }
+
+    public static func loadAchievements(_ defaults: UserDefaults = .standard) -> HomerunAchievementLog {
+        load(HomerunAchievementLog.self, key: achievementsKey, defaults) ?? HomerunAchievementLog()
+    }
+
+    public static func saveAchievements(_ log: HomerunAchievementLog, _ defaults: UserDefaults = .standard) {
+        save(log, key: achievementsKey, defaults)
     }
 
     private static func load<T: Decodable>(_ type: T.Type, key: String, _ defaults: UserDefaults) -> T? {

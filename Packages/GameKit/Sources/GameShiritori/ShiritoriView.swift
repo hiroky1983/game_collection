@@ -5,6 +5,7 @@ public struct ShiritoriView: View {
     @State private var model: ShiritoriModel
     @State private var showSetup = false
     @State private var showConfirmNewGame = false
+    @State private var extendRescue = RewardedRescue()
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -62,6 +63,19 @@ public struct ShiritoriView: View {
                 showSetup = false
             } onCancel: { showSetup = false }
         }
+        // 時間切れの結果で「広告を見て続ける」を出しているあいだを 1 回の提示として数える（#780 × #1717）。
+        .rewardOffer(extendRescue, for: .continue, isPresented: model.canExtendTime,
+                     services: services, gameID: model.gameID)
+        .rewardedRescueAlerts(
+            extendRescue,
+            notEarned: "続けられませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "続けられませんでした",
+                message: "広告を見ているあいだに対局が終わったため、時間を延長できませんでした。"
+            )
+        )
+        // 保留している負けは、画面を離れても落とさず記録する。
+        .onDisappear { model.commitTimeUpLoss() }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-shiritoriCPUCursorProbe") {
@@ -244,8 +258,43 @@ public struct ShiritoriView: View {
         case .playing:
             EmptyView()
         case .result:
-            actionButton("もう一度", role: .primary) { showSetup = true }
+            VStack(spacing: 8) {
+                if model.canExtendTime {
+                    extendTimeButton
+                }
+                // 視聴中に始め直すと、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
+                GameReplayBar(
+                    onReplay: { model.startGame(quota: model.quota, mode: model.mode) },
+                    onChangeSettings: { showSetup = true }
+                )
+                .disabled(extendRescue.isWatching)
+            }
         }
+    }
+
+    /// 時間切れの負けにだけ出す「広告を見て +30 秒で続ける」（#1717。1 局 1 回）。
+    private var extendTimeButton: some View {
+        Button {
+            // 視聴完了したときだけ延長する。どの局かを広告の前に控え、視聴中に局が入れ替わっていたら乗せない。
+            let serial = model.gameNumber
+            extendRescue.request(
+                services, gameID: model.gameID, purpose: .continue,
+                guardedBy: .checkedByGrant,
+                // 視聴しなかった・読み込めなかったときは従来どおりの負けとして確定する。
+                whenNotEarned: { model.commitTimeUpLoss() }
+            ) {
+                model.extendTimeAfterAd(forGame: serial)
+            }
+        } label: {
+            Label("広告を見て +30 秒で続ける（1 局に 1 回）", systemImage: "play.rectangle.fill")
+                .themeBody(14, weight: .bold, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
+        .disabled(extendRescue.isWatching)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
@@ -472,7 +521,7 @@ struct ShiritoriRuleSheet: View {
     private let rules: [(String, String)] = [
         ("ゲームの流れ", "CPUと交互に札を取ります。場の札の読みの最後の字から始まる読みの札を選べたら、その札を取れます。取った札が新しい場の札になります"),
         ("読みのルール", "「ー」で終わるときはひとつ前の字で受けます。「ぎ」のような濁音は、そのまま「ぎ」でも、濁点を取った「き」でも受けられます。1枚の札が別の読みを持つこともあります（うらよみ）"),
-        ("制限時間", "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります"),
+        ("制限時間", "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります。時間切れで負けたときは、広告を見ると30秒足して続けられます（1局に1回）"),
         ("「ん」で終わると負け", "「ん」で終わる読みの札を選んだ人は、その場で負けです"),
         ("勝ち負け", "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです"),
         ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),

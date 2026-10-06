@@ -14,10 +14,10 @@ struct HomerunMoonTests {
 
     // MARK: 発生条件
 
-    @Test("発生条件: タイミング ±50ms 以内 かつ フライの芯の基準点から 1pt 以内（境界は含む）")
+    @Test("発生条件: タイミング ±50ms 以内 かつ フライの芯の基準点から 0.5pt 以内（境界は含む）")
     func conditionBoundaries() {
         #expect(HomerunJudge.moonTimingWindow == 50)
-        #expect(HomerunJudge.moonCursorRadius == 1)
+        #expect(HomerunJudge.moonCursorRadius == 0.5)
         // タイミングの境界。
         #expect(HomerunJudge.isMoonShot(swing(0)))
         #expect(HomerunJudge.isMoonShot(swing(50)))
@@ -25,13 +25,13 @@ struct HomerunMoonTests {
         #expect(!HomerunJudge.isMoonShot(swing(50.1)))
         #expect(!HomerunJudge.isMoonShot(swing(-50.1)))
         // カーソルの境界（縦・横・斜め）。
-        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 1)))
-        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter - 1)))
-        #expect(HomerunJudge.isMoonShot(swing(0, dx: 1)))
-        #expect(!HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 1.01)))
-        #expect(!HomerunJudge.isMoonShot(swing(0, dx: -1.01)))
-        #expect(HomerunJudge.isMoonShot(swing(0, dx: 0.7, dy: flyCenter + 0.7)))
-        #expect(!HomerunJudge.isMoonShot(swing(0, dx: 0.75, dy: flyCenter + 0.75)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 0.5)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dy: flyCenter - 0.5)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dx: 0.5)))
+        #expect(!HomerunJudge.isMoonShot(swing(0, dy: flyCenter + 0.51)))
+        #expect(!HomerunJudge.isMoonShot(swing(0, dx: -0.51)))
+        #expect(HomerunJudge.isMoonShot(swing(0, dx: 0.35, dy: flyCenter + 0.35)))
+        #expect(!HomerunJudge.isMoonShot(swing(0, dx: 0.38, dy: flyCenter + 0.38)))
         // 何もずらさずボールの中心を打った（照準の吸い寄せの寄せる先）は月にならない。
         #expect(!HomerunJudge.isMoonShot(swing(0, dy: 0)))
         // 両方そろって初めて月。
@@ -40,7 +40,7 @@ struct HomerunMoonTests {
 
     @Test("1 挑戦の判定: 条件の中は柵越え・180m・月（.hit）。外・見送りはふだんの判定（月にならない）。飛距離の式（judge）は月を持たない")
     func judgeMoonBall() {
-        for s in [swing(0), swing(-50, dx: 1), swing(50, dy: flyCenter - 1)] {
+        for s in [swing(0), swing(-50, dx: 0.5), swing(50, dy: flyCenter - 0.5)] {
             var c = HomerunChallenge()
             let ball = c.swing(s)!
             #expect(HomerunJudge.judge(s).moon == nil)
@@ -102,30 +102,29 @@ struct HomerunMoonTests {
 
     // MARK: 台帳
 
-    @Test("台帳: 月が割れたら当日分として +2（上限なし・何回でも）・0:00 で消える")
+    @Test("台帳: 月が割れたら当日分として +1（上限なし・何回でも）・0:00 で消える")
     func ledgerMoonBonus() {
-        var l = HomerunLedger(dayKey: 20261001)
-        for _ in 0..<5 { l.grantAd() }
+        var l = HomerunLedger(dayKey: 20261001, legacyAdGrants: 5)  // 以前の版で貯めた広告分
         l.grantSurvey()
         #expect(l.allowance == 9)
         l.grantMoonBonus()
-        #expect(l.bonus == 2)
-        #expect(l.allowance == 11)
-        #expect(l.remaining == 11)
+        #expect(l.bonus == 1)
+        #expect(l.allowance == 10)
+        #expect(l.remaining == 10)
         l.grantMoonBonus()
-        #expect(l.allowance == 13)
-        for _ in 0..<13 { l.consume() }
+        #expect(l.allowance == 11)
+        for _ in 0..<11 { l.consume() }
         #expect(!l.canStart)
         l.roll(to: 20261002)
         #expect(l.bonus == 0)
         #expect(l.allowance == HomerunLedger.freePerDay)
     }
 
-    @Test("台帳の保存の互換: 以前の保存（ボーナスのキー無し）が読める・ボーナス 0 はキーを書かない・+2 は読み戻せる")
+    @Test("台帳の保存の互換: 以前の保存（ボーナスのキー無し）が読める・ボーナス 0 はキーを書かない・+1 は読み戻せる")
     func ledgerCompatibility() throws {
         let old = Data(#"{"dayKey":20261001,"used":2,"adsWatched":1,"surveyDone":true}"#.utf8)
         let decoded = try JSONDecoder().decode(HomerunLedger.self, from: old)
-        #expect(decoded == HomerunLedger(dayKey: 20261001, used: 2, adsWatched: 1, surveyDone: true))
+        #expect(decoded == HomerunLedger(dayKey: 20261001, used: 2, legacyAdGrants: 1, surveyDone: true))
         #expect(decoded.bonus == 0)
         #expect(decoded.remaining == 3)
 
@@ -138,7 +137,7 @@ struct HomerunMoonTests {
         let data = try JSONEncoder().encode(granted)
         let back = try JSONDecoder().decode(HomerunLedger.self, from: data)
         #expect(back == granted)
-        #expect(back.remaining == 2)
+        #expect(back.remaining == 1)
 
         let suite = "homerun-moon-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

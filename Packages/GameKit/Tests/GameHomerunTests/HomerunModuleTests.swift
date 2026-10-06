@@ -20,6 +20,93 @@ struct HomerunModuleTests {
         #expect(!module.resumesFromSnapshot, "1 挑戦は途中から戻せない")
     }
 
+    @Test("ボタン欄の置き方は画面ごとの設定値で選び、どの置き方でも欄の中でバナーとの間隔を取る（会長指示 2026-10-04・#1749）")
+    func actionPlacementAndGapAboveBanner() throws {
+        // 初期値: 結果は中身・ボタン・広告を 1 本のスクロールに（会長決定 2026-10-05）、打席前は自動（収まれば中身のすぐ下）。
+        #expect(HomerunActionLayout.result == .inline)
+        #expect(HomerunActionLayout.lobby == .auto)
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.lobby)"))
+        #expect(view.contains("HomerunActionScroll(placement: HomerunActionLayout.result, bannerGap: HomerunBannerGap.belowResultActions) {"),
+                "結果だけ広告との間隔を詰める（会長指示 2026-10-05）")
+        #expect(view.contains("} footer: {\n            MediumRectangleSlot(ads: services.ads)"), "結果の 300×250 はボタンの下に同じスクロールで")
+        // 間隔は欄の 1 か所（固定・すぐ下・自動の共通）で、中身の余白の直後に足す。
+        let gap = ".padding(.bottom, bannerGap)"
+        #expect(view.contains("bannerGap: CGFloat = HomerunBannerGap.belowContent"), "既定（打席前）は従来の間隔")
+        // 結果だけ少し近づける（会長指示 2026-10-05）。
+        #expect(HomerunBannerGap.belowResultActions < HomerunBannerGap.belowContent)
+        let parts = view.components(separatedBy: gap)
+        #expect(parts.count - 1 == 1, "間隔はボタン欄の 1 か所だけ")
+        #expect(parts.first?.suffix(60).contains(".padding(Theme.pad)") == true, "中身の余白の直後に足す")
+        #expect(HomerunBannerGap.belowContent + Theme.pad > BannerSlot.height, "余白の合計はバナーの高さより大きい")
+        // 固定はスクロールの `.safeAreaInset`、自動は「すぐ下」→「固定」の順に収まる方を選ぶ。
+        let scroll = try #require(view.range(of: "struct HomerunActionScroll"))
+        let body = view[scroll.upperBound...].prefix(6000)
+        #expect(body.contains(".safeAreaInset(edge: .bottom, spacing: 0) {"))
+        let fits = try #require(body.range(of: "ViewThatFits(in: .vertical) {"))
+        let after = body[fits.upperBound...].prefix(120)
+        let inline = try #require(after.range(of: "inline"))
+        let pinned = try #require(after.range(of: "pinned"))
+        #expect(inline.lowerBound < pinned.lowerBound, "自動は収まるならすぐ下を優先")
+    }
+
+    @Test("打席前は今日の挑戦のカードを置かず、残り回数は打席に立つの中のボールで見せる（会長指示 2026-10-04）")
+    func lobbyShowsCountInsideStartButton() throws {
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        #expect(!view.contains("todayCard"), "今日の挑戦のカードは廃止")
+        #expect(!view.contains("Text(\"今日の挑戦\")"))
+        let label = try #require(view.range(of: "struct HomerunStartLabel: View {"))
+        let meter = try #require(view.range(of: "HomerunCountMeter(allowance: ledger.allowance", range: label.upperBound..<view.endIndex))
+        let end = try #require(view.range(of: "struct HomerunResetCountdown", range: label.upperBound..<view.endIndex))
+        #expect(meter.lowerBound < end.lowerBound, "打席に立つの中に残り回数のボール")
+        #expect(view.contains("HomerunRecordsLink(model: model, ads: services.ads)"), "記録と実績は 1 行で別ページへ")
+        #expect(!view.contains("HomerunAchievementsCard("), "打席前に一覧を並べない")
+    }
+
+    @Test("ボタン欄は主ボタンが上の縦並びで、打席に立つ・もう一回は同じ部品（会長指示 2026-10-04）")
+    func actionBarStacksPrimaryOnTop() throws {
+        let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        #expect(view.contains("VStack(spacing: 10) { actions }"), "ボタン欄は縦並び")
+        // 同じ部品で文言だけ違う。文字で回数を出す「もう一回（残り N）」・「今日はおしまい」は使わない。
+        #expect(view.contains("HomerunStartButton(model: model, title: \"打席に立つ\")"))
+        #expect(view.contains("HomerunStartButton(model: model, title: \"もう一回\")"))
+        #expect(!view.contains("もう一回（残り"))
+        #expect(!view.contains("今日はおしまい"))
+        // 回数 0 の扱いも部品の中（押せない灰色＋すぐ下に残り時間）。
+        let button = try #require(view.range(of: "struct HomerunStartButton: View {"))
+        let buttonBody = view[button.upperBound...].prefix(1000)
+        #expect(buttonBody.contains(".disabled(!canStart)") && buttonBody.contains("HomerunResetCountdown()"))
+        // 結果: もう一回（回数 0 なら出さず、広告を見てプレイ → 無料枠が戻るまでの残り）→ 打席前へ。横並びにしない。
+        let actions = try #require(view.range(of: "@ViewBuilder private var actions: some View {"))
+        let tail = view[actions.upperBound...]
+        let barStart = try #require(tail.range(of: "\nenum HomerunActionPlacement"))
+        let body = String(tail[..<barStart.lowerBound])
+        #expect(!body.contains("HStack("), "結果のボタンは縦並び")
+        let again = try #require(body.range(of: "title: \"もう一回\""))
+        let ad = try #require(body.range(of: "HomerunRecoveryButton("))
+        let back = try #require(body.range(of: "打席前へ"))
+        #expect(again.lowerBound < ad.lowerBound && ad.lowerBound < back.lowerBound)
+        // 回数 0 では「もう一回」を出さない（会長指示 2026-10-05）。残りは広告を見てプレイの下に結果用の文言で。
+        let canStartBranch = try #require(body.range(of: "if model.ledger.canStart {"))
+        let elseBranch = try #require(body.range(of: "} else {"))
+        #expect(canStartBranch.lowerBound < again.lowerBound && again.lowerBound < elseBranch.lowerBound)
+        let countdown = try #require(body.range(of: "HomerunResetCountdown(lead: \"あと\", ending: \"無料枠が戻ります\", readsAloud: true)"))
+        #expect(elseBranch.lowerBound < ad.lowerBound && ad.lowerBound < countdown.lowerBound
+                && countdown.lowerBound < back.lowerBound)
+        // 結果では上限に達しても「今日はここまで…」を出さない（残りの 1 行だけ・会長決定 2026-10-05）。
+        #expect(body.contains("HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue,\n                                  showsLimitNotice: false)"))
+        let recovery = try #require(view.range(of: "struct HomerunRecoveryButton: View {"))
+        let recoveryBody = view[recovery.upperBound...].prefix(3000)
+        #expect(recoveryBody.contains("var showsLimitNotice = true"), "打席前は従来どおり出す")
+        #expect(recoveryBody.contains("} else if !ledger.canWatchAd && showsLimitNotice {"))
+        // 打席前: 打席に立つ → 広告を見てプレイ。
+        let lobby = try #require(view.range(of: "@ViewBuilder private var startActions: some View {"))
+        let lobbyBody = view[lobby.upperBound...].prefix(600)
+        let start = try #require(lobbyBody.range(of: "title: \"打席に立つ\""))
+        let lobbyAd = try #require(lobbyBody.range(of: "HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)"))
+        #expect(start.lowerBound < lobbyAd.lowerBound)
+    }
+
     @Test("表示名・説明・ルールに他社の登録商標を思わせる語を含めない（README §4.1 の禁止語）")
     func noTrademarkedWords() {
         let module = HomerunModule()
@@ -35,10 +122,24 @@ struct HomerunModuleTests {
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
-        // バナーは打席前と結果の 2 か所だけ。打席（と外野カメラ）は無バナー（受け入れ条件・#1348）。
-        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 2, "打席前と結果にだけ出す")
+        // バナーは打席の 1 か所（#1696 で上部に足した。#1348 の無バナーは改めた）。打席前・結果の一番下は 300×250。
+        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席に 1 つ")
+        let screens = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
+        #expect(screens.components(separatedBy: "MediumRectangleSlot(ads: services.ads)").count - 1 == 2, "打席前・結果の一番下に 1 つずつ")
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
-        #expect(!atBat.contains("BannerSlot("), "打席・外野は無バナー")
+        #expect(atBat.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席にも 1 つ置く（#1696）")
+        // 打席のバナーは上端（HUD より先に積む）。押せる帯（下 1/3）の中には置かない。
+        let banner = try #require(atBat.range(of: "BannerSlot(ads: ads)"))
+        let hud = try #require(atBat.range(of: "topHUD\n"))
+        #expect(banner.lowerBound < hud.lowerBound, "バナーは HUD の上")
+        // バナーで下がった方向メーターより、輪・カーソル（ゾーン）を上の層に描く。結果のカードはゾーンより上の層。
+        let zoneLayer = try #require(atBat.range(of: "HomerunZoneCanvas(\n"))
+        let card = try #require(atBat.range(of: "HomerunBallResultCard(ball:"))
+        #expect(hud.lowerBound < zoneLayer.lowerBound && zoneLayer.lowerBound < card.lowerBound,
+                "HUD・メーター → ゾーン → 結果のカード の順に重ねる")
+        let pad = try #require(atBat.range(of: "private func touchPad("))
+        #expect(banner.lowerBound < pad.lowerBound && !atBat[pad.lowerBound...].contains("BannerSlot("),
+                "押せる帯にバナーを重ねない")
         #expect(code.contains("HowToPlayHint(.homerun"))
         #expect(code.contains(".howToPlay(.homerun"))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
@@ -91,22 +192,39 @@ struct HomerunModuleTests {
         #expect(!model.contains("ContinuousClock"))
     }
 
-    @Test("App の registry には企画倉庫としてコメントアウトで載っている（v1.1.8 では非公開・会長指示 2026-10-02）")
-    func registryLineIsCommentedOut() throws {
+    @Test("App の registry にハブ公開として載っている（v1.1.9・#1348）")
+    func registryLineIsLive() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
         )
         let lines = source.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-        #expect(lines.contains("// HomerunModule(),"))
-        #expect(!lines.contains("HomerunModule(),"), "出荷を決める Issue まではハブに並べない")
+        #expect(lines.contains("HomerunModule(),"))
+        #expect(!lines.contains("// HomerunModule(),"), "v1.1.9 でハブに公開済み")
         #expect(lines.contains("import GameHomerun"))
-        #expect(source.contains("企画倉庫・#1348"))
-        #expect(source.contains("v1.1.8 では非公開（会長指示 2026-10-02）"))
+        #expect(source.contains("柵越えおじさん（#1348）"))
+        #expect(source.contains("v1.1.9 でハブに公開"))
+    }
+
+    @Test("アンケートの入口は v1.1.9 では出さない（会長決裁 2026-10-03・#1784）が、台帳の互換は残る")
+    func surveyEntryIsNotOffered() throws {
+        #expect(!HomerunSurvey.isOffered)
+        let source = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("Packages/GameKit/Sources/GameHomerun/HomerunView.swift"),
+            encoding: .utf8
+        )
+        #expect(source.contains("if HomerunSurvey.isOffered && ledger.canDoSurvey { surveyButton }"),
+                "入口の分岐は isOffered を通す 1 か所だけ")
+        // 互換: 既に答えた台帳は従来どおり +1 を持つ。
+        let ledger = HomerunLedger(dayKey: 1, surveyDone: true)
+        #expect(ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
     }
 
     @Test("動作確認用の強制（回数無制限・月・ポール・空振りの演出）は出荷ビルドでは鍵が残っていても効かない")
     func debugOverridesAreIgnoredInReleaseBuild() throws {
         let defaults = UserDefaults(suiteName: "HomerunDebugOverrides.\(UUID())")!
+        // 鍵（`debugUnlimitedKey` 等）は `HomerunModel+Debug.swift` の #if DEBUG の中だけの宣言なので、
+        // 参照するこのブロックも同じく #if DEBUG で囲む（出荷ビルドのテストが壊れないように・#1705）。
+        #if DEBUG
         for key in [HomerunModel.debugUnlimitedKey, HomerunModel.debugForceMoonKey,
                     HomerunModel.debugForcePoleKey, HomerunModel.debugForceWhiffGagKey] {
             defaults.set(true, forKey: key)
@@ -118,6 +236,11 @@ struct HomerunModuleTests {
                 == HomerunDebugOverrides(unlimited: true, forcesMoon: true, forcesPole: true, forcesWhiffGag: true))
         // テストは DEBUG でビルドされる（`swift test` の既定）ので、既定引数は DEBUG の経路。
         #expect(HomerunDebugOverrides.isDebugBuild)
+        #else
+        // 出荷ビルドでは鍵自体が存在しない（宣言も #if DEBUG の中）。経路は常に .none・isDebugBuild も false。
+        #expect(HomerunDebugOverrides.current(defaults) == .none)
+        #expect(!HomerunDebugOverrides.isDebugBuild)
+        #endif
     }
 
     @Test("動作確認用の鍵の宣言と読み取りは HomerunModel+Debug.swift の #if DEBUG の中だけにある")
@@ -317,61 +440,132 @@ struct HomerunGeometryTests {
         #expect(atBat.contains("model.showsDirectionMeter"))
     }
 
-    @Test("打席のカメラは既定で前。後ろに切り替えると保存され、次のモデルに引き継がれる")
-    @MainActor func atBatCameraPreference() {
-        let suite = "asobiba.homerun.camera.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { UserDefaults().removePersistentDomain(forName: suite) }
-        let first = HomerunModel(defaults: defaults)
-        #expect(first.atBatCamera == .front)
-        first.atBatCamera = .back
-        #expect(defaults.string(forKey: HomerunModel.atBatCameraKey) == "back")
-        #expect(HomerunModel(defaults: defaults).atBatCamera == .back)
-        first.atBatCamera = .front
-        #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
-        // 知らない値（将来の案を消したときなど）は前に戻す。
-        defaults.set("broadcastHigh", forKey: HomerunModel.atBatCameraKey)
-        #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
-    }
-
-    @Test("一時停止の画面のカメラは前 / 後ろのチェック付き 2 択で、選んだ方にだけチェックが付く")
-    @MainActor func atBatMenuHasCameraChoices() {
-        let suite = "asobiba.homerun.menu.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { UserDefaults().removePersistentDomain(forName: suite) }
-        let model = HomerunModel(defaults: defaults)
-        var items = HomerunAtBatView.cameraChoices(for: model)
-        #expect(items.map(\.title) == ["カメラ: 前", "カメラ: 後ろ"])
-        #expect(items.map(\.isChecked) == [true, false])
-        items[1].action()
-        #expect(model.atBatCamera == .back)
-        items = HomerunAtBatView.cameraChoices(for: model)
-        #expect(items.map(\.isChecked) == [false, true])
-        items[0].action()
-        #expect(model.atBatCamera == .front)
-    }
-
-    @Test("投球中にカメラを切り替えても、球・カーソル・進行は変わらない（見た目だけ）")
-    @MainActor func switchingCameraMidPitchKeepsThePlay() {
-        let suite = "asobiba.homerun.switch.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { UserDefaults().removePersistentDomain(forName: suite) }
-        let model = HomerunModel(defaults: defaults)
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        #expect(model.start(now: now))
-        model.press(at: CGPoint(x: 100, y: 100))
-        model.drag(to: CGPoint(x: 120, y: 90))
-        let before = (model.phase, model.step, model.cursor, model.ballPoint, model.pitchStart, model.pitchNumber, model.ledger)
-        model.atBatCamera = .back
-        #expect(model.phase == before.0 && model.step == before.1 && model.cursor == before.2)
-        #expect(model.ballPoint == before.3 && model.pitchStart == before.4 && model.pitchNumber == before.5 && model.ledger == before.6)
-        #expect(model.isHolding)
-    }
-
-    @Test("打席のカメラは一時停止の画面の 2 択から選び（#1550）、3D はモデルの設定から読む")
-    func atBatCameraFromPausePanel() throws {
+    // #1770 会長決裁（2026-10-02）: 後ろのカメラを廃止して前のカメラだけにする。後ろを保存していた人も前で始まる。
+    @Test("打席のカメラは 1 つだけ: 旧設定（homerun_atBatCamera_v1 = back）はどこからも読まず、一時停止の画面にカメラの切り替えは無い")
+    func atBatCameraIsFixedToFront() throws {
+        for path in ["Sources/GameHomerun/HomerunModel.swift", "Sources/GameHomerun/HomerunAtBatView.swift",
+                     "Sources/GameHomerun/HomerunView.swift", "Sources/GameHomerun/Toon3D/HomerunAtBatScene3D.swift"] {
+            let source = SourceScan.strippingComments(try SourceScan.packageSource(path))
+            #expect(!source.contains("homerun_atBatCamera_v1"), "\(path) が旧設定のキーを参照している")
+            #expect(!source.contains("atBatCamera"), "\(path) にカメラの設定が残っている")
+            #expect(!source.contains("CameraPreset"), "\(path) にカメラの選択肢が残っている")
+        }
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
-        #expect(atBat.contains("Self.cameraChoices(for: model)"))
-        #expect(atBat.contains("cameraPreset: model.atBatCamera"))
+        #expect(!atBat.contains("カメラ:"), "一時停止の画面にカメラの切り替えが残っている")
+        // 3D の球の通り道と 3D の描画は、どちらも打席のカメラ（`HomerunAtBatLayout.camera`）から決める。
+        #expect(atBat.contains("plan.ballPosition(at: shown, camera: HomerunAtBatLayout.camera,"))
+        let scene = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/Toon3D/HomerunAtBatScene3D.swift"))
+        #expect(scene.contains("camera: cameraOverride ?? HomerunAtBatLayout.camera,"))
+        #expect(scene.contains("HomerunAtBatSceneView.prepared(camera: HomerunAtBatLayout.camera,"))
+    }
+}
+
+// #1770 会長決裁（2026-10-02）: 方向メーターは右上（打者の頭・バットに重なる）から左上へ。HUD・バナー・ゾーン・的・輪・カーソル・
+// 一時停止ボタンと重ならないこと（SE で特に）。座標は打席の画面の安全域の内側（`HomerunAtBatView` の `GeometryReader`）。
+@Suite("柵越えおじさんの打席の方向メーターの置き場所")
+@MainActor
+struct HomerunDirectionMeterPlacementTests {
+    typealias Layout = HomerunAtBatHUDLayout
+    typealias Zone = HomerunZoneGeometry
+
+    /// 画面の大きさ（pt）と安全域の上・下。上はステータスバー + ナビゲーションバー（44pt・打席中もタイトルを出す）。
+    struct Screen: CustomTestStringConvertible, Sendable {
+        let name: String
+        let size: CGSize
+        let top: CGFloat
+        let bottom: CGFloat
+        var testDescription: String { name }
+        /// 安全域の内側の高さ。
+        var height: CGFloat { size.height - top - bottom }
+        /// ゾーンの中心（`HomerunAtBatView.body` と同じ式: 全画面の高さの `zoneScreenFraction` を安全域の内側の座標へ）。
+        var zoneCenter: CGPoint { CGPoint(x: size.width / 2, y: size.height * HomerunAtBatLayout.zoneScreenFraction - top) }
+    }
+
+    nonisolated static let screens = [
+        Screen(name: "iPhone SE", size: CGSize(width: 375, height: 667), top: 20 + 44, bottom: 0),
+        Screen(name: "iPhone 17", size: CGSize(width: 402, height: 874), top: 62 + 44, bottom: 34),
+        Screen(name: "iPhone 17 Pro Max", size: CGSize(width: 440, height: 956), top: 62 + 44, bottom: 34),
+    ]
+
+    /// 円（中心・半径）と長方形が重なるか。
+    static func overlaps(_ rect: CGRect, circle center: CGPoint, radius: CGFloat) -> Bool {
+        let nx = min(max(center.x, rect.minX), rect.maxX), ny = min(max(center.y, rect.minY), rect.maxY)
+        return hypot(center.x - nx, center.y - ny) < radius
+    }
+
+    /// カーソル（中心がゾーンの中心から ±`reach` の正方形の中を動く）の描画（外の輪 = 当たり判定の半径 + 線の半分、
+    /// 十字の目盛り = 半径 + 4pt + 線の半分）が長方形に掛かりうるか。
+    static func cursorCanOverlap(_ rect: CGRect, zoneCenter c: CGPoint, reach: CGFloat) -> Bool {
+        let ring = HomerunJudge.contactRadius + 1.5, tick = HomerunJudge.contactRadius + 4 + 1
+        let square = CGRect(x: c.x - reach, y: c.y - reach, width: reach * 2, height: reach * 2)
+        // 輪の通り道 = 正方形を半径 `ring` で角を丸めて膨らませた形。目盛りの通り道 = 正方形を縦・横に伸ばした帯。
+        let ringHit = overlapsRounded(rect, square: square, radius: ring)
+        let tickHit = square.insetBy(dx: -tick, dy: -1).intersects(rect) || square.insetBy(dx: -1, dy: -tick).intersects(rect)
+        return ringHit || tickHit
+    }
+
+    /// 正方形を半径 `radius` で角を丸めて膨らませた形（= 正方形の中を動く円の通り道）が長方形に掛かるか。
+    static func overlapsRounded(_ rect: CGRect, square: CGRect, radius: CGFloat) -> Bool {
+        // 2 つの長方形の間の距離（重なれば 0）が半径より小さいか。
+        let dx = max(square.minX - rect.maxX, rect.minX - square.maxX, 0)
+        let dy = max(square.minY - rect.maxY, rect.minY - square.maxY, 0)
+        return hypot(dx, dy) < radius
+    }
+
+    /// ゾーン（線の半分まで）・9 マスの的と縮み始めの輪（線の半分まで）が長方形に掛かるか。
+    static func zoneAndRingsOverlap(_ rect: CGRect, zoneCenter c: CGPoint) -> Bool {
+        let half = Zone.zoneSize / 2 + 0.75
+        if CGRect(x: c.x - half, y: c.y - half, width: half * 2, height: half * 2).intersects(rect) { return true }
+        let ring = Zone.ringStartDiameter / 2 + Zone.ringLineWidth / 2
+        return (0..<9).contains { zone in
+            let b = Zone.ballPoint(zone: zone)
+            return overlaps(rect, circle: CGPoint(x: c.x + b.x, y: c.y + b.y), radius: ring)
+        }
+    }
+
+    @Test("方向メーターは左上・HUD の下に置き、ゾーン・9 マスの的と縮み始めの輪・ゾーンの中のカーソルに重ならない", arguments: screens)
+    func meterClearsThePlayArea(screen: Screen) {
+        let meter = Layout.meterFrame
+        #expect(meter.minX == Theme.pad && meter.maxX < screen.size.width / 2, "左寄せ \(meter)")
+        // 上端のバナーと HUD の段の下。
+        #expect(meter.minY >= BannerSlot.height + Layout.spacing + Layout.hudHeight + Layout.spacing)
+        #expect(!Self.zoneAndRingsOverlap(meter, zoneCenter: screen.zoneCenter), "\(screen.name): メーター \(meter)・ゾーンの中心 \(screen.zoneCenter)")
+        #expect(!Self.cursorCanOverlap(meter, zoneCenter: screen.zoneCenter, reach: Zone.zoneSize / 2),
+                "\(screen.name): ゾーンの中のカーソルがメーターに掛かる")
+        // 一時停止ボタン（押せる帯のすぐ上の右端）と押せる帯（下 1/3）より上。
+        let padTop = screen.height * 2 / 3
+        #expect(meter.maxY < padTop - 8 - BoardGameControlMetrics.minTapTarget, "\(screen.name): 押せる帯・一時停止ボタンに近い")
+    }
+
+    @Test("iPhone 17・Pro Max ではカーソルを端（ゾーンの外 1.5 帯）まで寄せてもメーターに掛からない。SE は外の左上の隅だけ掛かりうる（カーソルが上の層）")
+    func cursorReachVersusMeter() {
+        let meter = Layout.meterFrame
+        for screen in Self.screens {
+            let canOverlap = Self.cursorCanOverlap(meter, zoneCenter: screen.zoneCenter, reach: Zone.cursorLimit)
+            #expect(canOverlap == (screen.name == "iPhone SE"), "\(screen.name): \(canOverlap)")
+        }
+        // SE で掛かるのは、カーソルをゾーンの外へ 12pt を超えてはみ出させたとき（左上の外の隅）だけ。
+        let se = Self.screens[0]
+        #expect(!Self.cursorCanOverlap(meter, zoneCenter: se.zoneCenter, reach: Zone.zoneSize / 2 + 12))
+    }
+
+    @Test("上端の HUD の段（球数・今回・柵越え）もゾーン・輪・カーソルの届く所に掛からない", arguments: screens)
+    func hudClearsThePlayArea(screen: Screen) {
+        let hud = CGRect(x: Theme.pad, y: BannerSlot.height + Layout.spacing,
+                         width: screen.size.width - Theme.pad * 2, height: Layout.hudHeight)
+        #expect(!Self.zoneAndRingsOverlap(hud, zoneCenter: screen.zoneCenter), "\(screen.name)")
+        #expect(!Self.cursorCanOverlap(hud, zoneCenter: screen.zoneCenter, reach: Zone.cursorLimit), "\(screen.name)")
+        // メーターは HUD の段の下（重ならない）。
+        #expect(!hud.intersects(Layout.meterFrame))
+    }
+
+    @Test("打席の画面は HUD の段の高さを揃え、方向メーターを HUD の下の左端に固定の大きさで置く")
+    func atBatViewUsesTheLayout() throws {
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(atBat.contains(".frame(minHeight: HomerunAtBatHUDLayout.hudHeight)"))
+        #expect(atBat.contains("VStack(alignment: .leading, spacing: HomerunAtBatHUDLayout.spacing)"))
+        #expect(atBat.contains(".frame(width: HomerunAtBatHUDLayout.meterSize.width, height: HomerunAtBatHUDLayout.meterSize.height)"))
+        // 右寄せの Spacer を前に置かない（以前は右上）。
+        #expect(!atBat.contains("Spacer()\n                                if model.phase == .pitching, model.showsDirectionMeter"))
     }
 }

@@ -3,6 +3,7 @@ import Core
 
 public struct SudokuView: View {
     @State private var model: SudokuModel
+    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
     @State private var showNewGame = true
     /// 帯のタイマー（等幅）の文字サイズ。他の帯の文字と同じく文字サイズ設定に追従させる（#1469）。
@@ -19,8 +20,27 @@ public struct SudokuView: View {
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
     @State private var holdsUnitFlash = false
 
+    #if DEBUG
+    /// 確認用の起動引数（#1755）が求める残りマス数。指定が無ければ nil。
+    private static var clearPreviewRemaining: Int? {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-sudokuWon") { return 0 }
+        if arguments.contains("-sudokuAlmostWon") { return 1 }
+        return nil
+    }
+    #endif
+
     public init(services: GameServices) {
         self.services = services
+        #if DEBUG
+        // 確認用（#1755）: クリアカードを遊ばずに出す。`services` を持たない局で開くので、
+        // 中断データ・記録・解析には触れない（盤は `.task` で作って埋める）。
+        if Self.clearPreviewRemaining != nil {
+            _model = State(initialValue: SudokuModel(services: nil))
+            _showNewGame = State(initialValue: false)
+            return
+        }
+        #endif
         _model = State(initialValue: SudokuModel(services: services))
         _showNewGame = State(initialValue: !services.snapshots.exists(for: "sudoku"))
     }
@@ -35,6 +55,9 @@ public struct SudokuView: View {
                 .overlay {
                     if model.state == .failed { failedOverlay }
                 }
+                // クリアは盤に重ねる共通のカードで示す（#1755）。答えを見た終局は出さない。
+                .gameClearCard(isPresented: model.state == .cleared,
+                               details: ["\(model.difficulty.label) / ミス\(model.mistakes)回 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
                 // 広告のロード〜視聴中は盤に触れない。ここが開いていると、
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
@@ -98,11 +121,30 @@ public struct SudokuView: View {
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
+        // 背面に回っている間は計時を止める（基盤規約「バックグラウンド移行時は即一時停止」・#1734）。
+        // 止めないと、考えているあいだの計時が 30 秒刻みの保存を待たずに進み、アプリ終了で
+        // 直近の保存値に戻せてしまう（最短タイムを縮められる）。止めるときに経過秒を保存する。
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                model.pauseTimer()
+            } else if !hintRescue.isWatching && !continueRescue.isWatching {
+                model.resumeTimerIfNeeded()
+            }
+        }
         // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
         .pausesTimerWhileWatching([hintRescue, continueRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
+            // 確認用（#1755）: `-sudokuWon` はクリア済み、`-sudokuAlmostWon` は残り 1 マスの盤にする。
+            if let remaining = Self.clearPreviewRemaining {
+                if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
+                let blanks = (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 }
+                for index in blanks.dropLast(remaining) {
+                    if model.selected != index { model.select(index: index) }
+                    model.enter(digit: model.solution[index])
+                }
+            }
             // 撮影・動作確認用（DEBUG 限定）: タップ無しで終局後のレイアウトにする（`-simulateGiveUp`）。
             // 数独の終局は「81マス埋める」か「諦める」でしか作れず、非対話のシミュレータ確認では
             // この経路が要る（マインスイーパー #148 と同じ）。
@@ -657,25 +699,18 @@ public struct SudokuView: View {
     // MARK: - Result Controls
 
     private var resultControls: some View {
-        HStack(spacing: 12) {
+        // 行の高さは数字パッドの 1 ボタンと同じ（対局中の操作列との高さ合わせ）。ボタン自体は他ゲームと同じ大きさ。
+        GameReplayBar(
+            contentMinHeight: SudokuMetrics.padButtonMinSide,
+            verticalPadding: 4,
+            onReplay: {
+                zoomMode = false
+                Task { await model.newGame(difficulty: model.difficulty) }
+            },
+            onChangeSettings: { showNewGame = true }
+        ) {
             RecordLabel(model.recordResult)
-                .lineLimit(1).minimumScaleFactor(0.7)
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.Fill.coral))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
         }
-        .themeBody(14)
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 

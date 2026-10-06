@@ -17,6 +17,8 @@ public struct ShogiView: View {
     /// 表示中の「王手」の合図の契機 ID（#377）。nil なら出していない。
     /// モデルの `checkEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var checkBannerID: Int?
+    /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
 
     public init(services: GameServices) {
         self.services = services
@@ -43,6 +45,7 @@ public struct ShogiView: View {
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
                 .layoutPriority(1)
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             HandAreaView(model: model, color: model.humanSide)
             controlArea
             HowToPlayHint(.shogi, playLog: services.playLog)
@@ -51,6 +54,9 @@ public struct ShogiView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: "将棋", review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -142,6 +148,8 @@ public struct ShogiView: View {
                 Color.black.opacity(0.35).ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture { model.cancelPromotion() }
+                    // 暗幕のタップは VoiceOver の代わりに「やめる」ボタンがある。読ませる要素にしない（#1641）。
+                    .accessibilityHidden(true)
                 VStack(spacing: 20) {
                     Text("成りますか？")
                         .themeBody(18, weight: .bold)
@@ -151,8 +159,8 @@ public struct ShogiView: View {
                             model.resolvePromotion(false)
                         } label: {
                             Text("不成")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .frame(width: 80, height: 44)
+                                .themeBody(16, weight: .semibold, maxScale: 1.5)
+                                .frame(minWidth: 80, minHeight: 44)
                                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(Theme.ink)
                         }
@@ -160,8 +168,8 @@ public struct ShogiView: View {
                             model.resolvePromotion(true)
                         } label: {
                             Text("成る")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .frame(width: 80, height: 44)
+                                .themeBody(16, weight: .semibold, maxScale: 1.5)
+                                .frame(minWidth: 80, minHeight: 44)
                                 .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(Theme.onAccent)
                         }
@@ -173,6 +181,10 @@ public struct ShogiView: View {
                 .padding(28)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
                 .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
+                // 札を盤の後ろ扱いにせず、VoiceOver を札の中だけで動かす（#1641。FreeCell の暗幕パネルと同じ形）。
+                .accessibilityElement(children: .contain)
+                .accessibilityAddTraits(.isModal)
+                .accessibilityLabel(ShogiAccessibility.promotionPromptLabel)
                 // 札は中央に置いてあり `offset` を持たないので、縮小の基準は札の中心になる。
                 .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
@@ -182,6 +194,10 @@ public struct ShogiView: View {
         // 中身を足したときに静かに盤のタップを塞ぐ。
         .allowsHitTesting(model.pendingPromotion != nil)
         .gameAnimation(ShogiMotion.promotionPrompt, value: model.pendingPromotion != nil)
+        // 札が出たことを告げ、VoiceOver のフォーカスを札へ移す（#1641）。
+        .onChange(of: model.pendingPromotion != nil) { _, shown in
+            if shown { AccessibilityNotification.ScreenChanged(nil).post() }
+        }
     }
 
     // MARK: - 盤
@@ -421,6 +437,19 @@ public struct ShogiView: View {
         .accessibilityHidden(true)
     }
 
+    /// 終局の結果カード（#1753）。理由・決め手は `ShogiGameModel` が局面と指し手列から導く。
+    @ViewBuilder
+    private var resultCard: some View {
+        if let verdict = model.endVerdict, let kind = model.endKind {
+            BoardGameResultCard(
+                verdict: verdict,
+                reason: kind.reasonText,
+                decisiveMove: model.decisiveMoveText,
+                record: model.recordResult
+            ) { resultCardClosed = true }
+        }
+    }
+
     // MARK: - ステータス
 
     private var statusBar: some View {
@@ -455,8 +484,9 @@ public struct ShogiView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度）で中身が入れ替わるが、
-    /// どちらも**同じ余白の1行**なので高さは変わらない（#139 の「決着で盤が縮まない」契約）。
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一回）で中身が入れ替わるが、
+    /// 終局後は検討ナビの下に「もう一回」「設定を変える」の段が付くため、対局中より約 40pt 高くなる（#1689）。
+    /// 盤が高さで決まる端末（SE など）では決着の瞬間に盤がわずかに縮みうる（#139 の契約は緩めた）。
     ///
     /// かつてはレコメンドカードのぶんまで常時ひな形で高さを予約していたが、その予約（約55pt）が
     /// 盤の幅をカード類より狭くしていた（会長指示 2026-09-01「盤の横幅をカードに揃える」）。
@@ -480,14 +510,15 @@ public struct ShogiView: View {
         )
     }
 
-    /// 検討ナビと「もう一度」の帯。実体はチェスと共通の `ReviewNavBar`（#139・#530）。
+    /// 検討ナビと「もう一回」「設定を変える」の帯。実体はチェスと共通の `ReviewNavBar`（#139・#530）。
     private var reviewControls: some View {
         ReviewNavBar(
             ply: model.reviewPly,
             total: model.moves.count,
             onBack: { model.reviewStepBack() },
             onForward: { model.reviewStepForward() },
-            onNewGame: { showNewGame = true }
+            onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
+            onChangeSettings: { showNewGame = true }
         )
     }
 }
@@ -524,8 +555,9 @@ struct NewGameSheet: View {
             }
             GameSetupSection("CPUの強さ") {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
+                // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
-                    "手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み",
+                    "1手先だけ読む", "2手先まで読む", "3手先まで読む", "定跡＋深読み",
                 ])
             }
         }
@@ -591,7 +623,7 @@ private struct HandAreaView: View {
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(color == .black ? "☗" : "☖")
-                    .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
+                    .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSub)
             }
             .frame(width: 38, alignment: .leading)
 
@@ -602,7 +634,11 @@ private struct HandAreaView: View {
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
-                    HStack(spacing: 6) {
+                    // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
+                    // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
+                    let koma     = layout.scaled(32)
+                    let tapWidth = max(44, koma + 10)
+                    HStack(spacing: max(0, 6 - (tapWidth - (koma + 10)))) {
                         ForEach(owned, id: \.rawValue) { type in
                             let selected = model.selectedHand == type && color == pos.sideToMove
                             let count    = hand[type.rawValue]
@@ -619,6 +655,8 @@ private struct HandAreaView: View {
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
                                         .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
                                 }
+                                .frame(minWidth: tapWidth)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(ShogiAccessibility.handLabel(

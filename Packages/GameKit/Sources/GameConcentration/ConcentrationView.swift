@@ -286,16 +286,10 @@ public struct ConcentrationView: View {
 
             RecordLabel(model.recordResult)
 
-            Button { showNewGame = true } label: {
-                Text("もう一度")
-                    .themeBody(16)
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(Theme.Fill.purple)
-            .padding(.horizontal, 24)
+            GameReplayBar(
+                onReplay: { model.newGame(pairCount: model.pairCount, cpuLevel: model.cpuLevel) },
+                onChangeSettings: { showNewGame = true }
+            )
         }
         .padding(28)
         .popCard()

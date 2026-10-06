@@ -22,15 +22,17 @@ public enum HomerunReturnPolicy {
         return max(1, Int((seconds / 60).rounded(.up)))
     }
 
-    /// 使い切りシートの「あと約◯時間◯分で戻ります」。
-    public static func remainingText(from now: Date, calendar: Calendar) -> String {
+    /// 回数 0 の打席前に出す「あと約◯時間◯分で戻ります」。結果画面は `lead` に「あと」、`ending` に「無料枠が戻ります」を
+    /// 渡す（「あと◯時間◯分で無料枠が戻ります」・会長指示 2026-10-05）。
+    public static func remainingText(from now: Date, calendar: Calendar,
+                                     lead: String = "あと約", ending: String = "戻ります") -> String {
         let minutes = minutesUntilReset(from: now, calendar: calendar)
         let hours = minutes / 60
         let rest = minutes % 60
         switch (hours, rest) {
-        case (0, _): return "あと約\(rest)分で戻ります"
-        case (_, 0): return "あと約\(hours)時間で戻ります"
-        default:     return "あと約\(hours)時間\(rest)分で戻ります"
+        case (0, _): return "\(lead)\(rest)分で\(ending)"
+        case (_, 0): return "\(lead)\(hours)時間で\(ending)"
+        default:     return "\(lead)\(hours)時間\(rest)分で\(ending)"
         }
     }
 
