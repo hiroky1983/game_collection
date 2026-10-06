@@ -6,6 +6,7 @@ public struct ShiritoriView: View {
     @State private var showSetup = false
     @State private var showConfirmNewGame = false
     @State private var extendRescue = RewardedRescue()
+    @State private var resultCardClosed = false
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -29,6 +30,7 @@ public struct ShiritoriView: View {
                     .transition(.opacity)
             }
             boardArea
+                .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
             HowToPlayHint(.shiritori, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
@@ -38,6 +40,10 @@ public struct ShiritoriView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
+        // 結果から外れる（もう一回・広告で延長）と、次の終局でまたカードが出るよう開け直す。
+        .onChange(of: model.phase) { _, phase in
+            if phase != .result { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: "カードしりとり", review: services.review,
@@ -313,6 +319,21 @@ public struct ShiritoriView: View {
     }
 
     // MARK: - リザルト
+
+    /// 終局を盤に重ねて大きく示す結果カード（#1876。盤ゲームと同じ部品）。
+    /// 時間切れの「広告を見て続ける」ボタンは盤の下の `actionArea` にあり、カードは盤にしか掛からないので出る順番はぶつからない。
+    /// 続けるか決まるまで記録は無いので、自己ベストの行はその間は空になる。
+    @ViewBuilder
+    private var endCard: some View {
+        let ending = model.ending ?? .timeUp
+        BoardGameResultCard(
+            verdict: model.didPlayerWin ? .win : .loss,
+            reason: ShiritoriPresentation.resultReason(ending: ending),
+            details: [ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount,
+                                                         quota: model.quota, ending: ending, mode: model.mode)],
+            record: model.recordResult
+        ) { resultCardClosed = true }
+    }
 
     private var resultCard: some View {
         VStack(spacing: 8) {
