@@ -160,7 +160,7 @@ struct HomerunFinaleScene: View {
             VStack(spacing: 0) {
                 Spacer().frame(height: size.height * 0.15)
                 Text(verbatim: finale.title)
-                    .font(.system(size: finale == .donmai ? 52 : 58, weight: .black, design: .rounded)) // fixed-size: 決着演出の大見出し（演出の寸法に合わせた固定値）
+                    .font(.system(size: finale == .donmai ? 52 : 58, weight: .black, design: .rounded)) // fixed-size: 決着演出の大見出し。画面幅いっぱいに収まる寸法で、拡大すると演出がはみ出す
                     .foregroundStyle(.white)
                     .shadow(color: finale.titleShadow, radius: 0, x: 0, y: 5)
                     .shadow(color: .black.opacity(0.25), radius: 8, y: 6)

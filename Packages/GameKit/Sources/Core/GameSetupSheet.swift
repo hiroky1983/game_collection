@@ -247,7 +247,7 @@ public struct GameSetupChooser: View {
 
     private var subtitleText: some View {
         Text(subtitle)
-            .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
+            .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded)) // fixed-size: セットアップ部品の寸法定数（metrics.subtitleSize）で揃える。枠が固定寸法のため追従させない
             .foregroundStyle(selected ? onAccent : Theme.inkSub)
             .modifier(ShrinkToFit(minimumScale: metrics.subtitleMinimumScale))
     }
