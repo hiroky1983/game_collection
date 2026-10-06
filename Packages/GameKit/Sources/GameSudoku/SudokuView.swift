@@ -631,7 +631,10 @@ public struct SudokuView: View {
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
                 isEnabled: model.canUndo && !undoRescue.isWatching,
-                accessibilityLabel: "元に戻す（残り\(model.undosRemaining)回）",
+                // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
+                accessibilityLabel: model.undosRemaining > 0
+                    ? "元に戻す（残り\(model.undosRemaining)回）"
+                    : "元に戻す（広告を見て補充）",
                 accessibilityHint: model.canUndo
                     ? "直前の1手を取り消します。ミスの回数は戻りません"
                     : "取り消せる手がありません"

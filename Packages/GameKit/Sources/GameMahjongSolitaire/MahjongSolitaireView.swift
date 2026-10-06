@@ -460,7 +460,10 @@ public struct MahjongSolitaireView: View {
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
                 isEnabled: model.canUndo && !isWatchingRewardAd,
-                accessibilityLabel: "直前に取った2枚を戻す（残り\(model.undosRemaining)回）",
+                // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
+                accessibilityLabel: model.undosRemaining > 0
+                    ? "直前に取った2枚を戻す（残り\(model.undosRemaining)回）"
+                    : "直前に取った2枚を戻す（広告を見て補充）",
                 accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
             ) { requestUndo() },
             GameActionItem(

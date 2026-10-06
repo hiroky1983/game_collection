@@ -146,6 +146,15 @@ struct GameActionRowTests {
                 "\(module) の戻すの 2 行目が残り回数 → 広告になっていない")
     }
 
+    /// 専用の読み上げ文を渡す戻すは 2 行目（▶ 広告を見て）が読まれないので、使い切ったら文に広告を含める（PR #1866 の指摘）。
+    @Test("麻雀ソリティア・ナンプレの戻すは、使い切ったら読み上げで広告が要ることを伝える",
+          arguments: ["GameMahjongSolitaire", "GameSudoku"])
+    func undoLabelAnnouncesAdWhenUsedUp(module: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+        #expect(SourceScan.matchCount(of: #"accessibilityLabel: model\.undosRemaining > 0\s*\?[^:]*:\s*"[^"]*広告を見て"#, in: source) == 1,
+                "\(module) の戻すの読み上げが残り 0 回で広告に触れていない")
+    }
+
     /// 段の並びはソリティア系・盤ゲームと同じく「戻す → 助ける（ヒント）」。麻雀ソリティアはその後ろに並べ替え。
     @Test("麻雀ソリティア・ナンプレの段は戻す → ヒント（→ 並べ替え）の順",
           arguments: [("GameMahjongSolitaire", ["undo", "hint", "shuffle"]), ("GameSudoku", ["undo", "hint"])])
