@@ -615,15 +615,27 @@ public struct SudokuView: View {
     // MARK: - 操作ボタン
 
     private var gameControls: some View {
-        // ヒント（広告）はキーパッドの下の段のカプセルに出し、戻す・メモ・拡大・諦める（広告なし）は右下の「⋯」に残す
-        // （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
+        // 戻す（回数制・使い切ると広告で補充）・ヒント（広告）はキーパッドの下の段のカプセルに出し、
+        // メモ・拡大・諦める（広告なし）は右下の「⋯」に残す（#1468・#1856・#1855・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
         GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, verticalPadding: 4, nudge: hintNudge)
             .lineLimit(1)
     }
 
-    /// 段: ヒント（毎回広告・1 局 3 回まで）。2 行目に「▶ あと n 回」で広告と残りを出す。
+    /// 段: 戻す → ヒント（ソリティア系と同じく戻すが先頭）。
+    /// 戻すは回数制（無料のあと広告で補充・#1855）で 2 行目に「あと n 回」、使い切ったら「▶ 広告を見て」。
+    /// ヒントは毎回広告・1 局 3 回までで、2 行目に「▶ あと n 回」で広告と残りを出す。
     private var controlActions: [GameActionItem] {
         [
+            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                accessibilityLabel: "元に戻す（残り\(model.undosRemaining)回）",
+                accessibilityHint: model.canUndo
+                    ? "直前の1手を取り消します。ミスの回数は戻りません"
+                    : "取り消せる手がありません"
+            ) { requestUndo() },
             GameActionItem(
                 id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
                 badge: .ad(remaining: model.remainingHints),
@@ -647,15 +659,6 @@ public struct SudokuView: View {
     /// 「⋯」に入れる操作（広告の無いもの）。
     private var controlMenuItems: [GameControlMenuItem] {
         [
-            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
-            GameControlMenuItem(
-                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo && !undoRescue.isWatching,
-                accessibilityLabel: "元に戻す（残り\(model.undosRemaining)回）",
-                accessibilityHint: model.canUndo
-                    ? "直前の1手を取り消します。ミスの回数は戻りません"
-                    : "取り消せる手がありません"
-            ) { requestUndo() },
             GameControlMenuItem(
                 id: "note", title: "メモ", systemImage: "pencil.tip", isChecked: model.noteMode,
                 accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"

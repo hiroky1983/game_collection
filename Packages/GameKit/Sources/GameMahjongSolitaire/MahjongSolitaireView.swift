@@ -443,16 +443,26 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 操作
 
-    /// ヒント・並べ替え（どちらも広告）は盤の下の段のカプセルに出し、戻す・全体表示⇄拡大（広告なし）は右下の「⋯」に残す
-    /// （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」。戻すに上限を入れる件は #1855）。
+    /// 戻す（回数制・使い切ると広告で補充）・ヒント・並べ替え（どちらも広告）は盤の下の段のカプセルに出し、
+    /// 全体表示⇄拡大（広告なし）は右下の「⋯」に残す（#1468・#1856・#1855・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
     private var gameControls: some View {
         GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, nudge: hintNudge)
     }
 
-    /// 段: ヒント → 並べ替え。どちらもリワード広告制で、押した直後に広告を出さず確認ダイアログを挟む。
-    /// 2 行目は「▶ 広告を見て」（回数の上限は無い）。互いの広告の視聴中は塞ぐ（`isWatchingRewardAd`・PR #577）。
+    /// 段: 戻す → ヒント → 並べ替え（ソリティア系と同じく戻すが先頭）。ヒント・並べ替えはリワード広告制で、押した直後に
+    /// 広告を出さず確認ダイアログを挟む。2 行目は「▶ 広告を見て」（回数の上限は無い）。
+    /// 互いの広告の視聴中は塞ぐ（`isWatchingRewardAd`・PR #577）。
     private var controlActions: [GameActionItem] {
         [
+            // 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。押せない間も項目は残す。
+            // 回数制（無料のあと広告で補充・#1855）なので段に置く。2 行目は「あと n 回」、使い切ったら「▶ 広告を見て」。
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                isEnabled: model.canUndo && !isWatchingRewardAd,
+                accessibilityLabel: "直前に取った2枚を戻す（残り\(model.undosRemaining)回）",
+                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
+            ) { requestUndo() },
             GameActionItem(
                 id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint, badge: .ad(),
                 isEnabled: model.canHint && !isWatchingRewardAd,
@@ -482,13 +492,6 @@ public struct MahjongSolitaireView: View {
     /// 覆いに頼らず二重の歯止めにしておく。ヒントの広告をロードしている最中も押させない。
     private var controlMenuItems: [GameControlMenuItem] {
         [
-            // 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。押せない間も項目は残す。
-            GameControlMenuItem(
-                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
-                isEnabled: model.canUndo && !isWatchingRewardAd,
-                accessibilityLabel: "直前に取った2枚を戻す（残り\(model.undosRemaining)回）",
-                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
-            ) { requestUndo() },
             // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
             GameControlMenuItem(
                 id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
