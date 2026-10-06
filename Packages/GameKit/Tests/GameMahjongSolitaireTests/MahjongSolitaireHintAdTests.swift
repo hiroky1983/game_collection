@@ -190,12 +190,12 @@ struct MahjongSolitaireHintAdContractTests {
     func theTwoRewardFlowsAreMutuallyExclusive() throws {
         let source = try Self.viewSource()
         #expect(
-            source.contains("private var isWatchingRewardAd: Bool { hintRescue.isWatching || shuffleRescue.isWatching }"),
-            "2つの救済をまたぐ busy 条件が無い"
+            source.contains("private var isWatchingRewardAd: Bool { hintRescue.isWatching || shuffleRescue.isWatching || undoRescue.isWatching }"),
+            "3つの救済（ヒント・並べ替え・戻す）をまたぐ busy 条件が無い"
         )
         // 入口（関数）と見た目（ボタン）の両方で塞ぐ。片方だけだと、押せてしまうか、
         // 押せないのに理由が画面から読めないかのどちらかになる。
-        for name in ["requestHint", "requestShuffle"] {
+        for name in ["requestHint", "requestShuffle", "requestUndoRefill"] {
             #expect(
                 try Self.functionBody(name, in: source).contains("guard !isWatchingRewardAd else { return }"),
                 "\(name)() が排他を検査していない"
@@ -211,10 +211,10 @@ struct MahjongSolitaireHintAdContractTests {
     func notEarnedAlertMatchesTheSharedWording() throws {
         let source = try Self.viewSource()
         // #526 で文言そのものは `RewardedRescue.notEarnedMessage` の 1 か所へ移した。
-        // ここで確かめるのは「並べ替えとヒントの両方が共通 modifier を使っている」こと。
+        // ここで確かめるのは「並べ替え・ヒント・戻すの全部が共通 modifier を使っている」こと。
         #expect(
-            Self.occurrences(of: ".rewardedRescueAlerts(", in: source) == 2,
-            "並べ替えとヒントの2箇所で共通のアラートを使っているはず"
+            Self.occurrences(of: ".rewardedRescueAlerts(", in: source) == 3,
+            "並べ替え・ヒント・戻す（#1855）の3箇所で共通のアラートを使っているはず"
         )
         #expect(
             !source.contains("広告を最後まで視聴しなかったか"),
