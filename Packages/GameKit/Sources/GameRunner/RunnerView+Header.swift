@@ -168,6 +168,10 @@ extension RunnerView {
                 .frame(width: 34, height: 34)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)
+                // 見た目の円は 34pt のまま、押せる領域だけ 44pt に広げる（#1851）。
+                // 当たり判定は枠の中に入れる（枠の外へはみ出させても反応しない）。
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.pop)
         .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
