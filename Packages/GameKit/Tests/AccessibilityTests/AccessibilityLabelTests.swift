@@ -575,6 +575,10 @@ struct SolitaireAccessibilityTests {
                 .hasPrefix("進める手がありません"))
         #expect(SolitaireAccessibility.statusLabel(
             phase: .won, elapsedSeconds: 65, moveCount: 12, isDeadEnd: false).hasPrefix("クリア"))
+        // 標準以外のルール名は帯に出すので、読み上げにも同じ行で含める（#498・#1856）。
+        #expect(SolitaireAccessibility.statusLabel(
+            phase: .playing, elapsedSeconds: 65, moveCount: 12, isDeadEnd: false, ruleLabel: "3枚めくり")
+                == "経過1:05、12手、ルールは3枚めくり")
     }
 
     @Test("札の呼び名はスート記号ではなく語で読む")

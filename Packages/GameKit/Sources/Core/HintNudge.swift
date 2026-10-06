@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// ヒントを促す表示（吹き出し）の出し方の決まり（#1424）。
+/// ヒントを促す表示の出し方の決まり（#1424）。
 ///
-/// 30 秒以上操作が無いときに、「⋯」メニューのヒントを指す控えめな表示を出す。**表示するだけ**で、
+/// 30 秒以上操作が無いときに、ヒントを指す控えめな表示を出す。**表示するだけ**で、
 /// ヒントの使用も広告の再生もしない（ナンプレ・麻雀ソリティアのヒントは広告制なので、勝手に押さない）。
+/// 見せ方は 2 つ（#1856）: 段にヒントのカプセルがあればそれを光らせ、ヒントが「⋯」の中にあれば「⋯」の左に吹き出しを出す。
 public enum HintNudgePolicy {
     /// 操作が無いまま待つ長さ。
     public static let idleDelay: Duration = .seconds(30)
@@ -13,7 +14,7 @@ public enum HintNudgePolicy {
     /// まだ出してよいか。
     public static func canShow(shownCount: Int) -> Bool { shownCount < maxPerGame }
 
-    /// 待ち時間を数え始めてよいか。「⋯」メニューを開いているあいだは数えず、出ている吹き出しも隠す（#1485）。
+    /// 待ち時間を数え始めてよいか。「⋯」メニューを開いているあいだは数えず、出ている表示も隠す（#1485）。
     /// 閉じると条件が変わるので、そこから改めて `idleDelay` を待つ（閉じた直後にすぐは出さない）。
     public static func canSchedule(isEligible: Bool, isActive: Bool, isMenuOpen: Bool, shownCount: Int) -> Bool {
         isEligible && isActive && !isMenuOpen && canShow(shownCount: shownCount)
@@ -24,7 +25,7 @@ public enum HintNudgePolicy {
 ///
 /// - `isEligible`: 自分の手番・対局中・ヒントが使える、を全部満たすとき true。
 ///   CPU の手番・結果表示中・広告の視聴中・ヒントが尽きたときは false にする。
-/// - `activity`: **操作のたびに値が変わる**印（手数・選択・盤面など）。変わると待ち時間を数え直し、出ている吹き出しを消す。
+/// - `activity`: **操作のたびに値が変わる**印（手数・選択・盤面など）。変わると待ち時間を数え直し、出ている表示を消す。
 public struct HintNudge {
     let isEligible: Bool
     let game: Int
@@ -38,17 +39,38 @@ public struct HintNudge {
     }
 }
 
+/// 促しを出している最中か。段のヒントのカプセル（`GameActionCapsule`）がこれを読んで光る。
+private struct HintNudgeIsShowingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var hintNudgeIsShowing: Bool {
+        get { self[HintNudgeIsShowingKey.self] }
+        set { self[HintNudgeIsShowingKey.self] = newValue }
+    }
+}
+
 extension View {
-    /// 操作行に、ヒントを促す吹き出しを重ねる。`nudge` が nil なら何もしない。
-    /// - Parameter isMenuOpen: 「⋯」メニューを開いているか。開いているあいだは吹き出しを出さない（#1485）。
-    func hintNudge(_ nudge: HintNudge?, isMenuOpen: Bool = false) -> some View {
-        modifier(HintNudgeModifier(nudge: nudge, isMenuOpen: isMenuOpen))
+    /// 操作行に、ヒントを促す表示を付ける。`nudge` が nil なら何もしない。
+    /// - Parameter isMenuOpen: 「⋯」メニューを開いているか。開いているあいだは促しを出さない（#1485）。
+    /// - Parameter highlightsAction: 段にヒントのカプセルがあるか。あれば環境値 `hintNudgeIsShowing` でカプセルを光らせ、
+    ///   無ければ「⋯」の左に吹き出しを出す（ヒントが「⋯」の中にある形）。
+    func hintNudge(_ nudge: HintNudge?, isMenuOpen: Bool = false, highlightsAction: Bool = false) -> some View {
+        modifier(HintNudgeModifier(nudge: nudge, isMenuOpen: isMenuOpen, highlightsAction: highlightsAction))
+    }
+
+    /// 段のヒントのカプセルを光らせる（白い縁 + 黄色のにじみ）。Reduce Motion ではにじみを脈打たせない。
+    /// 縁は枠の内側、にじみは影なので、段の高さも隣のカプセルの位置も変えない。
+    func hintNudgeGlow(_ isOn: Bool, reduceMotion: Bool) -> some View {
+        modifier(HintNudgeGlowModifier(isOn: isOn, reduceMotion: reduceMotion))
     }
 }
 
 private struct HintNudgeModifier: ViewModifier {
     let nudge: HintNudge?
     let isMenuOpen: Bool
+    let highlightsAction: Bool
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shownCount = 0
@@ -70,14 +92,18 @@ private struct HintNudgeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .environment(\.hintNudgeIsShowing, isShowing && highlightsAction)
             .overlay(alignment: .trailing) {
-                // 「⋯」の**左**に、行の高さの中で横向きに置く（#1485）。行の中に収まるので、盤にも広告にも重ならない。
+                // ヒントが「⋯」の中にあるときだけ、「⋯」の**左**に、行の高さの中で横向きに置く（#1485）。
+                // 行の中に収まるので、盤にも広告にも重ならない。
                 // 出し入れは opacity で行う（`if` で挿し替えると出入りのたびに重なりの計算がやり直しになる）。
-                HintNudgeBubble()
-                    .opacity(isShowing ? 1 : 0)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .padding(.trailing, HintNudgeBubble.trailingInset)
+                if !highlightsAction {
+                    HintNudgeBubble()
+                        .opacity(isShowing ? 1 : 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .padding(.trailing, HintNudgeBubble.trailingInset)
+                }
             }
             .onChange(of: nudge?.game) { shownCount = 0 }
             .task(id: key) {
@@ -97,7 +123,51 @@ private struct HintNudgeModifier: ViewModifier {
     }
 }
 
+/// 段のヒントのカプセルを光らせる。
+///
+/// 光は overlay の**子**として足し引きする。`content` 側を if/else で分けると、光の出入りのたびに
+/// Button が別物として作り直され、押している最中に促しが切り替わると押下が途切れる。
+private struct HintNudgeGlowModifier: ViewModifier {
+    let isOn: Bool
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isOn {
+                HintNudgeGlowRing(pulses: !reduceMotion)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+/// 白い縁（枠の内側）+ 黄色のにじみ（縁の影）。枠の内側に描くので、段の高さも隣のカプセルの位置も変えない。
+private struct HintNudgeGlowRing: View {
+    /// 脈打たせるか（Reduce Motion では false）。
+    let pulses: Bool
+
+    var body: some View {
+        if pulses {
+            // 2 つの位相を行き来して脈打たせる（`phaseAnimator` は trigger を渡さなければ繰り返す）。
+            ring.phaseAnimator([false, true]) { view, bright in
+                view.opacity(bright ? 1 : 0.45)
+            } animation: { _ in
+                .easeInOut(duration: 0.8)
+            }
+        } else {
+            ring
+        }
+    }
+
+    private var ring: some View {
+        Capsule().strokeBorder(Color.white.opacity(0.9), lineWidth: 2.5)
+            .shadow(color: Theme.yellow, radius: 8)
+    }
+}
+
 /// 吹き出し。黄＋電球（ヒントの色・#1011）で、右向きの三角が右隣の「⋯」を指す（#1485）。
+/// ヒントが「⋯」の中にあるゲーム向け（段にヒントがあるゲームはカプセルを光らせる）。
 struct HintNudgeBubble: View {
     /// 行の右端からの距離。「⋯」の丸（44pt）とのあいだに 4pt あける。
     static let trailingInset: CGFloat = BoardGameControlMetrics.minTapTarget + 4

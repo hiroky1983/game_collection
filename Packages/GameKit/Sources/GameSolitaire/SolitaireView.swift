@@ -186,19 +186,29 @@ public struct SolitaireView: View {
 
     private var statusBar: some View {
         GameStatusBar {
-            Group {
-                if model.phase == .won {
-                    Label("クリア！", systemImage: "flag.checkered")
-                        .themeBody(15)
-                        .foregroundStyle(Theme.teal)
-                } else {
-                    Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Theme.coral)
+            HStack(spacing: 8) {
+                Group {
+                    if model.phase == .won {
+                        Label("クリア！", systemImage: "flag.checkered")
+                            .themeBody(15)
+                            .foregroundStyle(Theme.teal)
+                    } else {
+                        Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
+                            .font(.system(size: 15, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Theme.coral)
+                    }
+                }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                // 標準以外のルールで遊んでいるときだけルール名を出す（#498）。既定の 1 枚めくりは「標準」そのものなので出さない。
+                // 以前は「⋯」の行の左端にあったが、盤の下は操作の段になった（#1856）ので帯（表示だけの場所）へ移した。
+                if model.rules.drawMode != .one {
+                    Text(model.rules.drawMode.label)
+                        .themeCaption(11, maxScale: 1.3)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
                 }
             }
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
         } trailing: {
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -211,7 +221,8 @@ public struct SolitaireView: View {
             elapsedSeconds: model.elapsedSeconds,
             moveCount: model.moveCount,
             isDeadEnd: model.isDeadEnd,
-            isLost: model.isLost
+            isLost: model.isLost,
+            ruleLabel: model.rules.drawMode != .one ? model.rules.drawMode.label : nil
         ))
     }
 

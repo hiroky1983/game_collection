@@ -4,7 +4,8 @@ import GameKitTestSupport
 @testable import Core
 
 /// ヒントを促す表示（#1424）。時間の待ち合わせはテストしない（実時間に頼るとフレークする）ので、
-/// 決まりの値と、ヒントが「⋯」にある 5 本すべてが促しを配線していることだけを固定する。
+/// 決まりの値と、ヒントを持つ 5 本すべてが促しを配線していることだけを固定する。
+/// 見せ方は 2 つ（#1856）: 段にヒントのカプセルがあればそれを光らせ、ヒントが「⋯」の中にあれば吹き出しを出す。
 @Suite("ヒントを促す表示")
 struct HintNudgeTests {
 
@@ -30,7 +31,7 @@ struct HintNudgeTests {
     func overflowBarWiresMenuState() throws {
         let bar = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameOverflowBar.swift"))
         #expect(bar.contains("GameControlMenu(items: menuItems, isOpen: $isMenuOpen)"))
-        #expect(bar.contains(".hintNudge(nudge, isMenuOpen: isMenuOpen)"))
+        #expect(bar.contains(".hintNudge(nudge, isMenuOpen: isMenuOpen, highlightsAction: !actions.isEmpty)"))
         let menu = try #require(SourceScan.declaration(of: "public struct GameControlMenu: View", in: bar))
         #expect(menu.contains(".onAppear { setOpen(true) }"), "メニューが開いたことを拾っていない")
         #expect(menu.contains(".onDisappear { setOpen(false) }"), "メニューが閉じたことを拾っていない")
@@ -71,6 +72,29 @@ struct HintNudgeTests {
         #expect(nudge.contains(".padding(.trailing, HintNudgeBubble.trailingInset)"))
         #expect(!nudge.contains("alignmentGuide(.top)"), "吹き出しが行の上（盤側）へはみ出す置き方が残っている")
         #expect(HintNudgeBubble.trailingInset >= BoardGameControlMetrics.minTapTarget, "吹き出しが「⋯」に重なる")
+    }
+
+    /// 段にヒントのカプセルがあるときは吹き出しを出さず、環境値でカプセルを光らせる（#1856）。
+    /// 光らせるのは縁（枠の内側）と影なので、段の高さも隣のカプセルの位置も変えない。
+    @Test("段にヒントがあるときは吹き出しではなくヒントのカプセルを光らせる")
+    func actionRowGlowsInsteadOfBubble() throws {
+        let nudge = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/HintNudge.swift"))
+        #expect(nudge.contains(".environment(\\.hintNudgeIsShowing, isShowing && highlightsAction)"),
+                "促しの状態を環境値で段へ渡していない")
+        #expect(nudge.contains("if !highlightsAction {"), "段があるときも吹き出しが出る")
+        let glow = try #require(SourceScan.declaration(of: "private struct HintNudgeGlowModifier", in: nudge))
+        // 光は overlay の子として足し引きする（content 側を if/else で分けると Button が作り直され、押下が途切れる）。
+        #expect(glow.contains("content.overlay {"), "光を overlay の子にしていない")
+        #expect(glow.contains("HintNudgeGlowRing(pulses: !reduceMotion)"), "Reduce Motion を脈動の有無に結線していない")
+        let ring = try #require(SourceScan.declaration(of: "private struct HintNudgeGlowRing", in: nudge))
+        #expect(ring.contains("if pulses {"), "Reduce Motion で脈打つ")
+        #expect(ring.contains(".phaseAnimator([false, true])"), "繰り返しの脈動になっていない")
+        #expect(ring.contains("Capsule().strokeBorder("), "縁が枠の内側（strokeBorder）でない")
+        #expect(!ring.contains(".padding(-"), "光が枠の外へはみ出して段の高さを変える")
+        let row = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameActionRow.swift"))
+        #expect(row.contains("@Environment(\\.hintNudgeIsShowing) private var isNudging"), "カプセルが促しを読んでいない")
+        #expect(row.contains("item.role == .hint && item.isEnabled && isNudging"), "ヒント以外のカプセルまで光る")
+        #expect(row.contains(".hintNudgeGlow(glows, reduceMotion: reduceMotion)"))
     }
 
     @Test("ナンプレと麻雀ソリティアの操作行が促しを受け取り、広告の視聴中は出さない")
