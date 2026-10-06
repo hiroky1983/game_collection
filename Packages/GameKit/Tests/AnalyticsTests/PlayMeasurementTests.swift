@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _, _, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -97,7 +97,7 @@ struct QuitTrackingTests {
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
             case let .gameStart(_, _, mode, _, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _, _): return ("end", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -1048,5 +1048,109 @@ struct RestAcrossRelaunchTests {
         analytics.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
         analytics.finishPlay(gameID: "2048", outcome: .win)
         #expect(spy.ends.map(\.result) == [.win])
+    }
+}
+
+// MARK: - game_end に開始時の level を載せる（#1888）
+
+@Suite("game_end に開始時の level を載せる（#1888）")
+@MainActor
+struct GameEndLevelTests {
+    private func makeStore() -> UserDefaults {
+        let name = "GameEndLevelTests-\(UUID().uuidString)"
+        let store = UserDefaults(suiteName: name)!
+        store.removePersistentDomain(forName: name)
+        return store
+    }
+
+    private func launch(_ store: UserDefaults?, clock: TestClock) -> (GameAnalytics, SpyAnalyticsService) {
+        let spy = SpyAnalyticsService()
+        return (GameAnalytics(service: spy, allowedGameIDs: testGameIDs, now: { clock.now }, restStore: store), spy)
+    }
+
+    @Test("決着（win / loss / draw）の game_end に、開始と同じ level が載る")
+    func finishCarriesStartLevel() {
+        for outcome in [GameOutcome.win, .loss, .draw] {
+            let (analytics, spy) = launch(nil, clock: TestClock())
+            analytics.startPlay(gameID: "2048", level: .stage(6))
+            analytics.finishPlay(gameID: "2048", outcome: outcome)
+            #expect(spy.startLevels == [.stage(6)])
+            #expect(spy.endLevels == [.stage(6)])
+            #expect(spy.events.last?.parameters["level"] == .string("stage-6"))
+        }
+    }
+
+    @Test("途中でやめた（quit）game_end にも level が載り、次の面の値は混ざらない")
+    func quitCarriesStartLevelAndNextStageIsIndependent() {
+        let (analytics, spy) = launch(nil, clock: TestClock())
+        analytics.startPlay(gameID: "2048", level: .stage(6))
+        analytics.recordProgress(gameID: "2048")
+        analytics.restartPlay(gameID: "2048", level: .stage(7))
+        analytics.recordProgress(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: false)
+        #expect(spy.startLevels == [.stage(6), .stage(7)])
+        #expect(spy.endLevels == [.stage(6), .stage(7)])
+    }
+
+    @Test("level を付けずに始めたプレイの game_end には level の鍵が無い")
+    func noLevelNoKey() {
+        let (analytics, spy) = launch(nil, clock: TestClock())
+        analytics.startPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        #expect(spy.endLevels == [nil])
+        #expect(spy.events.last?.parameters["level"] == nil)
+    }
+
+    @Test("同じプロセスで休憩して再開した局の game_end にも載る")
+    func restAndResumeInProcess() {
+        let (analytics, spy) = launch(nil, clock: TestClock())
+        analytics.startPlay(gameID: "2048", level: .hard)
+        analytics.recordProgress(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        analytics.startPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        #expect(spy.endLevels == [.hard])
+    }
+
+    @Test("休憩中にアプリが終了し「続きから」で戻った局の game_end にも載る（決着・離脱とも）")
+    func restAcrossRelaunch() {
+        for finish in [true, false] {
+            let store = makeStore()
+            let clock = TestClock()
+            let (before, _) = launch(store, clock: clock)
+            before.startPlay(gameID: "2048", level: .stage(7))
+            before.recordProgress(gameID: "2048")
+            before.leaveGame(gameID: "2048", isResumable: true)
+
+            let (after, spy) = launch(store, clock: clock)
+            after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+            if finish {
+                after.finishPlay(gameID: "2048", outcome: .loss)
+            } else {
+                after.leaveGame(gameID: "2048", isResumable: false)
+            }
+            #expect(spy.endLevels == [.stage(7)])
+        }
+    }
+
+    @Test("level の無い旧版の控えも読める（level は nil のまま）")
+    func legacyRestEntryWithoutLevel() throws {
+        let store = makeStore()
+        let legacy = #"{"2048":{"activeSeconds":10,"didProgress":true,"hintsUsed":0}}"#
+        store.set(Data(legacy.utf8), forKey: GameAnalytics.restStoreKey)
+        let (analytics, spy) = launch(store, clock: TestClock())
+        analytics.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        #expect(spy.ends.count == 1)
+        #expect(spy.endLevels == [nil])
+    }
+
+    @Test("AnalyticsLevel は parameterValue から往復できる")
+    func levelRoundTrip() {
+        for level in AnalyticsLevel.allStrengths + [.stage(1), .stage(12)] {
+            #expect(AnalyticsLevel(parameterValue: level.parameterValue) == level)
+        }
+        #expect(AnalyticsLevel(parameterValue: "stage-0") == nil)
+        #expect(AnalyticsLevel(parameterValue: "nonsense") == nil)
     }
 }

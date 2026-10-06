@@ -435,7 +435,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326)、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326)、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761） |
@@ -469,6 +469,12 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   使った回数と今の付与だけから決まり、保存の形は変えない。もらった順ではないので、無料を使い切る前の遊びは「広告を見て遊んだ」に
   数えない）。DEBUG の `-homerunUnlimited`（回数を使わない）では載せない。回数制でないゲームは鍵ごと送らない。
   GA4 で枠別に見るには**カスタムディメンション `credit`（イベントスコープ）の登録が要る**（会長操作）。
+- `level`（#1888・会長指示 2026-10-06）は**開始時に付けた値を `game_end` にも同じ鍵・同じ値で載せる**（面・難易度ごとの勝ち / 負け /
+  途中でやめた・`cause`・`duration_sec` を結び付けて読むため）。`level` を持つ全ゲームに効き、イベントは増やさない。
+  `GameAnalytics.sendEnd` の 1 か所から出るので決着・離脱・休憩からの再開のどれでも載り、休憩の控え（`RestEntry.level`）にも入るため
+  アプリ終了をまたいだ再開でも落ちない（旧版の控えは `level` 無しで読み、鍵ごと送らない）。
+  GA4 の `level` は `game_start` で送っているパラメータと同名なので、イベントスコープのカスタムディメンション登録済みなら追加の登録は要らない
+  （登録の有無は GA4 管理画面でしか確認できない。会長操作）。
 - `hints_used`（#1326）は**そのプレイで使った無料ヒントの回数**（1〜3）。将棋・チェス・五目並べの3本だけが送る。
   各 Model が `BoardHintBudget.consume()` の成功ごとに `gameDidUseHint` を呼び、`GameAnalytics` が進行中の
   プレイに覚えて `game_end` に載せる。**送信は `sendEnd` の1か所**なので、決着（`finishPlay`）でも

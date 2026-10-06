@@ -549,6 +549,27 @@ struct SudokuUndoTests {
         (1...9).first { $0 != model.solution[index] }!
     }
 
+    @Test("ヒントで埋めたマスを自力で上書きするとヒントの印が外れ、戻すと数字と印が一緒に戻る（#1881）")
+    func overwritingHintedCellClearsMarkAndUndoRestoresIt() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        model.select(index: blank)
+        #expect(model.applyHint(at: blank))
+        #expect(model.hintedCells.contains(blank))
+        let hinted = model.board[blank]
+
+        model.enter(digit: wrongDigit(for: blank, in: model))
+        #expect(!model.hintedCells.contains(blank), "自力で書いたマスは紫のままにしない")
+
+        model.undo()
+        #expect(model.board[blank] == hinted)
+        #expect(model.hintedCells.contains(blank), "上書き前の数字とヒントの印は一緒に戻る")
+
+        model.enter(digit: model.solution[blank])
+        #expect(!model.hintedCells.contains(blank), "正解の入れ直しでも印は外れる")
+    }
+
     @Test("誤答を取り消すと盤は戻るが、ミス回数は戻らない（#375）")
     func undoRestoresBoardButNotMistakes() async {
         let (model, _) = makeModel()

@@ -138,6 +138,17 @@ public enum AnalyticsLevel: Equatable, Sendable {
         }
     }
 
+    /// `parameterValue` の逆。中断の控えから復元するときだけ使う。読めない値は nil。
+    public init?(parameterValue: String) {
+        if let strength = Self.allStrengths.first(where: { $0.parameterValue == parameterValue }) {
+            self = strength
+        } else if parameterValue.hasPrefix("stage-"), let number = Int(parameterValue.dropFirst("stage-".count)), number >= 1 {
+            self = .stage(number)
+        } else {
+            return nil
+        }
+    }
+
     /// 強さを表す段階の全量（やさしい順）。`stage` は面数がゲームごとに違うためここには入らない。
     public static let allStrengths: [AnalyticsLevel] = [.novice, .beginner, .normal, .hard, .expert]
 
@@ -252,12 +263,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
     /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）、そのプレイで 1 度でも
     /// ミスしたゲームだけ `cause`（最後のミスの原因・#796）、無料ヒントを 1 回でも使ったプレイだけ
-    /// `hints_used`（#1326）。
+    /// `hints_used`（#1326）、開始時に `level` を付けたプレイだけ同じ値の `level`（#1888・面・難易度ごとの勝ち負けを読むため）。
     /// 決着（win / loss / draw）と途中離脱（quit）の両方がこのイベントで出る。
     case gameEnd(
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
-        credit: AnalyticsCredit? = nil
+        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil
     )
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
@@ -315,7 +326,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -330,6 +341,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
             if hintsUsed > 0 { parameters["hints_used"] = .int(hintsUsed) }
             // 開始時に `credit` を付けたプレイだけ（開始と終わりを同じ鍵で突き合わせるため・枠ごとの遊んだ時間を出す）。
             if let credit { parameters["credit"] = .string(credit.rawValue) }
+            // 開始時に `level` を付けたプレイだけ（`game_start` と同じ値・同じ鍵。#1888）。
+            if let level { parameters["level"] = .string(level.parameterValue) }
             return parameters
         case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
@@ -424,6 +437,8 @@ public final class GameAnalytics {
     private var modes: [String: AnalyticsMode] = [:]
     /// 進行中のプレイの `credit`（#1685）。開始で覚え、終わりの `game_end` に同じ値を載せる。回数制でないゲームは鍵が無い。
     private var credits: [String: AnalyticsCredit] = [:]
+    /// 進行中のプレイの `level`（#1888）。開始で覚え、終わりの `game_end` に同じ値を載せる。`level` を持たないゲームは鍵が無い。
+    private var levels: [String: AnalyticsLevel] = [:]
     /// 進行中のプレイで最後にミスした原因（#796）。終わりの `game_end` に `cause` として載せる。
     /// プレイを始め直すと消える。ミスしていないプレイは鍵が無い。
     private var causes: [String: AnalyticsEndCause] = [:]
@@ -654,6 +669,8 @@ public final class GameAnalytics {
         var didProgress: Bool
         var hintsUsed: Int
         var mode: String?
+        /// `level` の `parameterValue`。この項目が無い旧版の控えも読めるよう optional（#1888）。
+        var level: String?
     }
 
     private func loadRests() -> [String: RestEntry] {
@@ -677,7 +694,8 @@ public final class GameAnalytics {
         var rests = loadRests()
         rests[gameID] = RestEntry(
             activeSeconds: activeSeconds[gameID] ?? 0, didProgress: didProgress,
-            hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue
+            hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue,
+            level: levels[gameID]?.parameterValue
         )
         saveRests(rests)
     }
@@ -696,6 +714,7 @@ public final class GameAnalytics {
             startedAt: now(), didProgress: entry.didProgress, canResume: true, hintsUsed: entry.hintsUsed
         )
         modes[gameID] = entry.mode.flatMap(AnalyticsMode.init(rawValue:))
+        levels[gameID] = entry.level.flatMap(AnalyticsLevel.init(parameterValue:))
         activeSeconds[gameID] = entry.activeSeconds
         resumeClock(gameID: gameID)
     }
@@ -747,7 +766,8 @@ public final class GameAnalytics {
         let seconds = min(Self.maxDurationSeconds, max(0, Int(activeSeconds[gameID] ?? 0)))
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
-            mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID]
+            mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
+            level: levels[gameID]
         ))
     }
 
@@ -756,6 +776,7 @@ public final class GameAnalytics {
         plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true, hintsUsed: 0)
         modes[gameID] = mode
         credits[gameID] = credit
+        levels[gameID] = level
         clearClock(gameID: gameID)
         resumeClock(gameID: gameID)
         // 前のプレイの死因を次のプレイへ持ち越さない。
