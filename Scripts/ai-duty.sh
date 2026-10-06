@@ -597,6 +597,42 @@ def ship_milestone_state($actors; $ver; $sha):
     end;
 '
 
+# 仕事7（公開検知→main取り込み）の対象ブランチ選びを純粋関数に切り出す（#1722・2026-10-06）。
+# 従来は `sort -V | tail -1` で**一番新しい release ブランチだけ**を見ていたため、公開前に次版の
+# release ブランチを切る運用（release/v1.1.10 を切った後に v1.1.9 が公開される）と噛み合わず、
+# 常に最新版（v1.1.10）の判定しかできず v1.1.9 の公開を一生検知できなかった（#1861 でキャッシュよけを
+# 入れた後も再発）。仕事13（ship_candidate_versions）と同じ発想で、ahead なブランチを**古い順**に
+# 当て、公開版がそのブランチの版に追いついているものを見つけたら決め打つ。
+#
+# release_candidate_versions: release/vX.Y.Z 形式のブランチ名から版だけを**古い順**に1行ずつ出す。
+# 引数: $1 = release ブランチ名の一覧（改行区切り）
+release_candidate_versions() {
+  local branches="$1"
+  printf '%s\n' "$branches" \
+    | sed -n 's#^release/v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$#\1#p' \
+    | sort -V
+}
+
+# is_release_target: 候補の版が「公開済みなのに main へ未取り込み」の対象か（古い順に当てる）。
+#   - main より先行していない（ahead_by=0 と正常に取れた）= 取り込み済み → 次の候補へ（まだ未取り込みの
+#     新しい版が残っているかもしれないので打ち切らない。仕事13 と違い「次の対象」が1個に決まらないため）
+#   - 先行量が取れなかった（空・数値でない）→ 判定不能で**打ち切る**（仕事13 と同じ理由。取得失敗を
+#     飛ばすと取り込み漏れの版をスキップしてしまう）
+#   - 公開バージョンが取れなかった → 判定不能で**打ち切る**
+#   - 公開バージョン >= 候補の版 → 対象（公開済みなのに未取り込み）
+#   - 公開バージョン < 候補の版 → まだ未公開。版は古い順なので、これより新しい候補も未公開のはず
+#     → **打ち切る**（公開版だけが先に進むことは無い前提。万一 API が揺れてもここで止まるので安全側）
+# 引数: $1 = main...release/vX.Y.Z の ahead_by / $2 = 候補の版 / $3 = App Store の公開バージョン
+# 戻り値: 0 = 対象 / 1 = 対象外（次の候補へ）/ 2 = 判定不能・未公開（打ち切り）
+is_release_target() {
+  local ahead="$1" ver="$2" store="$3"
+  case "$ahead" in ''|*[!0-9]*) return 2 ;; esac
+  [ "$ahead" -gt 0 ] || return 1
+  [ -n "$store" ] || return 2
+  [ "$(printf '%s\n%s\n' "$ver" "$store" | sort -V | tail -1)" = "$store" ] && return 0
+  return 2
+}
+
 # 仕事7の凍結判定（#580）を純粋関数に切り出す。gh/git の呼び出し結果（タグの有無・
 # lock_branch の有無）を引数で受け取るだけにし、ネットワーク呼び出しはこの外側（呼び出し側）
 # に残す——Scripts/tests/test-ai-duty-detect.sh がモュール無しで直接検証できるようにするため。
@@ -1102,27 +1138,34 @@ RELEASED=0
 # 属していなかった。公開判定（下の RELEASED）と同じブロックで、同じ REL_BRANCH に対して
 # タグと凍結の有無も確認する——新しい検知ジョブを増やさずに済む。
 SUBMISSION_UNFROZEN=0
-REL_BRANCH=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
-  --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null | sort -V | tail -1)
+REL_BRANCHES=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
+  --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null)
+REL_BRANCH=""
+REL_VER=""
+if [ -n "${REL_BRANCHES:-}" ]; then
+  # エッジキャッシュが古い版を返すことがある（v1.1.9 公開を検知できず#1722 が取り残された不具合）。
+  # クエリにキャッシュバスタを付けて毎回取り直す。
+  STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
+    | jq -r '.results[0].version // empty' 2>/dev/null)
+  # 未取り込みの release ブランチを**古い順**に当て、公開版が追いついている最初の1本に決める
+  # （release_candidate_versions / is_release_target。経緯は上のコメント参照）。複数あれば最も古いものから。
+  for V in $(release_candidate_versions "$REL_BRANCHES"); do
+    AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null)
+    is_release_target "${AHEAD:-}" "$V" "${STORE_VER:-}"
+    case $? in
+      0) REL_VER="$V"; REL_BRANCH="release/v${V}"; break ;;
+      1) continue ;;
+      *) break ;;
+    esac
+  done
+fi
 if [ -n "${REL_BRANCH:-}" ]; then
-  AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...$REL_BRANCH" --jq '.ahead_by' 2>/dev/null || echo 0)
-  if [ "${AHEAD:-0}" -gt 0 ]; then
-    # エッジキャッシュが古い版を返すことがある（v1.1.9 公開を検知できず#1722 が取り残された不具合）。
-    # クエリにキャッシュバスタを付けて毎回取り直す。
-    STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
-      | jq -r '.results[0].version // empty' 2>/dev/null)
-    REL_VER="${REL_BRANCH#release/v}"
-    # 公開バージョン >= release ブランチのバージョン（= 世に出た）なら仕事あり
-    if [ -n "${STORE_VER:-}" ] \
-      && [ "$(printf '%s\n%s\n' "$REL_VER" "$STORE_VER" | sort -V | tail -1)" = "$STORE_VER" ]; then
-      RELEASED=1
-      SUBMITTED_TAG=$(git ls-remote --tags origin "v${REL_VER}-submitted" 2>/dev/null)
-      LOCK_ENABLED=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${REL_VER}/protection" \
-        --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
-      if is_submission_unfrozen "${SUBMITTED_TAG:-}" "${LOCK_ENABLED:-false}"; then
-        SUBMISSION_UNFROZEN=1
-      fi
-    fi
+  RELEASED=1
+  SUBMITTED_TAG=$(git ls-remote --tags origin "v${REL_VER}-submitted" 2>/dev/null)
+  LOCK_ENABLED=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${REL_VER}/protection" \
+    --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
+  if is_submission_unfrozen "${SUBMITTED_TAG:-}" "${LOCK_ENABLED:-false}"; then
+    SUBMISSION_UNFROZEN=1
   fi
 fi
 

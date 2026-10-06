@@ -290,6 +290,29 @@ echo "== 13. 仕事7: 発火してはいけないケース =="
 check "タグ・lock が両方揃っていれば発火しない" "1" \
   "$(is_submission_unfrozen "abc123	refs/tags/v1.1.3-submitted" "true"; echo $?)"
 
+# 仕事7の対象ブランチ選び（#1722・2026-10-06）。従来は `sort -V | tail -1` で最新の release ブランチ
+# だけを見ており、公開前に次版（release/v1.1.10）を切る運用と噛み合わず、公開済みの v1.1.9 を一生
+# 検知できなかった。release_candidate_versions / is_release_target でブランチを古い順に当てるように直した。
+echo "== 13.5. 仕事7 の対象ブランチ選び（release_candidate_versions）=="
+check "release/vX.Y.Z 形式のブランチを古い順に出す（最新だけを選ばない）" "1.1.5 1.1.6 1.1.9 1.1.10" \
+  "$(release_candidate_versions "$(printf 'release/v%s\n' 1.1.10 1.1.5 1.1.9 1.1.6)" | tr '\n' ' ' | sed 's/ $//')"
+check "release/vX.Y.Z の形でない名前は無視する" "1.1.5" \
+  "$(release_candidate_versions "$(printf 'release/v1.1.0-submitted\nrelease/vnext\nrelease/v1.2\nrelease/v1.1.5\n')")"
+
+echo "== 13.6. 仕事7 の対象判定（is_release_target）=="
+check "main より先行し、公開版が追いついていれば対象（#1722: v1.1.10 を切った後でも v1.1.9 を拾う）" "0" \
+  "$(is_release_target "170" "1.1.9" "1.1.9"; echo $?)"
+check "main より先行していない（ahead_by=0・取り込み済み）なら次の候補へ" "1" \
+  "$(is_release_target "0" "1.1.8" "1.1.9"; echo $?)"
+check "公開版がまだ候補の版に追いついていなければ打ち切る（古い順なので以降も未公開）" "2" \
+  "$(is_release_target "182" "1.1.10" "1.1.9"; echo $?)"
+check "先行量が取得できなければ打ち切る（取りこぼしを次の版へ進めない）" "2" \
+  "$(is_release_target "" "1.1.9" "1.1.9"; echo $?)"
+check "先行量がエラーの JSON でも打ち切る" "2" \
+  "$(is_release_target '{"message":"Server Error"}' "1.1.9" "1.1.9"; echo $?)"
+check "公開バージョンが取得できなければ打ち切る" "2" \
+  "$(is_release_target "170" "1.1.9" ""; echo $?)"
+
 # 仕事13（出荷準備の検知・#483）。発火条件の設計を誤ると空振り起動が恒久化する（#120・#168・#386）一方、
 # 除外が足りないと検知全体が静かに沈黙する（2026-09-08 経営企画室の検算: v1.1.3 は未承認の #79 で鳴らなかった）。
 # 両方向の失敗をここで固定する。
@@ -606,6 +629,10 @@ USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
 check "仕事5・仕事8・仕事11・仕事12・仕事13 の5箇所が DUTY_JQ_COMMENT_LIB を渡している" "5" "$USES"
 check "仕事13 の呼び出し側が純粋関数を通している" "3" \
   "$(grep -cE '(ship_candidate_versions|is_ship_target|is_ship_ready) "' "$TARGET")"
+check "仕事7 の呼び出し側が最新版だけを選ぶ sort -V | tail -1 に戻っていない" "0" \
+  "$(grep -c 'matching-refs/heads/release/v".*sort -V | tail -1' "$TARGET")"
+check "仕事7 の呼び出し側が純粋関数を通している" "2" \
+  "$(grep -cE '(release_candidate_versions|is_release_target) "' "$TARGET")"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
