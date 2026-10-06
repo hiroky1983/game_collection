@@ -127,10 +127,10 @@ public struct BlocksView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("スコア")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
@@ -150,7 +150,7 @@ public struct BlocksView: View {
         HStack(spacing: 3) {
             ForEach(0..<max(0, model.lives), id: \.self) { _ in
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundStyle(Theme.coral)
             }
         }
@@ -166,7 +166,7 @@ public struct BlocksView: View {
             if model.phase == .paused { model.resume() } else { model.pause() }
         } label: {
             Image(systemName: model.phase == .paused ? "play.fill" : "pause.fill")
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, weight: .bold)
                 .frame(width: Self.pauseButtonSide, height: Self.pauseButtonSide)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)

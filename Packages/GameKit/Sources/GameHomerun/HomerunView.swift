@@ -228,7 +228,7 @@ struct HomerunCountMeter: View {
             HStack(spacing: 6) {
                 ball(lit: remaining > 0)
                 Text(verbatim: "×\(remaining)")
-                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(remaining > 0 ? lit : unlit)
                     .lineLimit(1)
             }
@@ -237,7 +237,7 @@ struct HomerunCountMeter: View {
 
     private func ball(lit isLit: Bool) -> some View {
         Image(systemName: "baseball.fill")
-            .font(.system(size: 20))
+            .scaledFont(20)
             .foregroundStyle(isLit ? lit : unlit)
     }
 }
@@ -286,7 +286,7 @@ struct HomerunResultView: View {
                      ? "\(balls.count) 球で終了（月が割れた）"
                      : "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
                 Text(verbatim: HomerunText.meters(total))
-                    .font(.system(size: 44, weight: .black, design: .rounded).monospacedDigit())
+                    .scaledFont(44, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 HStack(spacing: 6) {
@@ -309,13 +309,13 @@ struct HomerunResultView: View {
         if let challenge = model.challenge, challenge.moonCount > 0 {
             HStack(spacing: 12) {
                 Image(systemName: challenge.isMoonBroken ? "moon.circle.fill" : "moon.stars.fill")
-                    .font(.system(size: 34, weight: .bold))
+                    .scaledFont(34, weight: .bold, maxScale: 1.2)
                     .foregroundStyle(Theme.yellow)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(challenge.isMoonBroken ? "月が割れた！" : "月まで飛んだ！")
                         .themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
                     Text(verbatim: HomerunText.moonDistance)
-                        .font(.system(size: 26, weight: .black, design: .rounded).monospacedDigit())
+                        .scaledFont(26, weight: .black, design: .rounded).monospacedDigit()
                         .foregroundStyle(Theme.ink)
                     if challenge.isMoonBroken {
                         Text("挑戦はここで終わり。プレイ回数 +\(HomerunLedger.moonBonus) をプレゼント")
@@ -518,14 +518,14 @@ struct HomerunBallTile: View {
     var body: some View {
         VStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .bold))
+                .scaledFont(14, weight: .bold)
                 .foregroundStyle(iconColor)
             Text(verbatim: ball.distance > 0 ? HomerunText.distance(of: ball) : HomerunText.kind(ball.kind))
-                .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(13, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(verbatim: HomerunText.place(ball))
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .scaledFont(10, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .lineLimit(1).minimumScaleFactor(0.6)
         }

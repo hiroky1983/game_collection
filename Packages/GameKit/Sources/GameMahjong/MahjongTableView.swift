@@ -199,7 +199,7 @@ struct MahjongCenterPanel: View {
 
     private func led(_ text: String, size: CGFloat, design: Font.Design = .monospaced) -> some View {
         Text(text)
-            .font(.system(size: size, weight: .bold, design: design))
+            .font(.system(size: size, weight: .bold, design: design)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
             .monospacedDigit()
             // くすんで見えた（会長指摘）ので、芯を白に近い赤にして発光を強める
             .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFC9C2), Color(hex: 0xFF5A4C)], startPoint: .top, endPoint: .bottom))
@@ -216,7 +216,7 @@ struct MahjongCenterPanel: View {
         let name = index == 0 ? "あなた" : scene.names[index]
         return HStack(spacing: unit * 0.04) {
             Text(wind)
-                .font(.system(size: unit * 0.14, weight: .black, design: .rounded))
+                .font(.system(size: unit * 0.14, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 // 自風以外の東西南北が黒地に沈んで見えにくかった（会長指摘）ので、地の色を白に近づけ、
                 // 自風と同じ発光を弱めた形で足す。手番の金色との差は保ったまま、暗い方の下限を上げる。
                 .foregroundStyle(isCurrent ? Color(hex: 0xFFD54A) : Color(hex: 0xF0F0F5))
@@ -227,7 +227,7 @@ struct MahjongCenterPanel: View {
             led("\(scene.scores[index])", size: unit * 0.135)
             if scene.riichi[index] {
                 Text("立直")
-                    .font(.system(size: unit * 0.09, weight: .black, design: .rounded))
+                    .font(.system(size: unit * 0.09, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(Color(hex: 0xFF6A5C))
             }
         }

@@ -187,7 +187,7 @@ public struct SolitaireView: View {
                             .foregroundStyle(Theme.teal)
                     } else {
                         Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                            .font(.system(size: 15, weight: .bold, design: .monospaced))
+                            .scaledFont(15, weight: .bold, design: .monospaced)
                             .foregroundStyle(Theme.coral)
                     }
                 }

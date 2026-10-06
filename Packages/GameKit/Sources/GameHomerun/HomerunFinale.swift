@@ -160,7 +160,7 @@ struct HomerunFinaleScene: View {
             VStack(spacing: 0) {
                 Spacer().frame(height: size.height * 0.15)
                 Text(verbatim: finale.title)
-                    .font(.system(size: finale == .donmai ? 52 : 58, weight: .black, design: .rounded))
+                    .font(.system(size: finale == .donmai ? 52 : 58, weight: .black, design: .rounded)) // fixed-size: 決着演出の大見出し。画面幅いっぱいに収まる寸法で、拡大すると演出がはみ出す
                     .foregroundStyle(.white)
                     .shadow(color: finale.titleShadow, radius: 0, x: 0, y: 5)
                     .shadow(color: .black.opacity(0.25), radius: 8, y: 6)
@@ -196,7 +196,7 @@ struct HomerunFinaleScene: View {
                 }
                 Spacer()
                 Text("タップで次へ")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundStyle(.white.opacity(0.85))
                     .opacity(t > 0.9 ? (reduceMotion ? 1 : 0.55 + 0.45 * abs(sin(t * 3))) : 0)
                     .padding(.bottom, size.height * 0.06)
@@ -208,7 +208,7 @@ struct HomerunFinaleScene: View {
     /// ニューレコードの帯（本数・距離の下・水平）。右から滑り込む。
     private func band(appear: Double, width: CGFloat) -> some View {
         Text("ニューレコード！")
-            .font(.system(size: 24, weight: .black, design: .rounded))
+            .scaledFont(24, weight: .black, design: .rounded)
             .foregroundStyle(.white)
             .padding(.vertical, 8)
             .frame(width: width)
@@ -228,9 +228,9 @@ struct HomerunFinaleScene: View {
             .overlay(Circle().stroke(Color(red: 0.9, green: 0.2, blue: 0.2), lineWidth: 5).padding(5))
             .overlay(
                 VStack(spacing: -2) {
-                    Text("自己").font(.system(size: size * 0.16, weight: .black))
-                    Text("ベスト").font(.system(size: size * 0.18, weight: .black))
-                    Text("更新").font(.system(size: size * 0.16, weight: .black))
+                    Text("自己").font(.system(size: size * 0.16, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    Text("ベスト").font(.system(size: size * 0.18, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    Text("更新").font(.system(size: size * 0.16, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 }
                 .foregroundStyle(Color(red: 0.85, green: 0.15, blue: 0.15))
             )
@@ -242,8 +242,8 @@ struct HomerunFinaleScene: View {
 
     private func statChip(_ label: String, _ value: String) -> some View {
         VStack(spacing: 0) {
-            Text(verbatim: label).font(.system(size: 12, weight: .bold)).foregroundStyle(Color(white: 0.35))
-            Text(verbatim: value).font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
+            Text(verbatim: label).scaledFont(12, weight: .bold).foregroundStyle(Color(white: 0.35))
+            Text(verbatim: value).scaledFont(28, weight: .black, design: .rounded).monospacedDigit()
                 .foregroundStyle(Color(white: 0.1))
         }
         .frame(minWidth: 120)

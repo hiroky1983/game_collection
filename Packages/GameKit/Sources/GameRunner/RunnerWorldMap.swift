@@ -51,14 +51,14 @@ struct RunnerWorldMap: View {
                     .fill(Theme.inkSub.opacity(0.4))
                     .frame(width: 10, height: 10)
                 Text("？？？")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                 Text("つづく…")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .scaledFont(13, weight: .bold, design: .rounded)
             }
             .foregroundStyle(Theme.inkSub)
             .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
@@ -79,10 +79,10 @@ struct RunnerWorldMap: View {
                 .fill(Color(hex: world.mapColor))
                 .frame(width: 10, height: 10)
             Text("ワールド \(world.number)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(world.displayName)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
         }
         .accessibilityElement(children: .combine)
@@ -98,10 +98,10 @@ struct RunnerWorldMap: View {
             HStack(spacing: 4) {
                 // 数値の桁区切りが入らないよう verbatim で出す。
                 Text(verbatim: RunnerWorld.code(forStage: number))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(14, weight: .heavy, design: .rounded).monospacedDigit()
                 if !reached {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .bold))
+                        .scaledFont(11, weight: .bold)
                 }
             }
             .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))

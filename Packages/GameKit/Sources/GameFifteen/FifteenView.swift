@@ -44,10 +44,10 @@ public struct FifteenView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("手数")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.moves)")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
@@ -118,7 +118,7 @@ struct FifteenTile: View {
             .frame(width: side, height: side)
             .overlay {
                 Text(verbatim: "\(value)")
-                    .font(.system(size: side * 0.42, weight: .heavy, design: .rounded))
+                    .font(.system(size: side * 0.42, weight: .heavy, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(Theme.onAccent)
             }

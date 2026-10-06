@@ -129,7 +129,7 @@ struct HomerunTutorialCards: View {
                     Image(systemName: "moon.stars.fill").foregroundStyle(Theme.purple).accessibilityHidden(true)
                 } else {
                     Text("\(i + 1)")
-                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .scaledFont(13, weight: .black, design: .rounded)
                         .foregroundStyle(Theme.onAccent)
                         .frame(width: 22, height: 22)
                         .background(Circle().fill(Theme.Fill.coral))
@@ -239,7 +239,7 @@ struct HomerunTutorialFigure: View {
                 ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
                 Self.doubleArrow(&ctx, from: CGPoint(x: pad.x - 110 * s, y: pad.y + 52 * s),
                                  to: CGPoint(x: pad.x + 110 * s, y: pad.y + 52 * s), color: Theme.yellow, lineWidth: 4 * s)
-                ctx.draw(Text(Image(systemName: "hand.point.up.left.fill")).font(.system(size: 44 * s)).foregroundColor(.white),
+                ctx.draw(Text(Image(systemName: "hand.point.up.left.fill")).font(.system(size: 44 * s)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                          at: CGPoint(x: finger.x + 10 * s, y: finger.y + 12 * s))
                 Self.cursor(&ctx, at: CGPoint(x: zone.x + swing, y: zone.y), scale: s)
                 Self.doubleArrow(&ctx, from: CGPoint(x: zone.x - 62 * s, y: zone.y + 64 * s),
@@ -270,11 +270,11 @@ struct HomerunTutorialFigure: View {
                     ctx.fill(ring, with: .color(.white.opacity(0.25)))
                     ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
                 }
-                ctx.draw(Text(Image(systemName: "hand.point.up.fill")).font(.system(size: 44 * s)).foregroundColor(.white),
+                ctx.draw(Text(Image(systemName: "hand.point.up.fill")).font(.system(size: 44 * s)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                          at: CGPoint(x: finger.x + 6 * s, y: finger.y + 14 * s - lift))
                 Self.arrow(&ctx, from: CGPoint(x: finger.x - 36 * s, y: finger.y + 26 * s),
                            to: CGPoint(x: finger.x - 36 * s, y: finger.y - 36 * s), color: Theme.yellow, lineWidth: 4 * s, dash: [])
-                ctx.draw(Text(released ? "離す！" : "離す").font(.system(size: 15 * s, weight: .black, design: .rounded)).foregroundColor(.white),
+                ctx.draw(Text(released ? "離す！" : "離す").font(.system(size: 15 * s, weight: .black, design: .rounded)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                          at: CGPoint(x: finger.x + 50 * s, y: finger.y - 30 * s))
             }
         }
@@ -407,7 +407,7 @@ struct HomerunMoonTeaserFigure: View {
                     .frame(width: size.height * 0.34, height: size.height * 0.34)
                     .position(x: size.width * 0.20, y: size.height * 0.70)
                 Text("？？？")
-                    .font(.system(size: r * 0.62, weight: .black, design: .rounded))
+                    .font(.system(size: r * 0.62, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.6), radius: 4)
                     .position(moon)

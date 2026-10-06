@@ -274,7 +274,7 @@ public struct GoView: View {
     private var rejectionNotice: some View {
         if let rejection = model.lastRejection {
             Text(rejection.message)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(Theme.Fill.coral))
@@ -328,14 +328,14 @@ public struct GoView: View {
                 .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                 .frame(width: 18, height: 18)
             Text(isYou ? "あなた" : "CPU")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
             Text(stone == .black ? "黒・先番" : "白・後番")
-                .font(.system(size: 13, design: .rounded))
+                .scaledFont(13, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Spacer()
             Text("取った石 \(stone == model.humanSide ? model.capturedByHuman : model.capturedByCPU)")
-                .font(.system(size: 12, design: .rounded))
+                .scaledFont(12, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -401,7 +401,7 @@ public struct GoView: View {
         ZStack {
             if passBannerID != nil {
                 Text("パス")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .scaledFont(13, weight: .bold, design: .rounded)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(Capsule().fill(Theme.fillMuted))

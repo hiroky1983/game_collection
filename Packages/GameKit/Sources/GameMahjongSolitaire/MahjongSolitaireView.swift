@@ -303,7 +303,7 @@ public struct MahjongSolitaireView: View {
                         .foregroundStyle(Theme.teal)
                 } else {
                     Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .scaledFont(16, weight: .bold, design: .monospaced)
                         .foregroundStyle(Theme.coral)
                 }
             }

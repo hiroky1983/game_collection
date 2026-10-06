@@ -252,7 +252,7 @@ struct TileView: View {
             .overlay {
                 if value > 0 {
                     Text("\(value)")
-                        .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                        .font(.system(size: fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .minimumScaleFactor(0.4)
                         .foregroundStyle(value <= 4 ? Color(white: 0.35) : .white)
                         .padding(2)

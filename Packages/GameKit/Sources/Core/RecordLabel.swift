@@ -103,7 +103,7 @@ struct RecordShareButton: View {
     var body: some View {
         ShareLink(item: context.url, subject: Text("あそびば"), message: Text(verbatim: message)) {
             Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundStyle(Theme.onAccent)
                 .frame(width: Self.symbolSide, height: Self.symbolSide)
                 .background(Circle().fill(accent))

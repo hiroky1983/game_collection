@@ -169,7 +169,7 @@ public struct SpiderView: View {
                         .foregroundStyle(Theme.teal)
                 } else {
                     Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .scaledFont(15, weight: .bold, design: .monospaced)
                         .foregroundStyle(Theme.coral)
                 }
             }
@@ -178,7 +178,7 @@ public struct SpiderView: View {
 
             // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
             Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .scaledFont(10, weight: .bold, design: .monospaced)
                 .foregroundStyle(Theme.inkSub)
 
             GameClockLabel(RecordFormat.time(model.elapsedSeconds))
@@ -346,7 +346,7 @@ public struct SpiderView: View {
                     .offset(x: CGFloat(index) * 1.5, y: -CGFloat(index) * 1.5)
                 }
                 Text(verbatim: "×\(remaining)")
-                    .font(.system(size: max(9, metrics.rankFont * 0.55), weight: .black, design: .rounded))
+                    .font(.system(size: max(9, metrics.rankFont * 0.55), weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 5).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.Fill.coral))
@@ -660,13 +660,13 @@ struct SpiderSetupSheet: View {
                     tile(.four, accent: DifficultyTile.accent(step: 2, of: 3))
                 }
                 Text(Self.footer(for: draft.suitCount))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             if discardsProgress {
                 Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
                       systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .scaledFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.coral)
             }
         }

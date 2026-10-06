@@ -215,7 +215,7 @@ public struct GameControlMenu: View {
             .onDisappear { setOpen(false) }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, weight: .bold)
                 .foregroundStyle(Color.white)
                 .frame(width: BoardGameControlMetrics.minTapTarget, height: BoardGameControlMetrics.minTapTarget)
                 .background(Circle().fill(Theme.fillMuted))

@@ -40,7 +40,7 @@ struct HomerunAchievementsCard: View {
         let unlocked = model.achievements.contains(achievement)
         return HStack(alignment: .top, spacing: 10) {
             Image(systemName: unlocked ? "trophy.fill" : "lock.fill")
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .foregroundStyle(unlocked ? Theme.yellow : Theme.inkSub.opacity(0.5))
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
@@ -71,13 +71,13 @@ struct HomerunUnlockBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "trophy.fill")
-                .font(.system(size: 26, weight: .bold))
+                .scaledFont(26, weight: .bold)
                 .foregroundStyle(Theme.yellow)
             VStack(alignment: .leading, spacing: 2) {
                 Text("実績解禁！").themeCaption(12).foregroundStyle(Theme.coral)
                 ForEach(items, id: \.self) { item in
                     Text(verbatim: item.title)
-                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .scaledFont(18, weight: .black, design: .rounded)
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)

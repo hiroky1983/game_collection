@@ -98,10 +98,10 @@ public struct FruitsView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("スコア")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: RecordFormat.number(model.score))
-                    .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
@@ -110,10 +110,10 @@ public struct FruitsView: View {
             HStack(spacing: 8) {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("つぎ")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .scaledFont(12, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                     Text(model.nextKind.name)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .scaledFont(13, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -201,7 +201,7 @@ public struct FruitsView: View {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
                     Text("広告を見ると、小さい果物と線より上の果物を片づけて続けられます")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .scaledFont(12, weight: .medium, design: .rounded)
                         .foregroundStyle(.white.opacity(0.85))
                         .multilineTextAlignment(.center)
                 }

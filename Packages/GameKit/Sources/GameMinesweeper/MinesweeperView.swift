@@ -189,9 +189,9 @@ public struct MinesweeperView: View {
     private var continueContent: some View {
         VStack(spacing: 12) {
             Text("💥")
-                .font(.system(size: 52))
+                .scaledFont(52, maxScale: 1.2)
             Text("地雷を踏んだ！")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .scaledFont(20, weight: .bold, design: .rounded)
                 .foregroundStyle(.white)
 
             GameDeadEndActionButton(
@@ -294,7 +294,7 @@ public struct MinesweeperView: View {
                 } else {
                     Label(String(format: "%02d", max(0, model.remainingMines)),
                           systemImage: "flag.fill")
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .scaledFont(16, weight: .bold, design: .monospaced)
                         .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(Theme.coral)
                 }
@@ -516,7 +516,7 @@ public struct MinesweeperView: View {
                 .foregroundStyle(isHit ? Theme.onAccent : Color(hex: 0x2A2A2A))
         } else if cell.isRevealed && cell.adjacentMines > 0 {
             Text("\(cell.adjacentMines)")
-                .font(.system(size: size * 0.56, weight: .black, design: .rounded))
+                .font(.system(size: size * 0.56, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(numberColor(cell.adjacentMines))
         }
     }

@@ -93,7 +93,7 @@ public struct BoardGameCheckBanner: View {
 
     public var body: some View {
         Text(text)
-            .font(.system(size: BoardGameCheckBannerStyle.fontSize, weight: .black, design: .serif))
+            .font(.system(size: BoardGameCheckBannerStyle.fontSize, weight: .black, design: .serif)) // fixed-size: 盤上の王手バナーの寸法に合わせた固定値
             .foregroundStyle(.white)
             .padding(.horizontal, BoardGameCheckBannerStyle.horizontalPadding)
             .padding(.vertical, BoardGameCheckBannerStyle.verticalPadding)

@@ -446,7 +446,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                     ForEach(Array(guide.lines.enumerated()), id: \.offset) { index, line in
                         HStack(alignment: .top, spacing: 10) {
                             Text("\(index + 1)")
-                                .font(.system(size: 13, weight: .black, design: .rounded))
+                                .scaledFont(13, weight: .black, design: .rounded)
                                 .foregroundStyle(Theme.onAccent)
                                 .frame(width: 22, height: 22)
                                 .background(Circle().fill(Theme.Fill.coral))
@@ -469,7 +469,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                                     .themeBody(15)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .bold))
+                                    .scaledFont(13, weight: .bold)
                                     .foregroundStyle(Theme.inkSub)
                             }
                             .padding(12)

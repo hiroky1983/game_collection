@@ -42,10 +42,10 @@ extension RunnerView {
     private var stageHeadline: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(RunnerAccessibility.stageLabel(number: model.stageNumber, total: RunnerRules.stageCount))
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(stageHeadlineText)
-                .font(.system(size: 17, weight: .heavy, design: .rounded))
+                .scaledFont(17, weight: .heavy, design: .rounded)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -63,7 +63,7 @@ extension RunnerView {
     private var progressReadout: some View {
         VStack(alignment: .trailing, spacing: 4) {
             Text("ゴールまで")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             progressBar
         }
@@ -76,7 +76,7 @@ extension RunnerView {
     private var distanceReadout: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("走行距離")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             shrinkingNumber(distanceText(model.distanceMeters), size: 22)
         }
@@ -88,7 +88,7 @@ extension RunnerView {
     private var endlessBestReadout: some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text("自己ベスト")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             shrinkingNumber(model.endlessBestDistance.map(distanceText) ?? "–", size: 15, alignment: .trailing)
         }
@@ -102,7 +102,7 @@ extension RunnerView {
     /// 縮めずにいると「2,500,…」と切れた（実測）。縮めるとその行が低くなりヘッダーの高さ＝コースの大きさが
     /// 桁の増えた瞬間に変わるので、**縮める前の 1 行の高さを隠した型で取っておく**。
     private func shrinkingNumber(_ text: String, size: CGFloat, alignment: Alignment = .leading) -> some View {
-        let font = Font.system(size: size, weight: .heavy, design: .rounded).monospacedDigit()
+        let font = Font.system(size: size, weight: .heavy, design: .rounded).monospacedDigit() // fixed-size: 呼び出し側が渡す寸法の高さに収める行（行の高さを先に確保している）
         return ZStack(alignment: alignment) {
             Text(verbatim: "0").font(font).hidden()
             Text(text)
@@ -125,7 +125,7 @@ extension RunnerView {
     private var speedMeter: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("スピード")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -164,7 +164,7 @@ extension RunnerView {
             if model.phase == .paused { model.resume() } else { model.pause() }
         } label: {
             Image(systemName: model.phase == .paused ? "play.fill" : "pause.fill")
-                .font(.system(size: 16, weight: .bold))
+                .scaledFont(16, weight: .bold)
                 .frame(width: 34, height: 34)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)

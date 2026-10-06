@@ -100,7 +100,7 @@ struct SolitaireControlsView: View {
     /// 置き先を選んでいる最中の案内。盤に被せず操作列の上に出す（列をタップさせる必要があるため）。
     private var jokerPlacingBanner: some View {
         Text("ジョーカーを置く列をタップしてください（空の列と、すでにジョーカーがある列には置けません）")
-            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .scaledFont(12, weight: .bold, design: .rounded)
             .foregroundStyle(Theme.onAccent)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 12).padding(.vertical, 8)

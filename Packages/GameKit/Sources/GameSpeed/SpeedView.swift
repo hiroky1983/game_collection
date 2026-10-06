@@ -145,7 +145,7 @@ public struct SpeedView: View {
         VStack(spacing: 2) {
             Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
             Text(verbatim: value)
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(22, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
         }
@@ -161,10 +161,10 @@ public struct SpeedView: View {
         HStack(spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                     .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coral)
                 Text(model.isTimeoutActive ? "タイム中" : "CPU")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
             .frame(width: layout.scaled(56), alignment: .leading)
@@ -201,7 +201,7 @@ public struct SpeedView: View {
         .overlay(alignment: .top) {
             if model.isStuck {
                 Text("どちらも出せない！")
-                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .scaledFont(11, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 10).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Fill.yellow))
@@ -374,10 +374,10 @@ public struct SpeedView: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: model.winner == .human ? "crown.fill" : "flag.checkered")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundStyle(model.winner == .human ? Theme.yellow : Theme.inkSub)
                 Text(statusText)
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.winner == .human ? Theme.teal : Theme.ink)
                 Spacer()
             }
@@ -406,17 +406,17 @@ public struct SpeedView: View {
     private func resultRow(_ name: String, remaining: Int, isWinner: Bool) -> some View {
         HStack(spacing: 8) {
             Text(isWinner ? "勝ち" : "　")
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .scaledFont(12, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .frame(width: 44)
                 .padding(.vertical, 3)
                 .background(Capsule().fill(isWinner ? Theme.Fill.yellow : Color.clear))
             Text(name)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(name == "あなた" ? Theme.coral : Theme.ink)
             Spacer()
             Text(remaining == 0 ? "出し切り" : "残り\(remaining)枚")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
         .accessibilityElement(children: .combine)
@@ -483,7 +483,7 @@ struct SpeedStockView: View {
                 PlayingCardSurface(faceUp: false, cornerRadius: metrics.cornerRadius)
                 PlayingCardBack(metrics: metrics)
                 Text(verbatim: "\(count)")
-                    .font(.system(size: metrics.rankFont * 0.7, weight: .black, design: .rounded).monospacedDigit())
+                    .font(.system(size: metrics.rankFont * 0.7, weight: .black, design: .rounded).monospacedDigit()) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                     .foregroundStyle(.white)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Capsule().fill(Color.black.opacity(0.35)))

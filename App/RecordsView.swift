@@ -124,7 +124,7 @@ struct RecordsView: View {
     private func milestoneRow(_ milestone: RecordsSummary.Milestone) -> some View {
         HStack(spacing: 12) {
             Image(systemName: milestone.isAchieved ? "checkmark.seal.fill" : "seal")
-                .font(.system(size: 20, weight: .semibold))
+                .scaledFont(20, weight: .semibold)
                 .foregroundStyle(milestone.isAchieved ? Theme.coral : Theme.inkSub)
             Text(milestone.title)
                 .themeBody(16)
@@ -146,7 +146,7 @@ struct RecordsView: View {
                 .frame(width: 32, height: 32)
                 .overlay {
                     module.icon
-                        .font(.system(size: 16, weight: .bold))
+                        .scaledFont(16, weight: .bold)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .opacity(row.isPlayed ? 1 : 0.45)
