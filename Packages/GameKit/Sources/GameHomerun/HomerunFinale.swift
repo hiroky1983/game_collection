@@ -104,11 +104,16 @@ struct HomerunFinaleView: View {
             .ignoresSafeArea()
         }
         .contentShape(Rectangle())
-        .onTapGesture { withGameAnimation(.easeOut(duration: 0.2)) { model.skipFinale() } }
+        .onTapGesture(perform: skipFinale)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.accessibilityText(finale, homers: homers, total: total, isNewBest: model.isNewBest))
         .accessibilityHint("タップで結果へ進みます")
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { skipFinale() }
+    }
+
+    private func skipFinale() {
+        withGameAnimation(.easeOut(duration: 0.2)) { model.skipFinale() }
     }
 
     static func accessibilityText(_ finale: HomerunFinale, homers: Int, total: Double, isNewBest: Bool) -> String {
