@@ -572,9 +572,9 @@ public final class PokerModel {
         persist()
     }
 
-    /// CPU のベットにコールできるか。手持ちが足りなくても 1 枚以上あれば不足額でコールできる（超過分は返る）。
+    /// CPU のベットにコールできるか。手持ちが足りなくても（0 枚でも）不足額でコールできる（超過分は返る）。
     public var canCallCPUBet: Bool {
-        phase == .betting2 && currentBet > 0 && playerChips > 0
+        phase == .betting2 && currentBet > 0
     }
 
     public func callCPUBet() {
