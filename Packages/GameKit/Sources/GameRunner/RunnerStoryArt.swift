@@ -79,8 +79,14 @@ enum RunnerStoryArt {
         /// 港町: 「つづく」。
         case harborToBeContinued
 
-        /// 京都・奈良（#1824）: 石畳で掴みかける。締めの残りのコマは話のつなぎの決裁後に足す。
+        /// 京都・奈良（#1824）: 石畳で掴みかける。
         case kyotoNaraReach
+        /// 京都・奈良: 奈良の鹿が鹿せんべいと間違えて咥える（おじさんは `frown`）。
+        case kyotoNaraDeer
+        /// 京都・奈良: 鹿が宝くじを咥えたまま右へ走り去る（おじさんは `gaze`）。
+        case kyotoNaraDeerRun
+        /// 京都・奈良: 「つづく」。石畳の先に小さくなった鹿。
+        case kyotoNaraToBeContinued
     }
 
     // MARK: 1 コマを組む
@@ -168,7 +174,32 @@ enum RunnerStoryArt {
                 .overlaying(fit(cargoShip()), x: 116, y: groundY - 30)
 
         case .kyotoNaraReach: return reachPanel(.kyotoNara)
+        case .kyotoNaraDeer:
+            // 鹿が咥える。鹿はコースの絵（`RunnerPixelArt.deer`・左向き 30×21）を 2 倍にして右に置き、
+            // 宝くじは口元（左上）のすぐ先に重ねる。おじさんは左で「こら！」の `frown`。
+            return backdrop(.kyotoNara)
+                .overlaying(fit(deer(), times: 2), x: 120, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 92, y: groundY - 66)
+                .overlaying(bust(.frown), x: 0, y: bustY)
+        case .kyotoNaraDeerRun:
+            // 右へ走り去る（コースの絵を左右反転）。宝くじは口元（右上）に咥えたまま、おじさんは見送る。
+            return backdrop(.kyotoNara)
+                .overlaying(fit(deer().flippedHorizontally(), times: 2), x: 100, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 186, y: groundY - 66)
+                .overlaying(bust(.gaze), x: 0, y: bustY)
+        case .kyotoNaraToBeContinued:
+            // 「つづく」。文字は台詞側に出すので、絵は石畳の先に小さくなった鹿（等倍）と宝くじだけにする。
+            return backdrop(.kyotoNara)
+                .overlaying(fit(deer().flippedHorizontally()), x: 168, y: groundY - 42)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 196, y: groundY - 34)
         }
+    }
+
+    /// 奈良の鹿（コースの絵 `RunnerPixelArt.deer` の歩きのコマ）。色はその世界の `Creatures` から写す
+    /// （犬・猫と同じ文字で、体 `O`・暗部 `o`・白 `W`・縁取り `K`）。この話にだけ出る部品を増やさず、
+    /// 31〜36 面で歩いて来る鹿と同じ絵にする（「既存の絵は使い回す」）。
+    static func deer() -> PixelSprite {
+        RunnerPixelArt.deer(.walk0, colors: RunnerWorld.kyotoNara.creatures)
     }
 
     /// 顔を出すコマの置き方（バストアップ）。

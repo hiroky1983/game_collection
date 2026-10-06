@@ -345,7 +345,7 @@ public enum RecordFormat {
     /// チャリンコおじさんのステージ数と、1 つの世界が受け持つ面数（`RunnerRules.stageCount` /
     /// `RunnerWorld.stagesPerWorld` の写し。Core からは GameRunner を参照できないので値で持つ）。
     /// 食い違わないことは `GameRunnerTests`（`RunnerHubLineTests`）が全面について突き合わせる。
-    static let runnerStageCount = 30
+    static let runnerStageCount = 36
     static let runnerStagesPerWorld = 6
 
     /// チャリンコおじさんの本編の 1 行（#931）。

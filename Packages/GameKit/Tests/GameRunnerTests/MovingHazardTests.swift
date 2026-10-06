@@ -449,7 +449,7 @@ struct RunnerHazardMotionTests {
     /// **「運で死ぬ瞬間が無い」の実体**（#1010 設計の芯）: どの面でも、走者が踏み切るべき地点に
     /// 着くより手前で伸び切っている。ここが崩れると、伸びかけの低い帯を見て小さく跳んだ人が
     /// 空中で刺される。
-    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全 30 面）")
+    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全面）")
     func shootFinishesRisingBeforeTheTakeOffPoint() {
         var tightest = Double.infinity
         var count = 0

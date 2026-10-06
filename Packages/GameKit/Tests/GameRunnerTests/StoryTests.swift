@@ -65,10 +65,10 @@ struct RunnerStoryTests {
         #expect(!keys.contains(RunnerTutorial.seenKey))
     }
 
-    @Test("締めのきっかけは 6・12・18・24・30 面で、それ以外の面では流れない")
+    @Test("締めのきっかけは 6・12・18・24・30・36 面で、それ以外の面では流れない")
     func endingsFireOnlyAtTheEndOfAWorld() {
         let triggers = RunnerStoryScene.all.compactMap(\.triggerStage)
-        #expect(triggers == [6, 12, 18, 24, 30])
+        #expect(triggers == [6, 12, 18, 24, 30, 36])
         #expect(RunnerStoryScene.intro.triggerStage == nil)
         for stage in 1...RunnerRules.stageCount {
             let scene = RunnerStory.ending(forClearedStage: stage)
@@ -180,16 +180,16 @@ struct RunnerStoryTests {
         _ = RunnerStory.endingToPlay(clearedStage: 6, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning)])
 
-        // 29 面クリアでは到達点が 30 になるが、港町の締めはまだ見ていないので並ばない。
-        _ = RunnerStory.endingToPlay(clearedStage: 29, playLog: log, arguments: [])
+        // 35 面クリアでは到達点が最終面の 36 になるが、京都・奈良の締め（最後の締め）はまだ見ていないので並ばない。
+        _ = RunnerStory.endingToPlay(clearedStage: 35, playLog: log, arguments: [])
         #expect(
             RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning)],
             "まだ見ていない最後の締めが一覧に出ている（ネタバレ）"
         )
 
-        // 30 面をクリアして初めて並ぶ。
-        _ = RunnerStory.endingToPlay(clearedStage: 30, playLog: log, arguments: [])
-        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.harbor)])
+        // 36 面をクリアして初めて並ぶ（世界の順）。
+        _ = RunnerStory.endingToPlay(clearedStage: 36, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.kyotoNara)])
     }
 
     // MARK: 3. 走行との結び付き
@@ -501,13 +501,15 @@ struct RunnerStoryTests {
 
     // MARK: 5. 撮影・QA の入口
 
-    @Test("起動引数から場面を引ける（-simulateRunner story-intro / story-world1〜5）")
+    @Test("起動引数から場面を引ける（-simulateRunner story-intro / story-world1〜6）")
     func debugScenesMapToLaunchArguments() {
         #expect(RunnerStory.debugScene(for: "story-intro") == .intro)
         for world in RunnerWorld.allCases {
             #expect(RunnerStory.debugScene(for: "story-world\(world.number)") == .ending(world), "\(world)")
         }
         #expect(RunnerStory.debugScene(for: "story-world0") == nil)
+        #expect(RunnerStory.debugScene(for: "story-world6") == .ending(.kyotoNara))
+        #expect(RunnerStory.debugScene(for: "story-world7") == nil)
         #expect(RunnerStory.debugScene(for: "story-world9") == nil)
         #expect(RunnerStory.debugScene(for: "cleared") == nil, "他のシナリオを横取りしている")
         #expect(RunnerStory.debugScene(for: "chasing") == nil)

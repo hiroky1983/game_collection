@@ -57,7 +57,7 @@ extension RunnerModel {
             advanceFramesForDebug(seconds: RunnerRules.goalChaseDuration * 0.4)
             isFrozenForCapture = true
         case let value where RunnerStory.debugScene(for: value)?.triggerStage != nil:
-            // 世界の締め（`story-world1`〜`story-world5`・#1092）。締めは**リザルトの手前**に
+            // 世界の締め（`story-world1`〜`story-world6`・#1092）。締めは**リザルトの手前**に
             // 出るものなので、まず普通にゴールさせて `.cleared` を作り、その上に被せる。
             // 面はどこでもよい（締めの絵は `RunnerStoryArt` が自前の背景で描く）。
             press(); release()

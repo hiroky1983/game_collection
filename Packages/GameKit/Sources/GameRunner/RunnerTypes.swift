@@ -663,7 +663,7 @@ public enum RunnerEvent: Equatable, Sendable {
 /// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
 /// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
 public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
-    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界）。
+    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界、#1824 で 36 面・6 世界）。
     case stages
     /// 走行距離を競うエンドレス（#675）。
     case endless

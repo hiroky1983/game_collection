@@ -9,15 +9,17 @@ import Foundation
 /// 会長決裁 2026-09-17〜18: 商店街の福引きで当たった宝くじが風に飛ばされ、どこまでも追いかけていく。
 /// 世界の締めでは毎回**あと一歩で掴みかけ、何かに邪魔されて次の世界へ飛んでいく**
 /// （マリオの「姫は別の城にいます」の型）。**なぜママチャリで海を渡れるのかは説明しない**。
+/// 京都・奈良（#1824）は港町の船が運んだ先。奈良の鹿が宝くじを鹿せんべいと間違えて咥えて逃げ、
+/// 話は「つづく」のまま次の世界へ送る（**なぜ船が古都に着くのかも説明しない**。港町と同じ）。
 ///
 /// 純データなので、出す・出さないの判定も場面の中身も SwiftUI 抜きでテストできる。
 public enum RunnerStoryScene: Equatable, Hashable, Sendable {
     /// 始まり。初めてチャリンコおじさんを開いたときに 1 回だけ。
     case intro
-    /// その世界の最終面（6・12・18・24・30 面）を初めてクリアしたとき。
+    /// その世界の最終面（6・12・18・24・30・36 面）を初めてクリアしたとき。
     case ending(RunnerWorld)
 
-    /// 始まり + 5 つの締め。並びは話の順。
+    /// 始まり + 世界の数だけの締め（#1824 で 6 つ）。並びは話の順。
     public static let all: [RunnerStoryScene] = [.intro] + RunnerWorld.allCases.map { .ending($0) }
 
     /// `PlayLog` に残す「見た」印の鍵。
@@ -85,10 +87,14 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
                 RunnerStoryPanel(art: .harborToBeContinued, line: "つづく"),
             ]
         case .ending(.kyotoNara):
-            // #1824 のモック段階の仮置き。話のつなぎ（宝くじがなぜ古都へ・次はどこへ）は会長決裁待ちで、
-            // 台詞・コマは 31〜36 面の実装のときに決める。
+            // 京都・奈良（#1824）。港町の「つづく」を受けて石畳で掴みかけ、奈良の鹿が鹿せんべいと
+            // 間違えて咥えて走り去る。港町と同じ 4 コマ（掴みかける → 奪われる → 見送る → つづく）で、
+            // 最後の世界の締めは必ず「つづく」で終える（次の世界＝海外は会長決裁で後回し）。
             return [
-                RunnerStoryPanel(art: .kyotoNaraReach, line: "今度こそ、今度こそや"),
+                RunnerStoryPanel(art: .kyotoNaraReach, line: "古都まで来たで。今度こそや"),
+                RunnerStoryPanel(art: .kyotoNaraDeer, line: "あっ鹿！ せんべいとちゃうで！"),
+                RunnerStoryPanel(art: .kyotoNaraDeerRun, line: "鹿のくせに速いやんけ……待てー！"),
+                RunnerStoryPanel(art: .kyotoNaraToBeContinued, line: "つづく"),
             ]
         }
     }
@@ -201,7 +207,7 @@ public enum RunnerStory {
     }
 
     #if DEBUG
-    /// 撮影・QA 用の起動引数（`-simulateRunner story-intro` / `story-world1`〜`story-world5`）を場面に写す。
+    /// 撮影・QA 用の起動引数（`-simulateRunner story-intro` / `story-world1`〜`story-world6`）を場面に写す。
     ///
     /// **末尾に `:N` を付けると N コマ目で止まる**（`story-intro:3`）。走るゲームと同じ理屈で、
     /// コマ送りを流したまま撮ろうとするとシャッターを切る前に次のコマへ進んでしまう

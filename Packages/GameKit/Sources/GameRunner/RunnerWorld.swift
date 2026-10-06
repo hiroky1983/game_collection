@@ -47,9 +47,9 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     public static let stagesPerWorld = 6
 
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
-    /// 19〜24 面は里山、25〜30 面は港町。
+    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`。面を足して世界を足し忘れた
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 37 以上）は `.night`。面を足して世界を足し忘れた
     /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
     /// `WorldTests.everyStageHasAWorld` が固定する）。
     ///
@@ -654,7 +654,8 @@ public extension RunnerWorld {
         (RunnerWorld.allCases.firstIndex(of: self) ?? 0) + 1
     }
 
-    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30。
+    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30・
+    /// 京都・奈良 31…36。
     var stageRange: ClosedRange<Int> {
         let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
         return first...(first + RunnerWorld.stagesPerWorld - 1)
@@ -662,13 +663,13 @@ public extension RunnerWorld {
 
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
-    /// 範囲外（0 以下・31 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 範囲外（0 以下・37 以上）でも落ちないよう剰余で畳むだけなので、
     /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
-    /// ワールドマップの短い表記「1-1」…「5-6」。
+    /// ワールドマップの短い表記「1-1」…「6-6」。
     ///
     /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
     /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
@@ -676,7 +677,7 @@ public extension RunnerWorld {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…30）。
+    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…36）。
     static func contains(stage number: Int) -> Bool {
         number >= 1 && number <= stagesPerWorld * allCases.count
     }
@@ -855,11 +856,11 @@ public extension RunnerWorld {
                 sinkFloor: .tideland, crumblingPlatform: .woodenPier, wall: .containerStack
             )
         case .kyotoNara:
-            // 京都・奈良（#1824・モック段階の案）: 新しく描くのは犬の枠の**鹿**だけ。穴＝疎水（用水路の
-            // 絵を流用）・岩＝庭石（岩塊のまま）・イノシシ＝イノシシ・台座＝足場・加速床＝舗装の参道
-            // （農道の舗装を流用）・突き上げ＝竹の子（嵯峨野の竹林）・沈む床＝田んぼ（奈良盆地）・
-            // 崩れる足場＝古い木橋（吊り橋を流用）・高い塀＝石垣。石灯籠・人力車・築地塀・縁側など
-            // 古都らしい絵へ描き足すかは会長の判断（Issue の決裁スレッド）。
+            // 京都・奈良（#1824・会長決裁 2026-10-06 の案 A「鹿だけ新規・他は流用」）: 新しく描くのは犬の枠の
+            // **鹿**だけ。穴＝疎水（用水路の絵を流用）・岩＝庭石（岩塊のまま）・イノシシ＝イノシシ・台座＝足場・
+            // 加速床＝舗装の参道（農道の舗装を流用）・突き上げ＝竹の子（嵯峨野の竹林）・沈む床＝田んぼ（奈良盆地）・
+            // 崩れる足場＝古い木橋（吊り橋を流用）・高い塀＝石垣。石灯籠・人力車・築地塀・縁側など古都らしい
+            // 描き足し（決裁スレッドの案 B）は出荷後に別 Issue で足せる。
             return Dressing(
                 pit: .irrigationDitch, lowBlock: .boulder, tallBlock: .boulder, dog: .deer, boar: .boar,
                 platform: .scaffold, boostFloor: .pavedFarmRoad, shoot: .bambooShoot,
