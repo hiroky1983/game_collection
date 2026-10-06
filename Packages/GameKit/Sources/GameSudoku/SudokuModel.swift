@@ -395,10 +395,12 @@ public final class SudokuModel {
                 : [:]
             lastUndoStep = UndoStep(
                 index: index, previousBoard: board[index], previousNotes: notes[index],
-                changedPeerNotes: peerNotesBefore, wasHinted: false
+                changedPeerNotes: peerNotesBefore, wasHinted: hintedCells.contains(index)
             )
             board[index] = digit
             notes[index] = 0
+            // 自力で書いたマスはヒント由来の印（紫）から外す。戻す側は `wasHinted` で復元する。
+            hintedCells.remove(index)
             // 正解のときだけ、同じ行・列・ブロックの同じ数字のメモを消してやる。
             // 間違いのときに消すと、正しかったメモまで巻き添えで失われる。
             if digit == solution[index] { clearPeerNotes(for: index, digit: digit) }
