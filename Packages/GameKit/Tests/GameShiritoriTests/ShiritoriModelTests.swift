@@ -122,6 +122,23 @@ struct ShiritoriModelTests {
         #expect(model.lastEvent == .played(by: .player, reading: "どらむ", isAlternate: true))
     }
 
+    @Test("裏読みで取られた札は、一覧でも取ったときの読みで出る。取られる前は表読みのまま（#1875）")
+    func claimedAlternateReadingShowsInSlotList() {
+        let drum = ShiritoriCard(.drum, "たいこ", "どらむ")
+        let start = ShiritoriCard(.pillow, "まくど")      // 語尾「ど」
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: start, board: [drum, top])
+        #expect(model.slots[0].displayReading == "たいこ")
+
+        model.select(0)
+
+        #expect(model.slots[0].owner == .player)
+        #expect(model.slots[0].displayReading == "どらむ")
+        #expect(model.slots[0].displayReading == model.currentReading)
+        #expect(ShiritoriPresentation.slotLabel(model.slots[0]) == "\(drum.kind.displayName)、どらむ、あなたが取りました")
+        #expect(model.slots[1].displayReading == top.primaryReading)
+    }
+
     @Test("時間はプレイヤーの手番のあいだだけ減る")
     func clockRunsOnlyOnThePlayersTurn() {
         let (model, _) = makeModel()

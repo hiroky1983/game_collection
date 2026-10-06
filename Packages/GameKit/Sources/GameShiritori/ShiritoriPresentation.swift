@@ -54,7 +54,7 @@ public enum ShiritoriPresentation {
 
     /// 盤の札 1 枚の読み上げ文。取れるかどうかはゲームの中身なので、読み上げでも教えない。
     public static func slotLabel(_ slot: ShiritoriSlot) -> String {
-        let name = "\(slot.card.kind.displayName)、\(slot.card.primaryReading)"
+        let name = "\(slot.card.kind.displayName)、\(slot.displayReading)"
         switch slot.owner {
         case nil:     return name
         case .player: return "\(name)、あなたが取りました"
