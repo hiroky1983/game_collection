@@ -69,8 +69,9 @@ struct GameActionRowTests {
         ("GameSolitaire", ["undo"], ["joker", "autoFinish"]),
         ("GameSpider", ["undo"], ["deal", "zoom"]),
         ("GameFreeCell", ["undo"], ["zoom", "autoFinish"]),
-        ("GameMahjongSolitaire", ["hint", "shuffle"], ["undo", "zoom"]),
-        ("GameSudoku", ["hint"], ["undo", "note", "giveUp"]),
+        // 麻雀ソリティア・ナンプレの戻すは回数制（無料のあと広告で補充・#1855）なので段。
+        ("GameMahjongSolitaire", ["undo", "hint", "shuffle"], ["zoom"]),
+        ("GameSudoku", ["undo", "hint"], ["note", "giveUp"]),
         ("GameMinesweeper", [], ["flag", "zoom", "giveUp"]),
     ]
 
@@ -137,12 +138,33 @@ struct GameActionRowTests {
         #expect(source.contains("badge: .ad(remaining: model.remainingHints)"))
     }
 
-    @Test("ソリティア・スパイダー・フリーセルの戻すは無料の残りを出し、使い切ったら「▶ 広告を見て」",
-          arguments: ["GameSolitaire", "GameSpider", "GameFreeCell"])
+    @Test("ソリティア・スパイダー・フリーセル・麻雀ソリティア・ナンプレの戻すは無料の残りを出し、使い切ったら「▶ 広告を見て」",
+          arguments: ["GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameSudoku"])
     func undoBadgeShowsRemainingThenAd(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
         #expect(source.contains("badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad()"),
                 "\(module) の戻すの 2 行目が残り回数 → 広告になっていない")
+    }
+
+    /// 専用の読み上げ文を渡す戻すは 2 行目（▶ 広告を見て）が読まれないので、使い切ったら文に広告を含める（PR #1866 の指摘）。
+    @Test("麻雀ソリティア・ナンプレの戻すは、使い切ったら読み上げで広告が要ることを伝える",
+          arguments: ["GameMahjongSolitaire", "GameSudoku"])
+    func undoLabelAnnouncesAdWhenUsedUp(module: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+        #expect(SourceScan.matchCount(of: #"accessibilityLabel: model\.undosRemaining > 0\s*\?[^:]*:\s*"[^"]*広告を見て"#, in: source) == 1,
+                "\(module) の戻すの読み上げが残り 0 回で広告に触れていない")
+    }
+
+    /// 段の並びはソリティア系・盤ゲームと同じく「戻す → 助ける（ヒント）」。麻雀ソリティアはその後ろに並べ替え。
+    @Test("麻雀ソリティア・ナンプレの段は戻す → ヒント（→ 並べ替え）の順",
+          arguments: [("GameMahjongSolitaire", ["undo", "hint", "shuffle"]), ("GameSudoku", ["undo", "hint"])])
+    func undoComesFirstInTheRow(module: String, order: [String]) throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+        let positions = try order.map { id in
+            try #require(source.range(of: #"GameActionItem\(\s*id: "\#(id)""#, options: .regularExpression),
+                         "\(module) の \(id) が段に無い").lowerBound
+        }
+        #expect(positions == positions.sorted(), "\(module) の段の並びが \(order) でない")
     }
 
     /// 「⋯」の行の左端にあった表示だけの文字の置き場所（#1856）。神経衰弱はカプセルの 2 行目、スパイダーは段と「⋯」のあいだ、
