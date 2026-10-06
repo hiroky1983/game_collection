@@ -209,10 +209,9 @@ public struct ConcentrationView: View {
                             isLastMatched: model.lastMatchedIndices.contains(card.id),
                             isMismatched: model.mismatchedIndices.contains(card.id)
                         )
-                        .onTapGesture {
-                            guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
-                            model.tap(index: card.id)
-                        }
+                        .onTapGesture { tapCard(card.id) }
+                        .accessibilityAddTraits(model.isHumanTurn ? .isButton : [])
+                        .accessibilityAction { tapCard(card.id) }
                         .frame(width: cardWidth, height: cardHeight)
                     }
                 }
@@ -222,6 +221,12 @@ public struct ConcentrationView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
+    }
+
+    /// 札を開く。タップと VoiceOver の操作で同じ条件を通す。
+    private func tapCard(_ index: Int) {
+        guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
+        model.tap(index: index)
     }
 
     /// 画面の縦の並びの間隔。
