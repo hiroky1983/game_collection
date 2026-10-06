@@ -10,13 +10,21 @@ public enum ShiritoriOwner: Equatable, Sendable {
 }
 
 /// 盤に並ぶ札 1 枚。`owner` が nil ならまだ誰にも取られていない。
+/// `claimedReading` は取られたときに使った読み。裏読みで取られた札を一覧でも同じ名前で見せるために持つ（#1875）。
 public struct ShiritoriSlot: Equatable, Sendable {
     public let card: ShiritoriCard
     public var owner: ShiritoriOwner?
+    public var claimedReading: String?
 
-    public init(card: ShiritoriCard, owner: ShiritoriOwner? = nil) {
+    /// 一覧に出す読み。取られるまでは表読みだけ（裏読みのネタばらしをしない）。
+    public var displayReading: String {
+        owner == nil ? card.primaryReading : claimedReading ?? card.primaryReading
+    }
+
+    public init(card: ShiritoriCard, owner: ShiritoriOwner? = nil, claimedReading: String? = nil) {
         self.card = card
         self.owner = owner
+        self.claimedReading = claimedReading
     }
 }
 

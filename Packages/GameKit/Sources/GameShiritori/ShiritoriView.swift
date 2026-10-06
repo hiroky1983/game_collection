@@ -223,7 +223,7 @@ public struct ShiritoriView: View {
             spacing: 6
         ) {
             ForEach(Array(model.slots.enumerated()), id: \.element.card.id) { index, slot in
-                ShiritoriCardTile(card: slot.card, reading: slot.card.primaryReading,
+                ShiritoriCardTile(card: slot.card, reading: slot.displayReading,
                                   style: .board(owner: slot.owner, selectable: model.isSelectable(index),
                                                 isCPUCursor: model.cpuCursorSlot == index))
                     .contentShape(Rectangle())

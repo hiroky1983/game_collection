@@ -233,6 +233,7 @@ public final class ShiritoriModel: AITurnGuarded {
     private func claim(_ index: Int, reading: String, by owner: ShiritoriOwner) {
         let card = slots[index].card
         slots[index].owner = owner
+        slots[index].claimedReading = reading
         switch owner {
         case .player: playerCount += 1
         case .cpu:    cpuCount += 1
