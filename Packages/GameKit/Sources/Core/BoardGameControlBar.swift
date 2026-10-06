@@ -39,10 +39,10 @@ public struct BoardControlBarHint {
     }
 }
 
-/// 盤の下の「⋯」の行（盤ゲーム 5 本・#1421・#1468）。
+/// 盤の下の「操作の段」と「⋯」の行（盤ゲーム 5 本・#1421・#1468・#1856）。
 ///
-/// 待った・ゲーム固有の操作（囲碁のパス）・ヒント（残り回数つき）・投了（押したあと確認ダイアログ）を
-/// **すべて右下の「⋯」メニューに入れる**（会長決裁 2026-09-26 QA）。投了は末尾・赤（`GameControlMenu.ordered`）。
+/// 待った・ゲーム固有の操作（囲碁のパス）・ヒント（残り回数つき）は段のカプセルに並べ（会長決裁 2026-10-06 案A）、
+/// 投了（押したあと確認ダイアログ）だけ右下の「⋯」メニューに残す。
 ///
 /// **高さは従来の操作行と同じ（46pt。決着で入れ替わる検討ナビ・結果の行との差を広げない）**（`GameOverflowBar` の 44pt + 上下の余白）。決着で中身が検討ナビに
 /// 入れ替わっても、対局中の行が伸び縮みして盤が縮むことがないようにする（#139・#148）。
@@ -57,7 +57,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     @State private var showUndoConfirm = false
 
     /// - Parameter rescue: 救済は呼び出し側の `@State` から受け取る（`BoardUndoButton` と同じ理由）。
-    /// - Parameter extraItems: ゲーム固有の項目（囲碁のパス）。待ったのあと・ヒントの前に並ぶ。
+    /// - Parameter extraItems: ゲーム固有の項目（囲碁のパス）。「⋯」の中で投了の前に並ぶ。
     public init(
         model: Model,
         services: GameServices,
@@ -94,6 +94,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     private var overflowBar: some View {
         GameOverflowBar(
             menuItems: menuItems,
+            actions: actions,
             verticalPadding: BoardGameControlMetrics.rowVerticalPadding,
             // 投了・待ったの確認が開いている間は促しの待ちを止める（閉じた直後に吹き出しが出るのを防ぐ）。
             nudge: hint.map {
@@ -105,28 +106,34 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
         .boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)
     }
 
-    private var menuItems: [GameControlMenuItem] {
+    /// 段（#1856・案A）: 待った → ヒント（広告が絡む操作だけ。会長決裁 2026-10-06 追加）。
+    /// ゲーム固有の項目（囲碁のパス）と投了は広告が無いので「⋯」に残す。
+    /// 待ったは 1 局 1 回無料（「あと1回」）、使ったあとは毎回広告（「▶ 広告を見て」）。
+    /// ヒントは無料枠の残りを「あと n 回」で、使い切ったあとは広告ぶんの残りを「▶ あと n 回」で出す（#1500 と同じ数）。
+    private var actions: [GameActionItem] {
         // 待った・ヒントは別々の広告救済を持つ（`undoRescue` / `hint.rescue`）。片方の視聴中に
         // もう片方も広告を要求すると、2本目のロードが失敗して見ていないのに失敗アラートが出る
-        // （麻雀ソリティアの PR #577 と同型の穴）。同じメニューに同居させる以上、互いの視聴中は塞ぐ。
+        // （麻雀ソリティアの PR #577 と同型の穴）。同じ段に同居させる以上、互いの視聴中は塞ぐ。
         let hintIsWatching = hint?.rescue.isWatching ?? false
         var items = [
-            GameControlMenuItem(
+            GameActionItem(
                 id: "undo",
-                title: model.undoUsed ? "待った（広告を見て）" : "待った（無料）",
+                title: "待った",
                 systemImage: "arrow.uturn.backward",
+                role: .undo,
+                badge: model.undoUsed ? .ad() : .count(1),
                 isEnabled: model.canUndo && !hintIsWatching,
                 accessibilityLabel: "待った",
                 accessibilityHint: model.canUndo ? "あなたの直前の1手を、CPU の応手ごと取り消します" : "いまは使えません"
             ) { showUndoConfirm = true }
         ]
-        items += extraItems
         if let hint {
-            items.append(GameControlMenuItem(
+            items.append(GameActionItem(
                 id: "hint",
-                title: hint.isThinking ? "ヒント（読み中…）"
-                    : (hint.needsAd ? "広告を見てヒント（残り\(hint.remaining)回）" : "ヒント（残り\(hint.remaining)回）"),
+                title: hint.isThinking ? "読み中…" : "ヒント",
                 systemImage: "lightbulb.fill",
+                role: .hint,
+                badge: hint.needsAd ? .ad(remaining: hint.remaining) : .count(hint.remaining),
                 isEnabled: hint.isEnabled && !undoRescue.isWatching,
                 accessibilityHint: hint.isEnabled
                     ? (hint.needsAd ? "広告を視聴すると、最善手をもう1手示します。使った対局は順位表に送りません"
@@ -135,9 +142,15 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
                 action: hint.request
             ))
         }
-        items.append(GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true) {
-            showResignConfirm = true
-        })
         return items
+    }
+
+    /// 「⋯」: ゲーム固有の項目（囲碁のパス）→ 投了（末尾・赤は `GameControlMenu.ordered`）。
+    private var menuItems: [GameControlMenuItem] {
+        extraItems + [
+            GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true) {
+                showResignConfirm = true
+            }
+        ]
     }
 }

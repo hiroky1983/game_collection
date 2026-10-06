@@ -156,26 +156,27 @@ public struct ConcentrationView: View {
     // MARK: - Matta Controls
 
     private var mattaControls: some View {
-        // 待ったは右下の「⋯」へ（#1422・#1468）。押せる間（ミスマッチの猶予中）だけ有効になる。
+        // 待ったは盤の下の段のカプセル（#1856・案A）。「⋯」に残る項目は無いので「⋯」は出ず、待ったが横いっぱいになる
+        // （会長決裁 2026-10-06「問題なし」）。押せる間（ミスマッチの猶予中）だけ有効になる。
+        // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。待っている間だけ押せることは、
+        // 面がグレー → ティールに変わるのに加えて 2 行目の「今だけ！」で知らせる（以前は行の左端の文字）。
         GameOverflowBar(
-            menuItems: [
-                GameControlMenuItem(
-                    id: "matta", title: model.mattaUsed ? "待った（広告を見て）" : "待った（無料）",
-                    systemImage: "arrow.uturn.backward",
+            actions: [
+                GameActionItem(
+                    id: "matta", title: "待った",
+                    systemImage: "arrow.uturn.backward", role: .undo,
+                    badge: model.mattaUsed ? .ad() : .count(1),
+                    note: model.canMatta ? "今だけ！" : nil,
                     isEnabled: model.canMatta,
-                    accessibilityLabel: "待った"
+                    accessibilityLabel: "待った",
+                    accessibilityHint: model.canMatta ? "ミスマッチの札が裏返る前なら、直前のめくりをやり直せます" : "ミスマッチの直後だけ使えます"
                 ) {
                     // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
                     model.pauseAutoTurn()
                     showMattaConfirm = true
                 }
             ],
-            verticalPadding: Self.controlRowPadding,
-            // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
-            // 待っている間だけ「待った」が押せることをここで知らせる。
-            caption: model.canMatta
-                ? GameOverflowCaption("ミスマッチ… 待ったは今だけ", color: Theme.coral)
-                : nil
+            verticalPadding: Self.controlRowPadding
         )
     }
 

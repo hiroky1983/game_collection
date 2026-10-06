@@ -76,14 +76,17 @@ public enum SolitaireAccessibility {
     /// ステータスバーの 1 行。
     /// - Parameter isLost: 敗北確定（#406）。告知を閉じたあとも音声で状態が分かるようにする
     ///   （画面には 🤔 が出続けるので、読み上げだけ何も言わないと状態が伝わらない）。
+    /// - Parameter ruleLabel: 標準以外のルール名（「3枚めくり」）。帯に出しているときだけ渡す（#498・#1856）。
     public static func statusLabel(
         phase: SolitairePhase,
         elapsedSeconds: Int,
         moveCount: Int,
         isDeadEnd: Bool,
-        isLost: Bool = false
+        isLost: Bool = false,
+        ruleLabel: String? = nil
     ) -> String {
-        let base = "経過\(RecordFormat.time(elapsedSeconds))、\(moveCount)手"
+        var base = "経過\(RecordFormat.time(elapsedSeconds))、\(moveCount)手"
+        if let ruleLabel { base += "、ルールは\(ruleLabel)" }
         switch phase {
         case .won:
             return "クリア。\(base)"

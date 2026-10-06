@@ -596,12 +596,26 @@ public struct SudokuView: View {
     // MARK: - 操作ボタン
 
     private var gameControls: some View {
-        // 戻す・メモ・ヒント・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
-        GameOverflowBar(menuItems: controlMenuItems, verticalPadding: 4, nudge: hintNudge)
+        // ヒント（広告）はキーパッドの下の段のカプセルに出し、戻す・メモ・拡大・諦める（広告なし）は右下の「⋯」に残す
+        // （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
+        GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, verticalPadding: 4, nudge: hintNudge)
             .lineLimit(1)
     }
 
-    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// 段: ヒント（毎回広告・1 局 3 回まで）。2 行目に「▶ あと n 回」で広告と残りを出す。
+    private var controlActions: [GameActionItem] {
+        [
+            GameActionItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+                badge: .ad(remaining: model.remainingHints),
+                isEnabled: model.canHint && !hintRescue.isWatching,
+                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
+                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
+            ) { requestHint() },
+        ]
+    }
+
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、段のヒントを光らせるだけ。
     /// ヒントが尽きた・決着した・広告の視聴中は出さない。マスを選んでいなくても出す（選ぶところから促したいため）。
     private var hintNudge: HintNudge {
         HintNudge(
@@ -611,7 +625,7 @@ public struct SudokuView: View {
         )
     }
 
-    /// 「⋯」に入れる操作。ヒントは広告を見て答えが入る（残り回数付き）。
+    /// 「⋯」に入れる操作（広告の無いもの）。
     private var controlMenuItems: [GameControlMenuItem] {
         [
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
@@ -628,12 +642,6 @@ public struct SudokuView: View {
                 accessibilityLabel: model.noteMode ? "メモモード、オン" : "メモモード、オフ"
             ) { model.toggleNoteMode() },
             zoomMenuItem,
-            GameControlMenuItem(
-                id: "hint", title: "ヒント（残り\(model.remainingHints)）", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !hintRescue.isWatching,
-                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
-                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
-            ) { requestHint() },
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },

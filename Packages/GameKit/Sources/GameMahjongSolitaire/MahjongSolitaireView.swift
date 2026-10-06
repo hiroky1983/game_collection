@@ -407,12 +407,31 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 操作
 
-    /// プレイ中の操作は右下の「⋯」にまとめる（#1422・#1468）。戻す・並べ替え・全体表示⇄拡大・ヒント。
+    /// ヒント・並べ替え（どちらも広告）は盤の下の段のカプセルに出し、戻す・全体表示⇄拡大（広告なし）は右下の「⋯」に残す
+    /// （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」。戻すに上限を入れる件は #1855）。
     private var gameControls: some View {
-        GameOverflowBar(menuItems: controlMenuItems, nudge: hintNudge)
+        GameOverflowBar(menuItems: controlMenuItems, actions: controlActions, nudge: hintNudge)
     }
 
-    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// 段: ヒント → 並べ替え。どちらもリワード広告制で、押した直後に広告を出さず確認ダイアログを挟む。
+    /// 2 行目は「▶ 広告を見て」（回数の上限は無い）。互いの広告の視聴中は塞ぐ（`isWatchingRewardAd`・PR #577）。
+    private var controlActions: [GameActionItem] {
+        [
+            GameActionItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint, badge: .ad(),
+                isEnabled: model.canHint && !isWatchingRewardAd,
+                accessibilityHint: "広告を見ると取れる組が1組光ります"
+            ) { showHintConfirm = true },
+            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。確認ダイアログ → 視聴 → 並べ替えの順に進む。
+            // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
+            GameActionItem(
+                id: "shuffle", title: "並べ替え", systemImage: "shuffle", role: .primary, badge: .ad(),
+                isEnabled: !isWatchingRewardAd
+            ) { showShuffleConfirm = true },
+        ]
+    }
+
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、段のヒントを光らせるだけ。
     /// 手詰まり・決着・広告の視聴中は出さない。
     private var hintNudge: HintNudge {
         HintNudge(
@@ -422,9 +441,8 @@ public struct MahjongSolitaireView: View {
         )
     }
 
-    /// 「⋯」に入れる操作。ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
-    /// 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
-    /// 手詰まりなら操作行は `deadlockOverlay` に覆われるので実際には届かないが、
+    /// 「⋯」に入れる操作（広告の無いもの）。ヒント（#336）は段へ移った。手詰まりで組が無いときはヒントを押せない
+    /// （広告だけ見せない）。手詰まりなら操作行は `deadlockOverlay` に覆われるので実際には届かないが、
     /// 覆いに頼らず二重の歯止めにしておく。ヒントの広告をロードしている最中も押させない。
     private var controlMenuItems: [GameControlMenuItem] {
         [
@@ -435,22 +453,11 @@ public struct MahjongSolitaireView: View {
                 accessibilityLabel: "直前に取った2枚を戻す",
                 accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
             ) { model.undoLastTake() },
-            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。確認ダイアログ → 視聴 → 並べ替えの順に進む。
-            // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
-            GameControlMenuItem(
-                id: "shuffle", title: "並べ替え", systemImage: "shuffle",
-                isEnabled: !isWatchingRewardAd
-            ) { showShuffleConfirm = true },
             // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
             GameControlMenuItem(
                 id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
                 accessibilityLabel: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
             ) { showsWholeBoard.toggle() },
-            GameControlMenuItem(
-                id: "hint", title: "ヒント", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !isWatchingRewardAd,
-                accessibilityHint: "広告を見ると取れる組が1組光ります"
-            ) { showHintConfirm = true },
         ]
     }
 

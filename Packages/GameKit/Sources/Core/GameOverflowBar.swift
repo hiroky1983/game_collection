@@ -3,36 +3,44 @@ import SwiftUI
 import UIKit
 #endif
 
-/// 盤（札）と広告バナーのあいだに置く「⋯」の行（#1468。旧 `GameControlBar`）。
+/// 盤（札）と広告バナーのあいだに置く「操作の段」と「⋯」の行（#1468・#1856。旧 `GameControlBar`）。
 ///
-/// ユーザー操作（戻す・待った・ヒント・切り替え・投了など）は**すべて右下の「⋯」メニューに集める**
-/// （会長決裁 2026-09-26 QA）。盤の下に操作のボタンを並べず、ヘッダー下の状態の帯（`GameStatusBar`）にも
-/// ボタンを置かない。
+/// その場で使う操作（待った・戻す・ヒント・パス・ジョーカー・配る・並べ替え・メモ・旗モード）は
+/// 役割の色のカプセルを**等幅**で並べる（`GameActionCapsule`・会長決裁 2026-10-06 案A・#1834）。
+/// 投了・諦める・拡大・自動で上がるは右下の「⋯」メニュー（`GameControlMenu`）に残す。
+/// ヘッダー下の状態の帯（`GameStatusBar`）にはボタンを置かない。
 ///
 /// - 「⋯」は丸 44pt。全ゲーム同じ位置・同じ見た目（`GameControlMenu`）。
 /// - 行は盤・札の**すぐ下**に置き、余白を吸う `Spacer` はこの行と広告のあいだに置く（#1485）。
 /// - 行そのものは透明で、盤・札にも広告バナーにも重ならない 1 行ぶんの場所を確保するだけ
 ///   （AdMob の誤クリック誘導を避けるため、バナーに重ねも隣接もさせない）。
-/// - 「⋯」は `menuItems` が空なら出さない。
+/// - 「⋯」は `menuItems` が空なら出さない（神経衰弱は待っただけで「⋯」が無い）。
 public struct GameOverflowBar: View {
     private let menuItems: [GameControlMenuItem]
+    /// 段に並べる操作。空なら「⋯」だけの行。
+    private let actions: [GameActionItem]
     private let verticalPadding: CGFloat
     private let nudge: HintNudge?
     private let caption: GameOverflowCaption?
-    /// 「⋯」メニューを開いているか。開いているあいだはヒントの吹き出しを出さない（#1485）。
+    /// 「⋯」メニューを開いているか。開いているあいだはヒントの促しを出さない（#1485）。
     @State private var isMenuOpen = false
 
-    /// - Parameter caption: 左端に出す表示だけの短い文字（ソリティアの「3枚めくり」・スパイダーの配れない理由など、操作ではない情報）。
+    /// - Parameter actions: 段に並べる操作（左から。たたき台 4: 戻す → 助ける → 進める → 「⋯」）。
     /// - Parameter verticalPadding: 行の上下の余白。盤の大きさを決める高さの計算に効くので、
     ///   従来の操作行の余白を持つゲーム（ナンプレは 4pt）は、その値を渡して外寸を据え置く（#139）。
-    /// - Parameter nudge: ヒントを促す吹き出し（#1424）。ヒントが「⋯」にあるゲームだけ渡す。
+    /// - Parameter nudge: ヒントを促す表示（#1424）。ヒントを持つゲームだけ渡す。段にヒントがあれば
+    ///   そのカプセルを光らせ、段が無い（ヒントが「⋯」にある）ときは「⋯」の左に吹き出しを出す。
+    /// - Parameter caption: 表示だけの短い文字（スパイダーの配れない理由など、操作ではない情報）。
+    ///   段が無ければ行の左端に、段があれば段と「⋯」のあいだに出す（出ているあいだ段のカプセルはその分だけ狭くなる）。
     public init(
         menuItems: [GameControlMenuItem] = [],
+        actions: [GameActionItem] = [],
         verticalPadding: CGFloat = 8,
         nudge: HintNudge? = nil,
         caption: GameOverflowCaption? = nil
     ) {
         self.menuItems = menuItems
+        self.actions = actions
         self.verticalPadding = verticalPadding
         self.nudge = nudge
         self.caption = caption
@@ -40,28 +48,43 @@ public struct GameOverflowBar: View {
 
     public var body: some View {
         HStack(spacing: 8) {
-            if let caption {
-                Text(caption.text)
-                    .themeCaption(12, maxScale: 1.3)
-                    .foregroundStyle(caption.color)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .accessibilityLabel(caption.accessibilityLabel ?? caption.text)
+            if actions.isEmpty {
+                captionText
+                Spacer(minLength: 0)
+            } else {
+                ForEach(actions) { GameActionCapsule(item: $0) }
+                captionText
             }
-            Spacer(minLength: 0)
             if !menuItems.isEmpty {
                 GameControlMenu(items: menuItems, isOpen: $isMenuOpen)
             }
         }
         .frame(minHeight: BoardGameControlMetrics.minTapTarget)
         .padding(.vertical, verticalPadding)
-        .hintNudge(nudge, isMenuOpen: isMenuOpen)
+        .hintNudge(nudge, isMenuOpen: isMenuOpen, highlightsAction: !actions.isEmpty)
         // 盤で操作があった＝メニューは閉じている。閉じた知らせを取りこぼしても、吹き出しが止まったままにならないよう戻す。
         .onChange(of: nudge?.activity) { isMenuOpen = false }
     }
+
+    @ViewBuilder private var captionText: some View {
+        if let caption {
+            Text(caption.text)
+                .themeCaption(12, maxScale: 1.3)
+                .foregroundStyle(caption.color)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                // 段と並ぶときは文字を優先して確保し、カプセル側を縮める（文字が 1 文字ずつ折れるのを防ぐ）。
+                .layoutPriority(1)
+                .frame(maxWidth: Self.captionMaxWidth)
+                .accessibilityLabel(caption.accessibilityLabel ?? caption.text)
+        }
+    }
+
+    /// 段と並ぶ表示の幅の上限。SE（行 290pt）でも「戻す」のカプセルに 90pt 以上残す。
+    static let captionMaxWidth: CGFloat = 150
 }
 
-/// 「⋯」の行の左端に出す、操作ではない表示。
+/// 「⋯」の行に出す、操作ではない表示。
 public struct GameOverflowCaption {
     let text: String
     let color: Color

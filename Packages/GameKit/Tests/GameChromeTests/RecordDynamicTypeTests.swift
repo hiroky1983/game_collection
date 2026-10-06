@@ -14,6 +14,7 @@ struct RecordDynamicTypeTests {
               ("RecordLabel", ".system(size: 13"), ("RecordLabel", ".system(size: 12, weight: .bold, design"),
               ("RecordLabel", ".system(size: 10"),
               ("GameDeadEndPanel", ".system(size: 20"), ("GameOverflowBar", ".system(size: 12"),
+              ("GameActionRow", ".system(size: 14"), ("GameActionRow", ".system(size: 10"),
           ])
     func noFixedPointFont(file: String, fixed: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/\(file).swift"))
