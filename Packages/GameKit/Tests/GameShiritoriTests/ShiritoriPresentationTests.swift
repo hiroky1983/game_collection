@@ -24,6 +24,14 @@ struct ShiritoriPresentationTests {
         }
     }
 
+    @Test("結果カードの理由は全ての終わり方で空でなく、互いに違う（#1876）")
+    func resultReasonIsDistinctPerEnding() {
+        let endings: [ShiritoriEnding] = [.cpuStuck, .playerStuck, .timeUp, .playerHitN, .cpuHitN, .quotaReached, .perfect]
+        let reasons = endings.map { ShiritoriPresentation.resultReason(ending: $0) }
+        #expect(reasons.allSatisfy { !$0.isEmpty })
+        #expect(Set(reasons).count == endings.count)
+    }
+
     @Test("内訳の 1 行に枚数が入り、ノルマは時間切れ・ノルマ到達のときだけ添える")
     func resultDetailMentionsCountsAndQuota() {
         let timeUp = ShiritoriPresentation.resultDetail(player: 3, cpu: 2, quota: .normal, ending: .timeUp)

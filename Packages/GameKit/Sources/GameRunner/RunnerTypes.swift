@@ -663,7 +663,7 @@ public enum RunnerEvent: Equatable, Sendable {
 /// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
 /// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
 public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
-    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界）。
+    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界、#1824 で 36 面・6 世界）。
     case stages
     /// 走行距離を競うエンドレス（#675）。
     case endless
@@ -733,7 +733,7 @@ public enum RunnerPhase: Equatable, Sendable {
     /// ——`RunnerModel.clearStage()` を丸ごと済ませてからこの局面に入るので、演出を飛ばしても
     /// 演出中にアプリを閉じても、クリアは記録済み。
     case chasing
-    /// 世界の締めの演出中（#1092）。6・12・18・24・30 面を**初めて**クリアしたときだけ入り、
+    /// 世界の締めの演出中（#1092）。6・12・18・24・30・36 面を**初めて**クリアしたときだけ入り、
     /// そのときは毎面のゴールの演出（`.chasing`）の**代わり**に流す（2 回続けて逃げられる形にしない）。
     ///
     /// `.chasing` と違って**時間では進まない**——コマ送りは `RunnerStoryView` が持ち、

@@ -42,6 +42,8 @@ let package = Package(
         .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
+        // 腰痛おじさんパズル（#1016・v1.1.11 でハブに公開 #1904）。
+        .library(name: "GameOjisanPuzzle", targets: ["GameOjisanPuzzle"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -128,6 +130,9 @@ let package = Package(
         // 花札こいこい（#495）。札の絵柄・役の判定・CPU はすべて純粋ロジックなので
         // Core だけに依存する。麻雀牌のような共有描画基盤は持たない（花札は他ゲームと札を共有しない）。
         .target(name: "GameHanafuda",       dependencies: ["Core", "CoreEngine"]),
+        // 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）。連結判定・消去・重力・連鎖は SwiftUI 非依存の純粋ロジックなので
+        // Core だけに依存する（乱数の `SplitMix64` を純ロジックのファイルから直に使うので CoreEngine も）。
+        .target(name: "GameOjisanPuzzle",   dependencies: ["Core", "CoreEngine"]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
         .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles", "CoreEngine"]),
@@ -204,6 +209,7 @@ let package = Package(
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
+        .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -221,7 +227,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -247,7 +253,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -256,7 +262,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。

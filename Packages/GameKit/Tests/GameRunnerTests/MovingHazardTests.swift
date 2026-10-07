@@ -449,7 +449,7 @@ struct RunnerHazardMotionTests {
     /// **「運で死ぬ瞬間が無い」の実体**（#1010 設計の芯）: どの面でも、走者が踏み切るべき地点に
     /// 着くより手前で伸び切っている。ここが崩れると、伸びかけの低い帯を見て小さく跳んだ人が
     /// 空中で刺される。
-    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全 30 面）")
+    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全面）")
     func shootFinishesRisingBeforeTheTakeOffPoint() {
         var tightest = Double.infinity
         var count = 0
@@ -467,7 +467,7 @@ struct RunnerHazardMotionTests {
     }
 
     /// 予告が**見てから反応できる**こと。物差しは犬・イノシシの予告と同じ「見えてから当たる
-    /// （踏み切る）まで」で、いちばん厳しい条件——最速の 30 面・ペダル上限 1.55 倍——で測る。
+    /// （踏み切る）まで」で、いちばん厳しい条件——基準速が上限 60 の 34〜36 面（#1824。実測の控えは 30 面の 57.2 のまま）・ペダル上限 1.55 倍——で測る。
     @Test("予告から踏み切るべき地点までは、最速の面でペダル上限でも 0.6 秒以上ある")
     func shootCueLeavesTimeToRead() {
         var shortest = Double.infinity

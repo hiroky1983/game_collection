@@ -563,7 +563,7 @@ public struct SpiderView: View {
                 // 残り回数は 2 行目に出し、無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す。
                 GameActionItem(
                     id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                    badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                    badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                     isEnabled: model.canUndo && !undoRescue.isWatching,
                     accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
                     accessibilityHint: SpiderAccessibility.undoButtonHint(
