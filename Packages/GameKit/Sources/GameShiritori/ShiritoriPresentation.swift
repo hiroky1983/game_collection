@@ -40,6 +40,19 @@ public enum ShiritoriPresentation {
         }
     }
 
+    /// 結果カード（`BoardGameResultCard`）の理由の行（#1876）。勝敗は見出しが持つので、決着のわけだけを短く言う。
+    public static func resultReason(ending: ShiritoriEnding) -> String {
+        switch ending {
+        case .cpuHitN:      return "CPUが「ん」で終わった"
+        case .playerHitN:   return "「ん」で終わってしまった"
+        case .cpuStuck:     return "CPUが続けられない"
+        case .playerStuck:  return "続けられる札がない"
+        case .timeUp:       return "時間切れ"
+        case .quotaReached: return "ノルマ達成"
+        case .perfect:      return "パーフェクト！札を全部取った"
+        }
+    }
+
     /// 結果に添える内訳（例: "あなた3枚・CPU2枚／ノルマ: 6枚取ったらクリア"）。
     /// ノルマが勝敗に絡むのは時間切れと到達の決着だけなので、ノルマの説明もそのときだけ添える。
     /// とことんモードにはノルマが無いので、ノルマの説明は添えない。
