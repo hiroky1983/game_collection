@@ -56,7 +56,7 @@ struct SolitaireControlsView: View {
         [
             GameActionItem(
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !isWatchingUndoAd,
                 accessibilityLabel: SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining),
                 accessibilityHint: SolitaireAccessibility.undoButtonHint(

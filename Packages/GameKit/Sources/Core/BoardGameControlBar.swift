@@ -3,6 +3,7 @@ import SwiftUI
 /// 「⋯」メニューに入れるヒント（#1421・#1500）。`BoardHintModel` の読む分だけを、ジェネリクスを持ち越さない形に詰める。
 public struct BoardControlBarHint {
     let remaining: Int
+    var badge: GameActionBadge { .hint(totalRemaining: remaining, needsAd: needsAd) }
     let isEnabled: Bool
     let isThinking: Bool
     /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
@@ -132,7 +133,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
                 title: hint.isThinking ? "読み中…" : "ヒント",
                 systemImage: "lightbulb.fill",
                 role: .hint,
-                badge: hint.needsAd ? .ad(remaining: hint.remaining) : .count(hint.remaining),
+                badge: hint.badge,
                 isEnabled: hint.isEnabled && !undoRescue.isWatching,
                 accessibilityHint: hint.isEnabled
                     ? (hint.needsAd ? "広告を視聴すると、最善手をもう1手示します。使った対局は順位表に送りません"

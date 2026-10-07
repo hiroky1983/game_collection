@@ -449,7 +449,7 @@ public struct MahjongSolitaireView: View {
             // 回数制（無料のあと広告で補充・#1855）なので段に置く。2 行目は「あと n 回」、使い切ったら「▶ 広告を見て」。
             GameActionItem(
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !isWatchingRewardAd,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0

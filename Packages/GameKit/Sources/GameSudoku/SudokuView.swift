@@ -618,7 +618,7 @@ public struct SudokuView: View {
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
             GameActionItem(
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !undoRescue.isWatching,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
@@ -630,7 +630,7 @@ public struct SudokuView: View {
             ) { requestUndo() },
             GameActionItem(
                 id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
-                badge: .ad(remaining: model.remainingHints),
+                badge: model.remainingHints > 0 ? .ad() : .count(0),
                 isEnabled: model.canHint && !hintRescue.isWatching,
                 accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
                 accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
