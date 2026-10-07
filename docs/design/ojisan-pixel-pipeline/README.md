@@ -84,6 +84,9 @@
 - `outfit-pixel/` 以下のドット化・画面モック: すべて Claude のスクリプト（`make_outfit_pixel.py` 等）による
   機械的な変換で、新規の絵は描いていない。
 
-**ストア・アプリでの利用可否は未確認**。OpenAI（Codex の画像生成）の利用規約上の商用利用・配布可否・著作権の
-帰属を、本書作成時点では確認していない（`docs/design/homerun/assets-license.md` の Meshy の確認のような一次情報の
-調査はまだ行っていない）。採用を判断する段になったら、別途確認すること。断定はしない。
+**利用可否（2026-10-07 確認・#1909）**: Codex を個人の ChatGPT アカウントでログインして使った画像生成は、ChatGPT と同じ
+OpenAI Terms of Use＋Service Terms の対象（[Codex のヘルプ](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan)）。
+出力の権利はユーザーに帰属し（[Terms of Use](https://openai.com/policies/row-terms-of-use/) の Ownership of content:
+"you ... own the Output"）、商用利用の制限・表示義務の条文は無い。アプリ内素材・ストアのスクショに使ってよい。
+注意: 既存の作品・商標に似た場合の責任は自分側（個人向け規約に OpenAI の補償は無い）。人が描いたと偽って表示しない。
+生成画像には C2PA と SynthID の来歴情報が入る。
