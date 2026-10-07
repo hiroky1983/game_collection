@@ -277,6 +277,8 @@ enum AppEnvironment {
         HomerunModule(),
         // 腰痛おじさんパズル（#1016）。v1.1.11 でハブに公開（#1904）。倉庫へ戻す判断が出たら、
         // 上の倉庫ゲームと同じくこの 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
+        // レコメンドの候補表（`RecommendationPolicy.candidateTable`）の `ojisanpuzzle` の行と、柵越えおじさんの
+        // 第3候補（#1904 で 2048 から差し替え）も戻すこと（`RecommendationTests` が登録の無い ID を検出する）。
         OjisanPuzzleModule(),
     ])
 
