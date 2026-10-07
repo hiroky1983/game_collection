@@ -75,6 +75,7 @@ extension RunnerScene {
             // 里山・港町（#1009）はタイルの番号で中身を変える（竹林・貨物船を毎タイルに置くと林と船団になる）。
             case .satoyama:   addSatoyama(to: tile, index: i)
             case .harbor:     addHarbor(to: tile, index: i)
+            case .kyotoNara:  addKyotoNara(to: tile, index: i)
             }
             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
             hillLayer.addChild(tile)
@@ -388,7 +389,148 @@ extension RunnerScene {
         }
     }
 
-    /// 里山・港町の遠景の部品の相対 z（`hillLayer` の中。丘の山は 0）。家並みの `HouseZ` と同じ考え方。
+    /// 京都・奈良（`RunnerWorld.Scenery.kyotoNara`・#1824）。道の奥に土塀（瓦の笠つき）が全タイルに続き、
+    /// その後ろにタイルの番号で五重塔（3 で割り切れる番号）・鳥居（余り 1）・寺の本堂と石段（余り 2）を
+    /// 立て、紅葉の木を添える。五重塔の層・鳥居の柱と笠木・石段・柱はそれぞれ 1 本のパスにまとめ、
+    /// 1 タイルあたり最大 11 ノード。色は `RunnerWorld.SceneryPalette`（どれも空と 2:1 未満・`WorldTests`）。
+    private func addKyotoNara(to tile: SKNode, index: Int) {
+        typealias P = RunnerWorld.SceneryPalette
+        let width = Self.hillSpacing
+        let base = Metrics.groundY
+
+        switch index % 3 {
+        case 0:
+            // 五重塔。近景の丘の後ろ側（x 30〜44）に 5 層。軸部は上へ行くほど狭く、屋根は軸部より両側へ
+            // 2.4 張り出す。てっぺんに相輪（細い棒）。
+            let bodies = CGMutablePath(), roofs = CGMutablePath()
+            let centerX = 37.0
+            var y = base + 4.0
+            for tier in 0..<5 {
+                let bodyWidth = 9.0 - Double(tier) * 1.1
+                let bodyHeight = 2.6
+                bodies.addRect(CGRect(x: centerX - bodyWidth / 2, y: y, width: bodyWidth, height: bodyHeight))
+                y += bodyHeight
+                let roofWidth = bodyWidth + 4.8
+                roofs.addRect(CGRect(x: centerX - roofWidth / 2, y: y, width: roofWidth, height: 1.1))
+                y += 1.1
+            }
+            roofs.addRect(CGRect(x: centerX - 0.35, y: y, width: 0.7, height: 3.2))
+            for (path, color) in [(bodies, P.pagodaBody), (roofs, P.pagodaRoof)] {
+                let shape = SKShapeNode(path: path)
+                shape.fillColor = RunnerPalette.color(color)
+                shape.strokeColor = .clear
+                shape.zPosition = SceneryZ.back
+                tile.addChild(shape)
+            }
+            addMaple(to: tile, x: 12, canopyRadius: 4.2, trunkHeight: 4.5)
+        case 1:
+            // 鳥居。2 本の柱と、貫（下の横木）・笠木（上の横木。柱より両側へ張り出す）。
+            // 土塀（高さ 4）の後ろに立つので、塀の上に 11 以上出る高さにする。
+            let posts = CGMutablePath(), beams = CGMutablePath()
+            for x in [10.0, 21.0] {
+                posts.addRect(CGRect(x: x, y: base, width: 1.7, height: 15.0))
+            }
+            beams.addRect(CGRect(x: 8.6, y: base + 10.8, width: 15.6, height: 1.2))
+            beams.addRect(CGRect(x: 7.0, y: base + 14.4, width: 18.8, height: 1.9))
+            for path in [posts, beams] {
+                let shape = SKShapeNode(path: path)
+                shape.fillColor = RunnerPalette.color(P.toriiVermilion)
+                shape.strokeColor = .clear
+                shape.zPosition = SceneryZ.middle
+                tile.addChild(shape)
+            }
+            addMaple(to: tile, x: 38, canopyRadius: 5.0, trunkHeight: 5.0)
+            addMaple(to: tile, x: 50, canopyRadius: 3.6, trunkHeight: 3.8)
+        default:
+            // 寺の本堂。土塀の上に石段 3 段が顔を出し（寺は道より高い所に建つ）、その上に白壁、柱 3 本、
+            // 軒の張り出した瓦屋根（台形）と棟。石段の下端は土塀の笠（base + 4.0）のすぐ上。
+            let templeBase = base + 4.0
+            let steps = CGMutablePath()
+            for (i, stepWidth) in [26.0, 22.0, 18.0].enumerated() {
+                steps.addRect(CGRect(x: 30 - stepWidth / 2, y: templeBase + Double(i) * 1.1, width: stepWidth, height: 1.1))
+            }
+            let stepNode = SKShapeNode(path: steps)
+            stepNode.fillColor = RunnerPalette.color(P.templeSteps)
+            stepNode.strokeColor = .clear
+            stepNode.zPosition = SceneryZ.middle
+            tile.addChild(stepNode)
+
+            let wallBottom = templeBase + 3.3
+            let wall = SKSpriteNode(color: RunnerPalette.color(P.templeWall), size: CGSize(width: 20, height: 5.2))
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: 20, y: wallBottom)
+            wall.zPosition = SceneryZ.middle
+            tile.addChild(wall)
+
+            let pillars = CGMutablePath()
+            for x in [21.5, 29.6, 37.7] {
+                pillars.addRect(CGRect(x: x, y: wallBottom, width: 0.8, height: 5.2))
+            }
+            let pillarNode = SKShapeNode(path: pillars)
+            pillarNode.fillColor = RunnerPalette.color(P.wallCoping)
+            pillarNode.strokeColor = .clear
+            pillarNode.zPosition = SceneryZ.middle
+            tile.addChild(pillarNode)
+
+            let eave = wallBottom + 5.2
+            let roof = CGMutablePath()
+            roof.addLines(between: [
+                CGPoint(x: 13, y: eave), CGPoint(x: 22, y: eave + 5.0),
+                CGPoint(x: 38, y: eave + 5.0), CGPoint(x: 47, y: eave),
+            ])
+            roof.closeSubpath()
+            roof.addRect(CGRect(x: 21, y: eave + 5.0, width: 18, height: 0.9))
+            let roofNode = SKShapeNode(path: roof)
+            roofNode.fillColor = RunnerPalette.color(P.templeRoof)
+            roofNode.strokeColor = .clear
+            roofNode.zPosition = SceneryZ.middle
+            tile.addChild(roofNode)
+            addMaple(to: tile, x: 5, canopyRadius: 3.8, trunkHeight: 4.0)
+        }
+
+        // 土塀。道のすぐ奥に全タイル続く。漆喰の壁の上に瓦の笠、足元に腰の線、12 おきに柱の線
+        // （笠・腰・柱は 1 本のパス）。
+        let wall = SKSpriteNode(color: RunnerPalette.color(P.earthenWall), size: CGSize(width: width, height: 3.2))
+        wall.anchorPoint = .zero
+        wall.position = CGPoint(x: 0, y: base)
+        wall.zPosition = SceneryZ.front
+        tile.addChild(wall)
+        let trim = CGMutablePath()
+        trim.addRect(CGRect(x: 0, y: base + 3.2, width: width, height: 0.8))
+        trim.addRect(CGRect(x: 0, y: base, width: width, height: 0.5))
+        var px = 6.0
+        while px < width {
+            trim.addRect(CGRect(x: px - 0.3, y: base, width: 0.6, height: 3.2))
+            px += 12
+        }
+        let trimNode = SKShapeNode(path: trim)
+        trimNode.fillColor = RunnerPalette.color(P.wallCoping)
+        trimNode.strokeColor = .clear
+        trimNode.zPosition = SceneryZ.front
+        tile.addChild(trimNode)
+    }
+
+    /// 紅葉の木 1 本（京都・奈良）。幹の上に房状の樹冠（楕円 2 つ）。土塀の後ろ（`SceneryZ.middle`）に立つ。
+    /// 樹冠は**別ノード**で重ねる——1 本のパスに楕円を重ねると nonZero 塗りで重なりに穴が開く。
+    private func addMaple(to tile: SKNode, x: Double, canopyRadius r: Double, trunkHeight: Double) {
+        typealias P = RunnerWorld.SceneryPalette
+        let trunk = SKSpriteNode(color: RunnerPalette.color(P.mapleTrunk), size: CGSize(width: 1.2, height: trunkHeight + r))
+        trunk.anchorPoint = CGPoint(x: 0.5, y: 0)
+        trunk.position = CGPoint(x: x, y: Metrics.groundY)
+        trunk.zPosition = SceneryZ.middle
+        tile.addChild(trunk)
+        let cy = Metrics.groundY + trunkHeight + r * 0.9
+        for (dx, dy, w, h) in [(0.0, 0.0, r * 2.2, r * 1.6), (-r * 0.6, r * 0.45, r * 1.4, r * 1.2), (r * 0.55, r * 0.5, r * 1.3, r * 1.1)] {
+            let puff = SKShapeNode(ellipseOf: CGSize(width: w, height: h))
+            puff.fillColor = RunnerPalette.color(P.mapleCanopy)
+            puff.strokeColor = .clear
+            puff.position = CGPoint(x: x + dx, y: cy + dy)
+            puff.zPosition = SceneryZ.middle
+            tile.addChild(puff)
+        }
+    }
+
+    /// 里山・港町・京都・奈良の遠景の部品の相対 z（`hillLayer` の中。丘の山は 0）。家並みの `HouseZ` と同じ考え方。
     private enum SceneryZ {
         static let back: CGFloat = 1
         static let middle: CGFloat = 2

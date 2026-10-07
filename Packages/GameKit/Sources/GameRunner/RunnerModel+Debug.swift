@@ -57,7 +57,7 @@ extension RunnerModel {
             advanceFramesForDebug(seconds: RunnerRules.goalChaseDuration * 0.4)
             isFrozenForCapture = true
         case let value where RunnerStory.debugScene(for: value)?.triggerStage != nil:
-            // 世界の締め（`story-world1`〜`story-world5`・#1092）。締めは**リザルトの手前**に
+            // 世界の締め（`story-world1`〜`story-world6`・#1092）。締めは**リザルトの手前**に
             // 出るものなので、まず普通にゴールさせて `.cleared` を作り、その上に被せる。
             // 面はどこでもよい（締めの絵は `RunnerStoryArt` が自前の背景で描く）。
             press(); release()
@@ -304,6 +304,38 @@ extension RunnerModel {
             press(); release()
             autoPlayForDebug(until: { $0.field.distance > 700 })
             advanceFramesForDebug(seconds: 60)
+        case let name where name.hasPrefix("showcase-dog:"):
+            // ショーケースを **N 面の世界**で走らせ、犬の枠の動物（犬・猫・鹿）と向かい合った瞬間で止める
+            // （例 `-simulateRunner showcase-dog:31`・#1824）。世界ごとの背景・地面・動物を同じコース・
+            // 同じ瞬間で撮り比べる用。本番の面が無い番号でも、世界が決まれば撮れる。
+            if let number = Int(name.dropFirst("showcase-dog:".count)), RunnerWorld.contains(stage: number) {
+                applyDebugStage(RunnerStage(
+                    number: number, pattern: RunnerStage.debugShowcase.pattern, speed: RunnerStage.debugShowcase.speed
+                ))
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
+                          let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
+                    let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
+                    return field.isGrounded && frame.start - field.distance <= center
+                })
+                isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("showcase-at:"):
+            // ショーケースを **N 面の世界**で走らせ、距離 D まで自動操縦で進めて接地した瞬間で止める
+            // （例 `-simulateRunner showcase-at:31@180`・#1824）。遠景のタイル（鳥居・五重塔など）を
+            // 流して撮るための距離指定版。
+            let spec = name.dropFirst("showcase-at:".count).split(separator: "@", maxSplits: 1)
+            if spec.count == 2, let number = Int(spec[0]), let target = Double(spec[1]),
+               RunnerWorld.contains(stage: number) {
+                applyDebugStage(RunnerStage(
+                    number: number, pattern: RunnerStage.debugShowcase.pattern, speed: RunnerStage.debugShowcase.speed
+                ))
+                press(); release()
+                autoPlayForDebug(until: { $0.field.isGrounded && $0.field.distance >= target })
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("bird:"):
             // 本番ステージの鳥を、その面の世界の背景の上で撮る（例 `-simulateRunner bird:5`）。
             // `bird` はショーケースで走るので、面ごとの世界の配色で鳥が見分けられるか（#818）は

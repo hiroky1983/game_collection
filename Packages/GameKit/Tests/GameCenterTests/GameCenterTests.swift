@@ -28,6 +28,7 @@ import GameAnzan
 import GameBackgammon
 import GameSpeed
 import GameHomerun
+import GameOjisanPuzzle
 import GameSpider
 import GameChess
 import GameBlocks
@@ -98,7 +99,7 @@ private func makeHubModules() -> [GameModule] {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
-        HomerunModule(),
+        HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
     ]
 }

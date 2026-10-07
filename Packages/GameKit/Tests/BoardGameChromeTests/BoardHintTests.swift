@@ -141,7 +141,7 @@ struct BoardHintButtonSourceTests {
         let source = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/Core/BoardGameControlBar.swift")
         )
-        #expect(source.contains("badge: hint.needsAd ? .ad(remaining: hint.remaining) : .count(hint.remaining)"),
+        #expect(source.contains("badge: hint.badge"),
                 "残り回数と広告の有無を 2 行目に出していない")
         #expect(source.contains("role: .hint"), "ヒントのカプセルが役割の色（黄）になっていない")
         #expect(source.contains("systemImage: \"lightbulb.fill\""))

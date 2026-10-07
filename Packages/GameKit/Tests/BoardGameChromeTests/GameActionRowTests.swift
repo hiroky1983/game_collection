@@ -14,24 +14,50 @@ struct GameActionRowTests {
 
     // MARK: - 2 行目（たたき台 6: 広告は「▶」、無料は「あと◯回」）
 
-    @Test("残り回数は「あと n 回」、広告が要るときは ▶ 付きで「広告を見て」か「あと n 回」")
+    @Test("残り回数は「あと n 回」、0 で広告を見ると足せるときは「0回 ▶ 広告を見て +N」")
     func badgeText() {
         #expect(GameActionBadge.count(3).text == "あと3回")
+        #expect(GameActionBadge.count(3).countText == nil)
         #expect(!GameActionBadge.count(3).needsAd)
-        #expect(GameActionBadge.ad().text == "広告を見て")
+        #expect(GameActionBadge.count(0).text == "あと0回")
+        #expect(!GameActionBadge.count(0).needsAd, "広告の追加も使い切った 0 は広告の案内を出さない")
+        #expect(GameActionBadge.ad().countText == "0回")
+        #expect(GameActionBadge.ad().text == "広告を見て +1")
         #expect(GameActionBadge.ad().needsAd)
-        #expect(GameActionBadge.ad(remaining: 5).text == "あと5回")
-        #expect(GameActionBadge.ad(remaining: 5).needsAd)
+        #expect(GameActionBadge.ad(gain: 3).text == "広告を見て +3")
+        #expect(GameActionBadge.ad(gain: 3).needsAd)
         #expect(GameActionBadge.none.text == nil)
         #expect(!GameActionBadge.none.needsAd)
+    }
+
+    /// 盤ゲームのヒント: 数字は無料の残りだけ。開始時は「あと3回」（広告の5回を合算した「あと8回」にしない・#1897）。
+    @Test("盤ゲームのヒントの 2 行目は無料の残りだけを数え、0 で広告を見ると足せる／広告の追加も使い切ったら案内なし")
+    func boardHintBadgeCountsOnlyFreeUses() {
+        var budget = BoardHintBudget()
+        func badge() -> GameActionBadge {
+            .hint(totalRemaining: budget.remaining, needsAd: !budget.hasFreeRemaining && !budget.isExhausted)
+        }
+        #expect(badge() == .count(3))
+        for expected in [GameActionBadge.count(2), .count(1), .ad()] {
+            let consumed = budget.consume()
+            #expect(consumed)
+            #expect(badge() == expected)
+        }
+        for _ in 0..<BoardHintBudget.adRefillMax {
+            #expect(badge() == .ad(), "広告で補充した分は視聴のたびに使うので 0 のまま")
+            let consumed = budget.consumeAd()
+            #expect(consumed)
+        }
+        #expect(badge() == .count(0), "広告の追加を使い切ったら 0 で案内なし")
+        #expect(!badge().needsAd)
     }
 
     /// 「▶」は音声では読めないので、読み上げには必ず「広告を見て」を含める。
     @Test("読み上げは広告の有無を言葉で含める")
     func badgeAccessibilityValue() {
         #expect(GameActionBadge.count(2).accessibilityValue == "あと2回")
-        #expect(GameActionBadge.ad().accessibilityValue == "広告を見て")
-        #expect(GameActionBadge.ad(remaining: 3).accessibilityValue == "広告を見て、あと3回")
+        #expect(GameActionBadge.ad().accessibilityValue == "0回、広告を見て1回追加")
+        #expect(GameActionBadge.ad(gain: 3).accessibilityValue == "0回、広告を見て3回追加")
         #expect(GameActionBadge.none.accessibilityValue == nil)
     }
 
@@ -132,17 +158,17 @@ struct GameActionRowTests {
                 "囲碁のパスが GameControlMenuItem でない")
     }
 
-    @Test("ナンプレのヒントは 2 行目に広告と残り回数（▶ あと n 回）を出す")
+    @Test("ナンプレのヒントは 2 行目に「0回 ▶ 広告を見て +1」を出し、1 局 3 回を使い切ったら 0 で案内なし")
     func sudokuHintShowsAdAndRemaining() throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameSudoku"))
-        #expect(source.contains("badge: .ad(remaining: model.remainingHints)"))
+        #expect(source.contains("badge: model.remainingHints > 0 ? .ad() : .count(0)"))
     }
 
-    @Test("ソリティア・スパイダー・フリーセル・麻雀ソリティア・ナンプレの戻すは無料の残りを出し、使い切ったら「▶ 広告を見て」",
+    @Test("ソリティア・スパイダー・フリーセル・麻雀ソリティア・ナンプレの戻すは無料の残りを出し、使い切ったら「0回 ▶ 広告を見て +3」",
           arguments: ["GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameSudoku"])
     func undoBadgeShowsRemainingThenAd(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
-        #expect(source.contains("badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad()"),
+        #expect(source.contains("badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill)"),
                 "\(module) の戻すの 2 行目が残り回数 → 広告になっていない")
     }
 

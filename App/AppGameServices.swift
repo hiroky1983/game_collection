@@ -30,6 +30,7 @@ import GameAnzan
 import GameBackgammon
 import GameSpeed
 import GameHomerun
+import GameOjisanPuzzle
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -274,6 +275,11 @@ enum AppEnvironment {
         // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告/アンケート）・
         // 解析・Game Center への送信まで入っている。
         HomerunModule(),
+        // 腰痛おじさんパズル（#1016）。v1.1.11 でハブに公開（#1904）。倉庫へ戻す判断が出たら、
+        // 上の倉庫ゲームと同じくこの 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
+        // レコメンドの候補表（`RecommendationPolicy.candidateTable`）の `ojisanpuzzle` の行と、柵越えおじさんの
+        // 第3候補（#1904 で 2048 から差し替え）も戻すこと（`RecommendationTests` が登録の無い ID を検出する）。
+        OjisanPuzzleModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
