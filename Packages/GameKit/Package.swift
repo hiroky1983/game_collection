@@ -209,7 +209,7 @@ let package = Package(
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
-        .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle"]),
+        .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -227,7 +227,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -253,7 +253,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -262,7 +262,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。

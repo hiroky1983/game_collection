@@ -1,4 +1,7 @@
 import Testing
+import Foundation
+import Core
+import CoreTestSupport
 @testable import GameOjisanPuzzle
 
 /// 進行役（`OjisanPuzzleModel`）のうち、落下タイマーを回さずに確かめられる部分。
@@ -227,6 +230,38 @@ struct OjisanPuzzleModelTests {
         model.tick()    // 重力も消去も起きないので、次の組を出そうとして詰まる
         #expect(model.outcome == .buried)
         #expect(model.current == nil)
+    }
+
+    @Test("決着すると負けとして 1 回だけ記録し、得点を自己ベストに残す（#1904）")
+    func finishRecordsLossWithPoints() throws {
+        let suite = "asobiba.ojisanpuzzle.tests.record"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let log = PlayLog(defaults: defaults)
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: log)
+
+        let model = OjisanPuzzleModel(
+            services: services,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+        )
+        #expect(model.hardDrop())
+        #expect(model.outcome == .hospitalized)
+        let record = try #require(log.record(gameID: OjisanPuzzleModule().id))
+        #expect(record.metric == .points)
+        #expect(record.plays == 1)
+        #expect(record.losses == 1)
+        #expect(record.bestPoints == 0)
+        #expect(model.recordResult != nil)
+
+        // 決着後の操作は二重に記録しない。もう一度で結果は消える。
+        model.tick()
+        #expect(log.record(gameID: OjisanPuzzleModule().id)?.plays == 1)
+        model.newGame()
+        model.pause()
+        #expect(model.recordResult == nil)
     }
 
     @Test("落下中の組が無ければ操作を受け付けない")

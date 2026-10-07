@@ -1,7 +1,7 @@
 import SwiftUI
 import Core
 
-/// 腰痛おじさんパズル（プロトタイプ）のプレイ画面。
+/// 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）のプレイ画面。
 ///
 /// 盤の描画は `OjisanPuzzleModel.displayBoard`（盤 + 落下中の組）をそのまま並べるだけで、
 /// 判定は一切持たない。操作は下のボタン列から Model の受け口を叩く。
@@ -332,6 +332,8 @@ public struct OjisanPuzzleView: View {
             Text("スコア \(model.score)")
                 .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(Theme.ink)
+            // 自己ベストの 1 行（他ゲームのリザルトと同じ共通部品・#1904）。
+            RecordLabel(model.recordResult)
             Button {
                 withGameAnimation { model.newGame() }
             } label: {

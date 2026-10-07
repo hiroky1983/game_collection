@@ -1,12 +1,15 @@
 import Core
 import Observation
 
-/// 腰痛おじさんパズル（プロトタイプ）のゲーム状態。
+/// 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）のゲーム状態。
 ///
 /// 盤の判定・連鎖・ゲージ・得点は `OjisanPuzzleBoard` / `OjisanPuzzlePain` / `OjisanPuzzleScoring` の
 /// 純粋ロジックに委譲し、ここは**落下タイマー・操作の受け口・決着**だけを持つ（`BlockPuzzleModel` と同じ作法）。
 ///
-/// プロトタイプなので、中断と復元・記録・Game Center・広告・解析には**一切つながない**。
+/// 解析（`game_start` / `game_end`）と記録（得点の自己ベスト）は `GameServices` の共通の入口でつなぐ（#1904）。
+/// 中断と復元は持たない（落ちものの途中局面を戻す形を決めていないため。`OjisanPuzzleModule.resumesFromSnapshot`
+/// は false のまま）。画面を離れれば局は捨てられ、1 つでも荷物を置いていれば途中離脱（quit）として数える。
+/// Game Center・広告にはつないでいない。
 @MainActor
 @Observable
 public final class OjisanPuzzleModel {
@@ -40,6 +43,8 @@ public final class OjisanPuzzleModel {
     public private(set) var chainEventID: Int = 0
     /// 決着。nil なら進行中。
     public private(set) var outcome: Outcome?
+    /// 決着時に記録した結果（自己ベストの更新内訳）。リザルトに `RecordLabel` で出す。
+    public private(set) var recordResult: RecordResult?
 
     /// 盤に落下中の組を重ねた、描画用の盤。View はこれだけを見れば描ける。
     public var displayBoard: [[Int]] {
@@ -88,6 +93,9 @@ public final class OjisanPuzzleModel {
         current = OjisanPuzzleBoard.makePair(using: &generator)
         next = OjisanPuzzleBoard.makePair(using: &generator)
         rng = generator
+        // 中断データを持たないので、開くたびに新しいプレイ。`gameDidStart` は冪等なので
+        // 再描画で init が何度走っても増えない（#158）。
+        services?.gameDidStart(gameID: Self.gameID)
     }
 
     /// 盤とゲージを直接与えて開始する。狙った局面（あと 1 手で連鎖・入院寸前・積み上がり寸前）から
@@ -106,6 +114,8 @@ public final class OjisanPuzzleModel {
         self.pain = OjisanPuzzlePain.clamped(pain)
         self.next = OjisanPuzzleBoard.makePair(using: &generator)
         self.rng = generator
+        // 狙った局面から始める入口も、新しいプレイの開始として数える（ブロックならべの同種の入口と同じ扱い）。
+        services?.gameDidStart(gameID: Self.gameID)
     }
 
     // MARK: - 進行
@@ -234,6 +244,9 @@ public final class OjisanPuzzleModel {
         phase = .dropping
         outcome = nil
         lastInputAt = nil
+        recordResult = nil
+        // 未決着のまま捨てた局は、始め直す前に途中離脱（quit）として送られる（#500）。
+        services?.gameDidRestart(gameID: Self.gameID)
         resume()
     }
 
@@ -246,6 +259,8 @@ public final class OjisanPuzzleModel {
         lastChain = 0
         chainDepth = 0
         pain = OjisanPuzzlePain.afterLock(pain)
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
+        services?.gameDidProgress(gameID: Self.gameID)
         phase = .settling
         services?.feedback.impact(.medium)
 
@@ -296,5 +311,12 @@ public final class OjisanPuzzleModel {
         current = nil
         pause()
         services?.feedback.notify(.error)
+        // 入院・積み上がりのどちらも負けとして記録し、得点を自己ベストに残す
+        // （ブロックならべと同じ「終わり = 負け・得点で競う」形）。
+        recordResult = services?.gameDidFinish(
+            gameID: Self.gameID,
+            outcome: .loss,
+            score: GameScore(metric: .points, points: score)
+        )
     }
 }
