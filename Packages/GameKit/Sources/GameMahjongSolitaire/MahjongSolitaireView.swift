@@ -454,7 +454,7 @@ public struct MahjongSolitaireView: View {
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
                     ? "直前に取った2枚を戻す（残り\(model.undosRemaining)回）"
-                    : "直前に取った2枚を戻す（広告を見て補充）",
+                    : "直前に取った2枚を戻す（広告を見て\(RewardedUndoBudget.refill)回補充）",
                 accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
             ) { requestUndo() },
             GameActionItem(
