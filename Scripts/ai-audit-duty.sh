@@ -8,6 +8,7 @@
 #   2) セキュリティ（秘密情報・権限・外部通信・第三者入力の扱い）
 #   3) 品質（規程との整合: 1局=1RuleSet・解析イベントの語彙・docs の更新漏れ・テストの有無）
 #   4) 確度の高い欠陥は `bug` + `ai:proposed` で個別に起票する（まとめレポートは作らない。会長指示 2026-09-21）
+#   5) docs の更新漏れは起票せず docs/ だけの PR を出してマージまで行う（会長のハンコ不要。2026-10-07 会長決定）
 # を行う。2026-09-14 会長指示「当番5分起動に変えてから CodeRabbit のリミットで動いていないことが多い。
 # 1日1回、ブランチの変更に対して品質・セキュリティ・バグ・敵対的検証のフローを入れたい」
 # （実測: 同日 release/v1.1.5 にマージした 11 本のうち CodeRabbit のレビューが付いたのは 1 本）を受けて新設。
@@ -311,8 +312,10 @@ log "監査当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, since=$SINCE, p
 cd "$RUN_DIR" || exit 0
 # Sonnet で起動する（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
 # 2026-09-14 の「複雑なタスクは Fable で」は撤回）。
+# Edit/Write は docs の更新漏れを自分で直すため（2026-10-07 会長決定・プロンプト 2-c）。コミットできるのは
+# 上の pre-commit フックで docs/ 配下だけに限られる。
 PATH="$GH_SHIM_DIR:$PATH" claude --model "${AUDIT_MODEL:-sonnet}" \
-  --allowedTools "Bash,Read,Glob,Grep,WebFetch,WebSearch" \
+  --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-audit-prompt.md")
 
 （今回の監査対象）${SINCE} 〜 ${NOW}（UTC）にマージされた PR ${PR_COUNT} 本:
