@@ -94,6 +94,21 @@ struct ModelTests {
         #expect(!model.continueUsed)
     }
 
+    @Test("VoiceOver 用の 1 段移動はパドル幅の 1/4 で、局面が違えば効かない（#1894）")
+    func nudgePaddleMovesQuarterWidthOnlyWhilePlayable() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("nudge"))
+        let start = model.field.paddleX
+        let step = model.field.paddleWidth / 4
+        model.nudgePaddle(steps: 1)
+        #expect(abs(model.field.paddleX - (start + step)) < 1e-9)
+        model.nudgePaddle(steps: -2)
+        #expect(abs(model.field.paddleX - (start - step)) < 1e-9)
+        model.pause()
+        let paused = model.field.paddleX
+        model.nudgePaddle(steps: 1)
+        #expect(model.field.paddleX == paused)
+    }
+
     @Test("発射すると進行中になる")
     func launchStartsPlaying() {
         let model = BlocksModel(services: makeServices(), preference: makePreference("launch"))
