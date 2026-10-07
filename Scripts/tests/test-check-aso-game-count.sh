@@ -172,6 +172,12 @@ REAL_PACKS=0
 for real in "$REPO"/docs/aso/metadata-v*.md; do
   [ -f "$real" ] || continue
   REAL_PACKS=$((REAL_PACKS + 1))
+  # 会長決裁で ASC の値（22本）を据え置き、```text フェンスから本数の主張を意図的に外したパック
+  # （metadata-v1.1.10.md §1-1。本数が読めないのが正しい状態）。誤って通さないよう名指しで除外する。
+  if [ "$(basename "$real")" = "metadata-v1.1.10.md" ]; then
+    ok "docs/aso/$(basename "$real") は本数の主張を意図的に外したパックなので対象外"
+    continue
+  fi
   accepted=""
   for ((n = 1; n <= 60; n++)); do
     if bash "$TARGET" "$real" "$(swiftsrc "$n")" >/dev/null 2>&1; then accepted="$accepted $n"; fi
