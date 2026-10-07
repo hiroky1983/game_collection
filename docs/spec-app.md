@@ -79,6 +79,10 @@ v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
 - `title: String` — 表示名
 - `icon: Image` — ハブカードのアイコン
 - `makeView(services:) -> AnyView` — ゲーム画面を生成
+- `hasResumableSnapshot(in:) -> Bool` — 中断データが「続きから」で戻れる**途中の局**か（#809）。既定実装は
+  「`resumesFromSnapshot` が true で `snapshots.exists` が true」。**中断データを保存するゲームは、手つかずの盤を保存しない
+  （または `hasResumableSnapshot` を上書きして手つかずを除く）**。`snapshots.exists` だけを見る実装に戻すと、
+  開いただけの盤が「続きから」になる（#1572・#1599・#1847 で同じ食い違いが別ゲームに繰り返し出た）
 
 **`AdService`**: 広告サービスの境界
 - `makeBannerView(width:) -> AnyView?` — バナー広告
@@ -1070,6 +1074,10 @@ v1.1.4 までの公開版は3種）。
 - 送信は `GameAnalytics`（`Core/Analytics.swift`）が一括管理し、二重発火の抑制・経過秒の計測・
   離脱と休憩の切り分けをここ1か所に閉じ込める。個々のゲームは
   「開始した」「1手指した」「やり直した」「終局した」「画面を離れた」を伝えるだけでよい
+- 離脱計測（`leaveGame(isResumable:)`）と中断のお知らせの予約（#663）は、ハブの「続きから」・`game_open` の `resume` と
+  **同じ判定**（モジュールの `hasResumableSnapshot`）を使う。`GameServices.gameDidLeave` が App 層の差し込み
+  （`GameServices.isResumable`・`App/AppGameServices.swift`）経由で呼ぶ。`snapshots.exists` だけで決めない（#1847）。
+  差し込みが nil のテスト・プレビューだけ `snapshots.exists` に落ちる（`release/v1.1.11` から）
 - 設定でオン/オフした境界をまたいだプレイは `game_start`/`game_end` の対応を保証しないため、
   トグル時点で計測中の状態を丸ごと捨てる（`discardPlayState()`。#212）
 - `reward_request` と `game_open` はプレイの数え方（`game_start`/`game_end` の対応）に影響しない。
