@@ -36,7 +36,8 @@ small_font = ImageFont.truetype(font_path, 22)
 for outfit, source in sources.items():
     out_dir = ROOT / outfit
     out_dir.mkdir(exist_ok=True)
-    source_img = Image.open(source).convert('RGB')
+    raw_img = Image.open(source).convert('RGBA')
+    source_img = Image.alpha_composite(Image.new('RGBA', raw_img.size, 'white'), raw_img).convert('RGB')
     sw, sh = source_img.size
     cell_w, cell_h = sw // 3, sh // 3
     sheet = Image.new('RGB', (1600, 1220), 'white')

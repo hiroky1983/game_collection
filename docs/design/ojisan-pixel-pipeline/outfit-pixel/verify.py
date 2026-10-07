@@ -1,5 +1,5 @@
 """px48/ px64/ の各コマを数えて検証する: サイズ・色数（透明除く）・半透明の有無・パレット外の色。"""
-import glob, os
+import glob, os, sys
 import numpy as np
 from PIL import Image
 from make_outfit_pixel import PALETTES, FRAMES
@@ -28,8 +28,11 @@ for size in (48, 64):
                         nx, ny = x + dx, y + dy
                         if not (0 <= nx < W and 0 <= ny < H) or a[ny, nx, 3] == 0:
                             nonk += 1; break
-            flag = "" if (not outside and not semi) else "  <-- NG"
+            empty = len(op) == 0
+            bad_size = name == "front_neutral" and H != size
+            flag = "" if (not outside and not semi and not empty and not bad_size) else "  <-- NG"
             if flag: ok = False
             print(f"px{size} {outfit}/{name:28s} {W:3d}x{H:3d}  色数 {len(cols):2d}  alpha {sorted(alphas)}  縁取り以外の輪郭ドット {nonk:3d}{flag}")
         print(f"   パレット {outfit}: {len(pal)} 色")
 print("ALL OK" if ok else "NG あり")
+sys.exit(0 if ok else 1)

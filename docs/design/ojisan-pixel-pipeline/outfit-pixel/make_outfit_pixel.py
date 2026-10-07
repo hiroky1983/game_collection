@@ -317,7 +317,8 @@ def process_outfit(outfit):
 
     keyed = {}
     for name, _ in FRAMES[outfit]:
-        rgb = np.array(Image.open(f"{SRC}/{outfit}/{name}.png").convert("RGB"))
+        src_img = Image.open(f"{SRC}/{outfit}/{name}.png").convert("RGBA")
+        rgb = np.array(Image.alpha_composite(Image.new("RGBA", src_img.size, "white"), src_img).convert("RGB"))
         rgba, _, dropped = key_out(rgb)
         keyed[name] = rgba
         ys = np.nonzero(rgba[:, :, 3])[0]
