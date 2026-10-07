@@ -312,12 +312,12 @@ struct RunnerSinkFloorTests {
 
     // MARK: - 置き方（#1009 の「入れない組み合わせ」）
 
-    @Test("沈む床は 19 面以降にだけ置かれていて、里山・港町の両方にある")
+    @Test("沈む床は 19 面以降にだけ置かれていて、里山・港町・京都・奈良のどの世界にもある")
     func sinkFloorsOnlyAppearInTheNewWorlds() {
         for stage in RunnerStage.all.prefix(18) {
             #expect(!stage.pattern.contains("~"), "ステージ \(stage.number) に沈む床がある: \(stage.pattern)")
         }
-        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30)] {
+        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30), (.kyotoNara, 31...36)] {
             let count = RunnerStage.all
                 .filter { range.contains($0.number) }
                 .reduce(0) { $0 + $1.sinkFloors.count }

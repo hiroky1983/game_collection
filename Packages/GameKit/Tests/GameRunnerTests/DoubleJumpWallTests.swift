@@ -335,12 +335,12 @@ struct RunnerDoubleJumpWallTests {
 
     // MARK: - 置き方（#1009 の「入れない組み合わせ」）
 
-    @Test("塀は 19 面以降にだけ置かれていて、里山・港町の両方にある")
+    @Test("塀は 19 面以降にだけ置かれていて、里山・港町・京都・奈良のどの世界にもある")
     func wallsOnlyAppearInTheNewWorlds() {
         for stage in RunnerStage.all.prefix(18) {
             #expect(!stage.pattern.contains("w"), "ステージ \(stage.number) に塀がある: \(stage.pattern)")
         }
-        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30)] {
+        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30), (.kyotoNara, 31...36)] {
             let count = RunnerStage.all
                 .filter { range.contains($0.number) }
                 .reduce(0) { $0 + $1.hazards.filter { $0.kind == .wall }.count }

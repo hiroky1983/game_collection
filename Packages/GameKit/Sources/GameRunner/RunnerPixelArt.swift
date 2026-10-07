@@ -144,8 +144,9 @@ enum RunnerPixelArt {
     /// 犬の枠の絵（世界の着せ替えで犬か猫）。色は世界の `Creatures` から写す。
     static func walker(_ frame: WalkFrame, world: RunnerWorld) -> PixelSprite {
         switch world.dressing.dog {
-        case .dog: return dog(frame, colors: world.creatures)
-        case .cat: return cat(frame, colors: world.creatures)
+        case .dog:  return dog(frame, colors: world.creatures)
+        case .cat:  return cat(frame, colors: world.creatures)
+        case .deer: return deer(frame, colors: world.creatures)
         }
     }
 
@@ -160,8 +161,9 @@ enum RunnerPixelArt {
     /// 犬の枠の格子（寸法を測る用。`RunnerScene.addDog`）。
     static func walkerRows(world: RunnerWorld) -> [String] {
         switch world.dressing.dog {
-        case .dog: return dogWalk0Rows
-        case .cat: return catWalk0Rows
+        case .dog:  return dogWalk0Rows
+        case .cat:  return catWalk0Rows
+        case .deer: return deerWalk0Rows
         }
     }
 
@@ -410,6 +412,57 @@ enum RunnerPixelArt {
         "...KWWWOOOOOOOOOOOOOOOOOK.....",
         "...KWWWWWWWWOOOOOOOOOOOOK.....",
         "....KWWWWWWWWWWWWWWWWWOOK.....",
+    ]
+
+    // MARK: 奈良の鹿（京都・奈良の犬の枠・#1824）
+
+    /// 鹿（左向き）30×21 ドット。犬・猫と同じ格子・同じ脚の段（下の 6 行、うち脚は 5 行）で、
+    /// `RunnerScene.addDog` が犬と同じ置き方で貼れる（当たり判定・寸法・動きは犬のまま）。
+    /// 色は犬と同じ文字で世界の `Creatures` から写す（`O` 体・`o` 暗部・`W` 白・`K` 縁取り）。
+    ///
+    /// 鹿に見せる要素: **長い首の先の小さな頭**（胴より上に突き出す）、頭の上の**小さな枝角 1 本**と
+    /// 後ろ向きの耳（`o`）、**背中の白い斑点**と**白いお尻**（鹿の子模様と尻の白）、細い脚（幅 1 ドット）。
+    /// 犬・猫と取り違えないため、巻き尾・立ち尾・首輪は持たない。頭は左（右から左へ歩いて来る向き）。
+    /// 2 コマの違いは脚だけ（犬と同じ約束。`walk0` は手前の前脚が前・奥の後脚が前、`walk1` は逆）。
+    static func deer(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? deerWalk0Rows : deerWalk1Rows, palette: creaturePalette(colors))
+    }
+
+    static let deerWalk0Rows: [String] = deerBodyRows + [
+        "..........KOKKoKKKKKKKKoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "...........K..K........K..K...",
+    ]
+
+    static let deerWalk1Rows: [String] = deerBodyRows + [
+        "..........KoKKOKKKKKKKKOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "...........K..K........K..K...",
+    ]
+
+    /// 鹿の頭・首・胴（脚より上の 15 行）。2 コマで共通。
+    private static let deerBodyRows: [String] = [
+        "....KK...K....................",
+        "...KooK.KOK...................",
+        "....KooKOoK...................",
+        "...KKoKKOoK...................",
+        "..KOOOOOOK....................",
+        ".KOOOOOOOOK...................",
+        "KKOOKOOOOOOK..................",
+        ".KWWOOOOOOOOK.KKKKKKKKK.......",
+        "..KKKKKOOOOOOKOOOOOOOOOKKKK...",
+        ".......KOoOOOOOOWOOWOOWOOOWKK.",
+        "........KKoOOWOOOOOOOOOOOWWWWK",
+        ".........KOoOOOWOOWOOWOOWWWWWK",
+        ".........KOOWOOOOOOOOOOWWWWWK.",
+        "..........KKOOOOWWWWWWOOOWWK..",
+        "...........KKKWWWWWWWWWWKKK...",
     ]
 
     // MARK: フォークリフト（港町のイノシシの枠・#1009）

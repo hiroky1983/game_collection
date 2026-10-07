@@ -7,7 +7,7 @@ import Testing
 @Suite("チャリンコおじさん: 世界")
 struct RunnerWorldTests {
 
-    @Test("1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、19〜24 面は里山、25〜30 面は港町（境界を含む）")
+    @Test("1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良（境界を含む）")
     func stageRanges() {
         #expect(RunnerWorld.world(forStage: 1) == .morning)
         #expect(RunnerWorld.world(forStage: 6) == .morning)
@@ -19,21 +19,23 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.world(forStage: 24) == .satoyama)
         #expect(RunnerWorld.world(forStage: 25) == .harbor)
         #expect(RunnerWorld.world(forStage: 30) == .harbor)
+        #expect(RunnerWorld.world(forStage: 31) == .kyotoNara)
+        #expect(RunnerWorld.world(forStage: 36) == .kyotoNara)
     }
 
-    @Test("範囲外は夜（ショーケースの 0 番・最後の世界より後ろの 31 面以降も落ちずに描く）")
+    @Test("範囲外は夜（ショーケースの 0 番・最後の世界より後ろの 37 面以降も落ちずに描く）")
     func outOfRangeIsNight() {
         #expect(RunnerWorld.world(forStage: 0) == .night)
         #expect(RunnerWorld.world(forStage: -1) == .night)
-        #expect(RunnerWorld.world(forStage: 31) == .night)
+        #expect(RunnerWorld.world(forStage: 37) == .night)
         #expect(RunnerWorld.world(forStage: RunnerRules.stageCount + 1) == .night)
     }
 
-    @Test("全 30 面がちょうど 6 面ずつ 5 つの世界に分かれる")
+    @Test("全 36 面がちょうど 6 面ずつ 6 つの世界に分かれる")
     func everyStageHasAWorld() {
         let counts = Dictionary(grouping: RunnerStage.all, by: { RunnerWorld.world(forStage: $0.number) })
             .mapValues(\.count)
-        #expect(counts == [.morning: 6, .evening: 6, .night: 6, .satoyama: 6, .harbor: 6])
+        #expect(counts == [.morning: 6, .evening: 6, .night: 6, .satoyama: 6, .harbor: 6, .kyotoNara: 6])
         #expect(RunnerWorld.stagesPerWorld * RunnerWorld.allCases.count == RunnerRules.stageCount)
     }
 
@@ -199,6 +201,7 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.night.scenery == .cityLights)
         #expect(RunnerWorld.satoyama.scenery == .satoyama)
         #expect(RunnerWorld.harbor.scenery == .harbor)
+        #expect(RunnerWorld.kyotoNara.scenery == .kyotoNara)
     }
 
     // MARK: 背景は淡く沈め、手前は縁取る（#929）
@@ -387,6 +390,13 @@ struct RunnerWorldTests {
             platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray, sinkFloor: .tideland,
             crumblingPlatform: .woodenPier, wall: .containerStack
         ))
+        // 京都・奈良（#1824・会長決裁 2026-10-06 の案 A）: 新しく描くのは犬の枠の鹿だけで、残りは里山の着せ替えと
+        // 元の絵（庭石＝岩塊・足場）の流用。ここが変わるのは案 B（石灯籠・人力車など）を別 Issue で足したとき。
+        #expect(RunnerWorld.kyotoNara.dressing == D(
+            pit: .irrigationDitch, lowBlock: .boulder, tallBlock: .boulder, dog: .deer, boar: .boar,
+            platform: .scaffold, boostFloor: .pavedFarmRoad, shoot: .bambooShoot, sinkFloor: .paddy,
+            crumblingPlatform: .suspensionBridge, wall: .stoneWall
+        ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
@@ -566,6 +576,8 @@ struct RunnerWorldTests {
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 18, total: 30) == "ステージ 18 / 30、夜の繁華街")
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 19, total: 30) == "ステージ 19 / 30、里山")
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 30, total: 30) == "ステージ 30 / 30、港町")
+        #expect(RunnerAccessibility.stageLabelWithWorld(number: 31, total: 36) == "ステージ 31 / 36、京都・奈良")
+        #expect(RunnerAccessibility.stageLabelWithWorld(number: 36, total: 36) == "ステージ 36 / 36、京都・奈良")
         // 見た目の文言（番号だけ）は変えない。
         #expect(RunnerAccessibility.stageLabel(number: 3, total: 18) == "ステージ 3 / 18")
     }
@@ -589,18 +601,20 @@ struct RunnerStageCodeTests {
         #expect(!RunnerWorld.contains(stage: -1))
     }
 
-    @Test("世界と面番号の対応: 1-1 は 1 面、2-1 は 7 面、3-6 は 18 面、4-1 は 19 面、5-6 は 30 面")
+    @Test("世界と面番号の対応: 1-1 は 1 面、2-1 は 7 面、3-6 は 18 面、4-1 は 19 面、5-6 は 30 面、6-6 は 36 面")
     func codesFollowWorldBoundaries() {
         #expect(RunnerWorld.morning.number == 1)
         #expect(RunnerWorld.evening.number == 2)
         #expect(RunnerWorld.night.number == 3)
         #expect(RunnerWorld.satoyama.number == 4)
         #expect(RunnerWorld.harbor.number == 5)
+        #expect(RunnerWorld.kyotoNara.number == 6)
         #expect(RunnerWorld.morning.stageRange == 1...6)
         #expect(RunnerWorld.evening.stageRange == 7...12)
         #expect(RunnerWorld.night.stageRange == 13...18)
         #expect(RunnerWorld.satoyama.stageRange == 19...24)
         #expect(RunnerWorld.harbor.stageRange == 25...30)
+        #expect(RunnerWorld.kyotoNara.stageRange == 31...36)
 
         #expect(RunnerWorld.code(forStage: 1) == "1-1")
         #expect(RunnerWorld.code(forStage: 6) == "1-6")
@@ -612,8 +626,10 @@ struct RunnerStageCodeTests {
         #expect(RunnerWorld.code(forStage: 24) == "4-6")
         #expect(RunnerWorld.code(forStage: 25) == "5-1")
         #expect(RunnerWorld.code(forStage: 30) == "5-6")
+        #expect(RunnerWorld.code(forStage: 31) == "6-1")
+        #expect(RunnerWorld.code(forStage: 36) == "6-6")
 
-        // 世界の範囲を順に並べると 1…30 を漏れなく 1 度ずつ覆う。
+        // 世界の範囲を順に並べると 1…36 を漏れなく 1 度ずつ覆う。
         let covered = RunnerWorld.allCases.flatMap { Array($0.stageRange) }
         #expect(covered == Array(1...RunnerRules.stageCount))
     }
@@ -679,5 +695,6 @@ struct RunnerStageCodeTests {
         #expect(RunnerAccessibility.stageMapLabel(number: 7, reached: false) == "2-1、未到達")
         #expect(RunnerAccessibility.stageMapLabel(number: 18, reached: false) == "3-6、未到達")
         #expect(RunnerAccessibility.stageMapLabel(number: 30, reached: false) == "5-6、未到達")
+        #expect(RunnerAccessibility.stageMapLabel(number: 36, reached: false) == "6-6、未到達")
     }
 }

@@ -189,7 +189,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world5|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world6|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 // ストーリーの始まり（#1092）だけは走行と無関係な View の状態なので、

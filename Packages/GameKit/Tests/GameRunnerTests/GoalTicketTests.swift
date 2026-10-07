@@ -185,7 +185,7 @@ struct RunnerGoalTicketTests {
 
     // MARK: 3. 宝くじの絵と置き場
 
-    @Test("1〜30 面すべてで、ゴールの位置に宝くじが浮いている")
+    @Test("全面で、ゴールの位置に宝くじが浮いている")
     func everyStageHasATicketAtTheGoal() throws {
         let (model, _) = try makeReachedAllModel("goal-all-stages")
         let scene = RunnerScene(model: model)

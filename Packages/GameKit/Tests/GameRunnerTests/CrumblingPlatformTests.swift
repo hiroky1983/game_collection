@@ -351,12 +351,12 @@ struct RunnerCrumblingPlatformTests {
     // MARK: - 置き方（決裁の「入れない組み合わせ」）
 
     /// 崩れる足場は 19 面以降にだけ置き、里山・港町の両方にある。
-    @Test("崩れる足場は 19 面以降にだけ置かれていて、里山・港町の両方にある")
+    @Test("崩れる足場は 19 面以降にだけ置かれていて、里山・港町・京都・奈良のどの世界にもある")
     func crumblingPlatformsOnlyAppearInTheNewWorlds() {
         for stage in RunnerStage.all.prefix(18) {
             #expect(stage.crumblingPlatforms.isEmpty, "ステージ \(stage.number) に崩れる足場がある")
         }
-        for world in [RunnerWorld.satoyama, .harbor] {
+        for world in [RunnerWorld.satoyama, .harbor, .kyotoNara] {
             let count = RunnerStage.all
                 .filter { RunnerWorld.world(forStage: $0.number) == world }
                 .flatMap(\.crumblingPlatforms).count
