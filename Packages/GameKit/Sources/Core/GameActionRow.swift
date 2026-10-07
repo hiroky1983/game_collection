@@ -3,7 +3,7 @@ import SwiftUI
 /// 盤の下の「操作の段」（#1834・#1856。会長決裁 2026-10-06 の案A）。
 ///
 /// 役割の色で塗ったカプセルを**等幅**で横一列に並べ、右端に今までどおりの「⋯」（`GameOverflowBar`）を置く。
-/// 2 行目に「あと n 回」（無料の残り）か「▶ 広告を見て」（次の 1 回に広告が要る）を出し、広告の有無を文字で読めるようにする。
+/// 2 行目に「あと n 回」（いま使える回数）か「0回 ▶ 広告を見て +N」（0 で広告を見ると足せる）を出し、広告の有無を文字で読めるようにする。
 /// v1.1.7 で待った・ヒント・戻すを「⋯」に入れたあと広告の入口が押されなくなった（`reward_request` 56→10/日・#1815）ので、
 /// **広告が絡む操作だけ**（待った・ヒント・戻す・並べ替え）を段に戻す（会長決裁 2026-10-06 追加）。
 /// 広告の無い操作（パス・ジョーカー・配る・メモ・旗モード・投了・諦める・拡大・自動で上がる）は「⋯」に残す。
@@ -11,24 +11,42 @@ import SwiftUI
 /// - ボタンは 44pt（`GameButtonMetrics.minTapTarget`）。段の高さは各ゲームの今の「⋯」の行と同じで、盤は縮まない。
 /// - 押せないときは消さずに薄くする（グレーの面 + 0.55。`GameButtonStyle` の disabled と同じ）。
 
-/// 2 行目の回数・広告の表示（たたき台 6）。
+/// 2 行目の回数・広告の表示（会長決裁 2026-10-07・#1897 の案3＋a′）。
+///
+/// **共通認識: ボタンの数字は「いま使える回数」。広告は回数ではなく、0 になったときの追加の手段**。
+/// 広告でこれから足せる分は数に含めない。0（広告で追加できる）のときだけ「0回 ▶ 広告を見て +N」にして面も変える
+/// （`GameActionCapsuleStyle`）。広告での補充を使い切った 0 は `.count(0)`（広告の案内なし・押せない）。
 public enum GameActionBadge: Equatable, Sendable {
-    /// 残り回数。無料の残り（使い切ると `.ad` に変わる）にも、広告に変わらない回数（スパイダーの「配る」）にも使う。
+    /// いま使える回数。0 は「広告の追加も使い切った」ときだけ（広告で足せる 0 は `.ad`）。
     case count(Int)
-    /// 次の 1 回に広告が要る。上限のあるもの（ナンプレのヒント 3 回・盤ゲームの広告ヒント 5 回）は残りを添える。
-    case ad(remaining: Int? = nil)
+    /// 0 回で、広告を見ると `gain` 回ぶん足せる（ヒント +1・待った +1・戻す +3 など）。
+    case ad(gain: Int = 1)
     case none
 
-    /// 2 行目の文字（▶ のアイコンを除く）。無ければ nil。
+    /// 2 行目の文字（▶ のアイコンを除く）。`.ad` の「0回」は `countText` が持つ。無ければ nil。
     public var text: String? {
         switch self {
         case .count(let n): "あと\(n)回"
-        case .ad(let remaining): remaining.map { "あと\($0)回" } ?? "広告を見て"
+        case .ad(let gain): "広告を見て +\(gain)"
         case .none: nil
         }
     }
 
-    /// ▶ を添えるか（次の 1 回に広告が要るか）。
+    /// 盤ゲーム（将棋・チェス・五目並べ）のヒントの 2 行目。`totalRemaining` は `BoardHintBudget.remaining`（無料 + 広告の合計）。
+    /// 数字は「いま使える回数」＝無料の残りだけで、広告でこれから足せる分は含めない。無料を使い切ったら `.ad`、
+    /// 広告の追加まで使い切ったら 0 のまま案内なし（#1897）。
+    public static func hint(totalRemaining: Int, needsAd: Bool) -> GameActionBadge {
+        if needsAd { return .ad() }
+        return .count(max(0, totalRemaining - BoardHintBudget.adRefillMax))
+    }
+
+    /// ▶ の前に置く「0回」。`.ad` だけ。
+    public var countText: String? {
+        if case .ad = self { return "0回" }
+        return nil
+    }
+
+    /// 0 で広告を見ると足せるか（面を淡い塗り＋枠線に変える・▶ を添える）。
     public var needsAd: Bool {
         if case .ad = self { return true }
         return false
@@ -38,7 +56,7 @@ public enum GameActionBadge: Equatable, Sendable {
     public var accessibilityValue: String? {
         switch self {
         case .count: text
-        case .ad(let remaining): remaining.map { "広告を見て、あと\($0)回" } ?? "広告を見て"
+        case .ad(let gain): "0回、広告を見て\(gain)回追加"
         case .none: nil
         }
     }
@@ -99,7 +117,7 @@ struct GameActionCapsule: View {
         Button(action: item.action) {
             label
         }
-        .buttonStyle(GameActionCapsuleStyle(role: item.role))
+        .buttonStyle(GameActionCapsuleStyle(role: item.role, needsAd: item.badge.needsAd))
         .disabled(!item.isEnabled)
         .hintNudgeGlow(glows, reduceMotion: reduceMotion)
         .accessibilityLabel(item.accessibilityLabel ?? item.title)
@@ -127,6 +145,9 @@ struct GameActionCapsule: View {
                 if let note = item.note {
                     Text(note)
                 }
+                if let countText = item.badge.countText {
+                    Text(countText)
+                }
                 if item.badge.needsAd {
                     Image(systemName: "play.rectangle.fill").scaledFont(9)
                 }
@@ -147,17 +168,40 @@ struct GameActionCapsule: View {
 }
 
 /// カプセルの見た目（`GameButtonStyle.capsule` の延長。等幅・44pt）。
+/// `needsAd`（0 で広告を見ると足せる）だけ、役割色 22% の淡い塗り＋役割色の枠線 2pt に変えて通常と見分ける（#1897）。
 struct GameActionCapsuleStyle: ButtonStyle {
+    /// 淡い塗りの濃さ（会長決裁 2026-10-07 の「案3」。数値は仮値）。
+    static let adFillOpacity = 0.22
+    /// 枠線の太さ（pt）。
+    static let adBorderWidth: CGFloat = 2
+
     @Environment(\.isEnabled) private var isEnabled
     let role: GameButtonRole
+    var needsAd = false
+
+    private var showsAdFace: Bool { isEnabled && needsAd }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(isEnabled ? role.foreground : Color.white)
+            .foregroundStyle(foreground)
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)
-            .background(Capsule().fill(isEnabled ? role.fill : Theme.fillMuted))
+            .background(face)
             .contentShape(Capsule())
             .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.55)
+    }
+
+    private var foreground: Color {
+        if !isEnabled { return .white }
+        return showsAdFace ? Theme.ink : role.foreground
+    }
+
+    @ViewBuilder private var face: some View {
+        if showsAdFace {
+            Capsule().fill(role.fill.opacity(Self.adFillOpacity))
+                .overlay(Capsule().strokeBorder(role.fill, lineWidth: Self.adBorderWidth))
+        } else {
+            Capsule().fill(isEnabled ? role.fill : Theme.fillMuted)
+        }
     }
 }
