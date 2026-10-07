@@ -132,7 +132,12 @@ let package = Package(
         .target(name: "GameHanafuda",       dependencies: ["Core", "CoreEngine"]),
         // 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）。連結判定・消去・重力・連鎖は SwiftUI 非依存の純粋ロジックなので
         // Core だけに依存する（乱数の `SplitMix64` を純ロジックのファイルから直に使うので CoreEngine も）。
-        .target(name: "GameOjisanPuzzle",   dependencies: ["Core", "CoreEngine"]),
+        .target(name: "GameOjisanPuzzle",   dependencies: ["Core", "CoreEngine"],
+                // 作業服おじさんの全身ドット絵 4 コマ（#1909。Codex 製・出所は docs/design/ojisan-pixel-pipeline）。
+                resources: [.copy("Resources/OjisanWork_carry_light_smile.png"),
+                            .copy("Resources/OjisanWork_carry_heavy_pain_sweat.png"),
+                            .copy("Resources/OjisanWork_limit_back_pain.png"),
+                            .copy("Resources/OjisanWork_fallen_face_down_crying.png")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
         .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles", "CoreEngine"]),
