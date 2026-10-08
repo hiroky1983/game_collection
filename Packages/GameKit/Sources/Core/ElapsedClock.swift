@@ -24,6 +24,9 @@ public struct ElapsedClock: Sendable {
 
     private var elapsed: Duration { max(.zero, now() - start) }
 
+    /// 計時開始からの経過時間（`base` を含む・端数を残す）。切り上げで秒を出すゲーム（スピード・ぱっと暗算）用。
+    public var duration: Duration { .seconds(base) + elapsed }
+
     /// 計時開始からの経過秒（`base` を含む・端数は切り捨て）。
     public var seconds: Int { base + Int(elapsed.components.seconds) }
 
