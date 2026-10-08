@@ -192,6 +192,30 @@ public enum OjisanPuzzleBoard {
                          row: 1, col: columns / 2 - 1, rotation: .up)
     }
 
+    /// 出現させた組を置ける場所。**中央の列が塞がっていても、他に置ける場所があれば終わらせない**
+    /// （#1946: 中央の列だけ天井まで積まれて、ほかの列は空いているのに「積み上がり」になっていた）。
+    ///
+    /// 出現位置（縦向き・中央列）に置けるならそのまま。置けなければ、中央に近い列から縦向きで、
+    /// それも無ければ最上段に横向きで探す。どこにも置けないときだけ nil（＝本当に積み上がり）。
+    public static func placedSpawn(_ board: [[Int]], _ pair: OjisanPuzzlePair) -> OjisanPuzzlePair? {
+        if canPlace(board, pair) { return pair }
+        let center = columns / 2 - 1
+        let order = (0..<columns).sorted { abs($0 - center) < abs($1 - center) || (abs($0 - center) == abs($1 - center) && $0 < $1) }
+        for col in order {
+            var candidate = pair
+            candidate.col = col
+            if canPlace(board, candidate) { return candidate }
+        }
+        for col in order {
+            var candidate = pair
+            candidate.row = 0
+            candidate.col = col
+            candidate.rotation = .right
+            if canPlace(board, candidate) { return candidate }
+        }
+        return nil
+    }
+
     /// 乱数から次の組を引く。
     public static func makePair(using rng: inout OjisanPuzzleRandom) -> OjisanPuzzlePair {
         spawn(axisKind: Int.random(in: 1...kindCount, using: &rng),

@@ -395,4 +395,29 @@ struct OjisanPuzzlePainTests {
         #expect(OjisanPuzzleScoring.totalPoints(chains: [4, 4]) == 120)
         #expect(OjisanPuzzleScoring.totalPoints(chains: []) == 0)
     }
+
+    @Test("出現位置が塞がっていたら、近い列の縦置き → 最上段の横置きの順で探す（#1946）")
+    func placedSpawnFallsBack() throws {
+        let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        let center = OjisanPuzzleBoard.columns / 2 - 1
+        #expect(OjisanPuzzleBoard.placedSpawn(OjisanPuzzleBoard.emptyBoard(), pair) == pair, "空いていればそのまま")
+
+        // 中央の列だけ最上段まで塞がっている → 隣の列の縦置き。
+        var blocked = OjisanPuzzleBoard.emptyBoard()
+        for row in 0..<OjisanPuzzleBoard.rows { blocked[row][center] = 3 }
+        let beside = try #require(OjisanPuzzleBoard.placedSpawn(blocked, pair))
+        #expect(abs(beside.col - center) == 1 && beside.rotation == .up && beside.row == 1)
+
+        // どの列も 2 段目まで埋まって最上段だけ空いている → 縦には置けないので最上段へ横置き。
+        var shallow = OjisanPuzzleBoard.emptyBoard()
+        for row in 1..<OjisanPuzzleBoard.rows { for col in 0..<OjisanPuzzleBoard.columns { shallow[row][col] = 1 } }
+        let flat = try #require(OjisanPuzzleBoard.placedSpawn(shallow, pair))
+        #expect(flat.row == 0 && flat.rotation == .right)
+        #expect(OjisanPuzzleBoard.canPlace(shallow, flat))
+
+        // 最上段の空きが孤立した 1 マスだけなら、置けない。
+        var full = shallow
+        for col in 0..<OjisanPuzzleBoard.columns where col != 2 { full[0][col] = 2 }
+        #expect(OjisanPuzzleBoard.placedSpawn(full, pair) == nil)
+    }
 }

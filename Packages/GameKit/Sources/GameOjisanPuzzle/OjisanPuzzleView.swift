@@ -18,6 +18,8 @@ public struct OjisanPuzzleView: View {
     /// シートで選んでいる遊び方。最初は腰痛モード。
     @State private var setupMode: OjisanPuzzleMode = .backpain
     @State private var showConfirmNewGame = false
+    /// 盤の 1 マスの大きさ。画面のどこで触っても同じ手触りになるよう、盤の外の操作もこれで刻む（#1946）。
+    @State private var cellSide: CGFloat = 0
 
     /// 盤の内側の余白。
     private static let boardInset: CGFloat = 6
@@ -65,6 +67,9 @@ public struct OjisanPuzzleView: View {
             Spacer(minLength: 0)
         }
         .padding()
+        // 操作は盤の外（画面のどこ）でも受ける（#1946）。ボタンは子として先に反応するので、タップは奪わない。
+        .contentShape(Rectangle())
+        .gesture(dragGesture(step: max(24, cellSide)))
         // リザルトは盤の上ではなく画面全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
         .overlay { if model.outcome != nil { resultOverlay } }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
@@ -222,6 +227,8 @@ public struct OjisanPuzzleView: View {
                     }
                 }
             }
+            // マスの中身が替わるたびに空き⇄荷物がクロスフェードして点滅して見えるので、盤の中は補間しない（#1946）。
+            .transaction { $0.animation = nil }
             .padding(Self.boardInset)
             .frame(width: geo.size.width, height: geo.size.height)
             .background {
@@ -235,12 +242,9 @@ public struct OjisanPuzzleView: View {
                         .offset(y: Self.boardInset + CGFloat(line) * cell - 1)
                 }
             }
-            // 操作は盤の上で受ける（ボタンを置かないぶん盤を大きく取れる）。
-            // 指の移動量を 1 マスぶん（`cell`）で割って刻むので、盤の大きさが変わっても手触りが変わらない。
-            .overlay { gestureLayer(step: max(24, cell)) }
+            .onChange(of: cell, initial: true) { _, newValue in cellSide = newValue }
         }
         .aspectRatio(CGFloat(OjisanPuzzleBoard.columns) / CGFloat(OjisanPuzzleBoard.rows), contentMode: .fit)
-        .gameAnimation(.easeInOut(duration: 0.12), value: model.displayBoard)
     }
 
     /// クリアのラインの破線。
@@ -273,7 +277,7 @@ public struct OjisanPuzzleView: View {
 
     // MARK: - 操作（スワイプ・タップ）
 
-    /// 盤の上に敷く透明な操作層（会長指示 2026-09-17: 左右ボタンは置かない）。
+    /// 画面全体で受ける操作（会長指示 2026-09-17: 左右ボタンは置かない・#1946: 盤の外でも動かせる）。
     ///
     /// - 横スワイプ … 1 マスずつ左右へ動かす
     /// - 下スワイプ … 1 マスずつ落とす（ソフトドロップ）
@@ -282,33 +286,29 @@ public struct OjisanPuzzleView: View {
     /// 指に張り付かせず `step`（1 マスぶん）で刻むのは、落ちものの標準的な手触りに合わせるため。
     /// 「これまでに何マスぶん適用したか」を持ち、指の総移動量との差だけを追いかける
     /// （毎フレームの差分を足すと、ゆっくり動かしたときに取りこぼす）。
-    private func gestureLayer(step: CGFloat) -> some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        guard model.outcome == nil else { return }
-                        let columns = OjisanPuzzleDrag.steps(value.translation.width, step: step)
-                        while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
-                        while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
+    private func dragGesture(step: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                guard model.outcome == nil, !showSetup else { return }
+                let columns = OjisanPuzzleDrag.steps(value.translation.width, step: step)
+                while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
+                while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
 
-                        // 下方向だけ拾う（上スワイプには何も割り当てない）。
-                        let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
-                        while appliedRows < rows { appliedRows += 1; model.softDrop() }
-                    }
-                    .onEnded { value in
-                        if OjisanPuzzleDrag.isTap(
-                            translation: value.translation,
-                            movedColumns: appliedColumns,
-                            movedRows: appliedRows
-                        ) {
-                            withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) }
-                        }
-                        appliedColumns = 0
-                        appliedRows = 0
-                    }
-            )
+                // 下方向だけ拾う（上スワイプには何も割り当てない）。
+                let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
+                while appliedRows < rows { appliedRows += 1; model.softDrop() }
+            }
+            .onEnded { value in
+                if OjisanPuzzleDrag.isTap(
+                    translation: value.translation,
+                    movedColumns: appliedColumns,
+                    movedRows: appliedRows
+                ) {
+                    withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) }
+                }
+                appliedColumns = 0
+                appliedRows = 0
+            }
     }
 
     // MARK: - 次の荷物
@@ -394,12 +394,9 @@ public struct OjisanPuzzleView: View {
             if model.outcome == .hospitalized {
                 // 倒れたおじさん（70×27 ドット）。
                 OjisanPuzzleArt.image(.fallen)
-            } else if model.outcome == .cleared {
-                OjisanPixel.faceImage(.cheer)
-                    .frame(width: 64, height: 60)
             } else {
-                OjisanPixel.faceImage(.frown)
-                    .frame(width: 64, height: 60)
+                // 作業服の全身ドット絵（#1946）。クリアは笑顔、積み上がりは汗のコマ。
+                OjisanPuzzleArt.image(model.outcome == .cleared ? .easy : .aching)
             }
             Text(resultTitle)
                 .font(.system(size: 24, weight: .heavy, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）

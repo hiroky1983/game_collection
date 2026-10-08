@@ -220,13 +220,17 @@ struct OjisanPuzzleModeTests {
         let puzzleScore = model.score
         #expect(puzzleScore > 0)
 
-        // 埋まりで終わらせる: 中央の列を天井まで埋めた盤。
+        // 埋まりで終わらせる: 左上の 2 マス以外を、隣り合うマスが別の種類になる並びで全面埋めた盤。
+        func kind(_ row: Int, _ col: Int) -> Int { (row + 2 * col) % 5 + 1 }
         var full = OjisanPuzzleBoard.emptyBoard()
-        let column = OjisanPuzzleBoard.columns / 2 - 1
-        for row in 0..<OjisanPuzzleBoard.rows { full[row][column] = row / 3 + 1 }
+        for row in 0..<OjisanPuzzleBoard.rows {
+            for col in 0..<OjisanPuzzleBoard.columns { full[row][col] = kind(row, col) }
+        }
+        full[0][0] = 0
+        full[1][0] = 0
         let ending = OjisanPuzzleModel(
             services: services(log), board: full,
-            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            current: OjisanPuzzlePair(axisKind: kind(1, 0), childKind: kind(0, 0), row: 1, col: 0, rotation: .up),
             mode: .puzzle
         )
         #expect(ending.hardDrop())

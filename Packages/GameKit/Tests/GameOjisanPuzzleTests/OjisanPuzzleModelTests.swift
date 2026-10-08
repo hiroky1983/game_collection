@@ -214,11 +214,36 @@ struct OjisanPuzzleModelTests {
         #expect(model.score == 0, "入院後に消去が走っている")
     }
 
-    @Test("出てくる場所まで積み上がったらゲームオーバー")
-    func buriesWhenSpawnIsBlocked() {
-        // 出口の列（中央）を天井まで埋める。3 個ずつ種類を変えて、4 つつながって消えないようにする。
+    @Test("盤が出口までぎっしり埋まったらゲームオーバー")
+    func buriesWhenNothingCanSpawn() {
+        // 隣り合うマスがかならず別の種類になる並びで全面を埋める（何も消えない）。左上の 2 マスだけ落下中の組のために空ける。
+        func kind(_ row: Int, _ col: Int) -> Int { (row + 2 * col) % 5 + 1 }
+        var board = OjisanPuzzleBoard.emptyBoard()
+        for row in 0..<OjisanPuzzleBoard.rows {
+            for col in 0..<OjisanPuzzleBoard.columns { board[row][col] = kind(row, col) }
+        }
+        board[0][0] = 0
+        board[1][0] = 0
+        #expect(OjisanPuzzleBoard.clearableGroups(board).isEmpty, "前提: この盤では何も消えない")
+
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: board,
+            current: OjisanPuzzlePair(axisKind: kind(1, 0), childKind: kind(0, 0), row: 1, col: 0, rotation: .up)
+        )
+        #expect(model.hardDrop())
+        #expect(model.outcome == nil, "固定しただけでは終わらない")
+        model.tick()    // 重力も消去も起きないので、次の組を出そうとして詰まる
+        #expect(model.outcome == .buried)
+        #expect(model.current == nil)
+    }
+
+    /// #1946: 出口の列（中央）だけ天井まで積まれて、ほかの列は空いているのに「積み上がり」で終わっていた。
+    @Test("出口の列だけ塞がっていても、ほかに空きがあれば終わらず別の列から出す（#1946）")
+    func doesNotBuryWhileOtherColumnsHaveRoom() throws {
         var board = OjisanPuzzleBoard.emptyBoard()
         let column = OjisanPuzzleBoard.columns / 2 - 1
+        // 3 個ずつ種類を変えて、4 つつながって消えないようにする。
         for row in 0..<OjisanPuzzleBoard.rows {
             board[row][column] = row / 3 + 1
         }
@@ -230,10 +255,11 @@ struct OjisanPuzzleModelTests {
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up)
         )
         #expect(model.hardDrop())
-        #expect(model.outcome == nil, "固定しただけでは終わらない")
-        model.tick()    // 重力も消去も起きないので、次の組を出そうとして詰まる
-        #expect(model.outcome == .buried)
-        #expect(model.current == nil)
+        model.tick()
+        #expect(model.outcome == nil, "盤にはまだ空きがある")
+        let current = try #require(model.current)
+        #expect(current.col != column)
+        #expect(OjisanPuzzleBoard.canPlace(model.board, current))
     }
 
     @Test("決着すると負けとして 1 回だけ記録し、得点を自己ベストに残す（#1904）")

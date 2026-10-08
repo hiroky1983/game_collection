@@ -371,7 +371,7 @@ public final class OjisanPuzzleModel {
         spawnNext()
     }
 
-    /// 次の組を盤へ出す。時間が来ていれば先に荷物を 1 段せり上げる。出す場所が埋まっていたら積み上がりで終わり。
+    /// 次の組を盤へ出す。時間が来ていれば先に荷物を 1 段せり上げる。どこにも出せなければ積み上がりで終わり。
     private func spawnNext() {
         if risePending {
             risePending = false
@@ -383,8 +383,8 @@ public final class OjisanPuzzleModel {
                 return
             }
         }
-        let pair = next
-        guard OjisanPuzzleBoard.canPlace(board, pair) else {
+        // 中央の列が塞がっていても、ほかに置ける場所があれば終わらない（#1946）。
+        guard let pair = OjisanPuzzleBoard.placedSpawn(board, next) else {
             finish(.buried)
             return
         }
