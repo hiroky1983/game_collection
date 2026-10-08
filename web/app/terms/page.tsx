@@ -16,7 +16,7 @@ export default function TermsPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">利用規約</h1>
-        <p className="text-sm text-gray-400">最終更新日：2026年9月23日</p>
+        <p className="text-sm text-gray-400">最終更新日：2026年10月9日</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
@@ -42,6 +42,16 @@ export default function TermsPage() {
             現金・金銭的価値との交換や換金は一切できません。また、チップの購入（課金）はできません。
             チップがなくなった場合、リワード広告の視聴によりチップが回復することがあります。
           </li>
+          <li>
+            Apple の Game Center にサインインしている場合、スコア・実績・ランキングを利用できます。サインインは任意で、
+            サインインしなくてもすべてのゲームを遊べます。ランキングには Game Center のニックネーム（表示名）とスコアが他のプレイヤーにも表示されます。
+            Game Center の利用には Apple の利用規約が適用されます。
+          </li>
+          <li>
+            ランキング（週間・期間限定のものを含む）は、予告なく内容の変更・順位のリセット・提供の終了を行う場合があります。
+            ランキングの順位や記録を保証するものではなく、ランキングに景品・報酬はありません。
+            不正な手段で送信されたと判断したスコアは、ランキングから除外することがあります。
+          </li>
         </ul>
       </Section>
 
@@ -50,7 +60,7 @@ export default function TermsPage() {
         <ul className="list-disc pl-5 space-y-1">
           <li>本アプリのリバースエンジニアリング・逆コンパイル・改ざん・複製</li>
           <li>本アプリを用いた商業目的の利用・再配布</li>
-          <li>不正な手段によるゲームデータの改変</li>
+          <li>不正な手段によるゲームデータの改変、ランキングへの不正なスコアの送信</li>
           <li>法令または公序良俗に反する行為</li>
           <li>開発者または第三者の権利を侵害する行為</li>
         </ul>
@@ -69,7 +79,7 @@ export default function TermsPage() {
           <li>本アプリは現状有姿で提供されます。動作の完全性・正確性を保証するものではありません。</li>
           <li>本アプリの利用により生じた損害（データの損失・機器の故障等）について、開発者は一切の責任を負いません。</li>
           <li>本アプリは予告なく機能の追加・変更・停止・終了を行う場合があります。</li>
-          <li>第三者サービス（Google AdMob等）の利用により生じた損害について、開発者は責任を負いません。</li>
+          <li>第三者サービス（Google AdMob・Firebase・Apple Game Center等）の利用により生じた損害について、開発者は責任を負いません。</li>
         </ul>
       </Section>
 
@@ -95,7 +105,14 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section title="9. お問い合わせ">
+      <Section title="9. 改定履歴">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>2026年10月9日：Game Center・ランキングの利用と、ランキングの変更・終了、不正なスコア送信の禁止を追記</li>
+          <li>2026年9月23日：収録ゲームの説明、ゲーム内チップ・リワード広告の説明を更新</li>
+        </ul>
+      </Section>
+
+      <Section title="10. お問い合わせ">
         <p>本規約に関するご質問・ご要望は下記にご連絡ください。</p>
         <p>
           <a href="mailto:hirockysan1983@gmail.com" className="text-orange-500 underline">

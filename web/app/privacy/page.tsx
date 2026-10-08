@@ -16,7 +16,7 @@ export default function PrivacyPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">プライバシーポリシー</h1>
-        <p className="text-sm text-gray-400">最終更新日：2026年9月23日</p>
+        <p className="text-sm text-gray-400">最終更新日：2026年10月9日</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
@@ -33,6 +33,11 @@ export default function PrivacyPage() {
           <li>広告表示の最適化のため、Google の広告・解析SDKがおおよその位置情報（市区町村程度の粒度）を利用する場合があります</li>
           <li>Game Center にサインインしている場合、スコア・ランキング・実績（Apple のGame Centerサービスを通じて送信・表示されます）</li>
         </ul>
+        <p>
+          Game Center のランキングには、Game Center に設定されているニックネーム（表示名）・アバターとスコアが、同じランキングを見ている他のプレイヤーにも表示されます。
+          表示内容は Apple の Game Center の設定に従い、本アプリが別の名前や情報を付け加えることはありません。
+          Game Center のサインインやランキングへの参加は任意で、サインインしなくてもすべてのゲームをそのまま遊べます。
+        </p>
         <p className="mt-2">
           氏名・住所・メールアドレスなど、個人を直接特定できる情報は一切収集しません。
         </p>
@@ -46,7 +51,7 @@ export default function PrivacyPage() {
           ベストスコアなどの記録は、Game Center にサインインしている場合に限り Apple のサーバーへ送信されます（サインインしていない場合は端末内のみに保存されます）。
         </p>
         <p>
-          「続きのお知らせ」「久しぶり通知」などのお知らせは、端末内で処理するローカル通知です。これらの通知のために外部サーバーへ情報を送信することはありません。
+          「続きのお知らせ」「久しぶり通知」「回数が戻ったらお知らせ」などの通知は、端末内で処理するローカル通知です。これらの通知のために外部サーバーへ情報を送信することはありません。通知は iOS の許可ダイアログで許可した場合のみ届き、iOS の設定からいつでもオフにできます。
         </p>
         <p>
           基本的にインターネット接続なしでもご利用いただけますが、広告の表示・統計情報の送信・Game Centerとの連携には接続が必要です。
@@ -57,7 +62,7 @@ export default function PrivacyPage() {
         <p>本アプリは以下の外部サービスを利用しています。</p>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <span className="font-semibold">Google AdMob</span>（広告配信）：より関連性の高い広告を表示するために、広告IDなどの情報を利用する場合があります。
+            <span className="font-semibold">Google AdMob</span>（広告配信。バナー広告・大きなバナー広告・動画のリワード広告）：より関連性の高い広告を表示するために、広告IDなどの情報を利用する場合があります。
           </li>
           <li>
             <span className="font-semibold">Firebase Analytics</span>（Google）：アプリの利用状況を、上記1に記載の匿名の統計情報として収集します。
@@ -66,12 +71,12 @@ export default function PrivacyPage() {
             <span className="font-semibold">Firebase Crashlytics</span>（Google）：クラッシュ発生時に、アプリの安定性向上のための診断情報を自動的に送信します。設定の「利用状況の送信」をオフにした場合も、この診断情報の送信は継続します。
           </li>
           <li>
-            <span className="font-semibold">Apple Game Center</span>：サインインしている場合、スコア・実績の送信および表示に利用します。Apple のアカウントに基づくため、本アプリが別途これらの情報を保持することはありません。
+            <span className="font-semibold">Apple Game Center</span>：サインインしている場合、スコア・実績の送信および表示に利用します。Apple のアカウントに基づくため、本アプリが別途これらの情報を保持することはありません。ランキングの内容・提供期間は Apple のサービスの仕様や本アプリの更新により変わることがあり、ランキングを予告なく変更・終了する場合があります。
           </li>
         </ul>
         <p>
           iOSでは、App Tracking Transparency（ATT）に基づきトラッキングの許可をお伺いする場合があります。
-          許可しない場合でもすべての機能を制限なくご利用いただけます。
+          許可しない場合でもすべての機能を制限なくご利用いただけます。許可後も、iOS の設定からいつでも変更できます。アプリの「利用状況の送信」設定をオフにすると、Firebase Analytics による統計情報の送信を止められます。
         </p>
         <p>
           Googleのプライバシーポリシーは
@@ -129,7 +134,14 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="8. お問い合わせ">
+      <Section title="8. 改定履歴">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>2026年10月9日：Game Center のランキングでの表示名・スコアの表示、ランキングの変更・終了、広告の種類、通知の説明を追記</li>
+          <li>2026年9月23日：現在の実装に合わせて内容を更新</li>
+        </ul>
+      </Section>
+
+      <Section title="9. お問い合わせ">
         <p>本ポリシーに関するご質問・ご要望は下記にご連絡ください。</p>
         <p>
           <a href="mailto:hirockysan1983@gmail.com" className="text-orange-500 underline">
