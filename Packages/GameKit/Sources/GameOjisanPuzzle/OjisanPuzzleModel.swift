@@ -383,8 +383,9 @@ public final class OjisanPuzzleModel {
                 return
             }
         }
-        // 中央の列が塞がっていても、ほかに置ける場所があれば終わらない（#1946）。
-        guard let pair = OjisanPuzzleBoard.placedSpawn(board, next) else {
+        // 出る列の出現位置が塞がっていたら積み上がり（別の列へは逃がさない・#1954）。
+        let pair = next
+        guard !OjisanPuzzleBoard.isSpawnBlocked(board) else {
             finish(.buried)
             return
         }

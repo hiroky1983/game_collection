@@ -20,6 +20,11 @@ public struct OjisanPuzzleView: View {
     @State private var showConfirmNewGame = false
     /// 盤の 1 マスの大きさ。画面のどこで触っても同じ手触りになるよう、盤の外の操作もこれで刻む（#1946）。
     @State private var cellSide: CGFloat = 0
+    /// 決着の結果シートを出してよいか。決着の瞬間は盤の上に一言だけ出し、少し置いてから結果に切り替える（#1954）。
+    @State private var showResult = false
+
+    /// 決着してから結果シートを出すまでの間。何が起きて終わったかを盤で見せる時間。
+    private static let resultDelay: Duration = .milliseconds(1200)
 
     /// 盤の内側の余白。
     private static let boardInset: CGFloat = 6
@@ -71,7 +76,13 @@ public struct OjisanPuzzleView: View {
         .contentShape(Rectangle())
         .gesture(dragGesture(step: max(24, cellSide)))
         // リザルトは盤の上ではなく画面全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
-        .overlay { if model.outcome != nil { resultOverlay } }
+        .overlay { if model.outcome != nil, showResult { resultOverlay } }
+        .task(id: model.outcome) {
+            guard model.outcome != nil else { showResult = false; return }
+            try? await Task.sleep(for: Self.resultDelay)
+            guard !Task.isCancelled else { return }
+            showResult = true
+        }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
         .gameChrome(title: "腰痛おじさんパズル", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
@@ -235,28 +246,93 @@ public struct OjisanPuzzleView: View {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.fillMuted.opacity(0.18))
             }
+            // 組の出口の列（いつもここから出る・塞がると積み上がり）。天井が近いと警告色になる（#1954）。
+            .overlay(alignment: .topLeading) {
+                spawnColumnMark(cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
+            }
             // 片付けのライン（腰痛モードだけ）。この線より上に荷物が無くなればクリア。
             .overlay(alignment: .topLeading) {
                 if let line = model.clearLineRow {
-                    clearLine(width: geo.size.width)
-                        .offset(y: Self.boardInset + CGFloat(line) * cell - 1)
+                    clearLine(line: line, cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
                 }
+            }
+            // 決着の瞬間は盤の上に一言出して、何が起きて終わったかをその場で伝える（#1954）。
+            .overlay {
+                if let outcome = model.outcome, !showResult { finishBanner(outcome) }
             }
             .onChange(of: cell, initial: true) { _, newValue in cellSide = newValue }
         }
         .aspectRatio(CGFloat(OjisanPuzzleBoard.columns) / CGFloat(OjisanPuzzleBoard.rows), contentMode: .fit)
     }
 
-    /// クリアのラインの破線。
-    private func clearLine(width: CGFloat) -> some View {
-        Path { path in
-            path.move(to: CGPoint(x: Self.boardInset, y: 1))
-            path.addLine(to: CGPoint(x: max(Self.boardInset, width - Self.boardInset), y: 1))
+    /// マスが並ぶ領域の左上。盤の枠は 1:2 固定で中身は枠の中央に置かれるため、余りぶんの上下左右のずれを含めて求める。
+    private static func boardOrigin(size: CGSize, cell: CGFloat) -> CGPoint {
+        let contentWidth = CGFloat(OjisanPuzzleBoard.columns) * cell - 1
+        let contentHeight = CGFloat(OjisanPuzzleBoard.rows) * cell - 1
+        return CGPoint(x: (size.width - contentWidth) / 2, y: (size.height - contentHeight) / 2)
+    }
+
+    /// 組の出口の列の帯と、頭の ▼。塞がったら積み上がりになる列なので、天井が近い・積み上がりで終わったときは珊瑚色にする。
+    private func spawnColumnMark(cell: CGFloat, origin: CGPoint) -> some View {
+        let warn = model.outcome == .buried || OjisanPuzzleBoard.isSpawnColumnNearTop(model.board)
+        let tint = warn ? Theme.coral : Theme.inkSub
+        return ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: max(1, cell * 0.2), style: .continuous)
+                .fill(tint.opacity(warn ? 0.22 : 0.10))
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 9)) // fixed-size: 盤の枠内に収める印
+                .foregroundStyle(tint)
+                .offset(y: -7)
         }
-        .stroke(Theme.coral, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-        .frame(width: width, height: 2)
+        .frame(width: cell, height: cell * CGFloat(OjisanPuzzleBoard.rows))
+        .offset(x: origin.x + CGFloat(OjisanPuzzleBoard.spawnColumn) * cell, y: origin.y)
         .accessibilityHidden(true)
         .allowsHitTesting(false)
+    }
+
+    /// クリアのライン。荷物の色に埋もれないよう、太い実線に縁取りを付け、ラインより下（片付いた側）を色で塗って
+    /// 「ここまで下げる」を示す（#1954: 細い破線では見えなかった）。
+    private func clearLine(line: Int, cell: CGFloat, origin: CGPoint) -> some View {
+        let y = origin.y + CGFloat(line) * cell - 1
+        let left = origin.x
+        let right = origin.x + CGFloat(OjisanPuzzleBoard.columns) * cell - 1
+        let bottom = origin.y + CGFloat(OjisanPuzzleBoard.rows) * cell - 1
+        return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Theme.Fill.teal.opacity(0.16))
+                .frame(width: right - left, height: max(0, bottom - y))
+                .offset(x: left, y: y)
+            Path { path in
+                path.move(to: CGPoint(x: left, y: y))
+                path.addLine(to: CGPoint(x: right, y: y))
+            }
+            .stroke(Theme.surface, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+            Path { path in
+                path.move(to: CGPoint(x: left, y: y))
+                path.addLine(to: CGPoint(x: right, y: y))
+            }
+            .stroke(Theme.ink, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            Text("ここまで下げたらクリア")
+                .font(.system(size: 10, weight: .heavy, design: .rounded)) // fixed-size: 盤の枠内に収める印
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(Theme.Fill.teal))
+                .offset(x: right - 128, y: y + 3)
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+
+    /// 決着の一言。結果シートが出る前の 1 秒余りだけ盤の真ん中に出る。
+    private func finishBanner(_ outcome: OjisanPuzzleModel.Outcome) -> some View {
+        let fill = outcome == .cleared ? Theme.Fill.teal : Theme.Fill.coral
+        return Text(resultTitle)
+            .font(.system(size: 26, weight: .heavy, design: .rounded)) // fixed-size: 盤の枠内に収める印
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 22).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(fill))
+            .transition(.scale.combined(with: .opacity))
+            .allowsHitTesting(false)
     }
 
     /// 荷物 1 個。**ピースそのものが荷物の形に見える**絵にする（会長指示 2026-10-07・#1909）。
