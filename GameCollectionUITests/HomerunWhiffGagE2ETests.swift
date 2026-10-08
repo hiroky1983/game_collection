@@ -17,9 +17,9 @@ final class HomerunWhiffGagE2ETests: XCTestCase {
         let env = ProcessInfo.processInfo.environment
         HomerunE2ETests.skipQuiescenceWait()
         let app = XCUIApplication()
-        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-screenshotMode", "-homerunForceWhiffGag"]
+        app.launchArguments = ["-startGame", "homerun", "-homerun_tutorialSeen_v1", "YES", "-homerunUnlimited", "-screenshotMode", "-homerunForceWhiffGag"]
         app.launch()
-        let start = app.buttons["打席に立つ"]
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "打席に立つ")).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 15), "打席に立つ が出ない")
         start.tap()
 
