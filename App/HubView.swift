@@ -340,7 +340,8 @@ struct HubView: View {
                     // 呼び出しを直さずに済むよう、ゲーム画面を作るここ 1 か所から配る。
                     let gameID = module.id
                     let services = services
-                    module.makeView(services: services)
+                    // 描き直しのたびに model を作って捨てないよう、1 回だけ作る入れ物を通す（#1926）。
+                    GameScreenHost { module.makeView(services: services) }
                         .environment(\.recordShare, RecordShareContext(
                             gameTitle: module.title,
                             url: AppEnvironment.appStoreURL,
