@@ -98,6 +98,8 @@ public final class SolitaireModel {
     /// 探索の `Task` は別スレッドで走るので、model そのものは持たせられない。
     private final class LifeToken: Sendable {}
     private let lifeToken = LifeToken()
+    /// テスト専用の探索フックに渡す識別子。`ObjectIdentifier` は解放後に別の model が同じ番地を使うので使えない。
+    let instanceID = UUID()
     /// 敗北が確定した局面の `stateKey`。undo で戻ってきた局面を**もう一度探索し直さない**ために持つ。
     private var hopelessKeys: Set<Data> = []
     /// 探索済みの局面の `stateKey`（結果を問わない）。同じ局面を二度掘らないための控え。
@@ -114,9 +116,9 @@ public final class SolitaireModel {
     static var maxConcurrentLostSolves = 2
     /// いま走っている探索の本数（全 model 合計）。
     private static var activeLostSolves = 0
-    /// テスト専用: 探索が作られた model の識別子を受け取る口。並列のテストと共有される静的な状態なので、
+    /// テスト専用: 探索が作られた model の識別子（`instanceID`）を受け取る口。並列のテストと共有される静的な状態なので、
     /// 本数ではなく**自分の model の識別子が来たか**だけを見る。
-    static var lostSolveStartHook: ((ObjectIdentifier) -> Void)?
+    static var lostSolveStartHook: ((UUID) -> Void)?
 
     /// 手数（記録に出す値）。**山めくりは数えない**。
     /// 山札 1 枚めくりの循環は無制限なので、数えると 1 局で数百手になり、指し回しの巧拙を表さなくなる。
@@ -668,7 +670,7 @@ public final class SolitaireModel {
     private func startLostSolve(board: SolitaireBoard) -> Task<Bool?, Never>? {
         guard Self.activeLostSolves < Self.maxConcurrentLostSolves else { return nil }
         Self.activeLostSolves += 1
-        Self.lostSolveStartHook?(ObjectIdentifier(self))
+        Self.lostSolveStartHook?(instanceID)
         let solve = Task.detached(priority: .utility) { [weak token = lifeToken] in
             Self.hopelessVerdict(for: board, isCancelled: { Task.isCancelled || token == nil })
         }

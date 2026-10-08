@@ -436,7 +436,7 @@ struct SolitaireLostDetectionTests {
         SolitaireModel.lostCheckDelayMilliseconds = 50
         SolitaireModel.maxConcurrentLostSolves = 100
         // フックは静的な 1 本なので、1 つのテストの中で対照まで見る（別テストに分けると並列で潰し合う）。
-        var started: Set<ObjectIdentifier> = []
+        var started: Set<UUID> = []
         SolitaireModel.lostSolveStartHook = { started.insert($0) }
         defer {
             SolitaireModel.lostCheckDelayMilliseconds = previous
@@ -445,7 +445,7 @@ struct SolitaireLostDetectionTests {
         }
 
         var model: SolitaireModel? = SolitaireModel(services: makeServices(), seed: fixedSeed)
-        let id = try #require(model.map(ObjectIdentifier.init))
+        let id = try #require(model?.instanceID)
         weak var weakModel = model
         model?.replaceBoardForTesting(hopelessButMovableBoard())
         let waiting = try #require(model?.lostCheckTask)
@@ -460,7 +460,7 @@ struct SolitaireLostDetectionTests {
         let live = SolitaireModel(services: makeServices(), seed: fixedSeed)
         live.replaceBoardForTesting(hopelessButMovableBoard())
         await live.lostCheckTask?.value
-        #expect(started.contains(ObjectIdentifier(live)))
+        #expect(started.contains(live.instanceID))
     }
 }
 
