@@ -361,7 +361,6 @@ public final class HomerunModel {
         switch credit {
         case .free:   return .free
         case .bonus:  return .bonus
-        case .survey: return .survey
         case .ad:     return .ad
         }
     }
@@ -380,18 +379,6 @@ public final class HomerunModel {
     /// 打席に立ってから、打席の画面が描き始める（`atBatDidAppear`）までの間。1 球目は数え直す前なので、ゾーンの読み上げに
     /// ボールの位置を出さない。
     public private(set) var awaitsAtBat = false
-
-    /// アンケートに答えた報酬として今日の挑戦回数を 1 回増やす（1 日 1 回）。日付の照合は `startWithAd` と同じ。
-    /// 回答は選択肢の番号だけを `survey_answer` で送り、端末には残さない（台帳の「済み」フラグだけ）。
-    /// 未回答の設問がある・すでに済み・日付が変わっていれば増やさず false（回答も送らない）。
-    @discardableResult
-    public func submitSurvey(_ answers: [Int], forDay dayKey: Int, now: Date) -> Bool {
-        refreshDay(now: now)
-        guard HomerunSurvey.isValid(answers), ledger.dayKey == dayKey, ledger.grantSurvey() else { return false }
-        HomerunStorage.saveLedger(ledger, defaults)
-        services?.gameDidAnswerSurvey(gameID: Self.gameID, answers: answers)
-        return true
-    }
 
     /// 広告を出す前に控える「今日」の鍵（`startWithAd(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
     /// 作る（画面を開いたまま 0:00 を過ぎても、日付の更新は前面へ戻るか打席に立つまで走らないため、
