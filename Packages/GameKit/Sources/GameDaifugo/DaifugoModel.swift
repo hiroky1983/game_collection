@@ -135,7 +135,14 @@ public final class DaifugoModel: AITurnGuarded {
         self.cpuDelay = cpuDelay
         self.seed = seed
         self.hints = hints
-        if let snap = services?.snapshots.load(DaifugoSnapshot.self, for: gameID) {
+        var loaded = services?.snapshots.load(DaifugoSnapshot.self, for: gameID)
+        // 人数・添字が合わない中断データは、`playerHand` などの配列参照で開くたびに落ちる（#1913。
+        // #1384 と同じ作法）。消して新規開始に倒す。
+        if let snap = loaded, !Self.isValid(snap) {
+            services?.snapshots.clear(for: gameID)
+            loaded = nil
+        }
+        if let snap = loaded {
             hands         = snap.hands
             field         = snap.field
             fieldOwner    = snap.fieldOwner
@@ -158,6 +165,18 @@ public final class DaifugoModel: AITurnGuarded {
             lastRanking      = carry.lastRanking
             isExchangeWaived = carry.isExchangeWaived
         }
+    }
+
+    /// 復元してよい中断データか。手札の人数と、手番・順位・フラグ類の添字が範囲内であること。
+    private static func isValid(_ snap: DaifugoSnapshot) -> Bool {
+        let seats = 0..<playerCount
+        return snap.hands.count == playerCount
+            && seats.contains(snap.currentPlayer)
+            && (snap.fieldOwner.map(seats.contains) ?? true)
+            && snap.passedPlayers.allSatisfy(seats.contains)
+            && snap.finishOrder.allSatisfy(seats.contains)
+            && snap.fouls.allSatisfy(seats.contains)
+            && snap.lastRanking.allSatisfy(seats.contains)
     }
 
     // MARK: - 公開状態
