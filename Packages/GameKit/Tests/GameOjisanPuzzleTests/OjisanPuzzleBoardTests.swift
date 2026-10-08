@@ -396,28 +396,37 @@ struct OjisanPuzzlePainTests {
         #expect(OjisanPuzzleScoring.totalPoints(chains: []) == 0)
     }
 
-    @Test("出現位置が塞がっていたら、近い列の縦置き → 最上段の横置きの順で探す（#1946）")
-    func placedSpawnFallsBack() throws {
+    @Test("組はいつも同じ列から出て、その列の出現位置が塞がると積み上がり（#1954）")
+    func spawnColumnIsFixed() {
         let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
-        let center = OjisanPuzzleBoard.columns / 2 - 1
-        #expect(OjisanPuzzleBoard.placedSpawn(OjisanPuzzleBoard.emptyBoard(), pair) == pair, "空いていればそのまま")
+        #expect(pair.col == OjisanPuzzleBoard.spawnColumn)
+        #expect(!OjisanPuzzleBoard.isSpawnBlocked(OjisanPuzzleBoard.emptyBoard()))
 
-        // 中央の列だけ最上段まで塞がっている → 隣の列の縦置き。
+        // 出る列だけ最上段まで塞がっていて、ほかが空いていても、別の列へは逃がさず積み上がり。
         var blocked = OjisanPuzzleBoard.emptyBoard()
-        for row in 0..<OjisanPuzzleBoard.rows { blocked[row][center] = 3 }
-        let beside = try #require(OjisanPuzzleBoard.placedSpawn(blocked, pair))
-        #expect(abs(beside.col - center) == 1 && beside.rotation == .up && beside.row == 1)
+        for row in 0..<OjisanPuzzleBoard.rows { blocked[row][OjisanPuzzleBoard.spawnColumn] = 3 }
+        #expect(OjisanPuzzleBoard.isSpawnBlocked(blocked))
 
-        // どの列も 2 段目まで埋まって最上段だけ空いている → 縦には置けないので最上段へ横置き。
-        var shallow = OjisanPuzzleBoard.emptyBoard()
-        for row in 1..<OjisanPuzzleBoard.rows { for col in 0..<OjisanPuzzleBoard.columns { shallow[row][col] = 1 } }
-        let flat = try #require(OjisanPuzzleBoard.placedSpawn(shallow, pair))
-        #expect(flat.row == 0 && flat.rotation == .right)
-        #expect(OjisanPuzzleBoard.canPlace(shallow, flat))
+        // 出る列の 3 段目までなら、まだ出せる。
+        var low = OjisanPuzzleBoard.emptyBoard()
+        low[2][OjisanPuzzleBoard.spawnColumn] = 3
+        #expect(!OjisanPuzzleBoard.isSpawnBlocked(low))
+        // 出現位置の 1 段目（行 1）に届いたら出せない。
+        low[1][OjisanPuzzleBoard.spawnColumn] = 3
+        #expect(OjisanPuzzleBoard.isSpawnBlocked(low))
+    }
 
-        // 最上段の空きが孤立した 1 マスだけなら、置けない。
-        var full = shallow
-        for col in 0..<OjisanPuzzleBoard.columns where col != 2 { full[0][col] = 2 }
-        #expect(OjisanPuzzleBoard.placedSpawn(full, pair) == nil)
+    @Test("出る列が天井に近いと出口の印が警告になる（#1954）")
+    func spawnColumnNearTop() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        #expect(!OjisanPuzzleBoard.isSpawnColumnNearTop(board))
+        board[4][OjisanPuzzleBoard.spawnColumn] = 2
+        #expect(!OjisanPuzzleBoard.isSpawnColumnNearTop(board))
+        board[3][OjisanPuzzleBoard.spawnColumn] = 2
+        #expect(OjisanPuzzleBoard.isSpawnColumnNearTop(board))
+        // 他の列が高くても、出る列でなければ警告しない。
+        var other = OjisanPuzzleBoard.emptyBoard()
+        other[0][0] = 2
+        #expect(!OjisanPuzzleBoard.isSpawnColumnNearTop(other))
     }
 }

@@ -189,31 +189,21 @@ public enum OjisanPuzzleBoard {
     /// 次の組を作る。軸は盤の中央、子は真上。
     public static func spawn(axisKind: Int, childKind: Int) -> OjisanPuzzlePair {
         OjisanPuzzlePair(axisKind: axisKind, childKind: childKind,
-                         row: 1, col: columns / 2 - 1, rotation: .up)
+                         row: 1, col: spawnColumn, rotation: .up)
     }
 
-    /// 出現させた組を置ける場所。**中央の列が塞がっていても、他に置ける場所があれば終わらせない**
-    /// （#1946: 中央の列だけ天井まで積まれて、ほかの列は空いているのに「積み上がり」になっていた）。
-    ///
-    /// 出現位置（縦向き・中央列）に置けるならそのまま。置けなければ、中央に近い列から縦向きで、
-    /// それも無ければ最上段に横向きで探す。どこにも置けないときだけ nil（＝本当に積み上がり）。
-    public static func placedSpawn(_ board: [[Int]], _ pair: OjisanPuzzlePair) -> OjisanPuzzlePair? {
-        if canPlace(board, pair) { return pair }
-        let center = columns / 2 - 1
-        let order = (0..<columns).sorted { abs($0 - center) < abs($1 - center) || (abs($0 - center) == abs($1 - center) && $0 < $1) }
-        for col in order {
-            var candidate = pair
-            candidate.col = col
-            if canPlace(board, candidate) { return candidate }
-        }
-        for col in order {
-            var candidate = pair
-            candidate.row = 0
-            candidate.col = col
-            candidate.rotation = .right
-            if canPlace(board, candidate) { return candidate }
-        }
-        return nil
+    /// 組が出てくる列。**いつも同じ列から出す**（#1954: 塞がっているときに別の列へ逃がすと、
+    /// 出る場所が読めなくなる）。この列の出現位置まで積まれたら積み上がりで終わる。
+    public static let spawnColumn = columns / 2 - 1
+
+    /// 出現位置が荷物で塞がっているか（＝次の組を出せない＝積み上がり）。
+    public static func isSpawnBlocked(_ board: [[Int]]) -> Bool {
+        !canPlace(board, spawn(axisKind: 1, childKind: 1))
+    }
+
+    /// 出る列の積み上がりが天井に近いか。画面の出口の印を警告色にする目安（上から 4 段以内）。
+    public static func isSpawnColumnNearTop(_ board: [[Int]]) -> Bool {
+        (0..<4).contains { board[$0][spawnColumn] != 0 }
     }
 
     /// 乱数から次の組を引く。

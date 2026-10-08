@@ -238,11 +238,11 @@ struct OjisanPuzzleModelTests {
         #expect(model.current == nil)
     }
 
-    /// #1946: 出口の列（中央）だけ天井まで積まれて、ほかの列は空いているのに「積み上がり」で終わっていた。
-    @Test("出口の列だけ塞がっていても、ほかに空きがあれば終わらず別の列から出す（#1946）")
-    func doesNotBuryWhileOtherColumnsHaveRoom() throws {
+    /// #1954: 出口の列が塞がったとき、別の列へ逃がすと出る場所が読めない。いつも同じ列から出し、塞がれば終わり。
+    @Test("出口の列が塞がったら、ほかに空きがあっても積み上がりで終わる（#1954）")
+    func buriesWhenSpawnColumnBlocked() {
         var board = OjisanPuzzleBoard.emptyBoard()
-        let column = OjisanPuzzleBoard.columns / 2 - 1
+        let column = OjisanPuzzleBoard.spawnColumn
         // 3 個ずつ種類を変えて、4 つつながって消えないようにする。
         for row in 0..<OjisanPuzzleBoard.rows {
             board[row][column] = row / 3 + 1
@@ -256,10 +256,22 @@ struct OjisanPuzzleModelTests {
         )
         #expect(model.hardDrop())
         model.tick()
-        #expect(model.outcome == nil, "盤にはまだ空きがある")
+        #expect(model.outcome == .buried)
+        #expect(model.current == nil)
+    }
+
+    @Test("出口の列に余裕があれば、いつも同じ列から次の組が出る（#1954）")
+    func spawnsFromFixedColumn() throws {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up)
+        )
+        #expect(model.hardDrop())
+        model.tick()
         let current = try #require(model.current)
-        #expect(current.col != column)
-        #expect(OjisanPuzzleBoard.canPlace(model.board, current))
+        #expect(current.col == OjisanPuzzleBoard.spawnColumn)
+        #expect(current.rotation == .up)
     }
 
     @Test("決着すると負けとして 1 回だけ記録し、得点を自己ベストに残す（#1904）")
