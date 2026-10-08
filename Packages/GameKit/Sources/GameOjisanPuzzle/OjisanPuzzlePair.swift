@@ -34,9 +34,9 @@ public enum OjisanPuzzleRotation: Int, CaseIterable, Sendable {
 ///
 /// 盤に固定されると `[[Int]]` の 2 マスになるだけなので、この型は**落下中にしか存在しない**。
 public struct OjisanPuzzlePair: Equatable, Sendable {
-    /// 軸の荷物の種類（1...4）。
+    /// 軸の荷物の種類（1...5）。
     public var axisKind: Int
-    /// 子の荷物の種類（1...4）。
+    /// 子の荷物の種類（1...5）。
     public var childKind: Int
     /// 軸の行（上が 0）。
     public var row: Int
