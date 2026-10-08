@@ -6,6 +6,10 @@ import Observation
 /// 盤の判定・連鎖・ゲージ・得点は `OjisanPuzzleBoard` / `OjisanPuzzlePain` / `OjisanPuzzleScoring` の
 /// 純粋ロジックに委譲し、ここは**落下タイマー・操作の受け口・決着**だけを持つ（`BlockPuzzleModel` と同じ作法）。
 ///
+/// 遊び方は 2 つ（`OjisanPuzzleMode`・#1920）。腰痛モードは腰痛ゲージあり・最初から荷物が積まれていて、
+/// 時間で下からせり上がり、ラインより下に片付ければクリア。パズルモードはゲージなしで、得点を競って埋まるまで続く。
+/// 1 局のあいだはモードを変えない（`newGame(mode:)` で始め直したときだけ替わる）。
+///
 /// 解析（`game_start` / `game_end`）と記録（得点の自己ベスト）は `GameServices` の共通の入口でつなぐ（#1904）。
 /// 中断と復元は持たない（落ちものの途中局面を戻す形を決めていないため。`OjisanPuzzleModule.resumesFromSnapshot`
 /// は false のまま）。画面を離れれば局は捨てられ、1 つでも荷物を置いていれば途中離脱（quit）として数える。
@@ -17,8 +21,10 @@ public final class OjisanPuzzleModel {
     public enum Outcome: Sendable {
         /// 腰痛ゲージが 100 に達した。
         case hospitalized
-        /// 盤の一番上まで積み上がった。
+        /// 盤の一番上まで積み上がった（腰痛モードでは、せり上がりで押し出されたときも）。
         case buried
+        /// 荷物をラインより下まで片付けた（腰痛モードの勝ち）。
+        case cleared
     }
 
     /// 進行の段階。落下中と、消える/落ちるの後片付け中で刻みの速さを変える。
@@ -27,6 +33,8 @@ public final class OjisanPuzzleModel {
         case settling
     }
 
+    /// この局の遊び方。局のあいだは変わらない。
+    public private(set) var mode: OjisanPuzzleMode
     /// 盤（0 = 空きマス、1...4 = 荷物の種類）。
     public private(set) var board: [[Int]]
     /// 落下中の組。後片付け中は nil。
@@ -46,6 +54,21 @@ public final class OjisanPuzzleModel {
     /// 決着時に記録した結果（自己ベストの更新内訳）。リザルトに `RecordLabel` で出す。
     public private(set) var recordResult: RecordResult?
 
+    /// 局が始まってからの時間（ミリ秒）。落下ループの刻みを足していくので、止めているあいだは進まない。
+    /// 腰痛モードのクリアタイムになる。
+    public private(set) var elapsedMilliseconds = 0
+    /// クリアのライン（この行より上に荷物が無ければクリア）。ラインの無い局は nil。
+    public private(set) var clearLineRow: Int?
+    /// 荷物がせり上がる間隔（ミリ秒）。せり上がらない局は nil。
+    public private(set) var riseIntervalMilliseconds: Int?
+    /// 次のせり上がりまでの残り（ミリ秒）。せり上がらない局は nil。
+    public var millisecondsUntilRise: Int? {
+        riseIntervalMilliseconds.map { max(0, $0 - riseClock) }
+    }
+
+    /// 組を 1 つでも固定した、まだ決着していない局か。捨てると途中離脱として数えられる局かどうか（新規ゲームの確認に使う）。
+    public var hasProgress: Bool { outcome == nil && lockCount > 0 }
+
     /// 盤に落下中の組を重ねた、描画用の盤。View はこれだけを見れば描ける。
     public var displayBoard: [[Int]] {
         guard let current else { return board }
@@ -64,7 +87,9 @@ public final class OjisanPuzzleModel {
 
     /// いまの落下の刻み（ミリ秒）。腰が重いほど短い＝速く落ちる。
     public var dropInterval: Int {
-        max(90, Int(Double(Self.baseDropInterval) * OjisanPuzzlePain.fallFactor(for: pain)))
+        // 腰痛モードはゲージで、パズルモードは固定した組数で速くなる（ゲージの無い局は pain が 0 のまま）。
+        let speedUp = mode.hasGauge ? 1.0 : OjisanPuzzleSpeedUp.factor(locks: lockCount)
+        return max(90, Int(Double(Self.baseDropInterval) * OjisanPuzzlePain.fallFactor(for: pain) * speedUp))
     }
 
     /// いまの腰の重さの段階。表示（顔・見出し）もこれで決める。
@@ -75,27 +100,36 @@ public final class OjisanPuzzleModel {
     private var phase: Phase = .dropping
     /// 後片付け中に数えている連鎖の深さ。
     private var chainDepth = 0
+    /// 固定した組の数（パズルモードの加速に使う）。
+    private var lockCount = 0
+    /// 前回のせり上がりからの経過（ミリ秒）。
+    private var riseClock = 0
+    /// せり上がりの時間が来ていて、次の組を出す前に上げる。落下中の組の下で盤が動かないようにするため。
+    private var risePending = false
     private var loop: Task<Void, Never>?
     /// 直近に左右移動・回転を受け付けた時刻。腰が重いときの「ワンテンポ」を測るのに使う。
     private var lastInputAt: ContinuousClock.Instant?
     static let gameID = "ojisanpuzzle"
 
     /// 通常の入口。
-    public convenience init(services: GameServices? = nil) {
-        self.init(services: services, seed: UInt64.random(in: UInt64.min...UInt64.max))
+    public convenience init(services: GameServices? = nil, mode: OjisanPuzzleMode = .backpain) {
+        self.init(services: services, mode: mode, seed: UInt64.random(in: UInt64.min...UInt64.max))
     }
 
     /// 種を固定して開始する。荷物の並びが再現できるのでテスト・プレビューから使う。
-    public init(services: GameServices? = nil, seed: UInt64) {
+    public init(services: GameServices? = nil, mode: OjisanPuzzleMode = .backpain, seed: UInt64) {
         self.services = services
+        self.mode = mode
         var generator = OjisanPuzzleRandom(seed: seed)
-        board = OjisanPuzzleBoard.emptyBoard()
+        board = mode.isCleanup ? OjisanPuzzleCleanup.initialBoard(using: &generator) : OjisanPuzzleBoard.emptyBoard()
+        clearLineRow = mode.isCleanup ? OjisanPuzzleCleanup.clearLineRow : nil
+        riseIntervalMilliseconds = mode.isCleanup ? OjisanPuzzleCleanup.riseIntervalMilliseconds : nil
         current = OjisanPuzzleBoard.makePair(using: &generator)
         next = OjisanPuzzleBoard.makePair(using: &generator)
         rng = generator
         // 中断データを持たないので、開くたびに新しいプレイ。`gameDidStart` は冪等なので
         // 再描画で init が何度走っても増えない（#158）。
-        services?.gameDidStart(gameID: Self.gameID)
+        services?.gameDidStart(gameID: Self.gameID, mode: mode.analyticsMode)
     }
 
     /// 盤とゲージを直接与えて開始する。狙った局面（あと 1 手で連鎖・入院寸前・積み上がり寸前）から
@@ -105,9 +139,15 @@ public final class OjisanPuzzleModel {
         board: [[Int]],
         current: OjisanPuzzlePair?,
         pain: Int = 0,
+        mode: OjisanPuzzleMode = .backpain,
+        clearLineRow: Int? = nil,
+        riseIntervalMilliseconds: Int? = nil,
         seed: UInt64 = 1
     ) {
         self.services = services
+        self.mode = mode
+        self.clearLineRow = clearLineRow
+        self.riseIntervalMilliseconds = riseIntervalMilliseconds
         var generator = OjisanPuzzleRandom(seed: seed)
         self.board = board
         self.current = current
@@ -115,7 +155,7 @@ public final class OjisanPuzzleModel {
         self.next = OjisanPuzzleBoard.makePair(using: &generator)
         self.rng = generator
         // 狙った局面から始める入口も、新しいプレイの開始として数える（ブロックならべの同種の入口と同じ扱い）。
-        services?.gameDidStart(gameID: Self.gameID)
+        services?.gameDidStart(gameID: Self.gameID, mode: mode.analyticsMode)
     }
 
     // MARK: - 進行
@@ -145,6 +185,10 @@ public final class OjisanPuzzleModel {
     /// タイマー 1 刻み。**テストから時間を進めるため internal** にしてある（public にはしない）。
     func tick() {
         guard outcome == nil else { return }
+        let step = phase == .dropping ? dropInterval : Self.settleInterval
+        elapsedMilliseconds += step
+        riseClock += step
+        if let interval = riseIntervalMilliseconds, riseClock >= interval { risePending = true }
         switch phase {
         case .dropping:
             guard let pair = current else { return }
@@ -231,10 +275,18 @@ public final class OjisanPuzzleModel {
         return true
     }
 
-    /// もう一度。
-    public func newGame() {
+    /// もう一度。`mode` を渡すと、その遊び方で始め直す（省略すると同じ遊び方）。
+    public func newGame(mode newMode: OjisanPuzzleMode? = nil) {
         pause()
-        board = OjisanPuzzleBoard.emptyBoard()
+        let previousMode = mode
+        mode = newMode ?? previousMode
+        board = mode.isCleanup ? OjisanPuzzleCleanup.initialBoard(using: &rng) : OjisanPuzzleBoard.emptyBoard()
+        clearLineRow = mode.isCleanup ? OjisanPuzzleCleanup.clearLineRow : nil
+        riseIntervalMilliseconds = mode.isCleanup ? OjisanPuzzleCleanup.riseIntervalMilliseconds : nil
+        elapsedMilliseconds = 0
+        riseClock = 0
+        risePending = false
+        lockCount = 0
         current = OjisanPuzzleBoard.makePair(using: &rng)
         next = OjisanPuzzleBoard.makePair(using: &rng)
         score = 0
@@ -246,7 +298,8 @@ public final class OjisanPuzzleModel {
         lastInputAt = nil
         recordResult = nil
         // 未決着のまま捨てた局は、始め直す前に途中離脱（quit）として送られる（#500）。
-        services?.gameDidRestart(gameID: Self.gameID)
+        // 捨てた局の `mode` は開始時に焼き込んだ値で出る（`game_end` の `mode` は途中で替わらない・#820）。
+        services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
         resume()
     }
 
@@ -258,14 +311,15 @@ public final class OjisanPuzzleModel {
         current = nil
         lastChain = 0
         chainDepth = 0
-        pain = OjisanPuzzlePain.afterLock(pain)
+        lockCount += 1
+        if mode.hasGauge { pain = OjisanPuzzlePain.afterLock(pain) }
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         services?.gameDidProgress(gameID: Self.gameID)
         phase = .settling
         services?.feedback.impact(.medium)
 
         // 荷物が増えた瞬間に腰が限界を迎えることがある。消せば減るので、判定は消し終えてからでは遅い。
-        if OjisanPuzzlePain.isHospitalized(pain) {
+        if mode.hasGauge, OjisanPuzzlePain.isHospitalized(pain) {
             finish(.hospitalized)
         }
     }
@@ -283,7 +337,7 @@ public final class OjisanPuzzleModel {
             chainDepth += 1
             let cells = groups.reduce(0) { $0 + $1.count }
             score += OjisanPuzzleScoring.chainPoints(cells: cells, chain: chainDepth)
-            pain = OjisanPuzzlePain.afterChain(pain, cells: cells, chain: chainDepth)
+            if mode.hasGauge { pain = OjisanPuzzlePain.afterChain(pain, cells: cells, chain: chainDepth) }
             board = OjisanPuzzleBoard.removing(board, groups: groups)
             lastChain = chainDepth
             chainEventID += 1
@@ -291,11 +345,26 @@ public final class OjisanPuzzleModel {
             return
         }
 
+        // 片付け終わったところでラインを見る（連鎖の途中や落下中の組では判定しない）。
+        if let line = clearLineRow, OjisanPuzzleCleanup.isCleared(board, line: line) {
+            finish(.cleared)
+            return
+        }
         spawnNext()
     }
 
-    /// 次の組を盤へ出す。出す場所が埋まっていたら積み上がりで終わり。
+    /// 次の組を盤へ出す。時間が来ていれば先に荷物を 1 段せり上げる。出す場所が埋まっていたら積み上がりで終わり。
     private func spawnNext() {
+        if risePending {
+            risePending = false
+            riseClock = 0
+            let risen = OjisanPuzzleCleanup.rising(board, using: &rng)
+            board = risen.board
+            if risen.overflowed {
+                finish(.buried)
+                return
+            }
+        }
         let pair = next
         guard OjisanPuzzleBoard.canPlace(board, pair) else {
             finish(.buried)
@@ -311,12 +380,30 @@ public final class OjisanPuzzleModel {
         current = nil
         pause()
         services?.feedback.notify(.error)
-        // 入院・積み上がりのどちらも負けとして記録し、得点を自己ベストに残す
-        // （ブロックならべと同じ「終わり = 負け・得点で競う」形）。
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
-            outcome: .loss,
-            score: GameScore(metric: .points, points: score)
+            outcome: outcome == .cleared ? .win : .loss,
+            score: recordScore(for: outcome)
+        )
+    }
+
+    /// 決着の記録。保存先はモードごとの区分（`ojisanpuzzle#<区分>`）で、互いの自己ベストを汚さない。
+    ///
+    /// - 腰痛モード: クリアタイム（短いほど良い）。クリアしたときだけ秒数を載せ、入院・埋まりは勝敗の数だけ残る。
+    /// - パズルモード: 得点（高いほど良い）。終わりは必ず埋まりなので毎回負けとして数える
+    ///   （ブロックならべと同じ「終わり = 負け・得点で競う」形）。
+    private func recordScore(for outcome: Outcome) -> GameScore {
+        if mode.isCleanup {
+            return GameScore(
+                metric: .shortestTime,
+                seconds: outcome == .cleared ? max(1, elapsedMilliseconds / 1000) : nil,
+                variant: mode.recordVariant,
+                variantLabel: mode.recordVariantLabel
+            )
+        }
+        return GameScore(
+            metric: .points, points: score,
+            variant: mode.recordVariant, variantLabel: mode.recordVariantLabel
         )
     }
 }

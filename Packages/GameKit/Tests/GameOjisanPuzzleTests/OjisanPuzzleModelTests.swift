@@ -10,13 +10,13 @@ import CoreTestSupport
 @MainActor
 struct OjisanPuzzleModelTests {
 
-    private func makeModel() -> OjisanPuzzleModel {
-        OjisanPuzzleModel(services: nil, seed: 42)
+    private func makeModel(mode: OjisanPuzzleMode = .backpain) -> OjisanPuzzleModel {
+        OjisanPuzzleModel(services: nil, mode: mode, seed: 42)
     }
 
     @Test("始めたときは空の盤と落下中の組がある")
     func startsWithEmptyBoardAndPair() {
-        let model = makeModel()
+        let model = makeModel(mode: .puzzle)
         #expect(model.board == OjisanPuzzleBoard.emptyBoard())
         #expect(model.current != nil)
         #expect(model.score == 0)
@@ -42,8 +42,9 @@ struct OjisanPuzzleModelTests {
 
     @Test("一気に落とすと盤に固定され、腰痛ゲージが増える")
     func hardDropLocksAndHurts() throws {
-        let model = makeModel()
-        let pair = try #require(model.current)
+        // 腰痛モードは最初から荷物が積まれているので、空の盤から始めて床への固定を確かめる。
+        let pair = OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 2, rotation: .up)
+        let model = OjisanPuzzleModel(services: nil, board: OjisanPuzzleBoard.emptyBoard(), current: pair)
         #expect(model.hardDrop())
         #expect(model.current == nil, "固定したのに落下中の組が残っている")
         #expect(model.pain == OjisanPuzzlePain.perLock)
@@ -63,7 +64,7 @@ struct OjisanPuzzleModelTests {
 
     @Test("もう一度でスコア・ゲージ・盤が戻る")
     func newGameResetsEverything() {
-        let model = makeModel()
+        let model = makeModel(mode: .puzzle)
         #expect(model.hardDrop())
         model.newGame()
         #expect(model.board == OjisanPuzzleBoard.emptyBoard())
@@ -249,16 +250,18 @@ struct OjisanPuzzleModelTests {
         )
         #expect(model.hardDrop())
         #expect(model.outcome == .hospitalized)
-        let record = try #require(log.record(gameID: OjisanPuzzleModule().id))
-        #expect(record.metric == .points)
+        // 腰痛モードの記録はクリアタイムの区分（入院は勝敗の数だけ残る）。パズルモードの得点の区分とは別。
+        #expect(log.record(gameID: OjisanPuzzleModule().id, variant: OjisanPuzzleMode.puzzle.recordVariant) == nil)
+        let record = try #require(log.record(gameID: OjisanPuzzleModule().id, variant: OjisanPuzzleMode.backpain.recordVariant))
+        #expect(record.metric == .shortestTime)
         #expect(record.plays == 1)
         #expect(record.losses == 1)
-        #expect(record.bestPoints == 0)
+        #expect(record.bestSeconds == nil)
         #expect(model.recordResult != nil)
 
         // 決着後の操作は二重に記録しない。もう一度で結果は消える。
         model.tick()
-        #expect(log.record(gameID: OjisanPuzzleModule().id)?.plays == 1)
+        #expect(log.record(gameID: OjisanPuzzleModule().id, variant: "backpain")?.plays == 1)
         model.newGame()
         model.pause()
         #expect(model.recordResult == nil)
