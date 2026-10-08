@@ -134,6 +134,12 @@ public final class BlocksModel {
         field.movePaddle(to: x)
     }
 
+    /// パドルを左右へ 1 段ぶん動かす（VoiceOver 用。ドラッグできない人の操作手段・#1894）。
+    /// 1 段はパドル幅の 1/4。負で左、正で右。
+    public func nudgePaddle(steps: Int) {
+        movePaddle(to: field.paddleX + Double(steps) * field.paddleWidth / 4)
+    }
+
     /// 球を発射する。
     public func launch() {
         guard phase == .ready else { return }
