@@ -189,6 +189,35 @@ struct Game2048WinTests {
         #expect(model.board != boardAtWin)
     }
 
+    @Test("広告コンティニュー → 無操作で新規開始: `game_end`(quit) が 1 回出て対応が取れる（#1953）")
+    func newGameRightAfterAdContinueSendsQuit() {
+        let harness = makeHarness(suite: "ad-continue-then-new-game")
+        let model = makeModel(harness, board: Self.winningMoveEndsTheGame)
+        model.move(.left)
+        #expect(model.gameOver, "前提: この手で終局する")
+        let endsAtGameOver = harness.analytics.ends.count
+        #expect(model.continueAfterAd())
+
+        model.newGame()
+
+        #expect(harness.analytics.starts.count == 3, "前提: 最初・続き・新規で `game_start` は計 3 回")
+        #expect(harness.analytics.ends.count == endsAtGameOver + 1, "続きの 1 プレイに `game_end` が付く")
+        #expect(harness.analytics.quits.count == 1)
+    }
+
+    @Test("「続ける」→ 無操作で新規開始: `game_end`(quit) が 1 回出る（#1953）")
+    func newGameRightAfterWinContinueSendsQuit() {
+        let harness = makeHarness(suite: "win-continue-then-new-game")
+        let model = makeModel(harness, board: Self.oneMoveFromWin)
+        model.move(.left)
+        #expect(model.showWinPrompt, "前提: 到達の演出が出ている")
+        model.continueAfterWin()
+
+        model.newGame()
+
+        #expect(harness.analytics.quits.count == 1, "続きの 1 プレイに `game_end` が付いていない")
+    }
+
     @Test("勝利直後に kill されても演出は残り、続行は 1 プレイとして対応が取れる")
     func suspendingRightAfterTheWinKeepsThePromptAndThePairing() {
         let harness = makeHarness(suite: "suspend-after-win")

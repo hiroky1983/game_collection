@@ -142,6 +142,9 @@ public final class Game2048Model {
         // 演出が出直し、そのつど `gameDidRestart` が走って `game_start` だけが増える。
         persist()
         services?.gameDidRestart(gameID: gameID)
+        // 続きの盤面は既に指した盤面なので、数え直した 1 プレイも最初から「指した」扱いにする（#1953）。
+        // これが無いと、無操作で「もう一度」を押したとき `game_end`（quit）が出ず `game_start` だけが残る。
+        services?.gameDidProgress(gameID: gameID)
     }
 
     /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
@@ -174,6 +177,8 @@ public final class Game2048Model {
         // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる。
         services?.gameDidRestart(gameID: gameID)
+        // 続きの盤面は既に指した盤面（#1953）。`continueAfterWin` と同じ理由で数え直した 1 プレイを「指した」扱いにする。
+        services?.gameDidProgress(gameID: gameID)
         return true
     }
 
