@@ -55,17 +55,13 @@ struct HomerunChallengeTests {
 
     // MARK: 日次台帳
 
-    @Test("台帳: 無料 3・アンケート +1 で回数は 4。広告は回数に足さない（#1694）")
+    @Test("台帳: 無料 3 で回数は 3。広告は回数に足さない（#1694）")
     func ledgerAllowance() {
         var l = HomerunLedger(dayKey: 20260926)
         #expect(l.remaining == 3)
-        let survey = l.grantSurvey()
-        let surveyAgain = l.grantSurvey()
-        #expect(survey && !surveyAgain)
-        #expect(l.remaining == 4)
-        for _ in 0..<4 { let ok = l.consume(); #expect(ok) }
-        let fifth = l.consume()
-        #expect(!fifth)
+        for _ in 0..<3 { let ok = l.consume(); #expect(ok) }
+        let fourth = l.consume()
+        #expect(!fourth)
         #expect(l.remaining == 0)
         #expect(!l.canStart)
     }
@@ -99,7 +95,7 @@ struct HomerunChallengeTests {
 
     @Test("台帳: 以前の版で貯めた広告分（adsWatched）は今日の残り回数として使え、上限にも数える")
     func ledgerLegacyAdGrants() throws {
-        let old = Data(#"{"dayKey":20261002,"used":4,"adsWatched":3,"surveyDone":false}"#.utf8)
+        let old = Data(#"{"dayKey":20261002,"used":4,"adsWatched":3}"#.utf8)
         var l = try JSONDecoder().decode(HomerunLedger.self, from: old)
         #expect(l.legacyAdGrants == 3)
         #expect(l.allowance == 6 && l.remaining == 2, "貯めた分は消えない")
@@ -129,15 +125,15 @@ struct HomerunChallengeTests {
         #expect(l.used == 3)
     }
 
-    @Test("台帳: 次に消費する枠は 無料 → ご褒美 → アンケート → 広告 の固定順で、回数が無ければ nil（#1685）")
+    @Test("台帳: 次に消費する枠は 無料 → ご褒美 → 広告 の固定順で、回数が無ければ nil（#1685）")
     func ledgerNextCreditOrder() {
-        var l = HomerunLedger(dayKey: 1, legacyAdGrants: 2, surveyDone: true, bonus: 2)
+        var l = HomerunLedger(dayKey: 1, legacyAdGrants: 2, bonus: 2)
         var seen: [HomerunLedger.Credit] = []
         while let credit = l.nextCredit {
             seen.append(credit)
             l.consume()
         }
-        #expect(seen == [.free, .free, .free, .bonus, .bonus, .survey, .ad, .ad])
+        #expect(seen == [.free, .free, .free, .bonus, .bonus, .ad, .ad])
         #expect(l.nextCredit == nil)
         // 無料を使い切ったあと、以前の版の「広告で +1」の貯めた分が残っていれば広告の枠。
         // 今の版の「広告を見てプレイ」（回数に数えない）は枠を作らない（打席を始めた側が .ad を渡す）。
@@ -153,16 +149,15 @@ struct HomerunChallengeTests {
     func ledgerRoll() {
         var l = HomerunLedger(dayKey: 20260926)
         l.consume(); l.consume(); l.consume()
-        l.grantSurvey()
         l.roll(to: 20260926)
-        #expect(l.remaining == 1)  // 同じ日は何もしない
+        #expect(l.remaining == 0)  // 同じ日は何もしない
         l.roll(to: 20260925)
         #expect(l.dayKey == 20260926)  // 時計を戻しても無料分は増えない
-        #expect(l.remaining == 1)
+        #expect(l.remaining == 0)
         l.roll(to: 20260927)
         #expect(l.dayKey == 20260927)
         #expect(l.remaining == 3)
-        #expect(l.adsWatched == 0 && !l.surveyDone)
+        #expect(l.adsWatched == 0)
     }
 
     @Test("台帳: 日付キーは 0:00 で切り替わる（タイムゾーンは Calendar で決まる）")
@@ -181,7 +176,7 @@ struct HomerunChallengeTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         var l = HomerunLedger(dayKey: 5)
-        l.consume(); l.grantSurvey()
+        l.consume()
         HomerunStorage.saveLedger(l, defaults)
         #expect(HomerunStorage.loadLedger(defaults) == l)
         #expect(HomerunStorage.recordsKey != HomerunStorage.ledgerKey)

@@ -16,7 +16,6 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
-import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 @testable import GameShiritori
@@ -69,7 +68,7 @@ private func makeHubGameIDs() -> Set<String> {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
@@ -145,7 +144,8 @@ struct AnalyticsEventShapeTests {
         #expect(recent.parameters["resume"] == .int(0), "resume は 0 / 1 の整数")
 
         // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
-        for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction] {
+        for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction,
+                       .resumeReminder, .reengagement, .challengeReturn] {
             let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
             #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
         }
@@ -163,19 +163,11 @@ struct AnalyticsEventShapeTests {
         #expect(tap.parameters == ["game_id": .string("2048")])
     }
 
-    @Test("survey_answer は game_id と設問ごとの q1〜 だけを持ち、値は選択肢の番号（#1348）")
-    func surveyAnswerShape() {
-        let answer = AnalyticsEvent.surveyAnswer(gameID: "homerun", answers: [1, 4, 2])
-        #expect(answer.name == "survey_answer")
-        #expect(answer.parameters == [
-            "game_id": .string("homerun"), "q1": .int(1), "q2": .int(4), "q3": .int(2),
-        ])
-    }
-
-    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero の7値に閉じている（#659・#721）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return の10値に閉じている（#659・#721・#1950）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
             "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
+            "resume_reminder", "reengagement", "challenge_return",
         ])
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
@@ -203,9 +195,9 @@ struct AnalyticsEventShapeTests {
         #expect(sent == ["accepted", "declined", "not_ready"])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap / survey_answer の8種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap の7種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
-        // 全量の列挙（#659 で2種・#780 で1種・#1043 で1種・#1348 で1種追加）。個々の鍵は下と上の各テストで固定する。
+        // 全量の列挙（#659 で2種・#780 で1種・#1043 で1種）。個々の鍵は下と上の各テストで固定する。
         #expect([
             AnalyticsEvent.gameStart(gameID: "2048"),
             .gameEnd(gameID: "2048", result: .win, durationSec: 0),
@@ -214,10 +206,8 @@ struct AnalyticsEventShapeTests {
             .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
             .rewardOffer(gameID: "2048", purpose: .undo, result: .declined),
             .shareTap(gameID: "2048"),
-            .surveyAnswer(gameID: "2048", answers: [1]),
         ].map(\.name) == [
             "game_start", "game_end", "reward_ad", "reward_request", "game_open", "reward_offer", "share_tap",
-            "survey_answer",
         ])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
@@ -249,7 +239,7 @@ struct AnalyticsEventShapeTests {
             #expect(AnalyticsEvent.gameEnd(gameID: "homerun", result: .loss, durationSec: 5, credit: credit)
                 .parameters["credit"] == .string(credit.rawValue))
         }
-        #expect(AnalyticsCredit.allCases.map(\.rawValue) == ["free", "survey", "ad", "bonus"])
+        #expect(AnalyticsCredit.allCases.map(\.rawValue) == ["free", "ad", "bonus"])
         #expect(AnalyticsEvent.gameEnd(gameID: "2048", result: .win, durationSec: 1).parameters["credit"] == nil)
 
         let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: .singleHand)
@@ -295,9 +285,9 @@ struct AnalyticsEventShapeTests {
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
     }
 
-    @Test("mode は tonpuu / single_hand / stage / endless の4値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle の6値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
     func modeIsClosed() {
-        #expect(AnalyticsMode.allCases.map(\.rawValue) == ["tonpuu", "single_hand", "stage", "endless"])
+        #expect(AnalyticsMode.allCases.map(\.rawValue) == ["tonpuu", "single_hand", "stage", "endless", "backpain", "puzzle"])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
         for mode in AnalyticsMode.allCases {
             #expect(AnalyticsEvent.gameStart(gameID: "runner", mode: mode).parameters["mode"] == .string(mode.rawValue))
@@ -306,6 +296,7 @@ struct AnalyticsEventShapeTests {
         }
         // 遊び方を持つゲームの型から写した値の集合 = 全量。使われない値を定義していない。
         let used = MahjongGameLength.allCases.map(\.analyticsMode) + RunnerMode.allCases.map(\.analyticsMode)
+            + OjisanPuzzleMode.allCases.map(\.analyticsMode)
         #expect(used.count == Set(used).count, "別のゲームの遊び方が同じ値に潰れている")
         #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
@@ -464,7 +455,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 31, "ハブに並ぶゲームは31本（v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べる腰痛おじさんパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 30, "ハブに並ぶゲームは30本（v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べる腰痛おじさんパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -825,28 +816,6 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.result == .loss)
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
         #expect(spy.starts == ["freecell", "freecell"])
-    }
-
-    @Test("ブロックならべ: 開いた時点で開始・置けなくなって終局（loss）")
-    func blockPuzzle() {
-        let (services, spy) = makeServices()
-        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
-                                     hand: blockPuzzleStuckHand())
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        #expect(model.gameOver)
-        expectOnePair(spy, gameID: "blockpuzzle")
-        #expect(spy.ends.first?.result == .loss, "ブロックならべに勝ちは無い")
-    }
-
-    @Test("ブロックならべ: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
-    func blockPuzzleContinueCountsAsNewPlay() {
-        let (services, spy) = makeServices()
-        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
-                                     hand: blockPuzzleStuckHand())
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        model.continueAfterAd()
-        #expect(spy.starts == ["blockpuzzle", "blockpuzzle"])
-        #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
     }
 
     @Test("チャリンコおじさん: 走り出した時点で開始・ステージクリアで終局（win）")
@@ -1277,20 +1246,6 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             return
         }
     }
-}
-
-/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
-/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
-private func blockPuzzleStuckBoard() -> [[Int]] {
-    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
-    for i in 0..<10 { board[i][i] = 0 }
-    board[0][2] = 0
-    return board
-}
-
-/// 1×1 と、置き場所の無い 3×3 が 2 つ。
-private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
-    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }
 
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、

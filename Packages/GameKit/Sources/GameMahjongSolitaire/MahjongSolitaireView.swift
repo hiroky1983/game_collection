@@ -18,11 +18,13 @@ private struct HintAlerts: ViewModifier {
         content
             // 押した直後に広告を出さず、広告が出ることを予告してから視聴へ進める
             // （並べ替え・将棋の「待った」と同じ契約）。
-            .alert("ヒント確認", isPresented: $showConfirm) {
-                Button("広告を見てヒントを見る") { onWatchAd() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("広告を視聴すると、いま取れる組を1組だけ光らせます。")
+            .dialogs { anchor in
+                anchor.alert("ヒント確認", isPresented: $showConfirm) {
+                    Button("広告を見てヒントを見る") { onWatchAd() }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text("広告を視聴すると、いま取れる組を1組だけ光らせます。")
+                }
             }
     }
 }
@@ -38,11 +40,13 @@ private struct UndoRefillAlerts: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert("無料の「戻す」を使い切りました", isPresented: $showPrompt) {
-                Button("広告を見て\(MahjongSolitaireUndoBudget.refill)回補充する") { onWatchAd() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(MahjongSolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            .dialogs { anchor in
+                anchor.alert("無料の「戻す」を使い切りました", isPresented: $showPrompt) {
+                    Button("広告を見て\(MahjongSolitaireUndoBudget.refill)回補充する") { onWatchAd() }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text("広告を最後まで視聴すると「戻す」を\(MahjongSolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                }
             }
             .rewardOffer(rescue, for: .undo, isPresented: showPrompt, services: services, gameID: gameID)
             .rewardedRescueAlerts(
@@ -175,11 +179,13 @@ public struct MahjongSolitaireView: View {
         }
         // 並べ替えはリワード広告制（会長指示 2026-08-30）。将棋の「待った」と同じく、
         // 広告が出ることをダイアログで予告してから視聴に進める（突然の広告を出さない）。
-        .alert("並べ替え確認", isPresented: $showShuffleConfirm) {
-            Button("広告を見て並べ替える") { requestShuffle() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。")
+        .dialogs { anchor in
+            anchor.alert("並べ替え確認", isPresented: $showShuffleConfirm) {
+                Button("広告を見て並べ替える") { requestShuffle() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。")
+            }
         }
         .rewardedRescueAlerts(
             shuffleRescue,

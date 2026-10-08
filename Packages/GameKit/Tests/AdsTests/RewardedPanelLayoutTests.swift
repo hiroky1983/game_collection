@@ -24,7 +24,7 @@ struct RewardedPanelLayoutTests {
 
     /// 余白を上書きしている面は、共通の値からずれていく。共通部品を使う面は既定値に任せる。
     @Test("共通の幕を使う面は余白を上書きしない",
-          arguments: ["Game2048", "GameBlockPuzzle", "GameSudoku", "GameFruits"])
+          arguments: ["Game2048", "GameSudoku", "GameFruits"])
     func overlayUsersKeepDefaultPadding(module: String) throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources(module))
         #expect(code.contains("RewardedContinueOverlay("), "\(module): 幕の呼び出しが見つからない（走査が空振りしている）")

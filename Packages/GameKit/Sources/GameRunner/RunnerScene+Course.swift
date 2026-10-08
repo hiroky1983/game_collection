@@ -29,6 +29,7 @@ extension RunnerScene {
         } else {
             buildStageCourse(stage)
         }
+        buildSteam(stage)
         removedPickupIndices = []
         renderedJustLandingCount = 0
         isBlinkingInvincible = false
@@ -87,7 +88,7 @@ extension RunnerScene {
             case .boar:                    movingHazards.append(addBoar(hazard))
             // 突き上げ（#1010）は位置は動かないが**伸びた高さが距離で決まる**ので、毎フレーム
             // `frame` を写す仲間（`movingHazards`）に入れる。
-            case .shoot:                   movingHazards.append(addShoot(hazard))
+            case .shoot, .geyser:          movingHazards.append(addShoot(hazard))
             case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
             // 高い塀（#1091）は動かないので岩と同じくコース層へ 1 回置くだけ。
             case .wall:                    courseLayer.addChild(makeWall(hazard))

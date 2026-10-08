@@ -16,7 +16,6 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
-import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 @testable import GameShiritori
@@ -267,7 +266,7 @@ struct RecordFormatTests {
         #expect(RecordFormat.runnerStageLine(clearedStage: 29) == "5-6 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 30) == "6-1 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 35) == "6-6 まで到達")
-        #expect(RecordFormat.runnerStageLine(clearedStage: 36) == "全 36 面クリア")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 42) == "全 42 面クリア")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil
@@ -976,28 +975,6 @@ struct GameRecordingTests {
         // 1 手も指していない配札の捨て直しは記録しない（確認ダイアログを出す境目と同じ）。
         model.newGame()
         #expect(log.record(gameID: "freecell")?.plays == 1)
-    }
-
-    @Test("ブロックならべ: スコアを見出しにし、詰みは敗北として残る")
-    func blockPuzzleRecordsScore() {
-        let (log, defaults, name) = makeLog(suite: "blockpuzzle")
-        defer { defaults.removePersistentDomain(forName: name) }
-
-        var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
-        for i in 0..<10 { board[i][i] = 0 }
-        board[0][2] = 0
-        let model = BlockPuzzleModel(
-            services: makeServices(log: log), board: board,
-            hand: [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]],
-            score: 500
-        )
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        #expect(model.gameOver)
-
-        let record = log.record(gameID: "blockpuzzle")
-        #expect(record?.metric == .points)
-        #expect(record?.bestPoints == 501)
-        #expect(record?.losses == 1, "ハイスコア型なので決着は必ず敗北として数える")
     }
 
     @Test("チャリンコおじさん: 到達ステージ数を見出しにし、クリアは勝利として残る")

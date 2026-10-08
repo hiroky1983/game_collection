@@ -13,6 +13,18 @@ public struct OjisanPuzzleView: View {
     @State private var appliedColumns = 0
     /// 同じく、すでに何マスぶん落としたか。
     @State private var appliedRows = 0
+    /// 遊び方を選ぶ開始シート（#1920）。開いた直後は出しておき、選んでから始める。
+    @State private var showSetup = true
+    /// シートで選んでいる遊び方。最初は腰痛モード。
+    @State private var setupMode: OjisanPuzzleMode = .backpain
+    @State private var showConfirmNewGame = false
+    /// 盤の 1 マスの大きさ。画面のどこで触っても同じ手触りになるよう、盤の外の操作もこれで刻む（#1946）。
+    @State private var cellSide: CGFloat = 0
+    /// 決着の結果シートを出してよいか。決着の瞬間は盤の上に一言だけ出し、少し置いてから結果に切り替える（#1954）。
+    @State private var showResult = false
+
+    /// 決着してから結果シートを出すまでの間。何が起きて終わったかを盤で見せる時間。
+    private static let resultDelay: Duration = .milliseconds(1200)
 
     /// 盤の内側の余白。
     private static let boardInset: CGFloat = 6
@@ -32,10 +44,19 @@ public struct OjisanPuzzleView: View {
                 current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2),
                 pain: pain
             ))
+            _showSetup = State(initialValue: false)
+            return
+        }
+        // 動作確認用: 遊び方を指定して開始シート無しで始める（`-simulateOjisanMode puzzle`）。
+        if let index = args.firstIndex(of: "-simulateOjisanMode"),
+           index + 1 < args.count, let mode = OjisanPuzzleMode(rawValue: args[index + 1]) {
+            _model = State(initialValue: OjisanPuzzleModel(services: services, mode: mode))
+            _showSetup = State(initialValue: false)
             return
         }
         #endif
-        _model = State(initialValue: OjisanPuzzleModel(services: services))
+        // 開始シートで遊び方を選ぶまで `game_start` は送らない（既定の遊び方で数えない）。
+        _model = State(initialValue: OjisanPuzzleModel(services: services, announcesStart: false))
     }
 
     public var body: some View {
@@ -51,19 +72,70 @@ public struct OjisanPuzzleView: View {
             Spacer(minLength: 0)
         }
         .padding()
+        // 操作は盤の外（画面のどこ）でも受ける（#1946）。ボタンは子として先に反応するので、タップは奪わない。
+        .contentShape(Rectangle())
+        .gesture(dragGesture(step: max(24, cellSide)))
         // リザルトは盤の上ではなく画面全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
-        .overlay { if model.outcome != nil { resultOverlay } }
+        .overlay { if model.outcome != nil, showResult { resultOverlay } }
+        .task(id: model.outcome) {
+            guard model.outcome != nil else { showResult = false; return }
+            try? await Task.sleep(for: Self.resultDelay)
+            guard !Task.isCancelled else { return }
+            showResult = true
+        }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
         .gameChrome(title: "腰痛おじさんパズル", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
-                        withGameAnimation { model.newGame() }
+                        if model.hasProgress {
+                            showConfirmNewGame = true
+                        } else {
+                            openSetup()
+                        }
                     })
-        .task { model.resume() }
+        .sheet(isPresented: $showSetup) {
+            OjisanPuzzleSetupSheet(mode: $setupMode) {
+                showSetup = false
+                // 何も置かずに同じ遊び方で始めるなら、開いた直後の局をそのまま使う
+                // （始め直すと `game_start` が二重に数えられる）。
+                if setupMode == model.mode, !model.hasProgress, model.outcome == nil {
+                    model.announceStartIfNeeded()
+                    model.resume()
+                } else {
+                    withGameAnimation { model.newGame(mode: setupMode) }
+                }
+            } onCancel: {
+                showSetup = false
+                model.announceStartIfNeeded()
+            }
+        }
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { openSetup() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの盤面と得点が失われます。")
+            }
+        }
+        .task { if !showSetup { model.resume() } }
         .onDisappear { model.pause() }
+        .onChange(of: showConfirmNewGame) { _, isShown in
+            // 確認を聞いているあいだも荷物を落とさない。
+            if isShown { model.pause() } else if !showSetup { model.resume() }
+        }
+        .onChange(of: showSetup) { _, isShown in
+            // 選んでいるあいだは荷物を落とさない。閉じたら（キャンセルも含め）続きから。
+            if isShown { model.pause() } else { model.resume() }
+        }
         .onChange(of: scenePhase) { _, phase in
             // 裏に回っているあいだに荷物が落ち続けないようにする。
-            if phase == .active { model.resume() } else { model.pause() }
+            if phase == .active, !showSetup { model.resume() } else { model.pause() }
         }
+    }
+
+    /// 開始シートを開く。シートの初期選択は、いま遊んでいる遊び方。
+    private func openSetup() {
+        setupMode = model.mode
+        showSetup = true
     }
 
     // MARK: - 見出し（スコア・連鎖・腰痛ゲージ）
@@ -89,7 +161,8 @@ public struct OjisanPuzzleView: View {
                     .transition(.scale.combined(with: .opacity))
             }
             Spacer(minLength: 0)
-            painGauge
+            // ゲージはパズルモードには無い（見た目の違いはここだけ）。
+            if model.mode.hasGauge { painGauge }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -110,6 +183,11 @@ public struct OjisanPuzzleView: View {
                 }
             }
             .frame(width: 128, height: 8)
+            if let remaining = model.millisecondsUntilRise {
+                Text("せり上がりまで \((remaining + 999) / 1000)秒")
+                    .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .foregroundStyle(Theme.inkSub)
+            }
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.pain)
     }
@@ -160,54 +238,122 @@ public struct OjisanPuzzleView: View {
                     }
                 }
             }
+            // マスの中身が替わるたびに空き⇄荷物がクロスフェードして点滅して見えるので、盤の中は補間しない（#1946）。
+            .transaction { $0.animation = nil }
             .padding(Self.boardInset)
             .frame(width: geo.size.width, height: geo.size.height)
             .background {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.fillMuted.opacity(0.18))
             }
-            // 操作は盤の上で受ける（ボタンを置かないぶん盤を大きく取れる）。
-            // 指の移動量を 1 マスぶん（`cell`）で割って刻むので、盤の大きさが変わっても手触りが変わらない。
-            .overlay { gestureLayer(step: max(24, cell)) }
-        }
-        .aspectRatio(CGFloat(OjisanPuzzleBoard.columns) / CGFloat(OjisanPuzzleBoard.rows), contentMode: .fit)
-        .gameAnimation(.easeInOut(duration: 0.12), value: model.displayBoard)
-    }
-
-    /// 荷物 1 個。**何を運んでいるかが分かる絵**にする（会長指摘 2026-09-17）。
-    ///
-    /// ドット絵の描き起こしは試作の範囲外なので、色 + SF Symbol で 4 種を見分けられるようにした。
-    /// 重いものほど色を濃くする（重さはまだルールには効かない。`OjisanPuzzleLuggage` の doc 参照）。
-    private func luggage(_ value: Int, side: CGFloat) -> some View {
-        let kind = OjisanPuzzleLuggage.kind(value)
-        return RoundedRectangle(cornerRadius: max(1, side * 0.24), style: .continuous)
-            .fill(kind == nil ? Theme.fillMuted.opacity(0.14) : Self.color(value))
-            // 重いものほど一段沈んだ色にする（1 = そのまま 〜 4 = いちばん濃い）。
-            .brightness(-0.045 * Double((kind?.weight ?? 1) - 1))
-            .overlay {
-                if let kind {
-                    Image(systemName: kind.symbol)
-                        .font(.system(size: max(1, side * 0.52), weight: .black)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
-                        .foregroundStyle(Theme.onAccent)
+            // 組の出口の列（いつもここから出る・塞がると積み上がり）。天井が近いと警告色になる（#1954）。
+            .overlay(alignment: .topLeading) {
+                spawnColumnMark(cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
+            }
+            // 片付けのライン（腰痛モードだけ）。この線より上に荷物が無くなればクリア。
+            .overlay(alignment: .topLeading) {
+                if let line = model.clearLineRow {
+                    clearLine(line: line, cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
                 }
             }
-            .frame(width: side, height: side)
+            // 決着の瞬間は盤の上に一言出して、何が起きて終わったかをその場で伝える（#1954）。
+            .overlay {
+                if let outcome = model.outcome, !showResult { finishBanner(outcome) }
+            }
+            .onChange(of: cell, initial: true) { _, newValue in cellSide = newValue }
+        }
+        .aspectRatio(CGFloat(OjisanPuzzleBoard.columns) / CGFloat(OjisanPuzzleBoard.rows), contentMode: .fit)
     }
 
-    /// 荷物の色。プロトタイプなので差し色をそのまま 4 種に割り当てる（濃さは `luggage` 側で足す）。
-    static func color(_ value: Int) -> Color {
-        switch value {
-        case 1: Theme.Fill.yellow   // 段ボール箱（軽い）
-        case 2: Theme.Fill.teal     // 座布団
-        case 3: Theme.Fill.coral    // 米袋
-        case 4: Theme.Fill.purple   // タンス（重い）
-        default: Theme.fillMuted
+    /// マスが並ぶ領域の左上。盤の枠は 1:2 固定で中身は枠の中央に置かれるため、余りぶんの上下左右のずれを含めて求める。
+    private static func boardOrigin(size: CGSize, cell: CGFloat) -> CGPoint {
+        let contentWidth = CGFloat(OjisanPuzzleBoard.columns) * cell - 1
+        let contentHeight = CGFloat(OjisanPuzzleBoard.rows) * cell - 1
+        return CGPoint(x: (size.width - contentWidth) / 2, y: (size.height - contentHeight) / 2)
+    }
+
+    /// 組の出口の列の帯と、頭の ▼。塞がったら積み上がりになる列なので、天井が近い・積み上がりで終わったときは珊瑚色にする。
+    private func spawnColumnMark(cell: CGFloat, origin: CGPoint) -> some View {
+        let warn = model.outcome == .buried || OjisanPuzzleBoard.isSpawnColumnNearTop(model.board)
+        let tint = warn ? Theme.coral : Theme.inkSub
+        return ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: max(1, cell * 0.2), style: .continuous)
+                .fill(tint.opacity(warn ? 0.22 : 0.10))
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 9)) // fixed-size: 盤の枠内に収める印
+                .foregroundStyle(tint)
+                .offset(y: -7)
+        }
+        .frame(width: cell, height: cell * CGFloat(OjisanPuzzleBoard.rows))
+        .offset(x: origin.x + CGFloat(OjisanPuzzleBoard.spawnColumn) * cell, y: origin.y)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+
+    /// クリアのライン。荷物の色に埋もれないよう、太い実線に縁取りを付け、ラインより下（片付いた側）を色で塗って
+    /// 「ここまで下げる」を示す（#1954: 細い破線では見えなかった）。
+    private func clearLine(line: Int, cell: CGFloat, origin: CGPoint) -> some View {
+        let y = origin.y + CGFloat(line) * cell - 1
+        let left = origin.x
+        let right = origin.x + CGFloat(OjisanPuzzleBoard.columns) * cell - 1
+        let bottom = origin.y + CGFloat(OjisanPuzzleBoard.rows) * cell - 1
+        return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Theme.Fill.teal.opacity(0.16))
+                .frame(width: right - left, height: max(0, bottom - y))
+                .offset(x: left, y: y)
+            Path { path in
+                path.move(to: CGPoint(x: left, y: y))
+                path.addLine(to: CGPoint(x: right, y: y))
+            }
+            .stroke(Theme.surface, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+            Path { path in
+                path.move(to: CGPoint(x: left, y: y))
+                path.addLine(to: CGPoint(x: right, y: y))
+            }
+            .stroke(Theme.ink, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            Text("ここまで下げたらクリア")
+                .font(.system(size: 10, weight: .heavy, design: .rounded)) // fixed-size: 盤の枠内に収める印
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(Theme.Fill.teal))
+                .offset(x: right - 128, y: y + 3)
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+
+    /// 決着の一言。結果シートが出る前の 1 秒余りだけ盤の真ん中に出る。
+    private func finishBanner(_ outcome: OjisanPuzzleModel.Outcome) -> some View {
+        let fill = outcome == .cleared ? Theme.Fill.teal : Theme.Fill.coral
+        return Text(resultTitle)
+            .font(.system(size: 26, weight: .heavy, design: .rounded)) // fixed-size: 盤の枠内に収める印
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 22).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(fill))
+            .transition(.scale.combined(with: .opacity))
+            .allowsHitTesting(false)
+    }
+
+    /// 荷物 1 個。**ピースそのものが荷物の形に見える**絵にする（会長指示 2026-10-07・#1909）。
+    /// 5 種は形で見分けが付く（`OjisanPuzzleLuggageArt`）。空きマスだけ薄い四角を敷く。
+    @ViewBuilder
+    private func luggage(_ value: Int, side: CGFloat) -> some View {
+        if OjisanPuzzleLuggage.kind(value) == nil {
+            RoundedRectangle(cornerRadius: max(1, side * 0.24), style: .continuous)
+                .fill(Theme.fillMuted.opacity(0.14))
+                .frame(width: side, height: side)
+        } else {
+            OjisanPuzzleLuggageArt(value: value)
+                .frame(width: side, height: side)
+                .accessibilityElement()
+                .accessibilityLabel(OjisanPuzzleLuggage.kind(value)?.name ?? "")
         }
     }
 
     // MARK: - 操作（スワイプ・タップ）
 
-    /// 盤の上に敷く透明な操作層（会長指示 2026-09-17: 左右ボタンは置かない）。
+    /// 画面全体で受ける操作（会長指示 2026-09-17: 左右ボタンは置かない・#1946: 盤の外でも動かせる）。
     ///
     /// - 横スワイプ … 1 マスずつ左右へ動かす
     /// - 下スワイプ … 1 マスずつ落とす（ソフトドロップ）
@@ -216,33 +362,29 @@ public struct OjisanPuzzleView: View {
     /// 指に張り付かせず `step`（1 マスぶん）で刻むのは、落ちものの標準的な手触りに合わせるため。
     /// 「これまでに何マスぶん適用したか」を持ち、指の総移動量との差だけを追いかける
     /// （毎フレームの差分を足すと、ゆっくり動かしたときに取りこぼす）。
-    private func gestureLayer(step: CGFloat) -> some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        guard model.outcome == nil else { return }
-                        let columns = OjisanPuzzleDrag.steps(value.translation.width, step: step)
-                        while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
-                        while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
+    private func dragGesture(step: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                guard model.outcome == nil, !showSetup else { return }
+                let columns = OjisanPuzzleDrag.steps(value.translation.width, step: step)
+                while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
+                while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
 
-                        // 下方向だけ拾う（上スワイプには何も割り当てない）。
-                        let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
-                        while appliedRows < rows { appliedRows += 1; model.softDrop() }
-                    }
-                    .onEnded { value in
-                        if OjisanPuzzleDrag.isTap(
-                            translation: value.translation,
-                            movedColumns: appliedColumns,
-                            movedRows: appliedRows
-                        ) {
-                            withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) }
-                        }
-                        appliedColumns = 0
-                        appliedRows = 0
-                    }
-            )
+                // 下方向だけ拾う（上スワイプには何も割り当てない）。
+                let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
+                while appliedRows < rows { appliedRows += 1; model.softDrop() }
+            }
+            .onEnded { value in
+                if OjisanPuzzleDrag.isTap(
+                    translation: value.translation,
+                    movedColumns: appliedColumns,
+                    movedRows: appliedRows
+                ) {
+                    withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) }
+                }
+                appliedColumns = 0
+                appliedRows = 0
+            }
     }
 
     // MARK: - 次の荷物
@@ -252,9 +394,11 @@ public struct OjisanPuzzleView: View {
             // おじさん本人。盤の横でずっと腰の具合を訴えている。
             VStack(spacing: 4) {
                 ojisanFigure()
-                Text(model.painStage.caption)
-                    .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
-                    .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
+                if model.mode.hasGauge {
+                    Text(model.painStage.caption)
+                        .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                        .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
+                }
             }
             .frame(width: Self.sideWidth)
             .padding(.vertical, 10)
@@ -300,24 +444,48 @@ public struct OjisanPuzzleView: View {
 
     // MARK: - 決着
 
+    private var resultTitle: String {
+        switch model.outcome {
+        case .hospitalized: "入院！"
+        case .cleared: "かたづいた！"
+        default: "積みあがった！"
+        }
+    }
+
+    private var resultMessage: String {
+        switch model.outcome {
+        case .hospitalized: "腰が限界です。おだいじに。"
+        case .cleared: "荷物がラインより下になりました。"
+        default: "荷物が天井まで届きました。"
+        }
+    }
+
+    /// 秒数を「m:ss」にする。
+    static func timeText(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
     private var resultOverlay: some View {
         VStack(spacing: 10) {
             if model.outcome == .hospitalized {
                 // 倒れたおじさん（70×27 ドット）。
                 OjisanPuzzleArt.image(.fallen)
             } else {
-                OjisanPixel.faceImage(.frown)
-                    .frame(width: 64, height: 60)
+                // 作業服の全身ドット絵（#1946）。クリアは笑顔、積み上がりは汗のコマ。
+                OjisanPuzzleArt.image(model.outcome == .cleared ? .easy : .aching)
             }
-            Text(model.outcome == .hospitalized ? "入院！" : "積みあがった！")
+            Text(resultTitle)
                 .font(.system(size: 24, weight: .heavy, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                 .foregroundStyle(Theme.ink)
-            Text(model.outcome == .hospitalized
-                 ? "腰が限界です。おだいじに。"
-                 : "荷物が天井まで届きました。")
+            Text(resultMessage)
                 .font(.system(size: 14, weight: .semibold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                 .foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
+            if model.outcome == .cleared {
+                Text("タイム \(Self.timeText(model.elapsedMilliseconds / 1000))")
+                    .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .foregroundStyle(Theme.ink)
+            }
             Text("スコア \(model.score)")
                 .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                 .foregroundStyle(Theme.ink)

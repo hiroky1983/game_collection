@@ -57,7 +57,7 @@ public struct HomerunView: View {
             // 進行の待ちは Model が決め、ここは待つだけ。進行が変わるたびに `step` が進んで前の待ちが止まる。
             .task(id: model.step) { await runClock() }
             // 場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。鳴らす時刻は演出と同じ式から決める（`HomerunSoundCues`）。
-            .modifier(HomerunSoundPlayer(model: model, service: services.homerunSound))
+            .modifier(HomerunSoundPlayer(model: model, service: services.homerunSound, haptics: services.haptics))
             #if os(iOS) && canImport(RealityKit)
             // 打席の 3D は画面の中では使い回し（もう一回で作り直すと前の打席の画のまま止まる・#1594）、離れたら手放す。
             .onDisappear { HomerunAtBatSceneReuse.drop() }
@@ -722,12 +722,6 @@ struct HomerunRecoveryButton: View {
     /// 広告でのプレイの上限に達したとき「今日はここまで…」を出すか。結果画面は下に「あと◯時間◯分で無料枠が戻ります」が
     /// あるので出さない（会長決定 2026-10-05）。
     var showsLimitNotice = true
-    @State private var showsSurvey = false
-    @State private var surveyNotApplied = false
-    /// 適用できなかった知らせは、シートが閉じ終わってから出す（閉じる最中に同じ親からアラートを出すと iOS が無視する）。
-    @State private var surveyFailedOnSubmit = false
-    /// アンケートを開いた時点の「今日」の鍵（時計から作る。回答中に 0:00 をまたいだら適用しない）。
-    @State private var surveyDay = 0
 
     var body: some View {
         let ledger = model.ledger
@@ -757,102 +751,6 @@ struct HomerunRecoveryButton: View {
                 Text("今日はここまで。0:00 に \(HomerunLedger.freePerDay) 回に戻ります")
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
-            }
-            if HomerunSurvey.isOffered && ledger.canDoSurvey { surveyButton }
-        }
-        .sheet(isPresented: $showsSurvey, onDismiss: {
-            if surveyFailedOnSubmit { surveyFailedOnSubmit = false; surveyNotApplied = true }
-        }) {
-            HomerunSurveySheet { answers in
-                let applied = model.submitSurvey(answers, forDay: surveyDay, now: Date())
-                showsSurvey = false
-                surveyFailedOnSubmit = !applied
-            }
-        }
-        .alert("挑戦回数を増やせませんでした", isPresented: $surveyNotApplied) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("回答しているあいだに日付が変わったため、回数を増やせませんでした。")
-        }
-    }
-
-    private var surveyButton: some View {
-        VStack(spacing: 6) {
-            Button {
-                surveyDay = model.dayKey(at: Date())
-                showsSurvey = true
-            } label: {
-                Label("アンケートに答えて挑戦 +1 回", systemImage: "list.bullet.clipboard")
-                    .themeBody(16)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered).controlSize(.large).tint(Theme.Fill.teal)
-            Text(verbatim: "3 問・選ぶだけ・1 日 1 回")
-                .themeCaption(11)
-                .foregroundStyle(Theme.inkSub)
-        }
-    }
-}
-
-// MARK: - アンケートで挑戦回数 +1
-
-/// 3 問を選ぶだけのアンケート（README §3.4）。全問に答えると送信でき、閉じるだけでは回数は増えない。
-/// 回答は `onSubmit` が Model へ渡すだけで、この画面には残さない。
-struct HomerunSurveySheet: View {
-    let onSubmit: ([Int]) -> Void
-    @State private var answers: [Int?] = Array(repeating: nil, count: HomerunSurvey.questions.count)
-    @Environment(\.dismiss) private var dismiss
-
-    private var complete: [Int]? {
-        let picked = answers.compactMap { $0 }
-        return picked.count == answers.count ? picked : nil
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("答えると今日の挑戦が 1 回増えます。回答は選んだ番号だけを送り、あなたを特定する情報は含みません。")
-                        .themeCaption(12)
-                        .foregroundStyle(Theme.inkSub)
-                    ForEach(Array(HomerunSurvey.questions.enumerated()), id: \.offset) { index, question in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(verbatim: "Q\(index + 1). \(question.prompt)")
-                                .themeBody(16, weight: .heavy)
-                                .foregroundStyle(Theme.ink)
-                            ForEach(Array(question.choices.enumerated()), id: \.offset) { choice, label in
-                                let selected = answers[index] == choice + 1
-                                Button { answers[index] = choice + 1 } label: {
-                                    HStack {
-                                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                                        Text(label).themeBody(15)
-                                        Spacer(minLength: 0)
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .foregroundStyle(selected ? Theme.coral : Theme.ink)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityAddTraits(selected ? .isSelected : [])
-                            }
-                        }
-                    }
-                    Button {
-                        if let picked = complete { onSubmit(picked) }
-                    } label: {
-                        Text("送信して挑戦 +1 回").themeBody(17).frame(maxWidth: .infinity)
-                            .foregroundStyle(complete == nil ? Theme.inkSub : Theme.onAccent)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-                    .disabled(complete == nil)
-                }
-                .padding(Theme.pad)
-            }
-            .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("アンケート")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
             }
         }
     }

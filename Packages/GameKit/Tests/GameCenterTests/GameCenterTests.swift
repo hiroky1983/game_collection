@@ -16,7 +16,6 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
-import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 import GameShiritori
@@ -92,12 +91,12 @@ private func isClose(_ actual: Double?, _ expected: Double) -> Bool {
 ///
 /// - Note: ハブへ**新しいゲームを追加**したときは、この配列にもモジュールを 1 行足す必要がある。
 @MainActor
-private func makeHubModules() -> [GameModule] {
+func makeHubModules() -> [GameModule] {
     [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
@@ -305,7 +304,6 @@ struct GameCenterLeaderboardTests {
             ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "1suit")),
             ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "2suit")),
             ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "4suit")),
-            ("blockpuzzle", GameScore(metric: .points, points: 1)),
             ("runner", GameScore(metric: .points, points: 1)),
             // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
             ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
@@ -382,7 +380,7 @@ struct GameCenterReporterTests {
         )
         reporter.gameDidFinish(
             gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 5_000),
-            totalWins: 3, playedGameCount: 5
+            totalWins: 3, playedGameIDs: ["2048"]
         )
         #expect(spy.scores.isEmpty)
         #expect(spy.achievements.isEmpty)
@@ -429,10 +427,22 @@ struct GameCenterReporterTests {
         let reporter = GameCenterReporter(service: spy, allowedGameIDs: makeHubGameIDs())
         reporter.gameDidFinish(
             gameID: "not-a-game", outcome: .loss, score: GameScore(metric: .points, points: 1),
-            totalWins: 1, playedGameCount: 1
+            totalWins: 1, playedGameIDs: ["2048"]
         )
         #expect(spy.scores.isEmpty)
         #expect(spy.achievements.isEmpty)
+    }
+
+    @Test("「全部のあそびを遊ぶ」の分子は登録済みのゲームだけ数える（ハブから外れた ID の記録は含めない・#1952）")
+    func playAllIgnoresRetiredGameIDs() {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: ["2048", "sudoku"])
+        reporter.gameDidFinish(
+            gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 1),
+            totalWins: 0, playedGameIDs: ["2048", "blockpuzzle"]
+        )
+        // 登録 2 本のうち遊んだのは 1 本。外れた blockpuzzle を数えると 100% になってしまう。
+        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 50))
     }
 
     @Test("達成率が変わらない実績は送り直さない")
@@ -442,19 +452,19 @@ struct GameCenterReporterTests {
         let score = GameScore(metric: .points, points: 100)
 
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 1)
         let firstBatch = spy.achievements.count
 
         // 同じ進捗のまま決着（負けたので勝利数も遊んだ本数も増えない）
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 1, "同じ達成率を送り返さない")
         #expect(spy.achievements.count == firstBatch)
 
         // 進んだぶんだけ送る
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 2, playedGameCount: 1)
+                               totalWins: 2, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2)
         #expect(isClose(spy.percent(of: GameCenterAchievements.wins10), 20))
         #expect(
@@ -472,19 +482,19 @@ struct GameCenterReporterTests {
         // 1回目: オフラインで送信できなかった
         spy.reportSucceeds = false
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 1)
 
         // 2回目: 進捗は変わっていないが、前回届いていないので送り直す
         spy.reportSucceeds = true
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2, "失敗したぶんは送信済みにしない")
         #expect(isClose(spy.percent(of: GameCenterAchievements.firstWin), 100))
 
         // 3回目: 今度は届いているので送り直さない
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2)
     }
 
@@ -496,14 +506,14 @@ struct GameCenterReporterTests {
 
         spy.reportSucceeds = true
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)   // wins10 = 10%
+                               totalWins: 1, playedGameIDs: ["2048"])   // wins10 = 10%
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 3, playedGameCount: 1)   // wins10 = 30%
+                               totalWins: 3, playedGameIDs: ["2048"])   // wins10 = 30%
         #expect(spy.reportCalls == 2)
 
         // 30% まで届いている状態で、同じ 30% を送り直させない
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 3, playedGameCount: 1)
+                               totalWins: 3, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2)
     }
 
@@ -515,7 +525,7 @@ struct GameCenterReporterTests {
             reporter.gameDidFinish(
                 gameID: "2048", outcome: .loss,
                 score: GameScore(metric: .points, points: points),
-                totalWins: 0, playedGameCount: 0
+                totalWins: 0, playedGameIDs: []
             )
         }
         #expect(spy.scores.map(\.value) == [100, 50, 300])
@@ -650,42 +660,6 @@ struct GameCenterPerGameTests {
 
         #expect(model.phase == .won)
         #expect(leaderboardID(for: "freecell", in: log) == GameCenterLeaderboard.freeCellTime)
-    }
-
-    @Test("ブロックならべ: 詰みでスコアが送られる")
-    func blockPuzzle() {
-        let (log, defaults, name) = makeLog(suite: "blockpuzzle")
-        defer { defaults.removePersistentDomain(forName: name) }
-        let spy = SpyGameCenterService()
-
-        let model = BlockPuzzleModel(services: makeServices(log: log, spy: spy),
-                                     board: blockPuzzleStuckBoard(), hand: blockPuzzleStuckHand(),
-                                     score: 500)
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        #expect(model.gameOver)
-        #expect(spy.scores == [
-            GameCenterScore(leaderboardID: GameCenterLeaderboard.blockPuzzleScore, value: 501),
-        ])
-    }
-
-    /// #406 の考え方の横展開。広告を見た回数で順位が決まる表にしない。
-    @Test("ブロックならべ: コンティニューを使った局は順位表へ送らない")
-    func blockPuzzleAfterContinue() {
-        let (log, defaults, name) = makeLog(suite: "blockpuzzle-continue")
-        defer { defaults.removePersistentDomain(forName: name) }
-        let spy = SpyGameCenterService()
-
-        let model = BlockPuzzleModel(services: makeServices(log: log, spy: spy),
-                                     board: blockPuzzleStuckBoard(), hand: blockPuzzleStuckHand(),
-                                     score: 500)
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        let sentBeforeContinue = spy.scores.count
-        model.continueAfterAd()
-
-        // 復活後に 3×3 を置いて、また詰ませる。
-        #expect(model.place(pieceIndex: 1, row: 2, col: 2))
-        #expect(model.gameOver, "中央を埋め戻すと再び置き場所が無くなる")
-        #expect(spy.scores.count == sentBeforeContinue, "コンティニュー後の決着は送らない")
     }
 
     @Test("チャリンコおじさん: 到達ステージ数が送られる")
@@ -936,18 +910,4 @@ func playFreeCellSolution(_ model: FreeCellModel, _ solution: [FreeCellMove]) {
             model.tapFoundation(suit)
         }
     }
-}
-
-/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
-/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
-private func blockPuzzleStuckBoard() -> [[Int]] {
-    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
-    for i in 0..<10 { board[i][i] = 0 }
-    board[0][2] = 0
-    return board
-}
-
-/// 1×1 と、置き場所の無い 3×3 が 2 つ。
-private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
-    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }

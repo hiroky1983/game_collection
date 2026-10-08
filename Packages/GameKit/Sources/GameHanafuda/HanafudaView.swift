@@ -74,11 +74,13 @@ public struct HanafudaView: View {
             HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
                 .interactiveDismissDisabled()
         }
-        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-            Button("投了する", role: .destructive) { model.resign() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("この試合を打ち切ります。負けとして記録されます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
+                Button("投了する", role: .destructive) { model.resign() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("この試合を打ち切ります。負けとして記録されます。")
+            }
         }
         // 1 局延長の提示（#780 × #1049）。最終局で負けている局の結果でボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(extendRescue, for: .continue, isPresented: model.canExtendMatch,

@@ -17,7 +17,6 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
-import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 @testable import GameShiritori
@@ -146,21 +145,6 @@ private func playGo(_ services: GameServices) async {
     model.tap(row: 4, col: 4)           // 拒否（すでに石がある）
     model.tap(row: -1, col: 4)          // 拒否（盤外）
     model.resign()                      // 決着
-}
-
-/// ブロックならべ（#493）。拒否（置けない位置）→ 成立（1×1 を置く）→ 決着（置ける形が尽きる）を
-/// 1 つの盤で通す。空きは対角線と (0, 2) だけで、どれも隣り合っていないので 1×1 しか置けない。
-@MainActor
-private func playBlockPuzzle(_ services: GameServices) {
-    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
-    for i in 0..<10 { board[i][i] = 0 }
-    board[0][2] = 0
-    let model = BlockPuzzleModel(
-        services: services, board: board,
-        hand: [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
-    )
-    model.place(pieceIndex: 1, row: 0, col: 0)   // 拒否（3×3 は置けない）
-    model.place(pieceIndex: 0, row: 0, col: 2)   // 成立 → 置ける形が尽きて決着
 }
 
 /// チャリンコおじさん（#494）。ミス（決着ではない失敗）→ リトライ → ステージクリア（決着）を通す。
@@ -435,7 +419,6 @@ private func playAllGames(_ services: GameServices) async {
     playMahjong(services)
     await playSudoku(services)
     playBlocks(services)
-    playBlockPuzzle(services)
     playRunner(services)
     _ = playHanafudaMatch(services)
     await playShiritoriGame(services)
@@ -503,15 +486,6 @@ struct FeedbackEnabledTests {
         #expect(spy.impacts.contains(.light), "山めくりで発火する")
         #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
         #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
-    }
-
-    @Test("ブロックならべ: 配置・置けない位置・詰みで発火する")
-    func blockPuzzle() {
-        let (services, spy) = makeServices(hapticsEnabled: true)
-        playBlockPuzzle(services)
-        #expect(spy.impacts.contains(.light), "置けたときに発火する")
-        #expect(spy.notices(of: .warning) > 0, "置けない位置は拒否として発火する")
-        #expect(spy.notices(of: .error) > 0, "詰みは決着として発火する")
     }
 
     @Test("カードしりとり: 札を取る・お手つき・決着で発火する")
@@ -805,7 +779,6 @@ struct SoundFeedbackTests {
         await check("フリーセル") { playFreeCell($0) }
         await check("スパイダーソリティア") { playSpider($0) }
         await check("ブロック崩し") { playBlocks($0) }
-        await check("ブロックならべ") { playBlockPuzzle($0) }
         await check("チャリンコおじさん") { playRunner($0) }
         await check("花札こいこい") { _ = playHanafudaMatch($0) }
         await check("カードしりとり") { await playShiritoriGame($0) }

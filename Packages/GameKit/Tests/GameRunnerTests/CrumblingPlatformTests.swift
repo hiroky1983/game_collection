@@ -356,7 +356,7 @@ struct RunnerCrumblingPlatformTests {
         for stage in RunnerStage.all.prefix(18) {
             #expect(stage.crumblingPlatforms.isEmpty, "ステージ \(stage.number) に崩れる足場がある")
         }
-        for world in [RunnerWorld.satoyama, .harbor, .kyotoNara] {
+        for world in [RunnerWorld.satoyama, .harbor, .kyotoNara, .onsen] {
             let count = RunnerStage.all
                 .filter { RunnerWorld.world(forStage: $0.number) == world }
                 .flatMap(\.crumblingPlatforms).count

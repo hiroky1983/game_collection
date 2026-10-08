@@ -22,4 +22,18 @@ public struct HanafudaModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(HanafudaView(services: services))
     }
+
+
+    /// 配っただけで一枚も出していない 1 局目は「続き」ではない（#1912）。開始シートで確定した直後に保存される。
+    /// 親が CPU のときは CPU の初手が先に入るので、手札が 8 枚のまま・取り札なしであることで見分ける。
+    /// 2 局目以降の配り直しは前の局の結果があるので続きとして扱う。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return false }
+        let untouched = snap.round <= 1
+            && snap.phase == .playing
+            && snap.selection == nil && snap.drawnCard == nil
+            && snap.hands.allSatisfy { $0.count == 8 }
+            && snap.captured.allSatisfy(\.isEmpty)
+        return !untouched
+    }
 }

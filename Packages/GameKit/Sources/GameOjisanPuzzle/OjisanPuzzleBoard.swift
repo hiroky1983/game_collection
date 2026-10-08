@@ -17,16 +17,16 @@ public struct OjisanPuzzleCell: Hashable, Sendable {
 }
 
 /// 腰痛おじさんパズルの純粋ロジック。SwiftUI 非依存・乱数は呼び出し側が持つので、
-/// 盤の判定はすべてここで網羅的にテストできる（`BlockPuzzleBoard` と同じ作法）。
+/// 盤の判定はすべてここで網羅的にテストできる。
 ///
-/// 盤は `[[Int]]` で、0 = 空きマス、1...4 = 荷物の種類。行は**上が 0**（`rows - 1` が床）。
+/// 盤は `[[Int]]` で、0 = 空きマス、1...5 = 荷物の種類。行は**上が 0**（`rows - 1` が床）。
 public enum OjisanPuzzleBoard {
     /// 盤の列数。
     public static let columns = 6
     /// 盤の段数。
     public static let rows = 12
     /// 荷物の種類の数。
-    public static let kindCount = 4
+    public static let kindCount = 5
     /// 消えるのに必要な連結数。
     public static let clearThreshold = 4
 
@@ -34,7 +34,7 @@ public enum OjisanPuzzleBoard {
         Array(repeating: Array(repeating: 0, count: columns), count: rows)
     }
 
-    /// 盤として妥当な形か（12 段 × 6 列・種類が 0...4）。
+    /// 盤として妥当な形か（12 段 × 6 列・種類が 0...5）。
     public static func isValid(_ board: [[Int]]) -> Bool {
         guard board.count == rows else { return false }
         return board.allSatisfy { row in
@@ -189,7 +189,21 @@ public enum OjisanPuzzleBoard {
     /// 次の組を作る。軸は盤の中央、子は真上。
     public static func spawn(axisKind: Int, childKind: Int) -> OjisanPuzzlePair {
         OjisanPuzzlePair(axisKind: axisKind, childKind: childKind,
-                         row: 1, col: columns / 2 - 1, rotation: .up)
+                         row: 1, col: spawnColumn, rotation: .up)
+    }
+
+    /// 組が出てくる列。**いつも同じ列から出す**（#1954: 塞がっているときに別の列へ逃がすと、
+    /// 出る場所が読めなくなる）。この列の出現位置まで積まれたら積み上がりで終わる。
+    public static let spawnColumn = columns / 2 - 1
+
+    /// 出現位置が荷物で塞がっているか（＝次の組を出せない＝積み上がり）。
+    public static func isSpawnBlocked(_ board: [[Int]]) -> Bool {
+        !canPlace(board, spawn(axisKind: 1, childKind: 1))
+    }
+
+    /// 出る列の積み上がりが天井に近いか。画面の出口の印を警告色にする目安（上から 4 段以内）。
+    public static func isSpawnColumnNearTop(_ board: [[Int]]) -> Bool {
+        (0..<4).contains { board[$0][spawnColumn] != 0 }
     }
 
     /// 乱数から次の組を引く。
@@ -199,30 +213,28 @@ public enum OjisanPuzzleBoard {
     }
 }
 
-/// 運ぶ荷物の中身。盤の `Int`（1...4）に「何を運んでいるか」と「重さ」を結び付ける。
+/// 運ぶ荷物の中身。盤の `Int`（1...5）に「何を運んでいるか」と「重さ」を結び付ける。
 ///
-/// **重さはまだルールに効かせていない**（見た目だけ・会長の「何を運んでいるか分かるようにしたい」への
-/// プロトタイプの答え）。腰へのこたえ方を重さで変える案はここに `perLock` を足す形で入れられるよう、
-/// 表示側ではなくこの純粋な層に置いてある。
+/// 重さは**腰痛ゲージに効く**（会長決定 2026-10-08）。固定した組の重さの合計だけゲージが増える
+/// （`OjisanPuzzlePain.afterLock`）。見た目は `OjisanPuzzleLuggageArt` が値ごとに描く。
 public enum OjisanPuzzleLuggage {
     /// 荷物 1 種。
     public struct Kind: Equatable, Sendable {
-        /// 盤に入る番号（1...4）。
+        /// 盤に入る番号（1...5）。
         public let value: Int
         /// 表示名（読み上げ・説明に使う）。
         public let name: String
-        /// 見た目に使う SF Symbol の名前。ドット絵の描き起こしは試作の範囲外なので記号で代用する。
-        public let symbol: String
-        /// 重さ（1 = 軽い 〜 4 = いちばん重い）。今は色の濃さにしか効かない。
+        /// 重さ（1 = いちばん軽い 〜 5 = いちばん重い。実物の重さの順・会長決定 2026-10-08）。
         public let weight: Int
     }
 
-    /// 軽い順に並べた 4 種。並びを変えると既存の盤の見た目が入れ替わるので、足すときは末尾に足す。
+    /// 軽い順に並べた 5 種（色は 紫・緑・青・赤・黄。ぷよぷよに準えた 5 色）。
     public static let all: [Kind] = [
-        Kind(value: 1, name: "段ボール箱", symbol: "shippingbox.fill",  weight: 1),
-        Kind(value: 2, name: "座布団",     symbol: "square.stack.fill", weight: 2),
-        Kind(value: 3, name: "米袋",       symbol: "bag.fill",          weight: 3),
-        Kind(value: 4, name: "タンス",     symbol: "bed.double.fill",   weight: 4),
+        Kind(value: 1, name: "座布団の山",         weight: 1),
+        Kind(value: 2, name: "スイカ",             weight: 2),
+        Kind(value: 3, name: "クーラーボックス",   weight: 3),
+        Kind(value: 4, name: "灯油のポリタンク",   weight: 4),
+        Kind(value: 5, name: "ビールケース",       weight: 5),
     ]
 
     /// 盤の番号から引く。空きマス（0）・範囲外は nil。
@@ -291,16 +303,22 @@ public enum OjisanPuzzlePain {
 
     /// 入院する値。
     public static let limit = 100
-    /// 荷物を 1 組固定したときに増える量。
-    public static let perLock = 7
+    /// 荷物を 1 組固定したときの増え方の土台。実際に増える量は「これ + 組の 2 個の重さの合計」
+    /// （`lockAmount`）。5 種が同じ確率で出るので平均は 1 + 3 + 3 = 7 で、重さを効かせる前と同じ。
+    public static let lockBase = 1
     /// 荷物 1 個を消したときに減る量。
     public static let perClearedCell = 2
     /// 2 連鎖目以降、1 連鎖ごとに追加で減る量。
     public static let perExtraChain = 5
 
-    /// 固定したあとのゲージ。
-    public static func afterLock(_ pain: Int) -> Int {
-        clamped(pain + perLock)
+    /// 荷物を 1 組固定したときに増える量。重い荷物ほど多い（軽い 2 個で 3、重い 2 個で 11）。
+    public static func lockAmount(weights: [Int]) -> Int {
+        lockBase + weights.reduce(0, +)
+    }
+
+    /// 固定したあとのゲージ。`weights` は固定した組の荷物の重さ。
+    public static func afterLock(_ pain: Int, weights: [Int]) -> Int {
+        clamped(pain + lockAmount(weights: weights))
     }
 
     /// 1 連鎖ぶん消したあとのゲージ。`chain` は 1 から数える（深いほどよく減る）。

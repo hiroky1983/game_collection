@@ -23,6 +23,8 @@ import Foundation
 
 /// | `=` | スピードアップ床（平地 + 加速区間。障害としては扱わない。連続すると 1 つの床になる） |
 /// | `~` | 沈む床（#1089。里山＝田んぼ・港町＝干潟。平地 + 減速して沈む区間。連続すると 1 つになる） |
+/// | `g` | 間欠泉（#1938。温泉街＝湯柱。噴く → 止まる → 泡立つ → 噴くの拍で、最後は高い岩と同じ高さに居座る。37 面以降だけ） |
+/// | `m` | 湯けむり（#1938。平地 + 通るあいだ前方の遠くが白くかすむ演出。障害としては扱わない。連続すると 1 つの区間になる。37 面以降だけ） |
 /// | `C` | 崩れる足場（#1090。里山＝古い吊り橋・港町＝古い木の桟橋。台座の一種で、乗ると崩れて穴になる） |
 public struct RunnerStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
@@ -72,6 +74,12 @@ public struct RunnerStage: Equatable, Sendable {
     /// `boostFloors` と同じ理由で **`hazards` とは別の配列**（地形としては平地で、越える相手ではない）。
     public let sinkFloors: [RunnerSinkFloor]
 
+    /// 左から順に並んだ湯けむりの区間（#1938。温泉街）。
+    ///
+    /// `boostFloors` と同じ理由で **`hazards` とは別の配列**。見た目の演出で、地形としては平地。
+    /// 当たり判定にも成立条件（`RunnerStageTests`）にも巻き込まない。
+    public let steamBanks: [RunnerSteamBank]
+
     /// `platforms` のうち崩れる足場だけ（#1090）。数え上げ・描画の分岐が何度も書く読み口。
     public var crumblingPlatforms: [RunnerPlatform] {
         platforms.filter { $0.kind == .crumbling }
@@ -81,6 +89,25 @@ public struct RunnerStage: Equatable, Sendable {
     /// **必ず平地に置く**。障害の上に置くと、再開した瞬間にまたミスになって進めない。
     /// 台座も避ける（#674）——台座の範囲から再開すると、地面の高さに置かれた走者が
     /// 台座の中にめり込んだ状態で始まる。
+    /// 湯けむりの区画記号（#1938）。立ちのぼる湯気の「m」。
+    static let steamSymbol: Character = "m"
+
+    /// 区画記号を湯けむりの区間の並びへ展開する。**連続する `m` は 1 つにまとめる**（加速床と同じ作法。
+    /// 境目で濃さが一度切れないように）。区画まるごとを占め、岸は残さない。
+    static func makeSteamBanks(pattern: String) -> [RunnerSteamBank] {
+        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        var result: [RunnerSteamBank] = []
+        for (index, symbol) in pattern.enumerated() where symbol == steamSymbol {
+            let start = Double(index) * segmentWidth
+            if let last = result.last, last.end == start {
+                result[result.count - 1] = RunnerSteamBank(start: last.start, length: last.length + segmentWidth)
+            } else {
+                result.append(RunnerSteamBank(start: start, length: segmentWidth))
+            }
+        }
+        return result
+    }
+
     /// 中点から右へずらしながら、障害と重ならず着地に必要な余白もある位置を探す。
     /// 走行中に毎サブステップ参照するので、初期化時に 1 度だけ求めて持つ。
     public let checkpoint: Double
@@ -126,6 +153,14 @@ public struct RunnerStage: Equatable, Sendable {
 
         self.boostFloors = Self.makeBoostFloors(pattern: pattern)
         self.sinkFloors = sinkFloors
+        self.steamBanks = Self.makeSteamBanks(pattern: pattern)
+    }
+
+    /// 走者が距離 `distance` にいるときの湯けむりの濃さ（0…1・#1938）。区間の中は 1、その前後は
+    /// `RunnerRules.steamRampDistance` かけて 0 から 1（1 から 0）へなだらかに変わる。
+    /// 区間が無い面は常に 0。複数の区間が重なるときは濃いほう。**距離だけで決まる**（時計を持たない）。
+    public func steamIntensity(atRunnerDistance distance: Double) -> Double {
+        steamBanks.reduce(0) { max($0, $1.intensity(atRunnerDistance: distance)) }
     }
 
     /// その地点での基準速（#675）。`speed` から `speedGain` の傾きで上がり、`speedCap` で頭打ち。
@@ -201,6 +236,7 @@ public struct RunnerStage: Equatable, Sendable {
         case "i": return (.boar, 1)
         case "^": return (.shoot, 1)
         case "w": return (.wall, 1)
+        case "g": return (.geyser, 1)
         default:  return nil
         }
     }
