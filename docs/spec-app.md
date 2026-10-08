@@ -106,6 +106,10 @@ v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
 **`SnapshotStore`**: ゲーム状態の永続化
 - `save(_:for:)` / `load(_:for:)` / `exists(for:)` / `clear(for:)`
 - 実装: `FileSnapshotStore`（JSON → アプリの Documents/snapshots/）
+- `FileSnapshotStore.load` は、ファイルは読めたが decode できないとき、そのファイルを消して nil を返す
+  （残すと `exists` が true のまま開始シートが出ず空の盤になる・#1914）。読めない（無い・一時的な I/O 失敗）
+  ときは消さない。このため**同じ `gameID` を別の型で `load` しない**こと（大富豪の持ち越しは別 ID
+  `<gameID>-carryover`）
 
 ### 依存注入
 
