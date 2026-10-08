@@ -9,7 +9,12 @@ import GameKitTestSupport
 @MainActor
 private final class ManualClock {
     var current = Date(timeIntervalSince1970: 1_000_000)
-    func advance(_ seconds: TimeInterval) { current = current.addingTimeInterval(seconds) }
+    /// 勝利タイムを数える `ElapsedClock` に差し込む時計（`advance` と一緒に進む）。
+    let elapsed = CoreTestSupport.ManualClock()
+    func advance(_ seconds: TimeInterval) {
+        current = current.addingTimeInterval(seconds)
+        elapsed.advance(by: .seconds(seconds))
+    }
     func advance(_ duration: Duration) {
         let (s, attos) = duration.components
         advance(TimeInterval(s) + TimeInterval(attos) / 1e18)
@@ -290,7 +295,7 @@ struct SpeedModelTests {
         let log = makeLog("win")
         let spy = SpyAnalyticsService()
         let feedback = SpyFeedbackService()
-        let model = SpeedModel(services: makeServices(log: log, analytics: spy, feedback: feedback), seed: 3, now: { clock.current })
+        let model = SpeedModel(services: makeServices(log: log, analytics: spy, feedback: feedback), seed: 3, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.start(SpeedSettings(level: .slow))
         clock.advance(41.2)
         model.configureForTesting(
@@ -317,13 +322,38 @@ struct SpeedModelTests {
         #expect(model.nextCPUWait() == nil, "決着後は CPU が動かない")
     }
 
+    @Test("CPU を止めている間（シート・背面・広告）は勝利タイムに乗らない")
+    func winSecondsExcludesHeldTime() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 3, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.start(SpeedSettings(level: .slow))
+        clock.advance(10)
+        model.holdCPU(.sheet, true)
+        clock.advance(300)
+        model.holdCPU(.inactive, true)   // シート中に背面へ回っても二重に数えない
+        clock.advance(300)
+        model.holdCPU(.sheet, false)
+        clock.advance(300)
+        model.holdCPU(.inactive, false)
+        clock.advance(5)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5)], humanStock: [],
+            cpuHand: [card(.spades, 9), card(.spades, 12)],
+            cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        model.tapHandCard(card(.hearts, 5))
+        #expect(model.winner == .human)
+        #expect(model.winSeconds == 15)
+    }
+
     @Test("CPU が出し切ったら負け。時間は記録されず、連勝は 0 に戻る")
     func cpuWins() {
         let clock = ManualClock()
         let log = makeLog("lose")
         let spy = SpyAnalyticsService()
         let feedback = SpyFeedbackService()
-        let model = SpeedModel(services: makeServices(log: log, analytics: spy, feedback: feedback), seed: 3, now: { clock.current })
+        let model = SpeedModel(services: makeServices(log: log, analytics: spy, feedback: feedback), seed: 3, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [card(.diamonds, 10)],
@@ -350,7 +380,7 @@ struct SpeedModelTests {
     @Test("CPU は出せる札を見つけてから反応の間だけ待ち、過ぎたら出す。途中で呼んでも出さない")
     func cpuReaction() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             cpuHand: [card(.spades, 5), card(.spades, 12)],
@@ -377,7 +407,7 @@ struct SpeedModelTests {
     @Test("あなたが出しても、CPU が見つけていた札の反応の間は持ち越される（連打で先送りできない）")
     func cpuReactionSurvivesHumanPlay() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 2), card(.hearts, 4)],
             humanStock: [card(.diamonds, 12), card(.diamonds, 11)],
@@ -397,7 +427,7 @@ struct SpeedModelTests {
     @Test("CPU が見つけていた札が出せなくなったら仕切り直す")
     func cpuRearmsWhenTargetVanishes() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 7), card(.hearts, 10)],
             humanStock: [card(.diamonds, 8)],
@@ -423,7 +453,7 @@ struct SpeedModelTests {
     @Test("CPU だけ出せず、あなたが出せるあいだは場を見直す間隔で待つ")
     func cpuScansWhileHumanCanPlay() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 5)],
             cpuHand: [card(.spades, 9)],
@@ -439,7 +469,7 @@ struct SpeedModelTests {
     @Test("どちらも出せないときは間を置いてから CPU がめくる。あなたが先にめくってもよい")
     func cpuFlipsAfterStuckDelay() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [card(.diamonds, 10)],
@@ -462,7 +492,7 @@ struct SpeedModelTests {
     @Test("ゆっくりモードがオンだと反応の間とめくるまでの間が 1.5 倍になる")
     func slowMode() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current },
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now,
                                slowMode: makeSlowMode("on", enabled: true))
         model.configureForTesting(
             humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 5)],
@@ -473,7 +503,7 @@ struct SpeedModelTests {
         #expect(reactionRange(.fast, multiplier: SpeedRules.slowModeMultiplier).contains(wait), "\(wait)")
         #expect(wait > .milliseconds(Int(Double(SpeedLevel.fast.reactionMilliseconds) * 1.2)), "揺らぎの上限より長い")
 
-        let stuck = SpeedModel(services: makeServices(), seed: 7, now: { clock.current },
+        let stuck = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now,
                                slowMode: makeSlowMode("stuck", enabled: true))
         stuck.configureForTesting(
             humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 9)],
@@ -496,7 +526,7 @@ struct SpeedModelTests {
     @Test("タイムは負けそうなとき（CPU の残りが 8 枚以下で自分より少ない）だけ、1 ゲーム 1 回")
     func timeoutAvailability() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
@@ -506,14 +536,14 @@ struct SpeedModelTests {
         )
         #expect(model.canUseTimeout, "CPU 3 枚 < あなた 4 枚")
         // 拮抗していると出ない。
-        let even = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let even = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         even.configureForTesting(
             humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 9)],
             piles: [[card(.spades, 6)], [card(.clubs, 3)]]
         )
         #expect(!even.canUseTimeout)
         // CPU の残りが多いうちは出ない。
-        let early = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let early = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         early.start(.standard)
         #expect(!early.canUseTimeout)
 
@@ -529,7 +559,7 @@ struct SpeedModelTests {
     @Test("タイム中は CPU が休み、終わったら反応の間を数え直す")
     func timeoutPausesCPU() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
@@ -559,7 +589,7 @@ struct SpeedModelTests {
     @Test("CPU を止めているあいだ（広告の視聴中・バックグラウンド）は待ちも動きも無く、解くと反応の間を数え直す")
     func holdCPU() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
@@ -592,7 +622,7 @@ struct SpeedModelTests {
     @Test("シートの提示中は CPU が着手せず、閉じたら再開する。ほかの理由が残っていれば解いても止まったまま（#1358）")
     func holdCPUWhileSheetIsOpen() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
@@ -626,7 +656,7 @@ struct SpeedModelTests {
     @Test("CPU が出しても、あなたの選択は外れない（外れると台札のタップで別の札が出る）")
     func selectionSurvivesCPUPlay() {
         let clock = ManualClock()
-        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 5), card(.hearts, 9)],
             humanStock: [card(.diamonds, 3)],
@@ -656,7 +686,7 @@ struct SpeedModelTests {
     func timeoutExcludesBestTime() {
         let clock = ManualClock()
         let log = makeLog("timeout-win")
-        let model = SpeedModel(services: makeServices(log: log), seed: 3, now: { clock.current })
+        let model = SpeedModel(services: makeServices(log: log), seed: 3, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.configureForTesting(
             humanHand: [card(.hearts, 5)], humanStock: [card(.diamonds, 12)],
             cpuHand: [card(.spades, 9)], cpuStock: [],
@@ -685,7 +715,7 @@ struct SpeedModelTests {
     func analytics() {
         let clock = ManualClock()
         let spy = SpyAnalyticsService()
-        let model = SpeedModel(services: makeServices(analytics: spy), seed: 3, now: { clock.current })
+        let model = SpeedModel(services: makeServices(analytics: spy), seed: 3, now: { clock.current }, elapsedNow: clock.elapsed.now)
         model.start(SpeedSettings(level: .fast))
         #expect(spy.starts == [SpeedModel.gameID])
         #expect(spy.startLevels == [.hard])
@@ -723,7 +753,7 @@ struct SpeedModelTests {
         for seed in UInt64(1)...UInt64(12) {
             let clock = ManualClock()
             let spy = SpyAnalyticsService()
-            let model = SpeedModel(services: makeServices(analytics: spy), seed: seed, now: { clock.current })
+            let model = SpeedModel(services: makeServices(analytics: spy), seed: seed, now: { clock.current }, elapsedNow: clock.elapsed.now)
             model.start(SpeedSettings(level: .fast))
             var steps = 0
             while model.phase == .playing, steps < 5000 {
