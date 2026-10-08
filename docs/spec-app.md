@@ -80,6 +80,13 @@ v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
 - `title: String` — 表示名
 - `icon: Image` — ハブカードのアイコン
 - `makeView(services:) -> AnyView` — ゲーム画面を生成
+  - **呼ぶのは `HubView` の `navigationDestination` 1 か所だけで、必ず `GameScreenHost { module.makeView(services:) }` で包む**
+    （#1926）。ハブは描き直しのたびにこの閉包を評価し直すため、素で呼ぶと View の init で作る model が毎回作り捨てられ、
+    init の副作用（探索・保存の読み込み・解析 `game_start`）も捨てられる model の分だけ走る。入れ物が画面を最初の 1 回だけ作る。
+    **ゲームごとに `.task` で model を遅延生成するなど別の直し方をしない**。新ゲームは `GameModule` を登録するだけで守られる。
+    なお `GameServices.gameDidStart` は冪等（`startPlay` が `plays[gameID] == nil` のときだけ数える）なので、
+    作り捨てで `game_start` が増えるのは「プレイが終わって `plays` が空の間」に限られる。
+    `RecordShareWiringTests` が「作る場所が 1 か所・入れ物に包まれている」ことを走査で固定している
 - `hasResumableSnapshot(in:) -> Bool` — 中断データが「続きから」で戻れる**途中の局**か（#809）。既定実装は
   「`resumesFromSnapshot` が true で `snapshots.exists` が true」。**中断データを保存するゲームは、手つかずの盤を保存しない
   （または `hasResumableSnapshot` を上書きして手つかずを除く）**。`snapshots.exists` だけを見る実装に戻すと、
