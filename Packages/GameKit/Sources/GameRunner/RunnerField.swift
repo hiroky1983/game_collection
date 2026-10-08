@@ -16,7 +16,7 @@ public struct RunnerField: Equatable, Sendable {
         /// 画面に見える横幅。
         ///
         /// 縦持ちの画面に載る帯の横幅なので、**広くしすぎない**。広げるほど 1 単位が
-        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（34〜36 面の 60 / 秒・#1824。#1009 までは 30 面の 57.2）でも
+        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（34〜42 面の 60 / 秒・#1824。#1009 までは 30 面の 57.2）でも
         /// 走者の前に 74 単位 = 約 1.3 秒ぶんの地形が見えるので、初見でも反応できる。
         public static let width: Double = 100
         /// 画面に見える縦幅。
@@ -779,7 +779,7 @@ public struct RunnerField: Equatable, Sendable {
         // 高い塀（#1091）も横に動かない相手なので岩と同じ扱い。二段ジャンプは滞空が長く、
         // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
         // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
-        case .pit, .lowBlock, .tallBlock, .shoot, .wall: return true
+        case .pit, .lowBlock, .tallBlock, .shoot, .geyser, .wall: return true
         case .bird, .dog, .boar:                         return false
         }
     }

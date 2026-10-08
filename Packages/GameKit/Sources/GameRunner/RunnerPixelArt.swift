@@ -147,6 +147,7 @@ enum RunnerPixelArt {
         case .dog:  return dog(frame, colors: world.creatures)
         case .cat:  return cat(frame, colors: world.creatures)
         case .deer: return deer(frame, colors: world.creatures)
+        case .monkey: return monkey(frame, colors: world.creatures)
         }
     }
 
@@ -164,6 +165,7 @@ enum RunnerPixelArt {
         case .dog:  return dogWalk0Rows
         case .cat:  return catWalk0Rows
         case .deer: return deerWalk0Rows
+        case .monkey: return monkeyWalk0Rows
         }
     }
 
@@ -219,6 +221,28 @@ enum RunnerPixelArt {
     /// ドラム缶（`RunnerWorld.Dressing.Block.drum`）。
     static func drum() -> PixelSprite { PixelSprite(rows: drumRows, palette: palette) }
 
+    /// 湯桶（`RunnerWorld.Dressing.Block.yuoke`・温泉街 案 B）。
+    static func yuoke() -> PixelSprite { PixelSprite(rows: yuokeRows, palette: palette) }
+
+    /// 湯桶（温泉街の低い岩・案 B）: 木の桶（`H`/`h` の縦の板・`S` のたが）に白い手ぬぐい（`M`）を載せる。
+    static let yuokeRows: [String] = [
+        "...KKKKKK...",
+        ".KKMMMMMMKK.",
+        "KMMMMMMMMMMK",
+        "KTMMMMMMMMTK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KSSSSSSSSSSK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KSSSSSSSSSSK",
+        "KHhHhHhHhHhK",
+        "KhhhhhhhhhhK",
+        "KKKKKKKKKKKK",
+    ]
+
     // MARK: 突き上げ（`RunnerHazardKind.shoot`・#1010）
 
     /// 伸び切った突き上げの絵（着せ替えから直接引く）。
@@ -231,6 +255,7 @@ enum RunnerPixelArt {
         switch style {
         case .bambooShoot: return PixelSprite(rows: bambooShootRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: seaSprayRows, palette: palette)
+        case .steamColumn: return PixelSprite(rows: steamColumnRows, palette: palette)
         }
     }
 
@@ -239,6 +264,7 @@ enum RunnerPixelArt {
         switch style {
         case .bambooShoot: return PixelSprite(rows: soilMoundRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: foamRows, palette: palette)
+        case .steamColumn: return PixelSprite(rows: steamBubbleRows, palette: palette)
         }
     }
 
@@ -463,6 +489,52 @@ enum RunnerPixelArt {
         ".........KOOWOOOOOOOOOOWWWWWK.",
         "..........KKOOOOWWWWWWOOOWWK..",
         "...........KKKWWWWWWWWWWKKK...",
+    ]
+
+    // MARK: ニホンザル（温泉街の犬の枠・#1938）
+
+    /// サル（左向き）30×21 ドット。犬・猫・鹿と同じ格子・同じ脚の段。色は犬と同じ文字で世界の `Creatures` から
+    /// 写し、顔の赤だけ犬の首輪の `R` を流用する。
+    /// サルに見せる要素: **赤い顔**を薄い毛（`W`）が囲む、丸い頭に小さな耳（`o`）、**前かがみに盛り上がった背中**、
+    /// 腹の薄い毛、ごく短い尾（`o`）。
+    static func monkey(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? monkeyWalk0Rows : monkeyWalk1Rows, palette: creaturePalette(colors))
+    }
+
+    static let monkeyWalk0Rows: [String] = monkeyBodyRows + [
+        "..........KOOKKKooKKKKooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KKKK.KKKK..KKKKKKKK.",
+    ]
+
+    static let monkeyWalk1Rows: [String] = monkeyBodyRows + [
+        "..........KooKKKOOKKKKOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KKKK.KKKK..KKKKKKKK.",
+    ]
+
+    private static let monkeyBodyRows: [String] = [
+        "...KKKK........KKKKKK.........",
+        "..KOOOOK.....KKOOOOOOKK.......",
+        ".KOOOOOOK...KOOOoOOOOoOKK.....",
+        ".KoKWWWWKK.KOOOOOOOOOOOOOK....",
+        "KOoKWRRRRWKOOOoOOOOoOOOOOOK...",
+        "KOOKWRKRKRWKOOOOOOOOOOOOOOOK..",
+        ".KKWWRRRRRWKOOOOOOOOOOOOOOOK..",
+        "..KWWRRKKRWKOOOOOOOOOOOOOOOOK.",
+        "..KWWWRRRRWKOOOOOOOOOOOOOOOOK.",
+        "...KKWWWWWKOOOWWOOOOOOOOOOOOK.",
+        ".....KKKKKOOWWWWWOOOOOOOOOOOoK",
+        "........KOWWWWWWWOOOOOOOOOOKoK",
+        ".........KWWWWWWWWWWOOOOOOOKK.",
+        ".........KKWWWWWWWWWWWWOOOOK..",
+        "..........KKKWWWWWWWWWKKOOOK..",
     ]
 
     // MARK: フォークリフト（港町のイノシシの枠・#1009）
@@ -793,6 +865,52 @@ enum RunnerPixelArt {
         "KMCCCCCLLNNK",
         "KMMCCCLLNNNK",
         "KKKKKKKKKKKK",
+    ]
+
+    /// 湯柱（温泉街の突き上げ・間欠泉）。波しぶきとまったく同じ格子・同じシルエットで、色だけが湯気。
+    ///
+    /// 温泉街の背景は淡い灰青の空（0xDAE0E8）と雪の山なので、**青みを入れると氷柱に見える**
+    /// （モック担当の指摘）。柱は白（`M`・左の照り）→ 灰（`W`）→ 灰（`G`）→ 暗い灰（`g`・右の陰）の
+    /// 無彩色の濃淡で立て、右の陰（`g`）が背景との 3:1 を担う（竹の子の `a`・波しぶきの `N` と同じ約束）。
+    static let steamColumnRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KMMK....",
+        "....KMMK....",
+        "....KMWK....",
+        "...KMMWGK...",
+        "...KMWWGK...",
+        "...KMWWGK...",
+        "..KMMWWGGK..",
+        "..KMWWWGGK..",
+        "..KMWWWGgK..",
+        "..KMWWWGgK..",
+        ".KMMWWWGGgK.",
+        ".KMWWMWGGgK.",
+        ".KMWWWWGGgK.",
+        ".KMMWWWGGgK.",
+        "KMMWWWWGGggK",
+        "KMWWMWWGGggK",
+        "KMWWWWWGGggK",
+        "KMMWWWWGGggK",
+        "KMWWMWWGGggK",
+        "KMWWWWWGGggK",
+        "KMMWWWWGGggK",
+        "KMWWMWWGGggK",
+        "KMWWWWWGGggK",
+        "KMMWWWGGgggK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 予告（温泉街）: 湯だまりにぶくぶくと泡が立つ。塚・泡とまったく同じ格子で、色だけが湯気。
+    static let steamBubbleRows: [String] = [
+        ".......KKKK.......",
+        ".....KKWWWWKK.....",
+        "...KKWWMWWWMWKK...",
+        "..KWWMWWWWMWWWWK..",
+        ".KWWWMWWWWWWMWWWK.",
+        "KWWMWWWWWWWWMWWWWK",
+        "KKKKKKKKKKKKKKKKKK",
     ]
 
     /// 予告（里山）: 土が盛り上がる。地面に置く**低くて横に広い**塚（18×7 ドット）。

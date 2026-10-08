@@ -349,14 +349,15 @@ extension RunnerScene {
     func makeSinkFloor(_ floor: RunnerSinkFloor) -> SKNode {
         typealias P = RunnerWorld.DressingPalette
         let paddy = world.dressing.sinkFloor == .paddy
+        let footBath = world.dressing.sinkFloor == .footBath
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
         let surfaceHeight = height * 0.7
-        addBand(to: node, color: paddy ? P.paddyDeep : P.tidelandDeep,
+        addBand(to: node, color: footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep),
                 x: 0, y: bottom, width: floor.length, height: height)
-        addBand(to: node, color: paddy ? P.paddyWater : P.tidelandMud,
+        addBand(to: node, color: footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud),
                 x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
 
         // 水面（泥）の模様。田んぼは苗の列、干潟はカニの穴。どちらも 1 本のパスにまとめて
@@ -365,7 +366,12 @@ extension RunnerScene {
         let spacing = 5.0
         var x = spacing / 2
         while x < floor.length - 1 {
-            if paddy {
+            if footBath {
+                // 湯けむり: 水面から立ち上る白い湯気の粒を 3 つ（踏み込む前に読める目印）。
+                marks.addEllipse(in: CGRect(x: x - 1.2, y: Metrics.groundY - 0.4, width: 2.0, height: 1.6))
+                marks.addEllipse(in: CGRect(x: x + 0.2, y: Metrics.groundY + 1.0, width: 1.6, height: 1.4))
+                marks.addEllipse(in: CGRect(x: x - 0.6, y: Metrics.groundY + 2.4, width: 1.2, height: 1.1))
+            } else if paddy {
                 // 苗: 水面から 2.5 だけ突き出す細い縦線を 2 本ずつ。
                 for dx in [-0.9, 0.9] {
                     marks.addRect(CGRect(x: x + dx - 0.35, y: Metrics.groundY - 1.4, width: 0.7, height: 3.9))
@@ -382,7 +388,7 @@ extension RunnerScene {
             x += spacing
         }
         let markNode = SKShapeNode(path: marks)
-        markNode.fillColor = RunnerPalette.color(paddy ? P.paddySeedling : P.tidelandHole)
+        markNode.fillColor = RunnerPalette.color(footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole))
         markNode.strokeColor = .clear
         markNode.zPosition = 2
         node.addChild(markNode)
@@ -393,11 +399,11 @@ extension RunnerScene {
         let glintSpacing = 9.0
         var gx = 0.0
         while gx < floor.length + glintSpacing {
-            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy)
+            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath)
             gx += glintSpacing
         }
         let glintNode = SKShapeNode(path: glints)
-        glintNode.fillColor = RunnerPalette.color(paddy ? P.waterGlint : P.tidelandSheen)
+        glintNode.fillColor = RunnerPalette.color((paddy || footBath) ? P.waterGlint : P.tidelandSheen)
         glintNode.strokeColor = .clear
         glintNode.alpha = 0.85
         glintNode.zPosition = 1
