@@ -24,9 +24,9 @@ final class HomerunPoleE2ETests: XCTestCase {
 
         HomerunE2ETests.skipQuiescenceWait()
         let app = XCUIApplication()
-        app.launchArguments = ["-startGame", "homerun", "-homerunUnlimited", "-homerunForcePole", "-screenshotMode"]
+        app.launchArguments = ["-startGame", "homerun", "-homerun_tutorialSeen_v1", "YES", "-homerunUnlimited", "-homerunForcePole", "-screenshotMode"]
         app.launch()
-        let start = app.buttons["打席に立つ"]
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "打席に立つ")).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 15), "打席に立つ が出ない")
         start.tap()
 
