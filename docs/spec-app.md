@@ -21,7 +21,6 @@ Packages/GameKit/
     CoreEngine/         ← 共通基盤のうち純ロジック (Analytics, SnapshotStore, PlayLog, PlayRecord, GameCenter 等。release/v1.1.6 から)
     Core/               ← 共通基盤 (Protocol, Theme, AdService, RewardedRescue。`@_exported import CoreEngine` で再公開)
     Game2048/           ← 2048
-    GameBlockPuzzle/    ← ブロックならべ（未リリース。2026-09-10 時点）
     GameShogi/          ← 将棋
     GameMahjong/        ← 麻雀（4人打ち）
     GameSudoku/         ← ナンプレ
@@ -1012,7 +1011,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 5点セットを `Core/RewardedRescue.swift` の1か所に集約したもの（この設計により、新しい救済を足しても
 連打ガードや局ガードの実装漏れが起きない）。ほぼ全ゲーム（2048・将棋・五目並べ・麻雀・麻雀ソリティア・
 ソリティア・フリーセル・スパイダーソリティア・ポーカー・ブラックジャック・マインスイーパー・ナンプレ・オセロ・囲碁・
-チェス・神経衰弱・ブロック崩し・ブロックならべ・チャリンコおじさん、`release/v1.1.5` の 2026-09-15 時点）が採用している。
+チェス・神経衰弱・ブロック崩し・チャリンコおじさん、`release/v1.1.5` の 2026-09-15 時点）が採用している。
 `release/v1.1.6` で大富豪が加わった（大貧民で決着したリザルトから、次のゲームの献上を免除する。`purpose` は `revival`・#1048）。
 同じく花札こいこいが加わった（最終局で負けている局の結果画面から、1試合に1回だけ1局延長する。`purpose` は `continue`・#1049）。
 `release/v1.1.7` の柵越えおじさん（企画倉庫・registry コメントアウト中）は、使い切った 1 日の挑戦回数を広告で 1 回ぶん足す
