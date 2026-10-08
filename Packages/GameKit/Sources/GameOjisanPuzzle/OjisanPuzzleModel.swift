@@ -395,7 +395,7 @@ public final class OjisanPuzzleModel {
         self.outcome = outcome
         current = nil
         pause()
-        services?.feedback.notify(.error)
+        services?.feedback.notify(outcome == .cleared ? .success : .error)
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: outcome == .cleared ? .win : .loss,
