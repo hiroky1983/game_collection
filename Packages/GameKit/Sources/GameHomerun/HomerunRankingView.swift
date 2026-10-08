@@ -408,7 +408,7 @@ struct CountUpText: View {
     let duration: Double
 
     var body: some View {
-        TimelineView(.animation(paused: start == nil)) { context in
+        TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: start == nil)) { context in
             Text(verbatim: HomerunRankingText.distance(value(at: context.date)))
         }
     }
