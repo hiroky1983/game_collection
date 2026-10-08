@@ -181,6 +181,10 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case stage
     /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。
     case endless
+    /// 腰痛おじさんパズルの腰痛モード（ゲージあり・片付け型。#1920）。
+    case backpain
+    /// 腰痛おじさんパズルのパズルモード（ゲージなし・得点を競う。#1920）。
+    case puzzle
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
