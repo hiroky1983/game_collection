@@ -58,17 +58,19 @@ public struct FruitsView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
             )
         )
-        .confirmationDialog(
-            "はじめからやり直しますか？",
-            isPresented: $showConfirmNewGame,
-            titleVisibility: .visible
-        ) {
-            Button("終了してはじめから", role: .destructive) {
-                withGameAnimation { model.newGame() }
+        .dialogs { anchor in
+            anchor.confirmationDialog(
+                "はじめからやり直しますか？",
+                isPresented: $showConfirmNewGame,
+                titleVisibility: .visible
+            ) {
+                Button("終了してはじめから", role: .destructive) {
+                    withGameAnimation { model.newGame() }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると今のスコアが失われます。")
             }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると今のスコアが失われます。")
         }
     }
 

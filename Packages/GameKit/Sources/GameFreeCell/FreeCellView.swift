@@ -81,17 +81,19 @@ public struct FreeCellView: View {
                         startNewGame()
                     })
         .howToPlay(.freecell) { FreeCellRuleSheet() }
-        .confirmationDialog("新しい配札にしますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。")
-        }
-        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-            Button("広告を見て\(FreeCellUndoBudget.refill)回補充する") { requestUndoRefill() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴すると「戻す」を\(FreeCellUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新しい配札にしますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。")
+            }
+            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(FreeCellUndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(FreeCellUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)

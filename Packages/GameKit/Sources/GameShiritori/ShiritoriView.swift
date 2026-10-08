@@ -55,11 +55,13 @@ public struct ShiritoriView: View {
                             showSetup = true
                         }
                     })
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると、いまの対局が失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの対局が失われます。")
+            }
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }

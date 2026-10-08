@@ -50,10 +50,12 @@ public struct BackgammonView: View {
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
-        .alert("動かせません", isPresented: $showPassAlert) {
-            Button("OK") { model.confirmPass() }
-        } message: {
-            Text("この目で動かせる駒がありません。CPU の番になります。")
+        .dialogs { anchor in
+            anchor.alert("動かせません", isPresented: $showPassAlert) {
+                Button("OK") { model.confirmPass() }
+            } message: {
+                Text("この目で動かせる駒がありません。CPU の番になります。")
+            }
         }
         .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
         // パスの案内は **`mustPass` ではなく手番の鍵（`aiTurnKey`）の変化で出す**。CPU がパスした直後に

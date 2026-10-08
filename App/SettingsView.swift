@@ -150,20 +150,22 @@ struct SettingsView: View {
                         } label: {
                             Label("プレイ記録を消去", systemImage: "trash")
                         }
-                        .confirmationDialog(
-                            "プレイ記録を消去しますか？",
-                            isPresented: $showClearPlayLogConfirm,
-                            titleVisibility: .visible
-                        ) {
-                            Button("消去する", role: .destructive) {
-                                playLog.clear()
-                                // 久しぶり通知（#1193）はプレイ記録の最終プレイ日時を基準に予約するため、
-                                // 記録を消したのにスレッドや予約だけ残らないよう合わせて取り消す（#1269）。
-                                AppEnvironment.reengagement.cancelAll()
+                        .dialogs { anchor in
+                            anchor.confirmationDialog(
+                                "プレイ記録を消去しますか？",
+                                isPresented: $showClearPlayLogConfirm,
+                                titleVisibility: .visible
+                            ) {
+                                Button("消去する", role: .destructive) {
+                                    playLog.clear()
+                                    // 久しぶり通知（#1193）はプレイ記録の最終プレイ日時を基準に予約するため、
+                                    // 記録を消したのにスレッドや予約だけ残らないよう合わせて取り消す（#1269）。
+                                    AppEnvironment.reengagement.cancelAll()
+                                }
+                                Button("キャンセル", role: .cancel) {}
+                            } message: {
+                                Text("ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。")
                             }
-                            Button("キャンセル", role: .cancel) {}
-                        } message: {
-                            Text("ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。")
                         }
                     } header: {
                         Text("プレイ記録")
