@@ -110,7 +110,7 @@ public enum OjisanPuzzleCleanup {
     }
 
     /// そのマスに置いても 4 つつながらない荷物の種類を、乱数で 1 つ選ぶ。
-    /// 4 種類あり、隣り合うマスは最大 3 つなので、必ず 1 種類は残る。
+    /// 5 種類あり、隣り合うマスは最大 3 つなので、必ず 1 種類は残る。
     private static func kindAvoidingClear(
         in board: [[Int]], row: Int, col: Int, using rng: inout OjisanPuzzleRandom
     ) -> Int {

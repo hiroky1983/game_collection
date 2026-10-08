@@ -262,13 +262,12 @@ struct OjisanPuzzleBoardTests {
 @Suite("荷物の種類")
 struct OjisanPuzzleLuggageTests {
 
-    @Test("盤に入る 1...4 のすべてに中身がある")
+    @Test("盤に入る 1...5 のすべてに中身がある")
     func everyValueHasKind() {
         for value in 1...OjisanPuzzleBoard.kindCount {
             let kind = OjisanPuzzleLuggage.kind(value)
             #expect(kind != nil, "\(value) に対応する荷物が無い")
             #expect(kind?.name.isEmpty == false)
-            #expect(kind?.symbol.isEmpty == false)
         }
         #expect(OjisanPuzzleLuggage.all.count == OjisanPuzzleBoard.kindCount)
     }
@@ -279,10 +278,16 @@ struct OjisanPuzzleLuggageTests {
         #expect(OjisanPuzzleLuggage.kind(OjisanPuzzleBoard.kindCount + 1) == nil)
     }
 
-    @Test("見分けが付くよう、絵柄は 4 種とも違う")
-    func symbolsAreDistinct() {
-        #expect(Set(OjisanPuzzleLuggage.all.map(\.symbol)).count == OjisanPuzzleLuggage.all.count)
+    @Test("名前は 5 種とも違う")
+    func namesAreDistinct() {
         #expect(Set(OjisanPuzzleLuggage.all.map(\.name)).count == OjisanPuzzleLuggage.all.count)
+    }
+
+    @Test("重さは実物の順（会長決定 2026-10-08）: 座布団の山 < スイカ < クーラーボックス < ポリタンク < ビールケース")
+    func weightsFollowChairmanOrder() {
+        let names = OjisanPuzzleLuggage.all.sorted { $0.weight < $1.weight }.map(\.name)
+        #expect(names == ["座布団の山", "スイカ", "クーラーボックス", "灯油のポリタンク", "ビールケース"])
+        #expect(OjisanPuzzleLuggage.all.map(\.weight) == [1, 2, 3, 4, 5])
     }
 
     @Test("軽い順に並んでいる（表示の濃さがこの順に付く）")
@@ -299,8 +304,8 @@ struct OjisanPuzzlePainTests {
 
     @Test("荷物を固定するたびにゲージが増える")
     func lockingIncreasesPain() {
-        #expect(OjisanPuzzlePain.afterLock(0) == OjisanPuzzlePain.perLock)
-        #expect(OjisanPuzzlePain.afterLock(20) == 20 + OjisanPuzzlePain.perLock)
+        #expect(OjisanPuzzlePain.afterLock(0, weights: [1, 2]) == 4)
+        #expect(OjisanPuzzlePain.afterLock(20, weights: [1, 2]) == 24)
     }
 
     @Test("消すとゲージが減る。連鎖が深いほどよく減る")
@@ -310,10 +315,25 @@ struct OjisanPuzzlePainTests {
         #expect(OjisanPuzzlePain.afterClears(50, chains: [4, 4]) == 50 - 8 - 8 - OjisanPuzzlePain.perExtraChain)
     }
 
+    @Test("重い荷物ほどゲージが多く増える（軽い 2 個で 3、重い 2 個で 11）")
+    func heavierLuggageHurtsMore() {
+        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 1]) == 3)
+        #expect(OjisanPuzzlePain.lockAmount(weights: [5, 5]) == 11)
+        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 5]) == OjisanPuzzlePain.lockAmount(weights: [2, 4]))
+        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 2]) < OjisanPuzzlePain.lockAmount(weights: [4, 5]))
+    }
+
+    @Test("5 種が同じ確率で出る前提の平均は 7（重さを効かせる前の一定量と同じ）")
+    func averageLockAmountIsUnchanged() {
+        let weights = OjisanPuzzleLuggage.all.map(\.weight)
+        let total = weights.flatMap { a in weights.map { b in OjisanPuzzlePain.lockAmount(weights: [a, b]) } }.reduce(0, +)
+        #expect(total == 7 * weights.count * weights.count)
+    }
+
     @Test("ゲージは 0...100 に収まる")
     func painStaysInRange() {
         #expect(OjisanPuzzlePain.afterChain(3, cells: 10, chain: 3) == 0)
-        #expect(OjisanPuzzlePain.afterLock(OjisanPuzzlePain.limit) == OjisanPuzzlePain.limit)
+        #expect(OjisanPuzzlePain.afterLock(OjisanPuzzlePain.limit, weights: [5, 5]) == OjisanPuzzlePain.limit)
     }
 
     @Test("100 になったら入院")
