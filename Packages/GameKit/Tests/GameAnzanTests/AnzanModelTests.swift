@@ -9,7 +9,12 @@ import GameKitTestSupport
 @MainActor
 private final class ManualClock {
     var current = Date(timeIntervalSince1970: 1_000_000)
-    func advance(_ seconds: TimeInterval) { current = current.addingTimeInterval(seconds) }
+    /// 回答時間を数える `ElapsedClock` に差し込む時計（`advance` と一緒に進む）。
+    let elapsed = CoreTestSupport.ManualClock()
+    func advance(_ seconds: TimeInterval) {
+        current = current.addingTimeInterval(seconds)
+        elapsed.advance(by: .seconds(seconds))
+    }
 }
 
 @MainActor
@@ -96,7 +101,7 @@ struct AnzanModelTests {
     func correctAnswerRecordsWin() {
         let clock = ManualClock()
         let log = makeLog("correct")
-        let model = AnzanModel(services: makeServices(log: log), seed: 3, now: { clock.current })
+        let model = AnzanModel(services: makeServices(log: log), seed: 3, elapsedNow: clock.elapsed.now)
         let settings = AnzanSettings(digits: .one, count: .five, speed: .normal)
         model.start(settings)
         _ = flashThrough(model)
@@ -124,7 +129,7 @@ struct AnzanModelTests {
         let clock = ManualClock()
         let log = makeLog("wrong")
         let feedback = SpyFeedbackService()
-        let model = AnzanModel(services: makeServices(log: log, feedback: feedback), seed: 4, now: { clock.current })
+        let model = AnzanModel(services: makeServices(log: log, feedback: feedback), seed: 4, elapsedNow: clock.elapsed.now)
         let settings = AnzanSettings(digits: .one, count: .five, speed: .normal)
         model.start(settings)
         _ = flashThrough(model)
@@ -151,7 +156,7 @@ struct AnzanModelTests {
     @Test("回答時間は最低 1 秒（時計が動かなくても 0 秒の記録を作らない）")
     func answerSecondsAtLeastOne() {
         let clock = ManualClock()
-        let model = AnzanModel(services: makeServices(log: makeLog("zero")), seed: 5, now: { clock.current })
+        let model = AnzanModel(services: makeServices(log: makeLog("zero")), seed: 5, elapsedNow: clock.elapsed.now)
         model.start(.standard)
         _ = flashThrough(model)
         type(model.sum, into: model)
@@ -163,6 +168,26 @@ struct AnzanModelTests {
         type(model.sum, into: model)
         model.submit()
         #expect(model.answerSeconds == 1, "時計が巻き戻っても負にならない")
+    }
+
+    @Test("入力中にシート・背面で塞がれた時間は回答時間に乗らない")
+    func answerSecondsExcludesPausedTime() {
+        let clock = ManualClock()
+        let model = AnzanModel(services: makeServices(log: makeLog("paused")), seed: 5, elapsedNow: clock.elapsed.now)
+        model.start(.standard)
+        _ = flashThrough(model)
+        clock.advance(2)
+        model.pauseDisplay()
+        clock.advance(300)   // 遊び方のシートを開いたまま
+        model.resumeDisplay()
+        clock.advance(1)
+        model.pauseDisplay()
+        model.pauseDisplay()   // シート中に背面へ回っても二重に数えない
+        clock.advance(600)
+        model.resumeDisplay()
+        type(model.sum, into: model)
+        model.submit()
+        #expect(model.answerSeconds == 3)
     }
 
     @Test("入力は入力中だけ効き、桁数の上限を超えず、先頭の 0 は置き換わる")
@@ -302,7 +327,7 @@ struct AnzanModelTests {
     func replayedQuestionIsExcludedFromBestSeconds() {
         let clock = ManualClock()
         let log = makeLog("replay")
-        let model = AnzanModel(services: makeServices(log: log), seed: 12, now: { clock.current })
+        let model = AnzanModel(services: makeServices(log: log), seed: 12, elapsedNow: clock.elapsed.now)
         model.start(.standard)
         _ = flashThrough(model)
         #expect(model.replayAfterAd(forGame: model.questionSerial))
