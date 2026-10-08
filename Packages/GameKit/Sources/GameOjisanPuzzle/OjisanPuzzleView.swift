@@ -92,11 +92,13 @@ public struct OjisanPuzzleView: View {
                 model.announceStartIfNeeded()
             }
         }
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { openSetup() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると、いまの盤面と得点が失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { openSetup() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの盤面と得点が失われます。")
+            }
         }
         .task { if !showSetup { model.resume() } }
         .onDisappear { model.pause() }
