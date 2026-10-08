@@ -438,9 +438,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 - **規則は Core の `ResumeReminderService` / `ResumeReminderPolicy`**、OS へ渡す部分は App の
   `UserNotificationReminderScheduler`（`UNUserNotificationCenter`）。予約済みの一覧は OS が持ち、アプリ側に保存先を増やさない
-- **予約**: `GameServices.gameDidLeave` で中断データがあるとき。知らせるのは 24 時間後で、それが 21 時〜9 時に
+- **予約**: `GameServices.gameDidLeave` で中断データがあるとき。ゲーム画面を出したままバックグラウンドへ入った中断（ホームボタン・アプリ切替）も、
+  ハブが `scenePhase` を見て `gameDidEnterBackground` で同じ判定により予約する（#1951。離脱計測・画面の世代には触らない。許諾が未決定でも要求しない）。知らせるのは 24 時間後で、それが 21 時〜9 時に
   当たるなら次の 9 時へずらす（最大 36 時間後）。同じゲームは 1 件に置き換え、全体で 3 件まで（あふれたら古い中断から外す）
-- **取り消し**: そのゲームを開いた（`gameDidOpen`）・中断データが消えた（`ClearObservingSnapshotStore` が `clear` を捕まえる）・そのゲームを設定で非表示にした（`gameDidHide`・#810）・設定でオフにした
+- **取り消し**: そのゲームを開いた（`gameDidOpen`）・バックグラウンドから同じ画面へ前面復帰した（`gameDidReturnToForeground`）・中断データが消えた（`ClearObservingSnapshotStore` が `clear` を捕まえる）・そのゲームを設定で非表示にした（`gameDidHide`・#810）・設定でオフにした
 - **許諾**: 起動時には求めない。初めて予約するときに標準の許可ダイアログで明示的に求める（会長決裁 2026-09-21・#1219。
   以前は `.provisional` で静かに求めていたが、この決裁で更新された）。拒否されていれば何もしない
 - **対象外**: `GameModule.resumesFromSnapshot == false` のゲーム（中断データから局を復元しないチャリンコおじさん）と、設定で非表示にしたゲーム（#810。予約もタップからの遷移もしない）
