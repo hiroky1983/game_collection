@@ -85,8 +85,6 @@ public enum GameCenterLeaderboard {
     public static let blackjackChips = "asobiba.blackjack.chips"
     /// ブロック崩し（#463）。ステージ構成は全員共通で、同じ条件で比べられるため対象にする。
     public static let blocksScore    = "asobiba.blocks.score"
-    /// ブロックならべ（#493）。盤・ピースの出方は全員共通なので区分を持たない表 1 つ。
-    public static let blockPuzzleScore = "asobiba.blockpuzzle.score"
     /// チャリンコおじさん（#494）。送るのは**到達ステージ数**（High to Low）。
     /// コースは全員共通で、同じ地形を同じ速さで走るため比べられる。
     public static let runnerStage   = "asobiba.runner.stage"
@@ -129,7 +127,7 @@ public enum GameCenterLeaderboard {
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
-        game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
+        game2048Score, pokerChips, blackjackChips, blocksScore, runnerStage,
         runnerDistance, hanafudaPoints, rouletteChips, fruitsScore, homerunDistance,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
@@ -181,9 +179,6 @@ public enum GameCenterLeaderboard {
         // ブロック崩し（#463）。コンティニュー（リワード広告）を使った回は
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
         case "blocks":    return blocksScore
-        // ブロックならべ（#493）。コンティニュー（リワード広告）を使った回は
-        // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
-        case "blockpuzzle": return blockPuzzleScore
         // チャリンコおじさん（#494）。チェックポイント再開（リワード広告）を使ったステージは
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
         // 区分キーは `RunnerMode.recordVariant`（#675）。ステージ制は nil のまま到達ステージ数、

@@ -9,10 +9,10 @@ import CoreTestSupport
 @Suite("手つかずの盤は続きから扱いにしない（全モジュール走査・#1912）")
 @MainActor
 struct UntouchedSnapshotScanTests {
-    /// 画面を開いただけで保存されるゲームの本数の下限（走査が空振りしていないことの担保。2026-10 時点で 6 本）。
+    /// 画面を開いただけで保存されるゲームの本数の下限（走査が空振りしていないことの担保。2026-10 時点で 5 本）。
     /// 増える分には通る。減ったら画面の組み立てが変わっていないか疑う。ナンプレ・花札のように
     /// 開始操作（難易度・設定シート）のあとに保存するゲームはここに数えず、個別の `*ResumableSnapshotTests` が見る。
-    private static let minimumSavingGames = 6
+    private static let minimumSavingGames = 5
 
     /// 例外（開いただけで保存され、かつ続きとして扱ってよいゲーム）。理由を付けて列挙する。
     private static let exceptions: [String: String] = [:]

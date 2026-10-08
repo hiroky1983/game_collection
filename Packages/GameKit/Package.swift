@@ -39,7 +39,6 @@ let package = Package(
         .library(name: "HomerunCore",      targets: ["HomerunCore"]),
         .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
-        .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
         // 腰痛おじさんパズル（#1016・v1.1.11 でハブに公開 #1904）。
@@ -121,9 +120,6 @@ let package = Package(
                             .copy("Resources/HomerunOjisanStance.png"),
                             // 10 球後の結果の演出のおじさんの絵 5 枚（会長作成・2026-10-05・長辺 750px の透明 PNG）。
                             .copy("Resources/Finale")]),
-        // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
-        // Core だけに依存する。
-        .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
         // チャリンコおじさん（#494）。アクション枠の2本目。地形・ジャンプ・当たり判定は
         // SpriteKit に依存しない純粋ロジックなので Core だけに依存する。
         .target(name: "GameRunner",         dependencies: ["Core", "CoreEngine"]),
@@ -211,7 +207,6 @@ let package = Package(
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
         .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
         .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "CoreTestSupport"]),
@@ -223,7 +218,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
         ]),
         // ゲーム間レコメンドも全ゲーム横断（決着の数え上げを全 Model で検証する）。
@@ -231,7 +226,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
@@ -239,7 +234,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
         ]),
         // 遊び方ガイド（#118）も全ゲーム横断（全ゲームぶんの文言と初回フラグの永続化を検証する）。
@@ -247,7 +242,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun",
         ]),
@@ -256,7 +251,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
@@ -265,7 +260,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
@@ -275,7 +270,7 @@ let package = Package(
         .testTarget(name: "AccessibilityTests", dependencies: [
             "Core", "GameShogi", "GameGomoku", "GameMinesweeper", "GameOthello",
             "GameDaifugo", "GameMahjongSolitaire", "GameMahjong", "MahjongTiles", "GameSudoku",
-            "GameGo", "GameSolitaire", "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle",
+            "GameGo", "GameSolitaire", "GameChess", "GameBlocks", "GameFreeCell",
             "GameHanafuda", "GameSpider", "GameKitTestSupport",
         ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
@@ -283,7 +278,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
         ]),
     ]
