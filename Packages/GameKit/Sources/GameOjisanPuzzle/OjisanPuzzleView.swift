@@ -185,6 +185,8 @@ public struct OjisanPuzzleView: View {
         } else {
             OjisanPuzzleLuggageArt(value: value)
                 .frame(width: side, height: side)
+                .accessibilityElement()
+                .accessibilityLabel(OjisanPuzzleLuggage.kind(value)?.name ?? "")
         }
     }
 
