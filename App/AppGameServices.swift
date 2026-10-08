@@ -53,7 +53,7 @@ enum AppEnvironment {
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
         // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
         feedback: CompositeFeedbackService([
-            GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+            GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
             GatedFeedbackService(base: sound) { settings.soundEnabled },
         ]),
         recommendations: recommendations,
@@ -67,8 +67,13 @@ enum AppEnvironment {
         // 柵越えおじさんの場面の音（打ち出し・カキーン・歓声等）。触覚とは対応しないので `feedback` とは別の入口で、
         // 設定の「効果音」のオン / オフだけを共有する。音声セッションの扱いを 1 か所に保つため、実体は同じ `sound`。
         homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled },
+        // 触覚だけの入口（効果音に相乗りしない）。柵越えおじさんの場面ごとの触覚（`HomerunFeedbackCue`）が使う。
+        haptics: GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
         isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) }
     )
+
+    /// 触覚の実体（`feedback` と `haptics` で共有。ジェネレータを使い回す）。
+    static let haptic = HapticFeedbackService()
 
     /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
     static let sound = SoundFeedbackService()

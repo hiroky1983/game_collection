@@ -76,6 +76,9 @@ public struct GameServices {
     /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
     /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
     public let homerunSound: HomerunSoundService
+    /// 触覚だけの入口。`feedback` は効果音（`SoundEffect`）に相乗りするため、独自の場面の音（`homerunSound`）を持つ
+    /// 柵越えおじさんが触覚だけを足すのに使う。設定の「触覚」のオン / オフは App 層が包んで効かせる。テスト・プレビューでは何も鳴らさない。
+    public let haptics: FeedbackService
     /// 「続きから戻れる途中の局か」の判定（#1847）。ハブの「続きから」と同じ `GameModule.hasResumableSnapshot` を
     /// App 層が差し込む。nil（テスト・プレビュー）のときは「中断データが在る」だけで見る。
     public let isResumable: ((String, SnapshotStore) -> Bool)?
@@ -94,6 +97,7 @@ public struct GameServices {
         reengagement: ReengagementReminderService? = nil,
         returnReminder: ChallengeReturnReminderService? = nil,
         homerunSound: HomerunSoundService = NoopHomerunSoundService(),
+        haptics: FeedbackService = NoopFeedbackService(),
         isResumable: ((String, SnapshotStore) -> Bool)? = nil
     ) {
         self.snapshots = snapshots
@@ -109,6 +113,7 @@ public struct GameServices {
         self.reengagement = reengagement
         self.returnReminder = returnReminder
         self.homerunSound = homerunSound
+        self.haptics = haptics
         self.isResumable = isResumable
     }
 

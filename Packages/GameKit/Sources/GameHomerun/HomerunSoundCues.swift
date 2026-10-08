@@ -159,6 +159,8 @@ enum HomerunSoundCues {
 struct HomerunSoundPlayer: ViewModifier {
     let model: HomerunModel
     let service: HomerunSoundService
+    /// 触覚だけの入口。音と同じ時刻に場面の触覚（`HomerunFeedbackCue`）を鳴らす（#1949）。
+    let haptics: FeedbackService
 
     /// 予定を出し直した時点で少し過ぎていても鳴らす幅（秒）。離した瞬間の風切りは `step` が進んだ直後に出し直すため。
     static let lateTolerance: TimeInterval = 0.25
@@ -205,6 +207,7 @@ struct HomerunSoundPlayer: ViewModifier {
             guard !Task.isCancelled, !model.isHeld else { return }
             guard played.insert(cue, now: Date()) else { continue }
             service.play(cue.sound)
+            if let feel = HomerunFeedbackCue.cue(for: cue.sound) { haptics.play(feel) }
             // 録画に音を重ねるための記録（どの音をいつ鳴らしたか・壁時計の秒）。DEBUG ビルドだけ（判定は `HomerunDebugOverrides`）。
             if HomerunDebugOverrides.isDebugBuild {
                 print(String(format: "[HomerunSFX] %.3f %@", Date().timeIntervalSince1970, cue.sound.rawValue))
