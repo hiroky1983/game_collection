@@ -52,7 +52,7 @@ struct ReengagementReminderWiringTests {
                 "provisional を含む許可の要求がある（ダイアログの出ない仮の許可になってしまう）")
     }
 
-    @Test("通知のタップを起動時から受け取り、そのゲームを notification の導線で開く")
+    @Test("通知のタップを起動時から受け取り、そのゲームを reengagement の導線で開く")
     func tapOpensGame() throws {
         let source = try SourceScan.appSources()
         #expect(source.contains("AppEnvironment.reengagement.notificationTapped(gameID: gameID)"),
@@ -62,8 +62,8 @@ struct ReengagementReminderWiringTests {
             return
         }
         let bodyText = source[handler.upperBound...].prefix(600)
-        #expect(Self.matches(#"openFromOutside\(HubRoute\(\s*gameID: id, source: \.notification,"#, in: String(bodyText)),
-                "ハブがタップされたゲームを notification の導線で開いていない")
+        #expect(Self.matches(#"openFromOutside\(HubRoute\(\s*gameID: id, source: \.reengagement,"#, in: String(bodyText)),
+                "ハブがタップされたゲームを reengagement の導線で開いていない")
     }
 
     @Test("設定のトグルで止められ、オフにすると予約済みも取り消す（#1508: #663 と共有する統合トグル）")

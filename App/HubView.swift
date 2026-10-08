@@ -389,7 +389,7 @@ struct HubView: View {
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
-                    gameID: id, source: .notification, position: nil,
+                    gameID: id, source: .resumeReminder, position: nil,
                     resume: isResumable(id)
                 ))
             }
@@ -400,7 +400,20 @@ struct HubView: View {
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
-                    gameID: id, source: .notification, position: nil,
+                    gameID: id, source: .reengagement, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
+            // 挑戦回数が戻ったお知らせ（#1576・#1950）がタップされたら、そのゲームを直接開く。
+            // 設定で非表示にしたゲームは開かない（クイックアクションと同じ）。
+            .onChange(of: services.returnReminder?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.returnReminder?.requestedGameID = nil
+                guard settings.visibleModules(from: registry).contains(where: { $0.id == id }) else { return }
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .challengeReturn, position: nil,
                     resume: isResumable(id)
                 ))
             }
