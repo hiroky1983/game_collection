@@ -262,4 +262,41 @@ struct OjisanPuzzleModeTests {
         #expect(modes.map(\.0) == ["start", "end", "start"])
         #expect(modes.map(\.1) == [.backpain, .backpain, .puzzle])
     }
+
+    @Test("開始シートの前（announcesStart: false）は game_start を送らず、選んだあとに 1 回だけ送る")
+    func startIsDeferredUntilModeIsChosen() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["ojisanpuzzle"])
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        let model = OjisanPuzzleModel(services: services, announcesStart: false)
+        #expect(spy.starts.isEmpty)
+        model.newGame(mode: .puzzle)   // 選び直して始める
+        model.pause()
+        #expect(spy.starts == ["ojisanpuzzle"])
+        model.announceStartIfNeeded()  // 冪等
+        #expect(spy.starts == ["ojisanpuzzle"])
+        // 選ばずに閉じた場合は、既定の遊び方で 1 回だけ送る（別の計測器で確かめる）。
+        let spy2 = SpyAnalyticsService()
+        let services2 = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy2, allowedGameIDs: ["ojisanpuzzle"]))
+        let kept = OjisanPuzzleModel(services: services2, announcesStart: false)
+        kept.announceStartIfNeeded()
+        kept.announceStartIfNeeded()
+        #expect(spy2.starts == ["ojisanpuzzle"])
+    }
+
+    @Test("時計は操作で段階が変わっても、渡された経過時間だけ進む")
+    func clockAdvancesByElapsedPassedToTick() {
+        let model = OjisanPuzzleModel(
+            services: nil, board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            mode: .backpain, riseIntervalMilliseconds: 10_000
+        )
+        #expect(model.hardDrop())      // 落下中の待ちの途中で固定され、段階が後片付けに替わった
+        model.tick(elapsed: OjisanPuzzleModel.baseDropInterval)   // 待っていた 620ms ぶん
+        #expect(model.elapsedMilliseconds == OjisanPuzzleModel.baseDropInterval)
+        #expect(model.millisecondsUntilRise == 10_000 - OjisanPuzzleModel.baseDropInterval)
+        model.pause()
+    }
 }

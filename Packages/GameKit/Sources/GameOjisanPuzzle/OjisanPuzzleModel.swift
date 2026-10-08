@@ -102,6 +102,7 @@ public final class OjisanPuzzleModel {
     private var chainDepth = 0
     /// 固定した組の数（パズルモードの加速に使う）。
     private var lockCount = 0
+    private var hasAnnouncedStart = false
     /// 前回のせり上がりからの経過（ミリ秒）。
     private var riseClock = 0
     /// せり上がりの時間が来ていて、次の組を出す前に上げる。落下中の組の下で盤が動かないようにするため。
@@ -112,12 +113,18 @@ public final class OjisanPuzzleModel {
     static let gameID = "ojisanpuzzle"
 
     /// 通常の入口。
-    public convenience init(services: GameServices? = nil, mode: OjisanPuzzleMode = .backpain) {
-        self.init(services: services, mode: mode, seed: UInt64.random(in: UInt64.min...UInt64.max))
+    ///
+    /// `announcesStart` を false にすると `game_start` を送らずに作る（開始シートで遊び方を選ぶ前の局。
+    /// 選んだあとの `newGame(mode:)` か `announceStartIfNeeded()` で送る。選ぶ前の既定の遊び方で数えない）。
+    public convenience init(services: GameServices? = nil, mode: OjisanPuzzleMode = .backpain, announcesStart: Bool = true) {
+        self.init(services: services, mode: mode, announcesStart: announcesStart,
+                  seed: UInt64.random(in: UInt64.min...UInt64.max))
     }
 
     /// 種を固定して開始する。荷物の並びが再現できるのでテスト・プレビューから使う。
-    public init(services: GameServices? = nil, mode: OjisanPuzzleMode = .backpain, seed: UInt64) {
+    public init(
+        services: GameServices? = nil, mode: OjisanPuzzleMode = .backpain, announcesStart: Bool = true, seed: UInt64
+    ) {
         self.services = services
         self.mode = mode
         var generator = OjisanPuzzleRandom(seed: seed)
@@ -129,7 +136,7 @@ public final class OjisanPuzzleModel {
         rng = generator
         // 中断データを持たないので、開くたびに新しいプレイ。`gameDidStart` は冪等なので
         // 再描画で init が何度走っても増えない（#158）。
-        services?.gameDidStart(gameID: Self.gameID, mode: mode.analyticsMode)
+        if announcesStart { announceStartIfNeeded() }
     }
 
     /// 盤とゲージを直接与えて開始する。狙った局面（あと 1 手で連鎖・入院寸前・積み上がり寸前）から
@@ -155,6 +162,13 @@ public final class OjisanPuzzleModel {
         self.next = OjisanPuzzleBoard.makePair(using: &generator)
         self.rng = generator
         // 狙った局面から始める入口も、新しいプレイの開始として数える（ブロックならべの同種の入口と同じ扱い）。
+        announceStartIfNeeded()
+    }
+
+    /// `game_start` をまだ送っていなければ送る（冪等）。
+    public func announceStartIfNeeded() {
+        guard !hasAnnouncedStart else { return }
+        hasAnnouncedStart = true
         services?.gameDidStart(gameID: Self.gameID, mode: mode.analyticsMode)
     }
 
@@ -171,7 +185,8 @@ public final class OjisanPuzzleModel {
                 // sleep を挟むとその間に画面が閉じる・決着することがあるので、起きたら必ず確かめ直す
                 // （リポジトリの CPU 進行ループと同じ定石）。
                 guard !Task.isCancelled else { return }
-                self.tick()
+                // 待った時間をそのまま渡す。操作（ハードドロップ等）で段階が変わっても、時計は実際に待った分だけ進む。
+                self.tick(elapsed: interval)
             }
         }
     }
@@ -183,9 +198,9 @@ public final class OjisanPuzzleModel {
     }
 
     /// タイマー 1 刻み。**テストから時間を進めるため internal** にしてある（public にはしない）。
-    func tick() {
+    func tick(elapsed: Int? = nil) {
         guard outcome == nil else { return }
-        let step = phase == .dropping ? dropInterval : Self.settleInterval
+        let step = elapsed ?? (phase == .dropping ? dropInterval : Self.settleInterval)
         elapsedMilliseconds += step
         riseClock += step
         if let interval = riseIntervalMilliseconds, riseClock >= interval { risePending = true }
@@ -299,6 +314,7 @@ public final class OjisanPuzzleModel {
         recordResult = nil
         // 未決着のまま捨てた局は、始め直す前に途中離脱（quit）として送られる（#500）。
         // 捨てた局の `mode` は開始時に焼き込んだ値で出る（`game_end` の `mode` は途中で替わらない・#820）。
+        hasAnnouncedStart = true
         services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
         resume()
     }

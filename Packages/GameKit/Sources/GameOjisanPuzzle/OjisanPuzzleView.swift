@@ -48,7 +48,8 @@ public struct OjisanPuzzleView: View {
             return
         }
         #endif
-        _model = State(initialValue: OjisanPuzzleModel(services: services))
+        // 開始シートで遊び方を選ぶまで `game_start` は送らない（既定の遊び方で数えない）。
+        _model = State(initialValue: OjisanPuzzleModel(services: services, announcesStart: false))
     }
 
     public var body: some View {
@@ -81,12 +82,14 @@ public struct OjisanPuzzleView: View {
                 // 何も置かずに同じ遊び方で始めるなら、開いた直後の局をそのまま使う
                 // （始め直すと `game_start` が二重に数えられる）。
                 if setupMode == model.mode, !model.hasProgress, model.outcome == nil {
+                    model.announceStartIfNeeded()
                     model.resume()
                 } else {
                     withGameAnimation { model.newGame(mode: setupMode) }
                 }
             } onCancel: {
                 showSetup = false
+                model.announceStartIfNeeded()
             }
         }
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
@@ -97,6 +100,10 @@ public struct OjisanPuzzleView: View {
         }
         .task { if !showSetup { model.resume() } }
         .onDisappear { model.pause() }
+        .onChange(of: showConfirmNewGame) { _, isShown in
+            // 確認を聞いているあいだも荷物を落とさない。
+            if isShown { model.pause() } else if !showSetup { model.resume() }
+        }
         .onChange(of: showSetup) { _, isShown in
             // 選んでいるあいだは荷物を落とさない。閉じたら（キャンセルも含め）続きから。
             if isShown { model.pause() } else { model.resume() }
