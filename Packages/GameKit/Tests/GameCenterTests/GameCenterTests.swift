@@ -92,7 +92,7 @@ private func isClose(_ actual: Double?, _ expected: Double) -> Bool {
 ///
 /// - Note: ハブへ**新しいゲームを追加**したときは、この配列にもモジュールを 1 行足す必要がある。
 @MainActor
-private func makeHubModules() -> [GameModule] {
+func makeHubModules() -> [GameModule] {
     [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
