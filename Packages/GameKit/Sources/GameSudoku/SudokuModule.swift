@@ -13,4 +13,16 @@ public struct SudokuModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(SudokuView(services: services))
     }
+
+
+    /// 1 マスも入力していない盤は「続き」ではない（#1912）。出題直後は盤が出題マスだけ・メモ無し・ヒント未使用。
+    /// 経過時間は手を入れなくても進むので見ない。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(SudokuSnapshot.self, for: id) else { return false }
+        let entered = snap.board.indices.contains { index in
+            index < snap.given.count && !snap.given[index] && snap.board[index] != 0
+        }
+        let noted = snap.notes.contains { $0 != 0 }
+        return entered || noted || snap.hintsUsed > 0 || (snap.mistakes ?? 0) > 0
+    }
 }

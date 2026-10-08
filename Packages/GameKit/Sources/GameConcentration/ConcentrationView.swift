@@ -45,11 +45,13 @@ public struct ConcentrationView: View {
                         }
                     })
         .howToPlay(.concentration)
-        .confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規対局", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると、いまの対戦が失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規対局", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの対戦が失われます。")
+            }
         }
         .sheet(isPresented: $showNewGame) {
             ConcentrationNewGameSheet(
@@ -73,37 +75,39 @@ public struct ConcentrationView: View {
             }
             .gameAnimation(ConcentrationMotion.resultOverlayFade, value: model.isGameOver)
         }
-        .alert("待った確認", isPresented: $showMattaConfirm) {
-            Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
-                guard model.mattaUsed else {
-                    // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                    // 手番で盤を動かす（同じ transaction に乗せると札の変化が
-                    // アラートの終了アニメーションに巻き込まれる）。
-                    Task { model.useMatta() }
-                    return
-                }
-                // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局に対する待ったかを
-                // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
-                let game = model.gameSerial
-                undoRescue.request(
-                    services, gameID: model.gameID, purpose: .undo,
-                    guardedBy: .checkedByGrant,
-                    // 待ったの確認中は自動めくりを止めてあるので、見なかったときは再開させる。
-                    whenNotEarned: { model.resumeAutoTurn() }
-                ) {
-                    guard model.useMatta(forGame: game) else {
-                        // 戻せなかったときも、止めてあった自動めくりは再開させる（再開すべき状況が無ければ何もしない）。
-                        model.resumeAutoTurn()
-                        return false
+        .dialogs { anchor in
+            anchor.alert("待った確認", isPresented: $showMattaConfirm) {
+                Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
+                    guard model.mattaUsed else {
+                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                        // 手番で盤を動かす（同じ transaction に乗せると札の変化が
+                        // アラートの終了アニメーションに巻き込まれる）。
+                        Task { model.useMatta() }
+                        return
                     }
-                    return true
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局に対する待ったかを
+                    // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                    let game = model.gameSerial
+                    undoRescue.request(
+                        services, gameID: model.gameID, purpose: .undo,
+                        guardedBy: .checkedByGrant,
+                        // 待ったの確認中は自動めくりを止めてあるので、見なかったときは再開させる。
+                        whenNotEarned: { model.resumeAutoTurn() }
+                    ) {
+                        guard model.useMatta(forGame: game) else {
+                            // 戻せなかったときも、止めてあった自動めくりは再開させる（再開すべき状況が無ければ何もしない）。
+                            model.resumeAutoTurn()
+                            return false
+                        }
+                        return true
+                    }
                 }
+                Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
+            } message: {
+                Text(model.mattaUsed
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
+                     : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
             }
-            Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
-        } message: {
-            Text(model.mattaUsed
-                 ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                 : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
         // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
         .rewardOffer(undoRescue, for: .undo, isPresented: showMattaConfirm && model.mattaUsed,

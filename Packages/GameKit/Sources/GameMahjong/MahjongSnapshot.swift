@@ -43,6 +43,14 @@ struct MahjongSnapshot: Codable {
     /// その対局に焼き込まれた長さ（#639）。上と同じく**旧データには鍵が無い**ので任意にする
     /// （必須にすると更新直後の 1 局が黙って消える）。nil は一局戦が無かった頃の対局 = 東風戦。
     let gameLength: MahjongGameLength?
+    // 和了の可否・役に直結する状態（#1948）。保存しないと「続きから」で一発・嶺上開花が消え、
+    // 見逃した同巡のロンが再提示される。上と同じく**旧データには鍵が無い**ので任意にする。
+    /// 同巡内フリテン（見逃し）。nil は従来どおり全員 false に戻す。
+    let temporaryFuriten: [Bool]?
+    /// 立直の宣言巡（一発の判定）。nil は従来どおり「立直中なら 0」に戻す。
+    let riichiTurn: [Int?]?
+    /// いまのツモ牌が嶺上牌か。nil は false。
+    let isRinshanDraw: Bool?
 }
 
 // MARK: - Seeded RNG

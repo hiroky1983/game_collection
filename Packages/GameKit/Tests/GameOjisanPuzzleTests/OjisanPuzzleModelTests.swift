@@ -10,13 +10,16 @@ import CoreTestSupport
 @MainActor
 struct OjisanPuzzleModelTests {
 
-    private func makeModel() -> OjisanPuzzleModel {
-        OjisanPuzzleModel(services: nil, seed: 42)
+    /// 軸 1・子 2 の組（座布団の山 + スイカ）を固定したときに増える量。
+    private static let lockOf12 = OjisanPuzzlePain.lockAmount(weights: [1, 2])
+
+    private func makeModel(mode: OjisanPuzzleMode = .backpain) -> OjisanPuzzleModel {
+        OjisanPuzzleModel(services: nil, mode: mode, seed: 42)
     }
 
     @Test("始めたときは空の盤と落下中の組がある")
     func startsWithEmptyBoardAndPair() {
-        let model = makeModel()
+        let model = makeModel(mode: .puzzle)
         #expect(model.board == OjisanPuzzleBoard.emptyBoard())
         #expect(model.current != nil)
         #expect(model.score == 0)
@@ -42,11 +45,12 @@ struct OjisanPuzzleModelTests {
 
     @Test("一気に落とすと盤に固定され、腰痛ゲージが増える")
     func hardDropLocksAndHurts() throws {
-        let model = makeModel()
-        let pair = try #require(model.current)
+        // 腰痛モードは最初から荷物が積まれているので、空の盤から始めて床への固定を確かめる。
+        let pair = OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 2, rotation: .up)
+        let model = OjisanPuzzleModel(services: nil, board: OjisanPuzzleBoard.emptyBoard(), current: pair)
         #expect(model.hardDrop())
         #expect(model.current == nil, "固定したのに落下中の組が残っている")
-        #expect(model.pain == OjisanPuzzlePain.perLock)
+        #expect(model.pain == OjisanPuzzlePain.lockAmount(weights: [pair.axisKind, pair.childKind]))
         let floor = OjisanPuzzleBoard.rows - 1
         #expect(model.board[floor][pair.col] == pair.axisKind)
         #expect(model.board[floor - 1][pair.col] == pair.childKind)
@@ -63,7 +67,7 @@ struct OjisanPuzzleModelTests {
 
     @Test("もう一度でスコア・ゲージ・盤が戻る")
     func newGameResetsEverything() {
-        let model = makeModel()
+        let model = makeModel(mode: .puzzle)
         #expect(model.hardDrop())
         model.newGame()
         #expect(model.board == OjisanPuzzleBoard.emptyBoard())
@@ -84,7 +88,7 @@ struct OjisanPuzzleModelTests {
         let model = OjisanPuzzleModel(services: nil, board: board, current: pair)
 
         #expect(model.hardDrop())
-        #expect(model.pain == OjisanPuzzlePain.perLock)
+        #expect(model.pain == Self.lockOf12)
 
         model.tick()    // 重力は動かないので、そのまま 4 つそろった 1 を消す
         #expect(model.score == OjisanPuzzleScoring.chainPoints(cells: 4, chain: 1))
@@ -181,7 +185,7 @@ struct OjisanPuzzleModelTests {
             services: nil,
             board: OjisanPuzzleBoard.emptyBoard(),
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+            pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())
         #expect(model.pain == OjisanPuzzlePain.limit)
@@ -203,18 +207,43 @@ struct OjisanPuzzleModelTests {
             services: nil,
             board: board,
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+            pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())   // 落とせば 1 が 4 つそろう並び
         #expect(model.outcome == .hospitalized)
         #expect(model.score == 0, "入院後に消去が走っている")
     }
 
-    @Test("出てくる場所まで積み上がったらゲームオーバー")
-    func buriesWhenSpawnIsBlocked() {
-        // 出口の列（中央）を天井まで埋める。3 個ずつ種類を変えて、4 つつながって消えないようにする。
+    @Test("盤が出口までぎっしり埋まったらゲームオーバー")
+    func buriesWhenNothingCanSpawn() {
+        // 隣り合うマスがかならず別の種類になる並びで全面を埋める（何も消えない）。左上の 2 マスだけ落下中の組のために空ける。
+        func kind(_ row: Int, _ col: Int) -> Int { (row + 2 * col) % 5 + 1 }
         var board = OjisanPuzzleBoard.emptyBoard()
-        let column = OjisanPuzzleBoard.columns / 2 - 1
+        for row in 0..<OjisanPuzzleBoard.rows {
+            for col in 0..<OjisanPuzzleBoard.columns { board[row][col] = kind(row, col) }
+        }
+        board[0][0] = 0
+        board[1][0] = 0
+        #expect(OjisanPuzzleBoard.clearableGroups(board).isEmpty, "前提: この盤では何も消えない")
+
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: board,
+            current: OjisanPuzzlePair(axisKind: kind(1, 0), childKind: kind(0, 0), row: 1, col: 0, rotation: .up)
+        )
+        #expect(model.hardDrop())
+        #expect(model.outcome == nil, "固定しただけでは終わらない")
+        model.tick()    // 重力も消去も起きないので、次の組を出そうとして詰まる
+        #expect(model.outcome == .buried)
+        #expect(model.current == nil)
+    }
+
+    /// #1954: 出口の列が塞がったとき、別の列へ逃がすと出る場所が読めない。いつも同じ列から出し、塞がれば終わり。
+    @Test("出口の列が塞がったら、ほかに空きがあっても積み上がりで終わる（#1954）")
+    func buriesWhenSpawnColumnBlocked() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        let column = OjisanPuzzleBoard.spawnColumn
+        // 3 個ずつ種類を変えて、4 つつながって消えないようにする。
         for row in 0..<OjisanPuzzleBoard.rows {
             board[row][column] = row / 3 + 1
         }
@@ -226,10 +255,23 @@ struct OjisanPuzzleModelTests {
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up)
         )
         #expect(model.hardDrop())
-        #expect(model.outcome == nil, "固定しただけでは終わらない")
-        model.tick()    // 重力も消去も起きないので、次の組を出そうとして詰まる
+        model.tick()
         #expect(model.outcome == .buried)
         #expect(model.current == nil)
+    }
+
+    @Test("出口の列に余裕があれば、いつも同じ列から次の組が出る（#1954）")
+    func spawnsFromFixedColumn() throws {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up)
+        )
+        #expect(model.hardDrop())
+        model.tick()
+        let current = try #require(model.current)
+        #expect(current.col == OjisanPuzzleBoard.spawnColumn)
+        #expect(current.rotation == .up)
     }
 
     @Test("決着すると負けとして 1 回だけ記録し、得点を自己ベストに残す（#1904）")
@@ -245,20 +287,22 @@ struct OjisanPuzzleModelTests {
             services: services,
             board: OjisanPuzzleBoard.emptyBoard(),
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+            pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())
         #expect(model.outcome == .hospitalized)
-        let record = try #require(log.record(gameID: OjisanPuzzleModule().id))
-        #expect(record.metric == .points)
+        // 腰痛モードの記録はクリアタイムの区分（入院は勝敗の数だけ残る）。パズルモードの得点の区分とは別。
+        #expect(log.record(gameID: OjisanPuzzleModule().id, variant: OjisanPuzzleMode.puzzle.recordVariant) == nil)
+        let record = try #require(log.record(gameID: OjisanPuzzleModule().id, variant: OjisanPuzzleMode.backpain.recordVariant))
+        #expect(record.metric == .shortestTime)
         #expect(record.plays == 1)
         #expect(record.losses == 1)
-        #expect(record.bestPoints == 0)
+        #expect(record.bestSeconds == nil)
         #expect(model.recordResult != nil)
 
         // 決着後の操作は二重に記録しない。もう一度で結果は消える。
         model.tick()
-        #expect(log.record(gameID: OjisanPuzzleModule().id)?.plays == 1)
+        #expect(log.record(gameID: OjisanPuzzleModule().id, variant: "backpain")?.plays == 1)
         model.newGame()
         model.pause()
         #expect(model.recordResult == nil)

@@ -10,7 +10,8 @@ struct SceneLayerTests {
     func layersAreSpacedBeyondPartZ() {
         let z = RunnerScene.LayerZ.ordered
         #expect(z == [RunnerScene.LayerZ.clouds, RunnerScene.LayerZ.backdrop, RunnerScene.LayerZ.hills,
-                      RunnerScene.LayerZ.course, RunnerScene.LayerZ.player, RunnerScene.LayerZ.effects])
+                      RunnerScene.LayerZ.course, RunnerScene.LayerZ.steam, RunnerScene.LayerZ.player,
+                      RunnerScene.LayerZ.effects])
         for (back, front) in zip(z, z.dropFirst()) {
             #expect(front - back > RunnerScene.LayerZ.partMax, "\(back) → \(front)")
         }

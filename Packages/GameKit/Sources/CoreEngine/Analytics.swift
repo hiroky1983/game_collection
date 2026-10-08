@@ -181,6 +181,10 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case stage
     /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。
     case endless
+    /// 腰痛おじさんパズルの腰痛モード（ゲージあり・片付け型。#1920）。
+    case backpain
+    /// 腰痛おじさんパズルのパズルモード（ゲージなし・得点を競う。#1920）。
+    case puzzle
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
@@ -190,8 +194,6 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
 public enum AnalyticsCredit: String, Equatable, Sendable, CaseIterable {
     /// 毎日の無料枠。
     case free
-    /// アンケートに答えた報酬の枠。
-    case survey
     /// リワード広告を見た報酬の枠。
     case ad
     /// ゲームのご褒美（月を落とした・#1680）の枠。
@@ -208,7 +210,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case recent
     /// リザルト画面のレコメンドカード（#52）。
     case recommendation
-    /// 中断したゲームのローカル通知（#663）。**発火点はまだ無い**（#663 の実装で使う）。
+    /// 通知の種類を分ける前の旧値（#663）。**発火点は無い**（#1950 で下の 3 つに分けた）。
+    /// 既存の GA4 レポートの値を壊さないよう、語彙には残す。
     case notification
     /// ハブ最上部の「はじめの1本」（#721）。記録がゼロの初回だけ出る1枚。
     case firstPick = "first_pick"
@@ -216,13 +219,20 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case quickAction = "quick_action"
     /// ハブ先頭の特別枠（柵越えおじさん・#1761）。1枚しか出ないので `position` は持たない。
     case hero
+    /// 中断したゲームのローカル通知（#663・#1950）。
+    case resumeReminder = "resume_reminder"
+    /// 久しぶりに遊ぼうの再エンゲージメント通知（#1193・#1950）。
+    case reengagement
+    /// 挑戦回数が戻ったお知らせ（#1576・#1950）。
+    case challengeReturn = "challenge_return"
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
     public var hasPosition: Bool {
         switch self {
         case .hub, .recent:                              return true
-        case .recommendation, .notification, .firstPick, .quickAction, .hero: return false
+        case .recommendation, .notification, .firstPick, .quickAction, .hero,
+             .resumeReminder, .reengagement, .challengeReturn: return false
         }
     }
 }
@@ -290,10 +300,6 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
     case shareTap(gameID: String)
-    /// ゲーム内アンケートに答えた（#1348）。パラメータは `game_id` と設問ごとの `q1` `q2` …（**選んだ選択肢の番号・1 始まり**）。
-    ///
-    /// 選択式だけで自由記述は載せない。回答は端末に残さず、この 1 回の送信だけで完結する。
-    case surveyAnswer(gameID: String, answers: [Int])
 
     /// Firebase のイベント名。
     public var name: String {
@@ -305,7 +311,6 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .gameOpen:      return "game_open"
         case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
-        case .surveyAnswer:  return "survey_answer"
         }
     }
 
@@ -367,10 +372,6 @@ public enum AnalyticsEvent: Equatable, Sendable {
             ]
         case let .shareTap(gameID):
             return ["game_id": .string(gameID)]
-        case let .surveyAnswer(gameID, answers):
-            var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
-            for (index, answer) in answers.enumerated() { parameters["q\(index + 1)"] = .int(answer) }
-            return parameters
         }
     }
 }
@@ -605,12 +606,6 @@ public final class GameAnalytics {
     public func recordShareTap(gameID: String) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.shareTap(gameID: gameID))
-    }
-
-    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。プレイの数え方には影響しない。
-    public func recordSurveyAnswer(gameID: String, answers: [Int]) {
-        guard allowedGameIDs.contains(gameID) else { return }
-        service.log(.surveyAnswer(gameID: gameID, answers: answers))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。

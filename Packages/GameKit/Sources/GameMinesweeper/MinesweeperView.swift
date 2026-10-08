@@ -64,17 +64,19 @@ public struct MinesweeperView: View {
                 showNewGame = false
             }
         }
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了するとゲームのデータが失われます。")
-        }
-        .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
-            Button("諦める", role: .destructive) { model.giveUp() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("全ての地雷が公開されゲームオーバーになります。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了するとゲームのデータが失われます。")
+            }
+            .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
+                Button("諦める", role: .destructive) { model.giveUp() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("全ての地雷が公開されゲームオーバーになります。")
+            }
         }
         .rewardOffer(continueRescue, for: .continue, isPresented: showContinue,
                      services: services, gameID: model.gameID)

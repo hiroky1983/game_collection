@@ -9,12 +9,12 @@ import Testing
 @Suite("チャリンコおじさん: ステージ定義")
 struct RunnerStageTests {
 
-    @Test("受け入れ条件どおり 36 ステージある")
+    @Test("受け入れ条件どおり 42 ステージある")
     func stageCount() {
         // #494 の受け入れ条件は「最低15ステージ」。16〜18 は乗れる台座の枠（#674）、
-        // 19〜30 は里山・港町の 2 世界（#1009）、31〜36 は京都・奈良（#1824）。
-        #expect(RunnerRules.stageCount == 36)
-        #expect(RunnerStage.all.map(\.number) == Array(1...36))
+        // 19〜30 は里山・港町の 2 世界（#1009）、31〜36 は京都・奈良（#1824）、37〜42 は温泉街（#1938）。
+        #expect(RunnerRules.stageCount == 42)
+        #expect(RunnerStage.all.map(\.number) == Array(1...42))
     }
 
     /// **19〜30 面のパターン文字列もリテラルで固定する**（#1824 の「1〜30 面は無変更」）。31 面以降を
@@ -34,6 +34,20 @@ struct RunnerStageTests {
             "--w--C-ikt^12t1-C-t1==-^n2bit-C-w--PP--",
             "--PP--~-^2i--w--n~it1==-^2b2tk~1t^nd-w--",
             "--PP-1^n~i--C-wk-^1t==-d~itt-C-b1^n~1-w--",
+        ])
+    }
+
+    /// **31〜36 面のパターン文字列もリテラルで固定する**（#1938 の「公開済みの面を巻き込まない」）。温泉街（37 面以降）を
+    /// 足すときに、公開済みの京都・奈良の面が意図せず書き換わっていないことを押さえる。
+    @Test("31〜36 ステージのパターン文字列が固定値どおり")
+    func kyotoNaraStagePatternsArePinned() {
+        #expect(RunnerStage.all[30..<36].map(\.pattern) == [
+            "--PP-1n^d2t~1-ikt2-==-^n1bd-w--~n^2t-C-1--",
+            "--1n-PP-^2td~1itk2-C-^n1b-d2-w--~n^1t==-1--",
+            "--PP-^1dn-C-t2~1-ikt1==-b2^n1-w--d~2^t-C-1--",
+            "--1n^d2t-PP-~i1k-C-t1^n2=-b1d--w--~n^2t-C-1--",
+            "--PP-2^nd-C-t1~i-k2n=-n^1b-2d-w--t~2^n1-C-1t--",
+            "--1^nd2t-C-t~i-k2t1^-PP-n2b1-w--=-d^1~1-C-t^n--",
         ])
     }
 
@@ -137,8 +151,8 @@ struct RunnerStageTests {
         let counts = RunnerStage.all.map {
             $0.hazards.count + $0.sinkFloors.count + $0.crumblingPlatforms.count
         }
-        #expect(counts.count == 36)
-        for range in [18..<24, 24..<30, 30..<36] {
+        #expect(counts.count == 42)
+        for range in [18..<24, 24..<30, 30..<36, 36..<42] {
             let group = Array(counts[range])
             for (previous, next) in zip(group, group.dropFirst()) {
                 #expect(previous <= next, "世界の中で障害数が減っている: \(group)")
@@ -147,7 +161,9 @@ struct RunnerStageTests {
         #expect(counts[18] >= counts[17], "19 面（\(counts[18]) 個）が 18 面（\(counts[17]) 個）より少ない")
         // 京都・奈良（#1824）も港町の締め（30 面）から易しく戻らない。
         #expect(counts[30] >= counts[29], "31 面（\(counts[30]) 個）が 30 面（\(counts[29]) 個）より少ない")
-        for (last, first) in [(17, 18), (23, 24), (29, 30)] {
+        // 温泉街（#1938）も京都・奈良の締め（36 面）から易しく戻らない。
+        #expect(counts[36] >= counts[35], "37 面（\(counts[36]) 個）が 36 面（\(counts[35]) 個）より少ない")
+        for (last, first) in [(17, 18), (23, 24), (29, 30), (35, 36)] {
             #expect(
                 counts[first] <= counts[last] + 3,
                 "\(first + 1) 面（\(counts[first]) 個）が \(last + 1) 面（\(counts[last]) 個）より極端に多い"
@@ -237,7 +253,7 @@ struct RunnerStageTests {
         }
         // 決裁の表の個数（里山 19 本・港町 10 本）に、京都・奈良の竹の子 19 本（#1824。嵯峨野の竹林）を足した数。
         // 置き換えたらここも直す。
-        let total = RunnerStage.all.flatMap(\.hazards).filter { $0.kind == .shoot }.count
+        let total = RunnerStage.all.prefix(36).flatMap(\.hazards).filter { $0.kind == .shoot }.count
         #expect(total == 48, "突き上げの総数が \(total) 個（里山 19 + 港町 10 + 京都・奈良 19 = 48 本）")
     }
 
@@ -283,12 +299,12 @@ struct RunnerStageTests {
         var checked = 0
         for stage in RunnerStage.all {
             let symbols = Array(stage.pattern)
-            for (index, symbol) in symbols.enumerated() where symbol == "^" {
+            for (index, symbol) in symbols.enumerated() where symbol == "^" || symbol == "g" {
                 for neighbour in [index - 1, index + 1] where symbols.indices.contains(neighbour) {
                     #expect(symbols[neighbour] != "b", "ステージ \(stage.number): 区画 \(index) の突き上げが鳥の隣")
                 }
             }
-            let shoots = stage.hazards.filter { $0.kind == .shoot }
+            let shoots = stage.hazards.filter { $0.kind == .shoot || $0.kind == .geyser }
             let birds = stage.hazards.filter { $0.kind == .bird }
             guard !shoots.isEmpty, !birds.isEmpty else { continue }
             for shoot in shoots {
@@ -325,13 +341,13 @@ struct RunnerStageTests {
     func noBoarRightBeforeAShoot() {
         for stage in RunnerStage.all {
             let pattern = Array(stage.pattern)
-            for (index, symbol) in pattern.enumerated() where symbol == "^" && index > 0 {
+            for (index, symbol) in pattern.enumerated() where (symbol == "^" || symbol == "g") && index > 0 {
                 #expect(pattern[index - 1] != "i", "ステージ \(stage.number): 区画 \(index) の突き上げの手前がイノシシ")
             }
         }
         // 置いた突き上げが、どのイノシシの「止まる岩」にも選ばれていないこと（実装側の裏取り）。
         for stage in RunnerStage.all {
-            let shootEnds = Set(stage.hazards.filter { $0.kind == .shoot }.map(\.end))
+            let shootEnds = Set(stage.hazards.filter { $0.kind == .shoot || $0.kind == .geyser }.map(\.end))
             for boar in stage.hazards where boar.kind == .boar {
                 guard let stopAt = boar.stopAt else { continue }
                 #expect(!shootEnds.contains(stopAt), "ステージ \(stage.number): イノシシが突き上げで止まっている")
@@ -341,6 +357,7 @@ struct RunnerStageTests {
         // 突き上げを含めても 368 件緑だったのを実測）。決定そのものを直接固定する:
         // 突き上げは岩に数えないので、`i^` を並べてもイノシシは止まらない。
         #expect(!RunnerHazardKind.shoot.isRock, "突き上げが岩に数えられている")
+        #expect(!RunnerHazardKind.geyser.isRock, "間欠泉が岩に数えられている（突き上げと同じ扱い）")
         let synthetic = RunnerStage(number: 0, pattern: "---i^-----", speed: 40)
         let boar = synthetic.hazards.first { $0.kind == .boar }
         #expect(boar != nil, "合成ステージにイノシシが無い（空振り防止）")
@@ -422,6 +439,7 @@ struct RunnerStageTests {
                     || symbol == RunnerStage.boostFloorSymbol
                     || symbol == RunnerStage.sinkFloorSymbol
                     || symbol == RunnerStage.crumblingPlatformSymbol
+                    || symbol == RunnerStage.steamSymbol
                 #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
             }
         }
@@ -448,8 +466,8 @@ struct RunnerStageTests {
                         range > needed + RunnerRules.tileWidth,
                         "ステージ \(stage.number) の穴（長さ \(hazard.length)）が跳び越せない"
                     )
-                case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot:
-                    // 突き上げ（#1010）は走者が着く前に伸び切っているので、高い岩とまったく同じ式。
+                case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser:
+                    // 突き上げ（#1010）・間欠泉（#1938）は走者が着く前に伸び切っているので、高い岩とまったく同じ式。
                     // 当たり判定が重なるあいだ、ずっと上端より上にいられること。
                     let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
                     let overlap = (encounter.length + halfWidth * 2) / stage.speed
@@ -1085,7 +1103,7 @@ struct RunnerPlaythroughTests {
         for stage in RunnerStage.all {
             for hazard in stage.hazards
             where hazard.kind != .tallBlock && hazard.kind != .bird && hazard.kind != .shoot
-                && hazard.kind != .wall
+                && hazard.kind != .geyser && hazard.kind != .wall
                 && !(hazard.kind == .boar && hazard.stopAt != nil) {
                 var field = RunnerField(stage: stage)
                 // 踏み切り位置へ直接置く。**測っているのは「踏み切ってからの弾道だけ」**で、
@@ -1470,8 +1488,8 @@ struct RunnerPlaythroughTests {
             // 早すぎると向こう岸に届かず穴へ落ちる。遅すぎると縁で踏み切れない。
             earliest = hazard.end - range + RunnerRules.tileWidth / 2
             latest = hazard.start - half
-        case .lowBlock, .tallBlock, .shoot:
-            // 突き上げ（#1010）は走者が着く前に伸び切っているので、置いた位置の高い岩と同じ計算。
+        case .lowBlock, .tallBlock, .shoot, .geyser:
+            // 突き上げ（#1010）・間欠泉（#1938）は走者が着く前に伸び切っているので、置いた位置の高い岩と同じ計算。
             // 上端を越える高さに上がりきってから当たり判定へ入り、抜け切るまで落ちないこと。
             let rise = tap ? Self.tapRiseTime(to: clearHeight) : RunnerRules.riseTime(to: clearHeight)
             let above = tap ? Self.tapTime(above: clearHeight) : RunnerRules.airTime(above: clearHeight)
@@ -1521,7 +1539,7 @@ struct RunnerPlaythroughTests {
                 var plan = (x: target.start - target.lead, tap: false)
                 if field.altitude == 0,
                    let hazard = field.nextHazard(from: field.playerMaxX),
-                   hazard.kind == .pit || hazard.kind.isRock || hazard.kind == .shoot,
+                   hazard.kind == .pit || hazard.kind.isRock || hazard.kind == .shoot || hazard.kind == .geyser,
                    abs(hazard.start - target.start) < 1e-9 {
                     plan = justLandingTakeOff(
                         for: hazard,

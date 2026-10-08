@@ -42,6 +42,7 @@ struct HubView: View {
     }
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.scenePhase) private var scenePhase
 
     /// グリッドを載せるスクロール領域の高さ（#485）。カードの高さを行数で割り付けるために測る。
     @State private var viewportHeight: CGFloat = 0
@@ -349,6 +350,16 @@ struct HubView: View {
                         ))
                 }
             }
+            // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
+            // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
+            .onChange(of: scenePhase) { _, phase in
+                guard let current = path.last else { return }
+                switch phase {
+                case .background: services.gameDidEnterBackground(gameID: current.gameID)
+                case .active: services.gameDidReturnToForeground(gameID: current.gameID)
+                default: break
+                }
+            }
             .onChange(of: path) { oldPath, newPath in
                 // ゲーム画面から離れたことを解析へ伝える（#158）。次に開いたときを新しい
                 // 1 プレイとして数え直すための境界で、ここが唯一の発火点。
@@ -389,7 +400,7 @@ struct HubView: View {
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
-                    gameID: id, source: .notification, position: nil,
+                    gameID: id, source: .resumeReminder, position: nil,
                     resume: isResumable(id)
                 ))
             }
@@ -400,7 +411,20 @@ struct HubView: View {
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
-                    gameID: id, source: .notification, position: nil,
+                    gameID: id, source: .reengagement, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
+            // 挑戦回数が戻ったお知らせ（#1576・#1950）がタップされたら、そのゲームを直接開く。
+            // 設定で非表示にしたゲームは開かない（クイックアクションと同じ）。
+            .onChange(of: services.returnReminder?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.returnReminder?.requestedGameID = nil
+                guard settings.visibleModules(from: registry).contains(where: { $0.id == id }) else { return }
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .challengeReturn, position: nil,
                     resume: isResumable(id)
                 ))
             }
@@ -494,10 +518,12 @@ struct HubView: View {
             }
             .presentationDetents([.large])
         }
-        .alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+        .dialogs { anchor in
+            anchor.alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+            }
         }
     }
 

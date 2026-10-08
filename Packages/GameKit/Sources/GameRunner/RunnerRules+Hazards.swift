@@ -217,7 +217,7 @@ extension RunnerRules {
     /// 二段ジャンプは滞空が長い（`doubleJumpAirTime` ≒ 1.28 秒）ぶん**着地点を選べない**ので、
     /// 決裁の「入れない組み合わせ」は塀の着地点に穴・突き上げ・沈む床・動物を禁じている。
     /// その「着地点」を距離で表したのがこの値——塀の右端から、いちばん速い面（30 面・57.2。#1824 で
-    /// 最速は 34〜36 面の 60 になったが、60 でも ≒ 76.8 で 2 区画に収まる）で
+    /// 最速は 34〜42 面の 60 になったが、60 でも ≒ 76.8 で 2 区画に収まる）で
     /// 降りきるまでに進む距離（`doubleJumpRange(at: 57.2)` ≒ 73.2）を区画（64）に切り上げた
     /// **2 区画**。`RunnerStageTests.wallsLeaveSafeLandingGround` が区画の記号で機械的に弾く。
     public static let wallLandingSegments = 2
@@ -240,7 +240,7 @@ extension RunnerRules {
     ///
     /// 要る距離は **3 秒 × 接地中に出せるいちばん速い速さ**。いちばん速い面（30 面・57.2）で
     /// ペダルの乗りが上限（`maxPedalBoost` 1.55）＋ジャスト着地の上乗せ（`justLandingOverboost`
-    /// 0.2）なら 57.2 × 1.75 ≒ 100.1 で、3 秒に 300.4 進む（#1824 で最速になった 34〜36 面の 60 では
+    /// 0.2）なら 57.2 × 1.75 ≒ 100.1 で、3 秒に 300.4 進む（#1824 で最速になった 34〜42 面の 60 では
     /// 315 で、なお 5 区画 = 320 の内側）。区画（64）に直すと 4.7 なので
     /// **手前 4 区画には置かない**（＝ 5 区画以上離す。5 区画 = 320 単位で 3.2 秒かかる）。
     /// 加速床があいだに架かる並びはこの区画数では足りないので、
@@ -351,4 +351,42 @@ extension RunnerRules {
     /// 常に同じ高さになり、ゆっくりモード・一時停止・ペダルの乗りに左右されない。
     public static let shootRiseDistance: Double = 8 * tileWidth
 
+    // MARK: 間欠泉（#1938 温泉街・会長決定 2026-10-08）
+
+    /// 間欠泉が見え始める間合い（走者の前端から左端まで）。画面の右端に入る間合いで、突き上げの予告と同じ。
+    public static var geyserViewDistance: Double { shootTriggerDistance }
+    /// 1 回目の噴きが続く間合いの下限（これより遠い間は噴き切っている）。
+    public static let geyserBurstUntilGap: Double = 15 * tileWidth
+    /// 1 回目の噴きが引き切る間合い（`geyserBurstUntilGap` から線形に引く）。
+    public static let geyserRestUntilGap: Double = 13 * tileWidth
+    /// 止まっている間に泡立つのが始まる間合い（ここから 2 回目の噴きが伸び始める）。
+    ///
+    /// `geyserRestUntilGap`（52）から 44 までの 8 単位が**泡立ちだけ**の区間——湯柱が引いたあと、
+    /// 次の噴きまでを泡の揺れで読ませる（噴く前の合図）。
+    public static let geyserSimmerFromGap: Double = 11 * tileWidth
+    /// 2 回目の噴きが噴き切る間合い。**踏み切り地点より手前**でなければならない。
+    ///
+    /// 踏み切りの余裕（`RunnerAutoPilot.lead`）は高い岩と同じ式で、最速の 60 でも約 15.8。ここを 34 にして
+    /// 噴き切りから踏み切りまで 18 以上（60/秒で 0.3 秒・ペダル上限 1.55 倍の 93/秒でも 0.19 秒）残す。
+    /// 突き上げは 38 で噴き切るので、それより遅い（短い）分だけ「噴く速さ」で緊張を作る
+    /// （`RunnerHazardMotionTests.geyserFinishesRisingBeforeTheTakeOffPoint` が固定）。
+    public static let geyserEruptFullGap: Double = 34
+    /// 走者が抜けたあと、噴き切ったまま居座る距離（見た目だけ）。
+    public static let geyserLingerDistance: Double = 2 * tileWidth
+    /// 居座りのあと、湯柱が引き切るまでの距離（見た目だけ）。
+    public static let geyserRetreatDistance: Double = 4 * tileWidth
+
+    // MARK: 湯けむり（#1938 温泉街・会長決定 2026-10-08）
+
+    /// 湯けむりの濃さの上限（画面の遠くにかぶせる白の不透明度）。
+    ///
+    /// **隠しすぎない**（会長指示「次の仕掛けの合図は読める加減」）ために半分強に抑える。遠くの障害や
+    /// 間欠泉の泡立ちは、縁取り（黒）の輪郭が薄く透けて見える濃さ。
+    public static let steamMaxAlpha: Double = 0.55
+    /// 湯けむりの区間の前後で、濃さが 0 から 1 へ変わる走者の進み（4 タイル × 6）。
+    public static let steamRampDistance: Double = 6 * tileWidth
+    /// 湯けむりが**かぶせない**手前の間合い（走者の前端から前方）。踏み切りの地点
+    /// （`RunnerAutoPilot.lead` の最大。二段ジャンプの高い塀を含む）より外側にあるので、
+    /// 湯けむりの中でも「いま跳ぶべきか」は隠れない（`SteamBankTests` が最速の面で固定）。
+    public static let steamNearClearGap: Double = 10 * tileWidth
 }

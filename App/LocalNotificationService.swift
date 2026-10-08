@@ -5,7 +5,7 @@ import Core
 /// 中断したゲームのお知らせ（#663）の通知の識別子。delegate（非隔離）からも読むため、
 /// MainActor に隔離される型の中ではなくここに置く。
 enum ResumeReminderNotification {
-    static let identifierPrefix = "resume-reminder."
+    static let identifierPrefix = NotificationTapTarget.resumeReminderPrefix
     static let gameIDKey = "gameID"
 
     static func identifier(for gameID: String) -> String {
@@ -110,7 +110,7 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
 /// 再エンゲージメント通知（#1193）の識別子。3件（7日・30日・60日後）を同じゲームで
 /// 区別するため、末尾に発火順のインデックスを付ける。
 enum ReengagementReminderNotification {
-    static let identifierPrefix = "reengagement-reminder."
+    static let identifierPrefix = NotificationTapTarget.reengagementPrefix
     static let gameIDKey = "gameID"
 
     static func identifier(for gameID: String, index: Int) -> String {
@@ -216,7 +216,7 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
 
 /// 挑戦回数が戻ったら知らせる通知（#1576）の識別子。予約は常に 1 件なので固定。
 enum ChallengeReturnNotification {
-    static let identifier = "challenge-return.homerun"
+    static let identifier = NotificationTapTarget.challengeReturnIdentifier
 }
 
 /// `ChallengeReturnReminderService`（Core）の予約先を `UNUserNotificationCenter` で実装する。
@@ -321,24 +321,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping @Sendable () -> Void
     ) {
-        var resumeGameID: String?
-        var reengagementGameID: String?
+        var target: NotificationTapTarget?
         if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
             let request = response.notification.request
-            let userInfo = request.content.userInfo
-            // gameIDKey は両方とも "gameID" で共通のため、先に識別子の接頭辞で通知の種類を判定する。
-            if request.identifier.hasPrefix(ResumeReminderNotification.identifierPrefix) {
-                resumeGameID = userInfo[ResumeReminderNotification.gameIDKey] as? String
-            } else if request.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix) {
-                reengagementGameID = userInfo[ReengagementReminderNotification.gameIDKey] as? String
-            }
+            // gameID の鍵名は種類をまたいで共通のため、識別子で種類を判定する（純粋関数・#1950）。
+            target = NotificationTapTarget.resolve(
+                identifier: request.identifier,
+                gameID: request.content.userInfo["gameID"] as? String
+            )
         }
-        DispatchQueue.main.async { [resumeGameID, reengagementGameID] in
+        DispatchQueue.main.async { [target] in
             MainActor.assumeIsolated {
-                if let gameID = resumeGameID {
-                    AppEnvironment.reminders.notificationTapped(gameID: gameID)
-                } else if let gameID = reengagementGameID {
-                    AppEnvironment.reengagement.notificationTapped(gameID: gameID)
+                switch target {
+                case .resumeReminder(let gameID): AppEnvironment.reminders.notificationTapped(gameID: gameID)
+                case .reengagement(let gameID):   AppEnvironment.reengagement.notificationTapped(gameID: gameID)
+                case .challengeReturn(let gameID): AppEnvironment.returnReminder.notificationTapped(gameID: gameID)
+                case nil: break
                 }
             }
             completionHandler()

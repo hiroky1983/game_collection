@@ -413,20 +413,22 @@ private struct RewardedRescueAlerts: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert(notEarned, isPresented: $rescue.showsNotEarned) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(RewardedRescue.notEarnedMessage)
-            }
-            // 適用できなかったときのアラートを持たない面（`RewardGuard.unchecked`）では、
-            // 万一 `showsUnavailable` が立っても中身の無いアラートを出さない。
-            .alert(
-                unavailable?.title ?? "",
-                isPresented: unavailable == nil ? .constant(false) : $rescue.showsUnavailable
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(unavailable?.message ?? "")
+            .dialogs { anchor in
+                anchor.alert(notEarned, isPresented: $rescue.showsNotEarned) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(RewardedRescue.notEarnedMessage)
+                }
+                // 適用できなかったときのアラートを持たない面（`RewardGuard.unchecked`）では、
+                // 万一 `showsUnavailable` が立っても中身の無いアラートを出さない。
+                .alert(
+                    unavailable?.title ?? "",
+                    isPresented: unavailable == nil ? .constant(false) : $rescue.showsUnavailable
+                ) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(unavailable?.message ?? "")
+                }
             }
     }
 }

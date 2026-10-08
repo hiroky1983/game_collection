@@ -640,7 +640,7 @@ public final class RunnerModel {
             // ゴールに着いた瞬間に確定させ、そのあとで演出の局面を被せる（#1092）。
             let cleared = stageNumber
             clearStage()
-            // 世界の締め（6・12・18・24・30・36 面の初回クリア）は、毎面のゴールの演出の**代わり**に流す。
+            // 世界の締め（6・12・18・24・30・36・42 面の初回クリア）は、毎面のゴールの演出の**代わり**に流す。
             if let scene = RunnerStory.endingToPlay(clearedStage: cleared, playLog: services?.playLog) {
                 beginStory(scene)
             } else {

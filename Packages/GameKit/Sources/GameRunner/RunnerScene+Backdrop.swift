@@ -76,6 +76,7 @@ extension RunnerScene {
             case .satoyama:   addSatoyama(to: tile, index: i)
             case .harbor:     addHarbor(to: tile, index: i)
             case .kyotoNara:  addKyotoNara(to: tile, index: i)
+            case .onsen:      addOnsen(to: tile, index: i)
             }
             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
             hillLayer.addChild(tile)
@@ -528,6 +529,227 @@ extension RunnerScene {
             puff.zPosition = SceneryZ.middle
             tile.addChild(puff)
         }
+    }
+
+    /// 温泉街（`RunnerWorld.Scenery.onsen`・#1938）。山の頂に雪、道の奥に提灯の並ぶ低い柵が全タイルに続き、
+    /// その後ろにタイルの番号で旅館（3 で割り切れる番号）・外湯（のれんと提灯・余り 1）・源泉の櫓（余り 2）を
+    /// 立て、湯けむりを添える。色は `RunnerWorld.SceneryPalette`（どれも空と 2:1 未満）。
+    private func addOnsen(to tile: SKNode, index: Int) {
+        typealias P = RunnerWorld.SceneryPalette
+        let width = Self.hillSpacing
+        let base = Metrics.groundY
+
+        // 山の雪。丘の山（`buildHills` の 3 つ）と同じ楕円を白で描き、頂から 28% だけをマスクで残す
+        // （稜線に沿った雪の帯になる）。
+        for (dx, w, h) in [(8.0, 42.0, 34.0), (42.0, 36.0, 27.0), (22.0, 34.0, 19.0)] {
+            let crop = SKCropNode()
+            let mask = SKSpriteNode(color: .white, size: CGSize(width: w, height: h * 0.2))
+            mask.anchorPoint = CGPoint(x: 0.5, y: 0)
+            mask.position = CGPoint(x: dx, y: base + h * 0.8)
+            crop.maskNode = mask
+            let cap = SKShapeNode(ellipseOf: CGSize(width: w, height: h * 2))
+            cap.fillColor = RunnerPalette.color(P.snow)
+            cap.strokeColor = .clear
+            cap.position = CGPoint(x: dx, y: base)
+            crop.addChild(cap)
+            crop.zPosition = SceneryZ.back
+            tile.addChild(crop)
+        }
+
+        switch index % 3 {
+        case 0:
+            // 旅館。3 階建ての木造。壁に窓（障子の灯り）が 3 段、各階の軒に横の梁、上に雪をかぶった瓦屋根。
+            let x0 = 8.0, w = 32.0, floorH = 3.4
+            let wall = SKSpriteNode(color: RunnerPalette.color(P.ryokanWall), size: CGSize(width: w, height: floorH * 3))
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: x0, y: base)
+            wall.zPosition = SceneryZ.middle
+            tile.addChild(wall)
+            let timber = CGMutablePath(), glow = CGMutablePath()
+            for f in 0..<3 {
+                let y = base + Double(f) * floorH
+                timber.addRect(CGRect(x: x0, y: y + floorH - 0.6, width: w, height: 0.6))
+                var wx = x0 + 2.0
+                while wx + 2.4 <= x0 + w - 1.5 {
+                    glow.addRect(CGRect(x: wx, y: y + 0.9, width: 2.4, height: 1.8))
+                    wx += 4.2
+                }
+            }
+            timber.addRect(CGRect(x: x0 - 0.4, y: base, width: 0.8, height: floorH * 3))
+            timber.addRect(CGRect(x: x0 + w - 0.4, y: base, width: 0.8, height: floorH * 3))
+            for (path, color) in [(glow, P.windowGlow), (timber, P.ryokanTimber)] {
+                let shape = SKShapeNode(path: path)
+                shape.fillColor = RunnerPalette.color(color)
+                shape.strokeColor = .clear
+                shape.zPosition = SceneryZ.middle
+                tile.addChild(shape)
+            }
+            addSnowRoof(to: tile, left: x0 - 2.5, right: x0 + w + 2.5, eave: base + floorH * 3, rise: 3.2)
+            addSteam(to: tile, x: x0 + w + 6, y: base + 2, scale: 1.0)
+        case 1:
+            // 外湯。平屋の湯屋。入口に藍ののれん（3 枚）、両脇に提灯、屋根に雪。裏手から湯けむり。
+            let x0 = 16.0, w = 22.0, h = 5.6
+            let wall = SKSpriteNode(color: RunnerPalette.color(P.ryokanWall), size: CGSize(width: w, height: h))
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: x0, y: base)
+            wall.zPosition = SceneryZ.middle
+            tile.addChild(wall)
+            let noren = CGMutablePath()
+            for i in 0..<3 {
+                noren.addRect(CGRect(x: x0 + 7.4 + Double(i) * 2.5, y: base + 1.6, width: 2.2, height: 2.6))
+            }
+            let norenNode = SKShapeNode(path: noren)
+            norenNode.fillColor = RunnerPalette.color(P.noren)
+            norenNode.strokeColor = .clear
+            norenNode.zPosition = SceneryZ.middle
+            tile.addChild(norenNode)
+            let timber = CGMutablePath()
+            timber.addRect(CGRect(x: x0 + 7.0, y: base + 4.2, width: 8.2, height: 0.6))
+            timber.addRect(CGRect(x: x0 + 6.6, y: base, width: 0.7, height: 4.6))
+            timber.addRect(CGRect(x: x0 + 14.9, y: base, width: 0.7, height: 4.6))
+            let timberNode = SKShapeNode(path: timber)
+            timberNode.fillColor = RunnerPalette.color(P.ryokanTimber)
+            timberNode.strokeColor = .clear
+            timberNode.zPosition = SceneryZ.middle
+            tile.addChild(timberNode)
+            for lx in [x0 + 3.2, x0 + w - 3.2] {
+                addLantern(to: tile, x: lx, y: base + 3.0, z: SceneryZ.middle)
+            }
+            addSnowRoof(to: tile, left: x0 - 2.0, right: x0 + w + 2.0, eave: base + h, rise: 2.6)
+            addSteam(to: tile, x: x0 + w + 4, y: base + 3, scale: 1.2)
+            addSteam(to: tile, x: x0 - 4, y: base + 1, scale: 0.7)
+        default:
+            // 源泉の櫓。木の脚 4 本（台形）に小さな屋根、てっぺんから太い湯けむり。横に小さな旅館。
+            let cx = 44.0
+            let legs = CGMutablePath()
+            legs.addLines(between: [
+                CGPoint(x: cx - 4.0, y: base), CGPoint(x: cx - 2.2, y: base + 11),
+                CGPoint(x: cx - 1.2, y: base + 11), CGPoint(x: cx - 3.0, y: base),
+            ])
+            legs.closeSubpath()
+            legs.addLines(between: [
+                CGPoint(x: cx + 4.0, y: base), CGPoint(x: cx + 2.2, y: base + 11),
+                CGPoint(x: cx + 1.2, y: base + 11), CGPoint(x: cx + 3.0, y: base),
+            ])
+            legs.closeSubpath()
+            legs.addRect(CGRect(x: cx - 3.4, y: base + 4.0, width: 6.8, height: 0.6))
+            legs.addRect(CGRect(x: cx - 2.8, y: base + 7.6, width: 5.6, height: 0.6))
+            legs.addRect(CGRect(x: cx - 3.2, y: base + 11, width: 6.4, height: 0.8))
+            let legNode = SKShapeNode(path: legs)
+            legNode.fillColor = RunnerPalette.color(P.ryokanTimber)
+            legNode.strokeColor = .clear
+            legNode.zPosition = SceneryZ.middle
+            tile.addChild(legNode)
+            addSnowRoof(to: tile, left: cx - 4.5, right: cx + 4.5, eave: base + 11.8, rise: 2.0)
+            addSteam(to: tile, x: cx, y: base + 13, scale: 1.5)
+
+            let x0 = 6.0, w = 24.0, floorH = 3.4
+            let wall = SKSpriteNode(color: RunnerPalette.color(P.ryokanWall), size: CGSize(width: w, height: floorH * 2))
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: x0, y: base)
+            wall.zPosition = SceneryZ.middle
+            tile.addChild(wall)
+            let timber = CGMutablePath(), glow = CGMutablePath()
+            for f in 0..<2 {
+                let y = base + Double(f) * floorH
+                timber.addRect(CGRect(x: x0, y: y + floorH - 0.6, width: w, height: 0.6))
+                var wx = x0 + 2.0
+                while wx + 2.4 <= x0 + w - 1.5 {
+                    glow.addRect(CGRect(x: wx, y: y + 0.9, width: 2.4, height: 1.8))
+                    wx += 4.2
+                }
+            }
+            for (path, color) in [(glow, P.windowGlow), (timber, P.ryokanTimber)] {
+                let shape = SKShapeNode(path: path)
+                shape.fillColor = RunnerPalette.color(color)
+                shape.strokeColor = .clear
+                shape.zPosition = SceneryZ.middle
+                tile.addChild(shape)
+            }
+            addSnowRoof(to: tile, left: x0 - 2.0, right: x0 + w + 2.0, eave: base + floorH * 2, rise: 2.8)
+        }
+
+        // 道の奥の低い柵と提灯。柵は全タイル続き、12 おきに柱を立てて提灯を吊るす。
+        let fence = SKSpriteNode(color: RunnerPalette.color(P.fence), size: CGSize(width: width, height: 1.6))
+        fence.anchorPoint = .zero
+        fence.position = CGPoint(x: 0, y: base + 0.6)
+        fence.zPosition = SceneryZ.front
+        tile.addChild(fence)
+        let posts = CGMutablePath()
+        var px = 6.0
+        while px < width {
+            posts.addRect(CGRect(x: px - 0.35, y: base, width: 0.7, height: 5.4))
+            px += 12
+        }
+        let postNode = SKShapeNode(path: posts)
+        postNode.fillColor = RunnerPalette.color(P.ryokanTimber)
+        postNode.strokeColor = .clear
+        postNode.zPosition = SceneryZ.front
+        tile.addChild(postNode)
+        px = 6.0
+        while px < width {
+            addLantern(to: tile, x: px, y: base + 3.6, z: SceneryZ.front)
+            px += 12
+        }
+    }
+
+    /// 雪をかぶった屋根（温泉街）。軒 `left`〜`right` から棟へ上がる台形の瓦屋根と、その上に白い雪の帯。
+    private func addSnowRoof(to tile: SKNode, left: Double, right: Double, eave: Double, rise: Double) {
+        typealias P = RunnerWorld.SceneryPalette
+        let inset = rise * 1.4
+        let roof = CGMutablePath()
+        roof.addLines(between: [
+            CGPoint(x: left, y: eave), CGPoint(x: left + inset, y: eave + rise),
+            CGPoint(x: right - inset, y: eave + rise), CGPoint(x: right, y: eave),
+        ])
+        roof.closeSubpath()
+        let roofNode = SKShapeNode(path: roof)
+        roofNode.fillColor = RunnerPalette.color(P.ryokanRoof)
+        roofNode.strokeColor = .clear
+        roofNode.zPosition = SceneryZ.middle
+        tile.addChild(roofNode)
+        let snow = CGMutablePath()
+        snow.addLines(between: [
+            CGPoint(x: left + 0.3, y: eave + rise * 0.55), CGPoint(x: left + inset, y: eave + rise),
+            CGPoint(x: right - inset, y: eave + rise), CGPoint(x: right - 0.3, y: eave + rise * 0.55),
+            CGPoint(x: right - inset + 0.6, y: eave + rise + 1.0), CGPoint(x: left + inset - 0.6, y: eave + rise + 1.0),
+        ])
+        snow.closeSubpath()
+        let snowNode = SKShapeNode(path: snow)
+        snowNode.fillColor = RunnerPalette.color(P.snow)
+        snowNode.strokeColor = .clear
+        snowNode.zPosition = SceneryZ.middle
+        tile.addChild(snowNode)
+    }
+
+    /// 提灯 1 つ（温泉街）。朱の丸い胴に上下の黒い口輪は付けず（背景は縁取りしない）、胴だけ。
+    private func addLantern(to tile: SKNode, x: Double, y: Double, z: CGFloat) {
+        let body = SKShapeNode(ellipseOf: CGSize(width: 1.8, height: 2.3))
+        body.fillColor = RunnerPalette.color(RunnerWorld.SceneryPalette.lantern)
+        body.strokeColor = .clear
+        body.position = CGPoint(x: x, y: y)
+        body.zPosition = z
+        tile.addChild(body)
+    }
+
+    /// 湯けむり（温泉街）。白い丸を 4 つ、上へ行くほど小さく散らして半透明で重ね、ゆっくり上下させる。
+    private func addSteam(to tile: SKNode, x: Double, y: Double, scale: Double) {
+        let node = SKNode()
+        for (dx, dy, r) in [(0.0, 0.0, 2.6), (-1.8, 2.4, 2.1), (1.6, 4.2, 1.8), (-0.4, 6.4, 1.3)] {
+            let puff = SKShapeNode(circleOfRadius: r * scale)
+            puff.fillColor = RunnerPalette.color(RunnerWorld.SceneryPalette.steam)
+            puff.strokeColor = .clear
+            puff.alpha = 0.78
+            puff.position = CGPoint(x: dx * scale, y: dy * scale)
+            node.addChild(puff)
+        }
+        node.position = CGPoint(x: x, y: y)
+        node.zPosition = SceneryZ.back
+        node.run(.repeatForever(.sequence([
+            .moveBy(x: 0, y: 1.2, duration: 1.8),
+            .moveBy(x: 0, y: -1.2, duration: 1.8),
+        ])))
+        tile.addChild(node)
     }
 
     /// 里山・港町・京都・奈良の遠景の部品の相対 z（`hillLayer` の中。丘の山は 0）。家並みの `HouseZ` と同じ考え方。

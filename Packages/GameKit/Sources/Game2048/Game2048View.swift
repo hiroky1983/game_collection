@@ -36,11 +36,13 @@ public struct Game2048View: View {
                         }
                     })
         .howToPlay(.game2048)
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると、いまの盤面と得点が失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの盤面と得点が失われます。")
+            }
         }
         .onAppear {
             #if DEBUG

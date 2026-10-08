@@ -66,16 +66,18 @@ public struct OthelloView: View {
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
-        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規対局", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると対局データが失われます。")
-        }
-        .alert("パス", isPresented: $showPassAlert) {
-            Button("OK") { model.confirmPass() }
-        } message: {
-            Text("打てるマスがありません。パスします。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規対局", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると対局データが失われます。")
+            }
+            .alert("パス", isPresented: $showPassAlert) {
+                Button("OK") { model.confirmPass() }
+            } message: {
+                Text("打てるマスがありません。パスします。")
+            }
         }
         // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
         // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。

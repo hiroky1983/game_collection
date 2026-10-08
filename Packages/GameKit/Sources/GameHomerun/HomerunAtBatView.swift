@@ -184,11 +184,13 @@ struct HomerunAtBatView: View {
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
         .gameAnimation(.easeOut(duration: 0.15), value: model.isPaused)
         // 途中でやめる確認。キャンセル（外側のタップで閉じた場合も）は一時停止の画面に戻るだけ。
-        .confirmationDialog("この挑戦をやめますか？", isPresented: $confirmsQuit, titleVisibility: .visible) {
-            Button("やめる", role: .destructive) { model.quitChallenge() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("この挑戦はここで終わり、使った回数は戻りません。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("この挑戦をやめますか？", isPresented: $confirmsQuit, titleVisibility: .visible) {
+                Button("やめる", role: .destructive) { model.quitChallenge() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("この挑戦はここで終わり、使った回数は戻りません。")
+            }
         }
         // 結果のカードを出す前に、打球（当たり以上は追うカメラで止まるまで・見送り・空振りならミットへ入る球）を見せる。
         .task(id: model.step) {

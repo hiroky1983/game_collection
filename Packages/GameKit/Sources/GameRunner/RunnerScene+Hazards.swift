@@ -483,12 +483,15 @@ extension RunnerScene {
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.apply(frame.advance < 0 ? .moving : .stopped)
             view.applyWalkFrame(travel: hazard.boarSpawn - frame.start)
-        case .shoot:
+        case .shoot, .geyser:
             // 原点は当たり判定の左下。位置は動かず、**伸びた高さだけ**が距離で決まる（#1010）。
             // 当たり判定（`frame.top`）と同じ値を絵の位置に使うので、見た目と判定は構造的にずれない。
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.riser?.position.y = CGFloat(frame.top - view.riserHeight)
-            let rising = frame.top < view.riserHeight
+            // 間欠泉（#1938）が揺らすのは**泡立ち（噴く前の合図）の間だけ**。噴いている間・引いたあとは止める。
+            let rising = hazard.kind == .geyser
+                ? hazard.isSimmering(atRunnerDistance: field.distance)
+                : frame.top < view.riserHeight
             view.apply(rising ? .moving : .stopped)
             // 揺れを止めたら塚・泡を地面へ戻す。`isPaused` はいまの位置で止めるだけなので、
             // 揺れの上端で止まると予告が浮いたまま固まる（#1010 で CodeRabbit が指摘）。

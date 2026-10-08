@@ -16,7 +16,6 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
-import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 @testable import GameShiritori
@@ -556,21 +555,6 @@ struct GameOutcomeRoutingTests {
         model.tapPile(0)
         model.tapCell(0)
         model.newGame()
-        #expect(service.log.totalWins == 0)
-    }
-
-    @Test("ブロックならべ: 詰みは勝利にならない")
-    func blockPuzzleStuck() {
-        let (services, service) = makeServices(suite: "route-blockpuzzle")
-        var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
-        for i in 0..<10 { board[i][i] = 0 }
-        board[0][2] = 0
-        let model = BlockPuzzleModel(
-            services: services, board: board,
-            hand: [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
-        )
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        #expect(model.gameOver)
         #expect(service.log.totalWins == 0)
     }
 

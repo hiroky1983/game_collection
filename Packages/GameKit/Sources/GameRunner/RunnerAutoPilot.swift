@@ -68,7 +68,7 @@ public enum RunnerAutoPilot {
     /// 沈む床の上で「いま跳ぶと次の障害に間に合わない」ときに我慢できる沈みの上限（0…1）。
     ///
     /// 半分。残り半分（`RunnerRules.sinkDuration` の 0.4 秒ぶん）あれば、床の残りを歩いて
-    /// 抜けてから踏み切り直す余地がある——いちばん速い 34〜36 面（60）でも歩いて 20 以上進める。
+    /// 抜けてから踏み切り直す余地がある——いちばん速い 34〜42 面（60）でも歩いて 20 以上進める。
     static let sinkPatience: Double = 0.5
 
     /// 前方にある次の踏み切り地点を、**置いた位置**（等価な静止区間 `RunnerHazard.encounter`）から見る。
@@ -169,7 +169,9 @@ public enum RunnerAutoPilot {
         switch hazard.kind {
         case .pit:
             return baseLead
-        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot:
+        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser:
+            // 間欠泉（#1938）も噴き切った高さで見る（止まっている間に踏み切ることは無い——
+            // 噴き切りは踏み切り地点より手前）。
             // 突き上げ（#1010）は**伸び切った高さ**（`hazard.height`）で見る——伸びかけの低い
             // 帯に合わせて踏み切ると、越えている最中に伸びてきて当たる。伸び切るのは踏み切り
             // 地点より手前なので、この見積もりで実際に越えられる

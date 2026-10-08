@@ -340,7 +340,7 @@ struct RunnerDoubleJumpWallTests {
         for stage in RunnerStage.all.prefix(18) {
             #expect(!stage.pattern.contains("w"), "ステージ \(stage.number) に塀がある: \(stage.pattern)")
         }
-        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30), (.kyotoNara, 31...36)] {
+        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30), (.kyotoNara, 31...36), (.onsen, 37...42)] {
             let count = RunnerStage.all
                 .filter { range.contains($0.number) }
                 .reduce(0) { $0 + $1.hazards.filter { $0.kind == .wall }.count }
