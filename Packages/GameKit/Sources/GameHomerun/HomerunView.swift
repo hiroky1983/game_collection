@@ -15,6 +15,10 @@ public struct HomerunView: View {
     /// 広告を見てプレイ（#1694）の救済。**画面に 1 つだけ**持ち、打席前・結果のボタンへ渡す（ボタンごとに持つと、
     /// 提示の計測（`reward_offer`）と連打ガードが割れ、付与でボタンが消えたときにアラートも一緒に消える）。
     @State private var challengeRescue = RewardedRescue()
+    /// 週間ランキング（#1792）: 結果の演出のあとに挟むページを見終えたか。次の挑戦の開始で戻す。
+    @State private var rankingSeen = false
+    /// 結果ページの「今週のランキング」から開き直しているか。
+    @State private var rankingReopened = false
     private let services: GameServices
     @Environment(\.scenePhase) private var scenePhase
 
@@ -56,6 +60,9 @@ public struct HomerunView: View {
             }
             // 進行の待ちは Model が決め、ここは待つだけ。進行が変わるたびに `step` が進んで前の待ちが止まる。
             .task(id: model.step) { await runClock() }
+            .onChange(of: model.phase) { _, phase in
+                if phase == .pitching || phase == .idle { rankingSeen = false; rankingReopened = false }
+            }
             // 場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。鳴らす時刻は演出と同じ式から決める（`HomerunSoundCues`）。
             .modifier(HomerunSoundPlayer(model: model, service: services.homerunSound, haptics: services.haptics))
             #if os(iOS) && canImport(RealityKit)
@@ -86,8 +93,34 @@ public struct HomerunView: View {
                 .gameNavigationBarBackgroundHidden()
                 .transition(.opacity)
         case .finished:
-            HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)
-                .transition(.opacity)
+            if (model.weekly.showsAfterFinale && !rankingSeen) || rankingReopened {
+                rankingPage
+                    .transition(.opacity)
+            } else {
+                HomerunResultView(model: model, services: services, challengeRescue: challengeRescue,
+                                  onOpenRanking: { withGameAnimation { rankingReopened = true } })
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    /// 今週のランキング（#1792）。結果の演出のあと（サインイン済みの人だけ）と、結果ページの行から開いたとき。
+    /// 演出のあとの最初の 1 回だけ入れ替えアニメを流し、開き直しは静止の表を出す。
+    @ViewBuilder private var rankingPage: some View {
+        let next = { withGameAnimation { rankingSeen = true; rankingReopened = false } }
+        let title = rankingReopened ? "結果に戻る" : "結果を見る"
+        switch model.weekly {
+        case .off, .signedOut:
+            HomerunRankingSignedOutPage(nextTitle: title, onNext: next)
+        case .loading:
+            HomerunRankingPage(content: .loading, nextTitle: title, onNext: next)
+        case .failed:
+            HomerunRankingPage(content: .failed, nextTitle: title, onNext: next)
+        case .ready(let before, let after):
+            HomerunRankingPage(
+                content: .ready(board: after, motion: rankingReopened ? nil : HomerunRankingPlan.motion(before: before, after: after)),
+                nextTitle: title, onNext: next
+            )
         }
     }
 
@@ -248,6 +281,8 @@ struct HomerunResultView: View {
     let model: HomerunModel
     let services: GameServices
     let challengeRescue: RewardedRescue
+    /// 結果ページの「今週のランキング」の行を押したとき（#1792）。
+    let onOpenRanking: () -> Void
 
     private var balls: [HomerunBattedBall] { model.challenge?.results ?? [] }
 
@@ -266,6 +301,7 @@ struct HomerunResultView: View {
     private var resultContent: some View {
         VStack(spacing: 14) {
             summaryCard
+            rankingRow
             HomerunUnlockedCard(items: model.unlockedThisChallenge)
             moonCard
             breakdownCard
@@ -301,6 +337,39 @@ struct HomerunResultView: View {
         .padding(14)
         .popCard()
         .accessibilityElement(children: .combine)
+    }
+
+    /// 今週のランキングの 1 行（#1792）。ランクインしたことと順位だけを知らせ、表は別のページで見せる（会長決定 2026-10-09）。
+    /// 未サインインでは「登録すると見られます」の案内ページへ。送り先が未作成、または順位を読めていないときは出さない。
+    @ViewBuilder private var rankingRow: some View {
+        switch model.weekly {
+        case .signedOut:
+            rankingButton(detail: "Game Center に登録すると見られます", delta: nil)
+        case .ready(let before, let after):
+            if let rank = after.myRank {
+                let up = HomerunRankingPlan.motion(before: before, after: after).map { $0.from + 1 - ($0.to + 1) }
+                rankingButton(detail: "\(rank)位にランクイン", delta: up)
+            }
+        case .off, .loading, .failed:
+            EmptyView()
+        }
+    }
+
+    private func rankingButton(detail: String, delta: Int?) -> some View {
+        Button(action: onOpenRanking) {
+            HStack(spacing: 8) {
+                Label("今週のランキング", systemImage: "trophy.fill").themeBody(16).foregroundStyle(Theme.ink)
+                Spacer(minLength: 4)
+                Text(verbatim: detail).themeBody(14, weight: .heavy).foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.trailing)
+                if let delta, delta > 0 { ChipText(text: "↑ \(delta)", fill: Theme.Fill.pink) }
+                Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSub)
+            }
+            .padding(14)
+            .frame(minHeight: 44)
+            .popCard()
+        }
+        .buttonStyle(.plain)
     }
 
     /// 月まで飛んだ（#1680）挑戦だけに出す。距離は 384,400 km と出し（合計・自己ベストには 180m で数えてある）、月が割れたら
