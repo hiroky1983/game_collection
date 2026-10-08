@@ -444,7 +444,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **許諾**: 起動時には求めない。初めて予約するときに標準の許可ダイアログで明示的に求める（会長決裁 2026-09-21・#1219。
   以前は `.provisional` で静かに求めていたが、この決裁で更新された）。拒否されていれば何もしない
 - **対象外**: `GameModule.resumesFromSnapshot == false` のゲーム（中断データから局を復元しないチャリンコおじさん）と、設定で非表示にしたゲーム（#810。予約もタップからの遷移もしない）
-- **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
+- **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "resume_reminder"}`（#1950 で `notification` から分離） の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「お知らせ」トグル（#1508 で久しぶり通知と統合）。動作確認は `-simulateNotificationTap <gameID>`（DEBUG のみ）
 
 ---
@@ -799,7 +799,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   設定の「お知らせ」トグルをオフにする・「プレイ記録を消去」する（#1269）と、全スレッド・状態を消す
 - **許諾**: 標準の許可ダイアログで明示的に求める。**`.provisional` は使わない**（会長決裁 2026-09-21。#663 も #1219 で同じ方式に揃え済み）
 - **対象外**: 設定で非表示にしたゲーム
-- **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
+- **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "reengagement"}`（#1950 で `notification` から分離） の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「お知らせ」トグル
 
 ### 柵越えおじさん: 公開状態と動作確認用の強制
@@ -857,6 +857,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **予約**: トグルをオンにした 1 回だけ、翌 0:00 の 1 分後にローカル通知を 1 件（識別子 `challenge-return.homerun` 固定なので置き換わり、増えない）。音なし・繰り返しなし
 - **許可**: 設定の「通知」（#1508 の共有トグル）に従う。オフなら予約せずトグルを無効にする。OS の許諾が未決定なら標準ダイアログで求める（`.provisional` は使わない）
 - **保存先**: アプリ側の保存は無い（予約の有無は OS の予約一覧から読み直す）。トグルオフ・設定の「通知」オフで取り消す
+- **タップ**: `AppDelegate` が識別子（`challenge-return.homerun`。`userInfo` は持たない）から柵越えおじさんへの着地を決め（`NotificationTapTarget.resolve`・純関数）、ハブが `game_open{source: "challenge_return"}` で開く。設定で非表示にしたゲームは開かない（#1950）
 - **実装**: 規則は `HomerunReturnPolicy`（純関数）、予約は `ChallengeReturnReminderService`（`GameServices.returnReminder`）
 
 ### 柵越えおじさん: 月まで飛ぶ隠し演出（#1680・v1.1.8）
@@ -1045,7 +1046,7 @@ v1.1.4 までの公開版は3種）。
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
-| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761） |
+| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の8値） / `result`(accepted\|declined\|not_ready) |
 | `share_tap` | 自己ベストを更新したリザルトの**共有ボタンを押した**（`RecordLabel` の共有ボタン。共有シートで実際に送ったかは問わない） | `game_id` のみ |
 
@@ -1105,7 +1106,8 @@ v1.1.4 までの公開版は3種）。
   （`game_start` は再開では送られないため、再開を数える唯一の手段）
 - `game_open` の導線は遷移の値そのもの（`HubRoute`）に持たせる。タップの横で別の状態に書き留めると
   タップと path の変化の順序が保証されないため。`resume` も**タップした時点**の「続きから」の判定（ハブのバッジと同じ `GameModule.hasResumableSnapshot`・#809）で決める。
-  `notification` は #663 のローカル通知のタップで開いたとき（`release/v1.1.5` から。上の「中断したゲームのお知らせ」を参照）
+  `notification` は通知を種類別に分ける前の旧値（#1950 以降は発火点なし。既存の GA4 レポートの値を壊さないため語彙には残す）。
+  `resume_reminder` は #663 の中断したゲームのお知らせ、`reengagement` は #1193 の久しぶりに遊ぼう通知、`challenge_return` は #1576 の挑戦回数が戻ったお知らせのタップで開いたとき（いずれも #1950・`release/v1.1.11` から）
   `first_pick` はハブ最上部の「はじめの1本」（#721。記録ゼロの初回だけ出る1枚）から開いたとき（`release/v1.1.5` から）
   `quick_action` はホーム画面アイコン長押しの項目（#1642。「続きから」可能なゲーム→最近遊んだゲームの最大4件。
   `RecentGames` と同じ並び・非表示除外で、バックグラウンドへ入るたびに `QuickActionService` が組み直す。`release/v1.1.9` から）
