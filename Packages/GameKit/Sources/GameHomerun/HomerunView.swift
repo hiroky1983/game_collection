@@ -769,10 +769,12 @@ struct HomerunRecoveryButton: View {
                 surveyFailedOnSubmit = !applied
             }
         }
-        .alert("挑戦回数を増やせませんでした", isPresented: $surveyNotApplied) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("回答しているあいだに日付が変わったため、回数を増やせませんでした。")
+        .dialogs { anchor in
+            anchor.alert("挑戦回数を増やせませんでした", isPresented: $surveyNotApplied) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("回答しているあいだに日付が変わったため、回数を増やせませんでした。")
+            }
         }
     }
 

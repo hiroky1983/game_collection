@@ -493,10 +493,12 @@ struct HubView: View {
             }
             .presentationDetents([.large])
         }
-        .alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+        .dialogs { anchor in
+            anchor.alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+            }
         }
     }
 

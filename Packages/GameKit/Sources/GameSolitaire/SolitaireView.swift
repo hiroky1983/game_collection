@@ -98,11 +98,13 @@ public struct SolitaireView: View {
                 message: "広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。"
             )
         )
-        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-            Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        .dialogs { anchor in
+            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)

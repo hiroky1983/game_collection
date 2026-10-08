@@ -82,11 +82,13 @@ public struct ChessView: View {
                 showNewGame = false
             }
         }
-        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規対局", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると対局データが失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規対局", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると対局データが失われます。")
+            }
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }

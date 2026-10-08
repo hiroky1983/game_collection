@@ -92,17 +92,19 @@ public struct SudokuView: View {
                 showNewGame = false
             }
         }
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると解きかけの盤面が失われます。")
-        }
-        .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
-            Button("諦める", role: .destructive) { model.giveUp() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("答えがすべて表示され、この局は記録上「クリアできなかった」扱いになります。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると解きかけの盤面が失われます。")
+            }
+            .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
+                Button("諦める", role: .destructive) { model.giveUp() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("答えがすべて表示され、この局は記録上「クリアできなかった」扱いになります。")
+            }
         }
         .rewardedRescueAlerts(
             hintRescue,
@@ -112,11 +114,13 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
             )
         )
-        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-            Button("広告を見て\(SudokuUndoBudget.refill)回補充する") { requestUndoRefill() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴すると「戻す」を\(SudokuUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        .dialogs { anchor in
+            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(SudokuUndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(SudokuUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
