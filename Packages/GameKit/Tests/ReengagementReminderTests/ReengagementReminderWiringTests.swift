@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import Core
 import GameKitTestSupport
 
 /// 再エンゲージメント通知（#1193）の**結線**。OS へ渡す部分・バックグラウンド遷移・通知のタップは
@@ -80,7 +81,13 @@ struct ReengagementReminderWiringTests {
     @Test("識別子の名前空間が #663 と分かれている")
     func identifierNamespaceIsSeparateFromResumeReminder() throws {
         let source = try SourceScan.appSources()
-        #expect(source.contains(#"static let identifierPrefix = "reengagement-reminder.""#),
-                "識別子の接頭辞が見つからない、または #663 と同じになっている")
+        // 接頭辞の実体は NotificationTapTarget（#1950）。App 側はそれを参照するだけ。
+        #expect(source.contains("static let identifierPrefix = NotificationTapTarget.reengagementPrefix"),
+                "識別子の接頭辞が NotificationTapTarget を参照していない")
+        #expect(source.contains("static let identifierPrefix = NotificationTapTarget.resumeReminderPrefix"),
+                "#663 の接頭辞が NotificationTapTarget を参照していない")
+        #expect(NotificationTapTarget.reengagementPrefix == "reengagement-reminder.")
+        #expect(NotificationTapTarget.reengagementPrefix != NotificationTapTarget.resumeReminderPrefix,
+                "識別子の接頭辞が #663 と同じになっている")
     }
 }
