@@ -949,6 +949,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **入口**: `GameServices.homerunSound`（`HomerunSoundService`）。触覚と 1 対 1 の `feedback` とは別（触覚の無い瞬間にも鳴り、
   場面の音どうしは止め合わずに重ねる）。App の実体は `SoundFeedbackService` を共有し、`.ambient` の音声セッションと
   設定の「効果音」のオン / オフ（`GatedHomerunSoundService`）に従う
+- **触覚**（#1949）: 音と同じ発火点（`HomerunSoundPlayer`）に相乗りして場面ごとに鳴らす。対応は `HomerunFeedbackCue`
+  （空振り・詰まり=light / 芯=medium / ジャストミート・フェンス直撃=rigid / 柵越え・場外・月が割れる=success /
+  ファウルポール=warning / たんこぶ=error。打ち出し・素振りなどは無し）。`feedback` は `SoundEffect` にも相乗りして
+  場面の音と二重に鳴るため使わず、触覚だけの入口 `GameServices.haptics`（設定の「触覚」のオン / オフに従う）へ渡す
 - **鳴らす時刻**: `HomerunSoundCues`（純粋な関数）が演出と同じ式（打点・打球の道・月・たんこぶ・空振りの演出の時刻）から出し、
   `HomerunSoundPlayer`（View の `.task(id: step)`）が待って鳴らす。止めている間は鳴らさない
 - **差し替え**: 場面 → 合成の式の対応は `HomerunSound.samples` の 1 か所（いまは試作の A 案）
