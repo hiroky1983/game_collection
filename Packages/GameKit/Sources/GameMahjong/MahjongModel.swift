@@ -237,8 +237,10 @@ public final class MahjongModel: AITurnGuarded {
             && (snap.discardedKinds?.count ?? playerCount) == playerCount
             && seats.contains(snap.currentPlayer)
             && seats.contains(snap.dealer)
+            && snap.deadWall.count == deadWallCount
             && (0...snap.wall.count).contains(snap.wallIndex)
-            && (snap.deadWallDraws ?? 0) >= 0
+            && (0...4).contains(snap.deadWallDraws ?? 0)
+            && snap.wallIndex + (snap.deadWallDraws ?? 0) <= snap.wall.count
             && (0...5).contains(snap.revealedDoraCount ?? 1)
     }
 

@@ -28,6 +28,9 @@ struct MahjongBrokenSnapshotTests {
             ("wallIndex", "-5"),
             ("wallIndex", "100000"),
             ("currentPlayer", "7"),
+            ("deadWall", "[]"),
+            ("deadWallDraws", "9"),
+            ("deadWallDraws", "-1"),
             ("scores", "[25000]"),
             ("melds", "[[]]"),
         ])
