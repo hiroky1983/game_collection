@@ -42,6 +42,7 @@ struct HubView: View {
     }
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.scenePhase) private var scenePhase
 
     /// グリッドを載せるスクロール領域の高さ（#485）。カードの高さを行数で割り付けるために測る。
     @State private var viewportHeight: CGFloat = 0
@@ -347,6 +348,16 @@ struct HubView: View {
                             url: AppEnvironment.appStoreURL,
                             didTap: { services.gameDidTapShare(gameID: gameID) }
                         ))
+                }
+            }
+            // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
+            // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
+            .onChange(of: scenePhase) { _, phase in
+                guard let current = path.last else { return }
+                switch phase {
+                case .background: services.gameDidEnterBackground(gameID: current.gameID)
+                case .active: services.gameDidReturnToForeground(gameID: current.gameID)
+                default: break
                 }
             }
             .onChange(of: path) { oldPath, newPath in
