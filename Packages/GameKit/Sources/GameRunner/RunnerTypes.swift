@@ -83,6 +83,19 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// **高い岩とまったく同じ**——ステージの成立条件（`RunnerStageTests` の間隔・跳び越し）は
     /// 高い岩 `t` を置いたときと 1 単位も変わらない。
     case shoot
+    /// 間欠泉（#1938・区画記号 `g`）。温泉街（37〜42 面）だけの**湯柱**。
+    ///
+    /// 突き上げ（`shoot`）と同じく地面から高い岩（`shootTop` = 9）まで噴き上がるが、**画面に入ってきた
+    /// ときにすでに噴いていて、一度止まり、ぶくぶくと泡立ってから、もう一度噴き上がって居座る**——
+    /// 「噴く → 止まる → 合図 → 噴く」の拍で、止まっている最中を「通れる」と読んだ人を罰する
+    /// （詳しい時刻表は `RunnerHazard.geyserRise(atRunnerDistance:)`）。
+    ///
+    /// **走者の接近に位相を合わせる**（会長指示 2026-10-08「ブレーキ無しで着いたときに噴いているかが
+    /// 位置で決まる問題は、走者の接近に位相を合わせて公平に」）。噴き具合は時計ではなく走者の距離で決まり、
+    /// ペダルの乗りやゆっくりモード・一時停止に左右されない。**最後の噴き上がりは踏み切り地点より手前で終わり**、
+    /// 重なる区間（走者と x が重なっている間）は常に噴き切った状態なので、当たり判定は高い岩と同じ
+    /// ——止まっている最中に走者の x が重なることは構造的に無い。
+    case geyser
     /// 二段ジャンプでしか越えられない高い塀（#1091・区画記号 `w`）。里山では**石垣**、
     /// 港町では**積まれたコンテナ**。30 面化（#1009）の新しい仕組み 4 つのうちの 1 つで、
     /// 19〜30 面にだけ置く。
@@ -108,7 +121,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 止まった鳥に触れることは無い。
     public var bottom: Double {
         switch self {
-        case .pit, .lowBlock, .tallBlock, .dog, .boar, .shoot, .wall: return 0
+        case .pit, .lowBlock, .tallBlock, .dog, .boar, .shoot, .geyser, .wall: return 0
         case .bird:                                                  return Self.birdLowTop - Self.birdBandHeight
         }
     }
@@ -131,7 +144,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
         case .lowBlock:          return 5
         case .tallBlock:         return 9
         case .bird, .dog, .boar: return Self.birdLowTop
-        case .shoot:             return Self.shootTop
+        case .shoot, .geyser:    return Self.shootTop
         case .wall:              return Self.wallTop
         }
     }
@@ -159,7 +172,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     public var missCause: AnalyticsEndCause {
         switch self {
         case .pit:                         return .pit
-        case .lowBlock, .tallBlock, .shoot, .wall: return .rock
+        case .lowBlock, .tallBlock, .shoot, .geyser, .wall: return .rock
         case .bird:                        return .bird
         case .dog, .boar:                  return .animal
         }
@@ -315,7 +328,7 @@ public struct RunnerHazard: Equatable, Sendable {
     /// `shootRise(atRunnerDistance:)` から描く）。
     public var cue: (distance: Double, event: RunnerEvent)? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .bird, .dog, .shoot, .wall: return nil
+        case .pit, .lowBlock, .tallBlock, .bird, .dog, .shoot, .geyser, .wall: return nil
         case .boar: return (boarChargeStartDistance, .boarCharging)
         }
     }
@@ -338,6 +351,56 @@ public struct RunnerHazard: Equatable, Sendable {
         guard travel > 0 else { return 0 }
         let full = RunnerHazardKind.shootTop
         return min(full, full * travel / RunnerRules.shootRiseDistance)
+    }
+
+    // MARK: 間欠泉（#1938 温泉街）
+
+    /// 間欠泉が画面に入る（噴き始めの拍が見え始める）走者の距離（中心 x）。突き上げの予告と同じ間合い。
+    public var geyserCueDistance: Double {
+        start - RunnerRules.geyserViewDistance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// 走者の前端から間欠泉の左端までの間合い（前方が正）。噴き具合はこの値だけで決まる。
+    public func geyserGap(atRunnerDistance distance: Double) -> Double {
+        start - distance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// いま噴き上がっている高さ（地面から。止まっていれば 0、噴き切ると `RunnerHazardKind.shootTop`）。
+    ///
+    /// 間合い `gap`（前端から左端まで）に対する時刻表。上から下へ（走者が近づくにつれて）:
+    ///
+    /// | 間合い | 状態 |
+    /// |---|---|
+    /// | 70 以上 | 画面の外（0） |
+    /// | 70 → 60 | 1 回目の噴き（噴き切っている） |
+    /// | 60 → 52 | 湯柱が引く（線形に 0 へ） |
+    /// | 52 → 44 | 止まる（0。ここで泡立つ＝合図） |
+    /// | 44 → 34 | 2 回目の噴き（線形に伸び切る） |
+    /// | 34 → −12 − 8 | 噴き切って居座る（走者の x と重なる間 −12 まで含む） |
+    /// | それより後 | 引いていく（見た目だけ。走者の後ろ） |
+    ///
+    /// 当たり判定（`frame`）と見た目（`RunnerScene.syncMovingHazard`）は**両方ここを読む**。
+    public func geyserRise(atRunnerDistance distance: Double) -> Double {
+        let gap = geyserGap(atRunnerDistance: distance)
+        let full = RunnerHazardKind.shootTop
+        let burst = RunnerRules.geyserBurstUntilGap
+        let rest = RunnerRules.geyserRestUntilGap
+        let erupt = RunnerRules.geyserEruptFullGap
+        if gap >= RunnerRules.geyserViewDistance { return 0 }
+        if gap > burst { return full }
+        if gap > rest { return full * (gap - rest) / (burst - rest) }
+        if gap > RunnerRules.geyserSimmerFromGap { return 0 }
+        if gap > erupt { return full * (RunnerRules.geyserSimmerFromGap - gap) / (RunnerRules.geyserSimmerFromGap - erupt) }
+        // 噴き切って居座る。走者が抜けたあと（重なりの終わり + 余白）から引き始める。
+        let leave = -(length + RunnerField.Metrics.playerWidth) - RunnerRules.geyserLingerDistance
+        if gap > leave { return full }
+        return max(0, full * (1 - (leave - gap) / RunnerRules.geyserRetreatDistance))
+    }
+
+    /// 泡立ち（噴く前の合図）の最中か。止まっている区間のうち、次の噴きまで `geyserSimmerFromGap` 以内。
+    public func isSimmering(atRunnerDistance distance: Double) -> Bool {
+        let gap = geyserGap(atRunnerDistance: distance)
+        return gap <= RunnerRules.geyserRestUntilGap && gap > RunnerRules.geyserEruptFullGap
     }
 
     /// イノシシの予告（手応え）が出て突進が始まる走者の距離。土煙は本体の足元に付いており
@@ -387,6 +450,12 @@ public struct RunnerHazard: Equatable, Sendable {
                 start: charging, end: charging + length, bottom: 0, top: height,
                 advance: -RunnerRules.boarAdvance
             )
+        case .geyser:
+            // 噴いていない間も**帯の高さ 0 の枠として返す**（描画が泡立ちの合図を出し続けるため）。
+            // 高さ 0 の帯は接地した足（`footY` = 地面）には当たらない。自動操縦の踏み切りは
+            // 噴き切った高さ（`height`）で見るので、止まっている間に枠が返っても影響しない。
+            let top = geyserRise(atRunnerDistance: distance)
+            return RunnerHazardFrame(start: start, end: end, bottom: 0, top: top, advance: 0)
         case .shoot:
             // 予告が出る前は地面の中——当たり判定を持たない（`RunnerField.nextHazard` の
             // 対象からも自然に外れるので、自動操縦が見えない相手に踏み切ることも無い）。
@@ -411,7 +480,8 @@ public struct RunnerHazard: Equatable, Sendable {
     public var encounter: RunnerHazardEncounter {
         let playerWidth = RunnerField.Metrics.playerWidth
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .shoot, .wall:
+        case .pit, .lowBlock, .tallBlock, .shoot, .geyser, .wall:
+            // 間欠泉（#1938）も同じ——重なる区間は常に噴き切っている。
             // 突き上げ（#1010）は横に動かず、走者が着くより手前で伸び切っている——
             // 走者から見れば置いた位置の高い岩そのもの。高い塀（#1091）も置いた位置のまま
             // （高さだけが違うので、間隔の式は岩と同じで踏み切りの余裕だけが変わる）。
@@ -466,12 +536,44 @@ public struct RunnerHazard: Equatable, Sendable {
             return dogAppearDistance...(encounter.end + half)
         case .boar:
             return boarChargeStartDistance...(max(encounter.end, boarSpawn) + half)
+        case .geyser:
+            // 画面に入って最初に噴くところから、後端が抜けるまで（#1938）。
+            return geyserCueDistance...(end + half)
         case .shoot:
             // 予告が出て伸び始めてから、後端が抜けるまで（#1010）。チェックポイントをこの外に
             // 置くことで、伸びかけの真ん前から再開させない（決裁「一時停止・復帰で状態がずれない」
             // と同じ趣旨——伸びは距離で決まるので、再開地点がこの外なら必ず 0 か伸び切りのどちらか）。
             return shootCueDistance...(end + half)
         }
+    }
+}
+
+/// コース上の湯けむりの区間 1 つ（#1938。温泉街）。
+///
+/// **見た目だけの演出**——地形としては平地で、当たり判定も成立条件も持たない。走者がこの区間に
+/// 入るころから、画面の右の**遠く**（`RunnerRules.steamNearClearGap` より先）が白くかすむ。
+/// 近く（踏み切りの地点）は一切隠さないので、次の仕掛けの合図は薄く透けて読める
+/// （濃さの上限は `RunnerRules.steamMaxAlpha`）。
+public struct RunnerSteamBank: Equatable, Sendable {
+    /// 左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 長さ。レイアウトの連続した `m` がここでまとめられる。
+    public let length: Double
+
+    public init(start: Double, length: Double) {
+        self.start = start
+        self.length = length
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+
+    /// 走者が距離 `distance` にいるときの濃さ（0…1）。区間の中は 1、前後は線形に変わる。
+    public func intensity(atRunnerDistance distance: Double) -> Double {
+        let ramp = RunnerRules.steamRampDistance
+        if distance < start { return max(0, 1 - (start - distance) / ramp) }
+        if distance > end { return max(0, 1 - (distance - end) / ramp) }
+        return 1
     }
 }
 
@@ -663,7 +765,7 @@ public enum RunnerEvent: Equatable, Sendable {
 /// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
 /// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
 public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
-    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界、#1824 で 36 面・6 世界）。
+    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界、#1824 で 36 面・6 世界、#1938 で 42 面・7 世界）。
     case stages
     /// 走行距離を競うエンドレス（#675）。
     case endless
@@ -733,7 +835,7 @@ public enum RunnerPhase: Equatable, Sendable {
     /// ——`RunnerModel.clearStage()` を丸ごと済ませてからこの局面に入るので、演出を飛ばしても
     /// 演出中にアプリを閉じても、クリアは記録済み。
     case chasing
-    /// 世界の締めの演出中（#1092）。6・12・18・24・30・36 面を**初めて**クリアしたときだけ入り、
+    /// 世界の締めの演出中（#1092）。6・12・18・24・30・36・42 面を**初めて**クリアしたときだけ入り、
     /// そのときは毎面のゴールの演出（`.chasing`）の**代わり**に流す（2 回続けて逃げられる形にしない）。
     ///
     /// `.chasing` と違って**時間では進まない**——コマ送りは `RunnerStoryView` が持ち、

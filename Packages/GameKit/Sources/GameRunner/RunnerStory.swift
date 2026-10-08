@@ -11,15 +11,16 @@ import Foundation
 /// （マリオの「姫は別の城にいます」の型）。**なぜママチャリで海を渡れるのかは説明しない**。
 /// 京都・奈良（#1824）は港町の船が運んだ先。奈良の鹿が宝くじを鹿せんべいと間違えて咥えて逃げ、
 /// 話は「つづく」のまま次の世界へ送る（**なぜ船が古都に着くのかも説明しない**。港町と同じ）。
+/// 温泉街（#1938）は鹿を追って着いた湯の町。サルが宝くじを横取りして走り去り、また「つづく」で締める。
 ///
 /// 純データなので、出す・出さないの判定も場面の中身も SwiftUI 抜きでテストできる。
 public enum RunnerStoryScene: Equatable, Hashable, Sendable {
     /// 始まり。初めてチャリンコおじさんを開いたときに 1 回だけ。
     case intro
-    /// その世界の最終面（6・12・18・24・30・36 面）を初めてクリアしたとき。
+    /// その世界の最終面（6・12・18・24・30・36・42 面）を初めてクリアしたとき。
     case ending(RunnerWorld)
 
-    /// 始まり + 世界の数だけの締め（#1824 で 6 つ）。並びは話の順。
+    /// 始まり + 世界の数だけの締め（#1938 で 7 つ）。並びは話の順。
     public static let all: [RunnerStoryScene] = [.intro] + RunnerWorld.allCases.map { .ending($0) }
 
     /// `PlayLog` に残す「見た」印の鍵。
@@ -95,6 +96,16 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
                 RunnerStoryPanel(art: .kyotoNaraDeer, line: "あっ鹿！ せんべいとちゃうで！"),
                 RunnerStoryPanel(art: .kyotoNaraDeerRun, line: "鹿のくせに速いやんけ……待てー！"),
                 RunnerStoryPanel(art: .kyotoNaraToBeContinued, line: "つづく"),
+            ]
+        case .ending(.onsen):
+            // 温泉街（#1938）。京都・奈良の「つづく」（鹿が宝くじを咥えて走り去る）を受け、湯の町で
+            // 掴みかけたところをサルに横取りされて走り去られる。京都・奈良と同じ 4 コマ
+            // （掴みかける → 奪われる → 見送る → つづく）で、いまの最後の世界の締めは必ず「つづく」で終える。
+            return [
+                RunnerStoryPanel(art: .onsenReach, line: "湯の町まで来たで。今度こそや"),
+                RunnerStoryPanel(art: .onsenMonkey, line: "あっサル！ 温泉に入れる気ちゃうやろな！"),
+                RunnerStoryPanel(art: .onsenMonkeyRun, line: "湯冷めする前に捕まえたる……待てー！"),
+                RunnerStoryPanel(art: .onsenToBeContinued, line: "つづく"),
             ]
         }
     }
