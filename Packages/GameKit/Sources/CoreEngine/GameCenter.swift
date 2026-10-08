@@ -13,6 +13,50 @@ public struct GameCenterScore: Equatable, Sendable {
     }
 }
 
+/// 定期（週間）リーダーボードの順位表の 1 行（#1792）。並びは順位順。
+public struct GameCenterBoardRow: Equatable, Sendable, Identifiable {
+    public let id: String
+    public let name: String
+    public let score: Int
+    public let rank: Int
+    public let isMe: Bool
+
+    public init(id: String, name: String, score: Int, rank: Int, isMe: Bool) {
+        self.id = id
+        self.name = name
+        self.score = score
+        self.rank = rank
+        self.isMe = isMe
+    }
+}
+
+/// 定期リーダーボードの「いまの回」の順位表（#1792）。Apple の GameKit に依存しない形に写したもの。
+public struct GameCenterBoard: Equatable, Sendable {
+    /// 上位から順位順に並んだ行（1 位から連続）。
+    public let rows: [GameCenterBoardRow]
+    /// 自分の順位とスコア。まだ載っていなければ nil。上位の `rows` に入っていなくても入る。
+    public let myRank: Int?
+    public let myScore: Int?
+    /// 今回の参加人数。
+    public let participants: Int
+    /// 今週の始まりと終わり（取れなければ nil）。
+    public let start: Date?
+    public let end: Date?
+    /// 先週の自分の順位（先週参加していない・取れなかったときは nil）。
+    public let lastWeekRank: Int?
+
+    public init(rows: [GameCenterBoardRow], myRank: Int?, myScore: Int?, participants: Int,
+                start: Date?, end: Date?, lastWeekRank: Int?) {
+        self.rows = rows
+        self.myRank = myRank
+        self.myScore = myScore
+        self.participants = participants
+        self.start = start
+        self.end = end
+        self.lastWeekRank = lastWeekRank
+    }
+}
+
 /// Game Center へ送る実績の進捗 1 件。
 public struct GameCenterAchievement: Equatable, Sendable {
     /// App Store Connect に登録する実績 ID。
@@ -48,11 +92,21 @@ public protocol GameCenterService {
     /// Game Center 側で解除済み（達成率 100）の実績 ID を読む（#1794。端末の記録と和集合で合わせる）。
     /// 読めなかった（オフライン・失敗）ときは nil。呼び出し側はこれを待たずに進める（`Task` の中で呼ぶ）。
     @MainActor func unlockedAchievementIDs() async -> Set<String>?
+
+    /// 送信の完了を**待つ**版（週間ランキング #1792。送った直後の順位を読むために使う）。成否を返す。
+    @MainActor func submitAndWait(_ score: GameCenterScore) async -> Bool
+
+    /// 定期リーダーボードのいまの回の順位表を読む（#1792）。読めなかった（オフライン・未登録の ID）ときは nil。
+    /// - Parameter topCount: 上位から何行読むか。
+    /// - Parameter includesLastWeek: 先週の自分の順位も読むか（余分に 1 往復かかる）。
+    @MainActor func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard?
 }
 
 extension GameCenterService {
     /// 読む手段を持たない実装（テスト・プレビュー）は「読めなかった」扱い。
     @MainActor public func unlockedAchievementIDs() async -> Set<String>? { nil }
+    @MainActor public func submitAndWait(_ score: GameCenterScore) async -> Bool { false }
+    @MainActor public func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard? { nil }
 }
 
 /// 何もしない実装。テスト・プレビュー・撮影モード用。
@@ -106,6 +160,16 @@ public enum GameCenterLeaderboard {
     /// 判定は乱数なしで、同じ入力は同じ結果になるため同じ物差しで比べられる。
     /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
     public static let homerunDistance = "asobiba.homerun.distance"
+    /// 柵越えおじさんの週間ランキング（#1792）。**定期リーダーボード**（毎週月曜 0:00 JST 開始・期間 7 日・7 日ごとに繰り返し・
+    /// ベストスコア型・High to Low）に送る**総飛距離 m**。月まで飛んだ打球は画面表示どおり 384,400 km で数える
+    /// （`homerunWeeklyMoonMeters`。常設の `homerunDistance` は 180 m で数える）。
+    /// **App Store Connect に作成するまで nil のまま**（会長操作。作成後に ID を入れるとランキングページが有効になる。
+    /// 手順は docs/game-center-setup.md）。nil のあいだは送信もランキングページへの遷移もしない。
+    public static let homerunWeekly: String? = nil
+    /// 週間ランキングで月まで飛んだ打球 1 本を数える距離（m）。384,400 km。
+    public static let homerunWeeklyMoonMeters = 384_400_000
+    /// 週間ランキングに送る総飛距離の上限（m）。月 2 回（月が割れた時点で挑戦は終わる）＋ 180 m × 8 球。これを超える値は送らない。
+    public static let homerunWeeklyMaxMeters = homerunWeeklyMoonMeters * 2 + 180 * 8
 
     // 短いほど良い（App Store Connect では「Low to High」・フォーマットは経過時間で登録する）
     public static let minesweeperBeginner     = "asobiba.minesweeper.time.beginner"
@@ -389,6 +453,19 @@ public final class GameCenterReporter {
     public func fetchUnlockedAchievementIDs() async -> Set<String>? {
         guard isAvailable() else { return nil }
         return await service.unlockedAchievementIDs()
+    }
+
+    /// 週間ランキング（#1792）へ送って完了を待つ。未サインイン・対象外のゲームでは送らず false。
+    public func submitWeeklyAndWait(gameID: String, leaderboardID: String, value: Int) async -> Bool {
+        guard allowedGameIDs.contains(gameID), isAvailable(), value >= 0 else { return false }
+        return await service.submitAndWait(GameCenterScore(leaderboardID: leaderboardID, value: value))
+    }
+
+    /// 週間ランキングのいまの順位表。未サインイン・対象外のゲーム・読めなかったときは nil。
+    public func loadWeeklyBoard(gameID: String, leaderboardID: String, topCount: Int = 20,
+                                includesLastWeek: Bool = false) async -> GameCenterBoard? {
+        guard allowedGameIDs.contains(gameID), isAvailable() else { return nil }
+        return await service.loadBoard(leaderboardID: leaderboardID, topCount: topCount, includesLastWeek: includesLastWeek)
     }
 
     /// 決着したときに `GameServices.gameDidFinish` から呼ぶ唯一の入口。
