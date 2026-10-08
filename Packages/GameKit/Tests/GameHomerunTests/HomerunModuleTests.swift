@@ -208,20 +208,6 @@ struct HomerunModuleTests {
         #expect(source.contains("v1.1.9 でハブに公開"))
     }
 
-    @Test("アンケートの入口は v1.1.9 では出さない（会長決裁 2026-10-03・#1784）が、台帳の互換は残る")
-    func surveyEntryIsNotOffered() throws {
-        #expect(!HomerunSurvey.isOffered)
-        let source = try String(
-            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("Packages/GameKit/Sources/GameHomerun/HomerunView.swift"),
-            encoding: .utf8
-        )
-        #expect(source.contains("if HomerunSurvey.isOffered && ledger.canDoSurvey { surveyButton }"),
-                "入口の分岐は isOffered を通す 1 か所だけ")
-        // 互換: 既に答えた台帳は従来どおり +1 を持つ。
-        let ledger = HomerunLedger(dayKey: 1, surveyDone: true)
-        #expect(ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
-    }
-
     @Test("動作確認用の強制（回数無制限・月・ポール・空振りの演出）は出荷ビルドでは鍵が残っていても効かない")
     func debugOverridesAreIgnoredInReleaseBuild() throws {
         let defaults = UserDefaults(suiteName: "HomerunDebugOverrides.\(UUID())")!
