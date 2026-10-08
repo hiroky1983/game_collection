@@ -399,13 +399,15 @@ public final class GameCenterReporter {
     /// 決着したときに `GameServices.gameDidFinish` から呼ぶ唯一の入口。
     ///
     /// - Parameters:
-    ///   - totalWins / playedGameCount: 実績の進捗の元（`PlayLog` の更新**後**の値を渡す）。
+    ///   - totalWins / playedGameIDs: 実績の進捗の元（`PlayLog` の更新**後**の値を渡す）。
+    ///     `playedGameIDs` はハブから外れたゲームの記録を含みうるので、ここで登録済みの ID との
+    ///     積集合を取って数える（分母 `registeredGameCount` と同じ母集団にそろえる・#1952）。
     public func gameDidFinish(
         gameID: String,
         outcome: GameOutcome,
         score: GameScore,
         totalWins: Int,
-        playedGameCount: Int
+        playedGameIDs: Set<String>
     ) {
         guard allowedGameIDs.contains(gameID), isAvailable() else { return }
 
@@ -415,7 +417,7 @@ public final class GameCenterReporter {
 
         let updated = GameCenterAchievements.progress(
             totalWins: totalWins,
-            playedGameCount: playedGameCount,
+            playedGameCount: playedGameIDs.intersection(allowedGameIDs).count,
             registeredGameCount: allowedGameIDs.count
         )
         sendAchievements(updated)

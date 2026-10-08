@@ -382,7 +382,7 @@ struct GameCenterReporterTests {
         )
         reporter.gameDidFinish(
             gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 5_000),
-            totalWins: 3, playedGameCount: 5
+            totalWins: 3, playedGameIDs: ["2048"]
         )
         #expect(spy.scores.isEmpty)
         #expect(spy.achievements.isEmpty)
@@ -429,10 +429,22 @@ struct GameCenterReporterTests {
         let reporter = GameCenterReporter(service: spy, allowedGameIDs: makeHubGameIDs())
         reporter.gameDidFinish(
             gameID: "not-a-game", outcome: .loss, score: GameScore(metric: .points, points: 1),
-            totalWins: 1, playedGameCount: 1
+            totalWins: 1, playedGameIDs: ["2048"]
         )
         #expect(spy.scores.isEmpty)
         #expect(spy.achievements.isEmpty)
+    }
+
+    @Test("「全部のあそびを遊ぶ」の分子は登録済みのゲームだけ数える（ハブから外れた ID の記録は含めない・#1952）")
+    func playAllIgnoresRetiredGameIDs() {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: ["2048", "sudoku"])
+        reporter.gameDidFinish(
+            gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 1),
+            totalWins: 0, playedGameIDs: ["2048", "blockpuzzle"]
+        )
+        // 登録 2 本のうち遊んだのは 1 本。外れた blockpuzzle を数えると 100% になってしまう。
+        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 50))
     }
 
     @Test("達成率が変わらない実績は送り直さない")
@@ -442,19 +454,19 @@ struct GameCenterReporterTests {
         let score = GameScore(metric: .points, points: 100)
 
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 1)
         let firstBatch = spy.achievements.count
 
         // 同じ進捗のまま決着（負けたので勝利数も遊んだ本数も増えない）
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 1, "同じ達成率を送り返さない")
         #expect(spy.achievements.count == firstBatch)
 
         // 進んだぶんだけ送る
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 2, playedGameCount: 1)
+                               totalWins: 2, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2)
         #expect(isClose(spy.percent(of: GameCenterAchievements.wins10), 20))
         #expect(
@@ -472,19 +484,19 @@ struct GameCenterReporterTests {
         // 1回目: オフラインで送信できなかった
         spy.reportSucceeds = false
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 1)
 
         // 2回目: 進捗は変わっていないが、前回届いていないので送り直す
         spy.reportSucceeds = true
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2, "失敗したぶんは送信済みにしない")
         #expect(isClose(spy.percent(of: GameCenterAchievements.firstWin), 100))
 
         // 3回目: 今度は届いているので送り直さない
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)
+                               totalWins: 1, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2)
     }
 
@@ -496,14 +508,14 @@ struct GameCenterReporterTests {
 
         spy.reportSucceeds = true
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 1, playedGameCount: 1)   // wins10 = 10%
+                               totalWins: 1, playedGameIDs: ["2048"])   // wins10 = 10%
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 3, playedGameCount: 1)   // wins10 = 30%
+                               totalWins: 3, playedGameIDs: ["2048"])   // wins10 = 30%
         #expect(spy.reportCalls == 2)
 
         // 30% まで届いている状態で、同じ 30% を送り直させない
         reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
-                               totalWins: 3, playedGameCount: 1)
+                               totalWins: 3, playedGameIDs: ["2048"])
         #expect(spy.reportCalls == 2)
     }
 
@@ -515,7 +527,7 @@ struct GameCenterReporterTests {
             reporter.gameDidFinish(
                 gameID: "2048", outcome: .loss,
                 score: GameScore(metric: .points, points: points),
-                totalWins: 0, playedGameCount: 0
+                totalWins: 0, playedGameIDs: []
             )
         }
         #expect(spy.scores.map(\.value) == [100, 50, 300])
