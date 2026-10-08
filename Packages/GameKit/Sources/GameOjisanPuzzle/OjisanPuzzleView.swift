@@ -128,32 +128,18 @@ public struct OjisanPuzzleView: View {
 
     // MARK: - おじさん
 
-    /// 腰の痛みを顔に出す（会長指示 2026-09-17）。数字のバーより顔が歪むほうが伝わる。
-    /// 絵は `OjisanPixel` の 3 表情をそのまま使い、新しく描き起こさない。
-    /// ドット絵なので枠は `faceDotSize` ÷ `faceResolution` × scale で切る（`OjisanPixel.faceImage` の doc・
-    /// チャリンコおじさんと同じ作法）。scale は旧来（16×15）の 1 ドット = 何 pt かで、3 倍で 48×45pt。
-    private func ojisanFace(scale: Int) -> some View {
-        let dots = OjisanPixel.faceDotSize
-        let res = OjisanPixel.faceResolution
-        return OjisanPixel.faceImage(Self.face(for: model.painStage))
-            .frame(
-                width: CGFloat(dots.width * scale / res),
-                height: CGFloat(dots.height * scale / res)
-            )
-            // 限界のときだけ少し傾ける（腰をかばっている姿）。
-            .rotationEffect(.degrees(model.painStage == .severe ? -8 : 0))
+    /// 腰の痛みを全身の姿で出す（会長指示 2026-09-17・絵の差し替えは #1909）。数字のバーより姿が崩れるほうが伝わる。
+    /// 絵は作業服おじさんのドット絵（`OjisanPuzzleArt`）。段階ごとにコマを替える。
+    private func ojisanFigure() -> some View {
+        OjisanPuzzleArt.image(OjisanPuzzleArt.pose(for: model.painStage))
+            .frame(width: Self.figureBoxWidth, height: Self.figureBoxHeight)
             .gameAnimation(.easeInOut(duration: 0.2), value: model.painStage)
     }
 
-    /// 元気 → 普通 → しかめ面、と一方向に下がるように割り当てる
-    /// （`cheer` が一番元気、`smile` が基本、`frown` がしかめ面）。
-    private static func face(for stage: OjisanPuzzlePain.Stage) -> OjisanPixel.Face {
-        switch stage {
-        case .easy: .cheer
-        case .aching: .smile
-        case .severe: .frown
-        }
-    }
+    /// 右の列の幅と、おじさんを置く箱（立ちポーズの最大 40×47 ドット ＝ 80×94pt が収まる大きさ）。
+    static let sideWidth: CGFloat = 104
+    static let figureBoxWidth: CGFloat = 88
+    static let figureBoxHeight: CGFloat = 96
 
     // MARK: - 盤
 
@@ -265,12 +251,12 @@ public struct OjisanPuzzleView: View {
         VStack(spacing: 10) {
             // おじさん本人。盤の横でずっと腰の具合を訴えている。
             VStack(spacing: 4) {
-                ojisanFace(scale: 3)
+                ojisanFigure()
                 Text(model.painStage.caption)
                     .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
             }
-            .frame(width: 64)
+            .frame(width: Self.sideWidth)
             .padding(.vertical, 10)
             // 限界のときは面そのものを痛い色にして、目の端でも分かるようにする。
             .popCard(fill: model.painStage == .severe ? Theme.Fill.coral.opacity(0.28) : Theme.surface,
@@ -285,7 +271,7 @@ public struct OjisanPuzzleView: View {
                     luggage(model.next.axisKind, side: 26)
                 }
             }
-            .frame(width: 64)
+            .frame(width: Self.sideWidth)
             .padding(.vertical, 12)
             .popCard(corner: Theme.cornerSmall)
 
@@ -316,8 +302,13 @@ public struct OjisanPuzzleView: View {
 
     private var resultOverlay: some View {
         VStack(spacing: 10) {
-            OjisanPixel.faceImage(.frown)
-                .frame(width: 64, height: 60)
+            if model.outcome == .hospitalized {
+                // 倒れたおじさん（70×27 ドット）。
+                OjisanPuzzleArt.image(.fallen)
+            } else {
+                OjisanPixel.faceImage(.frown)
+                    .frame(width: 64, height: 60)
+            }
             Text(model.outcome == .hospitalized ? "入院！" : "積みあがった！")
                 .font(.system(size: 24, weight: .heavy, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                 .foregroundStyle(Theme.ink)

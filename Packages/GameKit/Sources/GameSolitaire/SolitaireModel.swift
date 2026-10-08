@@ -94,6 +94,12 @@ public final class SolitaireModel {
     /// 走り出した探索そのもの。`Task.detached` は親のキャンセルを継がないので、
     /// 降ろせるようにここで握っておく（PR #457 の CodeRabbit 指摘）。
     private var lostSolveTask: Task<Bool?, Never>?
+    /// 探索が「持ち主の model がまだ生きているか」を見るための目印（#1925）。
+    /// 探索の `Task` は別スレッドで走るので、model そのものは持たせられない。
+    private final class LifeToken: Sendable {}
+    private let lifeToken = LifeToken()
+    /// テスト専用の探索フックに渡す識別子。`ObjectIdentifier` は解放後に別の model が同じ番地を使うので使えない。
+    let instanceID = UUID()
     /// 敗北が確定した局面の `stateKey`。undo で戻ってきた局面を**もう一度探索し直さない**ために持つ。
     private var hopelessKeys: Set<Data> = []
     /// 探索済みの局面の `stateKey`（結果を問わない）。同じ局面を二度掘らないための控え。
@@ -105,6 +111,14 @@ public final class SolitaireModel {
     /// 敗北確定の探索を始めるまでの待ち（ミリ秒）。連続でタップしている間は走らせない。
     /// テストは 0 に落として、実時間を待たずに探索の完了だけを待ち合わせる。
     static var lostCheckDelayMilliseconds = 600
+    /// 敗北確定の探索を同時に走らせてよい本数（全 model 合計・#1925）。1 本は盤面を複製しながら
+    /// 最大 6 万局面まで抱えるので、重なるとメモリを使い切る。
+    static var maxConcurrentLostSolves = 2
+    /// いま走っている探索の本数（全 model 合計）。
+    private static var activeLostSolves = 0
+    /// テスト専用: 探索が作られた model の識別子（`instanceID`）を受け取る口。並列のテストと共有される静的な状態なので、
+    /// 本数ではなく**自分の model の識別子が来たか**だけを見る。
+    static var lostSolveStartHook: ((UUID) -> Void)?
 
     /// 手数（記録に出す値）。**山めくりは数えない**。
     /// 山札 1 枚めくりの循環は無制限なので、数えると 1 局で数百手になり、指し回しの巧拙を表さなくなる。
@@ -636,18 +650,32 @@ public final class SolitaireModel {
 
         lostCheckTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Self.lostCheckDelayMilliseconds))
-            guard !Task.isCancelled else { return }
-            // 生成と控えの間に await を挟まない（挟むと、取り消しが先に来たときに
-            // 握られていない探索が走り残る）。
-            let solve = Task.detached(priority: .utility) {
-                Self.hopelessVerdict(for: board, isCancelled: { Task.isCancelled })
-            }
-            self?.lostSolveTask = solve
+            // model が捨てられていたら探索を作らない（#1925。ハブの描き直しで使われない model が
+            // 生まれ、その init が仕込んだ探索が誰にも取り消せず 6 本同時に走ってメモリを使い切った）。
+            // self を強く持つのは生成の同期区間だけにする（探索の `await` 中まで持つと model が延命する）。
+            guard !Task.isCancelled, let solve = self?.startLostSolve(board: board) else { return }
             let verdict = await solve.value
+            Self.activeLostSolves -= 1
             guard !Task.isCancelled, let self else { return }
             self.lostSolveTask = nil
             self.applyLostVerdict(verdict, for: key)
         }
+    }
+
+    /// 探索を 1 本走らせる。同時に走る数が上限なら nil（見送り。次に盤面が動いたときに仕込み直す）。
+    ///
+    /// 生成と控えの間に await を挟まない（挟むと、取り消しが先に来たときに
+    /// 握られていない探索が走り残る）。model が捨てられたら `lifeToken` が消え、
+    /// 探索は次の取り消し確認で降りる。
+    private func startLostSolve(board: SolitaireBoard) -> Task<Bool?, Never>? {
+        guard Self.activeLostSolves < Self.maxConcurrentLostSolves else { return nil }
+        Self.activeLostSolves += 1
+        Self.lostSolveStartHook?(instanceID)
+        let solve = Task.detached(priority: .utility) { [weak token = lifeToken] in
+            Self.hopelessVerdict(for: board, isCancelled: { Task.isCancelled || token == nil })
+        }
+        lostSolveTask = solve
+        return solve
     }
 
     /// 待ちも走行中の探索もまとめて降ろす。

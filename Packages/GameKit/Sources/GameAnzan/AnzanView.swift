@@ -69,6 +69,14 @@ public struct AnzanView: View {
                 model.resumeDisplay()
             }
         }
+        .onChange(of: showSetup) { _, open in
+            // 入力中に難易度のシートを開いたままにした時間は回答時間に乗せない。
+            if open {
+                model.pauseDisplay()
+            } else if scenePhase == .active, !showHowToPlay {
+                model.resumeDisplay()
+            }
+        }
         .sheet(isPresented: $showSetup) {
             AnzanSetupSheet(initial: model.settings) { settings in
                 showSetup = false
