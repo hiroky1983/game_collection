@@ -145,7 +145,8 @@ struct AnalyticsEventShapeTests {
         #expect(recent.parameters["resume"] == .int(0), "resume は 0 / 1 の整数")
 
         // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
-        for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction] {
+        for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction,
+                       .resumeReminder, .reengagement, .challengeReturn] {
             let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
             #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
         }
@@ -163,10 +164,11 @@ struct AnalyticsEventShapeTests {
         #expect(tap.parameters == ["game_id": .string("2048")])
     }
 
-    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero の7値に閉じている（#659・#721）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return の10値に閉じている（#659・#721・#1950）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
             "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
+            "resume_reminder", "reengagement", "challenge_return",
         ])
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }

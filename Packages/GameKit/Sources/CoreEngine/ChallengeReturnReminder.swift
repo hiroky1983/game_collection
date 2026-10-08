@@ -27,6 +27,10 @@ public protocol ChallengeReturnReminderScheduler: AnyObject {
 @MainActor
 @Observable
 public final class ChallengeReturnReminderService {
+    /// 通知がタップされて開くよう求められたゲーム。ハブが読んで遷移し、nil に戻す
+    /// （`ReengagementReminderService.requestedGameID` と同じ受け渡し。#1950）。
+    public var requestedGameID: String?
+
     public enum EnableResult: Equatable, Sendable {
         case scheduled
         /// 設定の「通知」がオフ。
@@ -53,6 +57,11 @@ public final class ChallengeReturnReminderService {
         self.scheduler = scheduler
         self.isEnabledSetting = isEnabled
         self.now = now
+    }
+
+    /// 通知がタップされた。ハブへ着地を求める（非表示のゲームの除外はハブが行う）。
+    public func notificationTapped(gameID: String) {
+        requestedGameID = gameID
     }
 
     /// 設定の「通知」がオンか（シートのトグルを使えるか）。

@@ -210,7 +210,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case recent
     /// リザルト画面のレコメンドカード（#52）。
     case recommendation
-    /// 中断したゲームのローカル通知（#663）。**発火点はまだ無い**（#663 の実装で使う）。
+    /// 通知の種類を分ける前の旧値（#663）。**発火点は無い**（#1950 で下の 3 つに分けた）。
+    /// 既存の GA4 レポートの値を壊さないよう、語彙には残す。
     case notification
     /// ハブ最上部の「はじめの1本」（#721）。記録がゼロの初回だけ出る1枚。
     case firstPick = "first_pick"
@@ -218,13 +219,20 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case quickAction = "quick_action"
     /// ハブ先頭の特別枠（柵越えおじさん・#1761）。1枚しか出ないので `position` は持たない。
     case hero
+    /// 中断したゲームのローカル通知（#663・#1950）。
+    case resumeReminder = "resume_reminder"
+    /// 久しぶりに遊ぼうの再エンゲージメント通知（#1193・#1950）。
+    case reengagement
+    /// 挑戦回数が戻ったお知らせ（#1576・#1950）。
+    case challengeReturn = "challenge_return"
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
     public var hasPosition: Bool {
         switch self {
         case .hub, .recent:                              return true
-        case .recommendation, .notification, .firstPick, .quickAction, .hero: return false
+        case .recommendation, .notification, .firstPick, .quickAction, .hero,
+             .resumeReminder, .reengagement, .challengeReturn: return false
         }
     }
 }
