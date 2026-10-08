@@ -182,7 +182,14 @@ public final class MahjongModel: AITurnGuarded {
         self.cpuDelay = cpuDelay
         self.seed = seed
         self.hints = hints
-        if let snap = services?.snapshots.load(MahjongSnapshot.self, for: gameID) {
+        var loaded = services?.snapshots.load(MahjongSnapshot.self, for: gameID)
+        // 人数・山の位置が合わない中断データは、`hands[player]`・`wall[wallIndex]` で開くたびに落ちる
+        // （#1913。#1384 と同じ作法）。消して新規開始に倒す。
+        if let snap = loaded, !Self.isValid(snap) {
+            services?.snapshots.clear(for: gameID)
+            loaded = nil
+        }
+        if let snap = loaded {
             wall = snap.wall
             wallIndex = snap.wallIndex
             deadWall = snap.deadWall
@@ -216,6 +223,25 @@ public final class MahjongModel: AITurnGuarded {
             // 終局の手前のリザルトから再開した局も決着済み（#811。`finishHand` の末尾と同じ判定）。
             if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
         }
+    }
+
+    /// 復元してよい中断データか。座席ごとの配列長・手番と親の添字・山の位置が範囲内であること。
+    private static func isValid(_ snap: MahjongSnapshot) -> Bool {
+        let seats = 0..<playerCount
+        return snap.hands.count == playerCount
+            && snap.discards.count == playerCount
+            && snap.riichi.count == playerCount
+            && snap.riichiFuriten.count == playerCount
+            && snap.scores.count == playerCount
+            && (snap.melds?.count ?? playerCount) == playerCount
+            && (snap.discardedKinds?.count ?? playerCount) == playerCount
+            && seats.contains(snap.currentPlayer)
+            && seats.contains(snap.dealer)
+            && snap.deadWall.count == deadWallCount
+            && (0...snap.wall.count).contains(snap.wallIndex)
+            && (0...4).contains(snap.deadWallDraws ?? 0)
+            && snap.wallIndex + (snap.deadWallDraws ?? 0) <= snap.wall.count
+            && (0...5).contains(snap.revealedDoraCount ?? 1)
     }
 
     #if DEBUG
