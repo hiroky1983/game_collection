@@ -1,0 +1,668 @@
+diff -ruN base/Packages/GameKit/Sources/Core/GameSetupSheet.swift repo/Packages/GameKit/Sources/Core/GameSetupSheet.swift
+--- base/Packages/GameKit/Sources/Core/GameSetupSheet.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/Core/GameSetupSheet.swift	2026-10-08 14:31:30
+@@ -84,6 +84,7 @@
+             VStack(alignment: .leading, spacing: spacing) { content }
+                 .padding(Theme.pad)
+         }
++        .defaultScrollAnchor(ProcessInfo.processInfo.arguments.contains("-mockScrollBottom") ? .bottom : .top)
+         .safeAreaInset(edge: .bottom) {
+             startButton
+                 .padding(.horizontal, Theme.pad)
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerPixelArt.swift repo/Packages/GameKit/Sources/GameRunner/RunnerPixelArt.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerPixelArt.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerPixelArt.swift	2026-10-08 14:27:50
+@@ -147,6 +147,7 @@
+         case .dog:  return dog(frame, colors: world.creatures)
+         case .cat:  return cat(frame, colors: world.creatures)
+         case .deer: return deer(frame, colors: world.creatures)
++        case .monkey: return monkey(frame, colors: world.creatures)
+         }
+     }
+ 
+@@ -164,6 +165,7 @@
+         case .dog:  return dogWalk0Rows
+         case .cat:  return catWalk0Rows
+         case .deer: return deerWalk0Rows
++        case .monkey: return monkeyWalk0Rows
+         }
+     }
+ 
+@@ -219,6 +221,28 @@
+     /// ドラム缶（`RunnerWorld.Dressing.Block.drum`）。
+     static func drum() -> PixelSprite { PixelSprite(rows: drumRows, palette: palette) }
+ 
++    /// 湯桶（`RunnerWorld.Dressing.Block.yuoke`・温泉街 案 B）。
++    static func yuoke() -> PixelSprite { PixelSprite(rows: yuokeRows, palette: palette) }
++
++    /// 湯桶（温泉街の低い岩・案 B）: 木の桶（`H`/`h` の縦の板・`S` のたが）に白い手ぬぐい（`M`）を載せる。
++    static let yuokeRows: [String] = [
++        "...KKKKKK...",
++        ".KKMMMMMMKK.",
++        "KMMMMMMMMMMK",
++        "KTMMMMMMMMTK",
++        "KHhHhHhHhHhK",
++        "KHhHhHhHhHhK",
++        "KSSSSSSSSSSK",
++        "KHhHhHhHhHhK",
++        "KHhHhHhHhHhK",
++        "KHhHhHhHhHhK",
++        "KHhHhHhHhHhK",
++        "KSSSSSSSSSSK",
++        "KHhHhHhHhHhK",
++        "KhhhhhhhhhhK",
++        "KKKKKKKKKKKK",
++    ]
++
+     // MARK: 突き上げ（`RunnerHazardKind.shoot`・#1010）
+ 
+     /// 伸び切った突き上げの絵（着せ替えから直接引く）。
+@@ -463,6 +487,52 @@
+         ".........KOOWOOOOOOOOOOWWWWWK.",
+         "..........KKOOOOWWWWWWOOOWWK..",
+         "...........KKKWWWWWWWWWWKKK...",
++    ]
++
++    // MARK: ニホンザル（温泉街の犬の枠・#1938）
++
++    /// サル（左向き）30×21 ドット。犬・猫・鹿と同じ格子・同じ脚の段。色は犬と同じ文字で世界の `Creatures` から
++    /// 写し、顔の赤だけ犬の首輪の `R` を流用する。
++    /// サルに見せる要素: **赤い顔**を薄い毛（`W`）が囲む、丸い頭に小さな耳（`o`）、**前かがみに盛り上がった背中**、
++    /// 腹の薄い毛、ごく短い尾（`o`）。
++    static func monkey(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
++        PixelSprite(rows: frame == .walk0 ? monkeyWalk0Rows : monkeyWalk1Rows, palette: creaturePalette(colors))
++    }
++
++    static let monkeyWalk0Rows: [String] = monkeyBodyRows + [
++        "..........KOOKKKooKKKKooKKOOK.",
++        "..........KOOK.KooK..KooKKOOK.",
++        "..........KOOK.KooK..KooKKOOK.",
++        "..........KOOK.KooK..KooKKOOK.",
++        "..........KOOK.KooK..KooKKOOK.",
++        "..........KKKK.KKKK..KKKKKKKK.",
++    ]
++
++    static let monkeyWalk1Rows: [String] = monkeyBodyRows + [
++        "..........KooKKKOOKKKKOOKKooK.",
++        "..........KooK.KOOK..KOOKKooK.",
++        "..........KooK.KOOK..KOOKKooK.",
++        "..........KooK.KOOK..KOOKKooK.",
++        "..........KooK.KOOK..KOOKKooK.",
++        "..........KKKK.KKKK..KKKKKKKK.",
++    ]
++
++    private static let monkeyBodyRows: [String] = [
++        "...KKKK........KKKKKK.........",
++        "..KOOOOK.....KKOOOOOOKK.......",
++        ".KOOOOOOK...KOOOoOOOOoOKK.....",
++        ".KoKWWWWKK.KOOOOOOOOOOOOOK....",
++        "KOoKWRRRRWKOOOoOOOOoOOOOOOK...",
++        "KOOKWRKRKRWKOOOOOOOOOOOOOOOK..",
++        ".KKWWRRRRRWKOOOOOOOOOOOOOOOK..",
++        "..KWWRRKKRWKOOOOOOOOOOOOOOOOK.",
++        "..KWWWRRRRWKOOOOOOOOOOOOOOOOK.",
++        "...KKWWWWWKOOOWWOOOOOOOOOOOOK.",
++        ".....KKKKKOOWWWWWOOOOOOOOOOOoK",
++        "........KOWWWWWWWOOOOOOOOOOKoK",
++        ".........KWWWWWWWWWWOOOOOOOKK.",
++        ".........KKWWWWWWWWWWWWOOOOK..",
++        "..........KKKWWWWWWWWWKKOOOK..",
+     ]
+ 
+     // MARK: フォークリフト（港町のイノシシの枠・#1009）
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerScene+Backdrop.swift repo/Packages/GameKit/Sources/GameRunner/RunnerScene+Backdrop.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerScene+Backdrop.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerScene+Backdrop.swift	2026-10-08 14:36:44
+@@ -76,6 +76,7 @@
+             case .satoyama:   addSatoyama(to: tile, index: i)
+             case .harbor:     addHarbor(to: tile, index: i)
+             case .kyotoNara:  addKyotoNara(to: tile, index: i)
++            case .onsen:      addOnsen(to: tile, index: i)
+             }
+             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
+             hillLayer.addChild(tile)
+@@ -528,6 +529,227 @@
+             puff.zPosition = SceneryZ.middle
+             tile.addChild(puff)
+         }
++    }
++
++    /// 温泉街（`RunnerWorld.Scenery.onsen`・#1938）。山の頂に雪、道の奥に提灯の並ぶ低い柵が全タイルに続き、
++    /// その後ろにタイルの番号で旅館（3 で割り切れる番号）・外湯（のれんと提灯・余り 1）・源泉の櫓（余り 2）を
++    /// 立て、湯けむりを添える。色は `RunnerWorld.SceneryPalette`（どれも空と 2:1 未満）。
++    private func addOnsen(to tile: SKNode, index: Int) {
++        typealias P = RunnerWorld.SceneryPalette
++        let width = Self.hillSpacing
++        let base = Metrics.groundY
++
++        // 山の雪。丘の山（`buildHills` の 3 つ）と同じ楕円を白で描き、頂から 28% だけをマスクで残す
++        // （稜線に沿った雪の帯になる）。
++        for (dx, w, h) in [(8.0, 42.0, 34.0), (42.0, 36.0, 27.0), (22.0, 34.0, 19.0)] {
++            let crop = SKCropNode()
++            let mask = SKSpriteNode(color: .white, size: CGSize(width: w, height: h * 0.2))
++            mask.anchorPoint = CGPoint(x: 0.5, y: 0)
++            mask.position = CGPoint(x: dx, y: base + h * 0.8)
++            crop.maskNode = mask
++            let cap = SKShapeNode(ellipseOf: CGSize(width: w, height: h * 2))
++            cap.fillColor = RunnerPalette.color(P.snow)
++            cap.strokeColor = .clear
++            cap.position = CGPoint(x: dx, y: base)
++            crop.addChild(cap)
++            crop.zPosition = SceneryZ.back
++            tile.addChild(crop)
++        }
++
++        switch index % 3 {
++        case 0:
++            // 旅館。3 階建ての木造。壁に窓（障子の灯り）が 3 段、各階の軒に横の梁、上に雪をかぶった瓦屋根。
++            let x0 = 8.0, w = 32.0, floorH = 3.4
++            let wall = SKSpriteNode(color: RunnerPalette.color(P.ryokanWall), size: CGSize(width: w, height: floorH * 3))
++            wall.anchorPoint = .zero
++            wall.position = CGPoint(x: x0, y: base)
++            wall.zPosition = SceneryZ.middle
++            tile.addChild(wall)
++            let timber = CGMutablePath(), glow = CGMutablePath()
++            for f in 0..<3 {
++                let y = base + Double(f) * floorH
++                timber.addRect(CGRect(x: x0, y: y + floorH - 0.6, width: w, height: 0.6))
++                var wx = x0 + 2.0
++                while wx + 2.4 <= x0 + w - 1.5 {
++                    glow.addRect(CGRect(x: wx, y: y + 0.9, width: 2.4, height: 1.8))
++                    wx += 4.2
++                }
++            }
++            timber.addRect(CGRect(x: x0 - 0.4, y: base, width: 0.8, height: floorH * 3))
++            timber.addRect(CGRect(x: x0 + w - 0.4, y: base, width: 0.8, height: floorH * 3))
++            for (path, color) in [(glow, P.windowGlow), (timber, P.ryokanTimber)] {
++                let shape = SKShapeNode(path: path)
++                shape.fillColor = RunnerPalette.color(color)
++                shape.strokeColor = .clear
++                shape.zPosition = SceneryZ.middle
++                tile.addChild(shape)
++            }
++            addSnowRoof(to: tile, left: x0 - 2.5, right: x0 + w + 2.5, eave: base + floorH * 3, rise: 3.2)
++            addSteam(to: tile, x: x0 + w + 6, y: base + 2, scale: 1.0)
++        case 1:
++            // 外湯。平屋の湯屋。入口に藍ののれん（3 枚）、両脇に提灯、屋根に雪。裏手から湯けむり。
++            let x0 = 16.0, w = 22.0, h = 5.6
++            let wall = SKSpriteNode(color: RunnerPalette.color(P.ryokanWall), size: CGSize(width: w, height: h))
++            wall.anchorPoint = .zero
++            wall.position = CGPoint(x: x0, y: base)
++            wall.zPosition = SceneryZ.middle
++            tile.addChild(wall)
++            let noren = CGMutablePath()
++            for i in 0..<3 {
++                noren.addRect(CGRect(x: x0 + 7.4 + Double(i) * 2.5, y: base + 1.6, width: 2.2, height: 2.6))
++            }
++            let norenNode = SKShapeNode(path: noren)
++            norenNode.fillColor = RunnerPalette.color(P.noren)
++            norenNode.strokeColor = .clear
++            norenNode.zPosition = SceneryZ.middle
++            tile.addChild(norenNode)
++            let timber = CGMutablePath()
++            timber.addRect(CGRect(x: x0 + 7.0, y: base + 4.2, width: 8.2, height: 0.6))
++            timber.addRect(CGRect(x: x0 + 6.6, y: base, width: 0.7, height: 4.6))
++            timber.addRect(CGRect(x: x0 + 14.9, y: base, width: 0.7, height: 4.6))
++            let timberNode = SKShapeNode(path: timber)
++            timberNode.fillColor = RunnerPalette.color(P.ryokanTimber)
++            timberNode.strokeColor = .clear
++            timberNode.zPosition = SceneryZ.middle
++            tile.addChild(timberNode)
++            for lx in [x0 + 3.2, x0 + w - 3.2] {
++                addLantern(to: tile, x: lx, y: base + 3.0, z: SceneryZ.middle)
++            }
++            addSnowRoof(to: tile, left: x0 - 2.0, right: x0 + w + 2.0, eave: base + h, rise: 2.6)
++            addSteam(to: tile, x: x0 + w + 4, y: base + 3, scale: 1.2)
++            addSteam(to: tile, x: x0 - 4, y: base + 1, scale: 0.7)
++        default:
++            // 源泉の櫓。木の脚 4 本（台形）に小さな屋根、てっぺんから太い湯けむり。横に小さな旅館。
++            let cx = 44.0
++            let legs = CGMutablePath()
++            legs.addLines(between: [
++                CGPoint(x: cx - 4.0, y: base), CGPoint(x: cx - 2.2, y: base + 11),
++                CGPoint(x: cx - 1.2, y: base + 11), CGPoint(x: cx - 3.0, y: base),
++            ])
++            legs.closeSubpath()
++            legs.addLines(between: [
++                CGPoint(x: cx + 4.0, y: base), CGPoint(x: cx + 2.2, y: base + 11),
++                CGPoint(x: cx + 1.2, y: base + 11), CGPoint(x: cx + 3.0, y: base),
++            ])
++            legs.closeSubpath()
++            legs.addRect(CGRect(x: cx - 3.4, y: base + 4.0, width: 6.8, height: 0.6))
++            legs.addRect(CGRect(x: cx - 2.8, y: base + 7.6, width: 5.6, height: 0.6))
++            legs.addRect(CGRect(x: cx - 3.2, y: base + 11, width: 6.4, height: 0.8))
++            let legNode = SKShapeNode(path: legs)
++            legNode.fillColor = RunnerPalette.color(P.ryokanTimber)
++            legNode.strokeColor = .clear
++            legNode.zPosition = SceneryZ.middle
++            tile.addChild(legNode)
++            addSnowRoof(to: tile, left: cx - 4.5, right: cx + 4.5, eave: base + 11.8, rise: 2.0)
++            addSteam(to: tile, x: cx, y: base + 13, scale: 1.5)
++
++            let x0 = 6.0, w = 24.0, floorH = 3.4
++            let wall = SKSpriteNode(color: RunnerPalette.color(P.ryokanWall), size: CGSize(width: w, height: floorH * 2))
++            wall.anchorPoint = .zero
++            wall.position = CGPoint(x: x0, y: base)
++            wall.zPosition = SceneryZ.middle
++            tile.addChild(wall)
++            let timber = CGMutablePath(), glow = CGMutablePath()
++            for f in 0..<2 {
++                let y = base + Double(f) * floorH
++                timber.addRect(CGRect(x: x0, y: y + floorH - 0.6, width: w, height: 0.6))
++                var wx = x0 + 2.0
++                while wx + 2.4 <= x0 + w - 1.5 {
++                    glow.addRect(CGRect(x: wx, y: y + 0.9, width: 2.4, height: 1.8))
++                    wx += 4.2
++                }
++            }
++            for (path, color) in [(glow, P.windowGlow), (timber, P.ryokanTimber)] {
++                let shape = SKShapeNode(path: path)
++                shape.fillColor = RunnerPalette.color(color)
++                shape.strokeColor = .clear
++                shape.zPosition = SceneryZ.middle
++                tile.addChild(shape)
++            }
++            addSnowRoof(to: tile, left: x0 - 2.0, right: x0 + w + 2.0, eave: base + floorH * 2, rise: 2.8)
++        }
++
++        // 道の奥の低い柵と提灯。柵は全タイル続き、12 おきに柱を立てて提灯を吊るす。
++        let fence = SKSpriteNode(color: RunnerPalette.color(P.fence), size: CGSize(width: width, height: 1.6))
++        fence.anchorPoint = .zero
++        fence.position = CGPoint(x: 0, y: base + 0.6)
++        fence.zPosition = SceneryZ.front
++        tile.addChild(fence)
++        let posts = CGMutablePath()
++        var px = 6.0
++        while px < width {
++            posts.addRect(CGRect(x: px - 0.35, y: base, width: 0.7, height: 5.4))
++            px += 12
++        }
++        let postNode = SKShapeNode(path: posts)
++        postNode.fillColor = RunnerPalette.color(P.ryokanTimber)
++        postNode.strokeColor = .clear
++        postNode.zPosition = SceneryZ.front
++        tile.addChild(postNode)
++        px = 6.0
++        while px < width {
++            addLantern(to: tile, x: px, y: base + 3.6, z: SceneryZ.front)
++            px += 12
++        }
++    }
++
++    /// 雪をかぶった屋根（温泉街）。軒 `left`〜`right` から棟へ上がる台形の瓦屋根と、その上に白い雪の帯。
++    private func addSnowRoof(to tile: SKNode, left: Double, right: Double, eave: Double, rise: Double) {
++        typealias P = RunnerWorld.SceneryPalette
++        let inset = rise * 1.4
++        let roof = CGMutablePath()
++        roof.addLines(between: [
++            CGPoint(x: left, y: eave), CGPoint(x: left + inset, y: eave + rise),
++            CGPoint(x: right - inset, y: eave + rise), CGPoint(x: right, y: eave),
++        ])
++        roof.closeSubpath()
++        let roofNode = SKShapeNode(path: roof)
++        roofNode.fillColor = RunnerPalette.color(P.ryokanRoof)
++        roofNode.strokeColor = .clear
++        roofNode.zPosition = SceneryZ.middle
++        tile.addChild(roofNode)
++        let snow = CGMutablePath()
++        snow.addLines(between: [
++            CGPoint(x: left + 0.3, y: eave + rise * 0.55), CGPoint(x: left + inset, y: eave + rise),
++            CGPoint(x: right - inset, y: eave + rise), CGPoint(x: right - 0.3, y: eave + rise * 0.55),
++            CGPoint(x: right - inset + 0.6, y: eave + rise + 1.0), CGPoint(x: left + inset - 0.6, y: eave + rise + 1.0),
++        ])
++        snow.closeSubpath()
++        let snowNode = SKShapeNode(path: snow)
++        snowNode.fillColor = RunnerPalette.color(P.snow)
++        snowNode.strokeColor = .clear
++        snowNode.zPosition = SceneryZ.middle
++        tile.addChild(snowNode)
++    }
++
++    /// 提灯 1 つ（温泉街）。朱の丸い胴に上下の黒い口輪は付けず（背景は縁取りしない）、胴だけ。
++    private func addLantern(to tile: SKNode, x: Double, y: Double, z: CGFloat) {
++        let body = SKShapeNode(ellipseOf: CGSize(width: 1.8, height: 2.3))
++        body.fillColor = RunnerPalette.color(RunnerWorld.SceneryPalette.lantern)
++        body.strokeColor = .clear
++        body.position = CGPoint(x: x, y: y)
++        body.zPosition = z
++        tile.addChild(body)
++    }
++
++    /// 湯けむり（温泉街）。白い丸を 4 つ、上へ行くほど小さく散らして半透明で重ね、ゆっくり上下させる。
++    private func addSteam(to tile: SKNode, x: Double, y: Double, scale: Double) {
++        let node = SKNode()
++        for (dx, dy, r) in [(0.0, 0.0, 2.6), (-1.8, 2.4, 2.1), (1.6, 4.2, 1.8), (-0.4, 6.4, 1.3)] {
++            let puff = SKShapeNode(circleOfRadius: r * scale)
++            puff.fillColor = RunnerPalette.color(RunnerWorld.SceneryPalette.steam)
++            puff.strokeColor = .clear
++            puff.alpha = 0.78
++            puff.position = CGPoint(x: dx * scale, y: dy * scale)
++            node.addChild(puff)
++        }
++        node.position = CGPoint(x: x, y: y)
++        node.zPosition = SceneryZ.back
++        node.run(.repeatForever(.sequence([
++            .moveBy(x: 0, y: 1.2, duration: 1.8),
++            .moveBy(x: 0, y: -1.2, duration: 1.8),
++        ])))
++        tile.addChild(node)
+     }
+ 
+     /// 里山・港町・京都・奈良の遠景の部品の相対 z（`hillLayer` の中。丘の山は 0）。家並みの `HouseZ` と同じ考え方。
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerScene+Dressing.swift repo/Packages/GameKit/Sources/GameRunner/RunnerScene+Dressing.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerScene+Dressing.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerScene+Dressing.swift	2026-10-08 14:20:43
+@@ -349,14 +349,15 @@
+     func makeSinkFloor(_ floor: RunnerSinkFloor) -> SKNode {
+         typealias P = RunnerWorld.DressingPalette
+         let paddy = world.dressing.sinkFloor == .paddy
++        let footBath = world.dressing.sinkFloor == .footBath
+         let node = SKNode()
+         node.position = CGPoint(x: floor.start, y: 0)
+         let height = Self.roadHeight
+         let bottom = Metrics.groundY - height
+         let surfaceHeight = height * 0.7
+-        addBand(to: node, color: paddy ? P.paddyDeep : P.tidelandDeep,
++        addBand(to: node, color: footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep),
+                 x: 0, y: bottom, width: floor.length, height: height)
+-        addBand(to: node, color: paddy ? P.paddyWater : P.tidelandMud,
++        addBand(to: node, color: footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud),
+                 x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
+ 
+         // 水面（泥）の模様。田んぼは苗の列、干潟はカニの穴。どちらも 1 本のパスにまとめて
+@@ -365,7 +366,12 @@
+         let spacing = 5.0
+         var x = spacing / 2
+         while x < floor.length - 1 {
+-            if paddy {
++            if footBath {
++                // 湯けむり: 水面から立ち上る白い湯気の粒を 3 つ（踏み込む前に読める目印）。
++                marks.addEllipse(in: CGRect(x: x - 1.2, y: Metrics.groundY - 0.4, width: 2.0, height: 1.6))
++                marks.addEllipse(in: CGRect(x: x + 0.2, y: Metrics.groundY + 1.0, width: 1.6, height: 1.4))
++                marks.addEllipse(in: CGRect(x: x - 0.6, y: Metrics.groundY + 2.4, width: 1.2, height: 1.1))
++            } else if paddy {
+                 // 苗: 水面から 2.5 だけ突き出す細い縦線を 2 本ずつ。
+                 for dx in [-0.9, 0.9] {
+                     marks.addRect(CGRect(x: x + dx - 0.35, y: Metrics.groundY - 1.4, width: 0.7, height: 3.9))
+@@ -382,7 +388,7 @@
+             x += spacing
+         }
+         let markNode = SKShapeNode(path: marks)
+-        markNode.fillColor = RunnerPalette.color(paddy ? P.paddySeedling : P.tidelandHole)
++        markNode.fillColor = RunnerPalette.color(footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole))
+         markNode.strokeColor = .clear
+         markNode.zPosition = 2
+         node.addChild(markNode)
+@@ -393,11 +399,11 @@
+         let glintSpacing = 9.0
+         var gx = 0.0
+         while gx < floor.length + glintSpacing {
+-            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy)
++            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath)
+             gx += glintSpacing
+         }
+         let glintNode = SKShapeNode(path: glints)
+-        glintNode.fillColor = RunnerPalette.color(paddy ? P.waterGlint : P.tidelandSheen)
++        glintNode.fillColor = RunnerPalette.color((paddy || footBath) ? P.waterGlint : P.tidelandSheen)
+         glintNode.strokeColor = .clear
+         glintNode.alpha = 0.85
+         glintNode.zPosition = 1
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerScene.swift repo/Packages/GameKit/Sources/GameRunner/RunnerScene.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerScene.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerScene.swift	2026-10-08 14:20:43
+@@ -57,6 +57,7 @@
+         .stump: RunnerScene.makeTexture(RunnerPixelArt.stump(), name: "切り株"),
+         .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),
+         .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),
++        .yuoke: RunnerScene.makeTexture(RunnerPixelArt.yuoke(), name: "湯桶"),
+     ]
+     /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
+     ///
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerStage+Patterns.swift repo/Packages/GameKit/Sources/GameRunner/RunnerStage+Patterns.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerStage+Patterns.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerStage+Patterns.swift	2026-10-08 14:21:47
+@@ -242,5 +242,11 @@
+         "--1n^d2t-PP-~i1k-C-t1^n2=-b1d--w--~n^2t-C-1--",  // 34: 45区画・障害22個（穴8+低い岩3+高い岩3+鳥1+鹿2+イノシシ1+竹の子3+石垣1）＋短い田んぼ 2（区画 12・34）＋古い木橋 2（区画 17・40）。ここから速さは上限 60。床は 1 区画（区画 24）にして障害に回す
+         "--PP-2^nd-C-t1~i-k2n=-n^1b-2d-w--t~2^n1-C-1t--", // 35: 46区画・障害23個（穴8+低い岩4+高い岩3+鳥1+鹿2+イノシシ1+竹の子3+石垣1）＋短い田んぼ 2（区画 14・34）＋古い木橋 2（区画 10・40）。末尾は庭石（`1t`）で締める
+         "--1^nd2t-C-t~i-k2t1^-PP-n2b1-w--=-d^1~1-C-t^n--", // 36: 47区画・障害24個（穴8+低い岩3+高い岩4+鳥1+鹿2+イノシシ1+竹の子4+石垣1）＋短い田んぼ 2（区画 12・37）＋古い木橋 2（区画 9・40）。京都・奈良の締め。全部入り。たこ焼きは区画 15（鳥まで 11 区画・塀まで 14 区画）
++        "--PP-1n^d2t~1-ikt2-==-^n1bd-w--~n^2t-C-1--",
++        "--1n-PP-^2td~1itk2-C-^n1b-d2-w--~n^1t==-1--",
++        "--PP-^1dn-C-t2~1-ikt1==-b2^n1-w--d~2^t-C-1--",
++        "--1n^d2t-PP-~i1k-C-t1^n2=-b1d--w--~n^2t-C-1--",
++        "--PP-2^nd-C-t1~i-k2n=-n^1b-2d-w--t~2^n1-C-1t--",
++        "--1^nd2t-C-t~i-k2t1^-PP-n2b1-w--=-d^1~1-C-t^n--", // 37〜42: 温泉街（#1938 モック用の仮置き。31〜36 の写し）
+     ]
+ }
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerStory.swift repo/Packages/GameKit/Sources/GameRunner/RunnerStory.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerStory.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerStory.swift	2026-10-08 14:20:43
+@@ -96,6 +96,12 @@
+                 RunnerStoryPanel(art: .kyotoNaraDeerRun, line: "鹿のくせに速いやんけ……待てー！"),
+                 RunnerStoryPanel(art: .kyotoNaraToBeContinued, line: "つづく"),
+             ]
++        case .ending(.onsen):
++            // モック用の仮置き（#1938）。本実装で差し替える。
++            return [
++                RunnerStoryPanel(art: .kyotoNaraReach, line: "湯の町まで来たで"),
++                RunnerStoryPanel(art: .kyotoNaraToBeContinued, line: "つづく"),
++            ]
+         }
+     }
+ }
+diff -ruN base/Packages/GameKit/Sources/GameRunner/RunnerWorld.swift repo/Packages/GameKit/Sources/GameRunner/RunnerWorld.swift
+--- base/Packages/GameKit/Sources/GameRunner/RunnerWorld.swift	2026-10-08 14:01:26
++++ repo/Packages/GameKit/Sources/GameRunner/RunnerWorld.swift	2026-10-08 14:25:24
+@@ -42,7 +42,14 @@
+     /// 鳥居・寺の本堂と石段・五重塔・紅葉の木。犬の枠は奈良の鹿（絵ごと着せ替え）、鳥は鳩、
+     /// それ以外の障害は里山の着せ替え（用水路＝疎水・竹の子・田んぼ・古い木橋・石垣）を流用する。
+     case kyotoNara
++    /// 37〜42 面。温泉街（#1938 モック）。初冬の山あいの湯の町。空は湯けむりに霞む淡い灰青、山は雪をかぶった
++    /// 青灰の 2 階調、道は濡れた石畳で路肩に湯の川。遠景に旅館・外湯（のれん・提灯）・源泉の櫓・湯けむり。
++    /// 犬の枠はニホンザル（絵ごと着せ替え）、鳥はトンビ、突き上げは湯柱（波しぶきを流用）、沈む床は泥湯。
++    case onsen
+ 
++    /// モック用: `-onsenPlanB` で案 B（湯桶・足湯）に切り替える。
++    static let planB: Bool = ProcessInfo.processInfo.arguments.contains("-onsenPlanB")
++
+     /// 1 つの世界が受け持つ面数。6 面ずつ（30 面 = 5 世界、#1824 で 36 面 = 6 世界）。
+     public static let stagesPerWorld = 6
+ 
+@@ -69,6 +76,7 @@
+         case .satoyama: return "里山"
+         case .harbor:  return "港町"
+         case .kyotoNara: return "京都・奈良"
++        case .onsen: return "温泉街"
+         }
+     }
+ 
+@@ -111,6 +119,8 @@
+         case harbor
+         /// 道の奥に土塀、その後ろに鳥居・寺の本堂と石段・五重塔・紅葉の木（#1824）。
+         case kyotoNara
++        /// 道の奥に提灯の並ぶ柵、その後ろに旅館・外湯・源泉の櫓・湯けむり、山には雪（#1938）。
++        case onsen
+     }
+ 
+     public var scenery: Scenery {
+@@ -121,6 +131,7 @@
+         case .satoyama: return .satoyama
+         case .harbor:   return .harbor
+         case .kyotoNara: return .kyotoNara
++        case .onsen: return .onsen
+         }
+     }
+ 
+@@ -171,6 +182,10 @@
+             // 破線は石畳の明るい目地として読ませる生成り（路面より 60 以上明るい・`WorldTests`）。
+             // 縁石は明るい石、路肩は苔の緑、地盤は土。
+             return Road(asphalt: 0xB7B3AC, line: 0xF6F3EE, curb: 0xDAD5CC, shoulder: 0xA3B894, subsoil: 0xB39C84)
++        case .onsen:
++            // 濡れた石畳（#1938）。寒色の石の灰で明るさは京都と同じ帯。目地は雪まじりの白、縁石は雪、
++            // 路肩は湯の川（淡い湯色の青緑）、地盤は濡れた暗い石。
++            return Road(asphalt: 0xB3B7BE, line: 0xF4F6F8, curb: 0xE4E8EC, shoulder: 0x9ED0CB, subsoil: 0x7A838C)
+         }
+     }
+ 
+@@ -303,6 +318,21 @@
+                 rockBody: 0x585E6E,
+                 rockDark: 0x23272F
+             )
++        case .onsen:
++            // 温泉街（#1938）。初冬。空は湯けむりに霞む淡い灰青（色相 214°）、山は雪をかぶった青灰の 2 階調。
++            // 岩（湯けむりの岩）は朝と同じストーングレー。
++            return Palette(
++                sky: 0xDAE0E8,
++                cloud: 0xFFFFFF,
++                cloudAlpha: 0.9,
++                hillFar: 0xC3CDD4,
++                hillNear: 0xADBBC4,
++                groundTop: 0xC9CDD2,
++                groundBody: 0x7A838C,
++                rockLight: 0x9CA4B2,
++                rockBody: 0x585E6E,
++                rockDark: 0x23272F
++            )
+         }
+     }
+ }
+@@ -423,6 +453,17 @@
+                 birdBody: 0x4C5466, birdWing: 0x363C4A, birdWingFar: 0x242832, birdBelly: 0xD9DAE2,
+                 birdHead: 0x4C5466, birdBeak: RunnerPalette.birdBeak
+             )
++        case .onsen:
++            // 温泉街（#1938）。手前は暗く。犬の枠はニホンザル——灰茶の毛（`dogBody`）に暗い手足・耳（`dogDark`）、
++            // 顔まわりと腹の薄い毛（`dogBelly`）、顔の赤は犬の首輪の赤 `R` を流用。鳥はトンビ（焦げ茶 3 階調に
++            // 淡い腹）。イノシシは朝・里山と同じ焦げ茶。
++            return Creatures(
++                outline: 0x1A1410,
++                dogBody: 0x5A4737, dogDark: 0x30241B, dogBelly: 0xDCCDB8,
++                boarBody: 0x5A3618, boarDark: 0x2E1A0C, boarSnout: 0xB88A6A,
++                birdBody: 0x5A4030, birdWing: 0x3E2A1E, birdWingFar: 0x2A1C12, birdBelly: 0xC9A882,
++                birdHead: 0x5A4030, birdBeak: RunnerPalette.birdBeak
++            )
+         }
+     }
+ 
+@@ -505,6 +546,26 @@
+         public static let mapleCanopy: UInt32 = 0xDD9484
+         /// 紅葉の木の幹。
+         public static let mapleTrunk: UInt32 = 0xB7A393
++
++        // 温泉街（`Scenery.onsen`・#1938）。どれも空（0xDAE0E8）と 2:1 未満に沈める淡い色。
++        /// 旅館の壁（漆喰）。
++        public static let ryokanWall: UInt32 = 0xD4C3AC
++        /// 旅館の柱・梁・窓枠・櫓の木。
++        public static let ryokanTimber: UInt32 = 0xB49C82
++        /// 旅館・外湯の瓦屋根（青灰）。
++        public static let ryokanRoof: UInt32 = 0xA9B0BA
++        /// 屋根と山に積もった雪。
++        public static let snow: UInt32 = 0xF3F5F7
++        /// 障子窓の灯り（暖色）。
++        public static let windowGlow: UInt32 = 0xF0D59C
++        /// 外湯ののれん（藍）。
++        public static let noren: UInt32 = 0x93A0BE
++        /// 提灯（鳥居と同じ淡い朱）。
++        public static let lantern: UInt32 = 0xE09A86
++        /// 湯けむり（白。半透明で重ねる）。
++        public static let steam: UInt32 = 0xF6F7F8
++        /// 道の奥の低い柵（提灯の並ぶ）。
++        public static let fence: UInt32 = 0xC6BBA8
+     }
+ 
+     /// 遠景の飾りのタイル幅（`RunnerScene.hillSpacing`）。家並み（`townHouses`）の `dx` はこの幅の中の位置。
+@@ -575,6 +636,19 @@
+                 "mapleCanopy": SceneryPalette.mapleCanopy,
+                 "mapleTrunk": SceneryPalette.mapleTrunk,
+             ]
++        case .onsen:
++            return [
++                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
++                "ryokanWall": SceneryPalette.ryokanWall,
++                "ryokanTimber": SceneryPalette.ryokanTimber,
++                "ryokanRoof": SceneryPalette.ryokanRoof,
++                "snow": SceneryPalette.snow,
++                "windowGlow": SceneryPalette.windowGlow,
++                "noren": SceneryPalette.noren,
++                "lantern": SceneryPalette.lantern,
++                "steam": SceneryPalette.steam,
++                "fence": SceneryPalette.fence,
++            ]
+         }
+     }
+ 
+@@ -588,6 +662,7 @@
+         case .satoyama: return ["sky": palette.sky]
+         case .harbor:   return ["sky": palette.sky]
+         case .kyotoNara: return ["sky": palette.sky]
++        case .onsen: return ["sky": palette.sky]
+         }
+     }
+ }
+@@ -700,6 +775,8 @@
+         case .harbor:   return 0x6FB1CF
+         // 京都・奈良（#1824）は紅葉の橙。隣の港町の青とは色相で正反対。
+         case .kyotoNara: return 0xD9876A
++        // 温泉街（#1938）は湯の青緑。隣の京都・奈良の橙とは色相で正反対。
++        case .onsen: return 0x7FB8B2
+         }
+     }
+ }
+@@ -734,6 +811,8 @@
+             case ropeCoil
+             /// ドラム缶（高い岩の 4×9）。
+             case drum
++            /// 湯桶（温泉街・案 B。低い岩の 4×5）。
++            case yuoke
+         }
+         /// 犬の枠（画面の右から歩いて来る動物）。
+         public enum Walker: Equatable, Sendable {
+@@ -743,6 +822,8 @@
+             case cat
+             /// 奈良の鹿（#1824）。犬と同じ格子・同じ動き。
+             case deer
++            /// ニホンザル（温泉街・#1938）。犬と同じ格子・同じ動き。
++            case monkey
+         }
+         /// イノシシの枠（右から向かってくるもの）。
+         public enum Charger: Equatable, Sendable {
+@@ -786,6 +867,8 @@
+             case paddy
+             /// 干潟（港町）。ぬかるんだ泥にカニの穴、入ると泥が跳ねる。
+             case tideland
++            /// 足湯（温泉街・案 B）。濁った湯に湯けむりが立つ。
++            case footBath
+         }
+         /// 加速床。
+         public enum BoostFloor: Equatable, Sendable {
+@@ -866,6 +949,17 @@
+                 platform: .scaffold, boostFloor: .pavedFarmRoad, shoot: .bambooShoot,
+                 sinkFloor: .paddy, crumblingPlatform: .suspensionBridge, wall: .stoneWall
+             )
++        case .onsen:
++            // 温泉街（#1938 モック）。案 A: 新しく描くのは犬の枠の**サル**だけ。穴＝源泉の溝（用水路の絵を流用）・
++            // 岩＝湯けむりの岩（岩塊のまま）・イノシシ＝イノシシ・台座＝木箱の山（旅館の荷）・加速床＝舗装の坂道
++            // （農道の舗装を流用）・突き上げ＝湯柱（波しぶきを流用）・沈む床＝泥湯（干潟を流用）・崩れる足場＝川の古い
++            // 木橋（吊り橋を流用）・高い塀＝石垣。案 B はさらに低い岩＝湯桶・沈む床＝足湯を新しく描く。
++            return Dressing(
++                pit: .irrigationDitch, lowBlock: RunnerWorld.planB ? .yuoke : .boulder, tallBlock: .boulder,
++                dog: .monkey, boar: .boar,
++                platform: .crateStack, boostFloor: .pavedFarmRoad, shoot: .seaSpray,
++                sinkFloor: RunnerWorld.planB ? .footBath : .tideland, crumblingPlatform: .suspensionBridge, wall: .stoneWall
++            )
+         }
+     }
+ 
+@@ -938,6 +1032,13 @@
+         public static let tidelandHole: UInt32 = 0x171310
+         /// 潮の照り（濡れた泥の光沢）。泥と 3:1 以上。
+         public static let tidelandSheen: UInt32 = 0xDCE8EC
++        // 足湯（`Dressing.SinkFloor.footBath`・温泉街 案 B）
++        /// 濁った湯。濡れた石畳（0xB3B7BE）と 3:1 以上。
++        public static let footBathWater: UInt32 = 0x2F6866
++        /// 湯の底（沈む先）。
++        public static let footBathDeep: UInt32 = 0x1E4442
++        /// 湯けむり（水面から立つ白い湯気。踏み込む前に読める目印）。
++        public static let footBathSteam: UInt32 = 0xF4F6F8
+         // 崩れる足場（`Dressing.CrumblingPlatform`・#1090）
+         /// 古びた板（吊り橋・桟橋で共通）。乗る面なので**いちばん明るい**
+         /// ——台座（#674）と同じく、遊ぶ人が最初に読み取るべきは「どこに足が着くか」。
