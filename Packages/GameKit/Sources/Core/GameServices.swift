@@ -313,7 +313,7 @@ public struct GameServices {
             outcome: outcome,
             score: score,
             totalWins: playLog?.totalWins ?? 0,
-            playedGameCount: playLog?.playedGameIDs.count ?? 0
+            playedGameIDs: playLog?.playedGameIDs ?? []
         )
         return result
     }
