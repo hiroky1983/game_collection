@@ -51,12 +51,16 @@ public final class AnzanModel {
     public private(set) var displayRun = 0
 
     private let services: GameServices?
-    private let now: () -> Date
+    private let elapsedNow: ElapsedClock.Now
     private var generator: SplitMix64?
     private var stepIndex = -1
     /// 遊び方・バックグラウンドで表示を止めているあいだ true。`advanceDisplay()` は進めない。
     private var isDisplayPaused = false
-    private var answerStartedAt: Date?
+    /// 回答時間の計時。入力中にシート・背面で止めた間は進めないので、止める前までを `answerPlayed` に積み、
+    /// 動いている間だけ `answerClock` が数える。`isAnswerTiming` は最後の数が消えてから決定までの間 true。
+    private var answerPlayed: Duration = .zero
+    private var answerClock: ElapsedClock?
+    private var isAnswerTiming = false
     /// `gameDidStart` を一度通したか。2 問目からは `gameDidRestart` で数える。
     private var hasCountedStart = false
     #if DEBUG
@@ -66,10 +70,10 @@ public final class AnzanModel {
 
     /// - Parameters:
     ///   - seed: 出題を種から決める（テスト用。省略時はシステム乱数）。
-    ///   - now: 回答時間の計測に使う時計（テスト用）。
-    public init(services: GameServices? = nil, seed: UInt64? = nil, now: @escaping () -> Date = Date.init) {
+    ///   - elapsedNow: 回答時間の計測に使う時計（テスト用）。
+    public init(services: GameServices? = nil, seed: UInt64? = nil, elapsedNow: @escaping ElapsedClock.Now = { ContinuousClock.now }) {
         self.services = services
-        self.now = now
+        self.elapsedNow = elapsedNow
         generator = seed.map { SplitMix64(seed: $0) }
         // 中断データは最後に選んだ難易度の控え。問題は復元せず、必ず難易度のシートから入る。
         settings = services?.snapshots.load(AnzanSnapshot.self, for: Self.gameID)?.settings ?? .standard
@@ -126,7 +130,7 @@ public final class AnzanModel {
         guard stepIndex < steps.count else {
             step = nil
             phase = .answering
-            answerStartedAt = now()
+            startAnswerTimer()
             return nil
         }
         let current = steps[stepIndex]
@@ -145,6 +149,7 @@ public final class AnzanModel {
     /// 見せかけの途中で入力に進むと、見ていない数の合計を答えることになり誤答が記録に残る。
     /// 止めたコマは捨て、`resumeDisplay()` で頭（「よーい」）から出し直す。`flashing` 以外では何もしない。
     public func pauseDisplay() {
+        if phase == .answering { pauseAnswerTimer() }
         guard phase == .flashing else { return }
         isDisplayPaused = true
         stepIndex = -1
@@ -153,6 +158,7 @@ public final class AnzanModel {
 
     /// `pauseDisplay()` で止めた表示を頭から出し直す。止めていなければ何もしない。
     public func resumeDisplay() {
+        if phase == .answering { resumeAnswerTimer() }
         guard isDisplayPaused else { return }
         isDisplayPaused = false
         guard phase == .flashing else { return }
@@ -186,7 +192,9 @@ public final class AnzanModel {
         isCorrect = value == sum
         phase = .result
         step = nil
-        let elapsed = answerStartedAt.map { now().timeIntervalSince($0) } ?? 0
+        pauseAnswerTimer()
+        let parts = answerPlayed.components
+        let elapsed = isAnswerTiming ? Double(parts.seconds) + Double(parts.attoseconds) / 1e18 : 0
         let seconds = max(1, Int(elapsed.rounded(.up)))
         answerSeconds = seconds
         services?.feedback.notify(isCorrect ? .success : .error)
@@ -223,7 +231,7 @@ public final class AnzanModel {
         input = ""
         stepIndex = -1
         step = nil
-        answerStartedAt = nil
+        stopAnswerTimer()
         isDisplayPaused = false
         phase = .flashing
         displayRun += 1
@@ -231,6 +239,30 @@ public final class AnzanModel {
     }
 
     // MARK: - 内部
+
+    private func startAnswerTimer() {
+        answerPlayed = .zero
+        answerClock = ElapsedClock(now: elapsedNow)
+        isAnswerTiming = true
+    }
+
+    /// 入力中にシート・背面で塞がれた間を数えないよう、動いている計時を止めて経過を積む。
+    private func pauseAnswerTimer() {
+        guard let clock = answerClock else { return }
+        answerPlayed += clock.duration
+        answerClock = nil
+    }
+
+    private func resumeAnswerTimer() {
+        guard isAnswerTiming, answerClock == nil else { return }
+        answerClock = ElapsedClock(now: elapsedNow)
+    }
+
+    private func stopAnswerTimer() {
+        answerPlayed = .zero
+        answerClock = nil
+        isAnswerTiming = false
+    }
 
     private func beginQuestion() {
         questionSerial += 1
@@ -243,7 +275,7 @@ public final class AnzanModel {
         replayUsed = false
         stepIndex = -1
         step = nil
-        answerStartedAt = nil
+        stopAnswerTimer()
         isDisplayPaused = false
         phase = .flashing
         displayRun += 1
