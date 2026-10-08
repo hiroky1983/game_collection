@@ -10,7 +10,8 @@ public struct BoardControlBarHint {
     let needsAd: Bool
     /// 広告の救済（失敗アラート・連打ガードに要る。`BoardGameControlBar` が呼び出し側の `@State` から受け取る）。
     let rescue: RewardedRescue
-    let request: () -> Void
+    /// 押したときの処理。読みの Task は画面の世代に載せ、離脱で取り消す（#1903）。
+    let request: (GameServices) -> Void
     /// 30 秒以上操作が無いときに出す促し（#1424）。
     let nudge: HintNudge
 
@@ -27,14 +28,15 @@ public struct BoardControlBarHint {
         isThinking = model.isHintThinking
         self.rescue = rescue
         nudge = HintNudge(isEligible: model.canUseHint, game: game, activity: activity)
-        request = {
+        request = { services in
             if model.needsAdForHint {
                 // 広告の視聴完了を確かめてから読みに進む（モデルが1本の非同期メソッドで持つ・#526）。
                 // 常設の項目で確認を挟まずに広告へ進む契約はナンプレのヒントと同じ（`reward_offer` は数えない）。
                 rescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
             } else {
                 // 読みは Model の中で `AITurnGuarded` の照合に載せる（押したあとの局面ずれはそこで弾く）。
-                Task { await model.requestHint() }
+                // 画面を離れたら取り消す（離脱後に読みが確定すると回数・game_start・中断データが動く・#1903）。
+                services.screenGeneration.runUntilLeave { await model.requestHint() }
             }
         }
     }
@@ -139,7 +141,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
                     ? (hint.needsAd ? "広告を視聴すると、最善手をもう1手示します。使った対局は順位表に送りません"
                                     : "最善手を1手だけ盤の上に示します。使った対局は順位表に送りません")
                     : "いまは使えません（あなたの手番ではないか、8回とも使い切りました）",
-                action: hint.request
+                action: { hint.request(services) }
             ))
         }
         return items

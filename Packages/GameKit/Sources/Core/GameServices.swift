@@ -15,14 +15,37 @@
 @MainActor
 public final class GameScreenGeneration {
     public private(set) var current = 0
+    private var leaveCancellable: [Int: Task<Void, Never>] = [:]
+    private var nextTaskID = 0
 
     /// `GameServices.init` の既定値として書けるように nonisolated にする
     /// （既定値は呼び出し側の文脈で評価されるため、MainActor 限定だとテストの
     /// 非 MainActor な組み立てが通らなくなる）。初期値 0 は隔離を必要としない。
     nonisolated public init() {}
 
-    /// ゲーム画面から離れた。
-    public func advance() { current += 1 }
+    /// ゲーム画面から離れた。離脱で取り消す約束の Task（`runUntilLeave`）もここで cancel する。
+    public func advance() {
+        current += 1
+        let tasks = leaveCancellable.values
+        leaveCancellable.removeAll()
+        for task in tasks { task.cancel() }
+    }
+
+    /// 画面を離れたら cancel される Task として `operation` を走らせる（将棋・チェス・五目並べのヒントの読み・#1903）。
+    ///
+    /// View が作る非構造化 Task は離脱では止まらず、`withAITurnGuard` の `Task.isCancelled` 照合が効かない。
+    /// 離脱後に読みが確定すると、ヒント回数が減り・`game_start` が余り・手つかずの局に中断データが付く。
+    @discardableResult
+    public func runUntilLeave(_ operation: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        let id = nextTaskID
+        nextTaskID += 1
+        let task = Task { [weak self] in
+            await operation()
+            self?.leaveCancellable[id] = nil
+        }
+        leaveCancellable[id] = task
+        return task
+    }
 }
 
 /// 各ゲームに注入する横断サービス束。MVP では永続化と広告のみ。
