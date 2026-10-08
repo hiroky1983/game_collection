@@ -83,18 +83,20 @@ public struct BlocksView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
             )
         )
-        .confirmationDialog(
-            "はじめからやり直しますか？",
-            isPresented: $showConfirmNewGame,
-            titleVisibility: .visible
-        ) {
-            Button("終了してはじめから", role: .destructive) {
-                pausedForNewGameConfirm = false
-                model.newGame()
+        .dialogs { anchor in
+            anchor.confirmationDialog(
+                "はじめからやり直しますか？",
+                isPresented: $showConfirmNewGame,
+                titleVisibility: .visible
+            ) {
+                Button("終了してはじめから", role: .destructive) {
+                    pausedForNewGameConfirm = false
+                    model.newGame()
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると今のスコアとステージが失われます。")
             }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると今のスコアとステージが失われます。")
         }
         .onChange(of: showConfirmNewGame) { _, isPresented in
             // キャンセルボタンを経由せず閉じた場合（iPad のポップオーバーで外側をタップ等）も

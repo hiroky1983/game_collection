@@ -48,11 +48,13 @@ public struct DaifugoView: View {
         .gameChrome(title: "大富豪", review: services.review)
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.daifugo) { DaifugoRuleSheet() }
-        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-            Button("投了する", role: .destructive) { model.resign() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
+                Button("投了する", role: .destructive) { model.resign() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
+            }
         }
         // 献上免除の提示（#780 × #1048）。大貧民のリザルトでボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(waiveRescue, for: .revival, isPresented: model.canWaiveExchange,

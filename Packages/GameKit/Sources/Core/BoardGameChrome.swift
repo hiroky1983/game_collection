@@ -267,11 +267,13 @@ public struct BoardResignButton: View {
 public extension View {
     /// 投了の確認ダイアログ（#828）。文言を盤ゲーム 5 本で 1 か所にする。
     func boardResignConfirmation(isPresented: Binding<Bool>, onResign: @escaping () -> Void) -> some View {
-        confirmationDialog("投了しますか？", isPresented: isPresented, titleVisibility: .visible) {
-            Button("投了する", role: .destructive) { onResign() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("現在の対局を終了します。CPUの勝ちになります。")
+        dialogs { anchor in
+            anchor.confirmationDialog("投了しますか？", isPresented: isPresented, titleVisibility: .visible) {
+                Button("投了する", role: .destructive) { onResign() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("現在の対局を終了します。CPUの勝ちになります。")
+            }
         }
     }
 }
@@ -325,32 +327,34 @@ public extension View {
         let undoRescue = rescue
         let showUndoConfirm = isPresented.wrappedValue
         return self
-            .alert("待った確認", isPresented: isPresented) {
-                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    guard model.undoUsed else {
-                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
-                        // アラートの終了アニメーションに巻き込まれる）。
-                        Task { model.undoLastExchange() }
-                        return
+            .dialogs { anchor in
+                anchor.alert("待った確認", isPresented: isPresented) {
+                    Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
+                        guard model.undoUsed else {
+                            // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                            // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
+                            // アラートの終了アニメーションに巻き込まれる）。
+                            Task { model.undoLastExchange() }
+                            return
+                        }
+                        // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
+                        // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
+                        let turn = model.aiTurnKey
+                        undoRescue.request(
+                            services, gameID: model.gameID, purpose: .undo,
+                            guardedBy: .checkedByGrant
+                        ) {
+                            model.undoLastExchange(forTurn: turn)
+                        }
                     }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
-                    // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
-                    let turn = model.aiTurnKey
-                    undoRescue.request(
-                        services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .checkedByGrant
-                    ) {
-                        model.undoLastExchange(forTurn: turn)
-                    }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。
+                    // 「直前の1手」とだけ書くと、盤が2手ぶん戻ることが伝わらない（#665）。
+                    Text(model.undoUsed
+                         ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
+                         : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
                 }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。
-                // 「直前の1手」とだけ書くと、盤が2手ぶん戻ることが伝わらない（#665）。
-                Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
-                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
             // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
             .rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed,

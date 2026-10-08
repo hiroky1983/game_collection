@@ -64,6 +64,13 @@ public enum Theme {
 
         /// 差し色の面の上に載せる文字色。面色はモードによらず固定なので、`ink` のライト側で固定する。
         public static let onAccent: UInt32 = ink.light
+
+        /// 標準ダイアログ（`.alert` / `.confirmationDialog`）のボタンの文字色（#1874）。
+        ///
+        /// ダイアログの背景は OS のすりガラスで変えられず、アプリ全体の tint の `coral`（白に対し 2.7:1）では
+        /// 文字が沈んで読めなかった。色相は `coral` のまま濃くして AA（白に対し 5.0:1）に乗せる（会長決裁の案 C）。
+        /// ダークのすりガラスは暗い面なので、濃くすると逆にコントラストが落ちる。ダークだけ `coral` のまま残す。
+        public static let dialogTint: Pair = (0xC93D2E, coral)
     }
 
     // 地と文字（システムのライト / ダーク設定に追従する）
@@ -100,6 +107,9 @@ public enum Theme {
 
     /// ゲームごとの差し色を順番に割り当てる用。
     public static let palette: [Color] = [coral, teal, purple, yellow, pink]
+
+    /// 標準ダイアログのボタンの文字色（#1874）。`View.dialogs(_:)` が当てる。値の根拠は `Hex.dialogTint` を参照。
+    public static let dialogTint = Color(Hex.dialogTint)
 
     /// 盤・駒・牌・トランプなど、**モードによらず色が変わらない面**の上に置く文字色。
     /// 面が明るいまま固定なので、ここで `ink` / `inkSub` を使うとダークで文字だけ反転して読めなくなる。
@@ -315,6 +325,26 @@ public struct PopButtonStyle: ButtonStyle {
 public extension ButtonStyle where Self == PopButtonStyle {
     /// 押下フィードバック付きの `.plain` 相当（#195）。
     static var pop: PopButtonStyle { PopButtonStyle() }
+}
+
+/// `View.dialogs(_:)` が標準ダイアログを付ける先の、画面の部品と同じ大きさの空ビュー（#1874）。
+/// 当たり判定は持たない（背景に敷いても、その下へのタップの通り方を変えない）。
+public struct DialogAnchor: View {
+    public var body: some View { Color.clear.allowsHitTesting(false) }
+}
+
+public extension View {
+    /// 標準のダイアログ（`.alert` / `.confirmationDialog`）は必ずここに付ける（#1874）。
+    ///
+    /// ダイアログのボタンの文字色は、modifier を付けた位置の `tint` 環境で決まる。画面の部品と同じ `coral` では
+    /// OS のすりガラスの上で沈むので、ダイアログだけ `Theme.dialogTint` にする。`self` に直接 `.tint` を当てると
+    /// 画面側の部品まで色が変わるため、同じ大きさの空ビュー（`DialogAnchor`）を背景に敷き、そこへダイアログと
+    /// tint を付ける。大きさが同じなので、iPad のポップオーバーが出る位置も直接付けたときと変わらない。
+    /// `role: .destructive` のボタンはシステムの赤のまま（tint は及ばない）。
+    /// ダイアログを View に直接付けるのは `DialogTintScanTests` が落とす。
+    func dialogs<Dialogs: View>(@ViewBuilder _ attach: (DialogAnchor) -> Dialogs) -> some View {
+        background { attach(DialogAnchor()).tint(Theme.dialogTint) }
+    }
 }
 
 /// `View.gameSheetDetents()` の実体。
