@@ -209,6 +209,23 @@ public struct GameServices {
         screenGeneration.advance()
     }
 
+    /// ゲーム画面を表示したままバックグラウンドへ入ったときにハブから呼ぶ（#1951）。
+    /// ホームボタン・アプリ切替での中断は `gameDidLeave` を通らないので、同じ判定（中断データの有無・
+    /// 手つかず判定）で続きのお知らせだけを予約する。解析（`leaveGame`）にも画面の世代にも触らない
+    /// ＝1プレイの数え方は変えない（画面はまだ開いているため）。
+    @MainActor
+    public func gameDidEnterBackground(gameID: String) {
+        let hasSnapshot = isResumable?(gameID, snapshots) ?? snapshots.exists(for: gameID)
+        reminders?.gameDidEnterBackground(gameID: gameID, hasSnapshot: hasSnapshot)
+    }
+
+    /// バックグラウンドから前面へ戻り、同じゲーム画面が出ているときにハブから呼ぶ（#1951）。
+    /// `gameDidEnterBackground` で予約したお知らせを取り消す。`game_open` は送らない（開き直しではない）。
+    @MainActor
+    public func gameDidReturnToForeground(gameID: String) {
+        reminders?.gameDidReturnToForeground(gameID: gameID)
+    }
+
     /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送り、そのゲームの
     /// 中断のお知らせを取り消す（#663）。プレイの数え方にも画面の世代にも触らない。
     ///
