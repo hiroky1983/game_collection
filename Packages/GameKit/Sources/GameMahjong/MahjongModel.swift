@@ -219,6 +219,9 @@ public final class MahjongModel: AITurnGuarded {
             handResult = snap.handResult
             endsAfterThisHand = snap.endsAfterThisHand ?? false
             gameLength = snap.gameLength ?? .tonpuu
+            temporaryFuriten = snap.temporaryFuriten ?? Array(repeating: false, count: Self.playerCount)
+            riichiTurn = snap.riichiTurn ?? snap.riichi.map { $0 ? 0 : nil }
+            isRinshanDraw = snap.isRinshanDraw ?? false
             phase = snap.handResult != nil ? .handResult : .playing
             // 終局の手前のリザルトから再開した局も決着済み（#811。`finishHand` の末尾と同じ判定）。
             if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
@@ -235,6 +238,8 @@ public final class MahjongModel: AITurnGuarded {
             && snap.scores.count == playerCount
             && (snap.melds?.count ?? playerCount) == playerCount
             && (snap.discardedKinds?.count ?? playerCount) == playerCount
+            && (snap.temporaryFuriten?.count ?? playerCount) == playerCount
+            && (snap.riichiTurn?.count ?? playerCount) == playerCount
             && seats.contains(snap.currentPlayer)
             && seats.contains(snap.dealer)
             && snap.deadWall.count == deadWallCount
@@ -653,7 +658,10 @@ public final class MahjongModel: AITurnGuarded {
             hasExtendedGame: hasExtendedGame,
             handResult: phase == .handResult ? handResult : nil,
             endsAfterThisHand: endsAfterThisHand,
-            gameLength: gameLength
+            gameLength: gameLength,
+            temporaryFuriten: temporaryFuriten,
+            riichiTurn: riichiTurn,
+            isRinshanDraw: isRinshanDraw
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
