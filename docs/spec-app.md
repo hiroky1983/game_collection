@@ -917,6 +917,17 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **前提**: App Store Connect への実績の登録は、柵越えおじさんをハブに載せる版が決まった時点の**会長操作**で、それまで未登録。
   ハブ非公開の間は Game Center に出ない（端末内の記録・一覧は動く）
 
+### 柵越えおじさん: 週間ランキング（#1792・v1.1.11）
+
+Game Center の**定期リーダーボード**（毎週月曜 0:00 JST 開始・7 日・7 日ごとに繰り返し・ベストスコア型・High to Low）に 1 挑戦の総飛距離を送り、アプリ内にランキングページを出す。常設の `asobiba.homerun.distance`（自己ベスト）はそのまま残り、週間は別の表。
+
+- **送る値**: 総飛距離 m（`HomerunWeekly.score(for:)`）。**月まで飛んだ打球は 384,400,000 m（画面表示どおり 384,400 km）で数える**（常設の記録・通算は 180 m のまま）。上限は 768,801,440 m（月 2 回＋ 180 m × 8 球）で、超える値は送らない。
+- **送り先 ID は `GameCenterLeaderboard.homerunWeekly`（`String?`）**。App Store Connect に作成する（会長操作・`docs/game-center-setup.md`）まで nil で、nil のあいだは送信もランキングページへの遷移もしない（`HomerunModel.weekly == .off`）。
+- **流れ**: 決着（`record`）で、送る前の順位表を読む → 送信を待つ → 送った後の順位表を読む（`HomerunModel+Weekly`）。サインイン済みなら「10 球の結果の演出 → ランキングページ → 結果ページ」。ページは読み込み中・失敗でも「結果を見る」で先へ進める（待たされない）。未サインインはページを挟まず、結果ページの「今週のランキング」の行から「Game Center に登録すると見られます」の案内ページを開く。
+- **ランキングページ**: 参加人数チップ・今週の自分（順位・距離・先週の順位・あと ◯ で ◯位）・上位 20 件（上位の外なら末尾に自分）。月まで飛んだ行は km 表記と補足。注記に「予告なく終了する場合があります」。順位が上がったときは入れ替えアニメ（B 案「一気に飛び上がる」）。Reduce Motion では最終の並びをそのまま出す。表の設計は `docs/design/homerun-ranking/`。
+- **結果ページ**: 「今週のランキング　◯位にランクイン」の 1 行だけ（表は出さない）。押すとランキングページを静止で開く。
+- **Game Center のプロトコル**: `GameCenterService` に `submitAndWait`・`loadBoard`（既定は何もしない）、`GameCenterReporter` に `submitWeeklyAndWait`・`loadWeeklyBoard`（未サインインでは呼ばない）を追加。
+
 ### 柵越えおじさん: たんこぶ（#1793・v1.1.9）
 
 打ち上げた球が自分の頭に落ちて、ヘルメットの上にたんこぶができるギャグ演出（`HomerunCore/HomerunTankobu`・見た目は `GameHomerun/HomerunTankobuGag`）。
