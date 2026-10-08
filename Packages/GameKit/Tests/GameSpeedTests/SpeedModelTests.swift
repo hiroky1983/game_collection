@@ -347,6 +347,25 @@ struct SpeedModelTests {
         #expect(model.winSeconds == 15)
     }
 
+    @Test("保留中に始まったゲームは、保留が解けるまで勝利タイムを数えない")
+    func winSecondsStartsAfterHeldRelease() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 3, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.holdCPU(.sheet, true)
+        model.start(SpeedSettings(level: .slow))
+        clock.advance(300)
+        model.holdCPU(.sheet, false)
+        clock.advance(4)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5)], humanStock: [],
+            cpuHand: [card(.spades, 9), card(.spades, 12)],
+            cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        model.tapHandCard(card(.hearts, 5))
+        #expect(model.winSeconds == 4)
+    }
+
     @Test("CPU が出し切ったら負け。時間は記録されず、連勝は 0 に戻る")
     func cpuWins() {
         let clock = ManualClock()
