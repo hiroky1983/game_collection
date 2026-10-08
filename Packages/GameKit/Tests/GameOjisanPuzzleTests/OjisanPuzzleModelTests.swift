@@ -10,6 +10,9 @@ import CoreTestSupport
 @MainActor
 struct OjisanPuzzleModelTests {
 
+    /// 軸 1・子 2 の組（座布団の山 + スイカ）を固定したときに増える量。
+    private static let lockOf12 = OjisanPuzzlePain.lockAmount(weights: [1, 2])
+
     private func makeModel() -> OjisanPuzzleModel {
         OjisanPuzzleModel(services: nil, seed: 42)
     }
@@ -46,7 +49,7 @@ struct OjisanPuzzleModelTests {
         let pair = try #require(model.current)
         #expect(model.hardDrop())
         #expect(model.current == nil, "固定したのに落下中の組が残っている")
-        #expect(model.pain == OjisanPuzzlePain.perLock)
+        #expect(model.pain == OjisanPuzzlePain.lockAmount(weights: [pair.axisKind, pair.childKind]))
         let floor = OjisanPuzzleBoard.rows - 1
         #expect(model.board[floor][pair.col] == pair.axisKind)
         #expect(model.board[floor - 1][pair.col] == pair.childKind)
@@ -84,7 +87,7 @@ struct OjisanPuzzleModelTests {
         let model = OjisanPuzzleModel(services: nil, board: board, current: pair)
 
         #expect(model.hardDrop())
-        #expect(model.pain == OjisanPuzzlePain.perLock)
+        #expect(model.pain == Self.lockOf12)
 
         model.tick()    // 重力は動かないので、そのまま 4 つそろった 1 を消す
         #expect(model.score == OjisanPuzzleScoring.chainPoints(cells: 4, chain: 1))
@@ -181,7 +184,7 @@ struct OjisanPuzzleModelTests {
             services: nil,
             board: OjisanPuzzleBoard.emptyBoard(),
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+            pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())
         #expect(model.pain == OjisanPuzzlePain.limit)
@@ -203,7 +206,7 @@ struct OjisanPuzzleModelTests {
             services: nil,
             board: board,
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+            pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())   // 落とせば 1 が 4 つそろう並び
         #expect(model.outcome == .hospitalized)
@@ -245,7 +248,7 @@ struct OjisanPuzzleModelTests {
             services: services,
             board: OjisanPuzzleBoard.emptyBoard(),
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: OjisanPuzzlePain.limit - OjisanPuzzlePain.perLock
+            pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())
         #expect(model.outcome == .hospitalized)

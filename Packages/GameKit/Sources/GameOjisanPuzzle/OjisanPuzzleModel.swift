@@ -27,7 +27,7 @@ public final class OjisanPuzzleModel {
         case settling
     }
 
-    /// 盤（0 = 空きマス、1...4 = 荷物の種類）。
+    /// 盤（0 = 空きマス、1...5 = 荷物の種類）。
     public private(set) var board: [[Int]]
     /// 落下中の組。後片付け中は nil。
     public private(set) var current: OjisanPuzzlePair?
@@ -258,7 +258,7 @@ public final class OjisanPuzzleModel {
         current = nil
         lastChain = 0
         chainDepth = 0
-        pain = OjisanPuzzlePain.afterLock(pain)
+        pain = OjisanPuzzlePain.afterLock(pain, weights: pair.cells.map { OjisanPuzzleLuggage.kind($0.kind)?.weight ?? 0 })
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         services?.gameDidProgress(gameID: Self.gameID)
         phase = .settling

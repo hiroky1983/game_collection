@@ -174,34 +174,17 @@ public struct OjisanPuzzleView: View {
         .gameAnimation(.easeInOut(duration: 0.12), value: model.displayBoard)
     }
 
-    /// 荷物 1 個。**何を運んでいるかが分かる絵**にする（会長指摘 2026-09-17）。
-    ///
-    /// ドット絵の描き起こしは試作の範囲外なので、色 + SF Symbol で 4 種を見分けられるようにした。
-    /// 重いものほど色を濃くする（重さはまだルールには効かない。`OjisanPuzzleLuggage` の doc 参照）。
+    /// 荷物 1 個。**ピースそのものが荷物の形に見える**絵にする（会長指示 2026-10-07・#1909）。
+    /// 5 種は形で見分けが付く（`OjisanPuzzleLuggageArt`）。空きマスだけ薄い四角を敷く。
+    @ViewBuilder
     private func luggage(_ value: Int, side: CGFloat) -> some View {
-        let kind = OjisanPuzzleLuggage.kind(value)
-        return RoundedRectangle(cornerRadius: max(1, side * 0.24), style: .continuous)
-            .fill(kind == nil ? Theme.fillMuted.opacity(0.14) : Self.color(value))
-            // 重いものほど一段沈んだ色にする（1 = そのまま 〜 4 = いちばん濃い）。
-            .brightness(-0.045 * Double((kind?.weight ?? 1) - 1))
-            .overlay {
-                if let kind {
-                    Image(systemName: kind.symbol)
-                        .font(.system(size: max(1, side * 0.52), weight: .black)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
-                        .foregroundStyle(Theme.onAccent)
-                }
-            }
-            .frame(width: side, height: side)
-    }
-
-    /// 荷物の色。プロトタイプなので差し色をそのまま 4 種に割り当てる（濃さは `luggage` 側で足す）。
-    static func color(_ value: Int) -> Color {
-        switch value {
-        case 1: Theme.Fill.yellow   // 段ボール箱（軽い）
-        case 2: Theme.Fill.teal     // 座布団
-        case 3: Theme.Fill.coral    // 米袋
-        case 4: Theme.Fill.purple   // タンス（重い）
-        default: Theme.fillMuted
+        if OjisanPuzzleLuggage.kind(value) == nil {
+            RoundedRectangle(cornerRadius: max(1, side * 0.24), style: .continuous)
+                .fill(Theme.fillMuted.opacity(0.14))
+                .frame(width: side, height: side)
+        } else {
+            OjisanPuzzleLuggageArt(value: value)
+                .frame(width: side, height: side)
         }
     }
 
