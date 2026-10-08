@@ -783,7 +783,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 31, "ハブに並ぶゲーム24本（柵越えおじさん #1348・腰痛おじさんパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
+        #expect(games.count == 30, "ハブに並ぶゲーム24本（柵越えおじさん #1348・腰痛おじさんパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,

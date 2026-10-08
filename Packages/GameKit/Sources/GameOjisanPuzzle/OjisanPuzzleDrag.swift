@@ -4,7 +4,7 @@ import CoreGraphics
 ///
 /// View から切り出してあるのは、**指の移動量とマスの対応**がこのゲームの操作感をそのまま決めるため。
 /// ここが狂うと「1 回のスワイプで 2 マス飛ぶ」「押しても動かない」になるので、シミュレータを
-/// 起動せずに数値で固定できるようにしている（`BlockPuzzleDrop` と同じ考え方）。
+/// 起動せずに数値で固定できるようにしている。
 public enum OjisanPuzzleDrag {
     /// これ以下の指の移動はタップ（＝回す）とみなす。
     public static let tapSlack: CGFloat = 12

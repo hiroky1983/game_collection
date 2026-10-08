@@ -261,18 +261,6 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.portrait.on.rectangle.portrait.angled.fill"
     )
 
-    static let blockPuzzle = HowToPlayGuide(
-        gameID: "blockpuzzle",
-        title: "ブロックならべの遊び方",
-        lines: [
-            "下に出ている3つのピースを、盤の空いているところへドラッグして置きます。",
-            "たて1列・よこ1行がすべて埋まると、その並びが消えて点になります。",
-            "3つ置くと次の3つが出ます。どれも置けなくなったらゲームオーバーです。",
-        ],
-        hint: "ピースを盤へドラッグ",
-        hintIcon: "hand.draw.fill"
-    )
-
     static let blocks = HowToPlayGuide(
         gameID: "blocks",
         title: "ブロック崩しの遊び方",
@@ -411,7 +399,7 @@ public extension HowToPlayGuide {
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
+        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .homerun,
     ]

@@ -4,7 +4,7 @@ import Observation
 /// 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）のゲーム状態。
 ///
 /// 盤の判定・連鎖・ゲージ・得点は `OjisanPuzzleBoard` / `OjisanPuzzlePain` / `OjisanPuzzleScoring` の
-/// 純粋ロジックに委譲し、ここは**落下タイマー・操作の受け口・決着**だけを持つ（`BlockPuzzleModel` と同じ作法）。
+/// 純粋ロジックに委譲し、ここは**落下タイマー・操作の受け口・決着**だけを持つ。
 ///
 /// 遊び方は 2 つ（`OjisanPuzzleMode`・#1920）。腰痛モードは腰痛ゲージあり・最初から荷物が積まれていて、
 /// 時間で下からせり上がり、ラインより下に片付ければクリア。パズルモードはゲージなしで、得点を競って埋まるまで続く。
@@ -46,8 +46,7 @@ public final class OjisanPuzzleModel {
     public private(set) var pain: Int = 0
     /// 直前の 1 手で何連鎖したか。次に固定するまで出したままにする。
     public private(set) var lastChain: Int = 0
-    /// 連鎖が起きるたびに増える通し番号。表示側のトランジションを毎回再生させるための nonce
-    /// （`BlockPuzzleModel.clearEventID` と同じ理由）。
+    /// 連鎖が起きるたびに増える通し番号。表示側のトランジションを毎回再生させるための nonce。
     public private(set) var chainEventID: Int = 0
     /// 決着。nil なら進行中。
     public private(set) var outcome: Outcome?

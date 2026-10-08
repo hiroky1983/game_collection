@@ -31,9 +31,6 @@ import GameBackgammon
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
-// GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
-// 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
-// `registry` に1行足せば復活できる）。
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。

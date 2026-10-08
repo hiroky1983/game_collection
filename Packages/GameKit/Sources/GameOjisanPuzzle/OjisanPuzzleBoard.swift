@@ -17,7 +17,7 @@ public struct OjisanPuzzleCell: Hashable, Sendable {
 }
 
 /// 腰痛おじさんパズルの純粋ロジック。SwiftUI 非依存・乱数は呼び出し側が持つので、
-/// 盤の判定はすべてここで網羅的にテストできる（`BlockPuzzleBoard` と同じ作法）。
+/// 盤の判定はすべてここで網羅的にテストできる。
 ///
 /// 盤は `[[Int]]` で、0 = 空きマス、1...5 = 荷物の種類。行は**上が 0**（`rows - 1` が床）。
 public enum OjisanPuzzleBoard {

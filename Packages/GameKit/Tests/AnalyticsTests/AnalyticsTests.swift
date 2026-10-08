@@ -16,7 +16,6 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
-import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 @testable import GameShiritori
@@ -69,7 +68,7 @@ private func makeHubGameIDs() -> Set<String> {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
@@ -456,7 +455,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 31, "ハブに並ぶゲームは31本（v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べる腰痛おじさんパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 30, "ハブに並ぶゲームは30本（v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べる腰痛おじさんパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -817,28 +816,6 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.result == .loss)
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
         #expect(spy.starts == ["freecell", "freecell"])
-    }
-
-    @Test("ブロックならべ: 開いた時点で開始・置けなくなって終局（loss）")
-    func blockPuzzle() {
-        let (services, spy) = makeServices()
-        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
-                                     hand: blockPuzzleStuckHand())
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        #expect(model.gameOver)
-        expectOnePair(spy, gameID: "blockpuzzle")
-        #expect(spy.ends.first?.result == .loss, "ブロックならべに勝ちは無い")
-    }
-
-    @Test("ブロックならべ: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
-    func blockPuzzleContinueCountsAsNewPlay() {
-        let (services, spy) = makeServices()
-        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
-                                     hand: blockPuzzleStuckHand())
-        model.place(pieceIndex: 0, row: 0, col: 2)
-        model.continueAfterAd()
-        #expect(spy.starts == ["blockpuzzle", "blockpuzzle"])
-        #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
     }
 
     @Test("チャリンコおじさん: 走り出した時点で開始・ステージクリアで終局（win）")
@@ -1269,20 +1246,6 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             return
         }
     }
-}
-
-/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
-/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
-private func blockPuzzleStuckBoard() -> [[Int]] {
-    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
-    for i in 0..<10 { board[i][i] = 0 }
-    board[0][2] = 0
-    return board
-}
-
-/// 1×1 と、置き場所の無い 3×3 が 2 つ。
-private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
-    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }
 
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
