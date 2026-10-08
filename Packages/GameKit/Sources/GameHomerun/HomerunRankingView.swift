@@ -29,7 +29,7 @@ struct HomerunRankingPage: View {
                 case .loading:
                     statusCard(icon: nil, text: "今週の順位を読み込んでいます")
                 case .failed:
-                    statusCard(icon: "wifi.slash", text: "ランキングを取得できませんでした。通信状況を確かめて、結果ページの「今週のランキング」からもう一度開いてください")
+                    statusCard(icon: "wifi.slash", text: "ランキングを取得できませんでした。通信状況を確かめて、次の挑戦のあとにもう一度ご覧ください")
                 case .ready(let board, let motion):
                     HomerunRankingBoardView(board: board, motion: motion)
                 }

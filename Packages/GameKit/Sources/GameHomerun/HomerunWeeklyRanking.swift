@@ -68,17 +68,17 @@ enum HomerunRankingPlan {
         return result
     }
 
-    /// 送る前の自分の記録と送った後の順位表から、アニメを作る。順位が上がらない（記録が伸びなかった・
+    /// 送る前の自分の記録と送った後の順位表から、アニメを作る（目的の位置は Game Center の順位そのもの。同点の並びもそれに従う）。
+    /// 順位が変わらなくても記録が伸びたら数え上げだけ流す。アニメが無い（記録が伸びなかった・
     /// 送る前の記録が読めなかった・自分が上位の外）ときは nil で、静止の表を出す。
     static func motion(before: GameCenterBoard?, after: GameCenterBoard) -> HomerunRankingMotion? {
         guard let before, let newMeters = after.myScore,
-              let me = after.rows.first(where: \.isMe) else { return nil }
+              let to = after.rows.firstIndex(where: \.isMe) else { return nil }
+        let me = after.rows[to]
         let oldMeters = before.myScore ?? 0
         guard newMeters > oldMeters else { return nil }
         let others = after.rows.filter { !$0.isMe }.map(HomerunRankEntry.init)
         let from = others.filter { $0.meters >= oldMeters }.count
-        let to = others.filter { $0.meters > newMeters }.count
-        guard to < from || before.myScore == nil else { return nil }
         var entries = others
         entries.insert(HomerunRankEntry(id: me.id, name: me.name.isEmpty ? "プレイヤー" : me.name,
                                         meters: oldMeters, rank: from + 1, isMe: true), at: from)

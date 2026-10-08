@@ -72,6 +72,16 @@ struct HomerunWeeklyRankingTests {
         #expect(motion.to == 3)
     }
 
+    @Test("順位が変わらなくても記録が伸びたら数え上げだけ流す（from == to）。目的の位置は Game Center の順位に従う")
+    func motionCountUpOnly() throws {
+        let motion = try #require(HomerunRankingPlan.motion(before: board([], myRank: 4, myScore: 1200), after: after))
+        #expect(motion.from == 3 && motion.to == 3)
+        #expect(motion.entries.map(\.id) == ["a", "b", "c", "me", "d", "e", "f"])
+        // 同点で Game Center が自分を後ろに並べたときも、位置は Game Center の並び（rows）のとおり。
+        let tied = board([row("a", 1462, rank: 1), row("t", 1206, rank: 2), row("me", 1206, rank: 3, me: true)], myRank: 3, myScore: 1206)
+        #expect(HomerunRankingPlan.motion(before: board([], myRank: nil, myScore: nil), after: tied)?.to == 2)
+    }
+
     @Test("記録が伸びない・送る前を読めない・上位の外のときはアニメ無し")
     func motionAbsent() {
         #expect(HomerunRankingPlan.motion(before: board([], myRank: 4, myScore: 1206), after: after) == nil)
