@@ -302,10 +302,8 @@ public struct BackgammonView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
             }
+            .buttonStyle(.game(.primary))
             Spacer(minLength: 0)
         }
         .themeBody(14)

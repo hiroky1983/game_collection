@@ -794,7 +794,7 @@ struct GameCenterEntryPointTests {
         #expect(
             source.range(
                 // 印の確認（guard）まで縛る。guard が消えると「完了」で閉じるたびに Game Center が開く。
-                of: #"\.sheet\(isPresented: \$showRecords, onDismiss: \{\s*guard opensGameCenterAfterRecords else \{ return \}\s*opensGameCenterAfterRecords = false\s*openGameCenter\(\)\s*\}\) \{\s*RecordsView\("#,
+                of: #"\.sheet\(isPresented: \$showRecords, onDismiss: \{\s*if let id = opensGameAfterRecords \{[^}]*\}\s*guard opensGameCenterAfterRecords else \{ return \}\s*opensGameCenterAfterRecords = false\s*openGameCenter\(\)\s*\}\) \{\s*RecordsView\("#,
                 options: .regularExpression
             ) != nil,
             "きろく のシートが RecordsView を出していない、または閉じたあとに Game Center を開く結線が無い"
@@ -802,6 +802,26 @@ struct GameCenterEntryPointTests {
         // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
         #expect(source.contains(#"accessibilityLabel("きろく")"#),
                 "アイコンボタンの読み上げラベルが消えている")
+    }
+
+    @Test("「きろく」のゲーム行をタップすると、シートを閉じてから records の導線でそのゲームを開く（#1974）")
+    func recordsRowOpensGame() throws {
+        let records = try appSource("RecordsView.swift")
+        #expect(
+            records.range(
+                of: #"Button \{ onOpenGame\(row\.gameID\) \} label: \{\s*gameRowContent\("#,
+                options: .regularExpression
+            ) != nil,
+            "きろく のゲーム行と onOpenGame の結線が切れている"
+        )
+        let hub = try appSource("HubView.swift")
+        #expect(
+            hub.range(
+                of: #"openFromOutside\(HubRoute\(gameID: id, source: \.records,"#,
+                options: .regularExpression
+            ) != nil,
+            "ハブが records の導線で開いていない"
+        )
     }
 
     @Test("「きろく」の中から実績・ランキングを開ける（#334 の導線を引き継ぐ）")
