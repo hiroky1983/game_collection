@@ -409,10 +409,10 @@ extension RunnerScene {
         glintNode.zPosition = 1
         // 1 周期ぶん右へ流して戻す（`addFlowingChevrons` と同じ、継ぎ目の出ない流し方）。
         glintNode.position = CGPoint(x: -glintSpacing, y: 0)
-        glintNode.run(.repeatForever(.sequence([
+        runAmbientLoop(.sequence([
             .moveBy(x: glintSpacing, y: 0, duration: 1.6),
             .moveBy(x: -glintSpacing, y: 0, duration: 0),
-        ])), withKey: Self.loopActionKey)
+        ]), on: glintNode)
         let crop = SKCropNode()
         let mask = SKSpriteNode(color: .white, size: CGSize(width: floor.length, height: surfaceHeight))
         mask.anchorPoint = .zero
@@ -465,10 +465,10 @@ extension RunnerScene {
         chevrons.fillColor = RunnerPalette.color(color)
         chevrons.strokeColor = .clear
         chevrons.position = CGPoint(x: -spacing, y: 0)
-        chevrons.run(.repeatForever(.sequence([
+        runAmbientLoop(.sequence([
             .moveBy(x: spacing, y: 0, duration: 0.35),
             .moveBy(x: -spacing, y: 0, duration: 0),
-        ])), withKey: Self.loopActionKey)
+        ]), on: chevrons)
         let crop = SKCropNode()
         let mask = SKSpriteNode(color: .white, size: CGSize(width: length, height: height))
         mask.anchorPoint = .zero

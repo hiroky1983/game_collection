@@ -745,10 +745,10 @@ extension RunnerScene {
         }
         node.position = CGPoint(x: x, y: y)
         node.zPosition = SceneryZ.back
-        node.run(.repeatForever(.sequence([
+        runAmbientLoop(.sequence([
             .moveBy(x: 0, y: 1.2, duration: 1.8),
             .moveBy(x: 0, y: -1.2, duration: 1.8),
-        ])))
+        ]), on: node)
         tile.addChild(node)
     }
 
