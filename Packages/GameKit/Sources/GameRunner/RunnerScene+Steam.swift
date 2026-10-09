@@ -28,11 +28,9 @@ extension RunnerScene {
             node.strokeColor = .clear
             node.alpha = index.isMultiple(of: 2) ? 1.0 : 0.8
             node.position = CGPoint(x: left + puff.dx, y: Metrics.groundY + puff.dy)
-            if !reducesMotion {
-                let drift = SKAction.moveBy(x: 0, y: 1.6, duration: 1.1 + 0.15 * Double(index % 3))
-                drift.timingMode = .easeInEaseOut
-                node.run(.repeatForever(.sequence([drift, drift.reversed()])), withKey: Self.loopActionKey)
-            }
+            let drift = SKAction.moveBy(x: 0, y: 1.6, duration: 1.1 + 0.15 * Double(index % 3))
+            drift.timingMode = .easeInEaseOut
+            runAmbientLoop(.sequence([drift, drift.reversed()]), on: node)
             steamLayer.addChild(node)
         }
     }
