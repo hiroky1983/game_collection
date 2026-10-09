@@ -31,10 +31,8 @@ struct SolitaireControlsView: View {
 
             Button { model.newGame() } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
             }
+            .buttonStyle(.game(.primary))
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
