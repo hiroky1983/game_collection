@@ -160,14 +160,14 @@ public struct GoView: View {
             HStack(spacing: 12) {
                 Button { model.resumePlay() } label: {
                     Label("対局続行", systemImage: "arrow.uturn.backward")
+                        .frame(minHeight: GameButtonMetrics.minTapTarget)
+                        .contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
                 Button { model.acceptEndgame() } label: {
                     Text("この結果で終局")
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.Fill.coral))
                 }
+                .buttonStyle(.game(.primary))
                 .disabled(model.endgame == nil)
             }
             .themeBody(14)
