@@ -16,6 +16,9 @@ struct RunnerEndlessSceneTests {
         let model = RunnerModel(startingAt: 1, preference: makePreference("endless-scene-\(suite)"))
         model.newEndlessGame(seed: seed)
         let scene = RunnerScene(model: model)
+        // 装飾ループは Reduce Motion で止まる（#1973）。部品は最初の `sync` で作るので、その前に明示的にオフ
+        // （既定は OS の設定で、CI では有効なことがある）。
+        scene.reduceMotionOverride = false
         scene.rebuildCourse()
         scene.sync()
         return (model, scene)
@@ -203,8 +206,6 @@ struct RunnerEndlessSceneTests {
     @Test("片付けた部品は作った直後の姿勢に戻り、繰り返しの動きを掛け直してから次の区画に出る")
     func recycledPartsForgetPreviousSegment() throws {
         let (_, scene) = makeScene(seed: 2, suite: "recycle")
-        // 動きがあることを見るテスト。装飾ループは Reduce Motion で止まる（#1973）ので明示的にオフ。
-        scene.reduceMotionOverride = false
         let endless = try #require(scene.endless)
         for kind in RunnerScene.EndlessRenderer.PartKind.allCases {
             let part = endless.acquire(kind, in: scene)
