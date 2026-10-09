@@ -144,7 +144,7 @@ struct RecordsView: View {
         Button { onOpenGame(row.gameID) } label: {
             gameRowContent(row, module: module, index: index)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .accessibilityHint("タップでこのゲームを開きます")
     }
 
