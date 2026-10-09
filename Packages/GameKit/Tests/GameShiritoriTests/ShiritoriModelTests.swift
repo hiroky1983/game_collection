@@ -775,6 +775,18 @@ struct ShiritoriTimeExtensionTests {
         #expect(plays(log) == 1, "冪等")
     }
 
+    @Test("保留中に背景へ回って確定しても、その後に onDisappear や始め直しが来て二重に記録されない（#1977）")
+    func backgroundCommitThenDisappearAndRestartRecordsOnce() {
+        let (model, log) = makeLoggedModel("background")
+        model.tick(ShiritoriTime.initial)
+        #expect(model.isTimeUpLossPending)
+        model.commitTimeUpLoss()   // 背景に回った時点
+        #expect(model.recordResult != nil)
+        model.commitTimeUpLoss()   // onDisappear
+        model.startGame(quota: model.quota, mode: model.mode)   // 始め直しの先頭の commit
+        #expect(plays(log) == 1)
+    }
+
     @Test("続けない（commit）と負けが 1 回だけ記録され、続ける導線は消える")
     func declineRecordsOnce() {
         let (model, log) = makeLoggedModel("decline")
