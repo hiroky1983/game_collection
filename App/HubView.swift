@@ -29,6 +29,8 @@ struct HubView: View {
     /// 「きろく」の中から Game Center を求められた。シートが閉じ切ってから開くための印
     /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
     @State private var opensGameCenterAfterRecords = false
+    /// 「きろく」のゲーム行で選ばれたゲーム（#1974）。シートが閉じ切ってから開く（Game Center と同じ理由）。
+    @State private var opensGameAfterRecords: String?
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
     /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
@@ -508,11 +510,22 @@ struct HubView: View {
                 .presentationDetents([.large])
         }
         .sheet(isPresented: $showRecords, onDismiss: {
+            if let id = opensGameAfterRecords {
+                opensGameAfterRecords = nil
+                openFromOutside(HubRoute(gameID: id, source: .records, position: nil, resume: isResumable(id)))
+                return
+            }
             guard opensGameCenterAfterRecords else { return }
             opensGameCenterAfterRecords = false
             openGameCenter()
         }) {
-            RecordsView(registry: registry, settings: settings, playLog: services.playLog) {
+            RecordsView(
+                registry: registry, settings: settings, playLog: services.playLog,
+                onOpenGame: { id in
+                    opensGameAfterRecords = id
+                    showRecords = false
+                }
+            ) {
                 opensGameCenterAfterRecords = true
                 showRecords = false
             }
