@@ -7,6 +7,7 @@ public struct ShiritoriView: View {
     @State private var showConfirmNewGame = false
     @State private var extendRescue = RewardedRescue()
     @State private var resultCardClosed = false
+    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -84,6 +85,11 @@ public struct ShiritoriView: View {
         )
         // 保留している負けは、画面を離れても落とさず記録する。
         .onDisappear { model.commitTimeUpLoss() }
+        // 強制終了・OS による終了では onDisappear が走らないので、背景に回った時点でも確定する（#1977）。
+        // 広告の視聴中は背景扱いになりうる（広告から App Store へ飛ぶ等）。視聴後の延長を潰さないため確定しない。
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background, !extendRescue.isWatching { model.commitTimeUpLoss() }
+        }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-shiritoriCPUCursorProbe") {
