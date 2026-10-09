@@ -12,6 +12,8 @@ struct RecordsView: View {
     let settings: GameSettings
     /// プレイ記録。注入されないとき（プレビュー等）は全部「まだ遊んでいない」で出す。
     var playLog: PlayLog?
+    /// ゲーム行がタップされたとき（#1974）。シートを閉じてからハブがそのゲームを開く。
+    var onOpenGame: (String) -> Void = { _ in }
     /// 「Game Center で見る」を押したとき。シートを閉じてからハブが開く
     /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
     var onOpenGameCenter: () -> Void
@@ -139,6 +141,14 @@ struct RecordsView: View {
     }
 
     private func gameRow(_ row: RecordsSummary.Row, module: GameModule, index: Int) -> some View {
+        Button { onOpenGame(row.gameID) } label: {
+            gameRowContent(row, module: module, index: index)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("タップでこのゲームを開きます")
+    }
+
+    private func gameRowContent(_ row: RecordsSummary.Row, module: GameModule, index: Int) -> some View {
         HStack(spacing: 12) {
             // 差し色は設定シートと同じく並びの位置で引く。
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -182,8 +192,19 @@ struct RecordsView: View {
                 Text(verbatim: plays)
                     .themeCaption(13)
                     .foregroundStyle(Theme.inkSub)
+            } else {
+                // まだ遊んでいない行は「あそぶ」を出して、押せると分かるようにする（#1974）。
+                Text("あそぶ")
+                    .themeCaption(13)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Theme.coral)
             }
+            Image(systemName: "chevron.right")
+                .scaledFont(12, weight: .semibold)
+                .foregroundStyle(Theme.inkSub.opacity(0.6))
+                .accessibilityHidden(true)
         }
+        .contentShape(Rectangle())
         // 行をばらばらに読ませず、ゲーム名から 1 行ずつ読ませる（受け入れ条件）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.accessibilityLabel)

@@ -225,6 +225,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case reengagement
     /// 挑戦回数が戻ったお知らせ（#1576・#1950）。
     case challengeReturn = "challenge_return"
+    /// 「きろく」画面のゲーム行（#1974）。並びは記録画面のもので、ハブの位置とは別物なので `position` は持たない。
+    case records
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
@@ -232,7 +234,7 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
         switch self {
         case .hub, .recent:                              return true
         case .recommendation, .notification, .firstPick, .quickAction, .hero,
-             .resumeReminder, .reengagement, .challengeReturn: return false
+             .resumeReminder, .reengagement, .challengeReturn, .records: return false
         }
     }
 }
