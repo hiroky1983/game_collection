@@ -44,7 +44,7 @@ extension RunnerScene {
             .scale(to: 1.15, duration: 0.45),
             .scale(to: 1.0, duration: 0.45),
         ])
-        node.run(.repeatForever(pulse), withKey: Self.loopActionKey)
+        runAmbientLoop(pulse, on: node)
 
         courseLayer.addChild(node)
         return node
@@ -76,7 +76,7 @@ extension RunnerScene {
         rise.timingMode = .easeInEaseOut
         let sink = SKAction.moveBy(x: 0, y: -0.7, duration: 0.55)
         sink.timingMode = .easeInEaseOut
-        node.run(.repeatForever(.sequence([rise, sink])), withKey: Self.loopActionKey)
+        runAmbientLoop(.sequence([rise, sink]), on: node)
 
         courseLayer.addChild(node)
         return node
@@ -88,6 +88,14 @@ extension RunnerScene {
     /// 同じ動きを掛け直す（`EndlessRenderer.Part`）。キーを付けずに掛けると取り出せず、使い回した
     /// 部品が止まったままになる。ステージ制の見た目には関わらない。
     static let loopActionKey = "loop"
+
+    /// 見た目だけの繰り返しの動き（脈動・浮遊・流れる矢印など）を `loopActionKey` で掛ける（#1973）。
+    /// 「視差効果を減らす」が有効なら掛けず、最初の姿勢のまま静止させる。スクロール・当たり判定には関わらない。
+    /// 装飾の `repeatForever` はここを通すこと（`RunnerAmbientLoopTests` が直書きを検査する）。
+    func runAmbientLoop(_ action: SKAction, on node: SKNode) {
+        guard !reducesMotion else { return }
+        node.run(.repeatForever(action), withKey: Self.loopActionKey)
+    }
 
     /// 取得済みのピックアップをフェードアウト＋縮小で消す。
     func removePickupNode(_ node: SKNode) {
@@ -261,10 +269,10 @@ extension RunnerScene {
         chevrons.strokeColor = .clear
         chevrons.position = CGPoint(x: -spacing, y: 0)
         // 1 周期ぶん右へ流して戻す。周期パターンなので継ぎ目なく流れて見える。
-        chevrons.run(.repeatForever(.sequence([
+        runAmbientLoop(.sequence([
             .moveBy(x: spacing, y: 0, duration: 0.35),
             .moveBy(x: -spacing, y: 0, duration: 0),
-        ])), withKey: Self.loopActionKey)
+        ]), on: chevrons)
         let crop = SKCropNode()
         let mask = SKSpriteNode(color: .white, size: CGSize(width: floor.length, height: height))
         mask.anchorPoint = .zero
