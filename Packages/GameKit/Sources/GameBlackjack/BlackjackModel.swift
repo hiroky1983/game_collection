@@ -146,6 +146,10 @@ struct BlackjackSnapshot: Codable {
     /// **旧データには鍵が無い**ので optional にする（非 optional にすると旧データの
     /// デコードが丸ごと失敗し、中断が黙って消える）。nil は「まだ使っていない」に倒す。
     var hasRevivedThisSession: Bool? = nil
+    /// 復活を使った回数（#2012 で 1 回 → 3 回に拡げた）。**旧データには鍵が無い**ので optional のまま置き、
+    /// nil のときは `hasRevivedThisSession` から 1 回（使用済み）か 0 回（未使用）に倒す。
+    /// 旧版へ戻しても `hasRevivedThisSession` が残るので、使い切り扱いで安全側に倒れる。
+    var reviveCount: Int? = nil
 }
 
 // MARK: - Model
@@ -195,17 +199,25 @@ public final class BlackjackModel {
     /// 破産カードも出ないのでハブに戻る以外の脱出手段が無くなっていた）。
     public static let minimumBet = 50
 
-    /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
-    private var hasRevivedThisSession = false
+    /// 1 セッションで広告復活できる上限回数（#2012。当初は 1 回・#499）。
+    public static let maxRevivesPerSession = 3
+
+    /// このセッションで復活を使った回数。上限（`maxRevivesPerSession`）までの制限に使う。
+    private var reviveCount = 0
+
+    /// このセッションで復活を 1 回でも使ったか。順位表の資格に使う（回数に関わらず外れる）。
+    private var hasRevivedThisSession: Bool { reviveCount > 0 }
+
+    /// あと何回復活できるか（画面の文言用）。
+    public var revivesRemaining: Int { max(0, BlackjackModel.maxRevivesPerSession - reviveCount) }
 
     /// セッションの通し番号。`restartSession()` で進む（#727）。
     /// 広告のロード中に「最初からやり直す」を押されると、同じ画面の中でセッションが入れ替わる。
     /// 画面の世代（#653）はハブへ戻ったときしか進まないので、こちらで照合する。
     private var sessionSerial = 0
 
-    /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
-    /// 麻雀のトビ復活（#338）と同じで、1 セッション 1 回まで。
-    public var canReviveAfterBust: Bool { sessionOver && !hasRevivedThisSession }
+    /// チップ切れをリワード広告で取り消せる状態か（#499）。1 セッション 3 回まで（#2012）。
+    public var canReviveAfterBust: Bool { sessionOver && revivesRemaining > 0 }
 
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     /// プッシュは引き分け、バストは敗北として扱う。
@@ -266,7 +278,7 @@ public final class BlackjackModel {
                 self.activeHandIndex = 0
             }
             // 旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
-            self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
+            self.reviveCount = max(snap.reviveCount ?? 0, snap.hasRevivedThisSession == true ? 1 : 0)
             // 手を復元できなければ操作のしようがないので、賭ける前に戻す。
             if self.hands.isEmpty {
                 self.phase = .betting
@@ -315,7 +327,8 @@ public final class BlackjackModel {
             phase: phase,
             hands: hands,
             activeHandIndex: activeHandIndex,
-            hasRevivedThisSession: hasRevivedThisSession
+            hasRevivedThisSession: hasRevivedThisSession,
+            reviveCount: reviveCount
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -335,7 +348,8 @@ public final class BlackjackModel {
             phase: .betting,
             hands: [],
             activeHandIndex: 0,
-            hasRevivedThisSession: hasRevivedThisSession
+            hasRevivedThisSession: hasRevivedThisSession,
+            reviveCount: reviveCount
         )
         try? services?.snapshots.save(snap, for: gameID)
         // 局を持たない中断データは「続きから戻れる」ではない（#1104。CodeRabbit の指摘）。
@@ -701,8 +715,8 @@ public final class BlackjackModel {
     ///
     /// - **チップが尽きたときだけ**効く。まだ遊べる残高で呼んでも広告は出さない
     ///   （プレイヤーが明示的に選んだ救済であって、いつでも押せる増量ボタンではない）。
-    /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
-    ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
+    /// - **1 セッション 3 回まで**（`maxRevivesPerSession`）。中断を挟んでも回数は戻らない
+    ///   （`reviveCount` をスナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
     /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
     /// - 広告のあいだに「最初からやり直す」でセッションが入れ替わっていたら適用しない（#727）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
@@ -724,7 +738,7 @@ public final class BlackjackModel {
         // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#727）。
         // 麻雀のトビ復活（`MahjongModel.reviveAfterAd`）と同じく、通し番号と救済できる状態を見直す。
         guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
-        hasRevivedThisSession = true
+        reviveCount += 1
         chips = BlackjackModel.reviveChips
         sessionOver = false
         outcome = nil
@@ -747,7 +761,7 @@ public final class BlackjackModel {
         sessionSerial += 1
         chips = BlackjackModel.initialChips
         // 新しいセッションなので復活の回数も戻る（#499）。
-        hasRevivedThisSession = false
+        reviveCount = 0
         sessionOver = false
         outcome = nil
         roundDelta = nil

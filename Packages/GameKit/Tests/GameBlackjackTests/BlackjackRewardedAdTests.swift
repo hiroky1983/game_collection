@@ -54,13 +54,13 @@ private final class SpyGameCenterService: GameCenterService {
 ///
 /// - Parameters:
 ///   - chips: 破産させたい残高。この額を丸ごと賭けた手が入っている状態から始まる。
-///   - hasRevived: 中断データに書かれている「復活を使い切ったか」。再開後の 2 回目を試すのに使う。
+///   - revivesUsed: 中断データに書かれている「復活を使った回数」。再開後の 2 回目を試すのに使う。
 ///   - seed: 復活後に遊ぶラウンドの配りを決定的にする種。
 @MainActor
 private func makeBustedModel(
     rewardEarned: Bool = true,
     chips: Int = 100,
-    hasRevived: Bool = false,
+    revivesUsed: Int = 0,
     store: MemorySnapshotStore = MemorySnapshotStore(),
     gameCenter: GameCenterReporter? = nil,
     playLog: PlayLog? = nil,
@@ -84,7 +84,8 @@ private func makeBustedModel(
         phase: .playerTurn,
         hands: [BlackjackHand(id: 0, cards: playerCards, bet: chips)],
         activeHandIndex: 0,
-        hasRevivedThisSession: hasRevived
+        hasRevivedThisSession: revivesUsed > 0,
+        reviveCount: revivesUsed
     )
     try? store.save(snapshot, for: "blackjack")
     let ads = StubAdService(rewardEarned: rewardEarned)
@@ -255,10 +256,35 @@ struct BlackjackRewardedAdTests {
         #expect(ads.rewardedCount == 0, "いつでも押せる増量ボタンにはしない")
     }
 
-    @Test("同じセッションで2回目の復活はできず、広告も出さない")
-    func revivesOnlyOncePerSession() async {
+    @Test("同じセッションで 3 回まで復活でき、4 回目は出ない（#2012）")
+    func revivesUpToThreeTimesPerSession() async {
+        let (model, ads, _) = makeBustedModel()
+        for used in 1...BlackjackModel.maxRevivesPerSession {
+            #expect(model.canReviveAfterBust, "\(used)回目の導線が出る")
+            #expect(await model.recoverChipsAfterAd())
+            #expect(model.chips == BlackjackModel.reviveChips, "毎回同じ枚数で復活する")
+            #expect(model.revivesRemaining == BlackjackModel.maxRevivesPerSession - used)
+            playAllInUntilBust(model)
+            #expect(model.sessionOver)
+        }
+        #expect(!model.canReviveAfterBust, "3回使い切ったので導線は出ない")
+        #expect(!(await model.recoverChipsAfterAd()))
+        #expect(ads.rewardedCount == BlackjackModel.maxRevivesPerSession, "4本目の広告は出さない")
+    }
+
+    @Test("復活の上限を使い切った中断データからは復活できず、広告も出さない")
+    func doesNotReviveAfterBudgetExhausted() async {
         // 中断データが「復活を使い切った」状態。再開してもう一度破産させた局面。
-        let (model, ads, _) = makeBustedModel(hasRevived: true)
+        let (model, ads, _) = makeBustedModel(revivesUsed: BlackjackModel.maxRevivesPerSession)
+        let second = await model.recoverChipsAfterAd()
+        #expect(!second)
+        #expect(ads.rewardedCount == 0)
+    }
+
+    @Test("同じセッションで上限を超えた復活はできず、広告も出さない")
+    func revivesOnlyUpToLimitPerSession() async {
+        // 中断データが「復活を使い切った」状態。再開してもう一度破産させた局面。
+        let (model, ads, _) = makeBustedModel(revivesUsed: BlackjackModel.maxRevivesPerSession)
 
         #expect(!model.canReviveAfterBust, "使い切っているので導線は出ない")
         let second = await model.recoverChipsAfterAd()
@@ -286,7 +312,7 @@ struct BlackjackRewardedAdTests {
         )
         playAllInUntilBust(restored)
         #expect(restored.sessionOver)
-        #expect(!restored.canReviveAfterBust, "再起動で回数が復活しない")
+        #expect(restored.revivesRemaining == BlackjackModel.maxRevivesPerSession - 1, "再起動で回数が復活している")
     }
 
     /// #523 で復活の枚数を初期額より多くしたため、広告を見た直後に離れると損をする向きに反転した（#1104）。
@@ -311,10 +337,10 @@ struct BlackjackRewardedAdTests {
         #expect(reopened.phase == .betting)
         #expect(!reopened.sessionOver)
 
-        // 復活権も戻らない（#523 受け入れ条件 B）。もう一度破産させても 2 回目は出ない。
+        // 復活権も戻らない（#523 受け入れ条件 B）。もう一度破産させても残りは使った分だけ減ったまま。
         playAllInUntilBust(reopened)
         #expect(reopened.sessionOver)
-        #expect(!reopened.canReviveAfterBust, "中断を挟んで復活の回数が戻っている")
+        #expect(reopened.revivesRemaining == BlackjackModel.maxRevivesPerSession - 1, "中断を挟んで復活の回数が戻っている")
     }
 
     /// 復活したセッションは、ラウンドの決着（`.result`）で離れても残高を持ち越す（#1104）。
@@ -398,6 +424,21 @@ struct BlackjackRewardedAdTests {
         let snap = try JSONDecoder().decode(BlackjackSnapshot.self, from: Data(legacy.utf8))
         #expect(snap.chips == 700)
         #expect(snap.hasRevivedThisSession == nil, "鍵が無くてもデコードは通る")
+    }
+
+    @Test("使用済みの旗だけがある旧データは 1 回使った扱いで、残りは 2 回（#2012）")
+    func legacyRevivedFlagCountsAsOneRevive() async throws {
+        // 復活を 1 回使った旧版（回数の鍵が無い）の中断データ。
+        let legacy = BlackjackSnapshot(
+            playerHand: [], dealerHand: [], deck: [], chips: 100, bet: 0, phase: .betting,
+            hands: [], activeHandIndex: 0, hasRevivedThisSession: true, reviveCount: nil
+        )
+        let store = MemorySnapshotStore()
+        store.inject(try encodingWithoutKey(legacy, key: "reviveCount"), for: "blackjack")
+        let restored = BlackjackModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+        )
+        #expect(restored.revivesRemaining == BlackjackModel.maxRevivesPerSession - 1)
     }
 
     @Test("鍵が無い旧データから再開したセッションでも、1回目の復活は使える")
