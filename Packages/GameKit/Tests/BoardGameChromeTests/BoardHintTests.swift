@@ -122,6 +122,7 @@ struct BoardHintButtonSourceTests {
         "GameShogi/ShogiView.swift",
         "GameChess/ChessView.swift",
         "GameGomoku/GomokuView.swift",
+        "GameOthello/OthelloView.swift",
     ])
     func everyBoardGameUsesTheSharedButton(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
@@ -184,6 +185,7 @@ struct BoardHintButtonSourceTests {
         "GameShogi/ShogiView.swift",
         "GameChess/ChessView.swift",
         "GameGomoku/GomokuView.swift",
+        "GameOthello/OthelloView.swift",
     ])
     func hintMarkUsesTheSharedColor(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
@@ -196,6 +198,7 @@ struct BoardHintButtonSourceTests {
         "GameShogi/ShogiGameModel.swift",
         "GameChess/ChessGameModel.swift",
         "GameGomoku/GomokuModel.swift",
+        "GameOthello/OthelloModel.swift",
     ])
     func everyModelFeedsTheHintAwareScore(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))

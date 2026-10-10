@@ -111,6 +111,48 @@ struct OthelloHintTests {
         #expect(model.hintPoint == nil, "前の対局のヒントの印が残っている")
     }
 
+    @Test("投了でもヒントの印は消える")
+    func hintMarkDisappearsAfterResign() async throws {
+        let (model, _) = makeModel()
+        await model.requestHint()
+        try #require(model.hintPoint != nil)
+
+        model.resign()
+
+        #expect(model.hintPoint == nil)
+    }
+
+    @Test("パスの案内が出ているあいだ（mustPass）はヒントを押せず、requestHint() も回数を動かさない")
+    func cannotUseHintWhileMustPass() async throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            OthelloSnapshot(
+                cells: OthelloBoard().cells.map { $0?.rawValue },
+                currentStone: OthelloStone.black.rawValue, humanSide: OthelloStone.black.rawValue,
+                aiLevel: 1, startedAt: Date(), winner: nil, isDraw: false,
+                mustPass: true, turnID: 20, undoUsed: nil, undoCells: nil, undoCurrentStone: nil),
+            for: "othello")
+        let (model, _) = makeModel(store: store)
+        try #require(model.mustPass && !model.isAITurn, "前提: 人間の手番でパスの案内が出ている")
+        #expect(!model.canUseHint)
+
+        await model.requestHint()
+
+        #expect(model.hints.used == 0)
+        #expect(model.hintPoint == nil)
+    }
+
+    @Test("広告を見ているあいだに新規対局が始まったら、読みの旗も下ろす")
+    func newGameDuringAdLeavesNoHintThinkingFlag() async throws {
+        let (model, ads) = makeModel(store: try store(hintsUsed: BoardHintBudget.perGame))
+        ads.duringAd = { model.newGame() }
+
+        _ = await model.requestAdHint()
+
+        #expect(!model.isHintThinking)
+        #expect(model.canUseHint)
+    }
+
     @Test("無料枠が残っているうちは広告を要求しない")
     func doesNotNeedAdWhileFreeRemains() async {
         let (model, ads) = makeModel()
@@ -221,6 +263,7 @@ struct OthelloHintTests {
                 .replacingOccurrences(of: ",\"hintsUsed\":0", with: "")
                 .data(using: .utf8)
         )
+        #expect(!(String(data: stripped, encoding: .utf8) ?? "").contains("hintsUsed"), "前提: 鍵を取り除けている")
         store.inject(stripped, for: "othello")
 
         let (restored, _) = makeModel(store: store)
