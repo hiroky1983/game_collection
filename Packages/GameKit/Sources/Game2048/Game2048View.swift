@@ -194,6 +194,8 @@ public struct Game2048View: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        // 盤の下に操作の段が増えても、余りを Spacer と山分けして盤が縮まないよう盤を先に確保する（#2023）。
+        .layoutPriority(1)
         .gameAnimation(.easeInOut(duration: 0.12), value: model.board)
         .contentShape(Rectangle())
         .gesture(swipeGesture)
