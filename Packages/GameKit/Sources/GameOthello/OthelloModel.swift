@@ -22,6 +22,8 @@ struct OthelloSnapshot: Codable {
     /// 旧形式のデータには無いので optional（既定値 nil）。無ければ従来どおり印なし。
     var lastRow: Int? = nil
     var lastCol: Int? = nil
+    /// この局で使ったヒントの回数（#2011）。鍵を持たない旧形式の中断データでは nil = 未使用。
+    var hintsUsed: Int? = nil
 }
 
 private struct TurnState {
@@ -31,7 +33,7 @@ private struct TurnState {
 
 @MainActor
 @Observable
-public final class OthelloModel: AITurnGuarded, BoardUndoModel {
+public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var board: OthelloBoard
     public private(set) var currentStone: OthelloStone
     public private(set) var humanSide: OthelloStone
@@ -53,6 +55,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
     public private(set) var placementCount: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// この局のヒントの残り（#2011）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェス・五目並べと共通）。
+    public private(set) var hints = BoardHintBudget()
 
     private let services: GameServices?
     /// 思考タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
@@ -140,6 +144,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
             mustPass     = snap.mustPass ?? false
             turnID       = snap.turnID ?? 0
             undoUsed     = snap.undoUsed ?? false
+            hints        = BoardHintBudget(used: snap.hintsUsed ?? 0)
             if let cells = snap.undoCells, cells.count == othelloBoardSize * othelloBoardSize,
                let stone = snap.undoCurrentStone.flatMap({ OthelloStone(rawValue: $0) }) {
                 undoHistory = [TurnState(cells: cells.map { $0.flatMap { OthelloStone(rawValue: $0) } },
@@ -192,6 +197,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         // CPU が再びパスして同じ局面に戻る往復になる（履歴も減らないので永久に自分の手を戻せない）。
         // パスを含む一連のやり取りは、直前の自分の着手まとめて `undoLastExchange()` で戻す。
         mustPass     = false
+        hintPoint    = nil
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
@@ -204,6 +210,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         board        = OthelloBoard(cells: prev.cells)
         currentStone = prev.currentStone
         lastMove     = nil
+        hintPoint    = nil
         // 戻した盤に「直前に返った石」は無い。残すと巻き戻した石が反転中の姿で描かれる。
         flippedCells = []
         mustPass     = false
@@ -231,8 +238,9 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
     public func resign() {
         guard !gameOver else { return }
         winner = humanSide.opponent
+        hintPoint = nil
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
         persist()
     }
 
@@ -271,6 +279,81 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         }
     }
 
+    // MARK: - ヒント（#2011）
+
+    /// ヒントで示している升。着手・待った・パス・新規対局・投了で消える（盤が変われば印は嘘になる）。
+    /// **永続化しない** — 中断データに残すのは使った回数だけ（将棋・チェス・五目並べと同じ）。
+    public private(set) var hintPoint: OthelloPoint?
+    /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
+    /// （同じ旗にすると、ヒントを読んでいるあいだ盤が CPU の思考中を名乗る）。
+    public private(set) var isHintThinking: Bool = false
+
+    /// 残り回数（`BoardControlBarHint` が読む）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// いまヒントを押せるか。**自分の手番で、対局中で、パスの案内が出ておらず、残りが在るとき**だけ。
+    public var canUseHint: Bool {
+        !gameOver && !mustPass && !hints.isExhausted && !isAITurn && !isThinking && !isHintThinking
+    }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    /// 現在の盤面の最善手を 1 手求め、盤の上に示す（五目並べ `GomokuModel.requestHint` と同型）。
+    ///
+    /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。**求まらなかった局・
+    /// 盤が変わった局では回数を減らさない**。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let b = board, s = currentStone
+            return await Task.detached(priority: .userInitiated) {
+                await OthelloEngine.hint().bestMove(board: b, stone: s)
+            }.value
+        } commit: { move in
+            // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
+            guard !gameOver, !mustPass, !isAITurn, !hints.isExhausted,
+                  let (row, col) = move, board.isValid(row: row, col: col, stone: currentStone),
+                  hints.consume() else { return }
+            services?.gameDidUseHint(gameID: gameID)
+            hintPoint = OthelloPoint(row: row, col: col)
+            services?.feedback.impact(.light)
+            // 残り回数は中断データに持ち回る（再開でヒントが戻らないように）。
+            persist()
+        }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（五目並べ `requestAdHint` と同型）。
+    ///
+    /// 広告の視聴完了を確かめてから CPU の読みを始める（読み終えてから広告を流さない契約）。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let b = board, s = currentStone
+            return await Task.detached(priority: .userInitiated) {
+                await OthelloEngine.hint().bestMove(board: b, stone: s)
+            }.value
+        } commit: { move in
+            guard !gameOver, !mustPass, !isAITurn, !hints.isExhausted,
+                  let (row, col) = move, board.isValid(row: row, col: col, stone: currentStone),
+                  hints.consumeAd() else { return }
+            services?.gameDidUseHint(gameID: gameID)
+            hintPoint = OthelloPoint(row: row, col: col)
+            services?.feedback.impact(.light)
+            persist()
+            outcome = .granted
+        }
+        return outcome
+    }
+
     public func newGame(humanSide: OthelloStone = .black, aiLevel: Int = 1) {
         board          = OthelloBoard()
         currentStone   = .black
@@ -284,12 +367,17 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         turnID         = 0
         undoUsed       = false
         undoHistory    = []
+        // ヒントは 1 局ごとに戻す（#2011）。前の局の印も残さない。
+        hints.reset()
+        hintPoint      = nil
         recordResult   = nil
         startedAt      = Date()
         gameSerial    += 1
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする。
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
+        // ヒントの読みも同じ理由で下ろす。旧タスクの defer は対局が変わると旗に触らない。
+        isHintThinking = false
         persist()
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
@@ -319,6 +407,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         turnID       = 0
         undoUsed     = false
         undoHistory  = []
+        hints.reset()
+        hintPoint    = nil
         recordResult = nil
         // 先に起動していた CPU 探索に、着手も `isThinking` の操作もさせない
         // （`performAIMoveIfNeeded` は開始時の `gameSerial` と一致するときだけ進む）。
@@ -348,6 +438,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
     private func place(row: Int, col: Int) {
         let mover = currentStone
         // 反転演出の対象は盤を書き換える前にしか取れない（#204）。
+        hintPoint = nil
         flippedCells = Set(board.flippable(row: row, col: col, stone: currentStone)
             .map { $0.0 * othelloBoardSize + $0.1 })
         placementCount += 1
@@ -378,7 +469,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: reviewOutcome,
-            score: GameScore(metric: .winLoss),
+            score: hints.winLossScore,
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
         )
         return true
@@ -423,7 +514,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
             undoCells: undoHistory.last.map { $0.cells.map { $0?.rawValue } },
             undoCurrentStone: undoHistory.last?.currentStone.rawValue,
             lastRow: lastMove?.row,
-            lastCol: lastMove?.col
+            lastCol: lastMove?.col,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

@@ -9,12 +9,14 @@ public enum OthelloAccessibility {
     /// マス 1 つの読み上げ文（例: "4行3列、空、ここに置けます"）。
     ///
     /// - Parameter isValidMove: いま手番の石をここに置けるか（合法手ドットが出ているマス）。
+    /// - Parameter isHint: ヒントが示している升か（#2011）。見た目の印（`OthelloView.hintMark`）と対にする。
     public static func squareLabel(
         row: Int,
         col: Int,
         stone: OthelloStone?,
         isValidMove: Bool,
-        isLastMove: Bool
+        isLastMove: Bool,
+        isHint: Bool = false
     ) -> String {
         var parts = ["\(row + 1)行\(col + 1)列"]
         switch stone {
@@ -24,6 +26,7 @@ public enum OthelloAccessibility {
         }
         if isValidMove { parts.append("ここに置けます") }
         if isLastMove { parts.append("直前の手") }
+        if isHint { parts.append("ヒントの手") }
         return parts.joined(separator: "、")
     }
 }
