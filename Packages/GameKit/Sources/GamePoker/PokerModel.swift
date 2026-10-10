@@ -42,6 +42,9 @@ struct PokerSnapshot: Codable {
     /// この局を始める前（アンティを引く前）の持ち点。決着の「±チップ」表示（#1754）に使う。
     /// **旧データには鍵が無い**ので optional のまま置き、nil は「増減は出さない」に倒す。
     var handStartChips: Int? = nil
+    /// 復活を使った回数（#2012 で 1 回 → 3 回に拡げた）。**旧データには鍵が無い**ので optional のまま置き、
+    /// nil のときは `hasRevivedThisSession` から 1 回（使用済み）か 0 回（未使用）に倒す。
+    var reviveCount: Int? = nil
 }
 
 // MARK: - Model
@@ -112,20 +115,29 @@ public final class PokerModel {
     /// 1.5 倍にしている。CPU 側は復活でも `initialChips` のまま。
     public static let reviveChips = 150
 
-    /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
-    private var hasRevivedThisSession = false
+    /// 1 セッションで広告復活できる上限回数（#2012。当初は 1 回・#499）。
+    public static let maxRevivesPerSession = 3
+
+    /// このセッションで復活を使った回数。上限（`maxRevivesPerSession`）までの制限に使う。
+    private var reviveCount = 0
+
+    /// このセッションで復活を 1 回でも使ったか。順位表の資格に使う（回数に関わらず外れる）。
+    private var hasRevivedThisSession: Bool { reviveCount > 0 }
+
+    /// あと何回復活できるか（画面の文言用）。
+    public var revivesRemaining: Int { max(0, PokerModel.maxRevivesPerSession - reviveCount) }
 
     /// セッションの通し番号。`restartSession()` で進む。広告のあいだに同じ画面の中で
     /// セッションが入れ替わったかを照合する（#728。画面の世代は同じ画面の中では進まない）。
     private var sessionSerial = 0
 
-    /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
+    /// チップ切れをリワード広告で取り消せる状態か（#499）。
     ///
     /// **自分のチップが尽きて終わった**ときにだけ立てる。CPU が尽きた（＝こちらの勝ち）・
     /// 相打ちの回に出しても続ける動機が無く、麻雀のトビ復活（#338）が「自分がトビたときだけ」に
-    /// 絞っているのと同じ判断。1 セッション 1 回まで。
+    /// 絞っているのと同じ判断。1 セッション 3 回まで（#2012）。
     public var canReviveAfterBust: Bool {
-        sessionOver && sessionWinner == .cpu && !hasRevivedThisSession
+        sessionOver && sessionWinner == .cpu && revivesRemaining > 0
     }
 
     /// ラウンドの決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
@@ -175,7 +187,7 @@ public final class PokerModel {
             // 旧データには鍵が無い。中断前の局はスタンダードしか存在しなかったのでそれに倒す。
             self.rules           = snap.rules ?? .standard
             // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
-            self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
+            self.reviveCount = max(snap.reviveCount ?? 0, snap.hasRevivedThisSession == true ? 1 : 0)
             self.handStartChips = snap.handStartChips
             // `.idle` を書くのは `persistRoundWaiting` だけ（局を持たない中断データ・#1104）。
             // 戻った先は次の局の開始シートで「続き」ではないので、中断のお知らせ（#663）の対象から
@@ -213,7 +225,8 @@ public final class PokerModel {
             playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
             cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules,
             hasRevivedThisSession: hasRevivedThisSession,
-            handStartChips: handStartChips
+            handStartChips: handStartChips,
+            reviveCount: reviveCount
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -230,7 +243,8 @@ public final class PokerModel {
             phase: .idle, currentBet: 0,
             playerBetInRound: 0, cpuBetInRound: 0,
             cpuFolded: false, cpuAction: "", rules: rules,
-            hasRevivedThisSession: hasRevivedThisSession
+            hasRevivedThisSession: hasRevivedThisSession,
+            reviveCount: reviveCount
         )
         try? services?.snapshots.save(snap, for: gameID)
         notifyRoundWaitingSnapshot()
@@ -817,8 +831,8 @@ public final class PokerModel {
     /// - **自分のチップが尽きて終わったときだけ**効く（`canReviveAfterBust`）。
     ///   まだ遊べる残高で呼んでも広告は出さない（プレイヤーが明示的に選んだ救済であって、
     ///   いつでも押せる増量ボタンではない）。
-    /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
-    ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
+    /// - **1 セッション 3 回まで**（`maxRevivesPerSession`）。中断を挟んでも回数は戻らない
+    ///   （`reviveCount` をスナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
     /// - プレイヤーは `reviveChips`（初期チップより多い）、CPU は初期チップに戻す（#523）。
     ///   CPU の持ち点は勝ち取った資産ではなく卓の設定値なので、そのまま（勝ち越したぶん）残すと
     ///   150 対 250 の卓になって復活の意味が消える。初期より多い手持ちで卓に戻る、が復活の価値。
@@ -843,7 +857,7 @@ public final class PokerModel {
         // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#728）。
         // ブラックジャック（#727）と同じく、通し番号と救済できる状態を見直す。
         guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
-        hasRevivedThisSession = true
+        reviveCount += 1
         playerChips = PokerModel.reviveChips
         cpuChips    = PokerModel.initialChips
         sessionOver = false
@@ -862,7 +876,7 @@ public final class PokerModel {
         playerChips   = PokerModel.initialChips
         cpuChips      = PokerModel.initialChips
         // 新しいセッションなので復活の回数も戻る（#499）。
-        hasRevivedThisSession = false
+        reviveCount = 0
         sessionOver   = false
         sessionWinner = nil
         phase         = .idle
