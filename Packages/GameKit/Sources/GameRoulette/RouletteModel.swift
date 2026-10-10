@@ -114,12 +114,12 @@ public final class RouletteModel {
         case .betting:
             // 賭ける前の局面で残高が足りなければ、その場で終わりにする（#656 と同じ理由）。
             checkSessionOver()
-            // 復活のチップだけを持ち回る中断データ（口が無い）は「続き」ではないので、中断の
+            // 残高だけを持ち回る中断データ（口が無い）は「続き」ではないので、中断の
             // お知らせ（#663）の対象から外す（#1145）。保存側の `notifyRoundWaitingSnapshot` は
             // **保存したプロセスの中**でしか効かない（`ResumeReminder` の決着済みの印はメモリ上の
             // 集合で、再起動で空に戻る）。復元側でも伝えないと、アプリを起動し直してから開いて
             // 戻ったときだけ予約される。ブラックジャック・ポーカーの `init` と同じ。
-            if bets.isEmpty && hasRevivedThisSession {
+            if bets.isEmpty {
                 services?.gameDidRestoreFinished(gameID: gameID)
             }
         case .result:
@@ -129,36 +129,48 @@ public final class RouletteModel {
 
     // MARK: - Persist
 
-    /// 保存するのは「続きのある状態」だけ: 回転中（同じ出目で止め直す）と、置いた口が残る賭け中。
-    /// 精算済み・口の無い賭け中は消す（ブラックジャックと同じく、ラウンドをまたぐ残高は持ち越さない）。
-    /// 例外は復活（#523）直後で、広告を見た報酬を離脱で失わせないよう残高だけ残す（ポーカー #1104 と同じ）。
+    /// 保存するのは、回転中（同じ出目で止め直す）と、置いた口が残る賭け中に加えて、局を持たない
+    /// 「賭け待ち」（口が無い・決着後）の残高。決着後に離れて勝ち負けが初期額へ戻ると、勝ち分が
+    /// 消え負け分が帳消しになるため（ブラックジャック #1623・ポーカー #1714 と同じ）、局は書かずに
+    /// 残高・履歴・復活の「使い切った」印だけを賭け待ちの形で残す。復活（#523）直後も同じ経路で、
+    /// 広告を見た報酬を離脱で失わせない（ポーカー #1104 と同じ）。
+    /// 破産（`sessionOver`）後は残高に続きが無いので、従来どおり捨てる。
     private func persist() {
         switch phase {
         case .spinning:
             save()
         case .betting where !bets.isEmpty:
             save()
-        case .betting where hasRevivedThisSession && !sessionOver:
+        case .betting where !sessionOver && hasSessionProgress:
             save()
+            notifyRoundWaitingSnapshot()
+        case .result where !sessionOver:
+            // 精算した局（口・出目・精算内容）は書かず、決着後の残高を賭け待ちとして残す。
+            save(roundWaiting: true)
             notifyRoundWaitingSnapshot()
         default:
             services?.snapshots.clear(for: gameID)
         }
     }
 
-    private func save() {
+    /// 残す価値のある残高・履歴があるか。開いただけ・置いて外しただけの初期状態は書かない。
+    private var hasSessionProgress: Bool {
+        chips != RouletteModel.initialChips || hasRevivedThisSession || !history.isEmpty
+    }
+
+    private func save(roundWaiting: Bool = false) {
         let snap = RouletteSnapshot(
             chips: chips,
-            bets: bets,
-            phase: phase,
-            winningNumber: winningNumber,
+            bets: roundWaiting ? [] : bets,
+            phase: roundWaiting ? .betting : phase,
+            winningNumber: roundWaiting ? nil : winningNumber,
             history: history,
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
 
-    /// 局を持たない中断データ（復活直後・口が無い）を書いたことを、解析とお知らせへ伝える（#1104）。
+    /// 局を持たない中断データ（口が無い賭け待ち・決着後・復活直後）を書いたことを、解析とお知らせへ伝える（#1104）。
     /// 伝えないと「途中のままです」のお知らせが続きの無い局に予約される。次のスピン
     /// （`gameDidRestart`）で元へ戻る。
     private func notifyRoundWaitingSnapshot() {
