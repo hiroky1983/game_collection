@@ -13,6 +13,13 @@ public final class FifteenModel {
     /// 直近の決着で確定した自己ベスト。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
 
+    /// この局のヒントの残り（#1975）。回数と順位表の扱いは Core の `BoardHintBudget`（将棋・チェス・五目並べ・オセロと共通）。
+    public private(set) var hints = BoardHintBudget()
+    /// ヒントが示している升（動かすタイルがいま居る位置）。盤が動けば消える。**永続化しない**。
+    public private(set) var hintIndex: Int?
+    /// 局の番号。広告を見ているあいだに新規ゲームが始まったら、報酬を新しい局へ乗せない。
+    public private(set) var gameSerial = 0
+
     private let services: GameServices?
     /// 同じモジュールの View も参照する。
     let gameID = "fifteen"
@@ -28,6 +35,7 @@ public final class FifteenModel {
             tiles = snap.tiles
             moves = snap.moves
             isSolved = false
+            hints = BoardHintBudget(used: snap.hintsUsed ?? 0)
         } else {
             tiles = []
             moves = 0
@@ -40,10 +48,11 @@ public final class FifteenModel {
     }
 
     /// 盤面を直接与えて開始する。狙った局面（あと 1 手で揃う盤など）から検証するためのテスト用の経路。
-    public init(services: GameServices? = nil, tiles: [Int], moves: Int = 0) {
+    public init(services: GameServices? = nil, tiles: [Int], moves: Int = 0, hintsUsed: Int = 0) {
         self.services = services
         self.tiles = tiles
         self.moves = moves
+        hints = BoardHintBudget(used: hintsUsed)
         isSolved = FifteenLogic.isSolved(tiles)
         persist()
     }
@@ -57,6 +66,7 @@ public final class FifteenModel {
         }
         tiles = result.tiles
         moves += result.distance
+        hintIndex = nil
         // 盤が動いた = 捨てたら途中離脱として数える盤面。
         services?.gameDidProgress(gameID: gameID)
         if FifteenLogic.isSolved(tiles) {
@@ -66,7 +76,7 @@ public final class FifteenModel {
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: .win,
-                score: GameScore(metric: .fewestMoves, moves: moves)
+                score: GameScore(metric: .fewestMoves, moves: moves, isLeaderboardEligible: !hints.wasUsed)
             )
             services?.snapshots.clear(for: gameID)
         } else {
@@ -84,8 +94,44 @@ public final class FifteenModel {
         moves = 0
         isSolved = false
         recordResult = nil
+        hints.reset()
+        hintIndex = nil
+        gameSerial += 1
         persist()
         services?.gameDidRestart(gameID: gameID)
+    }
+
+    // MARK: - ヒント（#1975）
+
+    /// 残り回数（無料 + 広告の合計）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// いまヒントを押せるか。決着前で、合計の残りがあるときだけ。
+    public var canUseHint: Bool { !isSolved && !hints.isExhausted }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    /// 無料のヒントを 1 回使い、次に動かすタイルを盤の上に示す。求まらなければ**回数を減らさない**。
+    public func requestHint() {
+        guard canUseHint, !needsAdForHint, let index = FifteenHintSolver.nextIndex(tiles), hints.consume() else { return }
+        didUseHint(at: index)
+    }
+
+    /// 広告を最後まで見たあとの 1 回。`game` は広告を出す前に控えた `gameSerial`（局が入れ替わっていたら適用せず false）。
+    public func grantAdHint(forGame game: Int) -> Bool {
+        guard game == gameSerial, canUseHint, needsAdForHint,
+              let index = FifteenHintSolver.nextIndex(tiles), hints.consumeAd() else { return false }
+        didUseHint(at: index)
+        return true
+    }
+
+    private func didUseHint(at index: Int) {
+        services?.gameDidUseHint(gameID: gameID)
+        hintIndex = index
+        services?.feedback.impact(.light)
+        // 残り回数は中断データに持ち回る（再開でヒントが戻らないように）。
+        persist()
     }
 
     private func makeBoard() -> [Int] {
@@ -99,6 +145,6 @@ public final class FifteenModel {
 
     private func persist() {
         guard !isSolved else { return }
-        try? services?.snapshots.save(FifteenSnapshot(tiles: tiles, moves: moves), for: gameID)
+        try? services?.snapshots.save(FifteenSnapshot(tiles: tiles, moves: moves, hintsUsed: hints.used), for: gameID)
     }
 }

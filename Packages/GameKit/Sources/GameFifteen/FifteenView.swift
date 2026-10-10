@@ -6,6 +6,8 @@ public struct FifteenView: View {
     private let services: GameServices
     @State private var model: FifteenModel
     @State private var showConfirmReset = false
+    /// ヒントの広告救済（無料3回を使い切った後の1回・#1975）。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -15,7 +17,9 @@ public struct FifteenView: View {
     public var body: some View {
         VStack(spacing: 14) {
             header
-            boardView
+            // 盤は残りの高さを Spacer と山分けしない（操作の段が増えた分だけ盤が縮むのを防ぐ）。
+            boardView.layoutPriority(1)
+            hintBar
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.fifteen, playLog: services.playLog)
             RecommendationArea(services: services, isFinished: model.isSolved)
@@ -24,7 +28,7 @@ public struct FifteenView: View {
         }
         .padding()
         .gameChrome(title: "15パズル", review: services.review,
-                    newGame: GameChromeNewGame(.solo) {
+                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching) {
                         if model.hasProgressToLose {
                             showConfirmReset = true
                         } else {
@@ -32,6 +36,14 @@ public struct FifteenView: View {
                         }
                     })
         .howToPlay(.fifteen)
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを使えませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。"
+            )
+        )
         .dialogs { anchor in
             anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
                 Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
@@ -59,6 +71,45 @@ public struct FifteenView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// 盤の下の操作の段。ヒントだけ（無料3回、使い切ったら広告1本で+1回）。決着後は押せないだけで消さない（高さを変えない）。
+    private var hintBar: some View {
+        GameOverflowBar(
+            actions: [
+                GameActionItem(
+                    id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+                    badge: .hint(totalRemaining: model.hintsRemaining, needsAd: model.needsAdForHint),
+                    isEnabled: model.canUseHint && !hintRescue.isWatching,
+                    accessibilityLabel: FifteenAccessibility.hintLabel(
+                        remaining: model.hintsRemaining, needsAd: model.needsAdForHint),
+                    accessibilityHint: "次に動かすタイルを光らせます"
+                ) { requestHint() },
+            ],
+            verticalPadding: 4,
+            nudge: HintNudge(
+                isEligible: model.canUseHint && !hintRescue.isWatching,
+                game: model.gameSerial,
+                activity: [model.moves, model.hints.used]
+            )
+        )
+    }
+
+    /// 無料が残っていればそのまま示し、使い切っていれば広告を見たあとに示す（広告は押下起点・自動再生しない）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        guard model.needsAdForHint else {
+            model.requestHint()
+            return
+        }
+        // どの局に対する広告かを出す前に控え、ロード中に始めた新しい局へは乗せない（ナンプレのヒントと同じ）。
+        let game = model.gameSerial
+        hintRescue.request(
+            services, gameID: model.gameID, purpose: .hint,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantAdHint(forGame: game)
+        }
+    }
+
     private var boardView: some View {
         GeometryReader { geo in
             let spacing: CGFloat = 6
@@ -71,14 +122,14 @@ public struct FifteenView: View {
                 // タイルは値ごとに 1 枚で、位置だけをオフセットで動かす（スライドの動きが出る）。
                 ForEach(1..<FifteenLogic.cellCount, id: \.self) { value in
                     if let index = model.tiles.firstIndex(of: value) {
-                        FifteenTile(value: value, side: side, isHome: index == value - 1)
+                        FifteenTile(value: value, side: side, isHome: index == value - 1, isHint: index == model.hintIndex)
                             .offset(
                                 x: spacing + CGFloat(index % n) * (side + spacing),
                                 y: spacing + CGFloat(index / n) * (side + spacing)
                             )
                             .onTapGesture { model.tap(at: index) }
                             .accessibilityElement()
-                            .accessibilityLabel(FifteenAccessibility.cellLabel(index: index, value: value))
+                            .accessibilityLabel(FifteenAccessibility.cellLabel(index: index, value: value, isHint: index == model.hintIndex))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { withGameAnimation { model.tap(at: index) } }
                     }
@@ -113,6 +164,8 @@ struct FifteenTile: View {
     let value: Int
     let side: CGFloat
     let isHome: Bool
+    /// ヒントが「次に動かす」と示しているタイル（紫の枠。色は盤ゲームのヒントと共通）。
+    var isHint = false
 
     var body: some View {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -123,6 +176,12 @@ struct FifteenTile: View {
                     .font(.system(size: side * 0.42, weight: .heavy, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(Theme.onAccent)
+            }
+            .overlay {
+                if isHint {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(BoardGameHintColor.color, lineWidth: 4)
+                }
             }
             .contentShape(Rectangle())
     }

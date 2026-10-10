@@ -32,3 +32,28 @@ struct FifteenSnapshotCompatibilityTests {
         #expect(!model.isSolved)
     }
 }
+
+/// ヒント（#1975）で足した `hintsUsed` は鍵が無い中断データでも読める。
+@Suite("15パズル: ヒント回数の中断データ（#1975）")
+@MainActor
+struct FifteenHintSnapshotTests {
+    @Test("鍵を持たない v1.1.10 までの中断データは未使用として読む")
+    func oldSnapshotHasNoHintsUsed() throws {
+        let snap = try JSONDecoder().decode(FifteenSnapshot.self, from: Data(FifteenSnapshotCompatibilityTests.v116JSON.utf8))
+        #expect(snap.hintsUsed == nil)
+        let store = MemorySnapshotStore()
+        store.inject(Data(FifteenSnapshotCompatibilityTests.v116JSON.utf8), for: "fifteen")
+        let model = FifteenModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        #expect(model.hints.used == 0)
+    }
+
+    @Test("保存すると使った回数が鍵として書かれる")
+    func savesHintsUsedKey() throws {
+        let store = MemorySnapshotStore()
+        let model = FifteenModel(services: GameServices(snapshots: store, ads: NoopAdService()), seed: 3)
+        model.requestHint()
+        let data = try #require(store.rawData(for: "fifteen"))
+        let text = try #require(String(data: data, encoding: .utf8))
+        #expect(text.contains("\"hintsUsed\":1"))
+    }
+}
