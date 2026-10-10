@@ -439,6 +439,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761） |
+| `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで

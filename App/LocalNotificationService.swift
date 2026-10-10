@@ -31,7 +31,10 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
 
     func requestExplicitAuthorization() async -> ReminderAuthorization {
         // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21・#1219）。
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]) {
+            AppEnvironment.analytics.recordNotificationPermission(
+                result: granted ? .granted : .denied, trigger: .resume)
+        }
         return await authorization()
     }
 
@@ -141,7 +144,10 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
 
     func requestExplicitAuthorization() async -> ReminderAuthorization {
         // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21）。
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]) {
+            AppEnvironment.analytics.recordNotificationPermission(
+                result: granted ? .granted : .denied, trigger: .reengagement)
+        }
         return await authorization()
     }
 
@@ -237,7 +243,10 @@ final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderSch
 
     func requestExplicitAuthorization() async -> ReminderAuthorization {
         // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21）。
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]) {
+            AppEnvironment.analytics.recordNotificationPermission(
+                result: granted ? .granted : .denied, trigger: .challenge)
+        }
         return await authorization()
     }
 
