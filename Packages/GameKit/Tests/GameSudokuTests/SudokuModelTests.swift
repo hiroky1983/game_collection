@@ -635,6 +635,29 @@ struct SudokuUndoTests {
         #expect(model.board[blank] == model.solution[blank], "undo してもヒントは消えない")
     }
 
+    @Test("数字入りのマスにはメモが付かず、戻す履歴も回数も動かない（#2006）")
+    func noteOnFilledCellIsRejected() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        let digit = model.solution[blank]
+        model.select(index: blank)
+        model.enter(digit: digit)
+        let remaining = model.undosRemaining
+
+        model.toggleNoteMode()
+        let other = digit % 9 + 1
+        model.enter(digit: other)
+        #expect(!model.hasNote(other, at: blank), "メモは付かない")
+        #expect(model.board[blank] == digit)
+
+        // 直前の手は数字の入力のまま（メモの手で上書きされていない）。
+        model.undo()
+        #expect(model.board[blank] == 0, "戻すと数字が消える")
+        #expect(model.undosRemaining == remaining - 1, "戻す回数は 1 回ぶんだけ減る")
+        #expect(!model.hasNote(other, at: blank))
+    }
+
     @Test("メモの付け外しも取り消せる")
     func undoRestoresNotes() async {
         let (model, _) = makeModel()

@@ -372,6 +372,11 @@ public final class SudokuModel {
             services?.feedback.notify(.warning)  // 出題のマスは書き換えられない
             return
         }
+        // 数字入りのマスにメモは付けない（画面に出ない見えないメモになり、戻すだけを消費する・#2006）。
+        if noteMode, board[index] != 0 {
+            services?.feedback.notify(.warning)
+            return
+        }
         // ここから先は必ず盤（またはメモ）が動く = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
 
