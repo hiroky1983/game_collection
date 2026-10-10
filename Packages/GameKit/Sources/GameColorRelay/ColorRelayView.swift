@@ -584,19 +584,19 @@ struct ColorRelayCardView: View {
         case .number(let n):
             Text("\(n)")
                 .font(.system(size: font, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(faceColor)
+                .foregroundStyle(Theme.onAccent)
         case .skip:
             Image(systemName: "circle.slash")
                 .font(.system(size: font * 0.85, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(faceColor)
+                .foregroundStyle(Theme.onAccent)
         case .reverse:
             Image(systemName: "arrow.left.arrow.right")
                 .font(.system(size: font * 0.8, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(faceColor)
+                .foregroundStyle(Theme.onAccent)
         case .drawTwo:
             Text("+2")
                 .font(.system(size: font * 0.85, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(faceColor)
+                .foregroundStyle(Theme.onAccent)
         case .wild:
             FourColorMark(size: font * 1.1)
         case .wildDrawFour:
@@ -616,9 +616,12 @@ struct ColorRelayCardView: View {
             HStack {
                 cornerMark(font: font)
                 Spacer()
+                initialMark(font: font)
             }
             Spacer()
             HStack {
+                initialMark(font: font)
+                    .rotationEffect(.degrees(180))
                 Spacer()
                 cornerMark(font: font)
                     .rotationEffect(.degrees(180))
@@ -627,31 +630,44 @@ struct ColorRelayCardView: View {
         .padding(metrics.width * 0.06)
     }
 
+    /// 四隅の記号の色。色札は面（`Theme.Fill`）に対して `onAccent`、万能札は濃い地に白。
+    private var cornerInk: Color { card.color == nil ? .white : Theme.onAccent }
+
+    /// 残る 2 隅に置く色名の頭文字。色だけに頼らず札の色が読める（万能札には置かない）。
+    @ViewBuilder
+    private func initialMark(font: CGFloat) -> some View {
+        if let color = card.color {
+            Text(color.initial)
+                .font(.system(size: font, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                .foregroundStyle(cornerInk)
+        }
+    }
+
     @ViewBuilder
     private func cornerMark(font: CGFloat) -> some View {
         switch card.kind {
         case .number(let n):
             Text("\(n)")
                 .font(.system(size: font, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(.white)
+                .foregroundStyle(cornerInk)
         case .skip:
             Image(systemName: "circle.slash")
                 .font(.system(size: font * 0.9, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(.white)
+                .foregroundStyle(cornerInk)
         case .reverse:
             Image(systemName: "arrow.left.arrow.right")
                 .font(.system(size: font * 0.85, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(.white)
+                .foregroundStyle(cornerInk)
         case .drawTwo:
             Text("+2")
                 .font(.system(size: font * 0.9, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(.white)
+                .foregroundStyle(cornerInk)
         case .wild:
             FourColorMark(size: font, spacing: 1)
         case .wildDrawFour:
             Text("+4")
                 .font(.system(size: font * 0.9, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(.white)
+                .foregroundStyle(cornerInk)
         }
     }
 }
