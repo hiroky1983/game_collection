@@ -421,7 +421,7 @@ struct RewardGuardCallSiteTests {
         // `RewardedRescue` を通さずに `services.showRewardedAd(...)` を直に呼ぶと、
         // 連打ガードも局ガードも失敗アラートも付かない面が 1 つだけ生まれる。
         // モデルが広告ごと持っている面（`requestHandledByModel` 側）だけが直に呼んでよい。
-        // 将棋・チェス・五目並べのヒント（無料枠を使い切った後・#1500）も、広告の視聴完了後に
+        // 将棋・チェス・五目並べ・オセロのヒント（無料枠を使い切った後・#1500・#2011）も、広告の視聴完了後に
         // CPU の読みを始める必要があり分けられないため、モデルが直に呼ぶ側に入る。
         let callers = try Self.gameSources()
             .filter { $0.text.contains("showRewardedAd(") }
@@ -432,6 +432,7 @@ struct RewardGuardCallSiteTests {
             "GameChess/ChessGameModel.swift",
             "GameGomoku/GomokuModel.swift",
             "GameMahjong/MahjongModel.swift",
+            "GameOthello/OthelloModel.swift",
             "GamePoker/PokerModel.swift",
             "GameRoulette/RouletteModel.swift",
             "GameShogi/ShogiGameModel.swift",

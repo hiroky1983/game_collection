@@ -9,6 +9,8 @@ public struct OthelloView: View {
     @State private var showPassAlert = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告救済（無料枠を使い切った後の1回・#2011）。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -197,9 +199,30 @@ public struct OthelloView: View {
                 .accessibilityRepresentation {
                     accessibilityGrid(cell: cell, validSet: validSet)
                 }
+
+                // ヒントが示す升（#2011）。盤の前面に重ねるので、タップと VoiceOver の升グリッドを
+                // 横取りしないよう両方から外す。
+                hintMark(cell: cell)
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// ヒントが示す升の印。次に置くと良い 1 升を紫の輪で囲む（色は将棋・チェス・五目並べと共通の `BoardGameHintColor`）。
+    ///
+    /// 出す条件は `model.hintPoint` だけで、盤が動けば Model 側が印を落とす。読み上げは VoiceOver 用の
+    /// 升グリッド（`accessibilityGrid` の `isHint`）が持つ。
+    @ViewBuilder
+    private func hintMark(cell: CGFloat) -> some View {
+        if let point = model.hintPoint {
+            Circle()
+                .stroke(BoardGameHintColor.color, lineWidth: 3)
+                .background(Circle().fill(BoardGameHintColor.color.opacity(0.22)))
+                .frame(width: cell * 0.8, height: cell * 0.8)
+                .position(x: cell * (CGFloat(point.col) + 0.5), y: cell * (CGFloat(point.row) + 0.5))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// VoiceOver 用のマス目グリッド（#188）。
@@ -226,7 +249,8 @@ public struct OthelloView: View {
                             col: col,
                             stone: model.board[row, col],
                             isValidMove: validSet.contains(row * othelloBoardSize + col),
-                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false
+                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false,
+                            isHint: model.hintPoint == OthelloPoint(row: row, col: col)
                         ))
                     }
                 }
@@ -237,9 +261,10 @@ public struct OthelloView: View {
     // MARK: - Controls
 
     private var gameControls: some View {
-        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通（#1421）。
+        // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
         BoardGameControlBar(
             model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.turnID]),
             onResign: { model.resign() }
         )
     }

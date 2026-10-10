@@ -75,6 +75,14 @@ public struct OthelloEngine: Sendable {
         self.now = now
     }
 
+    /// ヒント専用のエンジン（#2011）。「むずかしい」と同じ設定で、考える時間だけ
+    /// `BoardHintBudget.extraThinkingTime` 長い。対局 CPU の「むずかしい」は変えない。
+    static func hint() -> OthelloEngine {
+        let base = OthelloEngine(level: BoardHintBudget.engineLevel)
+        return OthelloEngine(level: BoardHintBudget.engineLevel,
+                             timeLimitOverride: base.timeLimit + BoardHintBudget.extraThinkingTime)
+    }
+
     /// 段階の出荷値（#1464）。
     static func settings(for strength: CPUStrength)
         -> (timeLimit: TimeInterval, depthLimit: Int?, policy: OthelloMovePolicy) {
