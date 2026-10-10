@@ -219,6 +219,10 @@ struct HubView: View {
                 }
                 ScrollView {
                     VStack(spacing: Self.gridSpacing) {
+                    // 全ゲームを非表示にした直後は空白にせず、設定へ戻る導線を出す（#2002）。
+                    if HubEmptyState.isShown(visibleGameIDs: settings.visibleModules(from: registry).map(\.id)) {
+                        HubEmptyStateView { showSettings = true }
+                    }
                     // 特別枠（#1761）: グリッドの先頭に 1 枚ぶち抜きで置き、スクロールで一緒に流れる。
                     if showsHero, let hero = registry.module(id: Self.heroGameID) {
                         NavigationLink(value: HubRoute(
@@ -677,6 +681,28 @@ private struct GameCard: View {
         if hasResume { parts.append("続きから") }
         if isNew { parts.append("新着") }
         return parts.joined(separator: "、")
+    }
+}
+
+/// 表示するゲームが 0 本のときにハブへ出す案内と、設定を開くボタン（#2002）。
+private struct HubEmptyStateView: View {
+    let openSettings: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(HubEmptyState.message)
+                .themeCaption(15)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+            Button(HubEmptyState.buttonTitle, action: openSettings)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Theme.Fill.coral)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Theme.pad)
+        .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .contain)
     }
 }
 
