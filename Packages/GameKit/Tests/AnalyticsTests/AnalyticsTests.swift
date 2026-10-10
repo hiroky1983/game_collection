@@ -163,6 +163,16 @@ struct AnalyticsEventShapeTests {
         #expect(tap.parameters == ["game_id": .string("2048")])
     }
 
+    @Test("notification_permission は result と trigger だけを持ち、ゲーム ID を載せない（#2008）")
+    func notificationPermissionShape() {
+        let event = AnalyticsEvent.notificationPermission(result: .denied, trigger: .challenge)
+        #expect(event.name == "notification_permission")
+        #expect(event.parameters == ["result": .string("denied"), "trigger": .string("challenge")])
+        #expect(NotificationPermissionResult.granted.rawValue == "granted")
+        #expect([NotificationPermissionTrigger.resume, .challenge, .reengagement].map(\.rawValue)
+                == ["resume", "challenge", "reengagement"])
+    }
+
     @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records の11値に閉じている（#659・#721・#1950・#1974）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
@@ -195,7 +205,7 @@ struct AnalyticsEventShapeTests {
         #expect(sent == ["accepted", "declined", "not_ready"])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap の7種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap / notification_permission の8種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
         // 全量の列挙（#659 で2種・#780 で1種・#1043 で1種）。個々の鍵は下と上の各テストで固定する。
         #expect([
@@ -206,8 +216,10 @@ struct AnalyticsEventShapeTests {
             .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
             .rewardOffer(gameID: "2048", purpose: .undo, result: .declined),
             .shareTap(gameID: "2048"),
+            .notificationPermission(result: .granted, trigger: .resume),
         ].map(\.name) == [
             "game_start", "game_end", "reward_ad", "reward_request", "game_open", "reward_offer", "share_tap",
+            "notification_permission",
         ])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
