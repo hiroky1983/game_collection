@@ -193,6 +193,12 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
      （= release ブランチ）側の古い定義がそのまま使われる。結果、main で直したはずのワークフロー
      （例: `close-issues.yml` の誤クローズ対策）が base が release ブランチの PR では効かない。
      （`pull_request_target` が base 側の定義で走るのとは別の話なので混同しないこと。）
+- **出荷系ファイル（`fastlane/`・`Scripts/` の出荷スクリプト）も `.github/` と同じ扱いにする**
+  （2026-10-11 追加・#2075）。release ブランチは直近の release ブランチの HEAD から作るため、
+  それより後に main で出荷系ファイルを直すと release 側が古いまま取り残される
+  （`release/v1.1.11` の Fastfile が #1041 の API キー署名に未対応のままだった実害・PR #2076/#2078）。
+  release ブランチ作成時に main の最新を取り込む、または作成後に main で直したら同じ内容を
+  release へ同期すること。
 - **審査に提出した時点で、その release ブランチは凍結する**（2026-08-13 追加、タグ名を2026-08-22 訂正）。
   1. 提出したコミットに `vX.Y.Z-submitted` のタグを打って push する（何が審査に入ったかの唯一の証跡）。
      `vX.Y.Z-build<N>` としていたが、実際の `CURRENT_PROJECT_VERSION` は `fastlane/Fastfile` が
