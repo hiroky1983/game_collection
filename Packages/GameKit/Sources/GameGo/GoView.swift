@@ -9,6 +9,8 @@ public struct GoView: View {
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 「ヒント」のリワード広告の段取り（#2027）。
+    @State private var hintRescue = RewardedRescue()
     /// 出ている「パス」の札（#664）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var passBannerID: Int?
     /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
@@ -92,6 +94,10 @@ public struct GoView: View {
         .onChange(of: model.passBannerDismissID) { _, _ in
             passBannerID = nil
         }
+        // 最善手がパスのときは文字の帯だけが手がかりなので、VoiceOver にも読ませる（#2027）。
+        .onChange(of: model.hintSuggestsPass) { _, suggests in
+            if suggests { AccessibilityNotification.Announcement(GoAccessibility.hintPassMessage).post() }
+        }
         .task {
             #if DEBUG
             // 撮影用（#398）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
@@ -99,6 +105,11 @@ public struct GoView: View {
                 await model.applyPreviewScoringForTesting()
             } else if ProcessInfo.processInfo.arguments.contains("-goMidgame") {
                 model.applyPreviewMidgameForTesting()
+                // 撮影用（#2027）: 中盤の盤面でヒントを 1 回読ませて、紫の印を出す。
+                if ProcessInfo.processInfo.arguments.contains("-goHint") {
+                    showNewGame = false
+                    await model.requestHint()
+                }
             }
             #endif
         }
@@ -239,12 +250,18 @@ public struct GoView: View {
                 .accessibilityRepresentation {
                     accessibilityGrid(pad: pad, spacing: spacing)
                 }
+
+                // ヒントが示す交点（#2027）。盤の前面に重ねるので、タップと VoiceOver の
+                // 交点グリッドを横取りしないよう両方から外す。
+                hintMark(pad: pad, spacing: spacing)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GoShake(animatableData: CGFloat(model.rejectedTapCount)))
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
             // 拒否の理由は揺れの外に置く（一緒に揺らすと読めない・五目 #441 と同じ組み方）。
             .overlay(alignment: .top) { rejectionNotice }
+            // 最善手がパスのときは印を置く交点が無いので、文字で示す（#2027）。
+            .overlay(alignment: .bottom) { hintPassNotice }
         }
         .aspectRatio(1, contentMode: .fit)
         // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
@@ -263,6 +280,40 @@ public struct GoView: View {
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
                                       levelLabels: levels.map(\.label)) { level in
             model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap)
+        }
+    }
+
+    /// ヒントが示す交点の印（#2027）。次に打つと良い 1 点を紫の輪で囲む。
+    ///
+    /// 出す条件は `model.hintPoint` だけで、盤が動けば Model 側が印を落とす。
+    /// 色は将棋・チェス・五目並べと共通（`BoardGameHintColor`）。読み上げは VoiceOver 用の交点グリッド
+    /// （`accessibilityGrid` の `isHint`）が持つ。
+    @ViewBuilder
+    private func hintMark(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let point = model.hintPoint {
+            Circle()
+                .stroke(BoardGameHintColor.color, lineWidth: 3)
+                .background(Circle().fill(BoardGameHintColor.color.opacity(0.22)))
+                .frame(width: spacing * 0.9, height: spacing * 0.9)
+                .position(x: pad + spacing * CGFloat(point.col),
+                          y: pad + spacing * CGFloat(point.row))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// 最善手がパスのときの案内（#2027）。盤に印を置けないので帯で伝える。
+    /// 拒否理由の帯（上端）と重ならないよう下端に出す。盤への `overlay` なので、出ても消えても盤と操作エリアの高さは変わらない。
+    @ViewBuilder
+    private var hintPassNotice: some View {
+        if model.hintSuggestsPass {
+            Text(GoAccessibility.hintPassMessage)
+                .scaledFont(13, weight: .bold, design: .rounded)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(BoardGameHintColor.color))
+                .padding(.bottom, 10)
+                .allowsHitTesting(false)
         }
     }
 
@@ -309,7 +360,8 @@ public struct GoView: View {
                             col: col,
                             stone: model.board[row, col],
                             isLastMove: model.lastMove == GoPoint(row: row, col: col),
-                            isDead: dead.contains(GoPoint(row: row, col: col))
+                            isDead: dead.contains(GoPoint(row: row, col: col)),
+                            isHint: model.hintPoint == GoPoint(row: row, col: col)
                         ))
                     }
                 }
@@ -424,6 +476,7 @@ public struct GoView: View {
         // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通。囲碁だけ「パス」も「⋯」に入る（#1421・#1468）。
         BoardGameControlBar(
             model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
             extraItems: [
                 GameControlMenuItem(id: "pass", title: "パス", systemImage: "forward.fill",
                                     isEnabled: !(model.isAITurn || model.isThinking)) { model.pass() }

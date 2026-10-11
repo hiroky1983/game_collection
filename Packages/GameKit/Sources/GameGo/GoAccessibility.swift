@@ -14,7 +14,8 @@ public enum GoAccessibility {
         col: Int,
         stone: GoStone?,
         isLastMove: Bool,
-        isDead: Bool = false
+        isDead: Bool = false,
+        isHint: Bool = false
     ) -> String {
         var parts = ["\(row + 1)行\(col + 1)列"]
         switch stone {
@@ -24,8 +25,12 @@ public enum GoAccessibility {
         }
         if isDead { parts.append("死に石") }
         if isLastMove { parts.append("直前の手") }
+        if isHint { parts.append("ヒントの手") }
         return parts.joined(separator: "、")
     }
+
+    /// ヒントの最善手がパスのときの案内（#2027）。盤に印を置けないので文字で示し、VoiceOver にも同じ文を読ませる。
+    public static let hintPassMessage = "ここはパスでよい局面です"
 
     /// 対局の状況を 1 行で（ステータスバーの読み上げ）。
     public static func statusLabel(
