@@ -376,7 +376,7 @@ public final class FreeCellModel {
             showsHintHopeless = true
             return .granted
         }
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else { return .notEarned }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? false else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd, version == boardVersion,
               applyHint(result, consume: { hints.consumeAd() }) else { return .unavailable }
         return .granted
