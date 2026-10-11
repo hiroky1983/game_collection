@@ -283,7 +283,7 @@ struct OjisanPuzzleModelTests {
 
     @Test("ラインより下に片付く手なら、満タンでも入院よりクリアを優先する")
     func clearBeatsHospitalization() {
-        // 行 8 より上は 4 つそろう塊だけ。消えると全体がラインより下になる。
+        // ライン行より上は 4 つそろう塊だけ。消えると全体がラインより下になる。
         var board = OjisanPuzzleBoard.emptyBoard()
         let line = OjisanPuzzleCleanup.clearLineRow
         for row in (line - 1)..<(line + 2) { board[row][0] = 1 }   // 縦に 3 つ（うち 1 つがライン上）

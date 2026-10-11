@@ -56,8 +56,8 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
 /// 腰痛モード（片付け型）のルールの数値と、盤の作り方。純粋関数だけで、乱数は呼び出し側が持つ。
 public enum OjisanPuzzleCleanup {
     /// クリアのライン。この行より上（行番号が小さい側）に荷物が 1 つも無くなればクリア。
-    /// 12 段のうち下 4 段（行 8...11）に収まれば片付いた扱い。
-    public static let clearLineRow = 8
+    /// 12 段のうち下 5 段（行 7...11）に収まれば片付いた扱い（会長指示 2026-10-12・1 段上げ）。
+    public static let clearLineRow = 7
     /// 荷物が 1 段せり上がる間隔（ミリ秒）。会長確認前の案。
     public static let riseIntervalMilliseconds = 40_000
     /// 開始時の各列の積み高さ（段数）の幅。
