@@ -770,7 +770,7 @@ private struct HubHiddenNotice: View {
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
             .accessibilityLabel("「\(title)」の非表示を元に戻す")
         }
         .padding(.horizontal, Theme.pad)
