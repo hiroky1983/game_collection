@@ -163,9 +163,10 @@ public enum GameCenterLeaderboard {
     /// 柵越えおじさんの週間ランキング（#1792）。**定期リーダーボード**（毎週月曜 0:00 JST 開始・期間 7 日・7 日ごとに繰り返し・
     /// ベストスコア型・High to Low）に送る**総飛距離 m**。月まで飛んだ打球は画面表示どおり 384,400 km で数える
     /// （`homerunWeeklyMoonMeters`。常設の `homerunDistance` は 180 m で数える）。
-    /// **App Store Connect に作成するまで nil のまま**（会長操作。作成後に ID を入れるとランキングページが有効になる。
-    /// 手順は docs/game-center-setup.md）。nil のあいだは送信もランキングページへの遷移もしない。
-    public static let homerunWeekly: String? = nil
+    /// App Store Connect に作成済み（#2051・2026-10-11。開始 2026-10-12 0:00 JST）。nil にするとランキングページが消え、
+    /// 送信もランキングページへの遷移もしなくなる（未作成の環境向けの逃げ道として Optional のまま残す）。
+    /// 常設の表と違い決着の対応表（`score(gameID:outcome:score:)`）を通らないため、`allIDs` には入れない。
+    public static let homerunWeekly: String? = "asobiba.homerun.weekly"
     /// 週間ランキングで月まで飛んだ打球 1 本を数える距離（m）。384,400 km。
     public static let homerunWeeklyMoonMeters = 384_400_000
     /// 週間ランキングに送る総飛距離の上限（m）。月 2 回（月が割れた時点で挑戦は終わる）＋ 180 m × 8 球。これを超える値は送らない。
