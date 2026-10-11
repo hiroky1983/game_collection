@@ -98,7 +98,8 @@ struct GameActionRowTests {
         // 麻雀ソリティア・ナンプレの戻すは回数制（無料のあと広告で補充・#1855）なので段。
         ("GameMahjongSolitaire", ["undo", "hint", "shuffle"], ["zoom"]),
         ("GameSudoku", ["undo", "hint"], ["note", "giveUp"]),
-        ("GameMinesweeper", [], ["flag", "zoom", "giveUp"]),
+        // マインスイーパーのヒントは無料1回のあと広告で最大3回（#2024）なので段。
+        ("GameMinesweeper", ["hint"], ["flag", "zoom", "giveUp"]),
     ]
 
     @Test("広告が絡む操作だけ段に出し、広告の無い操作は「⋯」に残す", arguments: placements.indices)
