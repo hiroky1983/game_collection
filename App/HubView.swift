@@ -85,9 +85,18 @@ struct HubView: View {
         settings.visibleModules(from: registry).contains { $0.id == Self.heroGameID }
     }
 
-    /// グリッドに並べるゲーム（特別枠のゲームを除く）。
+    /// 表示するゲームの並び。この版の新着を先頭に固定し、そのあとに利用者の並びが続く（#2104）。
+    /// 非表示にしたゲームは `visibleModules` の時点で除かれるので、新着でも出さない。
+    private var pinnedVisibleModules: [GameModule] {
+        let visible = settings.visibleModules(from: registry)
+        let order = NewGames.pinned(visibleIDs: visible.map(\.id))
+        let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
+        return order.compactMap { byID[$0] }
+    }
+
+    /// グリッドに並べるゲーム（特別枠のゲームを除く）。特別枠のすぐ次に新着が来る。
     private var gridModules: [GameModule] {
-        settings.visibleModules(from: registry).filter { $0.id != Self.heroGameID }
+        pinnedVisibleModules.filter { $0.id != Self.heroGameID }
     }
 
     /// 特別枠がグリッドの上で取る高さ（枠 + グリッドとの間隔）。カード高さの割り付けから引く（#485）。
@@ -134,7 +143,7 @@ struct HubView: View {
     /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
     private var paletteIndexByGame: [String: Int] {
         var result: [String: Int] = [:]
-        for (index, module) in settings.visibleModules(from: registry).enumerated() {
+        for (index, module) in pinnedVisibleModules.enumerated() {
             result[module.id] = index
         }
         return result
@@ -258,7 +267,7 @@ struct HubView: View {
                                     accent: Theme.palette[index % Theme.palette.count],
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: hasResume,
-                                    isNew: newGameIDs.contains(module.id),
+                                    isNew: NewGames.currentVersionIDs.contains(module.id),
                                     record: services.playLog?.summaryLine(gameID: module.id),
                                     minHeight: cardMinHeight
                                 )
@@ -613,7 +622,7 @@ private struct GameCard: View {
     /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
     let accentFill: Color
     let hasResume: Bool
-    /// 更新で増えたゲームか（#723）。「続きから」と同じ位置に NEW を出す（両方のときは「続きから」を優先）。
+    /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
@@ -640,17 +649,17 @@ private struct GameCard: View {
 
                 Spacer(minLength: 0)
 
-                if hasResume {
-                    Text("続きから")
+                if isNew {
+                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
+                    Text("NEW")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
                         .padding(.vertical, layout.scaled(3))
                         .background(Capsule().fill(accent.opacity(0.15)))
                         .fixedSize()
-                } else if isNew {
-                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
-                    Text("NEW")
+                } else if hasResume {
+                    Text("続きから")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
