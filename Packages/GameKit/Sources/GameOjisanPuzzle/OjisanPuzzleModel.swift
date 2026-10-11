@@ -109,6 +109,9 @@ public final class OjisanPuzzleModel {
     private var loop: Task<Void, Never>?
     /// 直近に左右移動・回転を受け付けた時刻。腰が重いときの「ワンテンポ」を測るのに使う。
     private var lastInputAt: ContinuousClock.Instant?
+    /// 直前の回す操作が塞がれて回せなかったか。続けてもう一度押されたら上下（左右）を入れ替える（#2063）。
+    /// 動かす・回せる・落ちる・固定するのどれかが起きたら畳む。
+    private var rotationBlockedOnce = false
     static let gameID = "ojisanpuzzle"
 
     /// 通常の入口。
@@ -208,6 +211,7 @@ public final class OjisanPuzzleModel {
             guard let pair = current else { return }
             if let moved = OjisanPuzzleBoard.steppedDown(board, pair) {
                 current = moved
+                rotationBlockedOnce = false
             } else {
                 lock(pair)
             }
@@ -228,21 +232,32 @@ public final class OjisanPuzzleModel {
             return false
         }
         current = moved
+        rotationBlockedOnce = false
         acceptInput()
         services?.feedback.impact(.light)
         return true
     }
 
     /// 回す。壁・床に当たるときは軸をずらして逃がす。腰が重いと受け付ける間隔が空く。
+    ///
+    /// 左右を壁や荷物に挟まれて回せないときは、1 回目は何も起きず、続けてもう一度押すと上下（左右）を入れ替える
+    /// （定番の落ち物パズルと同じ「2 回押しで反転」・#2063）。
     @discardableResult
     public func rotate(clockwise: Bool) -> Bool {
         guard acceptsInput() else { return false }
-        guard outcome == nil, phase == .dropping, let pair = current,
-              let turned = OjisanPuzzleBoard.rotated(board, pair, clockwise: clockwise) else {
+        guard outcome == nil, phase == .dropping, let pair = current else {
+            services?.feedback.notify(.warning)
+            return false
+        }
+        let turned = OjisanPuzzleBoard.rotated(board, pair, clockwise: clockwise)
+            ?? (rotationBlockedOnce ? OjisanPuzzleBoard.flipped(board, pair) : nil)
+        guard let turned else {
+            rotationBlockedOnce = true
             services?.feedback.notify(.warning)
             return false
         }
         current = turned
+        rotationBlockedOnce = false
         acceptInput()
         services?.feedback.impact(.light)
         return true
@@ -272,6 +287,7 @@ public final class OjisanPuzzleModel {
         }
         if let moved = OjisanPuzzleBoard.steppedDown(board, pair) {
             current = moved
+            rotationBlockedOnce = false
         } else {
             lock(pair)
         }
@@ -310,6 +326,7 @@ public final class OjisanPuzzleModel {
         phase = .dropping
         outcome = nil
         lastInputAt = nil
+        rotationBlockedOnce = false
         recordResult = nil
         // 未決着のまま捨てた局は、始め直す前に途中離脱（quit）として送られる（#500）。
         // 捨てた局の `mode` は開始時に焼き込んだ値で出る（`game_end` の `mode` は途中で替わらない・#820）。
@@ -324,6 +341,7 @@ public final class OjisanPuzzleModel {
     private func lock(_ pair: OjisanPuzzlePair) {
         board = OjisanPuzzleBoard.locking(board, pair)
         current = nil
+        rotationBlockedOnce = false
         lastChain = 0
         chainDepth = 0
         lockCount += 1
@@ -335,8 +353,10 @@ public final class OjisanPuzzleModel {
         phase = .settling
         services?.feedback.impact(.medium)
 
-        // 荷物が増えた瞬間に腰が限界を迎えることがある。消せば減るので、判定は消し終えてからでは遅い。
-        if mode.hasGauge, OjisanPuzzlePain.isHospitalized(pain) {
+        // 入院は消える荷物の判定を先に済ませてから見る（#2063）。置いた瞬間に満タンでも、その手で消えて
+        // ゲージが下がる／ラインより下になるなら入院しない。何も消えないと分かっているときだけ、待たずにここで終える。
+        if mode.hasGauge, OjisanPuzzlePain.isHospitalized(pain),
+           OjisanPuzzleBoard.clearableGroups(OjisanPuzzleBoard.applyingGravity(board)).isEmpty {
             finish(.hospitalized)
         }
     }
@@ -365,6 +385,11 @@ public final class OjisanPuzzleModel {
         // 片付け終わったところでラインを見る（連鎖の途中や落下中の組では判定しない）。
         if let line = clearLineRow, OjisanPuzzleCleanup.isCleared(board, line: line) {
             finish(.cleared)
+            return
+        }
+        // 入院はクリアのあと（#2063）。連鎖まで消し終えても満タンのままなら入院。
+        if mode.hasGauge, OjisanPuzzlePain.isHospitalized(pain) {
+            finish(.hospitalized)
             return
         }
         spawnNext()
