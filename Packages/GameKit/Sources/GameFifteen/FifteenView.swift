@@ -168,7 +168,8 @@ struct FifteenTile: View {
     var isHint = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return shape
             .fill(isHome ? Theme.Fill.teal : Theme.Fill.yellow)
             .frame(width: side, height: side)
             .overlay {
@@ -179,7 +180,7 @@ struct FifteenTile: View {
             }
             .overlay {
                 if isHint {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    shape
                         .strokeBorder(BoardGameHintColor.color, lineWidth: 4)
                 }
             }
