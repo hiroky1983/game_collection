@@ -57,9 +57,26 @@ struct PixelArtTests {
         #expect(p.width == 6 && p.height == 4)
         #expect(p.rows == ["......", "..KY..", "..YK..", "......"])
         #expect(s.padded(width: 1, height: 1) == s, "小さい寸法なら元のまま")
-        let icon = OjisanPixel.face(.smile).padded(width: OjisanPixel.iconCanvasDots, height: OjisanPixel.iconCanvasDots)
-        #expect(icon.width == 48 && icon.height == 48)
-        #expect(OjisanPixel.mascotFaceImage?.width == 96)
+    }
+
+    /// ハブ用の顔アイコン（#2064 で Codex 製の 64×60 PNG に差し替え）は 96px 四方のまま、顔を中央に置く。
+    @Test("アイコンは 96px 四方で、Codex 製の笑顔が中央にあり四隅は透明")
+    func mascotIconCentersCodexFace() throws {
+        #expect(OjisanPixel.iconCanvasDots == 96)
+        let img = try #require(OjisanPixel.mascotFaceImage)
+        #expect(img.width == 96 && img.height == 96)
+        let ctx = try #require(CGContext(data: nil, width: 96, height: 96, bitsPerComponent: 8, bytesPerRow: 96 * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        ctx.draw(img, in: CGRect(x: 0, y: 0, width: 96, height: 96))
+        let data = try #require(ctx.data).assumingMemoryBound(to: UInt8.self)
+        func alpha(_ x: Int, _ y: Int) -> UInt8 { data[(y * 96 + x) * 4 + 3] }
+        #expect(alpha(0, 0) == 0 && alpha(95, 0) == 0 && alpha(0, 95) == 0 && alpha(95, 95) == 0)
+        #expect(alpha(48, 48) == 255, "中央に顔がある")
+        // 顔（64×60）より外側の帯（左右 16px・上下 18px）は全部透明。
+        var opaqueOutside = 0
+        for y in 0..<96 { for x in 0..<96 where x < 16 || x >= 80 || y < 18 || y >= 78 { if alpha(x, y) != 0 { opaqueOutside += 1 } } }
+        #expect(opaqueOutside == 0)
     }
 
     // MARK: 合成（#1092 のストーリーの場面が使う）
@@ -145,17 +162,30 @@ struct PixelArtTests {
     }
 
     /// リザルト用の顔（#702）は表情ぶんを起動後 1 回だけビットマップ化する。
-    @Test("リザルト用の正面顔は 1 ドット = 4px で 1 回だけ作られ、比率 16:15（32×30）を保つ")
+    @Test("リザルト用の正面顔は 64×60（1 ドット = 1px）で 1 回だけ作られ、比率 16:15 を保つ")
     func faceImagesAreCachedOnce() throws {
-        #expect(OjisanPixel.faceDotSize.width == 32 && OjisanPixel.faceDotSize.height == 30)
+        #expect(OjisanPixel.faceDotSize.width == 64 && OjisanPixel.faceDotSize.height == 60)
+        // 表示の大きさ（旧 16×15 × 倍率 pt）を変えないための割り算が割り切れること。
+        #expect(OjisanPixel.faceDotSize.width / OjisanPixel.faceResolution == 16)
+        #expect(OjisanPixel.faceDotSize.height / OjisanPixel.faceResolution == 15)
         #expect(OjisanPixel.faceImages.count == OjisanPixel.Face.allCases.count)
         for face in OjisanPixel.Face.allCases {
             let img = try #require(OjisanPixel.faceImages[face], "\(face)")
-            #expect(img.width == 128 && img.height == 120, "\(face): \(img.width)×\(img.height)")
+            #expect(img.width == 64 && img.height == 60, "\(face): \(img.width)×\(img.height)")
             // `static let` なので 2 度引いても同じビットマップ（作り直していない）。
             #expect(OjisanPixel.faceImages[face] === img, "\(face)")
         }
         #expect(OjisanPixel.faceImages[.smile] !== OjisanPixel.faceImages[.frown], "表情ごとに別のビットマップ")
+    }
+
+    /// #2064: smile / cheer / frown は Codex 製の PNG を同梱して読む（読めずに手描きへ退避していないこと）。
+    @Test("Codex 製の顔 PNG（smile・cheer・frown）が同梱され 64×60 で読める")
+    func codexFacePNGsLoad() throws {
+        for face in [OjisanPixel.Face.smile, .cheer, .frown] {
+            let img = try #require(OjisanPixel.loadFacePNG(face), "\(face) の PNG が読めない")
+            #expect(img.width == 64 && img.height == 60, "\(face): \(img.width)×\(img.height)")
+        }
+        #expect(OjisanPixel.loadFacePNG(.gaze) == nil, "gaze は PNG を持たず手描きを使う")
     }
 
     /// レビュー用: OJISAN_PIXEL_OUT にディレクトリを渡すと、全コマを 5 倍で並べた PNG を書き出す。

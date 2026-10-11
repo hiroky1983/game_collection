@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import SwiftUI
 
 // MARK: - おじさん（ドット絵）
@@ -22,6 +23,12 @@ import SwiftUI
 /// 正面顔は 32×30 ドット（ハブのカード・リザルト・ストーリーの胸像。#1349 で 16×15 から解像度を上げ、さらに会長指示で
 /// SD（ちびキャラ）寄りにデフォルメを強めた: 頭を丸く大きく、目を大きく、鼻と口を小さく、額を広く。配色・表情の意味は同じ）。
 /// 粗い版（16×15）は使うところが無くなったので #1349 で消した。
+///
+/// #2064（会長決定 2026-10-11）で、リザルト・スタート画面・アイコンの正面顔（`faceImages` / `faceImage` /
+/// `mascotIcon`）は **Codex 製の 64×60 ドット PNG**（`Resources/OjisanFace_*.png`。腰痛おじさんパズルの
+/// 作業服おじさんと同じ顔。出所は docs/design/ojisan-pixel-pipeline）に差し替えた。手描きの行データ
+/// （`face(_:)`・32×30）はストーリーの胸像（`RunnerStoryArt.bust`。場面の格子が 32×30 前提）と、
+/// PNG の無い `gaze` のために残している。
 public enum OjisanPixel {
     /// 共通パレット（SFC 風に彩度をやや落とし、暗い輪郭で締める）。
     public static let palette: [Character: UInt32] = [
@@ -91,47 +98,72 @@ public enum OjisanPixel {
 
     // MARK: ハブ・リザルト用の正面顔
 
-    /// アイコン用キャンバスの一辺（ドット）。32×30 の顔を 48×48 の中央に置き、周りの余白で
-    /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える。
-    public static let iconCanvasDots = 48
+    /// アイコン用キャンバスの一辺（ドット）。64×60 の顔（`faceDotSize`）を 96×96 の中央に置き、周りの余白で
+    /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える（#2064 以前の 32×30 を 48×48 に置いたのと同じ比率）。
+    public static let iconCanvasDots = 96
 
     /// 正面顔（笑顔）のビットマップ。起動後 1 回だけ作る（#700 の受け入れ条件: 毎表示でビットマップ化しない）。
-    /// 1 ドット = 2px で持ち（旧 16×15 の 1 ドット = 4px と同じ 96px 四方）、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
-    public static let mascotFaceImage: CGImage? =
-        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 2)
+    /// 1 ドット = 1px の 96px 四方で持ち（#2064 以前と同じ 96px 四方）、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
+    public static let mascotFaceImage: CGImage? = faceImages[.smile].flatMap {
+        centered($0, canvas: iconCanvasDots)
+    }
 
     /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
     /// 呼び出し側は SF Symbol と同じく `.font(...)` で大きさを決めているが、ビットマップには効かないので
     /// `resizable` で枠（44pt・36pt・32pt、iPad では `layout.scaled` で拡大）に追従させる。
-    /// `interpolation(.none)` でにじませない（枠 44pt で 1 ドット ≒ 1.8pt。整数倍でなくてもドットの縁は立つ）。
+    /// `interpolation(.none)` でにじませない（枠 44pt で 1 ドット ≒ 0.46pt。3x の画面で 1 ドット ≒ 1.4px なので欠けない）。
     public static var mascotIcon: Image {
         guard let cg = mascotFaceImage else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
     }
 
-    // MARK: リザルト・スタート画面用の正面顔（#702）
+    // MARK: リザルト・スタート画面用の正面顔（#702・#2064）
 
     /// 高解像度化前（16×15）に対する正面顔の細かさ（縦横とも何倍か）。表示の大きさは旧来の
     /// 「16 ドット × 倍率 pt」のままにしたいので、`faceDotSize` を `faceResolution` で割って枠を切る。
-    public static let faceResolution = 2
+    /// #1349 で 2（32×30）、#2064 で Codex 製の 64×60 に替えて 4。
+    public static let faceResolution = 4
 
-    /// 正面顔のドット数（幅 32 × 高さ 30）。表示側はこの比率で枠を切る（`faceImage` の doc）。
+    /// 正面顔のドット数（幅 64 × 高さ 60）。表示側はこの比率で枠を切る（`faceImage` の doc）。
     public static let faceDotSize: (width: Int, height: Int) = (width: 16 * faceResolution, height: 15 * faceResolution)
 
-    /// 表情ごとのビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
-    /// 1 度だけ評価される）。1 ドット = 4px（128×120px）で持ち、
-    /// 表示側で縮尺する。
+    /// 表情ごとのビットマップ（1 ドット = 1px の 64×60px）。`static let` なので起動後の初回参照で 1 度だけ作る。
+    ///
+    /// smile / cheer / frown は Codex 製の PNG（`Resources/OjisanFace_*.png`・#2064）を ImageIO で読む
+    /// （GameKit は macOS でも `swift test` するので UIImage は使わない。腰痛おじさんパズルの `OjisanPuzzleArt` と同じ作法）。
+    /// PNG の無い `gaze` と、PNG が読めなかったときは、手描きの 32×30（`face(_:)`）を 2 倍にして同じ 64×60 に揃える。
     public static let faceImages: [Face: CGImage] = {
         var out: [Face: CGImage] = [:]
-        for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 4) }
+        for face in Face.allCases {
+            out[face] = loadFacePNG(face) ?? Self.face(face).cgImage(scale: 2)
+        }
         return out
     }()
+
+    /// Codex 製の顔 PNG（smile / cheer / frown）。PNG の無い表情・読めないときは nil。
+    static func loadFacePNG(_ face: Face) -> CGImage? {
+        guard face != .gaze,
+              let url = Bundle.module.url(forResource: "OjisanFace_\(face.rawValue)", withExtension: "png"),
+              let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(src, 0, nil)
+    }
+
+    /// `image` を `canvas` 四方の透明キャンバスの中央に置く（拡大縮小はしない）。
+    private static func centered(_ image: CGImage, canvas: Int) -> CGImage? {
+        guard let ctx = CGContext(data: nil, width: canvas, height: canvas, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .none
+        ctx.draw(image, in: CGRect(x: (canvas - image.width) / 2, y: (canvas - image.height) / 2,
+                                   width: image.width, height: image.height))
+        return ctx.makeImage()
+    }
 
     /// リザルト（クリア・ミス）とスタート画面に出す正面顔（#702）。
     ///
     /// 装飾（`Image(decorative:)`）なので VoiceOver は読まない。`resizable` + `interpolation(.none)` で
     /// にじませない。呼び出し側は `faceDotSize` ÷ `faceResolution` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt。
-    /// 1 ドット = 2pt）。比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
+    /// 1 ドット = 1pt）。比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
     public static func faceImage(_ face: Face) -> Image {
         guard let cg = faceImages[face] else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)

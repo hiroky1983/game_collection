@@ -257,8 +257,9 @@ enum RunnerStoryArt {
             .overlaying(body, x: 0, y: head.height - 12)
     }
 
-    /// バストアップの高さ（顔 90 + 肩 28 − 重ね 12）。
-    static let bustHeight = OjisanPixel.faceDotSize.height * 3 + 28 - 12
+    /// バストアップの高さ（顔 90 + 肩 28 − 重ね 12）。リザルトの顔は #2064 で Codex 製の 64×60 PNG
+    /// （`OjisanPixel.faceDotSize`）に替わったが、場面の格子は 32×30 前提なので胸像は手描きの行データの高さで決める。
+    static let bustHeight = OjisanPixel.face(.smile).height * 3 + 28 - 12
 
     /// バストアップの上端（下端がコマの下端にちょうど接する位置）。
     static var bustY: Int { panelHeight - bustHeight }
