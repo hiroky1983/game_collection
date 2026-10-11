@@ -61,7 +61,7 @@ public enum OjisanPuzzleCleanup {
     /// 荷物が 1 段せり上がる間隔（ミリ秒）。会長確認前の案。
     public static let riseIntervalMilliseconds = 40_000
     /// 開始時の各列の積み高さ（段数）の幅。
-    public static let initialHeights = 4...6
+    public static let initialHeights = 5...7
 
     /// 一番上の荷物がある行。荷物が 1 つも無ければ nil。
     public static func topLuggageRow(_ board: [[Int]]) -> Int? {
