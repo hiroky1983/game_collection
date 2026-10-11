@@ -9,6 +9,28 @@ public enum OjisanPuzzleDrag {
     /// これ以下の指の移動はタップ（＝回す）とみなす。
     public static let tapSlack: CGFloat = 12
 
+    /// 1 本のドラッグが受け持つ向き。
+    public enum Axis: Sendable, Equatable {
+        case horizontal
+        case vertical
+    }
+
+    /// 向きを決めるのに、優勢な側が劣勢な側の何倍以上動いている必要があるか。接戦のうちは決めない。
+    public static let axisDominance: CGFloat = 1.5
+
+    /// ドラッグの向きを決める。タップの遊び（`tapSlack`）を超え、かつ片方がはっきり優勢になるまでは決めない。
+    ///
+    /// **下へ素早く払うと指は必ず横にも流れる**。向きを決めずに両方拾うと、着地の直前に荷物が横へずれる（#2063）。
+    /// 決めたら指を離すまで変えない（View 側が控える）。縦は下向きのときだけ決める（上スワイプには何も割り当てて
+    /// いないので、最初に上へ動いたせいで、そのあとの横移動を捨てない）。
+    public static func axis(for translation: CGSize) -> Axis? {
+        let width = abs(translation.width)
+        let height = abs(translation.height)
+        if width >= tapSlack, width >= height * axisDominance { return .horizontal }
+        if translation.height >= tapSlack, translation.height >= width * axisDominance { return .vertical }
+        return nil
+    }
+
     /// 指の移動量が何マスぶんか。`step` は 1 マスぶんの距離。
     ///
     /// 端数は切り捨てる（半マスぶん動かしただけでは動かさない）。左が負・右が正。
