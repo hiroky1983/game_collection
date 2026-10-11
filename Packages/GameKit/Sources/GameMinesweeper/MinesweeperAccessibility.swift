@@ -16,7 +16,8 @@ public enum MinesweeperAccessibility {
         col: Int,
         cell: MinesweeperCell,
         isHit: Bool,
-        gameOver: Bool
+        gameOver: Bool,
+        isHinted: Bool = false
     ) -> String {
         var parts = ["\(row + 1)行\(col + 1)列"]
         if cell.isRevealed {
@@ -37,6 +38,8 @@ public enum MinesweeperAccessibility {
         } else {
             parts.append("未開放")
         }
+        // ヒントで光らせているマス（#2024）。色の枠だけでは VoiceOver に伝わらない。
+        if isHinted { parts.append("ヒント、安全なマス") }
         return parts.joined(separator: "、")
     }
 

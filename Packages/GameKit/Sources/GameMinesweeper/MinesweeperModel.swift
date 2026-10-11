@@ -109,6 +109,16 @@ struct MinesweeperSnapshot: Codable {
     /// この局で広告コンティニューを使ったか（#657）。再起動でコンティニュー権が復活しないよう保存する
     /// （2048 の `continueUsed` と同じ理由）。旧形式には無いので optional で、無ければ未使用として読む。
     var continueUsed: Bool? = nil
+
+    /// この局で使ったヒントの回数（#2024）。再開で回数が戻らないよう保存する。旧形式には無いので optional で、無ければ 0 として読む。
+    var hintsUsed: Int? = nil
+}
+
+/// ヒントの回数（会長決裁 2026-10-11・#2024）。1 盤 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回。
+/// コンティニューとは別の回数。
+public enum MinesweeperHintPolicy {
+    public static let freeCount = 1
+    public static let adRefillMax = 3
 }
 
 @MainActor
@@ -141,6 +151,12 @@ public final class MinesweeperModel {
     /// Model を通らないため切り替えの手応えが鳴らなかった（#761）。ナンプレの `noteMode` と同じ形。
     /// 中断データには書かない（再開時はオフ）。
     public private(set) var flagMode = false
+    /// この局のヒントの残り（#2024）。無料 1 回・広告で最大 3 回。回数と順位表の扱いは Core の `BoardHintBudget` が持つ。
+    public private(set) var hints = BoardHintBudget(
+        freeLimit: MinesweeperHintPolicy.freeCount, adLimit: MinesweeperHintPolicy.adRefillMax
+    )
+    /// ヒントで光らせているマス（#2024）。永続化しない（中断データに残すのは使った回数だけ）。
+    private var hintTarget: MinesweeperPoint?
 
     /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
     private let stopwatch = GameStopwatch(persistInterval: MinesweeperModel.persistInterval)
@@ -193,7 +209,8 @@ public final class MinesweeperModel {
             variant: recordVariant,
             variantLabel: recordVariantLabel,
             // コンティニューを使った局は順位表に送らない。自己ベストには残す（#657）。
-            isLeaderboardEligible: !continueUsed
+            // ヒントを使った局も送らない（#2024。コンティニューと同じ理由）。
+            isLeaderboardEligible: !continueUsed && !hints.wasUsed
         )
     }
 
@@ -231,6 +248,10 @@ public final class MinesweeperModel {
             // 未使用に倒すと、v1.1.4 で使った局に2回目のコンティニューと順位表送信が通る。
             self.continueUsed = snap.continueUsed
                 ?? snap.cells.contains { $0.contains(where: \.isContinuedMine) }
+            self.hints = BoardHintBudget(
+                used: snap.hintsUsed ?? 0,
+                freeLimit: MinesweeperHintPolicy.freeCount, adLimit: MinesweeperHintPolicy.adRefillMax
+            )
         } else {
             self.rows       = rows
             self.cols       = cols
@@ -256,6 +277,8 @@ public final class MinesweeperModel {
         self.recordResult = nil
         self.continueUsed = false
         self.flagMode   = false
+        self.hints.reset()
+        self.hintTarget = nil
         persist()
     }
 
@@ -426,6 +449,105 @@ public final class MinesweeperModel {
         }
     }
 
+    // MARK: - ヒント（#2024）
+
+    /// ヒントの結果。View が読み上げに使う。
+    public enum HintOutcome: Equatable, Sendable {
+        /// 理屈で安全と言えるマスを光らせた（開けるのはプレイヤー）。
+        case highlighted(MinesweeperPoint)
+        /// 理屈で決まるマスが無かったので、安全なマスを 1 つ開けた。
+        case revealed(MinesweeperPoint)
+    }
+
+    /// 光らせているマス。**開く前・旗を立てる前のマスだけ**を返す（盤が動いても印が嘘にならないよう、読むたびに確かめる）。
+    public var hintPoint: MinesweeperPoint? {
+        guard gameState == .playing, let p = hintTarget, contains(row: p.row, col: p.col) else { return nil }
+        let cell = cells[p.row][p.col]
+        return !cell.isRevealed && !cell.isFlagged ? p : nil
+    }
+
+    /// 残り回数（無料 + 広告の合計）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// いまヒントを押せるか。**遊んでいる最中だけ**（最初の 1 手の前・決着後は不可）で、残りが在るとき。
+    public var canUseHint: Bool { gameState == .playing && !hints.isExhausted }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    /// 無料の 1 回を使う。広告が要るとき・押せないときは何も変えずに nil。
+    @discardableResult
+    public func useHint() -> HintOutcome? {
+        guard canUseHint, !needsAdForHint else { return nil }
+        return applyHint { hints.consume() }
+    }
+
+    /// 広告の視聴完了後に呼ぶ 1 回（広告を出す前に控えた `gameSerial` の局にだけ適用する・#729 と同じ）。
+    /// - Returns: 適用できたか。false のとき View は「ヒントを出せなかった」と知らせる。
+    public func useAdHint(forGame serial: Int) -> Bool {
+        guard serial == gameSerial, canUseHint, needsAdForHint else { return false }
+        return applyHint { hints.consumeAd() } != nil
+    }
+
+    /// 答えを求め、回数を 1 つ消費して反映する。**答えが無いときは回数を減らさない**。
+    private func applyHint(consume: () -> Bool) -> HintOutcome? {
+        let outcome: HintOutcome
+        if let safe = MinesweeperHint.safeCells(in: observations()).first {
+            guard consume() else { return nil }
+            hintTarget = safe
+            outcome = .highlighted(safe)
+        } else if let guess = guessCell() {
+            guard consume() else { return nil }
+            hintTarget = nil
+            // 旗が間違って立っている安全マスしか残っていないときだけ、旗を外してから開ける。
+            if cells[guess.row][guess.col].mark != .none {
+                if cells[guess.row][guess.col].isFlagged { flagCount -= 1 }
+                cells[guess.row][guess.col].mark = .none
+            }
+            floodReveal(row: guess.row, col: guess.col)
+            settleAfterReveal()
+            outcome = .revealed(guess)
+        } else {
+            return nil
+        }
+        services?.gameDidUseHint(gameID: gameID)
+        if case .highlighted = outcome { services?.feedback.impact(.light) }
+        persist()
+        return outcome
+    }
+
+    /// 推論に渡す盤の見え方。**地雷の場所は含めない**。
+    func observations() -> [[MinesweeperHint.Observation]] {
+        cells.map { row in
+            row.map { cell in
+                if cell.isRevealed { return .number(cell.adjacentMines) }
+                return cell.isFlagged ? .flagged : .hidden
+            }
+        }
+    }
+
+    /// 運任せの局面で開ける安全なマス。開いているマスに接するものを優先し、旗の立っていないものを先に選ぶ。
+    /// **ここだけ `isMine` を見る**（仕様 2・会長承認済み）。
+    private func guessCell() -> MinesweeperPoint? {
+        var fallback: MinesweeperPoint?
+        var flaggedFallback: MinesweeperPoint?
+        for r in 0..<rows {
+            for c in 0..<cols {
+                let cell = cells[r][c]
+                guard !cell.isRevealed, !cell.isMine else { continue }
+                let p = MinesweeperPoint(row: r, col: c)
+                if cell.isFlagged {
+                    flaggedFallback = flaggedFallback ?? p
+                } else if neighbors(row: r, col: c).contains(where: { cells[$0.row][$0.col].isRevealed }) {
+                    return p
+                } else {
+                    fallback = fallback ?? p
+                }
+            }
+        }
+        return fallback ?? flaggedFallback
+    }
+
     // MARK: - Continue
 
     /// コンティニューを提案できるか。地雷を踏んで負けた直後で、この局でまだ使っていないときだけ（#657）。
@@ -551,7 +673,8 @@ public final class MinesweeperModel {
             flagCount: flagCount,
             revealedCount: revealedCount,
             elapsedSeconds: elapsedSeconds,
-            continueUsed: continueUsed
+            continueUsed: continueUsed,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

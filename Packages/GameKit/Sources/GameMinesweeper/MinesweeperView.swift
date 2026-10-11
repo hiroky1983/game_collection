@@ -11,6 +11,8 @@ public struct MinesweeperView: View {
     @State private var showGiveUpConfirm = false
     /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var continueRescue = RewardedRescue()
+    /// ヒントの広告の段取り（#2024）。コンティニューとは別の救済として持つ。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -90,8 +92,16 @@ public struct MinesweeperView: View {
         )
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、ヒントを出せませんでした。"
+            )
+        )
         .gameTimerLifecycle(
-            rescues: [continueRescue],
+            rescues: [continueRescue, hintRescue],
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -163,7 +173,59 @@ public struct MinesweeperView: View {
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },
-        ])
+        ], actions: [hintAction], nudge: hintNudge)
+    }
+
+    /// 盤の下の「操作の段」のヒント（#2024・#1856）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !hintRescue.isWatching,
+            // 専用の読み上げ文を渡すと 2 行目は読まれないので、広告が要ることを文に含める。
+            accessibilityLabel: model.needsAdForHint
+                ? "ヒント（広告を見て表示）"
+                : "ヒント（残り\(free)回）",
+            accessibilityHint: model.gameState == .idle
+                ? "最初のマスを開くと使えます"
+                : "理屈で安全と言えるマスを光らせます。決まるマスが無いときは安全なマスを1つ開けます"
+        ) { requestHint() }
+    }
+
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canUseHint && !hintRescue.isWatching && !showContinue,
+            game: model.gameSerial,
+            activity: [model.revealedCount, model.flagCount, model.hints.used]
+        )
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま出し、使い切っていたら広告を見終えてから答えを求める（#2024）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        if model.needsAdForHint {
+            let game = model.gameSerial
+            hintRescue.request(
+                services, gameID: model.gameID, purpose: .hint,
+                guardedBy: .checkedByGrant
+            ) {
+                model.useAdHint(forGame: game)
+            }
+        } else {
+            announce(model.useHint())
+        }
+    }
+
+    /// 開けたマスは画面の変化で伝わるが、VoiceOver には一言添える。
+    private func announce(_ outcome: MinesweeperModel.HintOutcome?) {
+        guard let outcome else { return }
+        switch outcome {
+        case .highlighted(let p):
+            AccessibilityNotification.Announcement("ヒント、\(p.row + 1)行\(p.col + 1)列は安全です").post()
+        case .revealed(let p):
+            AccessibilityNotification.Announcement("決まるマスが無いため、\(p.row + 1)行\(p.col + 1)列を開きました").post()
+        }
     }
 
     // MARK: - Continue Overlay
@@ -391,6 +453,13 @@ public struct MinesweeperView: View {
                 .padding(0.7)
             cellContent(cell: cell, isHit: isHit, size: size)
             revealLid(cell: cell)
+            if model.hintPoint == MinesweeperPoint(row: row, col: col) {
+                // ヒントの印（紫の枠・#2024）。マスの中に収めるので盤の寸法は変わらない。
+                Rectangle()
+                    .strokeBorder(BoardGameHintColor.color, lineWidth: max(2, size * 0.12))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(width: size, height: size)
         // 連鎖で開いたマスは、タップ地点からの波のぶんだけ遅らせて蓋を外す（#203）。
@@ -416,7 +485,8 @@ public struct MinesweeperView: View {
         // `children: .ignore` にしないと数字だけが読まれ、旗や未開放が伝わらない。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(MinesweeperAccessibility.cellLabel(
-            row: row, col: col, cell: cell, isHit: isHit, gameOver: model.gameOver
+            row: row, col: col, cell: cell, isHit: isHit, gameOver: model.gameOver,
+            isHinted: model.hintPoint == MinesweeperPoint(row: row, col: col)
         ))
         .accessibilityHint(MinesweeperAccessibility.cellHint(
             flagMode: model.flagMode,
