@@ -83,6 +83,16 @@
   2026-10-07 に生成。
 - `outfit-pixel/` 以下のドット化・画面モック: すべて Claude のスクリプト（`make_outfit_pixel.py` 等）による
   機械的な変換で、新規の絵は描いていない。
+- **入院のベッドと共通の正面顔（#2064・会長決定 2026-10-11）**: 2026-10-07 に Codex で生成した 1 枚絵
+  （`source.png`・1536×1024。ベッドで寝るおじさん `hospital_01〜03` と表情一覧 `faces` を含む。scratchpad の
+  `codex-pixel/` に置いた生成物で、リポジトリには上げていない）から、`face-bed-2064/make_v3_px.py` で切り出して
+  ドット化したもの。手法は `outfit-pixel/make_outfit_pixel.py` の流用（`pxlib.py` を import する）で、絵は描き直して
+  いない。スクリプト内のパスは生成時の一時ディレクトリ前提なので、そのままでは再実行できない参考コードとして置く。
+  アプリに入れたのは次の 4 枚（利用可否は下と同じ Codex 生成物の扱い）:
+  - `Packages/GameKit/Sources/GameOjisanPuzzle/Resources/OjisanWork_hospital_bed.png`（ベッド案1・`bed_01_64`・83×64。
+    腰痛おじさんパズルの入院の結果に 1 ドット = 2pt で出す）
+  - `Packages/GameKit/Sources/Core/Resources/OjisanFace_{smile,cheer,frown}.png`（`face_*_64x60`・64×60。チャリンコ
+    おじさんのリザルト・スタート画面の顔、`OjisanPixel.faceImages`）
 
 **利用可否（2026-10-07 確認・#1909）**: Codex を個人の ChatGPT アカウントでログインして使った画像生成は、ChatGPT と同じ
 OpenAI Terms of Use＋Service Terms の対象（[Codex のヘルプ](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan)）。
