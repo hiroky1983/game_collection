@@ -24,6 +24,8 @@ public struct FreeCellView: View {
     @State private var showUndoRefillPrompt = false
     /// 「戻す」補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒント（無料 3 回を使い切った後の広告）の段取り（#2025）。読みと広告はモデルが 1 本の非同期メソッドで持つ。
+    @State private var hintRescue = RewardedRescue()
     /// 拡大モード（#604）。既定は等倍で、**盤全体を一望できる性質を既定から取り上げない**。
     /// フリーセルは全札が表向きで、どこに何があるかを見渡せることが読みの前提になる。
     @State private var zoomMode = false
@@ -88,6 +90,11 @@ public struct FreeCellView: View {
             } message: {
                 Text("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。")
             }
+            .alert("この盤からは勝てません", isPresented: hopelessBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+            }
             .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
                 Button("広告を見て\(FreeCellUndoBudget.refill)回補充する") { requestUndoRefill() }
                 Button("キャンセル", role: .cancel) {}
@@ -105,8 +112,23 @@ public struct FreeCellView: View {
                 message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
             )
         )
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+            )
+        )
         .overlay {
             if model.showsDeadEndPrompt { deadEndOverlay }
+        }
+        // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
+        .onChange(of: model.hintMove) { _, move in
+            guard let move else { return }
+            AccessibilityNotification.Announcement(
+                FreeCellAccessibility.hintLabel(move: move, board: model.board)
+            ).post()
         }
         .task {
             model.resumeTimerIfNeeded()
@@ -119,6 +141,10 @@ public struct FreeCellView: View {
             if ProcessInfo.processInfo.arguments.contains("-freecellDeadEnd") {
                 model.applyDeadEndPreviewForTesting()
             }
+            // ヒントの印（#2025）。シミュレータは自動タップができないため、起動引数から無料の 1 回を押した状態にする。
+            if ProcessInfo.processInfo.arguments.contains("-freecellHint") {
+                await model.requestHint()
+            }
             // 拡大モード（#604）はトグルを押さないと入れないが、シミュレータは自動タップが
             // できないため、起動引数から直接その状態にして撮る。
             if ProcessInfo.processInfo.arguments.contains("-freecellZoom") {
@@ -129,10 +155,14 @@ public struct FreeCellView: View {
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
-            rescues: [undoRescue],
+            rescues: [undoRescue, hintRescue],
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
+    }
+
+    private var hopelessBinding: Binding<Bool> {
+        Binding(get: { model.showsHintHopeless }, set: { if !$0 { model.dismissHintHopeless() } })
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。
@@ -418,13 +448,16 @@ public struct FreeCellView: View {
         let isSelected = model.selection == .cell(cell)
         return Group {
             if let card {
-                FreeCellCardBody(card: card, isSelected: isSelected, coveredIndex: nil, metrics: metrics)
+                FreeCellCardBody(card: card, isSelected: isSelected,
+                                 isHinted: model.hintSource == .cell(cell),
+                                 coveredIndex: nil, metrics: metrics)
                     .matchedGeometryEffect(id: motionID(card), in: cardMotion)
                     .opacity(drag?.source == .cell(cell) ? 0.35 : 1)
             } else {
                 CardSlot(metrics: metrics, systemImage: "tray")
             }
         }
+        .overlay { hintDestinationFrame(model.hintDestination == .cell(cell), metrics: metrics) }
         .cardDropTarget(FreeCellDropTarget.cell(cell), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapCell(cell) }
@@ -449,6 +482,7 @@ public struct FreeCellView: View {
                 CardSlot(metrics: metrics, suitSymbol: suit.symbol)
             }
         }
+        .overlay { hintDestinationFrame(model.hintDestination == .foundation(suit), metrics: metrics) }
         .cardDropTarget(FreeCellDropTarget.foundation(suit), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapFoundation(suit) }
@@ -497,6 +531,11 @@ public struct FreeCellView: View {
                     .padding(.top, restY)
             }
         }
+        // 行き先の列は、いちばん上の札（空列なら枠）に点線を重ねて示す（#2025）。
+        .overlay(alignment: .top) {
+            hintDestinationFrame(model.hintDestination == .pile(pile), metrics: metrics)
+                .padding(.top, CGFloat(max(column.count - 1, 0)) * step)
+        }
         // 押せる範囲（ドロップ枠を含む）は**盤の下端まで**伸ばす。札の無い下の空きを押しても
         // この列を押したことになり、小さい札を狙わなくてよい。
         .frame(width: metrics.width, height: max(height, stack.reachHeight), alignment: .top)
@@ -527,6 +566,10 @@ public struct FreeCellView: View {
     ) -> some View {
         let isSelected = model.selection == .tableau(pile: pile, cardIndex: index)
         let isMovable = model.board.isOrderedRun(pile: pile, from: index)
+        let isHinted: Bool = {
+            guard case .tableau(let hintPile, let hintIndex) = model.hintSource else { return false }
+            return hintPile == pile && index >= hintIndex
+        }()
         return FreeCellDealtCardView(
             pile: pile, depth: index, restY: restY,
             metrics: metrics, dealing: model.isFreshDeal
@@ -534,6 +577,7 @@ public struct FreeCellView: View {
             FreeCellCardBody(
                 card: card,
                 isSelected: isSelected,
+                isHinted: isHinted,
                 // いちばん上の 1 枚だけが札の全体を出す。下に重なった札は段差ぶんの帯しか
                 // 見えないため、中央寄せの面を出すと数字が隠れて何の札か読めなくなる。
                 coveredIndex: index < column.count - 1 ? stack.index : nil,
@@ -619,7 +663,51 @@ public struct FreeCellView: View {
                 accessibilityHint: FreeCellAccessibility.undoButtonHint(
                     canUndo: model.canUndo, remaining: model.undosRemaining)
             ) { requestUndo() },
-        ])
+            hintAction,
+        ], nudge: hintNudge)
+    }
+
+    /// 盤の下の「操作の段」のヒント（#2025・#1856）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !hintRescue.isWatching,
+            accessibilityLabel: FreeCellAccessibility.hintButtonLabel(
+                freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
+            accessibilityHint: "次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです"
+        ) { requestHint() }
+    }
+
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canUseHint && !hintRescue.isWatching,
+            game: model.dealSerial,
+            activity: [model.moveCount, model.hints.used]
+        )
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま読み、使い切っていたら読んでから広告を出す（#2025）。
+    /// 読みは画面を離れたら取り消す（離脱後に確定すると回数・解析・中断データが動く・#1903）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        if model.needsAdForHint {
+            hintRescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+        } else {
+            services.screenGeneration.runUntilLeave { await model.requestHint() }
+        }
+    }
+
+    /// 行き先を示す点線の枠（#2025）。札 1 枚ぶんの大きさ。
+    @ViewBuilder private func hintDestinationFrame(_ isOn: Bool, metrics: PlayingCardMetrics) -> some View {
+        if isOn {
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .strokeBorder(BoardGameHintColor.color, style: StrokeStyle(lineWidth: 3, dash: [6, 4]))
+                .frame(width: metrics.width, height: metrics.height)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     // MARK: - 行き止まりの告知

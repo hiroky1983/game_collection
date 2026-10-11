@@ -411,7 +411,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 5, "広告をモデルで抱えている4面（ブラックジャック・ポーカー・麻雀・ルーレット #1318）。麻雀は復活と最終局延長（#1201）の2か所")
+        #expect(withOutcome == 6, "広告をモデルで抱えている5面（ブラックジャック・ポーカー・麻雀・ルーレット #1318・フリーセルのヒント #2025）。麻雀は復活と最終局延長（#1201）の2か所")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }
@@ -423,6 +423,7 @@ struct RewardGuardCallSiteTests {
         // モデルが広告ごと持っている面（`requestHandledByModel` 側）だけが直に呼んでよい。
         // 将棋・チェス・五目並べ・オセロのヒント（無料枠を使い切った後・#1500・#2011）も、広告の視聴完了後に
         // CPU の読みを始める必要があり分けられないため、モデルが直に呼ぶ側に入る。
+        // フリーセルのヒント（#2025）は広告の前に勝てない盤かを読み、見終えたところで適用するので同じ側。
         let callers = try Self.gameSources()
             .filter { $0.text.contains("showRewardedAd(") }
             .map(\.path)
@@ -430,6 +431,7 @@ struct RewardGuardCallSiteTests {
         #expect(callers == [
             "GameBlackjack/BlackjackModel.swift",
             "GameChess/ChessGameModel.swift",
+            "GameFreeCell/FreeCellModel.swift",
             "GameGomoku/GomokuModel.swift",
             "GameMahjong/MahjongModel.swift",
             "GameOthello/OthelloModel.swift",

@@ -94,7 +94,7 @@ struct GameActionRowTests {
         ("GameConcentration", ["matta"], []),
         ("GameSolitaire", ["undo"], ["joker", "autoFinish"]),
         ("GameSpider", ["undo"], ["deal", "zoom"]),
-        ("GameFreeCell", ["undo"], ["zoom", "autoFinish"]),
+        ("GameFreeCell", ["undo", "hint"], ["zoom", "autoFinish"]),
         // 麻雀ソリティア・ナンプレの戻すは回数制（無料のあと広告で補充・#1855）なので段。
         ("GameMahjongSolitaire", ["undo", "hint", "shuffle"], ["zoom"]),
         ("GameSudoku", ["undo", "hint"], ["note", "giveUp"]),
