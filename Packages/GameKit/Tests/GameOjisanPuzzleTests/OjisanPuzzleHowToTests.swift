@@ -4,7 +4,7 @@ import GameKitTestSupport
 @testable import GameOjisanPuzzle
 
 /// 図入りの遊び方（#2044 の先駆け・会長決定 2026-10-12）。
-@Suite("腰痛おじさんパズルの遊び方")
+@Suite("おじさんの荷物運びパズルの遊び方")
 @MainActor
 struct OjisanPuzzleHowToTests {
     @Test("項目ごとに図が 1 つずつある（文と図の数がずれない）")

@@ -41,7 +41,7 @@ let package = Package(
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
-        // 腰痛おじさんパズル（#1016・v1.1.11 でハブに公開 #1904）。
+        // おじさんの荷物運びパズル（#1016・v1.1.11 でハブに公開 #1904）。
         .library(name: "GameOjisanPuzzle", targets: ["GameOjisanPuzzle"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
@@ -130,7 +130,7 @@ let package = Package(
         // 花札こいこい（#495）。札の絵柄・役の判定・CPU はすべて純粋ロジックなので
         // Core だけに依存する。麻雀牌のような共有描画基盤は持たない（花札は他ゲームと札を共有しない）。
         .target(name: "GameHanafuda",       dependencies: ["Core", "CoreEngine"]),
-        // 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）。連結判定・消去・重力・連鎖は SwiftUI 非依存の純粋ロジックなので
+        // おじさんの荷物運びパズル（#1016・v1.1.11 で公開 #1904）。連結判定・消去・重力・連鎖は SwiftUI 非依存の純粋ロジックなので
         // Core だけに依存する（乱数の `SplitMix64` を純ロジックのファイルから直に使うので CoreEngine も）。
         .target(name: "GameOjisanPuzzle",   dependencies: ["Core", "CoreEngine"],
                 // 作業服おじさんの全身ドット絵 4 コマ（#1909。Codex 製・出所は docs/design/ojisan-pixel-pipeline）。

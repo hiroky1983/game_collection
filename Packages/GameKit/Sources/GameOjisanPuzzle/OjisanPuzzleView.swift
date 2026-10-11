@@ -1,7 +1,7 @@
 import SwiftUI
 import Core
 
-/// 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）のプレイ画面。
+/// おじさんの荷物運びパズル（#1016・v1.1.11 で公開 #1904）のプレイ画面。
 ///
 /// 盤の描画は `OjisanPuzzleModel.displayBoard`（盤 + 落下中の組）をそのまま並べるだけで、
 /// 判定は一切持たない。操作は下のボタン列から Model の受け口を叩く。
@@ -93,7 +93,7 @@ public struct OjisanPuzzleView: View {
             showResult = true
         }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
-        .gameChrome(title: "腰痛おじさんパズル", review: services.review,
+        .gameChrome(title: "おじさんの荷物運びパズル", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         if model.hasProgress {
                             showConfirmNewGame = true

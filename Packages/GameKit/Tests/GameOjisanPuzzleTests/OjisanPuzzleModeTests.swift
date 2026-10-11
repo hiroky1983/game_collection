@@ -5,7 +5,7 @@ import CoreTestSupport
 @testable import GameOjisanPuzzle
 
 /// 遊び方（腰痛モード / パズルモード・#1920）ごとの終わり方・記録・解析。
-@Suite("腰痛おじさんパズルの遊び方")
+@Suite("おじさんの荷物運びパズルの遊び方")
 @MainActor
 struct OjisanPuzzleModeTests {
     private func services(_ log: PlayLog? = nil) -> GameServices {
