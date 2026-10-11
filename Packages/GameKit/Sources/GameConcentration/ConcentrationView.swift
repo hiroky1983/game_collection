@@ -9,6 +9,8 @@ public struct ConcentrationView: View {
     @State private var showMattaConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告の段取り（#2026）。「待った」とは別の救済として持つ。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -120,8 +122,24 @@ public struct ConcentrationView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったか、手番が変わったため、戻せませんでした。"
             )
         )
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、札の状況が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。"
+            )
+        )
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
+        }
+        // 相方の札を光らせる時間は Model が返し、ここは待って消すだけ（スピードの待ちと同じ形）。
+        .task(id: model.hintRun) {
+            guard let wait = model.hintGlowDuration else { return }
+            let run = model.hintRun
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled else { return }
+            model.finishHint(run: run)
         }
         // CPUのミスマッチは doCPUTurn が自前でクリアするため onChange 不要
     }
@@ -166,6 +184,7 @@ public struct ConcentrationView: View {
         // 面がグレー → ティールに変わるのに加えて 2 行目の「今だけ！」で知らせる（以前は行の左端の文字）。
         GameOverflowBar(
             actions: [
+                hintAction,
                 GameActionItem(
                     id: "matta", title: "待った",
                     systemImage: "arrow.uturn.backward", role: .undo,
@@ -179,8 +198,49 @@ public struct ConcentrationView: View {
                     showMattaConfirm = true
                 }
             ],
-            verticalPadding: Self.controlRowPadding
+            verticalPadding: Self.controlRowPadding,
+            nudge: HintNudge(
+                isEligible: model.canUseHint && !hintRescue.isWatching,
+                game: model.gameSerial,
+                activity: [model.hints.used, model.firstFlippedIndex ?? -1]
+            )
         )
+    }
+
+    /// 盤の下の段のヒント（#2026）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !hintRescue.isWatching,
+            accessibilityLabel: model.needsAdForHint
+                ? "ヒント（広告を見て表示）"
+                : "ヒント（残り\(free)回）",
+            accessibilityHint: model.firstFlippedIndex == nil
+                ? "自分の番で1枚目をめくると使えます"
+                : "1枚目の札の相方を、少しのあいだ光らせます"
+        ) { requestHint() }
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま出し、使い切っていたら広告を見終えてから出す（広告は押下起点）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        guard model.needsAdForHint else {
+            if model.requestHint() {
+                AccessibilityNotification.Announcement("ヒント、光っている札が相方です").post()
+            }
+            return
+        }
+        // どの局のどの札に対する広告かを出す前に控え、見ているあいだに状況が変わったら適用しない。
+        let game = model.gameSerial
+        let first = model.firstFlippedIndex
+        hintRescue.request(
+            services, gameID: model.gameID, purpose: .hint,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantAdHint(forGame: game, first: first)
+        }
     }
 
     // MARK: - Card Grid
@@ -211,7 +271,8 @@ public struct ConcentrationView: View {
                         CardView(
                             card: card,
                             isLastMatched: model.lastMatchedIndices.contains(card.id),
-                            isMismatched: model.mismatchedIndices.contains(card.id)
+                            isMismatched: model.mismatchedIndices.contains(card.id),
+                            isHint: model.hintIndex == card.id
                         )
                         .onTapGesture { tapCard(card.id) }
                         .accessibilityAddTraits(model.isHumanTurn ? .isButton : [])
@@ -311,8 +372,13 @@ private struct CardView: View {
     let card: ConcentrationCard
     let isLastMatched: Bool
     let isMismatched: Bool
+    /// ヒントが示している相方の札（#2026）。
+    var isHint = false
 
     private var isFaceUp: Bool { card.isFaceUp || card.isMatched }
+
+    /// 札の角丸。ヒントの枠と表の面で同じ形を使う（数字の角丸を増やさない・#1413）。
+    private var cardShape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
 
     /// 図案の一辺。札の短い辺に対する比で置き、盤面サイズに追従させる
     /// （絵文字は 28pt 固定だったため、8ペアの大きい札では小さく、18ペアでは詰まって見えた）。
@@ -327,12 +393,26 @@ private struct CardView: View {
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
         .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
+        .overlay {
+            if isHint {
+                // 裏は紫なので、白の縁を挟んだ紫の二重枠にして背景に沈ませない。
+                cardShape
+                    .strokeBorder(.white, lineWidth: 5)
+                    .overlay(
+                        cardShape
+                            .strokeBorder(BoardGameHintColor.color, lineWidth: 2.5)
+                    )
+                    .shadow(color: BoardGameHintColor.color.opacity(0.6), radius: 6)
+                    .allowsHitTesting(false)
+            }
+        }
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
     }
 
     /// 絵文字をやめると読み上げも消えるため、札の状態を言葉で持ち直す（#601）。
     private var accessibilityText: String {
+        if isHint { return "裏向きの札、ヒント（1枚目の相方）" }
         guard isFaceUp, let name = card.figure?.displayName else { return "裏向きの札" }
         return card.isMatched ? "\(name)（獲得済み）" : name
     }
@@ -342,7 +422,7 @@ private struct CardView: View {
         ZStack {
             if isFaceUp {
                 // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                cardShape
                     .fill(card.isMatched ? AnyShapeStyle(Theme.teal.opacity(0.15))
                                          : AnyShapeStyle(CardStyle.faceFill))
                     .overlay(

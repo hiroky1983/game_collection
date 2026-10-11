@@ -1,3 +1,14 @@
+/// 「戻す」の 1 段（#2023）。戻した先の盤とスコア。
+public struct Game2048Step: Codable, Equatable, Sendable {
+    public var board: [[Int]]
+    public var score: Int
+
+    public init(board: [[Int]], score: Int) {
+        self.board = board
+        self.score = score
+    }
+}
+
 /// 2048 の中断スナップショット。盤面そのものを保存するため乱数シードの再現は不要。
 /// ベストスコアは持たない（仕様）。
 public struct Game2048Snapshot: Codable, Equatable, Sendable {
@@ -14,19 +25,27 @@ public struct Game2048Snapshot: Codable, Equatable, Sendable {
     /// 演出を出している間に画面を離れる・アプリが落ちるだけで選択肢が黙って消え、
     /// 続行が「次の 1 プレイ」として数え直されないまま盤だけ進む。
     public var showWinPrompt: Bool
+    /// 「戻す」の履歴（#2023）。後から足したキーなので旧データでは nil。
+    public var history: [Game2048Step]?
+    /// 今使える「戻す」の回数（#2023）。保存しないと中断・復元のたびに無料 3 回が戻ってしまう。旧データでは nil。
+    public var undosRemaining: Int?
 
     public init(
         board: [[Int]],
         score: Int,
         continueUsed: Bool = false,
         hasWon: Bool = false,
-        showWinPrompt: Bool = false
+        showWinPrompt: Bool = false,
+        history: [Game2048Step]? = nil,
+        undosRemaining: Int? = nil
     ) {
         self.board = board
         self.score = score
         self.continueUsed = continueUsed
         self.hasWon = hasWon
         self.showWinPrompt = showWinPrompt
+        self.history = history
+        self.undosRemaining = undosRemaining
     }
 
     /// `continueUsed` は後から足したキー。既存プレイヤーの中断データにはこのキーが無く、
@@ -44,5 +63,8 @@ public struct Game2048Snapshot: Codable, Equatable, Sendable {
         // `showWinPrompt`（#516）も後から足したキー。旧データは演出を出していたかを
         // 判別できないので、これまでどおり「出していない」に倒す。
         showWinPrompt = try container.decodeIfPresent(Bool.self, forKey: .showWinPrompt) ?? false
+        // 履歴・残回数（#2023）も後から足したキー。旧データは「履歴なし・回数は無料枠から」に倒す。
+        history = try container.decodeIfPresent([Game2048Step].self, forKey: .history)
+        undosRemaining = try container.decodeIfPresent(Int.self, forKey: .undosRemaining)
     }
 }

@@ -219,6 +219,10 @@ struct HubView: View {
                 }
                 ScrollView {
                     VStack(spacing: Self.gridSpacing) {
+                    // 全ゲームを非表示にした直後は空白にせず、設定へ戻る導線を出す（#2002）。
+                    if HubEmptyState.isShown(visibleGameIDs: settings.visibleModules(from: registry).map(\.id)) {
+                        HubEmptyStateView { showSettings = true }
+                    }
                     // 特別枠（#1761）: グリッドの先頭に 1 枚ぶち抜きで置き、スクロールで一緒に流れる。
                     if showsHero, let hero = registry.module(id: Self.heroGameID) {
                         NavigationLink(value: HubRoute(
@@ -317,7 +321,13 @@ struct HubView: View {
             }
             .popBackground()
             .navigationTitle("あそびば")
+            // 大タイトルは右のボタンより一段下に出て、見出しの領域が縦に広かった（#2028）。
+            // inline にして、タイトルを左の toolbar に置き、右のボタンと同じ行の上合わせにそろえる。
+            // 標準の中央タイトルは二重にならないよう外す（iOS 26 以降。それ以前の inline は文字が中央に残る）。
+            .navigationBarTitleDisplayMode(.inline)
+            .hubHidesDefaultTitle()
             .toolbar {
+                HubTitleToolbarItem()
                 // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
                 // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
                 // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
@@ -680,6 +690,28 @@ private struct GameCard: View {
     }
 }
 
+/// 表示するゲームが 0 本のときにハブへ出す案内と、設定を開くボタン（#2002）。
+private struct HubEmptyStateView: View {
+    let openSettings: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(HubEmptyState.message)
+                .themeCaption(15)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+            Button(HubEmptyState.buttonTitle, action: openSettings)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Theme.Fill.coral)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Theme.pad)
+        .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .contain)
+    }
+}
+
 /// 更新で増えたゲームがあるときだけハブ上部に出す1行（#723）。
 ///
 /// 閉じるボタンは置かない。この起動のあいだだけ出て、次の起動では `PlayLog` が同じゲームを
@@ -721,5 +753,38 @@ private struct HubHiddenNotice: View {
             .padding(Theme.pad)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+    }
+}
+
+private extension View {
+    /// 標準の（中央の）ナビゲーションタイトルを隠す。iOS 26 未満では何もしない。
+    @ViewBuilder
+    func hubHidesDefaultTitle() -> some View {
+        if #available(iOS 26.0, *) {
+            toolbar(removing: .title)
+        } else {
+            self
+        }
+    }
+}
+
+/// 左上に置くハブの見出し。iOS 26 の toolbar 項目に付くガラスの丸い背景は、文字には付けない。
+private struct HubTitleToolbarItem: ToolbarContent {
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) { title }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { title }
+            // 標準の中央タイトルは principal を空にして隠す（`toolbar(removing:)` は iOS 26 から）。
+            ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+        }
+    }
+
+    private var title: some View {
+        Text("あそびば")
+            .scaledFont(28, weight: .heavy, maxScale: 1.3)
+            .fixedSize()
+            .accessibilityAddTraits(.isHeader)
     }
 }

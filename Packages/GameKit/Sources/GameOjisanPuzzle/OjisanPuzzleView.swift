@@ -61,22 +61,12 @@ public struct OjisanPuzzleView: View {
 
     public var body: some View {
         VStack(spacing: 12) {
-            header
-            HStack(alignment: .top, spacing: 12) {
-                boardView
-                sidePanel
-            }
-            controlHint
-            // 終局したら次に遊ぶゲームを勧める枠（#52・#722）。全ゲーム共通の部品をそのまま置く。
-            RecommendationArea(services: services, isFinished: model.outcome != nil)
-            Spacer(minLength: 0)
+            playArea
+            // 画面下のバナーは他の公開ゲームと同じ共通部品（収益対策・v1.1.11）。
+            // 操作の受け口（`playArea` のジェスチャ）の外に置き、バナー上のドラッグで荷物を動かさない。
+            BannerSlot(ads: services.ads)
         }
         .padding()
-        // 操作は盤の外（画面のどこ）でも受ける（#1946）。ボタンは子として先に反応するので、タップは奪わない。
-        .contentShape(Rectangle())
-        .gesture(dragGesture(step: max(24, cellSide)))
-        // リザルトは盤の上ではなく画面全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
-        .overlay { if model.outcome != nil, showResult { resultOverlay } }
         .task(id: model.outcome) {
             guard model.outcome != nil else { showResult = false; return }
             try? await Task.sleep(for: Self.resultDelay)
@@ -130,6 +120,27 @@ public struct OjisanPuzzleView: View {
             // 裏に回っているあいだに荷物が落ち続けないようにする。
             if phase == .active, !showSetup { model.resume() } else { model.pause() }
         }
+    }
+
+    /// バナーを除いた遊ぶ部分。操作とリザルトはこの範囲に載せる。
+    private var playArea: some View {
+        VStack(spacing: 12) {
+            header
+            HStack(alignment: .top, spacing: 12) {
+                boardView
+                sidePanel
+            }
+            controlHint
+            // 終局したら次に遊ぶゲームを勧める枠（#52・#722）。全ゲーム共通の部品をそのまま置く。
+            RecommendationArea(services: services, isFinished: model.outcome != nil)
+            Spacer(minLength: 0)
+        }
+        // 操作は盤の外（画面のどこ）でも受ける（#1946）。ボタンは子として先に反応するので、タップは奪わない。
+        .contentShape(Rectangle())
+        .gesture(dragGesture(step: max(24, cellSide)))
+        // リザルトは盤の上ではなく遊ぶ部分全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
+        // バナーには重ねない（幕の裏のバナーを残さない・`docs/spec-app.md`「広告仕様」）。
+        .overlay { if model.outcome != nil, showResult { resultOverlay } }
     }
 
     /// 開始シートを開く。シートの初期選択は、いま遊んでいる遊び方。

@@ -92,6 +92,26 @@ public enum FreeCellAccessibility {
             : "広告を見ると\(FreeCellUndoBudget.refill)回ぶん補充できます"
     }
 
+    /// 「ヒント」ボタン（#2025）。残り回数と広告の要否を音声だけで分かるようにする。
+    public static func hintButtonLabel(freeRemaining: Int, needsAd: Bool, isThinking: Bool) -> String {
+        if isThinking { return "ヒント、考え中" }
+        return needsAd ? "ヒント（広告を見て表示）" : "ヒント（残り\(freeRemaining)回）"
+    }
+
+    /// 示した手の読み上げ（例: "ヒント、ハートの7を3列目へ"）。`board` は動かす前の盤。
+    public static func hintLabel(move: FreeCellMove, board: FreeCellBoard) -> String {
+        let moved = FreeCellHint.movedCards(move, in: board)
+        guard let first = moved.first else { return "ヒント" }
+        let what = moved.count > 1 ? "\(cardLabel(first))から上の\(moved.count)枚" : cardLabel(first)
+        let destination: String
+        switch move {
+        case .tableauToCell(_, let cell): destination = "フリーセル\(cell + 1)"
+        case .tableauToFoundation, .cellToFoundation: destination = "\(first.suit.spokenName)の組札"
+        case .tableauToTableau(_, _, let to), .cellToTableau(_, let to): destination = "\(to + 1)列目"
+        }
+        return "ヒント、\(what)を\(destination)へ"
+    }
+
     /// 行き止まりの告知。
     ///
     /// - Note: フリーセルの行き止まりは**合法手が本当にゼロ**（`FreeCellBoard.isDeadEnd`）。

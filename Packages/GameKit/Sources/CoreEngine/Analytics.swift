@@ -302,6 +302,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
     case shareTap(gameID: String)
+    /// 通知の許可ダイアログの結果（#2008）。ダイアログを実際に出した 1 回につき 1 回。
+    /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
+    case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -313,6 +316,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .gameOpen:      return "game_open"
         case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
+        case .notificationPermission: return "notification_permission"
         }
     }
 
@@ -374,8 +378,29 @@ public enum AnalyticsEvent: Equatable, Sendable {
             ]
         case let .shareTap(gameID):
             return ["game_id": .string(gameID)]
+        case let .notificationPermission(result, trigger):
+            return [
+                "result": .string(result.rawValue),
+                "trigger": .string(trigger.rawValue),
+            ]
         }
     }
+}
+
+/// 通知の許可ダイアログの結果（#2008）。
+public enum NotificationPermissionResult: String, Sendable {
+    case granted
+    case denied
+}
+
+/// 許可ダイアログを出した通知の種類（#2008）。
+public enum NotificationPermissionTrigger: String, Sendable {
+    /// 中断したゲームのお知らせ（#663）。
+    case resume
+    /// 挑戦回数が戻ったお知らせ（#1576）。
+    case challenge
+    /// 久しぶりに遊ぼうの再エンゲージメント通知（#1193）。
+    case reengagement
 }
 
 /// 解析送信の境界。**Firebase に依存しない**プロトコルで、実装は App 層が注入する
@@ -608,6 +633,13 @@ public final class GameAnalytics {
     public func recordShareTap(gameID: String) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.shareTap(gameID: gameID))
+    }
+
+    /// 通知の許可ダイアログを出して結果が返ったときに呼ぶ（#2008）。プレイの数え方には影響しない。
+    public func recordNotificationPermission(
+        result: NotificationPermissionResult, trigger: NotificationPermissionTrigger
+    ) {
+        service.log(.notificationPermission(result: result, trigger: trigger))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。

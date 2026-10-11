@@ -166,7 +166,7 @@ public enum FreeCellSolver {
         return (board, moves)
     }
 
-    private static func isSafe(_ card: FreeCellCard, _ board: FreeCellBoard) -> Bool {
+    static func isSafe(_ card: FreeCellCard, _ board: FreeCellBoard) -> Bool {
         if card.rank <= 2 { return true }
         return opposites(of: card.suit).allSatisfy { board.foundations[$0.rawValue] >= card.rank - 1 }
     }

@@ -114,7 +114,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // 千日手も指し手列から導けるので、復元時も同じ判定でそのまま決着に戻る。
             self.gameOver = true
             self.phase = .review
-            self.resultText = Self.repetitionResultText
+            self.resultText = Self.repetitionResultText(
+                perpetualCheckLoser: Self.perpetualCheckLoser(initialSFEN: sfen, moves: moveList)
+            )
         }
         if snap?.resigned == true {
             self.gameOver = true
@@ -161,7 +163,17 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         (loser == .black ? "先手" : "後手") + "の負け（詰み）"
     }
 
-    static let repetitionResultText = "引き分け（千日手）"
+    static let drawRepetitionResultText = "引き分け（千日手）"
+    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"
+
+    static func perpetualCheckResultText(loser: Side) -> String {
+        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix
+    }
+
+    /// 千日手の結果文言。連続王手の側がいれば、その側の負け。
+    static func repetitionResultText(perpetualCheckLoser loser: Side?) -> String {
+        loser.map(perpetualCheckResultText(loser:)) ?? drawRepetitionResultText
+    }
 
     /// 千日手の「同一局面」。**盤・持ち駒・手番**が一致すれば同一とみなす。
     /// `Position` の `==` は手数（`moveNumber`）も見るため、繰り返しの検出には使えない。
@@ -174,8 +186,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 状態として持たず**指し手列から毎回導く**（`checkedKingSquare` と同じ方針）。こうしておくと、
     /// 中断からの復元でもスナップショットに項目を足さずに同じ判定になる。
     ///
-    /// **連続王手の千日手（王手を掛け続けた側の負け）は v1 のスコープ外**で、この場合も引き分けに
-    /// なる。判定を誤ると勝敗が逆転するため、独立した Issue として起票する。
+    /// 連続王手の千日手（王手を掛け続けた側の負け）は `perpetualCheckLoser` が別に判定する（#2005）。
     static func isFourfoldRepetition(initialSFEN: String, moves: [Move], current: Position) -> Bool {
         // 同一局面の周期は最短でも 4 手（両者が動かした駒を戻して初めて一致する）なので、
         // 4 回目の出現には少なくとも 12 手が要る。
@@ -187,6 +198,37 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             if isSamePosition(pos, current) { count += 1 }
         }
         return count >= repetitionLimit
+    }
+
+    /// 連続王手の千日手で負けになる側（#2005）。千日手が成立した局面（= 指し手列の末尾）で呼ぶ。
+    ///
+    /// 末尾の局面が最初に現れた手から末尾までを「繰り返しの区間」とし、その区間で**自分の指した
+    /// 手がすべて王手だった**側が負け。両方がそうなる・どちらもそうでない場合は nil（引き分け）。
+    /// 状態として持たず指し手列から毎回導く（`isFourfoldRepetition` と同じ方針）。
+    static func perpetualCheckLoser(initialSFEN: String, moves: [Move]) -> Side? {
+        var pos = Position.fromSFEN(initialSFEN) ?? Position.start()
+        // 各手を指した後の局面と、その手が王手だったか・誰が指したか。
+        var positions = [pos]
+        var gaveCheck: [(mover: Side, check: Bool)] = []
+        for move in moves {
+            let mover = pos.sideToMove
+            pos.make(move)
+            positions.append(pos)
+            gaveCheck.append((mover, pos.isKingInCheck(pos.sideToMove)))
+        }
+        guard let last = positions.last,
+              let first = positions.firstIndex(where: { isSamePosition($0, last) }),
+              first < moves.count else { return nil }
+        let cycle = gaveCheck[first...]
+        func alwaysChecks(_ side: Side) -> Bool {
+            let own = cycle.filter { $0.mover == side }
+            return !own.isEmpty && own.allSatisfy(\.check)
+        }
+        switch (alwaysChecks(.black), alwaysChecks(.white)) {
+        case (true, false): return .black
+        case (false, true): return .white
+        default: return nil
+        }
     }
 
     // MARK: - 表示用
@@ -255,13 +297,14 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// 終局の種類（結果カード用・#1753）。局面と指し手列から毎回導き、状態としては保存しない。
     public enum EndKind: Equatable, Sendable {
-        case checkmate, repetition, resignation
+        case checkmate, repetition, perpetualCheck, resignation
 
         /// 結果カードに出す理由。
         public var reasonText: String {
             switch self {
             case .checkmate: return "詰み"
             case .repetition: return "千日手"
+            case .perpetualCheck: return "連続王手の千日手"
             case .resignation: return "投了"
             }
         }
@@ -270,7 +313,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var endKind: EndKind? {
         guard gameOver else { return nil }
         if resigned { return .resignation }
-        return resultText == Self.repetitionResultText ? .repetition : .checkmate
+        if resultText == Self.drawRepetitionResultText { return .repetition }
+        if resultText?.hasSuffix(Self.perpetualCheckSuffix) == true { return .perpetualCheck }
+        return .checkmate
     }
 
     /// 結果カードの勝敗。詰みは手番側（動かせない側）が負け。
@@ -279,6 +324,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         case nil: return nil
         case .resignation: return .loss
         case .repetition: return .draw
+        case .perpetualCheck:
+            return resultText == Self.perpetualCheckResultText(loser: humanSide) ? .loss : .win
         case .checkmate: return position.sideToMove == humanSide ? .loss : .win
         }
     }
@@ -394,16 +441,19 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                 isReviewHighlight: beatsWorthyCPU
             )
         } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
-            // 千日手（#375）。同一局面が 4 回現れたら引き分けで終局する。これが無いと、
+            // 千日手（#375）。同一局面が 4 回現れたら終局する。これが無いと、
             // 閉塞局面や相入玉で合法手は在り続けるのに勝敗が付かず、出口が投了（負け記録）
-            // しか無かった。
+            // しか無かった。繰り返しの間ずっと王手を掛け続けた側がいれば、その側の負け（#2005）。
+            let loser = Self.perpetualCheckLoser(initialSFEN: initialSFEN, moves: moves)
             gameOver = true
-            resultText = Self.repetitionResultText
+            resultText = Self.repetitionResultText(perpetualCheckLoser: loser)
             phase = .review
-            services?.feedback.notify(.warning)
+            services?.feedback.notify(loser == nil ? .warning : (loser == humanSide ? .error : .success))
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
-                gameID: gameID, outcome: .draw, score: hints.winLossScore
+                gameID: gameID,
+                outcome: loser.map { $0 == humanSide ? .loss : .win } ?? .draw,
+                score: hints.winLossScore
             )
         } else if position.isKingInCheck(position.sideToMove) {
             // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す

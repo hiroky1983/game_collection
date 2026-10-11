@@ -7,6 +7,12 @@ public enum OthelloStone: Int, Codable, Equatable, Sendable {
     public var opponent: OthelloStone { self == .black ? .white : .black }
 }
 
+/// 盤上の升（ヒントの印に使う）。
+public struct OthelloPoint: Equatable, Sendable {
+    public let row: Int
+    public let col: Int
+}
+
 public struct OthelloBoard: Equatable, Sendable {
     public private(set) var cells: [OthelloStone?]
 
