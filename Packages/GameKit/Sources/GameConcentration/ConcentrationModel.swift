@@ -15,6 +15,18 @@ struct ConcentrationSnapshot: Codable {
     /// 不一致のまま中断された2枚（#415）。復元側が「自動ターン交代の途中だった」ことを
     /// 知るための唯一の手がかり。この鍵を持たない旧い中断データもあるため optional で持つ。
     let mismatchedIndices: [Int]?
+    /// この局で使ったヒントの回数（#2026）。再開で回数が戻らないよう保存する。鍵を持たない旧い中断データは 0 として読む。
+    /// 盤の上の印は保存しない。
+    let hintsUsed: Int?
+}
+
+/// ヒントの回数（会長決裁 2026-10-11・#2026）。1 ゲーム 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回。
+/// 「待った」とは別の回数。
+public enum ConcentrationHintPolicy {
+    public static let freeCount = 1
+    public static let adRefillMax = 3
+    /// 相方の札を光らせておく時間。
+    public static let glowDuration: Duration = .seconds(1)
 }
 
 @MainActor
@@ -42,6 +54,14 @@ public final class ConcentrationModel {
     /// 神経衰弱は CPU と交互にめくる**対戦もの**で、手数はプレイヤーの技量だけでは決まらない
     /// （CPU が当てた回数に左右される）。そのため記録は手数ではなく勝敗・連勝で持つ。
     public private(set) var recordResult: RecordResult?
+    /// この局のヒントの残り（#2026）。無料 1 回・広告で最大 3 回。回数の勘定は Core の `BoardHintBudget`。
+    public private(set) var hints = BoardHintBudget(
+        freeLimit: ConcentrationHintPolicy.freeCount, adLimit: ConcentrationHintPolicy.adRefillMax
+    )
+    /// ヒントが示した「相方の札」の位置。**永続化しない**。読むときは `hintIndex` を使う（盤が動けば消える）。
+    private var hintTarget: Int?
+    /// ヒントを出すたびに増やし、View の `.task(id:)` の再起動に使う（光らせる時間の待ちを、前の分と取り違えない）。
+    public private(set) var hintRun = 0
 
     public var winner: ConcentrationPlayer? {
         guard isGameOver else { return nil }
@@ -60,6 +80,71 @@ public final class ConcentrationModel {
     /// 「新規」で失われる進行があるか（#1011）。1 枚でもめくった・取った札があり、まだ決着していないとき。
     public var hasProgressToLose: Bool {
         !isGameOver && cards.contains { $0.isFaceUp || $0.isMatched }
+    }
+
+    // MARK: - ヒント（#2026）
+
+    /// いま光らせている札。**1 枚目をめくっていて、その相方がまだ伏せてあるときだけ**返す
+    /// （盤が動いても印が嘘にならないよう、読むたびに確かめる）。
+    public var hintIndex: Int? {
+        guard let target = hintTarget, isHintMoment, let first = firstFlippedIndex,
+              cards.indices.contains(target), !cards[target].isFaceUp, !cards[target].isMatched,
+              cards[target].symbol == cards[first].symbol else { return nil }
+        return target
+    }
+
+    /// 光らせる時間。印が出ていないときは nil（View はこれがあるあいだだけ待つ）。
+    public var hintGlowDuration: Duration? { hintIndex == nil ? nil : ConcentrationHintPolicy.glowDuration }
+
+    /// 残り回数（無料 + 広告の合計）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// 自分の番で、1 枚目をめくったあと・2 枚目をめくる前。ヒントが意味を持つのはこの間だけ。
+    private var isHintMoment: Bool {
+        isHumanTurn && !isThinking && !isGameOver && mismatchedIndices.isEmpty && firstFlippedIndex != nil
+    }
+
+    /// いまヒントを押せるか。CPU の番・2 枚めくったあと・決着後は不可。光っている間も押せない（同じ札に回数を無駄にしない）。
+    public var canUseHint: Bool { isHintMoment && hintIndex == nil && !hints.isExhausted }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    /// 1 枚目の札の相方（同じ絵柄の、まだ伏せてあるもう 1 枚）。答えは盤から引くだけ。
+    func partnerIndex() -> Int? {
+        guard let first = firstFlippedIndex, cards.indices.contains(first) else { return nil }
+        return cards.indices.first { $0 != first && !cards[$0].isMatched && cards[$0].symbol == cards[first].symbol }
+    }
+
+    /// 無料の 1 回を使い、相方の札を光らせる。広告が要るとき・押せないときは**回数を減らさず** false。
+    @discardableResult
+    public func requestHint() -> Bool {
+        guard canUseHint, !needsAdForHint, let partner = partnerIndex(), hints.consume() else { return false }
+        didUseHint(partner: partner)
+        return true
+    }
+
+    /// 広告を最後まで見たあとの 1 回。`game` は広告を出す前に控えた `gameSerial`、`first` は同じく控えた 1 枚目の札
+    /// （局が入れ替わった・待ったで札が戻った・別の札をめくり直した場合は適用せず false、回数も減らさない）。
+    public func grantAdHint(forGame game: Int, first: Int?) -> Bool {
+        guard game == gameSerial, first != nil, first == firstFlippedIndex,
+              canUseHint, needsAdForHint, let partner = partnerIndex(), hints.consumeAd() else { return false }
+        didUseHint(partner: partner)
+        return true
+    }
+
+    /// 光らせる時間が過ぎたとき View が呼ぶ。`run` は待ち始めた時点の `hintRun`（新しいヒントが出ていたら消さない）。
+    public func finishHint(run: Int) {
+        guard run == hintRun else { return }
+        hintTarget = nil
+    }
+
+    private func didUseHint(partner: Int) {
+        services?.gameDidUseHint(gameID: gameID)
+        hintTarget = partner
+        hintRun += 1
+        services?.feedback.impact(.light)
+        persist()
     }
 
     private let services: GameServices?
@@ -258,6 +343,8 @@ public final class ConcentrationModel {
         mismatchedIndices = []
         mattaUsed = false
         recordResult = nil
+        hints.reset()
+        hintTarget = nil
 
         let symbols = ConcentrationFigure.allCases.prefix(pairCount.rawValue).map(\.rawValue)
         let doubled = (symbols + symbols).shuffled()
@@ -281,6 +368,11 @@ public final class ConcentrationModel {
         cpuScore = snap.cpuScore
         currentPlayer = snap.currentPlayer == 0 ? .human : .cpu
         mattaUsed = snap.mattaUsed
+        hints = BoardHintBudget(
+            used: snap.hintsUsed ?? 0,
+            freeLimit: ConcentrationHintPolicy.freeCount, adLimit: ConcentrationHintPolicy.adRefillMax
+        )
+        hintTarget = nil
         isThinking = false
         firstFlippedIndex = nil
         turnID = 0
@@ -395,6 +487,7 @@ public final class ConcentrationModel {
         // 札がめくれた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
         cards[index].isFaceUp = true
+        hintTarget = nil
         ai.observe(index: index, symbol: cards[index].symbol)
 
         if let first = firstFlippedIndex {
@@ -444,7 +537,8 @@ public final class ConcentrationModel {
             pairCount: pairCount.rawValue,
             cpuLevel: cpuLevel.rawValue,
             mattaUsed: mattaUsed,
-            mismatchedIndices: mismatchedIndices
+            mismatchedIndices: mismatchedIndices,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
