@@ -265,9 +265,6 @@ enum AppEnvironment {
         // いろリレー（企画倉庫・#1320）。ルーレット・くっつきフルーツと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // ColorRelayModule(),
-        // ぱっと暗算（企画倉庫・#1321）。上の 3 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // AnzanModule(),
         // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // BackgammonModule(),
@@ -282,6 +279,10 @@ enum AppEnvironment {
         // レコメンドの候補表（`RecommendationPolicy.candidateTable`）の `ojisanpuzzle` の行と、柵越えおじさんの
         // 第3候補（#1904 で 2048 から差し替え）も戻すこと（`RecommendationTests` が登録の無い ID を検出する）。
         OjisanPuzzleModule(),
+        // ぱっと暗算（#1321・企画倉庫から v1.1.11 でハブに公開 #1825）。倉庫へ戻す判断が出たら、
+        // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
+        AnzanModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
