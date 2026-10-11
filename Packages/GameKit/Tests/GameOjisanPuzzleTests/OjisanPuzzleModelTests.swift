@@ -32,7 +32,11 @@ struct OjisanPuzzleModelTests {
         let model = makeModel()
         let pair = try #require(model.current)
         #expect(model.displayBoard[pair.row][pair.col] == pair.axisKind)
-        #expect(model.displayBoard[pair.childRow][pair.childCol] == pair.childKind)
+        // 出た直後の子は見えない段にいるので、描画用の盤には載らない（#2088）。落ちて盤に入れば載る。
+        #expect(pair.childRow == OjisanPuzzleBoard.hiddenRow)
+        #expect(model.softDrop())
+        let lowered = try #require(model.current)
+        #expect(model.displayBoard[lowered.childRow][lowered.childCol] == lowered.childKind)
     }
 
     @Test("左右へ動かすと落下中の組の列が変わる")
@@ -340,6 +344,100 @@ struct OjisanPuzzleModelTests {
         model.tick()
         #expect(model.outcome == .buried)
         #expect(model.current == nil)
+    }
+
+    /// #2088: 出る列に 1 マスだけ空きがあっても続行する。終わるのは出現位置（最上段）が埋まったときだけ。
+    @Test("出口の列に最上段 1 マスだけ空きがあれば続行し、そこへ固定して初めて積み上がりになる（#2088）")
+    func continuesWithOneCellLeftInSpawnColumn() throws {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        let column = OjisanPuzzleBoard.spawnColumn
+        for row in 1..<OjisanPuzzleBoard.rows { board[row][column] = row / 3 + 1 }
+        #expect(OjisanPuzzleBoard.clearableGroups(board).isEmpty, "前提: この盤では何も消えない")
+
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: board,
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up)
+        )
+        #expect(model.hardDrop())
+        model.tick()
+        #expect(model.outcome == nil)
+        let spawned = try #require(model.current)
+        #expect(spawned.col == column)
+        #expect(spawned.row == 0)
+
+        // そのまま落とすと軸は最上段に残り、見えない段の子は消える → 出現位置が埋まって積み上がり。
+        #expect(model.hardDrop())
+        #expect(model.board[0][column] == spawned.axisKind)
+        #expect(model.board.joined().filter { $0 == spawned.childKind }.count == (1..<OjisanPuzzleBoard.rows).filter { $0 / 3 + 1 == spawned.childKind }.count)
+        model.tick()
+        #expect(model.outcome == .buried)
+    }
+
+    @Test("最上段で左右を塞がれても、回す 2 回押しで上下を入れ替えて逃がせる（#2088）")
+    func flipsAtTopRowThroughModel() throws {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        let column = OjisanPuzzleBoard.spawnColumn
+        board[0][column - 1] = 4
+        board[0][column + 1] = 5
+        let model = OjisanPuzzleModel(
+            services: nil, board: board,
+            current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        )
+        #expect(!model.rotate(clockwise: true))
+        #expect(model.rotate(clockwise: true))
+        let current = try #require(model.current)
+        #expect(current.rotation == .down)
+        #expect(current.row == 0)
+    }
+
+    @Test("見えない段の子がいても、移動先が空いていれば左右へ動ける（#2088）")
+    func movesAtTopRowWithChildInHiddenRow() throws {
+        let model = OjisanPuzzleModel(
+            services: nil, board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        )
+        #expect(model.move(by: -1))
+        #expect(model.move(by: 1))
+        #expect(model.current?.col == OjisanPuzzleBoard.spawnColumn)
+    }
+
+    @Test("見えない段にはみ出して消えた荷物は、腰痛ゲージの重さに数えない（#2088）")
+    func hiddenChildAddsNoWeight() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        board[1][OjisanPuzzleBoard.spawnColumn] = 3
+        let model = OjisanPuzzleModel(
+            services: nil, board: board,
+            current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 5), pain: 0
+        )
+        #expect(model.hardDrop())
+        // 軸の重さ（種類 1 = 1）だけ。子（種類 5 = 5）は消えている。
+        #expect(model.pain == OjisanPuzzlePain.lockAmount(weights: [1]))
+    }
+
+    @Test("接地してから動かすと固定が 1 刻み延びる。延ばせる回数には上限がある（#2088）")
+    func groundGraceExtendsWithLimit() throws {
+        let floor = OjisanPuzzleBoard.rows - 1
+        let model = OjisanPuzzleModel(
+            services: nil, board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: floor, col: 1, rotation: .right)
+        )
+        // 動かさなければ次の刻みで固定する。
+        let still = OjisanPuzzleModel(
+            services: nil, board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: floor, col: 1, rotation: .right)
+        )
+        still.tick()
+        #expect(still.current == nil)
+
+        for index in 0..<OjisanPuzzleModel.groundExtensionLimit {
+            #expect(model.move(by: index.isMultiple(of: 2) ? -1 : 1))
+            model.tick()
+            #expect(model.current != nil, "\(index + 1) 回目は延びる")
+        }
+        #expect(model.move(by: 1))
+        model.tick()
+        #expect(model.current == nil, "上限を超えたら延びずに固定する")
     }
 
     @Test("出口の列に余裕があれば、いつも同じ列から次の組が出る（#1954）")
