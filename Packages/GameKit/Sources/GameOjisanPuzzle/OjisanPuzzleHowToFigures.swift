@@ -3,19 +3,32 @@ import SwiftUI
 
 /// 図入りの遊び方（#2044 の先駆け・会長決定 2026-10-12）の図。
 ///
-/// 文言は `HowToPlayGuide.ojisanPuzzle`（Core）にあり、ここは項目ごとの図だけを持つ。
-/// 荷物は本番の `OjisanPuzzleView.luggage(_:side:)`、おじさんは `OjisanPuzzleArt.image(_:)` で描き、絵を二重に持たない。
-/// 図は固定寸法で、いちばん狭い iPhone SE のカード（幅 315pt 前後）に収まる大きさで組む。
+/// 文言は `HowToPlayGuide.ojisanPuzzleBackpain` / `.ojisanPuzzlePuzzle`（Core）にあり、ここは項目ごとの
+/// 図だけを持つ。荷物は本番の `OjisanPuzzleView.luggage(_:side:)`、おじさんは `OjisanPuzzleArt.image(_:)`
+/// で描き、絵を二重に持たない。図は固定寸法で、いちばん狭い iPhone SE のカード（幅 315pt 前後）に
+/// 収まる大きさで組む。
+///
+/// 「？」は遊んでいるモードに合わせる（会長指示 2026-10-12）。パズルモードには腰痛ゲージ・入院・
+/// クリアライン・せり上がりを出さない。
 @MainActor
 enum OjisanPuzzleHowToFigures {
-    /// `HowToPlayGuide.ojisanPuzzle.items` と同じ順。
-    static let all: [@MainActor @Sendable () -> AnyView] = [
-        { AnyView(GoalFigure()) },
+    /// `HowToPlayGuide.ojisanPuzzleBackpain.items` と同じ順。
+    static let backpain: [@MainActor @Sendable () -> AnyView] = [
+        { AnyView(GoalFigure(mode: .backpain)) },
         { AnyView(ControlsFigure()) },
         { AnyView(ChainFigure()) },
         { AnyView(WeightFigure()) },
         { AnyView(GaugeFigure()) },
-        { AnyView(EndFigure()) },
+        { AnyView(EndFigure(mode: .backpain)) },
+    ]
+
+    /// `HowToPlayGuide.ojisanPuzzlePuzzle.items` と同じ順。
+    static let puzzle: [@MainActor @Sendable () -> AnyView] = [
+        { AnyView(GoalFigure(mode: .puzzle)) },
+        { AnyView(ControlsFigure()) },
+        { AnyView(ChainFigure()) },
+        { AnyView(WeightFigure()) },
+        { AnyView(EndFigure(mode: .puzzle)) },
     ]
 
     /// 図の中の小さな文字。図は固定寸法なので、拡大はわずかに留める。
@@ -150,7 +163,7 @@ struct OjisanPuzzleMiniBoard: View {
         }
     }
 
-    /// クリアのライン（腰痛モード）。ラインより下を薄い水色で塗り、太い線を引く。
+    /// クリアのライン（荷運びモード）。ラインより下を薄い水色で塗り、太い線を引く。
     @ViewBuilder
     private var clearLineMark: some View {
         if let clearLine {
@@ -175,8 +188,12 @@ struct OjisanPuzzleMiniBoard: View {
 
 // MARK: - 1. もくてき
 
+/// 1 項目 = 1 モードぶんの図。遊んでいるモードの「？」には、そのモードの目的だけを出す
+/// （会長指示 2026-10-12。以前は腰痛モード・パズルモードを常に並べていた）。
 private struct GoalFigure: View {
     private static let cell: CGFloat = 10.5
+
+    let mode: OjisanPuzzleMode
 
     private let backpainBoard: [[Int]] = {
         var g = OjisanPuzzleHowToFigures.grid(rows: 12, columns: 6, stacks: [
@@ -197,56 +214,53 @@ private struct GoalFigure: View {
     private var boardHeight: CGFloat { 12 * Self.cell + max(2, Self.cell * 0.18) * 2 }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 6) {
-                OjisanPuzzleHowToFigures.label("腰痛モード", size: 12)
-                    .frame(maxWidth: .infinity)
-                HStack(alignment: .top, spacing: 4) {
-                    OjisanPuzzleMiniBoard(grid: backpainBoard, cell: Self.cell,
-                                          clearLine: OjisanPuzzleCleanup.clearLineRow,
-                                          spawnColumn: OjisanPuzzleBoard.spawnColumn)
-                    VStack(alignment: .leading, spacing: 2) {
-                        // 「ここまで下げたら」の印は、クリアのラインのすぐ上に置く。
-                        Color.clear.frame(height: max(0, boardHeight * CGFloat(OjisanPuzzleCleanup.clearLineRow) / CGFloat(OjisanPuzzleBoard.rows) - 44))
-                        HStack(alignment: .top, spacing: 2) {
-                            Image(systemName: "flag.checkered")
-                                .scaledFont(10, weight: .bold, maxScale: 1.15)
-                                .foregroundStyle(Theme.teal)
-                            OjisanPuzzleHowToFigures.label("ここまで\n下げたら\nクリア", size: 9.5)
-                        }
-                        Spacer(minLength: 8)
-                        HStack(alignment: .top, spacing: 2) {
-                            Image(systemName: "arrow.up")
-                                .scaledFont(10, weight: .bold, maxScale: 1.15)
-                                .foregroundStyle(Theme.coral)
-                            OjisanPuzzleHowToFigures.label("時間で\n下から\nせり上がる", size: 9.5, color: Theme.coral)
-                        }
-                    }
-                    .frame(height: boardHeight)
-                }
-                OjisanPuzzleHowToFigures.caption("クリアまでのタイムを競う")
-            }
-            .frame(maxWidth: .infinity)
-            Rectangle().fill(Theme.fillMuted.opacity(0.2)).frame(width: 1)
-            VStack(alignment: .leading, spacing: 6) {
-                OjisanPuzzleHowToFigures.label("パズルモード", size: 12)
-                    .frame(maxWidth: .infinity)
-                HStack(alignment: .top, spacing: 6) {
-                    OjisanPuzzleMiniBoard(grid: puzzleBoard, cell: Self.cell,
-                                          spawnColumn: OjisanPuzzleBoard.spawnColumn)
-                    VStack(alignment: .leading, spacing: 2) {
-                        OjisanPuzzleHowToFigures.label("スコア", size: 9, color: Theme.inkSub)
-                        OjisanPuzzleHowToFigures.label("1280", size: 16)
-                        OjisanPuzzleHowToFigures.label("2連鎖", size: 11, color: Theme.coral)
-                        Spacer(minLength: 0)
-                        OjisanPuzzleHowToFigures.label("ゲージ\nなし", size: 9.5, color: Theme.inkSub)
-                    }
-                    .frame(height: boardHeight)
-                }
-                OjisanPuzzleHowToFigures.caption("埋まるまで得点をのばす")
-            }
-            .frame(maxWidth: .infinity)
+        switch mode {
+        case .backpain: backpainPanel
+        case .puzzle: puzzlePanel
         }
+    }
+
+    private var backpainPanel: some View {
+        HStack(alignment: .top, spacing: 4) {
+            OjisanPuzzleMiniBoard(grid: backpainBoard, cell: Self.cell,
+                                  clearLine: OjisanPuzzleCleanup.clearLineRow,
+                                  spawnColumn: OjisanPuzzleBoard.spawnColumn)
+            VStack(alignment: .leading, spacing: 2) {
+                // 「ここまで下げたら」の印は、クリアのラインのすぐ上に置く。
+                Color.clear.frame(height: max(0, boardHeight * CGFloat(OjisanPuzzleCleanup.clearLineRow) / CGFloat(OjisanPuzzleBoard.rows) - 44))
+                HStack(alignment: .top, spacing: 2) {
+                    Image(systemName: "flag.checkered")
+                        .scaledFont(10, weight: .bold, maxScale: 1.15)
+                        .foregroundStyle(Theme.teal)
+                    OjisanPuzzleHowToFigures.label("ここまで\n下げたら\nクリア", size: 9.5)
+                }
+                Spacer(minLength: 8)
+                HStack(alignment: .top, spacing: 2) {
+                    Image(systemName: "arrow.up")
+                        .scaledFont(10, weight: .bold, maxScale: 1.15)
+                        .foregroundStyle(Theme.coral)
+                    OjisanPuzzleHowToFigures.label("時間で\n下から\nせり上がる", size: 9.5, color: Theme.coral)
+                }
+            }
+            .frame(height: boardHeight)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var puzzlePanel: some View {
+        HStack(alignment: .top, spacing: 6) {
+            OjisanPuzzleMiniBoard(grid: puzzleBoard, cell: Self.cell,
+                                  spawnColumn: OjisanPuzzleBoard.spawnColumn)
+            VStack(alignment: .leading, spacing: 2) {
+                OjisanPuzzleHowToFigures.label("スコア", size: 9, color: Theme.inkSub)
+                OjisanPuzzleHowToFigures.label("1280", size: 16)
+                OjisanPuzzleHowToFigures.label("2連鎖", size: 11, color: Theme.coral)
+                Spacer(minLength: 0)
+                OjisanPuzzleHowToFigures.label("ゲージ\nなし", size: 9.5, color: Theme.inkSub)
+            }
+            .frame(height: boardHeight)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -458,32 +472,49 @@ private struct GaugeFigure: View {
 
 // MARK: - 6. おわり
 
+/// 終わり方。荷運びモード（旧名・腰痛モード）は入院と積みあがりの両方があるので並べ、パズルモードには
+/// 入院が無いので積みあがりだけを出す（会長指示 2026-10-12。パズルモードの「？」に入院の絵を出さない）。
 private struct EndFigure: View {
     private static let buriedBoard: [[Int]] = OjisanPuzzleHowToFigures.grid(rows: 7, columns: 6, stacks: [
         0: [1, 5, 2], 1: [3, 2, 2, 4, 1], 2: [5, 1, 3, 3, 2, 4, 1], 3: [2, 4, 1, 5, 3], 4: [1, 5, 2], 5: [4, 1],
     ])
 
+    let mode: OjisanPuzzleMode
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 8) {
-                OjisanPuzzleHowToFigures.heading("入院", icons: ["cross.case.fill"])
-                OjisanPuzzleHowToFigures.smallOjisan(.hospitalized)
-                    .frame(maxWidth: .infinity)
-                OjisanPuzzleHowToFigures.caption("ゲージが満タン（腰痛モードだけ）")
+        switch mode {
+        case .backpain:
+            HStack(alignment: .top, spacing: 10) {
+                hospitalizedPanel
+                Rectangle().fill(Theme.fillMuted.opacity(0.2)).frame(width: 1)
+                buriedPanel
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            Rectangle().fill(Theme.fillMuted.opacity(0.2)).frame(width: 1)
-            VStack(alignment: .leading, spacing: 8) {
-                OjisanPuzzleHowToFigures.heading("積みあがった", icons: ["arrow.up.to.line"])
-                HStack(alignment: .top, spacing: 4) {
-                    OjisanPuzzleMiniBoard(grid: Self.buriedBoard, cell: 10,
-                                          spawnColumn: OjisanPuzzleBoard.spawnColumn, spawnWarn: true)
-                    OjisanPuzzleHowToFigures.label("▼の列が\nふさがる", size: 9.5, color: Theme.coral)
-                }
-                .frame(maxWidth: .infinity)
-                OjisanPuzzleHowToFigures.caption("荷物が出てくる位置（▼の列のいちばん上）が埋まる")
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+        case .puzzle:
+            buriedPanel
         }
+    }
+
+    private var hospitalizedPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            OjisanPuzzleHowToFigures.heading("入院", icons: ["cross.case.fill"])
+            OjisanPuzzleHowToFigures.smallOjisan(.hospitalized)
+                .frame(maxWidth: .infinity)
+            OjisanPuzzleHowToFigures.caption("ゲージが満タン")
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var buriedPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            OjisanPuzzleHowToFigures.heading("積みあがった", icons: ["arrow.up.to.line"])
+            HStack(alignment: .top, spacing: 4) {
+                OjisanPuzzleMiniBoard(grid: Self.buriedBoard, cell: 10,
+                                      spawnColumn: OjisanPuzzleBoard.spawnColumn, spawnWarn: true)
+                OjisanPuzzleHowToFigures.label("▼の列が\nふさがる", size: 9.5, color: Theme.coral)
+            }
+            .frame(maxWidth: .infinity)
+            OjisanPuzzleHowToFigures.caption("荷物が出てくる位置（▼の列のいちばん上）が埋まる")
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }

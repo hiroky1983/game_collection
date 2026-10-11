@@ -6,7 +6,7 @@ import Observation
 /// 盤の判定・連鎖・ゲージ・得点は `OjisanPuzzleBoard` / `OjisanPuzzlePain` / `OjisanPuzzleScoring` の
 /// 純粋ロジックに委譲し、ここは**落下タイマー・操作の受け口・決着**だけを持つ。
 ///
-/// 遊び方は 2 つ（`OjisanPuzzleMode`・#1920）。腰痛モードは腰痛ゲージあり・最初から荷物が積まれていて、
+/// 遊び方は 2 つ（`OjisanPuzzleMode`・#1920）。荷運びモードは腰痛ゲージあり・最初から荷物が積まれていて、
 /// 時間で下からせり上がり、ラインより下に片付ければクリア。パズルモードはゲージなしで、得点を競って埋まるまで続く。
 /// 1 局のあいだはモードを変えない（`newGame(mode:)` で始め直したときだけ替わる）。
 ///
@@ -21,9 +21,9 @@ public final class OjisanPuzzleModel {
     public enum Outcome: Sendable {
         /// 腰痛ゲージが 100 に達した。
         case hospitalized
-        /// 盤の一番上まで積み上がった（腰痛モードでは、せり上がりで押し出されたときも）。
+        /// 盤の一番上まで積み上がった（荷運びモードでは、せり上がりで押し出されたときも）。
         case buried
-        /// 荷物をラインより下まで片付けた（腰痛モードの勝ち）。
+        /// 荷物をラインより下まで片付けた（荷運びモードの勝ち）。
         case cleared
     }
 
@@ -54,7 +54,7 @@ public final class OjisanPuzzleModel {
     public private(set) var recordResult: RecordResult?
 
     /// 局が始まってからの時間（ミリ秒）。落下ループの刻みを足していくので、止めているあいだは進まない。
-    /// 腰痛モードのクリアタイムになる。
+    /// 荷運びモードのクリアタイムになる。
     public private(set) var elapsedMilliseconds = 0
     /// クリアのライン（この行より上に荷物が無ければクリア）。ラインの無い局は nil。
     public private(set) var clearLineRow: Int?
@@ -86,7 +86,7 @@ public final class OjisanPuzzleModel {
 
     /// いまの落下の刻み（ミリ秒）。腰が重いほど短い＝速く落ちる。
     public var dropInterval: Int {
-        // 腰痛モードはゲージで、パズルモードは固定した組数で速くなる（ゲージの無い局は pain が 0 のまま）。
+        // 荷運びモードはゲージで、パズルモードは固定した組数で速くなる（ゲージの無い局は pain が 0 のまま）。
         let speedUp = mode.hasGauge ? 1.0 : OjisanPuzzleSpeedUp.factor(locks: lockCount)
         return max(90, Int(Double(Self.baseDropInterval) * OjisanPuzzlePain.fallFactor(for: pain) * speedUp))
     }
@@ -470,7 +470,7 @@ public final class OjisanPuzzleModel {
 
     /// 決着の記録。保存先はモードごとの区分（`ojisanpuzzle#<区分>`）で、互いの自己ベストを汚さない。
     ///
-    /// - 腰痛モード: クリアタイム（短いほど良い）。クリアしたときだけ秒数を載せ、入院・埋まりは勝敗の数だけ残る。
+    /// - 荷運びモード: クリアタイム（短いほど良い）。クリアしたときだけ秒数を載せ、入院・埋まりは勝敗の数だけ残る。
     /// - パズルモード: 得点（高いほど良い）。終わりは必ず埋まりなので毎回負けとして数える
     ///   （ブロックならべと同じ「終わり = 負け・得点で競う」形）。
     private func recordScore(for outcome: Outcome) -> GameScore {
