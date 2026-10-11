@@ -97,6 +97,28 @@ struct AnzanModelTests {
         #expect(model.advanceDisplay() == nil, "入力中はもう進まない")
     }
 
+    @Test("どの速さでも数と数のあいだに必ず空白が入り、見せた数列は出題と一致する（#2067）")
+    func numbersAreAlwaysSeparatedByBlank() {
+        for speed in [AnzanSpeed.slow, .normal, .fast] {
+            let model = AnzanModel(services: makeServices(), seed: 7)
+            model.start(AnzanSettings(digits: .one, count: .ten, speed: speed))
+            // 同じ数が続いても切れ目が分かるよう、1 桁で重複しやすい設定にしている。
+            var frames: [Int?] = []
+            while model.advanceDisplay() != nil {
+                if model.isShowingReady { continue }
+                frames.append(model.displayedNumber)
+            }
+            #expect(frames.count == 20, "\(speed)")
+            for (index, frame) in frames.enumerated() {
+                #expect((frame != nil) == index.isMultiple(of: 2), "\(speed): 数と空白が交互に並ぶ")
+            }
+            #expect(frames.compactMap { $0 } == model.numbers, "\(speed): 画面に出した数列 = 出題")
+            #expect(frames.compactMap { $0 }.reduce(0, +) == model.sum, "\(speed): 正解は見せた数の合計")
+            // 空白は最短でも 100ms 以上取る（遷移の尺に頼らず、数字の差し替えは必ず空白のあいだ）。
+            #expect(AnzanLogic.milliseconds(of: .blank, speed: speed) >= 100, "\(speed)")
+        }
+    }
+
     @Test("正解すると win で決着し、回答時間と連続正解を記録する")
     func correctAnswerRecordsWin() {
         let clock = ManualClock()
