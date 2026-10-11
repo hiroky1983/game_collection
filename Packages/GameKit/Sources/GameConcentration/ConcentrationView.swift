@@ -377,6 +377,9 @@ private struct CardView: View {
 
     private var isFaceUp: Bool { card.isFaceUp || card.isMatched }
 
+    /// 札の角丸。ヒントの枠と表の面で同じ形を使う（数字の角丸を増やさない・#1413）。
+    private var cardShape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
+
     /// 図案の一辺。札の短い辺に対する比で置き、盤面サイズに追従させる
     /// （絵文字は 28pt 固定だったため、8ペアの大きい札では小さく、18ペアでは詰まって見えた）。
     private static let figureRatio: CGFloat = 0.56
@@ -393,10 +396,10 @@ private struct CardView: View {
         .overlay {
             if isHint {
                 // 裏は紫なので、白の縁を挟んだ紫の二重枠にして背景に沈ませない。
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                cardShape
                     .strokeBorder(.white, lineWidth: 5)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        cardShape
                             .strokeBorder(BoardGameHintColor.color, lineWidth: 2.5)
                     )
                     .shadow(color: BoardGameHintColor.color.opacity(0.6), radius: 6)
@@ -419,7 +422,7 @@ private struct CardView: View {
         ZStack {
             if isFaceUp {
                 // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                cardShape
                     .fill(card.isMatched ? AnyShapeStyle(Theme.teal.opacity(0.15))
                                          : AnyShapeStyle(CardStyle.faceFill))
                     .overlay(
