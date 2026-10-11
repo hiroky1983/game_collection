@@ -61,6 +61,9 @@ struct AnzanModuleTests {
         #expect(!code.contains("Timer.") && !code.contains("DispatchQueue"), "時間は Model が返す待ち時間を .task で待つだけ")
         #expect(code.contains(".task(id: model.displayRun)"), "表示の並びは displayRun を鍵に回し直す")
         #expect(code.contains("Task.sleep(for: wait)"))
+        // 数字のコマ切り替えにフェード等を付けると、速い設定の空白と重なって前後の数字が同時に見える（#2067）。
+        #expect(!code.contains("value: model.step"), "コマ（step）の変化にアニメーションを付けない")
+        #expect(!code.contains(".transition("), "数字・よーいに出入りの遷移を付けない")
     }
 
     @Test("撮影用の経路は Release に残っていない")

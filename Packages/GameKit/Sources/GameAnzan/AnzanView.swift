@@ -150,7 +150,8 @@ public struct AnzanView: View {
             stageContent
         }
         .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity)
-        .gameAnimation(.easeOut(duration: 0.15), value: model.step)
+        // コマ（よーい・数・空白）の切り替えにはアニメーションを付けない。フェードは速い設定の空白（180ms）と
+        // 重なり、前の数が消えきらないまま次の数が出て「書き換わる」ように見えた（#2067）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         // 板は 1 つの要素として読み上げつつ、中の見直しボタンには VoiceOver で届くようにする
         // （`.ignore` にすると板の中の Button がフォーカスから外れる。ソリティアの救済ダイアログと同じ `.contain`）。
@@ -183,13 +184,11 @@ public struct AnzanView: View {
             Text("よーい")
                 .scaledFont(34, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(Theme.Fill.yellow)
-                .transition(.opacity)
         } else if let number = model.displayedNumber {
             Text(verbatim: "\(number)")
                 .scaledFont(88, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                 .minimumScaleFactor(0.5)
                 .foregroundStyle(.white)
-                .transition(.scale(scale: 0.85).combined(with: .opacity))
         }
     }
 
