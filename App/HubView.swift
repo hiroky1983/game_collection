@@ -39,6 +39,7 @@ struct HubView: View {
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
     private struct HiddenNotice: Equatable {
+        let moduleID: String
         let title: String
         let id = UUID()
     }
@@ -305,7 +306,7 @@ struct HubView: View {
                 .overlay(alignment: .bottom) {
                     Group {
                         if let hiddenNotice {
-                            HubHiddenNotice(title: hiddenNotice.title)
+                            HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }
                                 .transition(.opacity)
                         }
                     }
@@ -313,7 +314,7 @@ struct HubView: View {
                 }
                 .task(id: hiddenNotice) {
                     guard hiddenNotice != nil else { return }
-                    try? await Task.sleep(for: .seconds(3))
+                    try? await Task.sleep(for: .seconds(5))
                     guard !Task.isCancelled else { return }
                     hiddenNotice = nil
                 }
@@ -577,8 +578,17 @@ struct HubView: View {
     private func hide(_ module: GameModule) {
         guard !settings.hiddenIDs.contains(module.id) else { return }
         settings.toggleHidden(module.id)
-        hiddenNotice = HiddenNotice(title: module.title)
+        hiddenNotice = HiddenNotice(moduleID: module.id, title: module.title)
         AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
+    }
+
+    /// 案内の「元に戻す」（#2047）。非表示は並びを動かさないので、`toggleHidden` でもとの位置に戻る。
+    /// 案内が出ている間に設定シートで先に戻されていたら、押しても再び隠さない。
+    private func undoHide(_ notice: HiddenNotice) {
+        hiddenNotice = nil
+        guard settings.hiddenIDs.contains(notice.moduleID) else { return }
+        settings.toggleHidden(notice.moduleID)
+        AccessibilityNotification.Announcement("「\(notice.title)」を元に戻しました").post()
     }
 
     /// 「きろく」の中の「Game Center で実績・ランキングを見る」（#669。以前はツールバーから直接・#334）。
@@ -731,28 +741,41 @@ private struct HubNewGamesNotice: View {
     }
 }
 
-/// カードを長押しメニューで非表示にした直後の案内（#662）。
+/// カードを長押しメニューで非表示にした直後の案内（#662）。「元に戻す」で取り消せる（#2047）。
 ///
-/// 戻す操作は設定シートにしか無いので、その場所だけを1行で伝える。読み上げは `HubView.hide` が
-/// 同じ文言をアナウンスで流すため、ここは VoiceOver から隠す（二重に読ませない）。
+/// 案内の文言は `HubView.hide` が同じ文言をアナウンスで流すため、VoiceOver からは隠す（二重に読ませない）。
+/// 「元に戻す」ボタンだけは VoiceOver で辿れる。
 private struct HubHiddenNotice: View {
     let title: String
+    let onUndo: () -> Void
 
     static func message(title: String) -> String {
-        "「\(title)」を非表示にしました。設定から戻せます"
+        "「\(title)」を非表示にしました。元に戻せます"
     }
 
     var body: some View {
-        Text(Self.message(title: title))
-            .themeCaption(13)
-            .foregroundStyle(Theme.ink)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, Theme.pad)
-            .padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
-            .padding(Theme.pad)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        HStack(spacing: 8) {
+            Text("「\(title)」を非表示にしました")
+                .themeCaption(13)
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
+            Button(action: onUndo) {
+                Text("元に戻す")
+                    .themeCaption(13)
+                    .fontWeight(.bold)
+                    .underline()
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("「\(title)」の非表示を元に戻す")
+        }
+        .padding(.horizontal, Theme.pad)
+        .popCard(corner: Theme.cornerSmall)
+        .padding(Theme.pad)
     }
 }
 
