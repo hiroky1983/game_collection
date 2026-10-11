@@ -101,6 +101,10 @@ public struct OjisanPuzzleView: View {
                             openSetup()
                         }
                     })
+        // 図入りの遊び方（#2044 の先駆け）。`?` はヘッダー右に自動で並ぶ。読んでいるあいだは荷物を落とさない。
+        .howToPlay(.ojisanPuzzle.illustrated(OjisanPuzzleHowToFigures.all),
+                   onPresent: { model.pause() },
+                   onDismiss: { if !showSetup, scenePhase == .active { model.resume() } })
         .sheet(isPresented: $showSetup) {
             OjisanPuzzleSetupSheet(mode: $setupMode) {
                 showSetup = false
@@ -388,7 +392,7 @@ public struct OjisanPuzzleView: View {
                 ForEach(0..<OjisanPuzzleBoard.rows, id: \.self) { row in
                     HStack(spacing: 1) {
                         ForEach(0..<OjisanPuzzleBoard.columns, id: \.self) { col in
-                            luggage(board[row][col], side: max(0, cell - 1))
+                            Self.luggage(board[row][col], side: max(0, cell - 1))
                         }
                     }
                 }
@@ -492,8 +496,9 @@ public struct OjisanPuzzleView: View {
 
     /// 荷物 1 個。**ピースそのものが荷物の形に見える**絵にする（会長指示 2026-10-07・#1909）。
     /// 5 種は形で見分けが付く（`OjisanPuzzleLuggageArt`）。空きマスだけ薄い四角を敷く。
+    /// 遊び方の図（`OjisanPuzzleHowToFigures`）も同じ部品で描く（絵を二重に持たない）。
     @ViewBuilder
-    private func luggage(_ value: Int, side: CGFloat) -> some View {
+    static func luggage(_ value: Int, side: CGFloat) -> some View {
         if OjisanPuzzleLuggage.kind(value) == nil {
             RoundedRectangle(cornerRadius: max(1, side * 0.24), style: .continuous)
                 .fill(Theme.fillMuted.opacity(0.14))
@@ -577,8 +582,8 @@ public struct OjisanPuzzleView: View {
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 2) {
-                    luggage(model.next.childKind, side: 26)
-                    luggage(model.next.axisKind, side: 26)
+                    Self.luggage(model.next.childKind, side: 26)
+                    Self.luggage(model.next.axisKind, side: 26)
                 }
             }
             .frame(width: Self.sideWidth)
