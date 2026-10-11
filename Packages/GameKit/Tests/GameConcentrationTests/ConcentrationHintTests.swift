@@ -107,6 +107,7 @@ struct ConcentrationHintTests {
         #expect(!model.requestHint(), "無料を使い切ったら広告なしでは出ない")
         #expect(model.hints.used == 1)
         for n in 2...4 {
+            model.finishHint(run: model.hintRun) // 光り終わってから次を押す
             let first = model.firstFlippedIndex
             #expect(model.grantAdHint(forGame: model.gameSerial, first: first))
             #expect(model.hints.used == n)
