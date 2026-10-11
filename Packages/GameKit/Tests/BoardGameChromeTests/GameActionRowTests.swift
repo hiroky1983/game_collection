@@ -93,7 +93,7 @@ struct GameActionRowTests {
     static let placements: [(String, [String], [String])] = [
         // 神経衰弱のヒントは無料1回のあと広告で最大3回（#2026）なので、待ったと並べて段。
         ("GameConcentration", ["matta", "hint"], []),
-        ("GameSolitaire", ["undo"], ["joker", "autoFinish"]),
+        ("GameSolitaire", ["undo", "hint"], ["joker", "autoFinish"]),
         ("GameSpider", ["undo", "hint"], ["deal", "zoom"]),
         ("GameFreeCell", ["undo", "hint"], ["zoom", "autoFinish"]),
         // 麻雀ソリティア・ナンプレの戻すは回数制（無料のあと広告で補充・#1855）なので段。

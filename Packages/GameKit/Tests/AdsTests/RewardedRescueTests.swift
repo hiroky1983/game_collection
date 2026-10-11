@@ -411,7 +411,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 7, "広告をモデルで抱えている6面（ブラックジャック・ポーカー・麻雀・ルーレット #1318・フリーセルとスパイダーのヒント #2025）。麻雀は復活と最終局延長（#1201）の2か所")
+        #expect(withOutcome == 8, "広告をモデルで抱えている7面（ブラックジャック・ポーカー・麻雀・ルーレット #1318・フリーセル・スパイダー・ソリティアのヒント #2025）。麻雀は復活と最終局延長（#1201）の2か所")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }
@@ -439,6 +439,7 @@ struct RewardGuardCallSiteTests {
             "GamePoker/PokerModel.swift",
             "GameRoulette/RouletteModel.swift",
             "GameShogi/ShogiGameModel.swift",
+            "GameSolitaire/SolitaireModel.swift",
             "GameSpider/SpiderModel.swift",
         ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
     }

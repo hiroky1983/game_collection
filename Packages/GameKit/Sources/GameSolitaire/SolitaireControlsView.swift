@@ -13,6 +13,10 @@ struct SolitaireControlsView: View {
     let isWatchingUndoAd: Bool
     /// 「戻す」の入口。残り回数の判定と広告の提案は画面本体が持つ（#476）。
     let onUndo: () -> Void
+    /// ヒントの補充広告を出している最中（押させない・#2025）。
+    let isWatchingHintAd: Bool
+    /// ヒントの入口。無料か広告かの振り分けは画面本体が持つ。
+    let onHint: () -> Void
 
     var body: some View {
         GameControlArea(isFinished: model.phase == .won, services: services) {
@@ -43,7 +47,7 @@ struct SolitaireControlsView: View {
         // 戻す（無料 3 回のあと広告）は盤の下の段のカプセルに出し、ジョーカー・自動で上がる（広告なし）は右下の「⋯」に残す
         // （#1468・#1856・会長決裁 2026-10-06「段に出すのは広告が絡む操作だけ」）。
         // 標準以外のルール（3枚めくり）の表示は状態の帯へ移した（`SolitaireView.statusBar`・#498）。
-        GameOverflowBar(menuItems: menuItems, actions: actions)
+        GameOverflowBar(menuItems: menuItems, actions: actions, nudge: hintNudge)
             .overlay(alignment: .top) {
                 if model.isPlacingJoker { jokerPlacingBanner }
             }
@@ -62,7 +66,29 @@ struct SolitaireControlsView: View {
                     remaining: model.undosRemaining
                 )
             ) { onUndo() },
+            hintAction,
         ]
+    }
+
+    /// 段のヒント（#2025・#1856）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !isWatchingHintAd,
+            accessibilityLabel: SolitaireAccessibility.hintButtonLabel(
+                freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
+            accessibilityHint: "次に指す1手を、動かす札と行き先に紫の枠で示します。動かすのはあなたです"
+        ) { onHint() }
+    }
+
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canUseHint && !isWatchingHintAd && !model.showsRescuePrompt,
+            game: model.dealSerial,
+            activity: [model.moveCount, model.hints.used]
+        )
     }
 
     /// 「⋯」に入れる操作（広告の無いもの）。

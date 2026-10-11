@@ -130,6 +130,38 @@ public enum SolitaireAccessibility {
             : "手詰まりかクリアできない局面になったとき、広告を見て1枚受け取れます"
     }
 
+    /// 「ヒント」ボタン（#2025）。残り回数と広告の要否を音声だけで分かるようにする。
+    public static func hintButtonLabel(freeRemaining: Int, needsAd: Bool, isThinking: Bool) -> String {
+        if isThinking { return "ヒント、考え中" }
+        return needsAd ? "ヒント（広告を見て表示）" : "ヒント（残り\(freeRemaining)回）"
+    }
+
+    /// 示した手の読み上げ（例: "ヒント、ハートの7を3列目へ"）。`board` は動かす前の盤。
+    public static func hintLabel(move: SolitaireMove, board: SolitaireBoard) -> String {
+        func name(_ card: SolitaireCard?) -> String {
+            guard let card else { return "札" }
+            return cardLabel(card)
+        }
+        switch move {
+        case .draw:
+            return "ヒント、山札をめくります"
+        case .wasteToFoundation:
+            return "ヒント、捨て札の\(name(board.waste.last))を組札へ"
+        case .wasteToTableau(let pile):
+            return "ヒント、捨て札の\(name(board.waste.last))を\(pile + 1)列目へ"
+        case .tableauToFoundation(let pile):
+            return "ヒント、\(pile + 1)列目の\(name(board.tableau[pile].top))を組札へ"
+        case .tableauToTableau(let from, let index, let to):
+            let run = board.tableau[from].faceUp
+            guard run.indices.contains(index) else { return "ヒント" }
+            let count = run.count - index
+            let what = count > 1 ? "\(name(run[index]))から上の\(count)枚" : name(run[index])
+            return "ヒント、\(what)を\(to + 1)列目へ"
+        case .placeJoker:
+            return "ヒント"
+        }
+    }
+
     /// 救済の告知（#406）。行き止まりと敗北確定を読み分ける。
     ///
     /// - Note: 行き止まりは**画面の本文と同じ内容まで読む**（#491）。画面には
