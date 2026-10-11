@@ -44,6 +44,9 @@ struct SpiderSnapshot: Codable {
     /// 「戻す」の残り回数。手順から導出できないのでここだけは別に持つ。
     /// **省略可**。欠けた中断データは無料枠が丸ごと残っている扱いにする。
     let undosRemaining: Int?
+    /// この局で使ったヒントの回数（#2025）。再開で回数が戻らないよう保存する。
+    /// **省略可**。旧形式には無いので、無ければ 0（未使用）として読む。
+    var hintsUsed: Int? = nil
 }
 
 @MainActor
@@ -74,6 +77,27 @@ public final class SpiderModel {
 
     /// 配札番号（= 種）。
     public private(set) var dealNumber: UInt64
+
+    /// この局のヒントの残り（#2025）。無料 3 回・広告で最大 5 回。回数と順位表の扱いは Core の `BoardHintBudget` が持つ。
+    /// 戻すとは別の回数で、戻してもここは戻らない。
+    public private(set) var hints = BoardHintBudget(
+        freeLimit: SpiderHintPolicy.freeCount, adLimit: SpiderHintPolicy.adRefillMax
+    )
+    /// ヒントの読みの最中か。
+    public private(set) var isHintThinking = false
+    /// 示している手。**盤が動いたら消える**（`refreshDerivedState`）ので、印が古い盤の手を指すことは無い。永続化しない。
+    public private(set) var hintMove: SpiderMove?
+    /// 勝てないと分かったときの知らせ（回数は減らさない）。View が閉じるまで残る。
+    public private(set) var showsHintHopeless = false
+    /// テスト専用: 読みが終わった直後（結果を取り込む前）に呼ぶ。読みの最中に盤が動いた状況を決定的に作る。
+    var hintSearchDidFinishForTesting: (() -> Void)?
+    /// 盤が変わるたびに増える番号。読みを始めた時点の値と突き合わせ、読んでいる間に盤が動いたら結果を捨てる。
+    private var boardVersion = 0
+    /// 走っている読み。`Task.detached` は親のキャンセルを継がないので、盤が変わったときに降ろせるよう握る。
+    private var hintSearch: Task<SpiderHintAnswer?, Never>?
+    /// 示した筋の続き（`hintPlanBoard` に着いたら先頭から指す）。**盤が変わっても消さない**
+    /// （プレイヤーが示した手を指すと盤が変わり、そこで続きを使う）。使えなければ解き直す。
+    private var hintTrail: SpiderHintTrail?
 
     /// この局に焼き込んだルール（#717）。**局の途中では変わらない**（1 局 = 1 RuleSet）。
     public private(set) var rules: SpiderRuleSet
@@ -128,6 +152,7 @@ public final class SpiderModel {
         var startMoves: [SpiderMove] = []
         var startElapsed = 0
         var startUndos = SpiderUndoBudget.free
+        var startHintsUsed = 0
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = true
 
@@ -138,6 +163,7 @@ public final class SpiderModel {
             startMoves = snap.moves
             startElapsed = max(0, snap.elapsedSeconds)
             startUndos = max(0, snap.undosRemaining ?? SpiderUndoBudget.free)
+            startHintsUsed = snap.hintsUsed ?? 0
             isFreshStart = false
         }
 
@@ -145,6 +171,10 @@ public final class SpiderModel {
         self.dealNumber = startSeed
         self.elapsedSeconds = startElapsed
         self.undosRemaining = startUndos
+        self.hints = BoardHintBudget(
+            used: startHintsUsed,
+            freeLimit: SpiderHintPolicy.freeCount, adLimit: SpiderHintPolicy.adRefillMax
+        )
         // 壊れた（または食い違った）中断データは、**適用できたところで打ち切る**（#406 申し送り2）。
         let restored = Self.replay(startMoves, seed: startSeed, rules: startRules)
         self.moves = Array(startMoves.prefix(restored.applied))
@@ -247,6 +277,104 @@ public final class SpiderModel {
         return true
     }
 
+    // MARK: - ヒント（#2025）
+
+    /// 示している手の、動かす札の場所。「配る」のときは nil（山札を示す）。
+    public var hintSource: SpiderSelection? {
+        guard case .move(let from, let index, _) = hintMove else { return nil }
+        return SpiderSelection(pile: from, cardIndex: index)
+    }
+
+    /// 示している手の、行き先の列。「配る」のときは nil。
+    public var hintDestinationPile: Int? {
+        guard case .move(_, _, let to) = hintMove else { return nil }
+        return to
+    }
+
+    /// 山札を示しているか（手が「配る」）。
+    public var hintsDeal: Bool { hintMove == .deal }
+
+    /// 残り回数（無料 + 広告の合計）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// いまヒントを押せるか。遊んでいる最中で、読みが走っておらず、残りが在るとき。
+    public var canUseHint: Bool { phase == .playing && !isHintThinking && !hints.isExhausted }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    public func dismissHintHopeless() { showsHintHopeless = false }
+
+    /// 無料の 1 回。勝ち筋を探して最初の 1 手を示す。**求まらなかった・盤が変わった・勝てない盤では回数を減らさない**。
+    /// 呼ぶ側は画面を離れたら取り消せる Task で走らせる（`GameScreenGeneration.runUntilLeave`）。
+    public func requestHint() async {
+        guard canUseHint, !needsAdForHint else { return }
+        guard let answer = await searchHint() else { return }
+        _ = applyHint(answer) { hints.consume() }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（契約は `FreeCellModel.requestAdHint` と同じ）。
+    ///
+    /// **先に読む**: 勝てない盤では広告を流さない。読み終えてから広告を出し、見終えたところで回数を消費して印を出す。
+    /// - Returns: `.granted` は「この要求を終えた」（広告を見て示した場合に加え、勝てない盤と分かり広告を出さずに知らせた場合も含む）。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        // 広告のあいだに画面を離れたら、このモデルは捨てられている（#653）。
+        let generationBeforeAd = services?.screenGeneration.current
+        let version = boardVersion
+        guard let answer = await searchHint(),
+              services?.screenGeneration.current == generationBeforeAd, version == boardVersion else { return .unavailable }
+        if answer.result == .hopeless {
+            showsHintHopeless = true
+            return .granted
+        }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else { return .notEarned }
+        guard services?.screenGeneration.current == generationBeforeAd, version == boardVersion,
+              applyHint(answer, consume: { hints.consumeAd() }) else { return .unavailable }
+        return .granted
+    }
+
+    /// 今の盤で勝ち筋を探す。盤が動いた・離脱で取り消された・読み終える前に別の読みが入ったときは nil。
+    private func searchHint() async -> SpiderHintAnswer? {
+        // 前に示した筋の続きに着いていれば、解き直さずその続きを示す（往復しない・待たせない）。
+        if let next = hintTrail?.answer(at: board) { return next }
+        let version = boardVersion
+        let board = self.board
+        let suits = rules.suitCount
+        isHintThinking = true
+        let search = Task.detached(priority: .userInitiated) {
+            SpiderHint.findPlan(in: board, suits: suits, isCancelled: { Task.isCancelled })
+        }
+        hintSearch = search
+        let result = await withTaskCancellationHandler { await search.value } onCancel: { search.cancel() }
+        hintSearchDidFinishForTesting?()
+        // 盤が変わっていれば `refreshDerivedState` が旗の持ち主を替えている。下ろすのは同じ盤のままのときだけ。
+        guard version == boardVersion else { return nil }
+        isHintThinking = false
+        hintSearch = nil
+        guard !Task.isCancelled else { return nil }
+        return result
+    }
+
+    /// 答えを盤に反映する。勝てない盤は知らせるだけで回数を減らさない。
+    private func applyHint(_ answer: SpiderHintAnswer, consume: () -> Bool) -> Bool {
+        guard phase == .playing else { return false }
+        switch answer.result {
+        case .hopeless:
+            showsHintHopeless = true
+            return false
+        case .move(let move):
+            guard board.isLegal(move), consume() else { return false }
+            hintMove = move
+            // 続きを控える。示した手を指した後の盤を覚えておき、そこに着いたら先頭から使う。
+            hintTrail = SpiderHintTrail.after(answer, from: board)
+            services?.gameDidUseHint(gameID: gameID)
+            services?.feedback.impact(.light)
+            persist()
+            return true
+        }
+    }
+
     // MARK: - 新規配札
 
     /// 新しい配札を配る。
@@ -263,6 +391,9 @@ public final class SpiderModel {
         dealNumber = Self.pickSeed(for: self.rules.suitCount, excluding: dealNumber)
         moves = []
         undosRemaining = SpiderUndoBudget.free
+        hints.reset()
+        showsHintHopeless = false
+        hintTrail = nil
         board = Self.replay(moves, seed: dealNumber, rules: self.rules).board
         phase = .playing
         selection = nil
@@ -330,6 +461,12 @@ public final class SpiderModel {
     }
 
     private func refreshDerivedState() {
+        // 盤が変わった = 示していた手も、走っている読みも古い（#2025）。
+        boardVersion += 1
+        hintMove = nil
+        hintSearch?.cancel()
+        hintSearch = nil
+        isHintThinking = false
         isDeadEnd = phase == .playing && board.isDeadEnd
     }
 
@@ -343,14 +480,15 @@ public final class SpiderModel {
     ///
     /// スート数ごとに `variant` を分けて自己ベストを別枠にする（1 スートと 4 スートではタイムの
     /// 水準がまったく違う）。順位表もスート数ごとに別の表へ送る（`GameCenterLeaderboard`）。
-    /// 盤面を有利にする救済アイテムは持たないので `isLeaderboardEligible` は常に true。
+    /// ヒントを使った局は順位表に送らない（ジョーカーと同じ。自己ベストには残す・#2025）。
     private var currentScore: GameScore {
         GameScore(
             metric: .shortestTime,
             seconds: elapsedSeconds,
             moves: moveCount,
             variant: rules.suitCount.recordVariant,
-            variantLabel: rules.suitCount.recordLabel
+            variantLabel: rules.suitCount.recordLabel,
+            isLeaderboardEligible: !hints.wasUsed
         )
     }
 
@@ -376,7 +514,8 @@ public final class SpiderModel {
             suitCount: rules.suitCount.rawValue,
             moves: moves,
             elapsedSeconds: elapsedSeconds,
-            undosRemaining: undosRemaining
+            undosRemaining: undosRemaining,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }

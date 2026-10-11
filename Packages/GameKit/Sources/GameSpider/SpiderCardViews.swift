@@ -8,6 +8,8 @@ struct SpiderCardBody: View {
     let card: SpiderCard
     let faceUp: Bool
     let isSelected: Bool
+    /// ヒントが動かすよう示している札（紫の枠・#2025）。
+    var isHinted = false
     /// 下に重なって帯だけ見えている表向きの札なら、その見出しの寸法（`nil` = 全体が見えている札）。
     let coveredIndex: CardStackIndexMetrics?
     let metrics: PlayingCardMetrics
@@ -17,8 +19,8 @@ struct SpiderCardBody: View {
             PlayingCardSurface(
                 faceUp: faceUp,
                 cornerRadius: metrics.cornerRadius,
-                border: isSelected ? Theme.coral : Color.gray.opacity(0.2),
-                borderWidth: isSelected ? 2.5 : 0.5
+                border: isSelected ? Theme.coral : (isHinted ? BoardGameHintColor.color : Color.gray.opacity(0.2)),
+                borderWidth: isSelected || isHinted ? 2.5 : 0.5
             )
             if !faceUp {
                 PlayingCardBack(metrics: metrics)

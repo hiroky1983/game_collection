@@ -20,6 +20,8 @@ public struct SpiderView: View {
     @State private var showUndoRefillPrompt = false
     /// 「戻す」補充のリワード広告の段取り（#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒント（無料 3 回を使い切った後の広告）の段取り（#2025）。読みと広告はモデルが 1 本の非同期メソッドで持つ。
+    @State private var hintRescue = RewardedRescue()
     /// 拡大モード（#604）。既定は等倍。
     @State private var zoomMode = false
     /// 「空いた列があるので配れません」の案内を出しているか。
@@ -91,7 +93,12 @@ public struct SpiderView: View {
             }
         }
         .dialogs { anchor in
-            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+            anchor.alert("この盤からは勝てません", isPresented: hopelessBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+            }
+            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
                 Button("広告を見て\(SpiderUndoBudget.refill)回補充する") { requestUndoRefill() }
                 Button("キャンセル", role: .cancel) {}
             } message: {
@@ -108,8 +115,23 @@ public struct SpiderView: View {
                 message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
             )
         )
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+            )
+        )
         .overlay {
             if model.showsDeadEndPrompt { deadEndOverlay }
+        }
+        // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
+        .onChange(of: model.hintMove) { _, move in
+            guard let move else { return }
+            AccessibilityNotification.Announcement(
+                SpiderAccessibility.hintLabel(move: move, board: model.board)
+            ).post()
         }
         .onChange(of: model.dealBlockedCount) { _, _ in
             showDealBlockedHint = true
@@ -127,6 +149,10 @@ public struct SpiderView: View {
             if ProcessInfo.processInfo.arguments.contains("-spiderDeadEnd") {
                 model.applyDeadEndPreviewForTesting()
             }
+            // ヒントの印（#2025）。シミュレータは自動タップができないため、起動引数から無料の 1 回を押した状態にする。
+            if ProcessInfo.processInfo.arguments.contains("-spiderHint") {
+                await model.requestHint()
+            }
             if ProcessInfo.processInfo.arguments.contains("-spiderZoom") {
                 zoomMode = true
             }
@@ -138,10 +164,14 @@ public struct SpiderView: View {
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
-            rescues: [undoRescue],
+            rescues: [undoRescue, hintRescue],
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
+    }
+
+    private var hopelessBinding: Binding<Bool> {
+        Binding(get: { model.showsHintHopeless }, set: { if !$0 { model.dismissHintHopeless() } })
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498 と同じ）。
@@ -358,6 +388,8 @@ public struct SpiderView: View {
             }
         }
         .frame(width: metrics.width, height: metrics.height)
+        // 手が「配る」のときは山札に点線を重ねて示す（#2025）。
+        .overlay { hintFrame(model.hintsDeal, metrics: metrics) }
         .contentShape(Rectangle())
         .onTapGesture { model.tapStock() }
         .accessibilityElement(children: .ignore)
@@ -437,6 +469,11 @@ public struct SpiderView: View {
                 .padding(.top, restY)
             }
         }
+        // 行き先の列は、いちばん上の札（空列なら枠）に点線を重ねて示す（#2025）。
+        .overlay(alignment: .top) {
+            hintFrame(model.hintDestinationPile == pile, metrics: metrics)
+                .padding(.top, column.isEmpty ? 0 : max(height - metrics.height, 0))
+        }
         // 押せる範囲（ドロップ枠を含む）は**盤の下端まで**伸ばす（フリーセルと同じ）。
         .frame(width: metrics.width, height: max(height, stack.reachHeight), alignment: .top)
         .cardDropTarget(SpiderDropTarget.pile(pile), in: Self.boardSpace)
@@ -479,13 +516,14 @@ public struct SpiderView: View {
     ) -> some View {
         let isSelected = model.selection == SpiderSelection(pile: pile, cardIndex: index)
         let isMovable = model.board.isMovableRun(pile: pile, from: index)
+        let isHinted = model.hintSource.map { $0.pile == pile && index >= $0.cardIndex } ?? false
         let fromStock = model.lastDealtCardIDs.contains(card.id)
         return SpiderDealtCardView(
             pile: pile, depth: index, restY: restY, metrics: metrics,
             dealing: model.isFreshDeal || fromStock, fromStock: fromStock
         ) {
             SpiderCardBody(
-                card: card, faceUp: true, isSelected: isSelected,
+                card: card, faceUp: true, isSelected: isSelected, isHinted: isHinted,
                 // いちばん上の 1 枚だけが札の全体を出す（下に重なった札は左上の見出しだけ）。
                 coveredIndex: index < column.cards.count - 1 ? stack.index : nil,
                 metrics: metrics
@@ -569,12 +607,58 @@ public struct SpiderView: View {
                     accessibilityHint: SpiderAccessibility.undoButtonHint(
                         canUndo: model.canUndo, remaining: model.undosRemaining)
                 ) { requestUndo() },
+                hintAction,
             ],
+            nudge: hintNudge,
             // 「配る」が拒否された理由。段と「⋯」のあいだに出て、空の列が埋まると自動で消える。
             caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
                 ? GameOverflowCaption("空の列を埋めると配れます", color: Theme.coral)
                 : nil
         )
+    }
+
+    /// 盤の下の「操作の段」のヒント（#2025・#1856）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !hintRescue.isWatching,
+            accessibilityLabel: SpiderAccessibility.hintButtonLabel(
+                freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
+            accessibilityHint: "次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです"
+        ) { requestHint() }
+    }
+
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canUseHint && !hintRescue.isWatching,
+            game: model.dealSerial,
+            activity: [model.moveCount, model.hints.used]
+        )
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま読み、使い切っていたら読んでから広告を出す（#2025）。
+    /// 読みは画面を離れたら取り消す（離脱後に確定すると回数・解析・中断データが動く・#1903）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        if model.needsAdForHint {
+            hintRescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+        } else {
+            services.screenGeneration.runUntilLeave { await model.requestHint() }
+        }
+    }
+
+    /// ヒントの行き先を示す点線の枠（#2025）。札 1 枚ぶんの大きさ。
+    @ViewBuilder private func hintFrame(_ isOn: Bool, metrics: PlayingCardMetrics) -> some View {
+        if isOn {
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .inset(by: 1.5)
+                .stroke(BoardGameHintColor.color, style: StrokeStyle(lineWidth: 3, dash: [6, 4]))
+                .frame(width: metrics.width, height: metrics.height)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     // MARK: - 行き止まりの告知
