@@ -397,13 +397,16 @@ struct HomerunGeometryTests {
         #expect(loose[1].y + size.height / 2 > frame.maxY)
     }
 
-    @Test("合計飛距離（m）は順位表 homerunDistance へ送る")
+    @Test("常設の順位表には送らない（週間ランキングだけ・会長指示 2026-10-12）")
     @MainActor func leaderboardMapping() {
-        let mapped = GameCenterLeaderboard.score(
-            gameID: HomerunModel.gameID, outcome: .loss, score: GameScore(metric: .points, points: 812)
-        )
-        #expect(mapped == GameCenterScore(leaderboardID: GameCenterLeaderboard.homerunDistance, value: 812))
-        #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.homerunDistance))
+        for outcome in [GameOutcome.win, .loss] {
+            let mapped = GameCenterLeaderboard.score(
+                gameID: HomerunModel.gameID, outcome: outcome, score: GameScore(metric: .points, points: 812)
+            )
+            #expect(mapped == nil)
+        }
+        #expect(!GameCenterLeaderboard.allIDs.contains("asobiba.homerun.distance"))
+        #expect(GameCenterLeaderboard.homerunWeekly == "asobiba.homerun.weekly")
     }
 
     @Test("方向メーターは既定でオン。切り替えは保存され、次のモデルに引き継がれる")
