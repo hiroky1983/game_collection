@@ -53,7 +53,7 @@ struct HubCardMenuWiringTests {
         let source = try SourceScan.appSources()
         #expect(
             source.range(
-                of: #"private struct HiddenNotice: Equatable \{\s*let title: String\s*let id = UUID\(\)"#,
+                of: #"private struct HiddenNotice: Equatable \{\s*let moduleID: String\s*let title: String\s*let id = UUID\(\)"#,
                 options: .regularExpression
             ) != nil,
             "案内に回ごとの ID が無い（同じゲームを続けて隠すと数え直さない）"
@@ -67,5 +67,24 @@ struct HubCardMenuWiringTests {
         )
         #expect(source.contains(".gameAnimation(.easeOut(duration: 0.2), value: hiddenNotice)"),
                 "案内の出し入れが Reduce Motion に従っていない")
+    }
+
+    @Test("非表示の案内の「元に戻す」は toggleHidden で戻し、並び（orderedIDs）には触れない（#2047）")
+    func undoRestoresInPlace() throws {
+        let source = try SourceScan.appSources()
+        let undo = try Self.functionBody("undoHide", in: source)
+        #expect(undo.contains("settings.hiddenIDs.contains(notice.moduleID)"),
+                "先に設定シートで戻されていても、元に戻すが再び隠してしまう")
+        #expect(undo.contains("settings.toggleHidden(notice.moduleID)"), "元に戻すが GameSettings.toggleHidden を通っていない")
+        #expect(!undo.contains("orderedIDs") && !undo.contains("UserDefaults"), "元に戻すが並びや保存に直接触れている")
+        // 戻す先の位置は toggleHidden が並びを動かさないことで決まる。
+        let gameSettings = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/GameSettings.swift"), encoding: .utf8)
+        let toggle = SourceScan.functionSource(startingWith: "func toggleHidden(", in: gameSettings)
+        #expect(toggle.contains("hiddenIDs.insert(id)") && toggle.contains("hiddenIDs.remove(id)"), "toggleHidden が見つからない")
+        #expect(!toggle.contains("orderedIDs"), "toggleHidden が並びを動かしている（戻した位置がずれる）")
+        #expect(source.contains("HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }"), "案内に元に戻すが結線されていない")
+        #expect(source.contains(".frame(minHeight: 44)"), "元に戻すボタンが 44pt に満たない")
+        #expect(source.contains("Task.sleep(for: .seconds(5))"), "案内が押せる長さ（5 秒）で出ていない")
     }
 }

@@ -1,35 +1,56 @@
 import Foundation
 import CoreEngine
 
-/// 腰痛おじさんパズルの遊び方（#1920）。始める前の設定シートで選び、1 局のあいだは変えない
+/// おじさんの荷物運びパズルの遊び方（#1920）。始める前の設定シートで選び、1 局のあいだは変えない
 /// （1 局 = 1 ルールセット。局中に読み替えない）。
 ///
-/// - `backpain`（腰痛モード）: 腰痛ゲージあり。最初から荷物が積まれていて、時間で下からせり上がってくる。
-///   決めたラインより荷物を下げればクリア。記録はクリアタイム。
+/// - `backpain`（表示名は「荷運びモード」・会長指示 2026-10-12。enum ケース名・保存キー・解析の
+///   `mode` 値は旧名の `backpain` のまま変えない＝記録・解析を引き継ぐ）: 腰痛ゲージあり。最初から
+///   荷物が積まれていて、時間で下からせり上がってくる。決めたラインより荷物を下げればクリア。記録はクリアタイム。
 /// - `puzzle`（パズルモード）: ゲージなし。荷物を消した得点を競う、埋まるまで続くモード。記録は得点。
 ///
-/// 画面・おじさんはどちらも同じで、違いはゲージの有無とルールだけ。モードの表示名と各数値は
-/// 会長確認前の案（#1920）。**「ぷよぷよ」「とことん」は公開文言・画面に使わない**（商標）。
+/// 画面・おじさんはどちらも同じで、違いはゲージの有無とルールだけ。各数値は会長確認前の案（#1920）。
+/// **「ぷよぷよ」「とことん」は公開文言・画面に使わない**（商標）。
 public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
     case backpain
     case puzzle
 
     public var id: String { rawValue }
 
+    /// 画面に出す表示名。`backpain` は「荷運びモード」（会長指示 2026-10-12。ゲージ自体の名前「腰痛ゲージ」は変えない）。
     public var title: String {
         switch self {
-        case .backpain: "腰痛モード"
+        case .backpain: "荷運びモード"
         case .puzzle: "パズルモード"
         }
     }
 
-    /// 開始シートに出す説明。
-    public var summary: String {
+    /// 開始シートに出す説明。目的・ルールの要点・記録を行ごとに分け、モードの違いが一目で分かるようにする
+    /// （会長指示 2026-10-12）。
+    public var summaryLines: [String] {
         switch self {
         case .backpain:
-            "腰痛ゲージあり。積まれた荷物が時間でせり上がってくる。ラインより荷物を下げればクリア。ゲージが満タンになると入院"
+            [
+                "目的: 積まれた荷物をラインの下まで片付けたらクリア",
+                "荷物は時間で下からせり上がる",
+                "重い荷物ほど腰にきて、腰痛ゲージが満タンになると入院",
+                "記録: クリアまでのタイム",
+            ]
         case .puzzle:
-            "ゲージなし。荷物を消した得点を競う。積み上がって埋まるまで続く"
+            [
+                "目的: 荷物を消して得点をのばす",
+                "空の盤から始まり、腰痛ゲージはなし",
+                "積み上がって埋まるまで続く",
+                "記録: 得点",
+            ]
+        }
+    }
+
+    /// 開始シートのカードで、モード名の横に出す小さなアイコン（会長指示 2026-10-12）。
+    public var setupIcon: String {
+        switch self {
+        case .backpain: "cross.case.fill"
+        case .puzzle: "star.fill"
         }
     }
 
@@ -47,13 +68,14 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// 自己ベストの保存先の区分（`PlayLog` の `ojisanpuzzle#<区分>`）。腰痛モードはタイム、パズルモードは得点。
+    /// 自己ベストの保存先の区分（`PlayLog` の `ojisanpuzzle#<区分>`）。表示名を変えても区分キーは rawValue のまま。
+    /// 荷運びモード（`backpain`）はタイム、パズルモードは得点。
     public var recordVariant: String { rawValue }
 
     public var recordVariantLabel: String { title }
 }
 
-/// 腰痛モード（片付け型）のルールの数値と、盤の作り方。純粋関数だけで、乱数は呼び出し側が持つ。
+/// 荷運びモード（片付け型。旧名・腰痛モード）のルールの数値と、盤の作り方。純粋関数だけで、乱数は呼び出し側が持つ。
 public enum OjisanPuzzleCleanup {
     /// クリアのライン。この行より上（行番号が小さい側）に荷物が 1 つも無くなればクリア。
     /// 12 段のうち下 4 段（行 8...11）に収まれば片付いた扱い。
@@ -61,7 +83,7 @@ public enum OjisanPuzzleCleanup {
     /// 荷物が 1 段せり上がる間隔（ミリ秒）。会長確認前の案。
     public static let riseIntervalMilliseconds = 40_000
     /// 開始時の各列の積み高さ（段数）の幅。
-    public static let initialHeights = 4...6
+    public static let initialHeights = 5...7
 
     /// 一番上の荷物がある行。荷物が 1 つも無ければ nil。
     public static func topLuggageRow(_ board: [[Int]]) -> Int? {

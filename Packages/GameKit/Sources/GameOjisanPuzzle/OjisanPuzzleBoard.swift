@@ -16,7 +16,7 @@ public struct OjisanPuzzleCell: Hashable, Sendable {
     }
 }
 
-/// 腰痛おじさんパズルの純粋ロジック。SwiftUI 非依存・乱数は呼び出し側が持つので、
+/// おじさんの荷物運びパズルの純粋ロジック。SwiftUI 非依存・乱数は呼び出し側が持つので、
 /// 盤の判定はすべてここで網羅的にテストできる。
 ///
 /// 盤は `[[Int]]` で、0 = 空きマス、1...5 = 荷物の種類。行は**上が 0**（`rows - 1` が床）。
@@ -134,9 +134,14 @@ public enum OjisanPuzzleBoard {
 
     // MARK: - 落ちてくる 2 個組
 
-    /// 組が盤に収まっていて、2 マスとも空いているか。
+    /// 盤の上に 1 段だけある、画面に見えない段の行番号。組の子だけがここにはみ出せる（定番の落ち物パズルと同じ・#2088）。
+    public static let hiddenRow = -1
+
+    /// 組が盤に収まっていて、2 マスとも空いているか。**軸は盤の中、子は見えない段（`hiddenRow`）にもいてよい**。
     public static func canPlace(_ board: [[Int]], _ pair: OjisanPuzzlePair) -> Bool {
-        pair.cells.allSatisfy { isEmpty(board, row: $0.cell.row, col: $0.cell.col) }
+        guard isEmpty(board, row: pair.row, col: pair.col) else { return false }
+        if pair.childRow == hiddenRow { return (0..<columns).contains(pair.childCol) }
+        return isEmpty(board, row: pair.childRow, col: pair.childCol)
     }
 
     /// 左右へ 1 マス動かした組。動かせなければ nil。
@@ -190,7 +195,8 @@ public enum OjisanPuzzleBoard {
         return nil
     }
 
-    /// 組を盤に固定した盤を返す。盤の外にはみ出したマスは捨てる（呼び出し側は接地済みの組を渡す）。
+    /// 組を盤に固定した盤を返す。見えない段にはみ出したマスは捨てる＝その荷物は消える（定番どおり・#2088。
+    /// 呼び出し側は接地済みの組を渡す）。
     public static func locking(_ board: [[Int]], _ pair: OjisanPuzzlePair) -> [[Int]] {
         var result = board
         for placed in pair.cells where isInside(row: placed.cell.row, col: placed.cell.col) {
@@ -199,17 +205,18 @@ public enum OjisanPuzzleBoard {
         return result
     }
 
-    /// 次の組を作る。軸は盤の中央、子は真上。
+    /// 次の組を作る。軸は盤の最上段の中央、子は真上（見えない段）。
     public static func spawn(axisKind: Int, childKind: Int) -> OjisanPuzzlePair {
         OjisanPuzzlePair(axisKind: axisKind, childKind: childKind,
-                         row: 1, col: spawnColumn, rotation: .up)
+                         row: 0, col: spawnColumn, rotation: .up)
     }
 
     /// 組が出てくる列。**いつも同じ列から出す**（#1954: 塞がっているときに別の列へ逃がすと、
     /// 出る場所が読めなくなる）。この列の出現位置まで積まれたら積み上がりで終わる。
     public static let spawnColumn = columns / 2 - 1
 
-    /// 出現位置が荷物で塞がっているか（＝次の組を出せない＝積み上がり）。
+    /// 出現位置（出る列の最上段）が荷物で塞がっているか（＝次の組を出せない＝積み上がり）。
+    /// 出る列に空きがあっても、最上段が空いていれば続行する（#2088）。
     public static func isSpawnBlocked(_ board: [[Int]]) -> Bool {
         !canPlace(board, spawn(axisKind: 1, childKind: 1))
     }
@@ -325,6 +332,19 @@ public enum OjisanPuzzlePain {
     public static let perClearedCell = 3
     /// 2 連鎖目以降、1 連鎖ごとに追加で減る量。
     public static let perExtraChain = 5
+
+    /// 開始時のゲージ = 初期盤面の荷物の重さの合計 × この係数（切り捨て）。会長指示 2026-10-11
+    /// 「初回の盤面に対して重みつけとかないと腰痛入院が発動しない」。初期盤面（6 列 × 4〜6 段）の
+    /// 重さの合計は平均 90 前後なので、開始値がおおむね 30〜50 に収まる値にしている。会長 QA で調整する定数。
+    public static let startFactor = 0.45
+    /// 開始時に「こしが限界」へ入れない上限（入院の手前で始めない）。
+    public static let startCeiling = stageThresholds[1] - 1
+
+    /// 開始時のゲージ。盤の荷物が多い・重いほど高く始まる。
+    public static func initial(board: [[Int]]) -> Int {
+        let weight = board.joined().reduce(0) { $0 + (OjisanPuzzleLuggage.kind($1)?.weight ?? 0) }
+        return min(Int(Double(weight) * startFactor), startCeiling)
+    }
 
     /// 荷物を 1 組固定したときに増える量。重い荷物ほど多い（軽い 2 個で 2、重い 2 個で 10）。
     public static func lockAmount(weights: [Int]) -> Int {

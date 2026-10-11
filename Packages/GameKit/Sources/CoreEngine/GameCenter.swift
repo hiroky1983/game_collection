@@ -156,13 +156,11 @@ public enum GameCenterLeaderboard {
     /// くっつきフルーツ（#1319・企画倉庫）。2048 と同じくスコア（High to Low）。
     /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
     public static let fruitsScore    = "asobiba.fruits.score"
-    /// 柵越えおじさん（#1348・企画倉庫。v1.1.8 では非公開・会長指示 2026-10-02）。送るのは 1 挑戦（10 球）の**合計飛距離 m**（High to Low）。
-    /// 判定は乱数なしで、同じ入力は同じ結果になるため同じ物差しで比べられる。
-    /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
-    public static let homerunDistance = "asobiba.homerun.distance"
     /// 柵越えおじさんの週間ランキング（#1792）。**定期リーダーボード**（毎週月曜 0:00 JST 開始・期間 7 日・7 日ごとに繰り返し・
     /// ベストスコア型・High to Low）に送る**総飛距離 m**。月まで飛んだ打球は画面表示どおり 384,400 km で数える
-    /// （`homerunWeeklyMoonMeters`。常設の `homerunDistance` は 180 m で数える）。
+    /// （`homerunWeeklyMoonMeters`。自己ベスト・通算の記録は 180 m で数える）。
+    /// 柵越えおじさんの順位表はこの週間ランキングだけ。常設の合計飛距離の表（`asobiba.homerun.distance`・#2060）は
+    /// 会長指示（2026-10-12）で取りやめ、App Store Connect からも削除した。
     /// App Store Connect に作成済み（#2051・2026-10-11。開始 2026-10-12 0:00 JST）。nil にするとランキングページが消え、
     /// 送信もランキングページへの遷移もしなくなる（未作成の環境向けの逃げ道として Optional のまま残す）。
     /// 常設の表と違い決着の対応表（`score(gameID:outcome:score:)`）を通らないため、`allIDs` には入れない。
@@ -193,7 +191,7 @@ public enum GameCenterLeaderboard {
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips, blocksScore, runnerStage,
-        runnerDistance, hanafudaPoints, rouletteChips, fruitsScore, homerunDistance,
+        runnerDistance, hanafudaPoints, rouletteChips, fruitsScore,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
@@ -264,8 +262,9 @@ public enum GameCenterLeaderboard {
         // くっつきフルーツ（#1319）。広告コンティニューを使った回は `isLeaderboardEligible` が
         // false になり、この対応表に来る前に弾かれる（ブロック崩しと同じ）。
         case "fruits":    return fruitsScore
-        // 柵越えおじさん（#1348）。合計飛距離（m・切り捨て）を送る。
-        case "homerun":   return homerunDistance
+        // 柵越えおじさん（#1348）は常設の表を持たない（会長指示 2026-10-12・#2060 で作った表を取りやめ）。
+        // 順位は週間ランキング（`homerunWeekly`）だけで、こちらの対応表を通らず別経路で送る。
+        case "homerun":   return nil
         default:          return nil
         }
     }

@@ -310,7 +310,7 @@ struct GameCenterLeaderboardTests {
             ("hanafuda", GameScore(metric: .points, points: 1)),
             ("roulette", GameScore(metric: .points, points: 1)),
             ("fruits", GameScore(metric: .points, points: 1)),
-            ("homerun", GameScore(metric: .points, points: 1)),
+            // 柵越えおじさん（homerun）は常設の表を持たない（週間ランキングだけ・会長指示 2026-10-12）ので含めない。
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID

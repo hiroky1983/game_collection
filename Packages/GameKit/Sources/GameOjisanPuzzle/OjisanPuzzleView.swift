@@ -1,7 +1,7 @@
 import SwiftUI
 import Core
 
-/// 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）のプレイ画面。
+/// おじさんの荷物運びパズル（#1016・v1.1.11 で公開 #1904）のプレイ画面。
 ///
 /// 盤の描画は `OjisanPuzzleModel.displayBoard`（盤 + 落下中の組）をそのまま並べるだけで、
 /// 判定は一切持たない。操作は下のボタン列から Model の受け口を叩く。
@@ -9,6 +9,7 @@ public struct OjisanPuzzleView: View {
     private let services: GameServices
     @State private var model: OjisanPuzzleModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// いま触っているドラッグで、すでに何マスぶん左右へ動かしたか（右が +）。
     @State private var appliedColumns = 0
     /// 同じく、すでに何マスぶん落としたか。
@@ -17,7 +18,7 @@ public struct OjisanPuzzleView: View {
     @State private var dragAxis: OjisanPuzzleDrag.Axis?
     /// 遊び方を選ぶ開始シート（#1920）。開いた直後は出しておき、選んでから始める。
     @State private var showSetup = true
-    /// シートで選んでいる遊び方。最初は腰痛モード。
+    /// シートで選んでいる遊び方。最初は荷運びモード。
     @State private var setupMode: OjisanPuzzleMode = .backpain
     @State private var showConfirmNewGame = false
     /// 盤の 1 マスの大きさ。画面のどこで触っても同じ手触りになるよう、盤の外の操作もこれで刻む（#1946）。
@@ -40,11 +41,15 @@ public struct OjisanPuzzleView: View {
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "-simulateOjisanPain"),
            index + 1 < args.count, let pain = Int(args[index + 1]) {
+            // 盤は荷運びモードの開始時と同じ積み方・ライン・せり上がりにする（見出しのゲージを本番と同じ画面で確かめる・#2064）。
+            var rng = OjisanPuzzleRandom(seed: 2064)
             _model = State(initialValue: OjisanPuzzleModel(
                 services: services,
-                board: OjisanPuzzleBoard.emptyBoard(),
+                board: OjisanPuzzleCleanup.initialBoard(using: &rng),
                 current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2),
-                pain: pain
+                pain: pain,
+                clearLineRow: OjisanPuzzleCleanup.clearLineRow,
+                riseIntervalMilliseconds: OjisanPuzzleCleanup.riseIntervalMilliseconds
             ))
             _showSetup = State(initialValue: false)
             return
@@ -88,7 +93,7 @@ public struct OjisanPuzzleView: View {
             showResult = true
         }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
-        .gameChrome(title: "腰痛おじさんパズル", review: services.review,
+        .gameChrome(title: "おじさんの荷物運びパズル", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         if model.hasProgress {
                             showConfirmNewGame = true
@@ -96,6 +101,12 @@ public struct OjisanPuzzleView: View {
                             openSetup()
                         }
                     })
+        // 図入りの遊び方（#2044 の先駆け）。`?` はヘッダー右に自動で並ぶ。読んでいるあいだは荷物を落とさない。
+        // 内容は遊んでいるモードに合わせる（会長指示 2026-10-12。パズルモード中に腰痛ゲージ・入院・
+        // クリアライン・せり上がりを出さない）。
+        .howToPlay(howToPlayGuide,
+                   onPresent: { model.pause() },
+                   onDismiss: { if !showSetup, scenePhase == .active { model.resume() } })
         .sheet(isPresented: $showSetup) {
             OjisanPuzzleSetupSheet(mode: $setupMode) {
                 showSetup = false
@@ -163,9 +174,28 @@ public struct OjisanPuzzleView: View {
         showSetup = true
     }
 
-    // MARK: - 見出し（スコア・連鎖・腰痛ゲージ）
+    /// 「？」の遊び方。遊んでいるモードに合わせて文言・図を出し分ける（会長指示 2026-10-12）。
+    private var howToPlayGuide: HowToPlayGuide {
+        switch model.mode {
+        case .backpain: .ojisanPuzzleBackpain.illustrated(OjisanPuzzleHowToFigures.backpain)
+        case .puzzle: .ojisanPuzzlePuzzle.illustrated(OjisanPuzzleHowToFigures.puzzle)
+        }
+    }
 
+    // MARK: - 見出し（荷運びモード: 腰痛ゲージ／パズルモード: スコア・連鎖）
+
+    /// 荷運びモードは見出しをゲージ専用にし、スコア・連鎖は右の列の小カードへ移す（#2064 案B・会長決定 2026-10-11）。
+    /// パズルモードはゲージが無いので、従来どおり見出しにスコアを出す。
+    @ViewBuilder
     private var header: some View {
+        if model.mode.hasGauge {
+            gaugeHeader
+        } else {
+            scoreHeader
+        }
+    }
+
+    private var scoreHeader: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("スコア")
@@ -189,47 +219,119 @@ public struct OjisanPuzzleView: View {
                     .transition(.scale.combined(with: .opacity))
             }
             Spacer(minLength: 0)
-            // ゲージはパズルモードには無い（見た目の違いはここだけ）。
-            if model.mode.hasGauge { painGauge }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
         .gameAnimation(.easeOut(duration: 0.2), value: model.chainEventID)
     }
 
-    private var painGauge: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            // ゲージの欄は幅も高さも固定（値や段階の文字数で折り返して見出しが伸びると、盤が縮んで見える・#2063）。
-            Text("腰痛 \(model.pain)　\(model.painStage.caption)")
-                .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .frame(width: Self.gaugeWidth, alignment: .leading)
-                .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
-            ZStack(alignment: .leading) {
-                Capsule().fill(Theme.fillMuted.opacity(0.22))
-                GeometryReader { geo in
-                    Capsule()
-                        .fill(Self.painColor(model.painStage))
-                        .frame(width: max(0, geo.size.width) * painRatio)
+    /// 腰痛ゲージの見出し（#2064 案B）。カード幅いっぱいの太いバーに 3 段の地色を敷き、その上を段階色で塗る。
+    /// 限界（80 以上）はバーとカードの枠を珊瑚色にし、枠を約 0.5 秒ごとに点滅させる（Reduce Motion では点けたまま）。
+    private var gaugeHeader: some View {
+        let isWarning = model.painStage == .severe
+        return Group {
+            // 決着したら点滅は止めて点けたままにする（結果を見ている裏で枠がちらつかない）。
+            if isWarning, !reduceMotion, model.outcome == nil {
+                TimelineView(.periodic(from: .now, by: Self.blinkInterval)) { context in
+                    gaugeCard(warning: true, lit: Self.isBlinkLit(context.date))
                 }
-            }
-            .frame(width: Self.gaugeWidth, height: 8)
-            if let remaining = model.millisecondsUntilRise {
-                Text("せり上がりまで \((remaining + 999) / 1000)秒")
-                    .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(width: Self.gaugeWidth, alignment: .leading)
-                    .foregroundStyle(Theme.inkSub)
+            } else {
+                gaugeCard(warning: isWarning, lit: true)
             }
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.pain)
     }
 
-    /// 腰痛ゲージの欄の幅。
-    private static let gaugeWidth: CGFloat = 128
+    /// 点滅の 1 コマの長さ。
+    private static let blinkInterval: TimeInterval = 0.5
+
+    /// 点滅の明るいコマか。時刻から決めるので、状態を持たずに TimelineView の更新だけで切り替わる。
+    private static func isBlinkLit(_ date: Date) -> Bool {
+        Int(date.timeIntervalSinceReferenceDate / blinkInterval).isMultiple(of: 2)
+    }
+
+    /// 見出しのカードの高さ。値・段階・警告で文字が変わっても高さを変えない（見出しの高さ＝盤の大きさ・#2063）。
+    private static let gaugeCardHeight: CGFloat = 62
+    /// バーの太さ。
+    private static let gaugeBarHeight: CGFloat = 20
+
+    private func gaugeCard(warning: Bool, lit: Bool) -> some View {
+        let stage = model.painStage
+        let caption = warning
+            ? "こしが限界！ あと \(max(0, OjisanPuzzlePain.limit - model.pain)) で入院"
+            : stage.caption
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("腰痛ゲージ")
+                    .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
+                    .foregroundStyle(Theme.inkSub)
+                    .fixedSize()
+                Text(caption)
+                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .foregroundStyle(stage == .easy ? Theme.inkSub : Theme.coral)
+                Spacer(minLength: 0)
+                Text("\(model.pain)")
+                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
+                    .lineLimit(1).fixedSize()
+                    .foregroundStyle(warning ? Theme.coral : Theme.ink)
+                    .contentTransition(.numericText())
+            }
+            gaugeBar(stage: stage, dimmed: warning && !lit)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: Self.gaugeCardHeight)
+        .popCard(fill: warning && lit ? Theme.Fill.coral.opacity(0.10) : Theme.surface,
+                 corner: Theme.cornerSmall)
+        .overlay {
+            if warning && lit {
+                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                    .strokeBorder(Theme.coral, lineWidth: 2)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("腰痛ゲージ \(model.pain)、\(caption)")
+    }
+
+    /// 太いバー。3 段の地色（青緑・黄・珊瑚を薄く）の上を、いまの段階の色で塗る。段の境目に白い目盛を入れる。
+    private func gaugeBar(stage: OjisanPuzzlePain.Stage, dimmed: Bool) -> some View {
+        let barHeight = Self.gaugeBarHeight
+        let limit = CGFloat(OjisanPuzzlePain.limit)
+        let bounds = [0] + OjisanPuzzlePain.stageThresholds + [OjisanPuzzlePain.limit]
+        return GeometryReader { geo in
+            // GeometryReader は最初に 0 を渡してくるので、0 でも負の幅にしない（#874 と同じ守り）。
+            let width = max(0, geo.size.width)
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: barHeight / 2, style: .continuous)
+                    .fill(Theme.fillMuted.opacity(0.15))
+                ForEach(Array(OjisanPuzzlePain.Stage.allCases.enumerated()), id: \.offset) { index, zone in
+                    let from = CGFloat(bounds[index]) / limit * width
+                    let to = CGFloat(bounds[index + 1]) / limit * width
+                    Rectangle()
+                        .fill(Self.painColor(zone).opacity(0.22))
+                        .frame(width: max(0, to - from - 1), height: max(0, barHeight - 6))
+                        .offset(x: from + (index == 0 ? 0 : 1))
+                }
+                if model.pain > 0 {
+                    RoundedRectangle(cornerRadius: barHeight / 2, style: .continuous)
+                        .fill(Self.painColor(stage).opacity(dimmed ? 0.4 : 1))
+                        .frame(width: min(width, max(width * painRatio, barHeight)))
+                }
+                ForEach(OjisanPuzzlePain.stageThresholds, id: \.self) { threshold in
+                    Rectangle()
+                        .fill(Theme.surface)
+                        .frame(width: 1.5, height: barHeight)
+                        .offset(x: CGFloat(threshold) / limit * width - 0.75)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: barHeight / 2, style: .continuous))
+        }
+        .frame(height: barHeight)
+    }
 
     private var painRatio: CGFloat {
-        CGFloat(model.pain) / CGFloat(OjisanPuzzlePain.limit)
+        min(1, max(0, CGFloat(model.pain) / CGFloat(OjisanPuzzlePain.limit)))
     }
 
     private static func painColor(_ stage: OjisanPuzzlePain.Stage) -> Color {
@@ -238,6 +340,37 @@ public struct OjisanPuzzleView: View {
         case .aching: Theme.Fill.yellow
         case .severe: Theme.Fill.coral
         }
+    }
+
+    /// 荷運びモードの右の列の一番上に置くスコアの小カード（#2064 案B）。連鎖と、せり上がりまでの秒数もここに出す。
+    /// 連鎖の行は出ていないときも場所を取っておき、カードの高さ（＝下のおじさんの位置）を揺らさない。
+    private var scoreCard: some View {
+        VStack(spacing: 2) {
+            Text("スコア")
+                .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 右の列の幅に収める寸法（#2064）
+                .foregroundStyle(Theme.inkSub)
+            Text("\(model.score)")
+                .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 右の列の幅に収める寸法（#2064）
+                .lineLimit(1).minimumScaleFactor(0.6)
+                .foregroundStyle(Theme.ink)
+                .contentTransition(.numericText())
+            Text(model.lastChain > 1 ? "\(model.lastChain)連鎖" : " ")
+                .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 右の列の幅に収める寸法（#2064）
+                .lineLimit(1)
+                .foregroundStyle(Theme.coral)
+                .id(model.chainEventID)
+                .transition(.scale.combined(with: .opacity))
+            if let remaining = model.millisecondsUntilRise {
+                Text("せり上がり \((remaining + 999) / 1000)秒")
+                    .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 右の列の幅に収める寸法（#2064）
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .foregroundStyle(Theme.inkSub)
+            }
+        }
+        .frame(width: Self.sideWidth)
+        .padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
+        .gameAnimation(.easeOut(duration: 0.2), value: model.chainEventID)
     }
 
     // MARK: - おじさん
@@ -269,7 +402,7 @@ public struct OjisanPuzzleView: View {
                 ForEach(0..<OjisanPuzzleBoard.rows, id: \.self) { row in
                     HStack(spacing: 1) {
                         ForEach(0..<OjisanPuzzleBoard.columns, id: \.self) { col in
-                            luggage(board[row][col], side: max(0, cell - 1))
+                            Self.luggage(board[row][col], side: max(0, cell - 1))
                         }
                     }
                 }
@@ -286,7 +419,7 @@ public struct OjisanPuzzleView: View {
             .overlay(alignment: .topLeading) {
                 spawnColumnMark(cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
             }
-            // 片付けのライン（腰痛モードだけ）。この線より上に荷物が無くなればクリア。
+            // 片付けのライン（荷運びモードだけ）。この線より上に荷物が無くなればクリア。
             .overlay(alignment: .topLeading) {
                 if let line = model.clearLineRow {
                     clearLine(line: line, cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
@@ -373,8 +506,9 @@ public struct OjisanPuzzleView: View {
 
     /// 荷物 1 個。**ピースそのものが荷物の形に見える**絵にする（会長指示 2026-10-07・#1909）。
     /// 5 種は形で見分けが付く（`OjisanPuzzleLuggageArt`）。空きマスだけ薄い四角を敷く。
+    /// 遊び方の図（`OjisanPuzzleHowToFigures`）も同じ部品で描く（絵を二重に持たない）。
     @ViewBuilder
-    private func luggage(_ value: Int, side: CGFloat) -> some View {
+    static func luggage(_ value: Int, side: CGFloat) -> some View {
         if OjisanPuzzleLuggage.kind(value) == nil {
             RoundedRectangle(cornerRadius: max(1, side * 0.24), style: .continuous)
                 .fill(Theme.fillMuted.opacity(0.14))
@@ -434,6 +568,9 @@ public struct OjisanPuzzleView: View {
 
     private var sidePanel: some View {
         VStack(spacing: 10) {
+            // 荷運びモードは見出しをゲージに譲ったので、スコアはここ（おじさんの上）に置く（#2064）。
+            if model.mode.hasGauge { scoreCard }
+
             // おじさん本人。盤の横でずっと腰の具合を訴えている。
             VStack(spacing: 4) {
                 ojisanFigure()
@@ -455,8 +592,8 @@ public struct OjisanPuzzleView: View {
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 2) {
-                    luggage(model.next.childKind, side: 26)
-                    luggage(model.next.axisKind, side: 26)
+                    Self.luggage(model.next.childKind, side: 26)
+                    Self.luggage(model.next.axisKind, side: 26)
                 }
             }
             .frame(width: Self.sideWidth)

@@ -5,7 +5,7 @@ import Testing
 ///
 /// 盤の書き方: 1 行 = 6 文字（`.` が空きマス、`1`...`4` が荷物の種類）。**下の行から並べる**ので、
 /// 配列の最後の要素が床（`rows - 1`）になる。足りない上の段は空きで埋める。
-@Suite("腰痛おじさんパズルの盤")
+@Suite("おじさんの荷物運びパズルの盤")
 struct OjisanPuzzleBoardTests {
 
     /// 下から順に積んだ行から盤を作る。
@@ -149,13 +149,13 @@ struct OjisanPuzzleBoardTests {
 
     // MARK: - 落ちてくる 2 個組
 
-    @Test("最初の組は盤の上・中央に出る")
+    @Test("最初の組は盤の最上段・中央に出て、子は見えない段にはみ出す（#2088）")
     func spawnsAtTopCenter() {
         let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
-        #expect(pair.row == 1)
+        #expect(pair.row == 0)
         #expect(pair.col == OjisanPuzzleBoard.columns / 2 - 1)
         #expect(pair.rotation == .up)
-        #expect(pair.childRow == 0)
+        #expect(pair.childRow == OjisanPuzzleBoard.hiddenRow)
         #expect(OjisanPuzzleBoard.canPlace(OjisanPuzzleBoard.emptyBoard(), pair))
     }
 
@@ -171,8 +171,8 @@ struct OjisanPuzzleBoardTests {
     @Test("埋まっているマスへは動かせない")
     func doesNotMoveIntoOccupiedCell() {
         var board = OjisanPuzzleBoard.emptyBoard()
-        board[1][3] = 4
-        let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)   // 軸は (1, 2)
+        board[0][3] = 4
+        let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)   // 軸は (0, 2)
         #expect(OjisanPuzzleBoard.moved(board, pair, byColumns: 1) == nil)
     }
 
@@ -329,6 +329,24 @@ struct OjisanPuzzleLuggageTests {
 @Suite("腰痛ゲージと得点")
 struct OjisanPuzzlePainTests {
 
+    @Test("開始ゲージは盤の荷物の重さの合計に比例し、空の盤は 0")
+    func initialPainFollowsBoardWeight() {
+        #expect(OjisanPuzzlePain.initial(board: OjisanPuzzleBoard.emptyBoard()) == 0)
+        var light = OjisanPuzzleBoard.emptyBoard()
+        var heavy = OjisanPuzzleBoard.emptyBoard()
+        for col in 0..<OjisanPuzzleBoard.columns {
+            for row in 6..<OjisanPuzzleBoard.rows { light[row][col] = 1; heavy[row][col] = 5 }
+        }
+        #expect(OjisanPuzzlePain.initial(board: light) == Int(Double(36) * OjisanPuzzlePain.startFactor))
+        #expect(OjisanPuzzlePain.initial(board: light) < OjisanPuzzlePain.initial(board: heavy))
+    }
+
+    @Test("開始ゲージは「こしが限界」に入らない")
+    func initialPainStaysBelowSevere() {
+        let full = Array(repeating: Array(repeating: 5, count: OjisanPuzzleBoard.columns), count: OjisanPuzzleBoard.rows)
+        #expect(OjisanPuzzlePain.initial(board: full) == OjisanPuzzlePain.stageThresholds[1] - 1)
+    }
+
     @Test("荷物を固定するたびにゲージが増える")
     func lockingIncreasesPain() {
         #expect(OjisanPuzzlePain.afterLock(0, weights: [1, 2]) == 3)
@@ -434,13 +452,53 @@ struct OjisanPuzzlePainTests {
         for row in 0..<OjisanPuzzleBoard.rows { blocked[row][OjisanPuzzleBoard.spawnColumn] = 3 }
         #expect(OjisanPuzzleBoard.isSpawnBlocked(blocked))
 
-        // 出る列の 3 段目までなら、まだ出せる。
+        // 出る列が 2 段目（行 1）まで積まれていても、最上段（行 0）が空いていればまだ出せる（#2088）。
         var low = OjisanPuzzleBoard.emptyBoard()
-        low[2][OjisanPuzzleBoard.spawnColumn] = 3
-        #expect(!OjisanPuzzleBoard.isSpawnBlocked(low))
-        // 出現位置の 1 段目（行 1）に届いたら出せない。
         low[1][OjisanPuzzleBoard.spawnColumn] = 3
+        #expect(!OjisanPuzzleBoard.isSpawnBlocked(low))
+        // 出現位置（最上段）に届いたら出せない。
+        low[0][OjisanPuzzleBoard.spawnColumn] = 3
         #expect(OjisanPuzzleBoard.isSpawnBlocked(low))
+    }
+
+    @Test("見えない段には子だけがはみ出せる。軸は盤の中、横向きの子は盤の外に出せない（#2088）")
+    func hiddenRowOnlyHoldsChild() {
+        let board = OjisanPuzzleBoard.emptyBoard()
+        var pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        #expect(OjisanPuzzleBoard.canPlace(board, pair))
+        pair.row = -1
+        #expect(!OjisanPuzzleBoard.canPlace(board, pair))
+        // 軸が最上段のとき、下向きへ回して軸を 1 段上げて逃がすことはできない（軸は見えない段に入れない）。
+        pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        var full = board
+        full[1][pair.col] = 4
+        #expect(OjisanPuzzleBoard.rotated(full, pair, clockwise: true) != nil, "横向きなら回せる")
+        full[0][pair.col - 1] = 5
+        full[0][pair.col + 1] = 5
+        #expect(OjisanPuzzleBoard.rotated(full, pair, clockwise: true) == nil)
+        #expect(OjisanPuzzleBoard.flipped(full, pair) == nil, "下も塞がっていれば入れ替えもできない")
+    }
+
+    @Test("最上段で左右が塞がっていても、下が空いていれば入れ替えで逃がせる（#2088）")
+    func flipsAtTopRowWhenSidesBlocked() throws {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        board[0][pair.col - 1] = 4
+        board[0][pair.col + 1] = 5
+        #expect(OjisanPuzzleBoard.rotated(board, pair, clockwise: true) == nil)
+        let flipped = try #require(OjisanPuzzleBoard.flipped(board, pair))
+        #expect(flipped.rotation == .down)
+        #expect(flipped.row == 0)
+    }
+
+    @Test("固定するとき、見えない段にはみ出した荷物は盤に残らない（#2088）")
+    func lockingDropsHiddenChild() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        board[1][OjisanPuzzleBoard.spawnColumn] = 3
+        let pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        let locked = OjisanPuzzleBoard.locking(board, pair)
+        #expect(locked[0][pair.col] == 1)
+        #expect(locked.joined().filter { $0 == 2 }.isEmpty)
     }
 
     @Test("出る列が天井に近いと出口の印が警告になる（#1954）")
