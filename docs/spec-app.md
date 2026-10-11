@@ -1243,6 +1243,7 @@ v1.1.4 までの公開版は3種）。
 - カードスタイル: `.popCard()` modifier (白背景 + 影)
 - 背景: `.popBackground()` modifier
 - フォント: `.rounded` デザイン
+- モーダル（シート）は縦長（`.large`）固定（#2096）。`.presentationDetents` は `[.large]` 以外を使わない。`ModalDetentScanTests` で強制
 
 ゲームカードのアクセントカラーは `Theme.palette` からインデックス順に自動割り当て。
 
