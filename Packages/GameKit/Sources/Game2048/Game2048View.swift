@@ -8,6 +8,9 @@ public struct Game2048View: View {
     /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var continueRescue = RewardedRescue()
     @State private var showConfirmReset = false
+    /// 「戻す」の回数補充のリワード広告の段取り（#2023）。
+    @State private var undoRescue = RewardedRescue()
+    @State private var showUndoRefillPrompt = false
 
     public init(services: GameServices) {
         self.services = services
@@ -20,6 +23,7 @@ public struct Game2048View: View {
         VStack(spacing: 14) {
             header
             boardView
+            gameControls
             // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.game2048, playLog: services.playLog)
             recommendationArea
@@ -43,7 +47,23 @@ public struct Game2048View: View {
             } message: {
                 Text("途中で終了すると、いまの盤面と得点が失われます。")
             }
+            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(Game2048UndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(Game2048UndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: "「戻す」を補充できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "「戻す」を補充できませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。"
+            )
+        )
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulate2048Move <up|down|left|right>` でその向きへ 1 手動かす（#438）。
@@ -68,6 +88,48 @@ public struct Game2048View: View {
                 message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
             )
         )
+    }
+
+    /// 盤の下の「操作の段」（#1856）。2048 は広告の絡む「戻す」だけを段に出し、「⋯」は持たない。
+    private var gameControls: some View {
+        GameOverflowBar(actions: [
+            GameActionItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
+                isEnabled: model.canUndo && !undoRescue.isWatching && !continueRescue.isWatching,
+                // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
+                accessibilityLabel: model.undosRemaining > 0
+                    ? "1手戻す（残り\(model.undosRemaining)回）"
+                    : "1手戻す（広告を見て補充）",
+                accessibilityHint: model.canUndo
+                    ? "直前のスワイプの前の盤面と得点に戻します"
+                    : "戻せる手がありません"
+            ) { requestUndo() },
+        ])
+        .lineLimit(1)
+    }
+
+    /// 「戻す」の入口（ナンプレ・フリーセルと同じ契約・#1855）。残りがあればそのまま戻し、
+    /// 使い切っていたら**提案を出すだけ**にする（押した瞬間に広告を出さない）。
+    private func requestUndo() {
+        guard !undoRescue.isWatching else { return }
+        if model.needsUndoRefill {
+            showUndoRefillPrompt = true
+        } else {
+            withGameAnimation(.easeInOut(duration: 0.12)) { _ = model.undo() }
+        }
+    }
+
+    /// リワード広告 → 「戻す」の補充。どの局かを広告を出す前に控え、ロード中に始めた新しい局へは乗せない。
+    private func requestUndoRefill() {
+        guard !undoRescue.isWatching else { return }
+        let game = model.gameSerial
+        undoRescue.request(
+            services, gameID: model.gameID, purpose: .undo,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantUndos(forGame: game)
+        }
     }
 
     /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
@@ -132,6 +194,8 @@ public struct Game2048View: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        // 盤の下に操作の段が増えても、余りを Spacer と山分けして盤が縮まないよう盤を先に確保する（#2023）。
+        .layoutPriority(1)
         .gameAnimation(.easeInOut(duration: 0.12), value: model.board)
         .contentShape(Rectangle())
         .gesture(swipeGesture)

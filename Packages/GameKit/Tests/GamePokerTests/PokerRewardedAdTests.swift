@@ -52,11 +52,11 @@ private final class SpyGameCenterService: GameCenterService {
 /// アンティを払って手持ち 0 になった 2 巡目の局面を中断データで作り、フォールドさせて
 /// セッション敗北（＝自分のチップ切れ）まで進める（`PokerSessionOverTests` と同じ手口）。
 ///
-/// - Parameter hasRevived: 中断データに書かれている「復活を使い切ったか」。
+/// - Parameter revivesUsed: 中断データに書かれている「復活を使った回数」。
 @MainActor
 private func makeBustedModel(
     rewardEarned: Bool = true,
-    hasRevived: Bool = false,
+    revivesUsed: Int = 0,
     gameCenter: GameCenterReporter? = nil,
     playLog: PlayLog? = nil,
     screenGeneration: GameScreenGeneration = GameScreenGeneration()
@@ -72,7 +72,8 @@ private func makeBustedModel(
         phase: .betting2, currentBet: 0,
         playerBetInRound: 0, cpuBetInRound: 0,
         cpuFolded: false, cpuAction: "",
-        hasRevivedThisSession: hasRevived
+        hasRevivedThisSession: revivesUsed > 0,
+        reviveCount: revivesUsed
     )
     try? store.save(snap, for: "poker")
     let ads = StubAdService(rewardEarned: rewardEarned)
@@ -341,7 +342,7 @@ struct PokerRewardedAdTests {
     @Test("同じセッションで2回目の復活はできず、広告も出さない")
     func revivesOnlyOncePerSession() async {
         // 中断データが「復活を使い切った」状態。再開してもう一度チップが尽きた局面。
-        let (model, ads, _) = makeBustedModel(hasRevived: true)
+        let (model, ads, _) = makeBustedModel(revivesUsed: PokerModel.maxRevivesPerSession)
 
         #expect(!model.canReviveAfterBust, "使い切っているので導線は出ない")
         let second = await model.recoverChipsAfterAd()
@@ -381,7 +382,7 @@ struct PokerRewardedAdTests {
 
         #expect(restored.sessionOver)
         #expect(restored.sessionWinner == .cpu)
-        #expect(!restored.canReviveAfterBust, "再起動で回数が復活しない")
+        #expect(restored.revivesRemaining == PokerModel.maxRevivesPerSession - 1, "再起動で回数が復活している")
     }
 
     /// #523 で復活の枚数を初期額より多くしたため、広告を見た直後に離れると損をする向きに反転した（#1104）。
@@ -410,7 +411,7 @@ struct PokerRewardedAdTests {
         playFoldUntilBust(reopened)
         #expect(reopened.sessionOver)
         #expect(reopened.sessionWinner == .cpu)
-        #expect(!reopened.canReviveAfterBust, "中断を挟んで復活の回数が戻っている")
+        #expect(reopened.revivesRemaining == PokerModel.maxRevivesPerSession - 1, "中断を挟んで復活の回数が戻っている")
     }
 
     /// 復活したセッションは、局の決着（`.result`）で離れても残高を持ち越す（#1104）。
@@ -521,6 +522,41 @@ struct PokerRewardedAdTests {
         #expect(reopened.playerChips == PokerModel.initialChips)
         playFoldUntilBust(reopened)
         #expect(reopened.canReviveAfterBust, "新しいセッションの復活権が消えている")
+    }
+
+    @Test("同じセッションで 3 回まで復活でき、4 回目は出ない（#2012）")
+    func revivesUpToThreeTimesPerSession() async {
+        let (model, ads, _) = makeBustedModel()
+        for used in 1...PokerModel.maxRevivesPerSession {
+            #expect(model.canReviveAfterBust, "\(used)回目の導線が出る")
+            #expect(await model.recoverChipsAfterAd())
+            #expect(model.playerChips == PokerModel.reviveChips, "毎回同じ枚数で復活する")
+            #expect(model.revivesRemaining == PokerModel.maxRevivesPerSession - used)
+            playFoldUntilBust(model)
+            #expect(model.sessionOver)
+            #expect(model.sessionWinner == .cpu)
+        }
+        #expect(!model.canReviveAfterBust, "3回使い切ったので導線は出ない")
+        #expect(!(await model.recoverChipsAfterAd()))
+        #expect(ads.rewardedCount == PokerModel.maxRevivesPerSession, "4本目の広告は出さない")
+    }
+
+    @Test("使用済みの旗だけがある旧データは 1 回使った扱いで、残りは 2 回（#2012）")
+    func legacyRevivedFlagCountsAsOneRevive() throws {
+        let legacy = PokerSnapshot(
+            playerHand: [], cpuHand: [], deck: [],
+            playerChips: 100, cpuChips: 100, pot: 0,
+            phase: .idle, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "",
+            hasRevivedThisSession: true, reviveCount: nil
+        )
+        let store = MemorySnapshotStore()
+        store.inject(try encodingWithoutKey(legacy, key: "reviveCount"), for: "poker")
+        let restored = PokerModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+        )
+        #expect(restored.revivesRemaining == PokerModel.maxRevivesPerSession - 1)
     }
 
     @Test("最初からやり直すと復活の回数も戻る")
