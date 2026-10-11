@@ -91,7 +91,8 @@ struct GameActionRowTests {
     /// `(モジュール, 段に出す id, 「⋯」に残す id)`。広告の無い操作（パス・ジョーカー・配る・メモ・旗モード・拡大・
     /// 投了・諦める・自動で上がる）を段に置き直すと、ここで赤くなる。
     static let placements: [(String, [String], [String])] = [
-        ("GameConcentration", ["matta"], []),
+        // 神経衰弱のヒントは無料1回のあと広告で最大3回（#2026）なので、待ったと並べて段。
+        ("GameConcentration", ["matta", "hint"], []),
         ("GameSolitaire", ["undo"], ["joker", "autoFinish"]),
         ("GameSpider", ["undo"], ["deal", "zoom"]),
         ("GameFreeCell", ["undo"], ["zoom", "autoFinish"]),
