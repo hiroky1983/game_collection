@@ -49,7 +49,7 @@ struct OjisanPuzzleModelTests {
 
     @Test("一気に落とすと盤に固定され、腰痛ゲージが増える")
     func hardDropLocksAndHurts() throws {
-        // 腰痛モードは最初から荷物が積まれているので、空の盤から始めて床への固定を確かめる。
+        // 荷運びモードは最初から荷物が積まれているので、空の盤から始めて床への固定を確かめる。
         let pair = OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 2, rotation: .up)
         let model = OjisanPuzzleModel(services: nil, board: OjisanPuzzleBoard.emptyBoard(), current: pair)
         #expect(model.hardDrop())
@@ -471,7 +471,7 @@ struct OjisanPuzzleModelTests {
         )
         #expect(model.hardDrop())
         #expect(model.outcome == .hospitalized)
-        // 腰痛モードの記録はクリアタイムの区分（入院は勝敗の数だけ残る）。パズルモードの得点の区分とは別。
+        // 荷運びモードの記録はクリアタイムの区分（入院は勝敗の数だけ残る）。パズルモードの得点の区分とは別。
         #expect(log.record(gameID: OjisanPuzzleModule().id, variant: OjisanPuzzleMode.puzzle.recordVariant) == nil)
         let record = try #require(log.record(gameID: OjisanPuzzleModule().id, variant: OjisanPuzzleMode.backpain.recordVariant))
         #expect(record.metric == .shortestTime)

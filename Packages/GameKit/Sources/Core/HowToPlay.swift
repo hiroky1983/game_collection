@@ -446,27 +446,56 @@ public extension HowToPlayGuide {
 
     /// 図入りの遊び方の最初のゲーム（#2044 の先駆け・会長決定 2026-10-12）。
     /// 図は `GameOjisanPuzzle` 側で `illustrated(_:)` を使って差し込む。
-    static let ojisanPuzzle = HowToPlayGuide(
+    ///
+    /// 「？」は遊んでいるモードに合わせて出し分ける（会長指示 2026-10-12）。この `.ojisanPuzzleBackpain`
+    /// は荷運びモード（表示名、enum ケース名・解析の `mode` 値は旧名の `backpain` のまま）用で、
+    /// 登録漏れ検査（`HowToPlayGuideContentTests`）はこちらが担う。パズルモード用の
+    /// `.ojisanPuzzlePuzzle` は `gameID` が同じなので `all` には入れない（五目並べの `gomokuRenju` と同じ作法）。
+    static let ojisanPuzzleBackpain = HowToPlayGuide(
         gameID: "ojisanpuzzle",
         title: "おじさんの荷物運びパズルの遊び方",
         lines: [
             "2 つひと組の荷物が落ちてきます。よこにスワイプで動かし、タップで回し、下にスワイプで落とします。",
             "同じ荷物がたて・よこに 4 つ以上つながると消えます。消えたあとに落ちてきた荷物がまたつながれば、れんさです。",
-            "腰痛モードはラインより下まで片付けたらクリア。重い荷物をかかえるほど腰にきて、満タンで入院です。パズルモードは得点をのばします。",
+            "荷運びモードはラインより下まで片付けたらクリア。重い荷物をかかえるほど腰にきて、満タンで入院です。",
         ],
         hint: "よこスワイプで動かす・タップで回す",
         hintIcon: "hand.draw.fill",
         items: [
-            HowToPlayItem("荷物を 4 つそろえて消して、腰をいたわろう。腰痛モードはラインより下まで片付けたらクリア、パズルモードは得点をのばします。"),
+            HowToPlayItem("荷物を 4 つそろえて消して、ラインより下まで片付けたらクリア。腰をいたわろう。"),
             HowToPlayItem("2 つひと組の荷物を、スワイプとタップで動かします。画面のどこを触っても OK。"),
             HowToPlayItem("同じ荷物がたて・よこに 4 つ以上つながると消えます。落ちてきてまたつながれば「れんさ」。"),
-            HowToPlayItem("荷物は 5 種類。重いものほど腰にきます（腰痛モードだけ）。"),
-            HowToPlayItem("腰痛モードは腰痛ゲージつき。重い荷物をかかえるほど腰にきて、満タンになると入院です。"),
+            HowToPlayItem("荷物は 5 種類。重いものほど腰にきます。"),
+            HowToPlayItem("腰痛ゲージがあり、重い荷物をかかえるほど腰にきて、満タンになると入院です。"),
             HowToPlayItem("入院か、荷物が出てくる位置（▼の列のいちばん上）が埋まったら終わりです。どちらも記録は残ります。"),
         ],
         notes: [
+            "途中の盤面は保存されません。",
+        ]
+    )
+
+    /// パズルモード用（会長指示 2026-10-12）。`gameID` は `.ojisanPuzzleBackpain` と同じなので `all` には
+    /// 入れない＝登録漏れ検査は `.ojisanPuzzleBackpain` のほうで担保される。
+    static let ojisanPuzzlePuzzle = HowToPlayGuide(
+        gameID: "ojisanpuzzle",
+        title: "おじさんの荷物運びパズルの遊び方",
+        lines: [
+            "2 つひと組の荷物が落ちてきます。よこにスワイプで動かし、タップで回し、下にスワイプで落とします。",
+            "同じ荷物がたて・よこに 4 つ以上つながると消えます。消えたあとに落ちてきた荷物がまたつながれば、れんさです。",
+            "パズルモードは空の盤から始まり、ゲージなしで得点をのばします。埋まるまで続きます。",
+        ],
+        hint: "よこスワイプで動かす・タップで回す",
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem("荷物を 4 つそろえて消して、得点をのばそう。空の盤から始まり、埋まるまで続きます。"),
+            HowToPlayItem("2 つひと組の荷物を、スワイプとタップで動かします。画面のどこを触っても OK。"),
+            HowToPlayItem("同じ荷物がたて・よこに 4 つ以上つながると消えます。落ちてきてまたつながれば「れんさ」。"),
+            HowToPlayItem("荷物は 5 種類あります。"),
+            HowToPlayItem("荷物が出てくる位置（▼の列のいちばん上）が埋まったら終わりです。記録は得点として残ります。"),
+        ],
+        notes: [
             "得点は 消した数 × 10 × れんさ数。",
-            "パズルモードは荷物を置くほど少しずつ速くなります。",
+            "荷物を置くほど少しずつ速くなります。",
             "途中の盤面は保存されません。",
         ]
     )
@@ -476,7 +505,7 @@ public extension HowToPlayGuide {
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
-        .homerun, .ojisanPuzzle,
+        .homerun, .ojisanPuzzleBackpain,
     ]
 }
 

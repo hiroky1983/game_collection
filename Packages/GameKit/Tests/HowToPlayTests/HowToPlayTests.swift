@@ -115,7 +115,7 @@ struct HowToPlayGuideContentTests {
 
     @Test("おじさんの荷物運びパズルは図入りの遊び方を持つ（#2044 の先駆け）")
     func ojisanPuzzleHasIllustratedItems() {
-        let guide = HowToPlayGuide.ojisanPuzzle
+        let guide = HowToPlayGuide.ojisanPuzzleBackpain
         #expect(guide.gameID == OjisanPuzzleModule().id)
         #expect(guide.items.count == 6)
         #expect(!guide.notes.isEmpty)
@@ -124,6 +124,13 @@ struct HowToPlayGuideContentTests {
         #expect(gaugeText.rangeOfCharacter(from: .decimalDigits) == nil, "腰痛ゲージの項目に数値がある: \(gaugeText)")
         // 積み上がりは「荷物が出てくる位置が埋まったら」の表現で書く（#2088 の判定変更と矛盾させない）。
         #expect(guide.items[5].text.contains("荷物が出てくる位置"))
+    }
+
+    @Test("パズルモード用の「？」は gameID が同じで all に入らない（五目並べの禁じ手と同じ作法）")
+    func ojisanPuzzlePuzzleSharesGameIDButIsNotRegistered() {
+        let guide = HowToPlayGuide.ojisanPuzzlePuzzle
+        #expect(guide.gameID == OjisanPuzzleModule().id)
+        #expect(!HowToPlayGuide.all.contains(guide))
     }
 }
 

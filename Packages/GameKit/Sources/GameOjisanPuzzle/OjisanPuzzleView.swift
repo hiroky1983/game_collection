@@ -18,7 +18,7 @@ public struct OjisanPuzzleView: View {
     @State private var dragAxis: OjisanPuzzleDrag.Axis?
     /// 遊び方を選ぶ開始シート（#1920）。開いた直後は出しておき、選んでから始める。
     @State private var showSetup = true
-    /// シートで選んでいる遊び方。最初は腰痛モード。
+    /// シートで選んでいる遊び方。最初は荷運びモード。
     @State private var setupMode: OjisanPuzzleMode = .backpain
     @State private var showConfirmNewGame = false
     /// 盤の 1 マスの大きさ。画面のどこで触っても同じ手触りになるよう、盤の外の操作もこれで刻む（#1946）。
@@ -41,7 +41,7 @@ public struct OjisanPuzzleView: View {
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "-simulateOjisanPain"),
            index + 1 < args.count, let pain = Int(args[index + 1]) {
-            // 盤は腰痛モードの開始時と同じ積み方・ライン・せり上がりにする（見出しのゲージを本番と同じ画面で確かめる・#2064）。
+            // 盤は荷運びモードの開始時と同じ積み方・ライン・せり上がりにする（見出しのゲージを本番と同じ画面で確かめる・#2064）。
             var rng = OjisanPuzzleRandom(seed: 2064)
             _model = State(initialValue: OjisanPuzzleModel(
                 services: services,
@@ -102,7 +102,9 @@ public struct OjisanPuzzleView: View {
                         }
                     })
         // 図入りの遊び方（#2044 の先駆け）。`?` はヘッダー右に自動で並ぶ。読んでいるあいだは荷物を落とさない。
-        .howToPlay(.ojisanPuzzle.illustrated(OjisanPuzzleHowToFigures.all),
+        // 内容は遊んでいるモードに合わせる（会長指示 2026-10-12。パズルモード中に腰痛ゲージ・入院・
+        // クリアライン・せり上がりを出さない）。
+        .howToPlay(howToPlayGuide,
                    onPresent: { model.pause() },
                    onDismiss: { if !showSetup, scenePhase == .active { model.resume() } })
         .sheet(isPresented: $showSetup) {
@@ -172,9 +174,17 @@ public struct OjisanPuzzleView: View {
         showSetup = true
     }
 
-    // MARK: - 見出し（腰痛モード: 腰痛ゲージ／パズルモード: スコア・連鎖）
+    /// 「？」の遊び方。遊んでいるモードに合わせて文言・図を出し分ける（会長指示 2026-10-12）。
+    private var howToPlayGuide: HowToPlayGuide {
+        switch model.mode {
+        case .backpain: .ojisanPuzzleBackpain.illustrated(OjisanPuzzleHowToFigures.backpain)
+        case .puzzle: .ojisanPuzzlePuzzle.illustrated(OjisanPuzzleHowToFigures.puzzle)
+        }
+    }
 
-    /// 腰痛モードは見出しをゲージ専用にし、スコア・連鎖は右の列の小カードへ移す（#2064 案B・会長決定 2026-10-11）。
+    // MARK: - 見出し（荷運びモード: 腰痛ゲージ／パズルモード: スコア・連鎖）
+
+    /// 荷運びモードは見出しをゲージ専用にし、スコア・連鎖は右の列の小カードへ移す（#2064 案B・会長決定 2026-10-11）。
     /// パズルモードはゲージが無いので、従来どおり見出しにスコアを出す。
     @ViewBuilder
     private var header: some View {
@@ -332,7 +342,7 @@ public struct OjisanPuzzleView: View {
         }
     }
 
-    /// 腰痛モードの右の列の一番上に置くスコアの小カード（#2064 案B）。連鎖と、せり上がりまでの秒数もここに出す。
+    /// 荷運びモードの右の列の一番上に置くスコアの小カード（#2064 案B）。連鎖と、せり上がりまでの秒数もここに出す。
     /// 連鎖の行は出ていないときも場所を取っておき、カードの高さ（＝下のおじさんの位置）を揺らさない。
     private var scoreCard: some View {
         VStack(spacing: 2) {
@@ -409,7 +419,7 @@ public struct OjisanPuzzleView: View {
             .overlay(alignment: .topLeading) {
                 spawnColumnMark(cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
             }
-            // 片付けのライン（腰痛モードだけ）。この線より上に荷物が無くなればクリア。
+            // 片付けのライン（荷運びモードだけ）。この線より上に荷物が無くなればクリア。
             .overlay(alignment: .topLeading) {
                 if let line = model.clearLineRow {
                     clearLine(line: line, cell: cell, origin: Self.boardOrigin(size: geo.size, cell: cell))
@@ -558,7 +568,7 @@ public struct OjisanPuzzleView: View {
 
     private var sidePanel: some View {
         VStack(spacing: 10) {
-            // 腰痛モードは見出しをゲージに譲ったので、スコアはここ（おじさんの上）に置く（#2064）。
+            // 荷運びモードは見出しをゲージに譲ったので、スコアはここ（おじさんの上）に置く（#2064）。
             if model.mode.hasGauge { scoreCard }
 
             // おじさん本人。盤の横でずっと腰の具合を訴えている。
