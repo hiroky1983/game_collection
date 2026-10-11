@@ -172,7 +172,8 @@ struct OjisanPuzzleModelTests {
         #expect(!model.move(by: 1))
         model.newGame()
         model.pause()
-        #expect(model.pain == 0)
+        #expect(model.pain == OjisanPuzzlePain.initial(board: model.board), "やり直しは盤から決まる開始値に戻る")
+        #expect(model.pain < 90)
         #expect(model.move(by: 1), "やり直したのに待たされている")
     }
 

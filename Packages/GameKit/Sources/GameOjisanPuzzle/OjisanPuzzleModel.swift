@@ -136,6 +136,7 @@ public final class OjisanPuzzleModel {
         current = OjisanPuzzleBoard.makePair(using: &generator)
         next = OjisanPuzzleBoard.makePair(using: &generator)
         rng = generator
+        pain = mode.hasGauge ? OjisanPuzzlePain.initial(board: board) : 0
         // 中断データを持たないので、開くたびに新しいプレイ。`gameDidStart` は冪等なので
         // 再描画で init が何度走っても増えない（#158）。
         if announcesStart { announceStartIfNeeded() }
@@ -320,7 +321,7 @@ public final class OjisanPuzzleModel {
         current = OjisanPuzzleBoard.makePair(using: &rng)
         next = OjisanPuzzleBoard.makePair(using: &rng)
         score = 0
-        pain = 0
+        pain = mode.hasGauge ? OjisanPuzzlePain.initial(board: board) : 0
         lastChain = 0
         chainDepth = 0
         phase = .dropping
