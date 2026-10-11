@@ -265,6 +265,29 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
 - 3 本とも同じ部品・同じ見た目（電球のアイコン。「⋯」メニューの 1 項目）。
   パズル系（ナンプレ #262・麻雀ソリティア #336）のヒントは**最初から広告制**で、こちらは無料 3 回を持つ点が違う
 
+### マインスイーパー: ヒント（#2024・`release/v1.1.11`・会長決裁 2026-10-11）
+
+盤の下の「操作の段」（#1856）に「ヒント」を置く。押すと、**開いている数字だけから理屈で安全と言えるマス**を探し、紫の枠
+（`BoardGameHintColor`）で 1 つ光らせる（開けるのはプレイヤー）。理屈で決まるマスが無い（運任せの）局面では、開いているマスに
+接する安全なマスを 1 つ**その場で開ける**。
+
+- **回数は 1 盤 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回（合計 4 回）**。コンティニュー（`continueUsed`）とは別の回数。
+  回数の勘定は `CoreEngine/BoardHintBudget`（`freeLimit` / `adLimit` を init で渡せる形に広げた。将棋・チェス・五目並べ・オセロは
+  既定の 3 / 5 のままで挙動は変わらない）。値は `MinesweeperHintPolicy`。表示は上の「ボタンの回数表示と広告の補充」の共通ルール
+  （無料の残りを「あと n 回」、使い切ったら「0回 ▶ 広告を見て +1」、広告まで使い切ったら「あと0回」で押せない）
+- **押せるのは遊んでいる最中だけ**（最初の 1 手の前・決着後は不可）。新規ゲームで回数が戻る
+- 推論は `MinesweeperHint`（SwiftUI 非依存の純粋関数）。「数字 = 確定地雷数なら残りは安全」「数字 = 未開の数なら全部地雷」の繰り返しと、
+  2 つの数字の包含関係。**入力 `Observation` に地雷の有無を載せる口が無く、地雷の場所は推論に使えない**。**旗は推論に使わず**（間違いうる）、
+  旗のマスは答えの候補から外す
+- 運任せの局面で開けるときだけ `isMine` を見る（`MinesweeperModel.guessCell`）。開いたあとは通常の `floodReveal` → `settleAfterReveal` を通る。
+  **答えが無いときは回数を減らさない**
+- 広告は `RewardedRescue`（`purpose` は既存の `hint`）で、**視聴完了してから答えを求める**（`useAdHint(forGame:)`。広告を出す前に控えた
+  `gameSerial` と照合し、視聴中に局が替わっていたら回数を減らさず「ヒントを出せませんでした」）。確認ダイアログは挟まない
+  （常設の項目で広告へ進む。`reward_offer` は出ない＝ナンプレ・将棋等のヒントと同じ扱い）
+- **ヒントを使った局は順位表に送らない**（コンティニューと同じ。`isLeaderboardEligible = !continueUsed && !hints.wasUsed`）。自己ベストは残る
+- 使った回数は中断データに持ち回る（`hintsUsed` は Optional。鍵の無い旧形式は 0 回）。**光らせているマスは保存しない**。
+  `GameServices.gameDidUseHint` で `game_end` の `hints_used`（1〜4）に載る
+
 ### 卓の共通部品（`CardTableSurface`・`CardTableFrame`・`Core/CardTable.swift`・#1501 #1516 #1535 #1536・v1.1.8）
 
 麻雀（4 人打ち）と、ソリティア・スパイダー・フリーセル・麻雀ソリティアの 4 本は、札・牌を**フェルトの卓の上**に置く。
@@ -1067,7 +1090,7 @@ v1.1.4 までの公開版は3種）。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べ・オセロでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べ・オセロ・マインスイーパーでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
@@ -1100,7 +1123,7 @@ v1.1.4 までの公開版は3種）。
   使った回数と今の付与だけから決まり、保存の形は変えない。もらった順ではないので、無料を使い切る前の遊びは「広告を見て遊んだ」に
   数えない）。DEBUG の `-homerunUnlimited`（回数を使わない）では載せない。回数制でないゲームは鍵ごと送らない。
   GA4 で枠別に見るには**カスタムディメンション `credit`（イベントスコープ）の登録が要る**（会長操作）。
-- `hints_used`（#1326）は**そのプレイで使った無料ヒントの回数**（1〜3）。将棋・チェス・五目並べ・オセロの4本だけが送る。
+- `hints_used`（#1326）は**そのプレイで使ったヒントの回数**（将棋・チェス・五目並べ・オセロは1〜8、マインスイーパーは1〜4・#2024）。この5本だけが送る。
   各 Model が `BoardHintBudget.consume()` の成功ごとに `gameDidUseHint` を呼び、`GameAnalytics` が進行中の
   プレイに覚えて `game_end` に載せる。**送信は `sendEnd` の1か所**なので、決着（`finishPlay`）でも
   途中離脱（`leaveGame` / `restartPlay`）でも同じ値が載る。使わなかったプレイ・ヒントを持たないゲームは鍵ごと送らない。
