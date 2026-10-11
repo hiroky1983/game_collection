@@ -69,7 +69,7 @@ struct OjisanPuzzleModeTests {
         let model = OjisanPuzzleModel(
             services: nil, board: OjisanPuzzleBoard.emptyBoard(),
             current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
-            pain: 0, mode: .puzzle
+            mode: .puzzle
         )
         #expect(model.hardDrop())
         #expect(model.pain == 0)

@@ -228,8 +228,8 @@ public enum OjisanPuzzleBoard {
 
 /// 運ぶ荷物の中身。盤の `Int`（1...5）に「何を運んでいるか」と「重さ」を結び付ける。
 ///
-/// 重さは**腰痛ゲージに効く**（会長決定 2026-10-08）。固定した組の重さの合計だけゲージが増える
-/// （`OjisanPuzzlePain.afterLock`）。見た目は `OjisanPuzzleLuggageArt` が値ごとに描く。
+/// 重さは**腰痛ゲージに効く**（会長決定 2026-10-08）。盤の上の荷物の重さの合計がゲージになる
+/// （`OjisanPuzzlePain.gauge`）。見た目は `OjisanPuzzleLuggageArt` が値ごとに描く。
 public enum OjisanPuzzleLuggage {
     /// 荷物 1 種。
     public struct Kind: Equatable, Sendable {
@@ -256,7 +256,8 @@ public enum OjisanPuzzleLuggage {
     }
 }
 
-/// 腰痛ゲージ（0...100）。固定するたびに増え、消すと減る。純関数なのでそのままテストできる。
+/// 腰痛ゲージ（0...100）。**盤の上にある荷物の重さの合計**で決まる（#2069）。置けば上がり、消せばその重さぶん下がる。
+/// 純関数なのでそのままテストできる。
 ///
 /// **ゲージはただの体力バーではない**（会長指示 2026-09-17）。溜まるほど荷物が速く落ち、
 /// 左右移動と回転がワンテンポ遅れる＝「痛くて体が思うように動かない」を遊びに効かせる。
@@ -316,37 +317,22 @@ public enum OjisanPuzzlePain {
 
     /// 入院する値。
     public static let limit = 100
-    /// 荷物を 1 組固定したときの増え方の土台。実際に増える量は「これ + 組の 2 個の重さの合計」
-    /// （`lockAmount`）。5 種が同じ確率で出るので平均は 0 + 3 + 3 = 6。
-    /// 会長 QA（#2063）で「ラインの近くまで来ているのに出方の運だけで入院する」と指摘されたため、
-    /// 1 → 0（平均 7 → 6）に下げた。
-    public static let lockBase = 0
-    /// 荷物 1 個を消したときに減る量。#2063 で 2 → 3（4 個消しで 8 → 12 減る）。
-    public static let perClearedCell = 3
-    /// 2 連鎖目以降、1 連鎖ごとに追加で減る量。
-    public static let perExtraChain = 5
+    /// 入院の重さ。盤の上の荷物の重さの合計がこの値に届くと、ゲージが 100 になる（#2069・会長指示 2026-10-11）。
+    /// 会長 QA で調整する定数。初期盤面（平均で重さ約 87）のゲージが 30〜50（平均 46）に収まり、
+    /// 荷物を詰めすぎる前に入院が現実の脅威になる値にしてある（シミュレーションの数字は #2069 の PR を参照）。
+    public static let hospitalWeight = 190
 
-    /// 荷物を 1 組固定したときに増える量。重い荷物ほど多い（軽い 2 個で 2、重い 2 個で 10）。
-    public static func lockAmount(weights: [Int]) -> Int {
-        lockBase + weights.reduce(0, +)
-    }
-
-    /// 固定したあとのゲージ。`weights` は固定した組の荷物の重さ。
-    public static func afterLock(_ pain: Int, weights: [Int]) -> Int {
-        clamped(pain + lockAmount(weights: weights))
-    }
-
-    /// 1 連鎖ぶん消したあとのゲージ。`chain` は 1 から数える（深いほどよく減る）。
-    public static func afterChain(_ pain: Int, cells: Int, chain: Int) -> Int {
-        guard cells > 0, chain > 0 else { return clamped(pain) }
-        return clamped(pain - cells * perClearedCell - (chain - 1) * perExtraChain)
-    }
-
-    /// 連鎖全体を消したあとのゲージ。`chains` は `OjisanPuzzleBoard.resolve` の戻り値と同じ形。
-    public static func afterClears(_ pain: Int, chains: [Int]) -> Int {
-        chains.enumerated().reduce(clamped(pain)) {
-            afterChain($0, cells: $1.element, chain: $1.offset + 1)
+    /// 盤の上にある荷物の重さの合計。落下中の組は含まない（固定された荷物だけ）。
+    public static func boardWeight(_ board: [[Int]]) -> Int {
+        board.reduce(0) { total, row in
+            total + row.reduce(0) { $0 + (OjisanPuzzleLuggage.kind($1)?.weight ?? 0) }
         }
+    }
+
+    /// 盤の重さからゲージを引く（累積ではなく、その時点の盤面で決まる）。
+    /// 置けば上がり、消せばその荷物の重さぶん下がる。表示は切り捨て。
+    public static func gauge(board: [[Int]]) -> Int {
+        clamped(boardWeight(board) * limit / hospitalWeight)
     }
 
     /// 入院（ゲームオーバー）か。

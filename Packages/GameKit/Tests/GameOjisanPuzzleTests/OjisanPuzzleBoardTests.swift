@@ -329,38 +329,68 @@ struct OjisanPuzzleLuggageTests {
 @Suite("腰痛ゲージと得点")
 struct OjisanPuzzlePainTests {
 
-    @Test("荷物を固定するたびにゲージが増える")
-    func lockingIncreasesPain() {
-        #expect(OjisanPuzzlePain.afterLock(0, weights: [1, 2]) == 3)
-        #expect(OjisanPuzzlePain.afterLock(20, weights: [1, 2]) == 23)
+    @Test("盤の重さは、荷物ごとの重さの合計")
+    func boardWeightSumsLuggageWeights() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        #expect(OjisanPuzzlePain.boardWeight(board) == 0)
+        board[11][0] = 1
+        board[11][1] = 5
+        board[10][1] = 3
+        #expect(OjisanPuzzlePain.boardWeight(board) == 1 + 5 + 3)
     }
 
-    @Test("消すとゲージが減る。連鎖が深いほどよく減る")
-    func clearingReducesPain() {
-        #expect(OjisanPuzzlePain.afterChain(50, cells: 4, chain: 1) == 50 - 12)
-        #expect(OjisanPuzzlePain.afterChain(50, cells: 4, chain: 2) == 50 - 12 - OjisanPuzzlePain.perExtraChain)
-        #expect(OjisanPuzzlePain.afterClears(50, chains: [4, 4]) == 50 - 12 - 12 - OjisanPuzzlePain.perExtraChain)
+    @Test("ゲージは盤の重さ ÷ 入院の重さ × 100 の切り捨て")
+    func gaugeIsBoardWeightOverHospitalWeight() {
+        let w = OjisanPuzzlePain.hospitalWeight
+        #expect(OjisanPuzzlePain.gauge(board: OjisanPuzzleBoard.emptyBoard()) == 0)
+        #expect(OjisanPuzzlePain.gauge(board: OjisanPuzzleTestBoards.filled(weight: w / 2)) == 50)
+        #expect(OjisanPuzzlePain.gauge(board: OjisanPuzzleTestBoards.filled(weight: w - 1)) == 99)
+        #expect(OjisanPuzzlePain.gauge(board: OjisanPuzzleTestBoards.filled(weight: w)) == OjisanPuzzlePain.limit)
     }
 
-    @Test("重い荷物ほどゲージが多く増える（軽い 2 個で 2、重い 2 個で 10）")
-    func heavierLuggageHurtsMore() {
-        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 1]) == 2)
-        #expect(OjisanPuzzlePain.lockAmount(weights: [5, 5]) == 10)
-        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 5]) == OjisanPuzzlePain.lockAmount(weights: [2, 4]))
-        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 2]) < OjisanPuzzlePain.lockAmount(weights: [4, 5]))
+    @Test("置けば盤の重さぶん上がり、消せばその荷物の重さぶん下がる（累積ではない）")
+    func gaugeFollowsTheBoardNotHistory() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        board[11][0] = 5
+        let before = OjisanPuzzlePain.boardWeight(board)
+        let locked = OjisanPuzzleBoard.locking(board, OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 11, col: 3, rotation: .up))
+        #expect(OjisanPuzzlePain.boardWeight(locked) == before + 1 + 2)
+
+        // 5 を 4 つつなげて消すと、その 4 つぶん（20）だけ軽くなる。
+        var column = OjisanPuzzleBoard.emptyBoard()
+        for row in 8..<12 { column[row][0] = 5 }
+        column[7][0] = 2
+        let resolved = OjisanPuzzleBoard.resolve(column).board
+        #expect(OjisanPuzzlePain.boardWeight(column) - OjisanPuzzlePain.boardWeight(resolved) == 20)
     }
 
-    @Test("5 種が同じ確率で出る前提の平均は 6（#2063 で 7 から下げた）")
-    func averageLockAmount() {
-        let weights = OjisanPuzzleLuggage.all.map(\.weight)
-        let total = weights.flatMap { a in weights.map { b in OjisanPuzzlePain.lockAmount(weights: [a, b]) } }.reduce(0, +)
-        #expect(total == 6 * weights.count * weights.count)
+    @Test("重い荷物ほど盤を重くする")
+    func heavierLuggageWeighsMore() {
+        var light = OjisanPuzzleBoard.emptyBoard()
+        var heavy = OjisanPuzzleBoard.emptyBoard()
+        light[11][0] = 1
+        heavy[11][0] = 5
+        #expect(OjisanPuzzlePain.gauge(board: light) <= OjisanPuzzlePain.gauge(board: heavy))
+        #expect(OjisanPuzzlePain.boardWeight(light) < OjisanPuzzlePain.boardWeight(heavy))
     }
 
     @Test("ゲージは 0...100 に収まる")
     func painStaysInRange() {
-        #expect(OjisanPuzzlePain.afterChain(3, cells: 10, chain: 3) == 0)
-        #expect(OjisanPuzzlePain.afterLock(OjisanPuzzlePain.limit, weights: [5, 5]) == OjisanPuzzlePain.limit)
+        let full = OjisanPuzzleBoard.emptyBoard().map { $0.map { _ in 5 } }
+        #expect(OjisanPuzzlePain.gauge(board: full) == OjisanPuzzlePain.limit)
+        #expect(OjisanPuzzlePain.clamped(-3) == 0)
+    }
+
+    @Test("初期盤面のゲージは 30〜50 に収まる（#2069）")
+    func initialBoardGaugeIsAround30To50() {
+        var gauges: [Int] = []
+        for seed in 1...200 {
+            var rng = OjisanPuzzleRandom(seed: UInt64(seed))
+            gauges.append(OjisanPuzzlePain.gauge(board: OjisanPuzzleCleanup.initialBoard(using: &rng)))
+        }
+        let average = gauges.reduce(0, +) / gauges.count
+        #expect((30...50).contains(average), "平均 \(average)")
+        #expect(gauges.allSatisfy { $0 < OjisanPuzzlePain.stageThresholds[1] }, "始まった瞬間から限界になっている盤がある")
     }
 
     @Test("100 になったら入院")

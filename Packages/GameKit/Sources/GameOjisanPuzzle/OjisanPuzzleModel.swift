@@ -42,8 +42,8 @@ public final class OjisanPuzzleModel {
     /// 次に落ちてくる組。
     public private(set) var next: OjisanPuzzlePair
     public private(set) var score: Int = 0
-    /// 腰痛ゲージ（0...100）。
-    public private(set) var pain: Int = 0
+    /// 腰痛ゲージ（0...100）。盤の上の荷物の重さの合計で決まる（ゲージの無い局は 0）。
+    public var pain: Int { mode.hasGauge ? OjisanPuzzlePain.gauge(board: board) : 0 }
     /// 直前の 1 手で何連鎖したか。次に固定するまで出したままにする。
     public private(set) var lastChain: Int = 0
     /// 連鎖が起きるたびに増える通し番号。表示側のトランジションを毎回再生させるための nonce。
@@ -141,13 +141,12 @@ public final class OjisanPuzzleModel {
         if announcesStart { announceStartIfNeeded() }
     }
 
-    /// 盤とゲージを直接与えて開始する。狙った局面（あと 1 手で連鎖・入院寸前・積み上がり寸前）から
+    /// 盤を直接与えて開始する（ゲージは盤の重さで決まる）。狙った局面（あと 1 手で連鎖・入院寸前・積み上がり寸前）から
     /// 確かめるための入口。
     public init(
         services: GameServices? = nil,
         board: [[Int]],
         current: OjisanPuzzlePair?,
-        pain: Int = 0,
         mode: OjisanPuzzleMode = .backpain,
         clearLineRow: Int? = nil,
         riseIntervalMilliseconds: Int? = nil,
@@ -160,7 +159,6 @@ public final class OjisanPuzzleModel {
         var generator = OjisanPuzzleRandom(seed: seed)
         self.board = board
         self.current = current
-        self.pain = OjisanPuzzlePain.clamped(pain)
         self.next = OjisanPuzzleBoard.makePair(using: &generator)
         self.rng = generator
         // 狙った局面から始める入口も、新しいプレイの開始として数える（ブロックならべの同種の入口と同じ扱い）。
@@ -320,7 +318,6 @@ public final class OjisanPuzzleModel {
         current = OjisanPuzzleBoard.makePair(using: &rng)
         next = OjisanPuzzleBoard.makePair(using: &rng)
         score = 0
-        pain = 0
         lastChain = 0
         chainDepth = 0
         phase = .dropping
@@ -345,9 +342,6 @@ public final class OjisanPuzzleModel {
         lastChain = 0
         chainDepth = 0
         lockCount += 1
-        if mode.hasGauge {
-            pain = OjisanPuzzlePain.afterLock(pain, weights: pair.cells.map { OjisanPuzzleLuggage.kind($0.kind)?.weight ?? 0 })
-        }
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         services?.gameDidProgress(gameID: Self.gameID)
         phase = .settling
@@ -376,7 +370,6 @@ public final class OjisanPuzzleModel {
             chainDepth += 1
             let cells = groups.reduce(0) { $0 + $1.count }
             score += OjisanPuzzleScoring.chainPoints(cells: cells, chain: chainDepth)
-            if mode.hasGauge { pain = OjisanPuzzlePain.afterChain(pain, cells: cells, chain: chainDepth) }
             board = OjisanPuzzleBoard.removing(board, groups: groups)
             lastChain = chainDepth
             chainEventID += 1

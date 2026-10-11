@@ -31,20 +31,34 @@ public struct OjisanPuzzleView: View {
     /// 盤の内側の余白。
     private static let boardInset: CGFloat = 6
 
+    #if DEBUG
+    /// `-simulateOjisanPain` 用。ゲージが `target` に届くまで床から荷物を敷く（隣り合う荷物が同じ種類にならない並びで、勝手に消えない）。
+    private static func debugBoard(reaching target: Int) -> [[Int]] {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        for row in stride(from: OjisanPuzzleBoard.rows - 1, through: 3, by: -1) {
+            for col in 0..<OjisanPuzzleBoard.columns {
+                guard OjisanPuzzlePain.gauge(board: board) < target else { return board }
+                board[row][col] = (row * 2 + col) % OjisanPuzzleBoard.kindCount + 1
+            }
+        }
+        return board
+    }
+    #endif
+
     public init(services: GameServices) {
         self.services = services
         #if DEBUG
-        // 動作確認用: 腰痛ゲージを最初から高くして始める（`-simulateOjisanPain 85`）。
-        // 高いゲージの手触り（落下が速い・操作が遅れる）と顔は、実際に十数個積まないと出せないため。
+        // 動作確認用: 腰痛ゲージを最初から高くして始める（`-simulateOjisanPain 85`）。ゲージは盤の重さで決まるので、
+        // 指定値に届くまで床から荷物を敷き詰めた盤で始める。高いゲージの手触り（落下が速い・操作が遅れる）と顔は、
+        // 実際に十数個積まないと出せないため。
         // 他ゲームの `-simulateBlocks` / `-simulateRunner` と同じ作法で、製品には入らない。
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "-simulateOjisanPain"),
            index + 1 < args.count, let pain = Int(args[index + 1]) {
             _model = State(initialValue: OjisanPuzzleModel(
                 services: services,
-                board: OjisanPuzzleBoard.emptyBoard(),
-                current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2),
-                pain: pain
+                board: Self.debugBoard(reaching: pain),
+                current: OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
             ))
             _showSetup = State(initialValue: false)
             return

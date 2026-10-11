@@ -27,7 +27,7 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
     public var summary: String {
         switch self {
         case .backpain:
-            "腰痛ゲージあり。積まれた荷物が時間でせり上がってくる。ラインより荷物を下げればクリア。ゲージが満タンになると入院"
+            "腰痛ゲージは盤の上の荷物の重さの合計。積まれた荷物が時間でせり上がってくる。ラインより荷物を下げればクリア。ゲージが満タンになると入院"
         case .puzzle:
             "ゲージなし。荷物を消した得点を競う。積み上がって埋まるまで続く"
         }
