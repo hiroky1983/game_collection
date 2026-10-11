@@ -239,6 +239,33 @@ struct OjisanPuzzleBoardTests {
         #expect(OjisanPuzzleBoard.rotated(board, pair, clockwise: false) == nil)
     }
 
+    @Test("挟まれて 90 度回せない組も、上下を入れ替えることはできる")
+    func flippedWhenSandwiched() throws {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        for row in 0..<OjisanPuzzleBoard.rows {
+            board[row][1] = 3
+            board[row][3] = 3
+        }
+        var pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        pair.row = 5
+        pair.col = 2
+        let flipped = try #require(OjisanPuzzleBoard.flipped(board, pair))
+        #expect(flipped.rotation == .down)
+        #expect(flipped.axisKind == 1 && flipped.childKind == 2)
+        #expect((flipped.row, flipped.col) == (5, 2))
+    }
+
+    @Test("反転で子の行き先が床や荷物なら、軸を 1 段上げて逃がす")
+    func flippedKicksUpFromTheFloor() throws {
+        let board = OjisanPuzzleBoard.emptyBoard()
+        var pair = OjisanPuzzleBoard.spawn(axisKind: 1, childKind: 2)
+        pair.row = OjisanPuzzleBoard.rows - 1
+        pair.col = 2
+        let flipped = try #require(OjisanPuzzleBoard.flipped(board, pair))
+        #expect(flipped.rotation == .down)
+        #expect(flipped.row == OjisanPuzzleBoard.rows - 2)
+    }
+
     @Test("固定すると 2 マスとも盤に入る")
     func lockingWritesBothCells() {
         let board = OjisanPuzzleBoard.emptyBoard()
@@ -304,30 +331,30 @@ struct OjisanPuzzlePainTests {
 
     @Test("荷物を固定するたびにゲージが増える")
     func lockingIncreasesPain() {
-        #expect(OjisanPuzzlePain.afterLock(0, weights: [1, 2]) == 4)
-        #expect(OjisanPuzzlePain.afterLock(20, weights: [1, 2]) == 24)
+        #expect(OjisanPuzzlePain.afterLock(0, weights: [1, 2]) == 3)
+        #expect(OjisanPuzzlePain.afterLock(20, weights: [1, 2]) == 23)
     }
 
     @Test("消すとゲージが減る。連鎖が深いほどよく減る")
     func clearingReducesPain() {
-        #expect(OjisanPuzzlePain.afterChain(50, cells: 4, chain: 1) == 50 - 8)
-        #expect(OjisanPuzzlePain.afterChain(50, cells: 4, chain: 2) == 50 - 8 - OjisanPuzzlePain.perExtraChain)
-        #expect(OjisanPuzzlePain.afterClears(50, chains: [4, 4]) == 50 - 8 - 8 - OjisanPuzzlePain.perExtraChain)
+        #expect(OjisanPuzzlePain.afterChain(50, cells: 4, chain: 1) == 50 - 12)
+        #expect(OjisanPuzzlePain.afterChain(50, cells: 4, chain: 2) == 50 - 12 - OjisanPuzzlePain.perExtraChain)
+        #expect(OjisanPuzzlePain.afterClears(50, chains: [4, 4]) == 50 - 12 - 12 - OjisanPuzzlePain.perExtraChain)
     }
 
-    @Test("重い荷物ほどゲージが多く増える（軽い 2 個で 3、重い 2 個で 11）")
+    @Test("重い荷物ほどゲージが多く増える（軽い 2 個で 2、重い 2 個で 10）")
     func heavierLuggageHurtsMore() {
-        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 1]) == 3)
-        #expect(OjisanPuzzlePain.lockAmount(weights: [5, 5]) == 11)
+        #expect(OjisanPuzzlePain.lockAmount(weights: [1, 1]) == 2)
+        #expect(OjisanPuzzlePain.lockAmount(weights: [5, 5]) == 10)
         #expect(OjisanPuzzlePain.lockAmount(weights: [1, 5]) == OjisanPuzzlePain.lockAmount(weights: [2, 4]))
         #expect(OjisanPuzzlePain.lockAmount(weights: [1, 2]) < OjisanPuzzlePain.lockAmount(weights: [4, 5]))
     }
 
-    @Test("5 種が同じ確率で出る前提の平均は 7（重さを効かせる前の一定量と同じ）")
-    func averageLockAmountIsUnchanged() {
+    @Test("5 種が同じ確率で出る前提の平均は 6（#2063 で 7 から下げた）")
+    func averageLockAmount() {
         let weights = OjisanPuzzleLuggage.all.map(\.weight)
         let total = weights.flatMap { a in weights.map { b in OjisanPuzzlePain.lockAmount(weights: [a, b]) } }.reduce(0, +)
-        #expect(total == 7 * weights.count * weights.count)
+        #expect(total == 6 * weights.count * weights.count)
     }
 
     @Test("ゲージは 0...100 に収まる")

@@ -13,6 +13,8 @@ public struct OjisanPuzzleView: View {
     @State private var appliedColumns = 0
     /// 同じく、すでに何マスぶん落としたか。
     @State private var appliedRows = 0
+    /// いま触っているドラッグが受け持つ向き。決まったら指を離すまで変えない（下へ払うときの横流れを拾わない・#2063）。
+    @State private var dragAxis: OjisanPuzzleDrag.Axis?
     /// 遊び方を選ぶ開始シート（#1920）。開いた直後は出しておき、選んでから始める。
     @State private var showSetup = true
     /// シートで選んでいる遊び方。最初は腰痛モード。
@@ -159,12 +161,15 @@ public struct OjisanPuzzleView: View {
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
                     .font(.system(size: 26, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    // 桁が増えても折り返さない（見出しの高さ＝盤の大きさが揺れるため・#2063）。
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
             if model.lastChain > 1 {
                 Text("\(model.lastChain)連鎖")
                     .font(.system(size: 16, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .lineLimit(1).fixedSize()
                     .foregroundStyle(Theme.coral)
                     // 同じ連鎖数が続くと値が変わらずトランジションが再生されないので、
                     // 連鎖のたびに増える通し番号を `.id` にする（ブロックならべと同じ手）。
@@ -182,8 +187,11 @@ public struct OjisanPuzzleView: View {
 
     private var painGauge: some View {
         VStack(alignment: .leading, spacing: 3) {
+            // ゲージの欄は幅も高さも固定（値や段階の文字数で折り返して見出しが伸びると、盤が縮んで見える・#2063）。
             Text("腰痛 \(model.pain)　\(model.painStage.caption)")
                 .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(width: Self.gaugeWidth, alignment: .leading)
                 .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.fillMuted.opacity(0.22))
@@ -193,15 +201,20 @@ public struct OjisanPuzzleView: View {
                         .frame(width: max(0, geo.size.width) * painRatio)
                 }
             }
-            .frame(width: 128, height: 8)
+            .frame(width: Self.gaugeWidth, height: 8)
             if let remaining = model.millisecondsUntilRise {
                 Text("せり上がりまで \((remaining + 999) / 1000)秒")
                     .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: Self.gaugeWidth, alignment: .leading)
                     .foregroundStyle(Theme.inkSub)
             }
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.pain)
     }
+
+    /// 腰痛ゲージの欄の幅。
+    private static let gaugeWidth: CGFloat = 128
 
     private var painRatio: CGFloat {
         CGFloat(model.pain) / CGFloat(OjisanPuzzlePain.limit)
@@ -377,13 +390,19 @@ public struct OjisanPuzzleView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 guard model.outcome == nil, !showSetup else { return }
-                let columns = OjisanPuzzleDrag.steps(value.translation.width, step: step)
-                while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
-                while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
-
-                // 下方向だけ拾う（上スワイプには何も割り当てない）。
-                let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
-                while appliedRows < rows { appliedRows += 1; model.softDrop() }
+                if dragAxis == nil { dragAxis = OjisanPuzzleDrag.axis(for: value.translation) }
+                switch dragAxis {
+                case .horizontal:
+                    let columns = OjisanPuzzleDrag.steps(value.translation.width, step: step)
+                    while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
+                    while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
+                case .vertical:
+                    // 下方向だけ拾う（上スワイプには何も割り当てない）。
+                    let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
+                    while appliedRows < rows { appliedRows += 1; model.softDrop() }
+                case nil:
+                    break
+                }
             }
             .onEnded { value in
                 if OjisanPuzzleDrag.isTap(
@@ -395,6 +414,7 @@ public struct OjisanPuzzleView: View {
                 }
                 appliedColumns = 0
                 appliedRows = 0
+                dragAxis = nil
             }
     }
 
@@ -408,6 +428,7 @@ public struct OjisanPuzzleView: View {
                 if model.mode.hasGauge {
                     Text(model.painStage.caption)
                         .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                        .lineLimit(1).minimumScaleFactor(0.7)
                         .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
                 }
             }
