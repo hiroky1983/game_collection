@@ -49,13 +49,16 @@ public struct SpiderHintTrail: Sendable, Equatable {
 public enum SpiderHint {
 
     /// ヒントの探索上限（スート数ごと）。**1 秒前後で答えが返る値**に絞る（会長決裁の仕様）。
-    /// 配札生成の上限（`SpiderSolver.defaultMaxStates`）よりずっと小さい。生成は時間をかけて踏破できた種だけを残すが、
-    /// ヒントは押した人を待たせるので、勝ち筋が見つからなければ打ち切って見込みの良い手を示す。
+    ///
+    /// 実測（Mac・`swiftc -O`・2026-10-11）: 6 万局面で 0.1〜0.5 秒（4 スートは 0.34〜0.66 秒）、3 万局面で 0.02〜0.3 秒。
+    /// 1 スートは数千〜2.5 万局面で解け、途中の盤も同じ。実機はこの 1.5〜2 倍を見込み、1・2 スートは 6 万、
+    /// 4 スートは 1 局面が重いので 4 万で打ち切る。**配札生成の上限（`SpiderSolver.defaultMaxStates`）よりずっと小さい**:
+    /// 生成は時間をかけて踏破できた種だけを残すが、ヒントは押した人を待たせるので、勝ち筋が見つからなければ
+    /// 打ち切って見込みの良い手を示す（2・4 スートの難しい盤はこちらに落ちる）。
     public static func maxStates(for suits: SpiderSuitCount) -> Int {
         switch suits {
-        case .one:  return 60_000
-        case .two:  return 30_000
-        case .four: return 15_000
+        case .one, .two: return 60_000
+        case .four:      return 40_000
         }
     }
 
