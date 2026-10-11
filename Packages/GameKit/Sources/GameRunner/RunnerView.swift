@@ -467,8 +467,8 @@ public struct RunnerView: View {
         }
     }
 
-    /// おじさんの顔をドット絵の比率（32×30）のまま整数倍で置く（#702）。`scale` は旧来（16×15）の 1 ドット = 何 pt かで、
-    /// 顔が細かくなった（#1349）ぶん実際の 1 ドットは `scale / faceResolution` pt になり、大きさは変わらない。
+    /// おじさんの顔をドット絵の比率（64×60）のまま整数倍で置く（#702）。`scale` は旧来（16×15）の 1 ドット = 何 pt かで、
+    /// 顔が細かくなった（#1349・#2064）ぶん実際の 1 ドットは `scale / faceResolution` pt になり、大きさは変わらない。
     /// `Core` の `OjisanPixel.faceImage` は装飾画像なので VoiceOver には出ない。
     private func ojisanFace(_ face: OjisanPixel.Face, scale: Int) -> some View {
         let dots = OjisanPixel.faceDotSize

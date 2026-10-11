@@ -4,7 +4,7 @@ import Testing
 
 @Suite("腰痛おじさんパズル: 作業服おじさんのドット絵（#1909）")
 struct OjisanPuzzleArtTests {
-    @Test("4 コマすべて同梱され、読み込める")
+    @Test("5 コマすべて同梱され、読み込める")
     func allPosesLoad() {
         for pose in OjisanPuzzleArt.Pose.allCases {
             #expect(OjisanPuzzleArt.dotSize(pose) != nil, "\(pose) の画像が読めない")
@@ -22,6 +22,16 @@ struct OjisanPuzzleArtTests {
         }
         let fallen = try #require(OjisanPuzzleArt.dotSize(.fallen))
         #expect(fallen.width > fallen.height)
+        // 入院のベッド（#2064）は 64 ドット版（83×64）。
+        let bed = try #require(OjisanPuzzleArt.dotSize(.hospitalized))
+        #expect(bed.width == 83 && bed.height == 64)
+    }
+
+    @Test("決着ごとの絵: 入院はベッド、積み上がりは倒れる絵、片付いたら笑顔（#2064）")
+    func resultPoseForOutcome() {
+        #expect(OjisanPuzzleArt.resultPose(for: .hospitalized) == .hospitalized)
+        #expect(OjisanPuzzleArt.resultPose(for: .buried) == .fallen)
+        #expect(OjisanPuzzleArt.resultPose(for: .cleared) == .easy)
     }
 
     @Test("段階ごとに別のコマ")
