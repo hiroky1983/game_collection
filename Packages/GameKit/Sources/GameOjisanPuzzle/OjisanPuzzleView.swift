@@ -49,6 +49,18 @@ public struct OjisanPuzzleView: View {
             _showSetup = State(initialValue: false)
             return
         }
+        // 動作確認用: 出る列が天井まで積まれた盤で始め、次の固定で積み上がりにする（`-simulateOjisanBuried`・#2064 の結果の絵の確認）。
+        if args.contains("-simulateOjisanBuried") {
+            var board = OjisanPuzzleBoard.emptyBoard()
+            for row in 2..<OjisanPuzzleBoard.rows { board[row][OjisanPuzzleBoard.spawnColumn] = row % 2 + 1 }
+            _model = State(initialValue: OjisanPuzzleModel(
+                services: services,
+                board: board,
+                current: OjisanPuzzleBoard.spawn(axisKind: 3, childKind: 4)
+            ))
+            _showSetup = State(initialValue: false)
+            return
+        }
         // 動作確認用: 遊び方を指定して開始シート無しで始める（`-simulateOjisanMode puzzle`）。
         if let index = args.firstIndex(of: "-simulateOjisanMode"),
            index + 1 < args.count, let mode = OjisanPuzzleMode(rawValue: args[index + 1]) {
@@ -499,12 +511,9 @@ public struct OjisanPuzzleView: View {
 
     private var resultOverlay: some View {
         VStack(spacing: 10) {
-            if model.outcome == .hospitalized {
-                // 倒れたおじさん（70×27 ドット）。
-                OjisanPuzzleArt.image(.fallen)
-            } else {
-                // 作業服の全身ドット絵（#1946）。クリアは笑顔、積み上がりは汗のコマ。
-                OjisanPuzzleArt.image(model.outcome == .cleared ? .easy : .aching)
+            if let outcome = model.outcome {
+                // 入院はベッド（83×64 ドット）、積み上がりは倒れる絵（70×27）、片付いたら笑顔（#2064）。
+                OjisanPuzzleArt.image(OjisanPuzzleArt.resultPose(for: outcome))
             }
             Text(resultTitle)
                 .font(.system(size: 24, weight: .heavy, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）

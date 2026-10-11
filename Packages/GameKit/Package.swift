@@ -50,7 +50,11 @@ let package = Package(
         // Apple 固有のフレームワークを持ち込まない。Core が `@_exported import CoreEngine` するので、
         // 各ゲーム・App の `import Core` はそのまま CoreEngine の型も見える。
         .target(name: "CoreEngine"),
-        .target(name: "Core",               dependencies: ["CoreEngine"]),
+        .target(name: "Core",               dependencies: ["CoreEngine"],
+                // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
+                resources: [.copy("Resources/OjisanFace_smile.png"),
+                            .copy("Resources/OjisanFace_cheer.png"),
+                            .copy("Resources/OjisanFace_frown.png")]),
         .target(name: "Game2048",           dependencies: ["Core"]),
         .target(name: "GameShogi",          dependencies: ["Core", "CoreEngine"]),
         .target(name: "GameGomoku",         dependencies: ["Core", "CoreEngine"]),
@@ -133,7 +137,9 @@ let package = Package(
                 resources: [.copy("Resources/OjisanWork_carry_light_smile.png"),
                             .copy("Resources/OjisanWork_carry_heavy_pain_sweat.png"),
                             .copy("Resources/OjisanWork_limit_back_pain.png"),
-                            .copy("Resources/OjisanWork_fallen_face_down_crying.png")]),
+                            .copy("Resources/OjisanWork_fallen_face_down_crying.png"),
+                            // 入院の結果に出すベッドのおじさん（#2064。Codex 製 83×64）。
+                            .copy("Resources/OjisanWork_hospital_bed.png")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
         .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles", "CoreEngine"]),
