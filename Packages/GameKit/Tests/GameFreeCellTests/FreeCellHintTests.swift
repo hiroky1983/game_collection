@@ -197,7 +197,8 @@ struct FreeCellHintModelTests {
     func movingDuringSearchDiscardsTheResult() async {
         let f = makeFixture()
         let task = Task { await f.model.requestHint() }
-        await Task.yield()
+        // 読みが始まる（旗が立つ）まで待ってから動かす。`yield` 1 回では開始が保証されない。
+        while !f.model.isHintThinking { await Task.yield() }
         f.model.tapPile(0)
         f.model.tapCell(0)
         await task.value

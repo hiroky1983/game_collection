@@ -703,7 +703,8 @@ public struct FreeCellView: View {
     @ViewBuilder private func hintDestinationFrame(_ isOn: Bool, metrics: PlayingCardMetrics) -> some View {
         if isOn {
             RoundedRectangle(cornerRadius: metrics.cornerRadius)
-                .strokeBorder(BoardGameHintColor.color, style: StrokeStyle(lineWidth: 3, dash: [6, 4]))
+                .inset(by: 1.5)
+                .stroke(BoardGameHintColor.color, style: StrokeStyle(lineWidth: 3, dash: [6, 4]))
                 .frame(width: metrics.width, height: metrics.height)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
