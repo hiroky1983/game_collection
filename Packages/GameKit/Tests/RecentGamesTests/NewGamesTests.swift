@@ -170,7 +170,7 @@ struct NewGamesWiringTests {
             "ハブが PlayLog.newGameIDs を登録ゲーム全体で呼んでいない"
         )
         #expect(
-            source.range(of: #"GameCard\([^{}]*isNew: newGameIDs\.contains\(module\.id\)"#, options: .regularExpression) != nil,
+            source.range(of: #"GameCard\([^{}]*isNew: NewGames\.currentVersionIDs\.contains\(module\.id\)"#, options: .regularExpression) != nil,
             "グリッドのカードに isNew が渡っていない"
         )
     }
@@ -195,6 +195,27 @@ struct NewGamesWiringTests {
         }
     }
 
+    @Test("新着は特別枠を除くグリッドの先頭へ固定する（#2104）")
+    func gridPinsNewGames() throws {
+        let source = try SourceScan.appSources()
+        #expect(
+            source.range(of: #"NewGames\.pinned\(visibleIDs: visible\.map\(\\\.id\)\)"#, options: .regularExpression) != nil,
+            "ハブの並びが NewGames.pinned を通っていない"
+        )
+        #expect(
+            source.range(of: #"gridModules: \[GameModule\] \{\s*pinnedVisibleModules"#, options: .regularExpression) != nil,
+            "グリッドが固定済みの並びを使っていない"
+        )
+    }
+
+    @Test("NEW は「続きから」より優先して出す（#2104）")
+    func newBadgeBeatsResume() throws {
+        let source = try SourceScan.appSources()
+        let newAt = try #require(source.range(of: #"Spacer\(minLength: 0\)\s*if isNew \{"#, options: .regularExpression))
+        let resumeAt = try #require(source.range(of: #"\} else if hasResume \{"#, options: .regularExpression))
+        #expect(newAt.lowerBound < resumeAt.lowerBound)
+    }
+
     @Test("ゲームを開いたら、そのゲームの NEW 印を外す")
     func openingGameClearsBadge() throws {
         let source = try SourceScan.appSources()
@@ -211,5 +232,29 @@ struct NewGamesWiringTests {
     func badgeIsSpoken() throws {
         let source = try SourceScan.appSources()
         #expect(source.contains(#"if isNew { parts.append("新着") }"#), "カードの読み上げに新着が入っていない")
+    }
+}
+
+@Suite("この版の新着（#2104）")
+struct NewGamesPinnedTests {
+    @Test("新着は先頭へ、そのあとに元の順。それぞれ元の順を保つ")
+    func pinsNewFirstKeepingOrder() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "b", "a", "c"], newIDs: ["a", "b"])
+        #expect(order == ["b", "a", "2048", "c"])
+    }
+
+    @Test("非表示（visibleIDs に無い）の新着は出てこない")
+    func hiddenNewGameStaysHidden() {
+        #expect(NewGames.pinned(visibleIDs: ["2048", "a"], newIDs: ["a", "b"]) == ["a", "2048"])
+    }
+
+    @Test("新着が無ければ並びは変わらない")
+    func noNewKeepsOrder() {
+        #expect(NewGames.pinned(visibleIDs: ["x", "y"], newIDs: []) == ["x", "y"])
+    }
+
+    @Test("この版の新着は ぱっと暗算 と おじさんの荷物運びパズル")
+    func currentVersionIDs() {
+        #expect(NewGames.currentVersionIDs == ["anzan", "ojisanpuzzle"])
     }
 }

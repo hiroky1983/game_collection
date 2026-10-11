@@ -30,6 +30,7 @@ import GameHomerun
 import GameSpider
 import GameChess
 import GameBlocks
+import GameOjisanPuzzle
 
 /// ハブに登録されている全ゲーム（= 遊び方ガイドが要るゲーム）。
 @MainActor
@@ -63,6 +64,7 @@ private let registeredModules: [GameModule] = [
     GoModule(),
     ChessModule(),
     BlocksModule(),
+    OjisanPuzzleModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
@@ -94,6 +96,41 @@ struct HowToPlayGuideContentTests {
             #expect(!guide.title.isEmpty)
             #expect(!guide.hintIcon.isEmpty)
         }
+    }
+
+    @Test("図入りの項目（#2044）は文が空でなく、改行を含まない短文")
+    func illustratedItemsAreShort() {
+        for guide in HowToPlayGuide.all {
+            for item in guide.items {
+                #expect(!item.text.isEmpty, "\(guide.gameID) に空の項目がある")
+                #expect(!item.text.contains("\n"), "\(guide.gameID) の項目に改行がある")
+                // 1〜2 行（スマホのカードで 1 行 20 字前後）に収める目安。
+                #expect(item.text.count <= 70, "\(guide.gameID) の項目が長すぎる: \(item.text)")
+            }
+            #expect(guide.notes.allSatisfy { !$0.isEmpty }, "\(guide.gameID) に空の補足がある")
+            // 補足だけのゲームは作らない（補足は図カードの末尾に出す）。
+            if guide.items.isEmpty { #expect(guide.notes.isEmpty, "\(guide.gameID) は項目が無いのに補足がある") }
+        }
+    }
+
+    @Test("おじさんの荷物運びパズルは図入りの遊び方を持つ（#2044 の先駆け）")
+    func ojisanPuzzleHasIllustratedItems() {
+        let guide = HowToPlayGuide.ojisanPuzzleBackpain
+        #expect(guide.gameID == OjisanPuzzleModule().id)
+        #expect(guide.items.count == 6)
+        #expect(!guide.notes.isEmpty)
+        // 腰痛ゲージは計算方法が検討中なので、数値（目盛り・定数）を文に書かない。
+        let gaugeText = guide.items[4].text
+        #expect(gaugeText.rangeOfCharacter(from: .decimalDigits) == nil, "腰痛ゲージの項目に数値がある: \(gaugeText)")
+        // 積み上がりは「荷物が出てくる位置が埋まったら」の表現で書く（#2088 の判定変更と矛盾させない）。
+        #expect(guide.items[5].text.contains("荷物が出てくる位置"))
+    }
+
+    @Test("パズルモード用の「？」は gameID が同じで all に入らない（五目並べの禁じ手と同じ作法）")
+    func ojisanPuzzlePuzzleSharesGameIDButIsNotRegistered() {
+        let guide = HowToPlayGuide.ojisanPuzzlePuzzle
+        #expect(guide.gameID == OjisanPuzzleModule().id)
+        #expect(!HowToPlayGuide.all.contains(guide))
     }
 }
 

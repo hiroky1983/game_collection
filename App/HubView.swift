@@ -39,6 +39,7 @@ struct HubView: View {
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
     private struct HiddenNotice: Equatable {
+        let moduleID: String
         let title: String
         let id = UUID()
     }
@@ -84,9 +85,18 @@ struct HubView: View {
         settings.visibleModules(from: registry).contains { $0.id == Self.heroGameID }
     }
 
-    /// グリッドに並べるゲーム（特別枠のゲームを除く）。
+    /// 表示するゲームの並び。この版の新着を先頭に固定し、そのあとに利用者の並びが続く（#2104）。
+    /// 非表示にしたゲームは `visibleModules` の時点で除かれるので、新着でも出さない。
+    private var pinnedVisibleModules: [GameModule] {
+        let visible = settings.visibleModules(from: registry)
+        let order = NewGames.pinned(visibleIDs: visible.map(\.id))
+        let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
+        return order.compactMap { byID[$0] }
+    }
+
+    /// グリッドに並べるゲーム（特別枠のゲームを除く）。特別枠のすぐ次に新着が来る。
     private var gridModules: [GameModule] {
-        settings.visibleModules(from: registry).filter { $0.id != Self.heroGameID }
+        pinnedVisibleModules.filter { $0.id != Self.heroGameID }
     }
 
     /// 特別枠がグリッドの上で取る高さ（枠 + グリッドとの間隔）。カード高さの割り付けから引く（#485）。
@@ -133,7 +143,7 @@ struct HubView: View {
     /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
     private var paletteIndexByGame: [String: Int] {
         var result: [String: Int] = [:]
-        for (index, module) in settings.visibleModules(from: registry).enumerated() {
+        for (index, module) in pinnedVisibleModules.enumerated() {
             result[module.id] = index
         }
         return result
@@ -257,7 +267,7 @@ struct HubView: View {
                                     accent: Theme.palette[index % Theme.palette.count],
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: hasResume,
-                                    isNew: newGameIDs.contains(module.id),
+                                    isNew: NewGames.currentVersionIDs.contains(module.id),
                                     record: services.playLog?.summaryLine(gameID: module.id),
                                     minHeight: cardMinHeight
                                 )
@@ -305,7 +315,7 @@ struct HubView: View {
                 .overlay(alignment: .bottom) {
                     Group {
                         if let hiddenNotice {
-                            HubHiddenNotice(title: hiddenNotice.title)
+                            HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }
                                 .transition(.opacity)
                         }
                     }
@@ -313,7 +323,7 @@ struct HubView: View {
                 }
                 .task(id: hiddenNotice) {
                     guard hiddenNotice != nil else { return }
-                    try? await Task.sleep(for: .seconds(3))
+                    try? await Task.sleep(for: .seconds(5))
                     guard !Task.isCancelled else { return }
                     hiddenNotice = nil
                 }
@@ -577,8 +587,17 @@ struct HubView: View {
     private func hide(_ module: GameModule) {
         guard !settings.hiddenIDs.contains(module.id) else { return }
         settings.toggleHidden(module.id)
-        hiddenNotice = HiddenNotice(title: module.title)
+        hiddenNotice = HiddenNotice(moduleID: module.id, title: module.title)
         AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
+    }
+
+    /// 案内の「元に戻す」（#2047）。非表示は並びを動かさないので、`toggleHidden` でもとの位置に戻る。
+    /// 案内が出ている間に設定シートで先に戻されていたら、押しても再び隠さない。
+    private func undoHide(_ notice: HiddenNotice) {
+        hiddenNotice = nil
+        guard settings.hiddenIDs.contains(notice.moduleID) else { return }
+        settings.toggleHidden(notice.moduleID)
+        AccessibilityNotification.Announcement("「\(notice.title)」を元に戻しました").post()
     }
 
     /// 「きろく」の中の「Game Center で実績・ランキングを見る」（#669。以前はツールバーから直接・#334）。
@@ -603,7 +622,7 @@ private struct GameCard: View {
     /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
     let accentFill: Color
     let hasResume: Bool
-    /// 更新で増えたゲームか（#723）。「続きから」と同じ位置に NEW を出す（両方のときは「続きから」を優先）。
+    /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
@@ -630,17 +649,17 @@ private struct GameCard: View {
 
                 Spacer(minLength: 0)
 
-                if hasResume {
-                    Text("続きから")
+                if isNew {
+                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
+                    Text("NEW")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
                         .padding(.vertical, layout.scaled(3))
                         .background(Capsule().fill(accent.opacity(0.15)))
                         .fixedSize()
-                } else if isNew {
-                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
-                    Text("NEW")
+                } else if hasResume {
+                    Text("続きから")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
@@ -731,28 +750,41 @@ private struct HubNewGamesNotice: View {
     }
 }
 
-/// カードを長押しメニューで非表示にした直後の案内（#662）。
+/// カードを長押しメニューで非表示にした直後の案内（#662）。「元に戻す」で取り消せる（#2047）。
 ///
-/// 戻す操作は設定シートにしか無いので、その場所だけを1行で伝える。読み上げは `HubView.hide` が
-/// 同じ文言をアナウンスで流すため、ここは VoiceOver から隠す（二重に読ませない）。
+/// 案内の文言は `HubView.hide` が同じ文言をアナウンスで流すため、VoiceOver からは隠す（二重に読ませない）。
+/// 「元に戻す」ボタンだけは VoiceOver で辿れる。
 private struct HubHiddenNotice: View {
     let title: String
+    let onUndo: () -> Void
 
     static func message(title: String) -> String {
-        "「\(title)」を非表示にしました。設定から戻せます"
+        "「\(title)」を非表示にしました。元に戻せます"
     }
 
     var body: some View {
-        Text(Self.message(title: title))
-            .themeCaption(13)
-            .foregroundStyle(Theme.ink)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, Theme.pad)
-            .padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
-            .padding(Theme.pad)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        HStack(spacing: 8) {
+            Text("「\(title)」を非表示にしました")
+                .themeCaption(13)
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
+            Button(action: onUndo) {
+                Text("元に戻す")
+                    .themeCaption(13)
+                    .fontWeight(.bold)
+                    .underline()
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pop)
+            .accessibilityLabel("「\(title)」の非表示を元に戻す")
+        }
+        .padding(.horizontal, Theme.pad)
+        .popCard(corner: Theme.cornerSmall)
+        .padding(Theme.pad)
     }
 }
 

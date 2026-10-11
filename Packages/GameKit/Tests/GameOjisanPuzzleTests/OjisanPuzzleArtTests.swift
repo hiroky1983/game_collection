@@ -2,7 +2,7 @@ import CoreGraphics
 import Testing
 @testable import GameOjisanPuzzle
 
-@Suite("腰痛おじさんパズル: 作業服おじさんのドット絵（#1909）")
+@Suite("おじさんの荷物運びパズル: 作業服おじさんのドット絵（#1909）")
 struct OjisanPuzzleArtTests {
     @Test("5 コマすべて同梱され、読み込める")
     func allPosesLoad() {

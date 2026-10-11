@@ -4,8 +4,8 @@ import Core
 import CoreTestSupport
 @testable import GameOjisanPuzzle
 
-/// 遊び方（腰痛モード / パズルモード・#1920）ごとの終わり方・記録・解析。
-@Suite("腰痛おじさんパズルの遊び方")
+/// 遊び方（荷運びモード / パズルモード・#1920）ごとの終わり方・記録・解析。
+@Suite("おじさんの荷物運びパズルの遊び方")
 @MainActor
 struct OjisanPuzzleModeTests {
     private func services(_ log: PlayLog? = nil) -> GameServices {
@@ -35,7 +35,7 @@ struct OjisanPuzzleModeTests {
 
     // MARK: - 盤の作り方
 
-    @Test("腰痛モードは最初から荷物が積まれ、4つつながる塊も、クリア済みもない")
+    @Test("荷運びモードは最初から荷物が積まれ、4つつながる塊も、クリア済みもない")
     func backpainStartsWithLuggage() {
         for seed in UInt64(1)...40 {
             let model = OjisanPuzzleModel(services: nil, mode: .backpain, seed: seed)
@@ -45,6 +45,27 @@ struct OjisanPuzzleModeTests {
             #expect(!OjisanPuzzleCleanup.isCleared(model.board), "seed \(seed)")
             #expect(model.clearLineRow == OjisanPuzzleCleanup.clearLineRow)
         }
+    }
+
+    @Test("荷運びモードの開始ゲージは初期盤面から決まり、おおむね 30〜50 に収まる（もう一度でも同じ）")
+    func backpainStartsWithPainFromBoard() {
+        var total = 0
+        for seed in UInt64(1)...200 {
+            let model = OjisanPuzzleModel(services: nil, mode: .backpain, seed: seed)
+            #expect(model.pain == OjisanPuzzlePain.initial(board: model.board), "seed \(seed)")
+            #expect(model.painStage != .severe, "seed \(seed)")
+            total += model.pain
+        }
+        let average = Double(total) / 200
+        #expect((30...50).contains(average), "平均 \(average)")
+
+        let model = OjisanPuzzleModel(services: nil, mode: .backpain, seed: 3)
+        model.newGame()
+        model.pause()
+        #expect(model.pain == OjisanPuzzlePain.initial(board: model.board))
+        model.newGame(mode: .puzzle)
+        model.pause()
+        #expect(model.pain == 0)
     }
 
     @Test("パズルモードは空の盤で始まり、ラインもせり上がりも無い")
@@ -85,7 +106,7 @@ struct OjisanPuzzleModeTests {
         #expect(OjisanPuzzleSpeedUp.factor(locks: 100_000) == OjisanPuzzleSpeedUp.minimumFactor)
     }
 
-    // MARK: - 腰痛モードの終わり方
+    // MARK: - 荷運びモードの終わり方
 
     @Test("ライン以下まで片付いたらクリア（勝ち）で、クリアタイムを記録する")
     func backpainClearsBelowLine() throws {
@@ -204,7 +225,7 @@ struct OjisanPuzzleModeTests {
 
     // MARK: - 記録（モード別）
 
-    @Test("パズルモードの自己ベストは得点で、腰痛モードの記録とは別の行になる")
+    @Test("パズルモードの自己ベストは得点で、荷運びモードの記録とは別の行になる")
     func recordsAreSeparatedPerMode() throws {
         let (log, cleanup) = try makePlayLog("separate")
         defer { cleanup() }
