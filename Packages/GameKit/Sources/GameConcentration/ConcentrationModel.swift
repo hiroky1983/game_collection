@@ -104,8 +104,8 @@ public final class ConcentrationModel {
         isHumanTurn && !isThinking && !isGameOver && mismatchedIndices.isEmpty && firstFlippedIndex != nil
     }
 
-    /// いまヒントを押せるか。CPU の番・2 枚めくったあと・決着後は不可。
-    public var canUseHint: Bool { isHintMoment && !hints.isExhausted }
+    /// いまヒントを押せるか。CPU の番・2 枚めくったあと・決着後は不可。光っている間も押せない（同じ札に回数を無駄にしない）。
+    public var canUseHint: Bool { isHintMoment && hintIndex == nil && !hints.isExhausted }
 
     /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
     public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }

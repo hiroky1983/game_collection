@@ -176,6 +176,19 @@ struct ConcentrationHintTests {
         #expect(model.hintGlowDuration == nil)
     }
 
+    @Test("光っている間は押せず、回数も減らない")
+    func notWhileGlowing() {
+        let model = makeModel()
+        flipFirst(model)
+        #expect(model.requestHint())
+        #expect(!model.canUseHint)
+        #expect(!model.requestHint())
+        #expect(!model.grantAdHint(forGame: model.gameSerial, first: model.firstFlippedIndex))
+        #expect(model.hints.used == 1)
+        model.finishHint(run: model.hintRun)
+        #expect(model.canUseHint)
+    }
+
     @Test("印が出ている間に2枚目をめくったら印は消える")
     func hintClearsOnFlip() throws {
         let model = makeModel()
