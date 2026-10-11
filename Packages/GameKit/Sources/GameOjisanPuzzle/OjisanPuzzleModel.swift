@@ -1,7 +1,7 @@
 import Core
 import Observation
 
-/// 腰痛おじさんパズル（#1016・v1.1.11 で公開 #1904）のゲーム状態。
+/// おじさんの荷物運びパズル（#1016・v1.1.11 で公開 #1904）のゲーム状態。
 ///
 /// 盤の判定・連鎖・ゲージ・得点は `OjisanPuzzleBoard` / `OjisanPuzzlePain` / `OjisanPuzzleScoring` の
 /// 純粋ロジックに委譲し、ここは**落下タイマー・操作の受け口・決着**だけを持つ。

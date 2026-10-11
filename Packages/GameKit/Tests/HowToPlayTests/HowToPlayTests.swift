@@ -113,7 +113,7 @@ struct HowToPlayGuideContentTests {
         }
     }
 
-    @Test("腰痛おじさんパズルは図入りの遊び方を持つ（#2044 の先駆け）")
+    @Test("おじさんの荷物運びパズルは図入りの遊び方を持つ（#2044 の先駆け）")
     func ojisanPuzzleHasIllustratedItems() {
         let guide = HowToPlayGuide.ojisanPuzzle
         #expect(guide.gameID == OjisanPuzzleModule().id)

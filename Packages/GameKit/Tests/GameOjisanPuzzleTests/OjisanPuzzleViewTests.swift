@@ -2,7 +2,7 @@ import Testing
 import GameKitTestSupport
 
 /// 画面の組み方をソースで縛る（描画はテストから起動しないため）。
-@Suite("腰痛おじさんパズルの画面")
+@Suite("おじさんの荷物運びパズルの画面")
 struct OjisanPuzzleViewTests {
     @Test("画面下に共通のバナーを 1 つ置き、操作とリザルトの範囲の外に出す")
     func bannerSitsOutsidePlayArea() throws {

@@ -25,7 +25,7 @@ import SwiftUI
 /// 粗い版（16×15）は使うところが無くなったので #1349 で消した。
 ///
 /// #2064（会長決定 2026-10-11）で、リザルト・スタート画面・アイコンの正面顔（`faceImages` / `faceImage` /
-/// `mascotIcon`）は **Codex 製の 64×60 ドット PNG**（`Resources/OjisanFace_*.png`。腰痛おじさんパズルの
+/// `mascotIcon`）は **Codex 製の 64×60 ドット PNG**（`Resources/OjisanFace_*.png`。おじさんの荷物運びパズルの
 /// 作業服おじさんと同じ顔。出所は docs/design/ojisan-pixel-pipeline）に差し替えた。手描きの行データ
 /// （`face(_:)`・32×30）はストーリーの胸像（`RunnerStoryArt.bust`。場面の格子が 32×30 前提）と、
 /// PNG の無い `gaze` のために残している。
@@ -130,7 +130,7 @@ public enum OjisanPixel {
     /// 表情ごとのビットマップ（1 ドット = 1px の 64×60px）。`static let` なので起動後の初回参照で 1 度だけ作る。
     ///
     /// smile / cheer / frown は Codex 製の PNG（`Resources/OjisanFace_*.png`・#2064）を ImageIO で読む
-    /// （GameKit は macOS でも `swift test` するので UIImage は使わない。腰痛おじさんパズルの `OjisanPuzzleArt` と同じ作法）。
+    /// （GameKit は macOS でも `swift test` するので UIImage は使わない。おじさんの荷物運びパズルの `OjisanPuzzleArt` と同じ作法）。
     /// PNG の無い `gaze` と、PNG が読めなかったときは、手描きの 32×30（`face(_:)`）を 2 倍にして同じ 64×60 に揃える。
     public static let faceImages: [Face: CGImage] = {
         var out: [Face: CGImage] = [:]

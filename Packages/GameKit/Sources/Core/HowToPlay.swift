@@ -448,7 +448,7 @@ public extension HowToPlayGuide {
     /// 図は `GameOjisanPuzzle` 側で `illustrated(_:)` を使って差し込む。
     static let ojisanPuzzle = HowToPlayGuide(
         gameID: "ojisanpuzzle",
-        title: "腰痛おじさんパズルの遊び方",
+        title: "おじさんの荷物運びパズルの遊び方",
         lines: [
             "2 つひと組の荷物が落ちてきます。よこにスワイプで動かし、タップで回し、下にスワイプで落とします。",
             "同じ荷物がたて・よこに 4 つ以上つながると消えます。消えたあとに落ちてきた荷物がまたつながれば、れんさです。",
@@ -618,7 +618,7 @@ public struct HowToPlaySheet<Extra: View>: View {
 
 /// 「前 → 後」のコマ図。各コマの間に矢印を挟んで横に並べる。コマの中身（盤・駒・札）は各ゲームが描く。
 ///
-/// 腰痛おじさんパズルの操作・れんさ、2048 の合体、オセロの裏返しなど、「こうすると、こうなる」を見せる図に使う。
+/// おじさんの荷物運びパズルの操作・れんさ、2048 の合体、オセロの裏返しなど、「こうすると、こうなる」を見せる図に使う。
 public struct RuleFrames<Frame: View>: View {
     private let count: Int
     private let spacing: CGFloat

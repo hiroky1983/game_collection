@@ -6,7 +6,7 @@ import CoreTestSupport
 
 /// 進行役（`OjisanPuzzleModel`）のうち、落下タイマーを回さずに確かめられる部分。
 /// 判定そのものは `OjisanPuzzleBoardTests` が見ているので、ここは受け口と状態の遷移だけ。
-@Suite("腰痛おじさんパズルの進行")
+@Suite("おじさんの荷物運びパズルの進行")
 @MainActor
 struct OjisanPuzzleModelTests {
 
