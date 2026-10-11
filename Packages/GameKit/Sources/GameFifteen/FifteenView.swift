@@ -80,7 +80,7 @@ public struct FifteenView: View {
                     badge: .hint(totalRemaining: model.hintsRemaining, needsAd: model.needsAdForHint),
                     isEnabled: model.canUseHint && !hintRescue.isWatching,
                     accessibilityLabel: FifteenAccessibility.hintLabel(
-                        remaining: model.hintsRemaining, needsAd: model.needsAdForHint),
+                        remaining: model.hints.freeRemaining, needsAd: model.needsAdForHint),
                     accessibilityHint: "次に動かすタイルを光らせます"
                 ) { requestHint() },
             ],

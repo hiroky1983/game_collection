@@ -31,7 +31,9 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
 
     func requestExplicitAuthorization() async -> ReminderAuthorization {
         // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21・#1219）。
-        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]) {
+        // すでに許可 / 拒否が決まっていると、ダイアログは出ずに結果だけ返る。出した 1 回だけ数える。
+        let shownDialog = await authorization() == .notDetermined
+        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]), shownDialog {
             AppEnvironment.analytics.recordNotificationPermission(
                 result: granted ? .granted : .denied, trigger: .resume)
         }
@@ -144,7 +146,9 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
 
     func requestExplicitAuthorization() async -> ReminderAuthorization {
         // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21）。
-        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]) {
+        // すでに許可 / 拒否が決まっていると、ダイアログは出ずに結果だけ返る。出した 1 回だけ数える。
+        let shownDialog = await authorization() == .notDetermined
+        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]), shownDialog {
             AppEnvironment.analytics.recordNotificationPermission(
                 result: granted ? .granted : .denied, trigger: .reengagement)
         }
@@ -243,7 +247,9 @@ final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderSch
 
     func requestExplicitAuthorization() async -> ReminderAuthorization {
         // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21）。
-        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]) {
+        // すでに許可 / 拒否が決まっていると、ダイアログは出ずに結果だけ返る。出した 1 回だけ数える。
+        let shownDialog = await authorization() == .notDetermined
+        if let granted = try? await center.requestAuthorization(options: [.alert, .sound]), shownDialog {
             AppEnvironment.analytics.recordNotificationPermission(
                 result: granted ? .granted : .denied, trigger: .challenge)
         }
