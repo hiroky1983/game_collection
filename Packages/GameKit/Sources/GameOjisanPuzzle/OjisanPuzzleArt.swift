@@ -14,8 +14,19 @@ enum OjisanPuzzleArt {
         case aching = "carry_heavy_pain_sweat"
         /// 限界（腰を押さえる）。
         case severe = "limit_back_pain"
-        /// 入院（倒れる。リザルトだけに出す）。
+        /// 倒れる（積み上がりのリザルトだけに出す。#2064 で入院から付け替え）。
         case fallen = "fallen_face_down_crying"
+        /// 入院（ベッドで寝る。腰痛ゲージ満タンのリザルトだけに出す。#2064 会長決定のベッド案1・83×64）。
+        case hospitalized = "hospital_bed"
+    }
+
+    /// 決着ごとのリザルトの絵（#2064）。入院 → ベッド、積み上がり → 倒れる、片付いた → 笑顔。
+    static func resultPose(for outcome: OjisanPuzzleModel.Outcome) -> Pose {
+        switch outcome {
+        case .hospitalized: .hospitalized
+        case .buried: .fallen
+        case .cleared: .easy
+        }
     }
 
     /// 1 ドットを何 pt で描くか（画面モックの 1 ドット = 2pt）。
