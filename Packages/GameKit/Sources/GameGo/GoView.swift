@@ -94,6 +94,10 @@ public struct GoView: View {
         .onChange(of: model.passBannerDismissID) { _, _ in
             passBannerID = nil
         }
+        // 最善手がパスのときは文字の帯だけが手がかりなので、VoiceOver にも読ませる（#2027）。
+        .onChange(of: model.hintSuggestsPass) { _, suggests in
+            if suggests { AccessibilityNotification.Announcement(GoAccessibility.hintPassMessage).post() }
+        }
         .task {
             #if DEBUG
             // 撮影用（#398）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
@@ -257,7 +261,7 @@ public struct GoView: View {
             // 拒否の理由は揺れの外に置く（一緒に揺らすと読めない・五目 #441 と同じ組み方）。
             .overlay(alignment: .top) { rejectionNotice }
             // 最善手がパスのときは印を置く交点が無いので、文字で示す（#2027）。
-            .overlay(alignment: .top) { hintPassNotice }
+            .overlay(alignment: .bottom) { hintPassNotice }
         }
         .aspectRatio(1, contentMode: .fit)
         // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
@@ -299,7 +303,7 @@ public struct GoView: View {
     }
 
     /// 最善手がパスのときの案内（#2027）。盤に印を置けないので帯で伝える。
-    /// 拒否理由の帯と同じく盤への `overlay` で、出ても消えても盤と操作エリアの高さは変わらない。
+    /// 拒否理由の帯（上端）と重ならないよう下端に出す。盤への `overlay` なので、出ても消えても盤と操作エリアの高さは変わらない。
     @ViewBuilder
     private var hintPassNotice: some View {
         if model.hintSuggestsPass {
@@ -308,7 +312,7 @@ public struct GoView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(BoardGameHintColor.color))
-                .padding(.top, 10)
+                .padding(.bottom, 10)
                 .allowsHitTesting(false)
         }
     }
