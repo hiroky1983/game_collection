@@ -97,6 +97,8 @@ public final class FreeCellModel {
     public private(set) var hintMove: FreeCellMove?
     /// 勝てないと分かったときの知らせ（回数は減らさない）。View が閉じるまで残る。
     public private(set) var showsHintHopeless = false
+    /// テスト専用: 読みが終わった直後（結果を取り込む前）に呼ぶ。読みの最中に盤が動いた状況を決定的に作る。
+    var hintSearchDidFinishForTesting: (() -> Void)?
     /// 盤が変わるたびに増える番号。読みを始めた時点の値と突き合わせ、読んでいる間に盤が動いたら結果を捨てる。
     private var boardVersion = 0
     /// 走っている読み。`Task.detached` は親のキャンセルを継がないので、盤が変わったときに降ろせるよう握る。
@@ -390,6 +392,7 @@ public final class FreeCellModel {
         }
         hintSearch = search
         let result = await withTaskCancellationHandler { await search.value } onCancel: { search.cancel() }
+        hintSearchDidFinishForTesting?()
         // 盤が変わっていれば `refreshDerivedState` が旗の持ち主を替えている。下ろすのは同じ盤のままのときだけ。
         guard version == boardVersion else { return nil }
         isHintThinking = false

@@ -196,12 +196,13 @@ struct FreeCellHintModelTests {
     @Test("探索中に札を動かしたら印を出さず、回数も減らさない")
     func movingDuringSearchDiscardsTheResult() async {
         let f = makeFixture()
-        let task = Task { await f.model.requestHint() }
-        // 読みが始まる（旗が立つ）まで待ってから動かす。`yield` 1 回では開始が保証されない。
-        while !f.model.isHintThinking { await Task.yield() }
-        f.model.tapPile(0)
-        f.model.tapCell(0)
-        await task.value
+        let model = f.model
+        // 読みが終わった直後（結果を取り込む前）に札を動かす。
+        model.hintSearchDidFinishForTesting = {
+            model.tapPile(0)
+            model.tapCell(0)
+        }
+        await model.requestHint()
         #expect(f.model.hintMove == nil)
         #expect(f.model.hints.used == 0)
         #expect(!f.model.isHintThinking)
