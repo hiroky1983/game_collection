@@ -329,6 +329,24 @@ struct OjisanPuzzleLuggageTests {
 @Suite("腰痛ゲージと得点")
 struct OjisanPuzzlePainTests {
 
+    @Test("開始ゲージは盤の荷物の重さの合計に比例し、空の盤は 0")
+    func initialPainFollowsBoardWeight() {
+        #expect(OjisanPuzzlePain.initial(board: OjisanPuzzleBoard.emptyBoard()) == 0)
+        var light = OjisanPuzzleBoard.emptyBoard()
+        var heavy = OjisanPuzzleBoard.emptyBoard()
+        for col in 0..<OjisanPuzzleBoard.columns {
+            for row in 6..<OjisanPuzzleBoard.rows { light[row][col] = 1; heavy[row][col] = 5 }
+        }
+        #expect(OjisanPuzzlePain.initial(board: light) == Int(Double(36) * OjisanPuzzlePain.startFactor))
+        #expect(OjisanPuzzlePain.initial(board: light) < OjisanPuzzlePain.initial(board: heavy))
+    }
+
+    @Test("開始ゲージは「こしが限界」に入らない")
+    func initialPainStaysBelowSevere() {
+        let full = Array(repeating: Array(repeating: 5, count: OjisanPuzzleBoard.columns), count: OjisanPuzzleBoard.rows)
+        #expect(OjisanPuzzlePain.initial(board: full) == OjisanPuzzlePain.stageThresholds[1] - 1)
+    }
+
     @Test("荷物を固定するたびにゲージが増える")
     func lockingIncreasesPain() {
         #expect(OjisanPuzzlePain.afterLock(0, weights: [1, 2]) == 3)

@@ -326,6 +326,19 @@ public enum OjisanPuzzlePain {
     /// 2 連鎖目以降、1 連鎖ごとに追加で減る量。
     public static let perExtraChain = 5
 
+    /// 開始時のゲージ = 初期盤面の荷物の重さの合計 × この係数（切り捨て）。会長指示 2026-10-11
+    /// 「初回の盤面に対して重みつけとかないと腰痛入院が発動しない」。初期盤面（6 列 × 4〜6 段）の
+    /// 重さの合計は平均 90 前後なので、開始値がおおむね 30〜50 に収まる値にしている。会長 QA で調整する定数。
+    public static let startFactor = 0.45
+    /// 開始時に「こしが限界」へ入れない上限（入院の手前で始めない）。
+    public static let startCeiling = stageThresholds[1] - 1
+
+    /// 開始時のゲージ。盤の荷物が多い・重いほど高く始まる。
+    public static func initial(board: [[Int]]) -> Int {
+        let weight = board.joined().reduce(0) { $0 + (OjisanPuzzleLuggage.kind($1)?.weight ?? 0) }
+        return min(Int(Double(weight) * startFactor), startCeiling)
+    }
+
     /// 荷物を 1 組固定したときに増える量。重い荷物ほど多い（軽い 2 個で 2、重い 2 個で 10）。
     public static func lockAmount(weights: [Int]) -> Int {
         lockBase + weights.reduce(0, +)

@@ -47,6 +47,27 @@ struct OjisanPuzzleModeTests {
         }
     }
 
+    @Test("腰痛モードの開始ゲージは初期盤面から決まり、おおむね 30〜50 に収まる（もう一度でも同じ）")
+    func backpainStartsWithPainFromBoard() {
+        var total = 0
+        for seed in UInt64(1)...200 {
+            let model = OjisanPuzzleModel(services: nil, mode: .backpain, seed: seed)
+            #expect(model.pain == OjisanPuzzlePain.initial(board: model.board), "seed \(seed)")
+            #expect(model.painStage != .severe, "seed \(seed)")
+            total += model.pain
+        }
+        let average = Double(total) / 200
+        #expect((30...50).contains(average), "平均 \(average)")
+
+        let model = OjisanPuzzleModel(services: nil, mode: .backpain, seed: 3)
+        model.newGame()
+        model.pause()
+        #expect(model.pain == OjisanPuzzlePain.initial(board: model.board))
+        model.newGame(mode: .puzzle)
+        model.pause()
+        #expect(model.pain == 0)
+    }
+
     @Test("パズルモードは空の盤で始まり、ラインもせり上がりも無い")
     func puzzleStartsEmpty() {
         let model = OjisanPuzzleModel(services: nil, mode: .puzzle, seed: 7)
