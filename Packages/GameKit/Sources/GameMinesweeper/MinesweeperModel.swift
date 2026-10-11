@@ -494,10 +494,13 @@ public final class MinesweeperModel {
         let outcome: HintOutcome
         if let safe = MinesweeperHint.safeCells(in: observations()).first {
             guard consume() else { return nil }
+            services?.gameDidUseHint(gameID: gameID)
             hintTarget = safe
             outcome = .highlighted(safe)
         } else if let guess = guessCell() {
             guard consume() else { return nil }
+            // 開けた結果で決着すると `game_end` が送られるので、その前に数える。
+            services?.gameDidUseHint(gameID: gameID)
             hintTarget = nil
             // 旗が間違って立っている安全マスしか残っていないときだけ、旗を外してから開ける。
             if cells[guess.row][guess.col].mark != .none {
@@ -510,7 +513,6 @@ public final class MinesweeperModel {
         } else {
             return nil
         }
-        services?.gameDidUseHint(gameID: gameID)
         if case .highlighted = outcome { services?.feedback.impact(.light) }
         persist()
         return outcome
