@@ -112,6 +112,13 @@ public final class OjisanPuzzleModel {
     /// 直前の回す操作が塞がれて回せなかったか。続けてもう一度押されたら上下（左右）を入れ替える（#2063）。
     /// 動かす・回せる・落ちる・固定するのどれかが起きたら畳む。
     private var rotationBlockedOnce = false
+    /// 接地したあと、動かす・回すたびに固定が 1 刻み延びる回数の上限（定番の落ち物パズルの「動かすと猶予が延びる」・#2088）。
+    /// 一段落ちるたびに数え直す。無限に延ばして固定させない遊び方を防ぐ。
+    static let groundExtensionLimit = 8
+    /// 接地中に動かして、次の刻みでの固定を 1 回見送る予約があるか。
+    private var groundExtended = false
+    /// 接地してから延ばした回数。
+    private var groundExtensions = 0
     static let gameID = "ojisanpuzzle"
 
     /// 通常の入口。
@@ -213,6 +220,10 @@ public final class OjisanPuzzleModel {
             if let moved = OjisanPuzzleBoard.steppedDown(board, pair) {
                 current = moved
                 rotationBlockedOnce = false
+                resetGroundGrace()
+            } else if groundExtended {
+                // 接地してから動かしたので、固定をもう 1 刻み待つ。
+                groundExtended = false
             } else {
                 lock(pair)
             }
@@ -234,6 +245,7 @@ public final class OjisanPuzzleModel {
         }
         current = moved
         rotationBlockedOnce = false
+        extendGroundGrace(for: moved)
         acceptInput()
         services?.feedback.impact(.light)
         return true
@@ -259,9 +271,26 @@ public final class OjisanPuzzleModel {
         }
         current = turned
         rotationBlockedOnce = false
+        extendGroundGrace(for: turned)
         acceptInput()
         services?.feedback.impact(.light)
         return true
+    }
+
+    /// 接地している組を動かした・回したら、固定を 1 刻み延ばす（上限 `groundExtensionLimit` 回）。
+    private func extendGroundGrace(for pair: OjisanPuzzlePair) {
+        guard OjisanPuzzleBoard.steppedDown(board, pair) == nil else {
+            groundExtended = false
+            return
+        }
+        guard groundExtensions < Self.groundExtensionLimit else { return }
+        groundExtensions += 1
+        groundExtended = true
+    }
+
+    private func resetGroundGrace() {
+        groundExtended = false
+        groundExtensions = 0
     }
 
     /// 左右移動・回転を受け付けてよいか。**腰が重いほどワンテンポ遅れる**（企画の核心）。
@@ -289,6 +318,7 @@ public final class OjisanPuzzleModel {
         if let moved = OjisanPuzzleBoard.steppedDown(board, pair) {
             current = moved
             rotationBlockedOnce = false
+            resetGroundGrace()
         } else {
             lock(pair)
         }
@@ -328,6 +358,7 @@ public final class OjisanPuzzleModel {
         outcome = nil
         lastInputAt = nil
         rotationBlockedOnce = false
+        resetGroundGrace()
         recordResult = nil
         // 未決着のまま捨てた局は、始め直す前に途中離脱（quit）として送られる（#500）。
         // 捨てた局の `mode` は開始時に焼き込んだ値で出る（`game_end` の `mode` は途中で替わらない・#820）。
@@ -343,11 +374,14 @@ public final class OjisanPuzzleModel {
         board = OjisanPuzzleBoard.locking(board, pair)
         current = nil
         rotationBlockedOnce = false
+        resetGroundGrace()
         lastChain = 0
         chainDepth = 0
         lockCount += 1
         if mode.hasGauge {
-            pain = OjisanPuzzlePain.afterLock(pain, weights: pair.cells.map { OjisanPuzzleLuggage.kind($0.kind)?.weight ?? 0 })
+            // 見えない段にはみ出して消えた荷物は、盤に載っていないので重さに数えない。
+            let placed = pair.cells.filter { OjisanPuzzleBoard.isInside(row: $0.cell.row, col: $0.cell.col) }
+            pain = OjisanPuzzlePain.afterLock(pain, weights: placed.map { OjisanPuzzleLuggage.kind($0.kind)?.weight ?? 0 })
         }
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         services?.gameDidProgress(gameID: Self.gameID)
@@ -417,6 +451,7 @@ public final class OjisanPuzzleModel {
             return
         }
         current = pair
+        resetGroundGrace()
         next = OjisanPuzzleBoard.makePair(using: &rng)
         phase = .dropping
     }
