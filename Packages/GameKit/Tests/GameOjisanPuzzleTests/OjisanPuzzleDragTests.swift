@@ -62,4 +62,56 @@ struct OjisanPuzzleDragTests {
         #expect(!OjisanPuzzleDrag.isTap(translation: .zero, movedColumns: 1, movedRows: 0))
         #expect(!OjisanPuzzleDrag.isTap(translation: .zero, movedColumns: 0, movedRows: 1))
     }
+
+    // MARK: - 向きの固定（#2063）
+
+    @Test("タップの遊びを超えるまでは向きを決めない")
+    func axisUndecidedWithinTapSlack() {
+        #expect(OjisanPuzzleDrag.axis(for: .zero) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 8, height: 8)) == nil)
+    }
+
+    @Test("大きく動いた側が向きになる")
+    func axisFollowsDominantDirection() {
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 20, height: 4)) == .horizontal)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: -20, height: 4)) == .horizontal)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 4, height: 20)) == .vertical)
+    }
+
+    @Test("接戦のうちは決めず、優勢になってから決める")
+    func axisWaitsForClearDominance() {
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 13, height: 11)) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 40, height: 35)) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 56, height: 200)) == .vertical)
+    }
+
+    @Test("最初に上へ動いても縦には決めない（上スワイプには何も割り当てない）")
+    func upwardStartDoesNotLockVertical() {
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 2, height: -13)) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 70, height: -13)) == .horizontal)
+    }
+
+    /// 下へ払う実際の指の軌跡（下に長く、横にも 1 マスぶん以上流れる）をなぞる。
+    /// 向きを決めて縦だけ拾えば、横には 1 マスも動かない。
+    @Test("下へ払うときに指が横へ流れても、横移動に化けない")
+    func downSwipeWithDriftDoesNotMoveSideways() {
+        var axis: OjisanPuzzleDrag.Axis?
+        var columns = 0
+        var rows = 0
+        // 指の軌跡: 縦に進みながら横へ 1.4 マスぶん流れる。
+        for t in stride(from: 0.05, through: 1.0, by: 0.05) {
+            let translation = CGSize(width: cell * 1.4 * t, height: cell * 5 * t)
+            if axis == nil { axis = OjisanPuzzleDrag.axis(for: translation) }
+            switch axis {
+            case .horizontal: columns = OjisanPuzzleDrag.steps(translation.width, step: cell)
+            case .vertical: rows = OjisanPuzzleDrag.downSteps(translation.height, step: cell)
+            case nil: break
+            }
+        }
+        #expect(axis == .vertical)
+        #expect(columns == 0, "下へ払ったのに横へ動いた")
+        #expect(rows == 5)
+        // 向きを決めない従来の拾い方だと、同じ軌跡で 1 マス横へずれていた。
+        #expect(OjisanPuzzleDrag.steps(cell * 1.4, step: cell) == 1)
+    }
 }

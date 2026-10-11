@@ -165,8 +165,21 @@ public enum OjisanPuzzleBoard {
     public static func rotated(_ board: [[Int]], _ pair: OjisanPuzzlePair, clockwise: Bool) -> OjisanPuzzlePair? {
         var turned = pair
         turned.rotation = clockwise ? pair.rotation.turnedRight : pair.rotation.turnedLeft
+        return placedKickingFromWalls(board, turned)
+    }
+
+    /// 向きを 180 度入れ替えた組（縦なら上下、横なら左右の入れ替え）。左右を挟まれて 90 度回せないときの逃げ道（#2063）。
+    /// 軸をずらして逃がす点は `rotated` と同じ。置けなければ nil。
+    public static func flipped(_ board: [[Int]], _ pair: OjisanPuzzlePair) -> OjisanPuzzlePair? {
+        var turned = pair
+        turned.rotation = pair.rotation.turnedRight.turnedRight
+        return placedKickingFromWalls(board, turned)
+    }
+
+    /// 向きを変えた組を、そのまま・子が出っ張る向きと逆へ 1 マス・同じく縦方向へ 1 マスの順に試して、置ける最初の位置を返す。
+    private static func placedKickingFromWalls(_ board: [[Int]], _ turned: OjisanPuzzlePair) -> OjisanPuzzlePair? {
         let offset = turned.rotation.offset
-        // 子が出っ張る向きと逆へ軸を 1 マス逃がす。縦横どちらかしか 0 以外にならない。
+        // 縦横どちらかしか 0 以外にならない。
         let kicks = [(0, 0), (0, -offset.col), (-offset.row, 0)]
         for (dr, dc) in kicks {
             var candidate = turned
@@ -304,14 +317,16 @@ public enum OjisanPuzzlePain {
     /// 入院する値。
     public static let limit = 100
     /// 荷物を 1 組固定したときの増え方の土台。実際に増える量は「これ + 組の 2 個の重さの合計」
-    /// （`lockAmount`）。5 種が同じ確率で出るので平均は 1 + 3 + 3 = 7 で、重さを効かせる前と同じ。
-    public static let lockBase = 1
-    /// 荷物 1 個を消したときに減る量。
-    public static let perClearedCell = 2
+    /// （`lockAmount`）。5 種が同じ確率で出るので平均は 0 + 3 + 3 = 6。
+    /// 会長 QA（#2063）で「ラインの近くまで来ているのに出方の運だけで入院する」と指摘されたため、
+    /// 1 → 0（平均 7 → 6）に下げた。
+    public static let lockBase = 0
+    /// 荷物 1 個を消したときに減る量。#2063 で 2 → 3（4 個消しで 8 → 12 減る）。
+    public static let perClearedCell = 3
     /// 2 連鎖目以降、1 連鎖ごとに追加で減る量。
     public static let perExtraChain = 5
 
-    /// 荷物を 1 組固定したときに増える量。重い荷物ほど多い（軽い 2 個で 3、重い 2 個で 11）。
+    /// 荷物を 1 組固定したときに増える量。重い荷物ほど多い（軽い 2 個で 2、重い 2 個で 10）。
     public static func lockAmount(weights: [Int]) -> Int {
         lockBase + weights.reduce(0, +)
     }

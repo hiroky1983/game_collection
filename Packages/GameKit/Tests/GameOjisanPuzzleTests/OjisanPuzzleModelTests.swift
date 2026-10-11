@@ -176,6 +176,46 @@ struct OjisanPuzzleModelTests {
         #expect(model.move(by: 1), "やり直したのに待たされている")
     }
 
+    // MARK: - 挟まれた列での回転（#2063）
+
+    /// 1 列ぶんの隙間（col 2）に縦で収まっている組。左右は荷物で塞がっている。
+    private func sandwichedModel() -> OjisanPuzzleModel {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        for row in 0..<OjisanPuzzleBoard.rows {
+            board[row][1] = 3
+            board[row][3] = 3
+        }
+        return OjisanPuzzleModel(
+            services: nil,
+            board: board,
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 5, col: 2, rotation: .up)
+        )
+    }
+
+    @Test("左右を挟まれていると、1 回目は回らず、続けてもう一度押すと上下が入れ替わる")
+    func secondRotatePressFlipsWhenSandwiched() throws {
+        let model = sandwichedModel()
+        #expect(!model.rotate(clockwise: true), "1 回目は回せない")
+        #expect(try #require(model.current).rotation == .up)
+        #expect(model.rotate(clockwise: true), "2 回目は反転する")
+        let flipped = try #require(model.current)
+        #expect(flipped.rotation == .down)
+        #expect(flipped.col == 2)
+        // 反転できたあとにまた塞がれたら、もう一度 2 回押しが要る（押しっぱなしで回り続けない）。
+        #expect(model.rotate(clockwise: false) == false)
+        #expect(model.rotate(clockwise: false))
+        #expect(try #require(model.current).rotation == .up)
+    }
+
+    @Test("間に別の操作が入ったら、2 回押しの数え直し")
+    func blockedPressIsForgottenAfterOtherInput() throws {
+        let model = sandwichedModel()
+        #expect(!model.rotate(clockwise: true))
+        #expect(model.softDrop())               // 1 段落ちた
+        #expect(!model.rotate(clockwise: true), "間に落下が挟まったので、これは 1 回目の扱い")
+        #expect(try #require(model.current).rotation == .up)
+    }
+
     // MARK: - 決着
 
     @Test("腰痛ゲージが 100 に達したら入院で終わる")
@@ -196,11 +236,9 @@ struct OjisanPuzzleModelTests {
         #expect(model.current == nil)
     }
 
-    /// **現仕様の明示**: 入院の判定は固定した瞬間に行う（消して減らす前）。
-    /// その手で 4 つそろって消える並びでも、ゲージが 100 に届いていれば入院で終わる。
-    /// 「消し終えてから判定する」ほうが優しいが、ゲージは固定で増えるものなので判定も固定時に置いた。
-    @Test("その手で消える並びでも、固定でゲージが 100 に届けば入院する")
-    func hospitalizesBeforeClearingCanReducePain() {
+    /// 入院は消える荷物の判定を済ませてから見る（#2063。かつては固定の瞬間に入院させていた）。
+    @Test("置いた瞬間に満タンでも、その手で消えてゲージが下がるなら入院しない")
+    func doesNotHospitalizeWhenTheMoveClears() {
         var board = OjisanPuzzleBoard.emptyBoard()
         for row in (OjisanPuzzleBoard.rows - 3)..<OjisanPuzzleBoard.rows { board[row][0] = 1 }
         let model = OjisanPuzzleModel(
@@ -210,8 +248,51 @@ struct OjisanPuzzleModelTests {
             pain: OjisanPuzzlePain.limit - Self.lockOf12
         )
         #expect(model.hardDrop())   // 落とせば 1 が 4 つそろう並び
-        #expect(model.outcome == .hospitalized)
-        #expect(model.score == 0, "入院後に消去が走っている")
+        #expect(model.pain == OjisanPuzzlePain.limit, "置いた瞬間は満タン")
+        #expect(model.outcome == nil, "消える判定の前に入院している")
+
+        model.tick()    // 4 つそろった 1 が消える
+        #expect(model.score == OjisanPuzzleScoring.chainPoints(cells: 4, chain: 1))
+        #expect(model.pain < OjisanPuzzlePain.limit)
+        model.tick()    // 上に残った荷物が落ちる
+        model.tick()    // もう消えないので次の組が出る
+        #expect(model.outcome == nil)
+        #expect(model.current != nil)
+    }
+
+    @Test("すでにラインより下に収まる盤なら、消えなくても満タンの入院よりクリアを優先する")
+    func clearBeatsImmediateHospitalization() {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: 97,
+            mode: .backpain,
+            clearLineRow: OjisanPuzzleCleanup.clearLineRow
+        )
+        #expect(model.hardDrop())
+        #expect(model.pain == OjisanPuzzlePain.limit)
+        for _ in 0..<3 where model.outcome == nil { model.tick() }
+        #expect(model.outcome == .cleared)
+    }
+
+    @Test("ラインより下に片付く手なら、満タンでも入院よりクリアを優先する")
+    func clearBeatsHospitalization() {
+        // 行 8 より上は 4 つそろう塊だけ。消えると全体がラインより下になる。
+        var board = OjisanPuzzleBoard.emptyBoard()
+        let line = OjisanPuzzleCleanup.clearLineRow
+        for row in (line - 1)..<(line + 2) { board[row][0] = 1 }   // 縦に 3 つ（うち 1 つがライン上）
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: board,
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: OjisanPuzzlePain.limit - Self.lockOf12,
+            mode: .backpain,
+            clearLineRow: line
+        )
+        #expect(model.hardDrop())
+        for _ in 0..<8 where model.outcome == nil { model.tick() }
+        #expect(model.outcome == .cleared)
     }
 
     @Test("盤が出口までぎっしり埋まったらゲームオーバー")
