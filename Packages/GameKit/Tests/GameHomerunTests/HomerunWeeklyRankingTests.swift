@@ -205,8 +205,9 @@ struct HomerunWeeklyRankingTests {
         #expect(spy.submitted.isEmpty && spy.loads == 0)
     }
 
-    @Test("出荷時点では送り先が未作成で、ランキングは出ない")
-    func shippedDefaultIsOff() {
-        #expect(GameCenterLeaderboard.homerunWeekly == nil)
+    @Test("出荷時点の送り先は App Store Connect に作成済みの定期リーダーボード（#2051）")
+    func shippedDefaultIsWeeklyBoard() {
+        #expect(GameCenterLeaderboard.homerunWeekly == "asobiba.homerun.weekly")
+        #expect(GameCenterLeaderboard.homerunWeeklyMaxMeters == 768_801_440)
     }
 }
