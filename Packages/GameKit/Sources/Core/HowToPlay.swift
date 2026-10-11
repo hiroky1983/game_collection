@@ -544,8 +544,8 @@ public struct HowToPlaySheet<Extra: View>: View {
                 }
             }
         }
-        // 3 行だけのときは半分の高さで開き、盤を隠しすぎない。詳細・図を持つゲームは最初から全画面。
-        .presentationDetents(hasExtra || !guide.items.isEmpty ? [.large] : [.medium, .large])
+        // モーダルは縦長（large）固定（#2096）。半分の高さで開くと 3 行ルールの下が余る。
+        .presentationDetents([.large])
     }
 
     /// 番号の丸。3 行ルールと図カードで同じ部品を使う。

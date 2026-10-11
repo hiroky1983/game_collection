@@ -292,15 +292,6 @@ public extension View {
         return modifier(ScaledThemeFont(size: size, weight: weight, design: design,
                                         relativeTo: style, maxScale: maxScale))
     }
-
-    /// 新規ゲームシートの高さ。アクセシビリティ相当の文字サイズのときだけ `.large` で開く（#189）。
-    ///
-    /// これらのシートは「選択肢 + 下端の開始ボタン」の固定レイアウトで、文字が拡大されると
-    /// 選択肢が縦に伸びて開始ボタンが `.medium` の高さから押し出される。既定の文字サイズでは
-    /// 従来どおり `.medium` から始まるため、見た目も操作感も変わらない。
-    func gameSheetDetents() -> some View {
-        modifier(GameSheetDetents())
-    }
 }
 
 /// 押下中だけ縮んで沈む、`.plain` の代わりに使うボタンスタイル（#195）。
@@ -344,14 +335,5 @@ public extension View {
     /// ダイアログを View に直接付けるのは `DialogTintScanTests` が落とす。
     func dialogs<Dialogs: View>(@ViewBuilder _ attach: (DialogAnchor) -> Dialogs) -> some View {
         background { attach(DialogAnchor()).tint(Theme.dialogTint) }
-    }
-}
-
-/// `View.gameSheetDetents()` の実体。
-private struct GameSheetDetents: ViewModifier {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    func body(content: Content) -> some View {
-        content.presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 }
