@@ -1137,7 +1137,7 @@ Game Center の**定期リーダーボード**（毎週月曜 0:00 JST 開始・
 
 ## 解析仕様（Analytics・#158 / #500 / #659 / #780 / #1043 / #1348）
 
-`CoreEngine/Analytics.swift` に**送信するイベントを7種だけに閉じた** `AnalyticsEvent` enum がある
+`CoreEngine/Analytics.swift` に**送信するイベントを7種だけに閉じた**（`release/v1.1.11` 以降は `notification_permission`（#2008）を足した8種） `AnalyticsEvent` enum がある
 （`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に。`survey_answer` は #1348 で足したが、アンケートの削除（#1956）で廃止。
 main のコード（v1.1.9・v1.1.10 の公開版）には `surveyAnswer` のケース・`recordSurveyAnswer` / `gameDidAnswerSurvey`・`HomerunModel.submitSurvey` が互換のため残っているが、
 入口が `HomerunSurvey.isOffered = false` で画面に出ないので実際には送信されない。#1956 を含む `release/v1.1.11` 以降ではケースごと削除済み。
@@ -1150,6 +1150,7 @@ v1.1.4 までの公開版は3種）。
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べ・オセロ・マインスイーパー・15パズルでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685） |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
+| `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の8値） / `result`(accepted\|declined\|not_ready) |
