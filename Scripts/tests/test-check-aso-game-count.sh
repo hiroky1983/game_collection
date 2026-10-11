@@ -174,10 +174,14 @@ for real in "$REPO"/docs/aso/metadata-v*.md; do
   REAL_PACKS=$((REAL_PACKS + 1))
   # 会長決裁で ASC の値（22本）を据え置き、```text フェンスから本数の主張を意図的に外したパック
   # （metadata-v1.1.10.md §1-1。本数が読めないのが正しい状態）。誤って通さないよう名指しで除外する。
-  if [ "$(basename "$real")" = "metadata-v1.1.10.md" ]; then
-    ok "docs/aso/$(basename "$real") は本数の主張を意図的に外したパックなので対象外"
-    continue
-  fi
+  # metadata-v1.1.11.md も同じ理由（文言24本・実装25本の食い違いを、柵越えおじさんを訴求するか
+  # の会長判断が確定するまで意図的に残している。§1）で同じ書き方をしているため、同様に除外する。
+  case "$(basename "$real")" in
+    metadata-v1.1.10.md | metadata-v1.1.11.md)
+      ok "docs/aso/$(basename "$real") は本数の主張を意図的に外したパックなので対象外"
+      continue
+      ;;
+  esac
   accepted=""
   for ((n = 1; n <= 60; n++)); do
     if bash "$TARGET" "$real" "$(swiftsrc "$n")" >/dev/null 2>&1; then accepted="$accepted $n"; fi
