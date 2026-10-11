@@ -92,7 +92,11 @@ platform :ios do
         uploadSymbols: true,
       },
       xcargs: "-allowProvisioningUpdates #{auth_args} CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{TEAM_ID}",
-      export_xcargs: "-allowProvisioningUpdates #{auth_args}",
+      # auth_args は export_xcargs には入れない（2026-10-11 実証・#2075）。gym は archive 用の
+      # xcargs に渡した -authenticationKey* を export コマンドにも自動で引き継ぐため、ここにも
+      # 書くと xcodebuild に同じ引数が二重に渡り
+      # `error: option '-authenticationKeyPath' may only be provided once` で書き出しが落ちる。
+      export_xcargs: "-allowProvisioningUpdates",
       buildlog_path: SHIP_LOG_DIR,
     )
     ensure
