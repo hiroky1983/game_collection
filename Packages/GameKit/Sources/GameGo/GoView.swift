@@ -101,6 +101,11 @@ public struct GoView: View {
                 await model.applyPreviewScoringForTesting()
             } else if ProcessInfo.processInfo.arguments.contains("-goMidgame") {
                 model.applyPreviewMidgameForTesting()
+                // 撮影用（#2027）: 中盤の盤面でヒントを 1 回読ませて、紫の印を出す。
+                if ProcessInfo.processInfo.arguments.contains("-goHint") {
+                    showNewGame = false
+                    await model.requestHint()
+                }
             }
             #endif
         }
