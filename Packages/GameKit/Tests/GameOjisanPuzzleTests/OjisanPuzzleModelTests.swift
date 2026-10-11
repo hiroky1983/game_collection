@@ -260,6 +260,22 @@ struct OjisanPuzzleModelTests {
         #expect(model.current != nil)
     }
 
+    @Test("すでにラインより下に収まる盤なら、消えなくても満タンの入院よりクリアを優先する")
+    func clearBeatsImmediateHospitalization() {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: 97,
+            mode: .backpain,
+            clearLineRow: OjisanPuzzleCleanup.clearLineRow
+        )
+        #expect(model.hardDrop())
+        #expect(model.pain == OjisanPuzzlePain.limit)
+        for _ in 0..<3 where model.outcome == nil { model.tick() }
+        #expect(model.outcome == .cleared)
+    }
+
     @Test("ラインより下に片付く手なら、満タンでも入院よりクリアを優先する")
     func clearBeatsHospitalization() {
         // 行 8 より上は 4 つそろう塊だけ。消えると全体がラインより下になる。

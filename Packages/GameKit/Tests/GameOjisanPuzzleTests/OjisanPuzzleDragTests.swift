@@ -76,7 +76,19 @@ struct OjisanPuzzleDragTests {
         #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 20, height: 4)) == .horizontal)
         #expect(OjisanPuzzleDrag.axis(for: CGSize(width: -20, height: 4)) == .horizontal)
         #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 4, height: 20)) == .vertical)
-        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 4, height: -20)) == .vertical)
+    }
+
+    @Test("接戦のうちは決めず、優勢になってから決める")
+    func axisWaitsForClearDominance() {
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 13, height: 11)) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 40, height: 35)) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 56, height: 200)) == .vertical)
+    }
+
+    @Test("最初に上へ動いても縦には決めない（上スワイプには何も割り当てない）")
+    func upwardStartDoesNotLockVertical() {
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 2, height: -13)) == nil)
+        #expect(OjisanPuzzleDrag.axis(for: CGSize(width: 70, height: -13)) == .horizontal)
     }
 
     /// 下へ払う実際の指の軌跡（下に長く、横にも 1 マスぶん以上流れる）をなぞる。

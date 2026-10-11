@@ -355,7 +355,9 @@ public final class OjisanPuzzleModel {
 
         // 入院は消える荷物の判定を先に済ませてから見る（#2063）。置いた瞬間に満タンでも、その手で消えて
         // ゲージが下がる／ラインより下になるなら入院しない。何も消えないと分かっているときだけ、待たずにここで終える。
-        if mode.hasGauge, OjisanPuzzlePain.isHospitalized(pain),
+        // ラインより下に収まっている盤（局面指定の入口で作れる）は、消えなくてもクリアが先なので `settleStep` に回す。
+        let alreadyBelowLine = clearLineRow.map { OjisanPuzzleCleanup.isCleared(board, line: $0) } ?? false
+        if mode.hasGauge, OjisanPuzzlePain.isHospitalized(pain), !alreadyBelowLine,
            OjisanPuzzleBoard.clearableGroups(OjisanPuzzleBoard.applyingGravity(board)).isEmpty {
             finish(.hospitalized)
         }
