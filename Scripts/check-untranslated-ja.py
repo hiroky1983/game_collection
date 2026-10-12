@@ -310,7 +310,7 @@ def check(root: str, include_in_progress: bool) -> Report:
             continue
         for key in sorted(keys):
             if INTERP in key:
-                report.catalog_errors.append(f"{module}: 「{key}」はキーに文字列補間を使っている")
+                report.catalog_errors.append(f"{module}: 「{key.replace(INTERP, chr(92) + '(…)')}」はキーに文字列補間を使っている")
                 continue
             if key not in strings:
                 report.catalog_errors.append(f"{module}: 「{key}」が表に無い")
