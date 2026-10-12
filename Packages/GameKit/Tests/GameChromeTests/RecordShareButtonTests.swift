@@ -75,7 +75,7 @@ struct RecordShareButtonTests {
         let combine = try #require(source.range(of: ".accessibilityElement(children: .combine)"))
         let button = try #require(source.range(of: "RecordShareButton(message:"))
         #expect(combine.lowerBound < button.lowerBound, "共有ボタンが結合した読み上げ要素の中に入っている")
-        #expect(source.contains(#".accessibilityLabel("記録をシェア")"#))
+        #expect(source.contains(#".accessibilityLabel(tr("記録をシェア"))"#))
     }
 
     /// `swift test` ではボタンを実際に押せない（SwiftUI の操作もアクセシビリティツリーも届かない）ため、

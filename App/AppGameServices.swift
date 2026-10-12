@@ -207,6 +207,19 @@ enum AppEnvironment {
     /// `-screenshotMode` 付きで起動すると広告を出さず ATT も聞かない。
     /// シミュレータは AdMob 側で自動的にテストデバイス扱いになり、Release ビルドでも
     /// バナーに `Test mode` の帯が写り込むため、撮影時は広告そのものを無効化する。
+    /// 表示言語の起動時の読み込み（#2109）。保存した選択があればそれ、無ければ端末の言語。
+    /// 動作確認・英語のスクリーンショット撮影用に、起動引数 `-appLanguage en`（または `ja`）で
+    /// その回だけ上書きできる（保存はしない。設定画面で選び直すと、その選択が保存される）。
+    static func bootstrapLanguage() {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-appLanguage"), i + 1 < args.count,
+           let forced = AppLanguage(rawValue: args[i + 1]) {
+            AppLanguageStore.shared.apply(forced)
+        } else {
+            AppLanguageStore.shared.bootstrap()
+        }
+    }
+
     static var isScreenshotMode: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-screenshotMode")

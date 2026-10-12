@@ -26,8 +26,8 @@ public enum GameActionBadge: Equatable, Sendable {
     /// 2 行目の文字（▶ のアイコンを除く）。`.ad` の「0回」は `countText` が持つ。無ければ nil。
     public var text: String? {
         switch self {
-        case .count(let n): "あと\(n)回"
-        case .ad(let gain): "広告を見て +\(gain)"
+        case .count(let n): tr("あと%lld回", n)
+        case .ad(let gain): tr("広告を見て +%lld", gain)
         case .none: nil
         }
     }
@@ -42,7 +42,7 @@ public enum GameActionBadge: Equatable, Sendable {
 
     /// ▶ の前に置く「0回」。`.ad` だけ。
     public var countText: String? {
-        if case .ad = self { return "0回" }
+        if case .ad = self { return tr("0回") }
         return nil
     }
 
@@ -56,7 +56,7 @@ public enum GameActionBadge: Equatable, Sendable {
     public var accessibilityValue: String? {
         switch self {
         case .count: text
-        case .ad(let gain): "0回、広告を見て\(gain)回追加"
+        case .ad(let gain): tr("0回、広告を見て%lld回追加", gain)
         case .none: nil
         }
     }

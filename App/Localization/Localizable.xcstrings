@@ -1,0 +1,820 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@、%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@を開きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens %@"
+          }
+        }
+      }
+    },
+    "%@日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@"
+          }
+        }
+      }
+    },
+    "Game Center で実績・ランキングを見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Achievements & Leaderboards"
+          }
+        }
+      }
+    },
+    "Game Center にサインインしていません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're Not Signed In"
+          }
+        }
+      }
+    },
+    "iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in from your device's Settings app to see achievements and worldwide leaderboards. Every game can still be played without signing in."
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "「%@」の非表示を元に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show %@ again"
+          }
+        }
+      }
+    },
+    "「%@」を元に戻しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is back"
+          }
+        }
+      }
+    },
+    "「%@」を非表示にしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is hidden"
+          }
+        }
+      }
+    },
+    "「%@」を非表示にしました。元に戻せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is hidden. You can undo this."
+          }
+        }
+      }
+    },
+    "あそび" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Games"
+          }
+        }
+      }
+    },
+    "あそびごと" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By Game"
+          }
+        }
+      }
+    },
+    "あそびごとのベストスコア・最短タイム・勝敗と連勝を、遊んだ回数・勝った回数・遊んだあそびの種類・おすすめと評価のお願い・遊び方ガイドの表示履歴とあわせてこの端末に保存しています（送信はしません）。盤面や棋譜は残していません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each game's best score, fastest time, wins, losses and streaks are saved on this device, along with play and win counts, which games you've played, and the history of suggestions, rating requests, and how-to-play guides shown. None of this is sent anywhere. Board positions and move records aren't kept."
+          }
+        }
+      }
+    },
+    "あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asobiba"
+          }
+        }
+      }
+    },
+    "あそびばアプリ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asobiba"
+          }
+        }
+      }
+    },
+    "あそびやすさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility"
+          }
+        }
+      }
+    },
+    "あそぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        }
+      }
+    },
+    "いちばん上に置く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Top"
+          }
+        }
+      }
+    },
+    "お知らせ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminders"
+          }
+        }
+      }
+    },
+    "きろく" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records"
+          }
+        }
+      }
+    },
+    "このゲームアプリ面白いよ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This game app is a lot of fun!"
+          }
+        }
+      }
+    },
+    "この画面の記録はこの端末にだけ保存しているもので、Game Center にサインインしなくても見られます。設定の「プレイ記録を消去」で消えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These records are stored only on this device and can be viewed without signing in. They are removed with “Clear Play Records” in Settings."
+          }
+        }
+      }
+    },
+    "この端末の設定で、あそびばの通知が許可されていません。スイッチをオンにしても、お知らせは届きません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications for Asobiba are turned off in this device's settings. Reminders won't arrive even if this switch is on."
+          }
+        }
+      }
+    },
+    "その他" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        }
+      }
+    },
+    "つづきから" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        }
+      }
+    },
+    "つづき・最近" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue & Recent"
+          }
+        }
+      }
+    },
+    "どのあそびがどれくらい遊ばれているかを知るために、あそびの名前・勝敗・かかった時間を送ります。スコアや盤面、名前や連絡先のような個人を特定できる情報は送りません。オフにすると、これらに加えて起動回数などの自動計測もまとめて送信を止めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To learn which games are played and how much, we send the game name, the result, and the time played. Scores, board positions, and anything that identifies you, such as your name or contact details, are never sent. Turning this off also stops automatic measurements such as app launch counts."
+          }
+        }
+      }
+    },
+    "はじめてなら、これ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New here? Try this"
+          }
+        }
+      }
+    },
+    "はじめてなら、これ。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New here? Try this. %@"
+          }
+        }
+      }
+    },
+    "はじめは端末の言語に合わせています。切り替えるとすぐに反映され、アプリの再起動はいりません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts out matching your device's language. Changes apply right away, with no need to restart the app."
+          }
+        }
+      }
+    },
+    "また あそぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play again"
+          }
+        }
+      }
+    },
+    "ゆっくりモード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slow Mode"
+          }
+        }
+      }
+    },
+    "アプリ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "アプリをシェア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share the App"
+          }
+        }
+      }
+    },
+    "アプリを評価する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate the App"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "タップでこのゲームを開きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens this game"
+          }
+        }
+      }
+    },
+    "ドラッグで並べ替え、トグルで表示 / 非表示を切り替えられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to reorder. Use the switches to show or hide games."
+          }
+        }
+      }
+    },
+    "バージョン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    },
+    "ヒント" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hints"
+          }
+        }
+      }
+    },
+    "ヒント表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Hints"
+          }
+        }
+      }
+    },
+    "フィードバック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feedback"
+          }
+        }
+      }
+    },
+    "ブロック崩しの球と、チャリンコおじさんの進みを遅くします。切り替えると、両方の進行中のデータは消えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slows down the ball in the block-breaking game and the pace of the cycling game. Switching this clears any game in progress in both."
+          }
+        }
+      }
+    },
+    "プライバシーポリシー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy Policy"
+          }
+        }
+      }
+    },
+    "プレイ記録" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Records"
+          }
+        }
+      }
+    },
+    "プレイ記録を消去" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Play Records"
+          }
+        }
+      }
+    },
+    "プレイ記録を消去しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear play records?"
+          }
+        }
+      }
+    },
+    "ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This erases best scores, fastest times, wins, losses and streaks, play and win counts, and the history of suggestions, rating requests, and how-to-play guides shown. This can't be undone."
+          }
+        }
+      }
+    },
+    "元に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "利用状況の送信" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Usage Data"
+          }
+        }
+      }
+    },
+    "利用規約" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terms of Use"
+          }
+        }
+      }
+    },
+    "効果音" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound Effects"
+          }
+        }
+      }
+    },
+    "大富豪で、いま出せるカードを枠の色で目立たせ、出せない組を選んだときはその理由を1行で表示します。オフにすると何も表示しません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Daifugo, cards you can play are outlined in color, and if you pick a set you can't play, the reason appears in one line. Turn this off to show nothing."
+          }
+        }
+      }
+    },
+    "完了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "新着" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
+          }
+        }
+      }
+    },
+    "最高連勝" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best Streak"
+          }
+        }
+      }
+    },
+    "消去する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "節目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Milestones"
+          }
+        }
+      }
+    },
+    "続きから" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        }
+      }
+    },
+    "規約" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legal"
+          }
+        }
+      }
+    },
+    "解析" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analytics"
+          }
+        }
+      }
+    },
+    "触覚フィードバック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haptics"
+          }
+        }
+      }
+    },
+    "言語" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        }
+      }
+    },
+    "設定" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "設定アプリを開く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the Settings App"
+          }
+        }
+      }
+    },
+    "途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nオフにすると、両方の予約済みのお知らせを取り消します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you leave a game unfinished, we'll remind you about a day later that you can pick up where you left off. One reminder per game, up to 3 at a time.\nIf a game you used to play often hasn't been opened for 7 days or more, we'll suggest playing it again 7, 30, and 60 days after you last played. This can happen for several games at once (a new one starts at most once every 3 days). Opening that game stops its reminders. If the 60-day reminder goes unanswered, no further reminders are sent.\nTurning this off cancels all scheduled reminders of both kinds."
+          }
+        }
+      }
+    },
+    "通知" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
+    "通算勝利" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Wins"
+          }
+        }
+      }
+    },
+    "連続日数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day Streak"
+          }
+        }
+      }
+    },
+    "遊んだ種類" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Games Played"
+          }
+        }
+      }
+    },
+    "達成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Achieved"
+          }
+        }
+      }
+    },
+    "非表示にする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide"
+          }
+        }
+      }
+    },
+    "駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gives a light vibration or a short sound when you place a piece, open a square, or a game is decided. Sounds don't play while your device is on silent, and they won't stop music playing in other apps."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -1,0 +1,2 @@
+/* App Tracking Transparency の説明文の英語（#2109）。日本語は project.yml の NSUserTrackingUsageDescription。 */
+"NSUserTrackingUsageDescription" = "This is used to show you more relevant ads.";

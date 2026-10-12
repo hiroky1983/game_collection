@@ -37,7 +37,7 @@ public struct GameSetupSheet<Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         self.kind = kind
-        self.startTitle = discardsProgress ? "終了して\(kind.startTitle)" : kind.startTitle
+        self.startTitle = discardsProgress ? tr("終了して%@", kind.startTitle) : kind.startTitle
         self.startTint = startTint
         self.spacing = spacing
         self.onStart = onStart
@@ -63,7 +63,7 @@ public struct GameSetupSheet<Content: View>: View {
             Text(kind.title).themeBody(17, weight: .bold).foregroundStyle(Theme.ink)
                 .accessibilityAddTraits(.isHeader)
             HStack {
-                Button("キャンセル") { onCancel() }
+                Button(tr("キャンセル")) { onCancel() }
                     .themeBody(17, weight: .regular)
                 Spacer()
             }
@@ -111,15 +111,15 @@ public enum GameSetupKind: Sendable {
 
     public var title: String {
         switch self {
-        case .versus: "新規対局"
-        case .solo:   "新規ゲーム"
+        case .versus: tr("新規対局")
+        case .solo:   tr("新規ゲーム")
         }
     }
 
     public var startTitle: String {
         switch self {
-        case .versus: "対局開始"
-        case .solo:   "スタート"
+        case .versus: tr("対局開始")
+        case .solo:   tr("スタート")
         }
     }
 }

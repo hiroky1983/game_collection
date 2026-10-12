@@ -23,7 +23,7 @@ struct HubCardMenuWiringTests {
         // 別の場所に同じ文言があっても緑になる。
         #expect(
             source.range(
-                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\("いちばん上に置く"[^\n]*\n\s*\}\s*\.disabled\(NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs\)\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\("非表示にする""#,
+                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\(tr\("いちばん上に置く"\)[^\n]*\n\s*\}\s*\.disabled\(NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs\)\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\(tr\("非表示にする"\)"#,
                 options: .regularExpression
             ) != nil,
             "グリッドのカードに「いちばん上に置く」「非表示にする」のメニューが結線されていない"

@@ -14,6 +14,9 @@ struct GameCollectionApp: App {
     @State private var adsInitialized = false
 
     init() {
+        // 表示言語（#2109）。保存した選択か端末の言語を、最初の画面より先に効かせる。
+        // これより前に文言の表を引くと開発言語（日本語）で出るため、init の先頭に置く。
+        AppEnvironment.bootstrapLanguage()
         // Firebase Analytics / Crashlytics の初期化
         FirebaseApp.configure()
         // 設定の「利用状況の送信」を SDK 全体の収集状態へ反映する（#158）。
@@ -102,6 +105,8 @@ struct GameCollectionApp: App {
         // `\.adaptiveLayout` として全画面へ配る。各画面はこの値を読むだけで、
         // `horizontalSizeClass` の分岐を自前で持たない。
         .providesAdaptiveLayout()
+        // 選んだ言語の書式（数字・日付）とシステムの部品の向きを、画面全体へ配る（#2109）。
+        .appLanguageEnvironment()
     }
 
     private var startGameID: String? {

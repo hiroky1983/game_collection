@@ -21,7 +21,16 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - App
+      - path: App
+        excludes:
+          - Localization
+          - "Localization/**"
+      # 文言の表（String Catalog・多言語① #2109）。Xcode にコンパイルさせず、folder 参照でそのまま同梱する。
+      # アプリ内で選んだ言語（システムの言語とは別）で引くため、GameKit の各モジュールと同じく
+      # `StringTable` が実行時に JSON を読む（理由は Packages/GameKit/Sources/CoreEngine/StringTable.swift）。
+      - path: App/Localization
+        type: folder
+        buildPhase: resources
     resources:
       - App/PrivacyInfo.xcprivacy
       - App/Assets.xcassets
@@ -116,8 +125,12 @@ targets:
         # 主要言語とメタデータローカライズは別管理。商品ページの是正には ASC 側の操作も要る
         # （手順: docs/aso/keywords-cross-localization-v1.1.1.md §6）
         CFBundleDevelopmentRegion: ja
+        # en は多言語①（#2109）で追加。アプリ内の文言は設定画面で選んだ言語に従い（`AppLanguageStore`）、
+        # この宣言とシステムの言語に従うのは、システムが出す文言（App Tracking Transparency の説明文
+        # = App/en.lproj/InfoPlist.strings など）だけ。
         CFBundleLocalizations:
           - ja
+          - en
         UILaunchScreen: {}
         # ディープリンク `asobiba://game/<game_id>`（#2141）。App 内イベント（#1995）の審査で必須。
         # 読み替えは `DeepLink`（CoreEngine）、受け口は `HubView` の `onOpenURL`。

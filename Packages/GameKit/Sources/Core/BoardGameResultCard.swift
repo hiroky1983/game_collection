@@ -12,9 +12,9 @@ public struct BoardGameResultCard: View {
 
         var title: String {
             switch self {
-            case .win: return "あなたの勝ち！"
-            case .loss: return "あなたの負け"
-            case .draw: return "引き分け"
+            case .win: return tr("あなたの勝ち！")
+            case .loss: return tr("あなたの負け")
+            case .draw: return tr("引き分け")
             }
         }
     }
@@ -46,9 +46,9 @@ public struct BoardGameResultCard: View {
     public static func accessibilityLabel(verdict: Verdict, reason: String, decisiveMove: String?,
                                           details: [String]) -> String {
         var parts = [verdict.title.replacingOccurrences(of: "！", with: ""), reason]
-        if let decisiveMove { parts.append("決め手 \(decisiveMove)") }
+        if let decisiveMove { parts.append(tr("決め手 %@", decisiveMove)) }
         parts.append(contentsOf: details)
-        return parts.joined(separator: "。")
+        return parts.joined(separator: tr("。"))
     }
 
     private var accent: Color {
@@ -82,7 +82,7 @@ public struct BoardGameResultCard: View {
                         .themeBody(17, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(Theme.ink)
                     if let decisiveMove {
-                        Text("決め手 \(decisiveMove)")
+                        Text(tr("決め手 %@", decisiveMove))
                             .themeBody(15, weight: .semibold, maxScale: 1.5)
                             .foregroundStyle(Theme.ink)
                     }
@@ -99,14 +99,14 @@ public struct BoardGameResultCard: View {
                 // 共有ボタンを持つので、読み上げの塊の外に置く（オセロ #1716 と同じ）。
                 RecordLabel(record)
                 Button(action: onClose) {
-                    Text("盤を見る")
+                    Text(tr("盤を見る"))
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 20)
                         .frame(minHeight: 44)
                         .background(Capsule().fill(Theme.Fill.coral))
                 }
-                .accessibilityHint("結果を閉じて盤面を見返します")
+                .accessibilityHint(tr("結果を閉じて盤面を見返します"))
             }
             .padding(24)
             .frame(maxWidth: 320)

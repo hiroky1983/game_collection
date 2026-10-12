@@ -83,10 +83,10 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
                 // 広告視聴の失敗（未視聴・局面変化）はここで知らせる（#1500。待った・コンティニューの幕と同じ部品）。
                 .rewardedRescueAlerts(
                     hint.rescue,
-                    notEarned: "ヒントを表示できませんでした",
+                    notEarned: tr("ヒントを表示できませんでした"),
                     unavailable: RewardUnavailableAlert(
-                        title: "ヒントを出せませんでした",
-                        message: "広告を見ているあいだに局面が変わったため、ヒントを出せませんでした。"
+                        title: tr("ヒントを出せませんでした"),
+                        message: tr("広告を見ているあいだに局面が変わったため、ヒントを出せませんでした。")
                     )
                 )
         } else {
@@ -121,26 +121,26 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
         var items = [
             GameActionItem(
                 id: "undo",
-                title: "待った",
+                title: tr("待った"),
                 systemImage: "arrow.uturn.backward",
                 role: .undo,
                 badge: model.undoUsed ? .ad() : .count(1),
                 isEnabled: model.canUndo && !hintIsWatching,
-                accessibilityHint: model.canUndo ? "あなたの直前の1手を、CPU の応手ごと取り消します" : "いまは使えません"
+                accessibilityHint: model.canUndo ? tr("あなたの直前の1手を、CPU の応手ごと取り消します") : tr("いまは使えません")
             ) { showUndoConfirm = true }
         ]
         if let hint {
             items.append(GameActionItem(
                 id: "hint",
-                title: hint.isThinking ? "読み中…" : "ヒント",
+                title: hint.isThinking ? tr("読み中…") : tr("ヒント"),
                 systemImage: "lightbulb.fill",
                 role: .hint,
                 badge: hint.badge,
                 isEnabled: hint.isEnabled && !undoRescue.isWatching,
                 accessibilityHint: hint.isEnabled
-                    ? (hint.needsAd ? "広告を視聴すると、最善手をもう1手示します。使った対局は順位表に送りません"
-                                    : "最善手を1手だけ盤の上に示します。使った対局は順位表に送りません")
-                    : "いまは使えません（あなたの手番ではないか、8回とも使い切りました）",
+                    ? (hint.needsAd ? tr("広告を視聴すると、最善手をもう1手示します。使った対局は順位表に送りません")
+                                    : tr("最善手を1手だけ盤の上に示します。使った対局は順位表に送りません"))
+                    : tr("いまは使えません（あなたの手番ではないか、8回とも使い切りました）"),
                 action: { hint.request(services) }
             ))
         }
@@ -150,7 +150,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     /// 「⋯」: ゲーム固有の項目（囲碁のパス）→ 投了（末尾・赤は `GameControlMenu.ordered`）。
     private var menuItems: [GameControlMenuItem] {
         extraItems + [
-            GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true) {
+            GameControlMenuItem(id: "resign", title: tr("投了"), systemImage: "flag.fill", isDestructive: true) {
                 showResignConfirm = true
             }
         ]

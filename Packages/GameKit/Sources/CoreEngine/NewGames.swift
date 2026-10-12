@@ -81,12 +81,12 @@ public enum NewGames {
         newIDs: Set<String> = currentVersionIDs
     ) -> String {
         let pinnedAhead = !newIDs.contains(id) && orderedIDs.contains { newIDs.contains($0) && !hiddenIDs.contains($0) }
-        return pinnedAhead ? "「\(title)」を新着の次に移しました" : "「\(title)」を先頭に移しました"
+        return pinnedAhead ? tr("「%@」を新着の次に移しました", title) : tr("「%@」を先頭に移しました", title)
     }
 
     /// ハブ上部の1行。増えたゲームが無ければ nil（行ごと出さない）。
     public static func notice(count: Int) -> String? {
         guard count > 0 else { return nil }
-        return "新しいあそびが\(count)本増えました"
+        return tr("新しいあそびが%lld本増えました", count)
     }
 }

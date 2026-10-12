@@ -175,7 +175,7 @@ struct BoardHintButtonSourceTests {
         #expect(source.contains("isEnabled = model.canUseHint"))
         // 操作行の高さ（44pt 固定）は共通の `GameOverflowBar` が持つ（`GameOverflowBarTests`）。
         #expect(source.contains("GameOverflowBar("), "操作行が共通の「⋯」の行を通っていない")
-        #expect(source.contains(#"GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true)"#))
+        #expect(source.contains(#"GameControlMenuItem(id: "resign", title: tr("投了"), systemImage: "flag.fill", isDestructive: true)"#))
         #expect(source.contains(".boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)"),
                 "投了に確認ダイアログが付いていない")
     }

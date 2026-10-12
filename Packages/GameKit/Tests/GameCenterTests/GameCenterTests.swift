@@ -800,7 +800,7 @@ struct GameCenterEntryPointTests {
             "きろく のシートが RecordsView を出していない、または閉じたあとに Game Center を開く結線が無い"
         )
         // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
-        #expect(source.contains(#"accessibilityLabel("きろく")"#),
+        #expect(source.contains(#"accessibilityLabel(tr("きろく"))"#),
                 "アイコンボタンの読み上げラベルが消えている")
     }
 
@@ -829,7 +829,7 @@ struct GameCenterEntryPointTests {
         let records = try appSource("RecordsView.swift")
         #expect(
             records.range(
-                of: #"Button \{ onOpenGameCenter\(\) \} label: \{\s*Label\("Game Center で実績・ランキングを見る""#,
+                of: #"Button \{ onOpenGameCenter\(\) \} label: \{\s*Label\(tr\("Game Center で実績・ランキングを見る"\)"#,
                 options: .regularExpression
             ) != nil,
             "きろく の Game Center ボタンの結線が切れている"

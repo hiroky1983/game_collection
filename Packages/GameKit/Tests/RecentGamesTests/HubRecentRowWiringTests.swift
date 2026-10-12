@@ -88,7 +88,7 @@ struct HubRecentRowWiringTests {
     @Test("行の見出しが VoiceOver で見出しとして読まれる")
     func headingIsExposedToVoiceOver() throws {
         let source = try SourceScan.appSources()
-        guard let heading = source.range(of: #"Text("つづき・最近")"#) else {
+        guard let heading = source.range(of: #"Text(tr("つづき・最近"))"#) else {
             Issue.record("行の見出しが見つからない（走査のパターンが壊れている可能性）")
             return
         }

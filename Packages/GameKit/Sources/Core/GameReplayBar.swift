@@ -89,7 +89,7 @@ public extension GameReplayBar where Leading == EmptyView {
 
 /// 終局後ボタンの文言。画面とテストが同じ文字列を見る。
 public enum GameReplayBarText {
-    public static let replay = "同じ条件でもう一回"
-    public static let replayShort = "もう一回"
-    public static let changeSettings = "設定を変える"
+    public static var replay: String { tr("同じ条件でもう一回") }
+    public static var replayShort: String { tr("もう一回") }
+    public static var changeSettings: String { tr("設定を変える") }
 }

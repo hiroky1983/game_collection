@@ -11,12 +11,12 @@ public enum HubCategory: String, CaseIterable, Hashable, Sendable {
     /// チップに出す名前。
     public var title: String {
         switch self {
-        case .all: "すべて"
-        case .ojisan: "おじさん"
-        case .board: "盤"
-        case .cards: "トランプ"
-        case .mahjongHanafuda: "麻雀・花札"
-        case .puzzleOther: "パズル・その他"
+        case .all: tr("すべて")
+        case .ojisan: tr("おじさん")
+        case .board: tr("盤")
+        case .cards: tr("トランプ")
+        case .mahjongHanafuda: tr("麻雀・花札")
+        case .puzzleOther: tr("パズル・その他")
         }
     }
 

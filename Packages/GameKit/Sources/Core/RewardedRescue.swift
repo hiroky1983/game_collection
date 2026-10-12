@@ -24,8 +24,9 @@ public final class RewardedRescue {
     /// 「広告を見たのに何も起きない」経路を作らないのがリワード広告の契約なので、
     /// 失敗の知らせだけはどのゲームでも同じ言い回しにする。タイトル（何ができなかったか）は
     /// ゲームごとに違うので `rewardedRescueAlerts(_:notEarned:unavailable:)` で受け取る。
-    public static let notEarnedMessage =
-        "広告を最後まで視聴しなかったか、広告を読み込めませんでした。\n通信状態をご確認のうえ、もう一度お試しください。"
+    public static var notEarnedMessage: String {
+        tr("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\n通信状態をご確認のうえ、もう一度お試しください。")
+    }
 
     /// 広告のロード〜視聴中。救済ボタンの `disabled` に使う。
     public private(set) var isWatching = false
@@ -249,19 +250,19 @@ public enum RewardedPanelLayout {
 /// ゲームごとに違う見た目（見出しの大きさ・幕の角丸・見出しの下の一行・内側の余白）だけを引数で受ける。
 /// 失敗のアラート（`rewardedRescueAlerts`）は画面全体に付くものなので、呼び出し側に残す。
 public struct RewardedContinueOverlay<Detail: View>: View {
-    private let title: LocalizedStringKey
+    private let title: String
     private let titleFont: Font
     private let cornerRadius: CGFloat
     private let contentPadding: CGFloat
     private let detail: Detail
-    private let rescueLabel: LocalizedStringKey
+    private let rescueLabel: String
     private let canContinue: Bool
     private let continueRescue: RewardedRescue
     private let services: GameServices
     private let gameID: String
     private let serial: () -> Int
     private let grant: (Int) -> Bool
-    private let secondaryTitle: LocalizedStringKey
+    private let secondaryTitle: String
     private let secondaryAction: () -> Void
 
     /// - Parameters:
@@ -271,19 +272,19 @@ public struct RewardedContinueOverlay<Detail: View>: View {
     ///   - grant: 控えた通し番号の局へコンティニューを適用する。局が入れ替わっていたら false を返す。
     ///   - secondaryTitle: 救済を選ばないときのボタン（「もう一度」「諦めて答えを見る」）。
     public init(
-        title: LocalizedStringKey,
+        title: String,
         titleFont: Font = .title2.bold(),
         cornerRadius: CGFloat = 8,
         contentPadding: CGFloat = RewardedPanelLayout.contentPadding,
         detail: Detail,
-        rescueLabel: LocalizedStringKey,
+        rescueLabel: String,
         canContinue: Bool = true,
         rescue: RewardedRescue,
         services: GameServices,
         gameID: String,
         serial: @autoclosure @escaping () -> Int,
         grant: @escaping (Int) -> Bool,
-        secondaryTitle: LocalizedStringKey,
+        secondaryTitle: String,
         secondaryAction: @escaping () -> Void
     ) {
         self.title = title
