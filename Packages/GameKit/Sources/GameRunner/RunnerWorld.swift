@@ -67,13 +67,13 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// 読み上げ・見出しに使う名前。
     public var displayName: String {
         switch self {
-        case .morning: return "朝の下町"
-        case .evening: return "夕方の川沿い"
-        case .night:   return "夜の繁華街"
-        case .satoyama: return "里山"
-        case .harbor:  return "港町"
-        case .kyotoNara: return "京都・奈良"
-        case .onsen: return "温泉街"
+        case .morning: return tr("朝の下町")
+        case .evening: return tr("夕方の川沿い")
+        case .night:   return tr("夜の繁華街")
+        case .satoyama: return tr("里山")
+        case .harbor:  return tr("港町")
+        case .kyotoNara: return tr("京都・奈良")
+        case .onsen: return tr("温泉街")
         }
     }
 

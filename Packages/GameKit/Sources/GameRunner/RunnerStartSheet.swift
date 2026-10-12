@@ -37,7 +37,7 @@ struct RunnerStartSheet: View {
             kind: .solo,
             onStart: onStart, onCancel: onCancel
         ) {
-            GameSetupSection("モード") {
+            GameSetupSection(tr("モード")) {
                 // 他ゲームの開始シートと同じ大きめのタイルに揃える（会長指摘・2026-09-23。
                 // `.pickerStyle(.segmented)` は他より一回り小さく見えた）。
                 HStack(spacing: 12) {
@@ -54,10 +54,10 @@ struct RunnerStartSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if mode == .stages {
-                GameSetupSection("ステージを選ぶ") {
+                GameSetupSection(tr("ステージを選ぶ")) {
                     RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
                 }
-                GameSetupSection("おはなし") {
+                GameSetupSection(tr("おはなし")) {
                     RunnerStoryReplayList(playLog: playLog) { replayScene = $0 }
                 }
             }

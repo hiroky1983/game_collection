@@ -12,10 +12,11 @@ public struct RunnerModule: GameModule {
     // 定数参照にすると slug を突き合わせられずに CI が落ちる。
     // `RunnerModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "runner"
-    public let title = "チャリンコおじさん"
+    // 表示名と説明は表示言語で引く（多言語④ #2167）。`id` はリテラルのまま訳さない。
+    public var title: String { tr("チャリンコおじさん") }
     // ステージ数は #674 で 15 → 18、#1009 で 18 → 30、#1824 で 30 → 36、#1938 で 36 → 42 に増えた。ハブの一覧に出る文言なので
     // `RunnerRules.stageCount` と食い違わないようにする（`RunnerModuleTests` が縛る）。
-    public let description = "タップで跳んで42ステージを走りぬけよう"
+    public var description: String { tr("タップで跳んで42ステージを走りぬけよう") }
     // ハブのアイコンは自転車（会長指示 2026-09-16）。おじさんの顔（`OjisanPixel.mascotIcon`）は
     // おじさんシリーズを増やしたときに全部同じ顔になって見分けが付かなくなるので使わない。
     // ゲームごとの中身（この本なら自転車）で表す、他 19 本と同じ作法に揃える。

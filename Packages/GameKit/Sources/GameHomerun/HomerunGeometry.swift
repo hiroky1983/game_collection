@@ -84,29 +84,29 @@ public enum HomerunText {
     /// 空振りの理由（#1594・短く）。
     public static func missReason(_ reason: HomerunMissReason) -> String {
         switch reason {
-        case .early: "振るのが早い"
-        case .late: "振るのが遅い"
-        case .aim: "照準がずれた"
+        case .early: tr("振るのが早い")
+        case .late: tr("振るのが遅い")
+        case .aim: tr("照準がずれた")
         }
     }
 
     public static func timing(_ timing: HomerunTiming) -> String {
         switch timing {
-        case .just: "ジャスト"
-        case .nice: "ナイス"
-        case .hit: "当たり"
-        case .miss: "空振り"
+        case .just: tr("ジャスト")
+        case .nice: tr("ナイス")
+        case .hit: tr("当たり")
+        case .miss: tr("空振り")
         }
     }
 
     public static func kind(_ kind: HomerunKind) -> String {
         switch kind {
-        case .miss: "空振り"
-        case .foul: "ファウル"
+        case .miss: tr("空振り")
+        case .foul: tr("ファウル")
         // スプレーチャートの凡例（★ 柵越え・● 当たり・● 直撃）と同じ語（README §3.3）。
-        case .inPlay: "当たり"
-        case .fenceHit: "直撃！"
-        case .homer: "柵越え！"
+        case .inPlay: tr("当たり")
+        case .fenceHit: tr("直撃！")
+        case .homer: tr("柵越え！")
         }
     }
 
@@ -114,11 +114,11 @@ public enum HomerunText {
     /// 場外より優先して「月まで飛んだ！」（2 回目は「月が割れた！」）。ファウルポール直撃（#1686）は月の次・場外より先で「ポール直撃！」。
     public static func kind(of ball: HomerunBattedBall) -> String {
         switch ball.moon {
-        case .hit: return "月まで飛んだ！"
-        case .broken: return "月が割れた！"
+        case .hit: return tr("月まで飛んだ！")
+        case .broken: return tr("月が割れた！")
         case nil:
-            if ball.isPoleHit { return "ポール直撃！" }
-            return ball.isOutOfPark ? "場外！" : kind(ball.kind)
+            if ball.isPoleHit { return tr("ポール直撃！") }
+            return ball.isOutOfPark ? tr("場外！") : kind(ball.kind)
         }
     }
 
@@ -137,11 +137,11 @@ public enum HomerunText {
     public static func place(_ ball: HomerunBattedBall) -> String {
         switch ball.kind {
         case .miss: "—"
-        case .foul: "ファウル"
-        case .fenceHit: "直撃"
-        case .homer where ball.isMoon: "月"
-        case .homer where ball.isPoleHit: "ポール"
-        case .homer where ball.isOutOfPark: "場外"
+        case .foul: tr("ファウル")
+        case .fenceHit: tr("直撃")
+        case .homer where ball.isMoon: tr("月")
+        case .homer where ball.isPoleHit: tr("ポール")
+        case .homer where ball.isOutOfPark: tr("場外")
         case .inPlay, .homer: HomerunSector(direction: ball.direction).label
         }
     }
@@ -149,8 +149,8 @@ public enum HomerunText {
     /// 1 球の結果の見出し（例「柵越え！ 128 m 左中間」）。
     public static func headline(_ ball: HomerunBattedBall) -> String {
         switch ball.kind {
-        case .miss: "空振り"
-        case .foul: "ファウル"
+        case .miss: tr("空振り")
+        case .foul: tr("ファウル")
         case .homer where ball.isMoon:
             "\(kind(of: ball)) \(moonDistance)"
         case .inPlay, .fenceHit, .homer:
@@ -161,12 +161,13 @@ public enum HomerunText {
     /// 1 球の読み上げ（VoiceOver）。
     public static func spoken(_ ball: HomerunBattedBall, number: Int) -> String {
         switch ball.kind {
-        case .miss: "\(number)球目、空振り"
-        case .foul: "\(number)球目、ファウル"
+        case .miss: tr("%lld球目、空振り", number)
+        case .foul: tr("%lld球目、ファウル", number)
         case .homer where ball.isMoon:
-            "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、38万4400キロメートル、\(timing(ball.timing))"
+            tr("%1$lld球目、%2$@、38万4400キロメートル、%3$@", number, withoutBang(kind(of: ball)), timing(ball.timing))
         case .inPlay, .fenceHit, .homer:
-            "\(number)球目、\(kind(of: ball).replacingOccurrences(of: "！", with: ""))、\(Int(ball.distance.rounded()))メートル、\(HomerunSector(direction: ball.direction).label)、\(timing(ball.timing))"
+            tr("%1$lld球目、%2$@、%3$lldメートル、%4$@、%5$@", number, withoutBang(kind(of: ball)),
+               Int(ball.distance.rounded()), HomerunSector(direction: ball.direction).label, timing(ball.timing))
         }
     }
 
@@ -178,7 +179,12 @@ public enum HomerunText {
         let center = fair.count - left - right
         let fouls = balls.filter { $0.kind == .foul }.count
         let misses = balls.filter { $0.kind == .miss }.count
-        return "左 \(left) ／ 中 \(center) ／ 右 \(right) ／ ファウル \(fouls) ／ 空振り \(misses)"
+        return tr("左 %1$lld ／ 中 %2$lld ／ 右 %3$lld ／ ファウル %4$lld ／ 空振り %5$lld", left, center, right, fouls, misses)
+    }
+
+    /// 読み上げでは種別の語の「！」を落とす（英語の「!」も）。
+    private static func withoutBang(_ text: String) -> String {
+        text.replacingOccurrences(of: "！", with: "").replacingOccurrences(of: "!", with: "")
     }
 }
 

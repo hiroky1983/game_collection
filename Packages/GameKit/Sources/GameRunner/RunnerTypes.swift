@@ -774,8 +774,8 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
 
     public var title: String {
         switch self {
-        case .stages:  return "ステージ"
-        case .endless: return "エンドレス"
+        case .stages:  return tr("ステージ")
+        case .endless: return tr("エンドレス")
         }
     }
 
@@ -783,8 +783,9 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     public var summary: String {
         switch self {
         case .stages:
-            return "ステージ 1 から \(RunnerRules.stageCount) 面を順にクリアして、\(RunnerWorld.allCases.count) つの世界を先へ進む、いつもの遊び方"
-        case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
+            return tr("ステージ 1 から %1$lld 面を順にクリアして、%2$lld つの世界を先へ進む、いつもの遊び方",
+                      RunnerRules.stageCount, RunnerWorld.allCases.count)
+        case .endless: return tr("毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません")
         }
     }
 

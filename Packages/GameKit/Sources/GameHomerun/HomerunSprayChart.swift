@@ -77,7 +77,7 @@ struct HomerunSprayChart: View {
                         .foregroundStyle(Theme.inkSub), at: p)
                 }
                 let outLabel = map(HomerunSprayGeometry.point(direction: -22, distance: HomerunBallChase.outOfParkDistance(atDirection: -22) + 8))
-                ctx.draw(Text(verbatim: "場外").font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
+                ctx.draw(Text(verbatim: tr("場外")).font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                     .foregroundStyle(Theme.inkSub), at: outLabel)
             }
 

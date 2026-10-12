@@ -79,11 +79,11 @@ struct RunnerStoryView: View {
                 HStack(spacing: 12) {
                     // VoiceOver 中は自動で送らないので、自分で進める操作を出す。
                     if voiceOverEnabled {
-                        capsuleButton(isLastPanel ? "おわり" : "つぎへ", action: advance)
-                            .accessibilityHint(isLastPanel ? "おはなしを閉じます" : "次のコマへ進みます")
+                        capsuleButton(isLastPanel ? tr("おわり") : tr("つぎへ"), action: advance)
+                            .accessibilityHint(isLastPanel ? tr("おはなしを閉じます") : tr("次のコマへ進みます"))
                     }
-                    capsuleButton("スキップ", action: onFinish)
-                        .accessibilityHint("このおはなしを最後まで飛ばします")
+                    capsuleButton(tr("スキップ"), action: onFinish)
+                        .accessibilityHint(tr("このおはなしを最後まで飛ばします"))
                 }
                 // 画面の最下部はバナー（`BannerSlot`）の帯。幕のあいだバナー自体は出さない
                 // （`RunnerView.showsBanner`・#1147）が、枠の高さは空の帯として残るので、
@@ -94,7 +94,7 @@ struct RunnerStoryView: View {
         }
         // 絵と台詞は装飾ではなく「今読むべきもの」なので、まとめて 1 つの読み上げにする。
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(scene.title)。\(panel.line)")
+        .accessibilityLabel(tr("%1$@。%2$@", scene.title, panel.line))
         // 画面を覆っているあいだ、VoiceOver が背後のコース・ヘッダーへ回り込まないようにする
         // （シートと同じ扱い。回り込めると「ダブルタップでジャンプ」など効かない操作に触れる）。
         .accessibilityAddTraits(.isModal)
@@ -184,7 +184,7 @@ struct RunnerStoryReplayList: View {
                     )
                 }
                 .buttonStyle(.pop)
-                .accessibilityLabel("\(scene.title)をもう一度見る")
+                .accessibilityLabel(tr("%@をもう一度見る", scene.title))
             }
         }
     }
