@@ -211,7 +211,7 @@ struct NewGamesWiringTests {
     @Test("NEW は「続きから」より優先して出す（#2104）")
     func newBadgeBeatsResume() throws {
         let source = try SourceScan.appSources()
-        let newAt = try #require(source.range(of: #"Spacer\(minLength: 0\)\s*if isNew \{"#, options: .regularExpression))
+        let newAt = try #require(source.range(of: #"var badge: some View \{\s*if isNew \{"#, options: .regularExpression))
         let resumeAt = try #require(source.range(of: #"\} else if hasResume \{"#, options: .regularExpression))
         #expect(newAt.lowerBound < resumeAt.lowerBound)
     }
