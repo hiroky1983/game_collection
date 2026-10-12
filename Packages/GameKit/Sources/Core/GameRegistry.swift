@@ -11,7 +11,8 @@ public struct GameRegistry {
 
     /// `gameID` が入るカテゴリー。`.all` は返さない（絞り込みの「すべて」はカテゴリーではなく無指定）。
     public func category(of gameID: String) -> HubCategory {
-        categories[gameID] ?? .puzzleOther
+        guard let category = categories[gameID], category != .all else { return .puzzleOther }
+        return category
     }
 
     /// `ids` のうち `category` に入るものを、並びを保って返す。`.all` は全件。

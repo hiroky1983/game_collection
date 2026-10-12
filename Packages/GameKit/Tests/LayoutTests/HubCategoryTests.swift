@@ -28,6 +28,12 @@ struct HubCategoryTests {
         #expect(registry().category(of: "unknown") == .puzzleOther)
     }
 
+    @Test("`.all` を割り当てられても分類としては返さない")
+    func allIsNeverReturnedAsCategory() {
+        let r = GameRegistry([Stub(id: "a")], categories: ["a": .all])
+        #expect(r.category(of: "a") == .puzzleOther)
+    }
+
     @Test("絞り込みは並びを保ち、「すべて」は全件を返す")
     func filterKeepsOrder() {
         let r = registry()
