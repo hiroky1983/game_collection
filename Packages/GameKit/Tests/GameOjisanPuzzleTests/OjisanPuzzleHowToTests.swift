@@ -35,9 +35,28 @@ struct OjisanPuzzleHowToTests {
         let code = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/GameOjisanPuzzle/OjisanPuzzleView.swift"))
         #expect(code.contains(".howToPlay(howToPlayGuide,"))
+        #expect(code.contains("model.mode.howToPlayGuide"))
+        #expect(code.contains("onPresent: { model.pause() }"))
+    }
+
+    @Test("モードごとの遊び方は、そのモード用の図入りの文言になる")
+    func modeGuideMatchesMode() {
+        let backpain = OjisanPuzzleMode.backpain.howToPlayGuide
+        #expect(backpain.items.map(\.text) == HowToPlayGuide.ojisanPuzzleBackpain.items.map(\.text))
+        #expect(backpain.items.allSatisfy { $0.figure != nil })
+        let puzzle = OjisanPuzzleMode.puzzle.howToPlayGuide
+        #expect(puzzle.items.map(\.text) == HowToPlayGuide.ojisanPuzzlePuzzle.items.map(\.text))
+        #expect(puzzle.items.allSatisfy { $0.figure != nil })
+    }
+
+    @Test("開始シートから、選んでいるモードの遊び方を開ける（会長指示 2026-10-12）")
+    func setupSheetOpensModeGuide() throws {
+        let code = SourceScan.strippingComments(
+            try SourceScan.packageSource("Sources/GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift"))
+        #expect(code.contains("GameSetupSheet(kind: .solo, howToPlay: howToPlay,"))
+        #expect(code.contains("GameSetupHowToPlay(mode.howToPlayGuide, label: \"\\(mode.title)の遊び方を見る\")"))
         #expect(code.contains(".ojisanPuzzleBackpain.illustrated(OjisanPuzzleHowToFigures.backpain)"))
         #expect(code.contains(".ojisanPuzzlePuzzle.illustrated(OjisanPuzzleHowToFigures.puzzle)"))
-        #expect(code.contains("onPresent: { model.pause() }"))
     }
 
     @Test("図は本番の描画部品を使う（荷物・おじさんの絵を二重に持たない）")
