@@ -130,7 +130,7 @@ public final class Game2048Model {
         if Game2048Logic.isGameOver(board) {
             gameOver = true
             lastFinishWasLoss = !justWon
-            services?.feedback.notify(.error)
+            services?.feedback.notify(justWon ? .success : .error)
             let highestTile: Int? = board.flatMap { $0 }.max()
             // 2048 を作った手がそのまま盤を埋め切った場合だけ、終局でも勝ちとして記録する
             // （到達自体は成立しているため）。決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。
