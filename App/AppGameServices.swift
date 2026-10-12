@@ -296,6 +296,15 @@ enum AppEnvironment {
         // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
         AnzanModule(),
+    ], categories: [
+        // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
+        "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan,
+        "shogi": .board, "chess": .board, "othello": .board, "gomoku": .board, "go": .board,
+        "poker": .cards, "solitaire": .cards, "daifugo": .cards, "spider": .cards,
+        "blackjack": .cards, "concentration": .cards, "freecell": .cards,
+        "mahjong4": .mahjongHanafuda, "mahjong": .mahjongHanafuda, "hanafuda": .mahjongHanafuda,
+        "sudoku": .puzzleOther, "2048": .puzzleOther, "shiritori": .puzzleOther, "minesweeper": .puzzleOther,
+        "blocks": .puzzleOther, "fifteen": .puzzleOther, "anzan": .puzzleOther,
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

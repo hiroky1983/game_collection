@@ -301,6 +301,28 @@
         }
       }
     },
+    "おじさん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ojisan"
+          }
+        }
+      }
+    },
+    "すべて" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        }
+      }
+    },
     "その他の操作" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -442,6 +464,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your chips didn't change"
+          }
+        }
+      }
+    },
+    "トランプ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cards"
+          }
+        }
+      }
+    },
+    "パズル・その他" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puzzles & More"
           }
         }
       }
@@ -765,6 +809,17 @@
         }
       }
     },
+    "盤" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board"
+          }
+        }
+      }
+    },
     "盤を見る" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -871,6 +926,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "麻雀・花札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mahjong & Hanafuda"
           }
         }
       }

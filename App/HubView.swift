@@ -47,8 +47,8 @@ struct HubView: View {
     @Environment(\.adaptiveLayout) private var layout
     @Environment(\.scenePhase) private var scenePhase
 
-    /// グリッドを載せるスクロール領域の高さ（#485）。カードの高さを行数で割り付けるために測る。
-    @State private var viewportHeight: CGFloat = 0
+    /// 選んでいるカテゴリーのチップ（#1831）。保存しない（起動のたびに「すべて」）。
+    @State private var selectedCategory: HubCategory = .all
 
     /// 行と列の間隔。列数・行の高さの計算にも同じ値を使う。
     private static let gridSpacing: CGFloat = 12
@@ -99,10 +99,28 @@ struct HubView: View {
         pinnedVisibleModules.filter { $0.id != Self.heroGameID }
     }
 
-    /// 特別枠がグリッドの上で取る高さ（枠 + グリッドとの間隔）。カード高さの割り付けから引く（#485）。
-    private var heroReservedHeight: CGFloat {
-        guard showsHero else { return 0 }
-        return layout.hubHeroHeight(containerWidth: layout.width) + Self.gridSpacing
+    /// 実際に絞り込むカテゴリー。選んだカテゴリーのゲームが全部非表示になって消えたら「すべて」に戻す。
+    private var activeCategory: HubCategory {
+        chipCategories.contains(selectedCategory) ? selectedCategory : .all
+    }
+
+    /// チップに出すカテゴリー（「すべて」＋表示中のゲームが 1 本以上入るもの）。1 種類しか無いなら出さない。
+    private var chipCategories: [HubCategory] {
+        let populated = registry.populatedCategories(among: pinnedVisibleModules.map(\.id))
+        return populated.count > 1 ? [.all] + populated : []
+    }
+
+    /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置（`game_open` の `position`）は絞る前の
+    /// 並びでの 1 始まり（絞り込みの有無で同じゲームの位置が変わらない）。
+    private var shownGridEntries: [(position: Int, module: GameModule)] {
+        let entries = Array(gridModules.enumerated()).map { (position: $0.offset + 1, module: $0.element) }
+        guard activeCategory != .all else { return entries }
+        return entries.filter { registry.category(of: $0.module.id) == activeCategory }
+    }
+
+    /// 特別枠（柵越えおじさん）を出すか。「すべて」と「おじさん」のときだけ。
+    private var showsHeroInCategory: Bool {
+        showsHero && (activeCategory == .all || registry.category(of: Self.heroGameID) == activeCategory)
     }
 
     /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
@@ -149,15 +167,6 @@ struct HubView: View {
         return result
     }
 
-    /// カード 1 枚に与える最小の高さ。iPad では縦を使い切るために伸び、iPhone では `nil`（＝据え置き）。
-    private var cardMinHeight: CGFloat? {
-        let count = gridModules.count
-        guard count > 0 else { return nil }
-        let rows = (count + columnCount - 1) / columnCount
-        return layout.hubCardMinHeight(viewportHeight: viewportHeight, rows: rows, spacing: Self.gridSpacing,
-                                       reservedHeight: heroReservedHeight)
-    }
-
     init(
         registry: GameRegistry,
         services: GameServices,
@@ -177,6 +186,14 @@ struct HubView: View {
                 resume: registry.hasResumableSnapshot(gameID: $0, in: services.snapshots)
             )]
         } ?? [])
+        #if DEBUG
+        // 撮影用: チップで絞った状態から始める（`-hubCategory <ojisan|board|cards|mahjongHanafuda|puzzleOther>`・#1831）。
+        // シミュレータではタップを自動化できないため。
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-hubCategory"), i + 1 < args.count, let c = HubCategory(rawValue: args[i + 1]) {
+            _selectedCategory = State(initialValue: c)
+        }
+        #endif
         _showSettings = State(initialValue: showsSettingsInitially)
         _showRecords = State(initialValue: showsRecordsInitially)
         // `init` は描き直しのたびに走るが、`PlayLog` が起動中は同じ値を返すので保存は1回きり。
@@ -234,6 +251,13 @@ struct HubView: View {
                     .padding(.horizontal, Theme.pad)
                     .padding(.top, Theme.pad)
                 }
+                // カテゴリーのチップ（#1831）。「つづき」と同じくスクロール領域の外に置き、常に見える。
+                if !chipCategories.isEmpty {
+                    HubCategoryChips(categories: chipCategories, selected: activeCategory) { category in
+                        withGameAnimation(.easeOut(duration: 0.2)) { selectedCategory = category }
+                    }
+                    .padding(.top, Theme.pad)
+                }
                 ScrollView {
                     VStack(spacing: Self.gridSpacing) {
                     // 全ゲームを非表示にした直後は空白にせず、設定へ戻る導線を出す（#2002）。
@@ -241,7 +265,7 @@ struct HubView: View {
                         HubEmptyStateView { showSettings = true }
                     }
                     // 特別枠（#1761）: グリッドの先頭に 1 枚ぶち抜きで置き、スクロールで一緒に流れる。
-                    if showsHero, let hero = registry.module(id: Self.heroGameID) {
+                    if showsHeroInCategory, let hero = registry.module(id: Self.heroGameID) {
                         NavigationLink(value: HubRoute(
                             gameID: hero.id, source: .hero, position: nil,
                             resume: isResumable(hero.id)
@@ -263,11 +287,14 @@ struct HubView: View {
                         }
                     }
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                        ForEach(Array(gridModules.enumerated()), id: \.element.id) { index, module in
+                        ForEach(shownGridEntries, id: \.module.id) { entry in
+                            let module = entry.module
+                            // 差し色は絞る前の並びの位置で引く（チップで絞っても同じゲームは同じ色）。
+                            let index = entry.position - 1
                             let hasResume = isResumable(module.id)
                             // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
                             NavigationLink(value: HubRoute(
-                                gameID: module.id, source: .hub, position: index + 1, resume: hasResume
+                                gameID: module.id, source: .hub, position: entry.position, resume: hasResume
                             )) {
                                 GameCard(
                                     module: module,
@@ -275,8 +302,7 @@ struct HubView: View {
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: hasResume,
                                     isNew: NewGames.currentVersionIDs.contains(module.id),
-                                    record: services.playLog?.summaryLine(gameID: module.id),
-                                    minHeight: cardMinHeight
+                                    record: services.playLog?.summaryLine(gameID: module.id)
                                 )
                             }
                             // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
@@ -305,20 +331,6 @@ struct HubView: View {
                     }
                     }
                     .padding(Theme.pad)
-                }
-                // スクロール領域の高さを測る（#485）。`GeometryReader` をコンテナに使うと中身が
-                // 左上寄せに変わるため、`AdaptiveLayout` と同じく `.background` に潜り込ませる。
-                //
-                // `size.height` そのままではなく安全領域を引くのが要点。`ScrollView` の枠は
-                // ナビゲーションバー（大きなタイトル）の下まで伸びていて、中身はその内側に
-                // 置かれる。引き忘れるとバーの高さぶんだけ行が高くなり、**最終行が画面外へ
-                // はみ出して見切れる**（実測: 13 インチで 4 行目の説明文が切れた）。
-                .background {
-                    GeometryReader { geo in
-                        let usable = geo.size.height - geo.safeAreaInsets.top - geo.safeAreaInsets.bottom
-                        Color.clear
-                            .task(id: usable) { viewportHeight = usable }
-                    }
                 }
                 .overlay(alignment: .bottom) {
                     Group {
@@ -639,95 +651,112 @@ struct HubView: View {
     }
 }
 
-/// ハブのゲームカード（2列グリッド・#119）。
+/// ハブのゲームタイル（2列グリッド・#119、絵のタイルは #1831）。
 ///
-/// 全 10 本を 1 画面に収めるため縦に積む情報は 3 段までに絞っている
-/// （アイコン + ゲーム名 + 1 行）。「続きから」はカード右上のバッジに移し、
-/// 記録（#115）の行を潰さずに両方見えるようにした。
+/// 上に絵（1 ゲーム 1 枚・アセット `hubtile-<id>`）、下にゲーム名と 1 行。名前は絵に描き込まず、
+/// アプリの文字で出す（英語化のとき文字だけ差し替えるため）。「続きから」「NEW」は絵の右上に重ねる。
+/// 絵のアセットが無いゲームは、従来のアイコンチップの色面で代用する。
 private struct GameCard: View {
     let module: GameModule
     /// 「続きから」バッジの**文字色**。明るい地の上に置くので差し色そのままを使う。
     let accent: Color
-    /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
+    /// 絵が無いときのアイコン面の**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
     let accentFill: Color
     let hasResume: Bool
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
-    /// iPad で縦を使い切るための最小の高さ（#485）。iPhone では nil ＝中身が決める高さのまま。
-    let minHeight: CGFloat?
 
-    /// 固定 pt の部品（アイコンチップ・文字）を広い画面で拡大するための倍率（#458 / #485）。
-    /// 狭い画面では恒等なので、iPhone のカードは 1pt も動かない。
+    /// 固定 pt の部品（文字・余白）を広い画面で拡大するための倍率（#458）。狭い画面では恒等。
     @Environment(\.adaptiveLayout) private var layout
+
+    /// 絵の縦横比（幅 ÷ 高さ）。アセットは 4:3。
+    private static let artAspect: CGFloat = 4.0 / 3.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: layout.scaled(6)) {
-            HStack(alignment: .top, spacing: layout.scaled(6)) {
-                // カラフルなアイコンチップ
-                RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous)
-                    .fill(accentFill.gradient)
-                    .frame(width: layout.scaled(44), height: layout.scaled(44))
-                    .overlay {
-                        module.icon
-                            .font(.system(size: layout.scaled(22), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
-                            .foregroundStyle(Theme.onAccent)
+            art
+                .overlay(alignment: .topTrailing) { badge.padding(layout.scaled(4)) }
+
+            VStack(alignment: .leading, spacing: layout.scaled(2)) {
+                Text(module.title)
+                    .themeTitle(layout.scaled(16))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                // 記録が無いうちはゲームの説明を出す（初見の手掛かり）。遊んだあとは記録に入れ替わる。
+                Group {
+                    if let record {
+                        Label(record, systemImage: "chart.bar.fill")
+                            .foregroundStyle(Theme.inkSub)
+                    } else {
+                        Text(module.description)
+                            .foregroundStyle(Theme.inkSub)
                     }
-                    .shadow(color: accent.opacity(0.4), radius: 5, y: 3)
-
-                Spacer(minLength: 0)
-
-                if isNew {
-                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
-                    Text("NEW")
-                        .themeCaption(layout.scaled(11))
-                        .foregroundStyle(accent)
-                        .padding(.horizontal, layout.scaled(8))
-                        .padding(.vertical, layout.scaled(3))
-                        .background(Capsule().fill(accent.opacity(0.15)))
-                        .fixedSize()
-                } else if hasResume {
-                    Text(tr("続きから"))
-                        .themeCaption(layout.scaled(11))
-                        .foregroundStyle(accent)
-                        .padding(.horizontal, layout.scaled(8))
-                        .padding(.vertical, layout.scaled(3))
-                        .background(Capsule().fill(accent.opacity(0.15)))
-                        .fixedSize()
                 }
-            }
-
-            Text(module.title)
-                .themeTitle(layout.scaled(18))
-                .foregroundStyle(Theme.ink)
+                .themeCaption(layout.scaled(11))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-
-            // 記録が無いうちはゲームの説明を出す（初見の手掛かり）。遊んだあとは記録に入れ替わる。
-            Group {
-                if let record {
-                    Label(record, systemImage: "chart.bar.fill")
-                        .foregroundStyle(Theme.inkSub)
-                } else {
-                    Text(module.description)
-                        .foregroundStyle(Theme.inkSub)
-                }
             }
-            .themeCaption(layout.scaled(11))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+            .padding(.horizontal, layout.scaled(4))
+            .padding(.bottom, layout.scaled(2))
         }
-        // `.leading` は横だけの指定で縦は中央。高さを与えられた iPad では中身がカードの
-        // 縦中央に来る（上詰めのままだとカードの下半分が空く）。iPhone は高さが中身ぶんの
-        // ままなので、中央寄せは何も動かさない。
-        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
-        .padding(layout.scaled(10))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(layout.scaled(6))
         .popCard()
-        // 「続きから」バッジを右上（＝先頭行）に置いたため、既定の読み上げ順ではゲーム名より先に
+        // 「続きから」バッジを絵の右上に置いたため、既定の読み上げ順ではゲーム名より先に
         // 読まれてしまう。カードを 1 要素にまとめ、必ずゲーム名から読ませる。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    /// 絵。幅は親（グリッドの列）が決め、高さは比率で決まる。`Color.clear` を土台にして、
+    /// 絵そのものの理想サイズに列幅が引きずられないようにする。
+    private var art: some View {
+        Color.clear
+            .aspectRatio(Self.artAspect, contentMode: .fit)
+            .overlay {
+                if UIImage(named: Self.assetName(for: module.id)) != nil {
+                    Image(Self.assetName(for: module.id))
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Rectangle().fill(accentFill.gradient)
+                        .overlay {
+                            module.icon
+                                .font(.system(size: layout.scaled(34), weight: .bold)) // fixed-size: 絵の代わりの面に収めるアイコン。面の寸法は比率で決まるため固定 pt で足りる
+                                .foregroundStyle(Theme.onAccent)
+                        }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous))
+    }
+
+    /// 絵のアセット名。`Scripts/generate-hub-tiles.py` が `hubtile-<game_id>` で書き出す。
+    static func assetName(for gameID: String) -> String { "hubtile-\(gameID)" }
+
+    @ViewBuilder
+    private var badge: some View {
+        if isNew {
+            badgeCapsule("NEW")
+        } else if hasResume {
+            badgeCapsule(tr("続きから"))
+        }
+    }
+
+    /// 「続きから」と NEW は同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。絵の上でも
+    /// 読めるよう、薄い差し色の下に白の地を敷く。
+    private func badgeCapsule(_ label: String) -> some View {
+        Text(label)
+            .themeCaption(layout.scaled(11))
+            .foregroundStyle(accent)
+            .padding(.horizontal, layout.scaled(8))
+            .padding(.vertical, layout.scaled(3))
+            .background(Capsule().fill(Color.white))
+            .background(Capsule().fill(accent.opacity(0.15)))
+            .fixedSize()
     }
 
     private var accessibilityLabel: String {
@@ -735,6 +764,39 @@ private struct GameCard: View {
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
         return parts.joined(separator: tr("、"))
+    }
+}
+
+/// カテゴリーのチップの行（#1831）。画面幅を超えるときは横にスクロールする。
+/// チップは 44pt の高さを枠の中に取る（枠の外へはみ出させても当たり判定は広がらない）。
+private struct HubCategoryChips: View {
+    let categories: [HubCategory]
+    let selected: HubCategory
+    let onSelect: (HubCategory) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(categories, id: \.self) { category in
+                    let isSelected = category == selected
+                    Button { onSelect(category) } label: {
+                        Text(category.title)
+                            .themeCaption(14)
+                            .foregroundStyle(isSelected ? Theme.onAccent : Theme.ink)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 14)
+                            .frame(minWidth: 64, minHeight: 44)
+                            .background(Capsule().fill(isSelected ? Theme.Fill.coral : Color.white))
+                            .overlay(Capsule().strokeBorder(Theme.ink.opacity(isSelected ? 0 : 0.15), lineWidth: 1))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.pop)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, Theme.pad)
+        }
     }
 }
 
