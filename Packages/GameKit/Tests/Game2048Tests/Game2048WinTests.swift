@@ -189,6 +189,56 @@ struct Game2048WinTests {
         #expect(model.board != boardAtWin)
     }
 
+    @Test("2048 を作った手で盤が埋まった終局は、触覚が成功用になり勝ちとして記録される（#2048）")
+    func winningMoveThatFillsBoardNotifiesSuccess() {
+        let feedback = SpyFeedbackService()
+        let name = "asobiba.2048win.tests.\(#function)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(),
+            ads: NoopAdService(),
+            feedback: feedback,
+            playLog: log
+        )
+        let model = Game2048Model(services: services, board: Self.winningMoveEndsTheGame)
+        services.gameDidStart(gameID: "2048")
+
+        model.move(.left)
+
+        #expect(model.gameOver, "前提: この手で終局する")
+        #expect(feedback.notices == [.success])
+        #expect(log.record(gameID: "2048")?.wins == 1)
+    }
+
+    @Test("2048 を作らずに盤が埋まった終局は、触覚が失敗用のまま（#2048）")
+    func losingMoveThatFillsBoardNotifiesError() {
+        let feedback = SpyFeedbackService()
+        let name = "asobiba.2048win.tests.\(#function)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(),
+            ads: NoopAdService(),
+            feedback: feedback,
+            playLog: log
+        )
+        var board = Self.winningMoveEndsTheGame
+        board[0][0] = 512
+        board[0][1] = 512
+        let model = Game2048Model(services: services, board: board)
+        services.gameDidStart(gameID: "2048")
+
+        model.move(.left)
+
+        #expect(model.gameOver, "前提: この手で終局する")
+        #expect(feedback.notices == [.error])
+        #expect(log.record(gameID: "2048")?.wins == 0)
+        #expect(log.record(gameID: "2048")?.losses == 1)
+    }
+
     @Test("広告コンティニュー → 無操作で新規開始: `game_end`(quit) が 1 回出て対応が取れる（#1953）")
     func newGameRightAfterAdContinueSendsQuit() {
         let harness = makeHarness(suite: "ad-continue-then-new-game")
