@@ -98,15 +98,13 @@ struct GameSetupSheetSourceTests {
         #expect(source.contains("終了して\\(kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
     }
 
-    /// 「遊び方を見る」の差し込み口（会長指示 2026-10-12）。渡したゲームだけにボタンが出て、
-    /// 押すと共通の遊び方シート（large 固定・#2096）を開く。既定は出さない＝他ゲームの見た目は変わらない。
-    @Test("遊び方ボタンの差し込み口は任意で、共通の遊び方シートを開く")
-    func howToPlaySlot() throws {
+    /// 開始シートから遊び方を別画面で開く形（#2128 の「◯◯の遊び方を見る」）は会長指示 2026-10-12 で廃止。
+    /// 遊び方は開始シートの中に直接並べる（おじさんの荷物運びパズル）。共通枠に遷移の口を戻さない。
+    @Test("共通枠は開始シートから遊び方を別画面で開かない")
+    func noHowToPlayTransitionFromSetup() throws {
         let source = try Self.read("Core/GameSetupSheet.swift")
-        #expect(source.contains("howToPlay: GameSetupHowToPlay? = nil"), "既定で出さない形になっていない")
-        #expect(source.contains("if let howToPlay { howToPlayButton(howToPlay) }"), "渡したときだけ出す形になっていない")
-        #expect(source.contains("HowToPlaySheet(guide: howToPlay.guide)"), "共通の遊び方シートを開いていない")
-        #expect(GameSetupHowToPlay(.game2048).label == "遊び方を見る")
+        #expect(!source.contains("HowToPlaySheet("), "開始シートから遊び方シートへ遷移する形が戻っている")
+        #expect(!source.contains(".sheet("), "開始シートの上に別のシートを重ねている")
     }
 
     @Test("種別ごとの題名と開始文言（#1011 決裁）")
