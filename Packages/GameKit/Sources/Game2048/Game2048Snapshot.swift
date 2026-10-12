@@ -2,10 +2,14 @@
 public struct Game2048Step: Codable, Equatable, Sendable {
     public var board: [[Int]]
     public var score: Int
+    /// この手の前に 2048 到達済みだったか（#2056）。終局（2048 を作った手で盤が埋まった局）から戻すとき、
+    /// 到達の印も戻して再到達を勝ちと数えるために持つ。後から足したキーなので旧データでは nil。
+    public var hasWon: Bool?
 
-    public init(board: [[Int]], score: Int) {
+    public init(board: [[Int]], score: Int, hasWon: Bool? = nil) {
         self.board = board
         self.score = score
+        self.hasWon = hasWon
     }
 }
 

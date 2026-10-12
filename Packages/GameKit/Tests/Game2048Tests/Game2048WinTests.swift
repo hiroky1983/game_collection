@@ -431,6 +431,45 @@ struct Game2048WinTests {
         #expect(harness.log.record(gameID: "2048")?.wins == 1)
     }
 
+    // MARK: - 「戻す」と到達済みフラグ（#2056）
+
+    @Test("2048 を作った手で終局 →「戻す」→ 同じ手をやり直すと勝ちとして記録される（#2056）")
+    func undoingTheWinningGameOverRestoresHasWon() {
+        let harness = makeHarness(suite: "undo-winning-game-over")
+        let model = makeModel(harness, board: Self.winningMoveEndsTheGame)
+        model.move(.left)
+        #expect(model.gameOver && model.hasWon, "前提: 勝ちで終局")
+
+        #expect(model.undo())
+        #expect(!model.gameOver)
+        #expect(!model.hasWon, "手の前は未到達なので、到達の印も戻る")
+
+        model.move(.left)
+        #expect(model.gameOver && model.hasWon)
+        #expect(harness.analytics.outcomes == [.win, .win], "やり直しの終局も勝ちとして送られる（負けにならない）")
+    }
+
+    @Test("非終局で勝ってから「続ける」→「戻す」しても到達済みのまま（再演出しない）（#2056）")
+    func undoingAfterANonFinalWinKeepsHasWon() {
+        let model = Game2048Model(board: Self.oneMoveFromWin)
+        model.move(.left)
+        model.continueAfterWin()
+        // 新タイルは乱数なので、動く向きは盤を見て選ぶ。
+        let direction = Direction.allCases.first { Game2048Logic.slide(model.board, $0).moved }!
+        model.move(direction)
+        #expect(model.undo())
+        #expect(model.undo(), "勝った手そのものも戻せる")
+        #expect(model.hasWon, "終局からの undo ではないので復元しない")
+        #expect(!model.showWinPrompt)
+    }
+
+    @Test("手前の到達の印を持たない旧データの履歴を戻しても hasWon は変わらない（#2056）")
+    func undoWithLegacyStepKeepsHasWon() throws {
+        let json = #"{"board":[[2,0],[0,2]],"score":0}"#
+        let step = try JSONDecoder().decode(Game2048Step.self, from: Data(json.utf8))
+        #expect(step.hasWon == nil)
+    }
+
     // MARK: - 勝ちで終局した局のコンティニュー（#764）
 
     @Test("2048 を作った手で詰んだ局をコンティニューしても、過去の負けは消えない（#764）")

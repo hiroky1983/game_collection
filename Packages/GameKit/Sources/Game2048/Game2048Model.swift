@@ -115,7 +115,7 @@ public final class Game2048Model {
         }
 
         // 戻す先は「この手の前」。出現したタイルも含めた盤とスコアをそのまま控える（#2023）。
-        history.append(Game2048Step(board: board, score: score))
+        history.append(Game2048Step(board: board, score: score, hasWon: hasWon))
         if history.count > Game2048UndoBudget.historyLimit { history.removeFirst() }
         board = result.board
         score += result.gained
@@ -237,6 +237,10 @@ public final class Game2048Model {
             lastFinishWasLoss = false
             recordResult = nil
             gameOver = false
+            // 2048 を作った手で終局していたら、到達の印も手前に戻す（#2056）。戻さないと同じ手で再び 2048 を
+            // 作っても `justWon` が立たず、勝てた局が負けとして記録される。勝ちの二重記録は上の数え直しと同じ扱い。
+            // 非終局で勝ってから戻すときは復元しない（勝利演出を局に 1 度だけ出す #438 を保つ）。旧データ（nil）は触らない。
+            if let before = step.hasWon { hasWon = before }
             persist()
             services?.gameDidRestart(gameID: gameID)
             services?.gameDidProgress(gameID: gameID)
