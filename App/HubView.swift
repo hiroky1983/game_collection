@@ -195,6 +195,13 @@ struct HubView: View {
                         .padding(.horizontal, Theme.pad)
                         .padding(.top, Theme.pad)
                 }
+                // 連続プレイ日数（#1625）。2 日以上のときだけ控えめに 1 行。`PlayLog` は監視対象ではないので、
+                // ゲームから戻って `path` が変わったとき body が走って更新される（「つづき・最近」と同じ）。
+                if let text = PlayDayStreak.hubText(streak: services.playLog?.playStreak() ?? 0) {
+                    HubPlayStreakLine(text: text)
+                        .padding(.horizontal, Theme.pad)
+                        .padding(.top, Theme.pad)
+                }
                 // 中断・記録ともゼロなら**行ごと出さない**（#660）。`RecommendationSlot` が
                 // 「決着前は何も描かない」のと同じ流儀で、初回ユーザーのハブは
                 // 1pt も動かない。
@@ -752,6 +759,19 @@ private struct HubNewGamesNotice: View {
             .padding(.horizontal, Theme.pad)
             .padding(.vertical, 10)
             .popCard(corner: Theme.cornerSmall)
+            .accessibilityElement(children: .combine)
+    }
+}
+
+/// 連続プレイ日数の 1 行（#1625）。カードにはせず、文字だけで控えめに出す。報酬・広告・通知には繋げない。
+private struct HubPlayStreakLine: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "flame.fill")
+            .themeCaption(13)
+            .foregroundStyle(Theme.inkSub)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
     }
 }

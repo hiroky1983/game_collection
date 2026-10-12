@@ -94,6 +94,8 @@ struct RecordsView: View {
                 statTile(title: "遊んだ種類", value: "\(summary.playedCount)/\(summary.gameCount)")
                 statTile(title: "通算勝利", value: RecordFormat.number(summary.totalWins))
                 statTile(title: "最高連勝", value: RecordFormat.number(summary.bestStreak))
+                // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
+                statTile(title: "連続日数", value: "\(RecordFormat.number(playLog?.playStreak() ?? 0))日")
             }
         }
         .padding(.vertical, 4)
