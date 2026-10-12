@@ -65,4 +65,7 @@ struct SolitaireSnapshot: Codable {
     /// 1 枚めくり（分岐が存在しなかった頃のルール）に倒す。非 optional にすると
     /// 旧データのデコードが丸ごと失敗し、中断が黙って消える（`docs/ai-devops.md` 規約2）。
     let drawMode: String?
+    /// この局で使ったヒントの回数（#2025）。再開で回数が戻らないよう保存する。
+    /// **省略可**。旧形式には無いので、無ければ 0（未使用）として読む。
+    var hintsUsed: Int? = nil
 }

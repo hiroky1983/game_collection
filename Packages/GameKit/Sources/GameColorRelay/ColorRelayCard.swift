@@ -19,13 +19,33 @@ public enum RelayColor: Int, CaseIterable, Codable, Sendable, Hashable {
         }
     }
 
-    /// 札の面の色。差し色の**濃い側**を使う（白い窓に載せた数字の読みやすさを取る）。
+    /// 色名の頭文字。札の四隅に添えて、色が見分けにくい人にも札の色が伝わるようにする（#2007）。
+    public var initial: String {
+        switch self {
+        case .red:    return "あ"
+        case .green:  return "み"
+        case .purple: return "む"
+        case .yellow: return "き"
+        }
+    }
+
+    /// 札の面の色（`0xRRGGBB`）。差し色の**面色**（`Theme.Hex.Fill`）で、上に載せる文字は `Theme.onAccent`（#2007）。
+    public var faceHex: UInt32 {
+        switch self {
+        case .red:    return Theme.Hex.Fill.coral
+        case .green:  return Theme.Hex.Fill.teal
+        case .purple: return Theme.Hex.Fill.purple
+        case .yellow: return Theme.Hex.Fill.yellow
+        }
+    }
+
+    /// 札の面の色。
     public var color: Color {
         switch self {
-        case .red:    return Theme.coral
-        case .green:  return Theme.teal
-        case .purple: return Theme.purple
-        case .yellow: return Theme.yellow
+        case .red:    return Theme.Fill.coral
+        case .green:  return Theme.Fill.teal
+        case .purple: return Theme.Fill.purple
+        case .yellow: return Theme.Fill.yellow
         }
     }
 }

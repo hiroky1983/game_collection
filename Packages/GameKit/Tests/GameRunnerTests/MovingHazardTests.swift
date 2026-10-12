@@ -53,7 +53,7 @@ struct RunnerHazardMotionTests {
     /// 重なりの範囲と一致すること。ここがずれると、テストは緑なのに詰む配置ができる。
     /// 鳥（#945）は帯が頭より上を飛ぶので、横の重なりだけを測る（「跳んでいてはいけない区間」）。
     @Test("等価な静止区間は、当たり判定を刻んで測った重なりと一致する", arguments: [
-        RunnerHazardKind.lowBlock, .bird, .dog, .boar, .shoot,
+        RunnerHazardKind.lowBlock, .bird, .dog, .boar, .shoot, .geyser,
     ])
     func encounterMatchesMeasuredOverlap(kind: RunnerHazardKind) {
         let hazard = Self.hazard(kind)
@@ -70,8 +70,8 @@ struct RunnerHazardMotionTests {
         case .bird:
             // 鳥の `height` は止まっているあいだの上端（岩と同じ物差しで踏み切りの余裕・間隔を取るための値）。
             #expect(encounter.height == RunnerHazardKind.birdLowTop)
-        case .shoot:
-            // 突き上げ（#1010）は走者が着くまでに伸び切っているので、出会うときは高い岩そのもの。
+        case .shoot, .geyser:
+            // 突き上げ（#1010）・間欠泉（#1938）は走者が着くまでに伸び切っているので、出会うときは高い岩そのもの。
             #expect(encounter.height == RunnerHazardKind.tallBlock.height, "伸び切った高さは高い岩と同じ")
             #expect(encounter.start == hazard.start && encounter.length == hazard.length, "横にずれない")
         default:
@@ -91,7 +91,7 @@ struct RunnerHazardMotionTests {
     /// 走っている最中の踏み切り判断（相対速度で見る `lead(for:frame:speed:)`）と、成立条件が
     /// 使う静的な余裕（`lead(for:speed:)` を `encounter` に当てる）が**同じ踏み切り地点**を指すこと。
     @Test("動く相手への踏み切り地点は、静的換算と相対速度の見積もりで一致する", arguments: [
-        RunnerHazardKind.bird, .dog, .boar, .shoot,
+        RunnerHazardKind.bird, .dog, .boar, .shoot, .geyser,
     ])
     func dynamicLeadAgreesWithStaticLead(kind: RunnerHazardKind) {
         let hazard = Self.hazard(kind)
@@ -449,7 +449,7 @@ struct RunnerHazardMotionTests {
     /// **「運で死ぬ瞬間が無い」の実体**（#1010 設計の芯）: どの面でも、走者が踏み切るべき地点に
     /// 着くより手前で伸び切っている。ここが崩れると、伸びかけの低い帯を見て小さく跳んだ人が
     /// 空中で刺される。
-    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全 30 面）")
+    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全面）")
     func shootFinishesRisingBeforeTheTakeOffPoint() {
         var tightest = Double.infinity
         var count = 0
@@ -467,7 +467,7 @@ struct RunnerHazardMotionTests {
     }
 
     /// 予告が**見てから反応できる**こと。物差しは犬・イノシシの予告と同じ「見えてから当たる
-    /// （踏み切る）まで」で、いちばん厳しい条件——最速の 30 面・ペダル上限 1.55 倍——で測る。
+    /// （踏み切る）まで」で、いちばん厳しい条件——基準速が上限 60 の 34〜36 面（#1824。実測の控えは 30 面の 57.2 のまま）・ペダル上限 1.55 倍——で測る。
     @Test("予告から踏み切るべき地点までは、最速の面でペダル上限でも 0.6 秒以上ある")
     func shootCueLeavesTimeToRead() {
         var shortest = Double.infinity

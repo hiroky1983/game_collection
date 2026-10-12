@@ -190,17 +190,22 @@ public struct GameSetupChooser: View {
     private let selected: Bool
     private let accent: Color
     private let onAccent: Color
+    private let icon: String?
     private let metrics: Metrics
     private let action: () -> Void
 
     /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
     ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
+    /// - Parameter icon: 題名の上に出す小さな SF Symbols（任意）。モードの違いを絵でも分かるようにしたい
+    ///   ときだけ渡す（おじさんの荷物運びパズルの遊び方選択・会長指示 2026-10-12）。既定は `nil`（出さない）で、
+    ///   他ゲームの見た目は変わらない。
     public init(
         title: String,
         subtitle: String,
         selected: Bool,
         accent: Color,
         onAccent: Color = Theme.onAccent,
+        icon: String? = nil,
         metrics: Metrics = .standard,
         action: @escaping () -> Void
     ) {
@@ -209,6 +214,7 @@ public struct GameSetupChooser: View {
         self.selected = selected
         self.accent = accent
         self.onAccent = onAccent
+        self.icon = icon
         self.metrics = metrics
         self.action = action
     }
@@ -216,6 +222,11 @@ public struct GameSetupChooser: View {
     public var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .scaledFont(15, weight: .bold, maxScale: 1.2)
+                        .foregroundStyle(selected ? onAccent : Theme.inkSub)
+                }
                 titleText
                 // 副題が空のときは行ごと出さない（CPU の強さの5段階だけは、狭い端末で
                 // 読める大きさを保つため副題をタイルの外へ出している。`CPUStrengthPicker`）。
@@ -247,7 +258,7 @@ public struct GameSetupChooser: View {
 
     private var subtitleText: some View {
         Text(subtitle)
-            .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded))
+            .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded)) // fixed-size: セットアップ部品の寸法定数（metrics.subtitleSize）で揃える。枠が固定寸法のため追従させない
             .foregroundStyle(selected ? onAccent : Theme.inkSub)
             .modifier(ShrinkToFit(minimumScale: metrics.subtitleMinimumScale))
     }

@@ -393,11 +393,11 @@ public struct CardSlot: View {
                               style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             if let suitSymbol {
                 Text(suitSymbol)
-                    .font(.system(size: metrics.suitFont))
+                    .font(.system(size: metrics.suitFont)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                     .foregroundStyle(ink.slotMark)
             } else if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: metrics.suitFont * 0.8, weight: .semibold))
+                    .font(.system(size: metrics.suitFont * 0.8, weight: .semibold)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                     .foregroundStyle(ink.slotMark)
             }
         }
@@ -764,9 +764,9 @@ public struct CardStackIndex: View {
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: metrics.spacing) {
             Text(rankLabel)
-                .font(.system(size: metrics.rankFont, weight: .black, design: .rounded))
+                .font(.system(size: metrics.rankFont, weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
             Text(suit.symbol)
-                .font(.system(size: metrics.suitFont, weight: .bold))
+                .font(.system(size: metrics.suitFont, weight: .bold)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
         }
         .lineLimit(1)
         // 見込み幅（`estimatedTenWidth`）で収めてあるが、端末の字形の差で溢れたときは

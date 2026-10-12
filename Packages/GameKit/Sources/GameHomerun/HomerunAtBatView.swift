@@ -184,11 +184,13 @@ struct HomerunAtBatView: View {
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
         .gameAnimation(.easeOut(duration: 0.15), value: model.isPaused)
         // 途中でやめる確認。キャンセル（外側のタップで閉じた場合も）は一時停止の画面に戻るだけ。
-        .confirmationDialog("この挑戦をやめますか？", isPresented: $confirmsQuit, titleVisibility: .visible) {
-            Button("やめる", role: .destructive) { model.quitChallenge() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("この挑戦はここで終わり、使った回数は戻りません。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("この挑戦をやめますか？", isPresented: $confirmsQuit, titleVisibility: .visible) {
+                Button("やめる", role: .destructive) { model.quitChallenge() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("この挑戦はここで終わり、使った回数は戻りません。")
+            }
         }
         // 結果のカードを出す前に、打球（当たり以上は追うカメラで止まるまで・見送り・空振りならミットへ入る球）を見せる。
         .task(id: model.step) {
@@ -224,7 +226,7 @@ struct HomerunAtBatView: View {
             // 大きさ・形は「⋯」（`GameControlMenu`）と揃える（#1617・同じ役割の UI は同じ見た目）。
             // 寸法はコピーせず `BoardGameControlMetrics.minTapTarget` を直接参照する。
             Image(systemName: "pause.fill")
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, weight: .bold)
                 .frame(width: BoardGameControlMetrics.minTapTarget, height: BoardGameControlMetrics.minTapTarget)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)
@@ -317,7 +319,7 @@ struct HomerunAtBatView: View {
             VStack(spacing: 0) {
                 Text("今回").themeCaption(11).foregroundStyle(.white.opacity(0.9))
                 Text(verbatim: HomerunText.meters(totals.distance))
-                    .font(.system(size: 30, weight: .black, design: .rounded).monospacedDigit())
+                    .scaledFont(30, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(.white)
                     .contentTransition(.numericText())
             }
@@ -667,29 +669,29 @@ struct HomerunBallResultCard: View {
         let reason = Self.reasonLine(ball, tookPitch: tookPitch, missNote: missNote)
         VStack(spacing: 6) {
             Text(verbatim: Self.headline(ball, tookPitch: tookPitch))
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .scaledFont(30, weight: .black, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(ball.kind == .homer ? Theme.coral : Theme.ink)
             if ball.isMoon {
                 // 月まで飛んだ打球（#1680）: 距離は 384,400 km と出す（記録には 180m で数える）。方向は出さない。
                 Text(verbatim: HomerunText.moonDistance)
-                    .font(.system(size: 24, weight: .black, design: .rounded).monospacedDigit())
+                    .scaledFont(24, weight: .black, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                 if ball.moon == .broken {
                     Text("挑戦はここまで")
-                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .scaledFont(16, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                     Label("プレイ回数 +\(HomerunLedger.moonBonus) プレゼント", systemImage: "gift.fill")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .scaledFont(18, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.coral)
                 }
             } else if ball.distance > 0 {
                 Text(verbatim: "\(HomerunText.meters(ball.distance))　\(HomerunSector(direction: ball.direction).label)")
-                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
             }
             if let reason {
                 Text(verbatim: reason)
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .scaledFont(18, weight: .heavy, design: .rounded)
                     .foregroundStyle(Theme.coral)
             }
             if ball.kind != .miss || ball.timing != .miss {

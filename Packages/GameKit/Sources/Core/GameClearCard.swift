@@ -26,7 +26,7 @@ public struct GameClearCard: View {
         VStack(spacing: 12) {
             VStack(spacing: 10) {
                 Image(systemName: "trophy.fill")
-                    .font(.system(size: 40))
+                    .scaledFont(40, maxScale: 1.2)
                     .foregroundStyle(Theme.yellow)
                 Text(title)
                     .themeBody(24, weight: .bold, maxScale: 1.5)

@@ -37,14 +37,23 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// 遠景に海と桟橋とコンテナと貨物船。今ある障害は岸壁の切れ目・ロープの束・ドラム缶・カモメ・
     /// 野良猫・フォークリフト・木箱の山・ベルトコンベアに着せ替える（`dressing`）。
     case harbor
+    /// 31〜36 面。京都・奈良（古都・#1824。会長決裁 2026-10-06「もっと日本を横断してる感じを
+    /// 出してから」海外へ）。秋の古都で、空は淡い藤色、山は紅葉の 2 階調、道は石畳。遠景に土塀・
+    /// 鳥居・寺の本堂と石段・五重塔・紅葉の木。犬の枠は奈良の鹿（絵ごと着せ替え）、鳥は鳩、
+    /// それ以外の障害は里山の着せ替え（用水路＝疎水・竹の子・田んぼ・古い木橋・石垣）を流用する。
+    case kyotoNara
+    /// 37〜42 面。温泉街（#1938）。初冬の山あいの湯の町。空は湯けむりに霞む淡い灰青、山は雪をかぶった
+    /// 青灰の 2 階調、道は濡れた石畳で路肩に湯の川。遠景に旅館・外湯（のれん・提灯）・源泉の櫓・湯けむり。
+    /// 犬の枠はニホンザル（絵ごと着せ替え）、鳥はトンビ、突き上げは湯柱（波しぶきを流用）、沈む床は泥湯。
+    case onsen
 
-    /// 1 つの世界が受け持つ面数。30 面を 5 等分。
+    /// 1 つの世界が受け持つ面数。6 面ずつ（30 面 = 5 世界、#1824 で 36 面 = 6 世界、#1938 で 42 面 = 7 世界）。
     public static let stagesPerWorld = 6
 
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
-    /// 19〜24 面は里山、25〜30 面は港町。
+    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`。面を足して世界を足し忘れた
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 43 以上）は `.night`。面を足して世界を足し忘れた
     /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
     /// `WorldTests.everyStageHasAWorld` が固定する）。
     ///
@@ -63,6 +72,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .night:   return "夜の繁華街"
         case .satoyama: return "里山"
         case .harbor:  return "港町"
+        case .kyotoNara: return "京都・奈良"
+        case .onsen: return "温泉街"
         }
     }
 
@@ -103,6 +114,10 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case satoyama
         /// 丘の手前に海の帯と桟橋、岸壁にコンテナの山、沖に貨物船（#1009）。
         case harbor
+        /// 道の奥に土塀、その後ろに鳥居・寺の本堂と石段・五重塔・紅葉の木（#1824）。
+        case kyotoNara
+        /// 道の奥に提灯の並ぶ柵、その後ろに旅館・外湯・源泉の櫓・湯けむり、山には雪（#1938）。
+        case onsen
     }
 
     public var scenery: Scenery {
@@ -112,6 +127,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .night:    return .cityLights
         case .satoyama: return .satoyama
         case .harbor:   return .harbor
+        case .kyotoNara: return .kyotoNara
+        case .onsen: return .onsen
         }
     }
 
@@ -157,6 +174,15 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
             // 岸壁のコンクリート（#1009）。淡い灰に白線、縁石は明るいコンクリート、路肩は岸壁の
             // 側面の灰、地盤は海面下の暗い青灰（画面の下端は海の中）。
             return Road(asphalt: 0xB9BDBD, line: 0xFFFFFF, curb: 0xE2E4E2, shoulder: 0xC9CDCB, subsoil: 0x8E9AA2)
+        case .kyotoNara:
+            // 石畳（#1824）。暖色寄りの石の灰で、明るさは朝・里山・港町の路面と同じ帯（相対輝度 0.45）。
+            // 破線は石畳の明るい目地として読ませる生成り（路面より 60 以上明るい・`WorldTests`）。
+            // 縁石は明るい石、路肩は苔の緑、地盤は土。
+            return Road(asphalt: 0xB7B3AC, line: 0xF6F3EE, curb: 0xDAD5CC, shoulder: 0xA3B894, subsoil: 0xB39C84)
+        case .onsen:
+            // 濡れた石畳（#1938）。寒色の石の灰で明るさは京都と同じ帯。目地は雪まじりの白、縁石は雪、
+            // 路肩は湯の川（淡い湯色の青緑）、地盤は濡れた暗い石。
+            return Road(asphalt: 0xB3B7BE, line: 0xF4F6F8, curb: 0xE4E8EC, shoulder: 0x9ED0CB, subsoil: 0x7A838C)
         }
     }
 
@@ -270,6 +296,40 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 rockBody: 0x585E6E,
                 rockDark: 0x23272F
             )
+        case .kyotoNara:
+            // 京都・奈良（#1824）。秋の古都。背景は淡く沈める組み立て（朝・里山・港町と同じ）で、
+            // 空は淡い藤色（色相 263°。服の黄 45°・車体の赤 6° から 40° 以上離れる唯一の淡い寒色側で、
+            // 青系の朝・港町、薄荷の里山とも見分けが付く）。山は紅葉の 2 階調（淡い杏と淡いテラコッタ）。
+            // 遠景の鳥居・寺・五重塔・土塀・紅葉（`SceneryPalette`）と一緒に空と 2:1 未満に収める
+            // （`WorldTests`）。岩（庭石）は朝と同じストーングレー——本体だけで紅葉の山 2 色と 3:1 以上。
+            // 地面の色は道路化以降描かれないが、地盤（`road.subsoil`）に揃えておく。
+            return Palette(
+                sky: 0xE6DFF1,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xE2C4A9,
+                hillNear: 0xDBAE94,
+                groundTop: 0xD9D2C8,
+                groundBody: 0xB39C84,
+                rockLight: 0x9CA4B2,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
+            )
+        case .onsen:
+            // 温泉街（#1938）。初冬。空は湯けむりに霞む淡い灰青（色相 214°）、山は雪をかぶった青灰の 2 階調。
+            // 岩（湯けむりの岩）は朝と同じストーングレー。
+            return Palette(
+                sky: 0xDAE0E8,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xC3CDD4,
+                hillNear: 0xADBBC4,
+                groundTop: 0xC9CDD2,
+                groundBody: 0x7A838C,
+                rockLight: 0x9CA4B2,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
+            )
         }
     }
 }
@@ -378,6 +438,29 @@ public extension RunnerWorld {
                 birdBody: 0x3E4A56, birdWing: 0x2C3640, birdWingFar: 0x1C232B, birdBelly: 0xF4F4F0,
                 birdHead: 0xF4F4F0, birdBeak: RunnerPalette.birdBeak
             )
+        case .kyotoNara:
+            // 京都・奈良（#1824）。背景は淡い帯なので手前は**暗く**。犬の枠は奈良の鹿——焦げ茶の体
+            // （`dogBody`）に暗い脚・耳の内・枝角（`dogDark`）、生成りの斑点・腹・尻の白（`dogBelly`）。
+            // イノシシは朝・里山と同じ焦げ茶。鳥は寺の鳩——青みの暗い灰 3 階調に明るい灰の腹。
+            // 紅葉の山（色相 20° 前後）とは色相で 160° 以上離れる。縁取りは暖色寄りの黒。
+            return Creatures(
+                outline: 0x1A1410,
+                dogBody: 0x6E4423, dogDark: 0x3B2412, dogBelly: 0xF2E4CC,
+                boarBody: 0x5A3618, boarDark: 0x2E1A0C, boarSnout: 0xB88A6A,
+                birdBody: 0x4C5466, birdWing: 0x363C4A, birdWingFar: 0x242832, birdBelly: 0xD9DAE2,
+                birdHead: 0x4C5466, birdBeak: RunnerPalette.birdBeak
+            )
+        case .onsen:
+            // 温泉街（#1938）。手前は暗く。犬の枠はニホンザル——灰茶の毛（`dogBody`）に暗い手足・耳（`dogDark`）、
+            // 顔まわりと腹の薄い毛（`dogBelly`）、顔の赤は犬の首輪の赤 `R` を流用。鳥はトンビ（焦げ茶 3 階調に
+            // 淡い腹）。イノシシは朝・里山と同じ焦げ茶。
+            return Creatures(
+                outline: 0x1A1410,
+                dogBody: 0x5A4737, dogDark: 0x30241B, dogBelly: 0xDCCDB8,
+                boarBody: 0x5A3618, boarDark: 0x2E1A0C, boarSnout: 0xB88A6A,
+                birdBody: 0x5A4030, birdWing: 0x3E2A1E, birdWingFar: 0x2A1C12, birdBelly: 0xC9A882,
+                birdHead: 0x5A4030, birdBeak: RunnerPalette.birdBeak
+            )
         }
     }
 
@@ -438,6 +521,48 @@ public extension RunnerWorld {
         public static let shipWaterline: UInt32 = 0xD0A094
         public static let shipBridge: UInt32 = 0xD8D3C8
         public static let shipFunnel: UInt32 = 0xC9A79A
+
+        // 京都・奈良（`Scenery.kyotoNara`・#1824）。どれも空（0xE6DFF1）と 2:1 未満に沈める淡い色。
+        /// 鳥居の朱。彩度を落とした淡い朱（本物の朱 0xE34234 では空から浮く）。
+        public static let toriiVermilion: UInt32 = 0xE09A86
+        /// 五重塔の屋根（5 層）と相輪。淡い灰茶。
+        public static let pagodaRoof: UInt32 = 0xB6AEA8
+        /// 五重塔の軸部（白壁と柱の中間の淡い色）。
+        public static let pagodaBody: UInt32 = 0xD9D0C4
+        /// 寺の本堂の白壁。
+        public static let templeWall: UInt32 = 0xF2ECE0
+        /// 寺の本堂の瓦屋根（青灰）。
+        public static let templeRoof: UInt32 = 0xB3B8C0
+        /// 本堂へ上る石段。
+        public static let templeSteps: UInt32 = 0xCBC5BA
+        /// 道の奥に続く土塀（黄土の漆喰）。
+        public static let earthenWall: UInt32 = 0xE4D9C3
+        /// 土塀の瓦の笠と腰の線（灰）。
+        public static let wallCoping: UInt32 = 0xB0B3BA
+        /// 紅葉の木の葉（淡い紅）。山の紅葉より一段濃い。
+        public static let mapleCanopy: UInt32 = 0xDD9484
+        /// 紅葉の木の幹。
+        public static let mapleTrunk: UInt32 = 0xB7A393
+
+        // 温泉街（`Scenery.onsen`・#1938）。どれも空（0xDAE0E8）と 2:1 未満に沈める淡い色。
+        /// 旅館の壁（漆喰）。
+        public static let ryokanWall: UInt32 = 0xD4C3AC
+        /// 旅館の柱・梁・窓枠・櫓の木。
+        public static let ryokanTimber: UInt32 = 0xB49C82
+        /// 旅館・外湯の瓦屋根（青灰）。
+        public static let ryokanRoof: UInt32 = 0xA9B0BA
+        /// 屋根と山に積もった雪。
+        public static let snow: UInt32 = 0xF3F5F7
+        /// 障子窓の灯り（暖色）。
+        public static let windowGlow: UInt32 = 0xF0D59C
+        /// 外湯ののれん（藍）。
+        public static let noren: UInt32 = 0x93A0BE
+        /// 提灯（鳥居と同じ淡い朱）。
+        public static let lantern: UInt32 = 0xE09A86
+        /// 湯けむり（白。半透明で重ねる）。
+        public static let steam: UInt32 = 0xF6F7F8
+        /// 道の奥の低い柵（提灯の並ぶ）。
+        public static let fence: UInt32 = 0xC6BBA8
     }
 
     /// 遠景の飾りのタイル幅（`RunnerScene.hillSpacing`）。家並み（`townHouses`）の `dx` はこの幅の中の位置。
@@ -494,6 +619,33 @@ public extension RunnerWorld {
                 "shipBridge": SceneryPalette.shipBridge,
                 "shipFunnel": SceneryPalette.shipFunnel,
             ]
+        case .kyotoNara:
+            return [
+                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
+                "toriiVermilion": SceneryPalette.toriiVermilion,
+                "pagodaRoof": SceneryPalette.pagodaRoof,
+                "pagodaBody": SceneryPalette.pagodaBody,
+                "templeWall": SceneryPalette.templeWall,
+                "templeRoof": SceneryPalette.templeRoof,
+                "templeSteps": SceneryPalette.templeSteps,
+                "earthenWall": SceneryPalette.earthenWall,
+                "wallCoping": SceneryPalette.wallCoping,
+                "mapleCanopy": SceneryPalette.mapleCanopy,
+                "mapleTrunk": SceneryPalette.mapleTrunk,
+            ]
+        case .onsen:
+            return [
+                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
+                "ryokanWall": SceneryPalette.ryokanWall,
+                "ryokanTimber": SceneryPalette.ryokanTimber,
+                "ryokanRoof": SceneryPalette.ryokanRoof,
+                "snow": SceneryPalette.snow,
+                "windowGlow": SceneryPalette.windowGlow,
+                "noren": SceneryPalette.noren,
+                "lantern": SceneryPalette.lantern,
+                "steam": SceneryPalette.steam,
+                "fence": SceneryPalette.fence,
+            ]
         }
     }
 
@@ -506,6 +658,8 @@ public extension RunnerWorld {
         case .night:    return ["sky": palette.sky]
         case .satoyama: return ["sky": palette.sky]
         case .harbor:   return ["sky": palette.sky]
+        case .kyotoNara: return ["sky": palette.sky]
+        case .onsen: return ["sky": palette.sky]
         }
     }
 }
@@ -572,7 +726,8 @@ public extension RunnerWorld {
         (RunnerWorld.allCases.firstIndex(of: self) ?? 0) + 1
     }
 
-    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30。
+    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30・
+    /// 京都・奈良 31…36・温泉街 37…42。
     var stageRange: ClosedRange<Int> {
         let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
         return first...(first + RunnerWorld.stagesPerWorld - 1)
@@ -580,13 +735,13 @@ public extension RunnerWorld {
 
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
-    /// 範囲外（0 以下・31 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 範囲外（0 以下・43 以上）でも落ちないよう剰余で畳むだけなので、
     /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
-    /// ワールドマップの短い表記「1-1」…「5-6」。
+    /// ワールドマップの短い表記「1-1」…「7-6」。
     ///
     /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
     /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
@@ -594,7 +749,7 @@ public extension RunnerWorld {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…30）。
+    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…42）。
     static func contains(stage number: Int) -> Bool {
         number >= 1 && number <= stagesPerWorld * allCases.count
     }
@@ -615,6 +770,10 @@ public extension RunnerWorld {
         // （`RunnerStageCodeTests.mapColorsAreDistinguishable` が隣り合う世界と色相か明度で離れていることを固定）。
         case .satoyama: return 0x8FC48A
         case .harbor:   return 0x6FB1CF
+        // 京都・奈良（#1824）は紅葉の橙。隣の港町の青とは色相で正反対。
+        case .kyotoNara: return 0xD9876A
+        // 温泉街（#1938）は湯の青緑。隣の京都・奈良の橙とは色相で正反対。
+        case .onsen: return 0x7FB8B2
         }
     }
 }
@@ -649,6 +808,8 @@ public extension RunnerWorld {
             case ropeCoil
             /// ドラム缶（高い岩の 4×9）。
             case drum
+            /// 湯桶（温泉街・案 B。低い岩の 4×5）。
+            case yuoke
         }
         /// 犬の枠（画面の右から歩いて来る動物）。
         public enum Walker: Equatable, Sendable {
@@ -656,6 +817,10 @@ public extension RunnerWorld {
             case dog
             /// 野良猫。
             case cat
+            /// 奈良の鹿（#1824）。犬と同じ格子・同じ動き。
+            case deer
+            /// ニホンザル（温泉街・#1938）。犬と同じ格子・同じ動き。
+            case monkey
         }
         /// イノシシの枠（右から向かってくるもの）。
         public enum Charger: Equatable, Sendable {
@@ -678,6 +843,9 @@ public extension RunnerWorld {
             case bambooShoot
             /// 波しぶき（港町）。岸壁の縁に泡が立つ予告 → 水柱が上がる。
             case seaSpray
+            /// 湯柱（温泉街・#1938）。白〜灰の湯気の柱（雪景色の中で氷柱に見えないよう青みを入れない）。
+            /// 間欠泉（`RunnerHazardKind.geyser`）の絵。泡立つ予告 → 湯柱が噴き上がる。
+            case steamColumn
         }
         /// 崩れる足場（#1090）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum CrumblingPlatform: Equatable, Sendable {
@@ -699,6 +867,8 @@ public extension RunnerWorld {
             case paddy
             /// 干潟（港町）。ぬかるんだ泥にカニの穴、入ると泥が跳ねる。
             case tideland
+            /// 足湯（温泉街・案 B）。濁った湯に湯けむりが立つ。
+            case footBath
         }
         /// 加速床。
         public enum BoostFloor: Equatable, Sendable {
@@ -729,7 +899,7 @@ public extension RunnerWorld {
             case .tallBlock:                       return tallBlock
             // 突き上げ（#1010）は岩の枠ではなく自分の着せ替え（`shoot`）を持つ。
             // 突き上げ（#1010）・高い塀（#1091）は岩の枠ではなく自分の着せ替え（`shoot` / `wall`）を持つ。
-            case .pit, .bird, .dog, .boar, .shoot, .wall: return nil
+            case .pit, .bird, .dog, .boar, .shoot, .geyser, .wall: return nil
             }
         }
     }
@@ -767,6 +937,28 @@ public extension RunnerWorld {
                 pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
                 platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray,
                 sinkFloor: .tideland, crumblingPlatform: .woodenPier, wall: .containerStack
+            )
+        case .kyotoNara:
+            // 京都・奈良（#1824・会長決裁 2026-10-06 の案 A「鹿だけ新規・他は流用」）: 新しく描くのは犬の枠の
+            // **鹿**だけ。穴＝疎水（用水路の絵を流用）・岩＝庭石（岩塊のまま）・イノシシ＝イノシシ・台座＝足場・
+            // 加速床＝舗装の参道（農道の舗装を流用）・突き上げ＝竹の子（嵯峨野の竹林）・沈む床＝田んぼ（奈良盆地）・
+            // 崩れる足場＝古い木橋（吊り橋を流用）・高い塀＝石垣。石灯籠・人力車・築地塀・縁側など古都らしい
+            // 描き足し（決裁スレッドの案 B）は出荷後に別 Issue で足せる。
+            return Dressing(
+                pit: .irrigationDitch, lowBlock: .boulder, tallBlock: .boulder, dog: .deer, boar: .boar,
+                platform: .scaffold, boostFloor: .pavedFarmRoad, shoot: .bambooShoot,
+                sinkFloor: .paddy, crumblingPlatform: .suspensionBridge, wall: .stoneWall
+            )
+        case .onsen:
+            // 温泉街（#1938）。新しく描くのは犬の枠の**サル**・低い岩の**湯桶**・沈む床の**足湯**（会長決定 案 B）。
+            // 穴＝源泉の溝（用水路の絵を流用）・高い岩＝湯けむりの岩（岩塊のまま）・イノシシ＝イノシシ・
+            // 台座＝木箱の山（旅館の荷）・加速床＝舗装の坂道（農道の舗装を流用）・突き上げ・間欠泉＝湯柱（新しい白〜灰の湯気の絵）・
+            // 崩れる足場＝川の古い木橋（吊り橋を流用）・高い塀＝石垣。
+            return Dressing(
+                pit: .irrigationDitch, lowBlock: .yuoke, tallBlock: .boulder,
+                dog: .monkey, boar: .boar,
+                platform: .crateStack, boostFloor: .pavedFarmRoad, shoot: .steamColumn,
+                sinkFloor: .footBath, crumblingPlatform: .suspensionBridge, wall: .stoneWall
             )
         }
     }
@@ -840,6 +1032,13 @@ public extension RunnerWorld {
         public static let tidelandHole: UInt32 = 0x171310
         /// 潮の照り（濡れた泥の光沢）。泥と 3:1 以上。
         public static let tidelandSheen: UInt32 = 0xDCE8EC
+        // 足湯（`Dressing.SinkFloor.footBath`・温泉街 案 B）
+        /// 濁った湯。濡れた石畳（0xB3B7BE）と 3:1 以上。
+        public static let footBathWater: UInt32 = 0x2F6866
+        /// 湯の底（沈む先）。
+        public static let footBathDeep: UInt32 = 0x1E4442
+        /// 湯けむり（水面から立つ白い湯気。踏み込む前に読める目印）。
+        public static let footBathSteam: UInt32 = 0xF4F6F8
         // 崩れる足場（`Dressing.CrumblingPlatform`・#1090）
         /// 古びた板（吊り橋・桟橋で共通）。乗る面なので**いちばん明るい**
         /// ——台座（#674）と同じく、遊ぶ人が最初に読み取るべきは「どこに足が着くか」。

@@ -78,6 +78,24 @@ enum RunnerStoryArt {
         case harborWatch
         /// 港町: 「つづく」。
         case harborToBeContinued
+
+        /// 京都・奈良（#1824）: 石畳で掴みかける。
+        case kyotoNaraReach
+        /// 京都・奈良: 奈良の鹿が鹿せんべいと間違えて咥える（おじさんは `frown`）。
+        case kyotoNaraDeer
+        /// 京都・奈良: 鹿が宝くじを咥えたまま右へ走り去る（おじさんは `gaze`）。
+        case kyotoNaraDeerRun
+        /// 京都・奈良: 「つづく」。石畳の先に小さくなった鹿。
+        case kyotoNaraToBeContinued
+
+        /// 温泉街（#1938）: 湯の町の石畳で掴みかける。
+        case onsenReach
+        /// 温泉街: サルが宝くじを手に取る（おじさんは `frown`）。
+        case onsenMonkey
+        /// 温泉街: サルが宝くじを持ったまま右へ走り去る（おじさんは `gaze`）。
+        case onsenMonkeyRun
+        /// 温泉街: 「つづく」。石畳の先に小さくなったサル。
+        case onsenToBeContinued
     }
 
     // MARK: 1 コマを組む
@@ -163,7 +181,61 @@ enum RunnerStoryArt {
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
                 .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 8)
                 .overlaying(fit(cargoShip()), x: 116, y: groundY - 30)
+
+        case .kyotoNaraReach: return reachPanel(.kyotoNara)
+        case .kyotoNaraDeer:
+            // 鹿が咥える。鹿はコースの絵（`RunnerPixelArt.deer`・左向き 30×21）を 2 倍にして右に置き、
+            // 宝くじは口元（左上）のすぐ先に重ねる。おじさんは左で「こら！」の `frown`。
+            return backdrop(.kyotoNara)
+                .overlaying(fit(deer(), times: 2), x: 120, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 92, y: groundY - 66)
+                .overlaying(bust(.frown), x: 0, y: bustY)
+        case .kyotoNaraDeerRun:
+            // 右へ走り去る（コースの絵を左右反転）。宝くじは口元（右上）に咥えたまま、おじさんは見送る。
+            return backdrop(.kyotoNara)
+                .overlaying(fit(deer().flippedHorizontally(), times: 2), x: 100, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 186, y: groundY - 66)
+                .overlaying(bust(.gaze), x: 0, y: bustY)
+        case .kyotoNaraToBeContinued:
+            // 「つづく」。文字は台詞側に出すので、絵は石畳の右端へ去っていく鹿と宝くじだけにする
+            // （おじさんは出さない。等倍の鹿に宝くじを咥えさせると宝くじのほうが大きく、頭が隠れる）。
+            return backdrop(.kyotoNara)
+                .overlaying(fit(deer().flippedHorizontally(), times: 2), x: 116, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 198, y: groundY - 66)
+
+        case .onsenReach: return reachPanel(.onsen)
+        case .onsenMonkey:
+            // サルが手に取る。サルはコースの絵（`RunnerPixelArt.monkey`・左向き 30×21）を 2 倍にして右に置き、
+            // 宝くじは顔（左上）のすぐ先に重ねる。構図は京都・奈良の鹿と同じ（毎回同じ形で外される）。
+            return backdrop(.onsen)
+                .overlaying(fit(monkey(), times: 2), x: 120, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 92, y: groundY - 66)
+                .overlaying(bust(.frown), x: 0, y: bustY)
+        case .onsenMonkeyRun:
+            // 右へ走り去る（コースの絵を左右反転）。宝くじは持ったまま、おじさんは見送る。
+            return backdrop(.onsen)
+                .overlaying(fit(monkey().flippedHorizontally(), times: 2), x: 100, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 186, y: groundY - 66)
+                .overlaying(bust(.gaze), x: 0, y: bustY)
+        case .onsenToBeContinued:
+            // 「つづく」。石畳の右端へ去っていくサルと宝くじだけ（京都・奈良と同じ。おじさんは出さない）。
+            return backdrop(.onsen)
+                .overlaying(fit(monkey().flippedHorizontally(), times: 2), x: 116, y: groundY - 84)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 198, y: groundY - 66)
         }
+    }
+
+    /// 温泉街のサル（コースの絵 `RunnerPixelArt.monkey` の歩きのコマ）。色はその世界の `Creatures` から写す。
+    /// 37〜42 面で歩いて来るサルと同じ絵にする（鹿と同じ「既存の絵は使い回す」）。
+    static func monkey() -> PixelSprite {
+        RunnerPixelArt.monkey(.walk0, colors: RunnerWorld.onsen.creatures)
+    }
+
+    /// 奈良の鹿（コースの絵 `RunnerPixelArt.deer` の歩きのコマ）。色はその世界の `Creatures` から写す
+    /// （犬・猫と同じ文字で、体 `O`・暗部 `o`・白 `W`・縁取り `K`）。この話にだけ出る部品を増やさず、
+    /// 31〜36 面で歩いて来る鹿と同じ絵にする（温泉街のサルも同じ作り）（「既存の絵は使い回す」）。
+    static func deer() -> PixelSprite {
+        RunnerPixelArt.deer(.walk0, colors: RunnerWorld.kyotoNara.creatures)
     }
 
     /// 顔を出すコマの置き方（バストアップ）。
@@ -185,8 +257,9 @@ enum RunnerStoryArt {
             .overlaying(body, x: 0, y: head.height - 12)
     }
 
-    /// バストアップの高さ（顔 90 + 肩 28 − 重ね 12）。
-    static let bustHeight = OjisanPixel.faceDotSize.height * 3 + 28 - 12
+    /// バストアップの高さ（顔 90 + 肩 28 − 重ね 12）。リザルトの顔は #2064 で Codex 製の 64×60 PNG
+    /// （`OjisanPixel.faceDotSize`）に替わったが、場面の格子は 32×30 前提なので胸像は手描きの行データの高さで決める。
+    static let bustHeight = OjisanPixel.face(.smile).height * 3 + 28 - 12
 
     /// バストアップの上端（下端がコマの下端にちょうど接する位置）。
     static var bustY: Int { panelHeight - bustHeight }

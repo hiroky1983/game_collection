@@ -549,6 +549,27 @@ struct SudokuUndoTests {
         (1...9).first { $0 != model.solution[index] }!
     }
 
+    @Test("ヒントで埋めたマスを自力で上書きするとヒントの印が外れ、戻すと数字と印が一緒に戻る（#1881）")
+    func overwritingHintedCellClearsMarkAndUndoRestoresIt() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        model.select(index: blank)
+        #expect(model.applyHint(at: blank))
+        #expect(model.hintedCells.contains(blank))
+        let hinted = model.board[blank]
+
+        model.enter(digit: wrongDigit(for: blank, in: model))
+        #expect(!model.hintedCells.contains(blank), "自力で書いたマスは紫のままにしない")
+
+        model.undo()
+        #expect(model.board[blank] == hinted)
+        #expect(model.hintedCells.contains(blank), "上書き前の数字とヒントの印は一緒に戻る")
+
+        model.enter(digit: model.solution[blank])
+        #expect(!model.hintedCells.contains(blank), "正解の入れ直しでも印は外れる")
+    }
+
     @Test("誤答を取り消すと盤は戻るが、ミス回数は戻らない（#375）")
     func undoRestoresBoardButNotMistakes() async {
         let (model, _) = makeModel()
@@ -612,6 +633,29 @@ struct SudokuUndoTests {
         #expect(!model.canUndo, "ヒントは undo の履歴に載らない（広告の対価を取り消させない）")
         model.undo()
         #expect(model.board[blank] == model.solution[blank], "undo してもヒントは消えない")
+    }
+
+    @Test("数字入りのマスにはメモが付かず、戻す履歴も回数も動かない（#2006）")
+    func noteOnFilledCellIsRejected() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        let digit = model.solution[blank]
+        model.select(index: blank)
+        model.enter(digit: digit)
+        let remaining = model.undosRemaining
+
+        model.toggleNoteMode()
+        let other = digit % 9 + 1
+        model.enter(digit: other)
+        #expect(!model.hasNote(other, at: blank), "メモは付かない")
+        #expect(model.board[blank] == digit)
+
+        // 直前の手は数字の入力のまま（メモの手で上書きされていない）。
+        model.undo()
+        #expect(model.board[blank] == 0, "戻すと数字が消える")
+        #expect(model.undosRemaining == remaining - 1, "戻す回数は 1 回ぶんだけ減る")
+        #expect(!model.hasNote(other, at: blank))
     }
 
     @Test("メモの付け外しも取り消せる")

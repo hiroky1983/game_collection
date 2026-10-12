@@ -54,4 +54,46 @@ struct AppGameCenterService: GameCenterService {
         guard let achievements = try? await GKAchievement.loadAchievements() else { return nil }
         return Set(achievements.filter(\.isCompleted).map(\.identifier))
     }
+
+    /// 送信の完了を待つ版（週間ランキング #1792）。成否だけを返し、失敗しても UI は出さない。
+    func submitAndWait(_ score: GameCenterScore) async -> Bool {
+        do {
+            try await GKLeaderboard.submitScore(
+                score.value,
+                context: 0,
+                player: GKLocalPlayer.local,
+                leaderboardIDs: [score.leaderboardID]
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// 定期リーダーボードのいまの回の順位表を読む（#1792）。読めなかったら nil。
+    func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard? {
+        guard let leaderboard = try? await GKLeaderboard.loadLeaderboards(IDs: [leaderboardID]).first,
+              let page = try? await leaderboard.loadEntries(
+                for: .global, timeScope: .allTime, range: NSRange(location: 1, length: max(1, topCount))
+              )
+        else { return nil }
+        let me = GKLocalPlayer.local.gamePlayerID
+        let rows = page.1.map { entry in
+            GameCenterBoardRow(
+                id: entry.player.gamePlayerID, name: entry.player.displayName,
+                score: entry.score, rank: entry.rank, isMe: entry.player.gamePlayerID == me
+            )
+        }
+        var lastWeekRank: Int?
+        if includesLastWeek,
+           let previous = try? await leaderboard.loadPreviousOccurrence(),
+           let last = try? await previous.loadEntries(for: .global, timeScope: .allTime, range: NSRange(location: 1, length: 1)) {
+            lastWeekRank = last.0?.rank
+        }
+        let end = leaderboard.startDate.map { $0.addingTimeInterval(leaderboard.duration) }
+        return GameCenterBoard(
+            rows: rows, myRank: page.0?.rank, myScore: page.0?.score, participants: page.2,
+            start: leaderboard.startDate, end: end, lastWeekRank: lastWeekRank
+        )
+    }
 }

@@ -20,7 +20,7 @@ struct HomerunRecordsLink: View {
                     .themeBody(16, weight: .heavy)
                     .foregroundStyle(Theme.inkSub)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold)
                     .foregroundStyle(Theme.inkSub)
             }
             .padding(14)
@@ -101,7 +101,7 @@ struct HomerunRecordsCard: View {
                         .foregroundStyle(row.isHidden ? Theme.inkSub : Theme.ink)
                     Spacer(minLength: 8)
                     Text(verbatim: row.value)
-                        .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
+                        .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
                         .foregroundStyle(row.isHidden ? Theme.inkSub : Theme.ink)
                 }
                 .accessibilityElement(children: .combine)

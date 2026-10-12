@@ -189,7 +189,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world5|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world6|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 // ストーリーの始まり（#1092）だけは走行と無関係な View の状態なので、
@@ -378,7 +378,7 @@ public struct RunnerView: View {
             let ratio = min(1, max(0, remaining / RunnerRules.invincibleDuration))
             HStack(spacing: 8) {
                 Text("無敵")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .scaledFont(13, weight: .heavy, design: .rounded)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Theme.onAccent.opacity(0.25))
@@ -388,7 +388,7 @@ public struct RunnerView: View {
                 }
                 .frame(width: 72, height: 6)
                 Text(String(format: "%.1f", remaining))
-                    .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(13, weight: .heavy, design: .rounded).monospacedDigit()
             }
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -467,8 +467,8 @@ public struct RunnerView: View {
         }
     }
 
-    /// おじさんの顔をドット絵の比率（32×30）のまま整数倍で置く（#702）。`scale` は旧来（16×15）の 1 ドット = 何 pt かで、
-    /// 顔が細かくなった（#1349）ぶん実際の 1 ドットは `scale / faceResolution` pt になり、大きさは変わらない。
+    /// おじさんの顔をドット絵の比率（64×60）のまま整数倍で置く（#702）。`scale` は旧来（16×15）の 1 ドット = 何 pt かで、
+    /// 顔が細かくなった（#1349・#2064）ぶん実際の 1 ドットは `scale / faceResolution` pt になり、大きさは変わらない。
     /// `Core` の `OjisanPixel.faceImage` は装飾画像なので VoiceOver には出ない。
     private func ojisanFace(_ face: OjisanPixel.Face, scale: Int) -> some View {
         let dots = OjisanPixel.faceDotSize
@@ -593,9 +593,9 @@ public struct RunnerView: View {
             }
             HStack(spacing: 8) {
                 Image(systemName: "hand.tap.fill")
-                    .font(.system(size: 17, weight: .heavy))
+                    .scaledFont(17, weight: .heavy)
                 Text("タップでスタート")
-                    .font(.system(size: 19, weight: .heavy, design: .rounded))
+                    .scaledFont(19, weight: .heavy, design: .rounded)
             }
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 22).padding(.vertical, 12)
@@ -635,17 +635,17 @@ public struct RunnerView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .scaledFont(20, weight: .heavy)
                 VStack(alignment: .leading, spacing: 1) {
                     if resumingFromCheckpoint {
                         Text("つづきから")
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .scaledFont(20, weight: .heavy, design: .rounded)
                     } else {
                         Text("ワールド \(world.number) \(world.displayName)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .scaledFont(11, weight: .bold, design: .rounded)
                             .opacity(0.8)
                         Text(RunnerAccessibility.stageHeadline(number: number))
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .scaledFont(20, weight: .heavy, design: .rounded)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }

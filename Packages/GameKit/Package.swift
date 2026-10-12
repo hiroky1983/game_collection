@@ -39,9 +39,10 @@ let package = Package(
         .library(name: "HomerunCore",      targets: ["HomerunCore"]),
         .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
-        .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
+        // おじさんの荷物運びパズル（#1016・v1.1.11 でハブに公開 #1904）。
+        .library(name: "GameOjisanPuzzle", targets: ["GameOjisanPuzzle"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -49,7 +50,11 @@ let package = Package(
         // Apple 固有のフレームワークを持ち込まない。Core が `@_exported import CoreEngine` するので、
         // 各ゲーム・App の `import Core` はそのまま CoreEngine の型も見える。
         .target(name: "CoreEngine"),
-        .target(name: "Core",               dependencies: ["CoreEngine"]),
+        .target(name: "Core",               dependencies: ["CoreEngine"],
+                // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
+                resources: [.copy("Resources/OjisanFace_smile.png"),
+                            .copy("Resources/OjisanFace_cheer.png"),
+                            .copy("Resources/OjisanFace_frown.png")]),
         .target(name: "Game2048",           dependencies: ["Core"]),
         .target(name: "GameShogi",          dependencies: ["Core", "CoreEngine"]),
         .target(name: "GameGomoku",         dependencies: ["Core", "CoreEngine"]),
@@ -107,7 +112,7 @@ let package = Package(
         .target(name: "HomerunCore",        dependencies: ["Core"]),
         // 柵越えおじさんの画面（#1348・企画倉庫。v1.1.8 では非公開・会長指示 2026-10-02）。打席・外野は 3D（RealityKit）。判定・台帳・蓄積は HomerunCore。
         // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
-        // 広告/アンケートでの回数回復・解析・Game Center への送信も入っている。
+        // 広告での回数回復・解析・Game Center への送信も入っている。
         // 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）を同梱する。
         .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"],
                 resources: [.copy("Resources/HomerunBatter.usdz"),
@@ -119,15 +124,28 @@ let package = Package(
                             .copy("Resources/HomerunOjisanStance.png"),
                             // 10 球後の結果の演出のおじさんの絵 5 枚（会長作成・2026-10-05・長辺 750px の透明 PNG）。
                             .copy("Resources/Finale")]),
-        // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
-        // Core だけに依存する。
-        .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
         // チャリンコおじさん（#494）。アクション枠の2本目。地形・ジャンプ・当たり判定は
         // SpriteKit に依存しない純粋ロジックなので Core だけに依存する。
         .target(name: "GameRunner",         dependencies: ["Core", "CoreEngine"]),
         // 花札こいこい（#495）。札の絵柄・役の判定・CPU はすべて純粋ロジックなので
         // Core だけに依存する。麻雀牌のような共有描画基盤は持たない（花札は他ゲームと札を共有しない）。
         .target(name: "GameHanafuda",       dependencies: ["Core", "CoreEngine"]),
+        // おじさんの荷物運びパズル（#1016・v1.1.11 で公開 #1904）。連結判定・消去・重力・連鎖は SwiftUI 非依存の純粋ロジックなので
+        // Core だけに依存する（乱数の `SplitMix64` を純ロジックのファイルから直に使うので CoreEngine も）。
+        .target(name: "GameOjisanPuzzle",   dependencies: ["Core", "CoreEngine"],
+                // 作業服おじさんの全身ドット絵 4 コマ（#1909。Codex 製・出所は docs/design/ojisan-pixel-pipeline）。
+                resources: [.copy("Resources/OjisanWork_carry_light_smile.png"),
+                            .copy("Resources/OjisanWork_carry_heavy_pain_sweat.png"),
+                            .copy("Resources/OjisanWork_limit_back_pain.png"),
+                            .copy("Resources/OjisanWork_fallen_face_down_crying.png"),
+                            // 入院の結果に出すベッドのおじさん（#2064。Codex 製 83×64）。
+                            .copy("Resources/OjisanWork_hospital_bed.png"),
+                            // 荷物 5 種のドット絵（#2115。Codex 製 24×24・出所は docs/design/ojisan-pixel-pipeline）。
+                            .copy("Resources/OjisanLuggage_1_zabuton.png"),
+                            .copy("Resources/OjisanLuggage_2_suika.png"),
+                            .copy("Resources/OjisanLuggage_3_coolerbox.png"),
+                            .copy("Resources/OjisanLuggage_4_polytank.png"),
+                            .copy("Resources/OjisanLuggage_5_beercase.png")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
         .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles", "CoreEngine"]),
@@ -201,9 +219,9 @@ let package = Package(
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
         .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
+        .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -212,7 +230,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
         ]),
         // ゲーム間レコメンドも全ゲーム横断（決着の数え上げを全 Model で検証する）。
@@ -220,15 +238,15 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameAnzan", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
         ]),
         // 遊び方ガイド（#118）も全ゲーム横断（全ゲームぶんの文言と初回フラグの永続化を検証する）。
@@ -236,27 +254,27 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
         .testTarget(name: "AnalyticsTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
@@ -264,7 +282,7 @@ let package = Package(
         .testTarget(name: "AccessibilityTests", dependencies: [
             "Core", "GameShogi", "GameGomoku", "GameMinesweeper", "GameOthello",
             "GameDaifugo", "GameMahjongSolitaire", "GameMahjong", "MahjongTiles", "GameSudoku",
-            "GameGo", "GameSolitaire", "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle",
+            "GameGo", "GameSolitaire", "GameChess", "GameBlocks", "GameFreeCell",
             "GameHanafuda", "GameSpider", "GameKitTestSupport",
         ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
@@ -272,7 +290,7 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
-            "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
+            "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
         ]),
     ]

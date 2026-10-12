@@ -103,7 +103,7 @@ struct KomaView: View {
                                     lineWidth: max(1, size * 0.02))
                     )
                 Text(Glyph.kanji(for: piece))
-                    .font(.system(size: size * 0.46, weight: .black, design: .serif))
+                    .font(.system(size: size * 0.46, weight: .black, design: .serif)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(piece.promoted ? Theme.coral : BoardStyle.komaText)
                     // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
                     .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)

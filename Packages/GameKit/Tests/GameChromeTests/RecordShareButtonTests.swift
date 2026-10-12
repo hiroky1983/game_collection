@@ -109,10 +109,12 @@ struct RecordShareWiringTests {
         #expect(Self.count(".environment(\\.recordShare", in: source) == 1, "共有の情報の配り口が1か所ではない")
         #expect(
             source.range(
-                of: #"module\.makeView\(services: services\)\s*\.environment\(\\\.recordShare, RecordShareContext\("#,
+                of: #"GameScreenHost\s*\{\s*module\.makeView\(services: services\)\s*\}\s*\.environment\(\\\.recordShare, RecordShareContext\("#,
                 options: .regularExpression
             ) != nil,
             "navigationDestination で作るゲーム画面に配っていない"
         )
+        // ゲーム画面を作る場所はここだけ。入れ物を通さないと描き直しのたびに model が作り捨てられる（#1926）。
+        #expect(Self.count("makeView(services:", in: source) == 1, "ゲーム画面を作る場所が1か所ではない")
     }
 }

@@ -92,17 +92,19 @@ public struct SudokuView: View {
                 showNewGame = false
             }
         }
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると解きかけの盤面が失われます。")
-        }
-        .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
-            Button("諦める", role: .destructive) { model.giveUp() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("答えがすべて表示され、この局は記録上「クリアできなかった」扱いになります。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると解きかけの盤面が失われます。")
+            }
+            .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
+                Button("諦める", role: .destructive) { model.giveUp() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("答えがすべて表示され、この局は記録上「クリアできなかった」扱いになります。")
+            }
         }
         .rewardedRescueAlerts(
             hintRescue,
@@ -112,11 +114,13 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
             )
         )
-        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-            Button("広告を見て\(SudokuUndoBudget.refill)回補充する") { requestUndoRefill() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴すると「戻す」を\(SudokuUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        .dialogs { anchor in
+            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(SudokuUndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(SudokuUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
@@ -409,7 +413,7 @@ public struct SudokuView: View {
                 .opacity(flashing.contains(index) ? 1 : 0)
             if digit != 0 {
                 Text("\(digit)")
-                    .font(.system(size: side * 0.58, weight: isGiven ? .black : .semibold, design: .rounded))
+                    .font(.system(size: side * 0.58, weight: isGiven ? .black : .semibold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(digitColor(isGiven: isGiven, isError: isError, isHinted: isHinted))
                     .minimumScaleFactor(0.5)
             } else if !noteDigits.isEmpty {
@@ -449,7 +453,7 @@ public struct SudokuView: View {
                     ForEach(0..<3, id: \.self) { c in
                         let digit = r * 3 + c + 1
                         Text(noteDigits.contains(digit) ? "\(digit)" : " ")
-                            .font(.system(size: side * 0.22, weight: .semibold, design: .rounded))
+                            .font(.system(size: side * 0.22, weight: .semibold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                             .foregroundStyle(Theme.inkSub)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -564,7 +568,7 @@ public struct SudokuView: View {
             model.enter(digit: digit)
         } label: {
             Text("\(digit)")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .scaledFont(20, weight: .bold, design: .rounded)
                 // 使い切った数字は文字だけを薄くする（#666）。ボタンの面は残し、並びの位置は変えない。
                 .opacity(exhausted ? SudokuMetrics.exhaustedDigitOpacity : 1)
                 .frame(maxWidth: .infinity)
@@ -587,7 +591,7 @@ public struct SudokuView: View {
             model.erase()
         } label: {
             Image(systemName: "delete.left")
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, weight: .bold)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: SudokuMetrics.padButtonMinSide)
                 .background(
@@ -618,7 +622,7 @@ public struct SudokuView: View {
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
             GameActionItem(
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !undoRescue.isWatching,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
@@ -630,7 +634,7 @@ public struct SudokuView: View {
             ) { requestUndo() },
             GameActionItem(
                 id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
-                badge: .ad(remaining: model.remainingHints),
+                badge: model.remainingHints > 0 ? .ad() : .count(0),
                 isEnabled: model.canHint && !hintRescue.isWatching,
                 accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
                 accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"

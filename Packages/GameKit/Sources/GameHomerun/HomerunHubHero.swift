@@ -82,15 +82,15 @@ struct HomerunHeroCountDots: View {
             HStack(spacing: size * 0.3) {
                 ForEach(0..<total, id: \.self) { i in
                     Image(systemName: "baseball.fill")
-                        .font(.system(size: size))
+                        .font(.system(size: size)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .foregroundStyle(i < litCount ? lit : dim)
                 }
             }
         case .number(let remaining):
             HStack(spacing: 4) {
-                Image(systemName: "baseball.fill").font(.system(size: size)).foregroundStyle(remaining > 0 ? lit : dim)
+                Image(systemName: "baseball.fill").font(.system(size: size)).foregroundStyle(remaining > 0 ? lit : dim) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 Text(verbatim: "×\(remaining)")
-                    .font(.system(size: size, weight: .heavy, design: .rounded).monospacedDigit())
+                    .font(.system(size: size, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(remaining > 0 ? lit : dim)
             }
         }

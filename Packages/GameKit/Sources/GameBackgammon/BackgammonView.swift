@@ -50,10 +50,12 @@ public struct BackgammonView: View {
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
-        .alert("動かせません", isPresented: $showPassAlert) {
-            Button("OK") { model.confirmPass() }
-        } message: {
-            Text("この目で動かせる駒がありません。CPU の番になります。")
+        .dialogs { anchor in
+            anchor.alert("動かせません", isPresented: $showPassAlert) {
+                Button("OK") { model.confirmPass() }
+            } message: {
+                Text("この目で動かせる駒がありません。CPU の番になります。")
+            }
         }
         .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
         // パスの案内は **`mustPass` ではなく手番の鍵（`aiTurnKey`）の変化で出す**。CPU がパスした直後に
@@ -86,14 +88,14 @@ public struct BackgammonView: View {
             HStack(spacing: 8) {
                 if model.gameOver {
                     Text("終局")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .scaledFont(13, weight: .bold, design: .rounded)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(Theme.fillMuted))
                 } else {
                     let isMine = !model.isAITurn
                     Text(isMine ? "あなたの番" : "CPUの番")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .scaledFont(13, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
@@ -113,7 +115,7 @@ public struct BackgammonView: View {
                     Text("あなた \(model.humanPips)")
                     Text("CPU \(model.cpuPips)")
                 }
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(12, weight: .semibold, design: .rounded)
                 .monospacedDigit()
                 .foregroundStyle(Theme.inkSub)
                 .accessibilityElement(children: .combine)
@@ -254,18 +256,18 @@ public struct BackgammonView: View {
             VStack(spacing: 12) {
                 let isWin = model.winner == model.humanSide
                 Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                    .font(.system(size: 40))
+                    .scaledFont(40, maxScale: 1.2)
                     .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
                 Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .scaledFont(24, weight: .bold, design: .rounded)
                     .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                 if let kind = model.winKind, kind != .single {
                     Text("\(kind.label)（\(kind.rawValue)点）")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .scaledFont(15, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.ink)
                 }
                 Text("あがり あなた \(model.board.off(for: .white)) – CPU \(model.board.off(for: .black))")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .scaledFont(15, weight: .semibold, design: .rounded)
                     .monospacedDigit()
                     .foregroundStyle(Theme.inkSub)
                 RecordLabel(model.recordResult)
@@ -300,10 +302,8 @@ public struct BackgammonView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
             }
+            .buttonStyle(.game(.primary))
             Spacer(minLength: 0)
         }
         .themeBody(14)
@@ -546,7 +546,7 @@ private struct BackgammonBoardCanvas: View {
                                with: .color(Color(hex: BackgammonBoardStyle.selected)), lineWidth: 2.5)
                 }
                 if let label {
-                    ctx.draw(Text(label).font(.system(size: d * 0.5, weight: .bold, design: .rounded))
+                    ctx.draw(Text(label).font(.system(size: d * 0.5, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                         .foregroundColor(side == .white ? Color(hex: 0x2B2624) : .white),
                              at: CGPoint(x: face.midX, y: face.midY))
                 }

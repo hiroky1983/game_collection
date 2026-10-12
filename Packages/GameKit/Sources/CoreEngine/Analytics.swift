@@ -138,6 +138,17 @@ public enum AnalyticsLevel: Equatable, Sendable {
         }
     }
 
+    /// `parameterValue` の逆。中断の控えから復元するときだけ使う。読めない値は nil。
+    public init?(parameterValue: String) {
+        if let strength = Self.allStrengths.first(where: { $0.parameterValue == parameterValue }) {
+            self = strength
+        } else if parameterValue.hasPrefix("stage-"), let number = Int(parameterValue.dropFirst("stage-".count)), number >= 1 {
+            self = .stage(number)
+        } else {
+            return nil
+        }
+    }
+
     /// 強さを表す段階の全量（やさしい順）。`stage` は面数がゲームごとに違うためここには入らない。
     public static let allStrengths: [AnalyticsLevel] = [.novice, .beginner, .normal, .hard, .expert]
 
@@ -170,6 +181,11 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case stage
     /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。
     case endless
+    /// おじさんの荷物運びパズルの荷運びモード（表示名。旧名・腰痛モード。ゲージあり・片付け型。
+    /// この値 `backpain` は記録・解析を引き継ぐため変えない。#1920）。
+    case backpain
+    /// おじさんの荷物運びパズルのパズルモード（ゲージなし・得点を競う。#1920）。
+    case puzzle
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
@@ -179,8 +195,6 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
 public enum AnalyticsCredit: String, Equatable, Sendable, CaseIterable {
     /// 毎日の無料枠。
     case free
-    /// アンケートに答えた報酬の枠。
-    case survey
     /// リワード広告を見た報酬の枠。
     case ad
     /// ゲームのご褒美（月を落とした・#1680）の枠。
@@ -197,7 +211,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case recent
     /// リザルト画面のレコメンドカード（#52）。
     case recommendation
-    /// 中断したゲームのローカル通知（#663）。**発火点はまだ無い**（#663 の実装で使う）。
+    /// 通知の種類を分ける前の旧値（#663）。**発火点は無い**（#1950 で下の 3 つに分けた）。
+    /// 既存の GA4 レポートの値を壊さないよう、語彙には残す。
     case notification
     /// ハブ最上部の「はじめの1本」（#721）。記録がゼロの初回だけ出る1枚。
     case firstPick = "first_pick"
@@ -205,13 +220,24 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case quickAction = "quick_action"
     /// ハブ先頭の特別枠（柵越えおじさん・#1761）。1枚しか出ないので `position` は持たない。
     case hero
+    /// 中断したゲームのローカル通知（#663・#1950）。
+    case resumeReminder = "resume_reminder"
+    /// 久しぶりに遊ぼうの再エンゲージメント通知（#1193・#1950）。
+    case reengagement
+    /// 挑戦回数が戻ったお知らせ（#1576・#1950）。
+    case challengeReturn = "challenge_return"
+    /// 「きろく」画面のゲーム行（#1974）。並びは記録画面のもので、ハブの位置とは別物なので `position` は持たない。
+    case records
+    /// ディープリンク `asobiba://game/<game_id>`（#2141。App 内イベントのリンク等）。
+    case deeplink
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
     public var hasPosition: Bool {
         switch self {
         case .hub, .recent:                              return true
-        case .recommendation, .notification, .firstPick, .quickAction, .hero: return false
+        case .recommendation, .notification, .firstPick, .quickAction, .hero,
+             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink: return false
         }
     }
 }
@@ -252,12 +278,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
     /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）、そのプレイで 1 度でも
     /// ミスしたゲームだけ `cause`（最後のミスの原因・#796）、無料ヒントを 1 回でも使ったプレイだけ
-    /// `hints_used`（#1326）。
+    /// `hints_used`（#1326）、開始時に `level` を付けたプレイだけ同じ値の `level`（#1888・面・難易度ごとの勝ち負けを読むため）。
     /// 決着（win / loss / draw）と途中離脱（quit）の両方がこのイベントで出る。
     case gameEnd(
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
-        credit: AnalyticsCredit? = nil
+        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil
     )
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
@@ -279,10 +305,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
     case shareTap(gameID: String)
-    /// ゲーム内アンケートに答えた（#1348）。パラメータは `game_id` と設問ごとの `q1` `q2` …（**選んだ選択肢の番号・1 始まり**）。
-    ///
-    /// 選択式だけで自由記述は載せない。回答は端末に残さず、この 1 回の送信だけで完結する。
-    case surveyAnswer(gameID: String, answers: [Int])
+    /// 通知の許可ダイアログの結果（#2008）。ダイアログを実際に出した 1 回につき 1 回。
+    /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
+    case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -294,7 +319,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .gameOpen:      return "game_open"
         case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
-        case .surveyAnswer:  return "survey_answer"
+        case .notificationPermission: return "notification_permission"
         }
     }
 
@@ -315,7 +340,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -330,6 +355,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
             if hintsUsed > 0 { parameters["hints_used"] = .int(hintsUsed) }
             // 開始時に `credit` を付けたプレイだけ（開始と終わりを同じ鍵で突き合わせるため・枠ごとの遊んだ時間を出す）。
             if let credit { parameters["credit"] = .string(credit.rawValue) }
+            // 開始時に `level` を付けたプレイだけ（`game_start` と同じ値・同じ鍵。#1888）。
+            if let level { parameters["level"] = .string(level.parameterValue) }
             return parameters
         case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
@@ -354,12 +381,29 @@ public enum AnalyticsEvent: Equatable, Sendable {
             ]
         case let .shareTap(gameID):
             return ["game_id": .string(gameID)]
-        case let .surveyAnswer(gameID, answers):
-            var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
-            for (index, answer) in answers.enumerated() { parameters["q\(index + 1)"] = .int(answer) }
-            return parameters
+        case let .notificationPermission(result, trigger):
+            return [
+                "result": .string(result.rawValue),
+                "trigger": .string(trigger.rawValue),
+            ]
         }
     }
+}
+
+/// 通知の許可ダイアログの結果（#2008）。
+public enum NotificationPermissionResult: String, Sendable {
+    case granted
+    case denied
+}
+
+/// 許可ダイアログを出した通知の種類（#2008）。
+public enum NotificationPermissionTrigger: String, Sendable {
+    /// 中断したゲームのお知らせ（#663）。
+    case resume
+    /// 挑戦回数が戻ったお知らせ（#1576）。
+    case challenge
+    /// 久しぶりに遊ぼうの再エンゲージメント通知（#1193）。
+    case reengagement
 }
 
 /// 解析送信の境界。**Firebase に依存しない**プロトコルで、実装は App 層が注入する
@@ -424,6 +468,8 @@ public final class GameAnalytics {
     private var modes: [String: AnalyticsMode] = [:]
     /// 進行中のプレイの `credit`（#1685）。開始で覚え、終わりの `game_end` に同じ値を載せる。回数制でないゲームは鍵が無い。
     private var credits: [String: AnalyticsCredit] = [:]
+    /// 進行中のプレイの `level`（#1888）。開始で覚え、終わりの `game_end` に同じ値を載せる。`level` を持たないゲームは鍵が無い。
+    private var levels: [String: AnalyticsLevel] = [:]
     /// 進行中のプレイで最後にミスした原因（#796）。終わりの `game_end` に `cause` として載せる。
     /// プレイを始め直すと消える。ミスしていないプレイは鍵が無い。
     private var causes: [String: AnalyticsEndCause] = [:]
@@ -592,10 +638,11 @@ public final class GameAnalytics {
         service.log(.shareTap(gameID: gameID))
     }
 
-    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。プレイの数え方には影響しない。
-    public func recordSurveyAnswer(gameID: String, answers: [Int]) {
-        guard allowedGameIDs.contains(gameID) else { return }
-        service.log(.surveyAnswer(gameID: gameID, answers: answers))
+    /// 通知の許可ダイアログを出して結果が返ったときに呼ぶ（#2008）。プレイの数え方には影響しない。
+    public func recordNotificationPermission(
+        result: NotificationPermissionResult, trigger: NotificationPermissionTrigger
+    ) {
+        service.log(.notificationPermission(result: result, trigger: trigger))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
@@ -654,6 +701,8 @@ public final class GameAnalytics {
         var didProgress: Bool
         var hintsUsed: Int
         var mode: String?
+        /// `level` の `parameterValue`。この項目が無い旧版の控えも読めるよう optional（#1888）。
+        var level: String?
     }
 
     private func loadRests() -> [String: RestEntry] {
@@ -677,7 +726,8 @@ public final class GameAnalytics {
         var rests = loadRests()
         rests[gameID] = RestEntry(
             activeSeconds: activeSeconds[gameID] ?? 0, didProgress: didProgress,
-            hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue
+            hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue,
+            level: levels[gameID]?.parameterValue
         )
         saveRests(rests)
     }
@@ -696,6 +746,7 @@ public final class GameAnalytics {
             startedAt: now(), didProgress: entry.didProgress, canResume: true, hintsUsed: entry.hintsUsed
         )
         modes[gameID] = entry.mode.flatMap(AnalyticsMode.init(rawValue:))
+        levels[gameID] = entry.level.flatMap(AnalyticsLevel.init(parameterValue:))
         activeSeconds[gameID] = entry.activeSeconds
         resumeClock(gameID: gameID)
     }
@@ -747,7 +798,8 @@ public final class GameAnalytics {
         let seconds = min(Self.maxDurationSeconds, max(0, Int(activeSeconds[gameID] ?? 0)))
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
-            mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID]
+            mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
+            level: levels[gameID]
         ))
     }
 
@@ -756,6 +808,7 @@ public final class GameAnalytics {
         plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true, hintsUsed: 0)
         modes[gameID] = mode
         credits[gameID] = credit
+        levels[gameID] = level
         clearClock(gameID: gameID)
         resumeClock(gameID: gameID)
         // 前のプレイの死因を次のプレイへ持ち越さない。

@@ -207,10 +207,10 @@ public struct MahjongTileArt: View {
     private func charactersFace(_ n: Int) -> some View {
         VStack(spacing: -height * 0.06) {
             Text(Self.kanjiNumerals[clamp(n - 1, 8)])
-                .font(.system(size: width * 0.62, weight: .bold, design: .serif))
+                .font(.system(size: width * 0.62, weight: .bold, design: .serif)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Theme.Fixed.ink)
             Text("萬")
-                .font(.system(size: width * 0.46, weight: .bold, design: .serif))
+                .font(.system(size: width * 0.46, weight: .bold, design: .serif)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Self.accentColor)
         }
         .lineLimit(1)
@@ -337,7 +337,7 @@ public struct MahjongTileArt: View {
 
     private func glyph(_ text: String, color: Color) -> some View {
         Text(text)
-            .font(.system(size: width * 0.82, weight: .bold, design: .serif))
+            .font(.system(size: width * 0.82, weight: .bold, design: .serif)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
             .foregroundStyle(color)
             .lineLimit(1)
             .minimumScaleFactor(0.4)

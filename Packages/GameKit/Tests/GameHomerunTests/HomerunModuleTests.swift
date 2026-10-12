@@ -208,20 +208,6 @@ struct HomerunModuleTests {
         #expect(source.contains("v1.1.9 でハブに公開"))
     }
 
-    @Test("アンケートの入口は v1.1.9 では出さない（会長決裁 2026-10-03・#1784）が、台帳の互換は残る")
-    func surveyEntryIsNotOffered() throws {
-        #expect(!HomerunSurvey.isOffered)
-        let source = try String(
-            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("Packages/GameKit/Sources/GameHomerun/HomerunView.swift"),
-            encoding: .utf8
-        )
-        #expect(source.contains("if HomerunSurvey.isOffered && ledger.canDoSurvey { surveyButton }"),
-                "入口の分岐は isOffered を通す 1 か所だけ")
-        // 互換: 既に答えた台帳は従来どおり +1 を持つ。
-        let ledger = HomerunLedger(dayKey: 1, surveyDone: true)
-        #expect(ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
-    }
-
     @Test("動作確認用の強制（回数無制限・月・ポール・空振りの演出）は出荷ビルドでは鍵が残っていても効かない")
     func debugOverridesAreIgnoredInReleaseBuild() throws {
         let defaults = UserDefaults(suiteName: "HomerunDebugOverrides.\(UUID())")!
@@ -411,13 +397,16 @@ struct HomerunGeometryTests {
         #expect(loose[1].y + size.height / 2 > frame.maxY)
     }
 
-    @Test("合計飛距離（m）は順位表 homerunDistance へ送る")
+    @Test("常設の順位表には送らない（週間ランキングだけ・会長指示 2026-10-12）")
     @MainActor func leaderboardMapping() {
-        let mapped = GameCenterLeaderboard.score(
-            gameID: HomerunModel.gameID, outcome: .loss, score: GameScore(metric: .points, points: 812)
-        )
-        #expect(mapped == GameCenterScore(leaderboardID: GameCenterLeaderboard.homerunDistance, value: 812))
-        #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.homerunDistance))
+        for outcome in [GameOutcome.win, .loss] {
+            let mapped = GameCenterLeaderboard.score(
+                gameID: HomerunModel.gameID, outcome: outcome, score: GameScore(metric: .points, points: 812)
+            )
+            #expect(mapped == nil)
+        }
+        #expect(!GameCenterLeaderboard.allIDs.contains("asobiba.homerun.distance"))
+        #expect(GameCenterLeaderboard.homerunWeekly == "asobiba.homerun.weekly")
     }
 
     @Test("方向メーターは既定でオン。切り替えは保存され、次のモデルに引き継がれる")

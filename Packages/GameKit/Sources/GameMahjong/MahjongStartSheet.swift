@@ -26,7 +26,7 @@ struct MahjongStartSheet: View {
                     }
                 }
                 Text(length.summary)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -42,10 +42,10 @@ struct MahjongStartSheet: View {
                 HStack {
                     Image(systemName: "list.bullet.rectangle")
                     Text("ルールと役を見る")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .scaledFont(15, weight: .semibold, design: .rounded)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, weight: .semibold)
                         .foregroundStyle(Theme.inkSub)
                 }
                 .foregroundStyle(Theme.coral)
@@ -81,12 +81,12 @@ struct MahjongStartSheet: View {
     private func ruleRow(_ num: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Text(num)
-                .font(.system(size: 12, weight: .black, design: .rounded))
+                .scaledFont(12, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .frame(width: 20, height: 20)
                 .background(Circle().fill(Theme.Fill.coral))
             Text(text)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .scaledFont(13, weight: .medium, design: .rounded)
                 .foregroundStyle(Theme.ink)
             Spacer()
         }

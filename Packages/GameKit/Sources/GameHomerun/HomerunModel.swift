@@ -126,6 +126,12 @@ public final class HomerunModel {
     public internal(set) var unlockedThisChallenge: [HomerunAchievement] = []
     /// 挑戦の最後の球で実績を解除したか（打席の「実績解禁」を出さずに 10 球の結果へ進んだ・効果音 `HomerunSoundCues`）。
     public private(set) var unlockedAtFinish = false
+    // 週間ランキング（#1792・`HomerunModel+Weekly.swift`）。
+    /// 週間ランキングの送り先。nil（App Store Connect に未作成）のあいだはランキングを出さない。
+    let weeklyLeaderboardID: String?
+    /// いまの挑戦の週間ランキングの状態。決着で読み込みを始め、結果ページの前後で画面が読む。
+    public internal(set) var weekly: WeeklyState = .off
+    var weeklyTask: Task<Void, Never>?
     /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
     public internal(set) var gameCenterLinked = false
     /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
@@ -209,8 +215,10 @@ public final class HomerunModel {
     public init(services: GameServices? = nil, defaults: UserDefaults = .standard, calendar: Calendar = .current,
                 directionMeter: FeedbackPreference = .homerunDirectionMeter,
                 pitches: [HomerunPitch] = HomerunPitch.standardSequence, aimAssist: HomerunAimAssist = .standard,
+                weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly,
                 now: Date = Date()) {
         self.services = services
+        self.weeklyLeaderboardID = weeklyLeaderboardID
         self.aimAssist = aimAssist
         self.defaults = defaults
         self.directionMeter = directionMeter
@@ -339,6 +347,7 @@ public final class HomerunModel {
         awaitsAtBat = true
         lastBall = nil
         isNewBest = false
+        cancelWeekly()
         hasProgressed = false
         whiffCount = 0
         resetUnlockDisplay()
@@ -361,7 +370,6 @@ public final class HomerunModel {
         switch credit {
         case .free:   return .free
         case .bonus:  return .bonus
-        case .survey: return .survey
         case .ad:     return .ad
         }
     }
@@ -380,18 +388,6 @@ public final class HomerunModel {
     /// 打席に立ってから、打席の画面が描き始める（`atBatDidAppear`）までの間。1 球目は数え直す前なので、ゾーンの読み上げに
     /// ボールの位置を出さない。
     public private(set) var awaitsAtBat = false
-
-    /// アンケートに答えた報酬として今日の挑戦回数を 1 回増やす（1 日 1 回）。日付の照合は `startWithAd` と同じ。
-    /// 回答は選択肢の番号だけを `survey_answer` で送り、端末には残さない（台帳の「済み」フラグだけ）。
-    /// 未回答の設問がある・すでに済み・日付が変わっていれば増やさず false（回答も送らない）。
-    @discardableResult
-    public func submitSurvey(_ answers: [Int], forDay dayKey: Int, now: Date) -> Bool {
-        refreshDay(now: now)
-        guard HomerunSurvey.isValid(answers), ledger.dayKey == dayKey, ledger.grantSurvey() else { return false }
-        HomerunStorage.saveLedger(ledger, defaults)
-        services?.gameDidAnswerSurvey(gameID: Self.gameID, answers: answers)
-        return true
-    }
 
     /// 広告を出す前に控える「今日」の鍵（`startWithAd(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
     /// 作る（画面を開いたまま 0:00 を過ぎても、日付の更新は前面へ戻るか打席に立つまで走らないため、
@@ -679,6 +675,7 @@ public final class HomerunModel {
         // 評価のお願いは、10 球目（月が割れた球）の結果と結果の演出を見せ終えて結果画面に移ってから出す
         // （`finish` で表に戻す・チャリンコおじさんの #1143 と同じ仕組み）。`gameDidFinish` が伏せを解くので、その後で伏せる。
         services?.deferReviewRequestUntilResultIsVisible()
+        beginWeekly(for: challenge)
     }
 
     /// 結果の演出の始まり・終わりの時刻（`.finale` の間だけ値がある）。

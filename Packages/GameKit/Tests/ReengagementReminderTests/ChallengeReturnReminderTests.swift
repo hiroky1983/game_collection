@@ -125,4 +125,45 @@ struct ChallengeReturnReminderTests {
                 "通知オフの取り消しが didSet と初期化の 2 か所に入っていない")
         #expect(source.contains("let returnReminder = ChallengeReturnReminderService("))
     }
+
+    // MARK: - タップの着地（#1950）
+
+    @Test("識別子から通知の種類と行き先を決める。知らない識別子・gameID の欠けは nil")
+    func tapTargetResolution() {
+        typealias T = NotificationTapTarget
+        #expect(T.resolve(identifier: "resume-reminder.shogi", gameID: "shogi") == .resumeReminder(gameID: "shogi"))
+        #expect(T.resolve(identifier: "reengagement-reminder.2048.0", gameID: "2048") == .reengagement(gameID: "2048"))
+        // 戻る通知は userInfo を持たない。識別子だけで柵越えおじさんに着地する。
+        #expect(T.resolve(identifier: "challenge-return.homerun", gameID: nil) == .challengeReturn(gameID: "homerun"))
+        #expect(T.resolve(identifier: "challenge-return.homerun", gameID: "shogi") == .challengeReturn(gameID: "homerun"),
+                "戻る通知は userInfo の gameID に引きずられない")
+        #expect(T.resolve(identifier: "resume-reminder.shogi", gameID: nil) == nil)
+        #expect(T.resolve(identifier: "reengagement-reminder.2048.0", gameID: nil) == nil)
+        #expect(T.resolve(identifier: "other.homerun", gameID: "homerun") == nil)
+        #expect(T.resolve(identifier: "", gameID: "homerun") == nil)
+    }
+
+    @Test("タップを受けると、ハブへ渡すゲームが立つ")
+    func tapSetsRequestedGame() {
+        let service = make(SpyReturnScheduler())
+        #expect(service.requestedGameID == nil)
+        service.notificationTapped(gameID: "homerun")
+        #expect(service.requestedGameID == "homerun")
+    }
+
+    @Test("戻る通知のタップを AppDelegate が受け、ハブが challenge_return の導線で開く（結線）")
+    func tapIsWiredToHub() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("AppEnvironment.returnReminder.notificationTapped(gameID: gameID)"),
+                "タップがサービスへ届いていない")
+        guard let handler = source.range(of: ".onChange(of: services.returnReminder?.requestedGameID, initial: true)") else {
+            Issue.record("ハブが戻る通知のタップを受け取っていない")
+            return
+        }
+        let body = String(source[handler.upperBound...].prefix(700))
+        #expect(body.range(of: #"visibleModules\(from: registry\)"#, options: .regularExpression) != nil,
+                "非表示のゲームを開かない判定が無い")
+        #expect(body.range(of: #"openFromOutside\(HubRoute\(\s*gameID: id, source: \.challengeReturn,"#, options: .regularExpression) != nil,
+                "ハブが challenge_return の導線で開いていない")
+    }
 }

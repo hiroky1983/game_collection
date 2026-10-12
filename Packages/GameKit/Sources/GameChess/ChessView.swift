@@ -82,11 +82,13 @@ public struct ChessView: View {
                 showNewGame = false
             }
         }
-        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規対局", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると対局データが失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規対局", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると対局データが失われます。")
+            }
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }
@@ -395,11 +397,11 @@ public struct ChessView: View {
                     let rankSquare = squareIndex(row: i, col: 0)
                     let fileSquare = squareIndex(row: 7, col: i)
                     Text(ChessSquare.name(rankSquare).suffix(1))
-                        .font(.system(size: max(7, cell * 0.20), weight: .bold, design: .rounded))
+                        .font(.system(size: max(7, cell * 0.20), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .foregroundStyle(ChessBoardStyle.coordinate(onLight: ChessSquare.isLightSquare(rankSquare)))
                         .position(x: slot * 0.18, y: slot * (CGFloat(i) + 0.18))
                     Text(ChessSquare.name(fileSquare).prefix(1))
-                        .font(.system(size: max(7, cell * 0.20), weight: .bold, design: .rounded))
+                        .font(.system(size: max(7, cell * 0.20), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .foregroundStyle(ChessBoardStyle.coordinate(onLight: ChessSquare.isLightSquare(fileSquare)))
                         .position(x: slot * (CGFloat(i) + 0.84), y: slot * 7.84)
                 }
@@ -513,7 +515,7 @@ private struct CapturedAreaView: View {
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(owner.name)
-                    .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
+                    .scaledFont(12).foregroundStyle(Theme.inkSub)
             }
             .frame(width: 38, alignment: .leading)
 

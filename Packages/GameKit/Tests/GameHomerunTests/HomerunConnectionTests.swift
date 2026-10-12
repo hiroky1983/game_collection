@@ -151,73 +151,6 @@ struct HomerunConnectionTests {
         #expect(model.ledger.canStart)
     }
 
-    @Test("アンケート +1・月のご褒美 +1 は今どおり回数に足す（広告でのプレイとは別）")
-    func surveyAndMoonStillAddToCount() throws {
-        let model = makeModel()
-        try useUpFree(model)
-        #expect(model.submitSurvey([1, 2, 3], forDay: model.dayKey(at: Self.t0), now: Self.t0))
-        #expect(model.ledger.remaining == HomerunLedger.surveyBonus)
-        #expect(!model.ledger.canPlayWithAd, "回数があるうちは広告のボタンを出さない")
-        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
-    }
-
-    // MARK: アンケートで +1
-
-    @Test("アンケートに答えると今日の回数が 1 増え、保存される。1 日 1 回")
-    func surveyGrantsOncePerDay() {
-        let defaults = makeDefaults()
-        let model = makeModel(defaults: defaults)
-        let day = model.dayKey(at: Self.t0)
-        #expect(model.submitSurvey([1, 2, 3], forDay: day, now: Self.t0))
-        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
-        #expect(!model.submitSurvey([1, 2, 3], forDay: day, now: Self.t0), "2 回目は増えない")
-        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
-        #expect(HomerunStorage.loadLedger(defaults).surveyDone)
-    }
-
-    @Test("未回答・範囲外の回答では増えず、回答も送られない")
-    func incompleteSurveyIsRejected() {
-        let spy = SpyAnalyticsService()
-        let model = makeModel(services: makeServices(spy: spy))
-        let day = model.dayKey(at: Self.t0)
-        #expect(!model.submitSurvey([1, 2], forDay: day, now: Self.t0), "2 問しか答えていない")
-        #expect(!model.submitSurvey([1, 2, 9], forDay: day, now: Self.t0), "選択肢の範囲外")
-        #expect(!model.submitSurvey([0, 1, 1], forDay: day, now: Self.t0), "番号は 1 始まり")
-        #expect(!model.ledger.surveyDone)
-        #expect(spy.events.isEmpty)
-    }
-
-    @Test("回答中に 0:00 をまたいだら、前の日の回答では増やさず送りもしない")
-    func surveyAcrossMidnightIsRejected() {
-        let spy = SpyAnalyticsService()
-        let model = makeModel(services: makeServices(spy: spy))
-        let dayBefore = model.dayKey(at: Self.t0)
-        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
-        #expect(!model.submitSurvey([1, 1, 1], forDay: dayBefore, now: nextDay))
-        #expect(!model.ledger.surveyDone)
-        #expect(spy.events.isEmpty)
-    }
-
-    @Test("回答は survey_answer として選択肢の番号だけが 1 回送られ、端末には台帳の済みフラグしか残らない")
-    func surveySendsAnswersOnlyOnce() {
-        let spy = SpyAnalyticsService()
-        let defaults = makeDefaults()
-        let model = makeModel(services: makeServices(spy: spy), defaults: defaults)
-        let day = model.dayKey(at: Self.t0)
-        model.submitSurvey([2, 4, 1], forDay: day, now: Self.t0)
-        model.submitSurvey([1, 1, 1], forDay: day, now: Self.t0)
-        #expect(spy.events == [.surveyAnswer(gameID: HomerunModel.gameID, answers: [2, 4, 1])])
-    }
-
-    @Test("設問は 3 問で、番号の範囲が選択肢の数と一致する")
-    func surveyValidation() {
-        #expect(HomerunSurvey.questions.count == 3)
-        #expect(HomerunSurvey.isValid([1, 1, 1]))
-        let maxes = HomerunSurvey.questions.map(\.choices.count)
-        #expect(HomerunSurvey.isValid(maxes))
-        #expect(!HomerunSurvey.isValid(maxes.map { $0 + 1 }))
-    }
-
     // MARK: 解析・記録
 
     @Test("広告を見てプレイした打席の credit は ad（game_start と game_end の両方・#1685 × #1694）")
@@ -232,25 +165,25 @@ struct HomerunConnectionTests {
         #expect(spy.endCredits.last == .ad)
     }
 
-    @Test("消費した枠（credit）は 無料 → ご褒美 → アンケート → 広告 の固定順で、game_start と game_end の両方に載る（#1685）")
+    @Test("消費した枠（credit）は 無料 → ご褒美 → 広告 の固定順で、game_start と game_end の両方に載る（#1685）")
     func creditFollowsFixedOrder() throws {
         let spy = SpyAnalyticsService()
         let defaults = makeDefaults()
         let day = HomerunLedger.dayKey(for: Self.t0, calendar: Self.calendar)
-        // 無料 3 + ご褒美 2（月 1 回）+ アンケート 1 + 広告 1。もらった順（広告が先）に関わらず固定順で使う。
-        var ledger = HomerunLedger(dayKey: day, legacyAdGrants: 1, surveyDone: true, bonus: 2)
+        // 無料 3 + ご褒美 2（月 1 回）+ 広告 1。もらった順（広告が先）に関わらず固定順で使う。
+        var ledger = HomerunLedger(dayKey: day, legacyAdGrants: 1, bonus: 2)
         HomerunStorage.saveLedger(ledger, defaults)
         let model = makeModel(services: makeServices(spy: spy), defaults: defaults)
-        for _ in 0..<7 {
+        for _ in 0..<6 {
             model.start(now: Self.t0)
             model.atBatDidAppear(now: Self.t0)
             try skip(model)
         }
-        let expected: [AnalyticsCredit?] = [.free, .free, .free, .bonus, .bonus, .survey, .ad]
+        let expected: [AnalyticsCredit?] = [.free, .free, .free, .bonus, .bonus, .ad]
         #expect(spy.startCredits == expected)
         #expect(spy.endCredits == expected, "終わりは開始と同じ枠で突き合わせられる")
-        #expect(!model.start(now: Self.t0), "8 回目は回数が無い")
-        #expect(spy.starts.count == 7, "回数が無くて立てなかった打席は数えない")
+        #expect(!model.start(now: Self.t0), "7 回目は回数が無い")
+        #expect(spy.starts.count == 6, "回数が無くて立てなかった打席は数えない")
         ledger.roll(to: day)
     }
 

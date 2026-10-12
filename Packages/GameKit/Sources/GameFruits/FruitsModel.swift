@@ -88,12 +88,22 @@ public final class FruitsModel {
     private var nextEffectSerial = 0
     private let services: GameServices?
 
+    /// 復元してよい抽選回数の上限。1 プレイで落とす数よりはるかに大きく、回しても一瞬で終わる値。
+    static let maxRestorableDrawCount = 1_000_000
+
     /// 本番の入口。中断データがあれば復元し、無ければ新しいプレイを始める。
     ///
     /// - Parameter seed: 落とす果物の抽選の種。nil なら毎回変わる。テストは固定して渡す。
     public init(services: GameServices? = nil, seed: UInt64? = nil) {
         self.services = services
-        if let snap = services?.snapshots.load(FruitsSnapshot.self, for: Self.gameID) {
+        var loaded = services?.snapshots.load(FruitsSnapshot.self, for: Self.gameID)
+        // 抽選を進める回数が桁外れの中断データは、復元の `for` が回り続けて起動時に固まる（#1913。
+        // #1384 と同じ作法）。消して新規開始に倒す。
+        if let snap = loaded, !(0...Self.maxRestorableDrawCount).contains(snap.drawCount) {
+            services?.snapshots.clear(for: Self.gameID)
+            loaded = nil
+        }
+        if let snap = loaded {
             var generator = SplitMix64(seed: snap.seed)
             var drawCount = 0
             // 同じ列の続きを引けるよう、保存された回数ぶん進める。

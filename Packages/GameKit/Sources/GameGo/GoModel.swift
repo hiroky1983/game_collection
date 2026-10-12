@@ -47,11 +47,13 @@ struct GoSnapshot: Codable {
     let moves: [GoMove]
     let undoUsed: Bool
     let phase: Int?
+    /// この局で使ったヒントの回数（#2027）。鍵を持たない旧形式の中断データは未使用として読む。
+    let hintsUsed: Int?
 }
 
 @MainActor
 @Observable
-public final class GoModel: AITurnGuarded, BoardUndoModel {
+public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var state: GoState
     public private(set) var ruleset: GoRuleset
     public private(set) var humanSide: GoStone
@@ -92,6 +94,9 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
     /// `passEventID` と同じく **0 には戻さない**（View は「値が変わったこと」で畳む）。
     public private(set) var passBannerDismissID: Int = 0
 
+    /// この局のヒントの残り（#2027）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェスと共通）。
+    public private(set) var hints: BoardHintBudget
+
     private var moves: [GoMove]
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -120,6 +125,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         var startedAt = Date()
         var undoUsed = false
         var phase = GoPhase.playing
+        var hintsUsed = 0
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = true
 
@@ -131,6 +137,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
             startedAt = snap.startedAt
             undoUsed = snap.undoUsed
             phase = GoPhase(rawValue: snap.phase ?? 0) ?? .playing
+            hintsUsed = snap.hintsUsed ?? 0
             isFreshStart = false
         }
 
@@ -145,6 +152,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         self.moves = moves
         self.startedAt = startedAt
         self.undoUsed = undoUsed
+        self.hints = BoardHintBudget(used: hintsUsed)
         self.isThinking = false
         self.lastMove = moves.last?.point
         self.phase = restoredPhase
@@ -244,6 +252,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         lastMove = move.point
         // 打てた時点で直前の拒否理由は用済み（五目の `place` と同じ畳み方・#664）。
         lastRejection = nil
+        // 盤が動いたらヒントの印は用済み（#2027）。示した手を打ったかどうかは問わない。
+        hintMove = nil
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         startPlayIfPending()
         services?.gameDidProgress(gameID: gameID)
@@ -325,6 +335,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         // 終局確認中は `isAITurn` が false で CPU が見送られている。続行で手番が CPU なら再起動させる。
         resumeCount += 1
         endgame = nil
+        hintMove = nil
         // 連続パスを解いた盤なので、直前のパスの札は残さない（#664）。
         passBannerDismissID += 1
         persist()
@@ -333,6 +344,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
     public func resign() {
         guard phase != .finished else { return }
         passBannerDismissID += 1
+        hintMove = nil
         phase = .finished
         winner = humanSide.opponent
         endgame = nil
@@ -356,7 +368,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: outcome,
-            score: GameScore(metric: .winLoss),
+            score: hints.winLossScore,
             // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel.rawValue)
         )
@@ -381,6 +393,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         undoUsed = true
         endgame = nil
         lastRejection = nil
+        hintMove = nil
         // 戻した 2 手にパスが含まれることがあるので、札は残さない（#664）。
         passBannerDismissID += 1
         persist()
@@ -415,9 +428,14 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         self.endgame = nil
         self.lastMove = nil
         self.undoUsed = false
+        // ヒントは 1 局ごとに戻す（#2027）。前の局の印も残さない。
+        self.hints.reset()
+        self.hintMove = nil
         self.recordResult = nil
         self.startedAt = Date()
         self.isThinking = false
+        // ヒントの読みも同じ理由で下ろす。旧タスクの defer は対局が変わると旗に触らない。
+        self.isHintThinking = false
         self.isScoringInProgress = false
         self.gameSerial += 1
         self.lastRejection = nil
@@ -454,6 +472,101 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         }
     }
 
+
+    // MARK: - ヒント（#2027）
+
+    /// ヒントで示している最善手。打つ・パス・待った・新規対局・投了・対局続行で消える（局面が変われば印は嘘になる）。
+    /// **永続化しない** — 中断データに残すのは使った回数だけで、印は開き直したら出し直す。
+    public private(set) var hintMove: GoMove?
+    /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
+    /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「思考中…」と名乗る）。
+    public private(set) var isHintThinking: Bool = false
+    /// ヒントの読みの待ち合わせ点（テスト専用。本番では nil のまま。将棋の `thinkingGate` と同じ）。
+    @ObservationIgnored var hintThinkingGate: (@MainActor () async -> Void)?
+    /// ヒントの読みに使うエンジンの種（テスト専用）。nil なら CPU の着手と同じ式で決める。
+    @ObservationIgnored var hintSeedForTesting: UInt64?
+    /// ヒントの読みの結果を差し替える（テスト専用）。パスや非合法手など、探索では狙って出せない手を通すのに使う。
+    @ObservationIgnored var hintMoveForTesting: GoMove?
+
+    /// 残り回数（`BoardControlBarHint` が読む）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// ヒントが示す交点。最善手がパスのときは nil（`hintSuggestsPass` で示す）。
+    public var hintPoint: GoPoint? { hintMove?.point }
+
+    /// 最善手がパスか。盤に印を置けないので、View は文字で伝える。
+    public var hintSuggestsPass: Bool { hintMove == .pass }
+
+    /// いまヒントを押せるか。**自分の手番で、対局中で、残りが在るとき**だけ。
+    public var canUseHint: Bool {
+        phase == .playing && !hints.isExhausted && !isAITurn && !isThinking && !isHintThinking
+    }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    /// ヒントの読み。対局中の CPU の強さに関わらず常に「むずかしい」で読む（`BoardHintBudget.engineLevel`）。
+    private func readHint() async -> GoMove {
+        let snapshot = state
+        let ruleset = ruleset
+        let seed = hintSeedForTesting
+            ?? UInt64(gameSerial &* 1_000_003 &+ moves.count) &* 0x9E37_79B9 &+ 0xA50_B1BA
+        await hintThinkingGate?()
+        if let hintMoveForTesting { return hintMoveForTesting }
+        return await Task.detached(priority: .userInitiated) {
+            GoEngine(level: .hard, ruleset: ruleset, seed: seed).bestMove(state: snapshot)
+        }.value
+    }
+
+    /// 読み終えた手を示す。**求まらなかった局・盤が変わった局では回数を減らさない**。
+    /// `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
+    private func commitHint(_ move: GoMove, spend: () -> Bool) -> Bool {
+        guard phase == .playing, !isAITurn, !hints.isExhausted,
+              state.isLegal(move), spend() else { return false }
+        startPlayIfPending()
+        services?.gameDidUseHint(gameID: gameID)
+        hintMove = move
+        services?.feedback.impact(.light)
+        // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
+        persist()
+        return true
+    }
+
+    /// 現在の局面の最善手を 1 手求め、盤の上に示す（無料枠。将棋・チェス・五目並べと同型）。
+    ///
+    /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。読んでいるあいだに
+    /// 打つ・パス・待った・新規対局が入ると、旧局面の手を新しい盤の上に示すことになるため（#1903）。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            await readHint()
+        } commit: { move in
+            _ = commitHint(move) { hints.consume() }
+        }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（将棋 `requestAdHint` と同型）。
+    ///
+    /// 広告の視聴完了を確かめてから CPU の読みを始める（読み終えてから広告を流さない契約）。
+    /// 視聴のあいだに打つ・待った・新規対局が入ったら、読みには進まず `.unavailable` を返す。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            await readHint()
+        } commit: { move in
+            if commitHint(move, spend: { hints.consumeAd() }) { outcome = .granted }
+        }
+        return outcome
+    }
+
     // MARK: - 永続化
 
     private func persist() {
@@ -470,7 +583,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
             startedAt: startedAt,
             moves: moves,
             undoUsed: undoUsed,
-            phase: phase.rawValue
+            phase: phase.rawValue,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

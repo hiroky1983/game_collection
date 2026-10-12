@@ -27,6 +27,8 @@ public struct SolitaireView: View {
     @State private var showUndoRefillPrompt = false
     /// 「戻す」補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒント（無料 3 回を使い切った後の広告）の段取り（#2025）。読みと広告はモデルが 1 本の非同期メソッドで持つ。
+    @State private var hintRescue = RewardedRescue()
 
     private let services: GameServices
 
@@ -65,7 +67,9 @@ public struct SolitaireView: View {
                 model: model,
                 services: services,
                 isWatchingUndoAd: undoRescue.isWatching,
-                onUndo: requestUndo
+                onUndo: requestUndo,
+                isWatchingHintAd: hintRescue.isWatching,
+                onHint: requestHint
             )
             .padding(.horizontal, Theme.pad)
             HowToPlayHint(.solitaire, playLog: services.playLog)
@@ -98,11 +102,18 @@ public struct SolitaireView: View {
                 message: "広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。"
             )
         )
-        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-            Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        .dialogs { anchor in
+            anchor.alert("この盤からは勝てません", isPresented: hopelessBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+            }
+            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
@@ -117,6 +128,21 @@ public struct SolitaireView: View {
                 message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
             )
         )
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+            )
+        )
+        // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
+        .onChange(of: model.hintMove) { _, move in
+            guard let move else { return }
+            AccessibilityNotification.Announcement(
+                SolitaireAccessibility.hintLabel(move: move, board: model.board)
+            ).post()
+        }
         .overlay {
             if model.showsRescuePrompt {
                 SolitaireRescueOverlay(
@@ -135,6 +161,10 @@ public struct SolitaireView: View {
             // できないため、初期配置以外を撮る手段がこれしかない（囲碁の `-goMidgame` と同じ理由）。
             if ProcessInfo.processInfo.arguments.contains("-solitaireMidgame") {
                 model.applyPreviewProgressForTesting()
+            }
+            // ヒントの印（#2025）。シミュレータは自動タップができないため、起動引数から無料の 1 回を押した状態にする。
+            if ProcessInfo.processInfo.arguments.contains("-solitaireHint") {
+                await model.requestHint()
             }
             // 救済の面（#406）は自然に到達させられないので、撮影用に直接その状態を作る。
             if ProcessInfo.processInfo.arguments.contains("-solitaireRescue") {
@@ -162,7 +192,7 @@ public struct SolitaireView: View {
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
-            rescues: [jokerRescue, undoRescue],
+            rescues: [jokerRescue, undoRescue, hintRescue],
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -187,7 +217,7 @@ public struct SolitaireView: View {
                             .foregroundStyle(Theme.teal)
                     } else {
                         Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                            .font(.system(size: 15, weight: .bold, design: .monospaced))
+                            .scaledFont(15, weight: .bold, design: .monospaced)
                             .foregroundStyle(Theme.coral)
                     }
                 }
@@ -234,6 +264,21 @@ public struct SolitaireView: View {
             guard model.grantJoker(forDeal: deal) else { return false }
             model.beginPlacingJoker()
             return true
+        }
+    }
+
+    private var hopelessBinding: Binding<Bool> {
+        Binding(get: { model.showsHintHopeless }, set: { if !$0 { model.dismissHintHopeless() } })
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま読み、使い切っていたら読んでから広告を出す（#2025）。
+    /// 読みは画面を離れたら取り消す（離脱後に確定すると回数・解析・中断データが動く・#1903）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        if model.needsAdForHint {
+            hintRescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+        } else {
+            services.screenGeneration.runUntilLeave { await model.requestHint() }
         }
     }
 

@@ -82,6 +82,7 @@ public final class SpeedModel {
 
     private let services: GameServices?
     private let now: () -> Date
+    private let elapsedNow: ElapsedClock.Now
     private var generator: SplitMix64?
     /// ヒント表示のオン / オフ（#190）。ゲーム中には変わらないので参照のたびに読む。
     private let hints: FeedbackPreference
@@ -95,7 +96,10 @@ public final class SpeedModel {
     private var stuckSince: Date?
     /// タイムが終わる時刻。
     private var timeoutEndsAt: Date?
-    private var startedAt: Date?
+    /// 勝利タイムの計時。CPU を止めている間（シート・背面・広告）は進めないので、止める前までを `playedBefore` に積み、
+    /// 動いている間だけ `playClock` が数える。
+    private var playedBefore: Duration = .zero
+    private var playClock: ElapsedClock?
     /// `gameDidStart` を一度通したか。2 ゲーム目からは `gameDidRestart` で数える。
     private var hasCountedStart = false
     /// このゲームで `gameDidProgress` を通したか（冪等だが呼び出しを減らす）。
@@ -107,16 +111,19 @@ public final class SpeedModel {
 
     /// - Parameters:
     ///   - seed: 配りと CPU の揺らぎを種から決める（テスト用。省略時はシステム乱数）。
-    ///   - now: 反応の間・所要時間の計測に使う時計（テスト用）。
+    ///   - now: 反応の間の計測に使う時計（テスト用）。
+    ///   - elapsedNow: 勝利タイムの計測に使う時計（テスト用）。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
         now: @escaping () -> Date = Date.init,
+        elapsedNow: @escaping ElapsedClock.Now = { ContinuousClock.now },
         hints: FeedbackPreference = .hints,
         slowMode: FeedbackPreference = .actionSlowMode
     ) {
         self.services = services
         self.now = now
+        self.elapsedNow = elapsedNow
         self.hints = hints
         self.slowMode = slowMode
         generator = seed.map { SplitMix64(seed: $0) }
@@ -337,7 +344,11 @@ public final class SpeedModel {
         cpuHolds = next
         cpuArmedAt = nil
         stuckSince = nil
-        if wasHeld && !isCPUHeld { cpuRun += 1 }
+        if !wasHeld && isCPUHeld { pausePlayClock() }
+        if wasHeld && !isCPUHeld {
+            if phase == .playing { playClock = ElapsedClock(now: elapsedNow) }
+            cpuRun += 1
+        }
     }
 
     // MARK: - 救済
@@ -374,7 +385,8 @@ public final class SpeedModel {
         stuckSince = nil
         hasProgressed = false
         timingMultiplier = slowMode.isEnabled ? SpeedRules.slowModeMultiplier : 1
-        startedAt = now()
+        playedBefore = .zero
+        playClock = isCPUHeld ? nil : ElapsedClock(now: elapsedNow)
         phase = .playing
         cpuRun += 1
         services?.feedback.impact(.medium)   // 札が配られた
@@ -494,6 +506,13 @@ public final class SpeedModel {
         services?.gameDidProgress(gameID: Self.gameID)
     }
 
+    /// 動いている勝利タイムの計時を止め、ここまでの経過を `playedBefore` に積む。
+    private func pausePlayClock() {
+        guard let clock = playClock else { return }
+        playedBefore += clock.duration
+        playClock = nil
+    }
+
     private func concludeGame(winner: Player) {
         self.winner = winner
         phase = .result
@@ -501,7 +520,8 @@ public final class SpeedModel {
         cpuArmedAt = nil
         stuckSince = nil
         timeoutEndsAt = nil
-        let elapsed = startedAt.map { now().timeIntervalSince($0) } ?? 0
+        pausePlayClock()
+        let elapsed = playedBefore.timeInterval
         let seconds = max(1, Int(elapsed.rounded(.up)))
         winSeconds = winner == .human ? seconds : nil
         services?.feedback.notify(winner == .human ? .success : .error)

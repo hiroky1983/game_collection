@@ -220,6 +220,8 @@ struct SolitaireBoardView: View {
                 .frame(width: metrics.width, height: metrics.height)
             }
         }
+        // 手が「山をめくる」のときは山札に点線を重ねて示す（#2025）。
+        .overlay { hintFrame(isOn: model.hintsDraw, isDestination: true, metrics: metrics) }
         .contentShape(Rectangle())
         .onTapGesture { model.tapStock() }
         .accessibilityElement(children: .ignore)
@@ -275,6 +277,11 @@ struct SolitaireBoardView: View {
             height: metrics.height,
             alignment: .topLeading
         )
+        // 動かす札が捨て札のときは、いちばん上の 1 枚に枠を重ねる（#2025）。
+        .overlay(alignment: .topLeading) {
+            hintFrame(isOn: model.hintSource == .waste, isDestination: false, metrics: metrics)
+                .padding(.leading, CGFloat(max(visible.count - 1, 0)) * step)
+        }
         .contentShape(Rectangle())
         .onTapGesture { model.tapWaste() }
         .highPriorityGesture(dragGesture(source: .waste, metrics: metrics))
@@ -301,6 +308,7 @@ struct SolitaireBoardView: View {
                 CardSlot(metrics: metrics, suitSymbol: suit.symbol)
             }
         }
+        .overlay { hintFrame(isOn: model.hintDestination == .foundation(suit), isDestination: true, metrics: metrics) }
         .cardDropTarget(SolitaireDropTarget.foundation(suit), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapFoundation(suit) }
@@ -378,10 +386,28 @@ struct SolitaireBoardView: View {
             }
         }
         .frame(width: metrics.width, height: height, alignment: .top)
+        // 行き先の列は、いちばん上の札（空列なら枠）に点線を重ねて示す（#2025）。
+        .overlay(alignment: .top) {
+            hintFrame(isOn: model.hintDestination == .pile(pile), isDestination: true, metrics: metrics)
+                .padding(.top, column.isEmpty ? 0 : max(height - metrics.height, 0))
+        }
         // ドロップ先の枠を報告する（列全体。会長要望 2026-09-02 のドラッグ&ドロップ用）。
         .cardDropTarget(SolitaireDropTarget.pile(pile), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapPile(pile) }
+    }
+
+    /// ヒントの枠（#2025）。動かす札は実線、行き先は点線。札 1 枚ぶんの大きさで、当たり判定は持たない。
+    @ViewBuilder private func hintFrame(isOn: Bool, isDestination: Bool, metrics: PlayingCardMetrics) -> some View {
+        if isOn {
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .inset(by: 1.5)
+                .stroke(BoardGameHintColor.color,
+                        style: StrokeStyle(lineWidth: 3, dash: isDestination ? [6, 4] : []))
+                .frame(width: metrics.width, height: metrics.height)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private func faceUpCard(
@@ -394,6 +420,10 @@ struct SolitaireBoardView: View {
         metrics: PlayingCardMetrics
     ) -> some View {
         let isSelected = model.selection == .tableau(pile: pile, cardIndex: index)
+        let isHinted: Bool = {
+            guard case .tableau(let hintPile, let hintIndex) = model.hintSource else { return false }
+            return hintPile == pile && index >= hintIndex
+        }()
         return SolitaireDealtCardView(
             pile: pile, depth: column.faceDown.count + index, restY: restY,
             metrics: metrics, dealing: model.isFreshDeal
@@ -410,6 +440,8 @@ struct SolitaireBoardView: View {
             .id(model.dealSerial)
             .matchedGeometryEffect(id: motionID(card), in: cardMotion)
             .opacity(isLifted(pile: pile, cardIndex: index) ? 0.35 : 1)
+            // ヒントが動かすよう示している札（紫の枠・#2025）。
+            .overlay { hintFrame(isOn: isHinted, isDestination: false, metrics: metrics) }
             .contentShape(Rectangle())
             .onTapGesture { model.tapPile(pile, cardIndex: index) }
             .highPriorityGesture(dragGesture(
@@ -600,9 +632,9 @@ struct SolitaireCardIndex: View {
                     .frame(width: metrics.rankFont * 0.8, height: metrics.rankFont * 0.8)
             } else {
                 Text(card.rankLabel)
-                    .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded))
+                    .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                 Text(card.suit?.symbol ?? "")
-                    .font(.system(size: metrics.suitFont * 0.66))
+                    .font(.system(size: metrics.suitFont * 0.66)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
             }
         }
         .foregroundStyle(color)

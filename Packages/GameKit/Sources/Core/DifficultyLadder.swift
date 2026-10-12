@@ -99,7 +99,7 @@ struct DifficultyLadderCard: View {
                         .frame(width: RecommendationCard.iconSide, height: RecommendationCard.iconSide)
                         .overlay {
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 18, weight: .bold))
+                                .scaledFont(18, weight: .bold)
                                 .foregroundStyle(Theme.onAccent)
                         }
                     VStack(alignment: .leading, spacing: 2) {

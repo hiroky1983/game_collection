@@ -162,7 +162,7 @@ public struct RouletteView: View {
                     HStack(spacing: 8) {
                         numberBadge(number, size: 30)
                         Text(netLabel(settlement.net))
-                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .scaledFont(16, weight: .black, design: .rounded)
                             .foregroundStyle(settlement.net > 0 ? Theme.teal
                                              : (settlement.net < 0 ? Theme.coral : Theme.inkSub))
                     }
@@ -188,7 +188,7 @@ public struct RouletteView: View {
         if !model.history.isEmpty {
             HStack(spacing: 4) {
                 Text("出目")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .scaledFont(11, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 ForEach(Array(model.history.prefix(6).enumerated()), id: \.offset) { _, number in
                     numberBadge(number, size: 20)
@@ -199,7 +199,7 @@ public struct RouletteView: View {
 
     private func numberBadge(_ number: Int, size: CGFloat) -> some View {
         Text(verbatim: "\(number)")
-            .font(.system(size: size * 0.5, weight: .black, design: .rounded))
+            .font(.system(size: size * 0.5, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
             .foregroundStyle(RouletteWheelView.textColor(for: number))
             .lineLimit(1)
             .minimumScaleFactor(0.6)
@@ -258,7 +258,7 @@ public struct RouletteView: View {
             model.placeBet(kind)
         } label: {
             Text(kind.label)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(cellTextColor(kind))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -285,7 +285,7 @@ public struct RouletteView: View {
     /// マスに置いた額。白地に固定の濃い文字で、どの面色の上でも読める。
     private func chipBadge(_ amount: Int) -> some View {
         Text(verbatim: "\(amount)")
-            .font(.system(size: 9, weight: .black, design: .rounded))
+            .scaledFont(9, weight: .black, design: .rounded)
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 4).padding(.vertical, 1)
             .background(Capsule().fill(Color.white))
@@ -354,7 +354,7 @@ public struct RouletteView: View {
             model.selectedChip = amount
         } label: {
             Text(verbatim: "\(amount)")
-                .font(.system(size: 13, weight: .black, design: .rounded))
+                .scaledFont(13, weight: .black, design: .rounded)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(width: RouletteMetrics.chipButtonSize, height: RouletteMetrics.chipButtonSize)
@@ -420,14 +420,14 @@ public struct RouletteView: View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
-                    .font(.system(size: 24))
+                    .scaledFont(24)
                     .foregroundStyle(Theme.coral)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("チップが足りなくなりました")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .scaledFont(16, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.coral)
                     Text(sessionOverSubtitle)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .scaledFont(12, weight: .medium, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                 }
                 Spacer()

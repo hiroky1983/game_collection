@@ -320,4 +320,80 @@ struct ShogiRepetitionTests {
             "再起動で決着の文字が消えてはいけない。実際: \(String(describing: resumed.resultText))"
         )
     }
+
+    // MARK: - 連続王手の千日手（#2005）
+
+    /// 先手の飛が 1a↔1b で毎手王手、後手玉が 5b↔5a で逃げ続ける 4 手 1 組の循環。
+    private static let checkSFEN = "8R/4k4/9/9/9/9/9/9/K8 b - 1"
+    private static let checkCycle = ["1a1b", "5b5a", "1b1a", "5a5b"]
+
+    /// 先手の飛は 1a→5a（王手）→1a（王手でない）と往復し、後手玉は 5c↔4c。王手が途切れる循環。
+    private static let brokenCheckSFEN = "8R/9/4k4/9/9/9/9/9/K8 b - 1"
+    private static let brokenCheckCycle = ["1a5a", "5c4c", "5a1a", "4c5c"]
+
+    /// 初期局面を差し替えた対局を、`sente` / `gote` を指定して 3 周ぶん指す。
+    private func playPerpetual(
+        sfen: String, cycle: [String], sente: PlayerKind, gote: PlayerKind,
+        store: MemorySnapshotStore
+    ) throws -> ShogiGameModel {
+        try store.save(
+            ShogiSnapshot(
+                initialSfen: sfen, moves: [], phase: .playing, reviewPly: nil,
+                sente: sente, gote: gote, aiLevel: nil,
+                startedAt: Date(), undoUsed: false
+            ),
+            for: "shogi"
+        )
+        let model = ShogiGameModel(services: makeServices(store))
+        for _ in 0..<3 {
+            for usi in cycle {
+                let move = Move.fromUSI(usi)!
+                #expect(model.legalMovesCache.contains(move), "\(usi) は合法手のはず")
+                model.apply(move)
+            }
+        }
+        return model
+    }
+
+    @Test("人間が連続王手を掛け続けると、人間の負けで終局する")
+    func humanPerpetualCheckLoses() throws {
+        let model = try playPerpetual(
+            sfen: Self.checkSFEN, cycle: Self.checkCycle, sente: .human, gote: .ai, store: MemorySnapshotStore())
+        #expect(model.gameOver)
+        #expect(model.resultText == "先手の負け（連続王手の千日手）")
+        #expect(model.endKind == .perpetualCheck)
+        #expect(model.endKind?.reasonText == "連続王手の千日手")
+        #expect(model.endVerdict == .loss)
+    }
+
+    @Test("CPU が連続王手を掛け続けると、人間の勝ちで終局する")
+    func cpuPerpetualCheckLoses() throws {
+        let model = try playPerpetual(
+            sfen: Self.checkSFEN, cycle: Self.checkCycle, sente: .ai, gote: .human, store: MemorySnapshotStore())
+        #expect(model.gameOver)
+        #expect(model.resultText == "先手の負け（連続王手の千日手）")
+        #expect(model.endVerdict == .win)
+    }
+
+    @Test("途中で王手が途切れる千日手は引き分けのまま")
+    func brokenCheckStaysDraw() throws {
+        let model = try playPerpetual(
+            sfen: Self.brokenCheckSFEN, cycle: Self.brokenCheckCycle, sente: .human, gote: .human,
+            store: MemorySnapshotStore())
+        #expect(model.gameOver)
+        #expect(model.resultText == "引き分け（千日手）")
+        #expect(model.endKind == .repetition)
+        #expect(model.endVerdict == .draw)
+    }
+
+    @Test("連続王手の負けは再起動しても同じ結果で復元される")
+    func perpetualCheckSurvivesRestart() throws {
+        let store = MemorySnapshotStore()
+        _ = try playPerpetual(
+            sfen: Self.checkSFEN, cycle: Self.checkCycle, sente: .human, gote: .ai, store: store)
+        let resumed = ShogiGameModel(services: makeServices(store))
+        #expect(resumed.gameOver)
+        #expect(resumed.resultText == "先手の負け（連続王手の千日手）")
+        #expect(resumed.endVerdict == .loss)
+    }
 }

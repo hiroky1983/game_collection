@@ -212,14 +212,80 @@ struct RouletteSpinTests {
         #expect(hedged.reviewOutcome == .draw)
     }
 
-    @Test("回転中の中断データは同じ出目で復帰し、精算後は消える")
+    @Test("回転中の中断データは同じ出目で復帰し、精算後は残高だけが賭け待ちの形で残る")
     func spinningSnapshotResumesWithSameNumber() {
         let store = MemorySnapshotStore()
         let model = makeSettledModel(chips: 500, bets: [RouletteBet(id: 0, kind: .dozen(1), amount: 100)],
                                      winningNumber: 5, store: store)
         #expect(model.winningNumber == 5, "引き直さない")
         #expect(model.chips == 700)
-        #expect(!store.exists(for: "roulette"), "精算済みの局は残さない")
+        #expect(store.exists(for: "roulette"), "決着後の残高は残す（#2004）")
+        let reopened = RouletteModel(services: makeServices(store: store))
+        #expect(reopened.phase == .betting, "精算済みの局そのものは書かない")
+        #expect(reopened.bets.isEmpty)
+        #expect(reopened.winningNumber == nil)
+        #expect(reopened.chips == 700)
+    }
+
+    @Test("勝って決着した後に離れても、勝ち分を含む残高が復元される（#2004）")
+    func winningBalanceSurvivesLeavingAfterResult() {
+        let store = MemorySnapshotStore()
+        let model = makeSettledModel(chips: 1000, bets: [RouletteBet(id: 0, kind: .red, amount: 500)],
+                                     winningNumber: 1, store: store)
+        #expect(model.phase == .result)
+        #expect(model.chips == 1500)
+
+        let reopened = RouletteModel(services: makeServices(store: store))
+        #expect(reopened.chips == 1500)
+        #expect(reopened.phase == .betting)
+        #expect(reopened.bets.isEmpty)
+        #expect(reopened.history == [1], "履歴も持ち越す")
+        #expect(!reopened.sessionOver)
+    }
+
+    @Test("負けて決着した後に離れても、負けが帳消しにならない（#2004）")
+    func losingBalanceSurvivesLeavingAfterResult() {
+        let store = MemorySnapshotStore()
+        let model = makeSettledModel(chips: 1000, bets: [RouletteBet(id: 0, kind: .black, amount: 800)],
+                                     winningNumber: 1, store: store)
+        #expect(model.chips == 200)
+
+        let reopened = RouletteModel(services: makeServices(store: store))
+        #expect(reopened.chips == 200)
+        #expect(reopened.phase == .betting)
+        #expect(!reopened.sessionOver)
+    }
+
+    @Test("復活済みのセッションでも、決着後の残高が復元される（#2004）")
+    func revivedFlagSurvivesLeavingAfterResult() {
+        let store = MemorySnapshotStore()
+        _ = makeSettledModel(chips: 100, bets: [RouletteBet(id: 0, kind: .black, amount: 50)],
+                             winningNumber: 3, store: store, hasRevived: true)
+        let reopened = RouletteModel(services: makeServices(store: store))
+        #expect(reopened.chips == 50)
+        #expect(reopened.phase == .betting)
+    }
+
+    @Test("破産で決着した後は中断データを残さない（#2004）")
+    func bankruptcyLeavesNoSnapshot() {
+        let store = MemorySnapshotStore()
+        let model = makeSettledModel(chips: 10, bets: [RouletteBet(id: 0, kind: .straight(7), amount: 10)],
+                                     winningNumber: 8, store: store)
+        #expect(model.sessionOver)
+        #expect(!store.exists(for: "roulette"))
+        let reopened = RouletteModel(services: makeServices(store: store))
+        #expect(reopened.chips == 1000)
+    }
+
+    @Test("次のゲームへ進んだ賭け待ちで離れても、残高が復元される（#2004）")
+    func balanceSurvivesLeavingAfterNextRound() {
+        let store = MemorySnapshotStore()
+        let model = makeSettledModel(chips: 1000, bets: [RouletteBet(id: 0, kind: .red, amount: 500)],
+                                     winningNumber: 1, store: store)
+        model.nextRound()
+        #expect(model.phase == .betting)
+        let reopened = RouletteModel(services: makeServices(store: store))
+        #expect(reopened.chips == 1500)
     }
 
     @Test("次のゲームで盤面が空になり、同じ賭けでもう一度なら口が戻る")
@@ -275,7 +341,7 @@ struct RouletteSpinTests {
     @Test("賭ける前に戻した局面で残高が足りなければ、その場で終わり（#656 と同じ）")
     func restoringWithTooFewChipsEndsSession() {
         let store = MemorySnapshotStore()
-        // 精算済み（`.result`）の中断データは本来書かないが、万一残っていたら賭ける前に戻して判定する。
+        // 精算済み（`.result`）の中断データは本来書かない（残高は賭け待ちの形で書く）が、万一残っていたら賭ける前に戻して判定する。
         let snapshot = RouletteSnapshot(chips: 5, bets: [], phase: .result, winningNumber: 3, history: [3],
                                         hasRevivedThisSession: false)
         try? store.save(snapshot, for: "roulette")

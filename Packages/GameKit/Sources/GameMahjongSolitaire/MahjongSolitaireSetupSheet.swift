@@ -39,13 +39,13 @@ struct MahjongSolitaireSetupSheet: View {
                 }
             }
             Text("どのかたちも144枚で、必ず取り切れるように配ります。最短タイムはかたちごとに別々に記録されます。")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
         if discardsProgress {
             Label("途中で終了すると今の盤面が失われます。",
                   systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .scaledFont(13, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.coral)
         }
     }

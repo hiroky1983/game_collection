@@ -100,15 +100,15 @@ public struct HanafudaYakuSheet: View {
             && (yaku == .tsukimizake || yaku == .hanamizake)
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(yaku.name)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .scaledFont(15, weight: .bold, design: .rounded)
                 .foregroundStyle(isDisabled ? Theme.inkSub : Theme.ink)
                 .frame(width: 76, alignment: .leading)
             Text(yaku.requirement)
-                .font(.system(size: 13, design: .rounded))
+                .scaledFont(13, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Spacer(minLength: 6)
             Text("\(yaku.basePoints)文")
-                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .scaledFont(14, weight: .heavy, design: .rounded)
                 .foregroundStyle(isDisabled ? Theme.inkSub : Theme.coral)
         }
         .accessibilityElement(children: .combine)
@@ -118,11 +118,11 @@ public struct HanafudaYakuSheet: View {
     private func labeled(_ title: String, _ detail: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(title)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .scaledFont(15, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
                 .frame(width: 96, alignment: .leading)
             Text(detail)
-                .font(.system(size: 13, design: .rounded))
+                .scaledFont(13, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
     }

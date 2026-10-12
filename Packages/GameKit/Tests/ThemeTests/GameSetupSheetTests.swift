@@ -34,7 +34,7 @@ struct GameSetupSheetSourceTests {
         }
     }
 
-    /// 開始シートを出す全 19 本（#1415。麻雀ソリティアは 2026-09-28 に追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
+    /// 開始シートを出す全 20 本（#1415。麻雀ソリティアは 2026-09-28、おじさんの荷物運びパズルは #1920 で追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
     private static let allSheets: [(path: String, kind: String)] = [
         ("GameChess/ChessView.swift", ".versus"),
         ("GameShogi/ShogiView.swift", ".versus"),
@@ -55,6 +55,7 @@ struct GameSetupSheetSourceTests {
         ("GamePoker/PokerSheets.swift", ".versus"),
         ("GameSolitaire/SolitaireSetupSheet.swift", ".solo"),
         ("GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift", ".solo"),
+        ("GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift", ".solo"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。
@@ -95,6 +96,15 @@ struct GameSetupSheetSourceTests {
         #expect(!source.contains("presentationDetents([.medium"), "medium から開く並べ方が戻っている")
         #expect(source.contains(".safeAreaInset(edge: .bottom)"), "開始ボタンが下端に固定されていない")
         #expect(source.contains("終了して\\(kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
+    }
+
+    /// 開始シートから遊び方を別画面で開く形（#2128 の「◯◯の遊び方を見る」）は会長指示 2026-10-12 で廃止。
+    /// 遊び方は開始シートの中に直接並べる（おじさんの荷物運びパズル）。共通枠に遷移の口を戻さない。
+    @Test("共通枠は開始シートから遊び方を別画面で開かない")
+    func noHowToPlayTransitionFromSetup() throws {
+        let source = try Self.read("Core/GameSetupSheet.swift")
+        #expect(!source.contains("HowToPlaySheet("), "開始シートから遊び方シートへ遷移する形が戻っている")
+        #expect(!source.contains(".sheet("), "開始シートの上に別のシートを重ねている")
     }
 
     @Test("種別ごとの題名と開始文言（#1011 決裁）")

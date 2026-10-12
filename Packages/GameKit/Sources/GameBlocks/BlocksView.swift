@@ -83,18 +83,20 @@ public struct BlocksView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
             )
         )
-        .confirmationDialog(
-            "はじめからやり直しますか？",
-            isPresented: $showConfirmNewGame,
-            titleVisibility: .visible
-        ) {
-            Button("終了してはじめから", role: .destructive) {
-                pausedForNewGameConfirm = false
-                model.newGame()
+        .dialogs { anchor in
+            anchor.confirmationDialog(
+                "はじめからやり直しますか？",
+                isPresented: $showConfirmNewGame,
+                titleVisibility: .visible
+            ) {
+                Button("終了してはじめから", role: .destructive) {
+                    pausedForNewGameConfirm = false
+                    model.newGame()
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると今のスコアとステージが失われます。")
             }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると今のスコアとステージが失われます。")
         }
         .onChange(of: showConfirmNewGame) { _, isPresented in
             // キャンセルボタンを経由せず閉じた場合（iPad のポップオーバーで外側をタップ等）も
@@ -127,10 +129,10 @@ public struct BlocksView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("スコア")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
@@ -150,7 +152,7 @@ public struct BlocksView: View {
         HStack(spacing: 3) {
             ForEach(0..<max(0, model.lives), id: \.self) { _ in
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundStyle(Theme.coral)
             }
         }
@@ -166,7 +168,7 @@ public struct BlocksView: View {
             if model.phase == .paused { model.resume() } else { model.pause() }
         } label: {
             Image(systemName: model.phase == .paused ? "play.fill" : "pause.fill")
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, weight: .bold)
                 .frame(width: Self.pauseButtonSide, height: Self.pauseButtonSide)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)
@@ -218,6 +220,20 @@ public struct BlocksView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(paddleGesture(width: geo.size.width))
+                    // ドラッグ専用だと VoiceOver から遊べないので、盤を 1 要素にして操作を名前付きで出す（#1894）。
+                    // オーバーレイ（結果・一時停止のボタン）は別要素のまま残す。
+                    .accessibilityElement()
+                    .accessibilityLabel("ブロック崩しの盤")
+                    .accessibilityValue(accessibilityValue)
+                    .accessibilityActions {
+                        if model.phase == .ready || model.phase == .playing {
+                            Button("パドルを左へ") { model.nudgePaddle(steps: -1) }
+                            Button("パドルを右へ") { model.nudgePaddle(steps: 1) }
+                        }
+                        if model.phase == .ready {
+                            Button("ボールを発射") { model.launch() }
+                        }
+                    }
                 if model.isPaddleWide, !model.phase.isFinished { effectBadge }
                 overlay(boardWidth: geo.size.width)
             }
@@ -248,6 +264,12 @@ public struct BlocksView: View {
         scene.view?.isPaused = !model.phase.needsAnimationFrames
     }
 
+    private var accessibilityValue: String {
+        var parts = ["残機 \(model.lives)", "残りブロック \(model.field.remainingBreakableCount) 個"]
+        if model.phase == .ready { parts.append("発射待ち") }
+        return parts.joined(separator: "、")
+    }
+
     /// 盤の下の操作面。高さは余りぶん（機種によっては無い）。見た目は出さず、`HowToPlayHint` で案内する。
     private var touchPad: some View {
         GeometryReader { geo in
@@ -256,6 +278,7 @@ public struct BlocksView: View {
                 .gesture(paddleGesture(width: geo.size.width))
         }
         .frame(maxHeight: .infinity)
+        .accessibilityHidden(true)
     }
 
     /// パドルは**指の移動量**で動かす（相対操作）。指の位置にパドルを合わせる絶対操作だと、

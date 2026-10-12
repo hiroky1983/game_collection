@@ -48,11 +48,13 @@ public struct DaifugoView: View {
         .gameChrome(title: "大富豪", review: services.review)
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.daifugo) { DaifugoRuleSheet() }
-        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-            Button("投了する", role: .destructive) { model.resign() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
+                Button("投了する", role: .destructive) { model.resign() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
+            }
         }
         // 献上免除の提示（#780 × #1048）。大貧民のリザルトでボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(waiveRescue, for: .revival, isPresented: model.canWaiveExchange,
@@ -89,7 +91,7 @@ public struct DaifugoView: View {
                 .foregroundStyle(Theme.inkSub)
             if model.isRevolution {
                 Text("革命中")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .scaledFont(12, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Fill.coral))
@@ -232,7 +234,7 @@ public struct DaifugoView: View {
                 Spacer()
                 if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
                     Text(model.lastActions[DaifugoModel.humanIndex])
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .scaledFont(11, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.teal)
                 }
             }
@@ -286,10 +288,10 @@ public struct DaifugoView: View {
         if let message {
             HStack(spacing: 4) {
                 Image(systemName: "info.circle.fill")
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, weight: .bold)
                 Text(message)
                     // 受け入れ条件どおり1行に収める。文字を拡大しても高さが跳ねないよう縮めて入れる（#189）。
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold, design: .rounded)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
@@ -332,7 +334,7 @@ public struct DaifugoView: View {
                         .disabled(!model.canResign)
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 17, weight: .semibold))
+                        .scaledFont(17, weight: .semibold)
                         .frame(width: 44)
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -403,14 +405,14 @@ public struct DaifugoView: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.yellow : Theme.inkSub)
                 Text("あなたは \(model.playerTitle)")
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.teal : Theme.ink)
                 if let note = humanResultNote {
                     Text(note)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .scaledFont(11, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(Theme.Fill.coral))
@@ -421,18 +423,18 @@ public struct DaifugoView: View {
                 ForEach(Array(model.ranking.enumerated()), id: \.element) { place, player in
                     HStack(spacing: 8) {
                         Text(DaifugoRules.title(forPlace: place))
-                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .scaledFont(12, weight: .black, design: .rounded)
                             // 1位だけ差し色の面。他は濃いグレーの面なので文字色を分ける（#220）。
                             .foregroundStyle(place == 0 ? Theme.onAccent : .white)
                             .frame(width: 58)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)
                         if let note = rankRowNote(player) {
                             Text(note)
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .scaledFont(10, weight: .bold, design: .rounded)
                                 .foregroundStyle(Theme.coral)
                         }
                         Spacer()
@@ -446,7 +448,7 @@ public struct DaifugoView: View {
             RecordLabel(model.recordResult)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(exchangeNote)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .scaledFont(11, weight: .medium, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -27,6 +27,7 @@ extension RunnerScene {
         // 崩れる足場（#1090）の揺れと板の抜け落ち。**ミス・ゴールのあとも写す**
         // ——`tick` が止まっても崩れの時計は止まった値のままなので、絵も止まって整合する。
         if !crumblingPlatformNodes.isEmpty { syncCrumblingPlatforms(field) }
+        syncSteam(field)
         // 走者の画面上の x は動かさず、コースのほうを左へ流す。ノードは原点（`renderOrigin`）からの
         // 位置に置いてあるので、画面上の位置は原点に依らない（ステージ制の原点は常に 0）。
         courseLayer.position = CGPoint(x: Self.courseLayerX(distance: field.distance, origin: renderOrigin), y: 0)

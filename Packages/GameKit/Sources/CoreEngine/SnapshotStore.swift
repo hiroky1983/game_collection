@@ -2,6 +2,7 @@ import Foundation
 
 /// 中断スナップショットの永続化境界。`gameID` ごとにキーを分離する。
 /// MVP ではローカルのみ・常に上書き（積み上がらない）。`load` の非 nil で「続きから」を判定する。
+/// 同じ `gameID` を別の型で `load` しないこと（`FileSnapshotStore` は decode できないファイルを消す）。
 public protocol SnapshotStore {
     func save<T: Codable>(_ snapshot: T, for gameID: String) throws
     func load<T: Codable>(_ type: T.Type, for gameID: String) -> T?
@@ -51,8 +52,16 @@ public struct FileSnapshotStore: SnapshotStore {
     }
 
     public func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
+        // 読めない（ファイルが無い・一時的な I/O 失敗）ときは何も消さない。
         guard let data = try? Data(contentsOf: url(for: gameID)) else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
+        // 読めたのに decode できないデータは二度と復元できない。残すと `exists` が true のまま
+        // 「中断データあり」と見なされ、開始シートが出ずに空の盤で始まるので、その場で消す（#1914）。
+        // `gameID` と型は 1 対 1（大富豪の持ち越しは別 ID）なので、別の型で読んで誤って消すことはない。
+        guard let snapshot = try? JSONDecoder().decode(type, from: data) else {
+            clear(for: gameID)
+            return nil
+        }
+        return snapshot
     }
 
     public func clear(for gameID: String) {
