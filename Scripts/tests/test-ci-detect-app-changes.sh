@@ -46,6 +46,9 @@ check "ci.yml と別ワークフロー"   app ".github/workflows/x.yml" ".github
 check "Swift の変更"              app "Packages/GameKit/Sources/Core/Theme.swift"
 check "project.yml"               app "project.yml"
 check ".github と Swift の混在"   app ".github/workflows/x.yml" "App/HubView.swift"
+check "apply-package-resolved.sh のみ" app "Scripts/apply-package-resolved.sh"
+check "apply-package-resolved.sh と docs" app "docs/a.md" "Scripts/apply-package-resolved.sh"
+check "別の Scripts は回さない"   skip "Scripts/apply-package-resolved.sh.bak" "Scripts/ai-duty.sh"
 check "名前が似たファイル"        app ".github/workflows/ci.yml.bak" "project.yml"
 
 echo
