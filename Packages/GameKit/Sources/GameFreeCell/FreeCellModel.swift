@@ -92,17 +92,15 @@ public final class FreeCellModel {
         freeLimit: FreeCellHintPolicy.freeCount, adLimit: FreeCellHintPolicy.adRefillMax
     )
     /// ヒントの読みの最中か。
-    public private(set) var isHintThinking = false
+    public var isHintThinking: Bool { hintReader.isThinking }
     /// 示している手。**盤が動いたら消える**（`refreshDerivedState`）ので、印が古い盤の手を指すことは無い。永続化しない。
     public private(set) var hintMove: FreeCellMove?
     /// 勝てないと分かったときの知らせ（回数は減らさない）。View が閉じるまで残る。
-    public private(set) var showsHintHopeless = false
+    public var showsHintHopeless: Bool { hintReader.showsHopeless }
     /// テスト専用: 読みが終わった直後（結果を取り込む前）に呼ぶ。読みの最中に盤が動いた状況を決定的に作る。
     var hintSearchDidFinishForTesting: (() -> Void)?
-    /// 盤が変わるたびに増える番号。読みを始めた時点の値と突き合わせ、読んでいる間に盤が動いたら結果を捨てる。
-    private var boardVersion = 0
-    /// 走っている読み。`Task.detached` は親のキャンセルを継がないので、盤が変わったときに降ろせるよう握る。
-    private var hintSearch: Task<FreeCellHintResult?, Never>?
+    /// 読み・広告経路・回数の消費の流れ（盤の版番号・読みの Task は Core が持つ・#2125）。
+    private let hintReader = BoardHintReader<FreeCellHintResult>()
 
     private var moves: [FreeCellMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。
@@ -349,73 +347,47 @@ public final class FreeCellModel {
     /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
     public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
 
-    public func dismissHintHopeless() { showsHintHopeless = false }
+    public func dismissHintHopeless() { hintReader.showsHopeless = false }
 
     /// 無料の 1 回。勝ち筋を探して最初の 1 手を示す。**求まらなかった・盤が変わった・勝てない盤では回数を減らさない**。
     /// 呼ぶ側は画面を離れたら取り消せる Task で走らせる（`GameScreenGeneration.runUntilLeave`）。
     public func requestHint() async {
-        guard canUseHint, !needsAdForHint else { return }
-        guard let result = await searchHint() else { return }
-        _ = applyHint(result) { hints.consume() }
+        await hintReader.requestFree(hintContext)
     }
 
-    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する。
-    ///
-    /// **先に読む**: 勝てない盤では広告を流さない（回数が増えないのに広告だけ見せることになるため）。
-    /// 読み終えてから広告を出し、見終えたところで回数を消費して印を出す。
-    /// - Returns: `.granted` は「この要求を終えた」（広告を見て示した場合に加え、勝てない盤だと分かり
-    ///   広告を出さずに知らせた場合も含む）。`.unavailable` は読みの間か広告の間に盤・画面が変わって適用しなかったとき。
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する。**先に読み**、勝てない盤では広告を流さない（`BoardHintReader.requestAd`）。
     public func requestAdHint() async -> RewardedModelOutcome {
-        guard canUseHint, needsAdForHint else { return .unavailable }
-        // 広告のあいだに画面を離れたら、このモデルは捨てられている（#653）。
-        let generationBeforeAd = services?.screenGeneration.current
-        let version = boardVersion
-        guard let result = await searchHint(),
-              services?.screenGeneration.current == generationBeforeAd, version == boardVersion else { return .unavailable }
-        if result == .hopeless {
-            showsHintHopeless = true
-            return .granted
-        }
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? false else { return .notEarned }
-        guard services?.screenGeneration.current == generationBeforeAd, version == boardVersion,
-              applyHint(result, consume: { hints.consumeAd() }) else { return .unavailable }
-        return .granted
+        await hintReader.requestAd(hintContext)
     }
 
-    /// 今の盤で勝ち筋を探す。盤が動いた・離脱で取り消された・読み終える前に別の読みが入ったときは nil。
-    private func searchHint() async -> FreeCellHintResult? {
-        let version = boardVersion
-        let board = self.board
-        isHintThinking = true
-        let search = Task.detached(priority: .userInitiated) {
-            FreeCellHint.find(in: board, isCancelled: { Task.isCancelled })
-        }
-        hintSearch = search
-        let result = await withTaskCancellationHandler { await search.value } onCancel: { search.cancel() }
-        hintSearchDidFinishForTesting?()
-        // 盤が変わっていれば `refreshDerivedState` が旗の持ち主を替えている。下ろすのは同じ盤のままのときだけ。
-        guard version == boardVersion else { return nil }
-        isHintThinking = false
-        hintSearch = nil
-        guard !Task.isCancelled else { return nil }
-        return result
+    /// `requestAdHint()` のうち、読みを終えて広告を出す直前に知らせる形（先読みの間は計時を止めない・#2125）。
+    public func requestAdHint(readDidFinish: () -> Void) async -> RewardedModelOutcome {
+        await hintReader.requestAd(hintContext, readDidFinish: readDidFinish)
     }
 
-    /// 答えを盤に反映する。勝てない盤は知らせるだけで回数を減らさない。
-    private func applyHint(_ result: FreeCellHintResult, consume: () -> Bool) -> Bool {
-        guard phase == .playing else { return false }
-        switch result {
-        case .hopeless:
-            showsHintHopeless = true
-            return false
-        case .move(let move):
-            guard board.isLegal(move), consume() else { return false }
-            hintMove = move
-            services?.gameDidUseHint(gameID: gameID)
-            services?.feedback.impact(.light)
-            persist()
-            return true
-        }
+    private var hintContext: BoardHintReader<FreeCellHintResult>.Context {
+        .init(
+            services: services, gameID: gameID, canUse: canUseHint, needsAd: needsAdForHint, isPlaying: phase == .playing,
+            cachedAnswer: { nil },
+            makeSearch: { [self] in
+                let board = self.board
+                return { FreeCellHint.find(in: board, isCancelled: { Task.isCancelled }) }
+            },
+            searchDidFinish: { [self] in hintSearchDidFinishForTesting?() },
+            verdict: { [self] result in
+                switch result {
+                case .hopeless: return .hopeless
+                case .move(let move): return board.isLegal(move) ? .legal : .illegal
+                }
+            },
+            show: { [self] result in
+                guard case .move(let move) = result else { return }
+                hintMove = move
+            },
+            persist: { [self] in persist() },
+            consumeFree: { [self] in hints.consume() },
+            consumeAd: { [self] in hints.consumeAd() }
+        )
     }
 
     // MARK: - 自動で上がる
@@ -451,7 +423,7 @@ public final class FreeCellModel {
         moves = []
         undosRemaining = FreeCellUndoBudget.free
         hints.reset()
-        showsHintHopeless = false
+        hintReader.reset()
         board = Self.replay(moves, seed: dealNumber).board
         phase = .playing
         selection = nil
@@ -552,11 +524,8 @@ public final class FreeCellModel {
 
     private func refreshDerivedState() {
         // 盤が変わった = 示していた手も、走っている読みも古い（#2025）。
-        boardVersion += 1
         hintMove = nil
-        hintSearch?.cancel()
-        hintSearch = nil
-        isHintThinking = false
+        hintReader.boardDidChange()
         isDeadEnd = phase == .playing && board.isDeadEnd
         autoFinishPlan = Self.autoFinishPlan(from: board)
     }

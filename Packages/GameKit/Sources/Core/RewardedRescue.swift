@@ -29,6 +29,10 @@ public final class RewardedRescue {
 
     /// 広告のロード〜視聴中。救済ボタンの `disabled` に使う。
     public private(set) var isWatching = false
+    /// `isWatching` のうち、広告を出す前の**先読みの最中**（#2125）。広告はまだ出ていないので計時は止めない。
+    public private(set) var isReading = false
+    /// 広告のロード〜視聴中で、計時を止めておくべきか。先読みの最中は止めない。
+    public var holdsClock: Bool { isWatching && !isReading }
     /// 視聴しなかった・読み込めなかった。
     public var showsNotEarned = false
     /// 視聴は完了したが、局面が変わっていて適用できなかった。
@@ -162,6 +166,32 @@ public extension RewardedRescue {
             case .granted:     await whenGranted?()
             case .notEarned:   showsNotEarned = true
             case .unavailable: showsUnavailable = true
+            case .superseded:  break
+            }
+        }
+    }
+
+    /// `requestHandledByModel(withOutcome:whenGranted:)` のうち、**広告の前に先読みを挟む**形（#2125）。
+    ///
+    /// ヒントのように「読み終えてから広告を出す」面で、読みの間まで計時を止めないための口。
+    /// `perform` は読みを終えて広告を出す直前に `readDidFinish` を呼ぶ（呼ばないまま終えても後始末は同じ）。
+    func requestHandledByModel(
+        withOutcome perform: @escaping @MainActor (_ readDidFinish: @escaping @MainActor () -> Void) async -> RewardedModelOutcome,
+        whenGranted: (@MainActor () async -> Void)? = nil
+    ) {
+        guard !isWatching else { return }
+        isWatching = true
+        isReading = true
+        offerDidAccept()
+        Task {
+            let outcome = await perform { [self] in isReading = false }
+            isReading = false
+            isWatching = false
+            switch outcome {
+            case .granted:     await whenGranted?()
+            case .notEarned:   showsNotEarned = true
+            case .unavailable: showsUnavailable = true
+            case .superseded:  break
             }
         }
     }
@@ -176,6 +206,8 @@ public enum RewardedModelOutcome: Sendable, Equatable {
     /// 救済できる状態ではなかった、または視聴のあいだに局が入れ替わって適用しなかった
     /// （→ `showsUnavailable`）。
     case unavailable
+    /// 広告を出す前に、先読みが捨てられた（盤が変わった・画面を離れた）。広告は出していないので何も知らせない（#2125）。
+    case superseded
 }
 
 /// 広告の前後で局が入れ替わっていないことを、どうやって確かめるか（#526）。
@@ -358,7 +390,7 @@ public extension View {
         pause: @escaping @MainActor () -> Void,
         resume: @escaping @MainActor () -> Void
     ) -> some View {
-        onChange(of: rescues.contains { $0.isWatching }) { _, watching in
+        onChange(of: rescues.contains { $0.holdsClock }) { _, watching in
             if watching { pause() } else { resume() }
         }
     }

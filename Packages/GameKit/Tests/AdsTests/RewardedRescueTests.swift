@@ -255,6 +255,37 @@ struct RewardedRescueTests {
         #expect(!granted.showsNotEarned)
         #expect(!granted.showsUnavailable)
     }
+
+    @Test("先読みの途中で捨てられた（.superseded）ときは、どちらのアラートも出さない（#2125）")
+    func supersededShowsNoAlert() async {
+        let rescue = RewardedRescue()
+        rescue.requestHandledByModel(withOutcome: { .superseded })
+        await settle()
+        #expect(!rescue.showsUnavailable)
+        #expect(!rescue.showsNotEarned)
+        #expect(!rescue.isWatching)
+    }
+
+    @Test("先読みのあいだは連打を塞ぐが計時は止めず、広告を出す直前の合図から止める（#2125）")
+    func readingDoesNotHoldTheClockUntilTheAd() async {
+        let rescue = RewardedRescue()
+        var readFinished: (@MainActor () -> Void)?
+        var release: CheckedContinuation<Void, Never>?
+        rescue.requestHandledByModel(withOutcome: { finish in
+            readFinished = finish
+            await withCheckedContinuation { release = $0 }
+            return .granted
+        })
+        await settle()
+        #expect(rescue.isWatching, "連打は塞ぐ")
+        #expect(!rescue.holdsClock, "先読みの間は計時を止めない")
+        readFinished?()
+        #expect(rescue.holdsClock, "広告に進んだら止める")
+        release?.resume()
+        await settle()
+        #expect(!rescue.isWatching)
+        #expect(!rescue.holdsClock)
+    }
 }
 
 /// 局ガードの宣言（`RewardGuard`）をソース走査で固定する（#526）。
@@ -423,7 +454,8 @@ struct RewardGuardCallSiteTests {
         // モデルが広告ごと持っている面（`requestHandledByModel` 側）だけが直に呼んでよい。
         // 将棋・チェス・五目並べ・オセロ・囲碁のヒント（無料枠を使い切った後・#1500・#2011・#2027）も、広告の視聴完了後に
         // CPU の読みを始める必要があり分けられないため、モデルが直に呼ぶ側に入る。
-        // フリーセルのヒント（#2025）は広告の前に勝てない盤かを読み、見終えたところで適用するので同じ側。
+        // フリーセル・スパイダー・ソリティアのヒント（#2025）は広告の前に勝てない盤かを読み、見終えたところで適用するので同じ側。
+        // 3 本の流れは Core の `BoardHintReader` に集約した（#2125。Core は走査の対象外）。
         let callers = try Self.gameSources()
             .filter { $0.text.contains("showRewardedAd(") }
             .map(\.path)
@@ -431,7 +463,6 @@ struct RewardGuardCallSiteTests {
         #expect(callers == [
             "GameBlackjack/BlackjackModel.swift",
             "GameChess/ChessGameModel.swift",
-            "GameFreeCell/FreeCellModel.swift",
             "GameGo/GoModel.swift",
             "GameGomoku/GomokuModel.swift",
             "GameMahjong/MahjongModel.swift",
@@ -439,8 +470,6 @@ struct RewardGuardCallSiteTests {
             "GamePoker/PokerModel.swift",
             "GameRoulette/RouletteModel.swift",
             "GameShogi/ShogiGameModel.swift",
-            "GameSolitaire/SolitaireModel.swift",
-            "GameSpider/SpiderModel.swift",
         ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
     }
 
@@ -456,6 +485,9 @@ struct RewardGuardCallSiteTests {
             .map(\.path)
             .sorted()
         #expect(missing.isEmpty, "画面の世代を照合していないモデルがある: \(missing)")
+        // ヒント 3 本（フリーセル・スパイダー・ソリティア）の広告経路は Core の `BoardHintReader` が持つ（#2125）。
+        let reader = try String(contentsOf: Self.sourcesRoot.appendingPathComponent("Core/BoardHintReader.swift"), encoding: .utf8)
+        #expect(reader.contains("screenGeneration.current == generationBeforeAd"), "BoardHintReader が画面の世代を照合していない")
     }
 
     @Test("視聴できなかったときの文言はゲーム側に散らばっていない")
