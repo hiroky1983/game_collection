@@ -91,4 +91,32 @@ struct HubCategoryTests {
         let literals = SourceScan.matchCount(of: #"(?m)^(?!.*heroGameID).*"(homerun|ojisanpuzzle|runner|shogi|poker)""#, in: body)
         #expect(literals == 0)
     }
+
+    @Test("柵越えおじさんだけ横長のタイルでグリッドの上に置き、iPhone 用・iPad 用の画像を同梱している（#2184）")
+    func homerunIsWideTileAboveGrid() throws {
+        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad"] {
+            let png = SourceScan.repositoryRoot
+                .appendingPathComponent("App/Assets.xcassets/HubTiles/\(name).imageset/\(name).png")
+            #expect(FileManager.default.fileExists(atPath: png.path), "\(name).png が無い")
+        }
+        let source = try SourceScan.appSources()
+        let hub = try #require(source.range(of: "struct HubView: View {"))
+        let end = try #require(source.range(of: "private struct GameCard", range: hub.upperBound..<source.endIndex))
+        let body = String(source[hub.lowerBound..<end.lowerBound])
+        let wide = try #require(body.range(of: "gridTile(hero, wide: true)"), "横長タイルが置かれていない")
+        let grid = try #require(body.range(of: "LazyVGrid(", range: wide.upperBound..<body.endIndex), "横長タイルがグリッドの上に無い")
+        // グリッドからは柵越えおじさんを除く（2 回出さない）。
+        #expect(body[grid.lowerBound...].contains("ForEach(entries.filter { $0.module.id != Self.heroGameID }"))
+    }
+
+    @Test("カテゴリーのチップは押せる範囲が 44pt 以上（HIG の最小値・#2184 の誤タップ対策）")
+    func chipsHaveMinimumHitArea() throws {
+        let source = try SourceScan.appSources()
+        let start = try #require(source.range(of: "private struct HubCategoryChips: View {"))
+        let end = source.range(of: "\n}\n", range: start.upperBound..<source.endIndex)?.upperBound ?? source.endIndex
+        let chips = String(source[start.lowerBound..<end])
+        #expect(chips.contains("static let minHitHeight: CGFloat = 44"))
+        #expect(chips.contains(".frame(minHeight: Self.minHitHeight)\n                            .contentShape(Rectangle())"),
+                "当たり判定（contentShape）が 44pt の枠に掛かっていない")
+    }
 }

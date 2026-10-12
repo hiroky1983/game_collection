@@ -76,8 +76,7 @@ struct HubView: View {
 
     // MARK: 柵越えおじさん（#1761・#2175）
 
-    /// 柵越えおじさん。モック（docs/design/hub-redesign-1831 の 01）のとおり、ほかと同じ大きさのタイルで
-    /// グリッドの先頭に置く（新着はその次）。**登録されていて非表示にされていないときだけ**出す。
+    /// 柵越えおじさん。グリッドの先頭に、全列ぶちぬきの横長タイルで置く（#2184。様式はほかのタイルと同じ・新着はその次）。**登録されていて非表示にされていないときだけ**出す。
     /// `game_open` の導線は以前の特別枠と同じ `.hero` のまま（解析の数え方を変えない）。
     private static let heroGameID = "homerun"
 
@@ -216,8 +215,8 @@ struct HubView: View {
                     HubCategoryChips(categories: chipCategories, selected: activeCategory) { category in
                         withGameAnimation(.easeOut(duration: 0.2)) { selectedCategory = category }
                     }
-                    .padding(.top, 10 - HubCategoryChips.hitSlop)
-                    .padding(.bottom, -HubCategoryChips.hitSlop)
+                    .padding(.top, 10 - HubCategoryChips.hitSlop(layout))
+                    .padding(.bottom, -HubCategoryChips.hitSlop(layout))
                     .zIndex(1)
                 }
                 ScrollView {
@@ -264,42 +263,16 @@ struct HubView: View {
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, 12)
                     }
-                    LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                        ForEach(shownGridEntries, id: \.module.id) { entry in
-                            let module = entry.module
-                            let hasResume = isResumable(module.id)
-                            // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
-                            NavigationLink(value: HubRoute(
-                                gameID: module.id, source: entry.source, position: entry.position, resume: hasResume
-                            )) {
-                                GameCard(
-                                    module: module,
-                                    hasResume: hasResume,
-                                    isNew: NewGames.currentVersionIDs.contains(module.id)
-                                )
-                            }
-                            // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
-                            // 画面が出るまで間があるため、押した手応えを `.pop` で返す。
-                            .buttonStyle(.pop)
-                            // 設定シートの奥にある並べ替え・非表示をハブから呼ぶ（#662）。
-                            // 同じ `GameSettings` を触るので、設定シートの並びと二重の状態にならない。
-                            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-                            .contextMenu {
-                                Button {
-                                    moveToTop(module.id)
-                                } label: {
-                                    Label(tr("いちばん上に置く"), systemImage: "arrow.up.to.line")
-                                }
-                                // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
-                                // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
-                                // 柵越えおじさんは常に先頭なので押せない（以前の特別枠と同じ）。
-                                .disabled(module.id == Self.heroGameID || NewGames.isAlreadyAtTop(
-                                    id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
-                                Button {
-                                    hide(module)
-                                } label: {
-                                    Label(tr("非表示にする"), systemImage: "eye.slash")
-                                }
+                    // 柵越えおじさんだけは横長のタイルで、グリッドの先頭の 1 行を全列ぶち抜く（#2184。iPhone は 2 列・iPad は全列）。
+                    // LazyVGrid は列をまたげないので、グリッドの上に同じ間隔で置く。新着はグリッドの先頭（= その次）に来る。
+                    let entries = shownGridEntries
+                    VStack(spacing: Self.gridSpacing) {
+                        if let hero = entries.first(where: { $0.module.id == Self.heroGameID }) {
+                            gridTile(hero, wide: true)
+                        }
+                        LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
+                            ForEach(entries.filter { $0.module.id != Self.heroGameID }, id: \.module.id) { entry in
+                                gridTile(entry, wide: false)
                             }
                         }
                     }
@@ -597,6 +570,46 @@ struct HubView: View {
     ///
     /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
     /// いったん根まで戻し、次の runloop で積み直す。
+    /// グリッドの 1 枚（横長の柵越えおじさんも同じ結線を通す・#2184）。
+    private func gridTile(_ entry: GridEntry, wide: Bool) -> some View {
+        let module = entry.module
+        let hasResume = isResumable(module.id)
+        // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
+        return NavigationLink(value: HubRoute(
+            gameID: module.id, source: entry.source, position: entry.position, resume: hasResume
+        )) {
+            GameCard(
+                module: module,
+                hasResume: hasResume,
+                isNew: NewGames.currentVersionIDs.contains(module.id),
+                wide: wide
+            )
+        }
+        // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
+        // 画面が出るまで間があるため、押した手応えを `.pop` で返す。
+        .buttonStyle(.pop)
+        // 設定シートの奥にある並べ替え・非表示をハブから呼ぶ（#662）。
+        // 同じ `GameSettings` を触るので、設定シートの並びと二重の状態にならない。
+        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+        .contextMenu {
+            Button {
+                moveToTop(module.id)
+            } label: {
+                Label(tr("いちばん上に置く"), systemImage: "arrow.up.to.line")
+            }
+            // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
+            // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
+            // 柵越えおじさんは常に先頭なので押せない（以前の特別枠と同じ）。
+            .disabled(module.id == Self.heroGameID || NewGames.isAlreadyAtTop(
+                id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
+            Button {
+                hide(module)
+            } label: {
+                Label(tr("非表示にする"), systemImage: "eye.slash")
+            }
+        }
+    }
+
     private func openFromOutside(_ route: HubRoute) {
         path = []
         DispatchQueue.main.async { path = [route] }
@@ -650,7 +663,7 @@ struct HubView: View {
 
 /// ハブの絵のタイル（2列グリッド・#119、絵のタイルは #1831、モックどおりの見た目は #2175）。
 ///
-/// 絵・ゲーム名・下線（柵越えおじさんは「体験版」も）は 1 枚の画像（アセット `hubtile-<id>`）に入っている
+/// 絵・ゲーム名・下線は 1 枚の画像（アセット `hubtile-<id>`）に入っている
 /// （会長指示「画像で良いからちゃんとしてくれ」#2175）。画像は `Scripts/generate-hub-tiles.py` がモック
 /// （docs/design/hub-redesign-1831 の 01）の HTML・CSS そのままで書き出す。アプリはタイルの比率で敷き、
 /// 角丸と影を付け、「続きから」「NEW」だけを左下に重ねる（モック 01 の `.badge`）。記録・説明文は出さない。
@@ -659,15 +672,25 @@ private struct GameCard: View {
     let hasResume: Bool
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
+    /// グリッドの全列ぶちぬきの横長タイル（柵越えおじさんだけ・#2184）。画像は iPhone 用（2 列ぶん）と iPad 用（4 列ぶん）。
+    var wide = false
 
     @Environment(\.adaptiveLayout) private var layout
 
+    private var tileName: String {
+        wide ? HubTileStyle.wideTileName(for: module.id, pad: layout.isWide) : HubTileStyle.tileName(for: module.id)
+    }
+
+    private var aspect: CGFloat {
+        wide ? HubTileStyle.wideAspect(pad: layout.isWide) : HubTileStyle.aspect
+    }
+
     var body: some View {
         Color.clear
-            .aspectRatio(HubTileStyle.aspect, contentMode: .fit)
+            .aspectRatio(aspect, contentMode: .fit)
             .overlay { art }
-            // 柵越えおじさんは左下に「体験版」が描き込まれているので、印は右下に置く。
-            .overlay(alignment: module.id == HubTileStyle.trialGameID ? .bottomTrailing : .bottomLeading) {
+            // 柵越えおじさんの画像の「体験版」は会長指示で消した（#2184）ので、印はどのタイルも左下。
+            .overlay(alignment: .bottomLeading) {
                 badge.padding(layout.scaled(10))
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
@@ -684,8 +707,8 @@ private struct GameCard: View {
     /// 絵。アセットが無いゲーム（新しく足して絵をまだ作っていない等）は、差し色の面に名前を出して代用する。
     @ViewBuilder
     private var art: some View {
-        if UIImage(named: HubTileStyle.tileName(for: module.id)) != nil {
-            Image(HubTileStyle.tileName(for: module.id))
+        if UIImage(named: tileName) != nil {
+            Image(tileName)
                 .resizable()
                 .scaledToFill()
         } else {
@@ -735,11 +758,14 @@ private struct GameCard: View {
 enum HubTileStyle {
     /// モックのタイルの寸法（179 × 215pt）の比率。画像もこの比率で書き出している。
     static let aspect: CGFloat = 179.0 / 215.0
-    /// 「体験版」が画像の左下に描き込まれているゲーム。
-    static let trialGameID = "homerun"
 
     static func tileName(for gameID: String) -> String { "hubtile-\(gameID)" }
     static func thumbName(for gameID: String) -> String { "hubthumb-\(gameID)" }
+
+    /// 横長タイル（#2184）の画像。寸法は iPhone が 2 列ぶん（179×2+12 × 215pt）、iPad が 4 列ぶん（179×4+12×3 × 215pt）で、
+    /// 高さはふつうのタイル 1 枚と同じ。iPad の列が 5〜6 列に増えても比率は保つ（そのぶん少し背が高くなる）。
+    static func wideTileName(for gameID: String, pad: Bool) -> String { "hubtile-\(gameID)-wide" + (pad ? "-pad" : "") }
+    static func wideAspect(pad: Bool) -> CGFloat { pad ? (179.0 * 4 + 12 * 3) / 215.0 : (179.0 * 2 + 12) / 215.0 }
 
     private static let coral: UInt32 = 0xFF6F61, teal: UInt32 = 0x22C3BE, purple: UInt32 = 0x8C7BE0
     private static let yellow: UInt32 = 0xFFC24B, pink: UInt32 = 0xFF8FB1
@@ -786,37 +812,47 @@ private struct HubCategoryHeading: View {
     }
 }
 
-/// カテゴリーのチップの行（#1831）。モック 04b の `.chips`（12pt・白地・選択中は濃い茶の地に白文字）。
-/// 画面幅を超えるときは横にスクロールする。見た目はモックの大きさのまま、当たり判定だけ 44pt に広げる。
+/// カテゴリーのチップの行（#1831）。モック 04b の `.chips`（白地・選択中は濃い茶の地に白文字）。
+/// 画面幅を超えるときは横にスクロールする。
+///
+/// 会長 QA（#2184「ボタンとして小さく、指で押すと誤タップする」）で、モックの大きさ（12pt・高さ約 29pt・間隔 8pt）から
+/// 文字 14pt・見た目の高さ 36pt・間隔 12pt に大きくした。押せる範囲は Apple のヒューマンインターフェイスガイドラインの
+/// 最小値 44×44pt 以上（https://developer.apple.com/design/human-interface-guidelines/accessibility#Buttons-and-controls）。
 private struct HubCategoryChips: View {
     let categories: [HubCategory]
     let selected: HubCategory
     let onSelect: (HubCategory) -> Void
 
-    /// 見た目のチップ（約 29pt）を 44pt の当たり判定に広げたときの、上下それぞれのはみ出し。
-    static let hitSlop: CGFloat = 7.5
+    /// 押せる範囲の最小の高さ（HIG の最小値）。
+    static let minHitHeight: CGFloat = 44
+
+    /// 見た目のチップの高さ。iPad は 1.5 倍（54pt）になり、そのまま 44pt を超える。
+    static func chipHeight(_ layout: AdaptiveLayout) -> CGFloat { layout.scaled(36) }
+
+    /// 見た目のチップを 44pt の当たり判定に広げたときの、上下それぞれのはみ出し（iPhone 4pt・iPad 0pt）。
+    static func hitSlop(_ layout: AdaptiveLayout) -> CGFloat { max(0, (minHitHeight - chipHeight(layout)) / 2) }
 
     @Environment(\.adaptiveLayout) private var layout
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: layout.scaled(12)) {
                 ForEach(categories, id: \.self) { category in
                     let isSelected = category == selected
                     Button { onSelect(category) } label: {
                         Text(category.title)
-                            .themeCaption(layout.scaled(12), weight: .heavy, maxScale: 1.4)
+                            .themeCaption(layout.scaled(14), weight: .heavy, maxScale: 1.4)
                             .foregroundStyle(isSelected ? Theme.background : Theme.ink)
                             .lineLimit(1)
                             .fixedSize()
-                            .padding(.horizontal, layout.scaled(11))
-                            .padding(.vertical, layout.scaled(7))
+                            .padding(.horizontal, layout.scaled(16))
+                            .frame(minWidth: Self.minHitHeight, minHeight: Self.chipHeight(layout))
                             .background(
                                 Capsule()
                                     .fill(isSelected ? Theme.ink : Theme.surface)
                                     .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 3)
                             )
-                            .padding(.vertical, Self.hitSlop)
+                            .frame(minHeight: Self.minHitHeight)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.pop)

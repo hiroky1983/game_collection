@@ -16,6 +16,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
 出力: App/Assets.xcassets/HubTiles/
   hubtile-<id>.imageset  … 名前・下線入りのタイル（537×645）
   hubthumb-<id>.imageset … 「つづき・最近」の小さいアイコン用（名前なしの絵を正方形に切り抜き・120×120）
+  hubtile-homerun-wide(-pad).imageset … 柵越えおじさんだけの横長タイル（#2184。iPhone 2 列ぶん／iPad 4 列ぶん）
+一部だけ書き直すとき（ほかのアセットは消さない・モック不要）:
+  python3 Scripts/generate-hub-tiles.py --only homerun-wide
 """
 import argparse
 import json
@@ -135,10 +138,9 @@ def tile_html(gid, art_path):
     cls = "name small" if len(name) >= 8 else "name"
     extra = ""
     if gid == "homerun":
-        # モックの柵越えおじさんだけ、名前の下に白い霞を敷き、左下に「体験版」を出す。
+        # モックの柵越えおじさんだけ、名前の下に白い霞を敷く。モックの左下の「体験版」は会長指示で出さない（#2184）。
         extra_before = ('<div style="position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.88),'
                         'rgba(255,255,255,.55) 22%,rgba(255,255,255,0) 36%)"></div>')
-        extra = '<div class="badge trial">✦ 体験版</div>'
     else:
         extra_before = ""
     fit = ""
@@ -150,7 +152,44 @@ def tile_html(gid, art_path):
             f'<div class="{cls}">{name}</div><div class="ul" style="background:{color}"></div>{extra}</div>{fit}</body></html>')
 
 
-def render(html, png, tmp):
+# 柵越えおじさんだけの横長タイル（#2184）。iPhone はグリッドの 2 列ぶん、iPad は 4 列ぶんの幅で、高さはふつうの
+# タイルと同じ 215pt。絵はハブの特別枠で使っていたロゴ入りの横長アート（GameHomerun の HomerunHubHeroArtLogo.jpg）
+# を、ふつうのタイル（モックの homerun.png）と同じくロゴより下で切り抜いて使う（左上のゲーム名とロゴが重ならないように）。
+# 切り抜きは元画像（1206×804）の座標で、比率はタイルと同じ。「体験版」のバッジは出さない（会長指示・#2184）。
+HERO_ART = os.path.join(ROOT, "Packages/GameKit/Sources/GameHomerun/Resources/HomerunHubHeroArtLogo.jpg")
+WIDE_TILES = [
+    # (アセット名, タイルの寸法 pt, 切り抜き (left, top, right, bottom))
+    ("hubtile-homerun-wide", (179 * 2 + 12, 215), (120, 250, 1073, 804)),
+    ("hubtile-homerun-wide-pad", (179 * 4 + 12 * 3, 215), (0, 232, 1206, 577)),
+]
+
+
+def wide_tile_html(art_path, size):
+    w, h = size
+    name, color = GAMES["homerun"]
+    css = TILE_CSS.replace("width:179px;height:215px", f"width:{w}px;height:{h}px")
+    haze = ('<div style="position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.88),'
+            'rgba(255,255,255,.55) 22%,rgba(255,255,255,0) 36%)"></div>')
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
+            f'<div class="tile"><img src="file://{art_path}">{haze}'
+            f'<div class="name">{name}</div><div class="ul" style="background:{color}"></div></div></body></html>')
+
+
+def write_wide_tiles(tmp):
+    src = Image.open(HERO_ART).convert("RGB")
+    for asset, size, box in WIDE_TILES:
+        art = os.path.join(tmp, f"art-{asset}.png")
+        crop = src.crop(box)
+        # 切り抜きの比率がタイルとずれていると object-fit:cover で意図しない所が切れるので確かめる。
+        assert abs(crop.width / crop.height - size[0] / size[1]) < 0.03, (asset, crop.size, size)
+        crop.save(art)
+        tile = os.path.join(tmp, f"tile-{asset}.png")
+        render(wide_tile_html(art, size), tile, tmp, size)
+        write_imageset(asset, Image.open(tile))
+        print("wide", asset)
+
+
+def render(html, png, tmp, size=(W, H)):
     p = os.path.join(tmp, os.path.basename(png) + ".html")
     with open(p, "w") as f:
         f.write(html)
@@ -160,14 +199,14 @@ def render(html, png, tmp):
         if os.path.exists(png):
             os.remove(png)
         r = subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--allow-file-access-from-files",
-                            f"--window-size={W},{H}", "--force-device-scale-factor=3", f"--screenshot={png}", f"file://{p}"],
+                            f"--window-size={size[0]},{size[1]}", "--force-device-scale-factor=3", f"--screenshot={png}", f"file://{p}"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
         if os.path.exists(png):
             break
     else:
         raise RuntimeError(r.stderr.decode()[-2000:])
     im = Image.open(png)
-    assert im.size == (W * 3, H * 3), (png, im.size)
+    assert im.size == (size[0] * 3, size[1] * 3), (png, im.size)
 
 
 def write_imageset(name, image):
@@ -182,19 +221,26 @@ def write_imageset(name, image):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mock", required=True, help="モックのタイル絵の場所（hub-redesign/assets/tiles）")
+    ap.add_argument("--mock", help="モックのタイル絵の場所（hub-redesign/assets/tiles）。描き直すゲーム・横長タイルだけなら不要")
     ap.add_argument("--keep", help="途中の PNG（名前なしの絵）を残す場所")
+    ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）。"
+                    "homerun-wide で柵越えおじさんの横長タイルだけ")
     args = ap.parse_args()
 
-    if os.path.isdir(OUT):
-        shutil.rmtree(OUT)
-    os.makedirs(OUT)
-    with open(os.path.join(OUT, "Contents.json"), "w") as f:
-        json.dump({"info": {"author": "xcode", "version": 1}, "properties": {"provides-namespace": False}}, f, indent=2)
-        f.write("\n")
+    if not args.only:
+        if os.path.isdir(OUT):
+            shutil.rmtree(OUT)
+        os.makedirs(OUT)
+        with open(os.path.join(OUT, "Contents.json"), "w") as f:
+            json.dump({"info": {"author": "xcode", "version": 1}, "properties": {"provides-namespace": False}}, f, indent=2)
+            f.write("\n")
 
     with tempfile.TemporaryDirectory() as tmp:
+        if not args.only or "homerun-wide" in args.only:
+            write_wide_tiles(tmp)
         for gid in GAMES:
+            if args.only and gid not in args.only:
+                continue
             art = os.path.join(tmp, f"art-{gid}.png")
             if gid in REDRAWN:
                 render(art_html(gid), art, tmp)
