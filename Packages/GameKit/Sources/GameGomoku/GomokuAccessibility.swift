@@ -13,15 +13,15 @@ public enum GomokuAccessibility {
     public static func pointLabel(
         row: Int, col: Int, stone: GomokuStone?, isLastMove: Bool, isHint: Bool = false
     ) -> String {
-        var parts = ["\(row + 1)行\(col + 1)列"]
+        var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1)]
         switch stone {
-        case .black: parts.append("黒石")
-        case .white: parts.append("白石")
-        case nil:    parts.append("空点")
+        case .black: parts.append(tr("黒石"))
+        case .white: parts.append(tr("白石"))
+        case nil:    parts.append(tr("空点"))
         }
-        if isLastMove { parts.append("直前の手") }
-        if isHint { parts.append("ヒントの手") }
-        return parts.joined(separator: "、")
+        if isLastMove { parts.append(tr("直前の手")) }
+        if isHint { parts.append(tr("ヒントの手")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// 禁じ手で着手を断ったときの読み上げ文（#1574）。
@@ -29,6 +29,6 @@ public enum GomokuAccessibility {
     /// 画面の帯（`GomokuView.forbiddenNotice`）は見せるだけの表示で、VoiceOver 利用者は
     /// 触って探さない限り「なぜ石が置けないのか」に気づけない。帯と同じ文言を自動で読ませる。
     public static func forbiddenAnnouncement(reason: GomokuForbidden) -> String {
-        "\(reason.label)は打てません（禁じ手）"
+        tr("%@は打てません（禁じ手）", reason.label)
     }
 }

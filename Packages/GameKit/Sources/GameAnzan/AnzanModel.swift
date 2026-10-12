@@ -207,7 +207,7 @@ public final class AnzanModel {
                 metric: .winLoss,
                 seconds: (isCorrect && !replayUsed) ? seconds : nil,
                 variant: settings.variant,
-                variantLabel: settings.variantLabel
+                variantLabel: settings.recordVariantLabel
             )
         )
         if let record = recordResult?.record {

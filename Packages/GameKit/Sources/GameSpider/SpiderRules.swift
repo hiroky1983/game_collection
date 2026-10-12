@@ -24,16 +24,7 @@ public enum SpiderSuitCount: Int, CaseIterable, Codable, Sendable, Equatable {
     /// 1 スートあたり何組入るか（104 枚 ÷ 13 ÷ スート数）。
     public var copiesPerSuit: Int { 8 / rawValue }
 
-    public var label: String { "\(rawValue)スート" }
-
-    /// 開始シート・ステータスの副題。
-    public var subtitle: String {
-        switch self {
-        case .one:  return "入門。♠だけ"
-        case .two:  return "標準。♠と♥"
-        case .four: return "上級。4種すべて"
-        }
-    }
+    // 画面に出す名前（`label` / `subtitle`）は表（`tr`）を引くので `SpiderCardFigure.swift` に置く（多言語 #2169）。
 
     /// 記録の保存先（`GameScore.variant`）。**3 難度すべてに付ける**（ナンプレと同じ）。
     ///
@@ -43,7 +34,7 @@ public enum SpiderSuitCount: Int, CaseIterable, Codable, Sendable, Equatable {
     public var recordVariant: String { "\(rawValue)suit" }
 
     /// 自己ベストの行に出す区分名。
-    public var recordLabel: String { label }
+    public var recordLabel: String { "\(rawValue)スート" }  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
 }
 
 /// 1 局に焼き込むルールの束（#717。`docs/ai-devops.md`「1局=1RuleSet」原則）。

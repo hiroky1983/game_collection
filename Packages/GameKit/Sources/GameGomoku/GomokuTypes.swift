@@ -96,9 +96,9 @@ public enum GomokuForbidden: Equatable, Sendable {
     /// 画面に出す短い名前。
     public var label: String {
         switch self {
-        case .doubleThree: "三三"
-        case .doubleFour:  "四四"
-        case .overline:    "長連"
+        case .doubleThree: tr("三三")
+        case .doubleFour:  tr("四四")
+        case .overline:    tr("長連")
         }
     }
 }

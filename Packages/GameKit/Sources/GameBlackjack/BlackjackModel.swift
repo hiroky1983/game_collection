@@ -646,15 +646,15 @@ public final class BlackjackModel {
         let kind: HandResult.Kind
         let headline: String
         switch outcome {
-        case .playerBlackjack: (kind, headline) = (.win, "ブラックジャック！")
-        case .win:             (kind, headline) = (.win, "勝ち！")
-        case .push:            (kind, headline) = (.draw, "引き分け")
-        case .lose, .bust:     (kind, headline) = (.lose, "負け")
+        case .playerBlackjack: (kind, headline) = (.win, tr("ブラックジャック！"))
+        case .win:             (kind, headline) = (.win, tr("勝ち！"))
+        case .push:            (kind, headline) = (.draw, tr("引き分け"))
+        case .lose, .bust:     (kind, headline) = (.lose, tr("負け"))
         }
         let reason: String
         if hands.count > 1 {
             reason = hands.enumerated().map { index, hand in
-                "ハンド\(index + 1) \(hand.outcome.map(Self.shortLabel) ?? "")"
+                tr("ハンド%lld %@", index + 1, hand.outcome.map(Self.shortLabel) ?? "")
             }.joined(separator: " / ")
         } else {
             reason = singleHandReason(outcome)
@@ -667,11 +667,11 @@ public final class BlackjackModel {
 
     private static func shortLabel(_ outcome: BlackjackOutcome) -> String {
         switch outcome {
-        case .playerBlackjack: return "ブラックジャック"
-        case .win:             return "勝ち"
-        case .push:            return "引き分け"
-        case .lose:            return "負け"
-        case .bust:            return "バスト"
+        case .playerBlackjack: return tr("ブラックジャック")
+        case .win:             return tr("勝ち")
+        case .push:            return tr("引き分け")
+        case .lose:            return tr("負け")
+        case .bust:            return tr("バスト")
         }
     }
 
@@ -679,15 +679,15 @@ public final class BlackjackModel {
     private func singleHandReason(_ outcome: BlackjackOutcome) -> String {
         switch outcome {
         case .bust:
-            return "バスト（\(playerValue)）"
+            return tr("バスト（%lld）", playerValue)
         case .playerBlackjack:
-            return "最初の2枚で21（1.5倍）"
+            return tr("最初の2枚で21（1.5倍）")
         case .win where dealerValue > 21:
-            return "ディーラーがバスト（\(dealerValue)）"
+            return tr("ディーラーがバスト（%lld）", dealerValue)
         case .lose where isBlackjack(dealerHand):
-            return "ディーラーがブラックジャック"
+            return tr("ディーラーがブラックジャック")
         default:
-            return "あなた\(playerValue) 対 ディーラー\(dealerValue)"
+            return tr("あなた%1$lld 対 ディーラー%2$lld", playerValue, dealerValue)
         }
     }
 

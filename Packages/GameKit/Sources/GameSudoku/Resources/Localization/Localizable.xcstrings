@@ -1,5 +1,791 @@
 {
   "sourceLanguage" : "ja",
-  "strings" : {},
+  "strings" : {
+    "%1$@ / ミス%2$lld回 / タイム %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Mistakes: %2$lld / Time %3$@"
+          }
+        }
+      }
+    },
+    "%1$lld分%2$lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld min %2$lld sec"
+          }
+        }
+      }
+    },
+    "%1$lld行%2$lld列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
+    "%lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sec"
+          }
+        }
+      }
+    },
+    "9×9のマスに1〜9を埋めよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill the 9x9 grid with the numbers 1 to 9"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "「戻す」を補充できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Add Undos"
+          }
+        }
+      }
+    },
+    "かんたん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easy"
+          }
+        }
+      }
+    },
+    "ふつう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        }
+      }
+    },
+    "むずかしい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hard"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared!"
+          }
+        }
+      }
+    },
+    "コンティニューできませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Continue"
+          }
+        }
+      }
+    },
+    "ダブルタップで選びます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to select"
+          }
+        }
+      }
+    },
+    "ナンプレ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number Place"
+          }
+        }
+      }
+    },
+    "ヒント" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint"
+          }
+        }
+      }
+    },
+    "ヒント、残り%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint, %lld left"
+          }
+        }
+      }
+    },
+    "ヒント、残りなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint, none left"
+          }
+        }
+      }
+    },
+    "ヒントを使えませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Use a Hint"
+          }
+        }
+      }
+    },
+    "ヒントを入れられませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Fill In a Hint"
+          }
+        }
+      }
+    },
+    "ミス %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mistakes %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "ミスが%lld回になりました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've made %lld mistake"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've made %lld mistakes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "メモ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        }
+      }
+    },
+    "メモ %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "notes %@"
+          }
+        }
+      }
+    },
+    "メモ %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note %lld"
+          }
+        }
+      }
+    },
+    "メモモード、オフ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes mode, off"
+          }
+        }
+      }
+    },
+    "メモモード、オン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes mode, on"
+          }
+        }
+      }
+    },
+    "使い切り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "all placed"
+          }
+        }
+      }
+    },
+    "元に戻す（広告を見て補充）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo (watch an ad for more)"
+          }
+        }
+      }
+    },
+    "元に戻す（残り%lld回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo (%lld left)"
+          }
+        }
+      }
+    },
+    "出題" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "given"
+          }
+        }
+      }
+    },
+    "取り消せる手がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to undo"
+          }
+        }
+      }
+    },
+    "広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch the whole ad to get %lld more undo.\nYour board stays as it is."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch the whole ad to get %lld more undos.\nYour board stays as it is."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見て%lld回補充する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an Ad for %lld More"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an Ad for %lld More"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったか、この局を諦めたため、コンティニューできませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started or you gave up while the ad was playing, so you couldn't continue."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったか、局が終わったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started or the game ended while the ad was playing, so no undos were added.\nThe new game starts with the free undos again."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The board changed while the ad was playing, so the hint couldn't be filled in.\nYour remaining hints weren't used."
+          }
+        }
+      }
+    },
+    "広告を見てコンティニュー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
+    "広告を見るとミスが0に戻り、続きから遊べます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to reset your mistakes to 0 and keep playing"
+          }
+        }
+      }
+    },
+    "広告を見ると選択中のマスの答えが入ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to fill in the answer for the selected square"
+          }
+        }
+      }
+    },
+    "戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "拡大" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom"
+          }
+        }
+      }
+    },
+    "新規ゲームを始めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "残り%1$lldマス、経過%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld square left, %2$@ elapsed"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld squares left, %2$@ elapsed"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "残り%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld left"
+          }
+        }
+      }
+    },
+    "消す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase"
+          }
+        }
+      }
+    },
+    "無料の「戻す」を使い切りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've Used Your Free Undos"
+          }
+        }
+      }
+    },
+    "盤を拡大" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom in"
+          }
+        }
+      }
+    },
+    "盤全体を表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show whole board"
+          }
+        }
+      }
+    },
+    "直前の1手を取り消します。ミスの回数は戻りません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Takes back your last move. Mistakes aren't refunded"
+          }
+        }
+      }
+    },
+    "空き 約30〜35" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 30-35 blanks"
+          }
+        }
+      }
+    },
+    "空き 約40〜45" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 40-45 blanks"
+          }
+        }
+      }
+    },
+    "空き 約46〜50" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 46-50 blanks"
+          }
+        }
+      }
+    },
+    "空きマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "empty"
+          }
+        }
+      }
+    },
+    "答えがすべて表示され、この局は記録上「クリアできなかった」扱いになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full solution will be shown, and this game will count as not cleared in your records."
+          }
+        }
+      }
+    },
+    "答えを入れたいマスを選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select the square you want filled in"
+          }
+        }
+      }
+    },
+    "答えを見た" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solution shown"
+          }
+        }
+      }
+    },
+    "終了して新規ゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & New Game"
+          }
+        }
+      }
+    },
+    "諦めて答えを見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give Up & See Solution"
+          }
+        }
+      }
+    },
+    "諦めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give up?"
+          }
+        }
+      }
+    },
+    "諦める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give Up"
+          }
+        }
+      }
+    },
+    "途中で終了すると解きかけの盤面が失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, your puzzle in progress will be lost."
+          }
+        }
+      }
+    },
+    "選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "selected"
+          }
+        }
+      }
+    },
+    "間違い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "wrong"
+          }
+        }
+      }
+    },
+    "難易度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Difficulty"
+          }
+        }
+      }
+    },
+    "難易度を選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a difficulty"
+          }
+        }
+      }
+    },
+    "難易度を選んで始める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a Difficulty to Start"
+          }
+        }
+      }
+    }
+  },
   "version" : "1.0"
 }

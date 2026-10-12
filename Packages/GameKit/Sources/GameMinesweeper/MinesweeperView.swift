@@ -46,7 +46,7 @@ public struct MinesweeperView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "マインスイーパー", review: services.review,
+        .gameChrome(title: tr("マインスイーパー"), review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         if model.gameState == .playing {
                             showConfirmNewGame = true
@@ -67,37 +67,37 @@ public struct MinesweeperView: View {
             }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了するとゲームのデータが失われます。")
+                Text(tr("途中で終了するとゲームのデータが失われます。"))
             }
-            .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
-                Button("諦める", role: .destructive) { model.giveUp() }
-                Button("キャンセル", role: .cancel) {}
+            .confirmationDialog(tr("諦めますか？"), isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
+                Button(tr("諦める"), role: .destructive) { model.giveUp() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("全ての地雷が公開されゲームオーバーになります。")
+                Text(tr("全ての地雷が公開されゲームオーバーになります。"))
             }
         }
         .rewardOffer(continueRescue, for: .continue, isPresented: showContinue,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             continueRescue,
-            notEarned: "コンティニューできませんでした",
+            notEarned: tr("コンティニューできませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "コンティニューできませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+                title: tr("コンティニューできませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
             )
         )
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを表示できませんでした",
+            notEarned: tr("ヒントを表示できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、ヒントを出せませんでした。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、ヒントを出せませんでした。")
             )
         )
         .gameTimerLifecycle(
@@ -162,15 +162,15 @@ public struct MinesweeperView: View {
         GameOverflowBar(menuItems: [
             // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
             GameControlMenuItem(
-                id: "flag", title: "旗モード", systemImage: "flag.fill", isChecked: model.flagMode,
+                id: "flag", title: tr("旗モード"), systemImage: "flag.fill", isChecked: model.flagMode,
                 accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
             ) { model.toggleFlagMode() },
             GameControlMenuItem(
-                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                id: "zoom", title: tr("拡大"), systemImage: "plus.magnifyingglass", isChecked: zoomMode,
                 accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
                 accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
             ) { zoomMode.toggle() },
-            GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
+            GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },
         ], actions: [hintAction], nudge: hintNudge)
@@ -180,16 +180,16 @@ public struct MinesweeperView: View {
     private var hintAction: GameActionItem {
         let free = model.hints.freeRemaining
         return GameActionItem(
-            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
             badge: model.needsAdForHint ? .ad() : .count(free),
             isEnabled: model.canUseHint && !hintRescue.isWatching,
             // 専用の読み上げ文を渡すと 2 行目は読まれないので、広告が要ることを文に含める。
             accessibilityLabel: model.needsAdForHint
-                ? "ヒント（広告を見て表示）"
-                : "ヒント（残り\(free)回）",
+                ? tr("ヒント（広告を見て表示）")
+                : tr("ヒント（残り%lld回）", free),
             accessibilityHint: model.gameState == .idle
-                ? "最初のマスを開くと使えます"
-                : "理屈で安全と言えるマスを光らせます。決まるマスが無いときは安全なマスを1つ開けます"
+                ? tr("最初のマスを開くと使えます")
+                : tr("理屈で安全と言えるマスを光らせます。決まるマスが無いときは安全なマスを1つ開けます")
         ) { requestHint() }
     }
 
@@ -222,9 +222,9 @@ public struct MinesweeperView: View {
         guard let outcome else { return }
         switch outcome {
         case .highlighted(let p):
-            AccessibilityNotification.Announcement("ヒント、\(p.row + 1)行\(p.col + 1)列は安全です").post()
+            AccessibilityNotification.Announcement(tr("ヒント、%1$lld行%2$lld列は安全です", p.row + 1, p.col + 1)).post()
         case .revealed(let p):
-            AccessibilityNotification.Announcement("決まるマスが無いため、\(p.row + 1)行\(p.col + 1)列を開きました").post()
+            AccessibilityNotification.Announcement(tr("決まるマスが無いため、%1$lld行%2$lld列を開きました", p.row + 1, p.col + 1)).post()
         }
     }
 
@@ -254,12 +254,12 @@ public struct MinesweeperView: View {
         VStack(spacing: 12) {
             Text("💥")
                 .scaledFont(52, maxScale: 1.2)
-            Text("地雷を踏んだ！")
+            Text(tr("地雷を踏んだ！"))
                 .scaledFont(20, weight: .bold, design: .rounded)
                 .foregroundStyle(.white)
 
             GameDeadEndActionButton(
-                "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
+                tr("広告を見てコンティニュー"), systemImage: "play.rectangle.fill",
                 tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
             ) {
                 // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
@@ -277,7 +277,7 @@ public struct MinesweeperView: View {
 
             // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
             // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
-            GameDeadEndDismissButton("諦める", isDisabled: continueRescue.isWatching) {
+            GameDeadEndDismissButton(tr("諦める"), isDisabled: continueRescue.isWatching) {
                 showContinue = false
             }
         }
@@ -347,7 +347,7 @@ public struct MinesweeperView: View {
                     // 終局後の結果は行を増やさずここに同居させる（#148）。残り地雷数は
                     // 決着後には意味を持たないため、入れ替えても失われる情報は無い。
                     let won = model.gameState == .won
-                    Label(won ? "クリア！" : "ゲームオーバー",
+                    Label(won ? tr("クリア！") : tr("ゲームオーバー"),
                           systemImage: won ? "flag.checkered" : "xmark.octagon.fill")
                         .themeBody(15)
                         // 文字を拡大すると「ゲームオーバー」が理想幅を要求して
@@ -367,7 +367,7 @@ public struct MinesweeperView: View {
 
             // 旗モードは切り替えが「⋯」に移ったので、いまオンかどうかは帯に表示だけ出す（ボタンではない・#1468）。
             if model.flagMode && !model.gameOver {
-                Text("旗モード")
+                Text(tr("旗モード"))
                     .themeCaption(11)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
@@ -506,7 +506,7 @@ public struct MinesweeperView: View {
         // （出しても何も起きない操作を VoiceOver に読み上げさせない）。
         .accessibilityActions {
             if !model.flagMode, model.canToggleFlag(row: row, col: col) {
-                Button("旗を切り替える") { model.toggleFlag(row: row, col: col) }
+                Button(tr("旗を切り替える")) { model.toggleFlag(row: row, col: col) }
             }
         }
     }
@@ -621,7 +621,7 @@ struct MinesweeperNewGameSheet: View {
             kind: .solo,
             onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
         ) {
-            GameSetupSection("難易度") {
+            GameSetupSection(tr("難易度")) {
                 HStack(spacing: 6) {
                     ForEach(Array(MinesweeperDifficulty.allCases.enumerated()), id: \.element) { step, difficulty in
                         GameSetupChooser(title: difficulty.label, subtitle: difficulty.subtitle,

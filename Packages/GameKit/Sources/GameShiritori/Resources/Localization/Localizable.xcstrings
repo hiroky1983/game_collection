@@ -1,5 +1,833 @@
 {
   "sourceLanguage" : "ja",
-  "strings" : {},
+  "strings" : {
+    "%1$@、%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%1$@：「%2$@」" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: “%2$@”"
+          }
+        }
+      }
+    },
+    "%1$@：「%2$@」 うらよみ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: “%2$@” Alt reading!"
+          }
+        }
+      }
+    },
+    "%@、CPUが取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, taken by the CPU"
+          }
+        }
+      }
+    },
+    "%@、あなたが取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, taken by you"
+          }
+        }
+      }
+    },
+    "%lldびょう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sec"
+          }
+        }
+      }
+    },
+    "%lldゲーム目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game %lld"
+          }
+        }
+      }
+    },
+    "%lld枚取ったらクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Take %lld card to win"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Take %lld cards to win"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUが「%@」で終わった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU ended on “%@”"
+          }
+        }
+      }
+    },
+    "CPUが「%@」で終わった！勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU ended on “%@”! You win!"
+          }
+        }
+      }
+    },
+    "CPUが続けられない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU can't continue"
+          }
+        }
+      }
+    },
+    "CPUが続けられない！勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU can't continue! You win!"
+          }
+        }
+      }
+    },
+    "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the CPU can't continue, you win. If you can't continue, you lose."
+          }
+        }
+      }
+    },
+    "CPUが考え中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU is thinking…"
+          }
+        }
+      }
+    },
+    "CPUと交互に札を取ります。場の札の読みの最後の字から始まる読みの札を選べたら、その札を取れます。取った札が新しい場の札になります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take turns with the CPU. Cards are read in Japanese: pick a card whose reading starts with the last kana of the card in play, and it's yours. The card you take becomes the new card in play."
+          }
+        }
+      }
+    },
+    "、山札%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", stock %lld"
+          }
+        }
+      }
+    },
+    "「%1$@」で終わるときはひとつ前の字で受けます。「%2$@」のような濁音は、そのまま「%2$@」でも、濁点を取った「%3$@」でも受けられます。1枚の札が別の読みを持つこともあります（うらよみ）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a reading ends with “%1$@”, continue from the kana before it. A voiced kana like “%2$@” can be followed by “%2$@” itself or by “%3$@” without the voicing marks. Some cards also have an alternate reading."
+          }
+        }
+      }
+    },
+    "「%@」からはじまる札を取ろう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a card that starts with “%@”"
+          }
+        }
+      }
+    },
+    "「%@」で終わってしまった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You ended on “%@”"
+          }
+        }
+      }
+    },
+    "「%@」で終わってしまった…負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You ended on “%@”… You lose"
+          }
+        }
+      }
+    },
+    "「%@」で終わると負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ending on “%@” loses"
+          }
+        }
+      }
+    },
+    "「%@」で終わる読みの札を選んだ人は、その場で負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever picks a card whose reading ends with “%@” loses on the spot."
+          }
+        }
+      }
+    },
+    "あそびかた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなた %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You %lld"
+          }
+        }
+      }
+    },
+    "あなた%1$lld枚、CPU%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cards: you %1$lld, CPU %2$lld"
+          }
+        }
+      }
+    },
+    "あなた%1$lld枚・CPU%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You %1$lld · CPU %2$lld"
+          }
+        }
+      }
+    },
+    "おてつき！ -%lldびょう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miss! -%lld sec"
+          }
+        }
+      }
+    },
+    "かんたん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easy"
+          }
+        }
+      }
+    },
+    "とことん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endless"
+          }
+        }
+      }
+    },
+    "のこり%lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld second left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld seconds left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ふつう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        }
+      }
+    },
+    "むずかしい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hard"
+          }
+        }
+      }
+    },
+    "むずかしさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Difficulty"
+          }
+        }
+      }
+    },
+    "カードしりとり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card Shiritori"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How it works"
+          }
+        }
+      }
+    },
+    "ゲームを始めよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let's start a game"
+          }
+        }
+      }
+    },
+    "ゲームを始める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Game"
+          }
+        }
+      }
+    },
+    "ノルマ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal"
+          }
+        }
+      }
+    },
+    "ノルマ: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal: %@"
+          }
+        }
+      }
+    },
+    "ノルマの枚数を取れば勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win by taking the goal number of cards"
+          }
+        }
+      }
+    },
+    "ノルマは無く、札が尽きるか、どちらかが続けられなくなるまで続きます。札を取ると空いた場所に山札から新しい札が出ます（山札が尽きたら出ません）。盤と山札の札を全部なくすとパーフェクトで勝ち。時間切れは負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's no goal. Play goes on until the cards run out or someone can't continue. When a card is taken, a new one from the stock fills the gap (until the stock runs out). Clear every card on the board and in the stock for a perfect win. Running out of time is a loss."
+          }
+        }
+      }
+    },
+    "ノルマ達成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal reached"
+          }
+        }
+      }
+    },
+    "ノルマ達成！勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal reached! You win!"
+          }
+        }
+      }
+    },
+    "パーフェクト！札を全部取った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfect! You took every card"
+          }
+        }
+      }
+    },
+    "パーフェクト！札を全部取った！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfect! You took every card!"
+          }
+        }
+      }
+    },
+    "一時停止" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused"
+          }
+        }
+      }
+    },
+    "一時停止中。札をタップすると再開します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused. Tap a card to resume"
+          }
+        }
+      }
+    },
+    "制限時間" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time limit"
+          }
+        }
+      }
+    },
+    "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります。時間切れで負けたときは、広告を見ると30秒足して続けられます（1局に1回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have 60 seconds. Each valid link adds 10 seconds; picking a card that doesn't link (a miss) costs 5 seconds. The clock only runs on your turn. If you lose on time, you can watch an ad to add 30 seconds and keep going (once per game)."
+          }
+        }
+      }
+    },
+    "勝ち負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning and losing"
+          }
+        }
+      }
+    },
+    "場の札は%1$@、読みは%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card in play: %1$@, read as %2$@"
+          }
+        }
+      }
+    },
+    "場の札はまだありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No card in play yet"
+          }
+        }
+      }
+    },
+    "山札 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stock %lld"
+          }
+        }
+      }
+    },
+    "広告を見て +30 秒で続ける（1 局に 1 回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad for +30 sec (once per game)"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに対局が終わったため、時間を延長できませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ended while the ad was playing, so no time could be added."
+          }
+        }
+      }
+    },
+    "新規ゲームを始めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "時間切れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time's up"
+          }
+        }
+      }
+    },
+    "時間切れ…ノルマ未達で負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time's up… Goal not reached. You lose"
+          }
+        }
+      }
+    },
+    "時間切れ…負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time's up… You lose"
+          }
+        }
+      }
+    },
+    "札が尽きるまで続く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play until the cards run out"
+          }
+        }
+      }
+    },
+    "決着" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game over"
+          }
+        }
+      }
+    },
+    "終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finished"
+          }
+        }
+      }
+    },
+    "終了して新規ゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & New Game"
+          }
+        }
+      }
+    },
+    "絵札でしりとり。CPUと取り合おう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Japanese word-chain game played with picture cards. Grab more than the CPU!"
+          }
+        }
+      }
+    },
+    "続けられませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Continue"
+          }
+        }
+      }
+    },
+    "続けられる札がない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No card to continue with"
+          }
+        }
+      }
+    },
+    "続けられる札がない…負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No card to continue with… You lose"
+          }
+        }
+      }
+    },
+    "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win the moment your cards reach the goal: Easy = 4, Normal = 6, Hard = 9. Run out of time first and you lose."
+          }
+        }
+      }
+    },
+    "読みのルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading rules"
+          }
+        }
+      }
+    },
+    "途中で終了すると、いまの対局が失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    },
+    "／ノルマ: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " / Goal: %@"
+          }
+        }
+      }
+    }
+  },
   "version" : "1.0"
 }

@@ -57,13 +57,13 @@ struct BlackjackMetricsTests {
         // 件数だけだと、1 箇所が外れても別の呼び出しが増えれば保たれてしまう（PR #267 の指摘）。
         // どの操作が経由しているかをラベルで個別に見る。ラベルは呼び出しと同じ行に書かれている。
         for label in [
-            "\"\\(amount)枚\"",
-            "\"スタンド\"",
-            "\"ヒット\"",
-            "\"ダブルダウン\"",
-            "\"スプリット\"",
-            "\"次のゲーム\"",
-            "\"結果まで進める\"",
+            "tr(\"%lld枚\", amount)",
+            "tr(\"スタンド\")",
+            "tr(\"ヒット\")",
+            "tr(\"ダブルダウン\")",
+            "tr(\"スプリット\")",
+            "tr(\"次のゲーム\")",
+            "tr(\"結果まで進める\")",
         ] {
             let pattern = #"actionButton\(\s*"# + NSRegularExpression.escapedPattern(for: label)
             #expect(

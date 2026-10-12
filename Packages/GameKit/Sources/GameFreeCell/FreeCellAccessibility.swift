@@ -28,30 +28,30 @@ public enum FreeCellAccessibility {
         isSelected: Bool,
         isMovable: Bool
     ) -> String {
-        var parts = ["\(pile + 1)列目", "\(position + 1)枚目", cardLabel(card)]
-        if aboveCount > 0 { parts.append("上に\(aboveCount)枚") }
-        if isSelected { parts.append("選択中") }
-        if !isMovable { parts.append("動かせません") }
-        return parts.joined(separator: "、")
+        var parts = [tr("%lld列目", pile + 1), tr("%lld枚目", position + 1), cardLabel(card)]
+        if aboveCount > 0 { parts.append(tr("上に%lld枚", aboveCount)) }
+        if isSelected { parts.append(tr("選択中")) }
+        if !isMovable { parts.append(tr("動かせません")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// 空の列。**クロンダイクと違い任意の札を置ける**ので、そこまで読む
     /// （「空」とだけ読むと、ソリティアを先に遊んだ人には「K だけ」と誤解される）。
     public static func emptyPileLabel(pile: Int) -> String {
-        "\(pile + 1)列目、空、どの札でも置けます"
+        tr("%lld列目、空、どの札でも置けます", pile + 1)
     }
 
     /// フリーセルの 1 枠（例: "フリーセル2、ダイヤのK、選択中"）。
     public static func cellLabel(index: Int, card: FreeCellCard?, isSelected: Bool) -> String {
-        guard let card else { return "フリーセル\(index + 1)、空" }
-        let base = "フリーセル\(index + 1)、\(cardLabel(card))"
-        return isSelected ? base + "、選択中" : base
+        guard let card else { return tr("フリーセル%lld、空", index + 1) }
+        let base = tr("フリーセル%1$lld、%2$@", index + 1, cardLabel(card))
+        return isSelected ? tr("%@、選択中", base) : base
     }
 
     /// 組札（例: "ハートの組札、7まで"）。
     public static func foundationLabel(suit: PlayingCardSuit, rank: Int) -> String {
-        guard rank > 0 else { return "\(suit.spokenName)の組札、空" }
-        return "\(suit.spokenName)の組札、\(FreeCellCard(suit, rank).rankLabel)まで"
+        guard rank > 0 else { return tr("%@の組札、空", suit.spokenName) }
+        return tr("%1$@の組札、%2$@まで", suit.spokenName, FreeCellCard(suit, rank).rankLabel)
     }
 
     /// ステータスバーの 1 行。
@@ -67,13 +67,15 @@ public enum FreeCellAccessibility {
         maxMovableCount: Int,
         isDeadEnd: Bool
     ) -> String {
-        let base = "配札\(dealNumber)番、経過\(RecordFormat.time(elapsedSeconds))、"
-            + "\(moveCount)手、一度に\(maxMovableCount)枚まで動かせます"
+        let deal = String(dealNumber)
+        let time = RecordFormat.time(elapsedSeconds)
+        let base = tr("配札%1$@番、経過%2$@、%3$lld手、一度に%4$lld枚まで動かせます",
+                      deal, time, moveCount, maxMovableCount)
         switch phase {
         case .won:
-            return "クリア。配札\(dealNumber)番、経過\(RecordFormat.time(elapsedSeconds))、\(moveCount)手"
+            return tr("クリア。配札%1$@番、経過%2$@、%3$lld手", deal, time, moveCount)
         case .playing:
-            return isDeadEnd ? "指せる手がありません。\(base)" : base
+            return isDeadEnd ? tr("指せる手がありません。%@", base) : base
         }
     }
 
@@ -82,34 +84,35 @@ public enum FreeCellAccessibility {
     /// 使い切っても枠は残る（押すと広告の提案が出る）ので、「戻す」とだけ読まれると
     /// 無料でまだ戻せると誤解される。
     public static func undoButtonLabel(remaining: Int) -> String {
-        remaining > 0 ? "1手戻す、残り\(remaining)回" : "1手戻す、残りなし"
+        remaining > 0 ? tr("1手戻す、残り%lld回", remaining) : tr("1手戻す、残りなし")
     }
 
     public static func undoButtonHint(canUndo: Bool, remaining: Int) -> String {
-        guard canUndo else { return "まだ戻せる手がありません" }
+        guard canUndo else { return tr("まだ戻せる手がありません") }
         return remaining > 0
-            ? "無料で戻せるのは1局につき\(FreeCellUndoBudget.free)回までです"
-            : "広告を見ると\(FreeCellUndoBudget.refill)回ぶん補充できます"
+            ? tr("無料で戻せるのは1局につき%lld回までです", FreeCellUndoBudget.free)
+            : tr("広告を見ると%lld回ぶん補充できます", FreeCellUndoBudget.refill)
     }
 
     /// 「ヒント」ボタン（#2025）。残り回数と広告の要否を音声だけで分かるようにする。
     public static func hintButtonLabel(freeRemaining: Int, needsAd: Bool, isThinking: Bool) -> String {
-        if isThinking { return "ヒント、考え中" }
-        return needsAd ? "ヒント（広告を見て表示）" : "ヒント（残り\(freeRemaining)回）"
+        if isThinking { return tr("ヒント、考え中") }
+        return needsAd ? tr("ヒント（広告を見て表示）") : tr("ヒント（残り%lld回）", freeRemaining)
     }
 
     /// 示した手の読み上げ（例: "ヒント、ハートの7を3列目へ"）。`board` は動かす前の盤。
     public static func hintLabel(move: FreeCellMove, board: FreeCellBoard) -> String {
         let moved = FreeCellHint.movedCards(move, in: board)
-        guard let first = moved.first else { return "ヒント" }
-        let what = moved.count > 1 ? "\(cardLabel(first))から上の\(moved.count)枚" : cardLabel(first)
-        let destination: String
+        guard let first = moved.first else { return tr("ヒント") }
+        let what = moved.count > 1 ? tr("%1$@から上の%2$lld枚", cardLabel(first), moved.count) : cardLabel(first)
         switch move {
-        case .tableauToCell(_, let cell): destination = "フリーセル\(cell + 1)"
-        case .tableauToFoundation, .cellToFoundation: destination = "\(first.suit.spokenName)の組札"
-        case .tableauToTableau(_, _, let to), .cellToTableau(_, let to): destination = "\(to + 1)列目"
+        case .tableauToCell(_, let cell):
+            return tr("ヒント、%1$@をフリーセル%2$lldへ", what, cell + 1)
+        case .tableauToFoundation, .cellToFoundation:
+            return tr("ヒント、%1$@を%2$@の組札へ", what, first.suit.spokenName)
+        case .tableauToTableau(_, _, let to), .cellToTableau(_, let to):
+            return tr("ヒント、%1$@を%2$lld列目へ", what, to + 1)
         }
-        return "ヒント、\(what)を\(destination)へ"
     }
 
     /// 行き止まりの告知。
@@ -118,10 +121,10 @@ public enum FreeCellAccessibility {
     ///   クロンダイクの「進む手が無い」（#491）と違って盤に触れる手が残っていないので、
     ///   そのまま「指せる手がありません」と言い切ってよい。
     public static func deadEndPromptLabel(canUndo: Bool, remaining: Int) -> String {
-        let head = "指せる手がありません。フリーセルが全部埋まり、どの札も置き先がありません"
-        guard canUndo else { return "\(head)。新しい配札にできます" }
+        let head = tr("指せる手がありません。フリーセルが全部埋まり、どの札も置き先がありません")
+        guard canUndo else { return tr("%@。新しい配札にできます", head) }
         return remaining > 0
-            ? "\(head)。手を戻せます。残り\(remaining)回"
-            : "\(head)。広告を見ると「戻す」を\(FreeCellUndoBudget.refill)回ぶん補充できます"
+            ? tr("%1$@。手を戻せます。残り%2$lld回", head, remaining)
+            : tr("%1$@。広告を見ると「戻す」を%2$lld回ぶん補充できます", head, FreeCellUndoBudget.refill)
     }
 }

@@ -43,10 +43,10 @@ public struct GoScore: Equatable, Sendable {
 
     /// 「白 3.5 目勝ち」のような 1 行。
     public var summary: String {
-        guard let winner else { return "引き分け" }
+        guard let winner else { return tr("引き分け") }
         let diff = abs(margin)
         let text = diff == diff.rounded() ? String(Int(diff)) : String(format: "%.1f", diff)
-        return "\(winner.name) \(text)目勝ち"
+        return tr("%1$@ %2$@目勝ち", winner.name, text)
     }
 }
 

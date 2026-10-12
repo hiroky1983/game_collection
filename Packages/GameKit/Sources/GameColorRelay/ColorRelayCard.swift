@@ -12,20 +12,20 @@ public enum RelayColor: Int, CaseIterable, Codable, Sendable, Hashable {
     /// 画面と読み上げの呼び名。
     public var name: String {
         switch self {
-        case .red:    return "あか"
-        case .green:  return "みどり"
-        case .purple: return "むらさき"
-        case .yellow: return "きいろ"
+        case .red:    return tr("あか")
+        case .green:  return tr("みどり")
+        case .purple: return tr("むらさき")
+        case .yellow: return tr("きいろ")
         }
     }
 
     /// 色名の頭文字。札の四隅に添えて、色が見分けにくい人にも札の色が伝わるようにする（#2007）。
     public var initial: String {
         switch self {
-        case .red:    return "あ"
-        case .green:  return "み"
-        case .purple: return "む"
-        case .yellow: return "き"
+        case .red:    return tr("あ")
+        case .green:  return tr("み")
+        case .purple: return tr("む")
+        case .yellow: return tr("き")
         }
     }
 
@@ -85,11 +85,11 @@ public enum RelayKind: Codable, Sendable, Hashable, Equatable {
     public var label: String {
         switch self {
         case .number(let n):  return "\(n)"
-        case .skip:           return "とばし"
-        case .reverse:        return "ぎゃく"
+        case .skip:           return tr("とばし")
+        case .reverse:        return tr("ぎゃく")
         case .drawTwo:        return "+2"
-        case .wild:           return "いろがえ"
-        case .wildDrawFour:   return "いろがえ+4"
+        case .wild:           return tr("いろがえ")
+        case .wildDrawFour:   return tr("いろがえ+4")
         }
     }
 

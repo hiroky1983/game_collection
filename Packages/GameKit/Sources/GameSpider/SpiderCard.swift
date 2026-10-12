@@ -14,8 +14,7 @@ public enum SpiderSuit: Int, CaseIterable, Sendable, Equatable, Hashable {
 
     public var isRed: Bool { self == .heart || self == .diamond }
 
-    /// VoiceOver 用の読み。
-    public var spokenName: String { ["スペード", "ハート", "ダイヤ", "クラブ"][rawValue] }
+    // VoiceOver 用の読み（`spokenName`）は表（`tr`）を引くので `SpiderCardFigure.swift` に置く（多言語 #2169）。
 }
 
 /// スパイダーソリティアで扱う 1 枚（#717）。

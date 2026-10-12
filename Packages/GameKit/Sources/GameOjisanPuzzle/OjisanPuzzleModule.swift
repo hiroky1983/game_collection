@@ -9,8 +9,8 @@ public struct OjisanPuzzleModule: GameModule {
     // **文字列リテラルで書く**（`OjisanPuzzleModel.gameID` を参照しない）。LP の顔ぶれ照合
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     public let id = "ojisanpuzzle"
-    public let title = "おじさんの荷物運びパズル"
-    public let description = "荷物を4つそろえて腰をいたわろう"
+    public var title: String { tr("おじさんの荷物運びパズル") }
+    public var description: String { tr("荷物を4つそろえて腰をいたわろう") }
     public var icon: Image { Image(systemName: "shippingbox.fill") }
     // 中断データを持たないので、中断のお知らせ（#663）の対象から外す。
     public var resumesFromSnapshot: Bool { false }

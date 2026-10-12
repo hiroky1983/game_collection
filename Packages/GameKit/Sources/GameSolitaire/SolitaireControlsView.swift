@@ -34,7 +34,7 @@ struct SolitaireControlsView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
+                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
         }
@@ -57,7 +57,7 @@ struct SolitaireControlsView: View {
     private var actions: [GameActionItem] {
         [
             GameActionItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !isWatchingUndoAd,
                 accessibilityLabel: SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining),
@@ -74,12 +74,12 @@ struct SolitaireControlsView: View {
     private var hintAction: GameActionItem {
         let free = model.hints.freeRemaining
         return GameActionItem(
-            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
             badge: model.needsAdForHint ? .ad() : .count(free),
             isEnabled: model.canUseHint && !isWatchingHintAd,
             accessibilityLabel: SolitaireAccessibility.hintButtonLabel(
                 freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
-            accessibilityHint: "次に指す1手を、動かす札と行き先に紫の枠で示します。動かすのはあなたです"
+            accessibilityHint: tr("次に指す1手を、動かす札と行き先に紫の枠で示します。動かすのはあなたです")
         ) { onHint() }
     }
 
@@ -98,7 +98,7 @@ struct SolitaireControlsView: View {
             // もう一度押すと抜ける。
             GameControlMenuItem(
                 id: "joker",
-                title: model.isPlacingJoker ? "ジョーカーをやめる" : "ジョーカー",
+                title: model.isPlacingJoker ? tr("ジョーカーをやめる") : tr("ジョーカー"),
                 systemImage: model.isPlacingJoker ? "xmark.circle.fill" : "questionmark.app.fill",
                 isEnabled: model.hasJoker || model.isPlacingJoker,
                 accessibilityLabel: SolitaireAccessibility.jokerButtonLabel(
@@ -114,16 +114,16 @@ struct SolitaireControlsView: View {
             },
             // 「あとは組札へ積むだけ」になった局面でだけ押せる。終盤の 52 回タップを 1 回に畳む。
             GameControlMenuItem(
-                id: "autoFinish", title: "自動で上がる", systemImage: "wand.and.stars",
+                id: "autoFinish", title: tr("自動で上がる"), systemImage: "wand.and.stars",
                 isEnabled: model.canAutoFinish,
-                accessibilityHint: "残りの札をまとめて組札へ送ります"
+                accessibilityHint: tr("残りの札をまとめて組札へ送ります")
             ) { model.autoFinish() },
         ]
     }
 
     /// 置き先を選んでいる最中の案内。盤に被せず操作列の上に出す（列をタップさせる必要があるため）。
     private var jokerPlacingBanner: some View {
-        Text("ジョーカーを置く列をタップしてください（空の列と、すでにジョーカーがある列には置けません）")
+        Text(tr("ジョーカーを置く列をタップしてください（空の列と、すでにジョーカーがある列には置けません）"))
             .scaledFont(12, weight: .bold, design: .rounded)
             .foregroundStyle(Theme.onAccent)
             .multilineTextAlignment(.center)

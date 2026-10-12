@@ -11,8 +11,8 @@ public struct ColorRelayModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `ColorRelayModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "colorrelay"
-    public let title = "いろリレー"
-    public let description = "色か数字をつないで手札を出し切ろう。CPU3人と対戦"
+    public var title: String { tr("いろリレー") }
+    public var description: String { tr("色か数字をつないで手札を出し切ろう。CPU3人と対戦") }
     public var icon: Image { Image(systemName: "rectangle.on.rectangle.angled") }
 
     public init() {}

@@ -9,7 +9,7 @@ public enum GoBoardSize: Int, Codable, Sendable, CaseIterable {
     case nine = 9
     case thirteen = 13
 
-    public var label: String { "\(rawValue)路" }
+    public var label: String { tr("%lld路", rawValue) }
 }
 
 /// 石の色。
@@ -19,7 +19,7 @@ public enum GoStone: Int, Codable, Equatable, Sendable {
     public var opponent: GoStone { self == .black ? .white : .black }
 
     /// 表示・読み上げに使う名前。
-    public var name: String { self == .black ? "黒" : "白" }
+    public var name: String { self == .black ? tr("黒") : tr("白") }
 }
 
 /// 盤上の交点。
@@ -65,12 +65,12 @@ public enum GoIllegalMove: Equatable, Sendable {
     /// 拒否をユーザーに伝える 1 行。
     public var message: String {
         switch self {
-        case .outOfBoard: return "盤の外には打てません"
-        case .occupied:   return "すでに石があります"
-        case .suicide:    return "自殺手です（打つと自分の石が取られます）"
-        case .ko:         return "コウです（すぐには取り返せません）"
-        case .superko:    return "同じ盤面のくり返しになるため打てません"
-        case .gameOver:   return "対局は終わっています"
+        case .outOfBoard: return tr("盤の外には打てません")
+        case .occupied:   return tr("すでに石があります")
+        case .suicide:    return tr("自殺手です（打つと自分の石が取られます）")
+        case .ko:         return tr("コウです（すぐには取り返せません）")
+        case .superko:    return tr("同じ盤面のくり返しになるため打てません")
+        case .gameOver:   return tr("対局は終わっています")
         }
     }
 }
@@ -247,10 +247,10 @@ public enum GoLevel: Int, Codable, Equatable, Sendable, CaseIterable {
 
     public var detail: String {
         switch self {
-        case .novice: return "ほぼ読まない"
-        case .easy:   return "軽く読む"
-        case .normal: return "そこそこ読む"
-        case .hard:   return "しっかり読む"
+        case .novice: return tr("ほぼ読まない")
+        case .easy:   return tr("軽く読む")
+        case .normal: return tr("そこそこ読む")
+        case .hard:   return tr("しっかり読む")
         }
     }
 }

@@ -18,7 +18,7 @@ public enum ChessColor: Int, Sendable, CaseIterable, Codable {
     /// ポーンの初期段（2段進みの起点）。
     public var pawnStartRank: Int { self == .white ? 6 : 1 }
 
-    public var name: String { self == .white ? "白" : "黒" }
+    public var name: String { self == .white ? tr("白") : tr("黒") }
 }
 
 /// 駒種。
@@ -47,15 +47,15 @@ public enum ChessPieceType: Int, Sendable, CaseIterable, Codable {
         self != .pawn && self != .king
     }
 
-    /// 日本語の呼び名（UI・読み上げ・遊び方で共通に使う）。
-    public var japaneseName: String {
+    /// 画面に出す呼び名（UI・読み上げ・遊び方で共通に使う）。表示言語に合わせて引く（#2169）。
+    public var displayName: String {
         switch self {
-        case .pawn:   return "ポーン"
-        case .knight: return "ナイト"
-        case .bishop: return "ビショップ"
-        case .rook:   return "ルーク"
-        case .queen:  return "クイーン"
-        case .king:   return "キング"
+        case .pawn:   return tr("ポーン")
+        case .knight: return tr("ナイト")
+        case .bishop: return tr("ビショップ")
+        case .rook:   return tr("ルーク")
+        case .queen:  return tr("クイーン")
+        case .king:   return tr("キング")
         }
     }
 }
