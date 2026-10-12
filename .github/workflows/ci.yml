@@ -47,6 +47,10 @@ jobs:
           if printf '%s\n' "$files" | grep -q -x -F '.github/workflows/ci.yml'; then
             others=".github/workflows/ci.yml"
           fi
+          # build ジョブとリリース（fastlane）が依存の版を固定するために呼ぶ Scripts は、壊れても気づけるよう回す（#2045）
+          if printf '%s\n' "$files" | grep -q -x -F 'Scripts/apply-package-resolved.sh'; then
+            others="Scripts/apply-package-resolved.sh"
+          fi
           # classify:end
           if [ -n "$others" ]; then
             echo "app=true" >> "$GITHUB_OUTPUT"
