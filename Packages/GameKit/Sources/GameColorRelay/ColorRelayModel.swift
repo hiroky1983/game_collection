@@ -187,7 +187,7 @@ public final class ColorRelayModel: AITurnGuarded {
     public var reviewOutcome: GameOutcome { playerPlace == 0 ? .win : .loss }
 
     public func playerName(_ index: Int) -> String {
-        index == Self.humanIndex ? "あなた" : "CPU\(index)"
+        index == Self.humanIndex ? tr("あなた") : "CPU\(index)"
     }
 
     /// 番の向きで見た、`player` の次の人。
@@ -301,7 +301,7 @@ public final class ColorRelayModel: AITurnGuarded {
         hasDrawnThisTurn = true
         drawnCardID = drawn.first?.id
         selectedID = nil
-        lastActions[Self.humanIndex] = "1枚引いた"
+        lastActions[Self.humanIndex] = tr("1枚引いた")
         // 引いた = 盤面が動いた。配っただけの局面を捨てても離脱には数えない境目（#500）。
         services?.gameDidProgress(gameID: gameID)
         if playableCardIDs.isEmpty {
@@ -315,7 +315,7 @@ public final class ColorRelayModel: AITurnGuarded {
         guard canEndTurn else { return }
         services?.feedback.impact(.light)
         selectedID = nil
-        lastActions[Self.humanIndex] = "出さずに次へ"
+        lastActions[Self.humanIndex] = tr("出さずに次へ")
         advanceTurn(steps: 1)
         persist()
     }
@@ -337,7 +337,7 @@ public final class ColorRelayModel: AITurnGuarded {
         guard serial == turnSerial, canWaivePenalty else { return false }
         isPenaltyWaived = true
         pendingDraw = 0
-        lastActions[Self.humanIndex] = "引き札を免除"
+        lastActions[Self.humanIndex] = tr("引き札を免除")
         services?.feedback.notify(.success)
         // 免除しても番は飛ばされる（引かなくて済むだけ）。
         advanceTurn(steps: 1)
@@ -359,7 +359,7 @@ public final class ColorRelayModel: AITurnGuarded {
         if card.isWild, let chosenColor { note += " → \(chosenColor.name)" }
 
         if hands[player].isEmpty {
-            lastActions[player] = note + " あがり！"
+            lastActions[player] = tr("%@ あがり！", note)
             concludeGame(winner: player)
             return
         }
@@ -368,14 +368,14 @@ public final class ColorRelayModel: AITurnGuarded {
         case .number, .wild:
             advanceTurn(steps: 1)
         case .skip:
-            note += "！"
+            note += tr("！")
             advanceTurn(steps: 2)
         case .reverse:
-            note += "！"
+            note += tr("！")
             isClockwise.toggle()
             advanceTurn(steps: 1)
         case .drawTwo, .wildDrawFour:
-            note += "！"
+            note += tr("！")
             advanceTurn(steps: 1)
             pendingDraw = card.kind.penalty
         }
@@ -388,7 +388,7 @@ public final class ColorRelayModel: AITurnGuarded {
         let count = pendingDraw
         pendingDraw = 0
         let drawn = draw(count: count, for: player)
-        lastActions[player] = "\(drawn.count)枚引いた"
+        lastActions[player] = tr("%lld枚引いた", drawn.count)
         services?.gameDidProgress(gameID: gameID)
         advanceTurn(steps: 1)
     }
@@ -487,7 +487,7 @@ public final class ColorRelayModel: AITurnGuarded {
             play(card, by: player, chosenColor: card.isWild ? ColorRelayRules.dominantColor(in: hands[player]) : nil)
             return
         }
-        lastActions[player] = "1枚引いた"
+        lastActions[player] = tr("1枚引いた")
         advanceTurn(steps: 1)
         persist()
     }
@@ -553,7 +553,7 @@ public final class ColorRelayModel: AITurnGuarded {
                 hands: [sample] + cpu, top: card(nil, .wildDrawFour),
                 drawPile: Array(deck.suffix(20)), activeColor: .green, pendingDraw: 4
             )
-            lastActions[3] = "いろがえ+4 → みどり！"
+            lastActions[3] = "\(RelayKind.wildDrawFour.label) → \(RelayColor.green.name)" + tr("！")
         case "wild":
             configureForTesting(
                 hands: [sample] + cpu, top: card(.purple, .number(4)), drawPile: Array(deck.suffix(20))

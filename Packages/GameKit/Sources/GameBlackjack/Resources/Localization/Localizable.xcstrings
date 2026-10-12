@@ -1,5 +1,558 @@
 {
   "sourceLanguage" : "ja",
-  "strings" : {},
+  "strings" : {
+    "%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ chips"
+          }
+        }
+      }
+    },
+    "%@枚（ダブル）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ chips (doubled)"
+          }
+        }
+      }
+    },
+    "%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld枚で復活すると順位表に載りません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviving with %lld chips takes you off the leaderboard"
+          }
+        }
+      }
+    },
+    "21 に近いほうが勝ち。ディーラーは 17 以上で止まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closest to 21 wins. The dealer stands on 17 or more."
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなた%1$lld 対 ディーラー%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You %1$lld vs. dealer %2$lld"
+          }
+        }
+      }
+    },
+    "スタンド" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stand"
+          }
+        }
+      }
+    },
+    "スプリット" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Split"
+          }
+        }
+      }
+    },
+    "ダブルダウン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double Down"
+          }
+        }
+      }
+    },
+    "チップ: %@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chips: %@"
+          }
+        }
+      }
+    },
+    "チップが足りなくなりました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not enough chips"
+          }
+        }
+      }
+    },
+    "チップは回復しませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chips Weren't Restored"
+          }
+        }
+      }
+    },
+    "ディーラー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dealer"
+          }
+        }
+      }
+    },
+    "ディーラーがバスト（%lld）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dealer busts (%lld)"
+          }
+        }
+      }
+    },
+    "ディーラーがブラックジャック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dealer has blackjack"
+          }
+        }
+      }
+    },
+    "ディーラーに勝てるか。チップを稼ごう！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can you beat the dealer? Stack up your chips!"
+          }
+        }
+      }
+    },
+    "ハンド%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand %lld"
+          }
+        }
+      }
+    },
+    "ハンド%lld %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand %lld: %@"
+          }
+        }
+      }
+    },
+    "バスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bust"
+          }
+        }
+      }
+    },
+    "バストして負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bust. You lose"
+          }
+        }
+      }
+    },
+    "バスト（%lld）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bust (%lld)"
+          }
+        }
+      }
+    },
+    "ヒット" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit"
+          }
+        }
+      }
+    },
+    "ブラックジャック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blackjack"
+          }
+        }
+      }
+    },
+    "ブラックジャック！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blackjack!"
+          }
+        }
+      }
+    },
+    "ブラックジャック！勝ちです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blackjack! You win"
+          }
+        }
+      }
+    },
+    "ベット: %@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet: %@"
+          }
+        }
+      }
+    },
+    "ベットするとカードが配られます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place a bet to deal the cards"
+          }
+        }
+      }
+    },
+    "ベット額を選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose your bet"
+          }
+        }
+      }
+    },
+    "伏せたカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face-down card"
+          }
+        }
+      }
+    },
+    "全体の結果は、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overall: %@"
+          }
+        }
+      }
+    },
+    "勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win"
+          }
+        }
+      }
+    },
+    "勝ちです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win"
+          }
+        }
+      }
+    },
+    "勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win!"
+          }
+        }
+      }
+    },
+    "広告を見て%1$lld枚で復活（あと%2$lld回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad: revive with %1$lld chips (%2$lld left)"
+          }
+        }
+      }
+    },
+    "広告を見て%lld枚で復活（最後の1回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad: revive with %lld chips (last one)"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The session changed while the ad was playing, so the revive wasn't applied. It didn't use up a revive."
+          }
+        }
+      }
+    },
+    "引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Push"
+          }
+        }
+      }
+    },
+    "引き分けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's a push"
+          }
+        }
+      }
+    },
+    "復活はこのセッションで%lld回使いました。最初からやり直せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've used %lld revive this session. You can start over."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've used all %lld revives this session. You can start over."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "操作中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active"
+          }
+        }
+      }
+    },
+    "最初からやり直す (%lld枚)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Over (%lld chips)"
+          }
+        }
+      }
+    },
+    "最初の2枚で21（1.5倍）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "21 on the first two cards (pays 3:2)"
+          }
+        }
+      }
+    },
+    "次のゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Hand"
+          }
+        }
+      }
+    },
+    "結果まで進める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip to Result"
+          }
+        }
+      }
+    },
+    "見えているカードの合計%lld、1枚は伏せています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing %lld, one card face down"
+          }
+        }
+      }
+    },
+    "負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lose"
+          }
+        }
+      }
+    },
+    "負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose"
+          }
+        }
+      }
+    }
+  },
   "version" : "1.0"
 }

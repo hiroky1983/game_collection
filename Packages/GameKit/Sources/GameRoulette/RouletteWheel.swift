@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 // MARK: - Wheel
 
@@ -84,13 +85,13 @@ public enum RouletteBetKind: Codable, Hashable, Sendable {
     public var label: String {
         switch self {
         case .straight(let n): return "\(n)"
-        case .red:             return "赤"
-        case .black:           return "黒"
-        case .odd:             return "奇数"
-        case .even:            return "偶数"
-        case .low:             return "1〜18"
-        case .high:            return "19〜36"
-        case .dozen(let d):    return "\((d - 1) * 12 + 1)〜\(d * 12)"
+        case .red:             return tr("赤")
+        case .black:           return tr("黒")
+        case .odd:             return tr("奇数")
+        case .even:            return tr("偶数")
+        case .low:             return tr("1〜18")
+        case .high:            return tr("19〜36")
+        case .dozen(let d):    return tr("%1$lld〜%2$lld", (d - 1) * 12 + 1, d * 12)
         }
     }
 

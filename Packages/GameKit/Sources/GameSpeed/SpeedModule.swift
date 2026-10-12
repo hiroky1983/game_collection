@@ -15,8 +15,8 @@ public struct SpeedModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `SpeedModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "speed"
-    public let title = "スピード"
-    public let description = "台札と1つ違いの札を、CPU より先に出し切ろう。速さは3段階"
+    public var title: String { tr("スピード") }
+    public var description: String { tr("台札と1つ違いの札を、CPU より先に出し切ろう。速さは3段階") }
     public var icon: Image { Image(systemName: "hare.fill") }
     /// 中断データは最後に選んだ速さの控えで、ゲームそのものは復元しない（同時進行の駆け引きで
     /// 成り立つゲームなので途中から戻せない）。「途中のままです」のお知らせ（#663）の対象から外す。
