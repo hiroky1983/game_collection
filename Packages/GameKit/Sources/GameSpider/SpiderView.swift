@@ -66,7 +66,7 @@ public struct SpiderView: View {
                 .cardTable(topInset: CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
-                               details: ["\(model.moveCount)手 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
+                               details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea
@@ -79,7 +79,7 @@ public struct SpiderView: View {
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "スパイダーソリティア", review: services.review,
+        .gameChrome(title: tr("スパイダーソリティア"), review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
@@ -93,34 +93,34 @@ public struct SpiderView: View {
             }
         }
         .dialogs { anchor in
-            anchor.alert("この盤からは勝てません", isPresented: hopelessBinding) {
+            anchor.alert(tr("この盤からは勝てません"), isPresented: hopelessBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+                Text(tr("「戻す」で戻れます。ヒントの回数は減っていません。"))
             }
-            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-                Button("広告を見て\(SpiderUndoBudget.refill)回補充する") { requestUndoRefill() }
-                Button("キャンセル", role: .cancel) {}
+            .alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
+                Button(tr("広告を見て%lld回補充する", SpiderUndoBudget.refill)) { requestUndoRefill() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(SpiderUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。", SpiderUndoBudget.refill))
             }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
-            notEarned: "「戻す」を補充できませんでした",
+            notEarned: tr("「戻す」を補充できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "「戻す」を補充できませんでした",
-                message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
+                title: tr("「戻す」を補充できませんでした"),
+                message: tr("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
             )
         )
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを表示できませんでした",
+            notEarned: tr("ヒントを表示できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。")
             )
         )
         .overlay {
@@ -196,11 +196,11 @@ public struct SpiderView: View {
         HStack(spacing: 8) {
             Group {
                 if model.phase == .won {
-                    Label("クリア！", systemImage: "flag.checkered")
+                    Label(tr("クリア！"), systemImage: "flag.checkered")
                         .themeBody(15)
                         .foregroundStyle(Theme.teal)
                 } else {
-                    Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
+                    Label(tr("%lld手", model.moveCount), systemImage: "hand.tap.fill")
                         .scaledFont(15, weight: .bold, design: .monospaced)
                         .foregroundStyle(Theme.coral)
                 }
@@ -396,7 +396,7 @@ public struct SpiderView: View {
         .accessibilityLabel(SpiderAccessibility.stockLabel(
             dealsRemaining: remaining,
             isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile))
-        .accessibilityHint(remaining > 0 ? "各列に1枚ずつ配ります" : "")
+        .accessibilityHint(remaining > 0 ? tr("各列に1枚ずつ配ります") : "")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.tapStock() }
     }
@@ -567,7 +567,7 @@ public struct SpiderView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
+                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
         }
@@ -582,7 +582,7 @@ public struct SpiderView: View {
         GameOverflowBar(
             menuItems: [
                 GameControlMenuItem(
-                    id: "deal", title: "配る（残り\(model.board.dealsRemaining)）",
+                    id: "deal", title: tr("配る（残り%lld）", model.board.dealsRemaining),
                     systemImage: "rectangle.stack.badge.plus",
                     isEnabled: model.board.dealsRemaining > 0,
                     accessibilityLabel: SpiderAccessibility.stockLabel(
@@ -590,17 +590,17 @@ public struct SpiderView: View {
                         isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile)
                 ) { model.tapStock() },
                 GameControlMenuItem(
-                    id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
-                    accessibilityLabel: zoomMode ? "盤全体を表示" : "札を拡大",
+                    id: "zoom", title: tr("拡大"), systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                    accessibilityLabel: zoomMode ? tr("盤全体を表示") : tr("札を拡大"),
                     accessibilityHint: zoomMode
-                        ? "等倍に戻して盤全体を画面に収めます"
-                        : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
+                        ? tr("等倍に戻して盤全体を画面に収めます")
+                        : tr("札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
                 ) { zoomMode.toggle() },
             ],
             actions: [
                 // 残り回数は 2 行目に出し、無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す。
                 GameActionItem(
-                    id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                    id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                     badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                     isEnabled: model.canUndo && !undoRescue.isWatching,
                     accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
@@ -612,7 +612,7 @@ public struct SpiderView: View {
             nudge: hintNudge,
             // 「配る」が拒否された理由。段と「⋯」のあいだに出て、空の列が埋まると自動で消える。
             caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
-                ? GameOverflowCaption("空の列を埋めると配れます", color: Theme.coral)
+                ? GameOverflowCaption(tr("空の列を埋めると配れます"), color: Theme.coral)
                 : nil
         )
     }
@@ -621,12 +621,12 @@ public struct SpiderView: View {
     private var hintAction: GameActionItem {
         let free = model.hints.freeRemaining
         return GameActionItem(
-            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
             badge: model.needsAdForHint ? .ad() : .count(free),
             isEnabled: model.canUseHint && !hintRescue.isWatching,
             accessibilityLabel: SpiderAccessibility.hintButtonLabel(
                 freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
-            accessibilityHint: "次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです"
+            accessibilityHint: tr("次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです")
         ) { requestHint() }
     }
 
@@ -666,12 +666,12 @@ public struct SpiderView: View {
     private var deadEndOverlay: some View {
         GameDeadEndPanel(
             emoji: "😵",
-            title: "指せる手がありません",
-            message: "どの札も置き先がなく、山札も配れません。この配札には勝ち筋があるので、手を戻せばやり直せます。"
+            title: tr("指せる手がありません"),
+            message: tr("どの札も置き先がなく、山札も配れません。この配札には勝ち筋があるので、手を戻せばやり直せます。")
         ) {
             if model.canUndo {
                 GameDeadEndActionButton(
-                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tr("1手戻す（残り%lld）", model.undosRemaining), systemImage: "arrow.uturn.backward",
                     tint: Theme.Fill.coral, isDisabled: undoRescue.isWatching
                 ) {
                     requestUndo()
@@ -681,11 +681,11 @@ public struct SpiderView: View {
                     canUndo: model.canUndo, remaining: model.undosRemaining))
             }
 
-            GameDeadEndDismissButton("新しい配札にする", isDisabled: undoRescue.isWatching) {
+            GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: undoRescue.isWatching) {
                 openSetup()
             }
 
-            GameDeadEndDismissButton("盤面を見る", isDisabled: undoRescue.isWatching) {
+            GameDeadEndDismissButton(tr("盤面を見る"), isDisabled: undoRescue.isWatching) {
                 model.dismissDeadEndPrompt()
             }
         }
@@ -737,7 +737,7 @@ struct SpiderSetupSheet: View {
             kind: .solo, discardsProgress: discardsProgress,
             onStart: onStart, onCancel: onCancel
         ) {
-            GameSetupSection("スートの数") {
+            GameSetupSection(tr("スートの数")) {
                 HStack(spacing: 6) {
                     tile(.one, accent: DifficultyTile.accent(step: 0, of: 3))
                     tile(.two, accent: DifficultyTile.accent(step: 1, of: 3))
@@ -748,7 +748,7 @@ struct SpiderSetupSheet: View {
                     .foregroundStyle(Theme.inkSub)
             }
             if discardsProgress {
-                Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
+                Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),
                       systemImage: "exclamationmark.triangle.fill")
                     .scaledFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.coral)
@@ -768,12 +768,11 @@ struct SpiderSetupSheet: View {
     static func footer(for suits: SpiderSuitCount) -> String {
         switch suits {
         case .one:
-            return "♠だけの 104 枚。どの札もつなげられるので、並べ替えの練習に向いています。"
-                + "自己ベストと Game Center の順位表はスート数ごとに別々です。"
+            return tr("♠だけの 104 枚。どの札もつなげられるので、並べ替えの練習に向いています。自己ベストと Game Center の順位表はスート数ごとに別々です。")
         case .two:
-            return "♠と♥の 104 枚。まとめて動かせるのは同じスートの並びだけなので、色を揃える読みが要ります。"
+            return tr("♠と♥の 104 枚。まとめて動かせるのは同じスートの並びだけなので、色を揃える読みが要ります。")
         case .four:
-            return "4 種すべての 104 枚。もっとも難しく、配られる配札はすべて勝ち筋を確認済みです。"
+            return tr("4 種すべての 104 枚。もっとも難しく、配られる配札はすべて勝ち筋を確認済みです。")
         }
     }
 }
@@ -783,16 +782,16 @@ struct SpiderSetupSheet: View {
 /// 「遊び方」シートから開く詳細ページ。組み方は `FreeCellRuleSheet` と同じ。
 struct SpiderRuleSheet: View {
     /// 文言はテストから検証したいので型の外に出しておく。
-    static let rules: [(String, String)] = [
-        ("ゲームの流れ", "2組104枚を使います。場札（10列）で同じスートの札を K から A まで順に並べると、その13枚は自動的に場から取り除かれます。8組すべて取り除いたらクリアです"),
-        ("札の置き方", "場札には、ひとつ上の札より1つ小さい札なら**スートを問わず**置けます（♠8 の上に ♥7）。空いた列にはどの札でも置けます"),
-        ("まとめて動かす", "まとめて動かせるのは、同じスートで降順に揃った並びだけです（♠9♠8♠7 は動かせますが ♠9♥8 は 1 枚ずつ）。枚数の上限はありません"),
-        ("山札を配る", "左上の山札をタップするか「配る」を押すと、各列に1枚ずつ配られます（5回ぶん）。**空いた列があると配れません**。先に何かを置いて埋めてください"),
-        ("スートの数", "「新規ゲーム」で 1・2・4 スートを選べます。1スートは ♠ だけ、2スートは ♠♥、4スートは4種すべてです。自己ベストと Game Center の順位表はスート数ごとに別々です"),
-        ("操作", "動かしたい札をタップして選び、置きたい列をタップします。ドラッグでも動かせます。もう一度同じ札をタップすると選択を外せます"),
-        ("戻す", "「戻す」は1局につき\(SpiderUndoBudget.free)回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると\(SpiderUndoBudget.refill)回ぶん補充できます"),
-        ("配られる札", "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります。配札の番号は画面の上に出ています"),
-    ]
+    static var rules: [(String, String)] { [
+        (tr("ゲームの流れ"), tr("2組104枚を使います。場札（10列）で同じスートの札を K から A まで順に並べると、その13枚は自動的に場から取り除かれます。8組すべて取り除いたらクリアです")),
+        (tr("札の置き方"), tr("場札には、ひとつ上の札より1つ小さい札なら**スートを問わず**置けます（♠8 の上に ♥7）。空いた列にはどの札でも置けます")),
+        (tr("まとめて動かす"), tr("まとめて動かせるのは、同じスートで降順に揃った並びだけです（♠9♠8♠7 は動かせますが ♠9♥8 は 1 枚ずつ）。枚数の上限はありません")),
+        (tr("山札を配る"), tr("左上の山札をタップするか「配る」を押すと、各列に1枚ずつ配られます（5回ぶん）。**空いた列があると配れません**。先に何かを置いて埋めてください")),
+        (tr("スートの数"), tr("「新規ゲーム」で 1・2・4 スートを選べます。1スートは ♠ だけ、2スートは ♠♥、4スートは4種すべてです。自己ベストと Game Center の順位表はスート数ごとに別々です")),
+        (tr("操作"), tr("動かしたい札をタップして選び、置きたい列をタップします。ドラッグでも動かせます。もう一度同じ札をタップすると選択を外せます")),
+        (tr("戻す"), tr("「戻す」は1局につき%1$lld回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると%2$lld回ぶん補充できます", SpiderUndoBudget.free, SpiderUndoBudget.refill)),
+        (tr("配られる札"), tr("出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります。配札の番号は画面の上に出ています")),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: Self.rules)
