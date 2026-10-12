@@ -472,6 +472,22 @@ struct HubView: View {
                     resume: isResumable(id)
                 ))
             }
+            // ディープリンク `asobiba://game/<game_id>`（#2141・App 内イベントの審査で必須）。
+            // 終了していた状態からの起動でも、ハブが描かれた後にここへ届く。
+            // 未知・設定で非表示のゲーム、`asobiba://` 単体はハブのまま（遷移しない）。
+            .onOpenURL { url in
+                let openable = Set(settings.visibleModules(from: registry).map(\.id))
+                guard case .game(let id) = DeepLink.destination(for: url, openableGameIDs: openable) else { return }
+                // 「きろく」を閉じる途中に届いたら、閉じた後に予約していた遷移・案内より URL を優先する。
+                opensGameAfterRecords = nil
+                opensGameCenterAfterRecords = false
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .deeplink, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
             .task {
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
                 // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で
