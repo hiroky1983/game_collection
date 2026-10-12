@@ -1,0 +1,81 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>案1 絵のタイル</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:375px;height:667px;overflow:hidden}
+body{background:#FFF6EC;color:#4A3B33;font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;-webkit-font-smoothing:antialiased}
+.screen{position:relative;width:375px;height:667px;overflow:hidden}
+.status{height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 36px 6px 44px;font-weight:700;font-size:17px}
+.status .r{display:flex;gap:6px;align-items:center;font-size:13px}
+.status .bar{display:inline-block;width:18px;height:11px;border:1.5px solid #4A3B33;border-radius:3px;position:relative}
+.status .bar::after{content:"";position:absolute;left:1.5px;top:1.5px;bottom:1.5px;width:11px;background:#34C759;border-radius:1px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:2px 16px 0}
+.pill{background:#fff;border-radius:20px;height:40px;display:flex;align-items:center;gap:14px;padding:0 14px;box-shadow:0 6px 10px rgba(0,0,0,.08);margin-top:2px}
+.pill svg{width:22px;height:22px;fill:#FF6F61}
+h1.title{font-size:34px;font-weight:900;padding:0;line-height:1.15;letter-spacing:.5px}
+.label{font-size:12px;font-weight:800;color:#9A8A80;padding:0 16px}
+.content{padding:0 16px}
+.card{background:#fff;border-radius:20px;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.ink{color:#4A3B33}.sub{color:#9A8A80}
+/* つづき・最近 */
+.recent{display:flex;gap:12px;padding:6px 16px 0;overflow:hidden}
+.recent .rc{flex:0 0 150px;height:52px;border-radius:12px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 10px;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.recent .rc .thumb{width:32px;height:32px;border-radius:9px;overflow:hidden;background:#ddd;flex:0 0 32px}
+.recent .rc .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.recent .rc .t{font-size:14px;font-weight:800;line-height:1.1}
+.recent .rc .s{font-size:10px;font-weight:800;margin-top:2px}
+/* 案1 絵のタイル */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 16px 0}
+.tile{position:relative;height:215px;border-radius:20px;overflow:hidden;background:#ddd;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tile .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900;color:rgba(74,59,51,.55)}
+.tile .fade{display:none}
+.tile .name{position:absolute;left:12px;right:12px;top:11px;font-size:19px;font-weight:900;line-height:1.15;color:#4A3B33;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 6px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.9)}
+.tile .name.small{font-size:16px}
+.tile .ul{position:absolute;left:12px;top:38px;width:44px;height:4px;border-radius:2px;box-shadow:0 0 4px rgba(255,255,255,.8)}
+.badge{position:absolute;left:10px;bottom:10px;font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.92)}
+.badge.trial{background:#5B3FC4;color:#fff;border:2px solid #fff;box-shadow:0 2px 3px rgba(0,0,0,.35);font-size:12px}
+/* 案2 画像+セクション */
+.sec{border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.sec .art{position:relative;background:#ddd;overflow:hidden}
+.sec .art img{width:100%;height:100%;object-fit:cover;display:block}
+.sec .band{padding:8px 12px 10px}
+.sec .band .t{font-size:18px;font-weight:900;line-height:1.2}
+.sec .band .d{font-size:11px;font-weight:800;color:#9A8A80;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec .band .row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.chip{font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.stack1{display:flex;flex-direction:column;gap:12px;padding:12px 16px 0}
+.stack1 .art{height:180px}
+.grid2 .sec .art{height:104px}
+.grid2 .sec .band .t{font-size:16px}
+/* 案3 3列の絵タイル */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 10px;padding:10px 16px 0}
+.sq{text-align:center}
+.sq .art{position:relative;width:100%;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:#ddd;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.sq .art img{width:100%;height:100%;object-fit:cover;display:block}
+.sq .art .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:rgba(74,59,51,.55)}
+.sq .t{font-size:12px;font-weight:800;margin-top:6px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sq .s{font-size:10px;font-weight:800;color:#9A8A80;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sq .art .mini{position:absolute;left:6px;bottom:6px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.92)}
+.hero{margin:12px 16px 0;border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.hero .art{position:relative;height:120px;background:#1F6EDB;overflow:hidden}
+.hero .art img{width:100%;height:auto;display:block}
+.hero .band{padding:7px 10px;font-size:11px;font-weight:800;color:#9A8A80;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 案4 カテゴリ */
+.chips{display:flex;gap:8px;padding:10px 0 0 16px;overflow:hidden}
+.chips .c{flex:0 0 auto;font-size:12px;font-weight:800;padding:7px 11px;border-radius:999px;background:#fff;color:#4A3B33;box-shadow:0 3px 6px rgba(0,0,0,.06);white-space:nowrap}
+.chips .c.on{background:#4A3B33;color:#fff}
+.catlist{display:flex;flex-direction:column;gap:12px;padding:12px 16px 0}
+.cat{position:relative;height:118px;border-radius:20px;overflow:hidden;display:flex;align-items:center;padding:0 16px;box-shadow:0 6px 10px rgba(0,0,0,.08)}
+.cat .txt{position:relative;z-index:2;color:#4A3B33;max-width:205px}
+.cat .txt .t{font-size:22px;font-weight:900}
+.cat .txt .n{font-size:11px;font-weight:800;opacity:.75;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat .fan{position:absolute;right:4px;top:10px;height:98px;display:flex;gap:-10px}
+.cat .fan img{height:98px;width:66px;object-fit:cover;border-radius:12px;border:3px solid #fff;box-shadow:0 4px 8px rgba(0,0,0,.18);margin-left:-18px;transform:rotate(-6deg)}
+.cat .fan img:nth-child(2){transform:rotate(0deg)}
+.cat .fan img:nth-child(3){transform:rotate(6deg)}
+.cat .fan .phi{height:98px;width:66px;border-radius:12px;border:3px solid #fff;margin-left:-18px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:rgba(74,59,51,.6);background:#fff5;transform:rotate(6deg)}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 0}
+.sechead .t{font-size:15px;font-weight:900}
+.sechead .m{font-size:11px;font-weight:800;color:#FF6F61}
+.homebar{position:absolute;left:118px;bottom:8px;width:140px;height:5px;border-radius:3px;background:#4A3B33;opacity:.9}
+.note{position:absolute;left:0;right:0;bottom:0;background:rgba(74,59,51,.85);color:#fff;font-size:11px;font-weight:700;padding:6px 12px;text-align:center}
+</style></head><body><div class="screen"><div class="status"><span>9:41</span><span class="r"><svg width="18" height="12" viewBox="0 0 18 12" fill="#4A3B33"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="#4A3B33" stroke-width="1.8" stroke-linecap="round"><path d="M1 4.2a10.5 10.5 0 0 1 14 0"/><path d="M3.8 7a6.5 6.5 0 0 1 8.4 0"/><path d="M6.6 9.6a2.5 2.5 0 0 1 2.8 0"/></svg><span class="bar"></span></span></div><div class="hdr"><h1 class="title">あそびば</h1><div class="pill"><svg viewBox="0 0 24 24"><path d="M6 3h12v2h3v3c0 2.8-2 5-4.6 5.4A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1a6 6 0 0 1-3.4-3.5C5 13 3 10.8 3 8V5h3V3zm-1 4v1c0 1.5 1 2.8 2.3 3.3L7 7H5zm14 0h-2l-.3 4.3C18 10.8 19 9.5 19 8V7z"/></svg><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm9 4.5c0-.6-.1-1.2-.2-1.8l2-1.5-2-3.5-2.4.9a8 8 0 0 0-3-1.8L15 3H9l-.4 2.4a8 8 0 0 0-3 1.8l-2.4-.9-2 3.5 2 1.5a8 8 0 0 0 0 3.6l-2 1.5 2 3.5 2.4-.9a8 8 0 0 0 3 1.8L9 21h6l.4-2.4a8 8 0 0 0 3-1.8l2.4.9 2-3.5-2-1.5c.1-.6.2-1.2.2-1.8z"/></svg></div></div><div class="label" style="padding-top:12px">つづき・最近</div><div class="recent"><div class="rc"><div class="thumb"><img src="assets/tiles/poker.png"></div><div><div class="t">ポーカー</div><div class="s" style="color:#FF6F61">つづきから</div></div></div><div class="rc"><div class="thumb"><img src="assets/tiles/shogi.png"></div><div><div class="t">将棋</div><div class="s" style="color:#8C7BE0">つづきから</div></div></div></div><div class="grid2"><div class="tile"><img src="assets/tiles/homerun.png"><div style="position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.88),rgba(255,255,255,.55) 22%,rgba(255,255,255,0) 36%)"></div><div class="fade"></div><div class="name">柵越えおじさん</div><div class="ul" style="background:#8C7BE0"></div><div class="badge trial">✦ 体験版</div></div><div class="tile"><img src="assets/tiles/poker.png"><div class="fade"></div><div class="name">ポーカー</div><div class="ul" style="background:#FF6F61"></div><div class="badge" style="color:#FF6F61">続きから</div></div><div class="tile"><img src="assets/tiles/solitaire.png"><div class="fade"></div><div class="name">ソリティア</div><div class="ul" style="background:#22C3BE"></div></div><div class="tile"><img src="assets/tiles/runner.png"><div class="fade"></div><div class="name small">チャリンコおじさん</div><div class="ul" style="background:#8C7BE0"></div></div><div class="tile"><img src="assets/tiles/mahjong4.png"><div class="fade"></div><div class="name">麻雀</div><div class="ul" style="background:#FFC24B"></div></div><div class="tile"><img src="assets/tiles/sudoku.png"><div class="fade"></div><div class="name">ナンプレ</div><div class="ul" style="background:#FF8FB1"></div></div><div class="tile"><img src="assets/tiles/othello.png"><div class="fade"></div><div class="name">オセロ</div><div class="ul" style="background:#FF6F61"></div></div><div class="tile"><img src="assets/tiles/2048.png"><div class="fade"></div><div class="name">2048</div><div class="ul" style="background:#22C3BE"></div></div><div class="tile"><img src="assets/tiles/shogi.png"><div class="fade"></div><div class="name">将棋</div><div class="ul" style="background:#8C7BE0"></div><div class="badge" style="color:#8C7BE0">続きから</div></div><div class="tile"><img src="assets/tiles/shiritori.png"><div class="fade"></div><div class="name">カードしりとり</div><div class="ul" style="background:#FFC24B"></div></div><div class="tile"><img src="assets/tiles/daifugo.png"><div class="fade"></div><div class="name">大富豪</div><div class="ul" style="background:#FF8FB1"></div></div><div class="tile"><img src="assets/tiles/gomoku.png"><div class="fade"></div><div class="name">五目並べ</div><div class="ul" style="background:#FF6F61"></div></div><div class="tile"><img src="assets/tiles/minesweeper.png"><div class="fade"></div><div class="name small">マインスイーパー</div><div class="ul" style="background:#22C3BE"></div></div><div class="tile"><img src="assets/tiles/spider.png"><div class="fade"></div><div class="name small">スパイダーソリティア</div><div class="ul" style="background:#8C7BE0"></div></div><div class="tile"><img src="assets/tiles/blackjack.png"><div class="fade"></div><div class="name small">ブラックジャック</div><div class="ul" style="background:#FFC24B"></div></div><div class="tile"><img src="assets/tiles/mahjong.png"><div class="fade"></div><div class="name">麻雀ソリティア</div><div class="ul" style="background:#FF8FB1"></div></div><div class="tile"><img src="assets/tiles/hanafuda.png"><div class="fade"></div><div class="name">花札こいこい</div><div class="ul" style="background:#FF6F61"></div></div><div class="tile"><img src="assets/tiles/go.png"><div class="fade"></div><div class="name">囲碁</div><div class="ul" style="background:#22C3BE"></div></div><div class="tile"><img src="assets/tiles/blocks.png"><div class="fade"></div><div class="name">ブロック崩し</div><div class="ul" style="background:#8C7BE0"></div></div><div class="tile"><img src="assets/tiles/concentration.png"><div class="fade"></div><div class="name">神経衰弱</div><div class="ul" style="background:#FFC24B"></div></div><div class="tile"><img src="assets/tiles/chess.png"><div class="fade"></div><div class="name">チェス</div><div class="ul" style="background:#FF8FB1"></div></div><div class="tile"><img src="assets/tiles/freecell.png"><div class="fade"></div><div class="name">フリーセル</div><div class="ul" style="background:#FF6F61"></div></div><div class="tile"><img src="assets/tiles/fifteen.png"><div class="fade"></div><div class="name">15パズル</div><div class="ul" style="background:#22C3BE"></div></div><div class="tile"><img src="assets/tiles/ojisanpuzzle.png"><div class="fade"></div><div class="name small">腰痛おじさんパズル</div><div class="ul" style="background:#FFC24B"></div></div></div><div class="homebar"></div></div></body></html>
