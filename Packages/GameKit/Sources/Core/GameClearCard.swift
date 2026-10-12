@@ -11,15 +11,15 @@ public struct GameClearCard: View {
     private let details: [String]
     private let onClose: (() -> Void)?
 
-    public init(title: String = "クリア！", details: [String] = [], onClose: (() -> Void)? = nil) {
-        self.title = title
+    public init(title: String? = nil, details: [String] = [], onClose: (() -> Void)? = nil) {
+        self.title = title ?? tr("クリア！")
         self.details = details
         self.onClose = onClose
     }
 
     /// VoiceOver が 1 回で読む文。見出しの「！」は読み上げでは落とす。
     public static func accessibilityLabel(title: String, details: [String]) -> String {
-        ([title.replacingOccurrences(of: "！", with: "")] + details).joined(separator: "。")
+        ([title.replacingOccurrences(of: "！", with: "")] + details).joined(separator: tr("。"))
     }
 
     public var body: some View {
@@ -42,14 +42,14 @@ public struct GameClearCard: View {
             .accessibilityLabel(Self.accessibilityLabel(title: title, details: details))
             if let onClose {
                 Button(action: onClose) {
-                    Text("盤を見る")
+                    Text(tr("盤を見る"))
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 20)
                         .frame(minHeight: 44)
                         .background(Capsule().fill(Theme.Fill.coral))
                 }
-                .accessibilityHint("クリアの表示を閉じて盤面を見返します")
+                .accessibilityHint(tr("クリアの表示を閉じて盤面を見返します"))
             }
         }
         .padding(24)
@@ -63,7 +63,7 @@ public struct GameClearCard: View {
 /// `isPresented`（クリアしたか）だけを渡せばよい。`isPresented` が偽に戻ったら（新しい局）閉じた記憶を捨てる。
 private struct GameClearCardModifier: ViewModifier {
     let isPresented: Bool
-    let title: String
+    let title: String?
     let details: [String]
     @State private var dismissed = false
 
@@ -92,7 +92,7 @@ private struct GameClearCardModifier: ViewModifier {
 
 public extension View {
     /// 盤の上にクリアカードを重ねる（#1755）。`isPresented` が真のあいだ出し、「盤を見る」で閉じられる。
-    func gameClearCard(isPresented: Bool, title: String = "クリア！", details: [String] = []) -> some View {
+    func gameClearCard(isPresented: Bool, title: String? = nil, details: [String] = []) -> some View {
         modifier(GameClearCardModifier(isPresented: isPresented, title: title, details: details))
     }
 }

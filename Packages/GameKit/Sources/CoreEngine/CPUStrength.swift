@@ -32,10 +32,10 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     /// 画面に出す呼び名（#1174 で確定。装飾のない短い言葉でトーンを揃えてある）。
     public var label: String {
         switch self {
-        case .novice: return "入門"
-        case .easy:   return "かんたん"
-        case .normal: return "ふつう"
-        case .hard:   return "むずかしい"
+        case .novice: return tr("入門")
+        case .easy:   return tr("かんたん")
+        case .normal: return tr("ふつう")
+        case .hard:   return tr("むずかしい")
         }
     }
 
@@ -56,7 +56,7 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     // MARK: 生の `aiLevel` からの読み替え
 
     /// やさしい順に並べた呼び名。`DifficultyLadder` の `levelLabels` に渡す。
-    public static let labels: [String] = allCases.map(\.label)
+    public static var labels: [String] { allCases.map(\.label) }
 
     /// 中断データ・モデルが持つ生の番号を段階に写す。知らない番号は既定に倒す。
     public static func strength(for level: Int) -> CPUStrength {

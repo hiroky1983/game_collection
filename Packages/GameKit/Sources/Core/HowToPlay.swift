@@ -914,12 +914,12 @@ public struct RuleFigureCard<Content: View>: View {
 /// `standalone` が true のときは `NavigationStack` と「閉じる」ボタンごと持つ（単体のシート用）。
 /// false のときは、呼び出し側の `NavigationStack` に積まれるページとして振る舞う。
 public struct YakuTableSheet<Content: View>: View {
-    private let title: LocalizedStringKey
+    private let title: String
     private let standalone: Bool
     private let content: Content
     @Environment(\.dismiss) private var dismiss
 
-    public init(title: LocalizedStringKey, standalone: Bool = false, @ViewBuilder content: () -> Content) {
+    public init(title: String, standalone: Bool = false, @ViewBuilder content: () -> Content) {
         self.title = title
         self.standalone = standalone
         self.content = content()

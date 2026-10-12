@@ -43,7 +43,7 @@ struct RecordsView: View {
                         milestoneRow(milestone)
                     }
                 } header: {
-                    Text("節目")
+                    Text(tr("節目"))
                 }
 
                 // MARK: あそびごと
@@ -54,24 +54,24 @@ struct RecordsView: View {
                         }
                     }
                 } header: {
-                    Text("あそびごと")
+                    Text(tr("あそびごと"))
                 }
 
                 // MARK: Game Center
                 Section {
                     Button { onOpenGameCenter() } label: {
-                        Label("Game Center で実績・ランキングを見る", systemImage: "trophy")
+                        Label(tr("Game Center で実績・ランキングを見る"), systemImage: "trophy")
                     }
                     .foregroundStyle(Theme.ink)
                 } footer: {
-                    Text("この画面の記録はこの端末にだけ保存しているもので、Game Center にサインインしなくても見られます。設定の「プレイ記録を消去」で消えます。")
+                    Text(tr("この画面の記録はこの端末にだけ保存しているもので、Game Center にサインインしなくても見られます。設定の「プレイ記録を消去」で消えます。"))
                 }
             }
-            .navigationTitle("きろく")
+            .navigationTitle(tr("きろく"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") { dismiss() }
+                    Button(tr("完了")) { dismiss() }
                         .fontWeight(.semibold)
                 }
             }
@@ -91,11 +91,11 @@ struct RecordsView: View {
             .accessibilityLabel(summary.progressText)
 
             HStack(spacing: 8) {
-                statTile(title: "遊んだ種類", value: "\(summary.playedCount)/\(summary.gameCount)")
-                statTile(title: "通算勝利", value: RecordFormat.number(summary.totalWins))
-                statTile(title: "最高連勝", value: RecordFormat.number(summary.bestStreak))
+                statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
+                statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
+                statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
                 // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
-                statTile(title: "連続日数", value: "\(RecordFormat.number(playLog?.playStreak() ?? 0))日")
+                statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
             }
         }
         .padding(.vertical, 4)
@@ -122,7 +122,7 @@ struct RecordsView: View {
                 .fill(Theme.coral.opacity(0.1))
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title)、\(value)")
+        .accessibilityLabel(tr("%1$@、%2$@", title, value))
     }
 
     private func milestoneRow(_ milestone: RecordsSummary.Milestone) -> some View {
@@ -134,7 +134,7 @@ struct RecordsView: View {
                 .themeBody(16)
                 .foregroundStyle(Theme.ink)
             Spacer(minLength: 8)
-            Text(verbatim: milestone.isAchieved ? "達成" : milestone.progressText)
+            Text(verbatim: milestone.isAchieved ? tr("達成") : milestone.progressText)
                 .themeCaption(13)
                 .foregroundStyle(milestone.isAchieved ? Theme.coral : Theme.inkSub)
         }
@@ -147,7 +147,7 @@ struct RecordsView: View {
             gameRowContent(row, module: module, index: index)
         }
         .buttonStyle(.pop)
-        .accessibilityHint("タップでこのゲームを開きます")
+        .accessibilityHint(tr("タップでこのゲームを開きます"))
     }
 
     private func gameRowContent(_ row: RecordsSummary.Row, module: GameModule, index: Int) -> some View {
@@ -196,7 +196,7 @@ struct RecordsView: View {
                     .foregroundStyle(Theme.inkSub)
             } else {
                 // まだ遊んでいない行は「あそぶ」を出して、押せると分かるようにする（#1974）。
-                Text("あそぶ")
+                Text(tr("あそぶ"))
                     .themeCaption(13)
                     .fontWeight(.semibold)
                     .foregroundStyle(Theme.coral)

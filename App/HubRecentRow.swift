@@ -25,7 +25,7 @@ struct HubRecentRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: layout.scaled(6)) {
-            Text("つづき・最近")
+            Text(tr("つづき・最近"))
                 .themeCaption(layout.scaled(12))
                 .foregroundStyle(Theme.inkSub)
                 .padding(.horizontal, Theme.pad)
@@ -109,10 +109,12 @@ private struct HubRecentCard: View {
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                Text(hasResume ? "つづきから" : "また あそぶ")
+                Text(hasResume ? tr("つづきから") : tr("また あそぶ"))
                     .themeCaption(layout.scaled(10))
                     .foregroundStyle(hasResume ? accent : Theme.inkSub)
                     .lineLimit(1)
+                    // 英語（#2109）は日本語より横に長い。幅が固定のカードなので、切れる前に縮める。
+                    .minimumScaleFactor(0.7)
             }
 
             Spacer(minLength: 0)
@@ -123,6 +125,6 @@ private struct HubRecentCard: View {
         .popCard(corner: Theme.cornerSmall)
         // 2段の文字をばらばらに読ませず、カードを1要素にまとめる（グリッドのカードと同じ作法）。
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(module.title)、\(hasResume ? "つづきから" : "また あそぶ")")
+        .accessibilityLabel(tr("%1$@、%2$@", module.title, hasResume ? tr("つづきから") : tr("また あそぶ")))
     }
 }

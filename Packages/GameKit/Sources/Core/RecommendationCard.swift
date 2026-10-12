@@ -59,7 +59,7 @@ public struct RecommendationCard: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 4)
-                    Text("あそぶ")
+                    Text(tr("あそぶ"))
                         .themeCaption(13)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -70,7 +70,7 @@ public struct RecommendationCard: View {
             .buttonStyle(.pop)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(caption)\(module.title)")
-            .accessibilityHint("「\(module.title)」を開いて新しく始めます")
+            .accessibilityHint(tr("「%@」を開いて新しく始めます", module.title))
 
             RecommendationDismissButton(action: onDismiss)
         }
@@ -102,7 +102,7 @@ public struct RecommendationCard: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .frame(width: iconSide, height: iconSide)
             VStack(alignment: .leading, spacing: 2) {
-                Text("次はこれで遊ぶ？").themeCaption(captionSize, weight: .semibold).lineLimit(1)
+                Text(tr("次はこれで遊ぶ？")).themeCaption(captionSize, weight: .semibold).lineLimit(1)
                 Text("　").themeBody(16)
             }
             Spacer(minLength: 4)
@@ -142,7 +142,7 @@ struct RecommendationDismissButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("閉じる")
+        .accessibilityLabel(tr("閉じる"))
     }
 }
 

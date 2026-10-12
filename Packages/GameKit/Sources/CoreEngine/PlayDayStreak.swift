@@ -50,6 +50,6 @@ public enum PlayDayStreak {
 
     /// ハブの 1 行。連続日数が `hubMinimumDays` 未満なら nil（出さない）。
     public static func hubText(streak: Int) -> String? {
-        streak >= hubMinimumDays ? "連続 \(RecordFormat.number(streak)) 日あそび中" : nil
+        streak >= hubMinimumDays ? tr("連続 %@ 日あそび中", RecordFormat.number(streak)) : nil
     }
 }

@@ -5,7 +5,7 @@
 **アプリ名**: あそびば (Asobiba)
 **プラットフォーム**: iOS 17.0+
 **向き**: 縦固定 (Portrait only)
-**言語**: 日本語
+**言語**: 日本語・英語（v1.1.12 から。設定画面で選ぶ。仕組みは後述「多言語（#2109）」）
 **収益モデル**: AdMob バナー広告 + リワード広告（インタースティシャルは実装はあるがどこからも呼んでいない）
 
 ---
@@ -194,6 +194,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | セクション | 内容 |
 |------|------|
 | アプリ | バージョン表示 |
+| 言語 | 表示言語のセレクトボックス（日本語 / English・#2109。初期値は端末の言語・キー `appLanguage_v1`。即時に反映） |
 | あそび | ゲームの並び替え (ドラッグ) + 表示/非表示トグル |
 | 規約 | 利用規約 / プライバシーポリシー（外部 URL を `SFSafariViewController` の sheet で表示） |
 | 通知 | 続きのお知らせのオン / オフ（#663。既定オン・キー `resumeRemindersEnabled_v1`） |
@@ -204,6 +205,60 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - 「アプリを評価する」は `AppEnvironment.writeReviewURL`（`https://apps.apple.com/app/id6781719499?action=write-review`）を
   `openURL` で開き、App Store のレビュー記入画面へ直接遷移する（#1471）。OS の `requestReview` は
   上限（365 日で 3 回）に達すると何も出ないため、自分から押した人には使わない
+
+---
+
+## 多言語（#2109・v1.1.12）
+
+日本語（開発言語）と英語。**アプリ内で選んだ言語に、再起動なしで即時に切り替わる**。
+
+### 仕組み
+
+- **表示言語** `AppLanguage`（`ja` / `en`）と置き場 `AppLanguageStore.shared`（CoreEngine）。
+  - 初期値は端末の言語（`Locale.preferredLanguages` の先頭が日本語なら日本語、**それ以外はすべて英語**）。
+    設定画面で選ぶと `UserDefaults` のキー `appLanguage_v1` に保存し、以後はそれが勝つ。
+  - アプリ本体が起動時（`GameCollectionApp.init` の先頭）に `AppEnvironment.bootstrapLanguage()` で読み込む。
+    動作確認・英語のスクショ撮影は起動引数 `-appLanguage en`（その回だけ・保存しない）。
+  - **`swift test` は bootstrap しないので常に日本語**。日本語の文言を確かめている既存のテストは、
+    CI の macOS が英語でも結果が変わらない。英語を確かめるテストは `language: .english` を明示して引く。
+    テストから `AppLanguageStore.shared` を書き換えない（並列のテストが巻き込まれる）。
+- **文言の表** `StringTable`（CoreEngine）。モジュールごとに 1 つ、`Resources/Localization/Localizable.xcstrings`
+  （Xcode の String Catalog と同じ形式）を持ち、各モジュールの `Localization.swift` の
+  `let tr = StringTable(bundle: .module)` で引く（アプリ本体は `App/AppStrings.swift` の `bundle: .main` と
+  `App/Localization/Localizable.xcstrings`）。
+  - **キーは日本語の原文**。日本語のときはキーをそのまま返し、英語のときは表の `en` を返す。訳が無ければ日本語のまま。
+  - 表は**コンパイルせずに同梱して実行時に読む**（Package.swift は `.copy("Resources/Localization")`、
+    project.yml は folder 参照）。Xcode がコンパイルした `.lproj` はシステムの言語で引かれ、アプリ内で選んだ言語に
+    追従しないため。同じ JSON を `swift test` とアプリの両方で同じコードが読むので、英語の表示をテストで確かめられる。
+  - 即時の切り替えは Observation で行う。`tr(...)` は `AppLanguageStore.shared.language` を読むので、`body` の中で
+    文言を引いた View は言語を変えた瞬間に描き直される。根の `.appLanguageEnvironment()` が `\.locale` も配る
+    （数字・日付の書式とシステムの部品用）。
+- **システムの言語に従うもの**（アプリ内の選択は効かない）: ATT の説明文（`App/en.lproj/InfoPlist.strings`）・
+  通知の許可ダイアログなど OS が出す文言、ホーム画面のアプリ名、共有シート。予約済みの通知は**予約した時点の言語**のまま届く。
+
+### 新しい文言の足し方（②〜⑥とそれ以降の全員）
+
+1. ソースでは日本語をそのまま書かず、`tr("日本語の原文")` で引く。`Text(tr("設定"))`・`Button(tr("完了")) { … }`・
+   `Label(tr("ヒント"), systemImage: …)`・`.accessibilityLabel(tr("…"))` のように、`String` を受ける初期化子に渡す。
+   - 値を埋め込む文は**文字列補間を使わず書式にする**: `tr("「%@」が途中のままです", title)`（文字列は `%@`、
+     整数は `%lld`）。英語で語順が変わるなら訳文側で `%2$@ of %1$@` のように位置を指定する。
+   - 数で単語が変わる英語は、表の `en` を複数形（`variations.plural` の `one` / `other`）にする。最初の整数の引数で選ぶ。
+   - `static let x = "…"` は起動時の言語で固まるので `static var x: String { tr("…") }` にする。
+     `public` な関数の既定引数には `tr` を書けない（内部の宣言のため）。`String? = nil` にして本体で `?? tr("…")` にする。
+   - キーを変数で渡す（`tr(name)`）と、下の検査が訳し漏れを拾えない。表に載せるキーはリテラルで書く。
+2. そのモジュールの `Resources/Localization/Localizable.xcstrings` の `strings` に、キー（日本語の原文）と `en` の訳を足す。
+   Xcode で開けば String Catalog の画面で編集できる。JSON を直接書くときは既存の項目の形に合わせる
+   （`"extractionState" : "manual"` を付ける。表はコンパイルしないので、Xcode の自動抽出は働かない）。
+3. `swift test --package-path Packages/GameKit --filter LocalizationTests` で確かめる。落ちる条件:
+   ソースの `tr("…")` のキーが表に無い・英語の訳が無い／空／日本語が残っている・`%@` や `%lld` の種類と数が
+   原文と訳で食い違う・キーに文字列補間（`\(…)`）がある・モジュールに表や `tr` が無い／Package.swift で同梱していない。
+4. 英語は日本語より横に長い。1 行に収める所（`lineLimit(1)`・幅が固定の枠）は `minimumScaleFactor` か、
+   `ViewThatFits` で短い言い回しに切り替える形にして、SE（幅 375pt）で確かめる。
+
+**訳さないもの**: 解析イベント名とパラメータ（`game_start` 等・`game_id`）、`UserDefaults` の保存キー、中断データの鍵、
+Game Center の ID。英語の訳文には他社の商標名を入れない（既存の日本語の文に入っている場合も英語では言い換える）。
+新しいモジュール（ゲーム）を足すときは、`Resources/Localization/Localizable.xcstrings`（中身が空の表でよい）・
+`Localization.swift`・Package.swift の `.copy("Resources/Localization")` の 3 点も一緒に足す（検査が要求する）。
 
 ---
 

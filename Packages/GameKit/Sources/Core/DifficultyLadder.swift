@@ -13,9 +13,9 @@ public struct DifficultyLadderOffer: Equatable, Sendable {
     let plays: Int
 
     /// カードの見出し。
-    public var caption: String { "\(streak)連勝中！" }
+    public var caption: String { tr("%lld連勝中！", streak) }
     /// カードの本文。
-    public var title: String { "つぎは「\(nextLevelLabel)」にしてみる？" }
+    public var title: String { tr("つぎは「%@」にしてみる？", nextLevelLabel) }
 }
 
 /// 勝ち・クリアが続いたら、リザルトで一段上の難易度を勧める「階段」（#722）の提示条件。
@@ -115,7 +115,7 @@ struct DifficultyLadderCard: View {
                             .minimumScaleFactor(0.7)
                     }
                     Spacer(minLength: 4)
-                    Text("あそぶ")
+                    Text(tr("あそぶ"))
                         .themeCaption(13)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -124,7 +124,7 @@ struct DifficultyLadderCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(offer.caption)\(offer.title)")
-            .accessibilityHint("「\(offer.nextLevelLabel)」で新しく始めます")
+            .accessibilityHint(tr("「%@」で新しく始めます", offer.nextLevelLabel))
 
             RecommendationDismissButton(action: onDismiss)
         }

@@ -222,6 +222,6 @@ public struct GameControlMenu: View {
                 .contentShape(Circle())
         }
         .simultaneousGesture(TapGesture().onEnded { setOpen(true) })
-        .accessibilityLabel("その他の操作")
+        .accessibilityLabel(tr("その他の操作"))
     }
 }

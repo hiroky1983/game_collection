@@ -258,7 +258,7 @@ struct HubView: View {
                             Button {
                                 hide(hero)
                             } label: {
-                                Label("非表示にする", systemImage: "eye.slash")
+                                Label(tr("非表示にする"), systemImage: "eye.slash")
                             }
                         }
                     }
@@ -289,7 +289,7 @@ struct HubView: View {
                                 Button {
                                     moveToTop(module.id)
                                 } label: {
-                                    Label("いちばん上に置く", systemImage: "arrow.up.to.line")
+                                    Label(tr("いちばん上に置く"), systemImage: "arrow.up.to.line")
                                 }
                                 // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
                                 // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
@@ -298,7 +298,7 @@ struct HubView: View {
                                 Button {
                                     hide(module)
                                 } label: {
-                                    Label("非表示にする", systemImage: "eye.slash")
+                                    Label(tr("非表示にする"), systemImage: "eye.slash")
                                 }
                             }
                         }
@@ -338,7 +338,7 @@ struct HubView: View {
                 BannerSlot(ads: services.ads)
             }
             .popBackground()
-            .navigationTitle("あそびば")
+            .navigationTitle(tr("あそびば"))
             // 大タイトルは右のボタンより一段下に出て、見出しの領域が縦に広かった（#2028）。
             // inline にして、タイトルを左の toolbar に置き、右のボタンと同じ行の上合わせにそろえる。
             // 標準の中央タイトルは二重にならないよう外す（iOS 26 以降。それ以前の inline は文字が中央に残る）。
@@ -354,7 +354,7 @@ struct HubView: View {
                         Image(systemName: "trophy.fill")
                             .scaledFont(18, weight: .semibold)
                     }
-                    .accessibilityLabel("きろく")
+                    .accessibilityLabel(tr("きろく"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
@@ -362,7 +362,7 @@ struct HubView: View {
                             .scaledFont(18, weight: .semibold)
                     }
                     // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
-                    .accessibilityLabel("設定")
+                    .accessibilityLabel(tr("設定"))
                 }
             }
             .navigationDestination(for: HubRoute.self) { route in
@@ -576,10 +576,10 @@ struct HubView: View {
             .presentationDetents([.large])
         }
         .dialogs { anchor in
-            anchor.alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
+            anchor.alert(tr("Game Center にサインインしていません"), isPresented: $showGameCenterSignInGuidance) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+                Text(tr("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。"))
             }
         }
     }
@@ -626,7 +626,7 @@ struct HubView: View {
         hiddenNotice = nil
         guard settings.hiddenIDs.contains(notice.moduleID) else { return }
         settings.toggleHidden(notice.moduleID)
-        AccessibilityNotification.Announcement("「\(notice.title)」を元に戻しました").post()
+        AccessibilityNotification.Announcement(tr("「%@」を元に戻しました", notice.title)).post()
     }
 
     /// 「きろく」の中の「Game Center で実績・ランキングを見る」（#669。以前はツールバーから直接・#334）。
@@ -688,7 +688,7 @@ private struct GameCard: View {
                         .background(Capsule().fill(accent.opacity(0.15)))
                         .fixedSize()
                 } else if hasResume {
-                    Text("続きから")
+                    Text(tr("続きから"))
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
@@ -732,9 +732,9 @@ private struct GameCard: View {
 
     private var accessibilityLabel: String {
         var parts = [module.title, record ?? module.description]
-        if hasResume { parts.append("続きから") }
-        if isNew { parts.append("新着") }
-        return parts.joined(separator: "、")
+        if hasResume { parts.append(tr("続きから")) }
+        if isNew { parts.append(tr("新着")) }
+        return parts.joined(separator: tr("、"))
     }
 }
 
@@ -801,18 +801,18 @@ private struct HubHiddenNotice: View {
     let onUndo: () -> Void
 
     static func message(title: String) -> String {
-        "「\(title)」を非表示にしました。元に戻せます"
+        tr("「%@」を非表示にしました。元に戻せます", title)
     }
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("「\(title)」を非表示にしました")
+            Text(tr("「%@」を非表示にしました", title))
                 .themeCaption(13)
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityHidden(true)
             Button(action: onUndo) {
-                Text("元に戻す")
+                Text(tr("元に戻す"))
                     .themeCaption(13)
                     .fontWeight(.bold)
                     .underline()
@@ -822,7 +822,7 @@ private struct HubHiddenNotice: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
-            .accessibilityLabel("「\(title)」の非表示を元に戻す")
+            .accessibilityLabel(tr("「%@」の非表示を元に戻す", title))
         }
         .padding(.horizontal, Theme.pad)
         .popCard(corner: Theme.cornerSmall)
@@ -856,7 +856,7 @@ private struct HubTitleToolbarItem: ToolbarContent {
     }
 
     private var title: some View {
-        Text("あそびば")
+        Text(tr("あそびば"))
             .scaledFont(28, weight: .heavy, maxScale: 1.3)
             .fixedSize()
             .accessibilityAddTraits(.isHeader)

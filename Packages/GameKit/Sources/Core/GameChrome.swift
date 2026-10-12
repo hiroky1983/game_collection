@@ -22,8 +22,8 @@ public struct GameChromeReference {
     let action: () -> Void
 
     /// - Parameter accessibilityLabel: 読み上げ名（「役の早見表」「役ボーナス配当表」など）。
-    public init(_ accessibilityLabel: String = "役の早見表", action: @escaping () -> Void) {
-        self.accessibilityLabel = accessibilityLabel
+    public init(_ accessibilityLabel: String? = nil, action: @escaping () -> Void) {
+        self.accessibilityLabel = accessibilityLabel ?? tr("役の早見表")
         self.action = action
     }
 }
@@ -40,9 +40,9 @@ public struct GameChromeNewGame {
 
         var accessibilityLabel: String {
             switch self {
-            case .match: "新規対局"
-            case .solo: "新規ゲーム"
-            case .restart: "はじめから"
+            case .match: tr("新規対局")
+            case .solo: tr("新規ゲーム")
+            case .restart: tr("はじめから")
             }
         }
 
@@ -125,7 +125,7 @@ public extension View {
 private func gameChromeBarItems(title: String, dismiss: DismissAction, showsBack: Bool) -> some ToolbarContent {
     if showsBack {
         ToolbarItem(placement: .cancellationAction) {
-            Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+            Button { dismiss() } label: { Label(tr("戻る"), systemImage: "chevron.left") }
         }
     }
     ToolbarItem(placement: .principal) {
@@ -190,7 +190,7 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
                     Button(action: howToPlay.present) {
                         Image(systemName: "questionmark.circle")
                     }
-                    .accessibilityLabel("遊び方")
+                    .accessibilityLabel(tr("遊び方"))
                 }
             }
             if let newGame {
