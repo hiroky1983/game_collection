@@ -34,7 +34,7 @@ public struct FruitsView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "くっつきフルーツ", review: services.review,
+        .gameChrome(title: tr("くっつきフルーツ"), review: services.review,
                     newGame: GameChromeNewGame(.restart) {
                         startNewGame()
                     })
@@ -52,24 +52,24 @@ public struct FruitsView: View {
         .onChange(of: scenePhase) { _, _ in syncRenderLoop() }
         .rewardedRescueAlerts(
             continueRescue,
-            notEarned: "コンティニューできませんでした",
+            notEarned: tr("コンティニューできませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "コンティニューできませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+                title: tr("コンティニューできませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
             )
         )
         .dialogs { anchor in
             anchor.confirmationDialog(
-                "はじめからやり直しますか？",
+                tr("はじめからやり直しますか？"),
                 isPresented: $showConfirmNewGame,
                 titleVisibility: .visible
             ) {
-                Button("終了してはじめから", role: .destructive) {
+                Button(tr("終了してはじめから"), role: .destructive) {
                     withGameAnimation { model.newGame() }
                 }
-                Button("キャンセル", role: .cancel) {}
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると今のスコアが失われます。")
+                Text(tr("途中で終了すると今のスコアが失われます。"))
             }
         }
     }
@@ -99,7 +99,7 @@ public struct FruitsView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("スコア")
+                Text(tr("スコア"))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: RecordFormat.number(model.score))
@@ -111,7 +111,7 @@ public struct FruitsView: View {
             Spacer(minLength: 0)
             HStack(spacing: 8) {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("つぎ")
+                    Text(tr("つぎ"))
                         .scaledFont(12, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                     Text(model.nextKind.name)
@@ -124,7 +124,7 @@ public struct FruitsView: View {
                     .frame(width: 40, height: 40)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("つぎ、\(model.nextKind.name)")
+            .accessibilityLabel(tr("つぎ、%@", model.nextKind.name))
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -148,11 +148,11 @@ public struct FruitsView: View {
                     .contentShape(Rectangle())
                     .gesture(dropGesture(width: geo.size.width))
                     .accessibilityElement()
-                    .accessibilityLabel("箱")
+                    .accessibilityLabel(tr("箱"))
                     .accessibilityValue(accessibilityValue)
-                    .accessibilityAction(named: "左へ") { nudge(-Self.accessibilityNudge) }
-                    .accessibilityAction(named: "右へ") { nudge(Self.accessibilityNudge) }
-                    .accessibilityAction(named: "落とす") { model.drop() }
+                    .accessibilityAction(named: tr("左へ")) { nudge(-Self.accessibilityNudge) }
+                    .accessibilityAction(named: tr("右へ")) { nudge(Self.accessibilityNudge) }
+                    .accessibilityAction(named: tr("落とす")) { model.drop() }
                 if model.phase == .gameOver {
                     gameOverOverlay
                 }
@@ -167,14 +167,14 @@ public struct FruitsView: View {
     }
 
     private var accessibilityValue: String {
-        var parts = ["果物 \(model.fruitCount) 個"]
+        var parts = [tr("果物 %lld 個", model.fruitCount)]
         if let held = model.heldKind {
-            parts.append("手に\(held.name)")
+            parts.append(tr("手に%@", held.name))
         } else {
-            parts.append("つぎを待っています")
+            parts.append(tr("つぎを待っています"))
         }
-        if model.isOverLine { parts.append("危険線に掛かっています") }
-        return parts.joined(separator: "、")
+        if model.isOverLine { parts.append(tr("危険線に掛かっています")) }
+        return parts.joined(separator: tr("、"))
     }
 
     private func nudge(_ delta: Double) {
@@ -197,23 +197,23 @@ public struct FruitsView: View {
 
     private var gameOverOverlay: some View {
         RewardedContinueOverlay(
-            title: "ゲームオーバー",
+            title: tr("ゲームオーバー"),
             cornerRadius: Theme.cornerSmall,
             detail: VStack(spacing: 6) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
-                    Text("広告を見ると、小さい果物と線より上の果物を片づけて続けられます")
+                    Text(tr("広告を見ると、小さい果物と線より上の果物を片づけて続けられます"))
                         .scaledFont(12, weight: .medium, design: .rounded)
                         .foregroundStyle(.white.opacity(0.85))
                         .multilineTextAlignment(.center)
                 }
             },
-            rescueLabel: "広告を見てコンティニュー",
+            rescueLabel: tr("広告を見てコンティニュー"),
             canContinue: !model.continueUsed,
             rescue: continueRescue, services: services, gameID: FruitsModel.gameID,
             serial: model.gameSerial,
             grant: { game in model.continueAfterAd(forGame: game) },
-            secondaryTitle: "もう一度",
+            secondaryTitle: tr("もう一度"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }
@@ -225,11 +225,15 @@ public struct FruitsView: View {
 struct FruitsRuleSheet: View {
     var body: some View {
         RuleListSheet(rules: [
-            ("果物の順番", FruitKind.allCases.map(\.name).joined(separator: " → ")),
-            ("落とす果物", "\(FruitKind.dropPool.map(\.name).joined(separator: "・"))の 5 種だけが出てきます。大きい果物はくっつけて作ります。"),
-            ("得点", FruitKind.allCases.dropFirst().map { "\($0.name) \($0.points)" }.joined(separator: "・") + "。メロンどうしがくっつくと 2 つとも消えて \(FruitKind.melonVanishPoints) 点。"),
-            ("ゲームオーバー", "上の点線より上に果物が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。"),
-            ("コンティニュー", "ゲームオーバー後に広告を見ると、1 回だけ小さい果物（\(FruitKind.allCases.prefix(FruitField.Metrics.continueRemovedKinds).map(\.name).joined(separator: "・"))）と線より上の果物を片づけて続けられます。スコアはそのままです。"),
+            (tr("果物の順番"), FruitKind.allCases.map(\.name).joined(separator: " → ")),
+            (tr("落とす果物"), tr("%@の 5 種だけが出てきます。大きい果物はくっつけて作ります。",
+                               FruitKind.dropPool.map(\.name).joined(separator: tr("・")))),
+            (tr("得点"), tr("%1$@。メロンどうしがくっつくと 2 つとも消えて %2$lld 点。",
+                          FruitKind.allCases.dropFirst().map { "\($0.name) \($0.points)" }.joined(separator: tr("・")),
+                          FruitKind.melonVanishPoints)),
+            (tr("ゲームオーバー"), tr("上の点線より上に果物が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
+            (tr("コンティニュー"), tr("ゲームオーバー後に広告を見ると、1 回だけ小さい果物（%@）と線より上の果物を片づけて続けられます。スコアはそのままです。",
+                                 FruitKind.allCases.prefix(FruitField.Metrics.continueRemovedKinds).map(\.name).joined(separator: tr("・")))),
         ])
     }
 }

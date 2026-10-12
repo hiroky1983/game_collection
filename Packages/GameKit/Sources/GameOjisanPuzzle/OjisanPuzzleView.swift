@@ -96,7 +96,7 @@ public struct OjisanPuzzleView: View {
             showResult = true
         }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
-        .gameChrome(title: "おじさんの荷物運びパズル", review: services.review,
+        .gameChrome(title: tr("おじさんの荷物運びパズル"), review: services.review,
                     newGame: GameChromeNewGame(.solo) { startNewGameFromMenu() })
         // 図入りの遊び方（#2044 の先駆け）。`?` はヘッダー右に自動で並ぶ。読んでいるあいだは荷物を落とさない。
         // 内容は遊んでいるモードに合わせる（会長指示 2026-10-12。パズルモード中に腰痛ゲージ・入院・
@@ -122,11 +122,11 @@ public struct OjisanPuzzleView: View {
             }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { openSetup() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { openSetup() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると、いまの盤面と得点が失われます。")
+                Text(tr("途中で終了すると、いまの盤面と得点が失われます。"))
             }
         }
         .task { if !showSetup { model.resume() } }
@@ -184,7 +184,7 @@ public struct OjisanPuzzleView: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.pop)
-        .accessibilityLabel(model.isUserPaused ? "再開" : "一時停止")
+        .accessibilityLabel(model.isUserPaused ? tr("再開") : tr("一時停止"))
         // 止めるものが無い（決着した）あとは押せない。
         .disabled(model.outcome != nil)
         .opacity(model.outcome != nil ? 0.35 : 1)
@@ -194,12 +194,12 @@ public struct OjisanPuzzleView: View {
         ZStack {
             Rectangle().fill(.black.opacity(0.6))
             VStack(spacing: 12) {
-                Text("一時停止中").font(.title3.bold()).foregroundStyle(.white)
-                GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
+                Text(tr("一時停止中")).font(.title3.bold()).foregroundStyle(.white)
+                GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
                     model.resumeFromUserPause()
                 }
                 // 新規ゲームと同じ入口（進行があれば確認を挟む）。
-                GameDeadEndDismissButton("はじめから") { startNewGameFromMenu() }
+                GameDeadEndDismissButton(tr("はじめから")) { startNewGameFromMenu() }
             }
             .padding(20)
         }
@@ -255,7 +255,7 @@ public struct OjisanPuzzleView: View {
     private var scoreHeader: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("スコア")
+                Text(tr("スコア"))
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
@@ -266,7 +266,7 @@ public struct OjisanPuzzleView: View {
                     .contentTransition(.numericText())
             }
             if model.lastChain > 1 {
-                Text("\(model.lastChain)連鎖")
+                Text(tr("%lld連鎖", model.lastChain))
                     .font(.system(size: 16, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .lineLimit(1).fixedSize()
                     .foregroundStyle(Theme.coral)
@@ -315,11 +315,11 @@ public struct OjisanPuzzleView: View {
     private func gaugeCard(warning: Bool, lit: Bool) -> some View {
         let stage = model.painStage
         let caption = warning
-            ? "こしが限界！ あと \(max(0, OjisanPuzzlePain.limit - model.pain)) で入院"
+            ? tr("こしが限界！ あと %lld で入院", max(0, OjisanPuzzlePain.limit - model.pain))
             : stage.caption
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("腰痛ゲージ")
+                Text(tr("腰痛ゲージ"))
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
                     .foregroundStyle(Theme.inkSub)
                     .fixedSize()
@@ -348,7 +348,7 @@ public struct OjisanPuzzleView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("腰痛ゲージ \(model.pain)、\(caption)")
+        .accessibilityLabel(tr("腰痛ゲージ %1$lld、%2$@", model.pain, caption))
     }
 
     /// 太いバー。3 段の地色（青緑・黄・珊瑚を薄く）の上を、いまの段階の色で塗る。段の境目に白い目盛を入れる。
@@ -403,7 +403,7 @@ public struct OjisanPuzzleView: View {
     /// 連鎖の行は出ていないときも場所を取っておき、カードの高さ（＝下のおじさんの位置）を揺らさない。
     private var scoreCard: some View {
         VStack(spacing: 2) {
-            Text("スコア")
+            Text(tr("スコア"))
                 .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 右の列の幅に収める寸法（#2064）
                 .foregroundStyle(Theme.inkSub)
             Text("\(model.score)")
@@ -411,14 +411,14 @@ public struct OjisanPuzzleView: View {
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
-            Text(model.lastChain > 1 ? "\(model.lastChain)連鎖" : " ")
+            Text(model.lastChain > 1 ? tr("%lld連鎖", model.lastChain) : " ")
                 .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 右の列の幅に収める寸法（#2064）
                 .lineLimit(1)
                 .foregroundStyle(Theme.coral)
                 .id(model.chainEventID)
                 .transition(.scale.combined(with: .opacity))
             if let remaining = model.millisecondsUntilRise {
-                Text("せり上がり \((remaining + 999) / 1000)秒")
+                Text(tr("せり上がり %lld秒", (remaining + 999) / 1000))
                     .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 右の列の幅に収める寸法（#2064）
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(Theme.inkSub)
@@ -543,7 +543,7 @@ public struct OjisanPuzzleView: View {
                 path.addLine(to: CGPoint(x: right, y: y))
             }
             .stroke(Theme.ink, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-            Text("ここまで下げたらクリア")
+            Text(tr("ここまで下げたらクリア"))
                 .font(.system(size: 10, weight: .heavy, design: .rounded)) // fixed-size: 盤の枠内に収める印
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 6).padding(.vertical, 2)
@@ -649,7 +649,7 @@ public struct OjisanPuzzleView: View {
                      corner: Theme.cornerSmall)
 
             VStack(spacing: 6) {
-                Text("つぎ")
+                Text(tr("つぎ"))
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 2) {
@@ -674,9 +674,9 @@ public struct OjisanPuzzleView: View {
     /// 操作はすべて盤の上のスワイプ・タップなので、代わりに 1 行だけ遊び方を出す。
     private var controlHint: some View {
         HStack(spacing: 14) {
-            hintItem("よこにスワイプ", systemImage: "arrow.left.and.right")
-            hintItem("タップで回す", systemImage: "arrow.clockwise")
-            hintItem("下スワイプ", systemImage: "arrow.down")
+            hintItem(tr("よこにスワイプ"), systemImage: "arrow.left.and.right")
+            hintItem(tr("タップで回す"), systemImage: "arrow.clockwise")
+            hintItem(tr("下スワイプ"), systemImage: "arrow.down")
         }
         .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
         .foregroundStyle(Theme.inkSub)
@@ -691,17 +691,17 @@ public struct OjisanPuzzleView: View {
 
     private var resultTitle: String {
         switch model.outcome {
-        case .hospitalized: "入院！"
-        case .cleared: "かたづいた！"
-        default: "積みあがった！"
+        case .hospitalized: tr("入院！")
+        case .cleared: tr("かたづいた！")
+        default: tr("積みあがった！")
         }
     }
 
     private var resultMessage: String {
         switch model.outcome {
-        case .hospitalized: "腰が限界です。おだいじに。"
-        case .cleared: "荷物がラインより下になりました。"
-        default: "荷物が天井まで届きました。"
+        case .hospitalized: tr("腰が限界です。おだいじに。")
+        case .cleared: tr("荷物がラインより下になりました。")
+        default: tr("荷物が天井まで届きました。")
         }
     }
 
@@ -724,11 +724,11 @@ public struct OjisanPuzzleView: View {
                 .foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
             if model.outcome == .cleared {
-                Text("タイム \(Self.timeText(model.elapsedMilliseconds / 1000))")
+                Text(tr("タイム %@", Self.timeText(model.elapsedMilliseconds / 1000)))
                     .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.ink)
             }
-            Text("スコア \(model.score)")
+            Text(tr("スコア %@", model.score.formatted()))
                 .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                 .foregroundStyle(Theme.ink)
             // 自己ベストの 1 行（他ゲームのリザルトと同じ共通部品・#1904）。
@@ -736,7 +736,7 @@ public struct OjisanPuzzleView: View {
             Button {
                 withGameAnimation { model.newGame() }
             } label: {
-                Text("もう一度")
+                Text(tr("もう一度"))
                     .font(.system(size: 17, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 28).padding(.vertical, 12)

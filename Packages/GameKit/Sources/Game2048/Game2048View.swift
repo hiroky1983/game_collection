@@ -41,27 +41,27 @@ public struct Game2048View: View {
                     })
         .howToPlay(.game2048)
         .dialogs { anchor in
-            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると、いまの盤面と得点が失われます。")
+                Text(tr("途中で終了すると、いまの盤面と得点が失われます。"))
             }
-            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-                Button("広告を見て\(Game2048UndoBudget.refill)回補充する") { requestUndoRefill() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
+                Button(tr("広告を見て%lld回補充する", Game2048UndoBudget.refill)) { requestUndoRefill() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(Game2048UndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。", Game2048UndoBudget.refill))
             }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
-            notEarned: "「戻す」を補充できませんでした",
+            notEarned: tr("「戻す」を補充できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "「戻す」を補充できませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。"
+                title: tr("「戻す」を補充できませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。")
             )
         )
         .onAppear {
@@ -82,10 +82,10 @@ public struct Game2048View: View {
         }
         .rewardedRescueAlerts(
             continueRescue,
-            notEarned: "コンティニューできませんでした",
+            notEarned: tr("コンティニューできませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "コンティニューできませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+                title: tr("コンティニューできませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
             )
         )
     }
@@ -94,16 +94,16 @@ public struct Game2048View: View {
     private var gameControls: some View {
         GameOverflowBar(actions: [
             GameActionItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !undoRescue.isWatching && !continueRescue.isWatching,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
-                    ? "1手戻す（残り\(model.undosRemaining)回）"
-                    : "1手戻す（広告を見て補充）",
+                    ? tr("1手戻す（残り%lld回）", model.undosRemaining)
+                    : tr("1手戻す（広告を見て補充）"),
                 accessibilityHint: model.canUndo
-                    ? "直前のスワイプの前の盤面と得点に戻します"
-                    : "戻せる手がありません"
+                    ? tr("直前のスワイプの前の盤面と得点に戻します")
+                    : tr("戻せる手がありません")
             ) { requestUndo() },
         ])
         .lineLimit(1)
@@ -144,7 +144,7 @@ public struct Game2048View: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("スコア")
+                Text(tr("スコア"))
                     .themeCaption(12, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
@@ -206,17 +206,17 @@ public struct Game2048View: View {
         ZStack {
             RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
-                Text("2048 達成！").font(.title2.bold()).foregroundStyle(.white)
+                Text(tr("2048 達成！")).font(.title2.bold()).foregroundStyle(.white)
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 Button {
                     withGameAnimation { model.continueAfterWin() }
                 } label: {
-                    Label("続ける", systemImage: "arrow.forward.circle.fill")
+                    Label(tr("続ける"), systemImage: "arrow.forward.circle.fill")
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Fill.coral)
-                Button("もう一度") { withGameAnimation { model.newGame() } }
+                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)
                     .tint(.white)
             }
@@ -225,14 +225,14 @@ public struct Game2048View: View {
 
     private var gameOverOverlay: some View {
         RewardedContinueOverlay(
-            title: "ゲームオーバー",
+            title: tr("ゲームオーバー"),
             detail: RecordLabel(model.recordResult, textColor: .white.opacity(0.85)),
-            rescueLabel: "広告を見てコンティニュー",
+            rescueLabel: tr("広告を見てコンティニュー"),
             canContinue: !model.continueUsed,
             rescue: continueRescue, services: services, gameID: model.gameID,
             serial: model.gameSerial,
             grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
-            secondaryTitle: "もう一度",
+            secondaryTitle: tr("もう一度"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }

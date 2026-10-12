@@ -11,8 +11,8 @@ public enum AnzanAccessibility {
     public static func keyLabel(_ key: AnzanKey) -> String {
         switch key {
         case let .digit(digit): return String(digit)
-        case .backspace:        return "1文字消す"
-        case .submit:           return "決定"
+        case .backspace:        return tr("1文字消す")
+        case .submit:           return tr("決定")
         }
     }
 
@@ -35,17 +35,17 @@ public enum AnzanAccessibility {
     ) -> String {
         switch phase {
         case .idle:
-            return "難易度を選んで始めましょう"
+            return tr("難易度を選んで始めましょう")
         case .flashing:
-            if step == .ready { return "よーい" }
+            if step == .ready { return tr("よーい") }
             if let displayedNumber { return String(displayedNumber) }
-            return "次の数を待っています"
+            return tr("次の数を待っています")
         case .answering:
-            return input.isEmpty ? "ぜんぶ足した答えを入力してください" : "いまの入力は\(input)"
+            return input.isEmpty ? tr("ぜんぶ足した答えを入力してください") : tr("いまの入力は%@", input)
         case .result:
-            if isCorrect { return "せいかい。合計は\(sum)" }
-            if let answer { return "ざんねん。正解は\(sum)、あなたの答えは\(answer)" }
-            return "ざんねん。正解は\(sum)"
+            if isCorrect { return tr("せいかい。合計は%lld", sum) }
+            if let answer { return tr("ざんねん。正解は%1$lld、あなたの答えは%2$lld", sum, answer) }
+            return tr("ざんねん。正解は%lld", sum)
         }
     }
 }

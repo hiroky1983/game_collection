@@ -15,8 +15,8 @@ public struct AnzanModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `AnzanModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "anzan"
-    public let title = "ぱっと暗算"
-    public let description = "パッと出て消える数を足していこう。桁数・個数・速さを選べる"
+    public var title: String { tr("ぱっと暗算") }
+    public var description: String { tr("パッと出て消える数を足していこう。桁数・個数・速さを選べる") }
     public var icon: Image { Image(systemName: "sum") }
     /// 中断データは最後に選んだ難易度の控えで、問題そのものは復元しない（表示のタイミングで成り立つ
     /// ゲームなので途中から戻せない）。「途中のままです」のお知らせ（#663）の対象から外す。

@@ -24,17 +24,17 @@ public enum FruitKind: Int, Codable, CaseIterable, Sendable, Comparable {
     /// 画面に出す名前。
     public var name: String {
         switch self {
-        case .blueberry:  return "ブルーベリー"
-        case .cherry:     return "さくらんぼ"
-        case .strawberry: return "いちご"
-        case .lime:       return "ライム"
-        case .mandarin:   return "みかん"
-        case .kiwi:       return "キウイ"
-        case .peach:      return "もも"
-        case .apple:      return "りんご"
-        case .grape:      return "ぶどう"
-        case .pineapple:  return "パイナップル"
-        case .melon:      return "メロン"
+        case .blueberry:  return tr("ブルーベリー")
+        case .cherry:     return tr("さくらんぼ")
+        case .strawberry: return tr("いちご")
+        case .lime:       return tr("ライム")
+        case .mandarin:   return tr("みかん")
+        case .kiwi:       return tr("キウイ")
+        case .peach:      return tr("もも")
+        case .apple:      return tr("りんご")
+        case .grape:      return tr("ぶどう")
+        case .pineapple:  return tr("パイナップル")
+        case .melon:      return tr("メロン")
         }
     }
 

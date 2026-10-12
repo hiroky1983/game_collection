@@ -8,17 +8,17 @@ import Foundation
 public enum Game2048Accessibility {
     /// マス 1 つの読み上げ文（例: "2行3列、128" / "1行1列、空き"）。
     public static func tileLabel(row: Int, col: Int, value: Int) -> String {
-        let content = value > 0 ? String(value) : "空き"
-        return "\(row + 1)行\(col + 1)列、\(content)"
+        let content = value > 0 ? String(value) : tr("空き")
+        return tr("%1$lld行%2$lld列、%3$@", row + 1, col + 1, content)
     }
 
     /// 盤を動かすアクションの名前。VoiceOver のアクション一覧（上下スワイプで選ぶ）に出る。
     public static func moveActionName(_ direction: Direction) -> String {
         switch direction {
-        case .up:    return "上へ動かす"
-        case .down:  return "下へ動かす"
-        case .left:  return "左へ動かす"
-        case .right: return "右へ動かす"
+        case .up:    return tr("上へ動かす")
+        case .down:  return tr("下へ動かす")
+        case .left:  return tr("左へ動かす")
+        case .right: return tr("右へ動かす")
         }
     }
 }
