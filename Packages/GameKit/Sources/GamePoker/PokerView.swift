@@ -362,6 +362,8 @@ public struct PokerView: View {
                         // 位置は親と一体で決まるようにして数字の入れ替えだけを演出に残す。
                         .geometryGroup()
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(PokerAccessibility.potLabel(pot: model.pot))
             }
             Spacer()
         }

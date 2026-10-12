@@ -153,6 +153,7 @@ public struct BlackjackView: View {
                 Text("ディーラー")
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
+                    .accessibilityHidden(model.phase == .result || model.phase == .dealerTurn)
                 Spacer()
                 if model.phase == .result || model.phase == .dealerTurn {
                     Text("\(model.dealerValue)")
@@ -160,6 +161,9 @@ public struct BlackjackView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(model.dealerValue > 21 ? Theme.coral : Theme.purple)
+                        .accessibilityLabel(BlackjackAccessibility.totalLabel(
+                            owner: "ディーラー", value: model.dealerValue
+                        ))
                 } else if !model.dealerHand.isEmpty {
                     Text("\(model.dealerVisibleValue) + ?")
                         .themeBody(14, weight: .black, maxScale: 1.5)
@@ -218,6 +222,7 @@ public struct BlackjackView: View {
                 Text("あなた")
                     .themeBody(13)
                     .foregroundStyle(Theme.ink)
+                    .accessibilityHidden(!model.playerHand.isEmpty)
                 Spacer()
                 if !model.playerHand.isEmpty {
                     Text("\(model.playerValue)")
@@ -225,6 +230,9 @@ public struct BlackjackView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(model.playerValue > 21 ? Theme.coral : Theme.teal)
+                        .accessibilityLabel(BlackjackAccessibility.totalLabel(
+                            owner: "あなた", value: model.playerValue
+                        ))
                 }
                 // 勝敗バッジはフェードで出す（#209）。`.gameAnimation` はこの ZStack にだけ置く
                 // （手札の値の入れ替えまで animate されると決着の瞬間に行が伸び縮みする）。
@@ -264,6 +272,7 @@ public struct BlackjackView: View {
                 Text("ハンド\(index + 1)")
                     .themeBody(13)
                     .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
+                    .accessibilityHidden(true)
                 Text("\(hand.bet)枚\(hand.isDoubled ? "（ダブル）" : "")")
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
@@ -285,6 +294,9 @@ public struct BlackjackView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(hand.isBusted ? Theme.coral : Theme.teal)
+                    .accessibilityLabel(BlackjackAccessibility.totalLabel(
+                        owner: "ハンド\(index + 1)", value: hand.value
+                    ))
                 if let outcome = hand.outcome {
                     outcomeBadge(outcome)
                 }

@@ -47,4 +47,14 @@ struct BlackjackAccessibilityTests {
         #expect(BlackjackAccessibility.outcomeAnnouncement(outcome: .win, isSplit: true)
                 == "全体の結果は、勝ちです")
     }
+
+    @Test("合計は誰の・何点かを 1 文で読む") func totalLabel() {
+        #expect(BlackjackAccessibility.totalLabel(owner: "あなた", value: 17) == "あなたの合計17")
+        #expect(BlackjackAccessibility.totalLabel(owner: "ハンド2", value: 21) == "ハンド2の合計21")
+    }
+
+    @Test("21 を超えたらバストと読む（赤色だけの伝達にしない）") func totalLabelBust() {
+        #expect(BlackjackAccessibility.totalLabel(owner: "ディーラー", value: 22) == "ディーラーの合計22、バスト")
+        #expect(!BlackjackAccessibility.totalLabel(owner: "あなた", value: 21).contains("バスト"))
+    }
 }
