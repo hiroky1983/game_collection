@@ -52,7 +52,7 @@ struct OjisanPuzzleSetupSheet: View {
     /// 操作・れんさの説明を開閉する行。別画面へは移らず、この場で下に広げる。
     private var detailsToggle: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
+            withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
         } label: {
             HStack {
                 Label("操作・れんさのくわしい説明", systemImage: "hand.draw.fill")
