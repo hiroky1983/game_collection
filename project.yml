@@ -236,29 +236,6 @@ targets:
         # 無いと FirebaseAnalytics が実バイナリからリンク落ちし、Crashlytics が
         # 「Firebase Analytics SDK not detected」となる（Firebase 公式要件）。
         OTHER_LDFLAGS: ["$(inherited)", "-ObjC"]
-    # 共有スキームを明示的に生成する。下の UITests ターゲットが共有スキームを持つと、fastlane は
-    # 共有スキームしか探さないため GameCollection を見失い UITests を archive してしまう（v1.1.8 出荷で発覚）
+    # 共有スキームを明示的に生成する（UI テストターゲットを持っていた頃、fastlane が共有スキームしか探さず
+    # GameCollection を見失った v1.1.8 出荷の経緯による。#2046 でターゲットは削除済み）
     scheme: {}
-
-  # 画面操作の E2E（XCUITest・#1594）。シミュレータで手元実行する専用のターゲットで、CI では回さない
-  # （ci.yml は GameCollection スキームの build だけ。ここのスキームは test のときだけこのターゲットを作る）。
-  GameCollectionUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    deploymentTarget: "17.0"
-    sources:
-      - GameCollectionUITests
-    dependencies:
-      - target: GameCollection
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba.uitests
-        GENERATE_INFOPLIST_FILE: YES
-        SWIFT_VERSION: "6.0"
-        TARGETED_DEVICE_FAMILY: "1,2"
-        DEVELOPMENT_TEAM: 6MGM38HWDH
-        CODE_SIGN_STYLE: Automatic
-        TEST_TARGET_NAME: GameCollection
-    scheme:
-      testTargets:
-        - GameCollectionUITests
