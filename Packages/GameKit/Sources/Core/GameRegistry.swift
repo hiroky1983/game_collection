@@ -34,4 +34,9 @@ public struct GameRegistry {
     public func hasResumableSnapshot(gameID: String, in snapshots: SnapshotStore) -> Bool {
         module(id: gameID)?.hasResumableSnapshot(in: snapshots) ?? false
     }
+
+    /// `gameID` の中断データが手つかずの盤か（#2161）。登録外の ID は false。
+    public func hasUntouchedSnapshot(gameID: String, in snapshots: SnapshotStore) -> Bool {
+        module(id: gameID)?.hasUntouchedSnapshot(in: snapshots) ?? false
+    }
 }

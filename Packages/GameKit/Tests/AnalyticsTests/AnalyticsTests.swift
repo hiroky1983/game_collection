@@ -1509,3 +1509,123 @@ struct GameStartEngagementTests {
             gameID: "sudoku", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil)))
     }
 }
+
+// MARK: - 手つかずの中断データを開き直した回（#2161）
+
+@Suite("手つかずの中断データを開き直した回の game_start / game_end（#2161）")
+@MainActor
+struct UntouchedSnapshotReopenTests {
+
+    /// 本番と同じく、離脱の判定にハブの「続きから」と同じ `hasResumableSnapshot` を使う（#1847）。
+    private func makeHubServices(
+        snapshots: SnapshotStore, modules: [GameModule]
+    ) -> (GameServices, SpyAnalyticsService) {
+        let (analytics, spy) = makeAnalytics(enabled: true, clock: TestClock())
+        let services = GameServices(
+            snapshots: snapshots, ads: NoopAdService(), analytics: analytics,
+            isResumable: { id, store in
+                modules.first { $0.id == id }?.hasResumableSnapshot(in: store) ?? false
+            }
+        )
+        return (services, spy)
+    }
+
+    /// `HubView` が画面を出したあとに呼ぶ経路（`gameScreenDidAppear`）を再現する。
+    private func appear(_ module: GameModule, _ services: GameServices, _ snapshots: SnapshotStore) {
+        services.gameScreenDidAppear(
+            gameID: module.id, hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: snapshots)
+        )
+    }
+
+    @Test("2048: 動かさずに戻って開き直し、遊び切ると 2 回目にも game_start と game_end が 1 回ずつ付く")
+    func game2048() {
+        let snapshots = MemorySnapshotStore()
+        let module = Game2048Module()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        _ = Game2048Model(services: services)
+        appear(module, services, snapshots)
+        services.gameDidLeave(gameID: "2048")
+        #expect(spy.starts(of: "2048") == 1)
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 初期盤の保存が残っている")
+        #expect(!module.hasResumableSnapshot(in: snapshots))
+
+        let reopened = Game2048Model(services: services)
+        appear(module, services, snapshots)
+        appear(module, services, snapshots)
+        outer: for _ in 0..<3000 {
+            for direction in Direction.allCases {
+                reopened.move(direction)
+                if reopened.gameOver { break outer }
+            }
+        }
+        #expect(reopened.gameOver)
+        #expect(spy.starts(of: "2048") == 2, "2 回目のプレイにも game_start が付く（二重にはならない）")
+        #expect(spy.ends(of: "2048") == 1, "2 回目のプレイの game_end が付く")
+    }
+
+    @Test("将棋: 1 手も指さずに戻って開き直し、そのまま遊ぶと game_start / game_end が付く")
+    func shogi() {
+        let snapshots = MemorySnapshotStore()
+        let module = ShogiModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = ShogiGameModel(services: services)
+        first.newGame(aiLevel: 1)
+        services.gameDidLeave(gameID: "shogi")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 0 手の保存が残っている")
+        #expect(!module.hasResumableSnapshot(in: snapshots))
+        let startsBefore = spy.starts(of: "shogi")
+
+        let reopened = ShogiGameModel(services: services)
+        appear(module, services, snapshots)
+        reopened.resign()
+        #expect(spy.starts(of: "shogi") == startsBefore + 1)
+        #expect(spy.ends(of: "shogi") == 1)
+    }
+
+    @Test("五目並べ: 1 手も打たずに戻って開き直し、そのまま遊ぶと game_start / game_end が付く")
+    func gomoku() {
+        let snapshots = MemorySnapshotStore()
+        let module = GomokuModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = GomokuModel(services: services)
+        first.newGame(humanSide: .black, aiLevel: 1)
+        services.gameDidLeave(gameID: "gomoku")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 0 手の保存が残っている")
+        let startsBefore = spy.starts(of: "gomoku")
+
+        let reopened = GomokuModel(services: services)
+        appear(module, services, snapshots)
+        reopened.resign()
+        #expect(spy.starts(of: "gomoku") == startsBefore + 1)
+        #expect(spy.ends(of: "gomoku") == 1)
+    }
+
+    @Test("再開できる中断データから開き直しても game_start は増えない")
+    func resumableSnapshotDoesNotStart() {
+        let snapshots = MemorySnapshotStore()
+        let (first, _) = makeHubServices(snapshots: snapshots, modules: [Game2048Module()])
+        let model = Game2048Model(services: first)
+        model.move(.left)
+        model.move(.up)
+        let module = Game2048Module()
+        #expect(!module.hasUntouchedSnapshot(in: snapshots), "動かした盤は手つかずではない")
+
+        let (resumed, spy) = makeServices(snapshots: snapshots)
+        _ = Game2048Model(services: resumed)
+        appear(module, resumed, snapshots)
+        #expect(spy.events.isEmpty, "続きからは新しいプレイではないので何も送らない")
+    }
+
+    @Test("中断データが無い・手つかずを判定しないゲームでは何も増えない")
+    func noSnapshotOrNotOptedIn() {
+        let (services, spy) = makeServices()
+        _ = Game2048Model(services: services)
+        #expect(spy.starts(of: "2048") == 1)
+        services.gameScreenDidAppear(gameID: "2048", hasUntouchedSnapshot: false)
+        #expect(spy.starts(of: "2048") == 1)
+        #expect(!ShogiModule().hasUntouchedSnapshot(in: MemorySnapshotStore()), "保存が無ければ手つかずではない")
+    }
+}

@@ -19,4 +19,10 @@ public struct FifteenModule: GameModule {
         guard let snap = snapshots.load(FifteenSnapshot.self, for: id) else { return false }
         return snap.moves > 0
     }
+
+    /// 保存はあるが一度も動かしていない盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(FifteenSnapshot.self, for: id) else { return false }
+        return snap.moves == 0
+    }
 }
