@@ -62,7 +62,7 @@ public struct BlackjackView: View {
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
         .gameChrome(title: "ブラックジャック", review: services.review)
-        .howToPlay(.blackjack)
+        .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。

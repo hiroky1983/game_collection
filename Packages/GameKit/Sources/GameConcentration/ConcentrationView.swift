@@ -46,7 +46,7 @@ public struct ConcentrationView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.concentration)
+        .howToPlay(HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items))
         .dialogs { anchor in
             anchor.confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button("終了して新規対局", role: .destructive) { showNewGame = true }

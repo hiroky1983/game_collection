@@ -175,7 +175,15 @@ public extension HowToPlayGuide {
             "選ばなかったカードは 1 回だけ引き直せます。",
             "役の強い側がポットのチップをもらえます。",
         ],
-        hint: "残すカードをタップしよう"
+        hint: "残すカードをタップしよう",
+        items: [
+            HowToPlayItem("手札は 5 枚。残したいカードをタップで選びます。"),
+            HowToPlayItem("選ばなかったカードは 1 回だけ引き直せます。"),
+            HowToPlayItem("役の強い側がポットのチップをもらえます。"),
+        ],
+        notes: [
+            "役の一覧は「くわしいルール」で見られます。",
+        ]
     )
 
     static let concentration = HowToPlayGuide(
@@ -186,7 +194,13 @@ public extension HowToPlayGuide {
             "ちがったらカードは伏せられ、CPU の番になります。",
             "多くペアを取ったほうが勝ちです。",
         ],
-        hint: "2 枚めくってペアを探そう"
+        hint: "2 枚めくってペアを探そう",
+        items: [
+            HowToPlayItem("カードを 2 枚めくります。同じ絵柄ならペアになり、もう一度めくれます。"),
+            HowToPlayItem("ちがったらカードは伏せられ、CPU の番になります。"),
+            HowToPlayItem("多くペアを取ったほうが勝ちです。"),
+        ],
+        notes: []
     )
 
     static let blackjack = HowToPlayGuide(
@@ -198,7 +212,17 @@ public extension HowToPlayGuide {
             "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。",
         ],
         hint: "21 に近づけたほうが勝ち",
-        hintIcon: "suit.spade.fill"
+        hintIcon: "suit.spade.fill",
+        items: [
+            HowToPlayItem("カードの合計を 21 に近づけたほうが勝ち。21 を超えると負けです。"),
+            HowToPlayItem("A は 1 か 11、J・Q・K は 10 点で数えます。"),
+            HowToPlayItem("「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。"),
+            HowToPlayItem("最初の 2 枚が同じ点数なら、2 手に分ける「スプリット」もできます。"),
+        ],
+        notes: [
+            "最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」も選べます。",
+            "10・J・Q・K は同じ 10 点なので、スプリットできます。",
+        ]
     )
 
     static let shiritori = HowToPlayGuide(
@@ -221,7 +245,17 @@ public extension HowToPlayGuide {
             "出せない・出したくないときはパス。全員パスすると場が流れます。",
             "3 が最弱で、2 とジョーカーが最強です。",
         ],
-        hint: "場より強い組を出そう"
+        hint: "場より強い組を出そう",
+        items: [
+            HowToPlayItem("場に出ている組より強い組を出します。手札を先になくした人が勝ちです。"),
+            HowToPlayItem("3 が最弱で、2 とジョーカーが最強です。"),
+            HowToPlayItem("出せない・出したくないときはパス。全員パスすると場が流れます。"),
+        ],
+        notes: [
+            "同じ数字を 4 枚以上まとめて出すと革命。カードの強さが逆になります。",
+            "8 を含む組を出すと場が流れ、そのまま続けて出せます。",
+            "そのほかの決まりは「くわしいルール」で見られます。",
+        ]
     )
 
     static let mahjongSolitaire = HowToPlayGuide(
@@ -282,7 +316,16 @@ public extension HowToPlayGuide {
             "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。",
         ],
         hint: "札をタップ → 置き先をタップ",
-        hintIcon: "rectangle.stack.fill"
+        hintIcon: "rectangle.stack.fill",
+        items: [
+            HowToPlayItem("動かす札をタップして選び、置きたい列か右上の組札をタップします。"),
+            HowToPlayItem("場札は 1 つ小さくて色ちがいの札だけ重ねられます。"),
+            HowToPlayItem("空いた列には K だけ置けます。"),
+            HowToPlayItem("♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。"),
+        ],
+        notes: [
+            "山札をタップすると、選んだ枚数（1 枚か 3 枚）をめくれます。",
+        ]
     )
 
     static let freecell = HowToPlayGuide(
@@ -294,7 +337,16 @@ public extension HowToPlayGuide {
             "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。52枚すべて最初から見えています。",
         ],
         hint: "札をタップ → 置き先をタップ",
-        hintIcon: "rectangle.grid.1x2.fill"
+        hintIcon: "rectangle.grid.1x2.fill",
+        items: [
+            HowToPlayItem("動かす札をタップして選び、置きたい列かフリーセル、組札をタップします。"),
+            HowToPlayItem("フリーセルは札を 1 枚ずつ置いておける空きです。左上に 4 つあります。"),
+            HowToPlayItem("場札は 1 つ小さくて色ちがいの札だけ重ねられます。空いた列にはどの札でも置けます。"),
+            HowToPlayItem("♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。"),
+        ],
+        notes: [
+            "52 枚すべて最初から見えています。",
+        ]
     )
 
     static let spider = HowToPlayGuide(
@@ -306,7 +358,17 @@ public extension HowToPlayGuide {
             "同じスートで K から A まで13枚揃うと自動で取り除かれます。8組すべて取り除いたらクリアです。",
         ],
         hint: "札をタップ → 置き先をタップ",
-        hintIcon: "rectangle.portrait.on.rectangle.portrait.angled.fill"
+        hintIcon: "rectangle.portrait.on.rectangle.portrait.angled.fill",
+        items: [
+            HowToPlayItem("動かす札をタップして選び、置きたい列をタップします。"),
+            HowToPlayItem("置けるのは、ひとつ上の札より 1 つ小さい札（スートは問いません）か、空いた列です。"),
+            HowToPlayItem("まとめて動かせるのは、同じスートで降順に揃った並びだけです。"),
+            HowToPlayItem("動かせる手が無くなったら左上の山札をタップ。各列に 1 枚ずつ配ります。"),
+            HowToPlayItem("同じスートで K から A まで 13 枚揃うと自動で取り除かれ、8 組取り除いたらクリアです。"),
+        ],
+        notes: [
+            "空いた列があると、山札は配れません。",
+        ]
     )
 
     static let blocks = HowToPlayGuide(

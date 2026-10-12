@@ -47,7 +47,7 @@ public struct DaifugoView: View {
         .padding(Theme.pad)
         .gameChrome(title: "大富豪", review: services.review)
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
-        .howToPlay(.daifugo) { DaifugoRuleSheet() }
+        .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)) { DaifugoRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
