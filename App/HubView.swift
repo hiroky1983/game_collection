@@ -284,9 +284,10 @@ struct HubView: View {
                                 } label: {
                                     Label("いちばん上に置く", systemImage: "arrow.up.to.line")
                                 }
-                                // 先頭かどうかは非表示も含む並びで見る。表示中の先頭でも、前に非表示のゲームが
-                                // あれば動かす余地がある（戻したときに先頭に来ない）。
-                                .disabled(settings.orderedIDs.first == module.id)
+                                // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
+                                // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
+                                .disabled(NewGames.isAlreadyAtTop(
+                                    id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
                                 Button {
                                     hide(module)
                                 } label: {
@@ -573,13 +574,18 @@ struct HubView: View {
     /// `orderedIDs` の中で数える（設定シートの `onMove` と同じ座標）。
     private func moveToTop(_ id: String) {
         guard let from = settings.orderedIDs.firstIndex(of: id), from > 0 else { return }
+        // 新着は表示で先頭に固定される（#2104）ので、案内は動かす前の並びから実際の位置を伝える（#2124）。
+        let announcement = registry.module(id: id).map {
+            NewGames.moveToTopAnnouncement(
+                title: $0.title, id: id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs)
+        }
         // 並びの入れ替えを動きで見せる（Reduce Motion では即時）。無音のままだと VoiceOver 利用者は
         // 動いたことが分からないので、非表示（`hide`）と同じくアナウンスも流す。
         withGameAnimation(.easeOut(duration: 0.25)) {
             settings.move(from: IndexSet(integer: from), to: 0)
         }
-        if let module = registry.module(id: id) {
-            AccessibilityNotification.Announcement("「\(module.title)」を先頭に移しました").post()
+        if let announcement {
+            AccessibilityNotification.Announcement(announcement).post()
         }
     }
 

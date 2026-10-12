@@ -258,3 +258,53 @@ struct NewGamesPinnedTests {
         #expect(NewGames.currentVersionIDs == ["anzan", "ojisanpuzzle"])
     }
 }
+
+@Suite("新着固定下の「いちばん上に置く」（#2124）")
+struct NewGamesMoveToTopTests {
+    private static let order = ["a", "b", "x", "y", "z"]
+    private static let new: Set<String> = ["a", "b"]
+
+    @Test("新着だけが前にある通常ゲームは、表示上すでに先頭（新着の次）なので無効")
+    func firstAfterNewIsAtTop() {
+        #expect(NewGames.isAlreadyAtTop(id: "x", orderedIDs: Self.order, hiddenIDs: [], newIDs: Self.new))
+    }
+
+    @Test("その次以降のゲームは動かせる")
+    func laterIsMovable() {
+        #expect(!NewGames.isAlreadyAtTop(id: "y", orderedIDs: Self.order, hiddenIDs: [], newIDs: Self.new))
+    }
+
+    @Test("前に非表示のゲームがあれば動かす余地がある")
+    func hiddenAheadIsMovable() {
+        #expect(!NewGames.isAlreadyAtTop(id: "x", orderedIDs: ["h", "a", "x"], hiddenIDs: ["h"], newIDs: ["a"]))
+    }
+
+    @Test("前に非表示の新着があるときも動かす余地がある")
+    func hiddenNewAheadIsMovable() {
+        #expect(!NewGames.isAlreadyAtTop(id: "x", orderedIDs: ["a", "x"], hiddenIDs: ["a"], newIDs: ["a"]))
+    }
+
+    @Test("新着自身は並びの先頭のときだけ無効")
+    func newGameOnlyAtVeryTop() {
+        #expect(NewGames.isAlreadyAtTop(id: "a", orderedIDs: Self.order, hiddenIDs: [], newIDs: Self.new))
+        #expect(!NewGames.isAlreadyAtTop(id: "b", orderedIDs: Self.order, hiddenIDs: [], newIDs: Self.new))
+    }
+
+    @Test("新着が無ければ従来どおり、並びの先頭だけが無効")
+    func noNewBehavesAsBefore() {
+        #expect(NewGames.isAlreadyAtTop(id: "x", orderedIDs: ["x", "y"], hiddenIDs: [], newIDs: []))
+        #expect(!NewGames.isAlreadyAtTop(id: "y", orderedIDs: ["x", "y"], hiddenIDs: [], newIDs: []))
+    }
+
+    @Test("案内は新着が前に固定されているときだけ「新着の次」と言う")
+    func announcement() {
+        #expect(NewGames.moveToTopAnnouncement(title: "X", id: "y", orderedIDs: Self.order, hiddenIDs: [], newIDs: Self.new)
+                == "「X」を新着の次に移しました")
+        #expect(NewGames.moveToTopAnnouncement(title: "A", id: "b", orderedIDs: Self.order, hiddenIDs: [], newIDs: Self.new)
+                == "「A」を先頭に移しました")
+        #expect(NewGames.moveToTopAnnouncement(title: "X", id: "y", orderedIDs: Self.order, hiddenIDs: [], newIDs: [])
+                == "「X」を先頭に移しました")
+        #expect(NewGames.moveToTopAnnouncement(title: "X", id: "y", orderedIDs: ["a", "y"], hiddenIDs: ["a"], newIDs: ["a"])
+                == "「X」を先頭に移しました")
+    }
+}
