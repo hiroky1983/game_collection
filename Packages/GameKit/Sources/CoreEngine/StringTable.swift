@@ -44,7 +44,10 @@ public struct StringTable: Sendable {
         let catalog = catalogURL.flatMap { StringCatalogCache.shared.catalog(at: $0) }
         let template = catalog?.template(for: key, language: language, arguments: arguments) ?? key
         guard !arguments.isEmpty else { return template }
-        return String(format: template, locale: language.locale, arguments: arguments)
+        // ロケールは渡さない。渡すと macOS / iOS では `%lld` に桁区切りが入り（1500 → "1,500"）、
+        // 文字列補間で組んでいた従来の表示（"+1500枚" 等）と変わってしまう。桁区切りが要る数は、
+        // 呼び出し側が整形済みの文字列（`RecordFormat.number` 等）を `%@` で渡す。
+        return String(format: template, arguments: arguments)
     }
 
     /// 表に `language` の訳があるか（日本語は常に true）。

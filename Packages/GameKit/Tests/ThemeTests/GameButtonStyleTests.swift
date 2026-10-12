@@ -64,6 +64,13 @@ struct NumericCornerRadiusScanTests {
         "GameConcentration/ConcentrationView.swift": 4,
         "GameDaifugo/DaifugoView.swift": 1,
         "GameFifteen/FifteenView.swift": 1,
+        // 柵越えおじさんの 4 ファイルは、走査が `Resources/` で途中で止まっていた不具合（#2109 で修正）のせいで
+        // 一度も数えられていなかった既存の箇所。新しく書いたものではないので、見つかった件数で載せる
+        // （3D の 2 件は RealityKit の `MeshResource.generatePlane(cornerRadius:)` で、画面の角丸ではない）。
+        "GameHomerun/HomerunFinale.swift": 2,
+        "GameHomerun/HomerunTutorial.swift": 2,
+        "GameHomerun/Toon3D/HomerunAtBatAssets.swift": 1,
+        "GameHomerun/Toon3D/HomerunMoon3D.swift": 1,
         "GameMahjong/MahjongStartSheet.swift": 1,
         "GameMahjong/MahjongView+Hand.swift": 1,
         "GameOthello/OthelloView.swift": 1,
@@ -84,7 +91,10 @@ struct NumericCornerRadiusScanTests {
         var files: [(String, String)] = []
         for module in modules {
             let enumerator = FileManager.default.enumerator(at: module, includingPropertiesForKeys: nil)
-            while let url = enumerator?.nextObject() as? URL, url.pathExtension == "swift" {
+            // 拡張子を `while` の条件に入れると、最初の Swift 以外（`Resources/` など）でループごと抜けて
+            // それ以降のファイルを見なくなる（#2109 で全モジュールに `Resources/Localization` が入って露見）。
+            while let url = enumerator?.nextObject() as? URL {
+                guard url.pathExtension == "swift" else { continue }
                 let relative = module.lastPathComponent + String(url.path.dropFirst(module.path.count))
                 files.append((relative, SourceScan.strippingComments(try String(contentsOf: url, encoding: .utf8))))
             }

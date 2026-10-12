@@ -95,7 +95,7 @@ struct GameSetupSheetSourceTests {
         #expect(source.contains(".presentationDetents([.large])"), "シートが large 固定でない")
         #expect(!source.contains("presentationDetents([.medium"), "medium から開く並べ方が戻っている")
         #expect(source.contains(".safeAreaInset(edge: .bottom)"), "開始ボタンが下端に固定されていない")
-        #expect(source.contains("終了して\\(kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
+        #expect(source.contains("tr(\"終了して%@\", kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
     }
 
     /// 開始シートから遊び方を別画面で開く形（#2128 の「◯◯の遊び方を見る」）は会長指示 2026-10-12 で廃止。

@@ -163,6 +163,13 @@ struct StringTableTests {
         #expect(broken("設定", language: .english) == "設定")
     }
 
+    @Test("整数の書式に桁区切りを入れない（文字列補間で組んでいた従来の表示と同じ）")
+    func integersAreNotGrouped() throws {
+        let tr = try table(sample)
+        #expect(tr("%lld連勝中！", 1500, language: .japanese) == "1500連勝中！")
+        #expect(tr("%lld連勝中！", 1500, language: .english) == "1500 wins in a row!")
+    }
+
     @Test("引数の無い文言は書式として解釈しない（% を含んでも崩れない）")
     func noArgumentsNoFormatting() throws {
         let tr = try table(sample)

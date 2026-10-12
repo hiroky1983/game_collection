@@ -231,7 +231,7 @@ struct NewGamesWiringTests {
     @Test("NEW 印は読み上げにも含める")
     func badgeIsSpoken() throws {
         let source = try SourceScan.appSources()
-        #expect(source.contains(#"if isNew { parts.append("新着") }"#), "カードの読み上げに新着が入っていない")
+        #expect(source.contains(#"if isNew { parts.append(tr("新着")) }"#), "カードの読み上げに新着が入っていない")
     }
 }
 

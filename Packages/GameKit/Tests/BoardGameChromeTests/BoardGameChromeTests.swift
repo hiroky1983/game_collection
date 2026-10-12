@@ -255,9 +255,9 @@ struct BoardGameChromeSourceTests {
     func reviewNavBarLabelsEverySymbolButton() throws {
         let source = try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
         for label in ["1手戻す", "1手進める"] {
-            #expect(source.contains(".accessibilityLabel(\"\(label)\")"), "\(label) の読み上げ文が無い")
+            #expect(source.contains(".accessibilityLabel(tr(\"\(label)\"))"), "\(label) の読み上げ文が無い")
         }
-        #expect(source.contains(".accessibilityLabel(\"\\(total)手中 \\(ply)手目\")"),
+        #expect(source.contains(".accessibilityLabel(tr(\"%1$lld手中 %2$lld手目\", total, ply))"),
                 "手数表示の読み上げ文が無い")
     }
 
@@ -371,7 +371,7 @@ extension BoardGameChromeSourceTests {
     func undoFlowWiresConfirmBeforeFailureAlerts() throws {
         let all = try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
         _ = try #require(all.range(of: "func boardUndoFlow<Model: BoardUndoModel>("))
-        let confirm = try #require(all.range(of: ".alert(\"待った確認\""))
+        let confirm = try #require(all.range(of: ".alert(tr(\"待った確認\")"))
         let failure = try #require(all.range(of: ".rewardedRescueAlerts("))
         #expect(confirm.lowerBound < failure.lowerBound)
     }
@@ -389,7 +389,7 @@ extension BoardGameChromeSourceTests {
         let style = ".buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))"
         #expect(button[capsule..<plain].contains(style))
         #expect(!button[plain...].contains { $0.hasPrefix(".buttonStyle(") })
-        #expect(button.filter { $0 == "Label(\"待った\", systemImage: \"arrow.uturn.backward\")" }.count == 2)
+        #expect(button.filter { $0 == "Label(tr(\"待った\"), systemImage: \"arrow.uturn.backward\")" }.count == 2)
     }
 
     @Test("投了の手書きカプセルは渡された左右の余白で coral に塗り、共通カプセルは coral のスタイルを通す")
