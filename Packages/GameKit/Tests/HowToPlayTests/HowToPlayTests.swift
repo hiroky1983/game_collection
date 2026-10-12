@@ -37,6 +37,11 @@ import GameSpider
 @testable import GameSolitaire
 @testable import GameFreeCell
 @testable import GameSpider
+@testable import GameShogi
+@testable import GameGo
+@testable import GameOthello
+@testable import GameChess
+@testable import GameGomoku
 import GameChess
 import GameBlocks
 import GameOjisanPuzzle
@@ -276,6 +281,50 @@ struct CardGameHowToFiguresTests {
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
             #expect(code.contains(".howToPlay(" + expected), "\(name) の「？」が図入りの版でない")
+        }
+    }
+}
+
+// MARK: - 盤ゲーム 5 本の図（#2044 束 2）
+
+@Suite("盤ゲームの図入りの遊び方")
+@MainActor
+struct BoardGameHowToFiguresTests {
+    private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
+        [
+            ("shogi", .shogi, ShogiHowToFigures.items),
+            ("go", .go, GoHowToFigures.items),
+            ("othello", .othello, OthelloHowToFigures.items),
+            ("chess", .chess, ChessHowToFigures.items),
+            ("gomoku", .gomoku, GomokuHowToFigures.items),
+            ("gomokuRenju", .gomokuRenju, GomokuHowToFigures.renjuItems),
+        ]
+    }
+
+    @Test("項目ごとに図が 1 つずつあり、図を差し込んでも文言は変わらない")
+    func everyItemHasFigure() {
+        for (name, guide, figures) in pairs {
+            #expect(!guide.items.isEmpty, "\(name) に図入りの項目が無い")
+            #expect(figures.count == guide.items.count, "\(name): 図と項目の数がずれている")
+            let illustrated = guide.illustrated(figures)
+            #expect(illustrated.items.allSatisfy { $0.figure != nil })
+            #expect(illustrated.items.map(\.text) == guide.items.map(\.text))
+        }
+    }
+
+    @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
+    func viewsWireIllustratedGuide() throws {
+        let files: [(String, String, String)] = [
+            ("GameShogi/ShogiView.swift", "HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items)", "shogi"),
+            ("GameGo/GoView.swift", "HowToPlayGuide.go.illustrated(GoHowToFigures.items)", "go"),
+            ("GameOthello/OthelloView.swift", "HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items)", "othello"),
+            ("GameChess/ChessView.swift", "HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)", "chess"),
+            ("GameGomoku/GomokuView.swift", "HowToPlayGuide.gomoku.illustrated(GomokuHowToFigures.items)", "gomoku"),
+            ("GameGomoku/GomokuView.swift", "HowToPlayGuide.gomokuRenju.illustrated(GomokuHowToFigures.renjuItems)", "gomokuRenju"),
+        ]
+        for (path, expected, name) in files {
+            let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
+            #expect(code.contains(expected), "\(name) の「？」が図入りの版でない")
         }
     }
 }

@@ -61,7 +61,7 @@ public struct OthelloView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.othello)
+        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)

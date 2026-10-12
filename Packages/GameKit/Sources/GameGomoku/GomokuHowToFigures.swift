@@ -1,0 +1,99 @@
+import Core
+import SwiftUI
+
+/// 図入りの遊び方（#2044）の五目並べの図。文言は `HowToPlayGuide.gomoku.items` /
+/// `.gomokuRenju.items`（Core）と同じ順で、先頭 2 項目は共通。
+@MainActor
+enum GomokuHowToFigures {
+    static let items: [@MainActor @Sendable () -> AnyView] = common + [
+        { AnyView(BlockFigure()) },
+    ]
+
+    /// 禁じ手あり（連珠ルール）の版。
+    static let renjuItems: [@MainActor @Sendable () -> AnyView] = common + [
+        { AnyView(DoubleThreeFigure()) },
+    ]
+
+    private static let common: [@MainActor @Sendable () -> AnyView] = [
+        { AnyView(PlaceFigure()) },
+        { AnyView(FiveFigure()) },
+    ]
+
+    /// 交互に石を置く。
+    private struct PlaceFigure: View {
+        var body: some View {
+            RuleFrames(count: 2, spacing: 14) { index in
+                VStack(spacing: 4) {
+                    RuleMiniBoard(rows: 5, cols: 5, cell: 22, style: .lines) { row, col in
+                        ZStack {
+                            if row == 2, col == 2 { RuleStone(.black, size: 22) }
+                            if row == 2, col == 3 { RuleStone(.white, size: 22) }
+                            if index == 0, row == 3, col == 2 { RuleBoardMark.ring(size: 18) }
+                            if index == 1, row == 3, col == 2 { RuleStone(.black, size: 22) }
+                        }
+                    }
+                    RuleFigureLabel(index == 0 ? "空いた所をタップ" : "石が置かれる",
+                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                }
+            }
+        }
+    }
+
+    /// たて・よこ・ななめに 5 つ。
+    private struct FiveFigure: View {
+        var body: some View {
+            HStack(spacing: 10) {
+                line("よこ") { row, col in row == 2 }
+                line("たて") { row, col in col == 2 }
+                line("ななめ") { row, col in col == row }
+            }
+        }
+
+        private func line(_ name: String, _ on: @escaping (Int, Int) -> Bool) -> some View {
+            VStack(spacing: 4) {
+                RuleMiniBoard(rows: 5, cols: 5, cell: 17, style: .lines) { row, col in
+                    if on(row, col) { RuleStone(.black, size: 17) }
+                }
+                RuleFigureLabel(name)
+            }
+        }
+    }
+
+    /// 4 つ並んだら、あいている端を止める。
+    private struct BlockFigure: View {
+        var body: some View {
+            RuleFrames(count: 2, spacing: 14) { index in
+                VStack(spacing: 4) {
+                    RuleMiniBoard(rows: 1, cols: 7, cell: 20, style: .lines) { _, col in
+                        ZStack {
+                            if col == 0 { RuleStone(.white, size: 20) }
+                            if (1...4).contains(col) { RuleStone(.black, size: 20) }
+                            if col == 5 {
+                                if index == 0 { RuleBoardMark.ring(size: 16) } else { RuleStone(.white, size: 20) }
+                            }
+                        }
+                    }
+                    RuleFigureLabel(index == 0 ? "4 つ並んだ！ ここをあけると 5 つ" : "白で止めた",
+                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                }
+            }
+        }
+    }
+
+    /// 三三: 1 手で「あと 1 つで 3 つ並ぶ列」が 2 本できる場所は、黒は打てない。
+    private struct DoubleThreeFigure: View {
+        var body: some View {
+            VStack(spacing: 4) {
+                RuleMiniBoard(rows: 7, cols: 7, cell: 18, style: .lines) { row, col in
+                    ZStack {
+                        if (row == 3 && (col == 1 || col == 2)) || (col == 3 && (row == 1 || row == 2)) {
+                            RuleStone(.black, size: 18)
+                        }
+                        if row == 3, col == 3 { RuleBoardMark.cross() }
+                    }
+                }
+                RuleFigureLabel("黒は ✕ に打てない（三三）", color: Theme.coral)
+            }
+        }
+    }
+}

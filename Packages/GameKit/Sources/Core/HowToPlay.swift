@@ -102,7 +102,16 @@ public extension HowToPlayGuide {
             "相手陣（奥から 3 段）に入ると駒を成れて、動きが強くなります。",
             "相手の王将（王）を追いつめたら勝ちです。",
         ],
-        hint: "駒をタップ → 移動先をタップ"
+        hint: "駒をタップ → 移動先をタップ",
+        items: [
+            HowToPlayItem("自分の駒をタップすると、動けるマスが光ります。行きたいマスをタップで移動します。"),
+            HowToPlayItem("相手の駒があるマスへ動くと、その駒を取れます。取った駒は持ち駒になり、あとで好きなマスに打てます。"),
+            HowToPlayItem("相手陣（奥から 3 段）に入ると駒を成れて、動きが強くなります。"),
+            HowToPlayItem("相手の王将（王）を追いつめたら勝ちです。"),
+        ],
+        notes: [
+            "駒ごとの動き方は、盤の駒をタップすると光るマスで確かめられます。",
+        ]
     )
 
     static let chess = HowToPlayGuide(
@@ -113,7 +122,16 @@ public extension HowToPlayGuide {
             "駒ごとに動き方が違います（ナイトは L 字、ビショップはななめ…）。「くわしいルール」で確認できます。",
             "相手のキングに王手をかけ、逃げ場をなくしたら勝ちです（王手が無いのに動けないときは引き分け）。",
         ],
-        hint: "駒をタップ → 移動先をタップ"
+        hint: "駒をタップ → 移動先をタップ",
+        items: [
+            HowToPlayItem("自分の駒をタップすると、動けるマスが光ります。行きたいマスをタップで移動します。"),
+            HowToPlayItem("駒ごとに動き方が違います。ナイトは L 字、ビショップはななめ、ルークはたてよこです。"),
+            HowToPlayItem("相手のキングに王手をかけ、逃げ場をなくしたら勝ちです。"),
+        ],
+        notes: [
+            "王手が無いのに動けないときは引き分けです。",
+            "ほかの駒の動きや特別ルールは「くわしいルール」で見られます。",
+        ]
     )
 
     static let gomoku = HowToPlayGuide(
@@ -124,7 +142,13 @@ public extension HowToPlayGuide {
             "たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。",
             "相手が 4 つ並べたら、次の一手で止めましょう。",
         ],
-        hint: "タップで石を置こう"
+        hint: "タップで石を置こう",
+        items: [
+            HowToPlayItem("空いているマスをタップして、黒と白が交互に石を置きます。"),
+            HowToPlayItem("たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。"),
+            HowToPlayItem("相手が 4 つ並べたら、次の一手で止めましょう。"),
+        ],
+        notes: []
     )
 
     /// 「禁じ手（連珠ルール）」をオンにして対局しているときの五目並べ（#441）。
@@ -140,7 +164,15 @@ public extension HowToPlayGuide {
             "たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。",
             "黒（先手）だけは禁じ手があり、三三・四四・長連（6 つ以上）になる場所には打てません。",
         ],
-        hint: "黒は三三・四四・長連が打てない"
+        hint: "黒は三三・四四・長連が打てない",
+        items: [
+            HowToPlayItem("空いているマスをタップして、黒と白が交互に石を置きます。"),
+            HowToPlayItem("たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。"),
+            HowToPlayItem("黒（先手）だけは禁じ手があり、三三・四四・長連（6 つ以上）になる場所には打てません。"),
+        ],
+        notes: [
+            "三三は、あと 1 つで 3 つ並ぶ列が 2 本できる手です。四四は 4 つの列が 2 本できる手です。",
+        ]
     )
 
     static let minesweeper = HowToPlayGuide(
@@ -164,7 +196,13 @@ public extension HowToPlayGuide {
             "最後に石が多かったほうが勝ちです。",
         ],
         hint: "○のマスに置けるよ",
-        hintIcon: "circle.dashed"
+        hintIcon: "circle.dashed",
+        items: [
+            HowToPlayItem("半透明の○が置けるマスです。タップして石を置きます。"),
+            HowToPlayItem("自分の石ではさんだ相手の石は、すべて自分の色に裏返ります。"),
+            HowToPlayItem("最後に石が多かったほうが勝ちです。"),
+        ],
+        notes: []
     )
 
     static let poker = HowToPlayGuide(
@@ -301,7 +339,15 @@ public extension HowToPlayGuide {
             "打つところが無くなったら「パス」。両者パスで終局し、盤上の石と囲んだ地の合計が多い方が勝ちです。",
         ],
         hint: "交点をタップして石を置こう",
-        hintIcon: "circle.circle"
+        hintIcon: "circle.circle",
+        items: [
+            HowToPlayItem("線の交わるところをタップして、黒と白が交互に石を置きます。"),
+            HowToPlayItem("相手の石をぐるりと囲むと取り上げられます。"),
+            HowToPlayItem("打つところが無くなったら「パス」。両者パスで終局し、盤上の石と囲んだ地の合計が多い方が勝ちです。"),
+        ],
+        notes: [
+            "コウや数え方など、細かい決まりは「くわしいルール」で見られます。",
+        ]
     )
 
     static let solitaire = HowToPlayGuide(
