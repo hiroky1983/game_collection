@@ -12,8 +12,9 @@ public struct HanafudaModule: GameModule {
     // 定数参照にすると slug を突き合わせられずに CI が落ちる。
     // `HanafudaModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "hanafuda"
-    public let title = "花札こいこい"
-    public let description = "CPUと役を競う。こいこいで倍を狙おう"
+    // 表示名・説明は表示言語で引く（#2166）。英語も「Online」の組合せと酒の役名は載せない。
+    public var title: String { tr("花札こいこい") }
+    public var description: String { tr("CPUと役を競う。こいこいで倍を狙おう") }
     // 和風の看板。ハブに並ぶ他ゲームに草花のアイコンは無く、ひと目で見分けられる。
     public var icon: Image { Image(systemName: "leaf.fill") }
 

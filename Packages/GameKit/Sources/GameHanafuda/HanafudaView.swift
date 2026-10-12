@@ -32,7 +32,7 @@ public struct HanafudaView: View {
                     // 下の操作エリアに置くと、この枠が残り高さを取るぶんボタンが広告の直上へ押し下げられて誤タップを招く。
                     VStack(spacing: 8) {
                         matchResultCard
-                        actionButton("もう一度", role: .primary) { model.restartMatch() }
+                        actionButton(tr("もう一度"), role: .primary) { model.restartMatch() }
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .transition(.opacity)
@@ -66,7 +66,7 @@ public struct HanafudaView: View {
         .padding(Theme.pad)
         // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
         // 早見表を置く（#495 の仕様）。
-        .gameChrome(title: "花札こいこい", review: services.review,
+        .gameChrome(title: tr("花札こいこい"), review: services.review,
                     reference: GameChromeReference { showYakuSheet = true })
         .howToPlay(.hanafuda) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
@@ -75,11 +75,11 @@ public struct HanafudaView: View {
                 .interactiveDismissDisabled()
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-                Button("投了する", role: .destructive) { model.resign() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
+                Button(tr("投了する"), role: .destructive) { model.resign() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("この試合を打ち切ります。負けとして記録されます。")
+                Text(tr("この試合を打ち切ります。負けとして記録されます。"))
             }
         }
         // 1 局延長の提示（#780 × #1049）。最終局で負けている局の結果でボタンが出ているあいだを 1 回の提示として数える。
@@ -87,10 +87,10 @@ public struct HanafudaView: View {
                      services: services, gameID: HanafudaModel.gameID)
         .rewardedRescueAlerts(
             extendRescue,
-            notEarned: "延長できませんでした",
+            notEarned: tr("延長できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "延長できませんでした",
-                message: "広告を見ているあいだに試合が終わったため、延長できませんでした。"
+                title: tr("延長できませんでした"),
+                message: tr("広告を見ているあいだに試合が終わったため、延長できませんでした。")
             )
         )
         .task(id: model.aiTurnKey) {
@@ -124,7 +124,7 @@ public struct HanafudaView: View {
             GameStatusBar {
                 turnBadge
             } trailing: {
-                scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
+                scoreChip(title: tr("あなた"), value: model.humanTotal, fill: Theme.Fill.teal)
                 scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.coral)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -136,7 +136,7 @@ public struct HanafudaView: View {
                     .lineLimit(2)
                 // 局数は帯から手番に場所を譲り、この行の右端へ（小さい画面で帯に収めるため）。
                 if model.phase != .matchResult {
-                    Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
+                    Text(model.round > model.options.rounds ? tr("延長戦") : tr("%1$lld / %2$lld局", model.round, model.options.rounds))
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
@@ -151,13 +151,13 @@ public struct HanafudaView: View {
     private var turnBadge: some View {
         switch model.phase {
         case .idle:
-            TurnBadge("開始待ち", kind: .finished)
+            TurnBadge(tr("開始待ち"), kind: .finished)
         case .playing, .koiKoiPrompt:
             TurnBadge(isYourTurn: model.turn == .human)
         case .roundResult:
-            TurnBadge("局の終わり", kind: .finished)
+            TurnBadge(tr("局の終わり"), kind: .finished)
         case .matchResult:
-            TurnBadge("決着", kind: .finished)
+            TurnBadge(tr("決着"), kind: .finished)
         }
     }
 
@@ -169,13 +169,13 @@ public struct HanafudaView: View {
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(fill))
-            Text("\(value)文")
+            Text(tr("%lld文", value))
                 .themeBody(16, weight: .heavy, maxScale: 1.5)
                 .fitOneLine()
                 .foregroundStyle(Theme.ink)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title) \(value)文")
+        .accessibilityLabel(tr("%@ %lld文", title, value))
     }
 
     // MARK: - 相手
@@ -183,7 +183,7 @@ public struct HanafudaView: View {
     private func opponentArea(_ fit: HanafudaFit.Metrics) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text("CPUの取り札")
+                Text(tr("CPUの取り札"))
                     .themeCaption(12, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
                     .foregroundStyle(model.turn == .cpu ? Theme.coral : Theme.inkSub)
@@ -194,7 +194,7 @@ public struct HanafudaView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
-                Text("手札\(model.cpuHand.count)枚")
+                Text(tr("手札%lld枚", model.cpuHand.count))
                     .themeCaption(12, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
@@ -204,7 +204,8 @@ public struct HanafudaView: View {
         .padding(10)
         .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("CPUの取り札。\(HanafudaSpeech.capturedSummary(model.cpuCaptured))。\(HanafudaSpeech.yakuSummary(model.yaku(of: .cpu)))")
+        .accessibilityLabel(tr("CPUの取り札。%1$@。%2$@", HanafudaSpeech.capturedSummary(model.cpuCaptured),
+                                HanafudaSpeech.yakuSummary(model.yaku(of: .cpu))))
     }
 
     /// 取り札を小さく並べる帯。枚数が増えても高さが変わらないよう 1 行に収める。
@@ -212,7 +213,7 @@ public struct HanafudaView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 3) {
                 if cards.isEmpty {
-                    Text("なし")
+                    Text(tr("なし"))
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
@@ -232,14 +233,14 @@ public struct HanafudaView: View {
     private func fieldArea(_ fit: HanafudaFit.Metrics) -> some View {
         VStack(spacing: 6) {
             HStack {
-                Text("場")
+                Text(tr("場"))
                     .themeCaption(12, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                 Spacer()
                 if let drawn = model.drawnCard {
                     HStack(spacing: 4) {
-                        Text("めくり札")
+                        Text(tr("めくり札"))
                             .themeCaption(12, weight: .bold, maxScale: 1.5)
                             .fitOneLine()
                             .foregroundStyle(Theme.coral)
@@ -247,7 +248,7 @@ public struct HanafudaView: View {
                             .frame(height: fit.stripHeight)
                     }
                 }
-                Text("山札\(model.deck.count)枚")
+                Text(tr("山札%lld枚", model.deck.count))
                     .themeCaption(12, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
@@ -285,7 +286,7 @@ public struct HanafudaView: View {
     private func handArea(_ fit: HanafudaFit.Metrics) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text("あなたの取り札")
+                Text(tr("あなたの取り札"))
                     .themeCaption(12, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
                     .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
@@ -328,9 +329,10 @@ public struct HanafudaView: View {
 
     private func yakuLine(for player: HanafudaPlayer) -> String {
         let hits = model.yaku(of: player)
-        guard !hits.isEmpty else { return "役なし" }
+        guard !hits.isEmpty else { return tr("役なし") }
         let total = hits.reduce(0) { $0 + $1.points }
-        return "\(hits.map(\.name).joined(separator: "・"))（\(total)文）"
+        // 1 行に収める行なので短い役名（英語はローマ字だけ・#2166）。
+        return tr("%@（%lld文）", hits.map(\.yaku.shortName).joined(separator: tr("・")), total)
     }
 
     // MARK: - 操作
@@ -340,8 +342,8 @@ public struct HanafudaView: View {
         switch model.phase {
         case .koiKoiPrompt:
             HStack(spacing: 10) {
-                actionButton("こいこい", role: .declaration) { model.declareKoiKoi() }
-                actionButton("あがり", role: .primary, disabled: !model.canStop) {
+                actionButton(tr("こいこい"), role: .declaration) { model.declareKoiKoi() }
+                actionButton(tr("あがり"), role: .primary, disabled: !model.canStop) {
                     model.declareStop()
                 }
             }
@@ -353,7 +355,7 @@ public struct HanafudaView: View {
                 }
                 // 視聴中に試合の結果へ進むと、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(
-                    model.round >= model.totalRounds ? "試合の結果へ" : "次の局へ",
+                    model.round >= model.totalRounds ? tr("試合の結果へ") : tr("次の局へ"),
                     role: .primary,
                     disabled: extendRescue.isWatching
                 ) { model.advanceAfterRound() }
@@ -377,7 +379,7 @@ public struct HanafudaView: View {
         GameOverflowBar(
             menuItems: [
                 GameControlMenuItem(
-                    id: "resign", title: "投了", systemImage: "flag.fill",
+                    id: "resign", title: tr("投了"), systemImage: "flag.fill",
                     isDestructive: true, isEnabled: model.canResign
                 ) { showResignConfirm = true },
             ],
@@ -398,7 +400,7 @@ public struct HanafudaView: View {
                 model.extendMatchAfterAd(forGame: serial)
             }
         } label: {
-            Label("広告を見て1局延長（1試合に1回）", systemImage: "play.rectangle.fill")
+            Label(tr("広告を見て1局延長（1試合に1回）"), systemImage: "play.rectangle.fill")
                 .themeBody(14, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -410,24 +412,24 @@ public struct HanafudaView: View {
     private var roundResultCard: some View {
         VStack(spacing: 6) {
             if let result = model.roundResult {
-                Text(result.winner == nil ? "流局" : "\(result.winner!.label)のあがり")
+                Text(roundResultTitle(result.winner))
                     .themeBody(18, weight: .heavy)
                     .fitOneLine()
                     .foregroundStyle(result.winner == .human ? Theme.teal : Theme.ink)
                 if !result.hits.isEmpty {
-                    Text(result.hits.map { "\($0.name) \($0.points)文" }.joined(separator: "・"))
+                    Text(result.hits.map { tr("%@ %lld文", $0.name, $0.points) }.joined(separator: tr("・")))
                         .themeCaption(13, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                         .multilineTextAlignment(.center)
                 }
                 if !result.reasons.isEmpty {
-                    Text(result.reasons.joined(separator: "・"))
+                    Text(result.reasons.map(HanafudaScoring.reasonLabel).joined(separator: tr("・")))
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(Theme.Fill.yellow))
                 }
-                Text("\(result.score)文")
+                Text(tr("%lld文", result.score))
                     .themeBody(22, weight: .heavy)
                     .fitOneLine()
                     .foregroundStyle(Theme.coral)
@@ -446,7 +448,7 @@ public struct HanafudaView: View {
                 .themeBody(26, weight: .heavy)
                 .fitOneLine()
                 .foregroundStyle(matchTitleColor)
-            Text("あなた \(model.humanTotal)文 ・ CPU \(model.cpuTotal)文")
+            Text(tr("あなた %1$lld文 ・ CPU %2$lld文", model.humanTotal, model.cpuTotal))
                 .themeBody(15, weight: .semibold, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
@@ -466,10 +468,19 @@ public struct HanafudaView: View {
     }
 
     private var matchTitle: String {
-        if model.wasResigned { return "投了（CPUの勝ち）" }
-        if model.humanTotal > model.cpuTotal { return "あなたの勝ち！" }
-        if model.humanTotal < model.cpuTotal { return "CPUの勝ち" }
-        return "引き分け"
+        if model.wasResigned { return tr("投了（CPUの勝ち）") }
+        if model.humanTotal > model.cpuTotal { return tr("あなたの勝ち！") }
+        if model.humanTotal < model.cpuTotal { return tr("CPUの勝ち") }
+        return tr("引き分け")
+    }
+
+    /// 局の結果カードの見出し。英語で語順が変わるので勝者ごとに文を分ける（#2166）。
+    private func roundResultTitle(_ winner: HanafudaPlayer?) -> String {
+        switch winner {
+        case nil: return tr("流局")
+        case .human?: return tr("あなたのあがり")
+        case .cpu?: return tr("CPUのあがり")
+        }
     }
 
     private var matchTitleColor: Color {

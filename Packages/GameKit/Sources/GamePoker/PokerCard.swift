@@ -52,16 +52,16 @@ public enum PokerHandRank: Int, Comparable, CustomStringConvertible, Sendable {
 
     public var description: String {
         switch self {
-        case .highCard:      return "ハイカード"
-        case .onePair:       return "ワンペア"
-        case .twoPair:       return "ツーペア"
-        case .threeOfAKind:  return "スリーカード"
-        case .straight:      return "ストレート"
-        case .flush:         return "フラッシュ"
-        case .fullHouse:     return "フルハウス"
-        case .fourOfAKind:   return "フォーカード"
-        case .straightFlush: return "ストレートフラッシュ"
-        case .royalFlush:    return "ロイヤルフラッシュ"
+        case .highCard:      return tr("ハイカード")
+        case .onePair:       return tr("ワンペア")
+        case .twoPair:       return tr("ツーペア")
+        case .threeOfAKind:  return tr("スリーカード")
+        case .straight:      return tr("ストレート")
+        case .flush:         return tr("フラッシュ")
+        case .fullHouse:     return tr("フルハウス")
+        case .fourOfAKind:   return tr("フォーカード")
+        case .straightFlush: return tr("ストレートフラッシュ")
+        case .royalFlush:    return tr("ロイヤルフラッシュ")
         }
     }
 }

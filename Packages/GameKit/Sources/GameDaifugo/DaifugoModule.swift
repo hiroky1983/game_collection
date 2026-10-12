@@ -3,8 +3,8 @@ import Core
 
 public struct DaifugoModule: GameModule {
     public let id = "daifugo"
-    public let title = "大富豪"
-    public let description = "CPU3人と対戦。革命・8切りあり！"
+    public var title: String { daifugoGameName() }
+    public var description: String { tr("CPU3人と対戦。革命・8切りあり！") }
     public var icon: Image { Image(systemName: "crown.fill") }
 
     public init() {}

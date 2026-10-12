@@ -4,8 +4,8 @@ import Core
 /// 将棋の `GameModule` 登録口。
 public struct ShogiModule: GameModule {
     public let id = "shogi"
-    public let title = "将棋"
-    public let description = "CPU と本格的な将棋で対決しよう"
+    public var title: String { tr("将棋") }
+    public var description: String { tr("CPU と本格的な将棋で対決しよう") }
     public var icon: Image { Image(systemName: "square.grid.3x3.fill") }
 
     public init() {}

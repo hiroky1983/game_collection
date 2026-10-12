@@ -58,7 +58,7 @@ public struct ShogiView: View {
             if !over { resultCardClosed = false }
         }
         .padding(Theme.pad)
-        .gameChrome(title: "将棋", review: services.review,
+        .gameChrome(title: tr("将棋"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         if model.phase == .playing && !model.moves.isEmpty {
                             showConfirmNewGame = true
@@ -66,7 +66,8 @@ public struct ShogiView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items))
+        // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
+        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items)) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
@@ -76,11 +77,11 @@ public struct ShogiView: View {
             }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規対局", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると対局データが失われます。")
+                Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
         .overlay { checkOverlay }
@@ -128,7 +129,7 @@ public struct ShogiView: View {
     private var checkOverlay: some View {
         ZStack {
             if checkBannerID != nil {
-                BoardGameCheckBanner("王手")
+                BoardGameCheckBanner(tr("王手"))
                     // 札は中央にあり `offset` を持たないので、拡大の基準は札の中心になる。
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
@@ -153,15 +154,18 @@ public struct ShogiView: View {
                     // 暗幕のタップは VoiceOver の代わりに「やめる」ボタンがある。読ませる要素にしない（#1641）。
                     .accessibilityHidden(true)
                 VStack(spacing: 20) {
-                    Text("成りますか？")
+                    Text(ShogiAccessibility.promotionPromptLabel)
                         .themeBody(18, weight: .bold)
                         .foregroundStyle(Theme.ink)
                     HStack(spacing: 16) {
                         Button {
                             model.resolvePromotion(false)
                         } label: {
-                            Text("不成")
+                            Text(tr("不成"))
                                 .themeBody(16, weight: .semibold, maxScale: 1.5)
+                                // 英語（"Don't promote"）は 80pt を超えるので、文字の左右にも余白を取る（#2166）。
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                                .padding(.horizontal, 12)
                                 .frame(minWidth: 80, minHeight: 44)
                                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(Theme.ink)
@@ -169,14 +173,16 @@ public struct ShogiView: View {
                         Button {
                             model.resolvePromotion(true)
                         } label: {
-                            Text("成る")
+                            Text(tr("成る"))
                                 .themeBody(16, weight: .semibold, maxScale: 1.5)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                                .padding(.horizontal, 12)
                                 .frame(minWidth: 80, minHeight: 44)
                                 .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(Theme.onAccent)
                         }
                     }
-                    Button("やめる") { model.cancelPromotion() }
+                    Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
                         .foregroundStyle(Theme.inkSub)
                 }
@@ -467,9 +473,9 @@ public struct ShogiView: View {
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("CPU思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 } else if let last = model.highlightedMoveText {
-                    Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
+                    Text(tr("直前 %@", last)).themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
         } trailing: {
@@ -479,7 +485,7 @@ public struct ShogiView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
+                Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
     }
@@ -547,19 +553,19 @@ struct NewGameSheet: View {
             kind: .versus,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
-            GameSetupSection("あなたの手番") {
+            GameSetupSection(tr("あなたの手番")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black,
+                    GameSetupChooser(title: tr("先手"), subtitle: tr("▲ 先に指す"), selected: side == .black,
                                      accent: Theme.fillStrong, onAccent: .white) { side = .black }
-                    GameSetupChooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white,
+                    GameSetupChooser(title: tr("後手"), subtitle: tr("△ 後に指す"), selected: side == .white,
                                      accent: Theme.Fill.teal) { side = .white }
                 }
             }
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
-                    "1手先だけ読む", "2手先まで読む", "3手先まで読む", "定跡＋深読み",
+                    tr("1手先だけ読む"), tr("2手先まで読む"), tr("3手先まで読む"), tr("定跡＋深読み"),
                 ])
             }
         }
@@ -619,7 +625,7 @@ private struct HandAreaView: View {
 
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(isYou ? "あなた" : "CPU")
+                Text(isYou ? tr("あなた") : "CPU")
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -632,7 +638,7 @@ private struct HandAreaView: View {
             // ZStack で空/持ち駒あり共通サイズを確保し高さ変化によるガタつきを防ぐ
             ZStack(alignment: .leading) {
                 if owned.isEmpty {
-                    Text("持ち駒なし")
+                    Text(tr("持ち駒なし"))
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {

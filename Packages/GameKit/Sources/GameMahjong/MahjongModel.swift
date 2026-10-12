@@ -395,7 +395,7 @@ public final class MahjongModel: AITurnGuarded {
     }
 
     public func playerName(_ index: Int) -> String {
-        index == Self.humanIndex ? "あなた" : "CPU\(index)"
+        index == Self.humanIndex ? tr("あなた") : "CPU\(index)"
     }
 
     /// 席風（0 = 東）。親から順に東南西北が割り当たる。
@@ -732,7 +732,7 @@ public final class MahjongModel: AITurnGuarded {
             kind: .tsumo,
             winner: Self.humanIndex,
             loser: nil,
-            yaku: ["立直 1飜", "門前清自摸和 1飜", "平和 1飜"],
+            yaku: ["立直 1飜", "門前清自摸和 1飜", "平和 1飜"],  // i18n-keep: DEBUG 専用の結果画面の確認用（中断データと同じ原文）
             han: 3,
             fu: 20,
             limitName: nil,

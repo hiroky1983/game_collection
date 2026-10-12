@@ -75,9 +75,9 @@ public struct PokerView: View {
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
         // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
-        .gameChrome(title: "ポーカー", review: services.review,
+        .gameChrome(title: tr("ポーカー"), review: services.review,
                     reference: model.rules == .bonus
-                        ? GameChromeReference("役ボーナス配当表") { showBonusTable = true }
+                        ? GameChromeReference(tr("役ボーナス配当表")) { showBonusTable = true }
                         : nil)
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
         .howToPlay(HowToPlayGuide.poker.illustrated(PokerHowToFigures.items)) { HandGuideSheet() }
@@ -102,7 +102,7 @@ public struct PokerView: View {
                 BonusTableSheet()
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("閉じる") { showBonusTable = false }.fontWeight(.semibold)
+                            Button(tr("閉じる")) { showBonusTable = false }.fontWeight(.semibold)
                         }
                     }
             }
@@ -168,10 +168,10 @@ public struct PokerView: View {
         }
         .rewardedRescueAlerts(
             reviveRescue,
-            notEarned: "チップは回復しませんでした",
+            notEarned: tr("チップは回復しませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "チップは回復しませんでした",
-                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+                title: tr("チップは回復しませんでした"),
+                message: tr("広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。")
             )
         )
     }
@@ -247,11 +247,13 @@ public struct PokerView: View {
 
     private var chipsBar: some View {
         HStack {
-            Label("あなた: \(model.playerChips)枚", systemImage: "person.fill")
+            // チップ数は従来どおり桁区切り（1,000枚）で出すため整形済みの文字列を %@ で渡す
+            // （英語の単数・複数は StringTable がその数字の文字列で選ぶ・#2168）。
+            Label(tr("あなた: %@枚", RecordFormat.number(model.playerChips)), systemImage: "person.fill")
                 .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
-            Label("CPU: \(model.cpuChips)枚", systemImage: "cpu")
+            Label(tr("CPU: %@枚", RecordFormat.number(model.cpuChips)), systemImage: "cpu")
                 .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
         }
@@ -277,7 +279,7 @@ public struct PokerView: View {
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                 if !model.cpuAction.isEmpty {
-                    Text(model.cpuAction)
+                    Text(model.cpuActionLabel)
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -341,12 +343,12 @@ public struct PokerView: View {
                 .frame(width: 22, height: 30)
 
                 VStack(spacing: 2) {
-                    Text("ポット")
+                    Text(tr("ポット"))
                         .themeCaption(11, weight: .semibold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
-                    Text("\(model.pot)枚")
+                    Text(tr("%@枚", RecordFormat.number(model.pot)))
                         .themeBody(20, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -376,12 +378,12 @@ public struct PokerView: View {
     private var playerArea: some View {
         VStack(spacing: 6) {
             HStack {
-                Text("あなた")
+                Text(tr("あなた"))
                     .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if model.phase == .exchange {
-                    Text("捨てるカードを選んでください")
+                    Text(tr("捨てるカードを選んでください"))
                         .themeCaption(11, weight: .semibold, maxScale: 1.5)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)
@@ -435,7 +437,7 @@ public struct PokerView: View {
     private func resultBadge(_ winner: PokerWinner) -> some View {
         switch winner {
         case .player:
-            Text("勝ち！")
+            Text(tr("勝ち！"))
                 .themeCaption(13, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -443,7 +445,7 @@ public struct PokerView: View {
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(Theme.Fill.teal))
         case .cpu:
-            Text("負け")
+            Text(tr("負け"))
                 .themeCaption(13, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -451,7 +453,7 @@ public struct PokerView: View {
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(Theme.Fill.coral))
         case .tie:
-            Text("引き分け")
+            Text(tr("引き分け"))
                 .themeCaption(13, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -486,10 +488,10 @@ public struct PokerView: View {
     // ベットラウンド1
     private var betting1View: some View {
         HStack(spacing: 12) {
-            actionButton("チェック", role: .primary) {
+            actionButton(tr("チェック"), role: .primary) {
                 model.bet1Action(.check)
             }
-            actionButton("ベット \(20)枚", role: .primary, disabled: model.playerChips < 20) {
+            actionButton(tr("ベット %lld枚", 20), role: .primary, disabled: model.playerChips < 20) {
                 model.bet1Action(.bet(20))
             }
         }
@@ -503,12 +505,12 @@ public struct PokerView: View {
             if model.phase == .cpuExchange {
                 HStack {
                     ProgressView().controlSize(.small)
-                    Text("CPUが交換中…").themeBody(14).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPUが交換中…")).themeBody(14).foregroundStyle(Theme.inkSub)
                 }
                 .frame(maxWidth: .infinity)
             } else {
                 let count = model.selectedForExchange.count
-                actionButton(count == 0 ? "交換しない" : "\(count)枚を交換", role: .primary) {
+                actionButton(count == 0 ? tr("交換しない") : tr("%lld枚を交換", count), role: .primary) {
                     model.confirmExchange()
                 }
             }
@@ -523,23 +525,23 @@ public struct PokerView: View {
             if model.currentBet > 0 {
                 // CPUがベット済み → コールかフォールド
                 HStack(spacing: 12) {
-                    actionButton("フォールド", role: .skip) {
+                    actionButton(tr("フォールド"), role: .skip) {
                         model.foldToCPUBet()
                     }
-                    actionButton("コール \(model.currentBet)枚", role: .primary,
+                    actionButton(tr("コール %lld枚", model.currentBet), role: .primary,
                                  disabled: !model.canCallCPUBet) {
                         model.callCPUBet()
                     }
                 }
             } else {
                 HStack(spacing: 12) {
-                    actionButton("フォールド", role: .skip) {
+                    actionButton(tr("フォールド"), role: .skip) {
                         model.bet2Action(.fold)
                     }
-                    actionButton("チェック", role: .primary) {
+                    actionButton(tr("チェック"), role: .primary) {
                         model.bet2Action(.check)
                     }
-                    actionButton("ベット \(20)枚", role: .primary, disabled: model.playerChips < 20) {
+                    actionButton(tr("ベット %lld枚", 20), role: .primary, disabled: model.playerChips < 20) {
                         model.bet2Action(.bet(20))
                     }
                 }
@@ -557,7 +559,7 @@ public struct PokerView: View {
             // ダブルアップの決着待ちの間は記録がまだ確定していない（#496）。確定してから出す。
             if !model.awaitsDoubleUp {
                 RecordLabel(model.recordResult)
-                actionButton("次のゲーム", role: .primary) {
+                actionButton(tr("次のゲーム"), role: .primary) {
                     revealCPU = false
                     if hasPlayedOnce {
                         model.startGame()
@@ -575,12 +577,11 @@ public struct PokerView: View {
     private var bonusLine: some View {
         let isPlayer = model.playerBonus > 0
         let chips = isPlayer ? model.playerBonus : model.cpuBonus
-        let who = isPlayer ? "あなた" : "CPU"
         return HStack(spacing: 6) {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(Theme.yellow)
                 .accessibilityHidden(true)
-            Text("役ボーナス \(who) +\(chips)枚")
+            Text(isPlayer ? tr("役ボーナス あなた +%@枚", RecordFormat.number(chips)) : tr("役ボーナス CPU +%@枚", RecordFormat.number(chips)))
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -596,13 +597,13 @@ public struct PokerView: View {
         if let state = model.doubleUp {
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    Text(state.isSettled ? "ダブルアップ終了" : "ダブルアップ \(state.streak)/\(PokerModel.maxDoubleUpStreak)")
+                    Text(state.isSettled ? tr("ダブルアップ終了") : tr("ダブルアップ %1$lld/%2$lld", state.streak, PokerModel.maxDoubleUpStreak))
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                     Spacer()
-                    Text(state.isSettled ? "獲得 \(state.payout)枚" : "賭け金 \(state.stake)枚")
+                    Text(state.isSettled ? tr("獲得 %@枚", RecordFormat.number(state.payout)) : tr("賭け金 %@枚", RecordFormat.number(state.stake)))
                         .themeBody(14, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -629,7 +630,7 @@ public struct PokerView: View {
                     Image(systemName: "arrow.up.right.circle.fill")
                         .foregroundStyle(Theme.yellow)
                         .accessibilityHidden(true)
-                    Text("獲得 \(model.pendingWinnings)枚 をダブルアップに賭けますか？")
+                    Text(tr("獲得 %@枚 をダブルアップに賭けますか？", RecordFormat.number(model.pendingWinnings)))
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)
@@ -637,8 +638,8 @@ public struct PokerView: View {
                     Spacer()
                 }
                 HStack(spacing: 12) {
-                    actionButton("受け取る", role: .primary) { model.declineDoubleUp() }
-                    actionButton("ダブルアップ", role: .declaration,
+                    actionButton(tr("受け取る"), role: .primary) { model.declineDoubleUp() }
+                    actionButton(tr("ダブルアップ"), role: .declaration,
                                  disabled: !model.canStartDoubleUp) {
                         model.startDoubleUp()
                     }
@@ -653,15 +654,15 @@ public struct PokerView: View {
             EmptyView()
         } else if state.isAwaitingGuess {
             HStack(spacing: 12) {
-                actionButton("ロー ↓", role: .declaration) { model.guessDoubleUp(.low) }
-                actionButton("ハイ ↑", role: .primary) { model.guessDoubleUp(.high) }
+                actionButton(tr("ロー ↓"), role: .declaration) { model.guessDoubleUp(.low) }
+                actionButton(tr("ハイ ↑"), role: .primary) { model.guessDoubleUp(.high) }
             }
         } else {
             HStack(spacing: 12) {
-                actionButton("受け取る \(state.stake)枚", role: .primary) {
+                actionButton(tr("受け取る %lld枚", state.stake), role: .primary) {
                     model.takeDoubleUpWinnings()
                 }
-                actionButton(state.result == .push ? "引き直す" : "続ける", role: .primary) {
+                actionButton(state.result == .push ? tr("引き直す") : tr("続ける"), role: .primary) {
                     model.continueDoubleUp()
                 }
             }
@@ -671,9 +672,9 @@ public struct PokerView: View {
     @ViewBuilder
     private func doubleUpResultBadge(_ result: PokerDoubleUpResult) -> some View {
         let (text, fill): (String, Color) = switch result {
-        case .success: ("当たり！", Theme.Fill.teal)
-        case .failure: ("はずれ", Theme.Fill.coral)
-        case .push:    ("引き分け", Theme.fillMuted)
+        case .success: (tr("当たり！"), Theme.Fill.teal)
+        case .failure: (tr("はずれ"), Theme.Fill.coral)
+        case .push:    (tr("引き分け"), Theme.fillMuted)
         }
         Text(text)
             .themeCaption(13, weight: .black, maxScale: 1.5)
@@ -686,12 +687,14 @@ public struct PokerView: View {
 
     /// 復活導線の文言。回数制限を見た目にも出す（#499）。
     private var reviveButtonTitle: String {
-        "広告を見て\(PokerModel.reviveChips)枚で復活（\(model.revivesRemaining == 1 ? "最後の1回" : "あと\(model.revivesRemaining)回")）"
+        model.revivesRemaining == 1
+            ? tr("広告を見て%lld枚で復活（最後の1回）", PokerModel.reviveChips)
+            : tr("広告を見て%1$lld枚で復活（あと%2$lld回）", PokerModel.reviveChips, model.revivesRemaining)
     }
 
     /// やり直しの文言。復活の枚数と並べて読めるように、こちらにも枚数を出す（#523・ブラックジャックと揃える）。
     private var restartButtonTitle: String {
-        "もう一度はじめる (\(PokerModel.initialChips)枚)"
+        tr("もう一度はじめる (%lld枚)", PokerModel.initialChips)
     }
 
     /// セッション終了の見出し下の説明。**自分が負けた回だけ**、復活を使い切ったことを書き添える
@@ -699,13 +702,13 @@ public struct PokerView: View {
     /// なぜ選べないのかが画面から読み取れない。
     private var sessionOverSubtitle: String {
         switch model.sessionWinner {
-        case .player: return "CPUのチップが尽きました"
-        case .tie:    return "お互いのチップが尽きました"
+        case .player: return tr("CPUのチップが尽きました")
+        case .tie:    return tr("お互いのチップが尽きました")
         default:
             // 復活のほうがチップは多い（#523）ぶん、順位表に載らないことも選ぶ前に読める場所へ書く。
             return model.canReviveAfterBust
-                ? "あなたのチップが尽きました。\(PokerModel.reviveChips)枚で復活すると順位表に載りません"
-                : "あなたのチップが尽きました。復活はこのセッションで\(PokerModel.maxRevivesPerSession)回使いました"
+                ? tr("あなたのチップが尽きました。%lld枚で復活すると順位表に載りません", PokerModel.reviveChips)
+                : tr("あなたのチップが尽きました。復活はこのセッションで%lld回使いました", PokerModel.maxRevivesPerSession)
         }
     }
 
@@ -716,7 +719,7 @@ public struct PokerView: View {
                 let winner = model.sessionWinner
                 let icon = winner == .player ? "trophy.fill" : winner == .tie ? "equal.circle.fill" : "xmark.octagon.fill"
                 let iconColor = winner == .player ? Theme.yellow : winner == .tie ? Theme.teal : Theme.coral
-                let title = winner == .player ? "セッション勝利！" : winner == .tie ? "引き分け" : "セッション敗北"
+                let title = winner == .player ? tr("セッション勝利！") : winner == .tie ? tr("引き分け") : tr("セッション敗北")
                 let titleColor = winner == .player ? Theme.teal : winner == .tie ? Theme.teal : Theme.coral
                 let subtitle = sessionOverSubtitle
                 Image(systemName: icon)

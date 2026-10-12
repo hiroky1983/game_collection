@@ -13,12 +13,6 @@
 keep Packages/GameKit/Sources/MahjongTiles/MahjongTileGallery.swift DEBUG専用の牌の一覧（-showMahjongTiles）
 
 # --- 担当中（2026-10-12 時点） ---
-# 多言語③: 麻雀・花札・将棋・ポーカー・大富豪
-in-progress Packages/GameKit/Sources/GameMahjong/* #2166 麻雀
-in-progress Packages/GameKit/Sources/GameHanafuda/* #2166 花札
-in-progress Packages/GameKit/Sources/GameShogi/* #2166 将棋
-in-progress Packages/GameKit/Sources/GamePoker/* #2166 ポーカー
-in-progress Packages/GameKit/Sources/GameDaifugo/* #2166 大富豪
 # 多言語④: 柵越えおじさん・チャリンコおじさん
 in-progress Packages/GameKit/Sources/GameHomerun/* #2167 柵越えおじさん
 in-progress Packages/GameKit/Sources/HomerunCore/* #2167 柵越えおじさん

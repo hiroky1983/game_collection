@@ -10,7 +10,8 @@ public enum HanafudaPlayer: Int, Codable, Sendable, Equatable, CaseIterable {
 
     public var other: HanafudaPlayer { self == .human ? .cpu : .human }
 
-    public var label: String { self == .human ? "あなた" : "CPU" }
+    /// 画面と読み上げに出す名前（表示言語で引く・#2166）。
+    public var label: String { self == .human ? tr("あなた") : "CPU" }
 }
 
 // MARK: - 画面の状態
@@ -310,8 +311,8 @@ public final class HanafudaModel: AITurnGuarded {
         turn = dealer
         phase = .playing
         message = round > options.rounds
-            ? "延長戦・親は\(dealer.label)"
-            : "\(round)局目・親は\(dealer.label)"
+            ? tr("延長戦・親は%@", dealer.label)
+            : tr("%1$lld局目・親は%2$@", round, dealer.label)
         services?.feedback.impact(.medium)
         save()
     }
@@ -329,7 +330,7 @@ public final class HanafudaModel: AITurnGuarded {
         let outcome = HanafudaRules.outcome(playing: card, field: field)
         if case .mustChoose(let candidates) = outcome {
             selection = HanafudaSelection(source: .hand, card: card, candidates: candidates)
-            message = "合わせる札を選んでください"
+            message = tr("合わせる札を選んでください")
             services?.feedback.impact(.light)
             save()
             return
@@ -358,9 +359,16 @@ public final class HanafudaModel: AITurnGuarded {
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
-        message = result.captured.isEmpty
-            ? "\(player.label)は\(card.name)を場に出した"
-            : "\(player.label)が\(card.name)で\(result.captured.count)枚取った"
+        switch (player, result.captured.isEmpty) {
+        case (.human, true):
+            message = tr("あなたは%@を場に出した", card.displayName)
+        case (.cpu, true):
+            message = tr("CPUは%@を場に出した", card.displayName)
+        case (.human, false):
+            message = tr("あなたが%1$@で%2$lld枚取った", card.displayName, result.captured.count)
+        case (.cpu, false):
+            message = tr("CPUが%1$@で%2$lld枚取った", card.displayName, result.captured.count)
+        }
         services?.feedback.impact(result.captured.isEmpty ? .light : .rigid)
         drawFromDeck(for: player)
     }
@@ -377,7 +385,7 @@ public final class HanafudaModel: AITurnGuarded {
         let outcome = HanafudaRules.outcome(playing: card, field: field)
         if case .mustChoose(let candidates) = outcome, player == .human {
             selection = HanafudaSelection(source: .deck, card: card, candidates: candidates)
-            message = "めくり札「\(card.name)」に合わせる札を選んでください"
+            message = tr("めくり札「%@」に合わせる札を選んでください", card.displayName)
             save()
             return
         }
@@ -399,7 +407,7 @@ public final class HanafudaModel: AITurnGuarded {
         field = result.field.sorted()
         capture(result.captured, for: player)
         if !result.captured.isEmpty {
-            message = "めくり札「\(card.name)」で\(result.captured.count)枚取った"
+            message = tr("めくり札「%1$@」で%2$lld枚取った", card.displayName, result.captured.count)
             services?.feedback.impact(.rigid)
         }
         drawnCard = nil
@@ -421,7 +429,7 @@ public final class HanafudaModel: AITurnGuarded {
             }
             if player == .human {
                 phase = .koiKoiPrompt
-                message = "役ができました（\(points)文）"
+                message = tr("役ができました（%lld文）", points)
                 services?.feedback.notify(.success)
                 save()
                 return
@@ -480,7 +488,9 @@ public final class HanafudaModel: AITurnGuarded {
             cpuClaimed = points
             cpuKoiKoiCount += 1
         }
-        message = "\(player.label)がこいこい！（\(points)文）"
+        message = player == .human
+            ? tr("あなたがこいこい！（%lld文）", points)
+            : tr("CPUがこいこい！（%lld文）", points)
         services?.feedback.notify(.warning)
     }
 
@@ -491,7 +501,7 @@ public final class HanafudaModel: AITurnGuarded {
         drawnCard = nil
         guard let winner else {
             roundResult = .drawn
-            message = "流局。だれもあがれませんでした"
+            message = tr("流局。だれもあがれませんでした")
             phase = .roundResult
             services?.feedback.notify(.warning)
             save()
@@ -511,7 +521,9 @@ public final class HanafudaModel: AITurnGuarded {
         }
         // 勝った側が次の親を継ぐ。
         dealer = winner
-        message = "\(winner.label)のあがり！ \(score)文"
+        message = winner == .human
+            ? tr("あなたのあがり！ %lld文", score)
+            : tr("CPUのあがり！ %lld文", score)
         phase = .roundResult
         services?.feedback.notify(winner == .human ? .success : .error)
         save()
@@ -569,9 +581,9 @@ public final class HanafudaModel: AITurnGuarded {
         }()
         message = {
             switch outcome {
-            case .win:  return "あなたの勝ち！ \(humanTotal)文 対 \(cpuTotal)文"
-            case .loss: return "CPUの勝ち。\(humanTotal)文 対 \(cpuTotal)文"
-            case .draw: return "引き分け。\(humanTotal)文 対 \(cpuTotal)文"
+            case .win:  return tr("あなたの勝ち！ %1$lld文 対 %2$lld文", humanTotal, cpuTotal)
+            case .loss: return tr("CPUの勝ち。%1$lld文 対 %2$lld文", humanTotal, cpuTotal)
+            case .draw: return tr("引き分け。%1$lld文 対 %2$lld文", humanTotal, cpuTotal)
             }
         }()
         // 見出しは**合計文数**（ポーカー・ブラックジャックと同じ流儀）。勝敗・連勝も
@@ -613,7 +625,7 @@ public final class HanafudaModel: AITurnGuarded {
         drawnCard = nil
         phase = .matchResult
         wasResigned = true
-        message = "投了しました。\(humanTotal)文 対 \(cpuTotal)文"
+        message = tr("投了しました。%1$lld文 対 %2$lld文", humanTotal, cpuTotal)
         // 投了しても、それまでに稼いだ文数は正当な記録として残す。文数は打つほど増える
         // 一方なので、途中で降りて有利になることはない。
         recordResult = services?.gameDidFinish(

@@ -22,7 +22,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public private(set) var phase: GamePhase
     public private(set) var reviewPly: Int
     public private(set) var gameOver: Bool
-    public private(set) var resultText: String?
+    /// 決着の文言の原文（日本語）。終局の種類の判定（`endKind`・`endVerdict`）はこの原文で行い、
+    /// 表示は `resultText` が表示言語に訳す（#2109。訳した文で判定すると、言語を切り替えた瞬間に食い違う）。
+    private(set) var resultKey: String?
+    /// 決着の文言（表示用）。表示言語で引く。
+    public var resultText: String? { resultKey.map(Self.localizedResultText) }
     public var sente: PlayerKind
     public var gote: PlayerKind
     public var aiLevel: Int
@@ -101,7 +105,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 鍵を持たない v1.1.5 までの中断データは「まだ使っていない」として読む（#1118）。
         self.hints = BoardHintBudget(used: snap?.hintsUsed ?? 0)
         self.gameOver = false
-        self.resultText = nil
+        self.resultKey = nil
 
         if legalMovesCache.isEmpty {
             self.gameOver = true
@@ -109,18 +113,18 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // 詰みの勝敗表示は状態として保存していないので、復元時にここで組み直す。
             // 以前は `gameOver` だけ立てて `resultText` を nil のままにしていたため、
             // 詰んだ対局をアプリの再起動で開くと決着の文字だけが消えていた（#375）。
-            self.resultText = Self.checkmateResultText(loser: pos.sideToMove)
+            self.resultKey = Self.checkmateResultText(loser: pos.sideToMove)
         } else if Self.isFourfoldRepetition(initialSFEN: sfen, moves: moveList, current: pos) {
             // 千日手も指し手列から導けるので、復元時も同じ判定でそのまま決着に戻る。
             self.gameOver = true
             self.phase = .review
-            self.resultText = Self.repetitionResultText(
+            self.resultKey = Self.repetitionResultText(
                 perpetualCheckLoser: Self.perpetualCheckLoser(initialSFEN: sfen, moves: moveList)
             )
         }
         if snap?.resigned == true {
             self.gameOver = true
-            self.resultText = "あなたの負け（投了）"
+            self.resultKey = Self.resignationResultText
             self.phase = .review
         }
         // 将棋だけは終局後の検討画面をスナップショットに残す（他ゲームは終局で破棄する）。
@@ -160,14 +164,29 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     static let repetitionLimit = 4
 
     static func checkmateResultText(loser: Side) -> String {
-        (loser == .black ? "先手" : "後手") + "の負け（詰み）"
+        (loser == .black ? "先手" : "後手") + "の負け（詰み）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
     }
 
-    static let drawRepetitionResultText = "引き分け（千日手）"
-    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"
+    static let drawRepetitionResultText = "引き分け（千日手）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    static let resignationResultText = "あなたの負け（投了）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
 
     static func perpetualCheckResultText(loser: Side) -> String {
-        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix
+        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    }
+
+    /// 決着の文言の原文を表示言語の文にする（#2109）。原文は上の関数が組む 6 通りだけ。
+    /// 表のキーはリテラルで書く決まりなので、原文ごとに `tr` を書き分ける。
+    static func localizedResultText(_ key: String) -> String {
+        switch key {
+        case "先手の負け（詰み）": return tr("先手の負け（詰み）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "後手の負け（詰み）": return tr("後手の負け（詰み）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "先手の負け（連続王手の千日手）": return tr("先手の負け（連続王手の千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "後手の負け（連続王手の千日手）": return tr("後手の負け（連続王手の千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "引き分け（千日手）": return tr("引き分け（千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "あなたの負け（投了）": return tr("あなたの負け（投了）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        default: return key
+        }
     }
 
     /// 千日手の結果文言。連続王手の側がいれば、その側の負け。
@@ -302,10 +321,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         /// 結果カードに出す理由。
         public var reasonText: String {
             switch self {
-            case .checkmate: return "詰み"
-            case .repetition: return "千日手"
-            case .perpetualCheck: return "連続王手の千日手"
-            case .resignation: return "投了"
+            case .checkmate: return tr("詰み")
+            case .repetition: return tr("千日手")
+            case .perpetualCheck: return tr("連続王手の千日手")
+            case .resignation: return tr("投了")
             }
         }
     }
@@ -313,8 +332,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var endKind: EndKind? {
         guard gameOver else { return nil }
         if resigned { return .resignation }
-        if resultText == Self.drawRepetitionResultText { return .repetition }
-        if resultText?.hasSuffix(Self.perpetualCheckSuffix) == true { return .perpetualCheck }
+        if resultKey == Self.drawRepetitionResultText { return .repetition }
+        if resultKey?.hasSuffix(Self.perpetualCheckSuffix) == true { return .perpetualCheck }
         return .checkmate
     }
 
@@ -325,7 +344,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         case .resignation: return .loss
         case .repetition: return .draw
         case .perpetualCheck:
-            return resultText == Self.perpetualCheckResultText(loser: humanSide) ? .loss : .win
+            return resultKey == Self.perpetualCheckResultText(loser: humanSide) ? .loss : .win
         case .checkmate: return position.sideToMove == humanSide ? .loss : .win
         }
     }
@@ -429,7 +448,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         if legalMovesCache.isEmpty {
             gameOver = true
             let loser = position.sideToMove
-            resultText = Self.checkmateResultText(loser: loser)
+            resultKey = Self.checkmateResultText(loser: loser)
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
             startPlayIfPending()
@@ -446,7 +465,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // しか無かった。繰り返しの間ずっと王手を掛け続けた側がいれば、その側の負け（#2005）。
             let loser = Self.perpetualCheckLoser(initialSFEN: initialSFEN, moves: moves)
             gameOver = true
-            resultText = Self.repetitionResultText(perpetualCheckLoser: loser)
+            resultKey = Self.repetitionResultText(perpetualCheckLoser: loser)
             phase = .review
             services?.feedback.notify(loser == nil ? .warning : (loser == humanSide ? .error : .success))
             startPlayIfPending()
@@ -483,7 +502,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         phase = .playing
         reviewPly = 0
         gameOver = false
-        resultText = nil
+        resultKey = nil
         undoUsed = false
         resigned = false
         // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
@@ -690,7 +709,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         services?.feedback.notify(.error)
         startPlayIfPending()
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
-        resultText = "あなたの負け（投了）"
+        resultKey = Self.resignationResultText
         phase = .review
         reviewPly = moves.count
         clearSelection()

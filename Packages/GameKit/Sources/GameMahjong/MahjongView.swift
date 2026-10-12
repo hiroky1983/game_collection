@@ -139,14 +139,14 @@ public struct MahjongView: View {
         // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
         // 早見表を置く（#501。花札 #495 と同じ置き方）。
         // 対局を始めると東風戦を打ち切るかトビるまで抜けられなかった（会長QA・#638）ので新規対局も置く。
-        .gameChrome(title: "麻雀", review: services.review,
+        .gameChrome(title: tr("麻雀"), review: services.review,
                     reference: GameChromeReference { showYakuSheet = true },
                     newGame: GameChromeNewGame(.match, isDisabled: isWatchingRescueAd) {
                         startNewGame()
                     })
         .dialogs { anchor in
             anchor.confirmationDialog(
-                "新規対局しますか？",
+                tr("新規対局しますか？"),
                 isPresented: $showConfirmNewGame,
                 titleVisibility: .visible
             ) {
@@ -154,11 +154,11 @@ public struct MahjongView: View {
                 // ここを「終了して新規対局」の 1 つだけにすると、対局中に一局戦へ切り替える経路が
                 // どこにも無くなる（ハブへ戻っても中断データから同じ対局が再開する）。
                 ForEach(MahjongGameLength.allCases) { option in
-                    Button("終了して\(option.title)", role: .destructive) { restartGame(length: option) }
+                    Button(tr("終了して%@", option.title), role: .destructive) { restartGame(length: option) }
                 }
-                Button("キャンセル", role: .cancel) {}
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。")
+                Text(tr("途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。"))
             }
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
@@ -239,18 +239,18 @@ public struct MahjongView: View {
         }
         .rewardedRescueAlerts(
             reviveRescue,
-            notEarned: "復活できませんでした",
+            notEarned: tr("復活できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "復活できませんでした",
-                message: "広告を見ているあいだに対局が変わったため、復活は適用していません。復活の回数は減っていません。"
+                title: tr("復活できませんでした"),
+                message: tr("広告を見ているあいだに対局が変わったため、復活は適用していません。復活の回数は減っていません。")
             )
         )
         .rewardedRescueAlerts(
             extendRescue,
-            notEarned: "延長できませんでした",
+            notEarned: tr("延長できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "延長できませんでした",
-                message: "広告を見ているあいだに対局が変わったため、延長は適用していません。延長の回数は減っていません。"
+                title: tr("延長できませんでした"),
+                message: tr("広告を見ているあいだに対局が変わったため、延長は適用していません。延長の回数は減っていません。")
             )
         )
     }
@@ -358,7 +358,7 @@ public struct MahjongView: View {
     /// ドラ表示。参考画像と同じく画面左上の HUD。牌が複数（カン）なら並べる。
     private func doraChip(scale s: CGFloat) -> some View {
         HStack(spacing: 5 * s) {
-            Text("ドラ")
+            Text(tr("ドラ"))
                 .font(.system(size: 11 * s, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Theme.Fixed.ink)
             ForEach(Array(model.doraIndicators.enumerated()), id: \.offset) { _, tile in
@@ -368,7 +368,7 @@ public struct MahjongView: View {
         .padding(.horizontal, 9 * s).padding(.vertical, 5 * s)
         .background(Capsule().fill(.white).shadow(color: .black.opacity(0.18), radius: 5, y: 2))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("ドラ表示牌、" + model.doraIndicators.map { $0.displayName }.joined(separator: "、"))
+        .accessibilityLabel(tr("ドラ表示牌、%@", model.doraIndicators.map { $0.displayName }.joined(separator: MahjongAccessibility.listSeparator)))
     }
 
     /// 河が 1 枚増えた家を見つけて、その 1 枚を出発点から着地点へ飛ばす（#738）。
@@ -470,13 +470,13 @@ public struct MahjongView: View {
         } label: {
             // 「1対局に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
             // 書かないと2回目を期待して押す人が出る）。
-            Label("広告を見て25,000点で復活（1対局に1回）", systemImage: "play.rectangle.fill")
+            Label(tr("広告を見て25,000点で復活（1対局に1回）"), systemImage: "play.rectangle.fill")
                 .themeBody(16)
                 .minimumScaleFactor(0.8)
         }
         .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(reviveRescue.isWatching)
-        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1対局に1回だけです")
+        .accessibilityHint(tr("広告を最後まで見ると25,000点で対局を続けられます。1対局に1回だけです"))
     }
 
     /// 東 4 局を終えて最下位だったときだけ出る延長導線（#1201）。トビ復活と同じ形で、
@@ -489,13 +489,13 @@ public struct MahjongView: View {
                 runCPU()
             })
         } label: {
-            Label("広告を見て東5局を追加（1対局に1回）", systemImage: "play.rectangle.fill")
+            Label(tr("広告を見て東5局を追加（1対局に1回）"), systemImage: "play.rectangle.fill")
                 .themeBody(16)
                 .minimumScaleFactor(0.8)
         }
         .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(extendRescue.isWatching)
-        .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1対局に1回だけです")
+        .accessibilityHint(tr("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1対局に1回だけです"))
     }
 
     // MARK: - 操作
@@ -512,11 +512,11 @@ public struct MahjongView: View {
             EmptyView()
         case .ronOffer:
             HStack(spacing: 12) {
-                actionButton("見逃す", role: .skip) {
+                actionButton(tr("見逃す"), role: .skip) {
                     model.declineRon()
                     runCPU()
                 }
-                actionButton("ロン", role: .primary) { model.declareRon() }
+                actionButton(tr("ロン"), role: .primary) { model.declareRon() }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -545,10 +545,10 @@ public struct MahjongView: View {
             } else {
                 HStack(spacing: 12) {
                     if actions.showsCancelRiichi {
-                        actionButton("やめる", role: .skip) { model.cancelRiichiDeclaration() }
+                        actionButton(tr("やめる"), role: .skip) { model.cancelRiichiDeclaration() }
                     }
                     if actions.showsRiichi {
-                        actionButton("立直", role: .declaration) { model.declareRiichi() }
+                        actionButton(tr("立直"), role: .declaration) { model.declareRiichi() }
                     }
                     if actions.showsKan {
                         MahjongKanButton(options: model.availableSelfKans) { call in
@@ -557,7 +557,7 @@ public struct MahjongView: View {
                         }
                     }
                     if actions.showsTsumo {
-                        actionButton("ツモ", role: .primary) { model.declareTsumo() }
+                        actionButton(tr("ツモ"), role: .primary) { model.declareTsumo() }
                     }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 8)
@@ -568,7 +568,7 @@ public struct MahjongView: View {
             // 一局戦（#639）はこの先に局が無いので「次の局へ」は嘘になる。東風戦の最終局・
             // アガリやめ・トビでも同じ状況なので、押した先に合わせて文言を差し替える。
             actionButton(
-                model.concludesAfterCurrentResult ? "結果を見る" : "次の局へ",
+                model.concludesAfterCurrentResult ? tr("結果を見る") : tr("次の局へ"),
                 role: .primary
             ) {
                 model.advanceToNextHand()
@@ -579,7 +579,7 @@ public struct MahjongView: View {
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
             // 復活・延長の広告を読み込んでいる間は局を捨てさせない（#1381）。
-            actionButton("もう一度", role: .primary, disabled: isWatchingRescueAd) {
+            actionButton(tr("もう一度"), role: .primary, disabled: isWatchingRescueAd) {
                 model.startGame()
                 runCPU()
             }
@@ -602,7 +602,7 @@ public struct MahjongView: View {
 
     private var isWatchingRescueAd: Bool { reviveRescue.isWatching || extendRescue.isWatching }
 
-    static let windNames = ["東", "南", "西", "北"]
+    static var windNames: [String] { MahjongTableScene.windNames }
 
 }
 
