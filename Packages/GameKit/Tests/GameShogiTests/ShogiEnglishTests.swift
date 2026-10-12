@@ -36,6 +36,7 @@ struct ShogiEnglishTests {
     }
 
     @Test("決着の文言は原文で判定し、表示だけを訳す")
+    @MainActor
     func resultText() {
         #expect(ShogiGameModel.localizedResultText("後手の負け（詰み）") == "後手の負け（詰み）")
         #expect(GameShogi.tr("後手の負け（詰み）", language: .english) == "Gote loses (checkmate)")
