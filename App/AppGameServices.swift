@@ -30,9 +30,7 @@ import GameAnzan
 import GameBackgammon
 import GameSpeed
 import GameHomerun
-// GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
-// 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
-// `registry` に1行足せば復活できる）。
+import GameOjisanPuzzle
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -52,7 +50,7 @@ enum AppEnvironment {
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
         // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
         feedback: CompositeFeedbackService([
-            GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+            GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
             GatedFeedbackService(base: sound) { settings.soundEnabled },
         ]),
         recommendations: recommendations,
@@ -65,8 +63,14 @@ enum AppEnvironment {
         returnReminder: returnReminder,
         // 柵越えおじさんの場面の音（打ち出し・カキーン・歓声等）。触覚とは対応しないので `feedback` とは別の入口で、
         // 設定の「効果音」のオン / オフだけを共有する。音声セッションの扱いを 1 か所に保つため、実体は同じ `sound`。
-        homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled }
+        homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled },
+        // 触覚だけの入口（効果音に相乗りしない）。柵越えおじさんの場面ごとの触覚（`HomerunFeedbackCue`）が使う。
+        haptics: GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
+        isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) }
     )
+
+    /// 触覚の実体（`feedback` と `haptics` で共有。ジェネレータを使い回す）。
+    static let haptic = HapticFeedbackService()
 
     /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
     static let sound = SoundFeedbackService()
@@ -261,18 +265,24 @@ enum AppEnvironment {
         // いろリレー（企画倉庫・#1320）。ルーレット・くっつきフルーツと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // ColorRelayModule(),
-        // ぱっと暗算（企画倉庫・#1321）。上の 3 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // AnzanModule(),
         // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // BackgammonModule(),
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
-        // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告/アンケート）・
+        // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告）・
         // 解析・Game Center への送信まで入っている。
         HomerunModule(),
+        // おじさんの荷物運びパズル（#1016）。v1.1.11 でハブに公開（#1904）。倉庫へ戻す判断が出たら、
+        // 上の倉庫ゲームと同じくこの 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
+        // レコメンドの候補表（`RecommendationPolicy.candidateTable`）の `ojisanpuzzle` の行と、柵越えおじさんの
+        // 第3候補（#1904 で 2048 から差し替え）も戻すこと（`RecommendationTests` が登録の無い ID を検出する）。
+        OjisanPuzzleModule(),
+        // ぱっと暗算（#1321・企画倉庫から v1.1.11 でハブに公開 #1825）。倉庫へ戻す判断が出たら、
+        // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
+        AnzanModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

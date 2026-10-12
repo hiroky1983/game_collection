@@ -144,20 +144,22 @@ public struct MahjongView: View {
                     newGame: GameChromeNewGame(.match, isDisabled: isWatchingRescueAd) {
                         startNewGame()
                     })
-        .confirmationDialog(
-            "新規対局しますか？",
-            isPresented: $showConfirmNewGame,
-            titleVisibility: .visible
-        ) {
-            // 長さもここで選べるようにする（#639）。開始シートは中断データがあると出ないため、
-            // ここを「終了して新規対局」の 1 つだけにすると、対局中に一局戦へ切り替える経路が
-            // どこにも無くなる（ハブへ戻っても中断データから同じ対局が再開する）。
-            ForEach(MahjongGameLength.allCases) { option in
-                Button("終了して\(option.title)", role: .destructive) { restartGame(length: option) }
+        .dialogs { anchor in
+            anchor.confirmationDialog(
+                "新規対局しますか？",
+                isPresented: $showConfirmNewGame,
+                titleVisibility: .visible
+            ) {
+                // 長さもここで選べるようにする（#639）。開始シートは中断データがあると出ないため、
+                // ここを「終了して新規対局」の 1 つだけにすると、対局中に一局戦へ切り替える経路が
+                // どこにも無くなる（ハブへ戻っても中断データから同じ対局が再開する）。
+                ForEach(MahjongGameLength.allCases) { option in
+                    Button("終了して\(option.title)", role: .destructive) { restartGame(length: option) }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。")
             }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。")
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.mahjong) { MahjongRuleSheet() }
@@ -357,7 +359,7 @@ public struct MahjongView: View {
     private func doraChip(scale s: CGFloat) -> some View {
         HStack(spacing: 5 * s) {
             Text("ドラ")
-                .font(.system(size: 11 * s, weight: .black, design: .rounded))
+                .font(.system(size: 11 * s, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Theme.Fixed.ink)
             ForEach(Array(model.doraIndicators.enumerated()), id: \.offset) { _, tile in
                 MahjongTileView(tile: tile, width: 20 * s, height: 27 * s)

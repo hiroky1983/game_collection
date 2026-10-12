@@ -445,7 +445,7 @@ public struct HanafudaCardFace: View {
         let size = min(rect.width * 0.21, band.height * 0.82)
         func text(_ string: String) -> Text {
             Text(verbatim: string)
-                .font(.system(size: size, weight: .bold, design: .rounded))
+                .font(.system(size: size, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(label)
         }
         let inset = band.width * 0.07

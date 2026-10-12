@@ -451,7 +451,7 @@ struct GoCorruptedSnapshotTests {
             GoSnapshot(
                 size: size, handicap: handicap, komi: komi,
                 humanSide: humanSide, aiLevel: aiLevel,
-                startedAt: Date(), moves: moves, undoUsed: false, phase: nil
+                startedAt: Date(), moves: moves, undoUsed: false, phase: nil, hintsUsed: nil
             ),
             for: "go"
         )

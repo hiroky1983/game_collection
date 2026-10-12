@@ -29,6 +29,8 @@ struct HubView: View {
     /// 「きろく」の中から Game Center を求められた。シートが閉じ切ってから開くための印
     /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
     @State private var opensGameCenterAfterRecords = false
+    /// 「きろく」のゲーム行で選ばれたゲーム（#1974）。シートが閉じ切ってから開く（Game Center と同じ理由）。
+    @State private var opensGameAfterRecords: String?
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
     /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
@@ -37,11 +39,13 @@ struct HubView: View {
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
     private struct HiddenNotice: Equatable {
+        let moduleID: String
         let title: String
         let id = UUID()
     }
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.scenePhase) private var scenePhase
 
     /// グリッドを載せるスクロール領域の高さ（#485）。カードの高さを行数で割り付けるために測る。
     @State private var viewportHeight: CGFloat = 0
@@ -81,9 +85,18 @@ struct HubView: View {
         settings.visibleModules(from: registry).contains { $0.id == Self.heroGameID }
     }
 
-    /// グリッドに並べるゲーム（特別枠のゲームを除く）。
+    /// 表示するゲームの並び。この版の新着を先頭に固定し、そのあとに利用者の並びが続く（#2104）。
+    /// 非表示にしたゲームは `visibleModules` の時点で除かれるので、新着でも出さない。
+    private var pinnedVisibleModules: [GameModule] {
+        let visible = settings.visibleModules(from: registry)
+        let order = NewGames.pinned(visibleIDs: visible.map(\.id))
+        let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
+        return order.compactMap { byID[$0] }
+    }
+
+    /// グリッドに並べるゲーム（特別枠のゲームを除く）。特別枠のすぐ次に新着が来る。
     private var gridModules: [GameModule] {
-        settings.visibleModules(from: registry).filter { $0.id != Self.heroGameID }
+        pinnedVisibleModules.filter { $0.id != Self.heroGameID }
     }
 
     /// 特別枠がグリッドの上で取る高さ（枠 + グリッドとの間隔）。カード高さの割り付けから引く（#485）。
@@ -130,7 +143,7 @@ struct HubView: View {
     /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
     private var paletteIndexByGame: [String: Int] {
         var result: [String: Int] = [:]
-        for (index, module) in settings.visibleModules(from: registry).enumerated() {
+        for (index, module) in pinnedVisibleModules.enumerated() {
             result[module.id] = index
         }
         return result
@@ -216,6 +229,10 @@ struct HubView: View {
                 }
                 ScrollView {
                     VStack(spacing: Self.gridSpacing) {
+                    // 全ゲームを非表示にした直後は空白にせず、設定へ戻る導線を出す（#2002）。
+                    if HubEmptyState.isShown(visibleGameIDs: settings.visibleModules(from: registry).map(\.id)) {
+                        HubEmptyStateView { showSettings = true }
+                    }
                     // 特別枠（#1761）: グリッドの先頭に 1 枚ぶち抜きで置き、スクロールで一緒に流れる。
                     if showsHero, let hero = registry.module(id: Self.heroGameID) {
                         NavigationLink(value: HubRoute(
@@ -250,7 +267,7 @@ struct HubView: View {
                                     accent: Theme.palette[index % Theme.palette.count],
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: hasResume,
-                                    isNew: newGameIDs.contains(module.id),
+                                    isNew: NewGames.currentVersionIDs.contains(module.id),
                                     record: services.playLog?.summaryLine(gameID: module.id),
                                     minHeight: cardMinHeight
                                 )
@@ -298,7 +315,7 @@ struct HubView: View {
                 .overlay(alignment: .bottom) {
                     Group {
                         if let hiddenNotice {
-                            HubHiddenNotice(title: hiddenNotice.title)
+                            HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }
                                 .transition(.opacity)
                         }
                     }
@@ -306,7 +323,7 @@ struct HubView: View {
                 }
                 .task(id: hiddenNotice) {
                     guard hiddenNotice != nil else { return }
-                    try? await Task.sleep(for: .seconds(3))
+                    try? await Task.sleep(for: .seconds(5))
                     guard !Task.isCancelled else { return }
                     hiddenNotice = nil
                 }
@@ -314,21 +331,27 @@ struct HubView: View {
             }
             .popBackground()
             .navigationTitle("あそびば")
+            // 大タイトルは右のボタンより一段下に出て、見出しの領域が縦に広かった（#2028）。
+            // inline にして、タイトルを左の toolbar に置き、右のボタンと同じ行の上合わせにそろえる。
+            // 標準の中央タイトルは二重にならないよう外す（iOS 26 以降。それ以前の inline は文字が中央に残る）。
+            .navigationBarTitleDisplayMode(.inline)
+            .hubHidesDefaultTitle()
             .toolbar {
+                HubTitleToolbarItem()
                 // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
                 // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
                 // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
                 ToolbarItem(placement: .primaryAction) {
                     Button { showRecords = true } label: {
                         Image(systemName: "trophy.fill")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, weight: .semibold)
                     }
                     .accessibilityLabel("きろく")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, weight: .semibold)
                     }
                     // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
                     .accessibilityLabel("設定")
@@ -340,12 +363,23 @@ struct HubView: View {
                     // 呼び出しを直さずに済むよう、ゲーム画面を作るここ 1 か所から配る。
                     let gameID = module.id
                     let services = services
-                    module.makeView(services: services)
+                    // 描き直しのたびに model を作って捨てないよう、1 回だけ作る入れ物を通す（#1926）。
+                    GameScreenHost { module.makeView(services: services) }
                         .environment(\.recordShare, RecordShareContext(
                             gameTitle: module.title,
                             url: AppEnvironment.appStoreURL,
                             didTap: { services.gameDidTapShare(gameID: gameID) }
                         ))
+                }
+            }
+            // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
+            // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
+            .onChange(of: scenePhase) { _, phase in
+                guard let current = path.last else { return }
+                switch phase {
+                case .background: services.gameDidEnterBackground(gameID: current.gameID)
+                case .active: services.gameDidReturnToForeground(gameID: current.gameID)
+                default: break
                 }
             }
             .onChange(of: path) { oldPath, newPath in
@@ -388,7 +422,7 @@ struct HubView: View {
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
-                    gameID: id, source: .notification, position: nil,
+                    gameID: id, source: .resumeReminder, position: nil,
                     resume: isResumable(id)
                 ))
             }
@@ -399,7 +433,20 @@ struct HubView: View {
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
-                    gameID: id, source: .notification, position: nil,
+                    gameID: id, source: .reengagement, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
+            // 挑戦回数が戻ったお知らせ（#1576・#1950）がタップされたら、そのゲームを直接開く。
+            // 設定で非表示にしたゲームは開かない（クイックアクションと同じ）。
+            .onChange(of: services.returnReminder?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.returnReminder?.requestedGameID = nil
+                guard settings.visibleModules(from: registry).contains(where: { $0.id == id }) else { return }
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .challengeReturn, position: nil,
                     resume: isResumable(id)
                 ))
             }
@@ -414,6 +461,22 @@ struct HubView: View {
                 showRecords = false
                 openFromOutside(HubRoute(
                     gameID: id, source: .quickAction, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
+            // ディープリンク `asobiba://game/<game_id>`（#2141・App 内イベントの審査で必須）。
+            // 終了していた状態からの起動でも、ハブが描かれた後にここへ届く。
+            // 未知・設定で非表示のゲーム、`asobiba://` 単体はハブのまま（遷移しない）。
+            .onOpenURL { url in
+                let openable = Set(settings.visibleModules(from: registry).map(\.id))
+                guard case .game(let id) = DeepLink.destination(for: url, openableGameIDs: openable) else { return }
+                // 「きろく」を閉じる途中に届いたら、閉じた後に予約していた遷移・案内より URL を優先する。
+                opensGameAfterRecords = nil
+                opensGameCenterAfterRecords = false
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .deeplink, position: nil,
                     resume: isResumable(id)
                 ))
             }
@@ -483,20 +546,33 @@ struct HubView: View {
                 .presentationDetents([.large])
         }
         .sheet(isPresented: $showRecords, onDismiss: {
+            if let id = opensGameAfterRecords {
+                opensGameAfterRecords = nil
+                openFromOutside(HubRoute(gameID: id, source: .records, position: nil, resume: isResumable(id)))
+                return
+            }
             guard opensGameCenterAfterRecords else { return }
             opensGameCenterAfterRecords = false
             openGameCenter()
         }) {
-            RecordsView(registry: registry, settings: settings, playLog: services.playLog) {
+            RecordsView(
+                registry: registry, settings: settings, playLog: services.playLog,
+                onOpenGame: { id in
+                    opensGameAfterRecords = id
+                    showRecords = false
+                }
+            ) {
                 opensGameCenterAfterRecords = true
                 showRecords = false
             }
             .presentationDetents([.large])
         }
-        .alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+        .dialogs { anchor in
+            anchor.alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+            }
         }
     }
 
@@ -527,8 +603,17 @@ struct HubView: View {
     private func hide(_ module: GameModule) {
         guard !settings.hiddenIDs.contains(module.id) else { return }
         settings.toggleHidden(module.id)
-        hiddenNotice = HiddenNotice(title: module.title)
+        hiddenNotice = HiddenNotice(moduleID: module.id, title: module.title)
         AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
+    }
+
+    /// 案内の「元に戻す」（#2047）。非表示は並びを動かさないので、`toggleHidden` でもとの位置に戻る。
+    /// 案内が出ている間に設定シートで先に戻されていたら、押しても再び隠さない。
+    private func undoHide(_ notice: HiddenNotice) {
+        hiddenNotice = nil
+        guard settings.hiddenIDs.contains(notice.moduleID) else { return }
+        settings.toggleHidden(notice.moduleID)
+        AccessibilityNotification.Announcement("「\(notice.title)」を元に戻しました").post()
     }
 
     /// 「きろく」の中の「Game Center で実績・ランキングを見る」（#669。以前はツールバーから直接・#334）。
@@ -553,7 +638,7 @@ private struct GameCard: View {
     /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
     let accentFill: Color
     let hasResume: Bool
-    /// 更新で増えたゲームか（#723）。「続きから」と同じ位置に NEW を出す（両方のときは「続きから」を優先）。
+    /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
@@ -573,24 +658,24 @@ private struct GameCard: View {
                     .frame(width: layout.scaled(44), height: layout.scaled(44))
                     .overlay {
                         module.icon
-                            .font(.system(size: layout.scaled(22), weight: .bold))
+                            .font(.system(size: layout.scaled(22), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
                             .foregroundStyle(Theme.onAccent)
                     }
                     .shadow(color: accent.opacity(0.4), radius: 5, y: 3)
 
                 Spacer(minLength: 0)
 
-                if hasResume {
-                    Text("続きから")
+                if isNew {
+                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
+                    Text("NEW")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
                         .padding(.vertical, layout.scaled(3))
                         .background(Capsule().fill(accent.opacity(0.15)))
                         .fixedSize()
-                } else if isNew {
-                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
-                    Text("NEW")
+                } else if hasResume {
+                    Text("続きから")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
@@ -640,6 +725,28 @@ private struct GameCard: View {
     }
 }
 
+/// 表示するゲームが 0 本のときにハブへ出す案内と、設定を開くボタン（#2002）。
+private struct HubEmptyStateView: View {
+    let openSettings: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(HubEmptyState.message)
+                .themeCaption(15)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+            Button(HubEmptyState.buttonTitle, action: openSettings)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Theme.Fill.coral)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Theme.pad)
+        .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .contain)
+    }
+}
+
 /// 更新で増えたゲームがあるときだけハブ上部に出す1行（#723）。
 ///
 /// 閉じるボタンは置かない。この起動のあいだだけ出て、次の起動では `PlayLog` が同じゲームを
@@ -659,27 +766,73 @@ private struct HubNewGamesNotice: View {
     }
 }
 
-/// カードを長押しメニューで非表示にした直後の案内（#662）。
+/// カードを長押しメニューで非表示にした直後の案内（#662）。「元に戻す」で取り消せる（#2047）。
 ///
-/// 戻す操作は設定シートにしか無いので、その場所だけを1行で伝える。読み上げは `HubView.hide` が
-/// 同じ文言をアナウンスで流すため、ここは VoiceOver から隠す（二重に読ませない）。
+/// 案内の文言は `HubView.hide` が同じ文言をアナウンスで流すため、VoiceOver からは隠す（二重に読ませない）。
+/// 「元に戻す」ボタンだけは VoiceOver で辿れる。
 private struct HubHiddenNotice: View {
     let title: String
+    let onUndo: () -> Void
 
     static func message(title: String) -> String {
-        "「\(title)」を非表示にしました。設定から戻せます"
+        "「\(title)」を非表示にしました。元に戻せます"
     }
 
     var body: some View {
-        Text(Self.message(title: title))
-            .themeCaption(13)
-            .foregroundStyle(Theme.ink)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, Theme.pad)
-            .padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
-            .padding(Theme.pad)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        HStack(spacing: 8) {
+            Text("「\(title)」を非表示にしました")
+                .themeCaption(13)
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
+            Button(action: onUndo) {
+                Text("元に戻す")
+                    .themeCaption(13)
+                    .fontWeight(.bold)
+                    .underline()
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pop)
+            .accessibilityLabel("「\(title)」の非表示を元に戻す")
+        }
+        .padding(.horizontal, Theme.pad)
+        .popCard(corner: Theme.cornerSmall)
+        .padding(Theme.pad)
+    }
+}
+
+private extension View {
+    /// 標準の（中央の）ナビゲーションタイトルを隠す。iOS 26 未満では何もしない。
+    @ViewBuilder
+    func hubHidesDefaultTitle() -> some View {
+        if #available(iOS 26.0, *) {
+            toolbar(removing: .title)
+        } else {
+            self
+        }
+    }
+}
+
+/// 左上に置くハブの見出し。iOS 26 の toolbar 項目に付くガラスの丸い背景は、文字には付けない。
+private struct HubTitleToolbarItem: ToolbarContent {
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) { title }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { title }
+            // 標準の中央タイトルは principal を空にして隠す（`toolbar(removing:)` は iOS 26 から）。
+            ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+        }
+    }
+
+    private var title: some View {
+        Text("あそびば")
+            .scaledFont(28, weight: .heavy, maxScale: 1.3)
+            .fixedSize()
+            .accessibilityAddTraits(.isHeader)
     }
 }

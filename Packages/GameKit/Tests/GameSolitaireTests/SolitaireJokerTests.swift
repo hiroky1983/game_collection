@@ -400,7 +400,11 @@ struct SolitaireLostDetectionTests {
     func backgroundCheckRaisesPrompt() async {
         let previous = SolitaireModel.lostCheckDelayMilliseconds
         SolitaireModel.lostCheckDelayMilliseconds = 0
-        defer { SolitaireModel.lostCheckDelayMilliseconds = previous }
+        SolitaireModel.maxConcurrentLostSolves = 100
+        defer {
+            SolitaireModel.lostCheckDelayMilliseconds = previous
+            SolitaireModel.maxConcurrentLostSolves = 2
+        }
 
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         model.replaceBoardForTesting(hopelessButMovableBoard())
@@ -414,12 +418,49 @@ struct SolitaireLostDetectionTests {
     func backgroundCheckLeavesWinnablePositionAlone() async {
         let previous = SolitaireModel.lostCheckDelayMilliseconds
         SolitaireModel.lostCheckDelayMilliseconds = 0
-        defer { SolitaireModel.lostCheckDelayMilliseconds = previous }
+        SolitaireModel.maxConcurrentLostSolves = 100
+        defer {
+            SolitaireModel.lostCheckDelayMilliseconds = previous
+            SolitaireModel.maxConcurrentLostSolves = 2
+        }
 
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         await model.lostCheckTask?.value
         #expect(!model.isLost)
         #expect(!model.showsRescuePrompt)
+    }
+
+    @Test("捨てられた model には探索が作られない。生きている model には作られる（#1925）")
+    func discardedModelStartsNoSearch() async throws {
+        let previous = SolitaireModel.lostCheckDelayMilliseconds
+        SolitaireModel.lostCheckDelayMilliseconds = 50
+        SolitaireModel.maxConcurrentLostSolves = 100
+        // フックは静的な 1 本なので、1 つのテストの中で対照まで見る（別テストに分けると並列で潰し合う）。
+        var started: Set<UUID> = []
+        SolitaireModel.lostSolveStartHook = { started.insert($0) }
+        defer {
+            SolitaireModel.lostCheckDelayMilliseconds = previous
+            SolitaireModel.maxConcurrentLostSolves = 2
+            SolitaireModel.lostSolveStartHook = nil
+        }
+
+        var model: SolitaireModel? = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        let id = try #require(model?.instanceID)
+        weak var weakModel = model
+        model?.replaceBoardForTesting(hopelessButMovableBoard())
+        let waiting = try #require(model?.lostCheckTask)
+        model = nil
+        // 待ちの Task が model を握って延命させない。
+        #expect(weakModel == nil)
+        await waiting.value
+        // 捨てられた model のために、誰にも取り消せない探索が生まれない。
+        #expect(!started.contains(id))
+
+        // 対照: 生きている model なら、同じ待ちのあとに探索が作られる。
+        let live = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        live.replaceBoardForTesting(hopelessButMovableBoard())
+        await live.lostCheckTask?.value
+        #expect(started.contains(live.instanceID))
     }
 }
 

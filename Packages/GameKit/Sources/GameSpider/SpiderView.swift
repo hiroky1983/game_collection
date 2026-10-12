@@ -20,6 +20,8 @@ public struct SpiderView: View {
     @State private var showUndoRefillPrompt = false
     /// 「戻す」補充のリワード広告の段取り（#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒント（無料 3 回を使い切った後の広告）の段取り（#2025）。読みと広告はモデルが 1 本の非同期メソッドで持つ。
+    @State private var hintRescue = RewardedRescue()
     /// 拡大モード（#604）。既定は等倍。
     @State private var zoomMode = false
     /// 「空いた列があるので配れません」の案内を出しているか。
@@ -90,11 +92,18 @@ public struct SpiderView: View {
                 showSetup = false
             }
         }
-        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-            Button("広告を見て\(SpiderUndoBudget.refill)回補充する") { requestUndoRefill() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴すると「戻す」を\(SpiderUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        .dialogs { anchor in
+            anchor.alert("この盤からは勝てません", isPresented: hopelessBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+            }
+            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+                Button("広告を見て\(SpiderUndoBudget.refill)回補充する") { requestUndoRefill() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴すると「戻す」を\(SpiderUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
@@ -106,8 +115,23 @@ public struct SpiderView: View {
                 message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
             )
         )
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+            )
+        )
         .overlay {
             if model.showsDeadEndPrompt { deadEndOverlay }
+        }
+        // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
+        .onChange(of: model.hintMove) { _, move in
+            guard let move else { return }
+            AccessibilityNotification.Announcement(
+                SpiderAccessibility.hintLabel(move: move, board: model.board)
+            ).post()
         }
         .onChange(of: model.dealBlockedCount) { _, _ in
             showDealBlockedHint = true
@@ -125,6 +149,10 @@ public struct SpiderView: View {
             if ProcessInfo.processInfo.arguments.contains("-spiderDeadEnd") {
                 model.applyDeadEndPreviewForTesting()
             }
+            // ヒントの印（#2025）。シミュレータは自動タップができないため、起動引数から無料の 1 回を押した状態にする。
+            if ProcessInfo.processInfo.arguments.contains("-spiderHint") {
+                await model.requestHint()
+            }
             if ProcessInfo.processInfo.arguments.contains("-spiderZoom") {
                 zoomMode = true
             }
@@ -136,10 +164,14 @@ public struct SpiderView: View {
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
-            rescues: [undoRescue],
+            rescues: [undoRescue, hintRescue],
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
+    }
+
+    private var hopelessBinding: Binding<Bool> {
+        Binding(get: { model.showsHintHopeless }, set: { if !$0 { model.dismissHintHopeless() } })
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498 と同じ）。
@@ -169,7 +201,7 @@ public struct SpiderView: View {
                         .foregroundStyle(Theme.teal)
                 } else {
                     Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .scaledFont(15, weight: .bold, design: .monospaced)
                         .foregroundStyle(Theme.coral)
                 }
             }
@@ -178,7 +210,7 @@ public struct SpiderView: View {
 
             // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
             Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .scaledFont(10, weight: .bold, design: .monospaced)
                 .foregroundStyle(Theme.inkSub)
 
             GameClockLabel(RecordFormat.time(model.elapsedSeconds))
@@ -346,7 +378,7 @@ public struct SpiderView: View {
                     .offset(x: CGFloat(index) * 1.5, y: -CGFloat(index) * 1.5)
                 }
                 Text(verbatim: "×\(remaining)")
-                    .font(.system(size: max(9, metrics.rankFont * 0.55), weight: .black, design: .rounded))
+                    .font(.system(size: max(9, metrics.rankFont * 0.55), weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 5).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.Fill.coral))
@@ -356,6 +388,8 @@ public struct SpiderView: View {
             }
         }
         .frame(width: metrics.width, height: metrics.height)
+        // 手が「配る」のときは山札に点線を重ねて示す（#2025）。
+        .overlay { hintFrame(model.hintsDeal, metrics: metrics) }
         .contentShape(Rectangle())
         .onTapGesture { model.tapStock() }
         .accessibilityElement(children: .ignore)
@@ -435,6 +469,11 @@ public struct SpiderView: View {
                 .padding(.top, restY)
             }
         }
+        // 行き先の列は、いちばん上の札（空列なら枠）に点線を重ねて示す（#2025）。
+        .overlay(alignment: .top) {
+            hintFrame(model.hintDestinationPile == pile, metrics: metrics)
+                .padding(.top, column.isEmpty ? 0 : max(height - metrics.height, 0))
+        }
         // 押せる範囲（ドロップ枠を含む）は**盤の下端まで**伸ばす（フリーセルと同じ）。
         .frame(width: metrics.width, height: max(height, stack.reachHeight), alignment: .top)
         .cardDropTarget(SpiderDropTarget.pile(pile), in: Self.boardSpace)
@@ -477,13 +516,14 @@ public struct SpiderView: View {
     ) -> some View {
         let isSelected = model.selection == SpiderSelection(pile: pile, cardIndex: index)
         let isMovable = model.board.isMovableRun(pile: pile, from: index)
+        let isHinted = model.hintSource.map { $0.pile == pile && index >= $0.cardIndex } ?? false
         let fromStock = model.lastDealtCardIDs.contains(card.id)
         return SpiderDealtCardView(
             pile: pile, depth: index, restY: restY, metrics: metrics,
             dealing: model.isFreshDeal || fromStock, fromStock: fromStock
         ) {
             SpiderCardBody(
-                card: card, faceUp: true, isSelected: isSelected,
+                card: card, faceUp: true, isSelected: isSelected, isHinted: isHinted,
                 // いちばん上の 1 枚だけが札の全体を出す（下に重なった札は左上の見出しだけ）。
                 coveredIndex: index < column.cards.count - 1 ? stack.index : nil,
                 metrics: metrics
@@ -528,10 +568,8 @@ public struct SpiderView: View {
 
             Button { model.newGame() } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
             }
+            .buttonStyle(.game(.primary))
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -563,18 +601,64 @@ public struct SpiderView: View {
                 // 残り回数は 2 行目に出し、無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す。
                 GameActionItem(
                     id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                    badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                    badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                     isEnabled: model.canUndo && !undoRescue.isWatching,
                     accessibilityLabel: SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining),
                     accessibilityHint: SpiderAccessibility.undoButtonHint(
                         canUndo: model.canUndo, remaining: model.undosRemaining)
                 ) { requestUndo() },
+                hintAction,
             ],
+            nudge: hintNudge,
             // 「配る」が拒否された理由。段と「⋯」のあいだに出て、空の列が埋まると自動で消える。
             caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
                 ? GameOverflowCaption("空の列を埋めると配れます", color: Theme.coral)
                 : nil
         )
+    }
+
+    /// 盤の下の「操作の段」のヒント（#2025・#1856）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !hintRescue.isWatching,
+            accessibilityLabel: SpiderAccessibility.hintButtonLabel(
+                freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
+            accessibilityHint: "次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです"
+        ) { requestHint() }
+    }
+
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canUseHint && !hintRescue.isWatching,
+            game: model.dealSerial,
+            activity: [model.moveCount, model.hints.used]
+        )
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま読み、使い切っていたら読んでから広告を出す（#2025）。
+    /// 読みは画面を離れたら取り消す（離脱後に確定すると回数・解析・中断データが動く・#1903）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        if model.needsAdForHint {
+            hintRescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+        } else {
+            services.screenGeneration.runUntilLeave { await model.requestHint() }
+        }
+    }
+
+    /// ヒントの行き先を示す点線の枠（#2025）。札 1 枚ぶんの大きさ。
+    @ViewBuilder private func hintFrame(_ isOn: Bool, metrics: PlayingCardMetrics) -> some View {
+        if isOn {
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .inset(by: 1.5)
+                .stroke(BoardGameHintColor.color, style: StrokeStyle(lineWidth: 3, dash: [6, 4]))
+                .frame(width: metrics.width, height: metrics.height)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     // MARK: - 行き止まりの告知
@@ -660,13 +744,13 @@ struct SpiderSetupSheet: View {
                     tile(.four, accent: DifficultyTile.accent(step: 2, of: 3))
                 }
                 Text(Self.footer(for: draft.suitCount))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             if discardsProgress {
                 Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
                       systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .scaledFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.coral)
             }
         }

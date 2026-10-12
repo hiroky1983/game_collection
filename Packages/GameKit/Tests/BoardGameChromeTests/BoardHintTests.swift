@@ -19,6 +19,31 @@ struct BoardHintBudgetTests {
         #expect(budget.hasFreeRemaining)
     }
 
+    @Test("無料回数・広告上限を渡せる（マインスイーパーは無料1回・広告3回の合計4回・#2024）")
+    func customLimits() {
+        var budget = BoardHintBudget(freeLimit: 1, adLimit: 3)
+        #expect(budget.remaining == 4)
+        #expect(budget.freeRemaining == 1)
+        let first = budget.consume()
+        #expect(first)
+        #expect(!budget.hasFreeRemaining)
+        #expect(budget.freeRemaining == 0)
+        let second = budget.consume()
+        #expect(!second, "無料は1回で終わり")
+        for _ in 0..<3 {
+            let ad = budget.consumeAd()
+            #expect(ad)
+        }
+        #expect(budget.isExhausted)
+        let over = budget.consumeAd()
+        #expect(!over)
+        #expect(budget.used == 4)
+        budget.reset()
+        #expect(budget.remaining == 4, "リセットしても上限は変わらない")
+        #expect(BoardHintBudget(used: 99, freeLimit: 1, adLimit: 3).used == 4, "上限を超えた使用回数は丸める")
+        #expect(BoardHintBudget().capacity == BoardHintBudget.total, "既定は従来どおり")
+    }
+
     @Test("無料の consume() は3回で使い切り、4回目は何も変えずに false")
     func consumeStopsAtTheFreeLimit() {
         var budget = BoardHintBudget()
@@ -122,6 +147,7 @@ struct BoardHintButtonSourceTests {
         "GameShogi/ShogiView.swift",
         "GameChess/ChessView.swift",
         "GameGomoku/GomokuView.swift",
+        "GameOthello/OthelloView.swift",
     ])
     func everyBoardGameUsesTheSharedButton(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
@@ -141,7 +167,7 @@ struct BoardHintButtonSourceTests {
         let source = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/Core/BoardGameControlBar.swift")
         )
-        #expect(source.contains("badge: hint.needsAd ? .ad(remaining: hint.remaining) : .count(hint.remaining)"),
+        #expect(source.contains("badge: hint.badge"),
                 "残り回数と広告の有無を 2 行目に出していない")
         #expect(source.contains("role: .hint"), "ヒントのカプセルが役割の色（黄）になっていない")
         #expect(source.contains("systemImage: \"lightbulb.fill\""))
@@ -184,6 +210,7 @@ struct BoardHintButtonSourceTests {
         "GameShogi/ShogiView.swift",
         "GameChess/ChessView.swift",
         "GameGomoku/GomokuView.swift",
+        "GameOthello/OthelloView.swift",
     ])
     func hintMarkUsesTheSharedColor(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
@@ -196,6 +223,7 @@ struct BoardHintButtonSourceTests {
         "GameShogi/ShogiGameModel.swift",
         "GameChess/ChessGameModel.swift",
         "GameGomoku/GomokuModel.swift",
+        "GameOthello/OthelloModel.swift",
     ])
     func everyModelFeedsTheHintAwareScore(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))

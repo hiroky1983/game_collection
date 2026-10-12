@@ -36,6 +36,22 @@ struct ThemeContrastTests {
         #expect(Theme.Hex.Fill.all == [0xFF8A7E, 0x22C3BE, 0xB3A6F0, 0xFFC24B, 0xFF8FB1])
     }
 
+    // MARK: - ダイアログのボタンの文字色（#1874）
+
+    /// ライトでは白いすりガラスの上で AA に乗せる（会長決裁の案 C）。元の差し色では足りないことが色を分けた理由。
+    @Test func dialogTintMeetsAAOnLightGlass() {
+        #expect(Theme.Hex.dialogTint.light == 0xC93D2E)
+        #expect(WCAG.contrast(Theme.Hex.dialogTint.light, Self.white) >= Self.aa)
+        #expect(WCAG.contrast(Theme.Hex.coral, Self.white) < Self.aa)
+    }
+
+    /// ダークのすりガラスは暗い面なので、濃くした値を使うと逆に読めなくなる。ダークは差し色のまま。
+    @Test func dialogTintStaysCoralInDarkMode() {
+        let darkGlass: UInt32 = 0x3A3330
+        #expect(Theme.Hex.dialogTint.dark == Theme.Hex.coral)
+        #expect(WCAG.contrast(Theme.Hex.dialogTint.light, darkGlass) < WCAG.contrast(Theme.Hex.dialogTint.dark, darkGlass))
+    }
+
     // MARK: - 受け入れ条件 1 / 2: ダークでもコントラストが不足しない
 
     @Test func inkIsReadableInBothModes() {

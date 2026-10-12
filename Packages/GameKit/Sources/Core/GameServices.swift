@@ -15,14 +15,37 @@
 @MainActor
 public final class GameScreenGeneration {
     public private(set) var current = 0
+    private var leaveCancellable: [Int: Task<Void, Never>] = [:]
+    private var nextTaskID = 0
 
     /// `GameServices.init` の既定値として書けるように nonisolated にする
     /// （既定値は呼び出し側の文脈で評価されるため、MainActor 限定だとテストの
     /// 非 MainActor な組み立てが通らなくなる）。初期値 0 は隔離を必要としない。
     nonisolated public init() {}
 
-    /// ゲーム画面から離れた。
-    public func advance() { current += 1 }
+    /// ゲーム画面から離れた。離脱で取り消す約束の Task（`runUntilLeave`）もここで cancel する。
+    public func advance() {
+        current += 1
+        let tasks = leaveCancellable.values
+        leaveCancellable.removeAll()
+        for task in tasks { task.cancel() }
+    }
+
+    /// 画面を離れたら cancel される Task として `operation` を走らせる（将棋・チェス・五目並べのヒントの読み・#1903）。
+    ///
+    /// View が作る非構造化 Task は離脱では止まらず、`withAITurnGuard` の `Task.isCancelled` 照合が効かない。
+    /// 離脱後に読みが確定すると、ヒント回数が減り・`game_start` が余り・手つかずの局に中断データが付く。
+    @discardableResult
+    public func runUntilLeave(_ operation: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        let id = nextTaskID
+        nextTaskID += 1
+        let task = Task { [weak self] in
+            await operation()
+            self?.leaveCancellable[id] = nil
+        }
+        leaveCancellable[id] = task
+        return task
+    }
 }
 
 /// 各ゲームに注入する横断サービス束。MVP では永続化と広告のみ。
@@ -53,6 +76,12 @@ public struct GameServices {
     /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
     /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
     public let homerunSound: HomerunSoundService
+    /// 触覚だけの入口。`feedback` は効果音（`SoundEffect`）に相乗りするため、独自の場面の音（`homerunSound`）を持つ
+    /// 柵越えおじさんが触覚だけを足すのに使う。設定の「触覚」のオン / オフは App 層が包んで効かせる。テスト・プレビューでは何も鳴らさない。
+    public let haptics: FeedbackService
+    /// 「続きから戻れる途中の局か」の判定（#1847）。ハブの「続きから」と同じ `GameModule.hasResumableSnapshot` を
+    /// App 層が差し込む。nil（テスト・プレビュー）のときは「中断データが在る」だけで見る。
+    public let isResumable: ((String, SnapshotStore) -> Bool)?
 
     public init(
         snapshots: SnapshotStore,
@@ -67,7 +96,9 @@ public struct GameServices {
         reminders: ResumeReminderService? = nil,
         reengagement: ReengagementReminderService? = nil,
         returnReminder: ChallengeReturnReminderService? = nil,
-        homerunSound: HomerunSoundService = NoopHomerunSoundService()
+        homerunSound: HomerunSoundService = NoopHomerunSoundService(),
+        haptics: FeedbackService = NoopFeedbackService(),
+        isResumable: ((String, SnapshotStore) -> Bool)? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -82,6 +113,8 @@ public struct GameServices {
         self.reengagement = reengagement
         self.returnReminder = returnReminder
         self.homerunSound = homerunSound
+        self.haptics = haptics
+        self.isResumable = isResumable
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -166,13 +199,31 @@ public struct GameServices {
     /// **離脱（盤面を捨てた）**を切り分ける（#500）。呼び出し側（ハブ）は判定を持たない。
     @MainActor
     public func gameDidLeave(gameID: String) {
-        let hasSnapshot = snapshots.exists(for: gameID)
+        // 手つかずの盤は中断データが在っても「続き」ではない（#1847）。ハブの「続きから」と同じ判定を使う。
+        let hasSnapshot = isResumable?(gameID, snapshots) ?? snapshots.exists(for: gameID)
         analytics?.leaveGame(gameID: gameID, isResumable: hasSnapshot)
         // 中断データを持って戻ったときだけ、1 日ほど後のお知らせを予約する（#663）。
         reminders?.gameDidLeave(gameID: gameID, hasSnapshot: hasSnapshot)
         // 画面の世代を進める（#653）。次に開いたときは別の Model になるので、いま広告の
         // 完了を待っている救済は、視聴が終わっても適用してはいけない。
         screenGeneration.advance()
+    }
+
+    /// ゲーム画面を表示したままバックグラウンドへ入ったときにハブから呼ぶ（#1951）。
+    /// ホームボタン・アプリ切替での中断は `gameDidLeave` を通らないので、同じ判定（中断データの有無・
+    /// 手つかず判定）で続きのお知らせだけを予約する。解析（`leaveGame`）にも画面の世代にも触らない
+    /// ＝1プレイの数え方は変えない（画面はまだ開いているため）。
+    @MainActor
+    public func gameDidEnterBackground(gameID: String) {
+        let hasSnapshot = isResumable?(gameID, snapshots) ?? snapshots.exists(for: gameID)
+        reminders?.gameDidEnterBackground(gameID: gameID, hasSnapshot: hasSnapshot)
+    }
+
+    /// バックグラウンドから前面へ戻り、同じゲーム画面が出ているときにハブから呼ぶ（#1951）。
+    /// `gameDidEnterBackground` で予約したお知らせを取り消す。`game_open` は送らない（開き直しではない）。
+    @MainActor
+    public func gameDidReturnToForeground(gameID: String) {
+        reminders?.gameDidReturnToForeground(gameID: gameID)
     }
 
     /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送り、そのゲームの
@@ -194,12 +245,6 @@ public struct GameServices {
     @MainActor
     public func gameDidTapShare(gameID: String) {
         analytics?.recordShareTap(gameID: gameID)
-    }
-
-    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。`survey_answer` を送るだけで、プレイの数え方には触らない。
-    @MainActor
-    public func gameDidAnswerSurvey(gameID: String, answers: [Int]) {
-        analytics?.recordSurveyAnswer(gameID: gameID, answers: answers)
     }
 
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
@@ -285,7 +330,7 @@ public struct GameServices {
             outcome: outcome,
             score: score,
             totalWins: playLog?.totalWins ?? 0,
-            playedGameCount: playLog?.playedGameIDs.count ?? 0
+            playedGameIDs: playLog?.playedGameIDs ?? []
         )
         return result
     }

@@ -15,6 +15,10 @@ public struct HomerunView: View {
     /// 広告を見てプレイ（#1694）の救済。**画面に 1 つだけ**持ち、打席前・結果のボタンへ渡す（ボタンごとに持つと、
     /// 提示の計測（`reward_offer`）と連打ガードが割れ、付与でボタンが消えたときにアラートも一緒に消える）。
     @State private var challengeRescue = RewardedRescue()
+    /// 週間ランキング（#1792）: 結果の演出のあとに挟むページを見終えたか。次の挑戦の開始で戻す。
+    @State private var rankingSeen = false
+    /// 結果ページの「今週のランキング」から開き直しているか。
+    @State private var rankingReopened = false
     private let services: GameServices
     @Environment(\.scenePhase) private var scenePhase
 
@@ -56,8 +60,11 @@ public struct HomerunView: View {
             }
             // 進行の待ちは Model が決め、ここは待つだけ。進行が変わるたびに `step` が進んで前の待ちが止まる。
             .task(id: model.step) { await runClock() }
+            .onChange(of: model.phase) { _, phase in
+                if phase == .pitching || phase == .idle { rankingSeen = false; rankingReopened = false }
+            }
             // 場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。鳴らす時刻は演出と同じ式から決める（`HomerunSoundCues`）。
-            .modifier(HomerunSoundPlayer(model: model, service: services.homerunSound))
+            .modifier(HomerunSoundPlayer(model: model, service: services.homerunSound, haptics: services.haptics))
             #if os(iOS) && canImport(RealityKit)
             // 打席の 3D は画面の中では使い回し（もう一回で作り直すと前の打席の画のまま止まる・#1594）、離れたら手放す。
             .onDisappear { HomerunAtBatSceneReuse.drop() }
@@ -86,8 +93,34 @@ public struct HomerunView: View {
                 .gameNavigationBarBackgroundHidden()
                 .transition(.opacity)
         case .finished:
-            HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)
-                .transition(.opacity)
+            if (model.weekly.showsAfterFinale && !rankingSeen) || rankingReopened {
+                rankingPage
+                    .transition(.opacity)
+            } else {
+                HomerunResultView(model: model, services: services, challengeRescue: challengeRescue,
+                                  onOpenRanking: { withGameAnimation { rankingReopened = true } })
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    /// 今週のランキング（#1792）。結果の演出のあと（サインイン済みの人だけ）と、結果ページの行から開いたとき。
+    /// 演出のあとの最初の 1 回だけ入れ替えアニメを流し、開き直しは静止の表を出す。
+    @ViewBuilder private var rankingPage: some View {
+        let next = { withGameAnimation { rankingSeen = true; rankingReopened = false } }
+        let title = rankingReopened ? "結果に戻る" : "結果を見る"
+        switch model.weekly {
+        case .off, .signedOut:
+            HomerunRankingSignedOutPage(nextTitle: title, onNext: next)
+        case .loading:
+            HomerunRankingPage(content: .loading, nextTitle: title, onNext: next)
+        case .failed:
+            HomerunRankingPage(content: .failed, nextTitle: title, onNext: next)
+        case .ready(let before, let after):
+            HomerunRankingPage(
+                content: .ready(board: after, motion: rankingReopened ? nil : HomerunRankingPlan.motion(before: before, after: after)),
+                nextTitle: title, onNext: next
+            )
         }
     }
 
@@ -228,7 +261,7 @@ struct HomerunCountMeter: View {
             HStack(spacing: 6) {
                 ball(lit: remaining > 0)
                 Text(verbatim: "×\(remaining)")
-                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(remaining > 0 ? lit : unlit)
                     .lineLimit(1)
             }
@@ -237,7 +270,7 @@ struct HomerunCountMeter: View {
 
     private func ball(lit isLit: Bool) -> some View {
         Image(systemName: "baseball.fill")
-            .font(.system(size: 20))
+            .scaledFont(20)
             .foregroundStyle(isLit ? lit : unlit)
     }
 }
@@ -248,6 +281,8 @@ struct HomerunResultView: View {
     let model: HomerunModel
     let services: GameServices
     let challengeRescue: RewardedRescue
+    /// 結果ページの「今週のランキング」の行を押したとき（#1792）。
+    let onOpenRanking: () -> Void
 
     private var balls: [HomerunBattedBall] { model.challenge?.results ?? [] }
 
@@ -266,6 +301,7 @@ struct HomerunResultView: View {
     private var resultContent: some View {
         VStack(spacing: 14) {
             summaryCard
+            rankingRow
             HomerunUnlockedCard(items: model.unlockedThisChallenge)
             moonCard
             breakdownCard
@@ -286,7 +322,7 @@ struct HomerunResultView: View {
                      ? "\(balls.count) 球で終了（月が割れた）"
                      : "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
                 Text(verbatim: HomerunText.meters(total))
-                    .font(.system(size: 44, weight: .black, design: .rounded).monospacedDigit())
+                    .scaledFont(44, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 HStack(spacing: 6) {
@@ -303,19 +339,52 @@ struct HomerunResultView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// 今週のランキングの 1 行（#1792）。ランクインしたことと順位だけを知らせ、表は別のページで見せる（会長決定 2026-10-09）。
+    /// 未サインインでは「登録すると見られます」の案内ページへ。送り先が未作成、または順位を読めていないときは出さない。
+    @ViewBuilder private var rankingRow: some View {
+        switch model.weekly {
+        case .signedOut:
+            rankingButton(detail: "Game Center に登録すると見られます", delta: nil)
+        case .ready(let before, let after):
+            if let rank = after.myRank {
+                let up = HomerunRankingPlan.motion(before: before, after: after).map { $0.from + 1 - ($0.to + 1) }
+                rankingButton(detail: "\(rank)位にランクイン", delta: up)
+            }
+        case .off, .loading, .failed:
+            EmptyView()
+        }
+    }
+
+    private func rankingButton(detail: String, delta: Int?) -> some View {
+        Button(action: onOpenRanking) {
+            HStack(spacing: 8) {
+                Label("今週のランキング", systemImage: "trophy.fill").themeBody(16).foregroundStyle(Theme.ink)
+                Spacer(minLength: 4)
+                Text(verbatim: detail).themeBody(14, weight: .heavy).foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.trailing)
+                if let delta, delta > 0 { ChipText(text: "↑ \(delta)", fill: Theme.Fill.pink) }
+                Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSub)
+            }
+            .padding(14)
+            .frame(minHeight: 44)
+            .popCard()
+        }
+        .buttonStyle(.plain)
+    }
+
     /// 月まで飛んだ（#1680）挑戦だけに出す。距離は 384,400 km と出し（合計・自己ベストには 180m で数えてある）、月が割れたら
     /// 挑戦の終わりとプレイ回数 +1 を知らせる。打球の分布（`sprayCard`）とは別のカード。
     @ViewBuilder private var moonCard: some View {
         if let challenge = model.challenge, challenge.moonCount > 0 {
             HStack(spacing: 12) {
                 Image(systemName: challenge.isMoonBroken ? "moon.circle.fill" : "moon.stars.fill")
-                    .font(.system(size: 34, weight: .bold))
+                    .scaledFont(34, weight: .bold, maxScale: 1.2)
                     .foregroundStyle(Theme.yellow)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(challenge.isMoonBroken ? "月が割れた！" : "月まで飛んだ！")
                         .themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
                     Text(verbatim: HomerunText.moonDistance)
-                        .font(.system(size: 26, weight: .black, design: .rounded).monospacedDigit())
+                        .scaledFont(26, weight: .black, design: .rounded).monospacedDigit()
                         .foregroundStyle(Theme.ink)
                     if challenge.isMoonBroken {
                         Text("挑戦はここで終わり。プレイ回数 +\(HomerunLedger.moonBonus) をプレゼント")
@@ -518,14 +587,14 @@ struct HomerunBallTile: View {
     var body: some View {
         VStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .bold))
+                .scaledFont(14, weight: .bold)
                 .foregroundStyle(iconColor)
             Text(verbatim: ball.distance > 0 ? HomerunText.distance(of: ball) : HomerunText.kind(ball.kind))
-                .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(13, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(verbatim: HomerunText.place(ball))
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .scaledFont(10, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .lineLimit(1).minimumScaleFactor(0.6)
         }
@@ -722,12 +791,6 @@ struct HomerunRecoveryButton: View {
     /// 広告でのプレイの上限に達したとき「今日はここまで…」を出すか。結果画面は下に「あと◯時間◯分で無料枠が戻ります」が
     /// あるので出さない（会長決定 2026-10-05）。
     var showsLimitNotice = true
-    @State private var showsSurvey = false
-    @State private var surveyNotApplied = false
-    /// 適用できなかった知らせは、シートが閉じ終わってから出す（閉じる最中に同じ親からアラートを出すと iOS が無視する）。
-    @State private var surveyFailedOnSubmit = false
-    /// アンケートを開いた時点の「今日」の鍵（時計から作る。回答中に 0:00 をまたいだら適用しない）。
-    @State private var surveyDay = 0
 
     var body: some View {
         let ledger = model.ledger
@@ -757,102 +820,6 @@ struct HomerunRecoveryButton: View {
                 Text("今日はここまで。0:00 に \(HomerunLedger.freePerDay) 回に戻ります")
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
-            }
-            if HomerunSurvey.isOffered && ledger.canDoSurvey { surveyButton }
-        }
-        .sheet(isPresented: $showsSurvey, onDismiss: {
-            if surveyFailedOnSubmit { surveyFailedOnSubmit = false; surveyNotApplied = true }
-        }) {
-            HomerunSurveySheet { answers in
-                let applied = model.submitSurvey(answers, forDay: surveyDay, now: Date())
-                showsSurvey = false
-                surveyFailedOnSubmit = !applied
-            }
-        }
-        .alert("挑戦回数を増やせませんでした", isPresented: $surveyNotApplied) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("回答しているあいだに日付が変わったため、回数を増やせませんでした。")
-        }
-    }
-
-    private var surveyButton: some View {
-        VStack(spacing: 6) {
-            Button {
-                surveyDay = model.dayKey(at: Date())
-                showsSurvey = true
-            } label: {
-                Label("アンケートに答えて挑戦 +1 回", systemImage: "list.bullet.clipboard")
-                    .themeBody(16)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered).controlSize(.large).tint(Theme.Fill.teal)
-            Text(verbatim: "3 問・選ぶだけ・1 日 1 回")
-                .themeCaption(11)
-                .foregroundStyle(Theme.inkSub)
-        }
-    }
-}
-
-// MARK: - アンケートで挑戦回数 +1
-
-/// 3 問を選ぶだけのアンケート（README §3.4）。全問に答えると送信でき、閉じるだけでは回数は増えない。
-/// 回答は `onSubmit` が Model へ渡すだけで、この画面には残さない。
-struct HomerunSurveySheet: View {
-    let onSubmit: ([Int]) -> Void
-    @State private var answers: [Int?] = Array(repeating: nil, count: HomerunSurvey.questions.count)
-    @Environment(\.dismiss) private var dismiss
-
-    private var complete: [Int]? {
-        let picked = answers.compactMap { $0 }
-        return picked.count == answers.count ? picked : nil
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("答えると今日の挑戦が 1 回増えます。回答は選んだ番号だけを送り、あなたを特定する情報は含みません。")
-                        .themeCaption(12)
-                        .foregroundStyle(Theme.inkSub)
-                    ForEach(Array(HomerunSurvey.questions.enumerated()), id: \.offset) { index, question in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(verbatim: "Q\(index + 1). \(question.prompt)")
-                                .themeBody(16, weight: .heavy)
-                                .foregroundStyle(Theme.ink)
-                            ForEach(Array(question.choices.enumerated()), id: \.offset) { choice, label in
-                                let selected = answers[index] == choice + 1
-                                Button { answers[index] = choice + 1 } label: {
-                                    HStack {
-                                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                                        Text(label).themeBody(15)
-                                        Spacer(minLength: 0)
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .foregroundStyle(selected ? Theme.coral : Theme.ink)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityAddTraits(selected ? .isSelected : [])
-                            }
-                        }
-                    }
-                    Button {
-                        if let picked = complete { onSubmit(picked) }
-                    } label: {
-                        Text("送信して挑戦 +1 回").themeBody(17).frame(maxWidth: .infinity)
-                            .foregroundStyle(complete == nil ? Theme.inkSub : Theme.onAccent)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-                    .disabled(complete == nil)
-                }
-                .padding(Theme.pad)
-            }
-            .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("アンケート")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
             }
         }
     }

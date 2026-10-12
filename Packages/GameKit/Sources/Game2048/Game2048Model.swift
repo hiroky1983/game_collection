@@ -1,6 +1,18 @@
 import Core
 import Observation
 
+/// 2048 の「戻す」の回数制（#2023）。値は `RewardedUndoBudget` が持ち、ここは 2048 の文脈に
+/// 名前を残すための転送（`SudokuUndoBudget` と同じ作り）。
+public enum Game2048UndoBudget {
+    /// 1 局につき無料で戻せる回数。新規ゲームでここまで戻る。
+    public static let free = RewardedUndoBudget.free
+    /// リワード広告 1 本の視聴完了で補充する回数。
+    public static let refill = RewardedUndoBudget.refill
+    /// 持ち越す履歴の上限（手数）。中断データを際限なく太らせないための歯止めで、
+    /// 戻せる回数（無料 3 + 広告補充）を普通に使い切る範囲では届かない。
+    public static let historyLimit = 100
+}
+
 /// 2048 のゲーム状態。盤面・スコア・終局を保持し、永続化サービスへ中断スナップショットを書く。
 /// 純粋ロジックは `Game2048Logic` に委譲し、ここは乱数生成・永続化・終局管理のみ担う。
 @MainActor
@@ -22,6 +34,11 @@ public final class Game2048Model {
     /// 直前の終局を「負け」として記録したか（#764）。2048 を作った手で詰んだ局は勝ちで記録するので、
     /// コンティニューで巻き戻してよいのはこれが true のときだけ。終局後の中断・復元経路は無いので中断データには書かない。
     private var lastFinishWasLoss = false
+
+    /// 戻すための履歴（古い順・末尾が直前の 1 手の前）。中断データにも保存する（#2023）。
+    public private(set) var history: [Game2048Step] = []
+    /// 今使える「戻す」の回数。新規ゲームで無料枠へ戻り、中断・復元では戻らない。
+    public private(set) var undosRemaining = Game2048UndoBudget.free
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -51,6 +68,12 @@ public final class Game2048Model {
             // 演出を出したまま中断していたら出し直す（#516）。ここで落とすと「続ける / もう一度」を
             // 選ばないうちに選択肢が消え、続行が次の 1 プレイとして数え直されない。
             showWinPrompt = snap.showWinPrompt
+            // 履歴の盤が 1 枚でも壊れていたら、戻した先で添字が範囲外になるので履歴ごと捨てる（#1384 と同じ理由）。
+            if let saved = snap.history, saved.allSatisfy({ Self.isRestorable($0.board) && $0.score >= 0 }) {
+                history = Array(saved.suffix(Game2048UndoBudget.historyLimit))
+            }
+            // 復元で回数が戻らないよう保存した残数を読む。無い（旧データ）なら無料枠から。
+            undosRemaining = max(0, snap.undosRemaining ?? Game2048UndoBudget.free)
         } else {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
@@ -91,6 +114,9 @@ public final class Game2048Model {
             return
         }
 
+        // 戻す先は「この手の前」。出現したタイルも含めた盤とスコアをそのまま控える（#2023）。
+        history.append(Game2048Step(board: board, score: score))
+        if history.count > Game2048UndoBudget.historyLimit { history.removeFirst() }
         board = result.board
         score += result.gained
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
@@ -142,6 +168,9 @@ public final class Game2048Model {
         // 演出が出直し、そのつど `gameDidRestart` が走って `game_start` だけが増える。
         persist()
         services?.gameDidRestart(gameID: gameID)
+        // 続きの盤面は既に指した盤面なので、数え直した 1 プレイも最初から「指した」扱いにする（#1953）。
+        // これが無いと、無操作で「もう一度」を押したとき `game_end`（quit）が出ず `game_start` だけが残る。
+        services?.gameDidProgress(gameID: gameID)
     }
 
     /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
@@ -174,6 +203,61 @@ public final class Game2048Model {
         // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる。
         services?.gameDidRestart(gameID: gameID)
+        // 続きの盤面は既に指した盤面（#1953）。`continueAfterWin` と同じ理由で数え直した 1 プレイを「指した」扱いにする。
+        services?.gameDidProgress(gameID: gameID)
+        return true
+    }
+
+    // MARK: - 戻す（#2023）
+
+    /// 「戻す」を押せるか。勝利演出が出ているあいだは「続ける / もう一度」を先に選ばせる（`move` と同じ扱い）。
+    /// 負けの局面からも戻せる。
+    public var canUndo: Bool { !history.isEmpty && !showWinPrompt }
+
+    /// 残り回数があるか。
+    public var hasUndoCredit: Bool { undosRemaining > 0 }
+
+    /// 押せるが回数を使い切っている（View は広告の提案を出す）。
+    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
+
+    /// 1 手戻す。**1 局につき無料 `Game2048UndoBudget.free` 回まで**（使い切ったら `grantUndos(forGame:)` で補充）。
+    /// 連続で押せば、さらに前へ戻れる。
+    @discardableResult
+    public func undo() -> Bool {
+        guard canUndo, hasUndoCredit, let step = history.popLast() else { return false }
+        undosRemaining -= 1
+        board = step.board
+        score = step.score
+        if gameOver {
+            // 終局から戻る。`continueAfterAd` と同じ理由で、記録した「負け」は無かったことにし、
+            // 続きを次の 1 プレイとして数え直す（`game_end` は送信済み）。勝ちで終局した局には取り消す負けが無い（#764）。
+            if lastFinishWasLoss {
+                services?.playLog?.cancelLoss(gameID: gameID)
+            }
+            lastFinishWasLoss = false
+            recordResult = nil
+            gameOver = false
+            persist()
+            services?.gameDidRestart(gameID: gameID)
+            services?.gameDidProgress(gameID: gameID)
+        } else {
+            persist()
+        }
+        services?.feedback.impact(.medium)
+        return true
+    }
+
+    /// リワード広告の**視聴完了後**に「戻す」を補充する。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `gameSerial`。広告のロード中に新規ゲームを始めたら補充しない
+    ///   （`newGame` は残数を無料枠へ戻すので、そのまま足すと無料 + 補充から始まる）。
+    /// - Returns: 補充できたか。false のとき View は「補充できなかった」と伝える。
+    @discardableResult
+    public func grantUndos(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        undosRemaining += Game2048UndoBudget.refill
+        services?.feedback.notify(.success)
+        persist()
         return true
     }
 
@@ -197,6 +281,8 @@ public final class Game2048Model {
         showWinPrompt = false
         recordResult = nil
         lastFinishWasLoss = false
+        history = []
+        undosRemaining = Game2048UndoBudget.free
         Self.spawn(into: &board)
         Self.spawn(into: &board)
         persist()
@@ -230,7 +316,9 @@ public final class Game2048Model {
                 score: score,
                 continueUsed: continueUsed,
                 hasWon: hasWon,
-                showWinPrompt: showWinPrompt
+                showWinPrompt: showWinPrompt,
+                history: history,
+                undosRemaining: undosRemaining
             ),
             for: gameID
         )

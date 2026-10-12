@@ -80,7 +80,7 @@ struct MahjongMeldRow: View {
             }
             if showsBadge {
                 Text(Self.badge(meld))
-                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .scaledFont(8, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
         }
@@ -129,7 +129,7 @@ struct MahjongCallBar: View {
                     // `minimumScaleFactor` を下げても「ス…」と省略され続けた。1行に収める
                     // こと自体を諦め、必要なら2行に折り返させて省略記号そのものを起こさせない。
                     Text("スルー")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .scaledFont(12, weight: .bold, design: .rounded)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
                 }
@@ -196,7 +196,7 @@ struct MahjongCallBar: View {
     /// ボタンの文言。`fixedSize` で縮小も省略もさせない（潰すのは牌の側・上のコメント参照）。
     private func callButtonText(_ option: MahjongCall) -> some View {
         Text(option.actionName)
-            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .scaledFont(13, weight: .bold, design: .rounded)
             .fixedSize()
     }
 
@@ -246,7 +246,7 @@ struct MahjongKanButton: View {
 
     private var label: some View {
         Text("カン")
-            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .scaledFont(16, weight: .bold, design: .rounded)
             .frame(maxWidth: .infinity, minHeight: 40)
     }
 }

@@ -28,7 +28,7 @@ public struct MahjongTileGallery: View {
                 ForEach(widths, id: \.self) { width in
                     VStack(alignment: .leading, spacing: 6) {
                         Text("牌の幅 \(Int(width))pt")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                         tiles(width: width)
                     }

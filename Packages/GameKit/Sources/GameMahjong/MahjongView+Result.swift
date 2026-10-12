@@ -8,21 +8,21 @@ extension MahjongView {
     var handResultCard: some View {
         VStack(spacing: 8) {
             Text(handResultTitle)
-                .font(.system(size: 20, weight: .black, design: .rounded))
+                .scaledFont(20, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.coral)
             if let result = model.handResult, result.kind != .exhaustiveDraw {
                 Text("\(result.han)飜 \(result.fu > 0 ? "\(result.fu)符 " : "")\(result.limitName ?? "")")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .scaledFont(14, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
                 VStack(spacing: 3) {
                     ForEach(Array(result.yaku.enumerated()), id: \.offset) { _, name in
                         Text(name)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .scaledFont(12, weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
                 }
                 Text("\(result.gainedPoints)点")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .scaledFont(18, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.teal)
                 // 和了者の手を開く（#351）。何に振り込んだか・どんな手だったかを学べるようにする。
                 if let tiles = result.winningHand, let winTile = result.winningTile {
@@ -39,7 +39,7 @@ extension MahjongView {
                         ? "全員ノーテンです"
                         : "聴牌: " + result.tenpaiPlayers.map { model.playerName($0) }.joined(separator: "・")
                 )
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .scaledFont(13, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             }
             scoreTable
@@ -82,7 +82,7 @@ extension MahjongView {
     private func uraDoraRow(_ tiles: [MahjongTile]) -> some View {
         HStack(spacing: 4) {
             Text("裏ドラ")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .scaledFont(11, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
                 MahjongTileView(tile: tile, width: 14, height: 19)
@@ -121,26 +121,26 @@ extension MahjongView {
     var gameResultCard: some View {
         VStack(spacing: 10) {
             Text(gameResultTitle)
-                .font(.system(size: 22, weight: .black, design: .rounded))
+                .scaledFont(22, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.coral)
             if let place = model.playerPlace {
                 Text("あなたは \(place + 1)位")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .scaledFont(18, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
             VStack(spacing: 4) {
                 ForEach(Array(model.ranking.enumerated()), id: \.offset) { place, player in
                     HStack {
                         Text("\(place + 1)位")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .scaledFont(13, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.coral)
                             .frame(width: 36, alignment: .leading)
                         Text(model.playerName(player))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(Theme.ink)
                         Spacer()
                         Text("\(model.scores[player])点")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .scaledFont(13, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
                 }
@@ -162,16 +162,16 @@ extension MahjongView {
             ForEach(0..<MahjongModel.playerCount, id: \.self) { player in
                 HStack {
                     Text(model.playerName(player))
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .scaledFont(12, weight: .semibold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                     Spacer()
                     if let change = model.handResult?.pointChanges[player], change != 0 {
                         Text(change > 0 ? "+\(change)" : "\(change)")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .scaledFont(12, weight: .bold, design: .rounded)
                             .foregroundStyle(change > 0 ? Theme.teal : Theme.coral)
                     }
                     Text("\(model.scores[player])点")
-                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .scaledFont(12, weight: .black, design: .rounded)
                         .foregroundStyle(model.scores[player] < 0 ? Theme.coral : Theme.ink)
                         .frame(width: 66, alignment: .trailing)
                 }

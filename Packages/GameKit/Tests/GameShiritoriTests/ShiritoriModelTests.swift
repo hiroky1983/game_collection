@@ -122,6 +122,23 @@ struct ShiritoriModelTests {
         #expect(model.lastEvent == .played(by: .player, reading: "どらむ", isAlternate: true))
     }
 
+    @Test("裏読みで取られた札は、一覧でも取ったときの読みで出る。取られる前は表読みのまま（#1875）")
+    func claimedAlternateReadingShowsInSlotList() {
+        let drum = ShiritoriCard(.drum, "たいこ", "どらむ")
+        let start = ShiritoriCard(.pillow, "まくど")      // 語尾「ど」
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: start, board: [drum, top])
+        #expect(model.slots[0].displayReading == "たいこ")
+
+        model.select(0)
+
+        #expect(model.slots[0].owner == .player)
+        #expect(model.slots[0].displayReading == "どらむ")
+        #expect(model.slots[0].displayReading == model.currentReading)
+        #expect(ShiritoriPresentation.slotLabel(model.slots[0]) == "\(drum.kind.displayName)、どらむ、あなたが取りました")
+        #expect(model.slots[1].displayReading == top.primaryReading)
+    }
+
     @Test("時間はプレイヤーの手番のあいだだけ減る")
     func clockRunsOnlyOnThePlayersTurn() {
         let (model, _) = makeModel()
@@ -758,6 +775,18 @@ struct ShiritoriTimeExtensionTests {
         #expect(plays(log) == 1, "冪等")
     }
 
+    @Test("保留中に背景へ回って確定しても、その後に onDisappear や始め直しが来て二重に記録されない（#1977）")
+    func backgroundCommitThenDisappearAndRestartRecordsOnce() {
+        let (model, log) = makeLoggedModel("background")
+        model.tick(ShiritoriTime.initial)
+        #expect(model.isTimeUpLossPending)
+        model.commitTimeUpLoss()   // 背景に回った時点
+        #expect(model.recordResult != nil)
+        model.commitTimeUpLoss()   // onDisappear
+        model.startGame(quota: model.quota, mode: model.mode)   // 始め直しの先頭の commit
+        #expect(plays(log) == 1)
+    }
+
     @Test("続けない（commit）と負けが 1 回だけ記録され、続ける導線は消える")
     func declineRecordsOnce() {
         let (model, log) = makeLoggedModel("decline")
@@ -833,7 +862,7 @@ struct ShiritoriTimeExtensionTests {
         model.tick(ShiritoriTime.initial)
 
         func ends() -> [AnalyticsResult] {
-            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _) = $0 { return result } else { return nil } }
+            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _, _) = $0 { return result } else { return nil } }
         }
         func starts() -> Int { spy.events.filter { if case .gameStart = $0 { return true } else { return false } }.count }
         #expect(ends() == [.loss] && starts() == 1)

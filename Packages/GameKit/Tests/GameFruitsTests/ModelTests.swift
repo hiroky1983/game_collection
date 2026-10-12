@@ -552,3 +552,33 @@ struct FruitsDebugScenarioTests {
         #expect(unknown.field.count == 0)
     }
 }
+
+// MARK: - 壊れた中断データ（#1913）
+
+@Suite("くっつきフルーツの壊れた中断データ")
+@MainActor
+struct FruitsBrokenSnapshotTests {
+    private func snapshot(drawCount: Int) -> FruitsSnapshot {
+        FruitsSnapshot(
+            fruits: [], cursorX: 50, score: 0, heldKind: .grape, nextKind: .grape,
+            continueUsed: false, seed: 1, drawCount: drawCount, dropCount: 0, hasMadeMelon: false
+        )
+    }
+
+    @Test("抽選回数が桁外れの中断データは、固まらずに新規開始し中断データを消す")
+    func hugeDrawCountIsDiscarded() throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(drawCount: 4_000_000_000), for: "fruits")
+        let model = FruitsModel(services: makeServices(store: store), seed: 1)
+        #expect(model.score == 0)
+        #expect(store.load(FruitsSnapshot.self, for: "fruits") == nil)
+    }
+
+    @Test("上限ちょうどの抽選回数は復元する（対照）")
+    func limitDrawCountIsKept() throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(drawCount: FruitsModel.maxRestorableDrawCount), for: "fruits")
+        _ = FruitsModel(services: makeServices(store: store), seed: 1)
+        #expect(store.load(FruitsSnapshot.self, for: "fruits") != nil)
+    }
+}

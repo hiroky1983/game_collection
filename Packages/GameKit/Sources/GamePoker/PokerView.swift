@@ -686,7 +686,7 @@ public struct PokerView: View {
 
     /// 復活導線の文言。回数制限を見た目にも出す（#499）。
     private var reviveButtonTitle: String {
-        "広告を見て\(PokerModel.reviveChips)枚で復活（1セッションに1回）"
+        "広告を見て\(PokerModel.reviveChips)枚で復活（\(model.revivesRemaining == 1 ? "最後の1回" : "あと\(model.revivesRemaining)回")）"
     }
 
     /// やり直しの文言。復活の枚数と並べて読めるように、こちらにも枚数を出す（#523・ブラックジャックと揃える）。
@@ -705,7 +705,7 @@ public struct PokerView: View {
             // 復活のほうがチップは多い（#523）ぶん、順位表に載らないことも選ぶ前に読める場所へ書く。
             return model.canReviveAfterBust
                 ? "あなたのチップが尽きました。\(PokerModel.reviveChips)枚で復活すると順位表に載りません"
-                : "あなたのチップが尽きました。復活はこのセッションで使いました"
+                : "あなたのチップが尽きました。復活はこのセッションで\(PokerModel.maxRevivesPerSession)回使いました"
         }
     }
 
@@ -720,7 +720,7 @@ public struct PokerView: View {
                 let titleColor = winner == .player ? Theme.teal : winner == .tie ? Theme.teal : Theme.coral
                 let subtitle = sessionOverSubtitle
                 Image(systemName: icon)
-                    .font(.system(size: 24))
+                    .scaledFont(24)
                     .foregroundStyle(iconColor)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
@@ -751,7 +751,7 @@ public struct PokerView: View {
                     // 適用できなかったとき（#728）は「視聴しなかった」と別のアラートを出す。
                     reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
                 } label: {
-                    // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
+                    // 残り回数（1セッションに3回まで・#2012）は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
                     // 書かないと2回目を期待して押す人が出る）。数値は `Text` 補間の桁区切りを避けて
                     // 文字列を先に組む（#484）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")

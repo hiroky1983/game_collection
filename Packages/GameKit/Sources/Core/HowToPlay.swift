@@ -4,6 +4,10 @@ import SwiftUI
 ///
 /// ルールは **3 行以内**、盤の近くに出すミニガイドは **1 行**に収める。遊ぶ前に長文を読ませる
 /// 方式は #81 で却下されているため、これ以上の分量はシートの「くわしいルール」へ逃がす。
+///
+/// 図入りの遊び方（#2044）を持つゲームは `items` に「短文 1〜2 行＋その図」を並べる。`items` がある
+/// ゲームのシートは `lines` の代わりに番号付きの図カードを並べ、`notes` を末尾の文だけのカードに出す
+/// （3 行ルールの制約 #81 は「文は項目ごとに 1〜2 行」に読み替える）。`lines` は要約として残す。
 public struct HowToPlayGuide: Sendable, Equatable {
     /// `GameModule.id` と同じ ID。ミニガイドの表示済みフラグのキーに使う。
     public let gameID: String
@@ -15,19 +19,63 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public let hint: String
     /// ミニガイドのアイコン（SF Symbols 名）。
     public let hintIcon: String
+    /// 図入りの項目（#2044）。空ならシートは `lines` を並べる（従来どおり）。
+    public let items: [HowToPlayItem]
+    /// 図に入らない補足。`items` のあとに文だけのカードで出す。
+    public let notes: [String]
 
     public init(
         gameID: String,
         title: String,
         lines: [String],
         hint: String,
-        hintIcon: String = "hand.tap.fill"
+        hintIcon: String = "hand.tap.fill",
+        items: [HowToPlayItem] = [],
+        notes: [String] = []
     ) {
         self.gameID = gameID
         self.title = title
         self.lines = lines
         self.hint = hint
         self.hintIcon = hintIcon
+        self.items = items
+        self.notes = notes
+    }
+
+    /// 項目に図を差し込んだ版を返す。図の View はゲーム側のモジュールにあるので、文言は Core、
+    /// 図はゲーム側で持つ。`figures` は `items` と同じ順・同じ数で渡す。
+    public func illustrated(_ figures: [@MainActor @Sendable () -> AnyView]) -> HowToPlayGuide {
+        precondition(figures.count == items.count,
+                     "\(gameID): 図の数（\(figures.count)）が項目の数（\(items.count)）と合わない")
+        return HowToPlayGuide(
+            gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
+            items: zip(items, figures).map { HowToPlayItem($0.text, figure: $1) },
+            notes: notes
+        )
+    }
+
+    /// 図（クロージャ）は比べられないので、文言と「図があるか」で比べる。
+    public static func == (lhs: HowToPlayGuide, rhs: HowToPlayGuide) -> Bool {
+        lhs.gameID == rhs.gameID && lhs.title == rhs.title && lhs.lines == rhs.lines
+            && lhs.hint == rhs.hint && lhs.hintIcon == rhs.hintIcon
+            && lhs.items == rhs.items && lhs.notes == rhs.notes
+    }
+}
+
+/// 図入りの遊び方の 1 項目（#2044）。短文 1〜2 行と、その下に出す図。
+public struct HowToPlayItem: Sendable, Equatable {
+    /// 項目の文。1〜2 行に収める。
+    public let text: String
+    /// 文の下に出す図。nil なら文だけ。
+    public let figure: (@MainActor @Sendable () -> AnyView)?
+
+    public init(_ text: String, figure: (@MainActor @Sendable () -> AnyView)? = nil) {
+        self.text = text
+        self.figure = figure
+    }
+
+    public static func == (lhs: HowToPlayItem, rhs: HowToPlayItem) -> Bool {
+        lhs.text == rhs.text && (lhs.figure == nil) == (rhs.figure == nil)
     }
 }
 
@@ -261,18 +309,6 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.portrait.on.rectangle.portrait.angled.fill"
     )
 
-    static let blockPuzzle = HowToPlayGuide(
-        gameID: "blockpuzzle",
-        title: "ブロックならべの遊び方",
-        lines: [
-            "下に出ている3つのピースを、盤の空いているところへドラッグして置きます。",
-            "たて1列・よこ1行がすべて埋まると、その並びが消えて点になります。",
-            "3つ置くと次の3つが出ます。どれも置けなくなったらゲームオーバーです。",
-        ],
-        hint: "ピースを盤へドラッグ",
-        hintIcon: "hand.draw.fill"
-    )
-
     static let blocks = HowToPlayGuide(
         gameID: "blocks",
         title: "ブロック崩しの遊び方",
@@ -408,12 +444,68 @@ public extension HowToPlayGuide {
         hintIcon: "figure.baseball"
     )
 
+    /// 図入りの遊び方の最初のゲーム（#2044 の先駆け・会長決定 2026-10-12）。
+    /// 図は `GameOjisanPuzzle` 側で `illustrated(_:)` を使って差し込む。
+    ///
+    /// 「？」は遊んでいるモードに合わせて出し分ける（会長指示 2026-10-12）。この `.ojisanPuzzleBackpain`
+    /// は荷運びモード（表示名、enum ケース名・解析の `mode` 値は旧名の `backpain` のまま）用で、
+    /// 登録漏れ検査（`HowToPlayGuideContentTests`）はこちらが担う。パズルモード用の
+    /// `.ojisanPuzzlePuzzle` は `gameID` が同じなので `all` には入れない（五目並べの `gomokuRenju` と同じ作法）。
+    static let ojisanPuzzleBackpain = HowToPlayGuide(
+        gameID: "ojisanpuzzle",
+        title: "おじさんの荷物運びパズルの遊び方",
+        lines: [
+            "2 つひと組の荷物が落ちてきます。よこにスワイプで動かし、タップで回し、下にスワイプで落とします。",
+            "同じ荷物がたて・よこに 4 つ以上つながると消えます。消えたあとに落ちてきた荷物がまたつながれば、れんさです。",
+            "荷運びモードはラインより下まで片付けたらクリア。重い荷物をかかえるほど腰にきて、満タンで入院です。",
+        ],
+        hint: "よこスワイプで動かす・タップで回す",
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem("荷物を 4 つそろえて消して、ラインより下まで片付けたらクリア。腰をいたわろう。"),
+            HowToPlayItem("2 つひと組の荷物を、スワイプとタップで動かします。画面のどこを触っても OK。"),
+            HowToPlayItem("同じ荷物がたて・よこに 4 つ以上つながると消えます。落ちてきてまたつながれば「れんさ」。"),
+            HowToPlayItem("荷物は 5 種類。重いものほど腰にきます。"),
+            HowToPlayItem("腰痛ゲージがあり、重い荷物をかかえるほど腰にきて、満タンになると入院です。"),
+            HowToPlayItem("入院か、荷物が出てくる位置（▼の列のいちばん上）が埋まったら終わりです。どちらも記録は残ります。"),
+        ],
+        notes: [
+            "途中の盤面は保存されません。",
+        ]
+    )
+
+    /// パズルモード用（会長指示 2026-10-12）。`gameID` は `.ojisanPuzzleBackpain` と同じなので `all` には
+    /// 入れない＝登録漏れ検査は `.ojisanPuzzleBackpain` のほうで担保される。
+    static let ojisanPuzzlePuzzle = HowToPlayGuide(
+        gameID: "ojisanpuzzle",
+        title: "おじさんの荷物運びパズルの遊び方",
+        lines: [
+            "2 つひと組の荷物が落ちてきます。よこにスワイプで動かし、タップで回し、下にスワイプで落とします。",
+            "同じ荷物がたて・よこに 4 つ以上つながると消えます。消えたあとに落ちてきた荷物がまたつながれば、れんさです。",
+            "パズルモードは空の盤から始まり、ゲージなしで得点をのばします。埋まるまで続きます。",
+        ],
+        hint: "よこスワイプで動かす・タップで回す",
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem("荷物を 4 つそろえて消して、得点をのばそう。空の盤から始まり、埋まるまで続きます。"),
+            HowToPlayItem("2 つひと組の荷物を、スワイプとタップで動かします。画面のどこを触っても OK。"),
+            HowToPlayItem("同じ荷物がたて・よこに 4 つ以上つながると消えます。落ちてきてまたつながれば「れんさ」。"),
+            HowToPlayItem("荷物は 5 種類あります。"),
+            HowToPlayItem("荷物が出てくる位置（▼の列のいちばん上）が埋まったら終わりです。記録は得点として残ります。"),
+        ],
+        notes: [
+            "得点は 消した数 × 10 × れんさ数。",
+            "荷物を置くほど少しずつ速くなります。",
+            "途中の盤面は保存されません。",
+        ]
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
+        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
-        .homerun,
+        .homerun, .ojisanPuzzleBackpain,
     ]
 }
 
@@ -443,22 +535,10 @@ public struct HowToPlaySheet<Extra: View>: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 10) {
-                    ForEach(Array(guide.lines.enumerated()), id: \.offset) { index, line in
-                        HStack(alignment: .top, spacing: 10) {
-                            Text("\(index + 1)")
-                                .font(.system(size: 13, weight: .black, design: .rounded))
-                                .foregroundStyle(Theme.onAccent)
-                                .frame(width: 22, height: 22)
-                                .background(Circle().fill(Theme.Fill.coral))
-                            Text(line)
-                                .themeBody(15)
-                                .foregroundStyle(Theme.ink)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .popCard(corner: Theme.cornerSmall)
+                    if !guide.items.isEmpty {
+                        illustratedItems
+                    } else {
+                        plainLines
                     }
                     if hasExtra {
                         NavigationLink {
@@ -469,7 +549,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                                     .themeBody(15)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .bold))
+                                    .scaledFont(13, weight: .bold)
                                     .foregroundStyle(Theme.inkSub)
                             }
                             .padding(12)
@@ -493,8 +573,241 @@ public struct HowToPlaySheet<Extra: View>: View {
                 }
             }
         }
-        // 3 行だけのときは半分の高さで開き、盤を隠しすぎない。詳細を持つゲームは最初から全画面。
-        .presentationDetents(hasExtra ? [.large] : [.medium, .large])
+        // モーダルは縦長（large）固定（#2096）。半分の高さで開くと 3 行ルールの下が余る。
+        .presentationDetents([.large])
+    }
+
+    /// 従来の 3 行ルール。
+    private var plainLines: some View {
+        ForEach(Array(guide.lines.enumerated()), id: \.offset) { index, line in
+            HStack(alignment: .top, spacing: 10) {
+                HowToPlayNumberBadge(number: index + 1)
+                Text(line)
+                    .themeBody(15)
+                    .foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard(corner: Theme.cornerSmall)
+        }
+    }
+
+    /// 図入りの項目（#2044）。1 項目 = 番号＋短文＋その図のカード。最後に補足を文だけのカードで出す。
+    @ViewBuilder
+    private var illustratedItems: some View {
+        ForEach(Array(guide.items.enumerated()), id: \.offset) { index, item in
+            HowToPlayItemCard(item, number: index + 1)
+        }
+        if !guide.notes.isEmpty {
+            HowToPlayNotesCard(guide.notes)
+        }
+    }
+}
+
+/// 番号の丸。3 行ルールと図カードで同じ部品を使う。
+private struct HowToPlayNumberBadge: View {
+    let number: Int
+
+    var body: some View {
+        Text("\(number)")
+            .scaledFont(13, weight: .black, design: .rounded)
+            .foregroundStyle(Theme.onAccent)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Theme.Fill.coral))
+    }
+}
+
+/// 図入りの遊び方の 1 項目のカード（短文＋図）。遊び方シートと、開始シートに遊び方を直接並べるゲーム
+/// （おじさんの荷物運びパズル・会長指示 2026-10-12）で同じ見た目にするため、部品として切り出している。
+public struct HowToPlayItemCard: View {
+    private let item: HowToPlayItem
+    private let number: Int?
+
+    /// - Parameter number: 左に出す番号。`nil` なら番号の丸を出さない（項目を抜き出して並べるとき）。
+    public init(_ item: HowToPlayItem, number: Int? = nil) {
+        self.item = item
+        self.number = number
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                if let number { HowToPlayNumberBadge(number: number) }
+                Text(item.text)
+                    .themeBody(15, weight: .bold)
+                    .foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            if let figure = item.figure {
+                figure()
+                    .frame(maxWidth: .infinity)
+                    // 図は説明の絵なので、読み上げは上の文に任せる。
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+/// 図入りの遊び方の補足（文だけのカード）。`HowToPlayItemCard` と同じく遊び方シートと開始シートで共有する。
+public struct HowToPlayNotesCard: View {
+    private let notes: [String]
+
+    public init(_ notes: [String]) {
+        self.notes = notes
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(notes, id: \.self) { note in
+                Text(note)
+                    .themeBody(13, weight: .medium)
+                    .foregroundStyle(Theme.inkSub)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+// MARK: - 図入りの遊び方の部品（#2044）
+
+/// 「前 → 後」のコマ図。各コマの間に矢印を挟んで横に並べる。コマの中身（盤・駒・札）は各ゲームが描く。
+///
+/// おじさんの荷物運びパズルの操作・れんさ、2048 の合体、オセロの裏返しなど、「こうすると、こうなる」を見せる図に使う。
+public struct RuleFrames<Frame: View>: View {
+    private let count: Int
+    private let spacing: CGFloat
+    private let frame: (Int) -> Frame
+
+    public init(count: Int, spacing: CGFloat = 4, @ViewBuilder frame: @escaping (Int) -> Frame) {
+        self.count = count
+        self.spacing = spacing
+        self.frame = frame
+    }
+
+    public var body: some View {
+        HStack(alignment: .center, spacing: spacing) {
+            ForEach(0..<count, id: \.self) { index in
+                frame(index)
+                if index < count - 1 {
+                    Image(systemName: "arrow.right")
+                        .scaledFont(12, weight: .black, maxScale: 1.2)
+                        .foregroundStyle(Theme.inkSub)
+                }
+            }
+        }
+    }
+}
+
+/// 種類の一覧図。種類を等幅で横に並べ、下に「軽い → 重い」のような向きの矢印を添える。
+/// 中身（絵・名前・値の印）は各ゲームが描く。荷物の重さ・駒の動き・役の点などに使う。
+public struct RuleLineup<Entry: View>: View {
+    private let count: Int
+    private let low: String?
+    private let high: String?
+    private let entry: (Int) -> Entry
+
+    public init(count: Int, low: String? = nil, high: String? = nil, @ViewBuilder entry: @escaping (Int) -> Entry) {
+        self.count = count
+        self.low = low
+        self.high = high
+        self.entry = entry
+    }
+
+    public var body: some View {
+        VStack(spacing: 6) {
+            HStack(alignment: .top, spacing: 2) {
+                ForEach(0..<count, id: \.self) { index in
+                    entry(index).frame(maxWidth: .infinity)
+                }
+            }
+            if low != nil || high != nil {
+                HStack(spacing: 0) {
+                    Rectangle().fill(Theme.inkSub).frame(height: 2)
+                    Image(systemName: "chevron.right")
+                        .scaledFont(12, weight: .black, maxScale: 1.2)
+                        .foregroundStyle(Theme.inkSub)
+                        .padding(.leading, -6)
+                }
+                .padding(.horizontal, 6)
+                HStack {
+                    if let low { Text(low).foregroundStyle(Theme.inkSub) }
+                    Spacer()
+                    if let high { Text(high).foregroundStyle(Theme.coral) }
+                }
+                .scaledFont(11, weight: .black, design: .rounded, maxScale: 1.2)
+                .padding(.horizontal, 6)
+            }
+        }
+    }
+}
+
+/// 段階の帯図。横長の帯を段階ごとの色で塗り分け、下に段階の名前を出す。帯の上には段階ごとの絵を置ける。
+/// 腰痛ゲージ・体力・ブラックジャックの 21 など「どこまで来ると何が起きるか」を見せる図に使う。
+public struct RuleStageBand<Above: View>: View {
+    /// 1 段階。`share` は帯全体に対する幅の割合（合計 1）。
+    public struct Stage: Sendable {
+        public let caption: String
+        public let share: CGFloat
+        public let color: Color
+        public let captionColor: Color
+
+        public init(_ caption: String, share: CGFloat, color: Color, captionColor: Color = Theme.inkSub) {
+            self.caption = caption
+            self.share = share
+            self.color = color
+            self.captionColor = captionColor
+        }
+    }
+
+    private let stages: [Stage]
+    private let width: CGFloat
+    private let above: (Int) -> Above
+
+    /// `width` は帯の幅（pt）。図は固定寸法で描くので、呼び出し側がカードに収まる幅を渡す。
+    public init(stages: [Stage], width: CGFloat, @ViewBuilder above: @escaping (Int) -> Above) {
+        self.stages = stages
+        self.width = width
+        self.above = above
+    }
+
+    public var body: some View {
+        VStack(spacing: 6) {
+            HStack(alignment: .bottom, spacing: 0) {
+                ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
+                    above(index).frame(width: width * stage.share)
+                }
+            }
+            HStack(spacing: 0) {
+                ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
+                    Rectangle()
+                        .fill(stage.color.opacity(0.45))
+                        .frame(width: width * stage.share, height: 16)
+                        .overlay(alignment: .leading) {
+                            if index > 0 { Rectangle().fill(Theme.ink).frame(width: 1.5, height: 20) }
+                        }
+                }
+            }
+            .clipShape(Capsule())
+            HStack(spacing: 0) {
+                ForEach(Array(stages.enumerated()), id: \.offset) { _, stage in
+                    Text(stage.caption)
+                        .scaledFont(11, weight: .black, design: .rounded, maxScale: 1.2)
+                        .foregroundStyle(stage.captionColor)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(width: width * stage.share)
+                }
+            }
+        }
+        .frame(width: width)
     }
 }
 

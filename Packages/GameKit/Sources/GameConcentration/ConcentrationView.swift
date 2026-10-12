@@ -9,6 +9,8 @@ public struct ConcentrationView: View {
     @State private var showMattaConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告の段取り（#2026）。「待った」とは別の救済として持つ。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -45,11 +47,13 @@ public struct ConcentrationView: View {
                         }
                     })
         .howToPlay(.concentration)
-        .confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規対局", role: .destructive) { showNewGame = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると、いまの対戦が失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規対局", role: .destructive) { showNewGame = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの対戦が失われます。")
+            }
         }
         .sheet(isPresented: $showNewGame) {
             ConcentrationNewGameSheet(
@@ -73,37 +77,39 @@ public struct ConcentrationView: View {
             }
             .gameAnimation(ConcentrationMotion.resultOverlayFade, value: model.isGameOver)
         }
-        .alert("待った確認", isPresented: $showMattaConfirm) {
-            Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
-                guard model.mattaUsed else {
-                    // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                    // 手番で盤を動かす（同じ transaction に乗せると札の変化が
-                    // アラートの終了アニメーションに巻き込まれる）。
-                    Task { model.useMatta() }
-                    return
-                }
-                // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局に対する待ったかを
-                // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
-                let game = model.gameSerial
-                undoRescue.request(
-                    services, gameID: model.gameID, purpose: .undo,
-                    guardedBy: .checkedByGrant,
-                    // 待ったの確認中は自動めくりを止めてあるので、見なかったときは再開させる。
-                    whenNotEarned: { model.resumeAutoTurn() }
-                ) {
-                    guard model.useMatta(forGame: game) else {
-                        // 戻せなかったときも、止めてあった自動めくりは再開させる（再開すべき状況が無ければ何もしない）。
-                        model.resumeAutoTurn()
-                        return false
+        .dialogs { anchor in
+            anchor.alert("待った確認", isPresented: $showMattaConfirm) {
+                Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
+                    guard model.mattaUsed else {
+                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                        // 手番で盤を動かす（同じ transaction に乗せると札の変化が
+                        // アラートの終了アニメーションに巻き込まれる）。
+                        Task { model.useMatta() }
+                        return
                     }
-                    return true
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局に対する待ったかを
+                    // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                    let game = model.gameSerial
+                    undoRescue.request(
+                        services, gameID: model.gameID, purpose: .undo,
+                        guardedBy: .checkedByGrant,
+                        // 待ったの確認中は自動めくりを止めてあるので、見なかったときは再開させる。
+                        whenNotEarned: { model.resumeAutoTurn() }
+                    ) {
+                        guard model.useMatta(forGame: game) else {
+                            // 戻せなかったときも、止めてあった自動めくりは再開させる（再開すべき状況が無ければ何もしない）。
+                            model.resumeAutoTurn()
+                            return false
+                        }
+                        return true
+                    }
                 }
+                Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
+            } message: {
+                Text(model.mattaUsed
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
+                     : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
             }
-            Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
-        } message: {
-            Text(model.mattaUsed
-                 ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                 : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
         // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
         .rewardOffer(undoRescue, for: .undo, isPresented: showMattaConfirm && model.mattaUsed,
@@ -116,8 +122,24 @@ public struct ConcentrationView: View {
                 message: "広告を見ているあいだに新しいゲームが始まったか、手番が変わったため、戻せませんでした。"
             )
         )
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを表示できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、札の状況が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。"
+            )
+        )
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
+        }
+        // 相方の札を光らせる時間は Model が返し、ここは待って消すだけ（スピードの待ちと同じ形）。
+        .task(id: model.hintRun) {
+            guard let wait = model.hintGlowDuration else { return }
+            let run = model.hintRun
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled else { return }
+            model.finishHint(run: run)
         }
         // CPUのミスマッチは doCPUTurn が自前でクリアするため onChange 不要
     }
@@ -140,10 +162,10 @@ public struct ConcentrationView: View {
     private func scoreChip(label: String, score: Int, color: Color, isActive: Bool) -> some View {
         HStack(spacing: 6) {
             Text(label)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
             Text("\(score)")
-                .font(.system(size: 20, weight: .black, design: .rounded))
+                .scaledFont(20, weight: .black, design: .rounded)
                 .foregroundStyle(isActive ? Theme.onAccent : Theme.ink)
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -162,6 +184,7 @@ public struct ConcentrationView: View {
         // 面がグレー → ティールに変わるのに加えて 2 行目の「今だけ！」で知らせる（以前は行の左端の文字）。
         GameOverflowBar(
             actions: [
+                hintAction,
                 GameActionItem(
                     id: "matta", title: "待った",
                     systemImage: "arrow.uturn.backward", role: .undo,
@@ -175,8 +198,49 @@ public struct ConcentrationView: View {
                     showMattaConfirm = true
                 }
             ],
-            verticalPadding: Self.controlRowPadding
+            verticalPadding: Self.controlRowPadding,
+            nudge: HintNudge(
+                isEligible: model.canUseHint && !hintRescue.isWatching,
+                game: model.gameSerial,
+                activity: [model.hints.used, model.firstFlippedIndex ?? -1]
+            )
         )
+    }
+
+    /// 盤の下の段のヒント（#2026）。数字は「いま使える回数」で、無料を使い切ったら「▶ 広告を見て」（#1897）。
+    private var hintAction: GameActionItem {
+        let free = model.hints.freeRemaining
+        return GameActionItem(
+            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            badge: model.needsAdForHint ? .ad() : .count(free),
+            isEnabled: model.canUseHint && !hintRescue.isWatching,
+            accessibilityLabel: model.needsAdForHint
+                ? "ヒント（広告を見て表示）"
+                : "ヒント（残り\(free)回）",
+            accessibilityHint: model.firstFlippedIndex == nil
+                ? "自分の番で1枚目をめくると使えます"
+                : "1枚目の札の相方を、少しのあいだ光らせます"
+        ) { requestHint() }
+    }
+
+    /// ヒントの入口。無料の残りがあればそのまま出し、使い切っていたら広告を見終えてから出す（広告は押下起点）。
+    private func requestHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        guard model.needsAdForHint else {
+            if model.requestHint() {
+                AccessibilityNotification.Announcement("ヒント、光っている札が相方です").post()
+            }
+            return
+        }
+        // どの局のどの札に対する広告かを出す前に控え、見ているあいだに状況が変わったら適用しない。
+        let game = model.gameSerial
+        let first = model.firstFlippedIndex
+        hintRescue.request(
+            services, gameID: model.gameID, purpose: .hint,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantAdHint(forGame: game, first: first)
+        }
     }
 
     // MARK: - Card Grid
@@ -207,12 +271,12 @@ public struct ConcentrationView: View {
                         CardView(
                             card: card,
                             isLastMatched: model.lastMatchedIndices.contains(card.id),
-                            isMismatched: model.mismatchedIndices.contains(card.id)
+                            isMismatched: model.mismatchedIndices.contains(card.id),
+                            isHint: model.hintIndex == card.id
                         )
-                        .onTapGesture {
-                            guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
-                            model.tap(index: card.id)
-                        }
+                        .onTapGesture { tapCard(card.id) }
+                        .accessibilityAddTraits(model.isHumanTurn ? .isButton : [])
+                        .accessibilityAction { tapCard(card.id) }
                         .frame(width: cardWidth, height: cardHeight)
                     }
                 }
@@ -222,6 +286,12 @@ public struct ConcentrationView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
+    }
+
+    /// 札を開く。タップと VoiceOver の操作で同じ条件を通す。
+    private func tapCard(_ index: Int) {
+        guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
+        model.tap(index: index)
     }
 
     /// 画面の縦の並びの間隔。
@@ -257,17 +327,17 @@ public struct ConcentrationView: View {
                 if let winner = model.winner {
                     let isWin = winner == .human
                     Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                        .font(.system(size: 52))
+                        .scaledFont(52, maxScale: 1.2)
                         .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
                     Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .scaledFont(26, weight: .black, design: .rounded)
                         .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                 } else {
                     Image(systemName: "equal.circle.fill")
-                        .font(.system(size: 52))
+                        .scaledFont(52, maxScale: 1.2)
                         .foregroundStyle(Theme.inkSub)
                     Text("引き分け")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .scaledFont(26, weight: .black, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                 }
             }
@@ -302,8 +372,13 @@ private struct CardView: View {
     let card: ConcentrationCard
     let isLastMatched: Bool
     let isMismatched: Bool
+    /// ヒントが示している相方の札（#2026）。
+    var isHint = false
 
     private var isFaceUp: Bool { card.isFaceUp || card.isMatched }
+
+    /// 札の角丸。ヒントの枠と表の面で同じ形を使う（数字の角丸を増やさない・#1413）。
+    private var cardShape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
 
     /// 図案の一辺。札の短い辺に対する比で置き、盤面サイズに追従させる
     /// （絵文字は 28pt 固定だったため、8ペアの大きい札では小さく、18ペアでは詰まって見えた）。
@@ -318,12 +393,26 @@ private struct CardView: View {
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
         .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
+        .overlay {
+            if isHint {
+                // 裏は紫なので、白の縁を挟んだ紫の二重枠にして背景に沈ませない。
+                cardShape
+                    .strokeBorder(.white, lineWidth: 5)
+                    .overlay(
+                        cardShape
+                            .strokeBorder(BoardGameHintColor.color, lineWidth: 2.5)
+                    )
+                    .shadow(color: BoardGameHintColor.color.opacity(0.6), radius: 6)
+                    .allowsHitTesting(false)
+            }
+        }
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
     }
 
     /// 絵文字をやめると読み上げも消えるため、札の状態を言葉で持ち直す（#601）。
     private var accessibilityText: String {
+        if isHint { return "裏向きの札、ヒント（1枚目の相方）" }
         guard isFaceUp, let name = card.figure?.displayName else { return "裏向きの札" }
         return card.isMatched ? "\(name)（獲得済み）" : name
     }
@@ -333,7 +422,7 @@ private struct CardView: View {
         ZStack {
             if isFaceUp {
                 // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                cardShape
                     .fill(card.isMatched ? AnyShapeStyle(Theme.teal.opacity(0.15))
                                          : AnyShapeStyle(CardStyle.faceFill))
                     .overlay(
@@ -362,7 +451,7 @@ private struct CardView: View {
                     )
                 CardStyle.backFrame(cornerRadius: 10)
                 Image(systemName: "questionmark")
-                    .font(.system(size: 18, weight: .bold))
+                    .scaledFont(18, weight: .bold)
                     .foregroundStyle(.white.opacity(0.6))
             }
         }

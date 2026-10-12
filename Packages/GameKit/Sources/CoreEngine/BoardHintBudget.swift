@@ -33,16 +33,31 @@ public struct BoardHintBudget: Equatable, Sendable {
     /// 毎手従った勝率は将棋 64.2%・チェス 58.2%・五目並べ 50.2%）。深さ・確率・定跡は「むずかしい」のまま。
     public static let extraThinkingTime: TimeInterval = 0.5
 
+    /// この局で無料で使える回数。既定は `perGame`。マインスイーパーのように回数の違うゲームは init で渡す（#2024）。
+    public let freeLimit: Int
+    /// 無料枠を使い切った後、広告で足せる回数の上限。既定は `adRefillMax`。
+    public let adLimit: Int
+
     /// この局で使った回数。中断データにはこの値だけを保存する（残りは引き算で導ける）。
     public private(set) var used: Int
 
     /// - Parameter used: 中断データから復元した使用回数。壊れた値・上限を超えた値は範囲に丸める。
-    public init(used: Int = 0) {
-        self.used = min(max(used, 0), Self.total)
+    /// - Parameter freeLimit: 無料の回数。将棋・チェス・五目並べ・オセロは既定のまま（`perGame`）。
+    /// - Parameter adLimit: 広告で足せる上限。同じく既定のまま（`adRefillMax`）。
+    public init(used: Int = 0, freeLimit: Int = BoardHintBudget.perGame, adLimit: Int = BoardHintBudget.adRefillMax) {
+        self.freeLimit = max(freeLimit, 0)
+        self.adLimit = max(adLimit, 0)
+        self.used = min(max(used, 0), self.freeLimit + self.adLimit)
     }
 
+    /// 1 局で使える合計回数（このインスタンスの無料 + 広告）。
+    public var capacity: Int { freeLimit + adLimit }
+
     /// 残り回数（無料 + 広告の合計）。
-    public var remaining: Int { Self.total - used }
+    public var remaining: Int { capacity - used }
+
+    /// 無料枠の残り。ボタンの「あと n 回」はこの数（広告でこれから足せる分は含めない・#1897）。
+    public var freeRemaining: Int { max(0, freeLimit - used) }
 
     /// 合計で使い切ったか。
     public var isExhausted: Bool { remaining <= 0 }
@@ -52,7 +67,7 @@ public struct BoardHintBudget: Equatable, Sendable {
 
     /// 無料枠がまだ残っているか。true のあいだは次の 1 回が無料で出せる
     /// （= 次の 1 回に広告が要るかは `!hasFreeRemaining && !isExhausted` で判定する）。
-    public var hasFreeRemaining: Bool { used < Self.perGame }
+    public var hasFreeRemaining: Bool { used < freeLimit }
 
     /// 無料の 1 回を消費する。無料枠を使い切っていれば **何も変えずに** false を返す
     /// （広告での補充は `consumeAd()` の担当）。

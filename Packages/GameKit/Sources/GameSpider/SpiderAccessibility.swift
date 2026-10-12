@@ -86,6 +86,25 @@ public enum SpiderAccessibility {
             : "広告を見ると\(SpiderUndoBudget.refill)回ぶん補充できます"
     }
 
+    /// 「ヒント」ボタン（#2025）。残り回数と広告の要否を音声だけで分かるようにする。
+    public static func hintButtonLabel(freeRemaining: Int, needsAd: Bool, isThinking: Bool) -> String {
+        if isThinking { return "ヒント、考え中" }
+        return needsAd ? "ヒント（広告を見て表示）" : "ヒント（残り\(freeRemaining)回）"
+    }
+
+    /// 示した手の読み上げ（例: "ヒント、ハートの7を3列目へ"）。`board` は動かす前の盤。
+    public static func hintLabel(move: SpiderMove, board: SpiderBoard) -> String {
+        switch move {
+        case .deal:
+            return "ヒント、山札を配ります"
+        case .move(let from, let index, let to):
+            guard board.piles.indices.contains(from), board.piles[from].cards.indices.contains(index) else { return "ヒント" }
+            let run = board.piles[from].cards[index...]
+            let what = run.count > 1 ? "\(cardLabel(run[run.startIndex]))から上の\(run.count)枚" : cardLabel(run[run.startIndex])
+            return "ヒント、\(what)を\(to + 1)列目へ"
+        }
+    }
+
     /// 行き止まりの告知。
     public static func deadEndPromptLabel(canUndo: Bool, remaining: Int) -> String {
         let head = "指せる手がありません。どの札も置き先がなく、山札も配れません"

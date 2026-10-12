@@ -6,6 +6,8 @@ public struct ShiritoriView: View {
     @State private var showSetup = false
     @State private var showConfirmNewGame = false
     @State private var extendRescue = RewardedRescue()
+    @State private var resultCardClosed = false
+    @Environment(\.scenePhase) private var scenePhase
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -29,6 +31,7 @@ public struct ShiritoriView: View {
                     .transition(.opacity)
             }
             boardArea
+                .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
             HowToPlayHint(.shiritori, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
@@ -38,6 +41,10 @@ public struct ShiritoriView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
+        // 結果から外れる（もう一回・広告で延長）と、次の終局でまたカードが出るよう開け直す。
+        .onChange(of: model.phase) { _, phase in
+            if phase != .result { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: "カードしりとり", review: services.review,
@@ -49,11 +56,13 @@ public struct ShiritoriView: View {
                             showSetup = true
                         }
                     })
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると、いまの対局が失われます。")
+        .dialogs { anchor in
+            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("途中で終了すると、いまの対局が失われます。")
+            }
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
@@ -76,6 +85,11 @@ public struct ShiritoriView: View {
         )
         // 保留している負けは、画面を離れても落とさず記録する。
         .onDisappear { model.commitTimeUpLoss() }
+        // 強制終了・OS による終了では onDisappear が走らないので、背景に回った時点でも確定する（#1977）。
+        // 広告の視聴中は背景扱いになりうる（広告から App Store へ飛ぶ等）。視聴後の延長を潰さないため確定しない。
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background, !extendRescue.isWatching { model.commitTimeUpLoss() }
+        }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-shiritoriCPUCursorProbe") {
@@ -127,7 +141,7 @@ public struct ShiritoriView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } trailing: {
                 Text(model.mode == .endless ? model.mode.label : model.quota.label)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Fill.purple))
@@ -143,7 +157,7 @@ public struct ShiritoriView: View {
         let urgent = model.timeRemaining <= 10 && model.phase == .playing
         return HStack(spacing: 8) {
             Image(systemName: "timer")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundStyle(urgent ? Theme.coral : Theme.inkSub)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -154,7 +168,7 @@ public struct ShiritoriView: View {
             }
             .frame(height: 8)
             Text(model.isPaused ? "一時停止" : "\(seconds)びょう")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .monospacedDigit()
                 .foregroundStyle(urgent ? Theme.coral : Theme.ink)
                 .frame(minWidth: 52, alignment: .trailing)
@@ -180,11 +194,11 @@ public struct ShiritoriView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(ShiritoriPresentation.prompt(tail: model.requiredTail, isPlayerTurn: model.isPlayerTurn, phase: model.phase))
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .scaledFont(15, weight: .black, design: .rounded)
                     .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Text(model.lastEvent.map(ShiritoriPresentation.eventText) ?? " ")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(isMiss ? Theme.coral : Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 scoreLine
@@ -208,7 +222,7 @@ public struct ShiritoriView: View {
                     .foregroundStyle(Theme.inkSub)
             }
         }
-        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .scaledFont(12, weight: .bold, design: .rounded)
         .lineLimit(1).minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("あなた\(model.playerCount)枚、CPU\(model.cpuCount)枚"
@@ -223,7 +237,7 @@ public struct ShiritoriView: View {
             spacing: 6
         ) {
             ForEach(Array(model.slots.enumerated()), id: \.element.card.id) { index, slot in
-                ShiritoriCardTile(card: slot.card, reading: slot.card.primaryReading,
+                ShiritoriCardTile(card: slot.card, reading: slot.displayReading,
                                   style: .board(owner: slot.owner, selectable: model.isSelectable(index),
                                                 isCPUCursor: model.cpuCursorSlot == index))
                     .contentShape(Rectangle())
@@ -314,27 +328,45 @@ public struct ShiritoriView: View {
 
     // MARK: - リザルト
 
+    /// 終局を盤に重ねて大きく示す結果カード（#1876。盤ゲームと同じ部品）。
+    /// 時間切れの「広告を見て続ける」ボタンは盤の下の `actionArea` にあり、カードは盤にしか掛からないので出る順番はぶつからない。
+    /// 続けるか決まるまで記録は無いので、自己ベストの行はその間は空になる。
+    @ViewBuilder
+    private var endCard: some View {
+        let ending = model.ending ?? .timeUp
+        BoardGameResultCard(
+            verdict: model.didPlayerWin ? .win : .loss,
+            reason: ShiritoriPresentation.resultReason(ending: ending),
+            details: [ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount,
+                                                         quota: model.quota, ending: ending, mode: model.mode)],
+            record: model.recordResult
+        ) { resultCardClosed = true }
+    }
+
     private var resultCard: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: model.didPlayerWin ? "crown.fill" : "flag.checkered")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundStyle(model.didPlayerWin ? Theme.yellow : Theme.inkSub)
                 Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
                                                               mode: model.mode))
-                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .scaledFont(16, weight: .black, design: .rounded)
                     .foregroundStyle(model.didPlayerWin ? Theme.teal : Theme.ink)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
             }
             Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
                                                           ending: model.ending ?? .timeUp, mode: model.mode))
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            RecordLabel(model.recordResult)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 結果カードが開いているあいだはカードが持つので出さない（二重になり、SE では高さも溢れる）。
+            if resultCardClosed {
+                RecordLabel(model.recordResult)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -395,7 +427,7 @@ struct ShiritoriCardTile: View {
             // 常に描画して高さを確保する（グリッドの行の高さが札ごとにばらつかないように）。
             // 隠すときは不透明度だけ0にする（VoiceOver は `boardArea` 側の `accessibilityLabel` が別に持つ）。
             Text(reading)
-                .font(.system(size: isCurrent ? 14 : 10, weight: .bold, design: .rounded))
+                .scaledFont(isCurrent ? 14 : 10, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .opacity(showsReading ? 1 : 0)
@@ -428,11 +460,11 @@ struct ShiritoriCardTile: View {
     private var ownerBadge: some View {
         switch owner {
         case .player:
-            Image(systemName: "person.fill").font(.system(size: 9, weight: .bold))
+            Image(systemName: "person.fill").scaledFont(9, weight: .bold)
                 .foregroundStyle(Theme.onAccent).padding(3)
                 .background(Circle().fill(Theme.teal)).offset(x: 3, y: -3)
         case .cpu:
-            Image(systemName: "cpu").font(.system(size: 9, weight: .bold))
+            Image(systemName: "cpu").scaledFont(9, weight: .bold)
                 .foregroundStyle(Theme.onAccent).padding(3)
                 .background(Circle().fill(Theme.coral)).offset(x: 3, y: -3)
         case nil:

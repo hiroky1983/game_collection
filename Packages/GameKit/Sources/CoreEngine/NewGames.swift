@@ -40,6 +40,21 @@ public enum NewGames {
         return Set(registeredIDs).subtracting(baseline)
     }
 
+    /// この版で新しく追加されたゲームの ID（#2104）。次の版で新しいゲームが入ったら、その版のゲームに入れ替える。
+    ///
+    /// 利用者の端末の状態（初回起動・更新・プレイ履歴）とは無関係に、ハブのカードの NEW 印と先頭への
+    /// 固定に使う。`ids` が決める「更新後の最初の1回だけ」の判定とは別物（1行のお知らせ用）。
+    public static let currentVersionIDs: Set<String> = ["anzan", "ojisanpuzzle"]
+
+    /// ハブに並べるゲームの順。この版の新着を先に、そのあとに残りを並べる。どちらも元の順
+    /// （利用者の並び替え設定を反映済みの順）を保つ。
+    ///
+    /// - Parameter visibleIDs: 非表示を除いた、利用者の並びのゲーム ID。非表示のゲームは入っていないので
+    ///   新着でも出てこない。
+    public static func pinned(visibleIDs: [String], newIDs: Set<String> = currentVersionIDs) -> [String] {
+        visibleIDs.filter { newIDs.contains($0) } + visibleIDs.filter { !newIDs.contains($0) }
+    }
+
     /// ハブ上部の1行。増えたゲームが無ければ nil（行ごと出さない）。
     public static func notice(count: Int) -> String? {
         guard count > 0 else { return nil }

@@ -165,7 +165,7 @@ extension RunnerScene {
         node.addChild(bobber)
         let bob = SKAction.moveBy(x: 0, y: art.bobAmplitude, duration: 0.7)
         bob.timingMode = .easeInEaseOut
-        bobber.run(.repeatForever(.sequence([bob, bob.reversed()])), withKey: Self.loopActionKey)
+        runAmbientLoop(.sequence([bob, bob.reversed()]), on: bobber)
 
         // 尾羽（後方＝-x 側）。2枚ずらして重ね、飛行姿勢に合わせて斜め上へ流す。
         // 長いほうの先端が当たり判定の後端にちょうど届く長さ（`RunnerBirdArt` が導出する）。
@@ -202,7 +202,7 @@ extension RunnerScene {
             wing.zRotation = startsLow ? spec.rotation.lowerBound : spec.rotation.upperBound
             let flap = SKAction.rotate(byAngle: startsLow ? span : -span, duration: 0.24)
             flap.timingMode = .easeInEaseOut
-            wing.run(.repeatForever(.sequence([flap, flap.reversed()])), withKey: Self.loopActionKey)
+            runAmbientLoop(.sequence([flap, flap.reversed()]), on: wing)
             bobber.addChild(wing)
             wings.append(wing)
         }
@@ -331,10 +331,7 @@ extension RunnerScene {
             puff.zPosition = -1
             let grow = SKAction.group([.scale(to: 1.6, duration: 0.3), .fadeAlpha(to: 0, duration: 0.3)])
             let reset = SKAction.group([.scale(to: 0.6, duration: 0), .fadeAlpha(to: 0.6, duration: 0)])
-            puff.run(
-                .repeatForever(.sequence([.wait(forDuration: 0.1 * Double(index)), grow, reset])),
-                withKey: Self.loopActionKey
-            )
+            runAmbientLoop(.sequence([.wait(forDuration: 0.1 * Double(index)), grow, reset]), on: puff)
             dust.addChild(puff)
         }
         dust.isHidden = true
@@ -384,7 +381,7 @@ extension RunnerScene {
         // 小刻みな揺れ。地面が揺れていることが予告の合図なので、横ではなく上下に短く震わせる。
         let shake = SKAction.moveBy(x: 0, y: 0.35, duration: 0.09)
         shake.timingMode = .easeInEaseOut
-        cue.run(.repeatForever(.sequence([shake, shake.reversed()])), withKey: Self.loopActionKey)
+        runAmbientLoop(.sequence([shake, shake.reversed()]), on: cue)
         node.addChild(cue)
 
         // 伸び上がる絵と、その切り抜きの窓。
@@ -483,12 +480,15 @@ extension RunnerScene {
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.apply(frame.advance < 0 ? .moving : .stopped)
             view.applyWalkFrame(travel: hazard.boarSpawn - frame.start)
-        case .shoot:
+        case .shoot, .geyser:
             // 原点は当たり判定の左下。位置は動かず、**伸びた高さだけ**が距離で決まる（#1010）。
             // 当たり判定（`frame.top`）と同じ値を絵の位置に使うので、見た目と判定は構造的にずれない。
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.riser?.position.y = CGFloat(frame.top - view.riserHeight)
-            let rising = frame.top < view.riserHeight
+            // 間欠泉（#1938）が揺らすのは**泡立ち（噴く前の合図）の間だけ**。噴いている間・引いたあとは止める。
+            let rising = hazard.kind == .geyser
+                ? hazard.isSimmering(atRunnerDistance: field.distance)
+                : frame.top < view.riserHeight
             view.apply(rising ? .moving : .stopped)
             // 揺れを止めたら塚・泡を地面へ戻す。`isPaused` はいまの位置で止めるだけなので、
             // 揺れの上端で止まると予告が浮いたまま固まる（#1010 で CodeRabbit が指摘）。

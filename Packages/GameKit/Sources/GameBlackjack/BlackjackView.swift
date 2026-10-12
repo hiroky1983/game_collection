@@ -459,12 +459,12 @@ public struct BlackjackView: View {
     private var sessionOverSubtitle: String {
         model.canReviveAfterBust
             ? "\(BlackjackModel.reviveChips)枚で復活すると順位表に載りません"
-            : "復活はこのセッションで使いました。最初からやり直せます"
+            : "復活はこのセッションで\(BlackjackModel.maxRevivesPerSession)回使いました。最初からやり直せます"
     }
 
     /// 復活導線の文言。回数制限を見た目にも出す（#499）。
     private var reviveButtonTitle: String {
-        "広告を見て\(BlackjackModel.reviveChips)枚で復活（1セッションに1回）"
+        "広告を見て\(BlackjackModel.reviveChips)枚で復活（\(model.revivesRemaining == 1 ? "最後の1回" : "あと\(model.revivesRemaining)回")）"
     }
 
     private var restartButtonTitle: String {
@@ -475,7 +475,7 @@ public struct BlackjackView: View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
-                    .font(.system(size: 24))
+                    .scaledFont(24)
                     .foregroundStyle(Theme.coral)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
@@ -510,7 +510,7 @@ public struct BlackjackView: View {
                     // 適用できなかったときは「視聴しなかった」ではなく適用できない旨を出す（#727）。
                     reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
                 } label: {
-                    // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
+                    // 残り回数（1セッションに3回まで・#2012）は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
                         .themeBody(16).frame(maxWidth: .infinity)
                         // 0.8 では SE で 2000 枚の文言が末尾で切れる（#523 の撮影で実測）。

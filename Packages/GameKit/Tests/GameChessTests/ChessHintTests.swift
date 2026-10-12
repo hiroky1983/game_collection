@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Core
 import CoreTestSupport
+import GameKitTestSupport
 @testable import GameChess
 
 /// 1局3回のヒント（#1118）。回数の勘定そのものは Core の `BoardHintBudget`（`BoardHintTests`）が
@@ -377,5 +378,36 @@ struct ChessHintThinkingTimeTests {
     @Test("対局 CPU の むずかしい の考える時間は変えない")
     func hardCPUKeepsItsTime() {
         #expect(SimpleChessEngine(level: CPUStrength.hard.rawValue, seed: nil).timeLimit == 2.0)
+    }
+}
+
+/// 読みの最中に画面を離れたら読みが確定しない（#1903。`BoardGameControlBar` の経路は将棋・五目並べと共通）。
+@MainActor
+@Suite("チェス ヒントの読み中の離脱（#1903）")
+struct ChessHintLeaveTests {
+
+    @Test("読みを止めたまま離脱すると、回数・game_start・中断データが動かない")
+    func leavingWhileThinkingDoesNotCommit() async throws {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["chess"])
+        let store = MemorySnapshotStore()
+        let services = GameServices(snapshots: store, ads: NoopAdService(), analytics: analytics)
+        let model = ChessGameModel(services: services)
+        let gate = TaskGate()
+        model.thinkingGate = { @MainActor in await gate.wait() }
+
+        // View（BoardControlBarHint）と同じ経路で読みを始める。
+        let task = services.screenGeneration.runUntilLeave { await model.requestHint() }
+        await gate.waitUntilArrived()
+        try #require(model.isHintThinking, "前提: 読みが走っている")
+
+        services.gameDidLeave(gameID: model.gameID)
+        gate.release()
+        await task.value
+
+        #expect(model.hints.used == 0, "離脱後に回数が減っている")
+        #expect(model.hintMove == nil)
+        #expect(!spy.events.contains { if case .gameStart = $0 { return true } else { return false } }, "離脱後に game_start が出ている")
+        #expect(!store.exists(for: model.gameID), "離脱後に中断データが残っている")
     }
 }

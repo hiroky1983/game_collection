@@ -69,6 +69,14 @@ public struct AnzanView: View {
                 model.resumeDisplay()
             }
         }
+        .onChange(of: showSetup) { _, open in
+            // 入力中に難易度のシートを開いたままにした時間は回答時間に乗せない。
+            if open {
+                model.pauseDisplay()
+            } else if scenePhase == .active, !showHowToPlay {
+                model.resumeDisplay()
+            }
+        }
         .sheet(isPresented: $showSetup) {
             AnzanSetupSheet(initial: model.settings) { settings in
                 showSetup = false
@@ -125,7 +133,7 @@ public struct AnzanView: View {
         VStack(spacing: 2) {
             Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
             Text(verbatim: value)
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(22, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
         }
@@ -142,7 +150,8 @@ public struct AnzanView: View {
             stageContent
         }
         .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity)
-        .gameAnimation(.easeOut(duration: 0.15), value: model.step)
+        // コマ（よーい・数・空白）の切り替えにはアニメーションを付けない。フェードは速い設定の空白（180ms）と
+        // 重なり、前の数が消えきらないまま次の数が出て「書き換わる」ように見えた（#2067）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         // 板は 1 つの要素として読み上げつつ、中の見直しボタンには VoiceOver で届くようにする
         // （`.ignore` にすると板の中の Button がフォーカスから外れる。ソリティアの救済ダイアログと同じ `.contain`）。
@@ -173,15 +182,13 @@ public struct AnzanView: View {
     private var flashContent: some View {
         if model.isShowingReady {
             Text("よーい")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .scaledFont(34, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(Theme.Fill.yellow)
-                .transition(.opacity)
         } else if let number = model.displayedNumber {
             Text(verbatim: "\(number)")
-                .font(.system(size: 88, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(88, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                 .minimumScaleFactor(0.5)
                 .foregroundStyle(.white)
-                .transition(.scale(scale: 0.85).combined(with: .opacity))
         }
     }
 
@@ -191,7 +198,7 @@ public struct AnzanView: View {
                 .themeBody(15)
                 .foregroundStyle(.white.opacity(0.85))
             Text(verbatim: model.input.isEmpty ? "?" : model.input)
-                .font(.system(size: 56, weight: .heavy, design: .rounded).monospacedDigit())
+                .scaledFont(56, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                 .minimumScaleFactor(0.5)
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
@@ -231,7 +238,7 @@ public struct AnzanView: View {
     private var resultContent: some View {
         VStack(spacing: 8) {
             Text(model.isCorrect ? "せいかい！" : "ざんねん…")
-                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(model.isCorrect ? Theme.Fill.yellow : .white)
             Text(verbatim: AnzanLogic.expression(model.numbers))
                 .themeBody(14)
@@ -313,13 +320,13 @@ public struct AnzanView: View {
                 switch key {
                 case let .digit(digit):
                     Text(verbatim: "\(digit)")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .scaledFont(24, weight: .heavy, design: .rounded)
                 case .backspace:
                     Image(systemName: "delete.left.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .scaledFont(20, weight: .bold)
                 case .submit:
                     Text("決定")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .scaledFont(18, weight: .heavy, design: .rounded)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 50)

@@ -64,6 +64,13 @@ public enum Theme {
 
         /// 差し色の面の上に載せる文字色。面色はモードによらず固定なので、`ink` のライト側で固定する。
         public static let onAccent: UInt32 = ink.light
+
+        /// 標準ダイアログ（`.alert` / `.confirmationDialog`）のボタンの文字色（#1874）。
+        ///
+        /// ダイアログの背景は OS のすりガラスで変えられず、アプリ全体の tint の `coral`（白に対し 2.7:1）では
+        /// 文字が沈んで読めなかった。色相は `coral` のまま濃くして AA（白に対し 5.0:1）に乗せる（会長決裁の案 C）。
+        /// ダークのすりガラスは暗い面なので、濃くすると逆にコントラストが落ちる。ダークだけ `coral` のまま残す。
+        public static let dialogTint: Pair = (0xC93D2E, coral)
     }
 
     // 地と文字（システムのライト / ダーク設定に追従する）
@@ -101,6 +108,9 @@ public enum Theme {
     /// ゲームごとの差し色を順番に割り当てる用。
     public static let palette: [Color] = [coral, teal, purple, yellow, pink]
 
+    /// 標準ダイアログのボタンの文字色（#1874）。`View.dialogs(_:)` が当てる。値の根拠は `Hex.dialogTint` を参照。
+    public static let dialogTint = Color(Hex.dialogTint)
+
     /// 盤・駒・牌・トランプなど、**モードによらず色が変わらない面**の上に置く文字色。
     /// 面が明るいまま固定なので、ここで `ink` / `inkSub` を使うとダークで文字だけ反転して読めなくなる。
     public enum Fixed {
@@ -125,6 +135,7 @@ public enum Theme {
     // `Font.system(size:)` は固定 pt で文字サイズ設定（Dynamic Type）を無視するため廃止した（#189）。
     // 盤面の駒・カードの数字など「図形のジオメトリに従うべき文字」は拡大させたくないので、
     // 従来どおり呼び出し側で `.font(.system(size:))` を直接指定する。
+    // その場合は行末に `// fixed-size: 理由` を付ける（付けない固定サイズは FixedFontSizeScanTests が落とす・#1858）。
 }
 
 /// Dynamic Type（文字サイズ設定）に追従するテーマフォント（#189）。
@@ -135,20 +146,22 @@ public struct ScaledThemeFont: ViewModifier {
     @ScaledMetric private var size: CGFloat
     private let base: CGFloat
     private let weight: Font.Weight
+    private let design: Font.Design
     private let maxScale: CGFloat
 
     /// `maxScale` は基準 pt に対する拡大の上限倍率（#1469）。帯・ボタンなど、拡大が際限なく続くと
     /// 隣の要素を押し出したり盤に重なったりする密な場所だけが指定する。既定（無指定）は上限なし。
-    init(size: CGFloat, weight: Font.Weight, relativeTo textStyle: Font.TextStyle,
-         maxScale: CGFloat = .infinity) {
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design = .rounded,
+         relativeTo textStyle: Font.TextStyle, maxScale: CGFloat = .infinity) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
         base = size
         self.weight = weight
+        self.design = design
         self.maxScale = maxScale
     }
 
     public func body(content: Content) -> some View {
-        content.font(.system(size: min(size, base * maxScale), weight: weight, design: .rounded))
+        content.font(.system(size: min(size, base * maxScale), weight: weight, design: design)) // fixed-size: 拡大後の値を計算した結果を渡す実体
     }
 }
 
@@ -268,13 +281,16 @@ public extension View {
         modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .caption, maxScale: maxScale))
     }
 
-    /// 新規ゲームシートの高さ。アクセシビリティ相当の文字サイズのときだけ `.large` で開く（#189）。
+    /// 固定 pt の `.font(.system(size:))` の置き換え。Dynamic Type に追従する（#1858）。
     ///
-    /// これらのシートは「選択肢 + 下端の開始ボタン」の固定レイアウトで、文字が拡大されると
-    /// 選択肢が縦に伸びて開始ボタンが `.medium` の高さから押し出される。既定の文字サイズでは
-    /// 従来どおり `.medium` から始まるため、見た目も操作感も変わらない。
-    func gameSheetDetents() -> some View {
-        modifier(GameSheetDetents())
+    /// 標準の文字サイズでは倍率 1.0 なので見た目は変わらない。拡大は `maxScale` 倍で頭打ちにして、
+    /// 帯・ボタンなど密な場所が最大サイズで崩れないようにする。基準のテキストスタイルは大きさから決める
+    /// （小さい文字ほど拡大幅を抑える）。数字を等幅にしたいときは呼び出し側で `.monospacedDigit()` を足す。
+    func scaledFont(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+                    maxScale: CGFloat = 1.4) -> some View {
+        let style: Font.TextStyle = size <= 13 ? .caption : size <= 17 ? .body : size <= 22 ? .title3 : .title
+        return modifier(ScaledThemeFont(size: size, weight: weight, design: design,
+                                        relativeTo: style, maxScale: maxScale))
     }
 }
 
@@ -302,11 +318,22 @@ public extension ButtonStyle where Self == PopButtonStyle {
     static var pop: PopButtonStyle { PopButtonStyle() }
 }
 
-/// `View.gameSheetDetents()` の実体。
-private struct GameSheetDetents: ViewModifier {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+/// `View.dialogs(_:)` が標準ダイアログを付ける先の、画面の部品と同じ大きさの空ビュー（#1874）。
+/// 当たり判定は持たない（背景に敷いても、その下へのタップの通り方を変えない）。
+public struct DialogAnchor: View {
+    public var body: some View { Color.clear.allowsHitTesting(false) }
+}
 
-    func body(content: Content) -> some View {
-        content.presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+public extension View {
+    /// 標準のダイアログ（`.alert` / `.confirmationDialog`）は必ずここに付ける（#1874）。
+    ///
+    /// ダイアログのボタンの文字色は、modifier を付けた位置の `tint` 環境で決まる。画面の部品と同じ `coral` では
+    /// OS のすりガラスの上で沈むので、ダイアログだけ `Theme.dialogTint` にする。`self` に直接 `.tint` を当てると
+    /// 画面側の部品まで色が変わるため、同じ大きさの空ビュー（`DialogAnchor`）を背景に敷き、そこへダイアログと
+    /// tint を付ける。大きさが同じなので、iPad のポップオーバーが出る位置も直接付けたときと変わらない。
+    /// `role: .destructive` のボタンはシステムの赤のまま（tint は及ばない）。
+    /// ダイアログを View に直接付けるのは `DialogTintScanTests` が落とす。
+    func dialogs<Dialogs: View>(@ViewBuilder _ attach: (DialogAnchor) -> Dialogs) -> some View {
+        background { attach(DialogAnchor()).tint(Theme.dialogTint) }
     }
 }

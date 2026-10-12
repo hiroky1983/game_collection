@@ -144,8 +144,10 @@ enum RunnerPixelArt {
     /// 犬の枠の絵（世界の着せ替えで犬か猫）。色は世界の `Creatures` から写す。
     static func walker(_ frame: WalkFrame, world: RunnerWorld) -> PixelSprite {
         switch world.dressing.dog {
-        case .dog: return dog(frame, colors: world.creatures)
-        case .cat: return cat(frame, colors: world.creatures)
+        case .dog:  return dog(frame, colors: world.creatures)
+        case .cat:  return cat(frame, colors: world.creatures)
+        case .deer: return deer(frame, colors: world.creatures)
+        case .monkey: return monkey(frame, colors: world.creatures)
         }
     }
 
@@ -160,8 +162,10 @@ enum RunnerPixelArt {
     /// 犬の枠の格子（寸法を測る用。`RunnerScene.addDog`）。
     static func walkerRows(world: RunnerWorld) -> [String] {
         switch world.dressing.dog {
-        case .dog: return dogWalk0Rows
-        case .cat: return catWalk0Rows
+        case .dog:  return dogWalk0Rows
+        case .cat:  return catWalk0Rows
+        case .deer: return deerWalk0Rows
+        case .monkey: return monkeyWalk0Rows
         }
     }
 
@@ -217,6 +221,28 @@ enum RunnerPixelArt {
     /// ドラム缶（`RunnerWorld.Dressing.Block.drum`）。
     static func drum() -> PixelSprite { PixelSprite(rows: drumRows, palette: palette) }
 
+    /// 湯桶（`RunnerWorld.Dressing.Block.yuoke`・温泉街 案 B）。
+    static func yuoke() -> PixelSprite { PixelSprite(rows: yuokeRows, palette: palette) }
+
+    /// 湯桶（温泉街の低い岩・案 B）: 木の桶（`H`/`h` の縦の板・`S` のたが）に白い手ぬぐい（`M`）を載せる。
+    static let yuokeRows: [String] = [
+        "...KKKKKK...",
+        ".KKMMMMMMKK.",
+        "KMMMMMMMMMMK",
+        "KTMMMMMMMMTK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KSSSSSSSSSSK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KHhHhHhHhHhK",
+        "KSSSSSSSSSSK",
+        "KHhHhHhHhHhK",
+        "KhhhhhhhhhhK",
+        "KKKKKKKKKKKK",
+    ]
+
     // MARK: 突き上げ（`RunnerHazardKind.shoot`・#1010）
 
     /// 伸び切った突き上げの絵（着せ替えから直接引く）。
@@ -229,6 +255,7 @@ enum RunnerPixelArt {
         switch style {
         case .bambooShoot: return PixelSprite(rows: bambooShootRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: seaSprayRows, palette: palette)
+        case .steamColumn: return PixelSprite(rows: steamColumnRows, palette: palette)
         }
     }
 
@@ -237,6 +264,7 @@ enum RunnerPixelArt {
         switch style {
         case .bambooShoot: return PixelSprite(rows: soilMoundRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: foamRows, palette: palette)
+        case .steamColumn: return PixelSprite(rows: steamBubbleRows, palette: palette)
         }
     }
 
@@ -410,6 +438,103 @@ enum RunnerPixelArt {
         "...KWWWOOOOOOOOOOOOOOOOOK.....",
         "...KWWWWWWWWOOOOOOOOOOOOK.....",
         "....KWWWWWWWWWWWWWWWWWOOK.....",
+    ]
+
+    // MARK: 奈良の鹿（京都・奈良の犬の枠・#1824）
+
+    /// 鹿（左向き）30×21 ドット。犬・猫と同じ格子・同じ脚の段（下の 6 行、うち脚は 5 行）で、
+    /// `RunnerScene.addDog` が犬と同じ置き方で貼れる（当たり判定・寸法・動きは犬のまま）。
+    /// 色は犬と同じ文字で世界の `Creatures` から写す（`O` 体・`o` 暗部・`W` 白・`K` 縁取り）。
+    ///
+    /// 鹿に見せる要素: **長い首の先の小さな頭**（胴より上に突き出す）、頭の上の**小さな枝角 1 本**と
+    /// 後ろ向きの耳（`o`）、**背中の白い斑点**と**白いお尻**（鹿の子模様と尻の白）、細い脚（幅 1 ドット）。
+    /// 犬・猫と取り違えないため、巻き尾・立ち尾・首輪は持たない。頭は左（右から左へ歩いて来る向き）。
+    /// 2 コマの違いは脚だけ（犬と同じ約束。`walk0` は手前の前脚が前・奥の後脚が前、`walk1` は逆）。
+    static func deer(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? deerWalk0Rows : deerWalk1Rows, palette: creaturePalette(colors))
+    }
+
+    static let deerWalk0Rows: [String] = deerBodyRows + [
+        "..........KOKKoKKKKKKKKoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "..........KOKKoK......KoKKOK..",
+        "...........K..K........K..K...",
+    ]
+
+    static let deerWalk1Rows: [String] = deerBodyRows + [
+        "..........KoKKOKKKKKKKKOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "..........KoKKOK......KOKKoK..",
+        "...........K..K........K..K...",
+    ]
+
+    /// 鹿の頭・首・胴（脚より上の 15 行）。2 コマで共通。
+    private static let deerBodyRows: [String] = [
+        "....KK...K....................",
+        "...KooK.KOK...................",
+        "....KooKOoK...................",
+        "...KKoKKOoK...................",
+        "..KOOOOOOK....................",
+        ".KOOOOOOOOK...................",
+        "KKOOKOOOOOOK..................",
+        ".KWWOOOOOOOOK.KKKKKKKKK.......",
+        "..KKKKKOOOOOOKOOOOOOOOOKKKK...",
+        ".......KOoOOOOOOWOOWOOWOOOWKK.",
+        "........KKoOOWOOOOOOOOOOOWWWWK",
+        ".........KOoOOOWOOWOOWOOWWWWWK",
+        ".........KOOWOOOOOOOOOOWWWWWK.",
+        "..........KKOOOOWWWWWWOOOWWK..",
+        "...........KKKWWWWWWWWWWKKK...",
+    ]
+
+    // MARK: ニホンザル（温泉街の犬の枠・#1938）
+
+    /// サル（左向き）30×21 ドット。犬・猫・鹿と同じ格子・同じ脚の段。色は犬と同じ文字で世界の `Creatures` から
+    /// 写し、顔の赤だけ犬の首輪の `R` を流用する。
+    /// サルに見せる要素: **赤い顔**を薄い毛（`W`）が囲む、丸い頭に小さな耳（`o`）、**前かがみに盛り上がった背中**、
+    /// 腹の薄い毛、ごく短い尾（`o`）。
+    static func monkey(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? monkeyWalk0Rows : monkeyWalk1Rows, palette: creaturePalette(colors))
+    }
+
+    static let monkeyWalk0Rows: [String] = monkeyBodyRows + [
+        "..........KOOKKKooKKKKooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KOOK.KooK..KooKKOOK.",
+        "..........KKKK.KKKK..KKKKKKKK.",
+    ]
+
+    static let monkeyWalk1Rows: [String] = monkeyBodyRows + [
+        "..........KooKKKOOKKKKOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KooK.KOOK..KOOKKooK.",
+        "..........KKKK.KKKK..KKKKKKKK.",
+    ]
+
+    private static let monkeyBodyRows: [String] = [
+        "...KKKK........KKKKKK.........",
+        "..KOOOOK.....KKOOOOOOKK.......",
+        ".KOOOOOOK...KOOOoOOOOoOKK.....",
+        ".KoKWWWWKK.KOOOOOOOOOOOOOK....",
+        "KOoKWRRRRWKOOOoOOOOoOOOOOOK...",
+        "KOOKWRKRKRWKOOOOOOOOOOOOOOOK..",
+        ".KKWWRRRRRWKOOOOOOOOOOOOOOOK..",
+        "..KWWRRKKRWKOOOOOOOOOOOOOOOOK.",
+        "..KWWWRRRRWKOOOOOOOOOOOOOOOOK.",
+        "...KKWWWWWKOOOWWOOOOOOOOOOOOK.",
+        ".....KKKKKOOWWWWWOOOOOOOOOOOoK",
+        "........KOWWWWWWWOOOOOOOOOOKoK",
+        ".........KWWWWWWWWWWOOOOOOOKK.",
+        ".........KKWWWWWWWWWWWWOOOOK..",
+        "..........KKKWWWWWWWWWKKOOOK..",
     ]
 
     // MARK: フォークリフト（港町のイノシシの枠・#1009）
@@ -740,6 +865,52 @@ enum RunnerPixelArt {
         "KMCCCCCLLNNK",
         "KMMCCCLLNNNK",
         "KKKKKKKKKKKK",
+    ]
+
+    /// 湯柱（温泉街の突き上げ・間欠泉）。波しぶきとまったく同じ格子・同じシルエットで、色だけが湯気。
+    ///
+    /// 温泉街の背景は淡い灰青の空（0xDAE0E8）と雪の山なので、**青みを入れると氷柱に見える**
+    /// （モック担当の指摘）。柱は白（`M`・左の照り）→ 灰（`W`）→ 灰（`G`）→ 暗い灰（`g`・右の陰）の
+    /// 無彩色の濃淡で立て、右の陰（`g`）が背景との 3:1 を担う（竹の子の `a`・波しぶきの `N` と同じ約束）。
+    static let steamColumnRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KMMK....",
+        "....KMMK....",
+        "....KMWK....",
+        "...KMMWGK...",
+        "...KMWWGK...",
+        "...KMWWGK...",
+        "..KMMWWGGK..",
+        "..KMWWWGGK..",
+        "..KMWWWGgK..",
+        "..KMWWWGgK..",
+        ".KMMWWWGGgK.",
+        ".KMWWMWGGgK.",
+        ".KMWWWWGGgK.",
+        ".KMMWWWGGgK.",
+        "KMMWWWWGGggK",
+        "KMWWMWWGGggK",
+        "KMWWWWWGGggK",
+        "KMMWWWWGGggK",
+        "KMWWMWWGGggK",
+        "KMWWWWWGGggK",
+        "KMMWWWWGGggK",
+        "KMWWMWWGGggK",
+        "KMWWWWWGGggK",
+        "KMMWWWGGgggK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 予告（温泉街）: 湯だまりにぶくぶくと泡が立つ。塚・泡とまったく同じ格子で、色だけが湯気。
+    static let steamBubbleRows: [String] = [
+        ".......KKKK.......",
+        ".....KKWWWWKK.....",
+        "...KKWWMWWWMWKK...",
+        "..KWWMWWWWMWWWWK..",
+        ".KWWWMWWWWWWMWWWK.",
+        "KWWMWWWWWWWWMWWWWK",
+        "KKKKKKKKKKKKKKKKKK",
     ]
 
     /// 予告（里山）: 土が盛り上がる。地面に置く**低くて横に広い**塚（18×7 ドット）。

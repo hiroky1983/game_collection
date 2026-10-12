@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - ワールドマップ（#798）
 
-/// 開始シートに載せる 5 世界 × 6 面の格子（世界の数は `RunnerWorld.allCases` から作る）。到達済みの面だけ選べる。
+/// 開始シートに載せる 6 世界 × 6 面の格子（世界の数は `RunnerWorld.allCases` から作る）。到達済みの面だけ選べる。
 ///
 /// **世界ごとに 3 列 × 2 段**にしてある。マスに出すのは「1-1」の表記だけ（面の名前は #946 で
 /// 外した）。6 列 1 段だと iPhone SE（幅 375pt・シートの余白を引いて 343pt）では 1 マスが
@@ -37,7 +37,7 @@ struct RunnerWorldMap: View {
         }
     }
 
-    /// 港町（最後の世界）の下に置く、機能しないティザー（#1185）。
+    /// 最後の世界（#1824 からは京都・奈良）の下に置く、機能しないティザー（#1185）。
     ///
     /// **`RunnerWorld` には手を入れない**（実在しない世界を enum ケースとして足すと
     /// `world(forStage:)` 等の既存ロジック・テストに実在の面として混入するため、表示専用の
@@ -51,14 +51,14 @@ struct RunnerWorldMap: View {
                     .fill(Theme.inkSub.opacity(0.4))
                     .frame(width: 10, height: 10)
                 Text("？？？")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                 Text("つづく…")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .scaledFont(13, weight: .bold, design: .rounded)
             }
             .foregroundStyle(Theme.inkSub)
             .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
@@ -79,10 +79,10 @@ struct RunnerWorldMap: View {
                 .fill(Color(hex: world.mapColor))
                 .frame(width: 10, height: 10)
             Text("ワールド \(world.number)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(world.displayName)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
         }
         .accessibilityElement(children: .combine)
@@ -98,10 +98,10 @@ struct RunnerWorldMap: View {
             HStack(spacing: 4) {
                 // 数値の桁区切りが入らないよう verbatim で出す。
                 Text(verbatim: RunnerWorld.code(forStage: number))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded).monospacedDigit())
+                    .scaledFont(14, weight: .heavy, design: .rounded).monospacedDigit()
                 if !reached {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .bold))
+                        .scaledFont(11, weight: .bold)
                 }
             }
             .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))

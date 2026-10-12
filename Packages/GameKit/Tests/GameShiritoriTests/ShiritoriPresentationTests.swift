@@ -24,6 +24,14 @@ struct ShiritoriPresentationTests {
         }
     }
 
+    @Test("結果カードの理由は全ての終わり方で空でなく、互いに違う（#1876）")
+    func resultReasonIsDistinctPerEnding() {
+        let endings: [ShiritoriEnding] = [.cpuStuck, .playerStuck, .timeUp, .playerHitN, .cpuHitN, .quotaReached, .perfect]
+        let reasons = endings.map { ShiritoriPresentation.resultReason(ending: $0) }
+        #expect(reasons.allSatisfy { !$0.isEmpty })
+        #expect(Set(reasons).count == endings.count)
+    }
+
     @Test("内訳の 1 行に枚数が入り、ノルマは時間切れ・ノルマ到達のときだけ添える")
     func resultDetailMentionsCountsAndQuota() {
         let timeUp = ShiritoriPresentation.resultDetail(player: 3, cpu: 2, quota: .normal, ending: .timeUp)
@@ -54,6 +62,9 @@ struct ShiritoriPresentationTests {
         #expect(ShiritoriPresentation.slotLabel(ShiritoriSlot(card: card)) == "りんご、りんご")
         #expect(ShiritoriPresentation.slotLabel(ShiritoriSlot(card: card, owner: .player)) == "りんご、りんご、あなたが取りました")
         #expect(ShiritoriPresentation.slotLabel(ShiritoriSlot(card: card, owner: .cpu)) == "りんご、りんご、CPUが取りました")
+        let drum = ShiritoriCard(.drum, "たいこ", "どらむ")
+        #expect(ShiritoriPresentation.slotLabel(ShiritoriSlot(card: drum, owner: .cpu, claimedReading: "どらむ")) == "\(drum.kind.displayName)、どらむ、CPUが取りました")
+        #expect(ShiritoriSlot(card: drum, claimedReading: "どらむ").displayReading == "たいこ")   // 未取得なら裏読みを出さない
         #expect(ShiritoriPresentation.currentLabel(card: nil, reading: "") == "場の札はまだありません")
         #expect(ShiritoriPresentation.currentLabel(card: card, reading: "りんご") == "場の札はりんご、読みはりんご")
     }

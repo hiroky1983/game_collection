@@ -18,11 +18,13 @@ private struct HintAlerts: ViewModifier {
         content
             // 押した直後に広告を出さず、広告が出ることを予告してから視聴へ進める
             // （並べ替え・将棋の「待った」と同じ契約）。
-            .alert("ヒント確認", isPresented: $showConfirm) {
-                Button("広告を見てヒントを見る") { onWatchAd() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("広告を視聴すると、いま取れる組を1組だけ光らせます。")
+            .dialogs { anchor in
+                anchor.alert("ヒント確認", isPresented: $showConfirm) {
+                    Button("広告を見てヒントを見る") { onWatchAd() }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text("広告を視聴すると、いま取れる組を1組だけ光らせます。")
+                }
             }
     }
 }
@@ -38,11 +40,13 @@ private struct UndoRefillAlerts: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert("無料の「戻す」を使い切りました", isPresented: $showPrompt) {
-                Button("広告を見て\(MahjongSolitaireUndoBudget.refill)回補充する") { onWatchAd() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(MahjongSolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+            .dialogs { anchor in
+                anchor.alert("無料の「戻す」を使い切りました", isPresented: $showPrompt) {
+                    Button("広告を見て\(MahjongSolitaireUndoBudget.refill)回補充する") { onWatchAd() }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text("広告を最後まで視聴すると「戻す」を\(MahjongSolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                }
             }
             .rewardOffer(rescue, for: .undo, isPresented: showPrompt, services: services, gameID: gameID)
             .rewardedRescueAlerts(
@@ -175,11 +179,13 @@ public struct MahjongSolitaireView: View {
         }
         // 並べ替えはリワード広告制（会長指示 2026-08-30）。将棋の「待った」と同じく、
         // 広告が出ることをダイアログで予告してから視聴に進める（突然の広告を出さない）。
-        .alert("並べ替え確認", isPresented: $showShuffleConfirm) {
-            Button("広告を見て並べ替える") { requestShuffle() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。")
+        .dialogs { anchor in
+            anchor.alert("並べ替え確認", isPresented: $showShuffleConfirm) {
+                Button("広告を見て並べ替える") { requestShuffle() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。")
+            }
         }
         .rewardedRescueAlerts(
             shuffleRescue,
@@ -303,7 +309,7 @@ public struct MahjongSolitaireView: View {
                         .foregroundStyle(Theme.teal)
                 } else {
                     Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .scaledFont(16, weight: .bold, design: .monospaced)
                         .foregroundStyle(Theme.coral)
                 }
             }
@@ -449,12 +455,12 @@ public struct MahjongSolitaireView: View {
             // 回数制（無料のあと広告で補充・#1855）なので段に置く。2 行目は「あと n 回」、使い切ったら「▶ 広告を見て」。
             GameActionItem(
                 id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
-                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(),
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !isWatchingRewardAd,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
                     ? "直前に取った2枚を戻す（残り\(model.undosRemaining)回）"
-                    : "直前に取った2枚を戻す（広告を見て補充）",
+                    : "直前に取った2枚を戻す（広告を見て\(RewardedUndoBudget.refill)回補充）",
                 accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
             ) { requestUndo() },
             GameActionItem(
@@ -518,10 +524,8 @@ public struct MahjongSolitaireView: View {
 
             Button { model.newGame() } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
             }
+            .buttonStyle(.game(.primary))
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)

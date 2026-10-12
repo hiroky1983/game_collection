@@ -48,13 +48,13 @@ public struct SolitaireSetupSheet: View {
                     }
                 }
                 Text(Self.footer(for: draft.drawMode))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             if discardsProgress {
                 Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
                       systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .scaledFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.coral)
             }
         }

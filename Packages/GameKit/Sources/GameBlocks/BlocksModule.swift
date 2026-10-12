@@ -24,4 +24,14 @@ public struct BlocksModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(BlocksView(services: services))
     }
+
+
+    /// 1 面の頭から一度も落としていない・得点もない状態は「続き」ではない（#1912）。
+    /// 2 面以降・残機が減った・コンティニュー済みは進行なので続きとして扱う。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(BlocksSnapshot.self, for: id) else { return false }
+        let untouched = snap.stage <= 1 && snap.score == 0
+            && snap.lives >= BlocksRules.initialLives && !snap.continueUsed
+        return !untouched
+    }
 }

@@ -52,7 +52,7 @@ struct RouletteWheelView: View {
             layer.translateBy(x: center.x, y: center.y)
             layer.rotate(by: .degrees(Double(index) * step))
             let text = Text(verbatim: "\(number)")
-                .font(.system(size: radius * 0.11, weight: .bold, design: .rounded))
+                .font(.system(size: radius * 0.11, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(textColor(for: number))
             layer.draw(text, at: CGPoint(x: 0, y: -(pocketInner + pocketOuter) / 2), anchor: .center)
         }

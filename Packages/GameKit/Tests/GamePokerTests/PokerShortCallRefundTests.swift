@@ -100,13 +100,25 @@ struct PokerShortCallRefundTests {
         #expect(model.canCallCPUBet)
     }
 
-    @Test("手持ちが 0 枚ならコールできない・ベットが無ければコール対象が無い（#1598）")
-    func cannotCallWithoutChipsOrBet() {
-        let broke = makeModel(phase: .betting2, playerChips: 0, cpuChips: 80, pot: 40, currentBet: 20, cpuWins: false)
+    @Test("ベットが無ければコール対象が無い（#1598）")
+    func cannotCallWithoutBet() {
         let noBet = makeModel(phase: .betting2, playerChips: 15, cpuChips: 80, pot: 40, currentBet: 0, cpuWins: false)
 
-        #expect(!broke.canCallCPUBet)
         #expect(!noBet.canCallCPUBet)
+    }
+
+    @Test("手持ち 0 枚でも CPU のベットにコールでき、CPU のベットは全額戻ってショーダウンに進む（#1890）")
+    func canCallWithZeroChipsAndCPUBetIsRefunded() {
+        let model = makeModel(phase: .betting2, playerChips: 0, cpuChips: 80, pot: 40, currentBet: 20, cpuWins: false)
+
+        #expect(model.canCallCPUBet)
+        model.callCPUBet()
+
+        #expect(model.phase == .result)
+        #expect(model.winner == .player)
+        #expect(model.playerChips == 20)  // 0 + ポット 20（ポット 40 のうち CPU のベット 20 は CPU に戻る）
+        #expect(model.cpuChips == 100)    // 80 + 戻り 20
+        #expect(model.playerChips + model.cpuChips == 120)
     }
 
     @Test("View はコールの無効化を canCallCPUBet に任せ、手持ちとベット額を直接比べない（#1598）")

@@ -372,6 +372,11 @@ public final class SudokuModel {
             services?.feedback.notify(.warning)  // 出題のマスは書き換えられない
             return
         }
+        // 数字入りのマスにメモは付けない（画面に出ない見えないメモになり、戻すだけを消費する・#2006）。
+        if noteMode, board[index] != 0 {
+            services?.feedback.notify(.warning)
+            return
+        }
         // ここから先は必ず盤（またはメモ）が動く = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
 
@@ -395,10 +400,12 @@ public final class SudokuModel {
                 : [:]
             lastUndoStep = UndoStep(
                 index: index, previousBoard: board[index], previousNotes: notes[index],
-                changedPeerNotes: peerNotesBefore, wasHinted: false
+                changedPeerNotes: peerNotesBefore, wasHinted: hintedCells.contains(index)
             )
             board[index] = digit
             notes[index] = 0
+            // 自力で書いたマスはヒント由来の印（紫）から外す。戻す側は `wasHinted` で復元する。
+            hintedCells.remove(index)
             // 正解のときだけ、同じ行・列・ブロックの同じ数字のメモを消してやる。
             // 間違いのときに消すと、正しかったメモまで巻き添えで失われる。
             if digit == solution[index] { clearPeerNotes(for: index, digit: digit) }

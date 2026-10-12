@@ -99,7 +99,7 @@ private struct HubRecentCard: View {
                 .frame(width: layout.scaled(32), height: layout.scaled(32))
                 .overlay {
                     module.icon
-                        .font(.system(size: layout.scaled(16), weight: .bold))
+                        .font(.system(size: layout.scaled(16), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
                         .foregroundStyle(Theme.onAccent)
                 }
 

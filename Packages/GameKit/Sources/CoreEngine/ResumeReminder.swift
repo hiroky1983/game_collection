@@ -148,6 +148,17 @@ public final class ResumeReminderService {
 
     /// ゲーム画面からハブへ戻った（`GameServices.gameDidLeave` から呼ぶ）。
     public func gameDidLeave(gameID: String, hasSnapshot: Bool) {
+        scheduleIfResumable(gameID: gameID, hasSnapshot: hasSnapshot, requestsAuthorization: true)
+    }
+
+    /// ゲーム画面を表示したままバックグラウンドへ入った（`GameServices.gameDidEnterBackground` から呼ぶ・#1951）。
+    /// ホームボタン・アプリ切替で離れる中断は `gameDidLeave` を通らないので、同じ判定で予約する。
+    /// 許諾が未決定でも**要求しない**（バックグラウンドで出したダイアログは戻ったときに唐突に現れるため）。
+    public func gameDidEnterBackground(gameID: String, hasSnapshot: Bool) {
+        scheduleIfResumable(gameID: gameID, hasSnapshot: hasSnapshot, requestsAuthorization: false)
+    }
+
+    private func scheduleIfResumable(gameID: String, hasSnapshot: Bool, requestsAuthorization: Bool) {
         guard !isSuppressed, hasSnapshot, !finishedGameIDs.contains(gameID), isEnabled(),
               let title = reminderTitle(gameID)
         else { return }
@@ -157,8 +168,17 @@ public final class ResumeReminderService {
         let previous = pendingWork
         pendingWork = Task { [weak self] in
             await previous?.value
-            await self?.schedule(gameID: gameID, title: title, leftAt: leftAt, token: token, global: global)
+            await self?.schedule(
+                gameID: gameID, title: title, leftAt: leftAt, token: token, global: global,
+                requestsAuthorization: requestsAuthorization
+            )
         }
+    }
+
+    /// バックグラウンドから前面へ戻り、同じゲーム画面が出ている（`GameServices.gameDidReturnToForeground` から呼ぶ・#1951）。
+    /// 遊んでいる最中に届かないよう、予約済みのお知らせを取り消す。
+    public func gameDidReturnToForeground(gameID: String) {
+        withdraw(gameID)
     }
 
     /// 決着した（`GameServices.gameDidFinish`・見返しの復元 `gameDidRestoreFinished` から呼ぶ）。
@@ -205,9 +225,12 @@ public final class ResumeReminderService {
         scheduler.cancel(gameIDs: [gameID])
     }
 
-    private func schedule(gameID: String, title: String, leftAt: Date, token: Int, global: Int) async {
+    private func schedule(
+        gameID: String, title: String, leftAt: Date, token: Int, global: Int,
+        requestsAuthorization: Bool
+    ) async {
         var status = await scheduler.authorization()
-        if status == .notDetermined {
+        if status == .notDetermined, requestsAuthorization {
             status = await scheduler.requestExplicitAuthorization()
         }
         guard status.allowsScheduling else { return }
