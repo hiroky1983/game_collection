@@ -83,7 +83,7 @@ public struct SpiderView: View {
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
-        .howToPlay(.spider) { SpiderRuleSheet() }
+        .howToPlay(HowToPlayGuide.spider.illustrated(SpiderHowToFigures.items)) { SpiderRuleSheet() }
         .sheet(isPresented: $showSetup) {
             SpiderSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
                 showSetup = false

@@ -1,4 +1,6 @@
 import Testing
+import SwiftUI
+import GameKitTestSupport
 import Foundation
 import Core
 import Game2048
@@ -28,6 +30,13 @@ import GameBackgammon
 import GameSpeed
 import GameHomerun
 import GameSpider
+@testable import GamePoker
+@testable import GameConcentration
+@testable import GameBlackjack
+@testable import GameDaifugo
+@testable import GameSolitaire
+@testable import GameFreeCell
+@testable import GameSpider
 import GameChess
 import GameBlocks
 import GameOjisanPuzzle
@@ -221,5 +230,52 @@ struct HowToPlayFlagTests {
         #expect(log.hasShownGuide(for: "shogi") == false, "消去後はまた初回から")
 
         defaults.removePersistentDomain(forName: name)
+    }
+}
+
+// MARK: - トランプ系 7 本の図（#2044 束 1）
+
+@Suite("トランプ系の図入りの遊び方")
+@MainActor
+struct CardGameHowToFiguresTests {
+    private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
+        [
+            ("poker", .poker, PokerHowToFigures.items),
+            ("concentration", .concentration, ConcentrationHowToFigures.items),
+            ("blackjack", .blackjack, BlackjackHowToFigures.items),
+            ("daifugo", .daifugo, DaifugoHowToFigures.items),
+            ("solitaire", .solitaire, SolitaireHowToFigures.items),
+            ("freecell", .freecell, FreeCellHowToFigures.items),
+            ("spider", .spider, SpiderHowToFigures.items),
+        ]
+    }
+
+    @Test("項目ごとに図が 1 つずつあり、図を差し込んでも文言は変わらない")
+    func everyItemHasFigure() {
+        for (name, guide, figures) in pairs {
+            #expect(!guide.items.isEmpty, "\(name) に図入りの項目が無い")
+            #expect(figures.count == guide.items.count, "\(name): 図と項目の数がずれている")
+            let illustrated = guide.illustrated(figures)
+            #expect(illustrated.items.allSatisfy { $0.figure != nil })
+            #expect(illustrated.items.map(\.text) == guide.items.map(\.text))
+            #expect(illustrated.notes == guide.notes)
+        }
+    }
+
+    @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
+    func viewsWireIllustratedGuide() throws {
+        let files: [(String, String, String)] = [
+            ("GamePoker/PokerView.swift", "HowToPlayGuide.poker.illustrated(PokerHowToFigures.items)", "poker"),
+            ("GameConcentration/ConcentrationView.swift", "HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items)", "concentration"),
+            ("GameBlackjack/BlackjackView.swift", "HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items)", "blackjack"),
+            ("GameDaifugo/DaifugoView.swift", "HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)", "daifugo"),
+            ("GameSolitaire/SolitaireView.swift", "HowToPlayGuide.solitaire.illustrated(SolitaireHowToFigures.items)", "solitaire"),
+            ("GameFreeCell/FreeCellView.swift", "HowToPlayGuide.freecell.illustrated(FreeCellHowToFigures.items)", "freecell"),
+            ("GameSpider/SpiderView.swift", "HowToPlayGuide.spider.illustrated(SpiderHowToFigures.items)", "spider"),
+        ]
+        for (path, expected, name) in files {
+            let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
+            #expect(code.contains(".howToPlay(" + expected), "\(name) の「？」が図入りの版でない")
+        }
     }
 }
