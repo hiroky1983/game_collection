@@ -56,7 +56,7 @@ private struct GameTimerLifecycle: ViewModifier {
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active {
                     pause()
-                } else if !isHeld && !rescues.contains(where: { $0.isWatching }) {
+                } else if !isHeld && !rescues.contains(where: { $0.holdsClock }) {
                     resume()
                 }
             }
