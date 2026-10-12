@@ -69,7 +69,10 @@ public struct OjisanPuzzleView: View {
         // 動作確認用: 遊び方を指定して開始シート無しで始める（`-simulateOjisanMode puzzle`）。
         if let index = args.firstIndex(of: "-simulateOjisanMode"),
            index + 1 < args.count, let mode = OjisanPuzzleMode(rawValue: args[index + 1]) {
-            _model = State(initialValue: OjisanPuzzleModel(services: services, mode: mode))
+            let launched = OjisanPuzzleModel(services: services, mode: mode)
+            // 動作確認用: 一時停止の画面で始める（`-simulateOjisanPaused`・#2135）。
+            if args.contains("-simulateOjisanPaused") { launched.pauseByUser() }
+            _model = State(initialValue: launched)
             _showSetup = State(initialValue: false)
             return
         }
@@ -94,13 +97,7 @@ public struct OjisanPuzzleView: View {
         }
         // 新規ボタンは全ゲーム共通の部品を使う（`GameChromeTests` が自前のボタンを禁じている）。
         .gameChrome(title: "おじさんの荷物運びパズル", review: services.review,
-                    newGame: GameChromeNewGame(.solo) {
-                        if model.hasProgress {
-                            showConfirmNewGame = true
-                        } else {
-                            openSetup()
-                        }
-                    })
+                    newGame: GameChromeNewGame(.solo) { startNewGameFromMenu() })
         // 図入りの遊び方（#2044 の先駆け）。`?` はヘッダー右に自動で並ぶ。読んでいるあいだは荷物を落とさない。
         // 内容は遊んでいるモードに合わせる（会長指示 2026-10-12。パズルモード中に腰痛ゲージ・入院・
         // クリアライン・せり上がりを出さない）。
@@ -114,7 +111,8 @@ public struct OjisanPuzzleView: View {
                 // （始め直すと `game_start` が二重に数えられる）。
                 if setupMode == model.mode, !model.hasProgress, model.outcome == nil {
                     model.announceStartIfNeeded()
-                    model.resume()
+                    // 一時停止の「はじめから」から来たときも止めたままにしない（CodeRabbit 指摘・#2135）。
+                    model.resumeFromUserPause()
                 } else {
                     withGameAnimation { model.newGame(mode: setupMode) }
                 }
@@ -157,7 +155,11 @@ public struct OjisanPuzzleView: View {
             }
             controlHint
             // 終局したら次に遊ぶゲームを勧める枠（#52・#722）。全ゲーム共通の部品をそのまま置く。
-            RecommendationArea(services: services, isFinished: model.outcome != nil)
+            // 一時停止ボタンは、高さが常に確保されているこの枠の右端に相乗りさせる（ブロック崩しと同じ位置・盤を削らない・#2135）。
+            HStack(alignment: .center, spacing: 12) {
+                RecommendationArea(services: services, isFinished: model.outcome != nil)
+                pauseButton
+            }
             Spacer(minLength: 0)
         }
         // 操作は盤の外（画面のどこ）でも受ける（#1946）。ボタンは子として先に反応するので、タップは奪わない。
@@ -166,6 +168,66 @@ public struct OjisanPuzzleView: View {
         // リザルトは盤の上ではなく遊ぶ部分全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
         // バナーには重ねない（幕の裏のバナーを残さない・`docs/spec-app.md`「広告仕様」）。
         .overlay { if model.outcome != nil, showResult { resultOverlay } }
+    }
+
+    // MARK: - 一時停止（#2135）
+
+    /// 一時停止ボタン。見た目・押せる領域は他ゲームの一時停止ボタンと同じ（珊瑚色の円・44pt）。
+    private var pauseButton: some View {
+        Button {
+            if model.isUserPaused { model.resumeFromUserPause() } else { model.pauseByUser() }
+        } label: {
+            Image(systemName: model.isUserPaused ? "play.fill" : "pause.fill")
+                .scaledFont(18, weight: .bold)
+                .frame(width: BoardGameControlMetrics.minTapTarget, height: BoardGameControlMetrics.minTapTarget)
+                .background(Circle().fill(Theme.Fill.coral))
+                .foregroundStyle(Theme.onAccent)
+        }
+        .buttonStyle(.pop)
+        .accessibilityLabel(model.isUserPaused ? "再開" : "一時停止")
+        // 止めるものが無い（決着した）あとは押せない。
+        .disabled(model.outcome != nil)
+        .opacity(model.outcome != nil ? 0.35 : 1)
+    }
+
+    private var pausedOverlay: some View {
+        ZStack {
+            Rectangle().fill(.black.opacity(0.6))
+            VStack(spacing: 12) {
+                Text("一時停止中").font(.title3.bold()).foregroundStyle(.white)
+                GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
+                    model.resumeFromUserPause()
+                }
+                // 新規ゲームと同じ入口（進行があれば確認を挟む）。
+                GameDeadEndDismissButton("はじめから") { startNewGameFromMenu() }
+            }
+            .padding(20)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+    }
+
+    /// 盤と「つぎ」の荷物を隠すか。一時停止中（決着前）だけ隠す。
+    private var hidesLuggage: Bool { Self.hidesLuggage(isUserPaused: model.isUserPaused, outcome: model.outcome) }
+
+    /// 一時停止中は荷物を見せない（止めて次の置き場所を考えるのを防ぐ・会長指示 2026-10-12・#2135）。
+    /// 腰痛ゲージ・スコアは隠さない。**テストから分岐を確かめるため internal static**。
+    static func hidesLuggage(isUserPaused: Bool, outcome: OjisanPuzzleModel.Outcome?) -> Bool {
+        isUserPaused && outcome == nil
+    }
+
+    /// 盤に描く中身。隠すときは同じ大きさの空の盤を返す（枠の大きさは変えない）。
+    static func visibleBoard(_ board: [[Int]], hidesLuggage: Bool) -> [[Int]] {
+        hidesLuggage ? OjisanPuzzleBoard.emptyBoard() : board
+    }
+
+    /// 「つぎ」の欄に描く 2 つ。隠すときは空のマス（0）にする。
+    static func visibleNextKinds(child: Int, axis: Int, hidesLuggage: Bool) -> (child: Int, axis: Int) {
+        hidesLuggage ? (0, 0) : (child, axis)
+    }
+
+    /// 新規ゲームの入口。進行があれば確認、無ければ開始シート。
+    private func startNewGameFromMenu() {
+        if model.hasProgress { showConfirmNewGame = true } else { openSetup() }
     }
 
     /// 開始シートを開く。シートの初期選択は、いま遊んでいる遊び方。
@@ -392,7 +454,8 @@ public struct OjisanPuzzleView: View {
                 (geo.size.width - Self.boardInset * 2) / CGFloat(OjisanPuzzleBoard.columns),
                 (geo.size.height - Self.boardInset * 2) / CGFloat(OjisanPuzzleBoard.rows)
             ))
-            let board = model.displayBoard
+            // 一時停止中は荷物を描かない（止めて次の置き場所を考えられないようにする・会長指示 2026-10-12・#2135）。
+            let board = Self.visibleBoard(model.displayBoard, hidesLuggage: hidesLuggage)
             VStack(spacing: 1) {
                 ForEach(0..<OjisanPuzzleBoard.rows, id: \.self) { row in
                     HStack(spacing: 1) {
@@ -423,6 +486,10 @@ public struct OjisanPuzzleView: View {
             // 決着の瞬間は盤の上に一言出して、何が起きて終わったかをその場で伝える（#1954）。
             .overlay {
                 if let outcome = model.outcome, !showResult { finishBanner(outcome) }
+            }
+            // 一時停止中は荷物を消した盤の上に覆いを重ね、再開・はじめからを選ばせる（#2135）。
+            .overlay {
+                if hidesLuggage { pausedOverlay }
             }
             .onChange(of: cell, initial: true) { _, newValue in cellSide = newValue }
         }
@@ -529,7 +596,7 @@ public struct OjisanPuzzleView: View {
     private func dragGesture(step: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard model.outcome == nil, !showSetup else { return }
+                guard model.outcome == nil, !showSetup, !model.isUserPaused else { return }
                 if dragAxis == nil { dragAxis = OjisanPuzzleDrag.axis(for: value.translation) }
                 switch dragAxis {
                 case .horizontal:
@@ -586,8 +653,11 @@ public struct OjisanPuzzleView: View {
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 2) {
-                    Self.luggage(model.next.childKind, side: 26)
-                    Self.luggage(model.next.axisKind, side: 26)
+                    // 一時停止中は「つぎ」も空の枠にする（盤と同じ理由・#2135）。
+                    let next = Self.visibleNextKinds(child: model.next.childKind, axis: model.next.axisKind,
+                                                     hidesLuggage: hidesLuggage)
+                    Self.luggage(next.child, side: 26)
+                    Self.luggage(next.axis, side: 26)
                 }
             }
             .frame(width: Self.sideWidth)

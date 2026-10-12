@@ -65,6 +65,10 @@ public final class OjisanPuzzleModel {
         riseIntervalMilliseconds.map { max(0, $0 - riseClock) }
     }
 
+    /// プレイヤーが一時停止ボタンで止めているか（#2135）。立っているあいだは `resume()` が落下を再開しない
+    /// （遊び方・確認ダイアログ・アプリの前面復帰が閉じても止めたまま。再開は `resumeFromUserPause()` だけ）。
+    public private(set) var isUserPaused = false
+
     /// 組を 1 つでも固定した、まだ決着していない局か。捨てると途中離脱として数えられる局かどうか（新規ゲームの確認に使う）。
     public var hasProgress: Bool { outcome == nil && lockCount > 0 }
 
@@ -189,7 +193,7 @@ public final class OjisanPuzzleModel {
 
     /// 落下を始める / 再開する。画面が出ているあいだだけ回す。
     public func resume() {
-        guard loop == nil, outcome == nil else { return }
+        guard loop == nil, outcome == nil, !isUserPaused else { return }
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.outcome == nil else { return }
@@ -208,6 +212,19 @@ public final class OjisanPuzzleModel {
     public func pause() {
         loop?.cancel()
         loop = nil
+    }
+
+    /// 一時停止ボタンで止める（#2135）。落下・せり上がり・経過時間はここで止まり、盤の操作も受けない。
+    public func pauseByUser() {
+        guard outcome == nil else { return }
+        isUserPaused = true
+        pause()
+    }
+
+    /// 一時停止ボタンで止めたのを解いて続きから動かす。
+    public func resumeFromUserPause() {
+        isUserPaused = false
+        resume()
     }
 
     /// タイマー 1 刻み。**テストから時間を進めるため internal** にしてある（public にはしない）。
@@ -319,6 +336,7 @@ public final class OjisanPuzzleModel {
     /// 受け付けなかったときは触覚を鳴らさない。詰まっているときに拒否のたびに震えると
     /// 「壊れている」ように感じるため、「体が動かない」は無反応で表す。
     private func acceptsInput() -> Bool {
+        guard !isUserPaused else { return false }
         let delay = OjisanPuzzlePain.inputDelayMilliseconds(for: pain)
         guard delay > 0, let last = lastInputAt else { return true }
         return ContinuousClock.now - last >= .milliseconds(delay)
@@ -332,7 +350,7 @@ public final class OjisanPuzzleModel {
     /// 1 段落とす。落ちなければその場で固定する。
     @discardableResult
     public func softDrop() -> Bool {
-        guard outcome == nil, phase == .dropping, let pair = current else {
+        guard outcome == nil, !isUserPaused, phase == .dropping, let pair = current else {
             services?.feedback.notify(.warning)
             return false
         }
@@ -349,7 +367,7 @@ public final class OjisanPuzzleModel {
     /// 一気に落として固定する。
     @discardableResult
     public func hardDrop() -> Bool {
-        guard outcome == nil, phase == .dropping, let pair = current else {
+        guard outcome == nil, !isUserPaused, phase == .dropping, let pair = current else {
             services?.feedback.notify(.warning)
             return false
         }
@@ -359,6 +377,7 @@ public final class OjisanPuzzleModel {
 
     /// もう一度。`mode` を渡すと、その遊び方で始め直す（省略すると同じ遊び方）。
     public func newGame(mode newMode: OjisanPuzzleMode? = nil) {
+        isUserPaused = false
         pause()
         let previousMode = mode
         mode = newMode ?? previousMode

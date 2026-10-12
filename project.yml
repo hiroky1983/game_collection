@@ -119,6 +119,12 @@ targets:
         CFBundleLocalizations:
           - ja
         UILaunchScreen: {}
+        # ディープリンク `asobiba://game/<game_id>`（#2141）。App 内イベント（#1995）の審査で必須。
+        # 読み替えは `DeepLink`（CoreEngine）、受け口は `HubView` の `onOpenURL`。
+        CFBundleURLTypes:
+          - CFBundleURLName: com.hirockysan1983.asobiba
+            CFBundleURLSchemes:
+              - asobiba
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # iPad も縦固定にする（#458 の「横向きの扱いを明示的に決める」）。
