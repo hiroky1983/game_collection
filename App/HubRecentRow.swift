@@ -17,20 +17,30 @@ struct HubRecentRow: View {
     /// 出す順に並んだ候補（`RecentGames.candidates` の戻り値）。**空なら呼び出し側が描かない**。
     let candidates: [RecentGames.Candidate]
     let registry: GameRegistry
-    /// 差し色を引くための、`visibleModules` 内の位置。グリッドのカードと同じ色にするため、
-    /// 行の並び順ではなく**ハブの並び順**で引く（同じゲームが2か所で違う色になると別物に見える）。
-    let paletteIndexByGame: [String: Int]
+    /// 連続プレイ日数の 1 行（#1625）。2 日以上のときだけ渡され、見出しの右に控えめに出す。
+    let streakText: String?
 
     @Environment(\.adaptiveLayout) private var layout
 
     var body: some View {
-        VStack(alignment: .leading, spacing: layout.scaled(6)) {
-            Text(tr("つづき・最近"))
-                .themeCaption(layout.scaled(12))
-                .foregroundStyle(Theme.inkSub)
-                .padding(.horizontal, Theme.pad)
-                // アイコンの並びだけでは何の行か分からないため、見出しとして読ませる。
-                .accessibilityAddTraits(.isHeader)
+        // 寸法・色はモック 01（docs/design/hub-redesign-1831）の `.label` / `.recent` / `.rc`（#2175）。
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(tr("つづき・最近"))
+                    .themeCaption(layout.scaled(12), weight: .heavy)
+                    .foregroundStyle(Theme.inkSub)
+                    // アイコンの並びだけでは何の行か分からないため、見出しとして読ませる。
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                if let streakText {
+                    Label(streakText, systemImage: "flame.fill")
+                        .themeCaption(layout.scaled(11), weight: .heavy)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
+                        .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(.horizontal, Theme.pad)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HubRecentCard.spacing) {
@@ -45,8 +55,7 @@ struct HubRecentRow: View {
                             )) {
                                 HubRecentCard(
                                     module: module,
-                                    accent: accent(for: candidate.gameID),
-                                    accentFill: accentFill(for: candidate.gameID),
+                                    accent: HubTileStyle.textAccent(for: candidate.gameID),
                                     hasResume: candidate.hasResume
                                 )
                             }
@@ -56,34 +65,24 @@ struct HubRecentRow: View {
                     }
                 }
                 .padding(.horizontal, Theme.pad)
-                .padding(.vertical, 4)
+                .padding(.top, 4)
             }
             // 影（`popCard` は下へ 16pt 伸びる）が横スクロールの下端で直線に切れるため、
             // 切り抜きを外す。余白で逃がすと行がそのぶん高くなりグリッドが下がる。
             .scrollClipDisabled()
         }
-        .padding(.top, Theme.pad)
-    }
-
-    private func accent(for gameID: String) -> Color {
-        Theme.palette[(paletteIndexByGame[gameID] ?? 0) % Theme.palette.count]
-    }
-
-    private func accentFill(for gameID: String) -> Color {
-        Theme.Fill.palette[(paletteIndexByGame[gameID] ?? 0) % Theme.Fill.palette.count]
+        .padding(.top, 12)
     }
 }
 
-/// 「つづき・最近」の1枚。グリッドのカードを横倒しにして縮めた形。
+/// 「つづき・最近」の1枚。モック 01 の `.rc`: 150 × 52pt・角丸 12・左にタイルと同じ絵の小さい版（32pt・角丸 9）。
 private struct HubRecentCard: View {
     /// カード間の間隔。行の `HStack` と幅の計算で同じ値を使う。
     static let spacing: CGFloat = 12
 
     let module: GameModule
-    /// 「つづきから」の**文字色**。明るい地の上に置くので差し色そのままを使う。
+    /// 「つづきから」の**文字色**。タイルの下線と同じゲームごとの差し色（`HubTileStyle`）。
     let accent: Color
-    /// アイコンチップの**面色**。上に載せる文字は `Theme.onAccent`（#220）。
-    let accentFill: Color
     let hasResume: Bool
 
     @Environment(\.adaptiveLayout) private var layout
@@ -94,23 +93,18 @@ private struct HubRecentCard: View {
 
     var body: some View {
         HStack(spacing: layout.scaled(8)) {
-            RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous)
-                .fill(accentFill.gradient)
+            thumbnail
                 .frame(width: layout.scaled(32), height: layout.scaled(32))
-                .overlay {
-                    module.icon
-                        .font(.system(size: layout.scaled(16), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
-                        .foregroundStyle(Theme.onAccent)
-                }
+                .clipShape(RoundedRectangle(cornerRadius: layout.scaled(9), style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(module.title)
-                    .themeBody(layout.scaled(14))
+                    .themeBody(layout.scaled(14), weight: .heavy)
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text(hasResume ? tr("つづきから") : tr("また あそぶ"))
-                    .themeCaption(layout.scaled(10))
+                    .themeCaption(layout.scaled(10), weight: .heavy)
                     .foregroundStyle(hasResume ? accent : Theme.inkSub)
                     .lineLimit(1)
                     // 英語（#2109）は日本語より横に長い。幅が固定のカードなので、切れる前に縮める。
@@ -120,11 +114,32 @@ private struct HubRecentCard: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, layout.scaled(10))
-        .padding(.vertical, layout.scaled(8))
         .frame(width: layout.scaled(Self.width), alignment: .leading)
-        .popCard(corner: Theme.cornerSmall)
+        .frame(minHeight: layout.scaled(52))
+        .background(
+            RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous)
+                .fill(Theme.surface)
+                .shadow(color: Theme.cardShadow, radius: 5, x: 0, y: 6)
+        )
         // 2段の文字をばらばらに読ませず、カードを1要素にまとめる（グリッドのカードと同じ作法）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(tr("%1$@、%2$@", module.title, hasResume ? tr("つづきから") : tr("また あそぶ")))
+    }
+
+    /// タイルと同じ絵（名前なしの版・`hubthumb-<id>`）。無ければゲームのアイコンを差し色の面に出す。
+    @ViewBuilder
+    private var thumbnail: some View {
+        if UIImage(named: HubTileStyle.thumbName(for: module.id)) != nil {
+            Image(HubTileStyle.thumbName(for: module.id))
+                .resizable()
+                .scaledToFill()
+        } else {
+            Rectangle().fill(accent.gradient)
+                .overlay {
+                    module.icon
+                        .font(.system(size: layout.scaled(16), weight: .bold)) // fixed-size: アイコンを入れるバッジの枠（layout.scaled）が固定寸法で、枠に合わせて大きさを決める
+                        .foregroundStyle(Theme.onAccent)
+                }
+        }
     }
 }

@@ -100,13 +100,14 @@ struct FirstPickWiringTests {
         )
     }
 
-    @Test("カードはグリッドのスクロール領域の外（上）に置く")
-    func cardIsOutsideGridScrollView() throws {
+    @Test("カードはグリッドの上（「つづき・最近」と同じ並び）に置く")
+    func cardIsAboveGrid() throws {
+        // #2175 でタイルの高さが比率で決まるようになり（iPad の行の高さの割り付け #485 が無くなった）、
+        // 「つづき・最近」とともにグリッドと同じスクロールの中、グリッドの上に置く（モック 01）。
         let body = try Self.hubViewBody(SourceScan.appSources())
         let card = try #require(body.range(of: "HubFirstPickCard("), "はじめの1本がハブに置かれていない")
-        let grid = try #require(body.range(of: "ScrollView {"), "グリッドの ScrollView が見つからない")
-        #expect(card.lowerBound < grid.lowerBound,
-                "カードがスクロール領域の中にある（iPad のカード高さの割り付けが溢れる・#485）")
+        let grid = try #require(body.range(of: "LazyVGrid("), "グリッドが見つからない")
+        #expect(card.lowerBound < grid.lowerBound, "カードがグリッドより下にある")
     }
 
     @Test("カードの出し入れにも中身にもアニメーションを付けない（Reduce Motion 下で位置が変わらない）")
@@ -114,7 +115,7 @@ struct FirstPickWiringTests {
         let source = try SourceScan.appSources()
         let body = try Self.hubViewBody(source)
         let wiringStart = try #require(body.range(of: "if let pick = FirstPick.gameID("))
-        let wiringEnd = try #require(body.range(of: "ScrollView {", range: wiringStart.upperBound..<body.endIndex))
+        let wiringEnd = try #require(body.range(of: "LazyVGrid(", range: wiringStart.upperBound..<body.endIndex))
         let wiring = body[wiringStart.lowerBound..<wiringEnd.lowerBound]
 
         let cardStart = try #require(source.range(of: "struct HubFirstPickCard: View {"), "カードの型が見つからない")

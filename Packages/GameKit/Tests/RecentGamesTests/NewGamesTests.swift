@@ -175,27 +175,13 @@ struct NewGamesWiringTests {
         )
     }
 
-    @Test("1行はグリッドのスクロール領域の外（上）に置き、アニメーションを付けない")
-    func noticeIsOutsideGridWithoutMotion() throws {
+    @Test("ハブに「新しいあそびが n 本増えました」の1行を出さない（#2175・モックに無い。NEW の印で足りる）")
+    func noticeIsNotShownOnHub() throws {
         let source = try SourceScan.appSources()
-        let body = try #require(source.range(of: "struct HubView: View {"))
-        let rest = source[body.upperBound...]
-        let notice = try #require(rest.range(of: "HubNewGamesNotice(message:"), "1行がハブに置かれていない")
-        let grid = try #require(rest.range(of: "ScrollView {"), "グリッドの ScrollView が見つからない")
-        #expect(notice.lowerBound < grid.lowerBound, "1行がスクロール領域の中にある（#485）")
-
-        let typeStart = try #require(source.range(of: "struct HubNewGamesNotice: View {"), "1行の型が見つからない")
-        let typeRest = source[typeStart.upperBound...]
-        let typeEnd = ["\nstruct ", "\nprivate struct ", "\nextension "]
-            .compactMap { typeRest.range(of: $0)?.lowerBound }
-            .min() ?? typeRest.endIndex
-        let type = source[typeStart.lowerBound..<typeEnd]
-        for token in Self.motionTokens {
-            #expect(!type.contains(token), "1行に \(token) がある")
-        }
+        #expect(!source.contains("NewGames.notice("), "ハブに新着の1行が戻っている")
     }
 
-    @Test("新着は特別枠を除くグリッドの先頭へ固定する（#2104）")
+    @Test("新着は柵越えおじさんの次、グリッドの先頭へ固定する（#2104・#2175）")
     func gridPinsNewGames() throws {
         let source = try SourceScan.appSources()
         #expect(

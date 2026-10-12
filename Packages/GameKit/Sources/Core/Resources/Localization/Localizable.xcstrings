@@ -301,13 +301,13 @@
         }
       }
     },
-    "おじさん" : {
+    "おじさんシリーズ" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ojisan"
+            "value" : "Ojisan Series"
           }
         }
       }
@@ -809,13 +809,13 @@
         }
       }
     },
-    "盤" : {
+    "盤ゲーム" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Board"
+            "value" : "Board Games"
           }
         }
       }
