@@ -25,27 +25,6 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// 開始シートに出す説明。目的・ルールの要点・記録を行ごとに分け、モードの違いが一目で分かるようにする
-    /// （会長指示 2026-10-12）。
-    public var summaryLines: [String] {
-        switch self {
-        case .backpain:
-            [
-                "目的: 積まれた荷物をラインの下まで片付けたらクリア",
-                "荷物は時間で下からせり上がる",
-                "重い荷物ほど腰にきて、腰痛ゲージが満タンになると入院",
-                "記録: クリアまでのタイム",
-            ]
-        case .puzzle:
-            [
-                "目的: 荷物を消して得点をのばす",
-                "空の盤から始まり、腰痛ゲージはなし",
-                "積み上がって埋まるまで続く",
-                "記録: 得点",
-            ]
-        }
-    }
-
     /// 開始シートのカードで、モード名の横に出す小さなアイコン（会長指示 2026-10-12）。
     public var setupIcon: String {
         switch self {

@@ -1,18 +1,22 @@
 import SwiftUI
 import Core
 
-/// 始める前に遊び方（荷運びモード / パズルモード・#1920）を選ぶシート。共通の `GameSetupSheet` に節を 1 つ足すだけ。
+/// 始める前に遊び方（荷運びモード / パズルモード・#1920）を選ぶシート。共通の `GameSetupSheet` に節を足すだけ。
 ///
-/// どちらが何なのか一目で分かるよう、カードには名前とアイコンを並べ、選んだモードの説明は
-/// 「目的／ルールの要点／記録」を行ごとに分けて出す（会長指示 2026-10-12。以前は長い1文だけだった）。
+/// モードの違いが選ぶ場所で分かるよう、選択肢の下に**いま選んでいるモードの遊び方の要点を図つきでそのまま並べる**
+/// （会長指示 2026-10-12「遊び方の概要を難易度（モード選択）のところで見せろ。遷移リンクを貼るだけでは駄目」）。
+/// 中身は「？」と同じ `howToPlayGuide` の項目で、カードも遊び方シートと同じ部品（`HowToPlayItemCard`）。
+/// モードの違いが出る項目（目的・腰痛ゲージ・おわり）は常に見せ、どちらも同じ操作・れんさの説明は折りたたむ。
 struct OjisanPuzzleSetupSheet: View {
     /// 選んだ遊び方。`onStart` で局に焼き込まれる。
     @Binding var mode: OjisanPuzzleMode
     let onStart: () -> Void
     let onCancel: () -> Void
+    /// 操作・れんさの説明を開いているか。モードを切り替えても開閉はそのまま。
+    @State private var showsDetails = false
 
     var body: some View {
-        GameSetupSheet(kind: .solo, howToPlay: howToPlay, onStart: onStart, onCancel: onCancel) {
+        GameSetupSheet(kind: .solo, onStart: onStart, onCancel: onCancel) {
             GameSetupSection("遊び方") {
                 HStack(spacing: 12) {
                     ForEach(OjisanPuzzleMode.allCases) { option in
@@ -24,33 +28,83 @@ struct OjisanPuzzleSetupSheet: View {
                         ) { mode = option }
                     }
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(mode.summaryLines, id: \.self) { line in
-                        Text(line)
-                            .scaledFont(12, weight: .medium, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            GameSetupSection("\(mode.title)のルール") {
+                VStack(spacing: 10) {
+                    ForEach(Array(mode.setupKeyItems.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    detailsToggle
+                    if showsDetails {
+                        ForEach(Array(mode.setupDetailItems.enumerated()), id: \.offset) { _, item in
+                            HowToPlayItemCard(item)
+                        }
+                        let notes = mode.howToPlayGuide.notes
+                        if !notes.isEmpty { HowToPlayNotesCard(notes) }
                     }
                 }
+                // モードを切り替えたら、前のモードの図を引きずらずに丸ごと描き直す。
+                .id(mode)
             }
         }
     }
 
-    /// 選んでいるモードの図入りの遊び方（会長指示 2026-10-12「荷運びモードが分からない」）。
-    /// ヘッダーの「？」と同じ中身を開く。閉じると開始シートに戻り、選んだモードはそのまま。
-    private var howToPlay: GameSetupHowToPlay {
-        GameSetupHowToPlay(mode.howToPlayGuide, label: "\(mode.title)の遊び方を見る")
+    /// 操作・れんさの説明を開閉する行。別画面へは移らず、この場で下に広げる。
+    private var detailsToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
+        } label: {
+            HStack {
+                Label("操作・れんさのくわしい説明", systemImage: "hand.draw.fill")
+                    .themeBody(15)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .scaledFont(13, weight: .bold)
+                    .foregroundStyle(Theme.inkSub)
+                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard(corner: Theme.cornerSmall)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityValue(showsDetails ? "開いている" : "閉じている")
     }
 }
 
 extension OjisanPuzzleMode {
-    /// このモードの図入りの遊び方。ヘッダーの「？」と開始シートの「遊び方を見る」で同じものを開く。
+    /// このモードの図入りの遊び方。ゲーム画面ヘッダーの「？」と、開始シートに並べる要点で同じものを使う。
     @MainActor
     var howToPlayGuide: HowToPlayGuide {
         switch self {
         case .backpain: .ojisanPuzzleBackpain.illustrated(OjisanPuzzleHowToFigures.backpain)
         case .puzzle: .ojisanPuzzlePuzzle.illustrated(OjisanPuzzleHowToFigures.puzzle)
         }
+    }
+
+    /// 開始シートで常に見せる項目の位置（`howToPlayGuide.items` の添字）。モードの違いが分かるもの:
+    /// 目的・腰痛ゲージ（荷運びモードだけ）・おわり方。
+    var setupKeyItemIndices: [Int] {
+        switch self {
+        case .backpain: [0, 4, 5]
+        case .puzzle: [0, 4]
+        }
+    }
+
+    /// 開始シートで常に見せる項目（目的・腰痛ゲージ・おわり）。
+    @MainActor
+    var setupKeyItems: [HowToPlayItem] {
+        let items = howToPlayGuide.items
+        return setupKeyItemIndices.map { items[$0] }
+    }
+
+    /// 開始シートで折りたたむ項目（操作・れんさ・荷物の種類。両モード共通の説明）。
+    @MainActor
+    var setupDetailItems: [HowToPlayItem] {
+        let keys = Set(setupKeyItemIndices)
+        return howToPlayGuide.items.enumerated().filter { !keys.contains($0.offset) }.map(\.element)
     }
 }
