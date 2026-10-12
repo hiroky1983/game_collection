@@ -37,7 +37,7 @@ struct SudokuRewardedContinueTests {
         let failedOverlay = try #require(SourceScan.declaration(of: "private var failedOverlay", in: sudoku),
                                          "失敗幕の定義が見つからない（走査が空振りしている）")
         #expect(failedOverlay.contains("RewardedContinueOverlay("))
-        #expect(failedOverlay.contains(#"secondaryTitle: "諦めて答えを見る""#))
+        #expect(failedOverlay.contains(#"secondaryTitle: tr("諦めて答えを見る")"#))
         #expect(failedOverlay.contains("secondaryAction: { model.giveUp() }"))
 
         let core = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/RewardedRescue.swift"))

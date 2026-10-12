@@ -15,9 +15,9 @@ public enum MahjongSolitaireAccessibility {
         isHinted: Bool
     ) -> String {
         var parts = [face.displayName]
-        parts.append(isBlocked ? "取れません" : "取れます")
-        if isSelected { parts.append("選択中") }
-        if isHinted { parts.append("ヒント") }
-        return parts.joined(separator: "、")
+        parts.append(isBlocked ? tr("取れません") : tr("取れます"))
+        if isSelected { parts.append(tr("選択中")) }
+        if isHinted { parts.append(tr("ヒント")) }
+        return parts.joined(separator: tr("、"))
     }
 }

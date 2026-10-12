@@ -19,11 +19,11 @@ private struct HintAlerts: ViewModifier {
             // 押した直後に広告を出さず、広告が出ることを予告してから視聴へ進める
             // （並べ替え・将棋の「待った」と同じ契約）。
             .dialogs { anchor in
-                anchor.alert("ヒント確認", isPresented: $showConfirm) {
-                    Button("広告を見てヒントを見る") { onWatchAd() }
-                    Button("キャンセル", role: .cancel) {}
+                anchor.alert(tr("ヒント確認"), isPresented: $showConfirm) {
+                    Button(tr("広告を見てヒントを見る")) { onWatchAd() }
+                    Button(tr("キャンセル"), role: .cancel) {}
                 } message: {
-                    Text("広告を視聴すると、いま取れる組を1組だけ光らせます。")
+                    Text(tr("広告を視聴すると、いま取れる組を1組だけ光らせます。"))
                 }
             }
     }
@@ -41,20 +41,20 @@ private struct UndoRefillAlerts: ViewModifier {
     func body(content: Content) -> some View {
         content
             .dialogs { anchor in
-                anchor.alert("無料の「戻す」を使い切りました", isPresented: $showPrompt) {
-                    Button("広告を見て\(MahjongSolitaireUndoBudget.refill)回補充する") { onWatchAd() }
-                    Button("キャンセル", role: .cancel) {}
+                anchor.alert(tr("無料の「戻す」を使い切りました"), isPresented: $showPrompt) {
+                    Button(tr("広告を見て%lld回補充する", MahjongSolitaireUndoBudget.refill)) { onWatchAd() }
+                    Button(tr("キャンセル"), role: .cancel) {}
                 } message: {
-                    Text("広告を最後まで視聴すると「戻す」を\(MahjongSolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                    Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。", MahjongSolitaireUndoBudget.refill))
                 }
             }
             .rewardOffer(rescue, for: .undo, isPresented: showPrompt, services: services, gameID: gameID)
             .rewardedRescueAlerts(
                 rescue,
-                notEarned: "「戻す」を補充できませんでした",
+                notEarned: tr("「戻す」を補充できませんでした"),
                 unavailable: RewardUnavailableAlert(
-                    title: "「戻す」を補充できませんでした",
-                    message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい盤面の「戻す」は無料の回数まで戻っています。"
+                    title: tr("「戻す」を補充できませんでした"),
+                    message: tr("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい盤面の「戻す」は無料の回数まで戻っています。")
                 )
             )
     }
@@ -158,7 +158,7 @@ public struct MahjongSolitaireView: View {
         .padding(Theme.pad)
         // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
         // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
-        .gameChrome(title: "麻雀ソリティア", review: services.review,
+        .gameChrome(title: tr("麻雀ソリティア"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: isWatchingRewardAd) {
                         openSetup()
                     })
@@ -180,21 +180,21 @@ public struct MahjongSolitaireView: View {
         // 並べ替えはリワード広告制（会長指示 2026-08-30）。将棋の「待った」と同じく、
         // 広告が出ることをダイアログで予告してから視聴に進める（突然の広告を出さない）。
         .dialogs { anchor in
-            anchor.alert("並べ替え確認", isPresented: $showShuffleConfirm) {
-                Button("広告を見て並べ替える") { requestShuffle() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.alert(tr("並べ替え確認"), isPresented: $showShuffleConfirm) {
+                Button(tr("広告を見て並べ替える")) { requestShuffle() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。")
+                Text(tr("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。"))
             }
         }
         .rewardedRescueAlerts(
             shuffleRescue,
-            notEarned: "並べ替えできませんでした",
+            notEarned: tr("並べ替えできませんでした"),
             // 広告のあいだも「最初から」（手詰まりの覆い）や「次のゲーム」で配り直せるので、
             // 取り切れない残り方だけを理由にしない（#815）。
             unavailable: RewardUnavailableAlert(
-                title: "並べ替えられませんでした",
-                message: "広告を見ているあいだに新しい盤面が配られたか、残った牌が重なっていて取り切れません。取り切れないときは「最初から」で新しい盤面を配ってください。"
+                title: tr("並べ替えられませんでした"),
+                message: tr("広告を見ているあいだに新しい盤面が配られたか、残った牌が重なっていて取り切れません。取り切れないときは「最初から」で新しい盤面を配ってください。")
             )
         )
         // ヒントもリワード広告制（#336）。確認ダイアログは `HintAlerts` にまとめてある
@@ -211,10 +211,10 @@ public struct MahjongSolitaireView: View {
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを表示できませんでした",
+            notEarned: tr("ヒントを表示できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに新しい盤面が配られたか、光らせられる組が無くなりました。組が無いときは「並べ替え」で残りを配置し直してください。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに新しい盤面が配られたか、光らせられる組が無くなりました。組が無いときは「並べ替え」で残りを配置し直してください。")
             )
         )
         .overlay {
@@ -304,7 +304,7 @@ public struct MahjongSolitaireView: View {
                 if model.phase == .won {
                     // 取り切った後の表示は行を増やさずここに同居させる（#148）。
                     // 残り枚数は 0 で固定になるため、入れ替えても失われる情報は無い。
-                    Label("クリア！", systemImage: "flag.checkered")
+                    Label(tr("クリア！"), systemImage: "flag.checkered")
                         .themeBody(15)
                         .foregroundStyle(Theme.teal)
                 } else {
@@ -333,9 +333,9 @@ public struct MahjongSolitaireView: View {
                 // 取り切った直後は盤面が空になるので、代わりに共通のクリアカードを置く（#1755）。
                 // 補助の利用実績は **0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
                 // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
-                GameClearCard(title: "全部取り切った！", details: [
-                    "タイム \(RecordFormat.time(model.elapsedSeconds))",
-                    "ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回",
+                GameClearCard(title: tr("全部取り切った！"), details: [
+                    tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
+                    tr("ヒント%1$lld回 / 並べ替え%2$lld回 / 戻す%3$lld回", model.hintCount, model.shuffleCount, model.undoCount),
                 ])
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -454,24 +454,24 @@ public struct MahjongSolitaireView: View {
             // 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。押せない間も項目は残す。
             // 回数制（無料のあと広告で補充・#1855）なので段に置く。2 行目は「あと n 回」、使い切ったら「▶ 広告を見て」。
             GameActionItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !isWatchingRewardAd,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
-                    ? "直前に取った2枚を戻す（残り\(model.undosRemaining)回）"
-                    : "直前に取った2枚を戻す（広告を見て\(RewardedUndoBudget.refill)回補充）",
-                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
+                    ? tr("直前に取った2枚を戻す（残り%lld回）", model.undosRemaining)
+                    : tr("直前に取った2枚を戻す（広告を見て%lld回補充）", RewardedUndoBudget.refill),
+                accessibilityHint: model.canUndo ? "" : tr("牌を取った直後だけ使えます")
             ) { requestUndo() },
             GameActionItem(
-                id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint, badge: .ad(),
+                id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint, badge: .ad(),
                 isEnabled: model.canHint && !isWatchingRewardAd,
-                accessibilityHint: "広告を見ると取れる組が1組光ります"
+                accessibilityHint: tr("広告を見ると取れる組が1組光ります")
             ) { showHintConfirm = true },
             // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。確認ダイアログ → 視聴 → 並べ替えの順に進む。
             // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
             GameActionItem(
-                id: "shuffle", title: "並べ替え", systemImage: "shuffle", role: .primary, badge: .ad(),
+                id: "shuffle", title: tr("並べ替え"), systemImage: "shuffle", role: .primary, badge: .ad(),
                 isEnabled: !isWatchingRewardAd
             ) { showShuffleConfirm = true },
         ]
@@ -494,8 +494,8 @@ public struct MahjongSolitaireView: View {
         [
             // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
             GameControlMenuItem(
-                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
-                accessibilityLabel: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
+                id: "zoom", title: tr("拡大"), systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
+                accessibilityLabel: showsWholeBoard ? tr("牌を大きくする") : tr("盤面全体を表示")
             ) { showsWholeBoard.toggle() },
         ]
     }
@@ -523,7 +523,7 @@ public struct MahjongSolitaireView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
+                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
         }
@@ -598,22 +598,22 @@ public struct MahjongSolitaireView: View {
     private var deadlockOverlay: some View {
         GameDeadEndPanel(
             emoji: "😵",
-            title: "取れる牌がありません",
-            message: "広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。"
+            title: tr("取れる牌がありません"),
+            message: tr("広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。")
         ) {
-            GameDeadEndActionButton("広告を見て並べ替える", systemImage: "play.rectangle.fill", tint: Theme.Fill.purple) {
+            GameDeadEndActionButton(tr("広告を見て並べ替える"), systemImage: "play.rectangle.fill", tint: Theme.Fill.purple) {
                 requestShuffle()
             }
 
             // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
             // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
             if model.canUndo {
-                GameDeadEndActionButton("直前の1手を戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral) {
+                GameDeadEndActionButton(tr("直前の1手を戻す（残り%lld）", model.undosRemaining), systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral) {
                     requestUndo()
                 }
             }
 
-            GameDeadEndDismissButton("最初から") {
+            GameDeadEndDismissButton(tr("最初から")) {
                 model.giveUpAndRestart()
             }
         }
@@ -629,14 +629,15 @@ public struct MahjongSolitaireView: View {
 /// 初回盤面に必ず出るのに説明がどこにも無く、「同じに見えないのに消える」混乱を生んでいた。
 struct MahjongSolitaireRuleSheet: View {
     /// 文言はテストから検証したいので型の外に出しておく（花牌・季節牌の説明が落ちると受け入れ条件を割る）。
-    static let rules: [(String, String)] = [
-        ("取れる牌", "上に牌が1枚も載っておらず、左どなり・右どなりのどちらかが空いている牌だけを取れます。両どなりがふさがっている牌は、まわりを取り除くまで選べません"),
-        ("花牌と季節牌", "花牌（梅・蘭・菊・竹）どうし、季節牌（春・夏・秋・冬）どうしは、絵柄が違っても合わせて取れます。梅と蘭、春と冬のような組み合わせで消えるのはこのためです"),
-        ("そのほかの牌", "花牌・季節牌以外は、まったく同じ絵柄の2枚だけが合います。一萬と二萬のように種類が同じでも数が違えば合いません"),
-        ("並んでいる牌", "全部で144枚（標準の34種が4枚ずつ + 花牌4枚 + 季節牌4枚）です。配る盤面は取り切れる順番があるように作っているので、必ずクリアできます"),
-        ("盤面のかたち", "はじめるときと「新規ゲーム」を押したときに、盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます"),
-        ("ヒント・並べ替え・戻す", "「ヒント」は取れる2枚を1組光らせます。「並べ替え」は残りをそこから取り切れる配置に組み直します（戻せる1手は無くなります）。「戻す」は直前に取った2枚を盤に返します。1局に\(MahjongSolitaireUndoBudget.free)回まで無料で、使い切ったら広告を見ると\(MahjongSolitaireUndoBudget.refill)回補充できます"),
-    ]
+    static var rules: [(String, String)] { [
+        (tr("取れる牌"), tr("上に牌が1枚も載っておらず、左どなり・右どなりのどちらかが空いている牌だけを取れます。両どなりがふさがっている牌は、まわりを取り除くまで選べません")),
+        (tr("花牌と季節牌"), tr("花牌（梅・蘭・菊・竹）どうし、季節牌（春・夏・秋・冬）どうしは、絵柄が違っても合わせて取れます。梅と蘭、春と冬のような組み合わせで消えるのはこのためです")),
+        (tr("そのほかの牌"), tr("花牌・季節牌以外は、まったく同じ絵柄の2枚だけが合います。一萬と二萬のように種類が同じでも数が違えば合いません")),
+        (tr("並んでいる牌"), tr("全部で144枚（標準の34種が4枚ずつ + 花牌4枚 + 季節牌4枚）です。配る盤面は取り切れる順番があるように作っているので、必ずクリアできます")),
+        (tr("盤面のかたち"), tr("はじめるときと「新規ゲーム」を押したときに、盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます")),
+        (tr("ヒント・並べ替え・戻す"), tr("「ヒント」は取れる2枚を1組光らせます。「並べ替え」は残りをそこから取り切れる配置に組み直します（戻せる1手は無くなります）。「戻す」は直前に取った2枚を盤に返します。1局に%1$lld回まで無料で、使い切ったら広告を見ると%2$lld回補充できます",
+                                     MahjongSolitaireUndoBudget.free, MahjongSolitaireUndoBudget.refill)),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: Self.rules)

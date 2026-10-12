@@ -202,7 +202,7 @@ struct GameActionRowTests {
         let concentration = SourceScan.strippingComments(try SourceScan.moduleSources("GameConcentration"))
         #expect(concentration.contains(#"note: model.canMatta ? tr("今だけ！") : nil"#), "神経衰弱の「今だけ」が消えている")
         let spider = SourceScan.strippingComments(try SourceScan.moduleSources("GameSpider"))
-        #expect(spider.contains(#"GameOverflowCaption("空の列を埋めると配れます""#), "スパイダーの配れない理由が消えている")
+        #expect(spider.contains(#"GameOverflowCaption(tr("空の列を埋めると配れます")"#), "スパイダーの配れない理由が消えている")
         let solitaire = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSolitaire/SolitaireView.swift"))
         let status = try #require(SourceScan.declaration(of: "private var statusBar: some View", in: solitaire))
         #expect(status.contains("if model.rules.drawMode != .one {"), "ソリティアのルール名が帯に無い")
