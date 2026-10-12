@@ -111,7 +111,8 @@ public struct OjisanPuzzleView: View {
                 // （始め直すと `game_start` が二重に数えられる）。
                 if setupMode == model.mode, !model.hasProgress, model.outcome == nil {
                     model.announceStartIfNeeded()
-                    model.resume()
+                    // 一時停止の「はじめから」から来たときも止めたままにしない（CodeRabbit 指摘・#2135）。
+                    model.resumeFromUserPause()
                 } else {
                     withGameAnimation { model.newGame(mode: setupMode) }
                 }
@@ -193,7 +194,7 @@ public struct OjisanPuzzleView: View {
         ZStack {
             Rectangle().fill(.black.opacity(0.6))
             VStack(spacing: 12) {
-                Text("一時停止").font(.title3.bold()).foregroundStyle(.white)
+                Text("一時停止中").font(.title3.bold()).foregroundStyle(.white)
                 GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
                     model.resumeFromUserPause()
                 }
@@ -203,6 +204,25 @@ public struct OjisanPuzzleView: View {
             .padding(20)
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+    }
+
+    /// 盤と「つぎ」の荷物を隠すか。一時停止中（決着前）だけ隠す。
+    private var hidesLuggage: Bool { Self.hidesLuggage(isUserPaused: model.isUserPaused, outcome: model.outcome) }
+
+    /// 一時停止中は荷物を見せない（止めて次の置き場所を考えるのを防ぐ・会長指示 2026-10-12・#2135）。
+    /// 腰痛ゲージ・スコアは隠さない。**テストから分岐を確かめるため internal static**。
+    static func hidesLuggage(isUserPaused: Bool, outcome: OjisanPuzzleModel.Outcome?) -> Bool {
+        isUserPaused && outcome == nil
+    }
+
+    /// 盤に描く中身。隠すときは同じ大きさの空の盤を返す（枠の大きさは変えない）。
+    static func visibleBoard(_ board: [[Int]], hidesLuggage: Bool) -> [[Int]] {
+        hidesLuggage ? OjisanPuzzleBoard.emptyBoard() : board
+    }
+
+    /// 「つぎ」の欄に描く 2 つ。隠すときは空のマス（0）にする。
+    static func visibleNextKinds(child: Int, axis: Int, hidesLuggage: Bool) -> (child: Int, axis: Int) {
+        hidesLuggage ? (0, 0) : (child, axis)
     }
 
     /// 新規ゲームの入口。進行があれば確認、無ければ開始シート。
@@ -434,7 +454,8 @@ public struct OjisanPuzzleView: View {
                 (geo.size.width - Self.boardInset * 2) / CGFloat(OjisanPuzzleBoard.columns),
                 (geo.size.height - Self.boardInset * 2) / CGFloat(OjisanPuzzleBoard.rows)
             ))
-            let board = model.displayBoard
+            // 一時停止中は荷物を描かない（止めて次の置き場所を考えられないようにする・会長指示 2026-10-12・#2135）。
+            let board = Self.visibleBoard(model.displayBoard, hidesLuggage: hidesLuggage)
             VStack(spacing: 1) {
                 ForEach(0..<OjisanPuzzleBoard.rows, id: \.self) { row in
                     HStack(spacing: 1) {
@@ -466,9 +487,9 @@ public struct OjisanPuzzleView: View {
             .overlay {
                 if let outcome = model.outcome, !showResult { finishBanner(outcome) }
             }
-            // 一時停止中は覆いで盤を暗くして、再開・はじめからを選ばせる（他ゲームの一時停止と同じ黒 60%・#2135）。
+            // 一時停止中は荷物を消した盤の上に覆いを重ね、再開・はじめからを選ばせる（#2135）。
             .overlay {
-                if model.isUserPaused, model.outcome == nil { pausedOverlay }
+                if hidesLuggage { pausedOverlay }
             }
             .onChange(of: cell, initial: true) { _, newValue in cellSide = newValue }
         }
@@ -632,8 +653,11 @@ public struct OjisanPuzzleView: View {
                     .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 2) {
-                    Self.luggage(model.next.childKind, side: 26)
-                    Self.luggage(model.next.axisKind, side: 26)
+                    // 一時停止中は「つぎ」も空の枠にする（盤と同じ理由・#2135）。
+                    let next = Self.visibleNextKinds(child: model.next.childKind, axis: model.next.axisKind,
+                                                     hidesLuggage: hidesLuggage)
+                    Self.luggage(next.child, side: 26)
+                    Self.luggage(next.axis, side: 26)
                 }
             }
             .frame(width: Self.sideWidth)
