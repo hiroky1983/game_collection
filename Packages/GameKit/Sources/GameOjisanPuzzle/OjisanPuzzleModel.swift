@@ -113,12 +113,15 @@ public final class OjisanPuzzleModel {
     /// 動かす・回せる・落ちる・固定するのどれかが起きたら畳む。
     private var rotationBlockedOnce = false
     /// 接地したあと、動かす・回すたびに固定が 1 刻み延びる回数の上限（定番の落ち物パズルの「動かすと猶予が延びる」・#2088）。
-    /// 一段落ちるたびに数え直す。無限に延ばして固定させない遊び方を防ぐ。
+    /// 組がこれまでで最も低い行に達したときだけ数え直す（壁キックで持ち上げて落とし直しても数え直さない・#2123）。
+    /// 無限に延ばして固定させない遊び方を防ぐ。
     static let groundExtensionLimit = 8
     /// 接地中に動かして、次の刻みでの固定を 1 回見送る予約があるか。
     private var groundExtended = false
     /// 接地してから延ばした回数。
     private var groundExtensions = 0
+    /// 現在の組が達した最も低い行（組の 2 マスのうち下の方・下が大きい）。新しい組では `Int.min`。
+    private var lowestRowReached = Int.min
     static let gameID = "ojisanpuzzle"
 
     /// 通常の入口。
@@ -220,7 +223,12 @@ public final class OjisanPuzzleModel {
             if let moved = OjisanPuzzleBoard.steppedDown(board, pair) {
                 current = moved
                 rotationBlockedOnce = false
-                resetGroundGrace()
+                steppedDownGroundGrace(to: moved)
+                // 上限まで延ばしたあと、壁キックで持ち上げた分を落ちて再び接地したら、回す余地を与えずその場で固定する。
+                // （接地した刻みが来る前に回し直され続けるのを断つ・#2123）
+                if groundExtensions >= Self.groundExtensionLimit, OjisanPuzzleBoard.steppedDown(board, moved) == nil {
+                    lock(moved)
+                }
             } else if groundExtended {
                 // 接地してから動かしたので、固定をもう 1 刻み待つ。
                 groundExtended = false
@@ -291,6 +299,19 @@ public final class OjisanPuzzleModel {
     private func resetGroundGrace() {
         groundExtended = false
         groundExtensions = 0
+        lowestRowReached = Int.min
+    }
+
+    /// 1 段落ちたとき。これまでより低い行に達したときだけ猶予の回数を数え直す（#2123）。
+    /// 壁キックで持ち上がった分を落ちるだけなら、延ばした回数は引き継ぐ。
+    private func steppedDownGroundGrace(to pair: OjisanPuzzlePair) {
+        let bottom = max(pair.row, pair.childRow)
+        if bottom > lowestRowReached {
+            resetGroundGrace()
+            lowestRowReached = bottom
+        } else {
+            groundExtended = false
+        }
     }
 
     /// 左右移動・回転を受け付けてよいか。**腰が重いほどワンテンポ遅れる**（企画の核心）。
@@ -318,7 +339,7 @@ public final class OjisanPuzzleModel {
         if let moved = OjisanPuzzleBoard.steppedDown(board, pair) {
             current = moved
             rotationBlockedOnce = false
-            resetGroundGrace()
+            steppedDownGroundGrace(to: moved)
         } else {
             lock(pair)
         }
