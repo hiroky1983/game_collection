@@ -19,7 +19,7 @@ public struct GameClearCard: View {
 
     /// VoiceOver が 1 回で読む文。見出しの「！」は読み上げでは落とす。
     public static func accessibilityLabel(title: String, details: [String]) -> String {
-        ([title.replacingOccurrences(of: "！", with: "")] + details).joined(separator: tr("。"))
+        ([title.replacingOccurrences(of: "！", with: "")] + details).joined(separator: tr("。"))  // i18n-keep: 日本語の見出しから「！」を外すだけ
     }
 
     public var body: some View {

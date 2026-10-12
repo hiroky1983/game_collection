@@ -255,6 +255,21 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 4. 英語は日本語より横に長い。1 行に収める所（`lineLimit(1)`・幅が固定の枠）は `minimumScaleFactor` か、
    `ViewThatFits` で短い言い回しに切り替える形にして、SE（幅 375pt）で確かめる。
 
+### 訳し漏れの機械チェック（#2169）
+
+`python3 Scripts/check-untranslated-ja.py` が、App と GameKit の Swift ソースから **`tr("…")` を通していない日本語の
+文字列リテラル**を洗い出す（残りがあれば終了コード 1）。あわせて `tr` のキーと表の対応（上の 3. と同じ規則）も見る。
+`--summary` でファイルごとの件数。検査自体のテストは `bash Scripts/tests/test-check-untranslated-ja.sh`。
+
+- 数えないもの: コメント、`tr` のキー、開発者にしか見えない文（`precondition`・`assert`・`fatalError`・`print`・
+  `debugDescription:` の引数）、`#Preview` の中。
+- **訳さないと決めたもの**は、行末（か直前の行）に `// i18n-keep: 理由` を書く。カードしりとりの単語・かな、
+  牌や駒の絵柄の文字、言語の自称（「日本語」）、**記録に保存する区分名**（`GameScore(variantLabel:)` に渡す名前。
+  保存した時点の言語で残ると表示が混ざるため日本語で保存し、表示の英語化は #2168 で扱う）など。
+- ファイル単位の除外と、別の issue が**担当中**の範囲は `Scripts/i18n-check-exclusions.txt`。担当中の範囲は既定では
+  数えず件数だけ出す（`--include-in-progress` で数える）。担当の PR がマージされたら、その行を消して 0 件を確かめる。
+- 記録の区分名を画面にも出すゲームは、記録用（日本語のまま・`i18n-keep`）と表示用（`tr`）の 2 つに分けて持つ。
+
 **訳さないもの**: 解析イベント名とパラメータ（`game_start` 等・`game_id`）、`UserDefaults` の保存キー、中断データの鍵、
 Game Center の ID。英語の訳文には他社の商標名を入れない（既存の日本語の文に入っている場合も英語では言い換える）。
 新しいモジュール（ゲーム）を足すときは、`Resources/Localization/Localizable.xcstrings`（中身が空の表でよい）・

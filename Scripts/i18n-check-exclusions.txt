@@ -1,0 +1,35 @@
+# 訳し漏れチェック（Scripts/check-untranslated-ja.py・#2169）の除外の一覧。
+#
+# 書式（空白区切り。`#` で始まる行はコメント。行の途中にコメントは書かない）:
+#   keep <glob> <理由>
+#       ファイルごと訳さない。ユーザーに出ない画面（DEBUG 専用）など。
+#   in-progress <glob> <issue> <メモ>
+#       別の issue が英語化を担当している範囲。既定では数えず、件数だけ別に出す。
+#       担当の PR がマージされたら、その行を消して「訳し漏れ 0 件」を確かめる。
+#
+# 1 行単位で「訳さない」ものは、ソースの行末（または直前の行）に `// i18n-keep: 理由` を書く。
+
+# --- 訳さない ---
+keep Packages/GameKit/Sources/MahjongTiles/MahjongTileGallery.swift DEBUG専用の牌の一覧（-showMahjongTiles）
+
+# --- 担当中（2026-10-12 時点） ---
+# 多言語③: 麻雀・花札・将棋・ポーカー・大富豪
+in-progress Packages/GameKit/Sources/GameMahjong/* #2166 麻雀
+in-progress Packages/GameKit/Sources/GameHanafuda/* #2166 花札
+in-progress Packages/GameKit/Sources/GameShogi/* #2166 将棋
+in-progress Packages/GameKit/Sources/GamePoker/* #2166 ポーカー
+in-progress Packages/GameKit/Sources/GameDaifugo/* #2166 大富豪
+# 多言語④: 柵越えおじさん・チャリンコおじさん
+in-progress Packages/GameKit/Sources/GameHomerun/* #2167 柵越えおじさん
+in-progress Packages/GameKit/Sources/HomerunCore/* #2167 柵越えおじさん
+in-progress Packages/GameKit/Sources/GameRunner/* #2167 チャリンコおじさん
+# 多言語⑤: 数字・単位・記録の表示
+in-progress Packages/GameKit/Sources/CoreEngine/PlayRecord.swift #2168 記録の表示
+in-progress Packages/GameKit/Sources/CoreEngine/PlayLog.swift #2168 記録の区分名（保存済みの旧表示名の読み替え）
+# 遊び方の書き直し（#2044・当番）→ 英語化は多言語②（#2165）
+in-progress Packages/GameKit/Sources/Core/HowToPlay.swift #2044 遊び方の本文
+in-progress Packages/GameKit/Sources/Core/Rule*.swift #2044 遊び方の図の部品
+in-progress Packages/GameKit/Sources/*/*HowToFigures.swift #2044 遊び方の図
+in-progress Packages/GameKit/Sources/GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift #2165 荷物運びパズルのモード説明
+# ハブ（#1831 の刷新・当番）
+in-progress App/Hub*.swift #1831 ハブ
