@@ -690,7 +690,7 @@ struct GameOpenWiringTests {
         #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
                 "導線を持たない遷移がある（game_open の source が分からない）")
         // 導線ごとに正しい source を載せている。
-        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: index \+ 1"#,
+        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: entry\.position"#,
                              options: .regularExpression) != nil, "グリッド")
         #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
                              options: .regularExpression) != nil, "つづき・最近")
