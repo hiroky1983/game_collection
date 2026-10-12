@@ -56,7 +56,9 @@ struct OjisanPuzzleLuggageArt: View {
     }
 
     var body: some View {
-        if let cg = Self.images[value], side > 0 {
+        // 1 ドット 1px でも収まらない小さなマスでは、画像がはみ出すので図形に退避する。
+        if let cg = Self.images[value], side > 0,
+           side * max(1, displayScale) >= CGFloat(max(cg.width, cg.height)) {
             let scale = max(1, displayScale)
             let dotPt = CGFloat(Self.pixelsPerDot(side: side, dots: max(cg.width, cg.height), displayScale: scale)) / scale
             Image(decorative: cg, scale: 1)
