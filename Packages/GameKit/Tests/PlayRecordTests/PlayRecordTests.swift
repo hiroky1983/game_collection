@@ -566,6 +566,24 @@ struct LegacyRecordMigrationTests {
         #expect(reopened.records(gameID: "mahjong").count == 1)
     }
 
+    @Test("荷運びモードの旧表示名「腰痛モード」は読み込み時に直り、記録の中身は変わらない（#2176）")
+    func staleOjisanVariantLabelIsRenamedOnLoad() {
+        let (log, defaults, name) = makeLog(suite: "rename-ojisan-label")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        log.recordResult(
+            gameID: "ojisanpuzzle", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 37, variant: "backpain", variantLabel: "腰痛モード")
+        )
+        #expect(log.record(gameID: "ojisanpuzzle", variant: "backpain")?.variantLabel == "腰痛モード", "前提: 旧名で保存されている")
+
+        let reopened = PlayLog(defaults: defaults)
+        let record = reopened.record(gameID: "ojisanpuzzle", variant: "backpain")
+        #expect(record?.variantLabel == "荷運びモード")
+        #expect(record?.bestSeconds == 37)
+        #expect(RecordFormat.hubLine(reopened.records(gameID: "ojisanpuzzle")) == "最短 0:37（荷運びモード）")
+    }
+
     @Test("引き継いだ記録は更新後の初回クリアと比較される（無条件の新記録にならない）")
     func migratedBestIsComparedAgainstNewPlays() {
         let (log, defaults, name) = makeLog(suite: "legacy-compare")

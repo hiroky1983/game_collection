@@ -179,7 +179,7 @@ public final class PlayLog {
         } else {
             stored = [:]
         }
-        self.records = Self.migratingLegacyRecords(stored)
+        self.records = Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored))
         // 移し替えが起きた回だけ書き戻す。次の起動では旧キーが無いので何も起きない。
         if self.records != stored { persistRecords() }
     }
@@ -267,6 +267,23 @@ public final class PlayLog {
     static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
         "mahjong": (variant: "turtle", label: "亀甲"),
     ]
+
+    /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
+    ///
+    /// `variantLabel` は保存した時点の文字列で、次に遊んで記録を更新するまで書き換わらない。改名後も
+    /// ハブに旧名が出続けるので、読み込み時に新名へ直す。区分キー（`backpain`）は変えない。
+    static let renamedVariantLabels: [String: (old: String, new: String)] = [
+        "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),
+    ]
+
+    /// 保存済みの旧表示名を新表示名へ直した結果を返す純粋関数（#2176）。旧名以外のラベルには触れない。
+    static func renamingStaleVariantLabels(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        var result = records
+        for (key, rename) in renamedVariantLabels where result[key]?.variantLabel == rename.old {
+            result[key]?.variantLabel = rename.new
+        }
+        return result
+    }
 
     /// 旧キーの記録を既定区分のキーへ移し替えた結果を返す純粋関数（#383）。
     ///
