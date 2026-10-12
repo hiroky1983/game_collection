@@ -232,7 +232,7 @@ struct HomerunAtBatView: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.pop)
-        .accessibilityLabel(tr("一時停止"))
+        .accessibilityLabel(tr("一時停止する"))
     }
 
     /// 一時停止の画面: 再開・遊び方・操作の説明・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
