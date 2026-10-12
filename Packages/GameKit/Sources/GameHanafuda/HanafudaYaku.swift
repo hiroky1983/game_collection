@@ -18,38 +18,47 @@ public enum HanafudaYaku: String, CaseIterable, Sendable, Equatable, Codable {
     case tan           // タン
     case kasu          // カス
 
+    /// 役名（表示言語で引く・#2166）。判定・保存は `rawValue` で行い、この文字列は画面と読み上げにだけ使う。
     public var name: String {
         switch self {
-        case .goko:        return "五光"
-        case .shiko:       return "四光"
-        case .ameShiko:    return "雨四光"
-        case .sanko:       return "三光"
-        case .inoshikacho: return "猪鹿蝶"
-        case .akatan:      return "赤短"
-        case .aotan:       return "青短"
-        case .tsukimizake: return "月見酒"
-        case .hanamizake:  return "花見酒"
-        case .tane:        return "タネ"
-        case .tan:         return "タン"
-        case .kasu:        return "カス"
+        case .goko:        return tr("五光")
+        case .shiko:       return tr("四光")
+        case .ameShiko:    return tr("雨四光")
+        case .sanko:       return tr("三光")
+        case .inoshikacho: return tr("猪鹿蝶")
+        case .akatan:      return tr("赤短")
+        case .aotan:       return tr("青短")
+        case .tsukimizake: return tr("月見酒")
+        case .hanamizake:  return tr("花見酒")
+        case .tane:        return tr("タネ")
+        case .tan:         return tr("タン")
+        case .kasu:        return tr("カス")
         }
+    }
+
+    /// 1 行に収める所（取り札の横の役の行・早見表の名前の列）に出す短い役名（#2166）。
+    /// 英語の `name` は「ローマ字 (英語の説明)」なので、括弧の前のローマ字だけを残す。日本語は `name` のまま。
+    public var shortName: String {
+        let full = name
+        guard let paren = full.range(of: " (") else { return full }
+        return String(full[..<paren.lowerBound])
     }
 
     /// 役早見表に出す成立条件の説明。
     public var requirement: String {
         switch self {
-        case .goko:        return "光札 5 枚すべて"
-        case .shiko:       return "柳を除く光札 4 枚"
-        case .ameShiko:    return "柳を含む光札 4 枚"
-        case .sanko:       return "柳を除く光札 3 枚"
-        case .inoshikacho: return "萩に猪・紅葉に鹿・牡丹に蝶"
-        case .akatan:      return "松・梅・桜の赤短 3 枚"
-        case .aotan:       return "牡丹・菊・紅葉の青短 3 枚"
-        case .tsukimizake: return "芒に月 ＋ 菊に盃"
-        case .hanamizake:  return "桜に幕 ＋ 菊に盃"
-        case .tane:        return "タネ札 5 枚（1 枚増えるごとに ＋1 文）"
-        case .tan:         return "短冊札 5 枚（1 枚増えるごとに ＋1 文）"
-        case .kasu:        return "カス札 10 枚（1 枚増えるごとに ＋1 文）"
+        case .goko:        return tr("光札 5 枚すべて")
+        case .shiko:       return tr("柳を除く光札 4 枚")
+        case .ameShiko:    return tr("柳を含む光札 4 枚")
+        case .sanko:       return tr("柳を除く光札 3 枚")
+        case .inoshikacho: return tr("萩に猪・紅葉に鹿・牡丹に蝶")
+        case .akatan:      return tr("松・梅・桜の赤短 3 枚")
+        case .aotan:       return tr("牡丹・菊・紅葉の青短 3 枚")
+        case .tsukimizake: return tr("芒に月 ＋ 菊に盃")
+        case .hanamizake:  return tr("桜に幕 ＋ 菊に盃")
+        case .tane:        return tr("タネ札 5 枚（1 枚増えるごとに ＋1 文）")
+        case .tan:         return tr("短冊札 5 枚（1 枚増えるごとに ＋1 文）")
+        case .kasu:        return tr("カス札 10 枚（1 枚増えるごとに ＋1 文）")
         }
     }
 
@@ -126,9 +135,11 @@ public struct HanafudaOptions: Equatable, Sendable, Codable {
     }
 
     /// ハブ・リザルトの記録行に添える区分名。既定は従来どおり添えない。
+    /// 表示言語で引く（#2166）。記録に残るのは保存した時点の言語の文字列。
     public var recordVariantLabel: String? {
-        let parts = variantParts(rounds: "\(rounds)局", noSake: "酒の役なし", difficulty: "CPU\(difficulty.label)")
-        return parts.isEmpty ? nil : parts.joined(separator: "・")
+        let parts = variantParts(rounds: tr("%lld局", rounds), noSake: tr("酒の役なし"),
+                                 difficulty: tr("CPU%@", difficulty.label))
+        return parts.isEmpty ? nil : parts.joined(separator: tr("・"))
     }
 
     /// Game Center のリーダーボードへ送ってよいか。
@@ -157,9 +168,9 @@ public enum HanafudaDifficulty: String, CaseIterable, Sendable, Equatable, Codab
 
     public var label: String {
         switch self {
-        case .easy:   return "かんたん"
-        case .normal: return "ふつう"
-        case .hard:   return "むずかしい"
+        case .easy:   return tr("かんたん")
+        case .normal: return tr("ふつう")
+        case .hard:   return tr("むずかしい")
         }
     }
 }
@@ -257,10 +268,22 @@ public enum HanafudaScoring {
     public static let sevenMonThreshold = 7
 
     /// 最終得点にどの倍率が掛かったかの内訳（リザルトの説明に使う）。
+    ///
+    /// **返すのは日本語の原文**（局の結果ごと中断データに保存されるため、言語で変えない）。
+    /// 画面と読み上げには `reasonLabel(_:)` で表示言語の文言にしてから出す（#2166）。
     public static func multiplierReasons(base: Int, opponentDeclaredKoiKoi: Bool) -> [String] {
         var reasons: [String] = []
         if base >= sevenMonThreshold { reasons.append("7文以上で2倍") }
         if opponentDeclaredKoiKoi { reasons.append("こいこい返しで2倍") }
         return reasons
+    }
+
+    /// `multiplierReasons` の 1 項目を表示言語の文言にする（#2166）。知らない文字列はそのまま返す。
+    public static func reasonLabel(_ reason: String) -> String {
+        switch reason {
+        case "7文以上で2倍": return tr("7文以上で2倍")
+        case "こいこい返しで2倍": return tr("こいこい返しで2倍")
+        default: return reason
+        }
     }
 }

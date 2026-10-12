@@ -18,21 +18,31 @@ public enum HanafudaKind: Int, Codable, CaseIterable, Sendable, Equatable {
     /// 場・手札の並べ替えに使う優先度（強い札を先に見せる）。
     public var sortOrder: Int { rawValue }
 
-    /// 画面と読み上げに出す短い名前。
+    /// 種別の短い名前（「光」「タネ」「短冊」「カス」）。表示言語で引く（#2166）。
+    ///
+    /// 英語では「タネ」「カス」が役名と同じ表の項目になる（`Tane (Animals)` / `Kasu (Plains)`）ので、
+    /// 英語の文に種別を出す所はこれを使わず、種別ごとの文（`HanafudaSpeech`）で引く。
     public var label: String {
         switch self {
-        case .hikari:  return "光"
-        case .tane:    return "タネ"
-        case .tanzaku: return "短冊"
-        case .kasu:    return "カス"
+        case .hikari:  return tr("光")
+        case .tane:    return tr("タネ")
+        case .tanzaku: return tr("短冊")
+        case .kasu:    return tr("カス")
         }
     }
 
     /// 札の絵柄の帯に出す表記（#602）。**2 文字までに収める**。
     /// 帯には月の数字も並ぶため、`label` のままだと 12 月の短冊札で 4 文字になって潰れる。
     /// 赤短・青短の別は帯の色が示すので、短冊は「短」だけでよい。
+    /// 英語は種別の英語名の頭 2 文字（Br / An / Rb / Pl・#2166）。日本語の `label` は括弧を含まず
+    /// 2 文字以内なので、日本語の表記は変わらない。
     public var badgeLabel: String {
-        self == .tanzaku ? "短" : label
+        var text = self == .tanzaku ? tr("短") : label
+        // 英語の「Tane (Animals)」は括弧の中の英語名から取る。
+        if let open = text.firstIndex(of: "("), let close = text.lastIndex(of: ")"), open < close {
+            text = String(text[text.index(after: open)..<close])
+        }
+        return String(text.prefix(2))
     }
 }
 
@@ -73,8 +83,53 @@ public struct HanafudaCard: Identifiable, Codable, Equatable, Hashable, Sendable
 
     public var kind: HanafudaKind { Self.table[id].kind }
 
-    /// 「松に鶴」などの札名。
+    /// 「松に鶴」などの札名（日本語の原文）。テストで札を名前で引くのに使う。
+    /// **画面と読み上げには `displayName` を使う**（表示言語で引く・#2166）。
     public var name: String { Self.table[id].name }
+
+    /// 画面と読み上げに出す札名（表示言語で引く・#2166）。日本語では `name` と同じ文字列になる
+    /// （`HanafudaEnglishTests` が 48 枚すべてで突き合わせる）。キーを表から引けるよう、札ごとにリテラルで書く。
+    public var displayName: String {
+        switch id {
+        case 0: return tr("松に鶴")
+        case 1: return tr("松に赤短")
+        case 2, 3: return tr("松のカス")
+        case 4: return tr("梅に鶯")
+        case 5: return tr("梅に赤短")
+        case 6, 7: return tr("梅のカス")
+        case 8: return tr("桜に幕")
+        case 9: return tr("桜に赤短")
+        case 10, 11: return tr("桜のカス")
+        case 12: return tr("藤に不如帰")
+        case 13: return tr("藤に短冊")
+        case 14, 15: return tr("藤のカス")
+        case 16: return tr("菖蒲に八橋")
+        case 17: return tr("菖蒲に短冊")
+        case 18, 19: return tr("菖蒲のカス")
+        case 20: return tr("牡丹に蝶")
+        case 21: return tr("牡丹に青短")
+        case 22, 23: return tr("牡丹のカス")
+        case 24: return tr("萩に猪")
+        case 25: return tr("萩に短冊")
+        case 26, 27: return tr("萩のカス")
+        case 28: return tr("芒に月")
+        case 29: return tr("芒に雁")
+        case 30, 31: return tr("芒のカス")
+        case 32: return tr("菊に盃")
+        case 33: return tr("菊に青短")
+        case 34, 35: return tr("菊のカス")
+        case 36: return tr("紅葉に鹿")
+        case 37: return tr("紅葉に青短")
+        case 38, 39: return tr("紅葉のカス")
+        case 40: return tr("柳に小野道風")
+        case 41: return tr("柳に燕")
+        case 42: return tr("柳に短冊")
+        case 43: return tr("柳に鬼札")
+        case 44: return tr("桐に鳳凰")
+        case 45, 46, 47: return tr("桐のカス")
+        default: return name
+        }
+    }
 
     /// 短冊札の色。短冊以外は nil。
     public var ribbon: HanafudaRibbon? { Self.table[id].ribbon }
@@ -123,6 +178,7 @@ public struct HanafudaCard: Identifiable, Codable, Equatable, Hashable, Sendable
         (0..<deckSize).map { HanafudaCard(id: $0) }
     }
 
+    /// 月の植物名（日本語の原文。画面には出していない）。
     public static let monthNames = [
         "松", "梅", "桜", "藤", "菖蒲", "牡丹", "萩", "芒", "菊", "紅葉", "柳", "桐",
     ]
