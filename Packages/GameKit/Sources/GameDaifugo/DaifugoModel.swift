@@ -254,7 +254,39 @@ public final class DaifugoModel: AITurnGuarded {
     }
 
     public func playerName(_ index: Int) -> String {
-        index == Self.humanIndex ? "あなた" : "CPU\(index)"
+        index == Self.humanIndex ? tr("あなた") : "CPU\(index)"
+    }
+
+    /// 直近の動きのバッジに出す文言（#2166）。
+    ///
+    /// `lastActions` は中断データ（`DaifugoSnapshot.lastActions`）に載る値なので、これまでどおり日本語の原文で持ち、
+    /// 訳は表示の境目のここで引く（保存した時点の言語に固まらない・旧データもそのまま読める）。
+    public func actionLabel(_ index: Int) -> String {
+        guard lastActions.indices.contains(index) else { return "" }
+        return Self.localizedAction(lastActions[index])
+    }
+
+    /// `play(_:by:)` などが組んだ原文の動き（例: "8 8 革命！ 8切り！"）を表示用に訳す。
+    /// ランクの文字（"8"・"JOKER" など）はどの言語でも同じなので、決まった言い回しの部分だけを置き換える。
+    static func localizedAction(_ action: String) -> String {
+        switch action {
+        case "パス": return tr("パス")
+        case "投了": return tr("投了")
+        default: break
+        }
+        let phrases: [(String, String)] = [
+            ("革命返し！", tr("革命返し！")),
+            ("革命！", tr("革命！")),
+            ("反則上がり", tr("反則上がり")),
+            ("あがり！", tr("あがり！")),
+            ("（8切り）", tr("（8切り）")),
+            ("8切り！", tr("8切り！")),
+        ]
+        var text = action
+        for (original, label) in phrases where original != label {
+            text = text.replacingOccurrences(of: original, with: label)
+        }
+        return text
     }
 
     private var selectedCards: [DaifugoCard] {

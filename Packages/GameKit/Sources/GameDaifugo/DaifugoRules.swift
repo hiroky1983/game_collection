@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// 交換で動いた札（リザルト表示と検証のために誰から誰へ何を渡したかを残す）。
 public struct DaifugoTransfer: Codable, Sendable, Equatable {
@@ -49,8 +50,8 @@ public struct DaifugoHandHint: Equatable, Sendable {
 public enum DaifugoRules {
     /// ジョーカーの `rank`。通常の 1〜13 と衝突しない値を使う。
     public static let jokerRank = 0
-    /// 階級の呼び名（`ranking` の順に対応）。
-    public static let titles = ["大富豪", "富豪", "貧民", "大貧民"]
+    /// 階級の呼び名（`ranking` の順に対応）。表示用なので、その時点の言語で引く（#2166）。
+    public static var titles: [String] { [tr("大富豪"), tr("富豪"), tr("貧民"), tr("大貧民")] }
     /// 革命が起きる同ランクの枚数。
     public static let revolutionCount = 4
 
@@ -170,18 +171,18 @@ public enum DaifugoRules {
     ) -> String? {
         guard !cards.isEmpty else { return nil }
         guard let played = playStrength(cards, isRevolution: isRevolution) else {
-            return "数字がそろっていません（ジョーカーは他の数字の代わりに使えます）"
+            return tr("数字がそろっていません（ジョーカーは他の数字の代わりに使えます）")
         }
         guard !field.isEmpty else { return nil }
         guard cards.count == field.count else {
-            return "場は\(field.count)枚です。\(cards.count)枚では出せません"
+            return tr("場は%1$lld枚です。%2$lld枚では出せません", field.count, cards.count)
         }
         guard let current = playStrength(field, isRevolution: isRevolution), played > current else {
             // 場がジョーカーだけのときは非ジョーカーが無いので、そのまま JOKER と呼ぶ。
             let label = field.first { !$0.isJoker }?.rankLabel ?? "JOKER"
             return isRevolution
-                ? "革命中です。場の \(label) より弱い数字が必要です"
-                : "場の \(label) より強い数字が必要です"
+                ? tr("革命中です。場の %@ より弱い数字が必要です", label)
+                : tr("場の %@ より強い数字が必要です", label)
         }
         return nil
     }
@@ -274,7 +275,8 @@ public enum DaifugoRules {
 
     /// 順位（0 始まり）に対応する階級名。4人以外でも落ちないよう範囲外は空文字にする。
     public static func title(forPlace place: Int) -> String {
-        titles.indices.contains(place) ? titles[place] : ""
+        let titles = self.titles
+        return titles.indices.contains(place) ? titles[place] : ""
     }
 
     // MARK: - カード交換

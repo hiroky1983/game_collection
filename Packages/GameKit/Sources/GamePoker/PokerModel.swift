@@ -273,25 +273,49 @@ public final class PokerModel {
         let headline: String
         let spoken: String
         switch winner {
-        case .player: (kind, headline, spoken) = (.win, "勝ち！", "勝ちです")
-        case .cpu:    (kind, headline, spoken) = (.lose, "負け", "負けです")
-        case .tie:    (kind, headline, spoken) = (.draw, "引き分け", "引き分けです")
+        case .player: (kind, headline, spoken) = (.win, tr("勝ち！"), tr("勝ちです"))
+        case .cpu:    (kind, headline, spoken) = (.lose, tr("負け"), tr("負けです"))
+        case .tie:    (kind, headline, spoken) = (.draw, tr("引き分け"), tr("引き分けです"))
         }
         let reason: String
         if cpuFolded {
-            reason = "CPUがフォールド"
+            reason = tr("CPUがフォールド")
         } else if playerFolded {
-            reason = "あなたがフォールド"
+            reason = tr("あなたがフォールド")
         } else if winner == .tie {
-            reason = "どちらも\(playerHandRank.description)"
+            reason = tr("どちらも%@", playerHandRank.description)
         } else {
-            reason = "\(playerHandRank.description) 対 \(cpuHandRank.description)"
+            reason = tr("%1$@ 対 %2$@", playerHandRank.description, cpuHandRank.description)
         }
         var note = reason
-        if winner == .player, playerBonus > 0 { note += "（役ボーナス+\(playerBonus)枚込み）" }
-        if winner == .cpu, cpuBonus > 0 { note += "（CPUに役ボーナス+\(cpuBonus)枚）" }
+        if winner == .player, playerBonus > 0 { note += tr("（役ボーナス+%lld枚込み）", playerBonus) }
+        if winner == .cpu, cpuBonus > 0 { note += tr("（CPUに役ボーナス+%lld枚）", cpuBonus) }
         return HandResult(kind: kind, headline: headline, reason: note,
                           chipDelta: handNetChips, spokenResult: spoken)
+    }
+
+    // MARK: - CPU の行動の表示（#2166）
+
+    /// CPU の行動のバッジに出す文言。
+    ///
+    /// `cpuAction` は中断データ（`PokerSnapshot.cpuAction`）に載る値なので、これまでどおり日本語の原文で持ち、
+    /// 訳は表示の境目のここで引く（保存した時点の言語に固まらない・旧データもそのまま読める）。
+    public var cpuActionLabel: String {
+        switch cpuAction {
+        case "チェック":          return tr("チェック")
+        case "コール":            return tr("コール")
+        case "フォールド":        return tr("フォールド")
+        case "あなたがフォールド": return tr("あなたがフォールド")
+        case "カード交換なし":    return tr("カード交換なし")
+        default: break
+        }
+        if cpuAction.hasPrefix("ベット "), let amount = Int(cpuAction.dropFirst(4)) {
+            return tr("ベット %lld", amount)
+        }
+        if cpuAction.hasSuffix("枚交換"), let count = Int(cpuAction.dropLast(3)) {
+            return tr("%lld枚交換", count)
+        }
+        return cpuAction
     }
 
     // MARK: - Start
