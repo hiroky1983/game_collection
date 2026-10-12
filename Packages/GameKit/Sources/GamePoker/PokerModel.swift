@@ -302,17 +302,17 @@ public final class PokerModel {
     /// 訳は表示の境目のここで引く（保存した時点の言語に固まらない・旧データもそのまま読める）。
     public var cpuActionLabel: String {
         switch cpuAction {
-        case "チェック":          return tr("チェック")
-        case "コール":            return tr("コール")
-        case "フォールド":        return tr("フォールド")
-        case "あなたがフォールド": return tr("あなたがフォールド")
-        case "カード交換なし":    return tr("カード交換なし")
+        case "チェック":          return tr("チェック")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
+        case "コール":            return tr("コール")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
+        case "フォールド":        return tr("フォールド")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
+        case "あなたがフォールド": return tr("あなたがフォールド")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
+        case "カード交換なし":    return tr("カード交換なし")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
         default: break
         }
-        if cpuAction.hasPrefix("ベット "), let amount = Int(cpuAction.dropFirst(4)) {
+        if cpuAction.hasPrefix("ベット "), let amount = Int(cpuAction.dropFirst(4)) {  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
             return tr("ベット %lld", amount)
         }
-        if cpuAction.hasSuffix("枚交換"), let count = Int(cpuAction.dropLast(3)) {
+        if cpuAction.hasSuffix("枚交換"), let count = Int(cpuAction.dropLast(3)) {  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
             return tr("%lld枚交換", count)
         }
         return cpuAction
@@ -473,7 +473,7 @@ public final class PokerModel {
     private func cpuBet1Response(playerBet: Int) {
         let (cpuRank, _) = HandEvaluator.evaluate(cpuHand)
         if playerBet == 0 {
-            cpuAction = "チェック"
+            cpuAction = "チェック"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
             cpuBetInRound = 0
             phase = .exchange
         } else {
@@ -483,11 +483,11 @@ public final class PokerModel {
                 pot += callAmount
                 cpuBetInRound = callAmount
                 refundPlayerExcess(bet: playerBet, called: callAmount)
-                cpuAction = "コール"
+                cpuAction = "コール"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
                 phase = .exchange
             } else {
                 cpuFolded = true
-                cpuAction = "フォールド"
+                cpuAction = "フォールド"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
                 endRound()
             }
         }
@@ -525,7 +525,7 @@ public final class PokerModel {
     private func performCPUExchange() {
         let keepIdx = HandEvaluator.cpuKeepIndices(from: cpuHand)
         let discardCount = 5 - keepIdx.count
-        cpuAction = discardCount == 0 ? "カード交換なし" : "\(discardCount)枚交換"
+        cpuAction = discardCount == 0 ? "カード交換なし" : "\(discardCount)枚交換"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
         var newHand = cpuHand
         for i in newHand.indices where !keepIdx.contains(i) {
             if let newCard = deck.first {
@@ -568,7 +568,7 @@ public final class PokerModel {
             cpuChips += pot
             pot = 0
             winner = .cpu
-            cpuAction = "あなたがフォールド"
+            cpuAction = "あなたがフォールド"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
             phase = .result
             settleRound()
             persist()
@@ -583,11 +583,11 @@ public final class PokerModel {
                 cpuChips -= amount
                 pot += amount
                 cpuBetInRound = amount
-                cpuAction = "ベット \(amount)"
+                cpuAction = "ベット \(amount)"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
                 phase = .betting2
                 currentBet = amount
             } else {
-                cpuAction = "チェック"
+                cpuAction = "チェック"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
                 phase = .showdown
                 resolveShowdown()
             }
@@ -598,12 +598,12 @@ public final class PokerModel {
                 pot += callAmount
                 cpuBetInRound = callAmount
                 refundPlayerExcess(bet: playerBet, called: callAmount)
-                cpuAction = "コール"
+                cpuAction = "コール"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
                 phase = .showdown
                 resolveShowdown()
             } else {
                 cpuFolded = true
-                cpuAction = "フォールド"
+                cpuAction = "フォールド"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
                 endRound()
             }
         }

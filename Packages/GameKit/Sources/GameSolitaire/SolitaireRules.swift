@@ -15,12 +15,8 @@ public enum SolitaireDrawMode: String, CaseIterable, Codable, Sendable, Equatabl
         }
     }
 
-    public var label: String {
-        switch self {
-        case .one:   return "1枚めくり"
-        case .three: return "3枚めくり"
-        }
-    }
+    // 画面に出す名前（`label`）は `SolitaireSetupSheet.swift` に置く（多言語 #2169）。このファイルは
+    // `swiftc -O` で純ロジックだけを 1 バイナリにして回すことがあるので、表（`tr`）を引き込まない。
 
     /// 記録の保存先（`GameScore.variant`）。
     ///
@@ -33,7 +29,7 @@ public enum SolitaireDrawMode: String, CaseIterable, Codable, Sendable, Equatabl
 
     /// 自己ベストの行に出す区分名。既定は区分を持たないので nil。
     public var recordLabel: String? {
-        self == .three ? label : nil
+        self == .three ? "3枚めくり" : nil  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
     }
 }
 

@@ -33,14 +33,14 @@ struct MahjongEnglishTests {
         #expect(GameMahjong.tr("2位", language: .english) == "2nd")
     }
 
-    @Test("牌の呼び名は読み上げられる英語。保存用には日本語を明示して引ける")
-    func tileNames() {
-        #expect(MahjongTile.bamboos(3).displayName(language: .english) == "3 of Bamboo")
-        #expect(MahjongTile.circles(5).displayName(language: .english) == "5 of Dots")
-        #expect(MahjongTile.dragon(0).displayName(language: .english) == "Red Dragon")
-        #expect(MahjongTile.wind(0).displayName(language: .english) == "East Wind")
-        #expect(MahjongTile.characters(1).displayName(language: .development) == "萬子の1")
-        #expect(MahjongTile.dragon(0).displayName(language: .development) == "字牌の中")
+    @Test("役牌の保存用の牌名は日本語で固定し、日本語の読み上げ名と一致する")
+    func tileStoredNames() {
+        #expect(MahjongTile.characters(1).storedName == "萬子の1")
+        #expect(MahjongTile.dragon(0).storedName == "字牌の中")
+        // swift test は常に日本語なので、表示名（MahjongTiles の tr）とも一致する。
+        for tile in MahjongTile.all {
+            #expect(tile.storedName == tile.displayName, "\(tile)")
+        }
     }
 
     @Test("中断データに入る役・満貫の保存値（日本語）は、日本語の表示では 1 文字も変わらない")

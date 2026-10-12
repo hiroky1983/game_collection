@@ -38,12 +38,12 @@ public enum ChessResult: Equatable, Sendable {
     /// 結果カードに出す理由（#1753）。
     public var reasonText: String {
         switch self {
-        case .checkmate: return "チェックメイト"
-        case .stalemate: return "ステイルメイト"
-        case .fiftyMoveRule: return "50手ルール"
-        case .threefoldRepetition: return "同じ局面が3回"
-        case .insufficientMaterial: return "駒が足りない"
-        case .resignation: return "投了"
+        case .checkmate: return tr("チェックメイト")
+        case .stalemate: return tr("ステイルメイト")
+        case .fiftyMoveRule: return tr("50手ルール")
+        case .threefoldRepetition: return tr("同じ局面が3回")
+        case .insufficientMaterial: return tr("駒が足りない")
+        case .resignation: return tr("投了")
         }
     }
 
@@ -51,17 +51,17 @@ public enum ChessResult: Equatable, Sendable {
     public func text(humanSide: ChessColor) -> String {
         switch self {
         case let .checkmate(loser):
-            return loser == humanSide ? "あなたの負け（チェックメイト）" : "あなたの勝ち（チェックメイト）"
+            return loser == humanSide ? tr("あなたの負け（チェックメイト）") : tr("あなたの勝ち（チェックメイト）")
         case .stalemate:
-            return "引き分け（ステイルメイト）"
+            return tr("引き分け（ステイルメイト）")
         case .fiftyMoveRule:
-            return "引き分け（50手ルール）"
+            return tr("引き分け（50手ルール）")
         case .threefoldRepetition:
-            return "引き分け（同じ局面が3回）"
+            return tr("引き分け（同じ局面が3回）")
         case .insufficientMaterial:
-            return "引き分け（駒が足りない）"
+            return tr("引き分け（駒が足りない）")
         case let .resignation(loser):
-            return loser == humanSide ? "あなたの負け（投了）" : "あなたの勝ち（CPUの投了）"
+            return loser == humanSide ? tr("あなたの負け（投了）") : tr("あなたの勝ち（CPUの投了）")
         }
     }
 }

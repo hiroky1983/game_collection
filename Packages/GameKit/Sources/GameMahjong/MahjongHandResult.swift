@@ -120,7 +120,7 @@ extension MahjongHandResult {
         let dragonPrefix = MahjongYaku.yakuhaiDragon.name + " "
         if stored.hasPrefix(dragonPrefix) {
             let tileName = String(stored.dropFirst(dragonPrefix.count))
-            if let tile = MahjongTile.all.first(where: { $0.displayName(language: .development) == tileName }) {
+            if let tile = MahjongTile.all.first(where: { $0.storedName == tileName }) {
                 return tr("役牌 %@", tile.displayName)
             }
         }
@@ -129,23 +129,23 @@ extension MahjongHandResult {
 
     /// 飜数の欄（「1飜」または「役満」）。
     static func displayHan(_ stored: String) -> String {
-        if stored == "役満" { return tr("役満") }
-        if stored.hasSuffix("飜"), let han = Int(stored.dropLast()) { return tr("%lld飜", han) }
+        if stored == "役満" { return tr("役満") }  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        if stored.hasSuffix("飜"), let han = Int(stored.dropLast()) { return tr("%lld飜", han) }  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
         return stored
     }
 
     /// 満貫以上の呼び名（`MahjongScoring.basePoints` の保存値）。
     static func displayLimitName(_ stored: String) -> String {
         switch stored {
-        case "役満":   return tr("役満")
-        case "数え役満": return tr("数え役満")
-        case "三倍満":  return tr("三倍満")
-        case "倍満":   return tr("倍満")
-        case "跳満":   return tr("跳満")
-        case "満貫":   return tr("満貫")
+        case "役満":   return tr("役満")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case "数え役満": return tr("数え役満")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case "三倍満":  return tr("三倍満")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case "倍満":   return tr("倍満")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case "跳満":   return tr("跳満")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case "満貫":   return tr("満貫")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
         default:
             // 複数の役満（「2倍役満」）。
-            if stored.hasSuffix("倍役満"), let count = Int(stored.dropLast(3)) {
+            if stored.hasSuffix("倍役満"), let count = Int(stored.dropLast(3)) {  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
                 return tr("%lld倍役満", count)
             }
             return stored
@@ -162,4 +162,18 @@ public enum MahjongGameEndReason: Equatable, Sendable {
     case agariYame
     /// 誰かの持ち点がマイナスになった。
     case busted
+}
+
+extension MahjongTile {
+    /// 中断データに入る牌の名前（役牌の役名に使う）。表示言語に左右されないよう日本語で固定する。
+    /// `MahjongTiles` の `displayName` を日本語で引いたときと同じ文字列（#2166）。
+    var storedName: String {
+        switch self {
+        case .characters(let n): return "萬子の\(n)"  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case .circles(let n):    return "筒子の\(n)"  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case .bamboos(let n):    return "索子の\(n)"  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case .wind(let n):       return "字牌の" + (["東", "南", "西", "北"].indices.contains(n) ? ["東", "南", "西", "北"][n] : "風牌")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        case .dragon(let n):     return "字牌の" + (["中", "發", "白"].indices.contains(n) ? ["中", "發", "白"][n] : "三元牌")  // i18n-keep: 中断データに保存した役・満貫の原文（表示はここで訳す）
+        }
+    }
 }

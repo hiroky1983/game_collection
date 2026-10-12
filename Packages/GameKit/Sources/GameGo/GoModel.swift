@@ -23,7 +23,7 @@ public enum GoTapRejection: Equatable, Sendable {
 
     public var message: String {
         switch self {
-        case .notYourTurn:       return "CPU の番です"
+        case .notYourTurn:       return tr("CPU の番です")
         case .illegal(let why):  return why.message
         }
     }

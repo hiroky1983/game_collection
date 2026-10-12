@@ -20,8 +20,8 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
     /// 画面に出す表示名。`backpain` は「荷運びモード」（会長指示 2026-10-12。ゲージ自体の名前「腰痛ゲージ」は変えない）。
     public var title: String {
         switch self {
-        case .backpain: "荷運びモード"
-        case .puzzle: "パズルモード"
+        case .backpain: tr("荷運びモード")
+        case .puzzle: tr("パズルモード")
         }
     }
 
@@ -51,7 +51,13 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
     /// 荷運びモード（`backpain`）はタイム、パズルモードは得点。
     public var recordVariant: String { rawValue }
 
-    public var recordVariantLabel: String { title }
+    /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されてハブの記録行に出るので、表示言語によらず日本語。
+    public var recordVariantLabel: String {
+        switch self {
+        case .backpain: "荷運びモード"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        case .puzzle: "パズルモード"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        }
+    }
 }
 
 /// 荷運びモード（片付け型。旧名・腰痛モード）のルールの数値と、盤の作り方。純粋関数だけで、乱数は呼び出し側が持つ。

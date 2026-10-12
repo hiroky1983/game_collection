@@ -180,7 +180,7 @@ public struct HanafudaCard: Identifiable, Codable, Equatable, Hashable, Sendable
 
     /// 月の植物名（日本語の原文。画面には出していない）。
     public static let monthNames = [
-        "松", "梅", "桜", "藤", "菖蒲", "牡丹", "萩", "芒", "菊", "紅葉", "柳", "桐",
+        "松", "梅", "桜", "藤", "菖蒲", "牡丹", "萩", "芒", "菊", "紅葉", "柳", "桐",  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
     ]
 
     // MARK: - 静的な札の表
@@ -203,40 +203,40 @@ public struct HanafudaCard: Identifiable, Codable, Equatable, Hashable, Sendable
     /// 保存済みのスナップショットが別の札として復元されるので、**足す・入れ替えることはできない**。
     static let table: [Entry] = [
         // 1月 松
-        Entry(.hikari, "松に鶴"), Entry(.tanzaku, "松に赤短", .redPoem),
-        Entry(.kasu, "松のカス"), Entry(.kasu, "松のカス"),
+        Entry(.hikari, "松に鶴"), Entry(.tanzaku, "松に赤短", .redPoem),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "松のカス"), Entry(.kasu, "松のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 2月 梅
-        Entry(.tane, "梅に鶯"), Entry(.tanzaku, "梅に赤短", .redPoem),
-        Entry(.kasu, "梅のカス"), Entry(.kasu, "梅のカス"),
+        Entry(.tane, "梅に鶯"), Entry(.tanzaku, "梅に赤短", .redPoem),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "梅のカス"), Entry(.kasu, "梅のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 3月 桜
-        Entry(.hikari, "桜に幕"), Entry(.tanzaku, "桜に赤短", .redPoem),
-        Entry(.kasu, "桜のカス"), Entry(.kasu, "桜のカス"),
+        Entry(.hikari, "桜に幕"), Entry(.tanzaku, "桜に赤短", .redPoem),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "桜のカス"), Entry(.kasu, "桜のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 4月 藤
-        Entry(.tane, "藤に不如帰"), Entry(.tanzaku, "藤に短冊", .plainRed),
-        Entry(.kasu, "藤のカス"), Entry(.kasu, "藤のカス"),
+        Entry(.tane, "藤に不如帰"), Entry(.tanzaku, "藤に短冊", .plainRed),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "藤のカス"), Entry(.kasu, "藤のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 5月 菖蒲
-        Entry(.tane, "菖蒲に八橋"), Entry(.tanzaku, "菖蒲に短冊", .plainRed),
-        Entry(.kasu, "菖蒲のカス"), Entry(.kasu, "菖蒲のカス"),
+        Entry(.tane, "菖蒲に八橋"), Entry(.tanzaku, "菖蒲に短冊", .plainRed),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "菖蒲のカス"), Entry(.kasu, "菖蒲のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 6月 牡丹
-        Entry(.tane, "牡丹に蝶"), Entry(.tanzaku, "牡丹に青短", .blue),
-        Entry(.kasu, "牡丹のカス"), Entry(.kasu, "牡丹のカス"),
+        Entry(.tane, "牡丹に蝶"), Entry(.tanzaku, "牡丹に青短", .blue),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "牡丹のカス"), Entry(.kasu, "牡丹のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 7月 萩
-        Entry(.tane, "萩に猪"), Entry(.tanzaku, "萩に短冊", .plainRed),
-        Entry(.kasu, "萩のカス"), Entry(.kasu, "萩のカス"),
+        Entry(.tane, "萩に猪"), Entry(.tanzaku, "萩に短冊", .plainRed),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "萩のカス"), Entry(.kasu, "萩のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 8月 芒
-        Entry(.hikari, "芒に月"), Entry(.tane, "芒に雁"),
-        Entry(.kasu, "芒のカス"), Entry(.kasu, "芒のカス"),
+        Entry(.hikari, "芒に月"), Entry(.tane, "芒に雁"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "芒のカス"), Entry(.kasu, "芒のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 9月 菊
-        Entry(.tane, "菊に盃"), Entry(.tanzaku, "菊に青短", .blue),
-        Entry(.kasu, "菊のカス"), Entry(.kasu, "菊のカス"),
+        Entry(.tane, "菊に盃"), Entry(.tanzaku, "菊に青短", .blue),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "菊のカス"), Entry(.kasu, "菊のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 10月 紅葉
-        Entry(.tane, "紅葉に鹿"), Entry(.tanzaku, "紅葉に青短", .blue),
-        Entry(.kasu, "紅葉のカス"), Entry(.kasu, "紅葉のカス"),
+        Entry(.tane, "紅葉に鹿"), Entry(.tanzaku, "紅葉に青短", .blue),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "紅葉のカス"), Entry(.kasu, "紅葉のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 11月 柳
-        Entry(.hikari, "柳に小野道風"), Entry(.tane, "柳に燕"),
-        Entry(.tanzaku, "柳に短冊", .plainRed), Entry(.kasu, "柳に鬼札"),
+        Entry(.hikari, "柳に小野道風"), Entry(.tane, "柳に燕"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.tanzaku, "柳に短冊", .plainRed), Entry(.kasu, "柳に鬼札"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
         // 12月 桐
-        Entry(.hikari, "桐に鳳凰"), Entry(.kasu, "桐のカス"),
-        Entry(.kasu, "桐のカス"), Entry(.kasu, "桐のカス"),
+        Entry(.hikari, "桐に鳳凰"), Entry(.kasu, "桐のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
+        Entry(.kasu, "桐のカス"), Entry(.kasu, "桐のカス"),  // i18n-keep: 札の正式名（検索・テストの鍵。表示は displayName で訳す）
     ]
 }

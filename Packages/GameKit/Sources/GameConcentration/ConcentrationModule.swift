@@ -3,8 +3,8 @@ import Core
 
 public struct ConcentrationModule: GameModule {
     public let id = "concentration"
-    public let title = "神経衰弱"
-    public let description = "記憶力勝負！CPU と対戦しよう"
+    public var title: String { tr("神経衰弱") }
+    public var description: String { tr("記憶力勝負！CPU と対戦しよう") }
     public var icon: Image { Image(systemName: "brain.head.profile") }
 
     public init() {}

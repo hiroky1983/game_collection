@@ -205,9 +205,9 @@ struct CPUStrengthPickerSourceTests {
                 contentsOf: SourceScan.packageRoot
                     .appendingPathComponent("Sources").appendingPathComponent(path),
                 encoding: .utf8)
-            // 多言語化（#2109）後は見出しを `tr` で引く。訳す前・後のどちらの書き方でも節があればよい。
-            #expect(source.contains(#"GameSetupSection("CPUの強さ")"#)
-                    || source.contains(#"GameSetupSection(tr("CPUの強さ"))"#), "\(path) に強さの節が無い")
+            // 多言語化（#2169）後は `tr(...)` で引く形。まだ変換していないゲームがあっても通るよう両方を許す。
+            #expect(source.contains(#"GameSetupSection(tr("CPUの強さ"))"#)
+                        || source.contains(#"GameSetupSection("CPUの強さ")"#), "\(path) に強さの節が無い")
             #expect(source.contains("CPUStrengthPicker(level: $level"),
                     "\(path) が共通のピッカーを使っていない")
             // 「ガチ」は v1.1.6 で一旦見送ったので、その説明（「とことん読む」）は書かれていない。

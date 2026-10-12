@@ -23,6 +23,61 @@
         }
       }
     },
+    "%1$@・%2$lld連勝中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld-win streak"
+          }
+        }
+      }
+    },
+    "%1$@・最高%2$lld連勝" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Best streak %2$lld"
+          }
+        }
+      }
+    },
+    "%1$lld-%2$lld まで到達" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reached %1$lld-%2$lld"
+          }
+        }
+      }
+    },
+    "%1$lld勝%2$lld敗" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lldW %2$lldL"
+          }
+        }
+      }
+    },
+    "%1$lld勝%2$lld敗%3$lld分" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lldW %2$lldL %3$lldD"
+          }
+        }
+      }
+    },
     "%@、達成" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -34,13 +89,36 @@
         }
       }
     },
-    "%@回" : {
+    "%@位" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays: %@"
+            "value" : "%@"
+          }
+        }
+      }
+    },
+    "%@回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ play"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ plays"
+                }
+              }
+            }
           }
         }
       }
@@ -49,9 +127,21 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plays: %@"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Played %@ time"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Played %@ times"
+                }
+              }
+            }
           }
         }
       }
@@ -157,6 +247,28 @@
         }
       }
     },
+    "あそびばの「%1$@」で記録更新！\n%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New record in %1$@ on Asobiba!\n%2$@"
+          }
+        }
+      }
+    },
+    "あそびばの「%1$@」（%2$@）で記録更新！\n%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New record in %1$@ (%2$@) on Asobiba!\n%3$@"
+          }
+        }
+      }
+    },
     "かんたん" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -245,6 +357,29 @@
         }
       }
     },
+    "クリア記録なし（%lld回挑戦）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Not cleared yet (%lld try)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Not cleared yet (%lld tries)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "ジョーカー" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -289,6 +424,17 @@
         }
       }
     },
+    "ベスト %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best %@"
+          }
+        }
+      }
+    },
     "以前よく遊んでいたあそびです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -318,6 +464,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Beginner"
+          }
+        }
+      }
+    },
+    "全 %lld 面クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All %lld stages cleared"
           }
         }
       }
@@ -389,6 +546,85 @@
         }
       }
     },
+    "最少 %@手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Best: %@ move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Best: %@ moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "最少手数 %@手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fewest moves: %@"
+          }
+        }
+      }
+    },
+    "最短 %1$@（%2$@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "最短 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best %@"
+          }
+        }
+      }
+    },
+    "最短タイム %1$@・%2$lld回クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Best time %1$@ · %2$lld clear"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Best time %1$@ · %2$lld clears"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "次はこれで遊ぶ？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -422,6 +658,28 @@
         }
       }
     },
+    "自己ベスト %1$@（最大 %2$@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal best %1$@ (highest %2$@)"
+          }
+        }
+      }
+    },
+    "自己ベスト %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal best %@"
+          }
+        }
+      }
+    },
     "表示するゲームがありません。設定で選べます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -451,6 +709,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "通算 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overall %@"
           }
         }
       }

@@ -272,7 +272,7 @@ public enum MahjongScoring {
             // 名前は中断データに入る保存値なので、表示言語によらず日本語の牌名で組む（画面では
             // `MahjongHandResult.displayYakuLine` が表示言語に直す・#2166）。
             yaku.append(MahjongYakuEntry(
-                .yakuhaiDragon, name: "役牌 " + triplet.tile.displayName(language: .development)))
+                .yakuhaiDragon, name: "役牌 " + triplet.tile.storedName))  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
         }
         for triplet in windTriplets {
             guard case .wind(let wind) = triplet.tile else { continue }
@@ -532,17 +532,17 @@ public enum MahjongScoring {
     /// 基本点（子のロンならこの 4 倍が支払額）と、満貫以上の呼び名。
     private static func basePoints(han: Int, fu: Int, yakumanCount: Int) -> (Int, String?) {
         if yakumanCount > 0 {
-            return (8000 * yakumanCount, yakumanCount > 1 ? "\(yakumanCount)倍役満" : "役満")
+            return (8000 * yakumanCount, yakumanCount > 1 ? "\(yakumanCount)倍役満" : "役満")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
         }
         switch han {
-        case 13...: return (8000, "数え役満")
-        case 11...12: return (6000, "三倍満")
-        case 8...10:  return (4000, "倍満")
-        case 6...7:   return (3000, "跳満")
-        case 5:       return (2000, "満貫")
+        case 13...: return (8000, "数え役満")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
+        case 11...12: return (6000, "三倍満")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
+        case 8...10:  return (4000, "倍満")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
+        case 6...7:   return (3000, "跳満")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
+        case 5:       return (2000, "満貫")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
         default:
             let base = fu * Int(pow(2.0, Double(2 + han)))
-            return base >= 2000 ? (2000, "満貫") : (base, nil)
+            return base >= 2000 ? (2000, "満貫") : (base, nil)  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
         }
     }
 

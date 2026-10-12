@@ -247,13 +247,13 @@ public struct PokerView: View {
 
     private var chipsBar: some View {
         HStack {
-            // チップ数は従来どおり桁区切り（1,000枚）で出すため整形済みの文字列を %@ で渡し、
-            // 後ろの整数は英語の単数・複数の選択にだけ使う（書式では読まない）。
-            Label(tr("あなた: %@枚", RecordFormat.number(model.playerChips), model.playerChips), systemImage: "person.fill")
+            // チップ数は従来どおり桁区切り（1,000枚）で出すため整形済みの文字列を %@ で渡す
+            // （英語の単数・複数は StringTable がその数字の文字列で選ぶ・#2168）。
+            Label(tr("あなた: %@枚", RecordFormat.number(model.playerChips)), systemImage: "person.fill")
                 .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
-            Label(tr("CPU: %@枚", RecordFormat.number(model.cpuChips), model.cpuChips), systemImage: "cpu")
+            Label(tr("CPU: %@枚", RecordFormat.number(model.cpuChips)), systemImage: "cpu")
                 .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
         }
@@ -348,7 +348,7 @@ public struct PokerView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
-                    Text(tr("%@枚", RecordFormat.number(model.pot), model.pot))
+                    Text(tr("%@枚", RecordFormat.number(model.pot)))
                         .themeBody(20, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -581,7 +581,7 @@ public struct PokerView: View {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(Theme.yellow)
                 .accessibilityHidden(true)
-            Text(isPlayer ? tr("役ボーナス あなた +%@枚", RecordFormat.number(chips), chips) : tr("役ボーナス CPU +%@枚", RecordFormat.number(chips), chips))
+            Text(isPlayer ? tr("役ボーナス あなた +%@枚", RecordFormat.number(chips)) : tr("役ボーナス CPU +%@枚", RecordFormat.number(chips)))
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -603,7 +603,7 @@ public struct PokerView: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
                     Spacer()
-                    Text(state.isSettled ? tr("獲得 %@枚", RecordFormat.number(state.payout), state.payout) : tr("賭け金 %@枚", RecordFormat.number(state.stake), state.stake))
+                    Text(state.isSettled ? tr("獲得 %@枚", RecordFormat.number(state.payout)) : tr("賭け金 %@枚", RecordFormat.number(state.stake)))
                         .themeBody(14, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -630,7 +630,7 @@ public struct PokerView: View {
                     Image(systemName: "arrow.up.right.circle.fill")
                         .foregroundStyle(Theme.yellow)
                         .accessibilityHidden(true)
-                    Text(tr("獲得 %@枚 をダブルアップに賭けますか？", RecordFormat.number(model.pendingWinnings), model.pendingWinnings))
+                    Text(tr("獲得 %@枚 をダブルアップに賭けますか？", RecordFormat.number(model.pendingWinnings)))
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)

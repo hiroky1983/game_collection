@@ -301,6 +301,39 @@
         }
       }
     },
+    "うきわ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swim ring"
+          }
+        }
+      }
+    },
+    "うし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cow"
+          }
+        }
+      }
+    },
+    "うま" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horse"
+          }
+        }
+      }
+    },
     "おじさんシリーズ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -308,6 +341,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ojisan Series"
+          }
+        }
+      }
+    },
+    "かさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umbrella"
+          }
+        }
+      }
+    },
+    "きつね" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fox"
+          }
+        }
+      }
+    },
+    "きのこ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mushroom"
+          }
+        }
+      }
+    },
+    "くつ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shoe"
+          }
+        }
+      }
+    },
+    "くり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chestnut"
+          }
+        }
+      }
+    },
+    "こおり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ice"
+          }
+        }
+      }
+    },
+    "こま" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spinning top"
+          }
+        }
+      }
+    },
+    "さかな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fish"
+          }
+        }
+      }
+    },
+    "しか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deer"
+          }
+        }
+      }
+    },
+    "すいとう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Water bottle"
+          }
+        }
+      }
+    },
+    "すし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sushi"
+          }
+        }
+      }
+    },
+    "すず" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bell"
           }
         }
       }
@@ -334,6 +499,83 @@
         }
       }
     },
+    "たいこ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drum"
+          }
+        }
+      }
+    },
+    "たいやき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taiyaki"
+          }
+        }
+      }
+    },
+    "たけ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bamboo"
+          }
+        }
+      }
+    },
+    "たこ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Octopus"
+          }
+        }
+      }
+    },
+    "たまご" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Egg"
+          }
+        }
+      }
+    },
+    "だんご" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dango"
+          }
+        }
+      }
+    },
+    "つき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon"
+          }
+        }
+      }
+    },
     "つぎは「%@」にしてみる？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -341,6 +583,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Try %@ next?"
+          }
+        }
+      }
+    },
+    "なす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eggplant"
+          }
+        }
+      }
+    },
+    "にく" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meat"
+          }
+        }
+      }
+    },
+    "にわとり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chicken"
           }
         }
       }
@@ -356,6 +631,50 @@
         }
       }
     },
+    "ふね" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boat"
+          }
+        }
+      }
+    },
+    "まんじゅう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steamed bun"
+          }
+        }
+      }
+    },
+    "めがね" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glasses"
+          }
+        }
+      }
+    },
+    "めだまやき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fried egg"
+          }
+        }
+      }
+    },
     "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -367,6 +686,50 @@
         }
       }
     },
+    "りんご" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple"
+          }
+        }
+      }
+    },
+    "わたあめ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cotton candy"
+          }
+        }
+      }
+    },
+    "ウサギ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rabbit"
+          }
+        }
+      }
+    },
+    "カメ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turtle"
+          }
+        }
+      }
+    },
     "キャンセル" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -374,6 +737,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "ギター" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guitar"
+          }
+        }
+      }
+    },
+    "クジラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whale"
+          }
+        }
+      }
+    },
+    "クマ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bear"
           }
         }
       }
@@ -400,6 +796,72 @@
         }
       }
     },
+    "ケーキ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cake"
+          }
+        }
+      }
+    },
+    "コアラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koala"
+          }
+        }
+      }
+    },
+    "コップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cup"
+          }
+        }
+      }
+    },
+    "ゴリラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gorilla"
+          }
+        }
+      }
+    },
+    "シマウマ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zebra"
+          }
+        }
+      }
+    },
+    "スイカ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watermelon"
+          }
+        }
+      }
+    },
     "スタート" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -407,6 +869,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start"
+          }
+        }
+      }
+    },
+    "ダチョウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostrich"
           }
         }
       }
@@ -479,6 +952,17 @@
         }
       }
     },
+    "ネコ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cat"
+          }
+        }
+      }
+    },
     "パズル・その他" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -530,6 +1014,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't Show a Hint"
+          }
+        }
+      }
+    },
+    "マイク" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone"
+          }
+        }
+      }
+    },
+    "マフラー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scarf"
+          }
+        }
+      }
+    },
+    "ラクダ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camel"
+          }
+        }
+      }
+    },
+    "ラッコ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sea otter"
+          }
+        }
+      }
+    },
+    "リス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Squirrel"
+          }
+        }
+      }
+    },
+    "ワニ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crocodile"
           }
         }
       }
@@ -809,17 +1359,6 @@
         }
       }
     },
-    "盤ゲーム" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Board Games"
-          }
-        }
-      }
-    },
     "盤を見る" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -827,6 +1366,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "View Board"
+          }
+        }
+      }
+    },
+    "盤ゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Games"
           }
         }
       }

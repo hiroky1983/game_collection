@@ -40,11 +40,11 @@ struct PokerEnglishTests {
 
     @Test("チップの枚数は単数と複数で言い分ける")
     func chipPlurals() {
-        // 枚数は桁区切り済みの文字列で渡し、単数・複数は後ろに足した整数で選ぶ（表示は 1,000 のまま）。
-        #expect(GamePoker.tr("%@枚", "1", 1, language: .english) == "1 chip")
-        #expect(GamePoker.tr("%@枚", "40", 40, language: .english) == "40 chips")
-        #expect(GamePoker.tr("+%@枚", "1,000", 1000, language: .english) == "+1,000 chips")
-        #expect(GamePoker.tr("%@枚", "1,000", 1000) == "1,000枚")
+        // 枚数は桁区切り済みの文字列で渡す。単数・複数はその数字の文字列で選ばれる（表示は 1,000 のまま）。
+        #expect(GamePoker.tr("%@枚", "1", language: .english) == "1 chip")
+        #expect(GamePoker.tr("%@枚", "40", language: .english) == "40 chips")
+        #expect(GamePoker.tr("+%@枚", "1,000", language: .english) == "+1,000 chips")
+        #expect(GamePoker.tr("%@枚", "1,000") == "1,000枚")
         #expect(GamePoker.tr("%lld枚を交換", 1, language: .english) == "Draw 1 Card")
         #expect(GamePoker.tr("%lld枚を交換", 3, language: .english) == "Draw 3 Cards")
     }

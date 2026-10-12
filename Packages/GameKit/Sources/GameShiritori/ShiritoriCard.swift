@@ -37,56 +37,56 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
     /// 差し替えた（`ObjectCardKind` の識別子は中断データのため据え置き）。「ま」で始まる札（こま・うま の受け）と
     /// 「り」で終わる札（りんご・りす の送り）を残すよう選び、全札の語尾が受けられることはテストが縛る。
     public static let deck: [ShiritoriCard] = [
-        ShiritoriCard(.apple, "りんご"),
-        ShiritoriCard(.gorilla, "ごりら"),
-        ShiritoriCard(.seaOtter, "らっこ"),
-        ShiritoriCard(.koala, "こあら"),
-        ShiritoriCard(.camel, "らくだ"),
-        ShiritoriCard(.rabbit, "うさぎ"),
-        ShiritoriCard(.guitar, "ぎたー"),
-        ShiritoriCard(.drum, "たいこ"),
-        ShiritoriCard(.kitten, "くま", "こぐま"),
-        ShiritoriCard(.glass, "こっぷ"),
-        ShiritoriCard(.squirrel, "りす"),
-        ShiritoriCard(.watermelon, "すいか"),
-        ShiritoriCard(.turtle, "かめ", "うみがめ"),
-        ShiritoriCard(.eyeglasses, "めがね"),
-        ShiritoriCard(.cat, "ねこ", "にゃんこ"),
-        ShiritoriCard(.spinningTop, "こま"),
-        ShiritoriCard(.pillow, "まふらー", "すかーふ"),
-        ShiritoriCard(.ostrich, "だちょう"),
-        ShiritoriCard(.handFan, "まいく"),
-        ShiritoriCard(.crocodile, "わに"),
-        ShiritoriCard(.boat, "ふね"),
-        ShiritoriCard(.leek, "くり"),
-        ShiritoriCard(.ball, "にく", "すてーき"),
-        ShiritoriCard(.mushroom, "きのこ", "しいたけ"),
-        ShiritoriCard(.horse, "うま"),
-        ShiritoriCard(.deer, "しか"),
-        ShiritoriCard(.cow, "うし", "ぎゅう"),
-        ShiritoriCard(.bell, "すず"),
-        ShiritoriCard(.moon, "つき"),
-        ShiritoriCard(.octopus, "たこ"),
+        ShiritoriCard(.apple, "りんご"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.gorilla, "ごりら"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.seaOtter, "らっこ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.koala, "こあら"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.camel, "らくだ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.rabbit, "うさぎ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.guitar, "ぎたー"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.drum, "たいこ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.kitten, "くま", "こぐま"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.glass, "こっぷ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.squirrel, "りす"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.watermelon, "すいか"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.turtle, "かめ", "うみがめ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.eyeglasses, "めがね"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.cat, "ねこ", "にゃんこ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.spinningTop, "こま"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.pillow, "まふらー", "すかーふ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.ostrich, "だちょう"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.handFan, "まいく"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.crocodile, "わに"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.boat, "ふね"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.leek, "くり"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.ball, "にく", "すてーき"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.mushroom, "きのこ", "しいたけ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.horse, "うま"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.deer, "しか"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.cow, "うし", "ぎゅう"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.bell, "すず"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.moon, "つき"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.octopus, "たこ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
         // #1502（会長決裁 2026-09-29）で足した 20 枚。裏読みは 10 件足して計 11 件にした。
-        ShiritoriCard(.lifebuoy, "うきわ"),
-        ShiritoriCard(.umbrella, "かさ"),
-        ShiritoriCard(.fish, "さかな"),
-        ShiritoriCard(.eggplant, "なす"),
-        ShiritoriCard(.fox, "きつね", "こぎつね"),
-        ShiritoriCard(.whale, "くじら"),
-        ShiritoriCard(.ice, "こおり"),
-        ShiritoriCard(.zebra, "しまうま"),
-        ShiritoriCard(.sushi, "すし", "にぎり"),
-        ShiritoriCard(.egg, "たまご"),
-        ShiritoriCard(.dango, "だんご"),
-        ShiritoriCard(.chicken, "にわとり", "こっこ"),
-        ShiritoriCard(.taiyaki, "たいやき"),
-        ShiritoriCard(.manju, "まんじゅう"),
-        ShiritoriCard(.friedEgg, "めだまやき"),
-        ShiritoriCard(.cake, "けーき"),
-        ShiritoriCard(.cottonCandy, "わたあめ"),
-        ShiritoriCard(.shoe, "くつ", "しゅーず"),
-        ShiritoriCard(.bamboo, "たけ"),
-        ShiritoriCard(.flask, "すいとう"),
+        ShiritoriCard(.lifebuoy, "うきわ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.umbrella, "かさ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.fish, "さかな"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.eggplant, "なす"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.fox, "きつね", "こぎつね"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.whale, "くじら"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.ice, "こおり"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.zebra, "しまうま"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.sushi, "すし", "にぎり"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.egg, "たまご"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.dango, "だんご"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.chicken, "にわとり", "こっこ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.taiyaki, "たいやき"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.manju, "まんじゅう"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.friedEgg, "めだまやき"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.cake, "けーき"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.cottonCandy, "わたあめ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.shoe, "くつ", "しゅーず"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.bamboo, "たけ"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
+        ShiritoriCard(.flask, "すいとう"),  // i18n-keep: しりとりの読み（言語を切り替えられない）
     ]
 }

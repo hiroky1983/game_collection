@@ -8,8 +8,8 @@ import Core
 /// そのコメントアウトを外すだけでハブに並ぶ。
 public struct RouletteModule: GameModule {
     public let id = "roulette"
-    public let title = "ルーレット"
-    public let description = "数字や色にチップを賭けて、ホイールの出目を当てよう"
+    public var title: String { tr("ルーレット") }
+    public var description: String { tr("数字や色にチップを賭けて、ホイールの出目を当てよう") }
     public var icon: Image { Image(systemName: "circle.circle.fill") }
 
     public init() {}

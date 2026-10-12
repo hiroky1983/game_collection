@@ -1,5 +1,888 @@
 {
   "sourceLanguage" : "ja",
-  "strings" : {},
+  "strings" : {
+    "%1$@ %2$@目勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ wins by %2$@"
+          }
+        }
+      }
+    },
+    "%1$@、あなたが取った石 %2$lld、CPUが取った石 %3$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, you captured %2$lld, CPU captured %3$lld"
+          }
+        }
+      }
+    },
+    "%1$lld行%2$lld列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
+    "%lld子" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld stone"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld stones"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld路" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-line"
+          }
+        }
+      }
+    },
+    "9路盤で CPU と対局。ルールも読める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play the CPU on a 9x9 board. Rules included"
+          }
+        }
+      }
+    },
+    "9路盤・中国ルール（面積計算）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "9x9 board, Chinese rules (area scoring)"
+          }
+        }
+      }
+    },
+    "CPU の番です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's the CPU's turn"
+          }
+        }
+      }
+    },
+    "CPUの勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU Wins"
+          }
+        }
+      }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "CPUの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU's turn"
+          }
+        }
+      }
+    },
+    "○白" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "○ White"
+          }
+        }
+      }
+    },
+    "●黒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● Black"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなたの勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You Win!"
+          }
+        }
+      }
+    },
+    "あなたの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your turn"
+          }
+        }
+      }
+    },
+    "あなたの石" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your color"
+          }
+        }
+      }
+    },
+    "ここはパスでよい局面です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passing is fine here"
+          }
+        }
+      }
+    },
+    "この結果で終局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accept Result"
+          }
+        }
+      }
+    },
+    "しっかり読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads carefully"
+          }
+        }
+      }
+    },
+    "すでに石があります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's already a stone there"
+          }
+        }
+      }
+    },
+    "そこそこ読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads fairly well"
+          }
+        }
+      }
+    },
+    "たて・よこにつながった自分の石のまわりの空点を「呼吸点」と呼びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The empty points next to a group of stones (connected up, down, left or right) are its \"liberties.\""
+          }
+        }
+      }
+    },
+    "ほぼ読まない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barely reads ahead"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "コウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ko"
+          }
+        }
+      }
+    },
+    "コウです（すぐには取り返せません）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ko (you can't recapture right away)"
+          }
+        }
+      }
+    },
+    "コミ0.5" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Komi 0.5"
+          }
+        }
+      }
+    },
+    "コミ6.5" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Komi 6.5"
+          }
+        }
+      }
+    },
+    "パス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass"
+          }
+        }
+      }
+    },
+    "ヒントの手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hint move"
+          }
+        }
+      }
+    },
+    "・%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• %@"
+          }
+        }
+      }
+    },
+    "一度よそに打ってからなら打てます。同じ盤面が何度も現れる手も禁止です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play elsewhere first, then you can. Moves that repeat an earlier board position are also not allowed."
+          }
+        }
+      }
+    },
+    "互先" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Even"
+          }
+        }
+      }
+    },
+    "先番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goes first"
+          }
+        }
+      }
+    },
+    "取った石 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured %lld"
+          }
+        }
+      }
+    },
+    "取り返すと同じ形がくり返される場所は、すぐには打ち返せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If recapturing would repeat the same shape, you can't recapture right away."
+          }
+        }
+      }
+    },
+    "同じ盤面のくり返しになるため打てません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not allowed: it would repeat a previous position"
+          }
+        }
+      }
+    },
+    "囲碁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go"
+          }
+        }
+      }
+    },
+    "対局は終わっています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game is over"
+          }
+        }
+      }
+    },
+    "対局終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game over"
+          }
+        }
+      }
+    },
+    "対局続行" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Playing"
+          }
+        }
+      }
+    },
+    "引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw"
+          }
+        }
+      }
+    },
+    "後番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goes second"
+          }
+        }
+      }
+    },
+    "思考中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking…"
+          }
+        }
+      }
+    },
+    "打つところが無くなったら「パス」します。両者が続けてパスすると終局です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When there's nowhere useful left to play, \"Pass.\" The game ends when both players pass in a row."
+          }
+        }
+      }
+    },
+    "投了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resigned"
+          }
+        }
+      }
+    },
+    "数え方は中国ルール（面積計算）。盤上の自分の石と、自分だけが囲んでいる空点の合計で競います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scoring uses Chinese rules (area scoring): your stones on the board plus the empty points only you surround."
+          }
+        }
+      }
+    },
+    "新規対局しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "死に石" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dead stone"
+          }
+        }
+      }
+    },
+    "死活の判定があいまいです。続けて打って決着させることもできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some groups' life or death is unclear. You can keep playing to settle it."
+          }
+        }
+      }
+    },
+    "白" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White"
+          }
+        }
+      }
+    },
+    "白にはコミ 6.5 目が加算されます（置き石ありの対局はコミ 0.5 目 + 置き石 1 子につき 1 目）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White gets 6.5 points of komi (in handicap games, 0.5 komi plus 1 point per handicap stone)."
+          }
+        }
+      }
+    },
+    "白・後番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White, second"
+          }
+        }
+      }
+    },
+    "白石" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "white stone"
+          }
+        }
+      }
+    },
+    "盤の外には打てません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't play outside the board"
+          }
+        }
+      }
+    },
+    "直前の手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "last move"
+          }
+        }
+      }
+    },
+    "相手の石の呼吸点をすべて埋めると、その石を取り上げられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill all of an opponent group's liberties to capture it."
+          }
+        }
+      }
+    },
+    "石を取る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capturing stones"
+          }
+        }
+      }
+    },
+    "空点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "empty"
+          }
+        }
+      }
+    },
+    "終了して新規対局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & Start New Game"
+          }
+        }
+      }
+    },
+    "終局と勝ち負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ending & scoring"
+          }
+        }
+      }
+    },
+    "終局の画面では、死んでいる石に × が付きます。判定に納得できなければ「対局続行」で打ち続けられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the result screen, dead stones are marked with an x. If you disagree, tap \"Keep Playing\" to continue."
+          }
+        }
+      }
+    },
+    "終局の確認" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm result"
+          }
+        }
+      }
+    },
+    "終局の確認。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm the result. %@"
+          }
+        }
+      }
+    },
+    "終局の計算中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counting the result…"
+          }
+        }
+      }
+    },
+    "置き石（ハンデ）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handicap stones"
+          }
+        }
+      }
+    },
+    "自分の呼吸点が無くなる場所には打てません（ただし、その手で相手を取れるなら打てます）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't play where your own stones would have no liberties (unless that move captures the opponent)."
+          }
+        }
+      }
+    },
+    "自殺手です（打つと自分の石が取られます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suicide move (your own stones would be captured)"
+          }
+        }
+      }
+    },
+    "計算中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counting"
+          }
+        }
+      }
+    },
+    "軽く読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads a little"
+          }
+        }
+      }
+    },
+    "途中で終了すると対局データが失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    },
+    "黒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black"
+          }
+        }
+      }
+    },
+    "黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black %1$lld / White %2$lld + komi %3$@"
+          }
+        }
+      }
+    },
+    "黒・先番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black, first"
+          }
+        }
+      }
+    },
+    "黒石" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "black stone"
+          }
+        }
+      }
+    }
+  },
   "version" : "1.0"
 }

@@ -56,41 +56,41 @@ public enum MahjongYaku: String, CaseIterable, Sendable, Equatable {
     /// 和了の結果に入って中断データに保存されるので、表示言語によらず日本語のまま（画面は `displayName`）。
     public var name: String {
         switch self {
-        case .riichi:          return "立直"
-        case .ippatsu:         return "一発"
-        case .menzenTsumo:     return "門前清自摸和"
-        case .pinfu:           return "平和"
-        case .tanyao:          return "断幺九"
-        case .yakuhaiDragon:   return "役牌"
-        case .yakuhaiSeatWind: return "役牌 自風"
-        case .yakuhaiRoundWind: return "役牌 場風"
-        case .iipeikou:        return "一盃口"
-        case .haitei:          return "海底摸月"
-        case .houtei:          return "河底撈魚"
-        case .rinshan:         return "嶺上開花"
-        case .chankan:         return "槍槓"
-        case .chiitoitsu:      return "七対子"
-        case .toitoi:          return "対々和"
-        case .sanankou:        return "三暗刻"
-        case .sankantsu:       return "三槓子"
-        case .sanshokuDoujun:  return "三色同順"
-        case .ittsuu:          return "一気通貫"
-        case .chanta:          return "混全帯幺九"
-        case .honroutou:       return "混老頭"
-        case .ryanpeikou:      return "二盃口"
-        case .junchan:         return "純全帯幺九"
-        case .honitsu:         return "混一色"
-        case .chinitsu:        return "清一色"
-        case .kokushi:         return "国士無双"
-        case .suuankou:        return "四暗刻"
-        case .daisangen:       return "大三元"
-        case .shousuushii:     return "小四喜"
-        case .daisuushii:      return "大四喜"
-        case .tsuuiisou:       return "字一色"
-        case .chinroutou:      return "清老頭"
-        case .suukantsu:       return "四槓子"
-        case .dora:            return "ドラ"
-        case .uraDora:         return "裏ドラ"
+        case .riichi:          return "立直"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .ippatsu:         return "一発"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .menzenTsumo:     return "門前清自摸和"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .pinfu:           return "平和"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .tanyao:          return "断幺九"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .yakuhaiDragon:   return "役牌"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .yakuhaiSeatWind: return "役牌 自風"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .yakuhaiRoundWind: return "役牌 場風"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .iipeikou:        return "一盃口"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .haitei:          return "海底摸月"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .houtei:          return "河底撈魚"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .rinshan:         return "嶺上開花"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chankan:         return "槍槓"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chiitoitsu:      return "七対子"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .toitoi:          return "対々和"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .sanankou:        return "三暗刻"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .sankantsu:       return "三槓子"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .sanshokuDoujun:  return "三色同順"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .ittsuu:          return "一気通貫"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chanta:          return "混全帯幺九"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .honroutou:       return "混老頭"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .ryanpeikou:      return "二盃口"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .junchan:         return "純全帯幺九"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .honitsu:         return "混一色"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chinitsu:        return "清一色"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .kokushi:         return "国士無双"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .suuankou:        return "四暗刻"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .daisangen:       return "大三元"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .shousuushii:     return "小四喜"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .daisuushii:      return "大四喜"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .tsuuiisou:       return "字一色"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chinroutou:      return "清老頭"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .suukantsu:       return "四槓子"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .dora:            return "ドラ"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .uraDora:         return "裏ドラ"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
         }
     }
 
@@ -477,11 +477,11 @@ public enum MahjongYaku: String, CaseIterable, Sendable, Equatable {
 
     /// 早見表のセクション見出しごとの区分け。`displayOrder` を並べ替えずにそのまま切る。
     public enum Section: String, CaseIterable, Sendable {
-        case one = "1飜"
-        case two = "2飜"
-        case three = "3飜以上"
-        case yakuman = "役満"
-        case dora = "ドラ"
+        case one = "1飜"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case two = "2飜"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case three = "3飜以上"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case yakuman = "役満"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case dora = "ドラ"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
 
         /// 見出しの表示（#2166）。`rawValue` は識別子として据え置き、画面にはこちらを出す。
         public var title: String {

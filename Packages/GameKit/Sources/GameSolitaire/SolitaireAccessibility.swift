@@ -29,29 +29,29 @@ public enum SolitaireAccessibility {
         isSelected: Bool,
         isMovable: Bool
     ) -> String {
-        var parts = ["\(pile + 1)列目", "\(position + 1)枚目", cardLabel(card)]
-        if hiddenCount > 0 { parts.append("伏せ札\(hiddenCount)枚") }
-        if aboveCount > 0 { parts.append("上に\(aboveCount)枚") }
-        if isSelected { parts.append("選択中") }
-        if !isMovable { parts.append("動かせません") }
-        return parts.joined(separator: "、")
+        var parts = [tr("%lld列目", pile + 1), tr("%lld枚目", position + 1), cardLabel(card)]
+        if hiddenCount > 0 { parts.append(tr("伏せ札%lld枚", hiddenCount)) }
+        if aboveCount > 0 { parts.append(tr("上に%lld枚", aboveCount)) }
+        if isSelected { parts.append(tr("選択中")) }
+        if !isMovable { parts.append(tr("動かせません")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// 空の列。
     public static func emptyPileLabel(pile: Int) -> String {
-        "\(pile + 1)列目、空、キングだけ置けます"
+        tr("%lld列目、空、キングだけ置けます", pile + 1)
     }
 
     /// 組札（例: "ハートの組札、7まで"）。
     public static func foundationLabel(suit: SolitaireSuit, rank: Int) -> String {
         let name = suit.playingCardSuit.spokenName
-        guard rank > 0 else { return "\(name)の組札、空" }
-        return "\(name)の組札、\(SolitaireCard(suit, rank).figure.rankLabel)まで"
+        guard rank > 0 else { return tr("%@の組札、空", name) }
+        return tr("%1$@の組札、%2$@まで", name, SolitaireCard(suit, rank).figure.rankLabel)
     }
 
     /// 山札（伏せた束）。
     public static func stockLabel(remaining: Int) -> String {
-        remaining > 0 ? "山札、残り\(remaining)枚、タップでめくる" : "山札、空、タップで捨て札を戻す"
+        remaining > 0 ? tr("山札、残り%lld枚、タップでめくる", remaining) : tr("山札、空、タップで捨て札を戻す")
     }
 
     /// 捨て札の一番上。
@@ -64,13 +64,13 @@ public enum SolitaireAccessibility {
         isSelected: Bool,
         covered: [SolitaireCard] = []
     ) -> String {
-        guard let card else { return "捨て札、空" }
-        var parts = ["捨て札", cardLabel(card)]
-        if isSelected { parts.append("選択中") }
+        guard let card else { return tr("捨て札、空") }
+        var parts = [tr("捨て札"), cardLabel(card)]
+        if isSelected { parts.append(tr("選択中")) }
         if !covered.isEmpty {
-            parts.append("下に" + covered.map(cardLabel).joined(separator: "、"))
+            parts.append(tr("下に%@", covered.map(cardLabel).joined(separator: tr("、"))))
         }
-        return parts.joined(separator: "、")
+        return parts.joined(separator: tr("、"))
     }
 
     /// ステータスバーの 1 行。
@@ -85,14 +85,15 @@ public enum SolitaireAccessibility {
         isLost: Bool = false,
         ruleLabel: String? = nil
     ) -> String {
-        var base = "経過\(RecordFormat.time(elapsedSeconds))、\(moveCount)手"
-        if let ruleLabel { base += "、ルールは\(ruleLabel)" }
+        let time = RecordFormat.time(elapsedSeconds)
+        let base = ruleLabel.map { tr("経過%1$@、%2$lld手、ルールは%3$@", time, moveCount, $0) }
+            ?? tr("経過%1$@、%2$lld手", time, moveCount)
         switch phase {
         case .won:
-            return "クリア。\(base)"
+            return tr("クリア。%@", base)
         case .playing:
-            if isDeadEnd { return "進める手がありません。\(base)" }
-            return isLost ? "このままではクリアできません。\(base)" : base
+            if isDeadEnd { return tr("進める手がありません。%@", base) }
+            return isLost ? tr("このままではクリアできません。%@", base) : base
         }
     }
 
@@ -101,14 +102,14 @@ public enum SolitaireAccessibility {
     /// 使い切っても枠は残る（押すと広告の提案が出る）ので、「戻す」とだけ読まれると
     /// 無料でまだ戻せると誤解される。
     public static func undoButtonLabel(remaining: Int) -> String {
-        remaining > 0 ? "1手戻す、残り\(remaining)回" : "1手戻す、残りなし"
+        remaining > 0 ? tr("1手戻す、残り%lld回", remaining) : tr("1手戻す、残りなし")
     }
 
     public static func undoButtonHint(canUndo: Bool, remaining: Int) -> String {
-        guard canUndo else { return "まだ戻せる手がありません" }
+        guard canUndo else { return tr("まだ戻せる手がありません") }
         return remaining > 0
-            ? "無料で戻せるのは1局につき\(SolitaireUndoBudget.free)回までです"
-            : "広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充できます"
+            ? tr("無料で戻せるのは1局につき%lld回までです", SolitaireUndoBudget.free)
+            : tr("広告を見ると%lld回ぶん補充できます", SolitaireUndoBudget.refill)
     }
 
     /// ジョーカーの所持ボタン（#406）。**所持しているかどうかが音声だけで分かる**必要がある。
@@ -116,49 +117,49 @@ public enum SolitaireAccessibility {
     /// ボタンは持っていない間も枠を残す（見た目は薄くなるだけ）ので、
     /// 画面を見ずに「ジョーカー」とだけ読まれると、持っていないのに押せると誤解される。
     public static func jokerButtonLabel(hasJoker: Bool, isPlacing: Bool) -> String {
-        if isPlacing { return "ジョーカーを置くのをやめる" }
-        return hasJoker ? "ジョーカーを使う、1枚所持" : "ジョーカー、所持していません"
+        if isPlacing { return tr("ジョーカーを置くのをやめる") }
+        return hasJoker ? tr("ジョーカーを使う、1枚所持") : tr("ジョーカー、所持していません")
     }
 
     /// - Note: 補充の案内は**救済の告知が出る条件**（行き止まり = 有効手ゼロ、または
     ///   敗北確定）に合わせる。「行き止まりになったとき」とだけ言うと、指せる手が残っている
     ///   敗北確定でも広告が出ることが音声では伝わらない（PR #457 の CodeRabbit 指摘）。
     public static func jokerButtonHint(hasJoker: Bool, isPlacing: Bool) -> String {
-        if isPlacing { return "置き先の列をタップすると置けます" }
+        if isPlacing { return tr("置き先の列をタップすると置けます") }
         return hasJoker
-            ? "押したあと、置きたい列をタップします"
-            : "手詰まりかクリアできない局面になったとき、広告を見て1枚受け取れます"
+            ? tr("押したあと、置きたい列をタップします")
+            : tr("手詰まりかクリアできない局面になったとき、広告を見て1枚受け取れます")
     }
 
     /// 「ヒント」ボタン（#2025）。残り回数と広告の要否を音声だけで分かるようにする。
     public static func hintButtonLabel(freeRemaining: Int, needsAd: Bool, isThinking: Bool) -> String {
-        if isThinking { return "ヒント、考え中" }
-        return needsAd ? "ヒント（広告を見て表示）" : "ヒント（残り\(freeRemaining)回）"
+        if isThinking { return tr("ヒント、考え中") }
+        return needsAd ? tr("ヒント（広告を見て表示）") : tr("ヒント（残り%lld回）", freeRemaining)
     }
 
     /// 示した手の読み上げ（例: "ヒント、ハートの7を3列目へ"）。`board` は動かす前の盤。
     public static func hintLabel(move: SolitaireMove, board: SolitaireBoard) -> String {
         func name(_ card: SolitaireCard?) -> String {
-            guard let card else { return "札" }
+            guard let card else { return tr("札") }
             return cardLabel(card)
         }
         switch move {
         case .draw:
-            return "ヒント、山札をめくります"
+            return tr("ヒント、山札をめくります")
         case .wasteToFoundation:
-            return "ヒント、捨て札の\(name(board.waste.last))を組札へ"
+            return tr("ヒント、捨て札の%@を組札へ", name(board.waste.last))
         case .wasteToTableau(let pile):
-            return "ヒント、捨て札の\(name(board.waste.last))を\(pile + 1)列目へ"
+            return tr("ヒント、捨て札の%1$@を%2$lld列目へ", name(board.waste.last), pile + 1)
         case .tableauToFoundation(let pile):
-            return "ヒント、\(pile + 1)列目の\(name(board.tableau[pile].top))を組札へ"
+            return tr("ヒント、%1$lld列目の%2$@を組札へ", pile + 1, name(board.tableau[pile].top))
         case .tableauToTableau(let from, let index, let to):
             let run = board.tableau[from].faceUp
-            guard run.indices.contains(index) else { return "ヒント" }
+            guard run.indices.contains(index) else { return tr("ヒント") }
             let count = run.count - index
-            let what = count > 1 ? "\(name(run[index]))から上の\(count)枚" : name(run[index])
-            return "ヒント、\(what)を\(to + 1)列目へ"
+            let what = count > 1 ? tr("%1$@から上の%2$lld枚", name(run[index]), count) : name(run[index])
+            return tr("ヒント、%1$@を%2$lld列目へ", what, to + 1)
         case .placeJoker:
-            return "ヒント"
+            return tr("ヒント")
         }
     }
 
@@ -170,9 +171,9 @@ public enum SolitaireAccessibility {
     ///   実際には K → 空列の入れ替えが残っており、告知は閉じて盤に触れる。
     public static func rescuePromptLabel(isDeadEnd: Bool, hasJoker: Bool) -> String {
         let head = isDeadEnd
-            ? "進める手がありません。山札をめくるか、盤面が進まない入れ替えしか残っていません"
-            : "このままではクリアできません"
-        let action = hasJoker ? "ジョーカーが1枚使えます" : "広告を見るとジョーカーを1枚受け取れます"
-        return "\(head)。\(action)"
+            ? tr("進める手がありません。山札をめくるか、盤面が進まない入れ替えしか残っていません")
+            : tr("このままではクリアできません")
+        let action = hasJoker ? tr("ジョーカーが1枚使えます") : tr("広告を見るとジョーカーを1枚受け取れます")
+        return tr("%1$@。%2$@", head, action)
     }
 }

@@ -164,27 +164,27 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     static let repetitionLimit = 4
 
     static func checkmateResultText(loser: Side) -> String {
-        (loser == .black ? "先手" : "後手") + "の負け（詰み）"
+        (loser == .black ? "先手" : "後手") + "の負け（詰み）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
     }
 
-    static let drawRepetitionResultText = "引き分け（千日手）"
-    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"
-    static let resignationResultText = "あなたの負け（投了）"
+    static let drawRepetitionResultText = "引き分け（千日手）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    static let resignationResultText = "あなたの負け（投了）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
 
     static func perpetualCheckResultText(loser: Side) -> String {
-        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix
+        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
     }
 
     /// 決着の文言の原文を表示言語の文にする（#2109）。原文は上の関数が組む 6 通りだけ。
     /// 表のキーはリテラルで書く決まりなので、原文ごとに `tr` を書き分ける。
     static func localizedResultText(_ key: String) -> String {
         switch key {
-        case "先手の負け（詰み）": return tr("先手の負け（詰み）")
-        case "後手の負け（詰み）": return tr("後手の負け（詰み）")
-        case "先手の負け（連続王手の千日手）": return tr("先手の負け（連続王手の千日手）")
-        case "後手の負け（連続王手の千日手）": return tr("後手の負け（連続王手の千日手）")
-        case "引き分け（千日手）": return tr("引き分け（千日手）")
-        case "あなたの負け（投了）": return tr("あなたの負け（投了）")
+        case "先手の負け（詰み）": return tr("先手の負け（詰み）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "後手の負け（詰み）": return tr("後手の負け（詰み）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "先手の負け（連続王手の千日手）": return tr("先手の負け（連続王手の千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "後手の負け（連続王手の千日手）": return tr("後手の負け（連続王手の千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "引き分け（千日手）": return tr("引き分け（千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "あなたの負け（投了）": return tr("あなたの負け（投了）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
         default: return key
         }
     }

@@ -1,6 +1,16 @@
 import SwiftUI
 import Core
 
+public extension SolitaireDrawMode {
+    /// 画面に出す名前。記録に保存する区分名は `recordLabel`（日本語のまま）。
+    var label: String {
+        switch self {
+        case .one:   return tr("1枚めくり")
+        case .three: return tr("3枚めくり")
+        }
+    }
+}
+
 /// 配り直すときにルールを選ぶ開始シート（#498）。
 ///
 /// **ここで選んだ値は配札と同時に焼き込まれ、その局の途中では変えられない**
@@ -38,7 +48,7 @@ public struct SolitaireSetupSheet: View {
             kind: .solo, discardsProgress: discardsProgress,
             onStart: onStart, onCancel: onCancel
         ) {
-            GameSetupSection("山札のめくり方") {
+            GameSetupSection(tr("山札のめくり方")) {
                 HStack(spacing: 12) {
                     ForEach(SolitaireDrawMode.allCases, id: \.self) { mode in
                         GameSetupChooser(
@@ -52,7 +62,7 @@ public struct SolitaireSetupSheet: View {
                     .foregroundStyle(Theme.inkSub)
             }
             if discardsProgress {
-                Label("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。",
+                Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),
                       systemImage: "exclamationmark.triangle.fill")
                     .scaledFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.coral)
@@ -65,12 +75,9 @@ public struct SolitaireSetupSheet: View {
     static func footer(for mode: SolitaireDrawMode) -> String {
         switch mode {
         case .one:
-            return "山札を1枚ずつめくります。いちばん標準的なクロンダイクで、"
-                + "Game Center の「ソリティア 最短タイム」に載るのはこちらだけです。"
+            return tr("山札を1枚ずつめくります。いちばん標準的なクロンダイクで、Game Center の「ソリティア 最短タイム」に載るのはこちらだけです。")
         case .three:
-            return "山札を3枚ずつめくり、使えるのはいちばん上の1枚だけです。"
-                + "同じ配札でも使える札が減るぶん歯ごたえがあります。"
-                + "自己ベストは1枚めくりとは別に記録され、Game Center の順位表には送りません。"
+            return tr("山札を3枚ずつめくり、使えるのはいちばん上の1枚だけです。同じ配札でも使える札が減るぶん歯ごたえがあります。自己ベストは1枚めくりとは別に記録され、Game Center の順位表には送りません。")
         }
     }
 }

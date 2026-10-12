@@ -24,11 +24,21 @@ public enum MinesweeperState: Equatable, Sendable {
 public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
     case beginner, intermediate, advanced
 
+    /// 画面に出す名前（表示言語に従う）。記録の区分名には `recordLabel` を使う。
     public var label: String {
         switch self {
-        case .beginner:     return "初級"
-        case .intermediate: return "中級"
-        case .advanced:     return "上級"
+        case .beginner:     return tr("初級")
+        case .intermediate: return tr("中級")
+        case .advanced:     return tr("上級")
+        }
+    }
+
+    /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されるので表示言語によらず日本語のまま。
+    public var recordLabel: String {
+        switch self {
+        case .beginner:     return "初級"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        case .intermediate: return "中級"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        case .advanced:     return "上級"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
         }
     }
 
@@ -52,7 +62,7 @@ public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
     }
 
     /// 新規対局シートの副題（例: "16×16  40地雷"）。
-    public var subtitle: String { "\(rows)×\(cols)  \(mines)地雷" }
+    public var subtitle: String { tr("%1$lld×%2$lld  %3$lld地雷", rows, cols, mines) }
 }
 
 /// マスに置くマーク（#444）。本家と同じ「なし → 旗 → ? → なし」の循環を表す。
@@ -195,10 +205,10 @@ public final class MinesweeperModel {
         if let preset = MinesweeperDifficulty.allCases.first(where: {
             $0.rows == rows && $0.cols == cols && $0.mines == totalMines
         }) {
-            return preset.label
+            return preset.recordLabel
         }
         // 区分は地雷数込みで分かれるため、ラベルにも地雷数を入れて別区分だと分かるようにする。
-        return "\(rows)×\(cols)・地雷\(totalMines)"
+        return "\(rows)×\(cols)・地雷\(totalMines)"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
     }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。

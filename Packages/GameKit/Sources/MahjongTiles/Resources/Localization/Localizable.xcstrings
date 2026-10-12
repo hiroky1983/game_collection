@@ -1,18 +1,7 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
-    "字牌の三元牌" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dragon tile"
-          }
-        }
-      }
-    },
-    "字牌の中" : {
+    "中" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -23,7 +12,18 @@
         }
       }
     },
-    "字牌の北" : {
+    "冬" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winter"
+          }
+        }
+      }
+    },
+    "北" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -34,7 +34,7 @@
         }
       }
     },
-    "字牌の南" : {
+    "南" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -45,46 +45,35 @@
         }
       }
     },
-    "字牌の東" : {
+    "夏" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "East Wind"
+            "value" : "Summer"
           }
         }
       }
     },
-    "字牌の發" : {
+    "字牌の%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Green Dragon"
+            "value" : "%@"
           }
         }
       }
     },
-    "字牌の白" : {
+    "字牌の三元牌" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "White Dragon"
-          }
-        }
-      }
-    },
-    "字牌の西" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "West Wind"
+            "value" : "Dragon"
           }
         }
       }
@@ -95,29 +84,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wind tile"
+            "value" : "Wind"
           }
         }
       }
     },
-    "季節牌の冬" : {
+    "季節牌の%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Season: Winter"
-          }
-        }
-      }
-    },
-    "季節牌の夏" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Season: Summer"
+            "value" : "%@ Season"
           }
         }
       }
@@ -128,29 +106,84 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Season tile"
+            "value" : "Season"
           }
         }
       }
     },
-    "季節牌の春" : {
+    "春" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Season: Spring"
+            "value" : "Spring"
           }
         }
       }
     },
-    "季節牌の秋" : {
+    "東" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Season: Autumn"
+            "value" : "East Wind"
+          }
+        }
+      }
+    },
+    "梅" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plum"
+          }
+        }
+      }
+    },
+    "發" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green Dragon"
+          }
+        }
+      }
+    },
+    "白" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White Dragon"
+          }
+        }
+      }
+    },
+    "秋" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autumn"
+          }
+        }
+      }
+    },
+    "竹" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bamboo"
           }
         }
       }
@@ -161,7 +194,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld of Dots"
+            "value" : "%lld of Circles"
           }
         }
       }
@@ -177,24 +210,13 @@
         }
       }
     },
-    "花牌の梅" : {
+    "花牌の%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flower: Plum"
-          }
-        }
-      }
-    },
-    "花牌の竹" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flower: Bamboo"
+            "value" : "%@ Flower"
           }
         }
       }
@@ -205,29 +227,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flower tile"
+            "value" : "Flower"
           }
         }
       }
     },
-    "花牌の菊" : {
+    "菊" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flower: Chrysanthemum"
-          }
-        }
-      }
-    },
-    "花牌の蘭" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flower: Orchid"
+            "value" : "Chrysanthemum"
           }
         }
       }
@@ -239,6 +250,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld of Characters"
+          }
+        }
+      }
+    },
+    "蘭" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orchid"
+          }
+        }
+      }
+    },
+    "西" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "West Wind"
           }
         }
       }

@@ -273,16 +273,16 @@ public enum HanafudaScoring {
     /// 画面と読み上げには `reasonLabel(_:)` で表示言語の文言にしてから出す（#2166）。
     public static func multiplierReasons(base: Int, opponentDeclaredKoiKoi: Bool) -> [String] {
         var reasons: [String] = []
-        if base >= sevenMonThreshold { reasons.append("7文以上で2倍") }
-        if opponentDeclaredKoiKoi { reasons.append("こいこい返しで2倍") }
+        if base >= sevenMonThreshold { reasons.append("7文以上で2倍") }  // i18n-keep: 中断データに保存する倍率の理由（表示は reasonLabel で訳す）
+        if opponentDeclaredKoiKoi { reasons.append("こいこい返しで2倍") }  // i18n-keep: 中断データに保存する倍率の理由（表示は reasonLabel で訳す）
         return reasons
     }
 
     /// `multiplierReasons` の 1 項目を表示言語の文言にする（#2166）。知らない文字列はそのまま返す。
     public static func reasonLabel(_ reason: String) -> String {
         switch reason {
-        case "7文以上で2倍": return tr("7文以上で2倍")
-        case "こいこい返しで2倍": return tr("こいこい返しで2倍")
+        case "7文以上で2倍": return tr("7文以上で2倍")  // i18n-keep: 中断データに保存する倍率の理由（表示は reasonLabel で訳す）
+        case "こいこい返しで2倍": return tr("こいこい返しで2倍")  // i18n-keep: 中断データに保存する倍率の理由（表示は reasonLabel で訳す）
         default: return reason
         }
     }

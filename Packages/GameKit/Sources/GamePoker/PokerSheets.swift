@@ -121,7 +121,7 @@ struct BonusTableSheet: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer()
-                        Text(tr("+%@枚", RecordFormat.number(payout.chips), payout.chips))
+                        Text(tr("+%@枚", RecordFormat.number(payout.chips)))
                             .scaledFont(16, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.yellow)
                     }

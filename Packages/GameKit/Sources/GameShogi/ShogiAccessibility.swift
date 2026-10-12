@@ -8,7 +8,7 @@ import Core
 /// View を組まずにテストできるようにする。
 public enum ShogiAccessibility {
     /// 段の漢数字（rank 0 = 一段目）。日本語の読み上げ用で、棋譜の慣習どおりの表記なので訳さない。
-    private static let rankKanji = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
+    private static let rankKanji = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]  // i18n-keep: 日本語の読み上げ用の段の漢数字（英語は a〜i で読む）
     /// 英語の段の呼び名（rank 0 = a）。英語圏の将棋の棋譜で使う「7g」の形（#2166）。
     private static let rankLetters = ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
 

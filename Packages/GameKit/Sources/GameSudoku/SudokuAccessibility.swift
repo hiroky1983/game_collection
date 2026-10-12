@@ -26,30 +26,30 @@ public enum SudokuAccessibility {
         noteDigits: [Int],
         isSelected: Bool
     ) -> String {
-        var parts = ["\(row + 1)行\(col + 1)列"]
+        var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1)]
         if digit != 0 {
             parts.append("\(digit)")
             if isGiven {
-                parts.append("出題")
+                parts.append(tr("出題"))
             } else if isError {
-                parts.append("間違い")
+                parts.append(tr("間違い"))
             } else if isHinted {
-                parts.append("ヒント")
+                parts.append(tr("ヒント"))
             }
         } else if noteDigits.isEmpty {
-            parts.append("空きマス")
+            parts.append(tr("空きマス"))
         } else {
-            parts.append("メモ " + noteDigits.map(String.init).joined(separator: "、"))
+            parts.append(tr("メモ %@", noteDigits.map(String.init).joined(separator: tr("、"))))
         }
-        if isSelected { parts.append("選択中") }
-        return parts.joined(separator: "、")
+        if isSelected { parts.append(tr("選択中")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// いまタップすると何が起きるか。**実行できない操作は案内しない**
     /// （出題のマスに「ダブルタップで選びます」と言われても何も起きない）。
     public static func cellHint(isGiven: Bool, isPlaying: Bool) -> String {
         guard isPlaying, !isGiven else { return "" }
-        return "ダブルタップで選びます"
+        return tr("ダブルタップで選びます")
     }
 
     /// 数字パッドのボタンの読み上げ文。
@@ -57,14 +57,14 @@ public enum SudokuAccessibility {
     /// メモモードかどうかで意味が変わる（数字を確定する / メモを付け外しする）ため、
     /// 数字だけを読ませると何が起きるか伝わらない。
     public static func padLabel(digit: Int, noteMode: Bool, isExhausted: Bool) -> String {
-        var parts = [noteMode ? "メモ \(digit)" : "\(digit)"]
-        if isExhausted { parts.append("使い切り") }
-        return parts.joined(separator: "、")
+        var parts = [noteMode ? tr("メモ %lld", digit) : "\(digit)"]
+        if isExhausted { parts.append(tr("使い切り")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// ヒントボタンの読み上げ文（残り回数まで読む）。
     public static func hintLabel(remaining: Int) -> String {
-        remaining > 0 ? "ヒント、残り\(remaining)回" : "ヒント、残りなし"
+        remaining > 0 ? tr("ヒント、残り%lld回", remaining) : tr("ヒント、残りなし")
     }
 
     /// ステータスバーのまとめ読み（残りマス数と経過時間）。
@@ -72,7 +72,7 @@ public enum SudokuAccessibility {
     public static func statusLabel(remainingCells: Int, elapsedSeconds: Int) -> String {
         let minutes = max(0, elapsedSeconds) / 60
         let seconds = max(0, elapsedSeconds) % 60
-        let time = minutes > 0 ? "\(minutes)分\(seconds)秒" : "\(seconds)秒"
-        return "残り\(remainingCells)マス、経過\(time)"
+        let time = minutes > 0 ? tr("%1$lld分%2$lld秒", minutes, seconds) : tr("%lld秒", seconds)
+        return tr("残り%1$lldマス、経過%2$@", remainingCells, time)
     }
 }
