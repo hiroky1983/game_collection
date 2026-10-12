@@ -26,4 +26,10 @@ public enum PokerAccessibility {
     public static func handCardHint(phase: PokerPhase) -> String {
         acceptsSelection(phase: phase) ? tr("ダブルタップで捨てる札の選択を切り替えます") : ""
     }
+
+    /// ポットの読み上げ文（例: "ポット30枚"）。画面は「ポット」と「30枚」が別の Text で、
+    /// そのままだと 2 要素に分かれて読まれる（#2162）。
+    public static func potLabel(pot: Int) -> String {
+        "ポット\(pot)枚"
+    }
 }

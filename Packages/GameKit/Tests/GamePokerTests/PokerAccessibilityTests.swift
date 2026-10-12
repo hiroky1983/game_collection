@@ -44,4 +44,9 @@ struct PokerAccessibilityTests {
         #expect(PokerAccessibility.acceptsSelection(phase: phase) == (phase == .exchange))
         #expect(hint.isEmpty == (phase != .exchange))
     }
+
+    @Test("ポットは「ポット」と枚数を 1 文で読む") func potLabel() {
+        #expect(PokerAccessibility.potLabel(pot: 30) == "ポット30枚")
+        #expect(PokerAccessibility.potLabel(pot: 0) == "ポット0枚")
+    }
 }

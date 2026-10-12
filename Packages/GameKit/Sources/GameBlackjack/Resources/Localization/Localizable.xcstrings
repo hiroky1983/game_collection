@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%@の合計%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ total: %lld"
+          }
+        }
+      }
+    },
+    "%@、バスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, bust"
+          }
+        }
+      }
+    },
     "%@枚" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -23,6 +23,15 @@ public enum BlackjackAccessibility {
         tr("見えているカードの合計%lld、1枚は伏せています", visibleValue)
     }
 
+    /// 手札の合計の読み上げ文（例: "あなたの合計17" / "ディーラーの合計22、バスト"）。
+    ///
+    /// 画面の合計は数字だけで、誰の手かは隣のラベルとの位置関係、バストは赤色でしか伝わらない（#2162）。
+    /// 誰の・何点・バストかを 1 つの文にまとめ、ラベルの要素は読ませない。
+    public static func totalLabel(owner: String, value: Int) -> String {
+        let base = tr("%@の合計%lld", owner, value)
+        return value > 21 ? tr("%@、バスト", base) : base
+    }
+
     /// 勝敗が決まったときの読み上げ文（#1574）。画面の勝敗バッジと同じ言葉で読ませる。
     ///
     /// - Parameter isSplit: スプリットしたラウンドか。手ごとに勝敗が割れうるので、
