@@ -1,10 +1,10 @@
 import XCTest
 
-/// おじさんの荷物運びパズルの開始シートから、選んでいるモードの図入りの遊び方を開けること（会長指示 2026-10-12
-/// 「詳しいルール説明をモード選択のところで見れるようにしないと、荷運びモードが分からない」）。
+/// おじさんの荷物運びパズルの開始シートに、選んでいるモードの遊び方の要点が図つきでそのまま並ぶこと
+/// （会長指示 2026-10-12「遊び方の概要を難易度（モード選択）のところで見せろ。遷移リンクを貼るだけでは駄目」）。
 ///
-/// 開始シート →「荷運びモードの遊び方を見る」→ 閉じる → 開始シートに戻り選択は荷運びのまま →
-/// パズルモードを選ぶ →「パズルモードの遊び方を見る」→ 閉じる → パズルモードのまま、を通しで見る。
+/// 開始シート（荷運びモード）に要点が出ている → 操作・れんさの説明を開く → パズルモードを選ぶと
+/// その場で中身が替わる（荷運びモードの説明は消える）、を通しで見る。別画面へは遷移しない。
 /// CI では回さない（シミュレータで手元実行）。
 ///
 /// 実行例（UDID で端末を指定する）:
@@ -15,7 +15,7 @@ import XCTest
 /// 環境変数 `TEST_RUNNER_E2E_SHOT_DIR` を渡すと、各段のスクリーンショットをそのフォルダへ書き出す。
 @MainActor
 final class OjisanPuzzleSetupHowToE2ETests: XCTestCase {
-    func testSetupSheetOpensGuideForSelectedMode() throws {
+    func testSetupSheetShowsGuideForSelectedModeInline() throws {
         let shotDir = ProcessInfo.processInfo.environment["E2E_SHOT_DIR"].map { URL(fileURLWithPath: $0) }
         if let shotDir { try? FileManager.default.createDirectory(at: shotDir, withIntermediateDirectories: true) }
         func shot(_ name: String) {
@@ -27,48 +27,47 @@ final class OjisanPuzzleSetupHowToE2ETests: XCTestCase {
             attachment.lifetime = .keepAlways
             add(attachment)
         }
-
         HomerunE2ETests.skipQuiescenceWait()
         let app = XCUIApplication()
+        func text(_ fragment: String) -> XCUIElement {
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", fragment)).firstMatch
+        }
         app.launchArguments = ["-startGame", "ojisanpuzzle", "-screenshotMode"]
         app.launch()
 
-        // 1. 開始シート（初期は荷運びモード）に、そのモードの遊び方ボタンが出ている。
-        let backpainGuide = app.buttons["荷運びモードの遊び方を見る"]
-        XCTAssertTrue(backpainGuide.waitForExistence(timeout: 20), "開始シートに荷運びモードの遊び方ボタンが無い")
-        shot("1-setup-backpain")
+        // 1. 開始シート（初期は荷運びモード）に、そのモードの要点がそのまま並んでいる。
+        XCTAssertTrue(text("荷運びモードのルール").waitForExistence(timeout: 20), "開始シートに荷運びモードのルールが無い")
+        XCTAssertTrue(text("腰をいたわろう").exists, "荷運びモードの目的が開始シートに出ていない")
+        XCTAssertFalse(app.buttons["荷運びモードの遊び方を見る"].exists, "別画面へ遷移するボタンが残っている")
+        XCTAssertTrue(app.buttons["スタート"].isHittable, "スタートボタンが下端に見えていない")
+        shot("1-backpain-top")
+        app.swipeUp()
+        XCTAssertTrue(text("腰痛ゲージがあり").exists, "腰痛ゲージの説明が開始シートに出ていない")
+        shot("2-backpain-scrolled")
 
-        // 2. 押すと荷運びモードの図入りの遊び方が開く。
-        backpainGuide.tap()
-        let close = app.buttons["閉じる"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "遊び方シートが開かない")
-        // 開始シートの説明（裏に残っている）と被らない、遊び方シートだけの文言で見分ける。
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "腰をいたわろう")).firstMatch.exists,
-                      "荷運びモードの遊び方になっていない")
-        shot("2-howto-backpain")
+        // 2. 操作・れんさの説明はその場で開く（別画面に移らない）。
+        let details = app.buttons["操作・れんさのくわしい説明"]
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        details.tap()
+        XCTAssertTrue(text("スワイプとタップ").waitForExistence(timeout: 5), "操作の説明が開かない")
+        XCTAssertFalse(app.buttons["閉じる"].exists, "別画面の遊び方シートが開いている")
+        app.swipeUp()
+        shot("3-backpain-details")
 
-        // 3. 閉じると開始シートに戻り、選択は荷運びモードのまま。
-        close.tap()
-        XCTAssertTrue(backpainGuide.waitForExistence(timeout: 10), "閉じたあと開始シートに戻らない")
-
-        // 4. パズルモードを選ぶと、ボタンがパズルモードの遊び方に替わる。
-        app.buttons["パズルモード"].firstMatch.tap()
-        let puzzleGuide = app.buttons["パズルモードの遊び方を見る"]
-        XCTAssertTrue(puzzleGuide.waitForExistence(timeout: 10), "パズルモードの遊び方ボタンに替わらない")
-        shot("3-setup-puzzle")
-
-        // 5. パズルモードの遊び方が開く（荷運びモードの文言は出ない）。
-        puzzleGuide.tap()
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "パズルモードの遊び方シートが開かない")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "得点をのばそう")).firstMatch.exists,
-                      "パズルモードの遊び方になっていない")
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "腰をいたわろう")).firstMatch.exists,
-                       "パズルモードの遊び方に荷運びモードの説明が出ている")
-        shot("4-howto-puzzle")
-
-        // 6. 閉じてもパズルモードの選択が保たれている。
-        close.tap()
-        XCTAssertTrue(puzzleGuide.waitForExistence(timeout: 10), "閉じたあとパズルモードの選択が保たれていない")
-        shot("5-setup-puzzle-after-close")
+        // 3. パズルモードを選ぶと、その場で中身がパズルモードに替わる。
+        // 上端で下へスワイプするとシートごと閉じるので、選択肢が押せる位置に来たら止める。
+        let puzzleChooser = app.buttons["パズルモード"].firstMatch
+        for _ in 0..<6 where !puzzleChooser.isHittable { app.swipeDown(velocity: .slow) }
+        // スクロールの惰性が残っていると最初のタップは止める操作として吸われるので、落ち着いてから押す。
+        sleep(1)
+        puzzleChooser.tap()
+        if !text("パズルモードのルール").waitForExistence(timeout: 2) { puzzleChooser.tap() }
+        XCTAssertTrue(text("パズルモードのルール").waitForExistence(timeout: 5), "パズルモードのルールに替わらない")
+        XCTAssertTrue(text("得点をのばそう").exists, "パズルモードの目的が出ていない")
+        XCTAssertFalse(text("腰をいたわろう").exists, "パズルモードに荷運びモードの説明が残っている")
+        XCTAssertFalse(text("腰痛ゲージがあり").exists, "パズルモードに腰痛ゲージの説明が出ている")
+        shot("4-puzzle-top")
+        app.swipeUp()
+        shot("5-puzzle-scrolled")
     }
 }

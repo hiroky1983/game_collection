@@ -577,20 +577,11 @@ public struct HowToPlaySheet<Extra: View>: View {
         .presentationDetents([.large])
     }
 
-    /// 番号の丸。3 行ルールと図カードで同じ部品を使う。
-    private func numberBadge(_ number: Int) -> some View {
-        Text("\(number)")
-            .scaledFont(13, weight: .black, design: .rounded)
-            .foregroundStyle(Theme.onAccent)
-            .frame(width: 22, height: 22)
-            .background(Circle().fill(Theme.Fill.coral))
-    }
-
     /// 従来の 3 行ルール。
     private var plainLines: some View {
         ForEach(Array(guide.lines.enumerated()), id: \.offset) { index, line in
             HStack(alignment: .top, spacing: 10) {
-                numberBadge(index + 1)
+                HowToPlayNumberBadge(number: index + 1)
                 Text(line)
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
@@ -607,39 +598,82 @@ public struct HowToPlaySheet<Extra: View>: View {
     @ViewBuilder
     private var illustratedItems: some View {
         ForEach(Array(guide.items.enumerated()), id: \.offset) { index, item in
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 10) {
-                    numberBadge(index + 1)
-                    Text(item.text)
-                        .themeBody(15, weight: .bold)
-                        .foregroundStyle(Theme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                if let figure = item.figure {
-                    figure()
-                        .frame(maxWidth: .infinity)
-                        // 図は説明の絵なので、読み上げは上の文に任せる。
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .popCard(corner: Theme.cornerSmall)
+            HowToPlayItemCard(item, number: index + 1)
         }
         if !guide.notes.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(guide.notes, id: \.self) { note in
-                    Text(note)
-                        .themeBody(13, weight: .medium)
-                        .foregroundStyle(Theme.inkSub)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .popCard(corner: Theme.cornerSmall)
+            HowToPlayNotesCard(guide.notes)
         }
+    }
+}
+
+/// 番号の丸。3 行ルールと図カードで同じ部品を使う。
+private struct HowToPlayNumberBadge: View {
+    let number: Int
+
+    var body: some View {
+        Text("\(number)")
+            .scaledFont(13, weight: .black, design: .rounded)
+            .foregroundStyle(Theme.onAccent)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Theme.Fill.coral))
+    }
+}
+
+/// 図入りの遊び方の 1 項目のカード（短文＋図）。遊び方シートと、開始シートに遊び方を直接並べるゲーム
+/// （おじさんの荷物運びパズル・会長指示 2026-10-12）で同じ見た目にするため、部品として切り出している。
+public struct HowToPlayItemCard: View {
+    private let item: HowToPlayItem
+    private let number: Int?
+
+    /// - Parameter number: 左に出す番号。`nil` なら番号の丸を出さない（項目を抜き出して並べるとき）。
+    public init(_ item: HowToPlayItem, number: Int? = nil) {
+        self.item = item
+        self.number = number
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                if let number { HowToPlayNumberBadge(number: number) }
+                Text(item.text)
+                    .themeBody(15, weight: .bold)
+                    .foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            if let figure = item.figure {
+                figure()
+                    .frame(maxWidth: .infinity)
+                    // 図は説明の絵なので、読み上げは上の文に任せる。
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+/// 図入りの遊び方の補足（文だけのカード）。`HowToPlayItemCard` と同じく遊び方シートと開始シートで共有する。
+public struct HowToPlayNotesCard: View {
+    private let notes: [String]
+
+    public init(_ notes: [String]) {
+        self.notes = notes
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(notes, id: \.self) { note in
+                Text(note)
+                    .themeBody(13, weight: .medium)
+                    .foregroundStyle(Theme.inkSub)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .popCard(corner: Theme.cornerSmall)
     }
 }
 
