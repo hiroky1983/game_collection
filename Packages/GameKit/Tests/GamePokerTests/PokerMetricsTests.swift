@@ -51,10 +51,11 @@ struct PokerMetricsTests {
         // ラベルは呼び出しと同じ行に書かれているので、行内で突き合わせる。
         for label in [
             "\"チェック\"",
-            "\"ベット \\(20)枚\"",
+            // 表示は tr で引く（#2166）。キーは日本語の原文で、数は書式の引数で渡す。
+            "tr(\"ベット %lld枚\", 20)",
             "\"フォールド\"",
-            "\"コール \\(model.currentBet)枚\"",
-            "\"\\(count)枚を交換\"",
+            "tr(\"コール %lld枚\", model.currentBet)",
+            "tr(\"%lld枚を交換\", count)",
             "\"次のゲーム\"",
         ] {
             let pattern = #"actionButton\([^\n]*"# + NSRegularExpression.escapedPattern(for: label)

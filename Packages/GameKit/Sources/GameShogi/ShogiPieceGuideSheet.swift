@@ -7,22 +7,29 @@ import Core
 /// 名前・動きを結び付けられるよう、駒の絵（`KomaView`・漢字）と名前・動きを 1 行ずつ並べる。
 /// 駒の絵は盤と同じ部品で描くので漢字のまま。名前と動きだけを表示言語で引く。
 struct ShogiPieceGuideSheet: View {
+    /// 駒の表の下に置く補足（持ち駒・成り）。表示用なので、その時点の言語で引く。
+    private var rules: [(String, String)] {
+        [
+            (tr("持ち駒"), tr("取った相手の駒は持ち駒になり、自分の駒として好きなマスに打てます。")),
+            (tr("成り"), tr("相手陣（奥の3段）に入る・その中で動く・そこから出るときに成れます。金と玉は成りません。")),
+        ]
+    }
+
     var body: some View {
-        YakuTableSheet(title: tr("駒の動き")) {
-            YakuTableSection(
-                header: tr("基本の駒"),
-                footer: tr("取った相手の駒は持ち駒になり、自分の駒として好きなマスに打てます。")
-            ) {
-                ForEach(ShogiPieceGuide.basic) { entry in
-                    ShogiPieceGuideRow(entry: entry)
+        // 「くわしいルール」は共通部品 `RuleListSheet` で組む決まり（#1414）。駒の表は `figures` に置く。
+        RuleListSheet(rules: rules) {
+            RuleFigureCard(title: tr("基本の駒")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(ShogiPieceGuide.basic) { entry in
+                        ShogiPieceGuideRow(entry: entry)
+                    }
                 }
             }
-            YakuTableSection(
-                header: tr("成った駒"),
-                footer: tr("相手陣（奥の3段）に入る・その中で動く・そこから出るときに成れます。金と玉は成りません。")
-            ) {
-                ForEach(ShogiPieceGuide.promoted) { entry in
-                    ShogiPieceGuideRow(entry: entry)
+            RuleFigureCard(title: tr("成った駒")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(ShogiPieceGuide.promoted) { entry in
+                        ShogiPieceGuideRow(entry: entry)
+                    }
                 }
             }
         }

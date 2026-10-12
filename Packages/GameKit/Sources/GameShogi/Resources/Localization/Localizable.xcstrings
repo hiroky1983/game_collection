@@ -453,6 +453,17 @@
         }
       }
     },
+    "成り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promotion"
+          }
+        }
+      }
+    },
     "成りますか？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -526,6 +537,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Resignation"
+          }
+        }
+      }
+    },
+    "持ち駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured pieces"
           }
         }
       }
@@ -900,17 +922,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Horse"
-          }
-        }
-      }
-    },
-    "駒の動き" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pieces"
           }
         }
       }
