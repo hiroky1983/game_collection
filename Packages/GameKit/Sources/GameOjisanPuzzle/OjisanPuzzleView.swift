@@ -500,7 +500,7 @@ public struct OjisanPuzzleView: View {
     }
 
     /// 荷物 1 個。**ピースそのものが荷物の形に見える**絵にする（会長指示 2026-10-07・#1909）。
-    /// 5 種は形で見分けが付く（`OjisanPuzzleLuggageArt`）。空きマスだけ薄い四角を敷く。
+    /// 5 種は形で見分けが付く（`OjisanPuzzleLuggageArt`。#2115 から 24 ドットのドット絵）。空きマスだけ薄い四角を敷く。
     /// 遊び方の図（`OjisanPuzzleHowToFigures`）も同じ部品で描く（絵を二重に持たない）。
     @ViewBuilder
     static func luggage(_ value: Int, side: CGFloat) -> some View {
@@ -509,8 +509,7 @@ public struct OjisanPuzzleView: View {
                 .fill(Theme.fillMuted.opacity(0.14))
                 .frame(width: side, height: side)
         } else {
-            OjisanPuzzleLuggageArt(value: value)
-                .frame(width: side, height: side)
+            OjisanPuzzleLuggageArt(value: value, side: side)
                 .accessibilityElement()
                 .accessibilityLabel(OjisanPuzzleLuggage.kind(value)?.name ?? "")
         }

@@ -139,7 +139,13 @@ let package = Package(
                             .copy("Resources/OjisanWork_limit_back_pain.png"),
                             .copy("Resources/OjisanWork_fallen_face_down_crying.png"),
                             // 入院の結果に出すベッドのおじさん（#2064。Codex 製 83×64）。
-                            .copy("Resources/OjisanWork_hospital_bed.png")]),
+                            .copy("Resources/OjisanWork_hospital_bed.png"),
+                            // 荷物 5 種のドット絵（#2115。Codex 製 24×24・出所は docs/design/ojisan-pixel-pipeline）。
+                            .copy("Resources/OjisanLuggage_1_zabuton.png"),
+                            .copy("Resources/OjisanLuggage_2_suika.png"),
+                            .copy("Resources/OjisanLuggage_3_coolerbox.png"),
+                            .copy("Resources/OjisanLuggage_4_polytank.png"),
+                            .copy("Resources/OjisanLuggage_5_beercase.png")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
         .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles", "CoreEngine"]),
