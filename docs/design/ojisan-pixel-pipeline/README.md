@@ -93,6 +93,22 @@
     腰痛おじさんパズルの入院の結果に 1 ドット = 2pt で出す）
   - `Packages/GameKit/Sources/Core/Resources/OjisanFace_{smile,cheer,frown}.png`（`face_*_64x60`・64×60。チャリンコ
     おじさんのリザルト・スタート画面の顔、`OjisanPixel.faceImages`）
+- **荷物運びパズルの荷物 5 種（#2115・会長決定 2026-10-12）**: `luggage-2115/` にまとめて置く。
+  - `prompt.txt`: Codex への指示（作業服おじさんの参考画像と同じ絵柄で、荷物 1 種 1 枚・白背景・色はゲームの 5 色）。
+    2026-10-12 に `codex exec`（Codex CLI v0.155.1・ChatGPT アカウントでログイン・モデル gpt-5.6-luna の内蔵画像生成）で
+    生成した。参考画像は上の作業服おじさんのコマ一覧。
+  - `src/`: Codex が描いた 2D 元絵（1 種 1 枚・1024 角前後）。
+  - `make_luggage_pixel.py`: 元絵 → ドット絵の変換（白背景の透過・メディアン・ゲームの base/dark 色に固定したパレットへの
+    減色・最頻色縮小・縁取りの補正。手法は `outfit-pixel/make_outfit_pixel.py` の流用で `pxlib.py` を import する）。
+    32 / 24 / 18 ドットを出し、会長が **24 ドット版**を採用。パスは生成時の作業ディレクトリ前提の参考コード。
+  - `remove_isolated.py`: 24 ドット版の後処理。座布団の右下に残った孤立した縁取りの点（会長指摘）を、手で描き足さず
+    5 枚共通の規則（面の色に接しておらず 8 近傍の不透明ドットが 3 つ以下の縁取りを、変化が無くなるまで透明にする）で
+    除去した。消えたのは座布団の 4 ドットだけで、他の 4 種は変化なし。
+  - `px24/`: 最終素材（24×24・1 ドット = 1px・透明背景）。アプリには
+    `Packages/GameKit/Sources/GameOjisanPuzzle/Resources/OjisanLuggage_{1_zabuton,2_suika,3_coolerbox,4_polytank,5_beercase}.png`
+    として入れ、1 ドットが画面の整数 px になる倍率でマスの中央に描く（`OjisanPuzzleLuggageArt`）。
+  - `mock_iphone17.png`: 採用判断に使った画面モック（現行 Canvas 図形 / 24 ドット / 18 ドットの比較）。
+  - 利用可否は下と同じ Codex 生成物の扱い。
 
 **利用可否（2026-10-07 確認・#1909）**: Codex を個人の ChatGPT アカウントでログインして使った画像生成は、ChatGPT と同じ
 OpenAI Terms of Use＋Service Terms の対象（[Codex のヘルプ](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan)）。
