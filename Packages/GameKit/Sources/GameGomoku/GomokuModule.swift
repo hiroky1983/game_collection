@@ -18,4 +18,9 @@ public struct GomokuModule: GameModule {
         guard let snap = snapshots.load(GomokuSnapshot.self, for: id) else { return false }
         return !(snap.moveHistory ?? []).isEmpty || snap.cells.contains { $0 != nil }
     }
+
+    /// 一手も打っていない盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
 }

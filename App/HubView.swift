@@ -315,6 +315,13 @@ struct HubView: View {
                             url: AppEnvironment.appStoreURL,
                             didTap: { services.gameDidTapShare(gameID: gameID) }
                         ))
+                        .task {
+                            // 手つかずの中断データを開き直した回の `game_start` を数える（#2161）。
+                            services.gameScreenDidAppear(
+                                gameID: gameID,
+                                hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: services.snapshots)
+                            )
+                        }
                 }
             }
             // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、

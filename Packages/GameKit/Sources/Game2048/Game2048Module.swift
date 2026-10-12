@@ -21,4 +21,9 @@ public struct Game2048Module: GameModule {
         let tiles = snap.board.reduce(0) { $0 + $1.filter { $0 != 0 }.count }
         return snap.score > 0 || tiles > 2
     }
+
+    /// 保存はあるが続きではない盤 = 一度も動かしていない盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
 }

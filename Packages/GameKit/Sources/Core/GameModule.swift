@@ -25,6 +25,12 @@ public protocol GameModule {
     /// （将棋・チェス）は、保存された局面を読んで決着済みなら false を返す。**アプリを起動し直しても
     /// 同じ答えになる**よう、判定は保存済みのものだけから作る（新しい保存先は増やさない）。
     func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool
+    /// 中断データが**手つかずの盤**（開いただけ・開始しただけで一手も指していない局）か（#2161）。
+    ///
+    /// `hasResumableSnapshot` が false でも、終局後の見返しのように「手つかずではない」中断データがある。
+    /// その区別が要るのは、手つかずの盤を開き直したときに `game_start` を数え直すため。
+    /// 既定は false（開いた時点で必ず Model が `game_start` を数えるゲームか、開始の契機が別にあるゲーム）。
+    func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool
 }
 
 public extension GameModule {
@@ -33,4 +39,6 @@ public extension GameModule {
     func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         resumesFromSnapshot && snapshots.exists(for: id)
     }
+
+    func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool { false }
 }

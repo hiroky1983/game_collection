@@ -21,4 +21,10 @@ public struct ShogiModule: GameModule {
         guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return false }
         return snap.phase == .playing && !snap.moves.isEmpty
     }
+
+    /// 対局中で一手も指していない局（#2161）。終局後の見返しは手つかずではない。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return false }
+        return snap.phase == .playing && snap.moves.isEmpty
+    }
 }

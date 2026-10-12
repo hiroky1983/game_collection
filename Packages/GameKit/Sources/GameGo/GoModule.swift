@@ -22,4 +22,9 @@ public struct GoModule: GameModule {
         let cpuOpening = snap.humanSide == GoStone.white.rawValue ? 1 : 0
         return snap.moves.count > cpuOpening || (snap.phase ?? 0) != GoPhase.playing.rawValue
     }
+
+    /// 対局中で、人間がまだ一手も打っていない局（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
 }

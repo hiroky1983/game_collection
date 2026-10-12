@@ -18,4 +18,9 @@ public struct OthelloModule: GameModule {
         guard let snap = snapshots.load(OthelloSnapshot.self, for: id) else { return false }
         return snap.cells.compactMap { $0 }.count > 4
     }
+
+    /// 初形のままの盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
 }
