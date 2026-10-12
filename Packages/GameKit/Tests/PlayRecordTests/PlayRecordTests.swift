@@ -453,7 +453,8 @@ struct PlayRecordStorageTests {
             )
         }
         let keys = Set((defaults.persistentDomain(forName: name) ?? [:]).keys)
-        #expect(keys == Set(PlayLog.playRecordKeys))
+        // 記録の1キー + 遊んだ日（#1625）の1キー。200 局遊んでも増えない。
+        #expect(keys == Set(PlayLog.playRecordKeys + PlayLog.playDayKeys))
         #expect(log.records.count == 1)
     }
 
@@ -515,7 +516,7 @@ struct PlayRecordStorageTests {
         #expect(log.lastPlayedAtByGame["minesweeper"] == newer)
         // 再起動しても保持される（records と同じ1キーに入っているだけで、キーは増えない）。
         #expect(PlayLog(defaults: defaults).lastPlayedAtByGame["minesweeper"] == newer)
-        #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys) == Set(PlayLog.playRecordKeys),
+        #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys) == Set(PlayLog.playRecordKeys + PlayLog.playDayKeys),
                 "日付を足してもキーは増えない")
     }
 
