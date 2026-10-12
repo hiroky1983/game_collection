@@ -43,7 +43,7 @@ public struct GoView: View {
             if !over { resultCardClosed = false }
         }
         .padding(Theme.pad)
-        .gameChrome(title: "囲碁", review: services.review,
+        .gameChrome(title: tr("囲碁"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         if model.gameOver || model.moveCount == 0 {
                             showNewGame = true
@@ -63,11 +63,11 @@ public struct GoView: View {
             } onCancel: { showNewGame = false }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規対局", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると対局データが失われます。")
+                Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
         .task(id: model.aiTurnKey) {
@@ -152,17 +152,17 @@ public struct GoView: View {
             if model.endgame == nil {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("終局の計算中…").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("終局の計算中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 }
                 .frame(maxWidth: .infinity)
             } else if let endgame = model.endgame {
                 Text(endgame.score.summary)
                     .themeBody(16).foregroundStyle(Theme.coral)
-                Text("黒 \(endgame.score.blackArea) 目 / 白 \(endgame.score.whiteArea) 目 + コミ \(komiText(endgame.score))")
+                Text(tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", endgame.score.blackArea, endgame.score.whiteArea, komiText(endgame.score)))
                     .themeBody(12).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 if endgame.isUncertain {
-                    Label("死活の判定があいまいです。続けて打って決着させることもできます。",
+                    Label(tr("死活の判定があいまいです。続けて打って決着させることもできます。"),
                           systemImage: "exclamationmark.triangle.fill")
                         .themeBody(11).foregroundStyle(Theme.inkSub)
                         .multilineTextAlignment(.leading)
@@ -170,13 +170,13 @@ public struct GoView: View {
             }
             HStack(spacing: 12) {
                 Button { model.resumePlay() } label: {
-                    Label("対局続行", systemImage: "arrow.uturn.backward")
+                    Label(tr("対局続行"), systemImage: "arrow.uturn.backward")
                         .frame(minHeight: GameButtonMetrics.minTapTarget)
                         .contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
                 Button { model.acceptEndgame() } label: {
-                    Text("この結果で終局")
+                    Text(tr("この結果で終局"))
                 }
                 .buttonStyle(.game(.primary))
                 .disabled(model.endgame == nil)
@@ -197,11 +197,11 @@ public struct GoView: View {
                 BoardGameResultCard(
                     verdict: verdict,
                     reason: score.summary,
-                    details: ["黒 \(score.blackArea) 目 / 白 \(score.whiteArea) 目 + コミ \(komiText(score))"],
+                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score))],
                     record: model.recordResult
                 ) { resultCardClosed = true }
             } else {
-                BoardGameResultCard(verdict: verdict, reason: "投了", record: model.recordResult) {
+                BoardGameResultCard(verdict: verdict, reason: tr("投了"), record: model.recordResult) {
                     resultCardClosed = true
                 }
             }
@@ -381,14 +381,14 @@ public struct GoView: View {
                       : AnyShapeStyle(Color(hex: 0xF0E8D0)))
                 .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                 .frame(width: 18, height: 18)
-            Text(isYou ? "あなた" : "CPU")
+            Text(isYou ? tr("あなた") : "CPU")
                 .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
-            Text(stone == .black ? "黒・先番" : "白・後番")
+            Text(stone == .black ? tr("黒・先番") : tr("白・後番"))
                 .scaledFont(13, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Spacer()
-            Text("取った石 \(stone == model.humanSide ? model.capturedByHuman : model.capturedByCPU)")
+            Text(tr("取った石 %lld", stone == model.humanSide ? model.capturedByHuman : model.capturedByCPU))
                 .scaledFont(12, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
@@ -408,14 +408,14 @@ public struct GoView: View {
                     .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .scoring:
-                Label("終局の確認", systemImage: "list.bullet.clipboard")
+                Label(tr("終局の確認"), systemImage: "list.bullet.clipboard")
                     .themeBody(15).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .playing:
                 TurnBadge(isYourTurn: model.state.sideToMove == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
             passBanner
@@ -424,7 +424,7 @@ public struct GoView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(GoAccessibility.statusLabel(
@@ -454,7 +454,7 @@ public struct GoView: View {
     private var passBanner: some View {
         ZStack {
             if passBannerID != nil {
-                Text("パス")
+                Text(tr("パス"))
                     .scaledFont(13, weight: .bold, design: .rounded)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 4)
@@ -468,8 +468,8 @@ public struct GoView: View {
     }
 
     private var resultText: String {
-        guard let winner = model.winner else { return "引き分け" }
-        return winner == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち"
+        guard let winner = model.winner else { return tr("引き分け") }
+        return winner == model.humanSide ? tr("あなたの勝ち！") : tr("CPUの勝ち")
     }
 
     private var gameControls: some View {
@@ -478,7 +478,7 @@ public struct GoView: View {
             model: model, services: services, rescue: undoRescue,
             hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
             extraItems: [
-                GameControlMenuItem(id: "pass", title: "パス", systemImage: "forward.fill",
+                GameControlMenuItem(id: "pass", title: tr("パス"), systemImage: "forward.fill",
                                     isEnabled: !(model.isAITurn || model.isThinking)) { model.pass() }
             ],
             onResign: { model.resign() }
@@ -647,27 +647,28 @@ private struct GoShake: GeometryEffect {
 
 /// 遊び方シートの「くわしいルール」。3 行に収まらない終局まわりをここへ逃がす（#118 の規約）。
 struct GoRuleDetails: View {
-    private let sections: [(String, [String])] = [
-        ("石を取る", [
-            "たて・よこにつながった自分の石のまわりの空点を「呼吸点」と呼びます。",
-            "相手の石の呼吸点をすべて埋めると、その石を取り上げられます。",
-            "自分の呼吸点が無くなる場所には打てません（ただし、その手で相手を取れるなら打てます）。",
+    // `body` の中で引く（表示言語の切り替えで描き直されるように・#2169）。
+    private var sections: [(String, [String])] { [
+        (tr("石を取る"), [
+            tr("たて・よこにつながった自分の石のまわりの空点を「呼吸点」と呼びます。"),
+            tr("相手の石の呼吸点をすべて埋めると、その石を取り上げられます。"),
+            tr("自分の呼吸点が無くなる場所には打てません（ただし、その手で相手を取れるなら打てます）。"),
         ]),
-        ("コウ", [
-            "取り返すと同じ形がくり返される場所は、すぐには打ち返せません。",
-            "一度よそに打ってからなら打てます。同じ盤面が何度も現れる手も禁止です。",
+        (tr("コウ"), [
+            tr("取り返すと同じ形がくり返される場所は、すぐには打ち返せません。"),
+            tr("一度よそに打ってからなら打てます。同じ盤面が何度も現れる手も禁止です。"),
         ]),
-        ("終局と勝ち負け", [
-            "打つところが無くなったら「パス」します。両者が続けてパスすると終局です。",
-            "数え方は中国ルール（面積計算）。盤上の自分の石と、自分だけが囲んでいる空点の合計で競います。",
-            "白にはコミ 6.5 目が加算されます（置き石ありの対局はコミ 0.5 目 + 置き石 1 子につき 1 目）。",
-            "終局の画面では、死んでいる石に × が付きます。判定に納得できなければ「対局続行」で打ち続けられます。",
+        (tr("終局と勝ち負け"), [
+            tr("打つところが無くなったら「パス」します。両者が続けてパスすると終局です。"),
+            tr("数え方は中国ルール（面積計算）。盤上の自分の石と、自分だけが囲んでいる空点の合計で競います。"),
+            tr("白にはコミ 6.5 目が加算されます（置き石ありの対局はコミ 0.5 目 + 置き石 1 子につき 1 目）。"),
+            tr("終局の画面では、死んでいる石に × が付きます。判定に納得できなければ「対局続行」で打ち続けられます。"),
         ]),
-    ]
+    ] }
 
     var body: some View {
         RuleListSheet(rules: sections.map { title, lines in
-            (title, lines.map { "・\($0)" }.joined(separator: "\n"))
+            (title, lines.map { tr("・%@", $0) }.joined(separator: "\n"))
         })
     }
 }
@@ -707,20 +708,20 @@ struct GoNewGameSheet: View {
             kind: .versus, spacing: 20,
             onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
         ) {
-            Text("9路盤・中国ルール（面積計算）")
+            Text(tr("9路盤・中国ルール（面積計算）"))
                 .themeBody(13).foregroundStyle(Theme.inkSub)
 
-            GameSetupSection("あなたの石") {
+            GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: "●黒", subtitle: "先番",
+                    GameSetupChooser(title: tr("●黒"), subtitle: tr("先番"),
                                      selected: side == .black, accent: Theme.fillStrong,
                                      onAccent: .white, metrics: Self.metrics) { side = .black }
-                    GameSetupChooser(title: "○白", subtitle: "後番",
+                    GameSetupChooser(title: tr("○白"), subtitle: tr("後番"),
                                      selected: side == .white, accent: Theme.fillMuted,
                                      onAccent: .white, metrics: Self.metrics) { side = .white }
                 }
             }
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 CPUStrengthPicker(
                     level: Binding(get: { level.rawValue }, set: { level = GoLevel(rawValue: $0) ?? .normal }),
                     details: GoLevel.allCases.map(\.detail)
@@ -728,11 +729,11 @@ struct GoNewGameSheet: View {
             }
             // 置き石は黒（人間）がハンデをもらう仕組みなので、白を選んだときは出さない。
             if side == .black {
-                GameSetupSection("置き石（ハンデ）") {
+                GameSetupSection(tr("置き石（ハンデ）")) {
                     HStack(spacing: 8) {
                         ForEach(GoRuleset.handicapChoices, id: \.self) { count in
-                            GameSetupChooser(title: count == 0 ? "互先" : "\(count)子",
-                                             subtitle: count == 0 ? "コミ6.5" : "コミ0.5",
+                            GameSetupChooser(title: count == 0 ? tr("互先") : tr("%lld子", count),
+                                             subtitle: count == 0 ? tr("コミ6.5") : tr("コミ0.5"),
                                              selected: handicap == count,
                                              accent: Theme.Fill.purple,
                                              metrics: Self.metrics) { handicap = count }

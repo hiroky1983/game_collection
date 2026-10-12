@@ -18,15 +18,15 @@ public enum OthelloAccessibility {
         isLastMove: Bool,
         isHint: Bool = false
     ) -> String {
-        var parts = ["\(row + 1)行\(col + 1)列"]
+        var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1)]
         switch stone {
-        case .black: parts.append("黒")
-        case .white: parts.append("白")
-        case nil:    parts.append("空")
+        case .black: parts.append(tr("黒"))
+        case .white: parts.append(tr("白"))
+        case nil:    parts.append(tr("空"))
         }
-        if isValidMove { parts.append("ここに置けます") }
-        if isLastMove { parts.append("直前の手") }
-        if isHint { parts.append("ヒントの手") }
-        return parts.joined(separator: "、")
+        if isValidMove { parts.append(tr("ここに置けます")) }
+        if isLastMove { parts.append(tr("直前の手")) }
+        if isHint { parts.append(tr("ヒントの手")) }
+        return parts.joined(separator: tr("、"))
     }
 }

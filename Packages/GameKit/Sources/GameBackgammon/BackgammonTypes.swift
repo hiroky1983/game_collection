@@ -26,9 +26,9 @@ public enum BackgammonWinKind: Int, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .single:     return "勝ち"
-        case .gammon:     return "ギャモン勝ち"
-        case .backgammon: return "バックギャモン勝ち"
+        case .single:     return tr("勝ち")
+        case .gammon:     return tr("ギャモン勝ち")
+        case .backgammon: return tr("バックギャモン勝ち")
         }
     }
 }
