@@ -67,7 +67,7 @@ public struct ChessView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.chess) {
+        .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)) {
             ChessRuleDetail(style: pieceStyle)
         }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {

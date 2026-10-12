@@ -54,7 +54,9 @@ public struct GomokuView: View {
                             showConfirmNewGame = true
                         }
                     })
-        .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
+        .howToPlay(model.forbiddenMovesEnabled
+                   ? HowToPlayGuide.gomokuRenju.illustrated(GomokuHowToFigures.renjuItems)
+                   : HowToPlayGuide.gomoku.illustrated(GomokuHowToFigures.items))
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in

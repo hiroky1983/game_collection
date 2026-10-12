@@ -51,7 +51,7 @@ public struct GoView: View {
                             showConfirmNewGame = true
                         }
                     })
-        .howToPlay(.go) { GoRuleDetails() }
+        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items)) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
