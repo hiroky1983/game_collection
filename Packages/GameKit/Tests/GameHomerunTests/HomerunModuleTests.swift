@@ -71,8 +71,8 @@ struct HomerunModuleTests {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         #expect(view.contains("VStack(spacing: 10) { actions }"), "ボタン欄は縦並び")
         // 同じ部品で文言だけ違う。文字で回数を出す「もう一回（残り N）」・「今日はおしまい」は使わない。
-        #expect(view.contains("HomerunStartButton(model: model, title: \"打席に立つ\")"))
-        #expect(view.contains("HomerunStartButton(model: model, title: \"もう一回\")"))
+        #expect(view.contains("HomerunStartButton(model: model, title: tr(\"打席に立つ\"))"))
+        #expect(view.contains("HomerunStartButton(model: model, title: tr(\"もう一回\"))"))
         #expect(!view.contains("もう一回（残り"))
         #expect(!view.contains("今日はおしまい"))
         // 回数 0 の扱いも部品の中（押せない灰色＋すぐ下に残り時間）。
@@ -85,7 +85,7 @@ struct HomerunModuleTests {
         let barStart = try #require(tail.range(of: "\nenum HomerunActionPlacement"))
         let body = String(tail[..<barStart.lowerBound])
         #expect(!body.contains("HStack("), "結果のボタンは縦並び")
-        let again = try #require(body.range(of: "title: \"もう一回\""))
+        let again = try #require(body.range(of: "title: tr(\"もう一回\")"))
         let ad = try #require(body.range(of: "HomerunRecoveryButton("))
         let back = try #require(body.range(of: "打席前へ"))
         #expect(again.lowerBound < ad.lowerBound && ad.lowerBound < back.lowerBound)
@@ -93,7 +93,7 @@ struct HomerunModuleTests {
         let canStartBranch = try #require(body.range(of: "if model.ledger.canStart {"))
         let elseBranch = try #require(body.range(of: "} else {"))
         #expect(canStartBranch.lowerBound < again.lowerBound && again.lowerBound < elseBranch.lowerBound)
-        let countdown = try #require(body.range(of: "HomerunResetCountdown(lead: \"あと\", ending: \"無料枠が戻ります\", readsAloud: true)"))
+        let countdown = try #require(body.range(of: "HomerunResetCountdown(freePlays: true, readsAloud: true)"))
         #expect(elseBranch.lowerBound < ad.lowerBound && ad.lowerBound < countdown.lowerBound
                 && countdown.lowerBound < back.lowerBound)
         // 結果では上限に達しても「今日はここまで…」を出さない（残りの 1 行だけ・会長決定 2026-10-05）。
@@ -105,7 +105,7 @@ struct HomerunModuleTests {
         // 打席前: 打席に立つ → 広告を見てプレイ。
         let lobby = try #require(view.range(of: "@ViewBuilder private var startActions: some View {"))
         let lobbyBody = view[lobby.upperBound...].prefix(600)
-        let start = try #require(lobbyBody.range(of: "title: \"打席に立つ\""))
+        let start = try #require(lobbyBody.range(of: "title: tr(\"打席に立つ\")"))
         let lobbyAd = try #require(lobbyBody.range(of: "HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)"))
         #expect(start.lowerBound < lobbyAd.lowerBound)
     }

@@ -39,7 +39,7 @@ public struct BackgammonView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "バックギャモン", review: services.review,
+        .gameChrome(title: tr("バックギャモン"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         showNewGame = true
                     })
@@ -51,10 +51,10 @@ public struct BackgammonView: View {
             } onCancel: { showNewGame = false }
         }
         .dialogs { anchor in
-            anchor.alert("動かせません", isPresented: $showPassAlert) {
+            anchor.alert(tr("動かせません"), isPresented: $showPassAlert) {
                 Button("OK") { model.confirmPass() }
             } message: {
-                Text("この目で動かせる駒がありません。CPU の番になります。")
+                Text(tr("この目で動かせる駒がありません。CPU の番になります。"))
             }
         }
         .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
@@ -87,14 +87,14 @@ public struct BackgammonView: View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
                 if model.gameOver {
-                    Text("終局")
+                    Text(tr("終局"))
                         .scaledFont(13, weight: .bold, design: .rounded)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(Theme.fillMuted))
                 } else {
                     let isMine = !model.isAITurn
-                    Text(isMine ? "あなたの番" : "CPUの番")
+                    Text(isMine ? tr("あなたの番") : tr("CPUの番"))
                         .scaledFont(13, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10).padding(.vertical, 4)
@@ -112,14 +112,14 @@ public struct BackgammonView: View {
 
                 // ピップカウント（あがるまでに要る目の合計）。
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text("あなた \(model.humanPips)")
+                    Text(tr("あなた %lld", model.humanPips))
                     Text("CPU \(model.cpuPips)")
                 }
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .monospacedDigit()
                 .foregroundStyle(Theme.inkSub)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("ピップカウント、あなた\(model.humanPips)、CPU\(model.cpuPips)")
+                .accessibilityLabel(tr("ピップカウント、あなた%1$lld、CPU%2$lld", model.humanPips, model.cpuPips))
             }
             Text(statusMessage)
                 .themeBody(13)
@@ -135,14 +135,14 @@ public struct BackgammonView: View {
     /// 1 行の案内。高さが変わらないよう常に 1 行を出す（無いときは空白 1 文字）。
     private var statusMessage: String {
         if model.gameOver { return " " }
-        if model.mustPass { return model.isAITurn ? "CPU は動かせる駒がありません" : "動かせる駒がありません" }
+        if model.mustPass { return model.isAITurn ? tr("CPU は動かせる駒がありません") : tr("動かせる駒がありません") }
         if model.isAITurn {
-            if model.turnID == 1, let o = model.openingRoll { return "先手は CPU（オープニングロール CPU \(o.cpu) – あなた \(o.human)）" }
-            return "CPU が考えています…"
+            if model.turnID == 1, let o = model.openingRoll { return tr("先手は CPU（オープニングロール CPU %1$lld – あなた %2$lld）", o.cpu, o.human) }
+            return tr("CPU が考えています…")
         }
-        if model.selectedPoint != nil { return "行き先をタップ（同じ駒をもう一度タップで選び直し）" }
-        if model.turnID == 1, let o = model.openingRoll { return "先手はあなた（オープニングロール あなた \(o.human) – CPU \(o.cpu)）" }
-        return "動かす駒をタップ"
+        if model.selectedPoint != nil { return tr("行き先をタップ（同じ駒をもう一度タップで選び直し）") }
+        if model.turnID == 1, let o = model.openingRoll { return tr("先手はあなた（オープニングロール あなた %1$lld – CPU %2$lld）", o.human, o.cpu) }
+        return tr("動かす駒をタップ")
     }
 
     /// 振った目。使った目は薄くする。
@@ -237,11 +237,11 @@ public struct BackgammonView: View {
             BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
             Spacer(minLength: 0)
             Button { model.restartTurn() } label: {
-                Label("やり直し", systemImage: "arrow.counterclockwise")
+                Label(tr("やり直し"), systemImage: "arrow.counterclockwise")
             }
             .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))
             .disabled(!model.canRestartTurn)
-            .accessibilityHint("この手番で動かした駒を、サイコロを振った直後に戻します")
+            .accessibilityHint(tr("この手番で動かした駒を、サイコロを振った直後に戻します"))
             Spacer(minLength: 0)
             BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
         }
@@ -258,15 +258,15 @@ public struct BackgammonView: View {
                 Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                     .scaledFont(40, maxScale: 1.2)
                     .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
-                Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
+                Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                     .scaledFont(24, weight: .bold, design: .rounded)
                     .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                 if let kind = model.winKind, kind != .single {
-                    Text("\(kind.label)（\(kind.rawValue)点）")
+                    Text(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
                         .scaledFont(15, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.ink)
                 }
-                Text("あがり あなた \(model.board.off(for: .white)) – CPU \(model.board.off(for: .black))")
+                Text(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
                     .scaledFont(15, weight: .semibold, design: .rounded)
                     .monospacedDigit()
                     .foregroundStyle(Theme.inkSub)
@@ -301,7 +301,7 @@ public struct BackgammonView: View {
         HStack(spacing: 12) {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
+                Label(tr("もう一度"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
             Spacer(minLength: 0)
@@ -613,10 +613,10 @@ struct BackgammonNewGameSheet: View {
             kind: .versus,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `BackgammonEngine.bestSequence` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [
-                    "でたらめに動かす", "ピップ差と叩きだけ", "ブロットの危険まで見る", "相手の目まで読む",
+                    tr("でたらめに動かす"), tr("ピップ差と叩きだけ"), tr("ブロットの危険まで見る"), tr("相手の目まで読む"),
                 ])
             }
         }

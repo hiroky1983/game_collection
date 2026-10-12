@@ -18,7 +18,8 @@ import Foundation
 ///   Xcode がコンパイルした `.lproj` はシステムの言語で引かれ、アプリ内で選んだ言語に追従させるには
 ///   結局自前の引き分けが要る。それなら同じ JSON を `swift test`（CI）とアプリの両方で同じコードが読む形にして、
 ///   英語の表示をテストで確かめられるようにする。
-/// - 複数形は String Catalog の `variations.plural`（`one` / `other`）に対応する。最初の整数の引数で選ぶ。
+/// - 複数形は String Catalog の `variations.plural`（`one` / `other`）に対応する。最初の整数の引数で選ぶ
+///   （整数が無ければ、`RecordFormat.number` で整形した「1,234」のような数字の文字列で選ぶ・#2168）。
 public struct StringTable: Sendable {
     /// 表のファイル。見つからない（同梱漏れ）ときは nil で、そのときは常にキー（日本語）を返す。
     public let catalogURL: URL?
@@ -114,7 +115,7 @@ public struct StringCatalog: Sendable, Equatable {
         case .text(let text):
             return text
         case .plural(let forms):
-            let category = Self.pluralCategory(for: arguments.lazy.compactMap(Self.integer).first, language: language)
+            let category = Self.pluralCategory(for: Self.pluralCount(arguments), language: language)
             return forms[category] ?? forms["other"] ?? key
         }
     }
@@ -125,6 +126,22 @@ public struct StringCatalog: Sendable, Equatable {
         case .japanese: return "other"
         case .english: return count == 1 ? "one" : "other"
         }
+    }
+
+    /// 複数形を選ぶ数。整数の引数があれば最初の整数。無ければ、数字だけ（桁区切りの `,` と先頭の `-` は可）の
+    /// 最初の文字列引数を数として読む（#2168）。桁区切りの要る数は `RecordFormat.number` で整形して `%@` で
+    /// 渡す決まりのため（`%lld` だと日本語の表示が変わる）、整形済みの「1,234」でも単数・複数を選べるようにする。
+    static func pluralCount(_ arguments: [any CVarArg]) -> Int64? {
+        arguments.lazy.compactMap(integer).first ?? arguments.lazy.compactMap(formattedInteger).first
+    }
+
+    /// 「1,234」「-5」のような数字の文字列を数にする。数字以外が混ざっていれば nil。
+    static func formattedInteger(_ value: any CVarArg) -> Int64? {
+        guard let text = value as? String else { return nil }
+        let digits = text.replacingOccurrences(of: ",", with: "")
+        guard let first = digits.first, first == "-" || first.isASCII && first.isNumber,
+              digits.dropFirst().allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        return Int64(digits)
     }
 
     private static func integer(_ value: any CVarArg) -> Int64? {

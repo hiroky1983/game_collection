@@ -265,7 +265,7 @@ public final class PlayLog {
     /// 更新後の初回クリアが無条件に「新記録」になる（麻雀ソリティアが #239 で該当した）。
     /// 値は「区分が無かった頃に遊べた唯一の区分」= 既定区分を指す。
     static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
-        "mahjong": (variant: "turtle", label: "亀甲"),
+        "mahjong": (variant: "turtle", label: "亀甲"),  // i18n-keep: 記録に保存済みの区分名（旧記録の引き継ぎ先）
     ]
 
     /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
@@ -273,7 +273,7 @@ public final class PlayLog {
     /// `variantLabel` は保存した時点の文字列で、次に遊んで記録を更新するまで書き換わらない。改名後も
     /// ハブに旧名が出続けるので、読み込み時に新名へ直す。区分キー（`backpain`）は変えない。
     static let renamedVariantLabels: [String: (old: String, new: String)] = [
-        "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),
+        "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),  // i18n-keep: 記録に保存済みの区分名の読み替え
     ]
 
     /// 保存済みの旧表示名を新表示名へ直した結果を返す純粋関数（#2176）。旧名以外のラベルには触れない。

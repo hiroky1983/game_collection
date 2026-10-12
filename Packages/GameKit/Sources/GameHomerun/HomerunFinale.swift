@@ -39,11 +39,11 @@ public enum HomerunFinale: Equatable, Sendable {
     /// 大きく出す表示名。
     public var title: String {
         switch self {
-        case .perfect: "パーフェクト！"
-        case .excellent: "エクセレント！"
-        case .good: "グッド！"
-        case .donmai: "ドンマイ…"
-        case .moonBroken: "月が割れた！"
+        case .perfect: tr("パーフェクト！")
+        case .excellent: tr("エクセレント！")
+        case .good: tr("グッド！")
+        case .donmai: tr("ドンマイ…")
+        case .moonBroken: tr("月が割れた！")
         }
     }
 
@@ -107,7 +107,7 @@ struct HomerunFinaleView: View {
         .onTapGesture(perform: skipFinale)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.accessibilityText(finale, homers: homers, total: total, isNewBest: model.isNewBest))
-        .accessibilityHint("タップで結果へ進みます")
+        .accessibilityHint(tr("タップで結果へ進みます"))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { skipFinale() }
     }
@@ -117,7 +117,7 @@ struct HomerunFinaleView: View {
     }
 
     static func accessibilityText(_ finale: HomerunFinale, homers: Int, total: Double, isNewBest: Bool) -> String {
-        "\(finale.title) 柵越え \(homers) 本、合計 \(HomerunText.meters(total))" + (isNewBest ? "、ニューレコード" : "")
+        tr("%1$@ 柵越え %2$lld 本、合計 %3$@", finale.title, homers, HomerunText.meters(total)) + (isNewBest ? tr("、ニューレコード") : "")
     }
 }
 
@@ -189,8 +189,8 @@ struct HomerunFinaleScene: View {
                     .opacity(clamp((t - 0.1) / 0.15))
                     .padding(.top, 10)
                 HStack(spacing: 10) {
-                    statChip("柵越え", "\(Int((Double(homers) * count).rounded(.down))) 本")
-                    statChip("合計", HomerunText.meters(total * count))
+                    statChip(tr("柵越え"), tr("%lld 本", Int((Double(homers) * count).rounded(.down))))
+                    statChip(tr("合計"), HomerunText.meters(total * count))
                 }
                 .opacity(clamp((t - 0.55) / 0.15))
                 .padding(.top, 14)
@@ -200,7 +200,7 @@ struct HomerunFinaleScene: View {
                         .padding(.top, 18)
                 }
                 Spacer()
-                Text("タップで次へ")
+                Text(tr("タップで次へ"))
                     .scaledFont(14, weight: .bold)
                     .foregroundStyle(.white.opacity(0.85))
                     .opacity(t > 0.9 ? (reduceMotion ? 1 : 0.55 + 0.45 * abs(sin(t * 3))) : 0)
@@ -212,7 +212,7 @@ struct HomerunFinaleScene: View {
 
     /// ニューレコードの帯（本数・距離の下・水平）。右から滑り込む。
     private func band(appear: Double, width: CGFloat) -> some View {
-        Text("ニューレコード！")
+        Text(tr("ニューレコード！"))
             .scaledFont(24, weight: .black, design: .rounded)
             .foregroundStyle(.white)
             .padding(.vertical, 8)
@@ -233,9 +233,9 @@ struct HomerunFinaleScene: View {
             .overlay(Circle().stroke(Color(red: 0.9, green: 0.2, blue: 0.2), lineWidth: 5).padding(5))
             .overlay(
                 VStack(spacing: -2) {
-                    Text("自己").font(.system(size: size * 0.16, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                    Text("ベスト").font(.system(size: size * 0.18, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                    Text("更新").font(.system(size: size * 0.16, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    Text(tr("自己")).font(.system(size: size * 0.16, weight: .black)).lineLimit(1).minimumScaleFactor(0.5) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    Text(tr("ベスト")).font(.system(size: size * 0.18, weight: .black)).lineLimit(1).minimumScaleFactor(0.5) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    Text(tr("更新")).font(.system(size: size * 0.16, weight: .black)).lineLimit(1).minimumScaleFactor(0.5) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 }
                 .foregroundStyle(Color(red: 0.85, green: 0.15, blue: 0.15))
             )

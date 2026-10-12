@@ -11,8 +11,8 @@ public struct FruitsModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `FruitsModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "fruits"
-    public let title = "くっつきフルーツ"
-    public let description = "同じくだものをくっつけて、大きく育てよう"
+    public var title: String { tr("くっつきフルーツ") }
+    public var description: String { tr("同じくだものをくっつけて、大きく育てよう") }
     public var icon: Image { Image(systemName: "leaf.circle.fill") }
 
     public init() {}

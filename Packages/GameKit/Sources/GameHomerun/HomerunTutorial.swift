@@ -10,12 +10,12 @@ enum HomerunTutorial {
     static let pageCount = 3
 
     /// ねらう・振るの文言。
-    static let steps: [(title: String, body: String)] = [
-        ("ねらう", "画面の下の帯を押したまま動かす。カーソルが同じように動く"),
-        ("振る", "カーソルを球に合わせ、輪が的に重なった瞬間に指を離す"),
-    ]
+    static var steps: [(title: String, body: String)] { [
+        (tr("ねらう"), tr("画面の下の帯を押したまま動かす。カーソルが同じように動く")),
+        (tr("振る"), tr("カーソルを球に合わせ、輪が的に重なった瞬間に指を離す")),
+    ] }
     /// 隠し要素の匂わせ（3 ページ目）。答え・条件の数値は書かない。
-    static let teaser: (title: String, body: String) = ("？？？", "ど真ん中を、ジャストで打ち抜くと……？")
+    static var teaser: (title: String, body: String) { (tr("？？？"), tr("ど真ん中を、ジャストで打ち抜くと……？")) }
 
     /// 図解で球を置くマス（真ん中の高さの左）。
     static let figureZone = 3
@@ -52,10 +52,10 @@ struct HomerunTutorialCards: View {
                 .accessibilityHidden(true)
             VStack(spacing: 10) {
                 HStack {
-                    Text("あそびかた").themeBody(18, weight: .black).foregroundStyle(Theme.ink)
+                    Text(tr("あそびかた")).themeBody(18, weight: .black).foregroundStyle(Theme.ink)
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
-                    Button("とばす") { onFinish() }
+                    Button(tr("とばす")) { onFinish() }
                         .themeCaption(13).foregroundStyle(Theme.inkSub)
                         .buttonStyle(.pop)
                 }
@@ -91,7 +91,7 @@ struct HomerunTutorialCards: View {
                     }
                 } label: {
                     let isLast = page + 1 >= HomerunTutorial.pageCount
-                    Label(isLast ? "はじめる" : "次へ", systemImage: isLast ? "play.fill" : "arrow.right")
+                    Label(isLast ? tr("はじめる") : tr("次へ"), systemImage: isLast ? "play.fill" : "arrow.right")
                         .themeBody(17)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -274,7 +274,7 @@ struct HomerunTutorialFigure: View {
                          at: CGPoint(x: finger.x + 6 * s, y: finger.y + 14 * s - lift))
                 Self.arrow(&ctx, from: CGPoint(x: finger.x - 36 * s, y: finger.y + 26 * s),
                            to: CGPoint(x: finger.x - 36 * s, y: finger.y - 36 * s), color: Theme.yellow, lineWidth: 4 * s, dash: [])
-                ctx.draw(Text(released ? "離す！" : "離す").font(.system(size: 15 * s, weight: .black, design: .rounded)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
+                ctx.draw(Text(released ? tr("離す！") : tr("離す")).font(.system(size: 15 * s, weight: .black, design: .rounded)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                          at: CGPoint(x: finger.x + 50 * s, y: finger.y - 30 * s))
             }
         }
@@ -406,7 +406,7 @@ struct HomerunMoonTeaserFigure: View {
                     .colorMultiply(Self.ground)
                     .frame(width: size.height * 0.34, height: size.height * 0.34)
                     .position(x: size.width * 0.20, y: size.height * 0.70)
-                Text("？？？")
+                Text(tr("？？？"))
                     .font(.system(size: r * 0.62, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.6), radius: 4)

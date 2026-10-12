@@ -7,17 +7,17 @@ public enum ConcentrationPairCount: Int, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .small:  return "8ペア"
-        case .medium: return "12ペア"
-        case .large:  return "18ペア"
+        case .small:  return tr("8ペア")
+        case .medium: return tr("12ペア")
+        case .large:  return tr("18ペア")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .small:  return "16枚"
-        case .medium: return "24枚"
-        case .large:  return "36枚"
+        case .small:  return tr("16枚")
+        case .medium: return tr("24枚")
+        case .large:  return tr("36枚")
         }
     }
 }
@@ -29,17 +29,17 @@ public enum ConcentrationCPULevel: Int, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .weak:   return "かんたん"
-        case .normal: return "ふつう"
-        case .strong: return "むずかしい"
+        case .weak:   return tr("かんたん")
+        case .normal: return tr("ふつう")
+        case .strong: return tr("むずかしい")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .weak:   return "記憶30%"
-        case .normal: return "記憶60%"
-        case .strong: return "記憶80%"
+        case .weak:   return tr("記憶30%")
+        case .normal: return tr("記憶60%")
+        case .strong: return tr("記憶80%")
         }
     }
 
@@ -56,7 +56,7 @@ public enum ConcentrationPlayer {
     case human, cpu
 
     var next: ConcentrationPlayer { self == .human ? .cpu : .human }
-    var displayName: String { self == .human ? "あなた" : "CPU" }
+    var displayName: String { self == .human ? tr("あなた") : "CPU" }
 }
 
 public struct ConcentrationCard: Identifiable {

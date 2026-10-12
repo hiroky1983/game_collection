@@ -15,16 +15,16 @@ public enum ChessPieceStyle: String, CaseIterable, Sendable {
     /// 設定シートのタイルに出す名前。
     public var label: String {
         switch self {
-        case .flat: return "シンプル"
-        case .real: return "リアル"
+        case .flat: return tr("シンプル")
+        case .real: return tr("リアル")
         }
     }
 
     /// タイルの副題。
     public var subtitle: String {
         switch self {
-        case .flat: return "今までの駒"
-        case .real: return "丸みと反射"
+        case .flat: return tr("今までの駒")
+        case .real: return tr("丸みと反射")
         }
     }
 

@@ -3,8 +3,8 @@ import Core
 
 public struct OthelloModule: GameModule {
     public let id = "othello"
-    public let title = "オセロ"
-    public let description = "石を挟んでひっくり返せ！CPU に挑戦"
+    public var title: String { tr("オセロ") }
+    public var description: String { tr("石を挟んでひっくり返せ！CPU に挑戦") }
     public var icon: Image { Image(systemName: "circle.lefthalf.filled") }
 
     public init() {}

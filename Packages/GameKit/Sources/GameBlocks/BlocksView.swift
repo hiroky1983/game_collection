@@ -45,7 +45,7 @@ public struct BlocksView: View {
         .padding()
         .rewardOffer(continueRescue, for: .continue, isPresented: model.phase == .gameOver && !model.continueUsed,
                      services: services, gameID: BlocksModel.gameID)
-        .gameChrome(title: "ブロック崩し", review: services.review,
+        .gameChrome(title: tr("ブロック崩し"), review: services.review,
                     newGame: GameChromeNewGame(.restart, isDisabled: continueRescue.isWatching) {
                         startNewGame()
                     })
@@ -77,25 +77,25 @@ public struct BlocksView: View {
         }
         .rewardedRescueAlerts(
             continueRescue,
-            notEarned: "コンティニューできませんでした",
+            notEarned: tr("コンティニューできませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "コンティニューできませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+                title: tr("コンティニューできませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
             )
         )
         .dialogs { anchor in
             anchor.confirmationDialog(
-                "はじめからやり直しますか？",
+                tr("はじめからやり直しますか？"),
                 isPresented: $showConfirmNewGame,
                 titleVisibility: .visible
             ) {
-                Button("終了してはじめから", role: .destructive) {
+                Button(tr("終了してはじめから"), role: .destructive) {
                     pausedForNewGameConfirm = false
                     model.newGame()
                 }
-                Button("キャンセル", role: .cancel) {}
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると今のスコアとステージが失われます。")
+                Text(tr("途中で終了すると今のスコアとステージが失われます。"))
             }
         }
         .onChange(of: showConfirmNewGame) { _, isPresented in
@@ -128,7 +128,7 @@ public struct BlocksView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("スコア")
+                Text(tr("スコア"))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
@@ -138,7 +138,7 @@ public struct BlocksView: View {
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 4) {
-                Text("ステージ \(model.stageNumber) / \(BlocksRules.stageCount)")
+                Text(tr("ステージ %1$lld / %2$lld", model.stageNumber, BlocksRules.stageCount))
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
                 livesView
@@ -157,7 +157,7 @@ public struct BlocksView: View {
             }
         }
         .accessibilityElement()
-        .accessibilityLabel("残機 \(model.lives)")
+        .accessibilityLabel(tr("残機 %lld", model.lives))
     }
 
     /// 一時停止ボタンの一辺（pt）。HIG のタップ標的の下限に合わせる（#600）。
@@ -174,7 +174,7 @@ public struct BlocksView: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.pop)
-        .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
+        .accessibilityLabel(model.phase == .paused ? tr("再開") : tr("一時停止"))
         // 決着後は止めるものが無い。
         .disabled(isPauseDisabled)
         // 押せないことを見た目でも示す。盤に重ねていた頃は結果パネルの陰で目立たなかったが、
@@ -223,15 +223,15 @@ public struct BlocksView: View {
                     // ドラッグ専用だと VoiceOver から遊べないので、盤を 1 要素にして操作を名前付きで出す（#1894）。
                     // オーバーレイ（結果・一時停止のボタン）は別要素のまま残す。
                     .accessibilityElement()
-                    .accessibilityLabel("ブロック崩しの盤")
+                    .accessibilityLabel(tr("ブロック崩しの盤"))
                     .accessibilityValue(accessibilityValue)
                     .accessibilityActions {
                         if model.phase == .ready || model.phase == .playing {
-                            Button("パドルを左へ") { model.nudgePaddle(steps: -1) }
-                            Button("パドルを右へ") { model.nudgePaddle(steps: 1) }
+                            Button(tr("パドルを左へ")) { model.nudgePaddle(steps: -1) }
+                            Button(tr("パドルを右へ")) { model.nudgePaddle(steps: 1) }
                         }
                         if model.phase == .ready {
-                            Button("ボールを発射") { model.launch() }
+                            Button(tr("ボールを発射")) { model.launch() }
                         }
                     }
                 if model.isPaddleWide, !model.phase.isFinished { effectBadge }
@@ -265,9 +265,9 @@ public struct BlocksView: View {
     }
 
     private var accessibilityValue: String {
-        var parts = ["残機 \(model.lives)", "残りブロック \(model.field.remainingBreakableCount) 個"]
-        if model.phase == .ready { parts.append("発射待ち") }
-        return parts.joined(separator: "、")
+        var parts = [tr("残機 %lld", model.lives), tr("残りブロック %lld 個", model.field.remainingBreakableCount)]
+        if model.phase == .ready { parts.append(tr("発射待ち")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// 盤の下の操作面。高さは余りぶん（機種によっては無い）。見た目は出さず、`HowToPlayHint` で案内する。
@@ -320,18 +320,18 @@ public struct BlocksView: View {
         case .paused:
             pausedOverlay
         case .stageCleared:
-            panel(title: "ステージ \(model.stageNumber) クリア！") {
+            panel(title: tr("ステージ %lld クリア！", model.stageNumber)) {
                 Button {
                     model.advanceToNextStage()
                 } label: {
-                    Label("次のステージへ", systemImage: "arrow.forward.circle.fill")
+                    Label(tr("次のステージへ"), systemImage: "arrow.forward.circle.fill")
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Fill.coral)
             }
         case .gameOver:
-            panel(title: "ゲームオーバー") {
+            panel(title: tr("ゲームオーバー")) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
                     continueButton
@@ -339,7 +339,7 @@ public struct BlocksView: View {
                 restartButton
             }
         case .allCleared:
-            panel(title: "全ステージクリア！") {
+            panel(title: tr("全ステージクリア！")) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 restartButton
             }
@@ -355,7 +355,7 @@ public struct BlocksView: View {
         let unit = BlocksField.Metrics.pointsPerUnit(boardWidth: Double(boardWidth))
         return VStack {
             Spacer()
-            Label("タップで発射", systemImage: "hand.tap.fill")
+            Label(tr("タップで発射"), systemImage: "hand.tap.fill")
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.9))
                 .padding(.horizontal, 12).padding(.vertical, 6)
@@ -376,7 +376,7 @@ public struct BlocksView: View {
     /// （SpriteKit の中に文字を描かない）。
     private var effectBadge: some View {
         VStack {
-            Label("バーが伸びている", systemImage: "arrow.left.and.right")
+            Label(tr("バーが伸びている"), systemImage: "arrow.left.and.right")
                 .themeCaption(12)
                 .foregroundStyle(.white.opacity(0.9))
                 .padding(.horizontal, 10).padding(.vertical, 4)
@@ -388,12 +388,12 @@ public struct BlocksView: View {
     }
 
     private var pausedOverlay: some View {
-        panel(title: "一時停止") {
+        panel(title: tr("一時停止")) {
             // ゆっくりモードの切り替えは設定画面のみに一本化した（#631）。理由は
             // `RunnerView.pausedOverlay`と同じ（一時停止からいつでも切り替えられると
             // 難易度調整の抜け道になっていた）。
 
-            GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
+            GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
                 model.resume()
             }
 
@@ -403,7 +403,7 @@ public struct BlocksView: View {
 
     private var continueButton: some View {
         GameDeadEndActionButton(
-            "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
+            tr("広告を見てコンティニュー"), systemImage: "play.rectangle.fill",
             tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
         ) {
             // どの局へのコンティニューかを広告前に控える。ロード中に「はじめから」で
@@ -422,7 +422,7 @@ public struct BlocksView: View {
     /// 後者は `hasProgressToLose` が false なのでこれまでどおり即やり直す。
     private var restartButton: some View {
         // 広告の読み込み中に盤を作り直すと、見終えても照合で弾かれる（#1381）。
-        GameDeadEndDismissButton("はじめから", isDisabled: continueRescue.isWatching) {
+        GameDeadEndDismissButton(tr("はじめから"), isDisabled: continueRescue.isWatching) {
             startNewGame()
         }
     }

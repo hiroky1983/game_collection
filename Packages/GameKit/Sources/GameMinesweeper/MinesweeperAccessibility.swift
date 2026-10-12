@@ -19,28 +19,28 @@ public enum MinesweeperAccessibility {
         gameOver: Bool,
         isHinted: Bool = false
     ) -> String {
-        var parts = ["\(row + 1)行\(col + 1)列"]
+        var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1)]
         if cell.isRevealed {
             if cell.isMine {
-                parts.append(isHit ? "踏んだ地雷" : "地雷")
+                parts.append(isHit ? tr("踏んだ地雷") : tr("地雷"))
             } else if cell.adjacentMines > 0 {
-                parts.append("周囲の地雷\(cell.adjacentMines)")
+                parts.append(tr("周囲の地雷%lld", cell.adjacentMines))
             } else {
-                parts.append("空き")
+                parts.append(tr("空き"))
             }
         } else if cell.isFlagged {
-            parts.append(gameOver && !cell.isMine ? "誤った旗" : "旗")
+            parts.append(gameOver && !cell.isMine ? tr("誤った旗") : tr("旗"))
         } else if cell.mark == .question {
             // ? は旗と違って「開ける未開放マス」なので、旗と混ぜずに独立して読む（#444）。
-            parts.append("はてな")
+            parts.append(tr("はてな"))
         } else if cell.isContinuedMine {
-            parts.append("確定した地雷")
+            parts.append(tr("確定した地雷"))
         } else {
-            parts.append("未開放")
+            parts.append(tr("未開放"))
         }
         // ヒントで光らせているマス（#2024）。色の枠だけでは VoiceOver に伝わらない。
-        if isHinted { parts.append("ヒント、安全なマス") }
-        return parts.joined(separator: "、")
+        if isHinted { parts.append(tr("ヒント、安全なマス")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// 開くか旗を立てるかは画面上のトグル（`flagMode`）で決まるため、
@@ -58,29 +58,29 @@ public enum MinesweeperAccessibility {
         if flagMode {
             // マークは「なし → 旗 → ? → なし」の3状態を循環する（#444）。いま何が置かれて
             // いるかは `cellLabel` が読み上げるので、ここでは循環に何が含まれるかだけ伝える。
-            return canToggleFlag ? "ダブルタップで旗・はてなを切り替えます" : ""
+            return canToggleFlag ? tr("ダブルタップで旗・はてなを切り替えます") : ""
         }
-        if canReveal { return "ダブルタップで開きます" }
+        if canReveal { return tr("ダブルタップで開きます") }
         // 開いている数字マスは、周囲の旗が揃っていればまとめて開ける（コード・#437）。
-        return canChord ? "ダブルタップで周囲をまとめて開きます" : ""
+        return canChord ? tr("ダブルタップで周囲をまとめて開きます") : ""
     }
 
     /// 旗モードの切り替えボタン（#761）。旗モードはマスのタップ結果を左右するので、
     /// 画面を見なくても「いまどちらか」が分かるよう状態込みで読む（ナンプレのメモと同じ形）。
     public static func flagToggleLabel(isOn: Bool) -> String {
-        isOn ? "旗モード、オン" : "旗モード、オフ"
+        isOn ? tr("旗モード、オン") : tr("旗モード、オフ")
     }
 
     /// 拡大の切り替えボタン（#761）。ラベルは押すと何が起きるか（フリーセル・ナンプレと同じ）。
     public static func zoomToggleLabel(isZoomed: Bool) -> String {
-        isZoomed ? "盤全体を表示" : "盤を拡大"
+        isZoomed ? tr("盤全体を表示") : tr("盤を拡大")
     }
 
     /// ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に「盤全体を表示」と読んだ直後に
     /// 拡大の案内をすることになる（フリーセル #604 と同じ理由）。
     public static func zoomToggleHint(isZoomed: Bool) -> String {
         isZoomed
-            ? "等倍に戻して盤全体を画面に収めます"
-            : "マスを大きくして指で押しやすくします。はみ出した部分は縦横にスクロールします"
+            ? tr("等倍に戻して盤全体を画面に収めます")
+            : tr("マスを大きくして指で押しやすくします。はみ出した部分は縦横にスクロールします")
     }
 }

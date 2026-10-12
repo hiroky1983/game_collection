@@ -21,7 +21,7 @@ public enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
     /// 読めない言語に切り替えてしまった人が、自分の言語を見つけて戻れるようにするため。
     public var nativeName: String {
         switch self {
-        case .japanese: "日本語"
+        case .japanese: "日本語"  // i18n-keep: 言語の自称（どの言語で表示していても訳さない）
         case .english: "English"
         }
     }

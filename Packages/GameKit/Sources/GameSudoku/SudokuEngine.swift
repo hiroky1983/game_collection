@@ -5,12 +5,21 @@ import CoreEngine
 public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
     case easy, normal, hard
 
-    /// 記録の区分名（ハブ・リザルトの 1 行に添える）。
+    /// 画面に出す難易度名（表示言語に従う）。記録の区分名には `recordLabel` を使う。
     public var label: String {
         switch self {
-        case .easy:   return "かんたん"
-        case .normal: return "ふつう"
-        case .hard:   return "むずかしい"
+        case .easy:   return tr("かんたん")
+        case .normal: return tr("ふつう")
+        case .hard:   return tr("むずかしい")
+        }
+    }
+
+    /// 記録の区分名（`GameScore.variantLabel`・ハブ・リザルトの 1 行に添える）。保存されるので表示言語によらず日本語のまま。
+    public var recordLabel: String {
+        switch self {
+        case .easy:   return "かんたん"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        case .normal: return "ふつう"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        case .hard:   return "むずかしい"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
         }
     }
 

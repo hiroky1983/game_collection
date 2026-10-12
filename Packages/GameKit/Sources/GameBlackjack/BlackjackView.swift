@@ -61,7 +61,7 @@ public struct BlackjackView: View {
         .padding(Theme.pad)
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
-        .gameChrome(title: "ブラックジャック", review: services.review)
+        .gameChrome(title: tr("ブラックジャック"), review: services.review)
         .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
         .onAppear {
             #if DEBUG
@@ -89,10 +89,10 @@ public struct BlackjackView: View {
         }
         .rewardedRescueAlerts(
             reviveRescue,
-            notEarned: "チップは回復しませんでした",
+            notEarned: tr("チップは回復しませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "チップは回復しませんでした",
-                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+                title: tr("チップは回復しませんでした"),
+                message: tr("広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。")
             )
         )
     }
@@ -101,12 +101,12 @@ public struct BlackjackView: View {
 
     private var chipsBar: some View {
         HStack {
-            Label("チップ: \(model.chips)枚", systemImage: "circle.hexagongrid.fill")
+            Label(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill")
                 .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
             if model.bet > 0 {
-                Label("ベット: \(model.bet)枚", systemImage: "dollarsign.circle.fill")
+                Label(tr("ベット: %@枚", model.bet.formatted()), systemImage: "dollarsign.circle.fill")
                     .themeBody(14)
                     .foregroundStyle(Theme.yellow)
             }
@@ -129,12 +129,12 @@ public struct BlackjackView: View {
                 BJCardPlaceholder()
             }
             VStack(spacing: 6) {
-                Text("ベットするとカードが配られます")
+                Text(tr("ベットするとカードが配られます"))
                     .themeBody(15, weight: .bold, maxScale: 1.5)
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
-                Text("21 に近いほうが勝ち。ディーラーは 17 以上で止まります。")
+                Text(tr("21 に近いほうが勝ち。ディーラーは 17 以上で止まります。"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .multilineTextAlignment(.center)
@@ -150,7 +150,7 @@ public struct BlackjackView: View {
     private var dealerArea: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("ディーラー")
+                Text(tr("ディーラー"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .accessibilityHidden(model.phase == .result || model.phase == .dealerTurn)
@@ -162,7 +162,7 @@ public struct BlackjackView: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(model.dealerValue > 21 ? Theme.coral : Theme.purple)
                         .accessibilityLabel(BlackjackAccessibility.totalLabel(
-                            owner: "ディーラー", value: model.dealerValue
+                            owner: tr("ディーラー"), value: model.dealerValue
                         ))
                 } else if !model.dealerHand.isEmpty {
                     Text("\(model.dealerVisibleValue) + ?")
@@ -219,7 +219,7 @@ public struct BlackjackView: View {
     private var singleHandArea: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("あなた")
+                Text(tr("あなた"))
                     .themeBody(13)
                     .foregroundStyle(Theme.ink)
                     .accessibilityHidden(!model.playerHand.isEmpty)
@@ -231,7 +231,7 @@ public struct BlackjackView: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(model.playerValue > 21 ? Theme.coral : Theme.teal)
                         .accessibilityLabel(BlackjackAccessibility.totalLabel(
-                            owner: "あなた", value: model.playerValue
+                            owner: tr("あなた"), value: model.playerValue
                         ))
                 }
                 // 勝敗バッジはフェードで出す（#209）。`.gameAnimation` はこの ZStack にだけ置く
@@ -269,18 +269,18 @@ public struct BlackjackView: View {
         let isActive = model.phase == .playerTurn && index == model.activeHandIndex
         return VStack(spacing: 6) {
             HStack(spacing: 6) {
-                Text("ハンド\(index + 1)")
+                Text(tr("ハンド%lld", index + 1))
                     .themeBody(13)
                     .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
                     .accessibilityHidden(true)
-                Text("\(hand.bet)枚\(hand.isDoubled ? "（ダブル）" : "")")
+                Text(hand.isDoubled ? tr("%@枚（ダブル）", hand.bet.formatted()) : tr("%@枚", hand.bet.formatted()))
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
                 if isActive {
-                    Text("操作中")
+                    Text(tr("操作中"))
                         .themeCaption(10, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -295,7 +295,7 @@ public struct BlackjackView: View {
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(hand.isBusted ? Theme.coral : Theme.teal)
                     .accessibilityLabel(BlackjackAccessibility.totalLabel(
-                        owner: "ハンド\(index + 1)", value: hand.value
+                        owner: tr("ハンド%lld", index + 1), value: hand.value
                     ))
                 if let outcome = hand.outcome {
                     outcomeBadge(outcome)
@@ -322,7 +322,7 @@ public struct BlackjackView: View {
     private func outcomeBadge(_ outcome: BlackjackOutcome) -> some View {
         switch outcome {
         case .playerBlackjack:
-            Text("ブラックジャック！")
+            Text(tr("ブラックジャック！"))
                 .themeCaption(12, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -330,7 +330,7 @@ public struct BlackjackView: View {
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.yellow))
         case .win:
-            Text("勝ち！")
+            Text(tr("勝ち！"))
                 .themeCaption(12, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -338,7 +338,7 @@ public struct BlackjackView: View {
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.teal))
         case .push:
-            Text("引き分け")
+            Text(tr("引き分け"))
                 .themeCaption(12, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -346,7 +346,7 @@ public struct BlackjackView: View {
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.fillMuted))
         case .lose:
-            Text("負け")
+            Text(tr("負け"))
                 .themeCaption(12, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -354,7 +354,7 @@ public struct BlackjackView: View {
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(Theme.Fill.coral))
         case .bust:
-            Text("バスト")
+            Text(tr("バスト"))
                 .themeCaption(12, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -385,7 +385,7 @@ public struct BlackjackView: View {
     /// ディーラーが1枚ずつ引いているあいだの操作欄（#667）。待ちを飛ばして結果まで進められる。
     private var dealerTurnView: some View {
         VStack(spacing: 8) {
-            actionButton("結果まで進める", role: .skip) {
+            actionButton(tr("結果まで進める"), role: .skip) {
                 model.skipDealerDraws()
             }
         }
@@ -395,7 +395,7 @@ public struct BlackjackView: View {
 
     private var bettingView: some View {
         VStack(spacing: 8) {
-            Text("ベット額を選んでください")
+            Text(tr("ベット額を選んでください"))
                 .themeCaption(13, weight: .semibold, maxScale: 1.5)
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
@@ -403,7 +403,7 @@ public struct BlackjackView: View {
             HStack(spacing: 10) {
                 ForEach(betOptions, id: \.self) { amount in
                     actionButton(
-                        "\(amount)枚",
+                        tr("%lld枚", amount),
                         role: .primary,
                         disabled: model.chips < amount
                     ) {
@@ -419,10 +419,10 @@ public struct BlackjackView: View {
     private var playerActionView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                actionButton("スタンド", role: .skip) {
+                actionButton(tr("スタンド"), role: .skip) {
                     model.stand()
                 }
-                actionButton("ヒット", role: .primary) {
+                actionButton(tr("ヒット"), role: .primary) {
                     model.hit()
                 }
             }
@@ -431,13 +431,13 @@ public struct BlackjackView: View {
             if model.isDoubleDownApplicable || model.isSplitApplicable {
                 HStack(spacing: 12) {
                     if model.isDoubleDownApplicable {
-                        actionButton("ダブルダウン", role: .declaration,
+                        actionButton(tr("ダブルダウン"), role: .declaration,
                                      disabled: !model.canDoubleDown) {
                             model.doubleDown()
                         }
                     }
                     if model.isSplitApplicable {
-                        actionButton("スプリット", role: .declaration,
+                        actionButton(tr("スプリット"), role: .declaration,
                                      disabled: !model.canSplit) {
                             model.split()
                         }
@@ -452,7 +452,7 @@ public struct BlackjackView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
-            actionButton("次のゲーム", role: .primary) {
+            actionButton(tr("次のゲーム"), role: .primary) {
                 model.nextRound()
             }
         }
@@ -470,17 +470,19 @@ public struct BlackjackView: View {
     /// 3 行にすると画面の上端がナビゲーションバーに潜るため、SE の幅で 1 行に収まる長さにしている。
     private var sessionOverSubtitle: String {
         model.canReviveAfterBust
-            ? "\(BlackjackModel.reviveChips)枚で復活すると順位表に載りません"
-            : "復活はこのセッションで\(BlackjackModel.maxRevivesPerSession)回使いました。最初からやり直せます"
+            ? tr("%lld枚で復活すると順位表に載りません", BlackjackModel.reviveChips)
+            : tr("復活はこのセッションで%lld回使いました。最初からやり直せます", BlackjackModel.maxRevivesPerSession)
     }
 
     /// 復活導線の文言。回数制限を見た目にも出す（#499）。
     private var reviveButtonTitle: String {
-        "広告を見て\(BlackjackModel.reviveChips)枚で復活（\(model.revivesRemaining == 1 ? "最後の1回" : "あと\(model.revivesRemaining)回")）"
+        model.revivesRemaining == 1
+            ? tr("広告を見て%lld枚で復活（最後の1回）", BlackjackModel.reviveChips)
+            : tr("広告を見て%1$lld枚で復活（あと%2$lld回）", BlackjackModel.reviveChips, model.revivesRemaining)
     }
 
     private var restartButtonTitle: String {
-        "最初からやり直す (\(BlackjackModel.initialChips)枚)"
+        tr("最初からやり直す (%lld枚)", BlackjackModel.initialChips)
     }
 
     private var sessionOverView: some View {
@@ -493,7 +495,7 @@ public struct BlackjackView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
                     // 「なくなりました」ではなく「足りません」と言う。
-                    Text("チップが足りなくなりました")
+                    Text(tr("チップが足りなくなりました"))
                         .themeBody(16, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)

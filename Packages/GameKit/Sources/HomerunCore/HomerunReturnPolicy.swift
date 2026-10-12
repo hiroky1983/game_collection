@@ -22,17 +22,20 @@ public enum HomerunReturnPolicy {
         return max(1, Int((seconds / 60).rounded(.up)))
     }
 
-    /// 回数 0 の打席前に出す「あと約◯時間◯分で戻ります」。結果画面は `lead` に「あと」、`ending` に「無料枠が戻ります」を
-    /// 渡す（「あと◯時間◯分で無料枠が戻ります」・会長指示 2026-10-05）。
-    public static func remainingText(from now: Date, calendar: Calendar,
-                                     lead: String = "あと約", ending: String = "戻ります") -> String {
+    /// 回数 0 の打席前に出す「あと約◯時間◯分で戻ります」。結果画面は `freePlays` を立てて
+    /// 「あと◯時間◯分で無料枠が戻ります」にする（会長指示 2026-10-05）。
+    /// 英語では語順も単位の書き方も変わるので、前後の語を組み立てずに文ごと表に載せる（多言語④ #2167）。
+    public static func remainingText(from now: Date, calendar: Calendar, freePlays: Bool = false) -> String {
         let minutes = minutesUntilReset(from: now, calendar: calendar)
         let hours = minutes / 60
         let rest = minutes % 60
-        switch (hours, rest) {
-        case (0, _): return "\(lead)\(rest)分で\(ending)"
-        case (_, 0): return "\(lead)\(hours)時間で\(ending)"
-        default:     return "\(lead)\(hours)時間\(rest)分で\(ending)"
+        switch (hours, rest, freePlays) {
+        case (0, _, false): return tr("あと約%lld分で戻ります", rest)
+        case (0, _, true):  return tr("あと%lld分で無料枠が戻ります", rest)
+        case (_, 0, false): return tr("あと約%lld時間で戻ります", hours)
+        case (_, 0, true):  return tr("あと%lld時間で無料枠が戻ります", hours)
+        case (_, _, false): return tr("あと約%lld時間%lld分で戻ります", hours, rest)
+        case (_, _, true):  return tr("あと%lld時間%lld分で無料枠が戻ります", hours, rest)
         }
     }
 
@@ -50,6 +53,6 @@ public enum HomerunReturnPolicy {
 
     /// 通知の文言。
     public static var notificationContent: (title: String, body: String) {
-        ("柵越えおじさん", "挑戦回数が \(HomerunLedger.freePerDay) 回に戻りました。今日も 10 球勝負！")
+        (tr("柵越えおじさん"), tr("挑戦回数が %lld 回に戻りました。今日も 10 球勝負！", HomerunLedger.freePerDay))
     }
 }

@@ -220,7 +220,7 @@ public final class SudokuModel {
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: difficulty.rawValue,
-            variantLabel: difficulty.label,
+            variantLabel: difficulty.recordLabel,
             // 広告コンティニューを使った局は順位表へ送らない（#730・`Core/GameCenter.swift` の #406 の方針）。
             // 自己ベスト（端末内）には従来どおり残す。
             isLeaderboardEligible: !continueUsed

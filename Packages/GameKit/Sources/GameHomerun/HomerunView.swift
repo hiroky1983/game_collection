@@ -33,7 +33,7 @@ public struct HomerunView: View {
             .gameAnimation(.easeInOut(duration: 0.2), value: model.phase == .idle)
             // 打席中は左上の戻るを出さない（#1550。誤タップで挑戦が終わらないように。やめるのは一時停止から確認つきで）。
             // 打席中は右上の「?」も出さない（#1617。一時停止の画面に「遊び方」を置き、そこから開く）。
-            .gameChrome(title: "柵越えおじさん", review: services.review,
+            .gameChrome(title: tr("柵越えおじさん"), review: services.review,
                         hidesBackButton: model.phase == .pitching || model.phase == .ballResult || model.phase == .finale,
                         hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult || model.phase == .finale)
             // 遊び方を読んでいるあいだは投球を止め、閉じたらその球を投げ直す。
@@ -46,10 +46,10 @@ public struct HomerunView: View {
                          services: services, gameID: HomerunModel.gameID)
             .rewardedRescueAlerts(
                 challengeRescue,
-                notEarned: "広告でプレイできませんでした",
+                notEarned: tr("広告でプレイできませんでした"),
                 unavailable: RewardUnavailableAlert(
-                    title: "広告でプレイできませんでした",
-                    message: "広告を見ているあいだに日付が変わったか、今日の広告でのプレイの上限に達したため、挑戦を始められませんでした。"
+                    title: tr("広告でプレイできませんでした"),
+                    message: tr("広告を見ているあいだに日付が変わったか、今日の広告でのプレイの上限に達したため、挑戦を始められませんでした。")
                 )
             )
             // バックグラウンドでは投球を止め、戻ったらその球をやり直す（台帳は戻さない）。
@@ -108,7 +108,7 @@ public struct HomerunView: View {
     /// 演出のあとの最初の 1 回だけ入れ替えアニメを流し、開き直しは静止の表を出す。
     @ViewBuilder private var rankingPage: some View {
         let next = { withGameAnimation { rankingSeen = true; rankingReopened = false } }
-        let title = rankingReopened ? "結果に戻る" : "結果を見る"
+        let title = rankingReopened ? tr("結果に戻る") : tr("結果を見る")
         switch model.weekly {
         case .off, .signedOut:
             HomerunRankingSignedOutPage(nextTitle: title, onNext: next)
@@ -180,14 +180,14 @@ struct HomerunLobbyView: View {
             }
             // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ（きろくのカードも置かない）。
             HomerunRecordsLink(model: model, ads: services.ads)
-            Text("挑戦回数は打席に立った時点で1つ減ります")
+            Text(tr("挑戦回数は打席に立った時点で1つ減ります"))
                 .themeCaption(11)
                 .foregroundStyle(Theme.inkSub)
             Toggle(isOn: Bindable(model).showsDirectionMeter) {
-                Text("方向メーターを表示").themeBody(14).foregroundStyle(Theme.ink)
+                Text(tr("方向メーターを表示")).themeBody(14).foregroundStyle(Theme.ink)
             }
             .tint(Theme.coral)
-            .accessibilityHint("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
+            .accessibilityHint(tr("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません"))
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.homerun, playLog: services.playLog)
         }
@@ -196,7 +196,7 @@ struct HomerunLobbyView: View {
     /// ボタン欄の中身。今日の残り回数はボタンの中のボールで見せる（「今日の挑戦」のカードは廃止・会長指示 2026-10-04）。
     /// 回数 0 では押せない灰色にし、すぐ下に回復までの残りを出す（使い切りのシートは廃止・会長決裁 2026-10-04）。
     @ViewBuilder private var startActions: some View {
-        HomerunStartButton(model: model, title: "打席に立つ")
+        HomerunStartButton(model: model, title: tr("打席に立つ"))
         if !model.ledger.canStart {
             HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
         }
@@ -207,10 +207,10 @@ struct HomerunLobbyView: View {
             HomerunOjisanImageView()
                 .frame(width: 96, height: 96)
             VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: "1 挑戦 = \(HomerunChallenge.pitchCount) 球")
+                Text(verbatim: tr("1 挑戦 = %lld 球", HomerunChallenge.pitchCount))
                     .themeTitle(22)
                     .foregroundStyle(Theme.ink)
-                Text("押したまま狙って、離して振る。方向と角度は自分で決める。アウトは無い。")
+                Text(tr("押したまま狙って、離して振る。方向と角度は自分で決める。アウトは無い。"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .fixedSize(horizontal: false, vertical: true)
@@ -319,16 +319,16 @@ struct HomerunResultView: View {
                 .frame(width: 80, height: 80)
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: model.challenge?.isMoonBroken == true
-                     ? "\(balls.count) 球で終了（月が割れた）"
-                     : "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
+                     ? tr("%lld 球で終了（月が割れた）", balls.count)
+                     : tr("%lld 球の結果", HomerunChallenge.pitchCount)).themeCaption(13).foregroundStyle(Theme.inkSub)
                 Text(verbatim: HomerunText.meters(total))
                     .scaledFont(44, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 HStack(spacing: 6) {
-                    chip("柵越え \(homers) 本", systemImage: "flag.checkered", fill: Theme.Fill.yellow)
+                    chip(tr("柵越え %lld 本", homers), systemImage: "flag.checkered", fill: Theme.Fill.yellow)
                     if model.isNewBest {
-                        chip("ベスト更新！", systemImage: nil, fill: Theme.Fill.pink)
+                        chip(tr("ベスト更新！"), systemImage: nil, fill: Theme.Fill.pink)
                     }
                 }
             }
@@ -344,11 +344,11 @@ struct HomerunResultView: View {
     @ViewBuilder private var rankingRow: some View {
         switch model.weekly {
         case .signedOut:
-            rankingButton(detail: "Game Center に登録すると見られます", delta: nil)
+            rankingButton(detail: tr("Game Center に登録すると見られます"), delta: nil)
         case .ready(let before, let after):
             if let rank = after.myRank {
                 let up = HomerunRankingPlan.motion(before: before, after: after).map { $0.from + 1 - ($0.to + 1) }
-                rankingButton(detail: "\(rank)位にランクイン", delta: up)
+                rankingButton(detail: tr("%lld位にランクイン", rank), delta: up)
             }
         case .off, .loading, .failed:
             EmptyView()
@@ -358,7 +358,7 @@ struct HomerunResultView: View {
     private func rankingButton(detail: String, delta: Int?) -> some View {
         Button(action: onOpenRanking) {
             HStack(spacing: 8) {
-                Label("今週のランキング", systemImage: "trophy.fill").themeBody(16).foregroundStyle(Theme.ink)
+                Label(tr("今週のランキング"), systemImage: "trophy.fill").themeBody(16).foregroundStyle(Theme.ink)
                 Spacer(minLength: 4)
                 Text(verbatim: detail).themeBody(14, weight: .heavy).foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.trailing)
@@ -381,16 +381,16 @@ struct HomerunResultView: View {
                     .scaledFont(34, weight: .bold, maxScale: 1.2)
                     .foregroundStyle(Theme.yellow)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(challenge.isMoonBroken ? "月が割れた！" : "月まで飛んだ！")
+                    Text(challenge.isMoonBroken ? tr("月が割れた！") : tr("月まで飛んだ！"))
                         .themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
                     Text(verbatim: HomerunText.moonDistance)
                         .scaledFont(26, weight: .black, design: .rounded).monospacedDigit()
                         .foregroundStyle(Theme.ink)
                     if challenge.isMoonBroken {
-                        Text("挑戦はここで終わり。プレイ回数 +\(HomerunLedger.moonBonus) をプレゼント")
+                        Text(tr("挑戦はここで終わり。プレイ回数 +%lld をプレゼント", HomerunLedger.moonBonus))
                             .themeCaption(12).foregroundStyle(Theme.coral)
                     } else {
-                        Text("記録には 180 m として数えます").themeCaption(11).foregroundStyle(Theme.inkSub)
+                        Text(tr("記録には 180 m として数えます")).themeCaption(11).foregroundStyle(Theme.inkSub)
                     }
                 }
                 Spacer(minLength: 0)
@@ -414,16 +414,16 @@ struct HomerunResultView: View {
 
     private var sprayCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("どこへ飛んだか").themeBody(16).foregroundStyle(Theme.ink)
+            Text(tr("どこへ飛んだか")).themeBody(16).foregroundStyle(Theme.ink)
             HomerunSprayChart(balls: balls)
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1.35, contentMode: .fit)
                 .accessibilityElement()
-                .accessibilityLabel("打球の分布。" + HomerunText.spraySummary(balls))
+                .accessibilityLabel(tr("打球の分布。%@", HomerunText.spraySummary(balls)))
             Text(verbatim: HomerunText.spraySummary(balls))
                 .themeCaption(12)
                 .foregroundStyle(Theme.ink)
-            Text("★ 柵越え　● 当たり（赤は直撃）　F ファウル　× 空振り")
+            Text(tr("★ 柵越え　● 当たり（赤は直撃）　F ファウル　× 空振り"))
                 .themeCaption(10)
                 .foregroundStyle(Theme.inkSub)
                 .accessibilityHidden(true)
@@ -434,7 +434,7 @@ struct HomerunResultView: View {
 
     private var breakdownCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("1 球ずつ").themeBody(16).foregroundStyle(Theme.ink)
+            Text(tr("1 球ずつ")).themeBody(16).foregroundStyle(Theme.ink)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
                 ForEach(Array(balls.enumerated()), id: \.offset) { index, ball in
                     HomerunBallTile(ball: ball)
@@ -444,7 +444,8 @@ struct HomerunResultView: View {
             }
             if let longest = balls.enumerated().max(by: { $0.element.distance < $1.element.distance }),
                longest.element.distance > 0 {
-                Text(verbatim: "最長 \(HomerunText.distance(of: longest.element))（\(longest.offset + 1) 球目・\(HomerunText.place(longest.element))・\(HomerunText.timing(longest.element.timing))）")
+                Text(verbatim: tr("最長 %1$@（%2$lld 球目・%3$@・%4$@）", HomerunText.distance(of: longest.element), longest.offset + 1,
+                                   HomerunText.place(longest.element), HomerunText.timing(longest.element.timing)))
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -459,11 +460,11 @@ struct HomerunResultView: View {
     /// いちばん下が打席前へ。
     @ViewBuilder private var actions: some View {
         if model.ledger.canStart {
-            HomerunStartButton(model: model, title: "もう一回")
+            HomerunStartButton(model: model, title: tr("もう一回"))
         } else {
             HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue,
                                   showsLimitNotice: false)
-            HomerunResetCountdown(lead: "あと", ending: "無料枠が戻ります", readsAloud: true)
+            HomerunResetCountdown(freePlays: true, readsAloud: true)
                 // 結果画面には `HomerunStartLabel` の更新が無いので、開いたまま 0:00 を越えたらここで回数を戻す。
                 .task(id: model.ledger.dayKey) {
                     model.refreshDay(now: Date())
@@ -475,7 +476,7 @@ struct HomerunResultView: View {
         Button {
             withGameAnimation { model.backToLobby() }
         } label: {
-            Text("打席前へ").themeBody(16).frame(maxWidth: .infinity)
+            Text(tr("打席前へ")).themeBody(16).frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
     }
@@ -641,7 +642,7 @@ struct HomerunStartButton: View {
         .buttonStyle(.borderedProminent).controlSize(.large)
         .tint(canStart ? Theme.Fill.coral : Theme.inkSub.opacity(0.3))
         .disabled(!canStart)
-        .accessibilityHint(canStart ? "挑戦回数を1回使って10球の打席を始めます" : "今日の挑戦は使い切りました")
+        .accessibilityHint(canStart ? tr("挑戦回数を1回使って10球の打席を始めます") : tr("今日の挑戦は使い切りました"))
         if !canStart {
             HomerunResetCountdown()
         }
@@ -668,7 +669,7 @@ struct HomerunStartLabel: View {
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "\(title)。今日の残り \(ledger.remaining) 回"))
+            .accessibilityLabel(Text(verbatim: tr("%@。今日の残り %lld 回", title, ledger.remaining)))
         } else {
             // 残りは分単位の表示なので、1 分ごとに描き直す（端末の時刻・タイムゾーンで 0:00 を数える）。
             TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -683,7 +684,7 @@ struct HomerunStartLabel: View {
                 .foregroundStyle(Theme.inkSub)
                 // 押せないボタンでも、VoiceOver で残りが分かるように（下の残りの文字は読み上げから外している）。
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "\(title)。\(remaining)"))
+                .accessibilityLabel(Text(verbatim: tr("%1$@。%2$@", title, remaining)))
             }
             // 画面を開いたまま 0:00 を越えたら、その場で回数を戻す（ボタンが押せる色に戻る）。
             .task(id: model.ledger.dayKey) {
@@ -696,17 +697,16 @@ struct HomerunStartLabel: View {
 }
 
 /// 回復までの残り（`HomerunReturnPolicy.remainingText`）。押せない「打席に立つ」のすぐ下に出す。読み上げはボタン側で済ませる。
-/// 結果画面では「広告を見てプレイ」の下に「あと◯時間◯分で無料枠が戻ります」で出す（`lead`・`ending`・会長指示 2026-10-05）。
+/// 結果画面では「広告を見てプレイ」の下に「あと◯時間◯分で無料枠が戻ります」で出す（`freePlays`・会長指示 2026-10-05）。
 /// 結果画面には読み上げを済ませるボタンが無いので、ここで読み上げる（`readsAloud`）。
 struct HomerunResetCountdown: View {
-    var lead: String = "あと約"
-    var ending: String = "戻ります"
+    var freePlays = false
     var readsAloud = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             Text(verbatim: HomerunReturnPolicy.remainingText(from: context.date, calendar: .current,
-                                                             lead: lead, ending: ending))
+                                                             freePlays: freePlays))
                 .themeBody(15, weight: .heavy)
                 .foregroundStyle(Theme.coral)
         }
@@ -728,11 +728,11 @@ struct HomerunReturnReminderToggle: View {
     var body: some View {
         VStack(spacing: 4) {
             Toggle(isOn: Binding(get: { notifiesOnReturn }, set: { setReminder($0, service) })) {
-                Text("戻ったら知らせる").themeBody(14).foregroundStyle(Theme.ink)
+                Text(tr("戻ったら知らせる")).themeBody(14).foregroundStyle(Theme.ink)
             }
             .tint(Theme.coral)
             .disabled(!service.isNotificationsEnabled)
-            if let note = service.isNotificationsEnabled ? reminderNote : "設定の「通知」をオンにすると使えます。" {
+            if let note = service.isNotificationsEnabled ? reminderNote : tr("設定の「通知」をオンにすると使えます。") {
                 Text(note).themeCaption(12).foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -764,13 +764,13 @@ struct HomerunReturnReminderToggle: View {
                 notifiesOnReturn = false
             case .notificationsOff:
                 notifiesOnReturn = false
-                reminderNote = "設定の「通知」をオンにすると使えます。"
+                reminderNote = tr("設定の「通知」をオンにすると使えます。")
             case .denied:
                 notifiesOnReturn = false
-                reminderNote = "端末の設定で通知が許可されていません。"
+                reminderNote = tr("端末の設定で通知が許可されていません。")
             case .expired:
                 notifiesOnReturn = false
-                reminderNote = "回数が戻りました。"
+                reminderNote = tr("回数が戻りました。")
             }
         }
     }
@@ -806,7 +806,7 @@ struct HomerunRecoveryButton: View {
                         withGameAnimation(.easeInOut(duration: 0.2)) { model.startWithAd(forDay: day, now: Date()) }
                     }
                 } label: {
-                    Label("広告を見てプレイ", systemImage: "play.rectangle.fill")
+                    Label(tr("広告を見てプレイ"), systemImage: "play.rectangle.fill")
                         .themeBody(16)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity)
@@ -817,7 +817,7 @@ struct HomerunRecoveryButton: View {
                 .disabled(challengeRescue.isWatching)
             } else if !ledger.canWatchAd && showsLimitNotice {
                 // 上限の本数は画面に出さない（会長決裁 2026-10-02）。達したときだけ知らせる。
-                Text("今日はここまで。0:00 に \(HomerunLedger.freePerDay) 回に戻ります")
+                Text(tr("今日はここまで。0:00 に %lld 回に戻ります", HomerunLedger.freePerDay))
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -828,16 +828,16 @@ struct HomerunRecoveryButton: View {
 // MARK: - くわしいルール
 
 struct HomerunRuleSheet: View {
-    static let rules: [(String, String)] = [
-        ("流れ", "1回の挑戦は10球。アウトは無く、10球を必ず投げ切ります。空振り・ファウルは距離0として残ります"),
-        ("押す", "画面の下のほう（打席の下 1/3）を押します。押しただけでは振りません。投球の前から押していてもかまいません"),
-        ("ずらす", "押したままずらすと、水色のミートカーソルが指の動いたぶんだけ動きます。カーソルは球ごとにゾーンの真ん中へ戻ります"),
-        ("離す", "縮む輪が白い的に重なった瞬間に離すとスイング。ぴったりほど遠くへ飛びます（ジャスト・ナイス・当たり）"),
-        ("角度", "カーソルがボールより上だとゴロ、真ん中だとライナー、少し下だと柵越えの出やすいフライ、下すぎるとポップフライ"),
-        ("方向", "カーソルを左に置くと左へ、右に置くと右へ。早く振ると左、遅く振ると右にも寄ります。寄せすぎるとファウル"),
-        ("柵", "両翼 100 m・中堅 122 m。左右へ引っ張ると柵は近いけれどファウルになりやすく、センターは遠いけれどファウルが無い"),
-        ("回数", "挑戦は1日3回。打席に立った時点で1回減り、途中でやめても戻りません。0:00 に3回に戻ります。使い切ったあとは、広告を見るとその場で1回挑戦できます"),
-    ]
+    static var rules: [(String, String)] { [
+        (tr("流れ"), tr("1回の挑戦は10球。アウトは無く、10球を必ず投げ切ります。空振り・ファウルは距離0として残ります")),
+        (tr("押す"), tr("画面の下のほう（打席の下 1/3）を押します。押しただけでは振りません。投球の前から押していてもかまいません")),
+        (tr("ずらす"), tr("押したままずらすと、水色のミートカーソルが指の動いたぶんだけ動きます。カーソルは球ごとにゾーンの真ん中へ戻ります")),
+        (tr("離す"), tr("縮む輪が白い的に重なった瞬間に離すとスイング。ぴったりほど遠くへ飛びます（ジャスト・ナイス・当たり）")),
+        (tr("角度"), tr("カーソルがボールより上だとゴロ、真ん中だとライナー、少し下だと柵越えの出やすいフライ、下すぎるとポップフライ")),
+        (tr("方向"), tr("カーソルを左に置くと左へ、右に置くと右へ。早く振ると左、遅く振ると右にも寄ります。寄せすぎるとファウル")),
+        (tr("柵"), tr("両翼 100 m・中堅 122 m。左右へ引っ張ると柵は近いけれどファウルになりやすく、センターは遠いけれどファウルが無い")),
+        (tr("回数"), tr("挑戦は1日3回。打席に立った時点で1回減り、途中でやめても戻りません。0:00 に3回に戻ります。使い切ったあとは、広告を見るとその場で1回挑戦できます")),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: Self.rules)

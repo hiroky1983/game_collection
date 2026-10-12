@@ -45,8 +45,8 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
     /// ワールドマップの見返しボタン・読み上げに使う名前。
     public var title: String {
         switch self {
-        case .intro: return "はじまり"
-        case .ending(let world): return "\(world.displayName)のおわり"
+        case .intro: return tr("はじまり")
+        case .ending(let world): return tr("%@のおわり", world.displayName)
         }
     }
 
@@ -55,57 +55,57 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
         switch self {
         case .intro:
             return [
-                RunnerStoryPanel(art: .introDraw, line: "商店街の福引き、回してみよか"),
-                RunnerStoryPanel(art: .introJoy, line: "大当たりや！ 宝くじ 3億円かも"),
-                RunnerStoryPanel(art: .introBlownAway, line: "あー！ 飛んでってもうた！"),
-                RunnerStoryPanel(art: .introChase, line: "待てー！ どこまでも追いかけたるわ"),
+                RunnerStoryPanel(art: .introDraw, line: tr("商店街の福引き、回してみよか")),
+                RunnerStoryPanel(art: .introJoy, line: tr("大当たりや！ 宝くじ 3億円かも")),
+                RunnerStoryPanel(art: .introBlownAway, line: tr("あー！ 飛んでってもうた！")),
+                RunnerStoryPanel(art: .introChase, line: tr("待てー！ どこまでも追いかけたるわ")),
             ]
         case .ending(.morning):
             return [
-                RunnerStoryPanel(art: .morningReach, line: "もうちょい……もうちょいや！"),
-                RunnerStoryPanel(art: .morningCrow, line: "こら！ カラスに持ってかれたがな"),
+                RunnerStoryPanel(art: .morningReach, line: tr("もうちょい……もうちょいや！")),
+                RunnerStoryPanel(art: .morningCrow, line: tr("こら！ カラスに持ってかれたがな")),
             ]
         case .ending(.evening):
             return [
-                RunnerStoryPanel(art: .eveningDrop, line: "お、落としよった。しめた！"),
-                RunnerStoryPanel(art: .eveningRiver, line: "川やんけ……待てー！"),
+                RunnerStoryPanel(art: .eveningDrop, line: tr("お、落としよった。しめた！")),
+                RunnerStoryPanel(art: .eveningRiver, line: tr("川やんけ……待てー！")),
             ]
         case .ending(.night):
             return [
-                RunnerStoryPanel(art: .nightReach, line: "やっと拾えるわ"),
-                RunnerStoryPanel(art: .nightTruck, line: "トラックに貼り付いた！ 田舎行きかいな"),
+                RunnerStoryPanel(art: .nightReach, line: tr("やっと拾えるわ")),
+                RunnerStoryPanel(art: .nightTruck, line: tr("トラックに貼り付いた！ 田舎行きかいな")),
             ]
         case .ending(.satoyama):
             return [
-                RunnerStoryPanel(art: .satoyamaReach, line: "今度こそ、今度こそや"),
-                RunnerStoryPanel(art: .satoyamaDitch, line: "用水路……海まで流れてまうやん！"),
+                RunnerStoryPanel(art: .satoyamaReach, line: tr("今度こそ、今度こそや")),
+                RunnerStoryPanel(art: .satoyamaDitch, line: tr("用水路……海まで流れてまうやん！")),
             ]
         case .ending(.harbor):
             return [
-                RunnerStoryPanel(art: .harborReach, line: "もう逃がさへんで"),
-                RunnerStoryPanel(art: .harborShip, line: "船に……乗りよった"),
-                RunnerStoryPanel(art: .harborWatch, line: "どこまで行く気や。ほな、追いかけよか"),
-                RunnerStoryPanel(art: .harborToBeContinued, line: "つづく"),
+                RunnerStoryPanel(art: .harborReach, line: tr("もう逃がさへんで")),
+                RunnerStoryPanel(art: .harborShip, line: tr("船に……乗りよった")),
+                RunnerStoryPanel(art: .harborWatch, line: tr("どこまで行く気や。ほな、追いかけよか")),
+                RunnerStoryPanel(art: .harborToBeContinued, line: tr("つづく")),
             ]
         case .ending(.kyotoNara):
             // 京都・奈良（#1824）。港町の「つづく」を受けて石畳で掴みかけ、奈良の鹿が鹿せんべいと
             // 間違えて咥えて走り去る。港町と同じ 4 コマ（掴みかける → 奪われる → 見送る → つづく）で、
             // 最後の世界の締めは必ず「つづく」で終える（次の世界＝海外は会長決裁で後回し）。
             return [
-                RunnerStoryPanel(art: .kyotoNaraReach, line: "古都まで来たで。今度こそや"),
-                RunnerStoryPanel(art: .kyotoNaraDeer, line: "あっ鹿！ せんべいとちゃうで！"),
-                RunnerStoryPanel(art: .kyotoNaraDeerRun, line: "鹿のくせに速いやんけ……待てー！"),
-                RunnerStoryPanel(art: .kyotoNaraToBeContinued, line: "つづく"),
+                RunnerStoryPanel(art: .kyotoNaraReach, line: tr("古都まで来たで。今度こそや")),
+                RunnerStoryPanel(art: .kyotoNaraDeer, line: tr("あっ鹿！ せんべいとちゃうで！")),
+                RunnerStoryPanel(art: .kyotoNaraDeerRun, line: tr("鹿のくせに速いやんけ……待てー！")),
+                RunnerStoryPanel(art: .kyotoNaraToBeContinued, line: tr("つづく")),
             ]
         case .ending(.onsen):
             // 温泉街（#1938）。京都・奈良の「つづく」（鹿が宝くじを咥えて走り去る）を受け、湯の町で
             // 掴みかけたところをサルに横取りされて走り去られる。京都・奈良と同じ 4 コマ
             // （掴みかける → 奪われる → 見送る → つづく）で、いまの最後の世界の締めは必ず「つづく」で終える。
             return [
-                RunnerStoryPanel(art: .onsenReach, line: "湯の町まで来たで。今度こそや"),
-                RunnerStoryPanel(art: .onsenMonkey, line: "あっサル！ 温泉に入れる気ちゃうやろな！"),
-                RunnerStoryPanel(art: .onsenMonkeyRun, line: "湯冷めする前に捕まえたる……待てー！"),
-                RunnerStoryPanel(art: .onsenToBeContinued, line: "つづく"),
+                RunnerStoryPanel(art: .onsenReach, line: tr("湯の町まで来たで。今度こそや")),
+                RunnerStoryPanel(art: .onsenMonkey, line: tr("あっサル！ 温泉に入れる気ちゃうやろな！")),
+                RunnerStoryPanel(art: .onsenMonkeyRun, line: tr("湯冷めする前に捕まえたる……待てー！")),
+                RunnerStoryPanel(art: .onsenToBeContinued, line: tr("つづく")),
             ]
         }
     }

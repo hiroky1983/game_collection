@@ -13,8 +13,8 @@ public struct BlocksModule: GameModule {
     // 定数参照にすると slug を突き合わせられずに CI が落ちる。
     // `BlocksModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "blocks"
-    public let title = "ブロック崩し"
-    public let description = "パドルではね返して全部くずそう"
+    public var title: String { tr("ブロック崩し") }
+    public var description: String { tr("パドルではね返して全部くずそう") }
     // 球の絵にしてある。ブロックを模した格子（`rectangle.grid.2x2.fill` 等）は、
     // ハブで隣に並ぶ 2048（`square.grid.2x2`）と見分けが付かなかった（実機確認で判明）。
     public var icon: Image { Image(systemName: "tennisball.fill") }

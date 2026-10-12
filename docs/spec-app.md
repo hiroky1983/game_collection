@@ -255,6 +255,43 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 4. 英語は日本語より横に長い。1 行に収める所（`lineLimit(1)`・幅が固定の枠）は `minimumScaleFactor` か、
    `ViewThatFits` で短い言い回しに切り替える形にして、SE（幅 375pt）で確かめる。
 
+### 数字・単位・記録の表記（#2168）
+
+数と単位・「ベスト」「最短」をつなげて文にする所は、**語順ごと文言の表の書式で組む**（英語は語順も単位も変わる）。
+記録の 1 行（ハブ・リザルト・共有）は `RecordFormat`（CoreEngine）に集約してあり、各関数は `language:` を省略すると
+いまの表示言語で出す。日本語の表記は #2168 の前と 1 文字も変えていない（`RecordFormatLocalizationTests` が
+前の実装の写しとあらゆる記録の組み合わせで突き合わせる）。
+
+| 表記 | 日本語 | 英語 | 使うもの |
+|------|------|------|------|
+| 時間 | `1:23` / `1:02:05` | 同じ | `RecordFormat.time` |
+| 数 | `12,340` | 同じ | `RecordFormat.number`（整形してから `%@` で渡す） |
+| 順位 | `1位` | `1st` `2nd` `3rd` `11th` `21st` | `RecordFormat.rank` |
+| 距離 | `1,234 m` | 同じ（数と m の間に空白） | 数は `RecordFormat.number` |
+| 回数・手数 | `3回` `24手` | `3 plays` `24 moves`（単数は `1 play`） | 表の複数形 |
+| 勝敗 | `3勝5敗1分` | `3W 5L 1D` | `RecordFormat.hubLine` / `resultLine` |
+
+- **桁区切りの数は `%lld` にしない**（日本語の表示が変わるため `RecordFormat.number` で整形して `%@`）。
+  英語の単数・複数は、表の `en` を複数形にすれば整形済みの「1,234」でも選ばれる（`StringTable` が整数の引数が
+  無いときは数字だけの文字列引数を数として読む）。
+- 英語の序数は 4 通りに分かれ、表の複数形（one / other）で表せないので、文言の表ではなく `RecordFormat.rank` で組む。
+- 区分の表示名（`PlayRecord.variantLabel`・「初級」など）は記録に保存された文字列をそのまま出す（`RecordFormat` では訳さない）。
+
+### 訳し漏れの機械チェック（#2169）
+
+`python3 Scripts/check-untranslated-ja.py` が、App と GameKit の Swift ソースから **`tr("…")` を通していない日本語の
+文字列リテラル**を洗い出す（残りがあれば終了コード 1）。あわせて `tr` のキーと表の対応（上の 3. と同じ規則）も見る。
+`--summary` でファイルごとの件数。検査自体のテストは `bash Scripts/tests/test-check-untranslated-ja.sh`。
+
+- 数えないもの: コメント、`tr` のキー、開発者にしか見えない文（`precondition`・`assert`・`fatalError`・`print`・
+  `debugDescription:` の引数）、`#Preview` の中。
+- **訳さないと決めたもの**は、行末（か直前の行）に `// i18n-keep: 理由` を書く。カードしりとりの単語・かな、
+  牌や駒の絵柄の文字、言語の自称（「日本語」）、**記録に保存する区分名**（`GameScore(variantLabel:)` に渡す名前。
+  保存した時点の言語で残ると表示が混ざるため日本語で保存する。区分名を英語で出すのは #2168 の残課題）など。
+- ファイル単位の除外と、別の issue が**担当中**の範囲は `Scripts/i18n-check-exclusions.txt`。担当中の範囲は既定では
+  数えず件数だけ出す（`--include-in-progress` で数える）。担当の PR がマージされたら、その行を消して 0 件を確かめる。
+- 記録の区分名を画面にも出すゲームは、記録用（日本語のまま・`i18n-keep`）と表示用（`tr`）の 2 つに分けて持つ。
+
 **訳さないもの**: 解析イベント名とパラメータ（`game_start` 等・`game_id`）、`UserDefaults` の保存キー、中断データの鍵、
 Game Center の ID。英語の訳文には他社の商標名を入れない（既存の日本語の文に入っている場合も英語では言い換える）。
 新しいモジュール（ゲーム）を足すときは、`Resources/Localization/Localizable.xcstrings`（中身が空の表でよい）・

@@ -167,10 +167,10 @@ public struct MahjongTileArt: View {
     /// 同じ形が並ぶ数牌どうしの見分けにも効く。
     static let accentColor = Color(hex: 0xC63A2E)
 
-    private static let kanjiNumerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
-    private static let winds = ["東", "南", "西", "北"]
-    private static let flowers = ["梅", "蘭", "菊", "竹"]
-    private static let seasons = ["春", "夏", "秋", "冬"]
+    private static let kanjiNumerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]  // i18n-keep: 牌の絵柄の文字
+    private static let winds = ["東", "南", "西", "北"]  // i18n-keep: 牌の絵柄の文字
+    private static let flowers = ["梅", "蘭", "菊", "竹"]  // i18n-keep: 牌の絵柄の文字
+    private static let seasons = ["春", "夏", "秋", "冬"]  // i18n-keep: 牌の絵柄の文字
 
     public var body: some View {
         content.frame(width: width, height: height)
@@ -209,7 +209,7 @@ public struct MahjongTileArt: View {
             Text(Self.kanjiNumerals[clamp(n - 1, 8)])
                 .font(.system(size: width * 0.62, weight: .bold, design: .serif)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Theme.Fixed.ink)
-            Text("萬")
+            Text("萬")  // i18n-keep: 牌の絵柄の文字
                 .font(.system(size: width * 0.46, weight: .bold, design: .serif)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(Self.accentColor)
         }
@@ -329,8 +329,8 @@ public struct MahjongTileArt: View {
     @ViewBuilder
     private func dragonFace(_ n: Int) -> some View {
         switch n {
-        case 0:  glyph("中", color: Self.accentColor)
-        case 1:  glyph("發", color: Self.bambooColor)
+        case 0:  glyph("中", color: Self.accentColor)  // i18n-keep: 牌の絵柄の文字
+        case 1:  glyph("發", color: Self.bambooColor)  // i18n-keep: 牌の絵柄の文字
         default: EmptyView()
         }
     }

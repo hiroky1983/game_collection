@@ -12,7 +12,7 @@ struct HomerunRecordsLink: View {
             HomerunRecordsPage(model: model, ads: ads)
         } label: {
             HStack {
-                Label("記録と実績", systemImage: "trophy.fill")
+                Label(tr("記録と実績"), systemImage: "trophy.fill")
                     .themeBody(16)
                     .foregroundStyle(Theme.ink)
                 Spacer()
@@ -28,8 +28,8 @@ struct HomerunRecordsLink: View {
             .popCard()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("記録と実績。実績 \(model.achievements.count) / \(HomerunAchievement.allCases.count)")
-        .accessibilityHint("記録と実績の一覧を開きます")
+        .accessibilityLabel(tr("記録と実績。実績 %1$lld / %2$lld", model.achievements.count, HomerunAchievement.allCases.count))
+        .accessibilityHint(tr("記録と実績の一覧を開きます"))
     }
 }
 
@@ -51,7 +51,7 @@ struct HomerunRecordsPage: View {
             .padding(Theme.pad)
         }
         .popBackground()
-        .navigationTitle("記録と実績")
+        .navigationTitle(tr("記録と実績"))
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -77,23 +77,23 @@ struct HomerunRecordsCard: View {
 
     static func rows(_ r: HomerunRecords) -> [Row] {
         [
-            Row(title: "自己ベスト（1 挑戦の合計）", value: HomerunText.meters(Double(r.bestTotalTenths) / 10)),
-            Row(title: "最長の 1 本", value: HomerunText.meters(Double(r.longestTenths) / 10)),
-            Row(title: "通算の飛距離", value: HomerunText.meters(Double(r.totalDistanceTenths) / 10)),
-            Row(title: "通算 柵越え", value: "\(r.homers) 本"),
-            Row(title: "挑戦回数", value: "\(r.challenges) 回"),
-            hidden("月まで飛ばした", count: r.moonShots),
-            hidden("月を割った", count: r.moonBreaks),
+            Row(title: tr("自己ベスト（1 挑戦の合計）"), value: HomerunText.meters(Double(r.bestTotalTenths) / 10)),
+            Row(title: tr("最長の 1 本"), value: HomerunText.meters(Double(r.longestTenths) / 10)),
+            Row(title: tr("通算の飛距離"), value: HomerunText.meters(Double(r.totalDistanceTenths) / 10)),
+            Row(title: tr("通算 柵越え"), value: tr("%lld 本", r.homers)),
+            Row(title: tr("挑戦回数"), value: tr("%lld 回", r.challenges)),
+            hidden(tr("月まで飛ばした"), count: r.moonShots),
+            hidden(tr("月を割った"), count: r.moonBreaks),
         ]
     }
 
     private static func hidden(_ title: String, count: Int) -> Row {
-        count > 0 ? Row(title: title, value: "\(count) 回") : Row(title: "？？？", value: "？？？", isHidden: true)
+        count > 0 ? Row(title: title, value: tr("%lld 回", count)) : Row(title: tr("？？？"), value: tr("？？？"), isHidden: true)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("記録").themeBody(16).foregroundStyle(Theme.ink)
+            Text(tr("記録")).themeBody(16).foregroundStyle(Theme.ink)
             ForEach(Array(Self.rows(records).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .firstTextBaseline) {
                     Text(verbatim: row.title)
@@ -105,7 +105,7 @@ struct HomerunRecordsCard: View {
                         .foregroundStyle(row.isHidden ? Theme.inkSub : Theme.ink)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(row.isHidden ? "まだ見つけていない記録" : "\(row.title) \(row.value)")
+                .accessibilityLabel(row.isHidden ? tr("まだ見つけていない記録") : "\(row.title) \(row.value)")
             }
         }
         .padding(14)

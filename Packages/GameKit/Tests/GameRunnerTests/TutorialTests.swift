@@ -140,7 +140,7 @@ struct RunnerTutorialWiringTests {
         let source = try Self.source()
         let sheet = try #require(SourceScan.declaration(of: "struct RunnerTutorialSheet", in: source))
         #expect(sheet.contains("onClose"))
-        #expect(sheet.contains(#"Text("はじめる")"#))
+        #expect(sheet.contains(#"Text(tr("はじめる"))"#))
         // ガイドからモードを焼き込まない（ここで .stages に倒すと初回だけエンドレスを選べない）。
         #expect(!sheet.contains("model.start"))
         #expect(!sheet.contains(".stages"))

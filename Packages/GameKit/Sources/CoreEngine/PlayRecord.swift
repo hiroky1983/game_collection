@@ -275,9 +275,19 @@ public extension PlayRecord {
     }
 }
 
-/// 記録を日本語 1 行に整形する。ハブのカードとリザルトで同じ表記を使うためのもの。
+/// 記録を表示言語の 1 行に整形する。ハブのカードとリザルトで同じ表記を使うためのもの。
+///
+/// **数字・単位・「ベスト」「最短」などは、語順ごと文言の表の書式で組む**（多言語⑤ #2168）。
+/// 日本語は「最少 24手」「3勝5敗・2連勝中」、英語は「Best: 24 moves」「3W 5L · 2-win streak」のように
+/// 言語ごとに語順と単位が変わるため、文字列をつなげて組まない。日本語の表記は #2168 の前と 1 文字も変えない
+/// （`PlayRecordTests` が日本語の全表記を縛る）。
+///
+/// - 各関数の `language` は省略時にいまの表示言語（`AppLanguageStore.shared`）。テストは明示して引く。
+/// - 桁区切りの数は `number` で整形してから `%@` で渡す。英語の単数・複数は、その整形済みの数でも選べる
+///   （`StringTable` が `1,234` のような数字の文字列も数として扱う）。
+/// - 区分の表示名（`variantLabel`）は記録に保存された文字列をそのまま出す（訳さない）。
 public enum RecordFormat {
-    /// 秒数を `M:SS` / `H:MM:SS` に整形する。
+    /// 秒数を `M:SS` / `H:MM:SS` に整形する。言語によらず同じ表記。
     public static func time(_ seconds: Int) -> String {
         let s = max(0, seconds)
         let h = s / 3600
@@ -289,7 +299,7 @@ public enum RecordFormat {
         return String(format: "%d:%02d", m, sec)
     }
 
-    /// 3 桁区切りの数値（12,340）。
+    /// 3 桁区切りの数値（12,340）。日本語・英語とも同じ表記。
     public static func number(_ value: Int) -> String {
         let digits = String(abs(value))
         var grouped = ""
@@ -300,13 +310,39 @@ public enum RecordFormat {
         return (value < 0 ? "-" : "") + grouped
     }
 
+    /// 順位（1 始まり）。日本語は「1位」、英語は序数「1st」「2nd」「3rd」「4th」「11th」「21st」。
+    ///
+    /// 各ゲームの順位の表示（麻雀・ころころリレー・柵越えの順位表など）はこれを使う。
+    /// 英語の序数は数で接尾辞が 4 通りに分かれ、文言の表の複数形（one / other）では表せないのでここで組む。
+    /// 表の「%@位」の英語（`%@`）は検査のために置いているだけで、英語のときは引かない。
+    public static func rank(_ place: Int, language: AppLanguage? = nil) -> String {
+        let language = language ?? AppLanguageStore.shared.language
+        switch language {
+        case .japanese: return tr("%@位", number(place), language: language)
+        case .english: return number(place) + ordinalSuffix(place)
+        }
+    }
+
+    /// 英語の序数の接尾辞（1st の st）。11〜13 は th（11th・112th）。
+    static func ordinalSuffix(_ place: Int) -> String {
+        let n = abs(place)
+        if (11...13).contains(n % 100) { return "th" }
+        switch n % 10 {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
+        }
+    }
+
     /// ハブのゲームカードに出す 1 行。記録がまだ無ければ nil（＝何も出さない）。
     ///
     /// - Parameters:
     ///   - records: そのゲームの全区分の記録（マインスイーパーなら難易度 3 件）。
     ///   - gameID: そのゲームの ID。**チャリンコおじさん（`runner`）だけ**、本編の記録を
     ///     「2-3 まで到達」の形にする（#931）。他のゲームは指標だけで表記が決まるので省略できる。
-    public static func hubLine(_ records: [PlayRecord], gameID: String? = nil) -> String? {
+    ///   - language: 表示言語。省略時はいまの表示言語。
+    public static func hubLine(_ records: [PlayRecord], gameID: String? = nil, language: AppLanguage? = nil) -> String? {
         let played = records.filter(\.hasAnyRecord)
         guard let metric = played.first?.metric else { return nil }
 
@@ -315,8 +351,10 @@ public enum RecordFormat {
             // 区分が複数あるときは一番速い記録を代表にする（1 行に収めるため）。
             guard let best = played.compactMap({ r in r.bestSeconds.map { ($0, r.variantLabel) } })
                 .min(by: { $0.0 < $1.0 }) else { return nil }
-            let label = best.1.map { "（\($0)）" } ?? ""
-            return "最短 \(time(best.0))\(label)"
+            if let label = best.1 {
+                return tr("最短 %1$@（%2$@）", time(best.0), label, language: language)
+            }
+            return tr("最短 %@", time(best.0), language: language)
         case .points:
             // 区分が複数あるときは**区分なし（本編）の記録を代表**にする。チャリンコおじさんは
             // 本編＝到達ステージ数（区分なし）、エンドレス＝走行距離 m（区分あり）で桁が違い、
@@ -324,18 +362,18 @@ public enum RecordFormat {
             // 本編の記録がまだ無ければ従来どおり最大値。
             if let base = played.first(where: { $0.variantLabel == nil }), let points = base.bestPoints {
                 // チャリンコおじさんの本編は「どこまで到達したか」が記録の主役（#931。秒数は廃止）。
-                if gameID == runnerGameID { return runnerStageLine(clearedStage: points) }
-                return "ベスト \(number(points))"
+                if gameID == runnerGameID { return runnerStageLine(clearedStage: points, language: language) }
+                return tr("ベスト %@", number(points), language: language)
             }
             guard let best = played.compactMap(\.bestPoints).max() else { return nil }
-            return "ベスト \(number(best))"
+            return tr("ベスト %@", number(best), language: language)
         case .fewestMoves:
             guard let best = played.compactMap(\.fewestMoves).min() else { return nil }
-            return "最少 \(number(best))手"
+            return tr("最少 %@手", number(best), language: language)
         case .winLoss:
             let streak = played.map(\.currentStreak).max() ?? 0
-            let base = winLossText(played)
-            return streak >= 2 ? "\(base)・\(streak)連勝中" : base
+            let base = winLossText(played, language: language)
+            return streak >= 2 ? tr("%1$@・%2$lld連勝中", base, streak, language: language) : base
         }
     }
 
@@ -354,13 +392,13 @@ public enum RecordFormat {
     /// `asobiba.runner.stage` と同じ）で、画面に出すのはその次＝到達した面「2-3 まで到達」。
     /// 最終面をクリアしていれば「全 N 面クリア」（N は `runnerStageCount`）。面の表記「世界-面」は
     /// `RunnerWorld.code(forStage:)` と同じ割り方（`runnerStagesPerWorld` 面ずつ）。
-    public static func runnerStageLine(clearedStage: Int) -> String {
+    public static func runnerStageLine(clearedStage: Int, language: AppLanguage? = nil) -> String {
         let cleared = max(0, clearedStage)
-        guard cleared < runnerStageCount else { return "全 \(runnerStageCount) 面クリア" }
+        guard cleared < runnerStageCount else { return tr("全 %lld 面クリア", runnerStageCount, language: language) }
         let reached = cleared + 1
         let world = (reached - 1) / runnerStagesPerWorld + 1
         let index = (reached - 1) % runnerStagesPerWorld + 1
-        return "\(world)-\(index) まで到達"
+        return tr("%1$lld-%2$lld まで到達", world, index, language: language)
     }
 
     /// 「3勝5敗」「1勝2敗1分」の表記。引き分けは 0 のときだけ省く。
@@ -368,36 +406,37 @@ public enum RecordFormat {
     /// 大富豪は4人中1位が勝ち・最下位が負け・**中位は引き分け**扱いのため、勝ちも負けも 0 のまま
     /// 引き分けだけが積み上がる状態が普通に起きる。勝敗だけを見て「記録なし」に倒すと、
     /// 遊んでいるのにハブに何も出ないゲームができてしまう。
-    private static func winLossText(_ records: [PlayRecord]) -> String {
+    private static func winLossText(_ records: [PlayRecord], language: AppLanguage?) -> String {
         let wins = records.reduce(0) { $0 + $1.wins }
         let losses = records.reduce(0) { $0 + $1.losses }
         let draws = records.reduce(0) { $0 + $1.draws }
-        let base = "\(wins)勝\(losses)敗"
-        return draws > 0 ? "\(base)\(draws)分" : base
+        return draws > 0
+            ? tr("%1$lld勝%2$lld敗%3$lld分", wins, losses, draws, language: language)
+            : tr("%1$lld勝%2$lld敗", wins, losses, language: language)
     }
 
     /// リザルトに出す 1 行（そのゲームの自己ベスト）。記録が無ければ nil。
-    public static func resultLine(_ record: PlayRecord) -> String? {
+    public static func resultLine(_ record: PlayRecord, language: AppLanguage? = nil) -> String? {
         guard record.hasAnyRecord else { return nil }
         switch record.metric {
         case .shortestTime:
             guard let best = record.bestSeconds else {
                 // まだ一度もクリアしていない。挑戦した回数だけを出す（「記録なし」で終わらせない）。
-                return "クリア記録なし（\(record.plays)回挑戦）"
+                return tr("クリア記録なし（%lld回挑戦）", record.plays, language: language)
             }
-            return "最短タイム \(time(best))・\(record.wins)回クリア"
+            return tr("最短タイム %1$@・%2$lld回クリア", time(best), record.wins, language: language)
         case .points:
             guard let best = record.bestPoints else { return nil }
             if let highest = record.highestValue {
-                return "自己ベスト \(number(best))（最大 \(number(highest))）"
+                return tr("自己ベスト %1$@（最大 %2$@）", number(best), number(highest), language: language)
             }
-            return "自己ベスト \(number(best))"
+            return tr("自己ベスト %@", number(best), language: language)
         case .fewestMoves:
             guard let best = record.fewestMoves else { return nil }
-            return "最少手数 \(number(best))手"
+            return tr("最少手数 %@手", number(best), language: language)
         case .winLoss:
-            let base = "通算 \(winLossText([record]))"
-            return record.bestStreak >= 2 ? "\(base)・最高\(record.bestStreak)連勝" : base
+            let base = tr("通算 %@", winLossText([record], language: language), language: language)
+            return record.bestStreak >= 2 ? tr("%1$@・最高%2$lld連勝", base, record.bestStreak, language: language) : base
         }
     }
 
@@ -409,10 +448,12 @@ public enum RecordFormat {
     /// App Store の URL は文言に含めない（共有シート側が別の項目として添える）。
     ///
     /// - Parameter title: ハブに出しているゲームの表示名（`GameModule.title`）。
-    public static func shareMessage(title: String, record: PlayRecord) -> String? {
-        guard let line = resultLine(record) else { return nil }
+    public static func shareMessage(title: String, record: PlayRecord, language: AppLanguage? = nil) -> String? {
+        guard let line = resultLine(record, language: language) else { return nil }
         // 区分ごとに記録を分けているゲーム（マインスイーパーの難易度）は、どの区分の記録かを添える。
-        let label = record.variantLabel.map { "（\($0)）" } ?? ""
-        return "あそびばの「\(title)」\(label)で記録更新！\n\(line)"
+        if let label = record.variantLabel {
+            return tr("あそびばの「%1$@」（%2$@）で記録更新！\n%3$@", title, label, line, language: language)
+        }
+        return tr("あそびばの「%1$@」で記録更新！\n%2$@", title, line, language: language)
     }
 }

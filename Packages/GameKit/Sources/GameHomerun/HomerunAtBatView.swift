@@ -185,11 +185,11 @@ struct HomerunAtBatView: View {
         .gameAnimation(.easeOut(duration: 0.15), value: model.isPaused)
         // 途中でやめる確認。キャンセル（外側のタップで閉じた場合も）は一時停止の画面に戻るだけ。
         .dialogs { anchor in
-            anchor.confirmationDialog("この挑戦をやめますか？", isPresented: $confirmsQuit, titleVisibility: .visible) {
-                Button("やめる", role: .destructive) { model.quitChallenge() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("この挑戦をやめますか？"), isPresented: $confirmsQuit, titleVisibility: .visible) {
+                Button(tr("やめる"), role: .destructive) { model.quitChallenge() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("この挑戦はここで終わり、使った回数は戻りません。")
+                Text(tr("この挑戦はここで終わり、使った回数は戻りません。"))
             }
         }
         // 結果のカードを出す前に、打球（当たり以上は追うカメラで止まるまで・見送り・空振りならミットへ入る球）を見せる。
@@ -232,7 +232,7 @@ struct HomerunAtBatView: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.pop)
-        .accessibilityLabel("一時停止")
+        .accessibilityLabel(tr("一時停止する"))
     }
 
     /// 一時停止の画面: 再開・遊び方・操作の説明・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
@@ -240,21 +240,21 @@ struct HomerunAtBatView: View {
         ZStack {
             Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea()
             VStack(spacing: 12) {
-                Text("一時停止").font(.title3.bold()).foregroundStyle(.white)
-                GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
+                Text(tr("一時停止")).font(.title3.bold()).foregroundStyle(.white)
+                GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
                     model.resume(now: Date())
                 }
                 // ヘッダー右上の「?」は打席中は隠しているので、同じシートをここから開く（#1617）。
                 if let howToPlay {
-                    GameDeadEndActionButton("遊び方", systemImage: "questionmark.circle.fill", tint: Theme.Fill.teal) {
+                    GameDeadEndActionButton(tr("遊び方"), systemImage: "questionmark.circle.fill", tint: Theme.Fill.teal) {
                         howToPlay.present()
                     }
                 }
-                GameDeadEndActionButton("操作の説明", systemImage: "hand.draw.fill", tint: Theme.Fill.purple) {
+                GameDeadEndActionButton(tr("操作の説明"), systemImage: "hand.draw.fill", tint: Theme.Fill.purple) {
                     tutorialFromPause = true
                     withGameAnimation(.easeOut(duration: 0.2)) { tutorialPage = 0 }
                 }
-                GameDeadEndActionButton("途中でやめる", systemImage: "xmark.circle.fill") {
+                GameDeadEndActionButton(tr("途中でやめる"), systemImage: "xmark.circle.fill") {
                     confirmsQuit = true
                 }
             }
@@ -293,10 +293,10 @@ struct HomerunAtBatView: View {
     }
 
     private var zoneLabel: String {
-        guard model.phase == .pitching, !model.awaitsAtBat, let pitch = model.currentPitch else { return "ストライクゾーン" }
-        let rows = ["高め", "真ん中の高さ", "低め"]
-        let cols = ["左", "真ん中", "右"]
-        return "ストライクゾーン。ボールは\(rows[pitch.zone / 3])の\(cols[pitch.zone % 3])"
+        guard model.phase == .pitching, !model.awaitsAtBat, let pitch = model.currentPitch else { return tr("ストライクゾーン") }
+        let rows = [tr("高め"), tr("真ん中の高さ"), tr("低め")]
+        let cols = [tr("左"), tr("真ん中"), tr("右")]
+        return tr("ストライクゾーン。ボールは%1$@の%2$@", rows[pitch.zone / 3], cols[pitch.zone % 3])
     }
 
     // MARK: 上端の HUD
@@ -314,10 +314,10 @@ struct HomerunAtBatView: View {
                                     revealsLast: model.phase != .ballResult || swingShown)
         return HStack(alignment: .center) {
             hudPill(systemImage: "baseball.fill",
-                    text: "\(max(model.pitchNumber, 1)) / \(HomerunChallenge.pitchCount) 球")
+                    text: tr("%1$lld / %2$lld 球", max(model.pitchNumber, 1), HomerunChallenge.pitchCount))
             Spacer()
             VStack(spacing: 0) {
-                Text("今回").themeCaption(11).foregroundStyle(.white.opacity(0.9))
+                Text(tr("今回")).themeCaption(11).foregroundStyle(.white.opacity(0.9))
                 Text(verbatim: HomerunText.meters(totals.distance))
                     .scaledFont(30, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(.white)
@@ -325,7 +325,7 @@ struct HomerunAtBatView: View {
             }
             .accessibilityElement(children: .combine)
             Spacer()
-            hudPill(systemImage: "flag.checkered", text: "柵越え \(totals.homers)")
+            hudPill(systemImage: "flag.checkered", text: tr("柵越え %lld", totals.homers))
         }
     }
 
@@ -356,7 +356,7 @@ struct HomerunAtBatView: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
-            Label("押したままずらし、輪が的に重なった瞬間に離す", systemImage: "hand.point.up.left.fill")
+            Label(tr("押したままずらし、輪が的に重なった瞬間に離す"), systemImage: "hand.point.up.left.fill")
                 .themeCaption(12)
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(.white)
@@ -389,9 +389,9 @@ struct HomerunAtBatView: View {
         )
         // VoiceOver では押したままずらす操作ができないので、カーソルを真ん中に置いたまま「今振る」を用意する。
         .accessibilityElement()
-        .accessibilityLabel("打つ場所")
-        .accessibilityHint("押したままずらしてねらい、離して振ります。操作メニューから今すぐ振ることもできます")
-        .accessibilityAction(named: "今振る") {
+        .accessibilityLabel(tr("打つ場所"))
+        .accessibilityHint(tr("押したままずらしてねらい、離して振ります。操作メニューから今すぐ振ることもできます"))
+        .accessibilityAction(named: tr("今振る")) {
             let center = CGPoint(x: 0, y: 0)
             model.press(at: center, now: Date())
             withGameAnimation(.easeOut(duration: 0.2)) {
@@ -628,7 +628,7 @@ struct HomerunDirectionMeter: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             Text(verbatim: isFoul
-                 ? "ファウル"
+                 ? tr("ファウル")
                  : "\(HomerunSector(direction: direction).label) \(Int(HomerunJudge.fence(atDirection: direction).rounded())) m")
                 .themeCaption(11, maxScale: 1)
                 .lineLimit(1)
@@ -640,7 +640,7 @@ struct HomerunDirectionMeter: View {
         .frame(width: HomerunAtBatHUDLayout.meterSize.width, height: HomerunAtBatHUDLayout.meterSize.height)
         .background(RoundedRectangle(cornerRadius: Theme.cornerSmall).fill(Color.black.opacity(0.35)))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isFoul ? "方向メーター、ファウル" : "方向メーター、\(HomerunSector(direction: direction).label)")
+        .accessibilityLabel(isFoul ? tr("方向メーター、ファウル") : tr("方向メーター、%@", HomerunSector(direction: direction).label))
     }
 }
 
@@ -657,7 +657,7 @@ struct HomerunBallResultCard: View {
 
     /// 見出し: 見送りは「見送り」、振って外したら「空振り」、当たりは種別。
     static func headline(_ ball: HomerunBattedBall, tookPitch: Bool) -> String {
-        ball.kind == .miss && tookPitch ? "見送り" : HomerunText.kind(of: ball)
+        ball.kind == .miss && tookPitch ? tr("見送り") : HomerunText.kind(of: ball)
     }
 
     /// 見出しの下に添える空振りの理由。振って外したときだけ。
@@ -677,15 +677,15 @@ struct HomerunBallResultCard: View {
                     .scaledFont(24, weight: .black, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
                 if ball.moon == .broken {
-                    Text("挑戦はここまで")
+                    Text(tr("挑戦はここまで"))
                         .scaledFont(16, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
-                    Label("プレイ回数 +\(HomerunLedger.moonBonus) プレゼント", systemImage: "gift.fill")
+                    Label(tr("プレイ回数 +%lld プレゼント", HomerunLedger.moonBonus), systemImage: "gift.fill")
                         .scaledFont(18, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.coral)
                 }
             } else if ball.distance > 0 {
-                Text(verbatim: "\(HomerunText.meters(ball.distance))　\(HomerunSector(direction: ball.direction).label)")
+                Text(verbatim: tr("%1$@　%2$@", HomerunText.meters(ball.distance), HomerunSector(direction: ball.direction).label))
                     .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
             }
@@ -695,7 +695,7 @@ struct HomerunBallResultCard: View {
                     .foregroundStyle(Theme.coral)
             }
             if ball.kind != .miss || ball.timing != .miss {
-                Text(verbatim: "タイミング: \(HomerunText.timing(ball.timing))")
+                Text(verbatim: tr("タイミング: %@", HomerunText.timing(ball.timing)))
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -709,10 +709,10 @@ struct HomerunBallResultCard: View {
         .popCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ball.kind == .miss && tookPitch
-            ? "\(number)球目、見送り"
+            ? tr("%lld球目、見送り", number)
             : [HomerunText.spoken(ball, number: number), reason,
-               ball.moon == .broken ? "挑戦はここまで、プレイ回数プラス\(HomerunLedger.moonBonus)プレゼント" : nil]
-                .compactMap { $0 }.joined(separator: "、"))
+               ball.moon == .broken ? tr("挑戦はここまで、プレイ回数プラス%lldプレゼント", HomerunLedger.moonBonus) : nil]
+                .compactMap { $0 }.joined(separator: tr("、")))
         .accessibilityAddTraits(.updatesFrequently)
     }
 }
