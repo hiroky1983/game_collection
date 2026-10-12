@@ -65,7 +65,7 @@ enum PokerHowToFigures {
                     .multilineTextAlignment(.center)
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.coral.opacity(0.15 + 0.12 * Double(index))))
+                    .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.coral.opacity(0.15 + 0.12 * Double(index))))
             }
         }
     }
