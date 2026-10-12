@@ -33,7 +33,8 @@ struct MahjongTableScene {
     var hiddenDiscardSeat: Int?
     var hiddenDiscardIndex: Int?
 
-    static let windNames = ["東", "南", "西", "北"]
+    /// 中央パネルの小さな枠に 1 字で出す風（英語は E / S / W / N）。
+    static var windNames: [String] { [tr("東"), tr("南"), tr("西"), tr("北")] }
 }
 
 /// 真上から見た縦長の雀卓（#927。以前は斜め上から見た台形）。木枠・フェルト・CPU の立て牌・4 家の河と副露・
@@ -147,13 +148,13 @@ struct MahjongTableView: View {
     }
 
     private func seatAccessibilityLabel(_ seat: Int) -> String {
-        let name = seat == 0 ? "あなた" : scene.names[seat]
-        return MahjongAccessibility.playerLabel(
+        let name = seat == 0 ? tr("あなた") : scene.names[seat]
+        let seatLabel = MahjongAccessibility.playerLabel(
             name: name, score: scene.scores[seat], isRiichi: scene.riichi[seat],
             isCurrent: scene.currentPlayer == seat, melds: scene.melds[seat]
         )
-        + "。"
-        + MahjongAccessibility.discardPileLabel(player: name, tiles: scene.discards[seat])
+        let discards = MahjongAccessibility.discardPileLabel(player: name, tiles: scene.discards[seat])
+        return tr("%1$@。%2$@", seatLabel, discards)
     }
 }
 
@@ -178,9 +179,9 @@ struct MahjongCenterPanel: View {
                         .strokeBorder(Color(hex: 0x3A3A40), lineWidth: max(1, w * 0.02)))
                     .shadow(color: .black.opacity(0.6), radius: w * 0.07, y: w * 0.045)
                 VStack(spacing: w * 0.02) {
-                    led("東\(scene.roundNumber)局", size: w * 0.14, design: .rounded)
+                    led(tr("東%lld局", scene.roundNumber), size: w * 0.14, design: .rounded)
                     led("\(scene.remainingTiles)", size: w * 0.24)
-                    led("本場\(scene.honba) 供託\(scene.riichiSticks)", size: w * 0.095, design: .rounded)
+                    led(tr("本場%1$lld 供託%2$lld", scene.honba, scene.riichiSticks), size: w * 0.095, design: .rounded)
                         // 左右の家の行（盤の縁から w × 0.40 に置く）の内側に収める
                         .frame(maxWidth: w * 0.58)
                 }
@@ -213,7 +214,7 @@ struct MahjongCenterPanel: View {
     private func seat(_ index: Int, angle: Double, offset: CGSize, unit: CGFloat) -> some View {
         let isCurrent = scene.currentPlayer == index
         let wind = MahjongTableScene.windNames[scene.seatWinds[index]]
-        let name = index == 0 ? "あなた" : scene.names[index]
+        let name = index == 0 ? tr("あなた") : scene.names[index]
         return HStack(spacing: unit * 0.04) {
             Text(wind)
                 .font(.system(size: unit * 0.14, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
@@ -226,7 +227,7 @@ struct MahjongCenterPanel: View {
                 )
             led("\(scene.scores[index])", size: unit * 0.135)
             if scene.riichi[index] {
-                Text("立直")
+                Text(tr("立直"))
                     .font(.system(size: unit * 0.09, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .foregroundStyle(Color(hex: 0xFF6A5C))
             }

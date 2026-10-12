@@ -395,7 +395,7 @@ public final class MahjongModel: AITurnGuarded {
     }
 
     public func playerName(_ index: Int) -> String {
-        index == Self.humanIndex ? "あなた" : "CPU\(index)"
+        index == Self.humanIndex ? tr("あなた") : "CPU\(index)"
     }
 
     /// 席風（0 = 東）。親から順に東南西北が割り当たる。

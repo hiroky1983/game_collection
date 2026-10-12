@@ -11,17 +11,18 @@ extension MahjongView {
                 .scaledFont(20, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.coral)
             if let result = model.handResult, result.kind != .exhaustiveDraw {
-                Text("\(result.han)飜 \(result.fu > 0 ? "\(result.fu)符 " : "")\(result.limitName ?? "")")
+                Text(Self.hanFuLine(result))
                     .scaledFont(14, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
                 VStack(spacing: 3) {
-                    ForEach(Array(result.yaku.enumerated()), id: \.offset) { _, name in
-                        Text(name)
+                    ForEach(Array(result.yaku.enumerated()), id: \.offset) { _, line in
+                        // 保存値（日本語）を表示言語にする（#2166）。
+                        Text(MahjongHandResult.displayYakuLine(line))
                             .scaledFont(12, weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
                 }
-                Text("\(result.gainedPoints)点")
+                Text(Self.pointsText(result.gainedPoints))
                     .scaledFont(18, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.teal)
                 // 和了者の手を開く（#351）。何に振り込んだか・どんな手だったかを学べるようにする。
@@ -36,8 +37,8 @@ extension MahjongView {
             } else if let result = model.handResult {
                 Text(
                     result.tenpaiPlayers.isEmpty
-                        ? "全員ノーテンです"
-                        : "聴牌: " + result.tenpaiPlayers.map { model.playerName($0) }.joined(separator: "・")
+                        ? tr("全員ノーテンです")
+                        : tr("聴牌: %@", result.tenpaiPlayers.map { model.playerName($0) }.joined(separator: tr("・")))
                 )
                 .scaledFont(13, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
@@ -72,16 +73,16 @@ extension MahjongView {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "和了した手: "
-                + sorted.map(\.displayName).joined(separator: "、")
-                + "、和了牌は \(winningTile.displayName)"
+            tr("和了した手: %1$@、和了牌は %2$@",
+               sorted.map(\.displayName).joined(separator: MahjongAccessibility.listSeparator),
+               winningTile.displayName)
         )
     }
 
     /// 立直で和了ったときだけ開示する裏ドラ表示牌（#351）。卓中央のドラ表示と同じ牌サイズ。
     private func uraDoraRow(_ tiles: [MahjongTile]) -> some View {
         HStack(spacing: 4) {
-            Text("裏ドラ")
+            Text(tr("裏ドラ"))
                 .scaledFont(11, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
@@ -89,7 +90,7 @@ extension MahjongView {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("裏ドラ表示牌: " + tiles.map(\.displayName).joined(separator: "、"))
+        .accessibilityLabel(tr("裏ドラ表示牌: %@", tiles.map(\.displayName).joined(separator: MahjongAccessibility.listSeparator)))
     }
 
     /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。ロンは放銃した人が
@@ -100,11 +101,11 @@ extension MahjongView {
         guard let result = model.handResult else { return "" }
         let winnerName = model.playerName(result.winner ?? 0)
         switch result.kind {
-        case .exhaustiveDraw: return "流局"
-        case .tsumo:  return "\(winnerName)のツモ"
+        case .exhaustiveDraw: return tr("流局")
+        case .tsumo:  return tr("%@のツモ", winnerName)
         case .ron:
-            guard let loser = result.loser else { return "\(winnerName)のロン" }
-            return "\(model.playerName(loser)) → \(winnerName)のロン"
+            guard let loser = result.loser else { return tr("%@のロン", winnerName) }
+            return tr("%1$@ → %2$@のロン", model.playerName(loser), winnerName)
         }
     }
 
@@ -112,9 +113,9 @@ extension MahjongView {
     /// 打ち切りの見出しは対局の長さで変える（#639。一局戦で「東風戦終了」と出ると嘘になる）。
     private var gameResultTitle: String {
         switch model.gameEndReason {
-        case .busted:    return "トビで終了"
-        case .agariYame: return "アガリやめで終了"
-        case .completedAllRounds, nil: return "\(model.gameLength.title)終了"
+        case .busted:    return tr("トビで終了")
+        case .agariYame: return tr("アガリやめで終了")
+        case .completedAllRounds, nil: return tr("%@終了", model.gameLength.title)
         }
     }
 
@@ -124,14 +125,14 @@ extension MahjongView {
                 .scaledFont(22, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.coral)
             if let place = model.playerPlace {
-                Text("あなたは \(place + 1)位")
+                Text(tr("あなたは %@", Self.placeText(place)))
                     .scaledFont(18, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
             VStack(spacing: 4) {
                 ForEach(Array(model.ranking.enumerated()), id: \.offset) { place, player in
                     HStack {
-                        Text("\(place + 1)位")
+                        Text(Self.placeText(place))
                             .scaledFont(13, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.coral)
                             .frame(width: 36, alignment: .leading)
@@ -139,7 +140,7 @@ extension MahjongView {
                             .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(Theme.ink)
                         Spacer()
-                        Text("\(model.scores[player])点")
+                        Text(Self.pointsText(model.scores[player]))
                             .scaledFont(13, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
@@ -170,13 +171,39 @@ extension MahjongView {
                             .scaledFont(12, weight: .bold, design: .rounded)
                             .foregroundStyle(change > 0 ? Theme.teal : Theme.coral)
                     }
-                    Text("\(model.scores[player])点")
+                    Text(Self.pointsText(model.scores[player]))
                         .scaledFont(12, weight: .black, design: .rounded)
                         .foregroundStyle(model.scores[player] < 0 ? Theme.coral : Theme.ink)
+                        // 英語（"25000 pts"）は日本語より長く、幅が固定の欄に 1 行で収める。
+                        .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(width: 66, alignment: .trailing)
                 }
             }
         }
         .padding(.top, 4)
+    }
+
+    // MARK: - 表示用の文言（#2166）
+
+    /// 「3飜 30符 満貫」の行。満貫以上の呼び名は保存値（日本語）なので表示言語に直して添える。
+    static func hanFuLine(_ result: MahjongHandResult) -> String {
+        let fu = result.fu > 0 ? tr("%lld符", result.fu) + " " : ""
+        let limit = result.limitName.map(MahjongHandResult.displayLimitName) ?? ""
+        return tr("%lld飜", result.han) + " " + fu + limit
+    }
+
+    static func pointsText(_ points: Int) -> String {
+        tr("%lld点", points)
+    }
+
+    /// 順位（0 始まり）の表記。英語は序数（1st・2nd…）なので、四人打ちの 4 位までは個別の文言にする。
+    static func placeText(_ place: Int) -> String {
+        switch place {
+        case 0:  return tr("1位")
+        case 1:  return tr("2位")
+        case 2:  return tr("3位")
+        case 3:  return tr("4位")
+        default: return tr("%lld位", place + 1)
+        }
     }
 }

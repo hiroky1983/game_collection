@@ -1,4 +1,5 @@
 import Foundation
+import Core
 import MahjongTiles
 
 /// 和了したときの状況。役の判定と符計算に必要な情報だけを持つ。
@@ -62,7 +63,7 @@ public struct MahjongWinContext: Equatable, Sendable {
 /// 直接書かないことで、早見表に載っていない役が生まれる余地を型で消している（#501）。
 public struct MahjongYakuEntry: Equatable, Sendable {
     public let yaku: MahjongYaku
-    /// 表示名。役牌だけは牌の名前を足すので `yaku.name` と異なる。
+    /// 表示名（日本語の保存値）。役牌だけは牌の名前を足すので `yaku.name` と異なる。
     public let name: String
     /// 飜数。役満は 13 を入れる。
     public let han: Int
@@ -88,7 +89,8 @@ public struct MahjongScore: Equatable, Sendable {
     public let yaku: [MahjongYakuEntry]
     public let han: Int
     public let fu: Int
-    /// 満貫以上の呼び名（「満貫」「跳満」…）。それ未満は nil。
+    /// 満貫以上の呼び名（「満貫」「跳満」…）。それ未満は nil。中断データに入る保存値なので日本語のまま持ち、
+    /// 画面では `MahjongHandResult.displayLimitName` で表示言語に直す（#2166）。
     public let limitName: String?
     /// ロン和了で放銃者が払う点。ツモなら 0。
     public let ronPayment: Int
@@ -267,7 +269,10 @@ public enum MahjongScoring {
             yaku.append(MahjongYakuEntry(.tanyao))
         }
         for triplet in dragonTriplets {
-            yaku.append(MahjongYakuEntry(.yakuhaiDragon, name: "役牌 \(triplet.tile.displayName)"))
+            // 名前は中断データに入る保存値なので、表示言語によらず日本語の牌名で組む（画面では
+            // `MahjongHandResult.displayYakuLine` が表示言語に直す・#2166）。
+            yaku.append(MahjongYakuEntry(
+                .yakuhaiDragon, name: "役牌 " + triplet.tile.displayName(language: .development)))
         }
         for triplet in windTriplets {
             guard case .wind(let wind) = triplet.tile else { continue }

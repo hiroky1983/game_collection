@@ -99,15 +99,15 @@ public struct MahjongCall: Equatable, Sendable, Codable, Identifiable {
     /// ボタン・読み上げに使う短い名前。
     public var actionName: String {
         switch kind {
-        case .pon: return "ポン"
-        case .chi: return "チー"
-        case .openKan, .addedKan, .closedKan: return "カン"
+        case .pon: return tr("ポン")
+        case .chi: return tr("チー")
+        case .openKan, .addedKan, .closedKan: return tr("カン")
         }
     }
 
     /// 選択肢が複数並ぶときの説明（「チー 3萬・4萬」のように手牌から使う牌を見せる）。
     public var optionDetail: String {
-        tilesFromHand.map(\.displayName).joined(separator: "・")
+        tilesFromHand.map(\.displayName).joined(separator: tr("・"))
     }
 }
 

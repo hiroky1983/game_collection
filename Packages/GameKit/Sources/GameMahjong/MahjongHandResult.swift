@@ -98,6 +98,61 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     }
 }
 
+// MARK: - 表示（#2166）
+
+/// `yaku`・`limitName` は中断データに入る保存値なので日本語のまま持ち（`MahjongModel+Settlement`・
+/// `MahjongScoring`）、画面に出すときにだけ表示言語に直す。日本語では保存値をそのまま返す。
+/// 知らない形（将来の表記変更・壊れたデータ）は保存値をそのまま出す。
+extension MahjongHandResult {
+    /// `yaku` の 1 行（「立直 1飜」「役牌 字牌の中 1飜」「国士無双 役満」）。
+    static func displayYakuLine(_ stored: String) -> String {
+        guard let space = stored.lastIndex(of: " ") else { return displayYakuName(stored) }
+        let name = String(stored[..<space])
+        let han = String(stored[stored.index(after: space)...])
+        return displayYakuName(name) + " " + displayHan(han)
+    }
+
+    /// 役名（`MahjongYaku.name`、または役牌の「役牌 」+ 日本語の牌名）。
+    static func displayYakuName(_ stored: String) -> String {
+        if let yaku = MahjongYaku.allCases.first(where: { $0.name == stored }) {
+            return yaku.displayName
+        }
+        let dragonPrefix = MahjongYaku.yakuhaiDragon.name + " "
+        if stored.hasPrefix(dragonPrefix) {
+            let tileName = String(stored.dropFirst(dragonPrefix.count))
+            if let tile = MahjongTile.all.first(where: { $0.displayName(language: .development) == tileName }) {
+                return tr("役牌 %@", tile.displayName)
+            }
+        }
+        return stored
+    }
+
+    /// 飜数の欄（「1飜」または「役満」）。
+    static func displayHan(_ stored: String) -> String {
+        if stored == "役満" { return tr("役満") }
+        if stored.hasSuffix("飜"), let han = Int(stored.dropLast()) { return tr("%lld飜", han) }
+        return stored
+    }
+
+    /// 満貫以上の呼び名（`MahjongScoring.basePoints` の保存値）。
+    static func displayLimitName(_ stored: String) -> String {
+        switch stored {
+        case "役満":   return tr("役満")
+        case "数え役満": return tr("数え役満")
+        case "三倍満":  return tr("三倍満")
+        case "倍満":   return tr("倍満")
+        case "跳満":   return tr("跳満")
+        case "満貫":   return tr("満貫")
+        default:
+            // 複数の役満（「2倍役満」）。
+            if stored.hasSuffix("倍役満"), let count = Int(stored.dropLast(3)) {
+                return tr("%lld倍役満", count)
+            }
+            return stored
+        }
+    }
+}
+
 /// 東風戦が終わった理由。リザルトの見出しに使う（#352。東2局で突然終わっても
 /// 「なぜ終わったか」が画面から読めるようにする）。
 public enum MahjongGameEndReason: Equatable, Sendable {

@@ -16,15 +16,15 @@ public enum MahjongGameLength: String, Codable, Sendable, CaseIterable, Identifi
 
     public var title: String {
         switch self {
-        case .tonpuu:     return "東風戦"
-        case .singleHand: return "一局戦"
+        case .tonpuu:     return tr("東風戦")
+        case .singleHand: return tr("一局戦")
         }
     }
 
     public var summary: String {
         switch self {
-        case .tonpuu:     return "東1局から東4局まで打って順位を決める、いつもの対局"
-        case .singleHand: return "東1局だけで順位を決める短い対局。すきま時間に1局だけ"
+        case .tonpuu:     return tr("東1局から東4局まで打って順位を決める、いつもの対局")
+        case .singleHand: return tr("東1局だけで順位を決める短い対局。すきま時間に1局だけ")
         }
     }
 
