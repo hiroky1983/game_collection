@@ -307,7 +307,9 @@ struct SolitaireJokerSnapshotTests {
 
 // MARK: - 敗北確定の検知（#406 の詰み検知（b））
 
-@Suite("敗北確定の検知")
+// 3 本が static の同時探索上限（maxConcurrentLostSolves）を 100 に上げて defer で 2 に戻すため、
+// 並行だと互いの設定を潰して探索が起きなくなる。直列で走らせる。
+@Suite("敗北確定の検知", .serialized)
 @MainActor
 struct SolitaireLostDetectionTests {
 
