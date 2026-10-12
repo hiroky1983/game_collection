@@ -1,6 +1,5 @@
 import SwiftUI
 import Core
-import GameHomerun
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -75,10 +74,11 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    // MARK: 柵越えおじさんの特別枠（#1761）
+    // MARK: 柵越えおじさん（#1761・#2175）
 
-    /// 特別枠に出すゲーム。グリッドの通常カードからは外し、**登録されていて非表示にされていないときだけ**出す
-    /// （非公開のままなら registry に居ないので何も変わらない）。
+    /// 柵越えおじさん。モック（docs/design/hub-redesign-1831 の 01）のとおり、ほかと同じ大きさのタイルで
+    /// グリッドの先頭に置く（新着はその次）。**登録されていて非表示にされていないときだけ**出す。
+    /// `game_open` の導線は以前の特別枠と同じ `.hero` のまま（解析の数え方を変えない）。
     private static let heroGameID = "homerun"
 
     private var showsHero: Bool {
@@ -94,7 +94,7 @@ struct HubView: View {
         return order.compactMap { byID[$0] }
     }
 
-    /// グリッドに並べるゲーム（特別枠のゲームを除く）。特別枠のすぐ次に新着が来る。
+    /// 柵越えおじさんを除いたゲーム。柵越えおじさんのすぐ次に新着が来る。
     private var gridModules: [GameModule] {
         pinnedVisibleModules.filter { $0.id != Self.heroGameID }
     }
@@ -110,17 +110,24 @@ struct HubView: View {
         return populated.count > 1 ? [.all] + populated : []
     }
 
-    /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置（`game_open` の `position`）は絞る前の
-    /// 並びでの 1 始まり（絞り込みの有無で同じゲームの位置が変わらない）。
-    private var shownGridEntries: [(position: Int, module: GameModule)] {
-        let entries = Array(gridModules.enumerated()).map { (position: $0.offset + 1, module: $0.element) }
-        guard activeCategory != .all else { return entries }
-        return entries.filter { registry.category(of: $0.module.id) == activeCategory }
+    /// グリッドの 1 枚。柵越えおじさんは位置を持たない（以前の特別枠と同じ）。
+    private struct GridEntry {
+        let module: GameModule
+        /// `game_open` の `position`（1 始まり・柵越えおじさんを除いた絞る前の並びでの位置）。
+        let position: Int?
+        let source: GameOpenSource
     }
 
-    /// 特別枠（柵越えおじさん）を出すか。「すべて」と「おじさん」のときだけ。
-    private var showsHeroInCategory: Bool {
-        showsHero && (activeCategory == .all || registry.category(of: Self.heroGameID) == activeCategory)
+    /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置は絞る前の並びでの 1 始まり
+    /// （絞り込みの有無で同じゲームの位置が変わらない）。
+    private var shownGridEntries: [GridEntry] {
+        var entries: [GridEntry] = []
+        if showsHero, let hero = registry.module(id: Self.heroGameID) {
+            entries.append(GridEntry(module: hero, position: nil, source: .hero))
+        }
+        entries += gridModules.enumerated().map { GridEntry(module: $0.element, position: $0.offset + 1, source: .hub) }
+        guard activeCategory != .all else { return entries }
+        return entries.filter { registry.category(of: $0.module.id) == activeCategory }
     }
 
     /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
@@ -151,11 +158,6 @@ struct HubView: View {
     /// 更新で増えたゲームのうち、まだ開いていないもの（#723）。起動して最初にハブを組み立てた時点で決まり、
     /// 開いたゲームから外していく。保存はしない（次の起動では `PlayLog` が「既知」として返さない）。
     @State private var newGameIDs: Set<String>
-
-    /// NEW 印と1行の対象。非表示にしたゲームは数えない。
-    private var visibleNewGameIDs: Set<String> {
-        newGameIDs.intersection(settings.visibleModules(from: registry).map(\.id))
-    }
 
     /// 差し色を引くための、ハブの並びのなかでの位置。グリッドのカードは `enumerated()` の
     /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
@@ -205,104 +207,75 @@ struct HubView: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
-                // 更新で増えたゲームがあるときだけ、その回の起動で1行出す（#723）。数え方は `NewGames` が持つ。
-                // 置き場所は「つづき・最近」と同じくスクロール領域の外（#485）。
-                if let notice = NewGames.notice(count: visibleNewGameIDs.count) {
-                    HubNewGamesNotice(message: notice)
-                        .padding(.horizontal, Theme.pad)
-                        .padding(.top, Theme.pad)
-                }
-                // 連続プレイ日数（#1625）。2 日以上のときだけ控えめに 1 行。`PlayLog` は監視対象ではないので、
-                // ゲームから戻って `path` が変わったとき body が走って更新される（「つづき・最近」と同じ）。
-                if let text = PlayDayStreak.hubText(streak: services.playLog?.playStreak() ?? 0) {
-                    HubPlayStreakLine(text: text)
-                        .padding(.horizontal, Theme.pad)
-                        .padding(.top, Theme.pad)
-                }
-                // 中断・記録ともゼロなら**行ごと出さない**（#660）。`RecommendationSlot` が
-                // 「決着前は何も描かない」のと同じ流儀で、初回ユーザーのハブは
-                // 1pt も動かない。
-                let recent = recentCandidates
-                if !recent.isEmpty {
-                    HubRecentRow(
-                        candidates: recent,
-                        registry: registry,
-                        paletteIndexByGame: paletteIndexByGame
-                    )
-                }
-                // 記録がゼロの初回だけ「はじめの1本」を1枚出す（#721）。出す条件と何を出すかは
-                // `FirstPick` が持つ。置き場所は「つづき・最近」と同じくスクロール領域の外
-                // （中に入れると iPad のカード高さの割り付けが溢れる・#485）。
-                if let pick = FirstPick.gameID(
-                    playedGameIDs: services.playLog?.playedGameIDs,
-                    visibleGameIDs: settings.visibleModules(from: registry).map(\.id),
-                    showsRecentRow: !recent.isEmpty
-                ), let module = registry.module(id: pick) {
-                    NavigationLink(value: HubRoute(
-                        gameID: pick, source: .firstPick, position: nil,
-                        resume: isResumable(pick)
-                    )) {
-                        HubFirstPickCard(
-                            module: module,
-                            accentFill: Theme.Fill.palette[(paletteIndexByGame[pick] ?? 0) % Theme.Fill.palette.count]
-                        )
-                    }
-                    .buttonStyle(.pop)
-                    .padding(.horizontal, Theme.pad)
-                    .padding(.top, Theme.pad)
-                }
-                // カテゴリーのチップ（#1831）。「つづき」と同じくスクロール領域の外に置き、常に見える。
+                // 見出し（あそびば・きろく・設定）。モック（docs/design/hub-redesign-1831 の 01・04b）どおり、
+                // 大きな題字と白いピルのボタンを自前で描く（標準のナビゲーションバーは出さない・#2175）。
+                header
+                // カテゴリーのチップ（#1831）。見出しのすぐ下に置き、スクロールしても常に見える。
+                // チップは 44pt の当たり判定を持つので、見た目の上下の余白（モックの 10pt）からそのぶんを引く。
                 if !chipCategories.isEmpty {
                     HubCategoryChips(categories: chipCategories, selected: activeCategory) { category in
                         withGameAnimation(.easeOut(duration: 0.2)) { selectedCategory = category }
                     }
-                    .padding(.top, Theme.pad)
+                    .padding(.top, 10 - HubCategoryChips.hitSlop)
+                    .padding(.bottom, -HubCategoryChips.hitSlop)
+                    .zIndex(1)
                 }
                 ScrollView {
-                    VStack(spacing: Self.gridSpacing) {
+                    VStack(alignment: .leading, spacing: 0) {
+                    if activeCategory == .all {
+                        // 中断・記録ともゼロなら**行ごと出さない**（#660）。「すべて」のときだけ出す（モック 01・04b）。
+                        // 連続プレイ日数（#1625）は 2 日以上のときだけ、行の見出しの右に控えめに出す。
+                        let recent = recentCandidates
+                        if !recent.isEmpty {
+                            HubRecentRow(
+                                candidates: recent,
+                                registry: registry,
+                                streakText: PlayDayStreak.hubText(streak: services.playLog?.playStreak() ?? 0)
+                            )
+                        }
+                        // 記録がゼロの初回だけ「はじめの1本」を1枚出す（#721）。出す条件と何を出すかは `FirstPick` が持つ。
+                        if let pick = FirstPick.gameID(
+                            playedGameIDs: services.playLog?.playedGameIDs,
+                            visibleGameIDs: settings.visibleModules(from: registry).map(\.id),
+                            showsRecentRow: !recent.isEmpty
+                        ), let module = registry.module(id: pick) {
+                            NavigationLink(value: HubRoute(
+                                gameID: pick, source: .firstPick, position: nil,
+                                resume: isResumable(pick)
+                            )) {
+                                HubFirstPickCard(
+                                    module: module,
+                                    accentFill: Theme.Fill.palette[(paletteIndexByGame[pick] ?? 0) % Theme.Fill.palette.count]
+                                )
+                            }
+                            .buttonStyle(.pop)
+                            .padding(.horizontal, Theme.pad)
+                            .padding(.top, Theme.pad)
+                        }
+                    } else {
+                        // カテゴリーを選んだときの見出し（モック 04b の「トランプ　7本」）。
+                        HubCategoryHeading(title: activeCategory.title, count: shownGridEntries.count)
+                            .padding(.horizontal, Theme.pad)
+                            .padding(.top, 14)
+                    }
                     // 全ゲームを非表示にした直後は空白にせず、設定へ戻る導線を出す（#2002）。
                     if HubEmptyState.isShown(visibleGameIDs: settings.visibleModules(from: registry).map(\.id)) {
                         HubEmptyStateView { showSettings = true }
-                    }
-                    // 特別枠（#1761）: グリッドの先頭に 1 枚ぶち抜きで置き、スクロールで一緒に流れる。
-                    if showsHeroInCategory, let hero = registry.module(id: Self.heroGameID) {
-                        NavigationLink(value: HubRoute(
-                            gameID: hero.id, source: .hero, position: nil,
-                            resume: isResumable(hero.id)
-                        )) {
-                            HomerunHubHeroCard(description: hero.description)
-                        }
-                        .buttonStyle(.pop)
-                        // 幅の上限は iPad の高さの頭打ち用（`AdaptiveLayout.hubHeroMaxWidth`）。上限より広ければ中央に置く。
-                        .frame(maxWidth: AdaptiveLayout.hubHeroMaxWidth)
-                        .frame(maxWidth: .infinity)
-                        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-                        // 常に先頭なので「いちばん上に置く」は出さない。非表示にすると特別枠ごと消える（設定から戻せる）。
-                        .contextMenu {
-                            Button {
-                                hide(hero)
-                            } label: {
-                                Label(tr("非表示にする"), systemImage: "eye.slash")
-                            }
-                        }
+                            .padding(.horizontal, Theme.pad)
+                            .padding(.top, 12)
                     }
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(shownGridEntries, id: \.module.id) { entry in
                             let module = entry.module
-                            // 差し色は絞る前の並びの位置で引く（チップで絞っても同じゲームは同じ色）。
-                            let index = entry.position - 1
                             let hasResume = isResumable(module.id)
                             // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
                             NavigationLink(value: HubRoute(
-                                gameID: module.id, source: .hub, position: entry.position, resume: hasResume
+                                gameID: module.id, source: entry.source, position: entry.position, resume: hasResume
                             )) {
                                 GameCard(
                                     module: module,
-                                    accent: Theme.palette[index % Theme.palette.count],
-                                    accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: hasResume,
-                                    isNew: NewGames.currentVersionIDs.contains(module.id),
-                                    record: services.playLog?.summaryLine(gameID: module.id)
+                                    isNew: NewGames.currentVersionIDs.contains(module.id)
                                 )
                             }
                             // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
@@ -319,7 +292,8 @@ struct HubView: View {
                                 }
                                 // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
                                 // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
-                                .disabled(NewGames.isAlreadyAtTop(
+                                // 柵越えおじさんは常に先頭なので押せない（以前の特別枠と同じ）。
+                                .disabled(module.id == Self.heroGameID || NewGames.isAlreadyAtTop(
                                     id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
                                 Button {
                                     hide(module)
@@ -329,8 +303,10 @@ struct HubView: View {
                             }
                         }
                     }
+                    .padding(.horizontal, Theme.pad)
+                    .padding(.top, 12)
+                    .padding(.bottom, Theme.pad)
                     }
-                    .padding(Theme.pad)
                 }
                 .overlay(alignment: .bottom) {
                     Group {
@@ -350,33 +326,9 @@ struct HubView: View {
                 BannerSlot(ads: services.ads)
             }
             .popBackground()
+            // 戻るボタンの文字に使う。ハブ自身ではナビゲーションバーを隠し、見出しは `header` が描く（#2175）。
             .navigationTitle(tr("あそびば"))
-            // 大タイトルは右のボタンより一段下に出て、見出しの領域が縦に広かった（#2028）。
-            // inline にして、タイトルを左の toolbar に置き、右のボタンと同じ行の上合わせにそろえる。
-            // 標準の中央タイトルは二重にならないよう外す（iOS 26 以降。それ以前の inline は文字が中央に残る）。
-            .navigationBarTitleDisplayMode(.inline)
-            .hubHidesDefaultTitle()
-            .toolbar {
-                HubTitleToolbarItem()
-                // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
-                // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
-                // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showRecords = true } label: {
-                        Image(systemName: "trophy.fill")
-                            .scaledFont(18, weight: .semibold)
-                    }
-                    .accessibilityLabel(tr("きろく"))
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape.fill")
-                            .scaledFont(18, weight: .semibold)
-                    }
-                    // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
-                    .accessibilityLabel(tr("設定"))
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: HubRoute.self) { route in
                 if let module = registry.module(id: route.gameID) {
                     // 自己ベスト更新のリザルトに出す共有ボタンの情報（#1043）。20 本の `RecordLabel` の
@@ -596,6 +548,51 @@ struct HubView: View {
         }
     }
 
+    /// 見出し（モック 01・04b の `.hdr`）。題字 34pt・右に白いピルの「きろく」「設定」（珊瑚色のアイコン）。
+    private var header: some View {
+        HStack(alignment: .top) {
+            Text(tr("あそびば"))
+                .themeTitle(layout.scaled(34), weight: .black, maxScale: 1.3)
+                .tracking(0.5)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            HStack(spacing: 0) {
+                // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
+                // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
+                // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
+                Button { showRecords = true } label: {
+                    Image(systemName: "trophy.fill")
+                        .scaledFont(layout.scaled(20), weight: .semibold, maxScale: 1.2)
+                        .frame(width: layout.scaled(36), height: layout.scaled(40))
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(tr("きろく"))
+                // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape.fill")
+                        .scaledFont(layout.scaled(20), weight: .semibold, maxScale: 1.2)
+                        .frame(width: layout.scaled(36), height: layout.scaled(40))
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(tr("設定"))
+            }
+            .foregroundStyle(Theme.coral)
+            .buttonStyle(.pop)
+            .padding(.horizontal, layout.scaled(7))
+            .background(
+                Capsule()
+                    .fill(Theme.surface)
+                    .shadow(color: Theme.cardShadow, radius: 5, x: 0, y: 6)
+            )
+            .padding(.top, 2)
+        }
+        .padding(.horizontal, Theme.pad)
+        .padding(.top, 2)
+    }
+
     /// ハブの外（リザルトのレコメンド・中断のお知らせ）から求められたゲームへ遷移する。
     ///
     /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
@@ -651,91 +648,58 @@ struct HubView: View {
     }
 }
 
-/// ハブのゲームタイル（2列グリッド・#119、絵のタイルは #1831）。
+/// ハブの絵のタイル（2列グリッド・#119、絵のタイルは #1831、モックどおりの見た目は #2175）。
 ///
-/// 上に絵（1 ゲーム 1 枚・アセット `hubtile-<id>`）、下にゲーム名と 1 行。名前は絵に描き込まず、
-/// アプリの文字で出す（英語化のとき文字だけ差し替えるため）。「続きから」「NEW」は絵の右上に重ねる。
-/// 絵のアセットが無いゲームは、従来のアイコンチップの色面で代用する。
+/// 絵・ゲーム名・下線（柵越えおじさんは「体験版」も）は 1 枚の画像（アセット `hubtile-<id>`）に入っている
+/// （会長指示「画像で良いからちゃんとしてくれ」#2175）。画像は `Scripts/generate-hub-tiles.py` がモック
+/// （docs/design/hub-redesign-1831 の 01）の HTML・CSS そのままで書き出す。アプリはタイルの比率で敷き、
+/// 角丸と影を付け、「続きから」「NEW」だけを左下に重ねる（モック 01 の `.badge`）。記録・説明文は出さない。
 private struct GameCard: View {
     let module: GameModule
-    /// 「続きから」バッジの**文字色**。明るい地の上に置くので差し色そのままを使う。
-    let accent: Color
-    /// 絵が無いときのアイコン面の**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
-    let accentFill: Color
     let hasResume: Bool
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
-    /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
-    let record: String?
 
-    /// 固定 pt の部品（文字・余白）を広い画面で拡大するための倍率（#458）。狭い画面では恒等。
     @Environment(\.adaptiveLayout) private var layout
 
-    /// 絵の縦横比（幅 ÷ 高さ）。アセットは 4:3。
-    private static let artAspect: CGFloat = 4.0 / 3.0
-
     var body: some View {
-        VStack(alignment: .leading, spacing: layout.scaled(6)) {
-            art
-                .overlay(alignment: .topTrailing) { badge.padding(layout.scaled(4)) }
-
-            VStack(alignment: .leading, spacing: layout.scaled(2)) {
-                Text(module.title)
-                    .themeTitle(layout.scaled(16))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                // 記録が無いうちはゲームの説明を出す（初見の手掛かり）。遊んだあとは記録に入れ替わる。
-                Group {
-                    if let record {
-                        Label(record, systemImage: "chart.bar.fill")
-                            .foregroundStyle(Theme.inkSub)
-                    } else {
-                        Text(module.description)
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                }
-                .themeCaption(layout.scaled(11))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            }
-            .padding(.horizontal, layout.scaled(4))
-            .padding(.bottom, layout.scaled(2))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(layout.scaled(6))
-        .popCard()
-        // 「続きから」バッジを絵の右上に置いたため、既定の読み上げ順ではゲーム名より先に
-        // 読まれてしまう。カードを 1 要素にまとめ、必ずゲーム名から読ませる。
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    /// 絵。幅は親（グリッドの列）が決め、高さは比率で決まる。`Color.clear` を土台にして、
-    /// 絵そのものの理想サイズに列幅が引きずられないようにする。
-    private var art: some View {
         Color.clear
-            .aspectRatio(Self.artAspect, contentMode: .fit)
-            .overlay {
-                if UIImage(named: Self.assetName(for: module.id)) != nil {
-                    Image(Self.assetName(for: module.id))
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Rectangle().fill(accentFill.gradient)
-                        .overlay {
-                            module.icon
-                                .font(.system(size: layout.scaled(34), weight: .bold)) // fixed-size: 絵の代わりの面に収めるアイコン。面の寸法は比率で決まるため固定 pt で足りる
-                                .foregroundStyle(Theme.onAccent)
-                        }
-                }
+            .aspectRatio(HubTileStyle.aspect, contentMode: .fit)
+            .overlay { art }
+            // 柵越えおじさんは左下に「体験版」が描き込まれているので、印は右下に置く。
+            .overlay(alignment: module.id == HubTileStyle.trialGameID ? .bottomTrailing : .bottomLeading) {
+                badge.padding(layout.scaled(10))
             }
-            .clipShape(RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .fill(Theme.surface)
+                    .shadow(color: Theme.cardShadow, radius: 5, x: 0, y: 6)
+            )
+            // 名前は画像の中にあるので、読み上げはここで組み立てる。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
     }
 
-    /// 絵のアセット名。`Scripts/generate-hub-tiles.py` が `hubtile-<game_id>` で書き出す。
-    static func assetName(for gameID: String) -> String { "hubtile-\(gameID)" }
+    /// 絵。アセットが無いゲーム（新しく足して絵をまだ作っていない等）は、差し色の面に名前を出して代用する。
+    @ViewBuilder
+    private var art: some View {
+        if UIImage(named: HubTileStyle.tileName(for: module.id)) != nil {
+            Image(HubTileStyle.tileName(for: module.id))
+                .resizable()
+                .scaledToFill()
+        } else {
+            Rectangle().fill(HubTileStyle.accent(for: module.id).gradient)
+                .overlay(alignment: .topLeading) {
+                    Text(module.title)
+                        .themeTitle(layout.scaled(19), weight: .black)
+                        .foregroundStyle(Theme.Fixed.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .padding(layout.scaled(12))
+                }
+        }
+    }
 
     @ViewBuilder
     private var badge: some View {
@@ -746,33 +710,93 @@ private struct GameCard: View {
         }
     }
 
-    /// 「続きから」と NEW は同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。絵の上でも
-    /// 読めるよう、薄い差し色の下に白の地を敷く。
+    /// モック 01 の `.badge`（白 92% の地に、そのゲームの下線と同じ色の太字）。
     private func badgeCapsule(_ label: String) -> some View {
         Text(label)
-            .themeCaption(layout.scaled(11))
-            .foregroundStyle(accent)
-            .padding(.horizontal, layout.scaled(8))
-            .padding(.vertical, layout.scaled(3))
-            .background(Capsule().fill(Color.white))
-            .background(Capsule().fill(accent.opacity(0.15)))
+            .themeCaption(layout.scaled(11), weight: .heavy, maxScale: 1.3)
+            .foregroundStyle(HubTileStyle.textAccent(for: module.id))
+            .padding(.horizontal, layout.scaled(9))
+            .padding(.vertical, layout.scaled(4))
+            .background(Capsule().fill(Color.white.opacity(0.92)))
             .fixedSize()
     }
 
     private var accessibilityLabel: String {
-        var parts = [module.title, record ?? module.description]
+        var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
         return parts.joined(separator: tr("、"))
     }
 }
 
-/// カテゴリーのチップの行（#1831）。画面幅を超えるときは横にスクロールする。
-/// チップは 44pt の高さを枠の中に取る（枠の外へはみ出させても当たり判定は広がらない）。
+/// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、
+/// 「続きから」「NEW」と「つづき・最近」の文字色に使う。値は `Scripts/generate-hub-tiles.py` の `GAMES` と同じ表
+/// （モック 01 の各タイルの `.ul` の色）。表に無いゲームは珊瑚色。
+enum HubTileStyle {
+    /// モックのタイルの寸法（179 × 215pt）の比率。画像もこの比率で書き出している。
+    static let aspect: CGFloat = 179.0 / 215.0
+    /// 「体験版」が画像の左下に描き込まれているゲーム。
+    static let trialGameID = "homerun"
+
+    static func tileName(for gameID: String) -> String { "hubtile-\(gameID)" }
+    static func thumbName(for gameID: String) -> String { "hubthumb-\(gameID)" }
+
+    private static let coral: UInt32 = 0xFF6F61, teal: UInt32 = 0x22C3BE, purple: UInt32 = 0x8C7BE0
+    private static let yellow: UInt32 = 0xFFC24B, pink: UInt32 = 0xFF8FB1
+    private static let accentHex: [String: UInt32] = [
+        "homerun": purple, "poker": coral, "solitaire": teal, "runner": purple, "mahjong4": yellow,
+        "sudoku": pink, "othello": coral, "2048": teal, "shogi": purple, "shiritori": yellow,
+        "daifugo": pink, "gomoku": coral, "minesweeper": teal, "spider": purple, "blackjack": yellow,
+        "mahjong": pink, "hanafuda": coral, "go": teal, "blocks": purple, "concentration": yellow,
+        "chess": pink, "freecell": coral, "fifteen": teal, "ojisanpuzzle": yellow, "anzan": coral,
+    ]
+
+    static func accent(for gameID: String) -> Color { Color(hex: accentHex[gameID] ?? coral) }
+
+    /// 白い地に載せる文字（「続きから」「NEW」「つづきから」）の色。黄・桃・青緑は白地では薄くて読めないので、
+    /// 同じ色相のまま濃くした値を使う（珊瑚・紫はモックの文字色そのまま）。
+    static func textAccent(for gameID: String) -> Color {
+        let hex = accentHex[gameID] ?? coral
+        let dark: [UInt32: UInt32] = [yellow: 0xB7791F, pink: 0xD9467A, teal: 0x14918D]
+        return Color(hex: dark[hex] ?? hex)
+    }
+}
+
+/// カテゴリーを選んだときの見出し（モック 04b の「トランプ　7本」: 名前 15pt・本数 12pt の補助色）。
+private struct HubCategoryHeading: View {
+    let title: String
+    let count: Int
+
+    @Environment(\.adaptiveLayout) private var layout
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(title)
+                .themeBody(layout.scaled(15), weight: .black)
+                .foregroundStyle(Theme.ink)
+            Text(verbatim: "\u{3000}")
+                .themeBody(layout.scaled(15), weight: .black)
+            Text(tr("%d本", count))
+                .themeCaption(layout.scaled(12), weight: .heavy)
+                .foregroundStyle(Theme.inkSub)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// カテゴリーのチップの行（#1831）。モック 04b の `.chips`（12pt・白地・選択中は濃い茶の地に白文字）。
+/// 画面幅を超えるときは横にスクロールする。見た目はモックの大きさのまま、当たり判定だけ 44pt に広げる。
 private struct HubCategoryChips: View {
     let categories: [HubCategory]
     let selected: HubCategory
     let onSelect: (HubCategory) -> Void
+
+    /// 見た目のチップ（約 29pt）を 44pt の当たり判定に広げたときの、上下それぞれのはみ出し。
+    static let hitSlop: CGFloat = 7.5
+
+    @Environment(\.adaptiveLayout) private var layout
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -781,15 +805,19 @@ private struct HubCategoryChips: View {
                     let isSelected = category == selected
                     Button { onSelect(category) } label: {
                         Text(category.title)
-                            .themeCaption(14)
-                            .foregroundStyle(isSelected ? Theme.onAccent : Theme.ink)
+                            .themeCaption(layout.scaled(12), weight: .heavy, maxScale: 1.4)
+                            .foregroundStyle(isSelected ? Theme.background : Theme.ink)
                             .lineLimit(1)
                             .fixedSize()
-                            .padding(.horizontal, 14)
-                            .frame(minWidth: 64, minHeight: 44)
-                            .background(Capsule().fill(isSelected ? Theme.Fill.coral : Color.white))
-                            .overlay(Capsule().strokeBorder(Theme.ink.opacity(isSelected ? 0 : 0.15), lineWidth: 1))
-                            .contentShape(Capsule())
+                            .padding(.horizontal, layout.scaled(11))
+                            .padding(.vertical, layout.scaled(7))
+                            .background(
+                                Capsule()
+                                    .fill(isSelected ? Theme.ink : Theme.surface)
+                                    .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 3)
+                            )
+                            .padding(.vertical, Self.hitSlop)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.pop)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -797,6 +825,7 @@ private struct HubCategoryChips: View {
             }
             .padding(.horizontal, Theme.pad)
         }
+        .scrollClipDisabled()
     }
 }
 
@@ -819,38 +848,6 @@ private struct HubEmptyStateView: View {
         .padding(Theme.pad)
         .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .contain)
-    }
-}
-
-/// 更新で増えたゲームがあるときだけハブ上部に出す1行（#723）。
-///
-/// 閉じるボタンは置かない。この起動のあいだだけ出て、次の起動では `PlayLog` が同じゲームを
-/// 「増えた」と返さないので自然に消える。
-private struct HubNewGamesNotice: View {
-    let message: String
-
-    var body: some View {
-        Label(message, systemImage: "sparkles")
-            .themeCaption(13)
-            .foregroundStyle(Theme.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Theme.pad)
-            .padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
-            .accessibilityElement(children: .combine)
-    }
-}
-
-/// 連続プレイ日数の 1 行（#1625）。カードにはせず、文字だけで控えめに出す。報酬・広告・通知には繋げない。
-private struct HubPlayStreakLine: View {
-    let text: String
-
-    var body: some View {
-        Label(text, systemImage: "flame.fill")
-            .themeCaption(13)
-            .foregroundStyle(Theme.inkSub)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
     }
 }
 
@@ -889,38 +886,5 @@ private struct HubHiddenNotice: View {
         .padding(.horizontal, Theme.pad)
         .popCard(corner: Theme.cornerSmall)
         .padding(Theme.pad)
-    }
-}
-
-private extension View {
-    /// 標準の（中央の）ナビゲーションタイトルを隠す。iOS 26 未満では何もしない。
-    @ViewBuilder
-    func hubHidesDefaultTitle() -> some View {
-        if #available(iOS 26.0, *) {
-            toolbar(removing: .title)
-        } else {
-            self
-        }
-    }
-}
-
-/// 左上に置くハブの見出し。iOS 26 の toolbar 項目に付くガラスの丸い背景は、文字には付けない。
-private struct HubTitleToolbarItem: ToolbarContent {
-    var body: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) { title }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) { title }
-            // 標準の中央タイトルは principal を空にして隠す（`toolbar(removing:)` は iOS 26 から）。
-            ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
-        }
-    }
-
-    private var title: some View {
-        Text(tr("あそびば"))
-            .scaledFont(28, weight: .heavy, maxScale: 1.3)
-            .fixedSize()
-            .accessibilityAddTraits(.isHeader)
     }
 }

@@ -72,6 +72,10 @@ struct HubCategoryTests {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/hubtile-\(id).imageset/hubtile-\(id).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(id) の絵（hubtile-\(id).png）が無い")
+            // 「つづき・最近」のアイコン（名前なしの絵・#2175）。
+            let thumb = SourceScan.repositoryRoot
+                .appendingPathComponent("App/Assets.xcassets/HubTiles/hubthumb-\(id).imageset/hubthumb-\(id).png")
+            #expect(FileManager.default.fileExists(atPath: thumb.path), "\(id) の小さい絵（hubthumb-\(id).png）が無い")
         }
     }
 

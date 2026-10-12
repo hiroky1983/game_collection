@@ -12,8 +12,8 @@ public enum HubCategory: String, CaseIterable, Hashable, Sendable {
     public var title: String {
         switch self {
         case .all: tr("すべて")
-        case .ojisan: tr("おじさん")
-        case .board: tr("盤")
+        case .ojisan: tr("おじさんシリーズ")
+        case .board: tr("盤ゲーム")
         case .cards: tr("トランプ")
         case .mahjongHanafuda: tr("麻雀・花札")
         case .puzzleOther: tr("パズル・その他")
