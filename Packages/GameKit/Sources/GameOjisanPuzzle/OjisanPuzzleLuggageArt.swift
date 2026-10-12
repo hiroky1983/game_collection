@@ -1,12 +1,82 @@
+import CoreGraphics
+import ImageIO
 import SwiftUI
 
 /// 荷物 5 種の絵（#1909。会長決定 2026-10-07/08: 色はぷよぷよに準えた 5 色、四角の中に絵ではなく
 /// **ピースそのものが荷物の形**に見えるようにする）。
 ///
+/// #2115（会長決定 2026-10-12）から、Codex 製の 24 ドット角のドット絵（`Resources/OjisanLuggage_*.png`・
+/// 1 ドット = 1px・透明背景。出所は docs/design/ojisan-pixel-pipeline）で描く。読み込みは `OjisanPuzzleArt` と同じ ImageIO。
+/// 1 ドットが画面の整数 px になる倍率（`pixelsPerDot`）で描き、マスの中央に置く（`interpolation(.none)` でにじませない）。
+/// 画像が読めなかったときだけ、以前の `Canvas` 図形（`OjisanPuzzleLuggageShape`）に退避する。
+///
 /// 形で見分けが付くので、色の見え方に個人差があっても 5 種を取り違えにくい。
+struct OjisanPuzzleLuggageArt: View {
+    /// 盤の番号（1...5）。範囲外は何も描かない。
+    let value: Int
+    /// マスの一辺（pt）。この中に収まる最大の整数倍率で描く。
+    let side: CGFloat
+
+    @Environment(\.displayScale) private var displayScale
+
+    /// ドット絵の一辺のドット数（素材は 24×24）。
+    static let dots = 24
+
+    /// 値ごとの素材名（1 = 座布団の山 … 5 = ビールケース）。
+    static func resourceName(_ value: Int) -> String? {
+        switch value {
+        case 1: "OjisanLuggage_1_zabuton"
+        case 2: "OjisanLuggage_2_suika"
+        case 3: "OjisanLuggage_3_coolerbox"
+        case 4: "OjisanLuggage_4_polytank"
+        case 5: "OjisanLuggage_5_beercase"
+        default: nil
+        }
+    }
+
+    /// GameKit は macOS でもビルドされる（`swift test`）ので UIImage は使わず ImageIO で読む。
+    static let images: [Int: CGImage] = {
+        var out: [Int: CGImage] = [:]
+        for value in 1...OjisanPuzzleBoard.kindCount {
+            if let name = resourceName(value),
+               let url = Bundle.module.url(forResource: name, withExtension: "png"),
+               let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+               let cg = CGImageSourceCreateImageAtIndex(src, 0, nil) {
+                out[value] = cg
+            }
+        }
+        return out
+    }()
+
+    /// 1 ドットを画面の何 px で描くか。`side` pt のマス（画面 px = side × displayScale）に `dots` ドットが収まる最大の整数。
+    /// マスが小さすぎても 1 px は確保する（0 にしない）。
+    static func pixelsPerDot(side: CGFloat, dots: Int, displayScale: CGFloat) -> Int {
+        guard side > 0, dots > 0, displayScale > 0 else { return 1 }
+        return max(1, Int((side * displayScale / CGFloat(dots)).rounded(.down)))
+    }
+
+    var body: some View {
+        // 1 ドット 1px でも収まらない小さなマスでは、画像がはみ出すので図形に退避する。
+        if let cg = Self.images[value], side > 0,
+           side * max(1, displayScale) >= CGFloat(max(cg.width, cg.height)) {
+            let scale = max(1, displayScale)
+            let dotPt = CGFloat(Self.pixelsPerDot(side: side, dots: max(cg.width, cg.height), displayScale: scale)) / scale
+            Image(decorative: cg, scale: 1)
+                .resizable()
+                .interpolation(.none)
+                .frame(width: CGFloat(cg.width) * dotPt, height: CGFloat(cg.height) * dotPt)
+                .frame(width: side, height: side)
+        } else {
+            OjisanPuzzleLuggageShape(value: value)
+                .frame(width: max(0, side), height: max(0, side))
+        }
+    }
+}
+
+/// 荷物の Canvas 図形（#1909 の旧デザイン）。ドット絵が読めなかったときの退避にだけ使う（#2115）。
 /// 図形を `Shape` の ZStack で積むと iOS で潰れることがあるため、`Canvas` 1 枚に描く。
 /// 寸法は 1 マスを 1×1 とした比で持ち、`side` が変わっても（盤 30pt 前後・「つぎ」26pt）同じ形に描ける。
-struct OjisanPuzzleLuggageArt: View {
+struct OjisanPuzzleLuggageShape: View {
     /// 盤の番号（1...5）。範囲外は何も描かない。
     let value: Int
 
