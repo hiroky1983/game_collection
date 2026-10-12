@@ -23,9 +23,6 @@ in-progress Packages/GameKit/Sources/GameDaifugo/* #2166 大富豪
 in-progress Packages/GameKit/Sources/GameHomerun/* #2167 柵越えおじさん
 in-progress Packages/GameKit/Sources/HomerunCore/* #2167 柵越えおじさん
 in-progress Packages/GameKit/Sources/GameRunner/* #2167 チャリンコおじさん
-# 多言語⑤: 数字・単位・記録の表示
-in-progress Packages/GameKit/Sources/CoreEngine/PlayRecord.swift #2168 記録の表示
-in-progress Packages/GameKit/Sources/CoreEngine/PlayLog.swift #2168 記録の区分名（保存済みの旧表示名の読み替え）
 # 遊び方の書き直し（#2044・当番）→ 英語化は多言語②（#2165）
 in-progress Packages/GameKit/Sources/Core/HowToPlay.swift #2044 遊び方の本文
 in-progress Packages/GameKit/Sources/Core/Rule*.swift #2044 遊び方の図の部品
