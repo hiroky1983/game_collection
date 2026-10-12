@@ -394,6 +394,11 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 - `.github/workflows/ci.yml` が push / PR で `swift test --package-path Packages/GameKit` とアプリの署名なしビルドを実行。
 - GameKit は macOS プラットフォームを含むため、シミュレータ不要で高速にテストできる。
 - 実行環境は **GitHub ホステッド macOS ランナー**（パブリックリポジトリのため無料。2026-08-10 に self-hosted から変更）。
+- **UI テスト（XCUITest）は持たない**（#2046・2026-10-12）。`GameCollectionUITests`（ホームラン E2E 4 本）は CI にも
+  fastlane にも繋がっておらず、手元で試走したところ全 4 本が失敗（ボタン名「打席に立つ」が「打席に立つ。今日の残り N 回」に
+  変わっていた）。会長の「使いどころないなら消す」を受けてターゲットごと削除した（コード PR は release/v1.1.12）。
+  画面の確認は起動引数（`-startGame` 等）＋シミュレータのスクリーンショットで行う。
+- 将棋の自己対戦などの重い検証は通常の PR の CI とは別枠（nightly・#1737）で回す。
 
 ### 実装ループ（Phase 2・ローカル当番方式）
 
