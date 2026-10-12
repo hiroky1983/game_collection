@@ -470,6 +470,9 @@ struct HubView: View {
             .onOpenURL { url in
                 let openable = Set(settings.visibleModules(from: registry).map(\.id))
                 guard case .game(let id) = DeepLink.destination(for: url, openableGameIDs: openable) else { return }
+                // 「きろく」を閉じる途中に届いたら、閉じた後に予約していた遷移・案内より URL を優先する。
+                opensGameAfterRecords = nil
+                opensGameCenterAfterRecords = false
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(

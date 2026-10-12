@@ -37,7 +37,8 @@ final class DeepLinkE2ETests: XCTestCase {
     /// システムに URL を開かせ、出てきた確認の「開く」を押す。
     private func openViaSystem() {
         XCUIDevice.shared.system.open(Self.url)
-        let open = springboard.buttons["開く"]
+        // 端末の言語が英語なら「Open」。
+        let open = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["開く", "Open"])).firstMatch
         if open.waitForExistence(timeout: 5) { open.tap() }
     }
 
