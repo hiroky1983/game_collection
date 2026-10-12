@@ -55,14 +55,14 @@ extension RunnerView {
         // 「どこを走っているか」を、見えない人にも言葉で伝える。
         .accessibilityLabel(
             RunnerAccessibility.stageLabelWithWorld(number: model.stageNumber, total: RunnerRules.stageCount)
-                + "、" + stageHeadlineText
+                + tr("、") + stageHeadlineText
         )
     }
 
     /// ステージ制の進み具合。ゲージだけでは何のゲージか分からないので「ゴールまで」の見出しを添える。
     private var progressReadout: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            Text("ゴールまで")
+            Text(tr("ゴールまで"))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             progressBar
@@ -75,7 +75,7 @@ extension RunnerView {
     /// コースに終わりは無い（#1086）ので、進み具合という物差しそのものが無い。
     private var distanceReadout: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("走行距離")
+            Text(tr("走行距離"))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             shrinkingNumber(distanceText(model.distanceMeters), size: 22)
@@ -87,7 +87,7 @@ extension RunnerView {
     /// エンドレスの自己ベスト（走行距離）。走りながら「あとどれだけで更新か」を読めるように残す。
     private var endlessBestReadout: some View {
         VStack(alignment: .trailing, spacing: 2) {
-            Text("自己ベスト")
+            Text(tr("自己ベスト"))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             shrinkingNumber(model.endlessBestDistance.map(distanceText) ?? "–", size: 15, alignment: .trailing)
@@ -124,7 +124,7 @@ extension RunnerView {
     /// 進み具合と同じ形のゲージにして伸び縮みだけで伝える。
     private var speedMeter: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("スピード")
+            Text(tr("スピード"))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             GeometryReader { geo in
@@ -174,7 +174,7 @@ extension RunnerView {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pop)
-        .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
+        .accessibilityLabel(model.phase == .paused ? tr("再開") : tr("一時停止"))
         // 止めるものが無い状態では押せない（締めの演出中 `.story` も同じ・#1092）。
         .disabled(
             model.phase.isSettling || model.phase == .story || model.phase == .failed

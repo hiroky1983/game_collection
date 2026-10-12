@@ -32,7 +32,7 @@ struct HomerunRankEntry: Identifiable, Equatable {
 
     init(_ row: GameCenterBoardRow) {
         id = row.id
-        name = row.name.isEmpty ? "プレイヤー" : row.name
+        name = row.name.isEmpty ? tr("プレイヤー") : row.name
         meters = row.score
         rank = row.rank
         isMe = row.isMe
@@ -63,7 +63,7 @@ enum HomerunRankingPlan {
     static func entries(of board: GameCenterBoard) -> [HomerunRankEntry] {
         var result = board.rows.map(HomerunRankEntry.init)
         if !result.contains(where: \.isMe), let rank = board.myRank, let score = board.myScore {
-            result.append(HomerunRankEntry(id: "me", name: "あなた", meters: score, rank: rank, isMe: true))
+            result.append(HomerunRankEntry(id: "me", name: tr("あなた"), meters: score, rank: rank, isMe: true))
         }
         return result
     }
@@ -80,7 +80,7 @@ enum HomerunRankingPlan {
         let others = after.rows.filter { !$0.isMe }.map(HomerunRankEntry.init)
         let from = others.filter { $0.meters >= oldMeters }.count
         var entries = others
-        entries.insert(HomerunRankEntry(id: me.id, name: me.name.isEmpty ? "プレイヤー" : me.name,
+        entries.insert(HomerunRankEntry(id: me.id, name: me.name.isEmpty ? tr("プレイヤー") : me.name,
                                         meters: oldMeters, rank: from + 1, isMe: true), at: from)
         return HomerunRankingMotion(entries: entries, newMeters: newMeters, from: from, to: to)
     }
@@ -107,30 +107,47 @@ enum HomerunRankingText {
     static func moonNote(_ entry: HomerunRankEntry) -> String? {
         switch entry.moonCount {
         case 0: nil
-        case 1: "月まで飛んだ"
-        default: "月を割った"
+        case 1: tr("月まで飛んだ")
+        default: tr("月を割った")
         }
     }
 
     /// 「あと ◯ で ◯位」。上の人の記録を 1 m 上回る距離。
     static func gap(aboveMeters: Int, myMeters: Int, aboveRank: Int) -> String {
-        "あと \(distance(aboveMeters - myMeters + 1)) で \(aboveRank)位"
+        tr("あと %1$@ で %2$lld位", distance(aboveMeters - myMeters + 1), aboveRank)
+    }
+
+    /// 順位の数字のうしろに付ける語。日本語は「位」、英語は序数の語尾（1st・2nd・3rd・11th…）。
+    static func rankSuffix(_ rank: Int, language: AppLanguage? = nil) -> String {
+        let language = language ?? AppLanguageStore.shared.language
+        guard language == .english else { return tr("位", language: language) }
+        if (11...13).contains(rank % 100) { return "th" }
+        switch rank % 10 {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
+        }
     }
 
     /// 「10/5（月）〜 10/11（日）　あと 3 日」。終わりは `end` の 1 秒前の日付（次の週の始まりの前日）。
-    static func weekRange(start: Date?, end: Date?, now: Date, calendar: Calendar = .current) -> String? {
+    /// 曜日の呼び名は表示言語のもの（日本語「月」・英語「Mon」）。
+    static func weekRange(start: Date?, end: Date?, now: Date, calendar: Calendar = .current,
+                          language: AppLanguage? = nil) -> String? {
         guard let start, let end, end > start else { return nil }
+        let language = language ?? AppLanguageStore.shared.language
         var calendar = calendar
-        calendar.locale = Locale(identifier: "ja_JP")
+        calendar.locale = language.locale
         func day(_ d: Date) -> String {
             let c = calendar.dateComponents([.month, .day, .weekday], from: d)
             let weekday = calendar.shortWeekdaySymbols[(c.weekday ?? 1) - 1]
-            return "\(c.month ?? 0)/\(c.day ?? 0)（\(weekday)）"
+            return tr("%1$lld/%2$lld（%3$@）", c.month ?? 0, c.day ?? 0, weekday, language: language)
         }
-        var text = "\(day(start)) 〜 \(day(end.addingTimeInterval(-1)))"
+        var text = tr("%1$@ 〜 %2$@", day(start), day(end.addingTimeInterval(-1)), language: language)
         let remaining = end.timeIntervalSince(now)
         if remaining > 0 {
-            text += remaining < 86_400 ? "　今日まで" : "　あと \(Int(remaining / 86_400)) 日"
+            text += remaining < 86_400 ? tr("　今日まで", language: language)
+                : tr("　あと %lld 日", Int(remaining / 86_400), language: language)
         }
         return text
     }

@@ -27,9 +27,9 @@ struct HomerunRankingPage: View {
             VStack(spacing: 14) {
                 switch content {
                 case .loading:
-                    statusCard(icon: nil, text: "今週の順位を読み込んでいます")
+                    statusCard(icon: nil, text: tr("今週の順位を読み込んでいます"))
                 case .failed:
-                    statusCard(icon: "wifi.slash", text: "ランキングを取得できませんでした。通信状況を確かめて、次の挑戦のあとにもう一度ご覧ください")
+                    statusCard(icon: "wifi.slash", text: tr("ランキングを取得できませんでした。通信状況を確かめて、次の挑戦のあとにもう一度ご覧ください"))
                 case .ready(let board, let motion):
                     HomerunRankingBoardView(board: board, motion: motion)
                 }
@@ -67,8 +67,8 @@ struct HomerunRankingPage: View {
 
     private var notes: some View {
         VStack(spacing: 4) {
-            Text("毎週月曜 0:00 に切り替わります。1 人 1 件（その週の自己ベスト）。月まで飛んだ打球は 384,400 km として数えます")
-            Text("ランキングは予告なく終了する場合があります")
+            Text(tr("毎週月曜 0:00 に切り替わります。1 人 1 件（その週の自己ベスト）。月まで飛んだ打球は 384,400 km として数えます"))
+            Text(tr("ランキングは予告なく終了する場合があります"))
         }
         .themeCaption(11).foregroundStyle(Theme.inkSub)
         .multilineTextAlignment(.center)
@@ -86,10 +86,10 @@ struct HomerunRankingSignedOutPage: View {
             VStack(spacing: 14) {
                 VStack(spacing: 12) {
                     HomerunOjisanImageView().frame(width: 120, height: 120)
-                    Text("ランキングは Game Center に登録すると見られます")
+                    Text(tr("ランキングは Game Center に登録すると見られます"))
                         .themeBody(17, weight: .heavy).foregroundStyle(Theme.ink)
                         .multilineTextAlignment(.center)
-                    Text("週間ランキングは Game Center の仕組みを使っています。設定アプリで Game Center にサインインすると、次の挑戦から今週の順位が出ます。")
+                    Text(tr("週間ランキングは Game Center の仕組みを使っています。設定アプリで Game Center にサインインすると、次の挑戦から今週の順位が出ます。"))
                         .themeBody(13).foregroundStyle(Theme.inkSub)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -99,8 +99,8 @@ struct HomerunRankingSignedOutPage: View {
                 .popCard()
 
                 VStack(spacing: 4) {
-                    Text("毎週月曜 0:00 に切り替わります。1 人 1 件（その週の自己ベスト）")
-                    Text("ランキングは予告なく終了する場合があります")
+                    Text(tr("毎週月曜 0:00 に切り替わります。1 人 1 件（その週の自己ベスト）"))
+                    Text(tr("ランキングは予告なく終了する場合があります"))
                 }
                 .themeCaption(11).foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
@@ -179,13 +179,13 @@ struct HomerunRankingBoardView: View {
                 .scaledFont(26, weight: .bold)
                 .foregroundStyle(Theme.yellow)
             VStack(alignment: .leading, spacing: 3) {
-                Text("今週のランキング").themeBody(16).foregroundStyle(Theme.ink)
+                Text(tr("今週のランキング")).themeBody(16).foregroundStyle(Theme.ink)
                 if let range = HomerunRankingText.weekRange(start: board.start, end: board.end, now: Date()) {
                     Text(verbatim: range).themeCaption(12).foregroundStyle(Theme.inkSub)
                 }
             }
             Spacer(minLength: 0)
-            Label(String(board.participants) + " 人", systemImage: "person.2.fill")
+            Label(tr("%lld 人", board.participants), systemImage: "person.2.fill")
                 .labelStyle(ChipLabelStyle(fill: Theme.Fill.teal))
         }
         .padding(14)
@@ -198,12 +198,12 @@ struct HomerunRankingBoardView: View {
         if let myRank {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("今週のあなた").themeCaption(12).foregroundStyle(Theme.inkSub)
+                    Text(tr("今週のあなた")).themeCaption(12).foregroundStyle(Theme.inkSub)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(verbatim: "\(myRank)")
                             .scaledFont(46, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                             .contentTransition(.numericText(countsDown: true))
-                        Text("位").scaledFont(22, weight: .heavy, design: .rounded, maxScale: 1.2)
+                        Text(verbatim: HomerunRankingText.rankSuffix(myRank)).scaledFont(22, weight: .heavy, design: .rounded, maxScale: 1.2)
                         if arrived, let delta, delta > 0 {
                             ChipText(text: "↑ \(delta)", fill: Theme.Fill.pink)
                                 .padding(.leading, 8)
@@ -218,7 +218,7 @@ struct HomerunRankingBoardView: View {
                 Spacer(minLength: 0)
                 VStack(alignment: .trailing, spacing: 6) {
                     if let lastWeek = board.lastWeekRank {
-                        Text(verbatim: "先週は \(lastWeek)位").themeCaption(12).foregroundStyle(Theme.inkSub)
+                        Text(verbatim: tr("先週は %lld位", lastWeek)).themeCaption(12).foregroundStyle(Theme.inkSub)
                     }
                     if !arrived {
                         Text(verbatim: " ").themeCaption(13)
@@ -227,7 +227,7 @@ struct HomerunRankingBoardView: View {
                             .themeCaption(13).foregroundStyle(Theme.coral)
                             .multilineTextAlignment(.trailing)
                     } else if myRank == 1 {
-                        Text("今週の 1 位！").themeCaption(13).foregroundStyle(Theme.coral)
+                        Text(tr("今週の 1 位！")).themeCaption(13).foregroundStyle(Theme.coral)
                     }
                 }
             }
@@ -237,7 +237,7 @@ struct HomerunRankingBoardView: View {
                 .strokeBorder(Theme.Fill.coral, lineWidth: 2))
         } else {
             HStack {
-                Text("今週はまだ記録がありません").themeBody(15).foregroundStyle(Theme.inkSub)
+                Text(tr("今週はまだ記録がありません")).themeBody(15).foregroundStyle(Theme.inkSub)
                 Spacer(minLength: 0)
             }
             .padding(14)
@@ -339,7 +339,7 @@ struct HomerunRankRow: View {
                     Text(verbatim: entry.name).themeBody(15, weight: .heavy).foregroundStyle(Theme.ink)
                         .lineLimit(1)
                     if entry.isMe {
-                        Text("あなた").themeCaption(10)
+                        Text(tr("あなた")).themeCaption(10)
                             .foregroundStyle(Theme.onAccent)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Capsule().fill(Theme.Fill.coral))

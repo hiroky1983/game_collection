@@ -25,9 +25,9 @@ struct HomerunHubHeroInfo {
     var bestText: String? { bestMeters.map { HomerunText.meters($0) } }
 
     func accessibilityLabel(description: String) -> String {
-        var parts = ["柵越えおじさん", description, "体験版", "今日の挑戦 残り \(remaining) 回"]
-        if let bestText { parts.append("自己ベスト \(bestText)") }
-        return parts.joined(separator: "、")
+        var parts = [tr("柵越えおじさん"), description, tr("体験版"), tr("今日の挑戦 残り %lld 回", remaining)]
+        if let bestText { parts.append(tr("自己ベスト %@", bestText)) }
+        return parts.joined(separator: tr("、"))
     }
 }
 
@@ -46,7 +46,7 @@ public struct HomerunHubHeroCard: View {
         HomerunHeroLogoImageCard(info: info, description: description)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(info.accessibilityLabel(description: description))
-            .accessibilityHint("柵越えおじさんを開きます")
+            .accessibilityHint(tr("柵越えおじさんを開きます"))
     }
 }
 
@@ -57,7 +57,7 @@ public struct HomerunHubHeroCard: View {
 /// 文字と面のコントラスト比は 7.1:1（WCAG AA の 4.5:1 以上）。文字は Dynamic Type に追従し、拡大は 1.3 倍まで。
 struct HomerunHeroTrialBadge: View {
     var body: some View {
-        Label("体験版", systemImage: "sparkles")
+        Label(tr("体験版"), systemImage: "sparkles")
             .themeCaption(15, weight: .heavy, maxScale: 1.3)
             .foregroundStyle(Color.white)
             .padding(.horizontal, 12).padding(.vertical, 5)
@@ -108,7 +108,7 @@ struct HomerunHeroCompactPill: View {
             HomerunHeroCountDots(allowance: info.allowance, remaining: info.remaining, size: adaptive.scaled(12),
                                  dim: Color(hex: Theme.Hex.inkSub.light).opacity(0.35))
             if let best = info.bestText {
-                Text("・")
+                Text(tr("・"))
                     .themeCaption(adaptive.scaled(11))
                     .foregroundStyle(Color(hex: Theme.Hex.inkSub.light))
                 Label(best, systemImage: "chart.bar.fill")

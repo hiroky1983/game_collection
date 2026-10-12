@@ -50,14 +50,14 @@ struct RunnerWorldMap: View {
                 Circle()
                     .fill(Theme.inkSub.opacity(0.4))
                     .frame(width: 10, height: 10)
-                Text("？？？")
+                Text(tr("？？？"))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .scaledFont(12, weight: .bold)
-                Text("つづく…")
+                Text(tr("つづく…"))
                     .scaledFont(13, weight: .bold, design: .rounded)
             }
             .foregroundStyle(Theme.inkSub)
@@ -70,7 +70,7 @@ struct RunnerWorldMap: View {
             )
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("まだ見ぬ世界が続く予定です")
+        .accessibilityLabel(tr("まだ見ぬ世界が続く予定です"))
     }
 
     private func worldHeader(_ world: RunnerWorld) -> some View {
@@ -78,7 +78,7 @@ struct RunnerWorldMap: View {
             Circle()
                 .fill(Color(hex: world.mapColor))
                 .frame(width: 10, height: 10)
-            Text("ワールド \(world.number)")
+            Text(tr("ワールド %lld", world.number))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(world.displayName)

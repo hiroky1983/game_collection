@@ -93,39 +93,39 @@ public enum HomerunAchievement: String, CaseIterable, Sendable {
     /// 解除したあとに見せる名前。
     public var title: String {
         switch self {
-        case .firstHomer: "はじめての柵越え"
-        case .outOfPark: "場外ホームラン"
-        case .poleHit: "ポール直撃"
-        case .moon: "月まで飛ばした"
-        case .moonBroken: "月を割った"
-        case .allTenHomers: "10球すべて柵越え"
-        case .justMeet: "ジャストミート"
-        case .whiffSpin: "回って倒れた"
-        case .tankobu: "ゴツン！"
-        case .farTotal1000, .farTotal: "1 挑戦で \(Self.meters(challengeMeters ?? 0))"
+        case .firstHomer: tr("はじめての柵越え")
+        case .outOfPark: tr("場外ホームラン")
+        case .poleHit: tr("ポール直撃")
+        case .moon: tr("月まで飛ばした")
+        case .moonBroken: tr("月を割った")
+        case .allTenHomers: tr("10球すべて柵越え")
+        case .justMeet: tr("ジャストミート")
+        case .whiffSpin: tr("回って倒れた")
+        case .tankobu: tr("ゴツン！")
+        case .farTotal1000, .farTotal: tr("1 挑戦で %@", Self.meters(challengeMeters ?? 0))
         case .career3000, .career5000, .career8000, .career10000, .career50000, .career100000:
-            "通算 \(Self.meters(careerMeters ?? 0))"
-        case .careerHomers10, .careerHomers30, .careerHomers50, .careerHomers100: "通算 柵越え \(careerHomers ?? 0)本"
+            tr("通算 %@", Self.meters(careerMeters ?? 0))
+        case .careerHomers10, .careerHomers30, .careerHomers50, .careerHomers100: tr("通算 柵越え %lld本", careerHomers ?? 0)
         }
     }
 
     /// 解除したあとに見せる条件。
     public var detail: String {
         switch self {
-        case .firstHomer: "柵を越える打球を初めて打った"
-        case .outOfPark: "スタンドの最後列まで越えて場外へ飛ばした"
-        case .poleHit: "ファウルポールに当てて柵を越えた"
-        case .moon: "打球が月まで届いた"
-        case .moonBroken: "同じ挑戦で月に 2 回当てて、月を割った"
-        case .allTenHomers: "1 挑戦の 10 球をすべて柵越えにした"
-        case .justMeet: "タイミングも芯もぴったりでとらえた"
-        case .whiffSpin: "空振りの勢いで回って倒れた"
-        case .tankobu: "打ち上げた球が自分の頭に落ちてきた"
-        case .farTotal1000, .farTotal: "1 挑戦の合計飛距離が \(Self.meters(challengeMeters ?? 0)) を超えた"
+        case .firstHomer: tr("柵を越える打球を初めて打った")
+        case .outOfPark: tr("スタンドの最後列まで越えて場外へ飛ばした")
+        case .poleHit: tr("ファウルポールに当てて柵を越えた")
+        case .moon: tr("打球が月まで届いた")
+        case .moonBroken: tr("同じ挑戦で月に 2 回当てて、月を割った")
+        case .allTenHomers: tr("1 挑戦の 10 球をすべて柵越えにした")
+        case .justMeet: tr("タイミングも芯もぴったりでとらえた")
+        case .whiffSpin: tr("空振りの勢いで回って倒れた")
+        case .tankobu: tr("打ち上げた球が自分の頭に落ちてきた")
+        case .farTotal1000, .farTotal: tr("1 挑戦の合計飛距離が %@ を超えた", Self.meters(challengeMeters ?? 0))
         case .career3000, .career5000, .career8000, .career10000, .career50000, .career100000:
-            "これまでの飛距離の合計が \(Self.meters(careerMeters ?? 0)) に届いた"
+            tr("これまでの飛距離の合計が %@ に届いた", Self.meters(careerMeters ?? 0))
         case .careerHomers10, .careerHomers30, .careerHomers50, .careerHomers100:
-            "これまでに柵越えを \(careerHomers ?? 0) 本打った"
+            tr("これまでに柵越えを %lld 本打った", careerHomers ?? 0)
         }
     }
 
