@@ -12,7 +12,7 @@ struct OjisanPuzzleSetupSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        GameSetupSheet(kind: .solo, onStart: onStart, onCancel: onCancel) {
+        GameSetupSheet(kind: .solo, howToPlay: howToPlay, onStart: onStart, onCancel: onCancel) {
             GameSetupSection("遊び方") {
                 HStack(spacing: 12) {
                     ForEach(OjisanPuzzleMode.allCases) { option in
@@ -34,6 +34,23 @@ struct OjisanPuzzleSetupSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    /// 選んでいるモードの図入りの遊び方（会長指示 2026-10-12「荷運びモードが分からない」）。
+    /// ヘッダーの「？」と同じ中身を開く。閉じると開始シートに戻り、選んだモードはそのまま。
+    private var howToPlay: GameSetupHowToPlay {
+        GameSetupHowToPlay(mode.howToPlayGuide, label: "\(mode.title)の遊び方を見る")
+    }
+}
+
+extension OjisanPuzzleMode {
+    /// このモードの図入りの遊び方。ヘッダーの「？」と開始シートの「遊び方を見る」で同じものを開く。
+    @MainActor
+    var howToPlayGuide: HowToPlayGuide {
+        switch self {
+        case .backpain: .ojisanPuzzleBackpain.illustrated(OjisanPuzzleHowToFigures.backpain)
+        case .puzzle: .ojisanPuzzlePuzzle.illustrated(OjisanPuzzleHowToFigures.puzzle)
         }
     }
 }

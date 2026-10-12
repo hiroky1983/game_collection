@@ -175,12 +175,7 @@ public struct OjisanPuzzleView: View {
     }
 
     /// 「？」の遊び方。遊んでいるモードに合わせて文言・図を出し分ける（会長指示 2026-10-12）。
-    private var howToPlayGuide: HowToPlayGuide {
-        switch model.mode {
-        case .backpain: .ojisanPuzzleBackpain.illustrated(OjisanPuzzleHowToFigures.backpain)
-        case .puzzle: .ojisanPuzzlePuzzle.illustrated(OjisanPuzzleHowToFigures.puzzle)
-        }
-    }
+    private var howToPlayGuide: HowToPlayGuide { model.mode.howToPlayGuide }
 
     // MARK: - 見出し（荷運びモード: 腰痛ゲージ／パズルモード: スコア・連鎖）
 

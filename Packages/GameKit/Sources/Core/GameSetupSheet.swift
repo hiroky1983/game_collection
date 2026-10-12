@@ -19,7 +19,9 @@ public struct GameSetupSheet<Content: View>: View {
     private let spacing: CGFloat
     private let onStart: () -> Void
     private let onCancel: () -> Void
+    private let howToPlay: GameSetupHowToPlay?
     private let content: Content
+    @State private var showsHowToPlay = false
 
     /// - Parameters:
     ///   - kind: 対戦か一人用か。題名と開始ボタンの文言はこれで決まる。
@@ -27,11 +29,15 @@ public struct GameSetupSheet<Content: View>: View {
     ///     「終了してスタート」のような確認の文言になる（誤って押して進行を失わないため）。
     ///   - startTint: 開始ボタンの面色。上に載る文字は `Theme.onAccent` 固定（#220）。
     ///   - spacing: 節と節の間隔。
+    ///   - howToPlay: 開始ボタンの上に「遊び方を見る」ボタンを出すときに渡す（任意）。押すと図入りの
+    ///     遊び方シートが開き、閉じると開始シートに戻る（選択中の値はそのまま）。既定は `nil`（出さない）で、
+    ///     渡さないゲームの見た目は変わらない（おじさんの荷物運びパズル・会長指示 2026-10-12）。
     public init(
         kind: GameSetupKind,
         discardsProgress: Bool = false,
         startTint: Color = Theme.Fill.coral,
         spacing: CGFloat = 24,
+        howToPlay: GameSetupHowToPlay? = nil,
         onStart: @escaping () -> Void,
         onCancel: @escaping () -> Void,
         @ViewBuilder content: () -> Content
@@ -42,6 +48,7 @@ public struct GameSetupSheet<Content: View>: View {
         self.spacing = spacing
         self.onStart = onStart
         self.onCancel = onCancel
+        self.howToPlay = howToPlay
         self.content = content()
     }
 
@@ -56,6 +63,11 @@ public struct GameSetupSheet<Content: View>: View {
         }
         .popBackground()
         .presentationDetents([.large])
+        // 遊び方は開始シートの上に重ねて開く。閉じれば開始シートに戻り、選んだ値は保たれる。
+        // 高さは `HowToPlaySheet` 自身が large 固定にしている（#2096）。
+        .sheet(isPresented: $showsHowToPlay) {
+            if let howToPlay { HowToPlaySheet(guide: howToPlay.guide) }
+        }
     }
 
     private var header: some View {
@@ -85,12 +97,27 @@ public struct GameSetupSheet<Content: View>: View {
                 .padding(Theme.pad)
         }
         .safeAreaInset(edge: .bottom) {
-            startButton
+            VStack(spacing: 10) {
+                if let howToPlay { howToPlayButton(howToPlay) }
+                startButton
+            }
                 .padding(.horizontal, Theme.pad)
                 .padding(.top, 12)
                 .padding(.bottom, Theme.pad)
                 .background(.regularMaterial)
         }
+    }
+
+    /// 「遊び方を見る」ボタン。開始ボタンのすぐ上に固定し、スクロールしなくても目に入るようにする
+    /// （初めて開いた人が、始める前にルールを確かめられるように）。開始ボタンより控えめな淡い面の形。
+    private func howToPlayButton(_ howToPlay: GameSetupHowToPlay) -> some View {
+        Button { showsHowToPlay = true } label: {
+            Label(howToPlay.label, systemImage: "book.fill")
+                .themeBody(16)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered).controlSize(.large).tint(startTint)
     }
 
     private var startButton: some View {
@@ -99,6 +126,20 @@ public struct GameSetupSheet<Content: View>: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.borderedProminent).controlSize(.large).tint(startTint)
+    }
+}
+
+/// 開始シートに出す「遊び方を見る」ボタンの中身（`GameSetupSheet(howToPlay:)`）。
+///
+/// モードによってルールが違うゲームは、いま選んでいるモードの遊び方と文言を渡す
+/// （例:「荷運びモードの遊び方を見る」）。
+public struct GameSetupHowToPlay {
+    public let guide: HowToPlayGuide
+    public let label: String
+
+    public init(_ guide: HowToPlayGuide, label: String = "遊び方を見る") {
+        self.guide = guide
+        self.label = label
     }
 }
 
