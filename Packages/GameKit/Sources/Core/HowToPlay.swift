@@ -91,7 +91,15 @@ public extension HowToPlayGuide {
             tr("動かせなくなる前に 2048 のタイルを作れたらクリアです。"),
         ],
         hint: tr("スワイプで動かそう"),
-        hintIcon: "hand.draw.fill"
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem(tr("スワイプすると、すべてのタイルがその向きへ寄ります。")),
+            HowToPlayItem(tr("同じ数字どうしがぶつかると合体して 2 倍になります。")),
+            HowToPlayItem(tr("2048 のタイルを作れたらクリアです。")),
+        ],
+        notes: [
+            tr("動かすたびに、空いたマスに新しいタイルが 1 枚出ます。どこにも動かせなくなったら終わりです。"),
+        ]
     ) }
 
     static var shogi: HowToPlayGuide { HowToPlayGuide(
@@ -184,7 +192,16 @@ public extension HowToPlayGuide {
             tr("数字と同じ数だけ旗を立てたら、その数字をタップして周囲をまとめて開けます。地雷以外をすべて開けたらクリアです。"),
         ],
         hint: tr("長押しで旗を立てられる"),
-        hintIcon: "flag.fill"
+        hintIcon: "flag.fill",
+        items: [
+            HowToPlayItem(tr("マスをタップして開きます。数字はまわり 8 マスにある地雷の数です。")),
+            HowToPlayItem(tr("地雷がありそうなマスは、長押しで旗を立てられます。")),
+            HowToPlayItem(tr("数字と同じ数だけ旗を立てたら、その数字をタップしてまわりをまとめて開けます。")),
+            HowToPlayItem(tr("地雷以外のマスをすべて開けたらクリアです。")),
+        ],
+        notes: [
+            tr("旗を立てたマスはタップしても開きません。"),
+        ]
     ) }
 
     static var othello: HowToPlayGuide { HowToPlayGuide(
@@ -263,7 +280,26 @@ public extension HowToPlayGuide {
         ]
     ) }
 
-    static var shiritori: HowToPlayGuide { HowToPlayGuide(
+    /// カードしりとりのノルマ（いつもの遊び方）。とことんは `.shiritoriEndless`（`gameID` が同じなので `all` には
+    /// 入れない。五目並べの禁じ手と同じ作法）。「？」と開始シートは遊び方で出し分ける（#2044）。
+    static var shiritori: HowToPlayGuide { shiritori(
+        goal: tr("取った札がノルマの枚数に届いたら勝ち。届かないまま時間切れになると負けです。"),
+        notes: [
+            tr("ノルマは かんたん 4 枚・ふつう 6 枚・むずかしい 9 枚です。"),
+            tr("「ん」で終わる読みの札を選ぶと、その場で負けです。"),
+        ]
+    ) }
+
+    /// カードしりとりのとことん（ノルマなし）。
+    static var shiritoriEndless: HowToPlayGuide { shiritori(
+        goal: tr("ノルマは無く、札が尽きるまで続きます。全部の札を取りきればパーフェクトで勝ち。"),
+        notes: [
+            tr("札を取った場所には、山札から新しい札が出ます。時間切れは負けです。"),
+            tr("「ん」で終わる読みの札を選ぶと、その場で負けです。"),
+        ]
+    ) }
+
+    private static func shiritori(goal: String, notes: [String]) -> HowToPlayGuide { HowToPlayGuide(
         gameID: "shiritori",
         title: tr("カードしりとりの遊び方"),
         lines: [
@@ -272,7 +308,15 @@ public extension HowToPlayGuide {
             tr("CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。「とことん」はノルマが無く、札が尽きるまで続きます（取った場所には山札から新しい札が出ます）。全部の札を取りきればパーフェクトで勝ちです。"),
         ],
         hint: tr("最後の字から始まる札を取ろう"),
-        hintIcon: "textformat.abc"
+        hintIcon: "textformat.abc",
+        items: [
+            HowToPlayItem(goal),
+            HowToPlayItem(tr("場の札の読みの最後の字から始まる札を選んで取ります。")),
+            HowToPlayItem(tr("取った札が新しい場の札になり、CPU の番になります。")),
+            HowToPlayItem(tr("制限時間は 60 秒。しりとりが成立すると +10 秒、成立しない札を選ぶと -5 秒。")),
+            HowToPlayItem(tr("CPU が続けられなくなったら勝ち、あなたが続けられなくなったら負けです。")),
+        ],
+        notes: notes
     ) }
 
     static var daifugo: HowToPlayGuide { HowToPlayGuide(
@@ -355,7 +399,13 @@ public extension HowToPlayGuide {
             tr("空いているマスをすべて埋めたらクリアです。"),
         ],
         hint: tr("マスを選んで数字を入れよう"),
-        hintIcon: "square.grid.3x3"
+        hintIcon: "square.grid.3x3",
+        items: [
+            HowToPlayItem(tr("マスをタップして選び、下の数字パッドで 1〜9 を入れます。")),
+            HowToPlayItem(tr("たての列・よこの行・太線の 3×3 のどれにも、同じ数字は 1 つまでです。")),
+            HowToPlayItem(tr("空いているマスをすべて埋めたらクリアです。")),
+        ],
+        notes: []
     ) }
 
     static var go: HowToPlayGuide { HowToPlayGuide(
@@ -454,7 +504,17 @@ public extension HowToPlayGuide {
             tr("ときどき落ちてくるアイテムをパドルで受けると、パドルが伸びたり球が増えたりします。壊せるブロックを全部消すと次のステージへ。盤の球をすべて落とすと 1 ミスで、3 回で終わりです。"),
         ],
         hint: tr("盤の下で指を横に動かしてパドルを操作"),
-        hintIcon: "hand.draw.fill"
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem(tr("指を横に動かした分だけパドルが動きます。タップで球が飛び出します。")),
+            HowToPlayItem(tr("球をはね返してブロックに当てます。灰色のブロックは壊れません。")),
+            HowToPlayItem(tr("落ちてくるアイテムをパドルで受けると、パドルが伸びたり球が増えたりします。")),
+            HowToPlayItem(tr("壊せるブロックを全部消すと次のステージへ進みます。")),
+            HowToPlayItem(tr("盤の球をすべて落とすと 1 ミス。3 回ミスで終わりです。")),
+        ],
+        notes: [
+            tr("指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。"),
+        ]
     ) }
 
     /// チャリンコおじさんのステージ制（いつもの遊び方）。エンドレスは `.runnerEndless`（`gameID` が同じなので
@@ -532,7 +592,15 @@ public extension HowToPlayGuide {
             tr("1〜15 を左上から順に並べたらクリアです。手数が少ないほど良い記録です。"),
         ],
         hint: tr("空白の隣をタップで動く"),
-        hintIcon: "square.grid.4x3.fill"
+        hintIcon: "square.grid.4x3.fill",
+        items: [
+            HowToPlayItem(tr("空白の隣にあるタイルをタップすると、空白へスライドします。")),
+            HowToPlayItem(tr("空白と同じ列・行のタイルをタップすると、間のタイルをまとめて動かせます。")),
+            HowToPlayItem(tr("1〜15 を左上から順に並べたらクリアです。")),
+        ],
+        notes: [
+            tr("手数が少ないほど良い記録です。"),
+        ]
     ) }
 
     static var roulette: HowToPlayGuide { HowToPlayGuide(
@@ -580,7 +648,16 @@ public extension HowToPlayGuide {
             tr("右上の「難易度」で桁数・個数・速さをそれぞれ選べます。まずは 1 桁・5 個から。"),
         ],
         hint: tr("出た数をぜんぶ足そう"),
-        hintIcon: "sum"
+        hintIcon: "sum",
+        items: [
+            HowToPlayItem(tr("数が 1 つずつ、パッと出ては消えます。")),
+            HowToPlayItem(tr("出た数を、頭の中でぜんぶ足していきましょう。")),
+            HowToPlayItem(tr("最後の数が消えたら、合計をテンキーで入力して「決定」。")),
+            HowToPlayItem(tr("右上の「難易度」で、桁数・個数・速さをそれぞれ選べます。")),
+        ],
+        notes: [
+            tr("正解すると連続正解が伸びます。まずは 1 桁・5 個から。"),
+        ]
     ) }
 
     static var backgammon: HowToPlayGuide { HowToPlayGuide(

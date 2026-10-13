@@ -68,6 +68,17 @@
         }
       }
     },
+    "まとめて動く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They slide together"
+          }
+        }
+      }
+    },
     "もう一度" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -230,6 +241,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Highlights the tile to move next"
+          }
+        }
+      }
+    },
+    "空白の隣をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap next to the gap"
           }
         }
       }

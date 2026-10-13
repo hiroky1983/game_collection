@@ -35,7 +35,7 @@ public struct FifteenView: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(.fifteen)
+        .howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))
         .rewardedRescueAlerts(
             hintRescue,
             notEarned: tr("ヒントを使えませんでした"),

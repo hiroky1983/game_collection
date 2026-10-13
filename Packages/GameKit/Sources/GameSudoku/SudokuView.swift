@@ -83,7 +83,7 @@ public struct SudokuView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.sudoku)
+        .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             SudokuNewGameSheet { difficulty in
                 showNewGame = false

@@ -65,7 +65,8 @@ public struct ShiritoriView: View {
             }
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
-        .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
+        // 「？」は遊んでいる遊び方（ノルマ・とことん）に合わせて出し分ける（#2044）。
+        .howToPlay(model.mode.howToPlayGuide, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
         .sheet(isPresented: $showSetup) {
             ShiritoriSetupSheet(quota: model.quota, mode: model.mode) { quota, mode in
                 model.startGame(quota: quota, mode: mode)
@@ -478,6 +479,8 @@ struct ShiritoriCardTile: View {
 struct ShiritoriSetupSheet: View {
     @State private var quota: ShiritoriQuota
     @State private var mode: ShiritoriMode
+    /// 番の交代・制限時間・勝ち負けの説明を開いているか。遊び方を切り替えても開閉はそのまま。
+    @State private var showsDetails = false
     let onStart: (ShiritoriQuota, ShiritoriMode) -> Void
     let onCancel: () -> Void
 
@@ -519,7 +522,51 @@ struct ShiritoriSetupSheet: View {
             if mode == .quota {
                 difficultySection
             }
+            // 選んでいる遊び方のルールの要点を、図つきでそのまま並べる（#2044。荷物運びパズルの開始シート #2132 と
+            // 同じ型・会長指示「遷移リンクを貼るだけでは駄目」）。カードは「？」の遊び方シートと同じ部品。
+            GameSetupSection(tr("%@のルール", mode.label)) {
+                VStack(spacing: 10) {
+                    ForEach(Array(mode.setupKeyItems.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    detailsToggle
+                    if showsDetails {
+                        ForEach(Array(mode.setupDetailItems.enumerated()), id: \.offset) { _, item in
+                            HowToPlayItemCard(item)
+                        }
+                        let notes = mode.howToPlayGuide.notes
+                        if !notes.isEmpty { HowToPlayNotesCard(notes) }
+                    }
+                }
+                // 遊び方を切り替えたら、前の遊び方の図を引きずらずに丸ごと描き直す。
+                .id(mode)
+            }
         }
+    }
+
+    /// 番の交代・制限時間・勝ち負けの説明を開閉する行。別画面へは移らず、この場で下に広げる（荷物運びパズルと同じ）。
+    private var detailsToggle: some View {
+        Button {
+            withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
+        } label: {
+            HStack {
+                Label(tr("制限時間・勝ち負けのくわしい説明"), systemImage: "timer")
+                    .themeBody(15)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .scaledFont(13, weight: .bold)
+                    .foregroundStyle(Theme.inkSub)
+                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard(corner: Theme.cornerSmall)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 
     private var difficultySection: some View {

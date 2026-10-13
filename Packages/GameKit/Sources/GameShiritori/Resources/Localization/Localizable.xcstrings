@@ -56,6 +56,17 @@
         }
       }
     },
+    "%@のルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Rules"
+          }
+        }
+      }
+    },
     "%lldびょう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -97,6 +108,28 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "CPU が続けられない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU can't continue"
+          }
+        }
+      }
+    },
+    "CPU の番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU's turn"
           }
         }
       }
@@ -251,6 +284,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Whoever picks a card whose reading ends with “%@” loses on the spot."
+          }
+        }
+      }
+    },
+    "「ご」で始まる札を取る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a card starting with “go”"
           }
         }
       }
@@ -564,6 +608,17 @@
         }
       }
     },
+    "全部取りきればパーフェクト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take them all for a Perfect"
+          }
+        }
+      }
+    },
     "制限時間" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -586,6 +641,28 @@
         }
       }
     },
+    "制限時間・勝ち負けのくわしい説明" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More on time & winning"
+          }
+        }
+      }
+    },
+    "勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win"
+          }
+        }
+      }
+    },
     "勝ち負け" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -593,6 +670,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Winning and losing"
+          }
+        }
+      }
+    },
+    "取った札がノルマに届けば勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reach the goal to win"
+          }
+        }
+      }
+    },
+    "場の札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card in play"
           }
         }
       }
@@ -648,6 +747,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The game ended while the ad was playing, so no time could be added."
+          }
+        }
+      }
+    },
+    "新しい場の札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New card in play"
           }
         }
       }
@@ -813,6 +923,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    },
+    "閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
+          }
+        }
+      }
+    },
+    "開いている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
           }
         }
       }

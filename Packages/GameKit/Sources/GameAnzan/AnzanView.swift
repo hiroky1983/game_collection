@@ -53,7 +53,7 @@ public struct AnzanView: View {
                 .disabled(model.phase == .flashing || replayRescue.isWatching)
             }
         }
-        .howToPlay(.anzan, onPresent: {
+        .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items), onPresent: {
             // 数が出ているあいだに読むと出題が進んで誤答になるので、止めて頭から出し直す。
             showHowToPlay = true
             model.pauseDisplay()
