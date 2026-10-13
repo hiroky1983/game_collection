@@ -109,7 +109,8 @@ public struct HomerunView: View {
     @ViewBuilder private var rankingPage: some View {
         let next = { withGameAnimation { rankingSeen = true; rankingReopened = false } }
         let title = rankingReopened ? tr("結果に戻る") : tr("結果を見る")
-        HomerunWeeklyRankingScreen(state: model.weekly, animates: !rankingReopened, nextTitle: title, onNext: next)
+        HomerunWeeklyRankingScreen(state: model.weekly, animates: !rankingReopened, nextTitle: title, onNext: next,
+                                   ads: services.ads)
     }
 
     /// 同じ `step` のあいだだけ待つ。進行が変わったら新しい `.task` に譲って抜ける。
@@ -169,7 +170,7 @@ struct HomerunLobbyView: View {
         VStack(spacing: 14) {
             introCard
             // 今週の順位（#2216）。結果のあとと同じランキングページを開く。
-            HomerunLobbyRankRow(model: model)
+            HomerunLobbyRankRow(model: model, ads: services.ads)
                 .modifier(HomerunWeekEndRefresh(model: model))
             // 回数 0 の「戻ったら知らせる」はスクロールの中の上の方（SE でも送らずに見える位置）。
             if !model.ledger.canStart, let returnReminder = services.returnReminder {

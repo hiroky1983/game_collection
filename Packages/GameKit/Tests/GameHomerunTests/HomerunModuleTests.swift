@@ -126,8 +126,9 @@ struct HomerunModuleTests {
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
-        // バナーは打席の 1 か所（#1696 で上部に足した。#1348 の無バナーは改めた）。打席前・結果の一番下は 300×250。
-        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席に 1 つ")
+        // バナーは打席（#1696 で上部に足した。#1348 の無バナーは改めた）と週間ランキング画面（#2221）の 2 か所。
+        // 打席前・結果の一番下は 300×250。
+        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 2, "打席と週間ランキング画面に 1 つずつ")
         let screens = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         #expect(screens.components(separatedBy: "MediumRectangleSlot(ads: services.ads)").count - 1 == 2, "打席前・結果の一番下に 1 つずつ")
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
