@@ -15,8 +15,7 @@ struct HomerunHubHeroInfo {
     var bestMeters: Double?
 
     static func load(now: Date = Date()) -> HomerunHubHeroInfo {
-        var ledger = HomerunStorage.loadLedger()
-        ledger.roll(to: HomerunLedger.dayKey(for: now))
+        let ledger = HomerunHubCount.todayLedger(now: now)
         let records = HomerunStorage.loadRecords()
         return HomerunHubHeroInfo(remaining: ledger.remaining, allowance: ledger.allowance,
                                   bestMeters: records.bestTotalTenths > 0 ? Double(records.bestTotalTenths) / 10 : nil)
@@ -28,6 +27,33 @@ struct HomerunHubHeroInfo {
         var parts = [tr("柵越えおじさん"), description, tr("体験版"), tr("今日の挑戦 残り %lld 回", remaining)]
         if let bestText { parts.append(tr("自己ベスト %@", bestText)) }
         return parts.joined(separator: tr("、"))
+    }
+}
+
+/// ハブの横長タイル（アプリの `HubView` の `GameCard`）の右下に出す、今日の残り回数のラベル（#2208）。
+/// 数は打席前の「打席に立つ」のボールと同じ台帳の `remaining`（無料 3 回＋月のご褒美）。広告でのプレイは回数を増やさない
+/// （`HomerunLedger.consumeAdPlay`）ので数に入らない。読むだけで保存はしない（0:00 の補充の保存は打席前の画面が行う）。
+public enum HomerunHubCount {
+    /// 保存された台帳を `now` の日付へ進めた（0:00 を越えていたら戻した）ときの残り回数。
+    public static func remaining(now: Date = Date(), defaults: UserDefaults = .standard,
+                                 calendar: Calendar = .current) -> Int {
+        todayLedger(now: now, defaults: defaults, calendar: calendar).remaining
+    }
+
+    static func todayLedger(now: Date, defaults: UserDefaults = .standard, calendar: Calendar = .current) -> HomerunLedger {
+        var ledger = HomerunStorage.loadLedger(defaults)
+        ledger.roll(to: HomerunLedger.dayKey(for: now, calendar: calendar))
+        return ledger
+    }
+
+    /// 次に回数が戻る時刻（翌 0:00）。打席前の画面と同じ `HomerunReturnPolicy` の境目。
+    public static func nextReset(after now: Date, calendar: Calendar = .current) -> Date {
+        HomerunReturnPolicy.nextReset(after: now, calendar: calendar)
+    }
+
+    /// ラベルの文字。0 回も隠さず「残り 0 回」（打席前のボタンも 0 を消さずに灰色のボールで見せる）。広告の案内は付けない。
+    public static func labelText(remaining: Int, language: AppLanguage? = nil) -> String {
+        tr("残り %lld 回", max(0, remaining), language: language)
     }
 }
 
