@@ -72,6 +72,10 @@ struct HubCategoryTests {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/hubtile-\(id).imageset/hubtile-\(id).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(id) の絵（hubtile-\(id).png）が無い")
+            // 英語のゲーム名入りの版（#2181）。
+            let en = SourceScan.repositoryRoot
+                .appendingPathComponent("App/Assets.xcassets/HubTiles/hubtile-\(id)-en.imageset/hubtile-\(id)-en.png")
+            #expect(FileManager.default.fileExists(atPath: en.path), "\(id) の英語版の絵（hubtile-\(id)-en.png）が無い")
             // 「つづき・最近」のアイコン（名前なしの絵・#2175）。
             let thumb = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/hubthumb-\(id).imageset/hubthumb-\(id).png")
@@ -94,7 +98,7 @@ struct HubCategoryTests {
 
     @Test("柵越えおじさんだけ横長のタイルでグリッドの上に置き、iPhone 用・iPad 用の画像を同梱している（#2184）")
     func homerunIsWideTileAboveGrid() throws {
-        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad"] {
+        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad", "hubtile-homerun-wide-en", "hubtile-homerun-wide-pad-en"] {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/\(name).imageset/\(name).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(name).png が無い")
@@ -118,5 +122,32 @@ struct HubCategoryTests {
         #expect(chips.contains("static let minHitHeight: CGFloat = 44"))
         #expect(chips.contains(".frame(minHeight: Self.minHitHeight)\n                            .contentShape(Rectangle())"),
                 "当たり判定（contentShape）が 44pt の枠に掛かっていない")
+    }
+
+    @Test("ハブのタイルは表示言語で日本語版・英語版の画像を選ぶ（#2181）")
+    func tileImageFollowsAppLanguage() throws {
+        let source = try SourceScan.appSources()
+        let start = try #require(source.range(of: "private struct GameCard: View {"))
+        let end = try #require(source.range(of: "enum HubTileStyle {", range: start.upperBound..<source.endIndex))
+        let card = String(source[start.lowerBound..<end.lowerBound])
+        #expect(card.contains("let language = AppLanguageStore.shared.language"))
+        #expect(card.contains("HubTileStyle.tileName(for: module.id, language: language)"))
+        #expect(card.contains("HubTileStyle.wideTileName(for: module.id, pad: layout.isWide, language: language)"))
+    }
+
+    @Test("見出しの「きろく」「設定」ボタンは押せる範囲が 44pt 以上で、間隔を空けている（#2201）")
+    func headerButtonsHaveMinimumHitArea() throws {
+        let source = try SourceScan.appSources()
+        let size = try #require(source.firstMatch(of: /static let headerButtonSize: CGFloat = (\d+)/))
+        #expect(Int(size.output.1)! >= 44)
+        let spacing = try #require(source.firstMatch(of: /static let headerButtonSpacing: CGFloat = (\d+)/))
+        #expect(Int(spacing.output.1)! > 0)
+        let start = try #require(source.range(of: "private var header: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let header = String(source[start.lowerBound..<end.upperBound])
+        #expect(SourceScan.matchCount(
+            of: #"\.frame\(width: layout\.scaled\(Self\.headerButtonSize\), height: layout\.scaled\(Self\.headerButtonSize\)\)\n\s*\.contentShape\(Rectangle\(\)\)"#,
+            in: header) == 2, "2 つのボタンの当たり判定が 44pt 以上の枠に掛かっていない")
+        #expect(header.contains("HStack(spacing: layout.scaled(Self.headerButtonSpacing))"))
     }
 }

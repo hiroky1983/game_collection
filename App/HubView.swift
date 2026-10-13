@@ -472,6 +472,13 @@ struct HubView: View {
                 if args.contains("-simulateGameCenterEntry") {
                     openGameCenter()
                 }
+                // 動作確認用: 起動の 2 秒後に、設定の言語のセレクトボックスで選んだのと同じく表示言語を切り替える
+                // （`-simulateLanguageSwitch en`。保存はしない）。再起動なしでハブが描き直されるかを見る（#2201）。
+                if let i = args.firstIndex(of: "-simulateLanguageSwitch"), i + 1 < args.count,
+                   let language = AppLanguage(rawValue: args[i + 1]) {
+                    try? await Task.sleep(for: .seconds(2))
+                    AppLanguageStore.shared.apply(language)
+                }
                 // 撮影・動作確認用: カードの長押しメニューで「非表示にする」を選んだのと同じ経路を通す
                 // （`-simulateHubHide <gameID>`・#662）。シミュレータでは長押しを自動化できないため。
                 if let i = args.firstIndex(of: "-simulateHubHide"), i + 1 < args.count,
@@ -528,6 +535,13 @@ struct HubView: View {
         }
     }
 
+    /// 見出しの「きろく」「設定」ボタン（会長 QA #2201「小さくて押しにくい」）。押せる範囲は HIG の最小値
+    /// 44×44pt 以上（https://developer.apple.com/design/human-interface-guidelines/accessibility#Buttons-and-controls）、
+    /// アイコンは 20pt→24pt、2 つの間隔も空ける。iPad は `layout.scaled` で 1.5 倍。
+    static let headerButtonSize: CGFloat = 48
+    static let headerIconSize: CGFloat = 24
+    static let headerButtonSpacing: CGFloat = 6
+
     /// 見出し（モック 01・04b の `.hdr`）。題字 34pt・右に白いピルの「きろく」「設定」（珊瑚色のアイコン）。
     private var header: some View {
         HStack(alignment: .top) {
@@ -539,29 +553,29 @@ struct HubView: View {
                 .minimumScaleFactor(0.7)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
-            HStack(spacing: 0) {
+            HStack(spacing: layout.scaled(Self.headerButtonSpacing)) {
                 // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
                 // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
                 // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
                 Button { showRecords = true } label: {
                     Image(systemName: "trophy.fill")
-                        .scaledFont(layout.scaled(20), weight: .semibold, maxScale: 1.2)
-                        .frame(width: layout.scaled(36), height: layout.scaled(40))
+                        .scaledFont(layout.scaled(Self.headerIconSize), weight: .semibold, maxScale: 1.2)
+                        .frame(width: layout.scaled(Self.headerButtonSize), height: layout.scaled(Self.headerButtonSize))
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(tr("きろく"))
                 // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
                 Button { showSettings = true } label: {
                     Image(systemName: "gearshape.fill")
-                        .scaledFont(layout.scaled(20), weight: .semibold, maxScale: 1.2)
-                        .frame(width: layout.scaled(36), height: layout.scaled(40))
+                        .scaledFont(layout.scaled(Self.headerIconSize), weight: .semibold, maxScale: 1.2)
+                        .frame(width: layout.scaled(Self.headerButtonSize), height: layout.scaled(Self.headerButtonSize))
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(tr("設定"))
             }
             .foregroundStyle(Theme.coral)
             .buttonStyle(.pop)
-            .padding(.horizontal, layout.scaled(7))
+            .padding(.horizontal, layout.scaled(6))
             .background(
                 Capsule()
                     .fill(Theme.surface)
@@ -684,8 +698,13 @@ private struct GameCard: View {
 
     @Environment(\.adaptiveLayout) private var layout
 
+    /// 表示言語（アプリ内の言語設定）で日本語版・英語版の画像を選ぶ（#2181）。`language` は Observation で
+    /// 見張られるので、設定で言語を変えた瞬間にタイルも描き直される。
     private var tileName: String {
-        wide ? HubTileStyle.wideTileName(for: module.id, pad: layout.isWide) : HubTileStyle.tileName(for: module.id)
+        let language = AppLanguageStore.shared.language
+        return wide
+            ? HubTileStyle.wideTileName(for: module.id, pad: layout.isWide, language: language)
+            : HubTileStyle.tileName(for: module.id, language: language)
     }
 
     private var aspect: CGFloat {
@@ -766,12 +785,21 @@ enum HubTileStyle {
     /// モックのタイルの寸法（179 × 215pt）の比率。画像もこの比率で書き出している。
     static let aspect: CGFloat = 179.0 / 215.0
 
-    static func tileName(for gameID: String) -> String { "hubtile-\(gameID)" }
+    /// 名前入りの画像。英語版は末尾に `-en`（#2181。`Scripts/generate-hub-tiles.py` の `asset_name` と同じ規則）。
+    static func tileName(for gameID: String, language: AppLanguage = .japanese) -> String {
+        localized("hubtile-\(gameID)", language)
+    }
     static func thumbName(for gameID: String) -> String { "hubthumb-\(gameID)" }
 
     /// 横長タイル（#2184）の画像。寸法は iPhone が 2 列ぶん（179×2+12 × 215pt）、iPad が 4 列ぶん（179×4+12×3 × 215pt）で、
     /// 高さはふつうのタイル 1 枚と同じ。iPad の列が 5〜6 列に増えても比率は保つ（そのぶん少し背が高くなる）。
-    static func wideTileName(for gameID: String, pad: Bool) -> String { "hubtile-\(gameID)-wide" + (pad ? "-pad" : "") }
+    static func wideTileName(for gameID: String, pad: Bool, language: AppLanguage = .japanese) -> String {
+        localized("hubtile-\(gameID)-wide" + (pad ? "-pad" : ""), language)
+    }
+
+    private static func localized(_ name: String, _ language: AppLanguage) -> String {
+        language == .japanese ? name : "\(name)-\(language.rawValue)"
+    }
     static func wideAspect(pad: Bool) -> CGFloat { pad ? (179.0 * 4 + 12 * 3) / 215.0 : (179.0 * 2 + 12) / 215.0 }
 
     private static let coral: UInt32 = 0xFF6F61, teal: UInt32 = 0x22C3BE, purple: UInt32 = 0x8C7BE0
