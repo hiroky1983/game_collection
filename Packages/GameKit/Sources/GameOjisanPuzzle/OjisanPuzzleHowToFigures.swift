@@ -232,14 +232,14 @@ private struct GoalFigure: View {
                     Image(systemName: "flag.checkered")
                         .scaledFont(10, weight: .bold, maxScale: 1.15)
                         .foregroundStyle(Theme.teal)
-                    OjisanPuzzleHowToFigures.label("ここまで\n下げたら\nクリア", size: 9.5)
+                    OjisanPuzzleHowToFigures.label(tr("ここまで\n下げたら\nクリア"), size: 9.5)
                 }
                 Spacer(minLength: 8)
                 HStack(alignment: .top, spacing: 2) {
                     Image(systemName: "arrow.up")
                         .scaledFont(10, weight: .bold, maxScale: 1.15)
                         .foregroundStyle(Theme.coral)
-                    OjisanPuzzleHowToFigures.label("時間で\n下から\nせり上がる", size: 9.5, color: Theme.coral)
+                    OjisanPuzzleHowToFigures.label(tr("時間で\n下から\nせり上がる"), size: 9.5, color: Theme.coral)
                 }
             }
             .frame(height: boardHeight)
@@ -252,11 +252,11 @@ private struct GoalFigure: View {
             OjisanPuzzleMiniBoard(grid: puzzleBoard, cell: Self.cell,
                                   spawnColumn: OjisanPuzzleBoard.spawnColumn)
             VStack(alignment: .leading, spacing: 2) {
-                OjisanPuzzleHowToFigures.label("スコア", size: 9, color: Theme.inkSub)
+                OjisanPuzzleHowToFigures.label(tr("スコア"), size: 9, color: Theme.inkSub)
                 OjisanPuzzleHowToFigures.label("1280", size: 16)
-                OjisanPuzzleHowToFigures.label("2連鎖", size: 11, color: Theme.coral)
+                OjisanPuzzleHowToFigures.label(tr("2連鎖"), size: 11, color: Theme.coral)
                 Spacer(minLength: 0)
-                OjisanPuzzleHowToFigures.label("ゲージ\nなし", size: 9.5, color: Theme.inkSub)
+                OjisanPuzzleHowToFigures.label(tr("ゲージ\nなし"), size: 9.5, color: Theme.inkSub)
             }
             .frame(height: boardHeight)
         }
@@ -281,23 +281,23 @@ private struct ControlsFigure: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                panel("よこにスワイプ", icons: ["hand.draw.fill", "arrow.left.and.right"],
+                panel(tr("よこにスワイプ"), icons: ["hand.draw.fill", "arrow.left.and.right"],
                       frames: [Self.with(Self.base, [(1, 1, 4), (2, 1, 2)]), Self.with(Self.base, [(1, 2, 4), (2, 2, 2)])],
-                      caption: "1 マスずつ左右へ")
-                panel("タップで回す", icons: ["hand.tap.fill", "arrow.clockwise"],
+                      caption: tr("1 マスずつ左右へ"))
+                panel(tr("タップで回す"), icons: ["hand.tap.fill", "arrow.clockwise"],
                       frames: [Self.with(Self.base, [(1, 1, 4), (2, 1, 2)]), Self.with(Self.base, [(2, 1, 2), (2, 2, 4)])],
-                      caption: "時計回り。壁ぎわは自動でずれる")
+                      caption: tr("時計回り。壁ぎわは自動でずれる"))
             }
             HStack(alignment: .top, spacing: 12) {
-                panel("下にスワイプ", icons: ["hand.draw.fill", "arrow.down"],
+                panel(tr("下にスワイプ"), icons: ["hand.draw.fill", "arrow.down"],
                       frames: [Self.with(Self.base, [(0, 1, 4), (1, 1, 2)]), Self.with(Self.base, [(3, 1, 4), (4, 1, 2)])],
-                      caption: "動かしたぶんだけ落ちる。長く払えば一気に")
-                panel("はさまれたら2回タップ", icons: ["hand.tap.fill"],
+                      caption: tr("動かしたぶんだけ落ちる。長く払えば一気に"))
+                panel(tr("はさまれたら2回タップ"), icons: ["hand.tap.fill"],
                       frames: [Self.with(Self.pinched, [(2, 1, 4), (3, 1, 2)]),
                                Self.with(Self.pinched, [(2, 1, 4), (3, 1, 2)]),
                                Self.with(Self.pinched, [(3, 1, 2), (4, 1, 4)])],
                       marks: [nil, ("xmark", Theme.coral), ("arrow.up.arrow.down", Theme.teal)],
-                      caption: "回せないときは、もう 1 回で上下が入れかわる")
+                      caption: tr("回せないときは、もう 1 回で上下が入れかわる"))
             }
         }
     }
@@ -347,7 +347,8 @@ private struct ChainFigure: View {
         let emphasized: Bool
     }
 
-    private static let steps: [Step] = {
+    // 文言は表示言語で引き直すので、計算型にする（static let だと最初の言語で固まる）。
+    private static var steps: [Step] {
         let rows = Self.rows
         let base = OjisanPuzzleHowToFigures.grid(rows: rows, columns: 6, stacks: [
             0: [1, 3, 5], 1: [2, 4, 4, 4], 2: [5, 3, 1], 3: [2, 3], 4: [1, 5], 5: [2],
@@ -365,11 +366,11 @@ private struct ChainFigure: View {
         var third = second
         for cell in secondGroup { third[cell.row][cell.column] = 0 }
         return [
-            Step(label: "4 つつながった", points: "40 点", grid: first, highlight: firstGroup, emphasized: false),
-            Step(label: "落ちて 2 れんさ！", points: "+ 80 点", grid: second, highlight: secondGroup, emphasized: true),
-            Step(label: "おわり", points: "= 120 点", grid: OjisanPuzzleHowToFigures.gravity(third), highlight: [], emphasized: false),
+            Step(label: tr("4 つつながった"), points: tr("40 点"), grid: first, highlight: firstGroup, emphasized: false),
+            Step(label: tr("落ちて 2 れんさ！"), points: tr("+ 80 点"), grid: second, highlight: secondGroup, emphasized: true),
+            Step(label: tr("おわり"), points: tr("= 120 点"), grid: OjisanPuzzleHowToFigures.gravity(third), highlight: [], emphasized: false),
         ]
-    }()
+    }
 
     var body: some View {
         RuleFrames(count: Self.steps.count, spacing: 5) { index in
@@ -390,10 +391,10 @@ private struct ChainFigure: View {
 // MARK: - 4. 荷物の種類
 
 private struct WeightFigure: View {
-    private static let names = ["座布団\nの山", "スイカ", "クーラー\nボックス", "灯油の\nポリタンク", "ビール\nケース"]
+    private static var names: [String] { [tr("座布団\nの山"), tr("スイカ"), tr("クーラー\nボックス"), tr("灯油の\nポリタンク"), tr("ビール\nケース")] }
 
     var body: some View {
-        RuleLineup(count: OjisanPuzzleLuggage.all.count, low: "かるい", high: "おもい") { index in
+        RuleLineup(count: OjisanPuzzleLuggage.all.count, low: tr("かるい"), high: tr("おもい")) { index in
             let kind = OjisanPuzzleLuggage.all[index]
             VStack(spacing: 4) {
                 OjisanPuzzleView.luggage(kind.value, side: 34)
@@ -423,11 +424,11 @@ private struct GaugeFigure: View {
     private static let bandWidth: CGFloat = 296
 
     // 数値の目盛りは出さない（ゲージの計算方法は会長検討中・#2069）。段階の帯と姿だけ。
-    private static let stages: [RuleStageBand<AnyView>.Stage] = [
+    private static var stages: [RuleStageBand<AnyView>.Stage] { [
         .init(OjisanPuzzlePain.Stage.easy.caption, share: 0.4, color: Theme.Fill.teal),
         .init(OjisanPuzzlePain.Stage.aching.caption, share: 0.4, color: Theme.Fill.yellow, captionColor: Theme.coral),
         .init(OjisanPuzzlePain.Stage.severe.caption, share: 0.2, color: Theme.Fill.coral, captionColor: Theme.coral),
-    ]
+    ] }
 
     private static let poses: [OjisanPuzzleArt.Pose] = [.easy, .aching, .severe]
 
@@ -447,11 +448,11 @@ private struct GaugeFigure: View {
             }
             .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 5) {
-                row("arrow.up", Theme.coral, "重い荷物をかかえるほど腰にくる")
-                row("arrow.down", Theme.teal, "消すと楽になる")
-                row("shippingbox.fill", Theme.inkSub, "荷物が多い盤ほど、最初から腰にきている")
-                row("hare.fill", Theme.coral, "腰にくると落ちるのが速くなり、操作が遅れる")
-                row("cross.case.fill", Theme.coral, "満タンで入院")
+                row("arrow.up", Theme.coral, tr("重い荷物をかかえるほど腰にくる"))
+                row("arrow.down", Theme.teal, tr("消すと楽になる"))
+                row("shippingbox.fill", Theme.inkSub, tr("荷物が多い盤ほど、最初から腰にきている"))
+                row("hare.fill", Theme.coral, tr("腰にくると落ちるのが速くなり、操作が遅れる"))
+                row("cross.case.fill", Theme.coral, tr("満タンで入院"))
             }
         }
     }
@@ -496,24 +497,24 @@ private struct EndFigure: View {
 
     private var hospitalizedPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
-            OjisanPuzzleHowToFigures.heading("入院", icons: ["cross.case.fill"])
+            OjisanPuzzleHowToFigures.heading(tr("入院"), icons: ["cross.case.fill"])
             OjisanPuzzleHowToFigures.smallOjisan(.hospitalized)
                 .frame(maxWidth: .infinity)
-            OjisanPuzzleHowToFigures.caption("ゲージが満タン")
+            OjisanPuzzleHowToFigures.caption(tr("ゲージが満タン"))
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var buriedPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
-            OjisanPuzzleHowToFigures.heading("積みあがった", icons: ["arrow.up.to.line"])
+            OjisanPuzzleHowToFigures.heading(tr("積みあがった"), icons: ["arrow.up.to.line"])
             HStack(alignment: .top, spacing: 4) {
                 OjisanPuzzleMiniBoard(grid: Self.buriedBoard, cell: 10,
                                       spawnColumn: OjisanPuzzleBoard.spawnColumn, spawnWarn: true)
-                OjisanPuzzleHowToFigures.label("▼の列が\nふさがる", size: 9.5, color: Theme.coral)
+                OjisanPuzzleHowToFigures.label(tr("▼の列が\nふさがる"), size: 9.5, color: Theme.coral)
             }
             .frame(maxWidth: .infinity)
-            OjisanPuzzleHowToFigures.caption("荷物が出てくる位置（▼の列のいちばん上）が埋まる")
+            OjisanPuzzleHowToFigures.caption(tr("荷物が出てくる位置（▼の列のいちばん上）が埋まる"))
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }

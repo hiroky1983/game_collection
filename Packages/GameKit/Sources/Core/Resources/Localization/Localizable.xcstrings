@@ -91,6 +91,72 @@
         }
       }
     },
+    "1 枚引いて 1 枚切ります。同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえたら和了です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw a tile, then discard one. Build 4 sets (3 of a kind or a 3-tile run) plus a pair to win."
+          }
+        }
+      }
+    },
+    "10・J・Q・K は同じ 10 点なので、スプリットできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10, J, Q and K are all worth 10, so any two of them can be split."
+          }
+        }
+      }
+    },
+    "15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。先に全部あげたほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once all 15 checkers are in your home board (points 1-6), bear them off to the tray on the right. The first to bear off all of them wins."
+          }
+        }
+      }
+    },
+    "15パズルの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play 15 Puzzle"
+          }
+        }
+      }
+    },
+    "1〜15 を左上から順に並べたらクリアです。手数が少ないほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put 1-15 in order from the top left to win. Fewer moves is a better record."
+          }
+        }
+      }
+    },
+    "1回の挑戦は10球。画面の下のほうを押したままずらすと、水色のミートカーソルが指の動きだけ動きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each round is 10 pitches. Hold and slide near the bottom of the screen, and the light-blue contact cursor follows your finger."
+          }
+        }
+      }
+    },
     "1手戻す" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -109,6 +175,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next move"
+          }
+        }
+      }
+    },
+    "2 つひと組の荷物が落ちてきます。よこにスワイプで動かし、タップで回し、下にスワイプで落とします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boxes fall in pairs. Swipe sideways to move them, tap to turn them, and swipe down to drop them."
+          }
+        }
+      }
+    },
+    "2 つひと組の荷物を、スワイプとタップで動かします。画面のどこを触っても OK。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move each pair of boxes with swipes and taps. You can touch anywhere on the screen."
+          }
+        }
+      }
+    },
+    "2 枚めくってペアを探そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip 2 cards to find a pair"
+          }
+        }
+      }
+    },
+    "2048 の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play 2048"
+          }
+        }
+      }
+    },
+    "21 に近づけたほうが勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closest to 21 wins"
+          }
+        }
+      }
+    },
+    "3 が最弱で、2 とジョーカーが最強です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 is the weakest card. 2 and the Joker are the strongest."
+          }
+        }
+      }
+    },
+    "4 つのスートぶん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For all 4 suits"
+          }
+        }
+      }
+    },
+    "52 枚すべて最初から見えています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All 52 cards are face up from the start."
+          }
+        }
+      }
+    },
+    "8 を含む組を出すと場が流れ、そのまま続けて出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing a set with an 8 clears the table, and you get to play again."
+          }
+        }
+      }
+    },
+    "A は 1 か 11、J・Q・K は 10 点で数えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An A counts as 1 or 11. J, Q and K count as 10."
+          }
+        }
+      }
+    },
+    "CPU 3 人と東 1 局から東 4 局まで戦い、持ち点の多い順に順位が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play against 3 CPUs from East 1 to East 4. Rankings go by points."
+          }
+        }
+      }
+    },
+    "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。「とことん」はノルマが無く、札が尽きるまで続きます（取った場所には山札から新しい札が出ます）。全部の札を取りきればパーフェクトで勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the CPU can't continue, you win; if you can't, you lose. You also win the moment you reach the goal (Easy 4 cards, Normal 6, Hard 9), and lose if time runs out first. “Endless” has no goal and goes on until the cards run out (each card you take is replaced from the deck). Take every card for a Perfect win."
           }
         }
       }
@@ -158,6 +356,61 @@
         }
       }
     },
+    "① 選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "① Select"
+          }
+        }
+      }
+    },
+    "② 置き先" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "② Destination"
+          }
+        }
+      }
+    },
+    "○のマスに置けるよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play on the ○ squares"
+          }
+        }
+      }
+    },
+    "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build each of ♠♥♦♣ from A to K on the foundations to win."
+          }
+        }
+      }
+    },
+    "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。52枚すべて最初から見えています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build each of ♠♥♦♣ from A to K on the foundations to win. All 52 cards are face up from the start."
+          }
+        }
+      }
+    },
     "。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -187,6 +440,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opens %@ and starts a new game"
+          }
+        }
+      }
+    },
+    "「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press “Spin” to turn the wheel. The pocket the ball lands in is the result."
+          }
+        }
+      }
+    },
+    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hit” to draw another card, “Stand” to stop there."
+          }
+        }
+      }
+    },
+    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Hit” to draw a card, “Stand” to stop there. On your first 2 cards you can also “Double Down” (double your bet and draw just one card) or “Split” two cards of the same value (10, J, Q and K are all worth 10) into two hands."
           }
         }
       }
@@ -279,6 +565,17 @@
         }
       }
     },
+    "あなたは白。サイコロは自動で振られ、出た目のぶんだけ駒を右下の自陣へ向けて進めます。動かす駒 → 行き先の順にタップ。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play White. The dice roll automatically, and you move your checkers by the numbers rolled toward your home board at the bottom right. Tap a checker, then where it goes."
+          }
+        }
+      }
+    },
     "いまは使えません" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -297,6 +594,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not available right now (it's not your turn, or you've used all 8)"
+          }
+        }
+      }
+    },
+    "いろリレーの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Color Relay"
           }
         }
       }
@@ -330,6 +638,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Horse"
+          }
+        }
+      }
+    },
+    "おじさんの荷物運びパズルの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Ojisan's Box Puzzle"
           }
         }
       }
@@ -378,6 +697,17 @@
         }
       }
     },
+    "くっつきフルーツの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Fruit Merge"
+          }
+        }
+      }
+    },
     "くつ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -396,6 +726,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chestnut"
+          }
+        }
+      }
+    },
+    "くわしいルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detailed Rules"
           }
         }
       }
@@ -488,6 +829,28 @@
         }
       }
     },
+    "すべての牌を消せたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear every tile to win."
+          }
+        }
+      }
+    },
+    "そのほかの決まりは「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for the other rules."
+          }
+        }
+      }
+    },
     "その他の操作" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -543,6 +906,28 @@
         }
       }
     },
+    "たて 9 マス・よこ 9 マス・太線で囲んだ 3×3 のどれにも、同じ数字は 1 つまでです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each row, column, and bold 3×3 box can hold each number only once."
+          }
+        }
+      }
+    },
+    "たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Be the first to get 5 in a row: across, down, or diagonally."
+          }
+        }
+      }
+    },
     "たまご" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -565,6 +950,17 @@
         }
       }
     },
+    "ちがったらカードは伏せられ、CPU の番になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If they don't match, they're turned back over and it's the CPU's turn."
+          }
+        }
+      }
+    },
     "つき" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -583,6 +979,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Try %@ next?"
+          }
+        }
+      }
+    },
+    "ときどき落ちてくるアイテムをパドルで受けると、パドルが伸びたり球が増えたりします。壊せるブロックを全部消すと次のステージへ。盤の球をすべて落とすと 1 ミスで、3 回で終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catch the items that sometimes fall to get a longer paddle or extra balls. Break every breakable block to reach the next stage. Losing all your balls costs a life, and the game ends after 3."
+          }
+        }
+      }
+    },
+    "とばし・ぎゃく・+2・いろがえ・いろがえ+4 の特殊札で流れを変えましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn the game around with the special cards: Skip, Reverse, +2, Color Change, and Color Change +4."
+          }
+        }
+      }
+    },
+    "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles. Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
           }
         }
       }
@@ -631,6 +1060,17 @@
         }
       }
     },
+    "ぱっと暗算の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Quick Mental Math"
+          }
+        }
+      }
+    },
     "ふね" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -638,6 +1078,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Boat"
+          }
+        }
+      }
+    },
+    "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crash or fall into a hole and it's a wipeout. You can restart the stage as many times as you like. If you fail past a blue checkpoint, you can watch an ad to restart from there."
+          }
+        }
+      }
+    },
+    "ほかの駒の動きや特別ルールは「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for the other pieces and special moves."
+          }
+        }
+      }
+    },
+    "まとめて動かせるのは、同じスートで降順に揃った並びだけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only same-suit runs in descending order move together."
+          }
+        }
+      }
+    },
+    "まとめて動かせるのは、同じスートで降順に揃った並びだけです。動かせる手が無くなったら左上の山札をタップして各列に1枚ずつ配ります（空いた列があると配れません）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only same-suit runs in descending order move together. When you're out of moves, tap the stock at the top left to deal one card to each column (not while a column is empty)."
           }
         }
       }
@@ -686,6 +1170,17 @@
         }
       }
     },
+    "よこスワイプで動かす・タップで回す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe sideways to move, tap to turn"
+          }
+        }
+      }
+    },
     "りんご" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -719,6 +1214,17 @@
         }
       }
     },
+    "オセロの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Reversi"
+          }
+        }
+      }
+    },
     "カメ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -726,6 +1232,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turtle"
+          }
+        }
+      }
+    },
+    "カードしりとりの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Card Shiritori"
+          }
+        }
+      }
+    },
+    "カードの合計を 21 に近づけたほうが勝ち。21 を超えると負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get your total closer to 21 than the dealer. Go over 21 and you lose."
+          }
+        }
+      }
+    },
+    "カードを 2 枚めくり、同じ絵柄ならペアを取れて、もう一度めくれます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip 2 cards. If they match, you take the pair and flip again."
+          }
+        }
+      }
+    },
+    "カードを 2 枚めくります。同じ絵柄ならペアになり、もう一度めくれます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip 2 cards. If the pictures match, it's a pair and you flip again."
           }
         }
       }
@@ -818,6 +1368,17 @@
         }
       }
     },
+    "コウや数え方など、細かい決まりは「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for ko, scoring, and other details."
+          }
+        }
+      }
+    },
     "コップ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -873,6 +1434,94 @@
         }
       }
     },
+    "スパイダーソリティアの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Spider Solitaire"
+          }
+        }
+      }
+    },
+    "スピードの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Speed"
+          }
+        }
+      }
+    },
+    "スワイプすると、すべてのタイルがその向きへ寄ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe to slide every tile in that direction."
+          }
+        }
+      }
+    },
+    "スワイプで動かそう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe to move the tiles"
+          }
+        }
+      }
+    },
+    "ソリティア（クロンダイク）の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Solitaire (Klondike)"
+          }
+        }
+      }
+    },
+    "タップでジャンプ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to jump"
+          }
+        }
+      }
+    },
+    "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗って先へ進めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to jump. Hold longer to jump higher over holes and obstacles. Tap again in the air for a double jump. He can only pedal on the ground, so keeping jumps low builds more speed."
+          }
+        }
+      }
+    },
+    "タップで石を置こう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to place a stone"
+          }
+        }
+      }
+    },
     "ダチョウ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -880,6 +1529,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ostrich"
+          }
+        }
+      }
+    },
+    "チェスの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Chess"
           }
         }
       }
@@ -941,6 +1601,39 @@
         }
       }
     },
+    "チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a chip amount, then tap where to bet: numbers, red/black, odd/even, 1-18 / 19-36, or a group of 12. You can bet on several spots."
+          }
+        }
+      }
+    },
+    "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose how many chips to bet, and the cards are dealt."
+          }
+        }
+      }
+    },
+    "チャリンコおじさんの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Bike Ojisan"
+          }
+        }
+      }
+    },
     "トランプ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -952,6 +1645,17 @@
         }
       }
     },
+    "ナンプレの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Number Place"
+          }
+        }
+      }
+    },
     "ネコ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -959,6 +1663,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cat"
+          }
+        }
+      }
+    },
+    "バックギャモンの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Backgammon"
+          }
+        }
+      }
+    },
+    "パズルモードは空の盤から始まり、ゲージなしで得点をのばします。埋まるまで続きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puzzle Mode starts with an empty board and has no gauge: just rack up points until the board fills up."
           }
         }
       }
@@ -1018,6 +1744,61 @@
         }
       }
     },
+    "フリーセルの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play FreeCell"
+          }
+        }
+      }
+    },
+    "フリーセルは札を 1 枚ずつ置いておける空きです。左上に 4 つあります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free cells are spaces that each hold one card. There are 4 at the top left."
+          }
+        }
+      }
+    },
+    "ブラックジャックの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Blackjack"
+          }
+        }
+      }
+    },
+    "ブロック崩しの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Block Breaker"
+          }
+        }
+      }
+    },
+    "ポーカーの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Poker"
+          }
+        }
+      }
+    },
     "マイク" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1025,6 +1806,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Microphone"
+          }
+        }
+      }
+    },
+    "マインスイーパーの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Minesweeper"
+          }
+        }
+      }
+    },
+    "マスをタップして選び、下の数字パッドで 1〜9 を入れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to select it, then enter 1-9 with the number pad below."
+          }
+        }
+      }
+    },
+    "マスをタップして開きます。数字はまわり 8 マスにある地雷の数です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to open it. A number shows how many mines are in the 8 squares around it."
+          }
+        }
+      }
+    },
+    "マスを選んで数字を入れよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a square and enter a number"
           }
         }
       }
@@ -1073,6 +1898,17 @@
         }
       }
     },
+    "ルーレットの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Roulette"
+          }
+        }
+      }
+    },
     "ワニ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1080,6 +1916,347 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Crocodile"
+          }
+        }
+      }
+    },
+    "三三は、あと 1 つで 3 つ並ぶ列が 2 本できる手です。四四は 4 つの列が 2 本できる手です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A double three makes two open rows of three at once. A double four makes two rows of four at once."
+          }
+        }
+      }
+    },
+    "上の点線より上に果物がとどまるとゲームオーバー。大きく育てて高得点を狙いましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If fruit stays above the dotted line at the top, it's game over. Grow big fruit for a high score."
+          }
+        }
+      }
+    },
+    "五目並べの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Gomoku"
+          }
+        }
+      }
+    },
+    "五目並べの遊び方（禁じ手あり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Gomoku (Renju Rules)"
+          }
+        }
+      }
+    },
+    "交点をタップして石を置こう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an intersection to place a stone"
+          }
+        }
+      }
+    },
+    "入院か、荷物が出てくる位置（▼の列のいちばん上）が埋まったら終わりです。どちらも記録は残ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends if he's hospitalized or the spot where boxes appear (the top of the ▼ column) fills up. Your record is saved either way."
+          }
+        }
+      }
+    },
+    "出した札のぶん、山札から手札に補充されます。手札も山札も先に出し切ったほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your hand refills from your stock as you play. The first to play out both their hand and stock wins."
+          }
+        }
+      }
+    },
+    "出せない・出したくないときはパス。全員パスすると場が流れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you can't or don't want to play, pass. When everyone passes, the table is cleared."
+          }
+        }
+      }
+    },
+    "出せる札がなければ山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you can't play, draw a card. If the card you drew can be played, you can play it right away."
+          }
+        }
+      }
+    },
+    "出た数をぜんぶ足そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add up all the numbers"
+          }
+        }
+      }
+    },
+    "切る牌をタップしよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a tile to discard"
+          }
+        }
+      }
+    },
+    "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶと-5秒。「ん」で終わる読みを選ぶとその場で負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have 60 seconds. Each good link adds 10 seconds, and a card that doesn't link takes 5 seconds away. Pick a reading that ends in “n” and you lose on the spot."
+          }
+        }
+      }
+    },
+    "動かす札をタップして選び、置きたい列か、左上のフリーセル、右上の組札をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap a column, a free cell (top left), or a foundation (top right)."
+          }
+        }
+      }
+    },
+    "動かす札をタップして選び、置きたい列かフリーセル、組札をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap a column, a free cell, or a foundation."
+          }
+        }
+      }
+    },
+    "動かす札をタップして選び、置きたい列か右上の組札をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap the column or the foundation (top right) to move it to."
+          }
+        }
+      }
+    },
+    "動かす札をタップして選び、置きたい列をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap the column to move it to."
+          }
+        }
+      }
+    },
+    "動かす札をタップして選び、置きたい列をタップします。置けるのは、ひとつ上の札より1つ小さい札（スートは問いません）か、空いた列です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap the column to move it to. A card can go on one that's one higher (any suit), or in an empty column."
+          }
+        }
+      }
+    },
+    "動かす駒 → 行き先の順にタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a checker, then where it goes"
+          }
+        }
+      }
+    },
+    "動かせなくなる前に 2048 のタイルを作れたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a 2048 tile before you run out of moves to win."
+          }
+        }
+      }
+    },
+    "動かせる手が無くなったら左上の山札をタップ。各列に 1 枚ずつ配ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out of moves? Tap the stock at the top left to deal one card to each column."
+          }
+        }
+      }
+    },
+    "半透明の○が置けるマスです。タップして石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faint ○ marks show where you can play. Tap one to place a stone."
+          }
+        }
+      }
+    },
+    "取れるのは、上に牌が乗っておらず、左右どちらかが空いている牌だけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can only take a tile with nothing on top and an open left or right side."
+          }
+        }
+      }
+    },
+    "台札と1つ違いの札を重ねよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a card one higher or lower than a pile"
+          }
+        }
+      }
+    },
+    "台札は真ん中の2山。手札から、台札の数字と1つ違い（A と K もつながる）の札を、どちらかの台札に重ねます。順番はなく、CPU も同時に出してきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two piles in the middle are the play piles. Play a card from your hand that's one higher or lower than either pile (A and K connect). There are no turns: the CPU plays at the same time."
+          }
+        }
+      }
+    },
+    "右上の「難易度」で桁数・個数・速さをそれぞれ選べます。まずは 1 桁・5 個から。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use “Difficulty” at the top right to set the digits, how many numbers, and the speed. Start with 1 digit and 5 numbers."
+          }
+        }
+      }
+    },
+    "合計飛距離を伸ばそう。挑戦は1日3回で、打席に立った時点で1回減ります（0:00 に戻ります）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go for the longest total distance. You get 3 rounds a day; one is used as soon as you step up to bat (they reset at 0:00)."
+          }
+        }
+      }
+    },
+    "同じスートで K から A まで 13 枚揃うと自動で取り除かれ、8 組取り除いたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A full same-suit run from K to A (13 cards) is removed automatically. Remove 8 to win."
+          }
+        }
+      }
+    },
+    "同じスートで K から A まで13枚揃うと自動で取り除かれます。8組すべて取り除いたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A full same-suit run from K to A (13 cards) is removed automatically. Remove all 8 to win."
+          }
+        }
+      }
+    },
+    "同じ数字どうしがぶつかると合体して 2 倍になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two tiles with the same number collide, they merge into one with double the value."
+          }
+        }
+      }
+    },
+    "同じ数字を 4 枚以上まとめて出すと革命。カードの強さが逆になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing 4 or more of the same number at once starts a Revolution, which flips the card ranking."
+          }
+        }
+      }
+    },
+    "同じ月を合わせる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match cards of the same month"
           }
         }
       }
@@ -1095,6 +2272,215 @@
         }
       }
     },
+    "同じ果物どうしが触れるとくっついて、1 つ大きい果物になります。いちばん大きいのはメロンです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two of the same fruit touch, they merge into the next bigger fruit. The biggest is the melon."
+          }
+        }
+      }
+    },
+    "同じ牌を 2 枚タップで消そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap 2 matching tiles to clear them"
+          }
+        }
+      }
+    },
+    "同じ絵柄の牌を 2 枚タップすると消えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap 2 matching tiles to remove them."
+          }
+        }
+      }
+    },
+    "同じ色か同じ数字の札を出そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play the same color or number"
+          }
+        }
+      }
+    },
+    "同じ荷物がたて・よこに 4 つ以上つながると消えます。消えたあとに落ちてきた荷物がまたつながれば、れんさです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect 4 or more of the same box up, down, or sideways to clear them. If the boxes that fall after a clear connect again, that's a chain."
+          }
+        }
+      }
+    },
+    "同じ荷物がたて・よこに 4 つ以上つながると消えます。落ちてきてまたつながれば「れんさ」。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect 4 or more of the same box up, down, or sideways to clear them. If falling boxes connect again, it's a “chain”."
+          }
+        }
+      }
+    },
+    "和了の形でも役が無いと上がれません。聴牌したら立直を宣言すると役が付きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A winning shape still needs at least one yaku to win. Declare Riichi when you're in Tenpai to get one."
+          }
+        }
+      }
+    },
+    "囲碁の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Go"
+          }
+        }
+      }
+    },
+    "地雷がありそうなマスは長押しで旗を立てられます（旗のマスは開きません）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press and hold a square you think hides a mine to plant a flag (flagged squares won't open)."
+          }
+        }
+      }
+    },
+    "場に出ている組より強い組を出します。手札を先になくした人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a stronger set than the one on the table. The first to empty their hand wins."
+          }
+        }
+      }
+    },
+    "場の札と同じ色か、同じ数字・記号の札を出します。手札を先になくした人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a card that matches the top card's color, number, or symbol. The first to empty their hand wins."
+          }
+        }
+      }
+    },
+    "場の札の読みの最後の字から始まる読みの札を選んで取ります。取った札が新しい場の札になり、CPUの番です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a card whose reading starts with the last sound of the current card's reading. The card you take becomes the new current card, and it's the CPU's turn."
+          }
+        }
+      }
+    },
+    "場より強い組を出そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a set stronger than the table"
+          }
+        }
+      }
+    },
+    "場札は 1 つ小さくて色ちがいの札だけ重ねられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the tableau, you can only stack a card one lower in the other color."
+          }
+        }
+      }
+    },
+    "場札は 1 つ小さくて色ちがいの札だけ重ねられます。空いた列にはどの札でも置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the tableau, you can only stack a card one lower in the other color. Any card can go in an empty column."
+          }
+        }
+      }
+    },
+    "場札は1つ小さくて色ちがいの札だけ重ねられます（黒の8 の上に 赤の7）。空いた列には K だけ置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the tableau, you can only stack a card one lower in the other color (a red 7 on a black 8). Only a K can go in an empty column."
+          }
+        }
+      }
+    },
+    "場札は1つ小さくて色ちがいの札だけ重ねられます（黒の8 の上に 赤の7）。空いた列にはどの札でも置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the tableau, you can only stack a card one lower in the other color (a red 7 on a black 8). Any card can go in an empty column."
+          }
+        }
+      }
+    },
+    "多くペアを取ったほうが勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever takes more pairs wins."
+          }
+        }
+      }
+    },
+    "大富豪の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Tycoon"
+          }
+        }
+      }
+    },
     "対局開始" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1102,6 +2488,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start Game"
+          }
+        }
+      }
+    },
+    "将棋の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Shogi"
+          }
+        }
+      }
+    },
+    "山札をタップすると、選んだ枚数（1 枚か 3 枚）をめくれます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the stock to draw the number of cards you chose (1 or 3)."
+          }
+        }
+      }
+    },
+    "左右に動かして、離すと落ちる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide to aim, let go to drop"
           }
         }
       }
@@ -1183,6 +2602,39 @@
         }
       }
     },
+    "役ができたら「あがり」で得点、「こいこい」で続けて役を伸ばせます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you make a yaku, “Stop” to score, or call “Koi-Koi” to keep going for more."
+          }
+        }
+      }
+    },
+    "役の一覧は「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for the list of hands."
+          }
+        }
+      }
+    },
+    "役の強い側がポットのチップをもらえます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The stronger hand takes the chips in the pot."
+          }
+        }
+      }
+    },
     "役の早見表" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1227,6 +2679,17 @@
         }
       }
     },
+    "得点は 消した数 × 10 × れんさ数。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points = boxes cleared × 10 × chain count."
+          }
+        }
+      }
+    },
     "戻す（無料）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1245,6 +2708,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Back"
+          }
+        }
+      }
+    },
+    "手札は 5 枚。残したいカードをタップで選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You get 5 cards. Tap the ones you want to keep."
+          }
+        }
+      }
+    },
+    "手札を1枚選ぶと、場にある同じ月の札と合わせて取れます。左上の数字が月です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a card from your hand to capture a table card of the same month. The number at the top left is the month."
+          }
+        }
+      }
+    },
+    "打つところが無くなったら「パス」。両者パスで終局し、盤上の石と囲んだ地の合計が多い方が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When there's nowhere useful to play, “Pass”. The game ends when both players pass, and whoever has more stones plus surrounded territory wins."
           }
         }
       }
@@ -1282,6 +2778,50 @@
         }
       }
     },
+    "押したままずらし、輪が的に重なった瞬間に離す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold and slide, then let go when the ring hits the target"
+          }
+        }
+      }
+    },
+    "指を横に動かした分だけパドルが動きます。指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。タップすると球が飛び出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The paddle moves as far as you slide your finger sideways. Slide anywhere on the board or in the empty space below it; you don't need to touch the paddle. Tap to launch the ball."
+          }
+        }
+      }
+    },
+    "数が 1 つずつ、パッと出ては消えます。出た数を頭の中でぜんぶ足していきましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numbers flash up one at a time. Add them all up in your head."
+          }
+        }
+      }
+    },
+    "数字と同じ数だけ旗を立てたら、その数字をタップして周囲をまとめて開けます。地雷以外をすべて開けたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once a number has that many flags around it, tap the number to open the rest of its neighbors at once. Open every square without a mine to win."
+          }
+        }
+      }
+    },
     "新規ゲーム" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1304,6 +2844,28 @@
         }
       }
     },
+    "最初の 2 枚が同じ点数なら、2 手に分ける「スプリット」もできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your first 2 cards have the same value, you can “Split” them into two hands."
+          }
+        }
+      }
+    },
+    "最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」も選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On your first 2 cards you can also “Double Down”: double your bet and draw just one more card."
+          }
+        }
+      }
+    },
     "最善手を1手だけ盤の上に示します。使った対局は順位表に送りません" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1315,6 +2877,61 @@
         }
       }
     },
+    "最後に石が多かったほうが勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever has more stones at the end wins."
+          }
+        }
+      }
+    },
+    "最後の字から始まる札を取ろう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a card that starts with the last sound"
+          }
+        }
+      }
+    },
+    "最後の数が消えたら、合計をテンキーで入力して「決定」。正解すると連続正解が伸びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the last number disappears, enter the total on the keypad and tap “Enter”. Each correct answer extends your streak."
+          }
+        }
+      }
+    },
+    "札をタップ → 置き先をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card → tap where it goes"
+          }
+        }
+      }
+    },
+    "柵越えおじさんの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Homerun Ojisan"
+          }
+        }
+      }
+    },
     "次はこれで遊ぶ？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1322,6 +2939,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play this next?"
+          }
+        }
+      }
+    },
+    "残すカードをタップしよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the cards to keep"
           }
         }
       }
@@ -1348,6 +2976,17 @@
         }
       }
     },
+    "王手が無いのに動けないときは引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a player isn't in check but has no legal move, the game is a draw."
+          }
+        }
+      }
+    },
     "現在の対局を終了します。CPUの勝ちになります。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1355,6 +2994,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This ends the current game. The CPU wins."
+          }
+        }
+      }
+    },
+    "球をはね返してブロックに当てます。灰色のブロックは壊れません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bounce the ball into the blocks. Gray blocks can't be broken."
+          }
+        }
+      }
+    },
+    "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the screen and Ojisan starts riding. He keeps going right on his own."
+          }
+        }
+      }
+    },
+    "盤の下で指を横に動かしてパドルを操作" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide below the board to move the paddle"
           }
         }
       }
@@ -1381,6 +3053,226 @@
         }
       }
     },
+    "相手が 4 つ並べたら、次の一手で止めましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When your opponent has 4 in a row, block it on your next move."
+          }
+        }
+      }
+    },
+    "相手のキングに王手をかけ、逃げ場をなくしたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put the enemy King in check with no way out to win."
+          }
+        }
+      }
+    },
+    "相手のキングに王手をかけ、逃げ場をなくしたら勝ちです（王手が無いのに動けないときは引き分け）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put the enemy King in check with no way out to win (if a player isn't in check but has no legal move, it's a draw)."
+          }
+        }
+      }
+    },
+    "相手の王将（王）を追いつめたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trap your opponent's King to win."
+          }
+        }
+      }
+    },
+    "相手の石をぐるりと囲むと取り上げられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surround enemy stones completely to capture them."
+          }
+        }
+      }
+    },
+    "相手の駒が 2 個以上あるポイントには止まれません。1 個だけなら叩いてバー（中央）へ送れます。バーの駒は先に戻さないと他の駒を動かせません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't land on a point with 2 or more enemy checkers. If there's just one, you can hit it and send it to the bar (in the middle). Checkers on the bar must come back in before any others can move."
+          }
+        }
+      }
+    },
+    "相手の駒があるマスへ動くと、その駒を取れます。取った駒は持ち駒になり、あとで好きなマスに打てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move onto an enemy piece to capture it. Captured pieces become yours, and you can drop them on any open square later."
+          }
+        }
+      }
+    },
+    "相手陣（奥から 3 段）に入ると駒を成れて、動きが強くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When a piece enters the enemy camp (the far 3 rows), it can promote and get stronger moves."
+          }
+        }
+      }
+    },
+    "神経衰弱の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Memory Match"
+          }
+        }
+      }
+    },
+    "空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty"
+          }
+        }
+      }
+    },
+    "空いた列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty column"
+          }
+        }
+      }
+    },
+    "空いた列があると、山札は配れません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't deal from the stock while a column is empty."
+          }
+        }
+      }
+    },
+    "空いた列には K だけ置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only a K can go in an empty column."
+          }
+        }
+      }
+    },
+    "空いているマスをすべて埋めたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill every empty square to win."
+          }
+        }
+      }
+    },
+    "空いているマスをタップして、黒と白が交互に石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black and White take turns tapping an empty spot to place a stone."
+          }
+        }
+      }
+    },
+    "空いているマスをタップして石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an empty spot to place a stone."
+          }
+        }
+      }
+    },
+    "空白と同じ列・行にあるタイルをタップすると、間のタイルをまとめて動かせます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a tile in the same row or column as the gap to slide all the tiles in between at once."
+          }
+        }
+      }
+    },
+    "空白の隣にあるタイルをタップすると、空白へスライドします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a tile next to the gap to slide it in."
+          }
+        }
+      }
+    },
+    "空白の隣をタップで動く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap next to the gap to slide"
+          }
+        }
+      }
+    },
+    "箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide your finger left or right above the box to aim, then let go to drop the fruit."
+          }
+        }
+      }
+    },
     "終了して%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1403,6 +3295,105 @@
         }
       }
     },
+    "続けて山札が1枚めくれます。こちらも同じ月の札と合わさります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then a card is flipped from the deck. It also captures a card of the same month."
+          }
+        }
+      }
+    },
+    "線の交わるところをタップして、交互に石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take turns tapping where the lines cross to place a stone."
+          }
+        }
+      }
+    },
+    "線の交わるところをタップして、黒と白が交互に石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black and White take turns tapping where the lines cross to place a stone."
+          }
+        }
+      }
+    },
+    "縮む輪が白い的に重なった瞬間に指を離すとスイング。カーソルをボールの少し下に置くと打球が上がり、左右と離す早さで方向が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let go the moment the shrinking ring overlaps the white target to swing. Put the cursor just under the ball to lift it; where you aim and when you let go set the direction."
+          }
+        }
+      }
+    },
+    "置けた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placed"
+          }
+        }
+      }
+    },
+    "置けるのは、ひとつ上の札より 1 つ小さい札（スートは問いません）か、空いた列です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card can go on one that's one higher (any suit), or in an empty column."
+          }
+        }
+      }
+    },
+    "腰痛ゲージがあり、重い荷物をかかえるほど腰にきて、満タンになると入院です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Back Pain gauge fills as he carries heavy boxes. When it's full, he goes to the hospital."
+          }
+        }
+      }
+    },
+    "自分の石ではさんだ相手の石は、すべて自分の色に裏返ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every enemy stone trapped between your stones flips to your color."
+          }
+        }
+      }
+    },
+    "自分の駒をタップすると、動けるマスが光ります。行きたいマスをタップで移動します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one of your pieces to light up the squares it can move to. Tap a square to move there."
+          }
+        }
+      }
+    },
     "自己ベスト更新。%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1421,6 +3412,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Personal Best!"
+          }
+        }
+      }
+    },
+    "花札こいこいの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Hanafuda Koi-Koi"
+          }
+        }
+      }
+    },
+    "荷物が出てくる位置（▼の列のいちばん上）が埋まったら終わりです。記録は得点として残ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when the spot where boxes appear (the top of the ▼ column) fills up. Your score is saved as your record."
+          }
+        }
+      }
+    },
+    "荷物は 5 種類。重いものほど腰にきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 5 kinds of boxes. The heavier they are, the more they hurt his back."
+          }
+        }
+      }
+    },
+    "荷物は 5 種類あります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 5 kinds of boxes."
+          }
+        }
+      }
+    },
+    "荷物を 4 つそろえて消して、ラインより下まで片付けたらクリア。腰をいたわろう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match 4 boxes to clear them, and clear everything below the line to win. Go easy on his back."
+          }
+        }
+      }
+    },
+    "荷物を 4 つそろえて消して、得点をのばそう。空の盤から始まり、埋まるまで続きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match 4 boxes to clear them and rack up points. You start with an empty board and play until it fills up."
+          }
+        }
+      }
+    },
+    "荷物を置くほど少しずつ速くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boxes fall a little faster the more you place."
+          }
+        }
+      }
+    },
+    "荷運びモードはラインより下まで片付けたらクリア。重い荷物をかかえるほど腰にきて、満タンで入院です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Moving Mode, clear everything below the line to win. Heavy boxes strain Ojisan's back, and a full gauge sends him to the hospital."
           }
         }
       }
@@ -1458,6 +3537,28 @@
         }
       }
     },
+    "賭ける場所をタップしてスピン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap where to bet, then spin"
+          }
+        }
+      }
+    },
+    "途中の盤面は保存されません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A game in progress isn't saved."
+          }
+        }
+      }
+    },
     "遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1465,6 +3566,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play"
+          }
+        }
+      }
+    },
+    "選ばなかったカードは 1 回だけ引き直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can redraw the cards you didn't pick, once."
+          }
+        }
+      }
+    },
+    "配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A single number pays 35 to 1, a group of 12 pays 2 to 1, and red/black and the like pay 1 to 1 (your bet comes back too). 0 is green, and all red/black-type bets lose on it."
+          }
+        }
+      }
+    },
+    "長押しで旗を立てられる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press and hold to plant a flag"
           }
         }
       }
@@ -1480,6 +3614,72 @@
         }
       }
     },
+    "駒ごとに動き方が違います。ナイトは L 字、ビショップはななめ、ルークはたてよこです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each piece moves differently. The Knight jumps in an L, the Bishop moves diagonally, and the Rook moves straight."
+          }
+        }
+      }
+    },
+    "駒ごとに動き方が違います（ナイトは L 字、ビショップはななめ…）。「くわしいルール」で確認できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each piece moves differently (the Knight in an L, the Bishop diagonally…). See “Detailed Rules” for all of them."
+          }
+        }
+      }
+    },
+    "駒ごとの動き方は、盤の駒をタップすると光るマスで確かめられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To see how a piece moves, tap it on the board and check the squares that light up."
+          }
+        }
+      }
+    },
+    "駒をタップ → 移動先をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a piece → tap where to go"
+          }
+        }
+      }
+    },
+    "麻雀の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Mahjong"
+          }
+        }
+      }
+    },
+    "麻雀ソリティアの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Mahjong Solitaire"
+          }
+        }
+      }
+    },
     "麻雀・花札" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1487,6 +3687,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mahjong & Hanafuda"
+          }
+        }
+      }
+    },
+    "黒は三三・四四・長連が打てない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black can't play double three, double four, or overline"
+          }
+        }
+      }
+    },
+    "黒（先手）だけは禁じ手があり、三三・四四・長連（6 つ以上）になる場所には打てません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only Black (who moves first) has forbidden moves: no double three, double four, or overline (6 or more in a row)."
           }
         }
       }

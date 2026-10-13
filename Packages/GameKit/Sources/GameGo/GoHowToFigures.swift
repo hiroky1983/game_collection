@@ -23,7 +23,7 @@ enum GoHowToFigures {
                             if index == 1, row == 3, col == 1 { RuleStone(.black, size: 22) }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "交点をタップ" : "石が置かれる",
+                    RuleFigureLabel(index == 0 ? tr("交点をタップ") : tr("石が置かれる"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -46,7 +46,7 @@ enum GoHowToFigures {
                             }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "最後のすき間を埋める" : "白が取り上げられる",
+                    RuleFigureLabel(index == 0 ? tr("最後のすき間を埋める") : tr("白が取り上げられる"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -66,7 +66,7 @@ enum GoHowToFigures {
                             .overlay(Rectangle().stroke(Color.black.opacity(0.5), lineWidth: 0.5)) }
                     }
                 }
-                RuleFigureLabel("石 ＋ 囲んだ地（■）の合計が多い方の勝ち")
+                RuleFigureLabel(tr("石 ＋ 囲んだ地（■）の合計が多い方の勝ち"))
             }
         }
     }

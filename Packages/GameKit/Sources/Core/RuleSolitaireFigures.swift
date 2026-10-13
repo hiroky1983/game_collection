@@ -72,11 +72,11 @@ public struct RuleSelectPlaceFigure: View {
                     HStack(spacing: 18) {
                         VStack(spacing: 4) {
                             moving.view(highlighted: true)
-                            RuleFigureLabel("① 選ぶ", color: Theme.coral)
+                            RuleFigureLabel(tr("① 選ぶ"), color: Theme.coral)
                         }
                         VStack(spacing: 4) {
                             target.view()
-                            RuleFigureLabel("② 置き先")
+                            RuleFigureLabel(tr("② 置き先"))
                         }
                     }
                 } else {
@@ -86,7 +86,7 @@ public struct RuleSelectPlaceFigure: View {
                             moving.view()
                         }
                         .frame(height: RuleMiniCard.height + 20)
-                        RuleFigureLabel("置けた")
+                        RuleFigureLabel(tr("置けた"))
                     }
                 }
             }
@@ -110,12 +110,12 @@ public struct RuleEmptyColumnFigure: View {
                 if index == 0 {
                     HStack(spacing: 18) {
                         card.view(highlighted: true)
-                        RuleMiniSlot("空")
+                        RuleMiniSlot(tr("空"))
                     }
                 } else {
                     card.view()
                 }
-                RuleFigureLabel(index == 0 ? "空いた列" : caption)
+                RuleFigureLabel(index == 0 ? tr("空いた列") : caption)
             }
         }
     }
@@ -146,7 +146,7 @@ public struct RuleFoundationFigure: View {
                         .scaledFont(20, weight: .black, maxScale: 1.15)
                         .foregroundStyle(suit == .heart || suit == .diamond ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
                 }
-                RuleFigureLabel("4 つのスートぶん")
+                RuleFigureLabel(tr("4 つのスートぶん"))
             }
         }
     }

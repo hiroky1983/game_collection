@@ -32,7 +32,7 @@ enum GomokuHowToFigures {
                             if index == 1, row == 3, col == 2 { RuleStone(.black, size: 22) }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "空いた所をタップ" : "石が置かれる",
+                    RuleFigureLabel(index == 0 ? tr("空いた所をタップ") : tr("石が置かれる"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -43,9 +43,9 @@ enum GomokuHowToFigures {
     private struct FiveFigure: View {
         var body: some View {
             HStack(spacing: 10) {
-                line("よこ") { row, col in row == 2 }
-                line("たて") { row, col in col == 2 }
-                line("ななめ") { row, col in col == row }
+                line(tr("よこ")) { row, col in row == 2 }
+                line(tr("たて")) { row, col in col == 2 }
+                line(tr("ななめ")) { row, col in col == row }
             }
         }
 
@@ -73,7 +73,7 @@ enum GomokuHowToFigures {
                             }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "4 つ並んだ！ ここをあけると 5 つ" : "白で止めた",
+                    RuleFigureLabel(index == 0 ? tr("4 つ並んだ！ ここをあけると 5 つ") : tr("白で止めた"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -92,7 +92,7 @@ enum GomokuHowToFigures {
                         if row == 3, col == 3 { RuleBoardMark.cross() }
                     }
                 }
-                RuleFigureLabel("黒は ✕ に打てない（三三）", color: Theme.coral)
+                RuleFigureLabel(tr("黒は ✕ に打てない（三三）"), color: Theme.coral)
             }
         }
     }

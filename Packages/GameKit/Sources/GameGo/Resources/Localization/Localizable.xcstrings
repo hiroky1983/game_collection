@@ -421,6 +421,17 @@
         }
       }
     },
+    "交点をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an intersection"
+          }
+        }
+      }
+    },
     "先番" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -586,6 +597,17 @@
         }
       }
     },
+    "最後のすき間を埋める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill the last gap"
+          }
+        }
+      }
+    },
     "死に石" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -615,6 +637,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "White"
+          }
+        }
+      }
+    },
+    "白が取り上げられる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White is captured"
           }
         }
       }
@@ -681,6 +714,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fill all of an opponent group's liberties to capture it."
+          }
+        }
+      }
+    },
+    "石 ＋ 囲んだ地（■）の合計が多い方の勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most stones + territory (■) wins"
+          }
+        }
+      }
+    },
+    "石が置かれる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A stone is placed"
           }
         }
       }

@@ -281,6 +281,28 @@
         }
       }
     },
+    "8 組でクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8 sets to win"
+          }
+        }
+      }
+    },
+    "K → A の 13 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "13 cards, K → A"
+          }
+        }
+      }
+    },
     "♠だけの 104 枚。どの札もつなげられるので、並べ替えの練習に向いています。自己ベストと Game Center の順位表はスート数ごとに別々です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -689,6 +711,17 @@
         }
       }
     },
+    "各列に 1 枚ずつ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One card to each column"
+          }
+        }
+      }
+    },
     "各列に1枚ずつ配ります" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -763,6 +796,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stock, empty"
+          }
+        }
+      }
+    },
+    "山札をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the stock"
           }
         }
       }
@@ -1007,6 +1051,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Game"
+          }
+        }
+      }
+    },
+    "消える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed"
           }
         }
       }

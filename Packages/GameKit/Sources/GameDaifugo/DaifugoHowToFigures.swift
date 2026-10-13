@@ -19,11 +19,11 @@ enum DaifugoHowToFigures {
                         HStack(spacing: 14) {
                             VStack(spacing: 4) {
                                 RuleMiniCard("7", suit: .club)
-                                RuleFigureLabel("場の札")
+                                RuleFigureLabel(tr("場の札"))
                             }
                             VStack(spacing: 4) {
                                 RuleMiniCard("J", suit: .heart, isHighlighted: true)
-                                RuleFigureLabel("より強い札を", color: Theme.coral)
+                                RuleFigureLabel(tr("より強い札を"), color: Theme.coral)
                             }
                         }
                     } else {
@@ -31,7 +31,7 @@ enum DaifugoHowToFigures {
                             RuleMiniCard("7", suit: .club, isDimmed: true)
                             RuleMiniCard("J", suit: .heart)
                         }
-                        RuleFigureLabel("出して場が J に")
+                        RuleFigureLabel(tr("出して場が J に"))
                     }
                 }
             }
@@ -45,7 +45,7 @@ enum DaifugoHowToFigures {
         ]
 
         var body: some View {
-            RuleLineup(count: cards.count, low: "弱い", high: "強い") { index in
+            RuleLineup(count: cards.count, low: tr("弱い"), high: tr("強い")) { index in
                 RuleMiniCard(cards[index].0, suit: cards[index].1, isHighlighted: index == 0 || index >= 4)
             }
             .padding(.top, 4)
@@ -60,14 +60,14 @@ enum DaifugoHowToFigures {
                     if index == 0 {
                         HStack(spacing: 10) {
                             RuleMiniCard("9", suit: .diamond)
-                            Text("パス ×全員")
+                            Text(tr("パス ×全員"))
                                 .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
                                 .foregroundStyle(Theme.coral)
                         }
-                        RuleFigureLabel("みんな出せない")
+                        RuleFigureLabel(tr("みんな出せない"))
                     } else {
-                        RuleMiniSlot("空")
-                        RuleFigureLabel("場が流れる")
+                        RuleMiniSlot(tr("空"))
+                        RuleFigureLabel(tr("場が流れる"))
                     }
                 }
             }

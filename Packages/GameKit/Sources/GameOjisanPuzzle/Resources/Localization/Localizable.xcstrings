@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%@のルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Rules"
+          }
+        }
+      }
+    },
     "%lld連鎖" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8,6 +19,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld-chain"
+          }
+        }
+      }
+    },
+    "+ 80 点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ 80 pts"
+          }
+        }
+      }
+    },
+    "1 マスずつ左右へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One space left or right"
+          }
+        }
+      }
+    },
+    "2連鎖" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2-chain"
+          }
+        }
+      }
+    },
+    "4 つつながった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 connected"
+          }
+        }
+      }
+    },
+    "40 点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "40 pts"
+          }
+        }
+      }
+    },
+    "= 120 点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "= 120 pts"
+          }
+        }
+      }
+    },
+    "▼の列が\nふさがる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ▼\ncolumn is\nblocked"
           }
         }
       }
@@ -23,6 +111,28 @@
         }
       }
     },
+    "おもい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heavy"
+          }
+        }
+      }
+    },
+    "おわり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
     "かたづいた！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -30,6 +140,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All Cleared!"
+          }
+        }
+      }
+    },
+    "かるい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light"
+          }
+        }
+      }
+    },
+    "ここまで\n下げたら\nクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear\nbelow\nhere"
           }
         }
       }
@@ -89,6 +221,17 @@
         }
       }
     },
+    "はさまれたら2回タップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boxed in? Tap twice"
+          }
+        }
+      }
+    },
     "はじめから" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -144,6 +287,17 @@
         }
       }
     },
+    "クーラー\nボックス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cooler\nbox"
+          }
+        }
+      }
+    },
     "クーラーボックス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -151,6 +305,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cooler box"
+          }
+        }
+      }
+    },
+    "ゲージ\nなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No\ngauge"
+          }
+        }
+      }
+    },
+    "ゲージが満タン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The gauge is full"
           }
         }
       }
@@ -221,6 +397,17 @@
         }
       }
     },
+    "ビール\nケース" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beer\ncrate"
+          }
+        }
+      }
+    },
     "ビールケース" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -254,6 +441,17 @@
         }
       }
     },
+    "下にスワイプ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe down"
+          }
+        }
+      }
+    },
     "下スワイプ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -261,6 +459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Swipe down"
+          }
+        }
+      }
+    },
+    "入院" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hospitalized"
           }
         }
       }
@@ -287,6 +496,39 @@
         }
       }
     },
+    "動かしたぶんだけ落ちる。長く払えば一気に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drops as far as you swipe. A long swipe drops it all the way"
+          }
+        }
+      }
+    },
+    "回せないときは、もう 1 回で上下が入れかわる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If it can't turn, tap again to flip top and bottom"
+          }
+        }
+      }
+    },
+    "座布団\nの山" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cushion\nstack"
+          }
+        }
+      }
+    },
     "座布団の山" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -294,6 +536,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cushion stack"
+          }
+        }
+      }
+    },
+    "操作・れんさのくわしい説明" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More on controls & chains"
           }
         }
       }
@@ -309,6 +562,61 @@
         }
       }
     },
+    "時計回り。壁ぎわは自動でずれる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clockwise. Shifts away from walls automatically"
+          }
+        }
+      }
+    },
+    "時間で\n下から\nせり上がる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rises\nfrom below\nover time"
+          }
+        }
+      }
+    },
+    "消すと楽になる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clearing boxes eases the pain"
+          }
+        }
+      }
+    },
+    "満タンで入院" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full gauge: off to the hospital"
+          }
+        }
+      }
+    },
+    "灯油の\nポリタンク" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kerosene\ncan"
+          }
+        }
+      }
+    },
     "灯油のポリタンク" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -316,6 +624,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kerosene can"
+          }
+        }
+      }
+    },
+    "積みあがった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacked up"
           }
         }
       }
@@ -364,6 +683,17 @@
         }
       }
     },
+    "腰にくると落ちるのが速くなり、操作が遅れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When his back hurts, boxes fall faster and controls lag"
+          }
+        }
+      }
+    },
     "腰痛ゲージ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -393,6 +723,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All the boxes are below the line."
+          }
+        }
+      }
+    },
+    "荷物が出てくる位置（▼の列のいちばん上）が埋まる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The spot where boxes appear (top of the ▼ column) fills up"
+          }
+        }
+      }
+    },
+    "荷物が多い盤ほど、最初から腰にきている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A more crowded board starts him off with more pain"
           }
         }
       }
@@ -430,6 +782,17 @@
         }
       }
     },
+    "落ちて 2 れんさ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They fall: 2-chain!"
+          }
+        }
+      }
+    },
     "途中で終了すると、いまの盤面と得点が失われます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -437,6 +800,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, your current board and score will be lost."
+          }
+        }
+      }
+    },
+    "遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
+    "重い荷物をかかえるほど腰にくる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The heavier the boxes he holds, the more his back hurts"
+          }
+        }
+      }
+    },
+    "閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
+          }
+        }
+      }
+    },
+    "開いている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
           }
         }
       }

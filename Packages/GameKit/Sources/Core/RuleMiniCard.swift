@@ -136,6 +136,9 @@ public struct RuleMiniSlot: View {
                     Text(label)
                         .scaledFont(11, weight: .black, design: .rounded, maxScale: 1.15)
                         .foregroundStyle(Theme.inkSub)
+                        // 英語（Empty 等）は札 1 枚の幅に収まらないことがあるので縮める（#2165）。
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                        .padding(.horizontal, 2)
                 }
             }
     }

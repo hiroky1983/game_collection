@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%@（勝ち）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (wins)"
+          }
+        }
+      }
+    },
     "%@（獲得済み）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8,6 +19,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ (taken)"
+          }
+        }
+      }
+    },
+    "%lld ペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pair"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pairs"
+                }
+              }
+            }
           }
         }
       }
@@ -52,6 +86,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Briefly highlights the match for your first card"
+          }
+        }
+      }
+    },
+    "2 枚めくる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip 2"
           }
         }
       }
@@ -140,6 +185,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Easy"
+          }
+        }
+      }
+    },
+    "ちがう絵柄" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different pictures"
           }
         }
       }
@@ -243,6 +299,17 @@
         }
       }
     },
+    "ペア！もう一度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair! Go again"
+          }
+        }
+      }
+    },
     "ミスマッチの札が裏返る前なら、直前のめくりをやり直せます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -283,6 +350,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Act now!"
+          }
+        }
+      }
+    },
+    "伏せて CPU の番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face down, CPU's turn"
+          }
+        }
+      }
+    },
+    "同じ絵柄" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same picture"
           }
         }
       }

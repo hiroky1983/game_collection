@@ -267,6 +267,28 @@
         }
       }
     },
+    "みんな出せない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No one can play"
+          }
+        }
+      }
+    },
+    "より強い札を" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a stronger card"
+          }
+        }
+      }
+    },
     "エース" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -399,6 +421,17 @@
         }
       }
     },
+    "パス ×全員" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone passes"
+          }
+        }
+      }
+    },
     "上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -417,6 +450,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This ends the current game. You'll become the Beggar, and it will count as a loss."
+          }
+        }
+      }
+    },
+    "出して場が J に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now the table is J"
           }
         }
       }
@@ -487,6 +531,17 @@
         }
       }
     },
+    "場が流れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table is cleared"
+          }
+        }
+      }
+    },
     "場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -516,6 +571,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cards on the table: %@"
+          }
+        }
+      }
+    },
+    "場の札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the table"
           }
         }
       }
@@ -620,6 +686,17 @@
         }
       }
     },
+    "弱い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak"
+          }
+        }
+      }
+    },
     "弱い ← 3 4 5 6 7 8 9 10 J Q K A 2 → 強い。ジョーカーが最強で、どのカードの代わりにもなります" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -627,6 +704,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Weak ← 3 4 5 6 7 8 9 10 J Q K A 2 → Strong. The Joker is the strongest card and can stand in for any card."
+          }
+        }
+      }
+    },
+    "強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strong"
           }
         }
       }
@@ -749,6 +837,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Game Over"
+          }
+        }
+      }
+    },
+    "空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty"
           }
         }
       }

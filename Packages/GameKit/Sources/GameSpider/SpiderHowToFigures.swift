@@ -52,7 +52,7 @@ enum SpiderHowToFigures {
                 VStack(spacing: 4) {
                     if index == 0 {
                         RuleMiniCard("", isFaceDown: true, isHighlighted: true)
-                        RuleFigureLabel("山札をタップ", color: Theme.coral)
+                        RuleFigureLabel(tr("山札をタップ"), color: Theme.coral)
                     } else {
                         HStack(spacing: 5) {
                             ForEach(0..<4, id: \.self) { _ in
@@ -63,7 +63,7 @@ enum SpiderHowToFigures {
                                 .frame(height: RuleMiniCard.height + 12)
                             }
                         }
-                        RuleFigureLabel("各列に 1 枚ずつ")
+                        RuleFigureLabel(tr("各列に 1 枚ずつ"))
                     }
                 }
             }
@@ -84,10 +84,10 @@ enum SpiderHowToFigures {
                             RuleMiniCard("A", suit: .spade)
                         }
                         .frame(height: RuleMiniCard.height + 72)
-                        RuleFigureLabel("K → A の 13 枚")
+                        RuleFigureLabel(tr("K → A の 13 枚"))
                     } else {
-                        RuleMiniSlot("消える")
-                        RuleFigureLabel("8 組でクリア", color: Theme.coral)
+                        RuleMiniSlot(tr("消える"))
+                        RuleFigureLabel(tr("8 組でクリア"), color: Theme.coral)
                     }
                 }
             }

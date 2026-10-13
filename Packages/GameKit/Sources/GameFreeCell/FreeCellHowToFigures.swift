@@ -21,7 +21,7 @@ enum FreeCellHowToFigures {
                     RuleMiniSlot()
                     RuleMiniSlot()
                 }
-                RuleFigureLabel("フリーセル（1 枚ずつ置いておける）")
+                RuleFigureLabel(tr("フリーセル（1 枚ずつ置いておける）"))
             }
             .padding(.top, 4)
         }
@@ -35,7 +35,7 @@ enum FreeCellHowToFigures {
                     .init(base: RuleCardSpec("8", .spade), placed: RuleCardSpec("7", .heart), isOK: true),
                     .init(base: RuleCardSpec("8", .spade), placed: RuleCardSpec("7", .club), isOK: false),
                 ])
-                RuleEmptyColumnFigure(card: RuleCardSpec("5", .diamond), caption: "どの札でも置ける")
+                RuleEmptyColumnFigure(card: RuleCardSpec("5", .diamond), caption: tr("どの札でも置ける"))
             }
         }
     }

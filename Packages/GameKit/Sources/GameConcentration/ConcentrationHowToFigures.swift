@@ -29,7 +29,7 @@ enum ConcentrationHowToFigures {
                         }
                     }
                     .padding(.top, 4)
-                    RuleFigureLabel(["2 枚めくる", "同じ絵柄", "ペア！もう一度"][index],
+                    RuleFigureLabel([tr("2 枚めくる"), tr("同じ絵柄"), tr("ペア！もう一度")][index],
                                     color: index == 0 ? Theme.inkSub : Theme.coral)
                 }
             }
@@ -51,7 +51,7 @@ enum ConcentrationHowToFigures {
                         }
                     }
                     .padding(.top, 4)
-                    RuleFigureLabel(index == 0 ? "ちがう絵柄" : "伏せて CPU の番", color: index == 0 ? Theme.inkSub : Theme.coral)
+                    RuleFigureLabel(index == 0 ? tr("ちがう絵柄") : tr("伏せて CPU の番"), color: index == 0 ? Theme.inkSub : Theme.coral)
                 }
             }
         }
@@ -61,7 +61,7 @@ enum ConcentrationHowToFigures {
     private struct ScoreFigure: View {
         var body: some View {
             HStack(spacing: 24) {
-                score(name: "あなた", pairs: 5, isWinner: true)
+                score(name: tr("あなた"), pairs: 5, isWinner: true)
                 score(name: "CPU", pairs: 3, isWinner: false)
             }
         }
@@ -75,10 +75,10 @@ enum ConcentrationHowToFigures {
                     }
                 }
                 .frame(height: RuleMiniCard.height * 0.6)
-                Text("\(pairs) ペア")
+                Text(tr("%lld ペア", pairs))
                     .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(isWinner ? Theme.coral : Theme.inkSub)
-                RuleFigureLabel(isWinner ? "\(name)（勝ち）" : name, color: isWinner ? Theme.coral : Theme.inkSub)
+                RuleFigureLabel(isWinner ? tr("%@（勝ち）", name) : name, color: isWinner ? Theme.coral : Theme.inkSub)
             }
         }
     }

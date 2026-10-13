@@ -27,7 +27,7 @@ enum OthelloHowToFigures {
                         if row == 2, col == 1 || col == 2 { RuleStone(col == 1 ? .black : .white, size: cell) }
                     }
                 }
-                RuleFigureLabel("○ のマスに置ける", color: Theme.coral)
+                RuleFigureLabel(tr("○ のマスに置ける"), color: Theme.coral)
             }
         }
     }
@@ -50,7 +50,7 @@ enum OthelloHowToFigures {
                             }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "黒を置くと…" : "はさんだ白が黒に",
+                    RuleFigureLabel(index == 0 ? tr("黒を置くと…") : tr("はさんだ白が黒に"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -61,8 +61,8 @@ enum OthelloHowToFigures {
     private struct CountFigure: View {
         var body: some View {
             HStack(spacing: 22) {
-                tally(.black, "黒 36", isWinner: true)
-                tally(.white, "白 28", isWinner: false)
+                tally(.black, tr("黒 36"), isWinner: true)
+                tally(.white, tr("白 28"), isWinner: false)
             }
         }
 
@@ -70,7 +70,7 @@ enum OthelloHowToFigures {
             VStack(spacing: 4) {
                 RuleStone(tone, size: 34)
                 RuleFigureLabel(label, color: isWinner ? Theme.coral : Theme.inkSub)
-                if isWinner { RuleFigureLabel("多い方の勝ち", color: Theme.coral) }
+                if isWinner { RuleFigureLabel(tr("多い方の勝ち"), color: Theme.coral) }
             }
         }
     }

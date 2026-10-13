@@ -29,7 +29,7 @@ enum ChessHowToFigures {
                             if index == 1, row == 0, col == 4 { piece(.bishop) }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "駒をタップ → 光るマス" : "タップで移動",
+                    RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -42,9 +42,9 @@ enum ChessHowToFigures {
 
         var body: some View {
             HStack(alignment: .top, spacing: 10) {
-                column("ナイト", .knight) { row, col in knight.contains([row, col]) }
-                column("ビショップ", .bishop) { row, col in row != 2 && col != 2 && abs(row - 2) == abs(col - 2) }
-                column("ルーク", .rook) { row, col in (row == 2) != (col == 2) }
+                column(tr("ナイト"), .knight) { row, col in knight.contains([row, col]) }
+                column(tr("ビショップ"), .bishop) { row, col in row != 2 && col != 2 && abs(row - 2) == abs(col - 2) }
+                column(tr("ルーク"), .rook) { row, col in (row == 2) != (col == 2) }
             }
         }
 
@@ -73,7 +73,7 @@ enum ChessHowToFigures {
                         if row == 1, col == 2 || col == 3 { piece(.pawn, .black, size: 30) }
                     }
                 }
-                RuleFigureLabel("ルークで王手！ 逃げ場がない", color: Theme.coral)
+                RuleFigureLabel(tr("ルークで王手！ 逃げ場がない"), color: Theme.coral)
             }
         }
     }

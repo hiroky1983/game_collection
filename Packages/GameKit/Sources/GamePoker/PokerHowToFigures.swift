@@ -23,7 +23,7 @@ enum PokerHowToFigures {
                     RuleMiniCard("2", suit: .spade)
                 }
                 .padding(.top, 4)
-                RuleFigureLabel("タップで選んだ札は残る", color: Theme.coral)
+                RuleFigureLabel(tr("タップで選んだ札は残る"), color: Theme.coral)
             }
         }
     }
@@ -47,7 +47,7 @@ enum PokerHowToFigures {
                         }
                     }
                     .padding(.top, 4)
-                    RuleFigureLabel(index == 0 ? "選ばなかった 3 枚" : "引き直した 3 枚")
+                    RuleFigureLabel(index == 0 ? tr("選ばなかった 3 枚") : tr("引き直した 3 枚"))
                 }
             }
         }
@@ -55,10 +55,10 @@ enum PokerHowToFigures {
 
     /// 役の強さの並び（弱い → 強い）。
     private struct RankFigure: View {
-        private let names = ["ワン\nペア", "ツー\nペア", "スリー\nカード", "フル\nハウス"]
+        private let names = [tr("ワン\nペア"), tr("ツー\nペア"), tr("スリー\nカード"), tr("フル\nハウス")]
 
         var body: some View {
-            RuleLineup(count: names.count, low: "弱い", high: "強い") { index in
+            RuleLineup(count: names.count, low: tr("弱い"), high: tr("強い")) { index in
                 Text(names[index])
                     .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(Theme.ink)
