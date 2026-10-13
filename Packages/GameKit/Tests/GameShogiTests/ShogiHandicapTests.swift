@@ -210,6 +210,23 @@ struct ShogiHandicapTests {
         #expect(log.record(gameID: "shogi")?.variantLabel == nil)
     }
 
+    @Test("終局後の見返しを復元すると、記録行は手合いごとの記録を指す")
+    func restoredReviewShowsHandicapRecord() throws {
+        let name = "asobiba.shogi.handicap.restore.tests"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let store = MemorySnapshotStore()
+        let model = ShogiGameModel(services: makeServices(store, log: log))
+        model.newGame(humanSide: .black, aiLevel: 1, handicap: .bishop, dropper: .player)
+        model.resign()
+
+        let restored = ShogiGameModel(services: makeServices(store, log: log))
+        #expect(restored.gameOver)
+        #expect(restored.recordResult?.record.plays == 1)
+        #expect(restored.recordResult?.record.variantLabel == "角落ち・自分が落とす")
+    }
+
     @Test("解析の mode に手合いと落とす側が入り、game_start と game_end で同じ値になる")
     func analyticsModeCarriesHandicap() {
         let spy = SpyAnalyticsService()

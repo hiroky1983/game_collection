@@ -132,7 +132,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
         // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
         // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: matchSetting.recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -156,7 +156,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public func startPlayIfPending() {
         guard pendingInitialStart else { return }
         pendingInitialStart = false
-        services?.gameDidStart(gameID: gameID)
+        services?.gameDidStart(gameID: gameID, mode: matchSetting.analyticsMode)
     }
 
     // MARK: - 終局の判定
