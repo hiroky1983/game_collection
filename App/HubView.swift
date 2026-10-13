@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import GameHomerun
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -34,6 +35,9 @@ struct HubView: View {
     @State private var showGameCenterSignInGuidance = false
     /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
     @State private var hiddenNotice: HiddenNotice?
+    /// 柵越えおじさんの今日の残り回数（横長タイルの右下・#2208）。数え方は `HomerunHubCount`（打席前と同じ台帳）。
+    /// ゲームから戻ったとき・前面に戻ったとき・ハブを開いたまま 0:00 を越えたときに読み直す。
+    @State private var homerunRemaining = HomerunHubCount.remaining()
 
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
@@ -324,9 +328,19 @@ struct HubView: View {
                         }
                 }
             }
+            // ハブを開いたまま 0:00 を越えたら、その場で残り回数を戻す（#2208。打席前のボタンと同じ境目）。
+            .task {
+                while !Task.isCancelled {
+                    let wait = HomerunHubCount.nextReset(after: Date()).timeIntervalSinceNow + 1
+                    do { try await Task.sleep(for: .seconds(max(1, wait))) } catch { return }
+                    homerunRemaining = HomerunHubCount.remaining()
+                }
+            }
             // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
             // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
             .onChange(of: scenePhase) { _, phase in
+                // 日付をまたいで戻った回数を、前面に戻ったハブで出し直す（#2208）。
+                if phase == .active { homerunRemaining = HomerunHubCount.remaining() }
                 guard let current = path.last else { return }
                 switch phase {
                 case .background: services.gameDidEnterBackground(gameID: current.gameID)
@@ -340,6 +354,8 @@ struct HubView: View {
                 // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
                 if !oldPath.isEmpty, newPath.isEmpty, let left = oldPath.last {
                     services.gameDidLeave(gameID: left.gameID)
+                    // ハブに戻ったら柵越えおじさんの残り回数を読み直す（遊んだ分・0:00 の補充・#2208）。
+                    homerunRemaining = HomerunHubCount.remaining()
                 }
                 // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
                 // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
@@ -603,7 +619,9 @@ struct HubView: View {
                 module: module,
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
-                wide: wide
+                wide: wide,
+                // 柵越えおじさんの横長タイルだけ、右下に今日の残り回数（#2208）。
+                countLabel: module.id == Self.heroGameID ? HomerunHubCount.labelText(remaining: homerunRemaining) : nil
             )
         }
         // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
@@ -695,6 +713,8 @@ private struct GameCard: View {
     let isNew: Bool
     /// グリッドの全列ぶちぬきの横長タイル（柵越えおじさんだけ・#2184）。画像は iPhone 用（2 列ぶん）と iPad 用（4 列ぶん）。
     var wide = false
+    /// 右下に出す残り回数（柵越えおじさんだけ・#2208）。「続きから」「NEW」と同じ部品で出す。
+    var countLabel: String?
 
     @Environment(\.adaptiveLayout) private var layout
 
@@ -718,6 +738,11 @@ private struct GameCard: View {
             // 柵越えおじさんの画像の「体験版」は会長指示で消した（#2184）ので、印はどのタイルも左下。
             .overlay(alignment: .bottomLeading) {
                 badge.padding(layout.scaled(10))
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if let countLabel {
+                    badgeCapsule(countLabel).padding(layout.scaled(10))
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .background(
@@ -774,6 +799,7 @@ private struct GameCard: View {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
+        if let countLabel { parts.append(countLabel) }
         return parts.joined(separator: tr("、"))
     }
 }
