@@ -462,6 +462,7 @@ public extension HowToPlayGuide {
     static var runner: HowToPlayGuide { runner(
         goal: tr("ゴールまで走ればステージクリア。面を順にクリアして、先の世界へ進みます。"),
         miss: tr("ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。"),
+        lastLine: tr("ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。"),
         notes: [
             tr("青いチェックポイントより先でミスしたときは、広告を見てそこから再開することもできます。"),
             tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
@@ -472,18 +473,19 @@ public extension HowToPlayGuide {
     static var runnerEndless: HowToPlayGuide { runner(
         goal: tr("毎回ちがうコースを、ミスするまで走ります。走った距離が記録です。"),
         miss: tr("ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。"),
+        lastLine: tr("ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。"),
         notes: [
             tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
         ]
     ) }
 
-    private static func runner(goal: String, miss: String, notes: [String]) -> HowToPlayGuide { HowToPlayGuide(
+    private static func runner(goal: String, miss: String, lastLine: String, notes: [String]) -> HowToPlayGuide { HowToPlayGuide(
         gameID: "runner",
         title: tr("チャリンコおじさんの遊び方"),
         lines: [
             tr("画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。"),
             tr("タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗って先へ進めます。"),
-            tr("ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。"),
+            lastLine,
         ],
         hint: tr("タップでジャンプ"),
         hintIcon: "hand.tap.fill",

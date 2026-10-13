@@ -433,6 +433,9 @@ struct OjisanGamesHowToFiguresTests {
         #expect(stages.items[0] != endless.items[0] && stages.items[4] != endless.items[4])
         #expect(RunnerMode.stages.howToPlayGuide.items.map(\.text) == stages.items.map(\.text))
         #expect(RunnerMode.endless.howToPlayGuide.items.map(\.text) == endless.items.map(\.text))
+        #expect(endless.lines.last?.contains("チェックポイント") == false)
+        #expect(endless.lines.last?.contains("やり直せます") == false)
+        #expect(stages.lines.last?.contains("チェックポイント") == true)
     }
 
     @Test("チャリンコおじさんの開始シートは、選んでいるモードの項目を常時と折りたたみに分けて全部出す")
