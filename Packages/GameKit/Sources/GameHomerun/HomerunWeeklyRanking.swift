@@ -25,7 +25,7 @@ public enum HomerunWeekly {
     }
 
     /// 今週の順位表として出せる形にする（#2216）。週が切り替わった直後に前週の表が残っていたら、前週の順位・行は捨てて
-    /// 「今週はまだ誰も記録していない」表にする（期間は前週の続きの 1 回ぶん。前週の自分の順位は「先週」へ回す）。
+    /// 「今週はまだ誰も記録していない」表にする（期間は前週の続きの 1 回ぶん）。
     static func currentWeek(_ board: GameCenterBoard, now: Date) -> GameCenterBoard {
         guard isPastWeek(board, now: now), let end = board.end else { return board }
         var start = end
@@ -35,7 +35,7 @@ public enum HomerunWeekly {
         while start.addingTimeInterval(length) <= now { start = start.addingTimeInterval(length) }
         return GameCenterBoard(rows: [], myRank: nil, myScore: nil, participants: 0,
                                start: start, end: start.addingTimeInterval(length),
-                               lastWeekRank: start == end ? board.myRank : nil)
+                               lastWeekRank: nil)
     }
 }
 

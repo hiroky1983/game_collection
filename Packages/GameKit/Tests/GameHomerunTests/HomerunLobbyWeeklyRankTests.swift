@@ -84,8 +84,7 @@ struct HomerunLobbyWeeklyRankTests {
         #expect(current.participants == 0)
         #expect(current.start == Self.date(12))
         #expect(current.end == Self.date(19))
-        // 前週の自分の順位は「先週」へ回す。
-        #expect(current.lastWeekRank == 3)
+        #expect(current.lastWeekRank == nil)
         #expect(HomerunLobbyRankText.detail(for: .ready(before: nil, after: current), language: .japanese) == "今週はまだ記録がありません")
     }
 
@@ -152,6 +151,20 @@ struct HomerunLobbyWeeklyRankTests {
         #expect(model.lobbyWeekly == .ready(before: nil, after: b))
         await model.lobbyWeeklyTask?.value
         #expect(stub.loads == 2)
+    }
+
+    @Test("今週の順位を出しているときに読み直しが失敗しても、出していた順位は消さない")
+    func keepsReadyWhenReloadFails() async {
+        let stub = StubService()
+        let b = board(myRank: 12, participants: 340, start: Date().addingTimeInterval(-86_400), end: Date().addingTimeInterval(86_400))
+        stub.boards = [b, nil]
+        let model = makeModel(stub)
+        model.refreshLobbyWeekly()
+        await model.lobbyWeeklyTask?.value
+        model.refreshLobbyWeekly()
+        await model.lobbyWeeklyTask?.value
+        #expect(stub.loads == 2)
+        #expect(model.lobbyWeekly == .ready(before: nil, after: b))
     }
 
     @Test("前週の表が残っている状態で読み直すときは読み込み中に戻す。表示はその間も前週の順位を出さない")

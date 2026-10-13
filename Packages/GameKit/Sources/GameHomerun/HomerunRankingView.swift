@@ -117,19 +117,10 @@ struct HomerunLobbyRankRow: View {
                     label(detail: detail, isLoading: state == .loading)
                 }
                 .buttonStyle(.plain)
-                .simultaneousGesture(TapGesture().onEnded {
-                    // 読めなかった・前週の表が残っているときは、開くついでに読み直す。
-                    if state == .failed || isStale(context.date) { model.refreshLobbyWeekly() }
-                })
                 .accessibilityElement(children: .combine)
                 .accessibilityHint(tr("今週のランキングを開きます"))
             }
         }
-    }
-
-    private func isStale(_ now: Date) -> Bool {
-        if case .ready(_, let board) = model.lobbyWeekly { return HomerunWeekly.isPastWeek(board, now: now) }
-        return false
     }
 
     private func label(detail: String, isLoading: Bool) -> some View {
@@ -168,6 +159,17 @@ private struct HomerunLobbyRankingDestination: View {
     var body: some View {
         HomerunWeeklyRankingScreen(state: model.lobbyWeeklyState(now: Date()), animates: false,
                                    nextTitle: tr("打席前に戻る"), onNext: { dismiss() })
+            // 読めなかった・前週の表が残っているときは、開いたついでに読み直す。
+            .onAppear {
+                switch model.lobbyWeekly {
+                case .failed:
+                    model.refreshLobbyWeekly()
+                case .ready(_, let board) where HomerunWeekly.isPastWeek(board, now: Date()):
+                    model.refreshLobbyWeekly()
+                default:
+                    break
+                }
+            }
     }
 }
 

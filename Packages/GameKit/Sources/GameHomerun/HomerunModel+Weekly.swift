@@ -38,20 +38,24 @@ extension HomerunModel {
         return .available(reporter, leaderboardID: leaderboardID)
     }
 
+    /// 読めるなら読み先を返す。読めないときは、それを表す状態（`.off` / `.signedOut`）を `unavailable` に渡して nil。
+    private func weeklySource(unavailable: (WeeklyState) -> Void) -> (reporter: GameCenterReporter, leaderboardID: String)? {
+        switch weeklyAccess {
+        case .off:
+            unavailable(.off)
+            return nil
+        case .signedOut:
+            unavailable(.signedOut)
+            return nil
+        case .available(let reporter, let leaderboardID):
+            return (reporter, leaderboardID)
+        }
+    }
+
     /// 決着で呼ぶ。送る前の順位表 → 送信（完了待ち）→ 送った後の順位表を順に読む。どこで失敗しても進行は止めない。
     func beginWeekly(for challenge: HomerunChallenge) {
         cancelWeekly()
-        let reporter: GameCenterReporter
-        let leaderboardID: String
-        switch weeklyAccess {
-        case .off:
-            return
-        case .signedOut:
-            weekly = .signedOut
-            return
-        case .available(let r, let id):
-            (reporter, leaderboardID) = (r, id)
-        }
+        guard let (reporter, leaderboardID) = weeklySource(unavailable: { weekly = $0 }) else { return }
         weekly = .loading
         let score = HomerunWeekly.score(for: challenge)
         weeklyTask = Task { [weak self] in
@@ -72,31 +76,27 @@ extension HomerunModel {
     }
 
     /// 打席前の今週の順位（#2216）を読み直す。打席前に出たとき・アプリに戻ったとき・失敗の行を押したときに呼ぶ。
-    /// 前に読めた順位がまだ今週のものなら、読み直しのあいだもそれを出し続ける（行がちらつかない）。
+    /// 前に読めた順位がまだ今週のものなら、読み直しのあいだ（と読み直しに失敗したとき）もそれを出し続ける（行がちらつかない）。
     func refreshLobbyWeekly(now: Date = Date()) {
         lobbyWeeklyTask?.cancel()
         lobbyWeeklyTask = nil
-        let reporter: GameCenterReporter
-        let leaderboardID: String
-        switch weeklyAccess {
-        case .off:
-            lobbyWeekly = .off
-            return
-        case .signedOut:
-            lobbyWeekly = .signedOut
-            return
-        case .available(let r, let id):
-            (reporter, leaderboardID) = (r, id)
-        }
+        guard let (reporter, leaderboardID) = weeklySource(unavailable: { lobbyWeekly = $0 }) else { return }
+        let keepsCurrent: Bool
         if case .ready(_, let board) = lobbyWeekly, !HomerunWeekly.isPastWeek(board, now: now) {
-            // 読み直しのあいだも今の表示を残す。
+            keepsCurrent = true
         } else {
+            keepsCurrent = false
             lobbyWeekly = .loading
         }
         lobbyWeeklyTask = Task { [weak self] in
             let board = await Self.loadWeeklyBoard(reporter, leaderboardID: leaderboardID, includesLastWeek: true)
             guard !Task.isCancelled, let self else { return }
-            lobbyWeekly = board.map { .ready(before: nil, after: $0) } ?? .failed
+            if let board {
+                lobbyWeekly = .ready(before: nil, after: board)
+            } else if !keepsCurrent {
+                // 今週の順位を出していたなら、読み直しに失敗してもそのまま残す（一時的なオフラインで消さない）。
+                lobbyWeekly = .failed
+            }
         }
     }
 
