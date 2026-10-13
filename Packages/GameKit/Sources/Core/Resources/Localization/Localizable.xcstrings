@@ -3064,6 +3064,17 @@
         }
       }
     },
+    "手合いで「飛車落ち」「角落ち」を選ぶと、上手（盤の上側）がその駒を外して始まります。上手が先に指します。自分が落とすか、CPU が落とすかを選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you pick “Rook handicap” or “Bishop handicap”, the upper player (top side of the board) starts without that piece and moves first. You can choose whether you or the CPU drops the piece."
+          }
+        }
+      }
+    },
     "手数が少ないほど良い記録です。" : {
       "extractionState" : "manual",
       "localizations" : {

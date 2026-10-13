@@ -69,8 +69,10 @@ public struct ShogiView: View {
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
         .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items)) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
-            NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
-                model.newGame(humanSide: side, aiLevel: level)
+            NewGameSheet(
+                initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.matchSetting
+            ) { side, level, setting in
+                model.newGame(humanSide: side, aiLevel: level, handicap: setting.handicap, dropper: setting.dropper)
                 showNewGame = false
             } onCancel: {
                 showNewGame = false
@@ -294,7 +296,8 @@ public struct ShogiView: View {
                                currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
                                levelLabels: CPUStrength.labels) { index in
             model.newGame(humanSide: model.humanSide,
-                          aiLevel: CPUStrength.level(atLadderIndex: index))
+                          aiLevel: CPUStrength.level(atLadderIndex: index),
+                          handicap: model.matchSetting.handicap, dropper: model.matchSetting.dropper)
         }
     }
 
@@ -485,7 +488,11 @@ public struct ShogiView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSub)
+                // 駒落ちは手合いを添える（平手は従来どおり手数だけ）。
+                Text(model.matchSetting.displayName.map { "\($0)・" + tr("%lld手", model.moves.count) }
+                     ?? tr("%lld手", model.moves.count))
+                    .themeBody(13).foregroundStyle(Theme.inkSub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
     }
@@ -525,7 +532,10 @@ public struct ShogiView: View {
             total: model.moves.count,
             onBack: { model.reviewStepBack() },
             onForward: { model.reviewStepForward() },
-            onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
+            onReplay: {
+                model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                              handicap: model.matchSetting.handicap, dropper: model.matchSetting.dropper)
+            },
             onChangeSettings: { showNewGame = true }
         )
     }
@@ -533,17 +543,21 @@ public struct ShogiView: View {
 
 // MARK: - 新規対局シート
 
-/// 先後・難易度を大きなボタンで選ぶ。
+/// 手合い・先後・難易度を大きなボタンで選ぶ。
 struct NewGameSheet: View {
     @State private var side: Side
     @State private var level: Int
-    let onStart: (Side, Int) -> Void
+    @State private var handicap: ShogiHandicap
+    @State private var dropper: ShogiHandicapDropper
+    let onStart: (Side, Int, ShogiMatchSetting) -> Void
     let onCancel: () -> Void
 
-    init(initialSide: Side, initialLevel: Int,
-         onStart: @escaping (Side, Int) -> Void, onCancel: @escaping () -> Void) {
+    init(initialSide: Side, initialLevel: Int, initialSetting: ShogiMatchSetting = ShogiMatchSetting(handicap: .even, dropper: .player),
+         onStart: @escaping (Side, Int, ShogiMatchSetting) -> Void, onCancel: @escaping () -> Void) {
         _side = State(initialValue: initialSide)
         _level = State(initialValue: initialLevel)
+        _handicap = State(initialValue: initialSetting.handicap)
+        _dropper = State(initialValue: initialSetting.dropper)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -551,14 +565,49 @@ struct NewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
-            onStart: { onStart(side, level) }, onCancel: onCancel
+            onStart: { onStart(side, level, ShogiMatchSetting(handicap: handicap, dropper: dropper)) },
+            onCancel: onCancel
         ) {
-            GameSetupSection(tr("あなたの手番")) {
+            GameSetupSection(tr("手合い")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: tr("先手"), subtitle: tr("▲ 先に指す"), selected: side == .black,
-                                     accent: Theme.fillStrong, onAccent: .white) { side = .black }
-                    GameSetupChooser(title: tr("後手"), subtitle: tr("△ 後に指す"), selected: side == .white,
-                                     accent: Theme.Fill.teal) { side = .white }
+                    ForEach(ShogiHandicap.allCases, id: \.self) { option in
+                        GameSetupChooser(
+                            title: option.title,
+                            subtitle: option == .even ? tr("ハンデなし") : tr("上手が駒を落とす"),
+                            selected: handicap == option,
+                            accent: Theme.fillStrong, onAccent: .white,
+                            metrics: .init(title: .body(18), subtitleSize: 11, verticalPadding: 12,
+                                           titleMinimumScale: 0.7, subtitleMinimumScale: 0.6)
+                        ) { handicap = option }
+                    }
+                }
+            }
+            if handicap == .even {
+                GameSetupSection(tr("あなたの手番")) {
+                    HStack(spacing: 12) {
+                        GameSetupChooser(title: tr("先手"), subtitle: tr("▲ 先に指す"), selected: side == .black,
+                                         accent: Theme.fillStrong, onAccent: .white) { side = .black }
+                        GameSetupChooser(title: tr("後手"), subtitle: tr("△ 後に指す"), selected: side == .white,
+                                         accent: Theme.Fill.teal) { side = .white }
+                    }
+                }
+            } else {
+                // 駒を落とした側（上手）が先に指す。先後は落とす側で決まるので別には選ばせない。
+                GameSetupSection(tr("駒を落とす側")) {
+                    HStack(spacing: 12) {
+                        GameSetupChooser(title: ShogiHandicapDropper.player.title, subtitle: tr("△ 上手・先に指す"),
+                                         selected: dropper == .player,
+                                         accent: Theme.Fill.teal,
+                                         metrics: .init(title: .body(18), subtitleSize: 11, verticalPadding: 12,
+                                                        titleMinimumScale: 0.7, subtitleMinimumScale: 0.6)
+                        ) { dropper = .player }
+                        GameSetupChooser(title: ShogiHandicapDropper.cpu.title, subtitle: tr("▲ 下手・駒が揃う"),
+                                         selected: dropper == .cpu,
+                                         accent: Theme.fillStrong, onAccent: .white,
+                                         metrics: .init(title: .body(18), subtitleSize: 11, verticalPadding: 12,
+                                                        titleMinimumScale: 0.7, subtitleMinimumScale: 0.6)
+                        ) { dropper = .cpu }
+                    }
                 }
             }
             GameSetupSection(tr("CPUの強さ")) {

@@ -186,6 +186,16 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case backpain
     /// おじさんの荷物運びパズルのパズルモード（ゲージなし・得点を競う。#1920）。
     case puzzle
+    /// 将棋の平手（#2179）。駒落ちを足したので、平手も値を持つ（`mode` 無しの旧プレイとは分かれる）。
+    case even
+    /// 将棋の飛車落ちで、自分が駒を落とす（自分が上手）。
+    case rookPlayer = "rook_player"
+    /// 将棋の飛車落ちで、CPU が駒を落とす（CPU が上手）。
+    case rookCPU = "rook_cpu"
+    /// 将棋の角落ちで、自分が駒を落とす。
+    case bishopPlayer = "bishop_player"
+    /// 将棋の角落ちで、CPU が駒を落とす。
+    case bishopCPU = "bishop_cpu"
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。

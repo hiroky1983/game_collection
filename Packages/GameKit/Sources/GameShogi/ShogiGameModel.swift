@@ -7,7 +7,8 @@ import Core
 @MainActor
 @Observable
 public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
-    public let initialSFEN: String
+    /// 開始局面。手合い（#2179）はここに焼き込む（平手は初形、駒落ちは上手の駒を欠いた後手番の局面）。
+    public private(set) var initialSFEN: String
     public private(set) var moves: [Move]
     public private(set) var position: Position
     public private(set) var legalMovesCache: [Move]
@@ -131,7 +132,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
         // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
         // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: matchSetting.recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -155,7 +156,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public func startPlayIfPending() {
         guard pendingInitialStart else { return }
         pendingInitialStart = false
-        services?.gameDidStart(gameID: gameID)
+        services?.gameDidStart(gameID: gameID, mode: matchSetting.analyticsMode)
     }
 
     // MARK: - 終局の判定
@@ -455,7 +456,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser == humanSide ? .loss : .win,
-                score: hints.winLossScore,
+                score: recordScore,
                 // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
                 isReviewHighlight: beatsWorthyCPU
             )
@@ -472,7 +473,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser.map { $0 == humanSide ? .loss : .win } ?? .draw,
-                score: hints.winLossScore
+                score: recordScore
             )
         } else if position.isKingInCheck(position.sideToMove) {
             // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
@@ -495,8 +496,16 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     /// 新規対局（CPU 対戦）。人間が指す側を選ぶ。
-    public func newGame(humanSide: Side = .black, aiLevel: Int = 1) {
-        position = Position.start()
+    ///
+    /// 駒落ち（#2179）のときは、落とす側で人間の座る側が決まる（上手＝後手の位置）ので `humanSide` は使わない。
+    /// 手合いはここで開始局面に焼き込む。途中で個人設定を読み直さない（1局＝1ルール）。
+    public func newGame(
+        humanSide: Side = .black, aiLevel: Int = 1,
+        handicap: ShogiHandicap = .even, dropper: ShogiHandicapDropper = .player
+    ) {
+        let humanSide = handicap == .even ? humanSide : dropper.humanSide
+        initialSFEN = handicap.initialSFEN
+        position = Position.fromSFEN(initialSFEN) ?? Position.start()
         moves = []
         legalMovesCache = position.legalMoves()
         phase = .playing
@@ -527,7 +536,24 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         clearSelection()
         persist()
         pendingInitialStart = false
-        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
+        services?.gameDidRestart(
+            gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel), mode: matchSetting.analyticsMode)
+    }
+
+    /// この局の手合いと落とす側（#2179）。開始局面と人間の座る側から毎回導く（状態として持たない）ので、
+    /// 中断データに項目を足さなくても、続きから再開して手合いが保たれる。
+    public var matchSetting: ShogiMatchSetting {
+        ShogiMatchSetting(
+            handicap: ShogiHandicap.detect(initialSFEN: initialSFEN),
+            dropper: .from(humanSide: humanSide))
+    }
+
+    /// 決着に渡す成績。手合いごとに記録を分ける（平手は従来の保存先のまま）。
+    private var recordScore: GameScore {
+        var score = hints.winLossScore
+        score.variant = matchSetting.recordVariant
+        score.variantLabel = matchSetting.recordVariantLabel
+        return score
     }
 
     /// 人間が指している側（CPU 戦の表示用）。
@@ -708,7 +734,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         gameOver = true
         services?.feedback.notify(.error)
         startPlayIfPending()
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: recordScore)
         resultKey = Self.resignationResultText
         phase = .review
         reviewPly = moves.count
@@ -718,8 +744,13 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
 
+    /// 開始局面で最初に指す側。平手は先手、駒落ちは上手（後手の位置・#2179）。
+    private var firstMover: Side {
+        initialSFEN.split(separator: " ").dropFirst().first == "w" ? .white : .black
+    }
+
     private func mover(at index: Int) -> Side {
-        index % 2 == 0 ? .black : .white
+        index % 2 == 0 ? firstMover : firstMover.opponent
     }
 
     /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
@@ -763,7 +794,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
     private var beatsWorthyCPU: Bool {
-        (sente == .ai || gote == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
+        guard sente == .ai || gote == .ai else { return false }
+        // CPU に駒を落とされた勝ちは、手加減してもらった勝ちなので見せ場にしない（#2179）。
+        let setting = matchSetting
+        if setting.isHandicap && setting.dropper == .cpu { return false }
+        return CPUStrength.isReviewWorthy(level: aiLevel)
     }
 
     private func persist() {

@@ -297,9 +297,12 @@ struct AnalyticsEventShapeTests {
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
     }
 
-    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle の6値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle と将棋の手合い5値の11値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
     func modeIsClosed() {
-        #expect(AnalyticsMode.allCases.map(\.rawValue) == ["tonpuu", "single_hand", "stage", "endless", "backpain", "puzzle"])
+        #expect(AnalyticsMode.allCases.map(\.rawValue) == [
+            "tonpuu", "single_hand", "stage", "endless", "backpain", "puzzle",
+            "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu",
+        ])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
         for mode in AnalyticsMode.allCases {
             #expect(AnalyticsEvent.gameStart(gameID: "runner", mode: mode).parameters["mode"] == .string(mode.rawValue))
@@ -309,6 +312,10 @@ struct AnalyticsEventShapeTests {
         // 遊び方を持つゲームの型から写した値の集合 = 全量。使われない値を定義していない。
         let used = MahjongGameLength.allCases.map(\.analyticsMode) + RunnerMode.allCases.map(\.analyticsMode)
             + OjisanPuzzleMode.allCases.map(\.analyticsMode)
+            // 平手は落とす側によらず同じ値なので、重複を畳んでから突き合わせる。
+            + Array(Set(ShogiHandicap.allCases.flatMap { handicap in
+                ShogiHandicapDropper.allCases.map { ShogiMatchSetting(handicap: handicap, dropper: $0).analyticsMode }
+            }))
         #expect(used.count == Set(used).count, "別のゲームの遊び方が同じ値に潰れている")
         #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
