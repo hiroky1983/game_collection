@@ -115,6 +115,7 @@ struct HomerunModuleTests {
         let module = HomerunModule()
         let texts = [module.title, module.description]
             + HowToPlayGuide.homerun.lines + [HowToPlayGuide.homerun.title, HowToPlayGuide.homerun.hint]
+            + HowToPlayGuide.homerun.items.map(\.text) + HowToPlayGuide.homerun.notes
             + HomerunRuleSheet.rules.flatMap { [$0.0, $0.1] }
         for banned in ["ダービー", "Derby", "derby", "パワフル", "スラッガー", "公式", "®", "™"] {
             #expect(texts.allSatisfy { !$0.contains(banned) }, "「\(banned)」を含む文言がある")
@@ -144,7 +145,7 @@ struct HomerunModuleTests {
         #expect(banner.lowerBound < pad.lowerBound && !atBat[pad.lowerBound...].contains("BannerSlot("),
                 "押せる帯にバナーを重ねない")
         #expect(code.contains("HowToPlayHint(.homerun"))
-        #expect(code.contains(".howToPlay(.homerun"))
+        #expect(code.contains(".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)"))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("Timer.") && !code.contains("DispatchQueue"), "時間は Model の締め切りを .task で待つだけ")
         #expect(code.contains(".task(id: model.step)"))

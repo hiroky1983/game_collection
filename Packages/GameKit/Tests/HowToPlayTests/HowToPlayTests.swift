@@ -45,6 +45,8 @@ import GameSpider
 @testable import GameMahjong
 @testable import GameMahjongSolitaire
 @testable import GameHanafuda
+@testable import GameHomerun
+@testable import GameRunner
 import GameChess
 import GameBlocks
 import GameOjisanPuzzle
@@ -388,6 +390,67 @@ struct MahjongHanafudaHowToFiguresTests {
             ("GameMahjong/MahjongStartSheet.swift", "length.setupKeyItems", "mahjong の開始シート"),
             ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items))", "mahjongSolitaire"),
             ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items))", "hanafuda"),
+        ]
+        for (path, expected, name) in files {
+            let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
+            #expect(code.contains(expected), "\(name) の「？」が図入りの版でない")
+        }
+    }
+}
+
+// MARK: - 柵越えおじさん・チャリンコおじさんの図（#2044 束 4）
+
+@Suite("おじさんゲームの図入りの遊び方")
+@MainActor
+struct OjisanGamesHowToFiguresTests {
+    private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
+        [
+            ("homerun", .homerun, HomerunHowToFigures.items),
+            ("runner", .runner, RunnerHowToFigures.items),
+            ("runnerEndless", .runnerEndless, RunnerHowToFigures.endlessItems),
+        ]
+    }
+
+    @Test("項目ごとに図が 1 つずつあり、図を差し込んでも文言は変わらない")
+    func everyItemHasFigure() {
+        for (name, guide, figures) in pairs {
+            #expect(!guide.items.isEmpty, "\(name) に図入りの項目が無い")
+            #expect(figures.count == guide.items.count, "\(name): 図と項目の数がずれている")
+            let illustrated = guide.illustrated(figures)
+            #expect(illustrated.items.allSatisfy { $0.figure != nil })
+            #expect(illustrated.items.map(\.text) == guide.items.map(\.text))
+            #expect(illustrated.notes == guide.notes)
+        }
+    }
+
+    @Test("エンドレスの「？」は gameID が同じで all に入らず、操作の項目はステージ制と同じ")
+    func runnerEndlessVariant() {
+        let stages = HowToPlayGuide.runner
+        let endless = HowToPlayGuide.runnerEndless
+        #expect(endless.gameID == RunnerModule().id)
+        #expect(!HowToPlayGuide.all.contains(endless))
+        #expect(Array(stages.items[1...3]) == Array(endless.items[1...3]))
+        #expect(stages.items[0] != endless.items[0] && stages.items[4] != endless.items[4])
+        #expect(RunnerMode.stages.howToPlayGuide.items.map(\.text) == stages.items.map(\.text))
+        #expect(RunnerMode.endless.howToPlayGuide.items.map(\.text) == endless.items.map(\.text))
+    }
+
+    @Test("チャリンコおじさんの開始シートは、選んでいるモードの項目を常時と折りたたみに分けて全部出す")
+    func runnerSetupSheetShowsEveryItem() {
+        for mode in RunnerMode.allCases {
+            let all = mode.howToPlayGuide.items.map(\.text)
+            let shown = (mode.setupKeyItems + mode.setupDetailItems).map(\.text)
+            #expect(Set(shown) == Set(all) && shown.count == all.count, "\(mode) の開始シートに出ない項目がある")
+            #expect(mode.setupKeyItems.first?.text == all.first)
+        }
+    }
+
+    @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
+    func viewsWireIllustratedGuide() throws {
+        let files: [(String, String, String)] = [
+            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),
+            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide)", "runner"),
+            ("GameRunner/RunnerStartSheet.swift", "mode.setupKeyItems", "runner の開始シート"),
         ]
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))

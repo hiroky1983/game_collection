@@ -200,6 +200,6 @@ struct RunnerTutorialWiringTests {
     func reopenableFromHowToPlay() throws {
         let source = try Self.source()
         #expect(source.contains("RunnerTutorialPage()"))
-        #expect(source.contains("howToPlay(.runner)"))
+        #expect(source.contains("howToPlay(model.mode.howToPlayGuide)"))
     }
 }
