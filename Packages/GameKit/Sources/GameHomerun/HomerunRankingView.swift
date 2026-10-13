@@ -76,6 +76,101 @@ struct HomerunRankingPage: View {
     }
 }
 
+/// 週間ランキングの状態から、出すページを選ぶ（結果の演出のあと・結果ページの行・打席前の行（#2216）で共通）。
+/// `animates` が false（開き直し・打席前）なら入れ替えアニメは流さず静止の表を出す。
+struct HomerunWeeklyRankingScreen: View {
+    let state: HomerunModel.WeeklyState
+    let animates: Bool
+    let nextTitle: String
+    let onNext: () -> Void
+
+    var body: some View {
+        switch state {
+        case .off, .signedOut:
+            HomerunRankingSignedOutPage(nextTitle: nextTitle, onNext: onNext)
+        case .loading:
+            HomerunRankingPage(content: .loading, nextTitle: nextTitle, onNext: onNext)
+        case .failed:
+            HomerunRankingPage(content: .failed, nextTitle: nextTitle, onNext: onNext)
+        case .ready(let before, let after):
+            HomerunRankingPage(
+                content: .ready(board: after, motion: animates ? HomerunRankingPlan.motion(before: before, after: after) : nil),
+                nextTitle: nextTitle, onNext: onNext
+            )
+        }
+    }
+}
+
+/// 打席前の「今週のランキング」の行（#2216）。上の段に見出し、下の段に「○位 / ○人」か状態の文言を 1 行で出し、
+/// どの状態でも高さが変わらない（下の段は 1 行に縮めて収める）。押すと結果のあとと同じランキングページを開く。
+/// 週の切り替わりを跨いで打席前に居続けても前週の順位を出さないよう、1 分ごとに今の時刻で状態を引き直す。
+struct HomerunLobbyRankRow: View {
+    let model: HomerunModel
+
+    var body: some View {
+        TimelineView(.everyMinute) { context in
+            let state = model.lobbyWeeklyState(now: context.date)
+            if let detail = HomerunLobbyRankText.detail(for: state) {
+                NavigationLink {
+                    HomerunLobbyRankingDestination(model: model)
+                } label: {
+                    label(detail: detail, isLoading: state == .loading)
+                }
+                .buttonStyle(.plain)
+                .simultaneousGesture(TapGesture().onEnded {
+                    // 読めなかった・前週の表が残っているときは、開くついでに読み直す。
+                    if state == .failed || isStale(context.date) { model.refreshLobbyWeekly() }
+                })
+                .accessibilityElement(children: .combine)
+                .accessibilityHint(tr("今週のランキングを開きます"))
+            }
+        }
+    }
+
+    private func isStale(_ now: Date) -> Bool {
+        if case .ready(_, let board) = model.lobbyWeekly { return HomerunWeekly.isPastWeek(board, now: now) }
+        return false
+    }
+
+    private func label(detail: String, isLoading: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "trophy.fill")
+                .scaledFont(20, weight: .bold)
+                .foregroundStyle(Theme.yellow)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr("今週のランキング")).themeCaption(12).foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                Text(verbatim: detail).themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
+                    .monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
+            }
+            Spacer(minLength: 4)
+            ZStack {
+                if isLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSub)
+                }
+            }
+            .frame(width: 20, height: 20)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .popCard()
+    }
+}
+
+/// 打席前の行から開くランキングページ。読み込み中に開いても、読めたらそのまま表に切り替わる。
+private struct HomerunLobbyRankingDestination: View {
+    let model: HomerunModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        HomerunWeeklyRankingScreen(state: model.lobbyWeeklyState(now: Date()), animates: false,
+                                   nextTitle: tr("打席前に戻る"), onNext: { dismiss() })
+    }
+}
+
 /// Game Center にサインインしていない人のランキングページ（会長決定 2026-10-08: 「登録すると見られます」の案内だけ）。
 struct HomerunRankingSignedOutPage: View {
     let nextTitle: String

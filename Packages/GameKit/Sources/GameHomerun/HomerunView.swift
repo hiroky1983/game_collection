@@ -109,19 +109,7 @@ public struct HomerunView: View {
     @ViewBuilder private var rankingPage: some View {
         let next = { withGameAnimation { rankingSeen = true; rankingReopened = false } }
         let title = rankingReopened ? tr("結果に戻る") : tr("結果を見る")
-        switch model.weekly {
-        case .off, .signedOut:
-            HomerunRankingSignedOutPage(nextTitle: title, onNext: next)
-        case .loading:
-            HomerunRankingPage(content: .loading, nextTitle: title, onNext: next)
-        case .failed:
-            HomerunRankingPage(content: .failed, nextTitle: title, onNext: next)
-        case .ready(let before, let after):
-            HomerunRankingPage(
-                content: .ready(board: after, motion: rankingReopened ? nil : HomerunRankingPlan.motion(before: before, after: after)),
-                nextTitle: title, onNext: next
-            )
-        }
+        HomerunWeeklyRankingScreen(state: model.weekly, animates: !rankingReopened, nextTitle: title, onNext: next)
     }
 
     /// 同じ `step` のあいだだけ待つ。進行が変わったら新しい `.task` に譲って抜ける。
@@ -152,6 +140,7 @@ struct HomerunLobbyView: View {
     let model: HomerunModel
     let services: GameServices
     let challengeRescue: RewardedRescue
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         // 「打席に立つ」（回数 0 なら広告を見てプレイも）の置き方は `HomerunActionLayout.lobby`（会長指示 2026-10-04）。
@@ -165,6 +154,11 @@ struct HomerunLobbyView: View {
         }
         // Game Center の解除済みを読んで端末の記録と合わせる（連携の有無・通信の有無で一覧は変わらない。読めなければ何もしない）。
         .task { await model.syncGameCenterAchievements() }
+        // 今週の順位（#2216）は打席前に出るたび・アプリに戻るたびに読み直す（挑戦のあとの順位・週の切り替わりを拾う）。
+        .onAppear { model.refreshLobbyWeekly() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.refreshLobbyWeekly() }
+        }
         #if os(iOS) && canImport(RealityKit)
         // 打席の 3D を見えない所で先に作っておく（#1695。「打席に立つ」・広告を見てプレイで待たせない）。
         .onAppear { HomerunAtBatScenePrewarm.schedule() }
@@ -174,6 +168,8 @@ struct HomerunLobbyView: View {
     private var lobbyContent: some View {
         VStack(spacing: 14) {
             introCard
+            // 今週の順位（#2216）。結果のあとと同じランキングページを開く。
+            HomerunLobbyRankRow(model: model)
             // 回数 0 の「戻ったら知らせる」はスクロールの中の上の方（SE でも送らずに見える位置）。
             if !model.ledger.canStart, let returnReminder = services.returnReminder {
                 HomerunReturnReminderToggle(service: returnReminder)
