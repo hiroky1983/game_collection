@@ -2225,6 +2225,83 @@
           }
         }
       }
+    },
+    "ランキングを取得できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load the rankings"
+          }
+        }
+      }
+    },
+    "%lld位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld"
+          }
+        }
+      }
+    },
+    "%1$lld位 / %2$lld人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "今週のランキングを開きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens this week's rankings"
+          }
+        }
+      }
+    },
+    "打席前に戻る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
+    "ランキングを取得できませんでした。通信状況を確かめて、しばらくしてからもう一度ご覧ください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load the rankings. Check your connection and try again in a little while"
+          }
+        }
+      }
+    },
+    "週間ランキングは Game Center の仕組みを使っています。設定アプリで Game Center にサインインすると、今週の順位が出ます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly rankings use your device's game account. Sign in from your device's Settings app to see your rank for the week."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

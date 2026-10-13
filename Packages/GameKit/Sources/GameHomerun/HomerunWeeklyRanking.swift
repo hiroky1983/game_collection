@@ -17,6 +17,48 @@ public enum HomerunWeekly {
         guard total >= 0, total <= GameCenterLeaderboard.homerunWeeklyMaxMeters else { return nil }
         return total
     }
+
+    /// 順位表が前の週のものか（その回の終わりを過ぎている）。終わりが取れない表は今週のものとして扱う。
+    static func isPastWeek(_ board: GameCenterBoard, now: Date) -> Bool {
+        guard let end = board.end else { return false }
+        return end <= now
+    }
+
+    /// 今週の順位表として出せる形にする（#2216）。週が切り替わった直後に前週の表が残っていたら、前週の順位・行は捨てて
+    /// 「今週はまだ誰も記録していない」表にする（期間は前週の続きの 1 回ぶん）。
+    static func currentWeek(_ board: GameCenterBoard, now: Date) -> GameCenterBoard {
+        guard isPastWeek(board, now: now), let end = board.end else { return board }
+        var start = end
+        var length = board.start.map { end.timeIntervalSince($0) } ?? 7 * 86_400
+        if length <= 0 { length = 7 * 86_400 }
+        // 何週ぶんも経っていたら、いまを含む回まで進める。
+        while start.addingTimeInterval(length) <= now { start = start.addingTimeInterval(length) }
+        return GameCenterBoard(rows: [], myRank: nil, myScore: nil, participants: 0,
+                               start: start, end: start.addingTimeInterval(length),
+                               lastWeekRank: nil)
+    }
+}
+
+/// 打席前の「今週のランキング」の行（#2216）の、状態ごとの文言。表記は結果画面・ランキングページの既存の文言に合わせる。
+enum HomerunLobbyRankText {
+    /// 行の 2 段目に出す文言。nil は行を出さない（送り先が未作成）。
+    static func detail(for state: HomerunModel.WeeklyState, language: AppLanguage? = nil) -> String? {
+        switch state {
+        case .off:
+            return nil
+        case .signedOut:
+            return tr("Game Center に登録すると見られます", language: language)
+        case .loading:
+            return tr("今週の順位を読み込んでいます", language: language)
+        case .failed:
+            return tr("ランキングを取得できませんでした", language: language)
+        case .ready(_, let board):
+            guard let rank = board.myRank else { return tr("今週はまだ記録がありません", language: language) }
+            // 人数が取れない（0・順位より少ない）ときは順位だけ。
+            guard board.participants >= rank else { return tr("%lld位", rank, language: language) }
+            return tr("%1$lld位 / %2$lld人", rank, board.participants, language: language)
+        }
+    }
 }
 
 /// ランキングページの 1 行。
