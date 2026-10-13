@@ -5,6 +5,11 @@ enum KIF {
     private static let fileKanji = ["１", "２", "３", "４", "５", "６", "７", "８", "９"]  // i18n-keep: 棋譜（KIF）の書式そのもの（日本語の形式）
     private static let rankKanji = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]  // i18n-keep: 棋譜（KIF）の書式そのもの（日本語の形式）
 
+    /// 棋譜ヘッダの手合割の行（#2179）。駒落ちでは上手（△）が先に指すので、棋譜の先頭の手は △ になる。
+    static func handicapHeader(_ handicap: ShogiHandicap) -> String {
+        "手合割：" + handicap.kifName  // i18n-keep: 棋譜（KIF）の書式そのもの（日本語の形式）
+    }
+
     static func notation(_ move: Move, pos: Position, prevTo: Int?) -> String {
         switch move {
         case let .board(from, to, promote):
