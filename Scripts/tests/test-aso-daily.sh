@@ -137,17 +137,18 @@ SH
 chmod +x "$FAKE/gh"
 export FAKE_LOG="$TMP/gh.log" FAKE_COMMENTS="$TMP/comments.txt" ASO_GH="$FAKE/gh"
 
-run --no-fetch --today 2026-10-13 >/dev/null 2>&1   # 火曜
-expect_eq "月曜以外は投稿しない" "$(cat "$FAKE_LOG" 2>/dev/null | grep -c '^issue comment')" "0"
 run --no-fetch --today 2026-10-12 >/dev/null 2>&1   # 月曜 → 10/05 の週
 expect_eq "月曜は投稿する" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
 grep -q 'aso-weekly:2026-10-05' "$FAKE_COMMENTS" && ok "前週（10/05〜）を投稿" || ng "投稿した週が違う"
 run --no-fetch --today 2026-10-12 >/dev/null 2>&1   # 同じ月曜にもう一度
 expect_eq "同じ週には二重投稿しない" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
-run --no-fetch --today 2026-10-14 --weekly-now >/dev/null 2>&1   # 水曜の手動試し: 同じ週なので見送り
-expect_eq "--weekly-now も投稿済みの週は見送る" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
-run --no-fetch --today 2026-10-19 --no-weekly >/dev/null 2>&1
-expect_eq "--no-weekly は月曜でも投稿しない" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
+run --no-fetch --today 2026-10-14 >/dev/null 2>&1   # 水曜: 同じ週は投稿済みなので見送り
+expect_eq "月曜以外の実行でも投稿済みの週は見送る" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
+run --no-fetch --today 2026-10-21 --no-weekly >/dev/null 2>&1   # 水曜（次の週・月曜は逃した）
+expect_eq "--no-weekly は投稿しない" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
+run --no-fetch --today 2026-10-21 >/dev/null 2>&1   # 月曜を逃した週: 水曜の実行で取り戻す
+expect_eq "月曜を逃しても次の実行で投稿する" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "2"
+grep -q 'aso-weekly:2026-10-12' "$FAKE_COMMENTS" && ok "逃した週（10/12〜）を投稿" || ng "逃した週を投稿していない"
 printf '#!/bin/bash\nexit 1\n' >"$FAKE/gh"
 run --no-fetch --today 2026-10-19 >/dev/null 2>&1
 expect_eq "gh が失敗したら終了コード 1" "$?" "1"
