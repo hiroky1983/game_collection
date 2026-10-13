@@ -693,7 +693,7 @@ public struct FreeCellView: View {
     private func requestHint() {
         guard !hintRescue.isWatching, model.canUseHint else { return }
         if model.needsAdForHint {
-            hintRescue.requestHandledByModel(withOutcome: { readDidFinish in await model.requestAdHint(readDidFinish: readDidFinish) })
+            hintRescue.requestHandledByModel(withOutcome: { readDidFinish in await model.requestAdHint(readDidFinish: readDidFinish) }, until: services.screenGeneration)
         } else {
             services.screenGeneration.runUntilLeave { await model.requestHint() }
         }

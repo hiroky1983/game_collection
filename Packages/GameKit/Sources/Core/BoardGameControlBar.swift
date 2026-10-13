@@ -32,7 +32,7 @@ public struct BoardControlBarHint {
             if model.needsAdForHint {
                 // 広告の視聴完了を確かめてから読みに進む（モデルが1本の非同期メソッドで持つ・#526）。
                 // 常設の項目で確認を挟まずに広告へ進む契約はナンプレのヒントと同じ（`reward_offer` は数えない）。
-                rescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+                rescue.requestHandledByModel(withOutcome: { await model.requestAdHint() }, until: services.screenGeneration)
             } else {
                 // 読みは Model の中で `AITurnGuarded` の照合に載せる（押したあとの局面ずれはそこで弾く）。
                 // 画面を離れたら取り消す（離脱後に読みが確定すると回数・game_start・中断データが動く・#1903）。
