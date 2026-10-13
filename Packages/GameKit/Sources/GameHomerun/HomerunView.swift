@@ -170,6 +170,7 @@ struct HomerunLobbyView: View {
             introCard
             // 今週の順位（#2216）。結果のあとと同じランキングページを開く。
             HomerunLobbyRankRow(model: model)
+                .modifier(HomerunWeekEndRefresh(model: model))
             // 回数 0 の「戻ったら知らせる」はスクロールの中の上の方（SE でも送らずに見える位置）。
             if !model.ledger.canStart, let returnReminder = services.returnReminder {
                 HomerunReturnReminderToggle(service: returnReminder)
