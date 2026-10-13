@@ -26,11 +26,6 @@ public enum SolitaireDrawMode: String, CaseIterable, Codable, Sendable, Equatabl
     public var recordVariant: String? {
         self == .three ? "draw3" : nil
     }
-
-    /// 自己ベストの行に出す区分名。既定は区分を持たないので nil。
-    public var recordLabel: String? {
-        self == .three ? "3枚めくり" : nil  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-    }
 }
 
 /// 1 局に焼き込むルールの束（#498。`docs/ai-devops.md`「1局=1RuleSet」原則）。

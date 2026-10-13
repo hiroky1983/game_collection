@@ -23,6 +23,17 @@
         }
       }
     },
+    "%1$@・%2$@・%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "%1$@・%2$lld連勝中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -52,6 +63,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reached %1$lld-%2$lld"
+          }
+        }
+      }
+    },
+    "%1$lld×%2$lld・地雷%3$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lldx%2$lld, %3$lld mines"
           }
         }
       }
@@ -146,6 +168,52 @@
         }
       }
     },
+    "%lldスート" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Suit"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Suits"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld number"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld numbers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld回あそんだ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -162,6 +230,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Played %lld times"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld round"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rounds"
                 }
               }
             }
@@ -188,6 +279,51 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld桁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld digit"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld digits"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "3枚めくり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw 3"
+          }
+        }
+      }
+    },
+    "CPU%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU %@"
           }
         }
       }
@@ -280,6 +416,17 @@
         }
       }
     },
+    "とことん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endless"
+          }
+        }
+      }
+    },
     "はじめての勝利" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -287,6 +434,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "First win"
+          }
+        }
+      }
+    },
+    "はやい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fast"
           }
         }
       }
@@ -342,6 +500,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hard"
+          }
+        }
+      }
+    },
+    "ゆっくり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slow"
+          }
+        }
+      }
+    },
+    "エンドレス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endless"
           }
         }
       }
@@ -424,6 +604,28 @@
         }
       }
     },
+    "パズルモード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puzzle Mode"
+          }
+        }
+      }
+    },
+    "ピラミッド" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pyramid"
+          }
+        }
+      }
+    },
     "ベスト %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -431,6 +633,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Best %@"
+          }
+        }
+      }
+    },
+    "ボーナスルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus Rules"
+          }
+        }
+      }
+    },
+    "・" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "一局戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Hand"
+          }
+        }
+      }
+    },
+    "上級" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expert"
+          }
+        }
+      }
+    },
+    "中級" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intermediate"
+          }
+        }
+      }
+    },
+    "亀甲" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turtle"
           }
         }
       }
@@ -519,6 +787,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "First win"
+          }
+        }
+      }
+    },
+    "初級" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beginner"
+          }
+        }
+      }
+    },
+    "十字" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross"
           }
         }
       }
@@ -680,6 +970,17 @@
         }
       }
     },
+    "荷運びモード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving Mode"
+          }
+        }
+      }
+    },
     "表示するゲームがありません。設定で選べます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -753,6 +1054,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@-day play streak"
+          }
+        }
+      }
+    },
+    "酒の役なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sake yaku"
           }
         }
       }

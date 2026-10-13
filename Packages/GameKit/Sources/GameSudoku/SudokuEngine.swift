@@ -16,11 +16,7 @@ public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
 
     /// 記録の区分名（`GameScore.variantLabel`・ハブ・リザルトの 1 行に添える）。保存されるので表示言語によらず日本語のまま。
     public var recordLabel: String {
-        switch self {
-        case .easy:   return "かんたん"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .normal: return "ふつう"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .hard:   return "むずかしい"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        }
+        RecordVariantLabels.stored(gameID: "sudoku", variant: rawValue)
     }
 
     /// 盤から取り除くマスの数の範囲。旧実装（#5・`fa4377a`）の値をそのまま踏襲する。

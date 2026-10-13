@@ -53,10 +53,7 @@ public enum OjisanPuzzleMode: String, CaseIterable, Identifiable, Sendable {
 
     /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されてハブの記録行に出るので、表示言語によらず日本語。
     public var recordVariantLabel: String {
-        switch self {
-        case .backpain: "荷運びモード"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .puzzle: "パズルモード"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        }
+        RecordVariantLabels.stored(gameID: "ojisanpuzzle", variant: recordVariant)
     }
 }
 

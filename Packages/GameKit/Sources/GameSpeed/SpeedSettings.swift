@@ -21,11 +21,7 @@ public enum SpeedLevel: String, CaseIterable, Codable, Sendable {
 
     /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されるので表示言語によらず日本語で固定する。
     public var recordLabel: String {
-        switch self {
-        case .slow:   return "ゆっくり"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .normal: return "ふつう"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .fast:   return "はやい"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        }
+        RecordVariantLabels.stored(gameID: "speed", variant: rawValue)
     }
 
     /// CPU が出せる札を見つけてから置くまでの基準（ミリ秒）。実際は ±20% の揺らぎが乗る。

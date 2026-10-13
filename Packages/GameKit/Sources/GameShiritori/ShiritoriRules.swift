@@ -111,7 +111,7 @@ public enum ShiritoriMode: Int, CaseIterable, Codable, Sendable {
     var scoreVariant: (key: String, label: String)? {
         switch self {
         case .quota:   return nil
-        case .endless: return ("endless", "とことん")  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        case .endless: return ("endless", RecordVariantLabels.stored(gameID: "shiritori", variant: "endless"))
         }
     }
 }

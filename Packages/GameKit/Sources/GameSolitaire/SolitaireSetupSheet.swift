@@ -2,12 +2,18 @@ import SwiftUI
 import Core
 
 public extension SolitaireDrawMode {
-    /// 画面に出す名前。記録に保存する区分名は `recordLabel`（日本語のまま）。
+    /// 画面に出す名前。記録に保存する区分名は `recordLabel`（日本語）。
     var label: String {
         switch self {
         case .one:   return tr("1枚めくり")
         case .three: return tr("3枚めくり")
         }
+    }
+
+    /// 自己ベストの行に出す区分名。既定は区分を持たないので nil。
+    /// 純ロジック側（`SolitaireRules.swift`）は表を引き込まないので、ここに置く。
+    var recordLabel: String? {
+        recordVariant.map { RecordVariantLabels.stored(gameID: "solitaire", variant: $0) }
     }
 }
 

@@ -20,8 +20,11 @@ extension SpiderCard {
 }
 
 extension SpiderSuitCount {
-    /// 画面に出す名前。記録に保存する区分名は `recordLabel`（日本語のまま）。
+    /// 画面に出す名前。記録に保存する区分名は `recordLabel`（日本語）。
     public var label: String { tr("%lldスート", rawValue) }
+
+    /// 自己ベストの行に出す区分名。
+    public var recordLabel: String { RecordVariantLabels.stored(gameID: "spider", variant: recordVariant) }
 
     /// 開始シート・ステータスの副題。
     public var subtitle: String {

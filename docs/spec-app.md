@@ -299,11 +299,13 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - 数えないもの: コメント、`tr` のキー、開発者にしか見えない文（`precondition`・`assert`・`fatalError`・`print`・
   `debugDescription:` の引数）、`#Preview` の中。
 - **訳さないと決めたもの**は、行末（か直前の行）に `// i18n-keep: 理由` を書く。カードしりとりの単語・かな、
-  牌や駒の絵柄の文字、言語の自称（「日本語」）、**記録に保存する区分名**（`GameScore(variantLabel:)` に渡す名前。
-  保存した時点の言語で残ると表示が混ざるため日本語で保存する。区分名を英語で出すのは #2168 の残課題）など。
+  牌や駒の絵柄の文字、言語の自称（「日本語」）など。
 - ファイル単位の除外と、別の issue が**担当中**の範囲は `Scripts/i18n-check-exclusions.txt`。担当中の範囲は既定では
   数えず件数だけ出す（`--include-in-progress` で数える）。担当の PR がマージされたら、その行を消して 0 件を確かめる。
-- 記録の区分名を画面にも出すゲームは、記録用（日本語のまま・`i18n-keep`）と表示用（`tr`）の 2 つに分けて持つ。
+- **記録の区分名**（`GameScore(variantLabel:)`）は、保存した文字列をそのまま出さず、記録の保存先のキー
+  （`sudoku#normal`。`PlayRecord.recordKey`・保存しない）から表示のたびに引き直す（`CoreEngine/RecordVariantLabels.swift`・#2199）。
+  新しい区分を足すときはこの表にキーと訳を足す。ゲームが保存する区分名（日本語）も `RecordVariantLabels.stored` で同じ表から作る。
+  引けないキーだけ、保存済みの `variantLabel` にフォールバックする。
 
 **訳さないもの**: 解析イベント名とパラメータ（`game_start` 等・`game_id`）、`UserDefaults` の保存キー、中断データの鍵、
 Game Center の ID。英語の訳文には他社の商標名を入れない（既存の日本語の文に入っている場合も英語では言い換える）。

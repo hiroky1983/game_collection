@@ -35,11 +35,7 @@ public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
 
     /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されるので表示言語によらず日本語のまま。
     public var recordLabel: String {
-        switch self {
-        case .beginner:     return "初級"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .intermediate: return "中級"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        case .advanced:     return "上級"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
-        }
+        RecordVariantLabels.stored(gameID: "minesweeper", variant: "\(rows)x\(cols)-\(mines)")
     }
 
     public var rows: Int {
@@ -208,7 +204,7 @@ public final class MinesweeperModel {
             return preset.recordLabel
         }
         // 区分は地雷数込みで分かれるため、ラベルにも地雷数を入れて別区分だと分かるようにする。
-        return "\(rows)×\(cols)・地雷\(totalMines)"  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        return RecordVariantLabels.stored(gameID: "minesweeper", variant: recordVariant)
     }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
