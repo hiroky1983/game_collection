@@ -617,6 +617,46 @@ main へマージしただけでは反映されない。会長の `git pull` を
 （取得元は当番専用クローン `~/.asobiba-duty/game_collection` のみ。会長の作業ツリーには触れない）。
 この仕組み自体を有効化する一度だけの `git pull` は会長の操作が要る。
 
+### ASO の日次取得（2026-10-14 会長決定・#2231）
+
+App Store Connect の App Analytics（Analytics Reports API）は日次の数字を数日分しか保持しないため、
+`Scripts/aso-daily.py` が毎日取ってローカルに貯める。v1.1.11（2026-10-12 公開）以降の ASO の効果を追うのが目的。
+
+- **起動**: launchd `com.asobiba.aso-daily`（plist の原本は `Scripts/com.asobiba.aso-daily.plist`）が毎日 10:00 JST。
+  Mac がスリープしていた日は起床時に 1 回走る。実行するのは当番専用クローン（`~/.asobiba-duty/game_collection`、
+  `ai-duty.sh` が 3 分ごとに fetch）の **origin/main の版**で、`~/asobiba-kpi/bin/aso-daily.py` に取り出してから動かす
+  （会長の作業ツリーは main とは限らないため使わない。取り出せない日は前回の版で動く）。ログは `~/Library/Logs/asobiba-aso-daily.log`
+- **取得**: 既存の ONGOING リクエスト `7e25e0eb-cb38-4e08-b230-981d472bb098` から「App Store Discovery and Engagement
+  Standard」「App Downloads Standard」の DAILY インスタンスを **GET だけ**で取る。まだ保存していない processingDate の分を
+  `~/asobiba-kpi/aso/raw/{engagement,downloads}/<processingDate>.tsv` に保存するので、Mac が止まっていた日の分も
+  API に残っている範囲で次回に取り戻す。リクエストが無い・止まっているときは**作り直さずにエラー終了**する（作成は会長判断）
+- **保存**: `~/asobiba-kpi/aso/daily.csv`（1 日 1 行）。インプレッション（合計・ユニーク・日本／日本以外・流入元別）、
+  プロダクトページ閲覧、初回 DL（日本／日本以外・流入元別）、再 DL、押される割合（閲覧÷インプレッション）・
+  入れる割合（初回 DL÷閲覧）。1 つの日付は複数のインスタンスに重複して入るため、**processingDate が最も新しいファイルだけ**を使って
+  毎回 raw/ から作り直す（= 重複排除。raw/ に無い日付の既存行は残す）。初期データとして 10/3〜10/12 の分を取り込み済み
+- **週次**: 月曜の実行で、前週（月〜日）の 1 日平均・前々週比・基準（10/3〜10/11、v1.1.11 公開前）との比較・v1.1.11 以降の平均を
+  #2231 にコメントする。コメントに `<!-- aso-weekly:<前週の月曜> -->` を埋め、同じ週には二重投稿しない。
+  月曜 10:00 時点では前週日曜の分が API にまだ無いことがあり、表に「データのある日数」を出している
+- **秘密情報**: 鍵は `~/.appstoreconnect/asc-key.json`（と `AuthKey_<key_id>.p8`）。鍵・JWT・セグメントの署名付き URL は
+  ログにも CSV にも出さない
+- **テスト**: `bash Scripts/tests/test-aso-daily.sh`（API を呼ばず TSV を食わせて集計・重複排除・週の表・二重投稿防止を見る。
+  `scripts-tests.yml` で CI 実行）
+
+入れ方（社長が実施済み・再現手順）:
+
+```bash
+git -C ~/.asobiba-duty/game_collection show origin/main:Scripts/com.asobiba.aso-daily.plist \
+  > ~/Library/LaunchAgents/com.asobiba.aso-daily.plist   # 当番クローンの作業ツリーは main とは限らないので origin/main から取り出す
+launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.aso-daily.plist
+launchctl kickstart gui/501/com.asobiba.aso-daily   # 1 回手動で走らせる（ログで確認）
+```
+
+手で動かすとき: `python3 Scripts/aso-daily.py`（月曜以外は週次を投稿しない）、`--no-fetch`（API を呼ばず作り直すだけ）、
+`--print-weekly 2026-10-05`（その週の表を出すだけ）、`--weekly-now`（直近に終わった週を投稿。投稿済みなら見送り）。
+
+止め方: `launchctl bootout gui/501/com.asobiba.aso-daily`（止めたら下の「停止中のジョブ」に追記する）。
+貯めたデータ（`~/asobiba-kpi/aso/`）は消さない。Apple 側にもう残っていないため、消すと取り戻せない。
+
 ### 停止中のジョブ（2026-10-03 追加）
 
 意図的に止めている launchd ジョブをここに一覧する。**経営企画室・監査当番・開発当番は、
