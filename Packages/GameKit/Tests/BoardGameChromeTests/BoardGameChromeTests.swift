@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Testing
 import GameKitTestSupport
+import CoreTestSupport
 @testable import Core
 
 /// 盤ゲーム（将棋・チェス）の共通の枠（#530）。
@@ -508,5 +509,60 @@ struct BoardGameResultCardTests {
         let label = BoardGameResultCard.accessibilityLabel(
             verdict: .draw, reason: "千日手", decisiveMove: nil, details: [])
         #expect(label == "引き分け。千日手")
+    }
+}
+
+/// 「待った」が成功したときだけ触覚・効果音が鳴る（#2193）。
+@MainActor
+@Suite("待ったの成功フィードバック")
+struct BoardUndoFeedbackTests {
+
+    @MainActor
+    final class FakeUndoModel: BoardUndoModel {
+        let gameID = "fake"
+        var canUndo = true
+        var undoUsed = false
+        var ply = 4
+        var aiTurnKey: AITurnKey { AITurnKey(gameSerial: 1, ply: ply) }
+        func undoLastExchange() {
+            guard canUndo else { return }
+            ply -= 2
+        }
+        func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+            guard turn == aiTurnKey, canUndo else { return false }
+            undoLastExchange()
+            return true
+        }
+    }
+
+    private func make() -> (FakeUndoModel, SpyFeedbackService, GameServices) {
+        let spy = SpyFeedbackService()
+        return (FakeUndoModel(), spy, GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy))
+    }
+
+    @Test("無料の待ったが成功したら impact(.medium) が 1 回鳴る")
+    func freeUndoSuccessFeedsBack() {
+        let (model, spy, services) = make()
+        model.performFreeUndo(services: services)
+        #expect(spy.impacts == [.medium])
+    }
+
+    @Test("無料の待ったで局面が戻らなければ鳴らない")
+    func freeUndoNoopStaysSilent() {
+        let (model, spy, services) = make()
+        model.canUndo = false
+        model.performFreeUndo(services: services)
+        #expect(spy.callCount == 0)
+    }
+
+    @Test("広告の待ったは戻せたときだけ鳴る")
+    func adUndoFeedsBackOnlyWhenUndone() {
+        let (model, spy, services) = make()
+        let stale = model.aiTurnKey
+        model.ply = 6   // 広告を見ているあいだに指し進んだ
+        #expect(model.performAdUndo(forTurn: stale, services: services) == false)
+        #expect(spy.callCount == 0)
+        #expect(model.performAdUndo(forTurn: model.aiTurnKey, services: services))
+        #expect(spy.impacts == [.medium])
     }
 }
