@@ -45,6 +45,9 @@ struct PokerEnglishTests {
         #expect(GamePoker.tr("%@枚", "40", language: .english) == "40 chips")
         #expect(GamePoker.tr("+%@枚", "1,000", language: .english) == "+1,000 chips")
         #expect(GamePoker.tr("%@枚", "1,000") == "1,000枚")
+        #expect(GamePoker.tr("ポット%@枚", "1", language: .english) == "Pot: 1 chip")
+        #expect(GamePoker.tr("ポット%@枚", "30", language: .english) == "Pot: 30 chips")
+        #expect(GamePoker.tr("ポット%@枚", "30") == "ポット30枚")
         #expect(GamePoker.tr("%lld枚を交換", 1, language: .english) == "Draw 1 Card")
         #expect(GamePoker.tr("%lld枚を交換", 3, language: .english) == "Draw 3 Cards")
     }

@@ -736,6 +736,29 @@
         }
       }
     },
+    "ポット%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pot: %@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pot: %@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "ポット" : {
       "extractionState" : "manual",
       "localizations" : {
