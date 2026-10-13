@@ -2,7 +2,8 @@
 """花札 48 枚の原画（Codex 製・1024×1536）から、アプリ同梱用の画像と一覧シートを作る（#2188）。
 
 入力:
-  cards48/src/NN_*.png   Codex（画像生成）が prompts/mNN.txt の文章だけで描いた原画（NN = HanafudaCard.id）
+  cards48/src/NN_*.{png,jpg} Codex（画像生成）が prompts/mNN.txt の文章だけで描いた原画（NN = HanafudaCard.id）。
+                         2026-10-13 に記録用の縮小版（長辺 768px）へ差し替え済み。原寸は PR #2205 のコミット履歴。
 出力:
   ../../../Packages/GameKit/Sources/GameHanafuda/Resources/Cards/Hanafuda_NN.png
                          アプリ同梱用。320×480・256 色のパレット PNG（札は画面で幅 40〜130pt なので 3x でも足りる）
@@ -61,7 +62,7 @@ NAMES = [
 
 def sources():
     out = {}
-    for p in sorted(glob.glob(f"{SRC}/*.png")):
+    for p in sorted(glob.glob(f"{SRC}/*.png") + glob.glob(f"{SRC}/*.jpg")):
         n = int(os.path.basename(p)[:2])
         out[n] = p
     missing = [i for i in range(48) if i not in out]
