@@ -201,6 +201,17 @@
         }
       }
     },
+    "K だけ置ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only a K can go here"
+          }
+        }
+      }
+    },
     "、" : {
       "extractionState" : "manual",
       "localizations" : {

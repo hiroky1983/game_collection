@@ -450,6 +450,17 @@
         }
       }
     },
+    "スリー\nカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three of\na Kind"
+          }
+        }
+      }
+    },
     "スリーカード" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -479,6 +490,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Session lost"
+          }
+        }
+      }
+    },
+    "タップで選んだ札は残る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapped cards are kept"
           }
         }
       }
@@ -549,6 +571,17 @@
         }
       }
     },
+    "ツー\nペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two\nPair"
+          }
+        }
+      }
+    },
     "ツーペア" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -611,6 +644,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flush"
+          }
+        }
+      }
+    },
+    "フル\nハウス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full\nHouse"
           }
         }
       }
@@ -754,6 +798,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Low ↓"
+          }
+        }
+      }
+    },
+    "ワン\nペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One\nPair"
           }
         }
       }
@@ -1003,6 +1058,17 @@
         }
       }
     },
+    "引き直した 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 new cards"
+          }
+        }
+      }
+    },
     "引き直す" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1010,6 +1076,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Draw Again"
+          }
+        }
+      }
+    },
+    "弱い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak"
+          }
+        }
+      }
+    },
+    "強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strong"
           }
         }
       }
@@ -1279,6 +1367,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Five in a row, mixed suits"
+          }
+        }
+      }
+    },
+    "選ばなかった 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 3 you didn't pick"
           }
         }
       }

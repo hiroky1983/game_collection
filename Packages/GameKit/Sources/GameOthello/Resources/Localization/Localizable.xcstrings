@@ -78,6 +78,17 @@
         }
       }
     },
+    "○ のマスに置ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play on ○"
+          }
+        }
+      }
+    },
     "○白" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -155,6 +166,17 @@
         }
       }
     },
+    "はさんだ白が黒に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trapped White turns Black"
+          }
+        }
+      }
+    },
     "オセロ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -210,6 +232,17 @@
         }
       }
     },
+    "多い方の勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More stones wins"
+          }
+        }
+      }
+    },
     "引き分け" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -261,6 +294,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "white"
+          }
+        }
+      }
+    },
+    "白 28" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White 28"
           }
         }
       }
@@ -349,6 +393,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "black"
+          }
+        }
+      }
+    },
+    "黒 36" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black 36"
+          }
+        }
+      }
+    },
+    "黒を置くと…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black plays…"
           }
         }
       }

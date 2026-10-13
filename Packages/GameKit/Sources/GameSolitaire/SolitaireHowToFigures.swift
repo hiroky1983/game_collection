@@ -12,7 +12,7 @@ enum SolitaireHowToFigures {
             .init(base: RuleCardSpec("8", .spade), placed: RuleCardSpec("7", .club), isOK: false),
             .init(base: RuleCardSpec("8", .spade), placed: RuleCardSpec("6", .heart), isOK: false),
         ])) },
-        { AnyView(RuleEmptyColumnFigure(card: RuleCardSpec("K", .heart), caption: "K だけ置ける")) },
+        { AnyView(RuleEmptyColumnFigure(card: RuleCardSpec("K", .heart), caption: tr("K だけ置ける"))) },
         { AnyView(RuleFoundationFigure()) },
     ]
 }

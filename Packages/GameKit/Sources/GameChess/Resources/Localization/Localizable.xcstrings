@@ -376,6 +376,17 @@
         }
       }
     },
+    "タップで移動" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to move"
+          }
+        }
+      }
+    },
     "チェス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -504,6 +515,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rook"
+          }
+        }
+      }
+    },
+    "ルークで王手！ 逃げ場がない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check with the Rook! No way out"
           }
         }
       }
@@ -867,6 +889,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Piece style"
+          }
+        }
+      }
+    },
+    "駒をタップ → 光るマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a piece → squares light up"
           }
         }
       }

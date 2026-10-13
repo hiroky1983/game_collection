@@ -26,7 +26,7 @@ enum BlackjackHowToFigures {
                         RuleMiniCard("K", suit: .spade)
                         RuleMiniCard("A", suit: .heart)
                     }
-                    BlackjackHowToFigures.total("合計 21")
+                    BlackjackHowToFigures.total(tr("合計 21"))
                     RuleVerdictMark(true)
                 }
                 VStack(spacing: 4) {
@@ -35,7 +35,7 @@ enum BlackjackHowToFigures {
                         RuleMiniCard("7", suit: .diamond)
                         RuleMiniCard("6", suit: .spade)
                     }
-                    BlackjackHowToFigures.total("合計 23", color: Theme.coral)
+                    BlackjackHowToFigures.total(tr("合計 23"), color: Theme.coral)
                     RuleVerdictMark(false)
                 }
             }
@@ -46,11 +46,11 @@ enum BlackjackHowToFigures {
     private struct PointsFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 22) {
-                column(cards: [RuleMiniCard("A", suit: .spade)], caption: "1 か 11")
+                column(cards: [RuleMiniCard("A", suit: .spade)], caption: tr("1 か 11"))
                 column(cards: [RuleMiniCard("J", suit: .heart), RuleMiniCard("Q", suit: .club), RuleMiniCard("K", suit: .diamond)],
-                       caption: "どれも 10 点")
+                       caption: tr("どれも 10 点"))
                 column(cards: [RuleMiniCard("2", suit: .spade), RuleMiniCard("…"), RuleMiniCard("9", suit: .heart)],
-                       caption: "数字のまま")
+                       caption: tr("数字のまま"))
             }
         }
 
@@ -75,8 +75,8 @@ enum BlackjackHowToFigures {
                         if index > 0 { RuleMiniCard("5", suit: .club, isHighlighted: true) }
                     }
                     .padding(.top, 4)
-                    BlackjackHowToFigures.total(index == 0 ? "合計 14" : "合計 19", color: index == 0 ? Theme.ink : Theme.coral)
-                    RuleFigureLabel(index == 0 ? "いま" : "ヒット（+1 枚）\nここで止めるのがスタンド",
+                    BlackjackHowToFigures.total(index == 0 ? tr("合計 14") : tr("合計 19"), color: index == 0 ? Theme.ink : Theme.coral)
+                    RuleFigureLabel(index == 0 ? tr("いま") : tr("ヒット（+1 枚）\nここで止めるのがスタンド"),
                                     color: index == 0 ? Theme.inkSub : Theme.coral)
                 }
             }
@@ -93,13 +93,13 @@ enum BlackjackHowToFigures {
                             RuleMiniCard("8", suit: .spade)
                             RuleMiniCard("8", suit: .heart)
                         }
-                        RuleFigureLabel("同じ点数の 2 枚")
+                        RuleFigureLabel(tr("同じ点数の 2 枚"))
                     } else {
                         HStack(spacing: 14) {
                             RuleMiniCard("8", suit: .spade)
                             RuleMiniCard("8", suit: .heart)
                         }
-                        RuleFigureLabel("2 つの手に分ける", color: Theme.coral)
+                        RuleFigureLabel(tr("2 つの手に分ける"), color: Theme.coral)
                     }
                 }
             }

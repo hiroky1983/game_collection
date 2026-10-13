@@ -46,6 +46,17 @@
         }
       }
     },
+    "4 つ並んだ！ ここをあけると 5 つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 in a row! Leave this open and it's 5"
+          }
+        }
+      }
+    },
     "CPUの勝ち" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -145,6 +156,17 @@
         }
       }
     },
+    "たて" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Down"
+          }
+        }
+      }
+    },
     "なし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -152,6 +174,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Off"
+          }
+        }
+      }
+    },
+    "ななめ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagonal"
+          }
+        }
+      }
+    },
+    "よこ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Across"
           }
         }
       }
@@ -332,6 +376,17 @@
         }
       }
     },
+    "白で止めた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White blocks it"
+          }
+        }
+      }
+    },
     "白・後手" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -376,6 +431,17 @@
         }
       }
     },
+    "石が置かれる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A stone is placed"
+          }
+        }
+      }
+    },
     "禁じ手（連珠ルール）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -383,6 +449,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forbidden moves (Renju rules)"
+          }
+        }
+      }
+    },
+    "空いた所をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an empty spot"
           }
         }
       }
@@ -460,6 +537,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Black: no 3-3, 4-4, overline"
+          }
+        }
+      }
+    },
+    "黒は ✕ に打てない（三三）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black can't play on ✕ (double three)"
           }
         }
       }

@@ -244,6 +244,17 @@
         }
       }
     },
+    "タップで移動" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to move"
+          }
+        }
+      }
+    },
     "ヒントの手" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -299,6 +310,17 @@
         }
       }
     },
+    "入ると成れる（歩 → と）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter to promote (Pawn → Tokin)"
+          }
+        }
+      }
+    },
     "全方向に1マス。取られたら負け" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -350,6 +372,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pieces you capture go to your hand. You can drop them on any empty square as your own."
+          }
+        }
+      }
+    },
+    "取れて、持ち駒に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured: now it's yours"
           }
         }
       }
@@ -684,6 +717,17 @@
         }
       }
     },
+    "王手！ 逃げ場も、金を取る手もない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check! No escape, and no way to take the Gold"
+          }
+        }
+      }
+    },
     "直前 %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -702,6 +746,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last move"
+          }
+        }
+      }
+    },
+    "相手の駒のマスへ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move onto an enemy piece"
           }
         }
       }
@@ -790,6 +845,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Checkmate"
+          }
+        }
+      }
+    },
+    "赤い 3 段が相手陣" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The red 3 rows are the enemy camp"
           }
         }
       }
@@ -922,6 +988,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Horse"
+          }
+        }
+      }
+    },
+    "駒をタップ → 光るマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a piece → squares light up"
           }
         }
       }

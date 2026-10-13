@@ -33,7 +33,7 @@ enum ShogiHowToFigures {
                             if index == 1, row == 0, col == 2 { koma(.gold) }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "駒をタップ → 光るマス" : "タップで移動", color: index == 0 ? Theme.coral : Theme.inkSub)
+                    RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"), color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
         }
@@ -52,7 +52,7 @@ enum ShogiHowToFigures {
                                 if row == 1, col == 1 { koma(.silver) }
                             }
                         }
-                        RuleFigureLabel("相手の駒のマスへ")
+                        RuleFigureLabel(tr("相手の駒のマスへ"))
                     } else {
                         HStack(alignment: .bottom, spacing: 10) {
                             RuleMiniBoard(rows: 3, cols: 3, cell: cell, style: .shogi) { row, col in
@@ -62,10 +62,10 @@ enum ShogiHowToFigures {
                             }
                             VStack(spacing: 2) {
                                 koma(.pawn)
-                                RuleFigureLabel("持ち駒", color: Theme.coral)
+                                RuleFigureLabel(tr("持ち駒"), color: Theme.coral)
                             }
                         }
-                        RuleFigureLabel("取れて、持ち駒に")
+                        RuleFigureLabel(tr("取れて、持ち駒に"))
                     }
                 }
             }
@@ -86,7 +86,7 @@ enum ShogiHowToFigures {
                             }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? "赤い 3 段が相手陣" : "入ると成れる（歩 → と）",
+                    RuleFigureLabel(index == 0 ? tr("赤い 3 段が相手陣") : tr("入ると成れる（歩 → と）"),
                                     color: index == 0 ? Theme.coral : Theme.inkSub)
                 }
             }
@@ -104,7 +104,7 @@ enum ShogiHowToFigures {
                         if row == 2, col == 1 { koma(.pawn) }
                     }
                 }
-                RuleFigureLabel("王手！ 逃げ場も、金を取る手もない", color: Theme.coral)
+                RuleFigureLabel(tr("王手！ 逃げ場も、金を取る手もない"), color: Theme.coral)
             }
         }
     }

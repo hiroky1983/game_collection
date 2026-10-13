@@ -268,6 +268,17 @@
         }
       }
     },
+    "どの札でも置ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any card can go here"
+          }
+        }
+      }
+    },
     "まだ戻せる手がありません" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -474,6 +485,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All free cells are full and no card has anywhere to go. This deal can always be cleared, so undo some moves and try again."
+          }
+        }
+      }
+    },
+    "フリーセル（1 枚ずつ置いておける）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free cells (hold 1 card each)"
           }
         }
       }

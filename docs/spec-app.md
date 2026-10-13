@@ -255,6 +255,19 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 4. 英語は日本語より横に長い。1 行に収める所（`lineLimit(1)`・幅が固定の枠）は `minimumScaleFactor` か、
    `ViewThatFits` で短い言い回しに切り替える形にして、SE（幅 375pt）で確かめる。
 
+### 遊び方の文言（#2165）
+
+- 遊び方の本文（`Core/HowToPlay.swift` の `HowToPlayGuide`：題名・3 行ルール・ミニガイド・図入りの項目・補足）は
+  **Core の表**で引く。各ガイドは `static var x: HowToPlayGuide { HowToPlayGuide(…) }`（計算型）にしてあり、
+  言語を切り替えると「？」のシートも引き直される。新しいガイドや項目も同じ形で `tr("…")` に書く。
+- 図の中の文字（`*HowToFigures.swift`）と、モード選択シートの説明（荷物運びパズルの `OjisanPuzzleSetupSheet`）は
+  **そのゲームのモジュールの表**で引く。図の文字を `static let` に入れると最初の言語で固まるので、配列や段階の
+  定義も `static var`（計算型）にする。
+- `HowToPlayLocalizationTests` が、全部のガイド（`all` に入らない出し分け用の版を含む）の文に英語の訳があることを確かめる。
+- 訳語は各ゲームの表の既存訳に揃える（例: オセロ → Reversi、ナンプレ → Number Place、組札 → foundation、
+  腰痛ゲージ → Back Pain）。将棋の駒の名前は英語（Pawn・Gold・King…）で書き、盤の駒は漢字のまま
+  （対応表は「くわしいルール」）。
+
 ### 数字・単位・記録の表記（#2168）
 
 数と単位・「ベスト」「最短」をつなげて文にする所は、**語順ごと文言の表の書式で組む**（英語は語順も単位も変わる）。
