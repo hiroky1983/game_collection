@@ -165,6 +165,90 @@ struct RecordFormatLocalizationTests {
         #expect(StringCatalog.pluralCount(["-"]) == nil)
         #expect(StringCatalog.pluralCount(["1:23", 4]) == 4, "整数の引数があればそちらが優先")
     }
+
+    // MARK: - 区分名はキーから表示のたびに引き直す（#2199）
+
+    /// 区分名つきの記録の見本。保存時の言語（日本語 / 英語）で `variantLabel` を持つ。
+    static let variantSamples: [(key: String, metric: RecordMetric, ja: String, en: String)] = [
+        ("sudoku#normal", .shortestTime, "ふつう", "Normal"),
+        ("sudoku#hard", .shortestTime, "むずかしい", "Hard"),
+        ("solitaire#draw3", .shortestTime, "3枚めくり", "Draw 3"),
+        ("spider#2suit", .shortestTime, "2スート", "2 Suits"),
+        ("minesweeper#9x9-10", .shortestTime, "初級", "Beginner"),
+        ("minesweeper#12x12-25", .shortestTime, "12×12・地雷25", "12x12, 25 mines"),
+        ("mahjong#turtle", .shortestTime, "亀甲", "Turtle"),
+        ("speed#slow", .shortestTime, "ゆっくり", "Slow"),
+        ("shiritori#endless", .points, "とことん", "Endless"),
+        ("ojisanpuzzle#backpain", .shortestTime, "荷運びモード", "Moving Mode"),
+        ("anzan#d1-n5-fast", .points, "1桁・5個・はやい", "1 digit · 5 numbers · Fast"),
+        ("anzan#d2-n10-normal", .points, "2桁・10個・ふつう", "2 digits · 10 numbers · Normal"),
+        ("mahjong4#singleHand", .winLoss, "一局戦", "Single Hand"),
+        ("poker#bonus", .points, "ボーナスルール", "Bonus Rules"),
+        ("runner#endless", .points, "エンドレス", "Endless"),
+        ("hanafuda#r12-nosake-hard", .winLoss, "12局・酒の役なし・CPUむずかしい", "12 rounds, No sake yaku, CPU Hard"),
+    ]
+
+    private static func record(_ key: String, _ metric: RecordMetric, label: String) -> PlayRecord {
+        PlayRecord(metric: metric, variantLabel: label, recordKey: key, plays: 3, wins: 2, losses: 1,
+                   bestPoints: 120, bestSeconds: 83, fewestMoves: 24)
+    }
+
+    @Test("英語では、日本語で保存した記録も英語で保存した記録も、区分名が英語で出て日本語の文字が混ざらない")
+    func variantLabelIsEnglishWhateverLanguageItWasSavedIn() {
+        for sample in Self.variantSamples {
+            for saved in [sample.ja, sample.en] {
+                let record = Self.record(sample.key, sample.metric, label: saved)
+                let lines = [
+                    RecordFormat.hubLine([record], language: .english),
+                    RecordFormat.resultLine(record, language: .english),
+                    RecordFormat.shareMessage(title: "Sudoku", record: record, language: .english),
+                ].compactMap { $0 }
+                #expect(lines.count == 3, "\(sample.key)")
+                for line in lines {
+                    #expect(!Self.containsJapanese(line), "\(sample.key) 保存=\(saved): \(line)")
+                }
+                // 区分名を添えるのはハブの最短タイムの行と共有文（それ以外の指標では添えない）。
+                #expect(lines[2].contains(sample.en), "\(sample.key) 保存=\(saved): \(lines[2])")
+                if sample.metric == .shortestTime { #expect(lines[0].contains(sample.en), "\(sample.key): \(lines[0])") }
+            }
+        }
+    }
+
+    @Test("日本語では、英語で保存した記録も日本語の区分名で出る")
+    func variantLabelIsJapaneseWhateverLanguageItWasSavedIn() {
+        for sample in Self.variantSamples {
+            for saved in [sample.ja, sample.en] {
+                let record = Self.record(sample.key, sample.metric, label: saved)
+                let share = RecordFormat.shareMessage(title: "数独", record: record, language: .japanese)
+                #expect(share?.contains("（\(sample.ja)）") == true, "\(sample.key) 保存=\(saved): \(share ?? "nil")")
+                if sample.metric == .shortestTime {
+                    #expect(RecordFormat.hubLine([record], language: .japanese)?.contains("（\(sample.ja)）") == true)
+                }
+            }
+        }
+    }
+
+    @Test("キーが無い・引けない記録は、保存された区分名をそのまま出す")
+    func unknownKeyFallsBackToStoredLabel() {
+        let noKey = PlayRecord(metric: .shortestTime, variantLabel: "ふつう", plays: 1, wins: 1, bestSeconds: 83)
+        #expect(RecordFormat.hubLine([noKey], language: .english) == "Best 1:23 (ふつう)")
+        let unknown = PlayRecord(metric: .shortestTime, variantLabel: "Mystery", recordKey: "newgame#mystery",
+                                 plays: 1, wins: 1, bestSeconds: 83)
+        #expect(RecordFormat.hubLine([unknown], language: .english) == "Best 1:23 (Mystery)")
+        #expect(RecordVariantLabels.label(recordKey: "sudoku", language: .english) == nil)
+        #expect(RecordVariantLabels.label(recordKey: "sudoku#extreme", language: .english) == nil)
+    }
+
+    @Test("日本語の保存用の区分名は表示言語に左右されない")
+    func storedLabelIsAlwaysJapanese() {
+        #expect(RecordVariantLabels.stored(gameID: "sudoku", variant: "normal") == "ふつう")
+        #expect(RecordVariantLabels.stored(gameID: "minesweeper", variant: "12x12-25") == "12×12・地雷25")
+        #expect(RecordVariantLabels.stored(gameID: "unknown", variant: "x") == "x")
+    }
+
+    private static func containsJapanese(_ text: String) -> Bool {
+        text.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) }
+    }
 }
 
 /// #2168 の前の `RecordFormat`（日本語を文字列補間でつなげて組んでいた版）の写し。

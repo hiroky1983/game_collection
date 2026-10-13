@@ -99,8 +99,7 @@ public struct AnzanSettings: Codable, Equatable, Sendable {
     /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されてハブの記録行に出るので、
     /// 表示言語によらず日本語で組む（表示の英語化は #2168）。
     public var recordVariantLabel: String {
-        [digits.label(language: .japanese), count.label(language: .japanese), speed.label(language: .japanese)]
-            .joined(separator: "・")  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
+        RecordVariantLabels.stored(gameID: "anzan", variant: variant)
     }
 
     /// 難しさの段。3 軸それぞれの段（0 始まり）の和で、0（全部いちばんやさしい）〜 6。

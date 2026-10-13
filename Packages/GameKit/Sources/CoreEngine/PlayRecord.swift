@@ -70,8 +70,12 @@ public struct GameScore: Equatable, Sendable {
 public struct PlayRecord: Codable, Equatable, Sendable {
     /// 見出しにする指標。
     public var metric: RecordMetric
-    /// 区分の表示名（マインスイーパーの「初級」など）。
+    /// 区分の表示名（マインスイーパーの「初級」など）。**保存した時点の文字列**で、言語を切り替えても
+    /// 書き換わらない。画面に出す名前は `recordKey` から引き直す（`RecordFormat`・#2199）。
     public var variantLabel: String?
+    /// この記録の保存先のキー（`PlayLog.recordKey`。例: `sudoku#normal`）。表示のたびに区分名を引き直すための
+    /// 手がかりで、**保存はしない**（`PlayLog` が記録を渡すときに付ける）。nil なら `variantLabel` をそのまま出す。
+    public var recordKey: String?
     /// 終局した回数（勝敗を問わない）。
     public var plays: Int
     public var wins: Int
@@ -97,9 +101,16 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     /// 「いつ遊んだか分からないくらい前」として扱う。
     public var lastPlayedAt: Date?
 
+    /// `recordKey` は保存しない（`PlayLog` の保存形式は変えない）。
+    private enum CodingKeys: String, CodingKey {
+        case metric, variantLabel, plays, wins, losses, draws, currentStreak, bestStreak
+        case bestPoints, highestValue, bestSeconds, fewestMoves, lastPlayedAt
+    }
+
     public init(
         metric: RecordMetric = .winLoss,
         variantLabel: String? = nil,
+        recordKey: String? = nil,
         plays: Int = 0,
         wins: Int = 0,
         losses: Int = 0,
@@ -114,6 +125,7 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     ) {
         self.metric = metric
         self.variantLabel = variantLabel
+        self.recordKey = recordKey
         self.plays = plays
         self.wins = wins
         self.losses = losses
@@ -285,7 +297,8 @@ public extension PlayRecord {
 /// - 各関数の `language` は省略時にいまの表示言語（`AppLanguageStore.shared`）。テストは明示して引く。
 /// - 桁区切りの数は `number` で整形してから `%@` で渡す。英語の単数・複数は、その整形済みの数でも選べる
 ///   （`StringTable` が `1,234` のような数字の文字列も数として扱う）。
-/// - 区分の表示名（`variantLabel`）は記録に保存された文字列をそのまま出す（訳さない）。
+/// - 区分の表示名は、記録の保存先のキー（`recordKey`）から表示のたびに引き直す（`RecordVariantLabels`・#2199）。
+///   キーが無い・引けない記録だけ、保存された `variantLabel` をそのまま出す。
 public enum RecordFormat {
     /// 秒数を `M:SS` / `H:MM:SS` に整形する。言語によらず同じ表記。
     public static func time(_ seconds: Int) -> String {
@@ -297,6 +310,12 @@ public enum RecordFormat {
             return String(format: "%d:%02d:%02d", h, m, sec)
         }
         return String(format: "%d:%02d", m, sec)
+    }
+
+    /// 記録に添える区分名。キーから表示言語で引き直し、引けなければ保存済みの文字列。
+    static func variantLabel(of record: PlayRecord, language: AppLanguage?) -> String? {
+        guard let stored = record.variantLabel else { return nil }
+        return record.recordKey.flatMap { RecordVariantLabels.label(recordKey: $0, language: language) } ?? stored
     }
 
     /// 3 桁区切りの数値（12,340）。日本語・英語とも同じ表記。
@@ -349,7 +368,7 @@ public enum RecordFormat {
         switch metric {
         case .shortestTime:
             // 区分が複数あるときは一番速い記録を代表にする（1 行に収めるため）。
-            guard let best = played.compactMap({ r in r.bestSeconds.map { ($0, r.variantLabel) } })
+            guard let best = played.compactMap({ r in r.bestSeconds.map { ($0, variantLabel(of: r, language: language)) } })
                 .min(by: { $0.0 < $1.0 }) else { return nil }
             if let label = best.1 {
                 return tr("最短 %1$@（%2$@）", time(best.0), label, language: language)
@@ -451,7 +470,7 @@ public enum RecordFormat {
     public static func shareMessage(title: String, record: PlayRecord, language: AppLanguage? = nil) -> String? {
         guard let line = resultLine(record, language: language) else { return nil }
         // 区分ごとに記録を分けているゲーム（マインスイーパーの難易度）は、どの区分の記録かを添える。
-        if let label = record.variantLabel {
+        if let label = variantLabel(of: record, language: language) {
             return tr("あそびばの「%1$@」（%2$@）で記録更新！\n%3$@", title, label, line, language: language)
         }
         return tr("あそびばの「%1$@」で記録更新！\n%2$@", title, line, language: language)

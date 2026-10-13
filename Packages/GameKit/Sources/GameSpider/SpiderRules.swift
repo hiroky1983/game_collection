@@ -32,9 +32,6 @@ public enum SpiderSuitCount: Int, CaseIterable, Codable, Sendable, Equatable {
     /// タイムの水準がまったく違う（1 スートは数分・4 スートは数十分）ため、最初から
     /// 3 行に分けて自己ベストを持つ。
     public var recordVariant: String { "\(rawValue)suit" }
-
-    /// 自己ベストの行に出す区分名。
-    public var recordLabel: String { "\(rawValue)スート" }  // i18n-keep: 記録に保存する区分名（表示の英語化は #2168）
 }
 
 /// 1 局に焼き込むルールの束（#717。`docs/ai-devops.md`「1局=1RuleSet」原則）。

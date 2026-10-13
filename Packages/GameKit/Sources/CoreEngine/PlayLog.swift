@@ -265,7 +265,7 @@ public final class PlayLog {
     /// 更新後の初回クリアが無条件に「新記録」になる（麻雀ソリティアが #239 で該当した）。
     /// 値は「区分が無かった頃に遊べた唯一の区分」= 既定区分を指す。
     static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
-        "mahjong": (variant: "turtle", label: "亀甲"),  // i18n-keep: 記録に保存済みの区分名（旧記録の引き継ぎ先）
+        "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle")),
     ]
 
     /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
@@ -304,7 +304,15 @@ public final class PlayLog {
 
     /// 1 件ぶんの記録を取り出す。まだ遊んでいなければ nil。
     public func record(gameID: String, variant: String? = nil) -> PlayRecord? {
-        records[Self.recordKey(gameID: gameID, variant: variant)]
+        let key = Self.recordKey(gameID: gameID, variant: variant)
+        return records[key].map { Self.keyed($0, key) }
+    }
+
+    /// 表示用に保存先のキーを添えた記録（保存はしない。`PlayRecord.recordKey`）。
+    private static func keyed(_ record: PlayRecord, _ key: String) -> PlayRecord {
+        var record = record
+        record.recordKey = key
+        return record
     }
 
     /// そのゲームの全区分の記録。キー順で安定させる（表示のちらつき防止）。
@@ -313,7 +321,7 @@ public final class PlayLog {
         return records
             .filter { $0.key == gameID || $0.key.hasPrefix(prefix) }
             .sorted { $0.key < $1.key }
-            .map(\.value)
+            .map { Self.keyed($0.value, $0.key) }
     }
 
     /// ハブのカードに出す 1 行。記録がまだ無ければ nil。
@@ -369,7 +377,7 @@ public final class PlayLog {
         records[key] = result.record
         persistRecords()
         recordPlayDay(at: date)
-        return result
+        return RecordResult(record: Self.keyed(result.record, key), update: result.update)
     }
 
     /// 決着した日を遊んだ日として足す（#1625）。同じ日は何局目でも増えない。
