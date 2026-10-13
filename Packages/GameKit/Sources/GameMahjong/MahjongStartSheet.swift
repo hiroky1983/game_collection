@@ -13,6 +13,8 @@ struct MahjongStartSheet: View {
 
     /// 「ルールと役を見る」の詳細。共通枠は NavigationStack を持たないので、入れ子のシートで開く。
     @State private var showRules = false
+    /// ツモ・立直・鳴きの説明を開いているか。長さを切り替えても開閉はそのまま。
+    @State private var showsDetails = false
 
     var body: some View {
         GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
@@ -31,11 +33,24 @@ struct MahjongStartSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            GameSetupSection(tr("ゲームの流れ")) {
-                ruleRow("1", flowSummary)
-                ruleRow("2", tr("1枚ツモって1枚切る。4面子+雀頭で和了"))
-                ruleRow("3", tr("聴牌したら立直できます（1000点を供託）。門前のときだけ"))
-                ruleRow("4", tr("他の人の捨て牌はポン・チー・カンで鳴けます（鳴くと立直はできません）"))
+            // 選んでいる長さの遊び方の要点を、図つきでそのまま並べる（#2044。荷物運びパズルの開始シート #2132 と
+            // 同じ型・会長指示「遷移リンクを貼るだけでは駄目」）。カードは「？」の遊び方シートと同じ部品。
+            GameSetupSection(tr("%@のルール", length.title)) {
+                VStack(spacing: 10) {
+                    ForEach(Array(length.setupKeyItems.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    detailsToggle
+                    if showsDetails {
+                        ForEach(Array(length.setupDetailItems.enumerated()), id: \.offset) { _, item in
+                            HowToPlayItemCard(item)
+                        }
+                        let notes = length.howToPlayGuide.notes
+                        if !notes.isEmpty { HowToPlayNotesCard(notes) }
+                    }
+                }
+                // 長さを切り替えたら、前の長さの図を引きずらずに丸ごと描き直す。
+                .id(length)
             }
 
             Button { showRules = true } label: {
@@ -67,29 +82,29 @@ struct MahjongStartSheet: View {
         }
     }
 
-    /// 選んだ長さに合わせた 1 行目。何局打つかは遊ぶ前にいちばん知りたい情報なので、
-    /// ピッカーの説明文と流れの 1 行目の両方に出す。
-    private var flowSummary: String {
-        switch length {
-        case .tonpuu:
-            return tr("CPU3人と東風戦（東1局〜東4局）。持ち点は25000点から")
-        case .singleHand:
-            return tr("CPU3人と一局戦（東1局のみ）。持ち点は25000点から")
+    /// ツモ・立直・鳴きの説明を開閉する行。別画面へは移らず、この場で下に広げる（荷物運びパズルと同じ）。
+    private var detailsToggle: some View {
+        Button {
+            withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
+        } label: {
+            HStack {
+                Label(tr("ツモ・立直・鳴きのくわしい説明"), systemImage: "hand.tap.fill")
+                    .themeBody(15)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .scaledFont(13, weight: .bold)
+                    .foregroundStyle(Theme.inkSub)
+                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard(corner: Theme.cornerSmall)
+            .contentShape(Rectangle())
         }
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .scaledFont(12, weight: .black, design: .rounded)
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.Fill.coral))
-            Text(text)
-                .scaledFont(13, weight: .medium, design: .rounded)
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 }
 

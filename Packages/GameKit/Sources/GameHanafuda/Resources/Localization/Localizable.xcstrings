@@ -285,6 +285,28 @@
         }
       }
     },
+    "1 月（松）の 4 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month 1 (Pine): 4 cards"
+          }
+        }
+      }
+    },
+    "3 月（桜）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month 3 (Cherry)"
+          }
+        }
+      }
+    },
     "7文以上" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1311,6 +1333,17 @@
         }
       }
     },
+    "同じ月を取る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture the same month"
+          }
+        }
+      }
+    },
     "四光" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1344,6 +1377,17 @@
         }
       }
     },
+    "場の同じ月と合わさる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matches the same month"
+          }
+        }
+      }
+    },
     "局の終わり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1362,6 +1406,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deck: %lld"
+          }
+        }
+      }
+    },
+    "山札から 1 枚めくる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip 1 from the deck"
           }
         }
       }
@@ -1454,6 +1509,17 @@
         }
       }
     },
+    "役ができた！（猪鹿蝶）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A yaku! (Inoshikachou)"
+          }
+        }
+      }
+    },
     "役ができました（%lld文）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1506,6 +1572,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scoring"
+          }
+        }
+      }
+    },
+    "得点する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score"
+          }
+        }
+      }
+    },
+    "手札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
           }
         }
       }
@@ -2091,6 +2179,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Plain (Maple)"
+          }
+        }
+      }
+    },
+    "続けて伸ばす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep going"
           }
         }
       }

@@ -113,6 +113,17 @@
         }
       }
     },
+    "%@のルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Rules"
+          }
+        }
+      }
+    },
     "%@のロン" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -231,6 +242,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld Han (closed only)"
+          }
+        }
+      }
+    },
+    "1 枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw 1"
           }
         }
       }
@@ -389,6 +411,17 @@
         }
       }
     },
+    "4 組 ＋ 1 組 ＝ 和了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 sets + 1 pair = win"
+          }
+        }
+      }
+    },
     "4位" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -484,6 +517,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "\"Open: N\" yaku are worth fewer Han if you call Pon, Chii or an open Kan. \"Closed only\" yaku are lost."
+          }
+        }
+      }
+    },
+    "あと 1 枚で和了（聴牌）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One tile from winning (Tenpai)"
           }
         }
       }
@@ -796,6 +840,17 @@
         }
       }
     },
+    "タップで切る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to discard"
+          }
+        }
+      }
+    },
     "タンヤオ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -913,6 +968,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tsumo and Ron"
+          }
+        }
+      }
+    },
+    "ツモ・立直・鳴きのくわしい説明" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More on drawing, Riichi & calls"
           }
         }
       }
@@ -1434,6 +1500,28 @@
         }
       }
     },
+    "同じ 2 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair"
+          }
+        }
+      }
+    },
+    "同じ 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        }
+      }
+    },
     "同じ牌3枚（刻子）か連番3枚（順子）を4組と、同じ牌2枚（雀頭）を1組そろえると和了です。ほかに七対子（対子7組）と国士無双もあります" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1776,6 +1864,17 @@
         }
       }
     },
+    "役が付く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Earns a yaku"
+          }
+        }
+      }
+    },
     "役が要ります" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1875,6 +1974,17 @@
         }
       }
     },
+    "手牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
+          }
+        }
+      }
+    },
     "手番" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1882,6 +1992,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Current turn"
+          }
+        }
+      }
+    },
+    "持ち点 25000 点から。多い順に順位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with 25000 points. Ranked by points"
+          }
+        }
+      }
+    },
+    "捨て牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard"
           }
         }
       }
@@ -2447,6 +2579,17 @@
         }
       }
     },
+    "連番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run"
+          }
+        }
+      }
+    },
     "門前で、4組すべて順子・雀頭が役牌でない・両面待ち" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2524,6 +2667,17 @@
         }
       }
     },
+    "閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
+          }
+        }
+      }
+    },
     "閉じる" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2531,6 +2685,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "開いている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
           }
         }
       }

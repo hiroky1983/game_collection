@@ -42,6 +42,9 @@ import GameSpider
 @testable import GameOthello
 @testable import GameChess
 @testable import GameGomoku
+@testable import GameMahjong
+@testable import GameMahjongSolitaire
+@testable import GameHanafuda
 import GameChess
 import GameBlocks
 import GameOjisanPuzzle
@@ -321,6 +324,70 @@ struct BoardGameHowToFiguresTests {
             ("GameChess/ChessView.swift", "HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)", "chess"),
             ("GameGomoku/GomokuView.swift", "HowToPlayGuide.gomoku.illustrated(GomokuHowToFigures.items)", "gomoku"),
             ("GameGomoku/GomokuView.swift", "HowToPlayGuide.gomokuRenju.illustrated(GomokuHowToFigures.renjuItems)", "gomokuRenju"),
+        ]
+        for (path, expected, name) in files {
+            let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
+            #expect(code.contains(expected), "\(name) の「？」が図入りの版でない")
+        }
+    }
+}
+
+// MARK: - 麻雀・麻雀ソリティア・花札の図（#2044 束 3）
+
+@Suite("麻雀・花札の図入りの遊び方")
+@MainActor
+struct MahjongHanafudaHowToFiguresTests {
+    private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
+        [
+            ("mahjong", .mahjong, MahjongHowToFigures.items),
+            ("mahjongSingleHand", .mahjongSingleHand, MahjongHowToFigures.singleHandItems),
+            ("mahjongSolitaire", .mahjongSolitaire, MahjongSolitaireHowToFigures.items),
+            ("hanafuda", .hanafuda, HanafudaHowToFigures.items),
+        ]
+    }
+
+    @Test("項目ごとに図が 1 つずつあり、図を差し込んでも文言は変わらない")
+    func everyItemHasFigure() {
+        for (name, guide, figures) in pairs {
+            #expect(!guide.items.isEmpty, "\(name) に図入りの項目が無い")
+            #expect(figures.count == guide.items.count, "\(name): 図と項目の数がずれている")
+            let illustrated = guide.illustrated(figures)
+            #expect(illustrated.items.allSatisfy { $0.figure != nil })
+            #expect(illustrated.items.map(\.text) == guide.items.map(\.text))
+            #expect(illustrated.notes == guide.notes)
+        }
+    }
+
+    @Test("一局戦の「？」は gameID が同じで all に入らず、違うのは対局の流れの項目だけ")
+    func mahjongSingleHandVariant() {
+        let tonpuu = HowToPlayGuide.mahjong
+        let single = HowToPlayGuide.mahjongSingleHand
+        #expect(single.gameID == MahjongModule().id)
+        #expect(!HowToPlayGuide.all.contains(single))
+        #expect(tonpuu.items[0].text != single.items[0].text)
+        #expect(Array(tonpuu.items.dropFirst()) == Array(single.items.dropFirst()))
+        #expect(MahjongGameLength.tonpuu.howToPlayGuide.items.map(\.text) == tonpuu.items.map(\.text))
+        #expect(MahjongGameLength.singleHand.howToPlayGuide.items.map(\.text) == single.items.map(\.text))
+    }
+
+    @Test("麻雀の開始シートは、選んでいる長さの項目を常時と折りたたみに分けて全部出す")
+    func mahjongSetupSheetShowsEveryItem() {
+        for length in MahjongGameLength.allCases {
+            let all = length.howToPlayGuide.items.map(\.text)
+            let shown = (length.setupKeyItems + length.setupDetailItems).map(\.text)
+            #expect(Set(shown) == Set(all) && shown.count == all.count, "\(length) の開始シートに出ない項目がある")
+            // 長さで変わる項目（対局の流れ）は常に見せる。
+            #expect(length.setupKeyItems.first?.text == all.first)
+        }
+    }
+
+    @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
+    func viewsWireIllustratedGuide() throws {
+        let files: [(String, String, String)] = [
+            ("GameMahjong/MahjongView.swift", ".howToPlay(model.gameLength.howToPlayGuide)", "mahjong"),
+            ("GameMahjong/MahjongStartSheet.swift", "length.setupKeyItems", "mahjong の開始シート"),
+            ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items))", "mahjongSolitaire"),
+            ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items))", "hanafuda"),
         ]
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))

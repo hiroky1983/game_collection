@@ -68,7 +68,7 @@ public struct HanafudaView: View {
         // 早見表を置く（#495 の仕様）。
         .gameChrome(title: tr("花札こいこい"), review: services.review,
                     reference: GameChromeReference { showYakuSheet = true })
-        .howToPlay(.hanafuda) { HanafudaRuleSheet() }
+        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
             HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })

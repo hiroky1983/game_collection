@@ -188,6 +188,17 @@
         }
       }
     },
+    "下の牌は取れない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The tile below is stuck"
+          }
+        }
+      }
+    },
     "並べ替え" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -276,6 +287,17 @@
         }
       }
     },
+    "全部消したらクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear them all to win"
+          }
+        }
+      }
+    },
     "十字" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -331,6 +353,17 @@
         }
       }
     },
+    "同じ牌を 2 枚タップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap 2 matching tiles"
+          }
+        }
+      }
+    },
     "同じ牌を2枚ずつ取って全部消そう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -338,6 +371,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Match pairs of tiles to clear the board"
+          }
+        }
+      }
+    },
+    "季節牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seasons"
           }
         }
       }
@@ -519,6 +563,17 @@
         }
       }
     },
+    "消える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They disappear"
+          }
+        }
+      }
+    },
     "無料の「戻す」を使い切りました" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -603,6 +658,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Undo Last Move (%lld left)"
+          }
+        }
+      }
+    },
+    "積まれた牌を" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the stack"
+          }
+        }
+      }
+    },
+    "端は取れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends are free"
+          }
+        }
+      }
+    },
+    "花牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flowers"
           }
         }
       }
