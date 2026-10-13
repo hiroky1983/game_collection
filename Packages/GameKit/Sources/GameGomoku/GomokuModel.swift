@@ -79,6 +79,9 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public let gameID = "gomoku"
     private var startedAt: Date
     private var moves: [(row: Int, col: Int, stone: GomokuStone)]
+    /// 手順を持たない旧形式の中断データから復元した石（#2200）。打たれた順が分からないので `moves` には
+    /// 入れず、盤の土台として別に持つ。再保存・待ったで盤を作り直すときもここから始めるので、復元前の石は消えない。
+    private var baseBoard = GomokuBoard()
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
@@ -99,6 +102,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         let startedAt: Date
         let moveCount: Int
         let moves: [(row: Int, col: Int, stone: GomokuStone)]
+        let baseBoard: GomokuBoard
         let lastMove: (row: Int, col: Int)?
         let undoUsed: Bool
         let resigned: Bool
@@ -125,8 +129,18 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
                     return (rec.row, rec.col, stone)
                 }
                 moves     = parsed
-                board     = Self.board(from: parsed)
-                moveCount = parsed.count
+                // 手順に無い石（旧形式から再開して保存し直した局の復元前の石）は `cells` から土台として拾う（#2200）。
+                var base = GomokuBoard()
+                if snap.cells.count == gomokuBoardSize * gomokuBoardSize {
+                    for (index, raw) in snap.cells.enumerated() {
+                        guard let raw, let stone = GomokuStone(rawValue: raw) else { continue }
+                        let row = index / gomokuBoardSize, col = index % gomokuBoardSize
+                        if !parsed.contains(where: { $0.0 == row && $0.1 == col }) { base[row, col] = stone }
+                    }
+                }
+                baseBoard = base
+                board     = Self.board(from: parsed, base: base)
+                moveCount = board.moveCount
                 if let last = parsed.last {
                     lastMove      = (last.0, last.1)
                     currentStone  = last.2.opponent
@@ -140,6 +154,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
                 currentStone = GomokuStone(rawValue: snap.currentStone) ?? .black
                 moveCount    = cells.compactMap { $0 }.count
                 moves        = []
+                baseBoard    = board
                 lastMove     = nil
             }
             undoUsed    = snap.undoUsed ?? false
@@ -156,6 +171,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             startedAt    = Date()
             moveCount    = 0
             moves        = []
+            baseBoard    = GomokuBoard()
             lastMove     = nil
             undoUsed     = false
             resigned     = false
@@ -172,6 +188,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         self.startedAt    = startedAt
         self.moveCount    = moveCount
         self.moves        = moves
+        self.baseBoard    = baseBoard
         // savedWinner が最優先。なければ resign フラグで補完（旧スナップショット互換）
         self.winner       = savedWinner ?? (resigned ? humanSide.opponent : nil)
         self.isDraw       = (savedWinner == nil && !resigned && board.isFull)
@@ -423,6 +440,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastMove       = nil
         moveCount      = 0
         moves          = []
+        baseBoard      = GomokuBoard()
         undoUsed       = false
         resigned       = false
         // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
@@ -479,8 +497,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // ヒントの印も 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
         hintPoint = nil
         moves.removeLast(2)
-        board        = Self.board(from: moves)
-        moveCount    = moves.count
+        board        = Self.board(from: moves, base: baseBoard)
+        moveCount    = board.moveCount
         winner       = nil
         isDraw       = false
         undoUsed     = true
@@ -515,8 +533,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         return snap.cells.count == gomokuBoardSize * gomokuBoardSize
     }
 
-    private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {
-        var board = GomokuBoard()
+    private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)], base: GomokuBoard) -> GomokuBoard {
+        var board = base
         for move in moves {
             board[move.row, move.col] = move.stone
         }
