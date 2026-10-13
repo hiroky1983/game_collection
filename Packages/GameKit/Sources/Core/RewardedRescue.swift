@@ -153,16 +153,22 @@ public extension RewardedRescue {
     /// 「広告を最後まで視聴しなかったか…」のアラートが出てしまう。`.unavailable` は
     /// `showsUnavailable` を立てるので、この形を呼ぶ面は `rewardedRescueAlerts(unavailable:)` を
     /// 必ず渡す（`RewardGuardCallSiteTests` がファイル単位で数を突き合わせる）。
+    ///
+    /// - Parameter screenGeneration: 渡すと、読み〜適用の Task を**画面を離れたら cancel される**形で走らせ、
+    ///   cancel されていたら結果の通知（アラート・`whenGranted`）も出さない（#2195）。素の `Task` は離脱で
+    ///   止まらず、離脱後に読みが確定してヒント回数・`game_start`・中断データが動く（無料経路は #1903）。
     func requestHandledByModel(
         withOutcome perform: @escaping @MainActor () async -> RewardedModelOutcome,
+        until screenGeneration: GameScreenGeneration? = nil,
         whenGranted: (@MainActor () async -> Void)? = nil
     ) {
         guard !isWatching else { return }
         isWatching = true
         offerDidAccept()
-        Task {
+        runUntilLeave(screenGeneration) { [self] in
             let outcome = await perform()
             isWatching = false
+            guard !Task.isCancelled else { return }
             switch outcome {
             case .granted:     await whenGranted?()
             case .notEarned:   showsNotEarned = true
@@ -178,22 +184,36 @@ public extension RewardedRescue {
     /// `perform` は読みを終えて広告を出す直前に `readDidFinish` を呼ぶ（呼ばないまま終えても後始末は同じ）。
     func requestHandledByModel(
         withOutcome perform: @escaping @MainActor (_ readDidFinish: @escaping @MainActor () -> Void) async -> RewardedModelOutcome,
+        until screenGeneration: GameScreenGeneration? = nil,
         whenGranted: (@MainActor () async -> Void)? = nil
     ) {
         guard !isWatching else { return }
         isWatching = true
         isReading = true
         offerDidAccept()
-        Task {
+        runUntilLeave(screenGeneration) { [self] in
             let outcome = await perform { [self] in isReading = false }
             isReading = false
             isWatching = false
+            guard !Task.isCancelled else { return }
             switch outcome {
             case .granted:     await whenGranted?()
             case .notEarned:   showsNotEarned = true
             case .unavailable: showsUnavailable = true
             case .superseded:  break
             }
+        }
+    }
+
+    /// `screenGeneration` があれば離脱で cancel される Task として、無ければ素の Task として走らせる（#2195）。
+    private func runUntilLeave(
+        _ screenGeneration: GameScreenGeneration?,
+        _ operation: @escaping @MainActor () async -> Void
+    ) {
+        if let screenGeneration {
+            screenGeneration.runUntilLeave(operation)
+        } else {
+            Task { await operation() }
         }
     }
 }

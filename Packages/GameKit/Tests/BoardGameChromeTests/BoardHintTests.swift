@@ -200,7 +200,7 @@ struct BoardHintButtonSourceTests {
         let source = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/Core/BoardGameControlBar.swift")
         )
-        #expect(source.contains("rescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })"),
+        #expect(source.contains("rescue.requestHandledByModel(withOutcome: { await model.requestAdHint() }, until: services.screenGeneration)"),
                 "共通のリワード API（モデルが1本の非同期メソッドで持つ形）を経ていない")
     }
 
