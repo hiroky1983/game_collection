@@ -17,8 +17,11 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   hubtile-<id>.imageset  … 名前・下線入りのタイル（537×645）
   hubthumb-<id>.imageset … 「つづき・最近」の小さいアイコン用（名前なしの絵を正方形に切り抜き・120×120）
   hubtile-homerun-wide(-pad).imageset … 柵越えおじさんだけの横長タイル（#2184。iPhone 2 列ぶん／iPad 4 列ぶん）
+  hubtile-<id>-en / hubtile-homerun-wide(-pad)-en.imageset … 英語のゲーム名入り（#2181。アプリ内の言語設定で切り替える）
 一部だけ書き直すとき（ほかのアセットは消さない・モック不要）:
   python3 Scripts/generate-hub-tiles.py --only homerun-wide
+英語版だけ書き直すとき（日本語版は消さない）:
+  python3 Scripts/generate-hub-tiles.py --lang en --mock <上と同じ場所>
 """
 import argparse
 import json
@@ -65,6 +68,68 @@ GAMES = {
     "ojisanpuzzle": ("おじさんの荷物運びパズル", YELLOW),
     "anzan": ("ぱっと暗算", CORAL),
 }
+# 英語のゲーム名（#2181）。各ゲームの String Catalog（`Resources/Localization/Localizable.xcstrings`）の訳と同じ
+# （#2166〜#2169）。食い違いは `check_english_names` が書き出しの前に止める。2048 は訳さない（タイトルを直書き）、
+# 大富豪は表のキーが身分の「大富豪」と重なるため `daifugoGameName()` に直書き（GameDaifugo/Localization.swift）。
+GAMES_EN = {
+    "homerun": "Homerun Ojisan",
+    "poker": "Poker",
+    "solitaire": "Solitaire",
+    "runner": "Bike Ojisan",
+    "mahjong4": "Mahjong",
+    "sudoku": "Number Place",
+    "othello": "Reversi",
+    "2048": "2048",
+    "shogi": "Shogi",
+    "shiritori": "Card Shiritori",
+    "daifugo": "Daifugo",
+    "gomoku": "Gomoku",
+    "minesweeper": "Minesweeper",
+    "spider": "Spider Solitaire",
+    "blackjack": "Blackjack",
+    "mahjong": "Mahjong Solitaire",
+    "hanafuda": "Hanafuda Koi-Koi",
+    "go": "Go",
+    "blocks": "Block Breaker",
+    "concentration": "Memory Match",
+    "chess": "Chess",
+    "freecell": "FreeCell",
+    "fifteen": "15 Puzzle",
+    "ojisanpuzzle": "Ojisan's Box Puzzle",
+    "anzan": "Quick Mental Math",
+}
+# String Catalog を引かずに上の表で持つゲーム（理由は上）。
+EN_NOT_IN_CATALOG = {"2048", "daifugo"}
+SOURCES = os.path.join(ROOT, "Packages/GameKit/Sources")
+
+
+def check_english_names():
+    """GAMES_EN が各ゲームの String Catalog の訳（日本語の名前 → en）と一致することを確かめる。"""
+    import glob
+    import re
+    catalogs = {}
+    for module in glob.glob(os.path.join(SOURCES, "Game*")):
+        path = os.path.join(module, "Resources/Localization/Localizable.xcstrings")
+        if not os.path.exists(path):
+            continue
+        with open(path) as f:
+            for key, entry in json.load(f)["strings"].items():
+                en = entry.get("localizations", {}).get("en", {}).get("stringUnit", {}).get("value")
+                if en:
+                    catalogs.setdefault(key, set()).add(en)
+    for gid, (name, _) in GAMES.items():
+        if gid in EN_NOT_IN_CATALOG:
+            continue
+        found = catalogs.get(name, set())
+        assert GAMES_EN[gid] in found, f"{gid}: 英語名 {GAMES_EN[gid]!r} が String Catalog の訳 {sorted(found)} と違う"
+    assert set(GAMES_EN) == set(GAMES), "GAMES と GAMES_EN のゲームが揃っていない"
+
+
+def asset_name(base, lang):
+    """日本語は従来どおりの名前、英語は末尾に `-en`（アプリの `HubTileStyle` と同じ規則）。"""
+    return base if lang == "ja" else f"{base}-en"
+
+
 # モックの絵を使わず描き直すゲーム（上の docstring 参照）。
 REDRAWN = {"ojisanpuzzle", "anzan"}
 
@@ -133,9 +198,25 @@ body{color:#4A3B33;font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans"
 FIT = {"ojisanpuzzle"}
 
 
-def tile_html(gid, art_path):
+# 英語の名前は日本語より横に長い（#2181）。まず 1 行のまま 14px まで縮めて収め（日本語の長い名前と同じく 1 行・
+# 絵とぶつからない）、それでも入らない名前だけ 19px で 2 行に折り返す（2 行に収まらなければさらに縮める）。
+# 下線は名前の下に置き、1 行のときは日本語と同じ位置（top:38px）。
+EN_FIT = ('<script>const n=document.querySelector(".name"),u=document.querySelector(".ul");'
+          'const lh=()=>parseFloat(getComputedStyle(n).lineHeight);let s=19;n.style.whiteSpace="nowrap";'
+          'while(n.scrollWidth>n.clientWidth&&s>14){s-=0.25;n.style.fontSize=s+"px";}'
+          'if(n.scrollWidth>n.clientWidth){s=19;n.style.fontSize=s+"px";n.style.whiteSpace="normal";'
+          'while((n.scrollHeight>lh()*2+1||n.scrollWidth>n.clientWidth)&&s>10){s-=0.25;n.style.fontSize=s+"px";}}'
+          'u.style.top=Math.max(38,n.offsetTop+n.offsetHeight+5)+"px";</script>')
+EN_CSS = ".tile .name.en{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:normal}"
+
+
+def tile_html(gid, art_path, lang="ja"):
     name, color = GAMES[gid]
-    cls = "name small" if len(name) >= 8 else "name"
+    if lang == "en":
+        name = GAMES_EN[gid]
+    cls = "name small" if (lang == "ja" and len(name) >= 8) else "name"
+    if lang == "en":
+        cls += " en"
     extra = ""
     if gid == "homerun":
         # モックの柵越えおじさんだけ、名前の下に白い霞を敷く。モックの左下の「体験版」は会長指示で出さない（#2184）。
@@ -144,29 +225,36 @@ def tile_html(gid, art_path):
     else:
         extra_before = ""
     fit = ""
-    if gid in FIT:
+    if lang == "en":
+        fit = EN_FIT
+    elif gid in FIT:
         fit = ('<script>const n=document.querySelector(".name");let s=16;'
                'while(n.scrollWidth>n.clientWidth&&s>10){s-=0.25;n.style.fontSize=s+"px";}</script>')
-    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{TILE_CSS}</style></head><body>'
+    css = TILE_CSS + (EN_CSS if lang == "en" else "")
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
             f'<div class="tile"><img src="file://{art_path}">{extra_before}'
             f'<div class="{cls}">{name}</div><div class="ul" style="background:{color}"></div>{extra}</div>{fit}</body></html>')
 
 
 # 柵越えおじさんだけの横長タイル（#2184）。iPhone はグリッドの 2 列ぶん、iPad は 4 列ぶんの幅で、高さはふつうの
 # タイルと同じ 215pt。絵はハブの特別枠で使っていたロゴ入りの横長アート（GameHomerun の HomerunHubHeroArtLogo.jpg）
-# を、ふつうのタイル（モックの homerun.png）と同じくロゴより下で切り抜いて使う（左上のゲーム名とロゴが重ならないように）。
-# 切り抜きは元画像（1206×804）の座標で、比率はタイルと同じ。「体験版」のバッジは出さない（会長指示・#2184）。
+# を切り抜いて使う。切り抜きは元画像（1206×804）の座標で、比率はタイルと同じ。「体験版」のバッジは出さない（会長指示・#2184）。
+# iPhone 用は、おじさんの顔が左上のゲーム名に隠れないよう、顔がまるごと入る高さ（ヘルメットの上端より上）から切り抜き、
+# 顔が名前の右下に来るよう左端を絵の左端に合わせる（会長 QA #2201）。そのぶん上端にロゴの下の端が少し入るが、
+# 白い霞（haze）の下になる。ロゴの無い元絵はリポジトリに無い（ChatGPT で作ったロゴ入りの 1 枚だけ・assets-license.md）。
 HERO_ART = os.path.join(ROOT, "Packages/GameKit/Sources/GameHomerun/Resources/HomerunHubHeroArtLogo.jpg")
 WIDE_TILES = [
     # (アセット名, タイルの寸法 pt, 切り抜き (left, top, right, bottom))
-    ("hubtile-homerun-wide", (179 * 2 + 12, 215), (120, 250, 1073, 804)),
+    ("hubtile-homerun-wide", (179 * 2 + 12, 215), (0, 170, 1091, 804)),
     ("hubtile-homerun-wide-pad", (179 * 4 + 12 * 3, 215), (0, 232, 1206, 577)),
 ]
 
 
-def wide_tile_html(art_path, size):
+def wide_tile_html(art_path, size, lang="ja"):
     w, h = size
     name, color = GAMES["homerun"]
+    if lang == "en":
+        name = GAMES_EN["homerun"]
     css = TILE_CSS.replace("width:179px;height:215px", f"width:{w}px;height:{h}px")
     haze = ('<div style="position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.88),'
             'rgba(255,255,255,.55) 22%,rgba(255,255,255,0) 36%)"></div>')
@@ -175,16 +263,17 @@ def wide_tile_html(art_path, size):
             f'<div class="name">{name}</div><div class="ul" style="background:{color}"></div></div></body></html>')
 
 
-def write_wide_tiles(tmp):
+def write_wide_tiles(tmp, langs):
     src = Image.open(HERO_ART).convert("RGB")
-    for asset, size, box in WIDE_TILES:
+    for (base, size, box), lang in ((t, l) for t in WIDE_TILES for l in langs):
+        asset = asset_name(base, lang)
         art = os.path.join(tmp, f"art-{asset}.png")
         crop = src.crop(box)
         # 切り抜きの比率がタイルとずれていると object-fit:cover で意図しない所が切れるので確かめる。
         assert abs(crop.width / crop.height - size[0] / size[1]) < 0.03, (asset, crop.size, size)
         crop.save(art)
         tile = os.path.join(tmp, f"tile-{asset}.png")
-        render(wide_tile_html(art, size), tile, tmp, size)
+        render(wide_tile_html(art, size, lang), tile, tmp, size)
         write_imageset(asset, Image.open(tile))
         print("wide", asset)
 
@@ -225,9 +314,12 @@ def main():
     ap.add_argument("--keep", help="途中の PNG（名前なしの絵）を残す場所")
     ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）。"
                     "homerun-wide で柵越えおじさんの横長タイルだけ")
+    ap.add_argument("--lang", nargs="+", choices=["ja", "en"], default=["ja", "en"],
+                    help="書き出す言語（既定は両方）。1 つだけ指定したときはほかの言語のアセットを消さない")
     args = ap.parse_args()
+    check_english_names()
 
-    if not args.only:
+    if not args.only and len(args.lang) == 2:
         if os.path.isdir(OUT):
             shutil.rmtree(OUT)
         os.makedirs(OUT)
@@ -237,7 +329,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmp:
         if not args.only or "homerun-wide" in args.only:
-            write_wide_tiles(tmp)
+            write_wide_tiles(tmp, args.lang)
         for gid in GAMES:
             if args.only and gid not in args.only:
                 continue
@@ -249,10 +341,14 @@ def main():
             if args.keep:
                 os.makedirs(args.keep, exist_ok=True)
                 shutil.copy(art, os.path.join(args.keep, f"{gid}.png"))
-            tile = os.path.join(tmp, f"tile-{gid}.png")
-            render(tile_html(gid, art), tile, tmp)
-            write_imageset(f"hubtile-{gid}", Image.open(tile))
-            # 「つづき・最近」のアイコン: モックの `object-fit:cover` と同じく中央を正方形に切る。
+            for lang in args.lang:
+                tile = os.path.join(tmp, f"tile-{gid}-{lang}.png")
+                render(tile_html(gid, art, lang), tile, tmp)
+                write_imageset(asset_name(f"hubtile-{gid}", lang), Image.open(tile))
+            if "ja" not in args.lang:
+                print("tile", gid)
+                continue
+            # 「つづき・最近」のアイコン（名前なしなので言語で分けない）: モックの `object-fit:cover` と同じく中央を正方形に切る。
             a = Image.open(art).convert("RGB")
             side = min(a.size)
             left, top = (a.width - side) // 2, (a.height - side) // 2
