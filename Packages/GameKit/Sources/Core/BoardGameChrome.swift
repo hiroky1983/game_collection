@@ -318,6 +318,24 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
     }
 }
 
+extension BoardUndoModel {
+    /// 戻る前後の `aiTurnKey` が変わったときだけ成功とみなし、触覚・効果音を 1 回鳴らす（#2193）。
+    /// `undoLastExchange()` は `Void` なので、各モデルに散らさず成否はここで判定する。
+    @MainActor func performFreeUndo(services: GameServices) {
+        let before = aiTurnKey
+        undoLastExchange()
+        if aiTurnKey != before { services.feedback.impact(.medium) }
+    }
+
+    /// 広告経由の待ったは、局面が変わっていて戻せなかった（`false`）ときは鳴らさない。
+    @MainActor @discardableResult
+    func performAdUndo(forTurn turn: AITurnKey, services: GameServices) -> Bool {
+        let undone = undoLastExchange(forTurn: turn)
+        if undone { services.feedback.impact(.medium) }
+        return undone
+    }
+}
+
 public extension View {
     /// 「待った」の確認アラート・広告の待った・失敗のアラートまでの流れ（#526・#729・#828）。
     /// ボタン（`BoardUndoButton`）にも「⋯」メニューの項目（`BoardGameControlBar`・#1468）にも同じ流れを付ける。
@@ -334,7 +352,7 @@ public extension View {
                             // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
                             // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
                             // アラートの終了アニメーションに巻き込まれる）。
-                            Task { model.undoLastExchange() }
+                            Task { @MainActor in model.performFreeUndo(services: services) }
                             return
                         }
                         // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
@@ -344,7 +362,7 @@ public extension View {
                             services, gameID: model.gameID, purpose: .undo,
                             guardedBy: .checkedByGrant
                         ) {
-                            model.undoLastExchange(forTurn: turn)
+                            model.performAdUndo(forTurn: turn, services: services)
                         }
                     }
                     Button(tr("キャンセル"), role: .cancel) {}
