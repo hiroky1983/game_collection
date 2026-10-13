@@ -29,26 +29,41 @@ enum PokerHowToFigures {
     }
 
     /// 選ばなかった 3 枚が新しい札に入れ替わる。
+    ///
+    /// 5 枚の手札 2 コマを横に並べると iPhone の幅（SE・17 Pro とも）に収まらず、シート全体が
+    /// 横に押し広げられて左右の余白が消える（#2207）。横 1 列に収まらない幅では、
+    /// 「前」の下に「後」を置く 2 段にする（iPad など広い幅では横並びのまま）。
     private struct DrawFigure: View {
         var body: some View {
-            RuleFrames(count: 2, spacing: 10) { index in
-                VStack(spacing: 4) {
-                    HStack(spacing: 3) {
-                        RuleMiniCard("K", suit: .spade, isHighlighted: index == 0)
-                        RuleMiniCard("K", suit: .heart, isHighlighted: index == 0)
-                        if index == 0 {
-                            RuleMiniCard("9", suit: .diamond, isDimmed: true)
-                            RuleMiniCard("5", suit: .club, isDimmed: true)
-                            RuleMiniCard("2", suit: .spade, isDimmed: true)
-                        } else {
-                            RuleMiniCard("K", suit: .diamond)
-                            RuleMiniCard("7", suit: .club)
-                            RuleMiniCard("3", suit: .heart)
-                        }
-                    }
-                    .padding(.top, 4)
-                    RuleFigureLabel(index == 0 ? tr("選ばなかった 3 枚") : tr("引き直した 3 枚"))
+            ViewThatFits(in: .horizontal) {
+                RuleFrames(count: 2, spacing: 10) { index in hand(index) }
+                VStack(spacing: 6) {
+                    hand(0)
+                    Image(systemName: "arrow.down")
+                        .scaledFont(12, weight: .black, maxScale: 1.2)
+                        .foregroundStyle(Theme.inkSub)
+                    hand(1)
                 }
+            }
+        }
+
+        private func hand(_ index: Int) -> some View {
+            VStack(spacing: 4) {
+                HStack(spacing: 3) {
+                    RuleMiniCard("K", suit: .spade, isHighlighted: index == 0)
+                    RuleMiniCard("K", suit: .heart, isHighlighted: index == 0)
+                    if index == 0 {
+                        RuleMiniCard("9", suit: .diamond, isDimmed: true)
+                        RuleMiniCard("5", suit: .club, isDimmed: true)
+                        RuleMiniCard("2", suit: .spade, isDimmed: true)
+                    } else {
+                        RuleMiniCard("K", suit: .diamond)
+                        RuleMiniCard("7", suit: .club)
+                        RuleMiniCard("3", suit: .heart)
+                    }
+                }
+                .padding(.top, 4)
+                RuleFigureLabel(index == 0 ? tr("選ばなかった 3 枚") : tr("引き直した 3 枚"))
             }
         }
     }
