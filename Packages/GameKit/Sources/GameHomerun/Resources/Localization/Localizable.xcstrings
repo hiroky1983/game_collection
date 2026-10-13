@@ -1763,6 +1763,29 @@
         }
       }
     },
+    "残り %lld 回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld round left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rounds left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "次へ" : {
       "extractionState" : "manual",
       "localizations" : {
