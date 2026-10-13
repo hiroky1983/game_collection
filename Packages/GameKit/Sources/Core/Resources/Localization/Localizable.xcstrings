@@ -157,6 +157,17 @@
         }
       }
     },
+    "1〜15 を左上から順に並べたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put 1-15 in order from the top left to win."
+          }
+        }
+      }
+    },
     "1〜15 を左上から順に並べたらクリアです。手数が少ないほど良い記録です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -230,6 +241,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flip 2 cards to find a pair"
+          }
+        }
+      }
+    },
+    "2048 のタイルを作れたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a 2048 tile to win."
           }
         }
       }
@@ -329,6 +351,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play just East 1 against 3 CPUs. Rankings go by points."
+          }
+        }
+      }
+    },
+    "CPU が続けられなくなったら勝ち、あなたが続けられなくなったら負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the CPU can't continue, you win; if you can't, you lose."
           }
         }
       }
@@ -473,6 +506,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opens %@ and starts a new game"
+          }
+        }
+      }
+    },
+    "「ん」で終わる読みの札を選ぶと、その場で負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a card whose reading ends in “n” and you lose on the spot."
           }
         }
       }
@@ -957,6 +1001,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Each row, column, and bold 3×3 box can hold each number only once."
+          }
+        }
+      }
+    },
+    "たての列・よこの行・太線の 3×3 のどれにも、同じ数字は 1 つまでです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each column, row, and bold 3×3 box can hold each number only once."
           }
         }
       }
@@ -1766,6 +1821,28 @@
         }
       }
     },
+    "ノルマは かんたん 4 枚・ふつう 6 枚・むずかしい 9 枚です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal is 4 cards on Easy, 6 on Normal, and 9 on Hard."
+          }
+        }
+      }
+    },
+    "ノルマは無く、札が尽きるまで続きます。全部の札を取りきればパーフェクトで勝ち。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No goal: play until the cards run out. Take every card for a Perfect win."
+          }
+        }
+      }
+    },
     "バックギャモンの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2151,6 +2228,17 @@
         }
       }
     },
+    "出た数を、頭の中でぜんぶ足していきましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add them all up in your head."
+          }
+        }
+      }
+    },
     "出た数をぜんぶ足そう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2173,6 +2261,17 @@
         }
       }
     },
+    "制限時間は 60 秒。しりとりが成立すると +10 秒、成立しない札を選ぶと -5 秒。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have 60 seconds. A good link adds 10 seconds; a card that doesn't link takes 5 away."
+          }
+        }
+      }
+    },
     "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶと-5秒。「ん」で終わる読みを選ぶとその場で負けです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2180,6 +2279,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You have 60 seconds. Each good link adds 10 seconds, and a card that doesn't link takes 5 seconds away. Pick a reading that ends in “n” and you lose on the spot."
+          }
+        }
+      }
+    },
+    "動かすたびに、空いたマスに新しいタイルが 1 枚出ます。どこにも動かせなくなったら終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each move adds a new tile to an empty square. The game ends when no tile can move."
           }
         }
       }
@@ -2283,6 +2393,28 @@
         }
       }
     },
+    "取った札がノルマの枚数に届いたら勝ち。届かないまま時間切れになると負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win when the cards you've taken reach the goal. If time runs out first, you lose."
+          }
+        }
+      }
+    },
+    "取った札が新しい場の札になり、CPU の番になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The card you take becomes the new card in play, and it's the CPU's turn."
+          }
+        }
+      }
+    },
     "取れるのは、上に牌が乗っておらず、左右どちらかが空いている牌だけです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2312,6 +2444,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The two piles in the middle are the play piles. Play a card from your hand that's one higher or lower than either pile (A and K connect). There are no turns: the CPU plays at the same time."
+          }
+        }
+      }
+    },
+    "右上の「難易度」で、桁数・個数・速さをそれぞれ選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use “Difficulty” at the top right to set the digits, how many numbers, and the speed."
           }
         }
       }
@@ -2514,6 +2657,17 @@
         }
       }
     },
+    "地雷がありそうなマスは、長押しで旗を立てられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press and hold a square you think hides a mine to plant a flag."
+          }
+        }
+      }
+    },
     "地雷がありそうなマスは長押しで旗を立てられます（旗のマスは開きません）。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2521,6 +2675,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Press and hold a square you think hides a mine to plant a flag (flagged squares won't open)."
+          }
+        }
+      }
+    },
+    "地雷以外のマスをすべて開けたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open every square without a mine to win."
           }
         }
       }
@@ -2543,6 +2708,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play a card that matches the top card's color, number, or symbol. The first to empty their hand wins."
+          }
+        }
+      }
+    },
+    "場の札の読みの最後の字から始まる札を選んで取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a card whose reading starts with the last kana of the card in play."
           }
         }
       }
@@ -2609,6 +2785,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "On the tableau, you can only stack a card one lower in the other color (a red 7 on a black 8). Any card can go in an empty column."
+          }
+        }
+      }
+    },
+    "壊せるブロックを全部消すと次のステージへ進みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Break every breakable block to reach the next stage."
           }
         }
       }
@@ -2877,6 +3064,17 @@
         }
       }
     },
+    "手数が少ないほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fewer moves is a better record."
+          }
+        }
+      }
+    },
     "手札は 5 枚。残したいカードをタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2965,6 +3163,28 @@
         }
       }
     },
+    "指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide anywhere on the board or in the empty space below it; you don't need to touch the paddle."
+          }
+        }
+      }
+    },
+    "指を横に動かした分だけパドルが動きます。タップで球が飛び出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The paddle moves as far as you slide your finger sideways. Tap to launch the ball."
+          }
+        }
+      }
+    },
     "指を横に動かした分だけパドルが動きます。指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。タップすると球が飛び出します。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2987,6 +3207,17 @@
         }
       }
     },
+    "数が 1 つずつ、パッと出ては消えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numbers flash up one at a time."
+          }
+        }
+      }
+    },
     "数が 1 つずつ、パッと出ては消えます。出た数を頭の中でぜんぶ足していきましょう。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2994,6 +3225,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Numbers flash up one at a time. Add them all up in your head."
+          }
+        }
+      }
+    },
+    "数字と同じ数だけ旗を立てたら、その数字をタップしてまわりをまとめて開けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once a number has that many flags around it, tap the number to open the rest of its neighbors at once."
           }
         }
       }
@@ -3027,6 +3269,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Game"
+          }
+        }
+      }
+    },
+    "旗を立てたマスはタップしても開きません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flagged squares won't open when tapped."
           }
         }
       }
@@ -3086,6 +3339,17 @@
         }
       }
     },
+    "最後の数が消えたら、合計をテンキーで入力して「決定」。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the last number disappears, enter the total on the keypad and tap “Enter”."
+          }
+        }
+      }
+    },
     "最後の数が消えたら、合計をテンキーで入力して「決定」。正解すると連続正解が伸びます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3119,6 +3383,17 @@
         }
       }
     },
+    "札を取った場所には、山札から新しい札が出ます。時間切れは負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each card you take is replaced from the deck. Running out of time is a loss."
+          }
+        }
+      }
+    },
     "柵越えおじさんの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3137,6 +3412,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play this next?"
+          }
+        }
+      }
+    },
+    "正解すると連続正解が伸びます。まずは 1 桁・5 個から。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each correct answer extends your streak. Start with 1 digit and 5 numbers."
           }
         }
       }
@@ -3258,6 +3544,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Slide below the board to move the paddle"
+          }
+        }
+      }
+    },
+    "盤の球をすべて落とすと 1 ミス。3 回ミスで終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Losing all your balls costs a life. The game ends after 3."
           }
         }
       }
@@ -3483,6 +3780,17 @@
       }
     },
     "空白と同じ列・行にあるタイルをタップすると、間のタイルをまとめて動かせます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a tile in the same row or column as the gap to slide all the tiles in between at once."
+          }
+        }
+      }
+    },
+    "空白と同じ列・行のタイルをタップすると、間のタイルをまとめて動かせます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -3797,6 +4105,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In Moving Mode, clear everything below the line to win. Heavy boxes strain Ojisan's back, and a full gauge sends him to the hospital."
+          }
+        }
+      }
+    },
+    "落ちてくるアイテムをパドルで受けると、パドルが伸びたり球が増えたりします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catch falling items to get a longer paddle or extra balls."
           }
         }
       }

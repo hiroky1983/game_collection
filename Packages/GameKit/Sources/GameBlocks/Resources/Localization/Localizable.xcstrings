@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "3 回で終わり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over after 3"
+          }
+        }
+      }
+    },
     "、" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8,6 +19,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : ", "
+          }
+        }
+      }
+    },
+    "あと 1 つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 left"
           }
         }
       }
@@ -30,6 +52,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start over?"
+          }
+        }
+      }
+    },
+    "アイテムを受ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catch an item"
           }
         }
       }
@@ -199,6 +232,17 @@
         }
       }
     },
+    "伸びる・球が増える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longer paddle, more balls"
+          }
+        }
+      }
+    },
     "全ステージクリア！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -221,6 +265,17 @@
         }
       }
     },
+    "壊れない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbreakable"
+          }
+        }
+      }
+    },
     "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -239,6 +294,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
+    "指を横に動かす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide sideways"
           }
         }
       }
@@ -296,6 +362,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "球を落とすと 1 ミス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop all balls: 1 miss"
           }
         }
       }

@@ -54,7 +54,7 @@ public struct MinesweeperView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.minesweeper)
+        .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet { rows, cols, mines in
                 // 旗モードは `newGame` がオフに戻す（#761）。

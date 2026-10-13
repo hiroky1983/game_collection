@@ -90,6 +90,17 @@
         }
       }
     },
+    "クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared!"
+          }
+        }
+      }
+    },
     "ゲームオーバー" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -163,6 +174,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move right"
+          }
+        }
+      }
+    },
+    "左へスワイプ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe left"
           }
         }
       }

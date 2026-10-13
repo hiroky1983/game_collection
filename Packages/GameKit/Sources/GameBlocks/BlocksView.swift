@@ -49,7 +49,7 @@ public struct BlocksView: View {
                     newGame: GameChromeNewGame(.restart, isDisabled: continueRescue.isWatching) {
                         startNewGame()
                     })
-        .howToPlay(.blocks, onPresent: {
+        .howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items), onPresent: {
             // 読んでいる間に落球しないよう止める。発射前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
             if model.phase == .playing { model.pause() }

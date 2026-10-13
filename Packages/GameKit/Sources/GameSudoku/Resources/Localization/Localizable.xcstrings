@@ -45,6 +45,17 @@
         }
       }
     },
+    "3×3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3×3 box"
+          }
+        }
+      }
+    },
     "9×9のマスに1〜9を埋めよう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -89,6 +100,17 @@
         }
       }
     },
+    "たての列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Column"
+          }
+        }
+      }
+    },
     "ふつう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -107,6 +129,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hard"
+          }
+        }
+      }
+    },
+    "よこの行" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row"
           }
         }
       }
@@ -217,6 +250,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't Fill In a Hint"
+          }
+        }
+      }
+    },
+    "マスを選んで数字をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a square, then tap a number"
           }
         }
       }

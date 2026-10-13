@@ -45,6 +45,17 @@
         }
       }
     },
+    "まわりに地雷が 1 つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 mine around it"
+          }
+        }
+      }
+    },
     "キャンセル" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -399,6 +410,17 @@
         }
       }
     },
+    "旗が 1 つ → 1 をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 flag → tap the 1"
+          }
+        }
+      }
+    },
     "旗を切り替える" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -604,6 +626,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    },
+    "長押しで旗" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold to flag"
           }
         }
       }
