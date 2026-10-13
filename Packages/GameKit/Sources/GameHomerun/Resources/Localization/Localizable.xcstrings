@@ -271,6 +271,17 @@
         }
       }
     },
+    "0:00 に 3 回に戻る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to 3 at 0:00"
+          }
+        }
+      }
+    },
     "1 挑戦 = %lld 球" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -289,6 +300,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pitch by Pitch"
+          }
+        }
+      }
+    },
+    "10 球の合計飛距離が記録" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total distance of 10 pitches is your record"
           }
         }
       }
@@ -1188,6 +1210,17 @@
         }
       }
     },
+    "少し下で打つと上がる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit just under it to lift it"
+          }
+        }
+      }
+    },
     "左" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1283,6 +1316,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Step Up to the Plate"
+          }
+        }
+      }
+    },
+    "打席に立つと 1 回減る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stepping up uses 1"
           }
         }
       }

@@ -91,6 +91,17 @@
         }
       }
     },
+    "1 回の挑戦は 10 球。10 球の合計飛距離を伸ばそう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each round is 10 pitches. Go for the longest total distance."
+          }
+        }
+      }
+    },
     "1 枚引いて 1 枚切ります。切る牌はタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1115,6 +1126,28 @@
         }
       }
     },
+    "ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crash or fall into a hole and the run is over. If you close the game midway, the run isn't recorded."
+          }
+        }
+      }
+    },
+    "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crash or fall into a hole and it's a wipeout. You can restart the stage as many times as you like."
+          }
+        }
+      }
+    },
     "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1265,6 +1298,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turtle"
+          }
+        }
+      }
+    },
+    "カーソルをボールの少し下に置くと打球が上がります。左右と離す早さで方向が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put the cursor just under the ball to lift it. Where you aim and when you let go set the direction."
           }
         }
       }
@@ -1434,6 +1478,17 @@
         }
       }
     },
+    "ゴールまで走ればステージクリア。面を順にクリアして、先の世界へ進みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reach the goal to clear the stage. Clear the stages in order to move on to new worlds."
+          }
+        }
+      }
+    },
     "シマウマ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1529,6 +1584,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap to jump"
+          }
+        }
+      }
+    },
+    "タップでジャンプ。長く押すほど高く跳べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to jump. Hold longer to jump higher."
           }
         }
       }
@@ -1828,6 +1894,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play Block Breaker"
+          }
+        }
+      }
+    },
+    "ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "He can only pedal on the ground, so keeping jumps low builds more speed."
           }
         }
       }
@@ -2415,6 +2492,17 @@
         }
       }
     },
+    "回数が 0 のときは、広告を見て 1 回遊べます（1 日の本数に上限があります）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you're out of rounds, you can watch an ad to play once (there's a daily limit)."
+          }
+        }
+      }
+    },
     "囲碁の遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2888,6 +2976,17 @@
         }
       }
     },
+    "挑戦は 1 日 3 回。打席に立った時点で 1 回減り、0:00 に戻ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You get 3 rounds a day. One is used as soon as you step up to bat, and they reset at 0:00."
+          }
+        }
+      }
+    },
     "数が 1 つずつ、パッと出ては消えます。出た数を頭の中でぜんぶ足していきましょう。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3053,6 +3152,17 @@
         }
       }
     },
+    "毎回ちがうコースを、ミスするまで走ります。走った距離が記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ride a new course every time until you wipe out. Your distance is your record."
+          }
+        }
+      }
+    },
     "決め手 %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3104,6 +3214,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bounce the ball into the blocks. Gray blocks can't be broken."
+          }
+        }
+      }
+    },
+    "画面の下のほうを押したままずらすと、水色のミートカーソルが指の動きだけ動きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold and slide near the bottom of the screen, and the light-blue contact cursor follows your finger."
+          }
+        }
+      }
+    },
+    "画面をタップするとおじさんが走り出し、あとは自動で右へ進みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the screen and Ojisan starts riding. He keeps going right on his own."
           }
         }
       }
@@ -3339,6 +3471,17 @@
         }
       }
     },
+    "空中でもう一度タップすると、二段ジャンプできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap again in midair for a double jump."
+          }
+        }
+      }
+    },
     "空白と同じ列・行にあるタイルをタップすると、間のタイルをまとめて動かせます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3456,6 +3599,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Black and White take turns tapping where the lines cross to place a stone."
+          }
+        }
+      }
+    },
+    "縮む輪が白い的に重なった瞬間に指を離すと、スイングします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let go the moment the shrinking ring overlaps the white target to swing."
           }
         }
       }
@@ -3753,6 +3907,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "青いチェックポイントより先でミスしたときは、広告を見てそこから再開することもできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you wipe out past a blue checkpoint, you can watch an ad to restart from there."
           }
         }
       }

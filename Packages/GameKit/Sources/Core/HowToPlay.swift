@@ -457,17 +457,46 @@ public extension HowToPlayGuide {
         hintIcon: "hand.draw.fill"
     ) }
 
-    /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
-    static var runner: HowToPlayGuide { HowToPlayGuide(
+    /// チャリンコおじさんのステージ制（いつもの遊び方）。エンドレスは `.runnerEndless`（`gameID` が同じなので
+    /// `all` には入れない。五目並べの禁じ手と同じ作法）。「？」と開始シートはモードで出し分ける（#2044）。
+    static var runner: HowToPlayGuide { runner(
+        goal: tr("ゴールまで走ればステージクリア。面を順にクリアして、先の世界へ進みます。"),
+        miss: tr("ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。"),
+        lastLine: tr("ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。"),
+        notes: [
+            tr("青いチェックポイントより先でミスしたときは、広告を見てそこから再開することもできます。"),
+            tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
+        ]
+    ) }
+
+    /// チャリンコおじさんのエンドレス（#675）。
+    static var runnerEndless: HowToPlayGuide { runner(
+        goal: tr("毎回ちがうコースを、ミスするまで走ります。走った距離が記録です。"),
+        miss: tr("ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。"),
+        lastLine: tr("ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。"),
+        notes: [
+            tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
+        ]
+    ) }
+
+    private static func runner(goal: String, miss: String, lastLine: String, notes: [String]) -> HowToPlayGuide { HowToPlayGuide(
         gameID: "runner",
         title: tr("チャリンコおじさんの遊び方"),
         lines: [
             tr("画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。"),
             tr("タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗って先へ進めます。"),
-            tr("ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。"),
+            lastLine,
         ],
         hint: tr("タップでジャンプ"),
-        hintIcon: "hand.tap.fill"
+        hintIcon: "hand.tap.fill",
+        items: [
+            HowToPlayItem(goal),
+            HowToPlayItem(tr("画面をタップするとおじさんが走り出し、あとは自動で右へ進みます。")),
+            HowToPlayItem(tr("タップでジャンプ。長く押すほど高く跳べます。")),
+            HowToPlayItem(tr("空中でもう一度タップすると、二段ジャンプできます。")),
+            HowToPlayItem(miss),
+        ],
+        notes: notes
     ) }
 
     /// 花札こいこい（#495）。役の一覧は 3 行に収まらないので、対局中の「役」ボタンと
@@ -587,7 +616,17 @@ public extension HowToPlayGuide {
             tr("合計飛距離を伸ばそう。挑戦は1日3回で、打席に立った時点で1回減ります（0:00 に戻ります）。"),
         ],
         hint: tr("押したままずらし、輪が的に重なった瞬間に離す"),
-        hintIcon: "figure.baseball"
+        hintIcon: "figure.baseball",
+        items: [
+            HowToPlayItem(tr("1 回の挑戦は 10 球。10 球の合計飛距離を伸ばそう。")),
+            HowToPlayItem(tr("画面の下のほうを押したままずらすと、水色のミートカーソルが指の動きだけ動きます。")),
+            HowToPlayItem(tr("縮む輪が白い的に重なった瞬間に指を離すと、スイングします。")),
+            HowToPlayItem(tr("カーソルをボールの少し下に置くと打球が上がります。左右と離す早さで方向が決まります。")),
+            HowToPlayItem(tr("挑戦は 1 日 3 回。打席に立った時点で 1 回減り、0:00 に戻ります。")),
+        ],
+        notes: [
+            tr("回数が 0 のときは、広告を見て 1 回遊べます（1 日の本数に上限があります）。"),
+        ]
     ) }
 
     /// 図入りの遊び方の最初のゲーム（#2044 の先駆け・会長決定 2026-10-12）。
@@ -646,6 +685,7 @@ public extension HowToPlayGuide {
         ]
     ) }
 
+    /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static var all: [HowToPlayGuide] { [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,

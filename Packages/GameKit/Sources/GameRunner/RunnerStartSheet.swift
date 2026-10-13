@@ -31,6 +31,8 @@ struct RunnerStartSheet: View {
 
     /// 見返している場面（#1092）。シートの上に重ねるので、開始シート自身は閉じない。
     @State private var replayScene: RunnerStoryScene?
+    /// 操作の説明を開いているか。モードを切り替えても開閉はそのまま。
+    @State private var showsDetails = false
 
     var body: some View {
         GameSetupSheet(
@@ -53,6 +55,25 @@ struct RunnerStartSheet: View {
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // 選んでいるモードの遊び方の要点を、図つきでそのまま並べる（#2044。荷物運びパズルの開始シート #2132 と
+            // 同じ型・会長指示「遷移リンクを貼るだけでは駄目」）。カードは「？」の遊び方シートと同じ部品。
+            GameSetupSection(tr("%@のルール", mode.title)) {
+                VStack(spacing: 10) {
+                    ForEach(Array(mode.setupKeyItems.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    detailsToggle
+                    if showsDetails {
+                        ForEach(Array(mode.setupDetailItems.enumerated()), id: \.offset) { _, item in
+                            HowToPlayItemCard(item)
+                        }
+                        let notes = mode.howToPlayGuide.notes
+                        if !notes.isEmpty { HowToPlayNotesCard(notes) }
+                    }
+                }
+                // モードを切り替えたら、前のモードの図を引きずらずに丸ごと描き直す。
+                .id(mode)
+            }
             if mode == .stages {
                 GameSetupSection(tr("ステージを選ぶ")) {
                     RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
@@ -67,5 +88,30 @@ struct RunnerStartSheet: View {
                 RunnerStoryView(scene: scene) { replayScene = nil }
             }
         }
+    }
+
+    /// 走り出し・ジャンプの説明を開閉する行。別画面へは移らず、この場で下に広げる（荷物運びパズルと同じ）。
+    private var detailsToggle: some View {
+        Button {
+            withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
+        } label: {
+            HStack {
+                Label(tr("操作のくわしい説明"), systemImage: "hand.tap.fill")
+                    .themeBody(15)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .scaledFont(13, weight: .bold)
+                    .foregroundStyle(Theme.inkSub)
+                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard(corner: Theme.cornerSmall)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 }

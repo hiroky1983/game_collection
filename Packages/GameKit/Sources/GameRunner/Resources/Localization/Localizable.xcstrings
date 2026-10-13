@@ -56,6 +56,17 @@
         }
       }
     },
+    "%@のルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Rules"
+          }
+        }
+      }
+    },
     "%@をもう一度見る" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -251,6 +262,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Controls"
+          }
+        }
+      }
+    },
+    "ちょんと押す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick tap"
           }
         }
       }
@@ -460,6 +482,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endless. Tap to start"
+          }
+        }
+      }
+    },
+    "ゴールでステージクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage clear at the goal"
           }
         }
       }
@@ -959,6 +992,17 @@
         }
       }
     },
+    "操作のくわしい説明" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More on controls"
+          }
+        }
+      }
+    },
     "新しい面に到達！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1136,6 +1180,28 @@
         }
       }
     },
+    "穴に落ちたらおしまい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fall in a hole: run over"
+          }
+        }
+      }
+    },
+    "穴に落ちたらミス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fall in a hole: wipeout"
+          }
+        }
+      }
+    },
     "空中でもう一度タップ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1143,6 +1209,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap again in midair"
+          }
+        }
+      }
+    },
+    "自動で右へ進む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rides right on his own"
           }
         }
       }
@@ -1225,6 +1302,17 @@
         }
       }
     },
+    "走った距離が記録" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance is your record"
+          }
+        }
+      }
+    },
     "走行中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1292,6 +1380,17 @@
         }
       }
     },
+    "長く押す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold longer"
+          }
+        }
+      }
+    },
     "長く押すほど高く跳ぶ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1299,6 +1398,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hold longer to jump higher"
+          }
+        }
+      }
+    },
+    "閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
+          }
+        }
+      }
+    },
+    "開いている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
           }
         }
       }
