@@ -12,8 +12,10 @@
   2. raw/ の全ファイルから daily.csv を作り直す。1 つの日付は複数のインスタンスに重複して入るため、
      その日付を含むファイルのうち processingDate が最も新しいものだけを使う（= 重複排除）。
      raw/ に無くなった日付は既存の daily.csv の行を残す
-  3. 月曜（JST）なら、前週（月〜日）の 1 日平均・前々週比・基準期間との比較を Issue #2231 にコメントする。
+  3. 直近に終わった週（月〜日）の 1 日平均・前々週比・基準期間との比較を Issue #2231 にコメントする。
+     通常は月曜（JST）の実行で投稿され、月曜に Mac が止まっていて実行を逃した週は次の実行で取り戻す。
      コメントに週の印（<!-- aso-weekly:YYYY-MM-DD -->）を埋め、同じ週には二重に投稿しない
+     （投稿済みの週は weekly-posted.txt に控え、控えに無ければ Issue のコメントを見て確かめる）
 
 API は GET だけを使う。リクエストが無い・止まっている場合は作り直さずにエラー終了する
 （作成は会長の判断を経て手で行う）。鍵・トークン・署名付き URL はログにも CSV にも出さない。
@@ -36,7 +38,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-APP_ID = "6781719499"
 REQUEST_ID = "7e25e0eb-cb38-4e08-b230-981d472bb098"
 ISSUE = "2231"
 REPO = "hiroky1983/game_collection"
@@ -345,11 +346,29 @@ def already_posted(marker):
     return marker in out.stdout
 
 
-def post_weekly(rows, week_start):
-    body = weekly_report(rows, week_start)
+def _posted_local(state_path):
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            return set(ln.strip() for ln in f if ln.strip())
+    except FileNotFoundError:
+        return set()
+
+
+def _mark_posted(state_path, week_start):
+    os.makedirs(os.path.dirname(state_path), exist_ok=True)
+    with open(state_path, "a", encoding="utf-8") as f:
+        f.write(week_start.isoformat() + "\n")
+
+
+def post_weekly(rows, week_start, state_path):
+    """week_start の週を投稿する。投稿済み（控え or Issue のコメントに印がある）なら何もしない。"""
+    if week_start.isoformat() in _posted_local(state_path):
+        return None
     if already_posted(weekly_marker(week_start)):
         log("週次: %s の週は投稿済みのため見送り" % week_start.isoformat())
+        _mark_posted(state_path, week_start)
         return None
+    body = weekly_report(rows, week_start)
     fd, tmp = tempfile.mkstemp(prefix="aso-weekly-", suffix=".md")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -361,6 +380,7 @@ def post_weekly(rows, week_start):
     if out.returncode != 0:
         raise RuntimeError("週次コメントの投稿に失敗しました（gh 終了コード %d）" % out.returncode)
     url = out.stdout.strip()
+    _mark_posted(state_path, week_start)
     log("週次: %s の週を投稿 %s" % (week_start.isoformat(), url))
     return url
 
@@ -528,9 +548,7 @@ def main(argv=None):
     ap.add_argument("--import-downloads-tsv", nargs="*", default=[], metavar="TSV",
                     help="App Downloads の TSV を raw/ へ取り込む（ファイル名 = processingDate.tsv）")
     ap.add_argument("--today", type=parse_date, help="今日の日付（JST）を上書き。テスト用")
-    ap.add_argument("--no-weekly", action="store_true", help="月曜でも週次コメントを投稿しない")
-    ap.add_argument("--weekly-now", action="store_true",
-                    help="曜日に関係なく、直近に終わった週の週次コメントを投稿する（投稿済みなら見送り）")
+    ap.add_argument("--no-weekly", action="store_true", help="週次コメントを投稿しない")
     ap.add_argument("--print-weekly", type=parse_date, metavar="MONDAY",
                     help="MONDAY から始まる週の週次コメントの本文を標準出力に出すだけ（投稿しない）")
     a = ap.parse_args(argv)
@@ -570,9 +588,10 @@ def main(argv=None):
         write_daily(daily_path, rows)
         log("daily.csv: %d 日分（%s〜%s）" % (len(rows), rows[0]["date"], rows[-1]["date"]))
 
-    if not a.no_weekly and (a.weekly_now or today.weekday() == 0):
+    # 月曜に限らず毎回、直近に終わった週が未投稿なら投稿する（通常は月曜に投稿され、以降の日は控えで素通り）
+    if not a.no_weekly:
         try:
-            post_weekly(rows, last_complete_week_start(today))
+            post_weekly(rows, last_complete_week_start(today), os.path.join(a.out_dir, "weekly-posted.txt"))
         except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
             log("エラー: %s" % e)
             status = 1

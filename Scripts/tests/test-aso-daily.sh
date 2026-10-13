@@ -3,7 +3,8 @@
 #
 # API は呼ばない（--no-fetch）。手書きの TSV を食わせて、日次の集計・重複排除（同じ日付が複数の
 # インスタンスに入るので processingDate の新しい方だけを使う）・再実行で行が増えないこと・
-# 週の表・月曜だけ週次コメントを投稿し同じ週に二重投稿しないこと・GET 以外を使わないことを確かめる。
+# 週の表・月曜に前週を投稿し（月曜を逃した週は次の実行で取り戻す）同じ週に二重投稿しないこと・
+# GET 以外を使わないことを確かめる。
 #
 # 使い方: bash Scripts/tests/test-aso-daily.sh
 set -uo pipefail
@@ -137,19 +138,26 @@ SH
 chmod +x "$FAKE/gh"
 export FAKE_LOG="$TMP/gh.log" FAKE_COMMENTS="$TMP/comments.txt" ASO_GH="$FAKE/gh"
 
-run --no-fetch --today 2026-10-13 >/dev/null 2>&1   # 火曜
-expect_eq "月曜以外は投稿しない" "$(cat "$FAKE_LOG" 2>/dev/null | grep -c '^issue comment')" "0"
+posts() { cat "$FAKE_LOG" 2>/dev/null | grep -c '^issue comment 2231'; }
 run --no-fetch --today 2026-10-12 >/dev/null 2>&1   # 月曜 → 10/05 の週
-expect_eq "月曜は投稿する" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
+expect_eq "月曜は前週を投稿する" "$(posts)" "1"
 grep -q 'aso-weekly:2026-10-05' "$FAKE_COMMENTS" && ok "前週（10/05〜）を投稿" || ng "投稿した週が違う"
 run --no-fetch --today 2026-10-12 >/dev/null 2>&1   # 同じ月曜にもう一度
-expect_eq "同じ週には二重投稿しない" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
-run --no-fetch --today 2026-10-14 --weekly-now >/dev/null 2>&1   # 水曜の手動試し: 同じ週なので見送り
-expect_eq "--weekly-now も投稿済みの週は見送る" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
+expect_eq "同じ週には二重投稿しない" "$(posts)" "1"
+before_api="$(grep -c '^api' "$FAKE_LOG")"
+run --no-fetch --today 2026-10-13 >/dev/null 2>&1   # 火曜: 同じ週。控えで見送り、GitHub にも問い合わせない
+expect_eq "火曜は投稿しない（同じ週）" "$(posts)" "1"
+expect_eq "投稿済みの週は控えで判定し gh を呼ばない" "$(grep -c '^api' "$FAKE_LOG")" "$before_api"
+rm -f "$OUT/weekly-posted.txt"                       # 控えが消えても Issue のコメントの印で見送る
+run --no-fetch --today 2026-10-14 >/dev/null 2>&1
+expect_eq "控えが無くても Issue の印で二重投稿しない" "$(posts)" "1"
 run --no-fetch --today 2026-10-19 --no-weekly >/dev/null 2>&1
-expect_eq "--no-weekly は月曜でも投稿しない" "$(grep -c '^issue comment 2231' "$FAKE_LOG")" "1"
+expect_eq "--no-weekly は月曜でも投稿しない" "$(posts)" "1"
+run --no-fetch --today 2026-10-20 >/dev/null 2>&1   # 10/19（月）の実行を逃し火曜に動いた
+expect_eq "月曜を逃した週は次の実行で投稿する" "$(posts)" "2"
+grep -q 'aso-weekly:2026-10-12' "$FAKE_COMMENTS" && ok "取り戻したのは 10/12〜の週" || ng "取り戻した週が違う"
 printf '#!/bin/bash\nexit 1\n' >"$FAKE/gh"
-run --no-fetch --today 2026-10-19 >/dev/null 2>&1
+run --no-fetch --today 2026-10-26 >/dev/null 2>&1
 expect_eq "gh が失敗したら終了コード 1" "$?" "1"
 
 echo "== 5. ASC は GET だけ =="

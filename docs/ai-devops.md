@@ -635,7 +635,9 @@ App Store Connect の App Analytics（Analytics Reports API）は日次の数字
   入れる割合（初回 DL÷閲覧）。1 つの日付は複数のインスタンスに重複して入るため、**processingDate が最も新しいファイルだけ**を使って
   毎回 raw/ から作り直す（= 重複排除。raw/ に無い日付の既存行は残す）。初期データとして 10/3〜10/12 の分を取り込み済み
 - **週次**: 月曜の実行で、前週（月〜日）の 1 日平均・前々週比・基準（10/3〜10/11、v1.1.11 公開前）との比較・v1.1.11 以降の平均を
-  #2231 にコメントする。コメントに `<!-- aso-weekly:<前週の月曜> -->` を埋め、同じ週には二重投稿しない。
+  #2231 にコメントする。月曜に Mac が止まっていて実行を逃した週は、次の実行で投稿する。コメントに
+  `<!-- aso-weekly:<前週の月曜> -->` を埋め、同じ週には二重投稿しない（投稿済みの週は `~/asobiba-kpi/aso/weekly-posted.txt` に控え、
+  控えに無いときだけ Issue のコメントを見て確かめる）。
   月曜 10:00 時点では前週日曜の分が API にまだ無いことがあり、表に「データのある日数」を出している
 - **秘密情報**: 鍵は `~/.appstoreconnect/asc-key.json`（と `AuthKey_<key_id>.p8`）。鍵・JWT・セグメントの署名付き URL は
   ログにも CSV にも出さない
@@ -651,8 +653,8 @@ launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.aso-daily.plist
 launchctl kickstart gui/501/com.asobiba.aso-daily   # 1 回手動で走らせる（ログで確認）
 ```
 
-手で動かすとき: `python3 Scripts/aso-daily.py`（月曜以外は週次を投稿しない）、`--no-fetch`（API を呼ばず作り直すだけ）、
-`--print-weekly 2026-10-05`（その週の表を出すだけ）、`--weekly-now`（直近に終わった週を投稿。投稿済みなら見送り）。
+手で動かすとき: `python3 Scripts/aso-daily.py`（直近に終わった週が未投稿なら週次も投稿する）、`--no-weekly`（週次を投稿しない）、
+`--no-fetch`（API を呼ばず作り直すだけ）、`--print-weekly 2026-10-05`（その週の表を出すだけ）。
 
 止め方: `launchctl bootout gui/501/com.asobiba.aso-daily`（止めたら下の「停止中のジョブ」に追記する）。
 貯めたデータ（`~/asobiba-kpi/aso/`）は消さない。Apple 側にもう残っていないため、消すと取り戻せない。
