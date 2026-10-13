@@ -162,7 +162,7 @@ public struct MahjongSolitaireView: View {
                     newGame: GameChromeNewGame(.solo, isDisabled: isWatchingRewardAd) {
                         openSetup()
                     })
-        .howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }
+        .howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items)) { MahjongSolitaireRuleSheet() }
         // 初回のシートを閉じたとき（キャンセル・下へのスワイプを含む）は、配ってある盤面（亀甲）で
         // そのまま遊べるよう計時を始め、保留していた `game_start` を数える（シートで配り直したなら
         // `newGame` が数え済みで何もしない）。プレイ中に開いたシートなら計時は止めていないので何も起きない。

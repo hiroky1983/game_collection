@@ -91,6 +91,17 @@
         }
       }
     },
+    "1 枚引いて 1 枚切ります。切る牌はタップで選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw a tile, then discard one. Tap the tile you want to discard."
+          }
+        }
+      }
+    },
     "1 枚引いて 1 枚切ります。同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえたら和了です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -296,6 +307,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play against 3 CPUs from East 1 to East 4. Rankings go by points."
+          }
+        }
+      }
+    },
+    "CPU 3 人と東 1 局だけを戦い、持ち点の多い順に順位が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play just East 1 against 3 CPUs. Rankings go by points."
           }
         }
       }
@@ -737,6 +759,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Detailed Rules"
+          }
+        }
+      }
+    },
+    "こいこいのあとに相手にあがられると、相手の得点が 2 倍になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your opponent stops after you call Koi-Koi, their points are doubled."
           }
         }
       }
@@ -1744,6 +1777,17 @@
         }
       }
     },
+    "ヒント・並べ替え・戻すの使い方は「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for how Hint, Shuffle and Undo work."
+          }
+        }
+      }
+    },
     "フリーセルの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1971,6 +2015,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap an intersection to place a stone"
+          }
+        }
+      }
+    },
+    "他の人の捨て牌は、ポン・チー・カンで鳴いて取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can claim other players' discards with Pon, Chii or Kan."
           }
         }
       }
@@ -2279,6 +2334,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "When two of the same fruit touch, they merge into the next bigger fruit. The biggest is the melon."
+          }
+        }
+      }
+    },
+    "同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえたら和了です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build 4 sets (3 of a kind or a 3-tile run) plus a pair to win."
           }
         }
       }
@@ -2613,6 +2679,17 @@
         }
       }
     },
+    "役の一覧は、画面上の「役の早見表」と「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Hand reference” at the top of the screen and “Detailed Rules” for the list of yaku."
+          }
+        }
+      }
+    },
     "役の一覧は「くわしいルール」で見られます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2719,6 +2796,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You get 5 cards. Tap the ones you want to keep."
+          }
+        }
+      }
+    },
+    "手札を 1 枚選ぶと、場にある同じ月の札と合わせて取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a card from your hand to capture a table card of the same month."
           }
         }
       }
@@ -2910,6 +2998,17 @@
         }
       }
     },
+    "札は 12 か月が 4 枚ずつ。札の左上の数字が月です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 4 cards for each of the 12 months. The number at the top left of a card is its month."
+          }
+        }
+      }
+    },
     "札をタップ → 置き先をタップ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3049,6 +3148,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Board Games"
+          }
+        }
+      }
+    },
+    "盤面のかたちは 3 種類。どれも必ず取り切れるように配ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 3 layouts. Every one is dealt so it can always be cleared."
           }
         }
       }
@@ -3262,6 +3372,17 @@
         }
       }
     },
+    "立直できるのは鳴いていない手だけで、1000 点を供託します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only a closed hand (no calls) can declare Riichi, and it puts up 1000 points."
+          }
+        }
+      }
+    },
     "箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3291,6 +3412,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Closes the result so you can look back over the board"
+          }
+        }
+      }
+    },
+    "続けて山札が 1 枚めくれます。こちらも同じ月の札と合わさります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then a card is flipped from the deck. It also captures a card of the same month."
           }
         }
       }
@@ -3423,6 +3555,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play Hanafuda Koi-Koi"
+          }
+        }
+      }
+    },
+    "花牌どうし・季節牌どうしは、絵柄がちがってもペアになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any two flower tiles make a pair, and so do any two season tiles, even if the pictures differ."
           }
         }
       }

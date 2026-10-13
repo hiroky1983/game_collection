@@ -304,18 +304,46 @@ public extension HowToPlayGuide {
             tr("取れるのは、上に牌が乗っておらず、左右どちらかが空いている牌だけです。"),
             tr("すべての牌を消せたらクリアです。"),
         ],
-        hint: tr("同じ牌を 2 枚タップで消そう")
+        hint: tr("同じ牌を 2 枚タップで消そう"),
+        items: [
+            HowToPlayItem(tr("同じ絵柄の牌を 2 枚タップすると消えます。")),
+            HowToPlayItem(tr("取れるのは、上に牌が乗っておらず、左右どちらかが空いている牌だけです。")),
+            HowToPlayItem(tr("花牌どうし・季節牌どうしは、絵柄がちがってもペアになります。")),
+            HowToPlayItem(tr("すべての牌を消せたらクリアです。")),
+        ],
+        notes: [
+            tr("盤面のかたちは 3 種類。どれも必ず取り切れるように配ります。"),
+            tr("ヒント・並べ替え・戻すの使い方は「くわしいルール」で見られます。"),
+        ]
     ) }
 
-    static var mahjong: HowToPlayGuide { HowToPlayGuide(
+    /// 東風戦（東 1 局〜東 4 局）の麻雀。一局戦は `.mahjongSingleHand`（`gameID` が同じなので `all` に入れない。
+    /// 五目並べの禁じ手・荷物運びパズルのパズルモードと同じ作法）。「？」と開始シートは対局の長さで出し分ける。
+    static var mahjong: HowToPlayGuide { mahjong(flow: tr("CPU 3 人と東 1 局から東 4 局まで戦い、持ち点の多い順に順位が決まります。")) }
+
+    /// 一局戦（東 1 局だけ・#639）の麻雀。
+    static var mahjongSingleHand: HowToPlayGuide { mahjong(flow: tr("CPU 3 人と東 1 局だけを戦い、持ち点の多い順に順位が決まります。")) }
+
+    private static func mahjong(flow: String) -> HowToPlayGuide { HowToPlayGuide(
         gameID: "mahjong4",
         title: tr("麻雀の遊び方"),
         lines: [
             tr("1 枚引いて 1 枚切ります。同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえたら和了です。"),
             tr("和了の形でも役が無いと上がれません。聴牌したら立直を宣言すると役が付きます。"),
-            tr("CPU 3 人と東 1 局から東 4 局まで戦い、持ち点の多い順に順位が決まります。"),
+            flow,
         ],
-        hint: tr("切る牌をタップしよう")
+        hint: tr("切る牌をタップしよう"),
+        items: [
+            HowToPlayItem(flow),
+            HowToPlayItem(tr("1 枚引いて 1 枚切ります。切る牌はタップで選びます。")),
+            HowToPlayItem(tr("同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえたら和了です。")),
+            HowToPlayItem(tr("和了の形でも役が無いと上がれません。聴牌したら立直を宣言すると役が付きます。")),
+            HowToPlayItem(tr("他の人の捨て牌は、ポン・チー・カンで鳴いて取れます。")),
+        ],
+        notes: [
+            tr("立直できるのは鳴いていない手だけで、1000 点を供託します。"),
+            tr("役の一覧は、画面上の「役の早見表」と「くわしいルール」で見られます。"),
+        ]
     ) }
 
     static var sudoku: HowToPlayGuide { HowToPlayGuide(
@@ -453,7 +481,17 @@ public extension HowToPlayGuide {
             tr("役ができたら「あがり」で得点、「こいこい」で続けて役を伸ばせます。"),
         ],
         hint: tr("同じ月を合わせる"),
-        hintIcon: "leaf.fill"
+        hintIcon: "leaf.fill",
+        items: [
+            HowToPlayItem(tr("札は 12 か月が 4 枚ずつ。札の左上の数字が月です。")),
+            HowToPlayItem(tr("手札を 1 枚選ぶと、場にある同じ月の札と合わせて取れます。")),
+            HowToPlayItem(tr("続けて山札が 1 枚めくれます。こちらも同じ月の札と合わさります。")),
+            HowToPlayItem(tr("役ができたら「あがり」で得点、「こいこい」で続けて役を伸ばせます。")),
+        ],
+        notes: [
+            tr("こいこいのあとに相手にあがられると、相手の得点が 2 倍になります。"),
+            tr("役の一覧は、画面上の「役の早見表」と「くわしいルール」で見られます。"),
+        ]
     ) }
 
     static var fifteen: HowToPlayGuide { HowToPlayGuide(
@@ -641,6 +679,7 @@ public struct HowToPlaySheet<Extra: View>: View {
 
     public var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 10) {
                     if !guide.items.isEmpty {
@@ -668,6 +707,17 @@ public struct HowToPlaySheet<Extra: View>: View {
                     }
                 }
                 .padding(Theme.pad)
+            }
+            #if DEBUG
+            // 撮影用（DEBUG 限定・#2044）: `-howToPlayScroll <番号>` でその番号のカードを上端に寄せて開く
+            // （`notes` は補足カード）。シミュレータは自動でスクロールできないため、下の図はこれで撮る。
+            .task {
+                let args = ProcessInfo.processInfo.arguments
+                guard let i = args.firstIndex(of: "-howToPlayScroll"), i + 1 < args.count else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                proxy.scrollTo(HowToPlayScrollID(args[i + 1]), anchor: .top)
+            }
+            #endif
             }
             .popBackground()
             .navigationTitle(guide.title)
@@ -707,11 +757,19 @@ public struct HowToPlaySheet<Extra: View>: View {
     private var illustratedItems: some View {
         ForEach(Array(guide.items.enumerated()), id: \.offset) { index, item in
             HowToPlayItemCard(item, number: index + 1)
+                .id(HowToPlayScrollID("\(index + 1)"))
         }
         if !guide.notes.isEmpty {
             HowToPlayNotesCard(guide.notes)
+                .id(HowToPlayScrollID("notes"))
         }
     }
+}
+
+/// 遊び方シートのカードの位置（撮影用のスクロール先）。
+private struct HowToPlayScrollID: Hashable {
+    let value: String
+    init(_ value: String) { self.value = value }
 }
 
 /// 番号の丸。3 行ルールと図カードで同じ部品を使う。
@@ -1137,6 +1195,16 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
                 onPresent?()
                 isPresented = true
             })
+            #if DEBUG
+            // 撮影用（DEBUG 限定・#2044）: `-showHowToPlay` で開いた直後に「？」のシートを出す。
+            // シミュレータはタップを自動化できないため。開始シートのあるゲームは `-autoStartSetup` と併用する。
+            .task {
+                guard ProcessInfo.processInfo.arguments.contains("-showHowToPlay") else { return }
+                try? await Task.sleep(for: .milliseconds(1500))
+                onPresent?()
+                isPresented = true
+            }
+            #endif
             .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
                 if let extra {
                     HowToPlaySheet(guide: guide, extra: extra)

@@ -56,6 +56,15 @@ public struct GameSetupSheet<Content: View>: View {
         }
         .popBackground()
         .presentationDetents([.large])
+        #if DEBUG
+        // 撮影用（DEBUG 限定・#2044）: `-autoStartSetup` で既定の選択のまま開始する（「？」のシートを
+        // `-showHowToPlay` で撮るとき、開始シートが先に出ていると重ねて出せないため）。
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("-autoStartSetup") else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            onStart()
+        }
+        #endif
     }
 
     private var header: some View {
@@ -80,16 +89,27 @@ public struct GameSetupSheet<Content: View>: View {
         // ぶん「余った分だけ使う」高さの伝播が効かず、button がシートの外へ押し出されて
         // 見えなくなった（実機確認・2026-09-22）。`.safeAreaInset` なら `ScrollView` 自身が
         // 直接の子のまま、下にボタンの場所を安全に確保できる。
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: spacing) { content }
                 .padding(Theme.pad)
+                .background(alignment: .bottom) { Color.clear.frame(height: 1).id(SetupScrollEnd.end) }
         }
+        #if DEBUG
+        // 撮影用（DEBUG 限定・#2044）: `-setupScrollEnd` で中身を下端までスクロールして開く。
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("-setupScrollEnd") else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            proxy.scrollTo(SetupScrollEnd.end, anchor: .bottom)
+        }
+        #endif
         .safeAreaInset(edge: .bottom) {
             startButton
                 .padding(.horizontal, Theme.pad)
                 .padding(.top, 12)
                 .padding(.bottom, Theme.pad)
                 .background(.regularMaterial)
+        }
         }
     }
 
@@ -101,6 +121,9 @@ public struct GameSetupSheet<Content: View>: View {
         .buttonStyle(.borderedProminent).controlSize(.large).tint(startTint)
     }
 }
+
+/// 開始シートの中身の下端（撮影用のスクロール先）。
+private enum SetupScrollEnd: Hashable { case end }
 
 /// 開始シートの種別。題名と開始ボタンの文言は種別で決まり、ゲームごとには変えない（#1415・#1011 決裁）。
 public enum GameSetupKind: Sendable {
