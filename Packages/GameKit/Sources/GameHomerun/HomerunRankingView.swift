@@ -82,14 +82,24 @@ struct HomerunRankingPage: View {
 
 /// 週間ランキングの状態から、出すページを選ぶ（結果の演出のあと・結果ページの行・打席前の行（#2216）で共通）。
 /// `animates` が false（開き直し・打席前）なら入れ替えアニメは流さず静止の表を出す。
+/// 下端に他のゲーム画面と同じバナー（#2221）。`.safeAreaInset` で入れるので、中の `ScrollView` の末尾が
+/// バナーの手前で止まり、順位表の最後の行が隠れない。
 struct HomerunWeeklyRankingScreen: View {
     let state: HomerunModel.WeeklyState
     let animates: Bool
     let nextTitle: String
     let onNext: () -> Void
+    let ads: AdService
     var fromLobby = false
 
     var body: some View {
+        page
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                BannerSlot(ads: ads)
+            }
+    }
+
+    @ViewBuilder private var page: some View {
         switch state {
         case .off, .signedOut:
             HomerunRankingSignedOutPage(nextTitle: nextTitle, onNext: onNext, fromLobby: fromLobby)
@@ -111,13 +121,14 @@ struct HomerunWeeklyRankingScreen: View {
 /// 週の切り替わりを跨いで打席前に居続けても前週の順位を出さないよう、1 分ごとに今の時刻で状態を引き直す。
 struct HomerunLobbyRankRow: View {
     let model: HomerunModel
+    let ads: AdService
 
     var body: some View {
         TimelineView(.everyMinute) { context in
             let state = model.lobbyWeeklyState(now: context.date)
             if let detail = HomerunLobbyRankText.detail(for: state) {
                 NavigationLink {
-                    HomerunLobbyRankingDestination(model: model)
+                    HomerunLobbyRankingDestination(model: model, ads: ads)
                 } label: {
                     label(detail: detail, isLoading: state == .loading)
                 }
@@ -182,11 +193,12 @@ struct HomerunWeekEndRefresh: ViewModifier {
 /// 打席前の行から開くランキングページ。読み込み中に開いても、読めたらそのまま表に切り替わる。
 private struct HomerunLobbyRankingDestination: View {
     let model: HomerunModel
+    let ads: AdService
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         HomerunWeeklyRankingScreen(state: model.lobbyWeeklyState(now: Date()), animates: false,
-                                   nextTitle: tr("打席前に戻る"), onNext: { dismiss() }, fromLobby: true)
+                                   nextTitle: tr("打席前に戻る"), onNext: { dismiss() }, ads: ads, fromLobby: true)
             .modifier(HomerunWeekEndRefresh(model: model))
             // 読めなかった・前週の表が残っているときは、開いたついでに読み直す。
             .onAppear {
