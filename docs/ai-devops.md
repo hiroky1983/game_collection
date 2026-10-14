@@ -617,32 +617,49 @@ main へマージしただけでは反映されない。会長の `git pull` を
 （取得元は当番専用クローン `~/.asobiba-duty/game_collection` のみ。会長の作業ツリーには触れない）。
 この仕組み自体を有効化する一度だけの `git pull` は会長の操作が要る。
 
-### ASO の日次取得（2026-10-14 会長決定・#2231）
+### ASO の日次取得（GA4・スプレッドシート込み。2026-10-14 会長決定・#2231、2026-10-15 GA4・シート化・#2238）
 
 App Store Connect の App Analytics（Analytics Reports API）は日次の数字を数日分しか保持しないため、
 `Scripts/aso-daily.py` が毎日取ってローカルに貯める。v1.1.11（2026-10-12 公開）以降の ASO の効果を追うのが目的。
+同じ実行で GA4 の数字と広告収益も取り、**Google スプレッドシート「あそびば KPI（毎日の数字）」**
+（ID `1FSwmBy81utUvmt8z2b0eo6kGQ8jgXFhZgDoj_rhuVU4`）に出す。**#2231 への週次コメントは 2026-10-15 にやめた**（会長決定。コードから外した）。
 
 - **起動**: launchd `com.asobiba.aso-daily`（plist の原本は `Scripts/com.asobiba.aso-daily.plist`）が毎日 10:00 JST。
   Mac がスリープしていた日は起床時に 1 回走る。実行するのは当番専用クローン（`~/.asobiba-duty/game_collection`、
   `ai-duty.sh` が 3 分ごとに fetch）の **origin/main の版**で、`~/asobiba-kpi/bin/aso-daily.py` に取り出してから動かす
   （会長の作業ツリーは main とは限らないため使わない。取り出せない日は前回の版で動く）。ログは `~/Library/Logs/asobiba-aso-daily.log`
-- **取得**: 既存の ONGOING リクエスト `7e25e0eb-cb38-4e08-b230-981d472bb098` から「App Store Discovery and Engagement
+- **ASC の取得**: 既存の ONGOING リクエスト `7e25e0eb-cb38-4e08-b230-981d472bb098` から「App Store Discovery and Engagement
   Standard」「App Downloads Standard」の DAILY インスタンスを **GET だけ**で取る。まだ保存していない processingDate の分を
   `~/asobiba-kpi/aso/raw/{engagement,downloads}/<processingDate>.tsv` に保存するので、Mac が止まっていた日の分も
-  API に残っている範囲で次回に取り戻す。リクエストが無い・止まっているときは**作り直さずにエラー終了**する（作成は会長判断）
-- **保存**: `~/asobiba-kpi/aso/daily.csv`（1 日 1 行）。インプレッション（合計・ユニーク・日本／日本以外・流入元別）、
+  API に残っている範囲で次回に取り戻す。リクエストが無い・止まっているときは**作り直さずにエラー**にする（作成は会長判断）
+- **ASC の保存**: `~/asobiba-kpi/aso/daily.csv`（1 日 1 行）。インプレッション（合計・ユニーク・日本／日本以外・流入元別）、
   プロダクトページ閲覧、初回 DL（日本／日本以外・流入元別）、再 DL、押される割合（閲覧÷インプレッション）・
   入れる割合（初回 DL÷閲覧）。1 つの日付は複数のインスタンスに重複して入るため、**processingDate が最も新しいファイルだけ**を使って
-  毎回 raw/ から作り直す（= 重複排除。raw/ に無い日付の既存行は残す）。初期データとして 10/3〜10/12 の分を取り込み済み
-- **週次**: 月曜の実行で、前週（月〜日）の 1 日平均・前々週比・基準（10/3〜10/11、v1.1.11 公開前）との比較・v1.1.11 以降の平均を
-  #2231 にコメントする。月曜に Mac が止まっていて実行を逃した週は、次の実行で投稿する。コメントに
-  `<!-- aso-weekly:<前週の月曜> -->` を埋め、同じ週には二重投稿しない（投稿済みの週は `~/asobiba-kpi/aso/weekly-posted.txt` に控え、
-  控えに無いときだけ Issue のコメントを見て確かめる）。
-  月曜 10:00 時点では前週日曜の分が API にまだ無いことがあり、表に「データのある日数」を出している
-- **秘密情報**: 鍵は `~/.appstoreconnect/asc-key.json`（と `AuthKey_<key_id>.p8`）。鍵・JWT・セグメントの署名付き URL は
-  ログにも CSV にも出さない
-- **テスト**: `bash Scripts/tests/test-aso-daily.sh`（API を呼ばず TSV を食わせて集計・重複排除・週の表・二重投稿防止を見る。
-  `scripts-tests.yml` で CI 実行）
+  毎回 raw/ から作り直す（= 重複排除。raw/ に無い日付の既存行は残す）。10/3 より前は API に残っていなかった
+- **GA4 の取得・保存**: GA4 Data API（プロパティ 549325996）から取り、`~/asobiba-kpi/ga4/daily.csv` に
+  縦持ち（`date, metric, game_id, ad_unit, value`。`game_id`・`ad_unit` が空 = 全体）で保存する。中身はアクティブユーザー
+  （App Store 版・全ビルド・日本／日本以外）、セッション、新規（`first_open` の件数）、`game_open`・`game_start`・`game_end`・
+  `reward_offer`・`reward_request`・`reward_ad`・`share_tap` の回数と人数（全体とゲーム別）、広告収益・表示回数・クリック数
+  （全体と「広告フォーマット/ユニット」別。AdMob を GA4 にリンクした 2026-10-15 以降。通貨 USD）。
+  `customUser:build_channel = appstore` で App Store 版に絞るが（9/1 以降しか付いていない）、`first_open` は build_channel が
+  付く前に送られるため絞れず、新規と広告収益は全ビルドの数字（開発版・TestFlight はテスト広告で収益 0）。GA4 は直近の数字が
+  後から変わるため、毎回「保存済みの最終日の 2 日前〜昨日」（最低でも直近 3 日）を取り直し、**返ってきた日付の行は丸ごと
+  置き換える**（= 重複排除）。daily.csv が空なら 2026-08-01 から取る（GA4 のデータは 8/10 から）
+- **スプレッドシート**: 毎回 2 つの daily.csv から全タブを作り直して丸ごと書く（新しい日は追記・同じ日付は上書きと同じ結果。
+  初回で ASC の既存データも入る）。タブは「週次まとめ」（先頭）「ASO（日次）」「GA4（日次）」「ゲーム別（日次）」「広告（日次）」
+  「メモ・基準値」。週次まとめは、先頭に最終更新（失敗時は「取得失敗: 日時・どの取得か — 内容」）、その下に日次の折れ線 4 本
+  （初回 DL・インプレッション・アクティブユーザー・広告収益）、47 行目から表（行 = 指標、列 = 基準（10/3〜10/11、v1.1.11 公開前）・
+  会長の目安・週ごとの「1 日平均・前週比・基準比」。新しい週が左、月曜以外は途中の週も出す）。広告は**表示回数 0 の日を
+  データなしとして平均から除く**（リンク前の日）。「メモ・基準値」は #2231 の基準値・週次コメント（10/5〜10/11）・会長の目安・
+  取れない項目の理由を**初回だけ**書き、以後は手で直してよい（スクリプトは上書きしない）。グラフは毎回消して置き直す
+- **失敗したとき**: GA4・ASC・スプレッドシートのどれかが失敗しても残りは続ける。ログに「エラー: <どの取得>: …」を出して
+  終了コード 1 にし、週次まとめの 1 行目に「取得失敗: …」を出す（保存済みの数字は消さず、それでタブを作る）
+- **秘密情報**: ASC の鍵は `~/.appstoreconnect/asc-key.json`（と `AuthKey_<key_id>.p8`）。GA4・スプレッドシートはサービスアカウントの鍵
+  `~/asobiba-secrets/asobiba-510718-c05fe74afc23.json`（GA4 プロパティの「閲覧者」・シートの編集者。scope は `analytics.readonly` と
+  `spreadsheets`。毎回 JWT（RS256・openssl 署名）からアクセストークンを作るので期限切れしない）。鍵・JWT・アクセストークン・
+  セグメントの署名付き URL はログにも CSV にもシートにも出さない
+- **テスト**: `bash Scripts/tests/test-aso-daily.sh`（API を呼ばず TSV と GA4 の応答 JSON を食わせ、集計・重複排除・取り直しの上書き・
+  各タブの中身（`--sheets-dump`）・取得失敗の表示を見る。`scripts-tests.yml` で CI 実行）
 
 入れ方（社長が実施済み・再現手順）:
 
@@ -653,11 +670,12 @@ launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.aso-daily.plist
 launchctl kickstart gui/501/com.asobiba.aso-daily   # 1 回手動で走らせる（ログで確認）
 ```
 
-手で動かすとき: `python3 Scripts/aso-daily.py`（直近に終わった週が未投稿なら週次も投稿する）、`--no-weekly`（週次を投稿しない）、
-`--no-fetch`（API を呼ばず作り直すだけ）、`--print-weekly 2026-10-05`（その週の表を出すだけ）。
+手で動かすとき: `python3 Scripts/aso-daily.py`（取得してシートまで書く）、`--no-fetch`（API を呼ばず保存済みの数字からシートを
+書き直すだけ）、`--no-ga4`（GA4 を取らない）、`--no-sheets`（シートに書かない）、`--sheets-dump DIR`（シートの代わりに各タブを
+`DIR/<タブ名>.tsv` に出す）。
 
 止め方: `launchctl bootout gui/501/com.asobiba.aso-daily`（止めたら下の「停止中のジョブ」に追記する）。
-貯めたデータ（`~/asobiba-kpi/aso/`）は消さない。Apple 側にもう残っていないため、消すと取り戻せない。
+貯めたデータ（`~/asobiba-kpi/aso/`・`~/asobiba-kpi/ga4/`）は消さない。ASC の分は Apple 側にもう残っていないため、消すと取り戻せない。
 
 ### 停止中のジョブ（2026-10-03 追加）
 
