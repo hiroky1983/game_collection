@@ -25,6 +25,7 @@ import GameFruits
 import GameColorRelay
 import GameAnzan
 import GameBackgammon
+import GameMancala
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
@@ -72,6 +73,7 @@ private func makeHubGameIDs() -> Set<String> {
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        MancalaModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -997,6 +999,15 @@ struct AllGamesAnalyticsTests {
         let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 7)
         model.resign()
         expectOnePair(spy, gameID: "backgammon")
+        #expect(spy.ends.first?.result == .loss)
+    }
+
+    @Test("マンカラ: 開いた時点で開始・投了で終局（loss）")
+    func mancala() {
+        let (services, spy) = makeServices()
+        let model = MancalaModel(services: services, cpuDelay: .zero, seed: 7)
+        model.resign()
+        expectOnePair(spy, gameID: "mancala")
         #expect(spy.ends.first?.result == .loss)
     }
 

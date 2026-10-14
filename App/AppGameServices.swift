@@ -28,6 +28,7 @@ import GameFruits
 import GameColorRelay
 import GameAnzan
 import GameBackgammon
+import GameMancala
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
@@ -281,6 +282,9 @@ enum AppEnvironment {
         // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // BackgammonModule(),
+        // マンカラ（企画倉庫・#1626）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // MancalaModule(),
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
