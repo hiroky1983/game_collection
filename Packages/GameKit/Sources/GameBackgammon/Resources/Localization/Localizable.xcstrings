@@ -122,6 +122,17 @@
         }
       }
     },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
+    },
     "あがり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -162,6 +173,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You %lld"
+          }
+        }
+      }
+    },
+    "あなたの勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win"
           }
         }
       }

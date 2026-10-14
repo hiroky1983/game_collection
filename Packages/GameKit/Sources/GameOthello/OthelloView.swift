@@ -318,6 +318,10 @@ public struct OthelloView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        // 背後の盤へ VoiceOver が移れないようにし、出現を告げる（#2232。`BoardGameResultCard` と同じ形）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(resultAccessibilityLabel)
     }
 
     private var resultAccessibilityLabel: String {

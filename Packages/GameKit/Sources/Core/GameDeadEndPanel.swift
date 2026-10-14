@@ -41,6 +41,10 @@ public struct GameDeadEndPanel<Buttons: View>: View {
             }
             .padding(.horizontal, 28)
         }
+        // 背後の盤・札へ VoiceOver が移れないようにする（#2232。各ゲームの個別指定は重ねても害は無い）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance([title, message].joined(separator: tr("。")))
     }
 
     private var card: some View {

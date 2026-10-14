@@ -254,28 +254,46 @@ public struct BackgammonView: View {
         ZStack {
             Color.black.opacity(0.45)
             VStack(spacing: 12) {
-                let isWin = model.winner == model.humanSide
-                Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                    .scaledFont(40, maxScale: 1.2)
-                    .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
-                Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
-                    .scaledFont(24, weight: .bold, design: .rounded)
-                    .foregroundStyle(isWin ? Theme.teal : Theme.coral)
-                if let kind = model.winKind, kind != .single {
-                    Text(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
-                        .scaledFont(15, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.ink)
+                // 勝敗・あがり数は 1 回で読ませる（RecordLabel は共有ボタンを持つので外に置く・オセロと同じ）。
+                VStack(spacing: 12) {
+                    let isWin = model.winner == model.humanSide
+                    Image(systemName: isWin ? "trophy.fill" : "flag.fill")
+                        .scaledFont(40, maxScale: 1.2)
+                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                    Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
+                        .scaledFont(24, weight: .bold, design: .rounded)
+                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                    if let kind = model.winKind, kind != .single {
+                        Text(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
+                            .scaledFont(15, weight: .bold, design: .rounded)
+                            .foregroundStyle(Theme.ink)
+                    }
+                    Text(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
+                        .scaledFont(15, weight: .semibold, design: .rounded)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.inkSub)
                 }
-                Text(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
-                    .scaledFont(15, weight: .semibold, design: .rounded)
-                    .monospacedDigit()
-                    .foregroundStyle(Theme.inkSub)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(resultAccessibilityLabel)
                 RecordLabel(model.recordResult)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        // 背後の盤へ VoiceOver が移れないようにし、出現を告げる（#2232）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(resultAccessibilityLabel)
+    }
+
+    private var resultAccessibilityLabel: String {
+        var parts = [model.winner == model.humanSide ? tr("あなたの勝ち") : tr("CPUの勝ち")]
+        if let kind = model.winKind, kind != .single {
+            parts.append(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
+        }
+        parts.append(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
+        return parts.joined(separator: tr("。"))
     }
 
     /// 対局中（投了・やり直し・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、

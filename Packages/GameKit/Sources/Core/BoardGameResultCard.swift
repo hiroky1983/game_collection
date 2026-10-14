@@ -116,6 +116,8 @@ public struct BoardGameResultCard: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(Self.accessibilityLabel(verdict: verdict, reason: reason,
+                                                           decisiveMove: decisiveMove, details: details))
     }
 }
 
