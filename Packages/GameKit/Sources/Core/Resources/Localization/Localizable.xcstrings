@@ -443,6 +443,17 @@
         }
       }
     },
+    "CPU の強さは右上の「新規対局」から 4 段階で選べます。強いほど顔に出にくく、置き場所をよく覚えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from 4 CPU levels with \"New Game\" at the top right. Stronger CPUs give less away and remember where you put the Joker."
+          }
+        }
+      }
+    },
     "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。「とことん」はノルマが無く、札が尽きるまで続きます（取った場所には山札から新しい札が出ます）。全部の札を取りきればパーフェクトで勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2030,6 +2041,17 @@
         }
       }
     },
+    "ババ抜きの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Old Maid"
+          }
+        }
+      }
+    },
     "パズルモードは空の盤から始まり、ゲージなしで得点をのばします。埋まるまで続きます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2756,6 +2778,17 @@
         }
       }
     },
+    "同じ数字の 2 枚（ペア）は捨てます。配られた手札のペアは最初に捨ててから始めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two cards of the same number make a pair and are discarded. Pairs in your dealt hand are discarded before play starts."
+          }
+        }
+      }
+    },
     "同じ数字の点どうしを、指でなぞって線でつなぎます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3196,6 +3229,17 @@
         }
       }
     },
+    "引いたジョーカーは手札の右端に入り、CPU に場所を見られます。「シャッフル」で並びを混ぜましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Joker you draw goes to the right end of your hand, and the CPUs see where it is. Tap \"Shuffle\" to mix your hand."
+          }
+        }
+      }
+    },
     "引き分け" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3203,6 +3247,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Draw"
+          }
+        }
+      }
+    },
+    "引く札を選んで、CPU の顔をよく見よう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a card and watch the CPU's face"
           }
         }
       }
@@ -3379,6 +3434,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Moves count each time you switch to a different number's line. Fewer is better."
+          }
+        }
+      }
+    },
+    "手札がなくなった人から抜けていき、最後にジョーカーを持って残った人が負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Players drop out as their hands run out. Whoever is left holding the Joker loses."
           }
         }
       }
@@ -3713,6 +3779,17 @@
         }
       }
     },
+    "最後にジョーカーを持って残った人が負けです。札を選ぶと、CPU の顔に出ることがあります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever is left holding the Joker loses. When you pick a card, the CPU's face may give something away."
+          }
+        }
+      }
+    },
     "最後に石が多かったほうが勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3786,6 +3863,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Each card you take is replaced from the deck. Running out of time is a loss."
+          }
+        }
+      }
+    },
+    "札を選ぶと、ジョーカーを持つ CPU は顔に出ることがあります。にやりとしたらジョーカーかも。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you pick a card, a CPU holding the Joker may show it on its face. A grin might mean the Joker."
           }
         }
       }
@@ -4439,6 +4527,28 @@
         }
       }
     },
+    "自分の番では、次の CPU の伏せた札を 1 枚選んで引きます。ペアができたら捨て、手札がなくなったら抜けられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On your turn, pick one face-down card from the next CPU and draw it. Discard any pair you make; once your hand is empty, you're out."
+          }
+        }
+      }
+    },
+    "自分の番では、次の CPU の伏せた札を 1 枚選んで引きます。ペアができたら捨てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On your turn, pick one face-down card from the next CPU and draw it. If it makes a pair, discard it."
+          }
+        }
+      }
+    },
     "自分の石ではさんだ相手の石は、すべて自分の色に裏返ります。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4677,6 +4787,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pass 3 of your 13 cards to the left, then play one card each in turn, starting with the 2 of clubs. You must follow the suit that was led if you can."
+          }
+        }
+      }
+    },
+    "配られた手札から同じ数字の 2 枚（ペア）を捨てて始めます。ジョーカーはペアになりません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start by discarding every two cards of the same number (a pair) from your hand. The Joker never makes a pair."
           }
         }
       }
