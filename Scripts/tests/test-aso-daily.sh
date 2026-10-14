@@ -164,6 +164,121 @@ echo "== 5. ASC は GET だけ =="
 if grep -nE "method *=|\"(POST|PATCH|PUT|DELETE)\"" "$TARGET"; then ng "GET 以外のリクエストを組み立てている"; else ok "GET 以外のメソッド指定が無い"; fi
 if grep -nE "print\(.*(url|token|_auth|make_jwt)" "$TARGET"; then ng "URL・トークンを出力している疑い"; else ok "URL・トークンを print しない"; fi
 
+echo "== 6. GA4（#2238。runReport の応答 JSON を食わせる・API は呼ばない） =="
+G1="$TMP/ga4-1" G2="$TMP/ga4-2" GBAD="$TMP/ga4-bad"
+mkdir -p "$G1" "$G2" "$GBAD"
+"$PY" - "$G1" "$G2" <<'PY'
+import json, os, sys
+def rep(dims, mets, rows):
+    return {"dimensionHeaders": [{"name": d} for d in dims], "metricHeaders": [{"name": m} for m in mets],
+            "rows": [{"dimensionValues": [{"value": v} for v in r[:len(dims)]],
+                      "metricValues": [{"value": str(v)} for v in r[len(dims):]]} for r in rows],
+            "rowCount": len(rows)}
+EV = ["date", "eventName"]; EG = EV + ["customEvent:game_id"]; EM = ["eventCount", "totalUsers"]
+AD = ["totalAdRevenue", "publisherAdImpressions", "publisherAdClicks"]
+g1 = {
+    # 前々週 10/5〜10/11 は 80 人、前週 10/12〜10/18 は 100〜106 人
+    "active": rep(["date"], ["activeUsers"], [["202610%02d" % d, 80] for d in range(5, 12)]
+                  + [["202610%02d" % d, 88 + d] for d in range(12, 19)]),
+    "first_open": rep(["date"], ["eventCount"], [["20261012", 10]]),
+    "events": rep(EV, EM, [["20261012", "game_start", 51, 20], ["20261012", "reward_ad", 4, 3],
+                           ["20261012", "reward_request", 8, 5], ["20261012", "first_open", 9, 9]]),
+    "events_by_game": rep(EG, EM, [["20261012", "game_start", "poker", 30, 10], ["20261012", "game_start", "anzan", 20, 8],
+                                   ["20261012", "game_start", "(not set)", 5, 1], ["20261012", "game_start", "shogi", 1, 1],
+                                   ["20261005", "game_start", "poker", 15, 5], ["20261012", "reward_ad", "poker", 4, 3]]),
+    # 10/11 は AdMob リンク前で 0（データなし扱い）
+    "ads": rep(["date"], AD, [["20261011", 0, 0, 0], ["20261012", 1.5, 1000, 3], ["20261013", "0.5", 500, 1]]),
+    "ads_by_unit": rep(["date", "adFormat", "adUnitName"], AD, [["20261012", "Rewarded", "rescue", 1.5, 1000, 3]]),
+}
+# 2 回目: 10/12 の分だけが返り、数字が変わっている（anzan 20→25、shogi は消える、アクティブ 100→111）
+def only_1012(r):
+    return dict(r, rows=[x for x in r["rows"] if x["dimensionValues"][0]["value"] == "20261012"])
+g2 = {k: only_1012(v) for k, v in g1.items()}
+g2["active"] = rep(["date"], ["activeUsers"], [["20261012", 111]])
+g2["events_by_game"] = only_1012(rep(EG, EM, [["20261012", "game_start", "poker", 30, 10],
+                                              ["20261012", "game_start", "anzan", 25, 9],
+                                              ["20261012", "reward_ad", "poker", 4, 3]]))
+for d, g in ((sys.argv[1], g1), (sys.argv[2], g2)):
+    for k, v in g.items():
+        json.dump(v, open(os.path.join(d, k + ".json"), "w"))
+PY
+echo '{not json' >"$GBAD/active.json"
+GOUT="$TMP/ga4out"
+grun() { "$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch "$@"; }
+gcol() {  # gcol <date> <metric> [game_id] [ad_unit]
+  "$PY" - "$GOUT/daily.csv" "$1" "$2" "${3:-}" "${4:-}" <<'PY'
+import csv, sys
+v = [r["value"] for r in csv.DictReader(open(sys.argv[1], encoding="utf-8"))
+     if (r["date"], r["metric"], r["game_id"], r["ad_unit"]) == tuple(sys.argv[2:6])]
+print(",".join(v) if v else "<none>")
+PY
+}
+grun --no-weekly --ga4-from-json "$G1" >/dev/null 2>"$TMP/gerr" && ok "GA4 の取り込みが成功する" || { ng "GA4 の取り込みが失敗した"; cat "$TMP/gerr"; }
+expect_eq "CSV の列" "$(head -1 "$GOUT/daily.csv" | tr -d '\r')" "date,metric,game_id,ad_unit,value"
+expect_eq "アクティブユーザー（10/12）" "$(gcol 2026-10-12 active_users)" "100"
+expect_eq "新規（first_open）" "$(gcol 2026-10-12 new_users)" "10"
+expect_eq "game_start 全体の回数・人数" "$(gcol 2026-10-12 game_start_count)/$(gcol 2026-10-12 game_start_users)" "51/20"
+expect_eq "game_start ゲーム別（anzan）" "$(gcol 2026-10-12 game_start_count anzan)/$(gcol 2026-10-12 game_start_users anzan)" "20/8"
+expect_eq "game_id が (not set) の行はゲーム別に入れない" "$(grep -c 'not set' "$GOUT/daily.csv")" "0"
+expect_eq "対象外のイベント（first_open）は events から拾わない" "$(gcol 2026-10-12 first_open_count)" "<none>"
+expect_eq "reward_request・reward_ad（全体）" "$(gcol 2026-10-12 reward_request_count)/$(gcol 2026-10-12 reward_ad_count)" "8/4"
+expect_eq "reward_ad（ゲーム別）" "$(gcol 2026-10-12 reward_ad_count poker)" "4"
+expect_eq "広告収益（小数のまま）" "$(gcol 2026-10-12 ad_revenue)/$(gcol 2026-10-13 ad_revenue)" "1.5/0.5"
+expect_eq "広告の表示回数・クリック" "$(gcol 2026-10-12 ad_impressions)/$(gcol 2026-10-12 ad_clicks)" "1000/3"
+expect_eq "広告フォーマット/ユニット別" "$(gcol 2026-10-12 ad_revenue '' Rewarded/rescue)" "1.5"
+
+grun --no-weekly --ga4-from-json "$G2" >/dev/null 2>&1
+expect_eq "取り直した日は上書き（アクティブ 100→111）" "$(gcol 2026-10-12 active_users)" "111"
+expect_eq "取り直した日は上書き（anzan 20→25）" "$(gcol 2026-10-12 game_start_count anzan)" "25"
+expect_eq "取り直しで返らなくなった行は消える（shogi）" "$(gcol 2026-10-12 game_start_count shogi)" "<none>"
+expect_eq "取り直していない日は残る（10/13）" "$(gcol 2026-10-13 active_users)" "101"
+cp "$GOUT/daily.csv" "$TMP/ga4-before.csv"
+grun --no-weekly --ga4-from-json "$G2" >/dev/null 2>&1
+grun --no-weekly >/dev/null 2>&1
+if cmp -s "$TMP/ga4-before.csv" "$GOUT/daily.csv"; then ok "再実行で GA4 の CSV が変わらない（重複しない）"; else ng "再実行で GA4 の CSV が変わった"; fi
+expect_eq "(date, metric, game_id, ad_unit) が一意" "$(tail -n +2 "$GOUT/daily.csv" | cut -d, -f1-4 | sort | uniq -d | wc -l | tr -d ' ')" "0"
+
+echo "== 7. GA4 の週の表 =="
+GW="$("$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --print-weekly 2026-10-12 2>/dev/null)"
+grep -q '^## GA4（App Store 版）$' <<<"$GW" && ok "GA4 の節が付く" || ng "GA4 の節が無い"
+# 前週 (111+101+102+103+104+105+106)/7 = 104.6、前々週 80 → +30.7%
+grep -q '^| アクティブユーザー | 104.6 | 80.0 | +30.7% |$' <<<"$GW" && ok "アクティブユーザーの 1 日平均と前々週比" || { ng "アクティブユーザーの行が違う"; grep 'アクティブユーザー' <<<"$GW"; }
+grep -q '^| 1 | ポーカー（poker） | 30 | 10.0 | 15 | +100.0% |$' <<<"$GW" && ok "プレイ数の 1 位と前々週比" || { ng "上位の行が違う"; grep '^| 1 |' <<<"$GW"; }
+grep -q '^| 2 | ぱっと暗算（anzan） | 25 |' <<<"$GW" && ok "プレイ数の 2 位" || ng "2 位の行が違う"
+grep -q '^| 10/12 | 0 | 25／9 | 0 |$' <<<"$GW" && ok "新ゲーム・柵越えの推移（10/12）" || { ng "推移の行が違う"; grep '^| 10/12' <<<"$GW"; }
+grep -q '前週の視聴完了 4 回（前々週 0 回・—）、要求 8 回、完了率 50.0%' <<<"$GW" && ok "リワード広告の視聴" || { ng "視聴の行が違う"; grep '前週の視聴完了' <<<"$GW"; }
+# 表示回数 0 の日（10/11）は除く。前週は 10/12・10/13 の 2 日: 収益 (1.5+0.5)/2、表示 750、eCPM 2.0/1500*1000
+grep -q 'データのある日数: 前週 2 日／前々週 0 日' <<<"$GW" && ok "広告は表示回数 0 の日をデータなしにする" || { ng "広告の日数が違う"; grep '前週 .* 日／前々週' <<<"$GW"; }
+grep -q '^| 広告収益 | \$1.00 | — | — |$' <<<"$GW" && ok "広告収益の 1 日平均" || { ng "広告収益の行が違う"; grep '^| 広告収益' <<<"$GW"; }
+grep -q '^| 表示回数 | 750.0 |' <<<"$GW" && ok "表示回数の 1 日平均" || ng "表示回数の行が違う"
+grep -q '^| 1,000 回あたりの収益（eCPM 相当・期間合計の比） | \$1.33 |' <<<"$GW" && ok "1,000 回あたりの収益" || { ng "eCPM の行が違う"; grep 'eCPM' <<<"$GW"; }
+grep -q '^| Rewarded/rescue | \$1.50 | 1,000 | \$1.50 |$' <<<"$GW" && ok "広告ユニット別" || { ng "ユニット別の行が違う"; grep 'Rewarded' <<<"$GW"; }
+EMPTYW="$("$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$TMP/no-ga4" --print-weekly 2026-10-12 2>/dev/null)"
+grep -q '前週のデータがありません' <<<"$EMPTYW" && ok "GA4 のデータが無い週は無いと書く" || ng "データが無い週の表示が違う"
+
+echo "== 8. GA4 の失敗を黙らない =="
+cat >"$FAKE/gh" <<'SH'
+#!/bin/bash
+echo "$*" >>"$FAKE_LOG"
+case "$1" in
+  api) exit 0 ;;
+  issue) while [ $# -gt 0 ]; do [ "$1" = "--body-file" ] && cat "$2" >"$FAKE_BODY"; shift; done
+         echo "https://github.com/hiroky1983/game_collection/issues/2231#issuecomment-2"; exit 0 ;;
+esac
+exit 1
+SH
+export FAKE_BODY="$TMP/body.md"
+cp "$GOUT/daily.csv" "$TMP/ga4-keep.csv"
+rm -f "$OUT/weekly-posted.txt"   # 偽の gh は投稿済みの印を返さないので、10/12 の週をもう一度投稿させる
+grun --today 2026-10-20 --ga4-from-json "$GBAD" >"$TMP/glog" 2>&1
+expect_eq "GA4 が失敗したら終了コード 1" "$?" "1"
+grep -q 'エラー: GA4' "$TMP/glog" && ok "ログに GA4 のエラーが出る" || { ng "ログに GA4 のエラーが無い"; cat "$TMP/glog"; }
+grep -q 'GA4 の取得に失敗しました' "$FAKE_BODY" && ok "週次コメントに GA4 の失敗が出る" || ng "週次コメントに失敗が出ない"
+grep -q '^| アクティブユーザー | 104.6 |' "$FAKE_BODY" && ok "失敗しても保存済みの数字で表を出す" || ng "保存済みの数字が出ない"
+grep -q '^## ASO 週次' "$FAKE_BODY" && ok "GA4 が失敗しても ASO の節は出る" || ng "ASO の節が無い"
+if cmp -s "$TMP/ga4-keep.csv" "$GOUT/daily.csv"; then ok "失敗しても GA4 の CSV を消さない"; else ng "失敗で GA4 の CSV が変わった"; fi
+if grep -nE "print\(.*(private_key|access_token|assertion|tok\b)" "$TARGET"; then ng "鍵・トークンを出力している疑い"; else ok "鍵・トークンを print しない"; fi
+
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"
 [ "$FAIL" -eq 0 ]

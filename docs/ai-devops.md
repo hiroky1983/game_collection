@@ -639,10 +639,24 @@ App Store Connect の App Analytics（Analytics Reports API）は日次の数字
   `<!-- aso-weekly:<前週の月曜> -->` を埋め、同じ週には二重投稿しない（投稿済みの週は `~/asobiba-kpi/aso/weekly-posted.txt` に控え、
   控えに無いときだけ Issue のコメントを見て確かめる）。
   月曜 10:00 時点では前週日曜の分が API にまだ無いことがあり、表に「データのある日数」を出している
-- **秘密情報**: 鍵は `~/.appstoreconnect/asc-key.json`（と `AuthKey_<key_id>.p8`）。鍵・JWT・セグメントの署名付き URL は
-  ログにも CSV にも出さない
-- **テスト**: `bash Scripts/tests/test-aso-daily.sh`（API を呼ばず TSV を食わせて集計・重複排除・週の表・二重投稿防止を見る。
-  `scripts-tests.yml` で CI 実行）
+- **GA4（2026-10-15 追加・#2238）**: 同じ実行で GA4 Data API（プロパティ 549325996）からも取り、`~/asobiba-kpi/ga4/daily.csv` に
+  縦持ち（`date, metric, game_id, ad_unit, value`。`game_id`・`ad_unit` が空 = 全体）で保存する。中身はアクティブユーザー、
+  `game_start`・`game_open`・`reward_request`・`reward_ad` の回数と人数（全体とゲーム別）、新規（`first_open` の件数）、
+  広告収益・表示回数・クリック数（全体と「広告フォーマット/ユニット」別。AdMob を GA4 にリンクした 2026-10-15 以降。通貨 USD）。
+  `customUser:build_channel = appstore` で App Store 版に絞るが、`first_open` は build_channel が付く前に送られるため絞れず、
+  新規と広告収益は全ビルドの数字（開発版・TestFlight はテスト広告で収益 0）。GA4 は直近の数字が後から変わるため、毎回
+  「保存済みの最終日の 2 日前〜昨日」（最低でも直近 3 日）を取り直し、**返ってきた日付の行は丸ごと置き換える**（= 重複排除）。
+  daily.csv が空なら 2026-09-01 から取る。週次コメントには GA4 の節（アクティブユーザーの 1 日平均と前々週比・新規・
+  プレイ数上位 5 ゲーム・新ゲーム（ojisanpuzzle・anzan）と homerun の日別推移・リワード広告の要求／視聴完了／完了率・
+  広告収益／表示回数／1,000 回あたりの収益）が付く。広告は**表示回数 0 の日をデータなしとして平均から除く**（リンク前の日）。
+  **認証・API が失敗したら**ログに「エラー: GA4: …」を出して終了コード 1 にし、週次コメントの GA4 の節の先頭に失敗を明記する
+  （保存済みの数字は消さず、それで表を出す）。GA4 が失敗しても ASC 側の取得・保存は続ける（逆も同じ）
+- **秘密情報**: ASC の鍵は `~/.appstoreconnect/asc-key.json`（と `AuthKey_<key_id>.p8`）。GA4 はサービスアカウントの鍵
+  `~/asobiba-secrets/asobiba-510718-c05fe74afc23.json`（GA4 プロパティの「閲覧者」・scope は `analytics.readonly`。
+  毎回 JWT（RS256・openssl 署名）からアクセストークンを作るので期限切れしない）。鍵・JWT・アクセストークン・セグメントの
+  署名付き URL はログにも CSV にも出さない
+- **テスト**: `bash Scripts/tests/test-aso-daily.sh`（API を呼ばず TSV と GA4 の応答 JSON を食わせて集計・重複排除・取り直しの上書き・
+  週の表・二重投稿防止・GA4 失敗時の表示を見る。`scripts-tests.yml` で CI 実行）
 
 入れ方（社長が実施済み・再現手順）:
 
@@ -654,10 +668,11 @@ launchctl kickstart gui/501/com.asobiba.aso-daily   # 1 回手動で走らせる
 ```
 
 手で動かすとき: `python3 Scripts/aso-daily.py`（直近に終わった週が未投稿なら週次も投稿する）、`--no-weekly`（週次を投稿しない）、
-`--no-fetch`（API を呼ばず作り直すだけ）、`--print-weekly 2026-10-05`（その週の表を出すだけ）。
+`--no-fetch`（API を呼ばず作り直すだけ。GA4 も取らない）、`--print-weekly 2026-10-05`（その週の表を出すだけ）、`--no-ga4`（GA4 を取らず
+週次にも GA4 の節を出さない）。
 
 止め方: `launchctl bootout gui/501/com.asobiba.aso-daily`（止めたら下の「停止中のジョブ」に追記する）。
-貯めたデータ（`~/asobiba-kpi/aso/`）は消さない。Apple 側にもう残っていないため、消すと取り戻せない。
+貯めたデータ（`~/asobiba-kpi/aso/`・`~/asobiba-kpi/ga4/`）は消さない。Apple 側にもう残っていないため、消すと取り戻せない。
 
 ### 停止中のジョブ（2026-10-03 追加）
 
