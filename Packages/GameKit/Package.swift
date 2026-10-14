@@ -189,6 +189,7 @@ let package = Package(
         // ハーツ（#1884・企画倉庫）。出せる札・巡の決着・CPU の選択は純粋ロジックで、配りの乱数に CoreEngine の
         // `SplitMix64` を使う。札の絵は Core のトランプ共通描画（#397）。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
         .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         // 線つなぎ（#2235・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・線の判定は
         // 純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。絵はコード描画だけ（画像を持たない）。
         .target(name: "GameTsunagi",        dependencies: ["Core", "CoreEngine"],
