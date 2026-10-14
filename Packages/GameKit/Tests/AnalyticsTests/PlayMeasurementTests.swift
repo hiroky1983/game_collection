@@ -801,7 +801,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 31, "企画倉庫の線つなぎ（#2235）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
+        #expect(games.count == 32, "企画倉庫の線つなぎ（#2235）・ババ抜き（#1577）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -825,6 +825,7 @@ struct PlayMeasurementCallSiteTests {
             "GameGomoku",        // CPU の強さ 3 段階
             "GameHanafuda",      // CPU の強さ 3 段階
             "GameMinesweeper",   // 初級 / 中級 / 上級
+            "GameOldMaid",       // CPU の強さ 4 段階（#1577・企画倉庫）
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
             "GameShiritori",     // ノルマ 3 段階（やさしい / ふつう / むずかしい・#1243）
