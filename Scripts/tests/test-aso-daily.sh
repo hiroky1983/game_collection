@@ -1,10 +1,10 @@
 #!/bin/bash
-# aso-daily.py の検証（#2231）。
+# aso-daily.py の検証（#2231・#2238）。
 #
 # API は呼ばない（--no-fetch）。手書きの TSV を食わせて、日次の集計・重複排除（同じ日付が複数の
 # インスタンスに入るので processingDate の新しい方だけを使う）・再実行で行が増えないこと・
-# 週の表・月曜に前週を投稿し（月曜を逃した週は次の実行で取り戻す）同じ週に二重投稿しないこと・
-# GET 以外を使わないことを確かめる。
+# スプレッドシートに出す各タブの中身（--sheets-dump で TSV に出す）・GA4 の応答 JSON からの保存と取り直しの上書き・
+# 取得失敗を週次まとめの先頭に出すこと・ASC は GET 以外を使わないことを確かめる。
 #
 # 使い方: bash Scripts/tests/test-aso-daily.sh
 set -uo pipefail
@@ -78,7 +78,7 @@ PY
 }
 
 echo "== 1. 取り込みと日次の集計 =="
-run --no-fetch --no-weekly --import-engagement-tsv "$TMP"/in/eng/*.tsv --import-downloads-tsv "$TMP"/in/dl/*.tsv >/dev/null 2>"$TMP/err" \
+run --no-fetch --no-sheets --import-engagement-tsv "$TMP"/in/eng/*.tsv --import-downloads-tsv "$TMP"/in/dl/*.tsv >/dev/null 2>"$TMP/err" \
   && ok "取り込みが成功する" || { ng "取り込みが失敗した"; cat "$TMP/err"; }
 expect_eq "raw/ に保存される（engagement 2 本）" "$(ls "$OUT/raw/engagement" | wc -l | tr -d ' ')" "2"
 expect_eq "raw/ に保存される（downloads 2 本）" "$(ls "$OUT/raw/downloads" | wc -l | tr -d ' ')" "2"
@@ -104,64 +104,39 @@ expect_eq "raw/ に無い既存の行（10/01）は残る" "$(col 2026-10-01 imp
 
 echo "== 2. 再実行しても重複しない =="
 cp "$OUT/daily.csv" "$TMP/before.csv"
-run --no-fetch --no-weekly --import-engagement-tsv "$TMP"/in/eng/*.tsv >/dev/null 2>&1
-run --no-fetch --no-weekly >/dev/null 2>&1
+run --no-fetch --no-sheets --import-engagement-tsv "$TMP"/in/eng/*.tsv >/dev/null 2>&1
+run --no-fetch --no-sheets >/dev/null 2>&1
 if cmp -s "$TMP/before.csv" "$OUT/daily.csv"; then ok "daily.csv が変わらない"; else ng "再実行で daily.csv が変わった"; diff "$TMP/before.csv" "$OUT/daily.csv"; fi
 
-echo "== 3. 週の表 =="
-# 前週を 10/05〜10/11 とした表。前々週（9/28〜10/04）は 10/01・10/04
-WEEK="$(run --print-weekly 2026-10-05 2>/dev/null)"
-grep -q '^<!-- aso-weekly:2026-10-05 -->$' <<<"$WEEK" && ok "週の印が入る" || ng "週の印が無い"
-grep -q '^## ASO 週次（10/5〜10/11）$' <<<"$WEEK" && ok "見出しの期間" || ng "見出しの期間が違う"
-# 前週のインプレッション 1 日平均 = (250+300)/2 = 275、前々週 = (1000+100)/2 = 550 → -50.0%
-grep -q '^| インプレッション（合計） | 275.0 | 550.0 | -50.0% |' <<<"$WEEK" && ok "1 日平均と前々週比" || { ng "インプレッションの行が違う"; grep 'インプレッション（合計）' <<<"$WEEK"; }
-# 割合は期間合計の比: 前週 (20+30)/(250+300) = 9.1%
-grep -q '^| 押される割合（閲覧÷インプレッション） | 9.1% |' <<<"$WEEK" && ok "割合は期間合計の比" || { ng "押される割合の行が違う"; grep '押される割合' <<<"$WEEK"; }
-# 基準（10/3〜10/11）の列にも値が入る: インプレッション (100+250+300)/3 = 216.7
-grep -q '^| インプレッション（合計） | 275.0 | 550.0 | -50.0% | 216.7 | +26.9% |' <<<"$WEEK" && ok "基準との比較" || ng "基準の列が違う"
-expect_eq "表の行数（見出し 1 行 + 指標 16 行）" "$(grep -c '^| ' <<<"$WEEK")" "17"
+echo "== 3. スプレッドシートの中身（ASO・API は呼ばず TSV に出す） =="
+DUMP="$TMP/dump"
+run --no-fetch --today 2026-10-12 --sheets-dump "$DUMP" >/dev/null 2>"$TMP/err" && ok "タブの書き出しが成功する" || { ng "タブの書き出しが失敗した"; cat "$TMP/err"; }
+for t in 週次まとめ "ASO（日次）" "GA4（日次）" "ゲーム別（日次）" "広告（日次）"; do
+  [ -f "$DUMP/${t}.tsv" ] && ok "タブ「${t}」がある" || ng "タブ「${t}」が無い"
+done
+expect_eq "ASO（日次）は daily.csv の全行（見出し + 4 日）" "$(wc -l <"$DUMP/ASO（日次）.tsv" | tr -d ' ')" "5"
+expect_eq "ASO（日次）の見出しは日本語" "$(head -1 "$DUMP/ASO（日次）.tsv" | cut -f1-2)" "日付${T}インプレッション"
+expect_eq "ASO（日次）の 10/05 の行" "$(grep '^2026-10-05' "$DUMP/ASO（日次）.tsv" | cut -f1-2)" "2026-10-05${T}250"
+W="$DUMP/週次まとめ.tsv"
+grep -q '^最終更新: .*（ASC・GA4 とも取得成功）$' "$W" && ok "先頭に最終更新" || { ng "先頭の行が違う"; head -2 "$W"; }
+# 表は 47 行目から。月曜（10/12）の実行では 10/5〜10/11 が最新の週（終わった週）
+expect_eq "表の見出し" "$(sed -n 47p "$W" | cut -f1-6)" "指標${T}基準（10/3〜10/11）${T}目安（会長）${T}10/5〜10/11${T}前週比${T}基準比"
+# 10/5 週のインプレッション 1 日平均 (250+300)/2 = 275、前週 (1000+100)/2 = 550 → -50.0%、基準 (100+250+300)/3 = 216.67 → +26.9%
+expect_eq "インプレッションの 1 日平均・前週比・基準比・目安" "$(grep '^インプレッション（合計）' "$W" | cut -f2-6)" "216.67${T}4000${T}275.0${T}-50.0%${T}+26.9%"
+# 割合は期間合計の比で、比較は差（ポイント）: 10/5 週 (20+30)/(250+300) = 9.09%、前週 (40+10)/(1000+100) = 4.55%
+expect_eq "押される割合は期間合計の比・差はポイント" "$(grep '^押される割合' "$W" | cut -f4-5)" "9.09${T}+4.5pt"
+expect_eq "データのある日数（ASO）" "$(grep '^データのある日数（ASO）' "$W" | cut -f4)" "2"
+run --no-fetch --today 2026-10-14 --sheets-dump "$DUMP" >/dev/null 2>&1
+expect_eq "月曜以外は途中の週も出す" "$(sed -n 47p "$DUMP/週次まとめ.tsv" | cut -f4)" "10/12〜10/18（途中）"
 
-echo "== 4. 週次コメントの投稿（偽の gh） =="
-FAKE="$TMP/fakegh"
-mkdir -p "$FAKE"
-cat >"$FAKE/gh" <<'SH'
-#!/bin/bash
-echo "$*" >>"$FAKE_LOG"
-case "$1" in
-  api) cat "$FAKE_COMMENTS" 2>/dev/null; exit 0 ;;
-  issue)
-    while [ $# -gt 0 ]; do [ "$1" = "--body-file" ] && cat "$2" >>"$FAKE_COMMENTS"; shift; done
-    echo "https://github.com/hiroky1983/game_collection/issues/2231#issuecomment-1"; exit 0 ;;
-esac
-exit 1
-SH
-chmod +x "$FAKE/gh"
-export FAKE_LOG="$TMP/gh.log" FAKE_COMMENTS="$TMP/comments.txt" ASO_GH="$FAKE/gh"
-
-posts() { cat "$FAKE_LOG" 2>/dev/null | grep -c '^issue comment 2231'; }
-run --no-fetch --today 2026-10-12 >/dev/null 2>&1   # 月曜 → 10/05 の週
-expect_eq "月曜は前週を投稿する" "$(posts)" "1"
-grep -q 'aso-weekly:2026-10-05' "$FAKE_COMMENTS" && ok "前週（10/05〜）を投稿" || ng "投稿した週が違う"
-run --no-fetch --today 2026-10-12 >/dev/null 2>&1   # 同じ月曜にもう一度
-expect_eq "同じ週には二重投稿しない" "$(posts)" "1"
-before_api="$(grep -c '^api' "$FAKE_LOG")"
-run --no-fetch --today 2026-10-13 >/dev/null 2>&1   # 火曜: 同じ週。控えで見送り、GitHub にも問い合わせない
-expect_eq "火曜は投稿しない（同じ週）" "$(posts)" "1"
-expect_eq "投稿済みの週は控えで判定し gh を呼ばない" "$(grep -c '^api' "$FAKE_LOG")" "$before_api"
-rm -f "$OUT/weekly-posted.txt"                       # 控えが消えても Issue のコメントの印で見送る
-run --no-fetch --today 2026-10-14 >/dev/null 2>&1
-expect_eq "控えが無くても Issue の印で二重投稿しない" "$(posts)" "1"
-run --no-fetch --today 2026-10-19 --no-weekly >/dev/null 2>&1
-expect_eq "--no-weekly は月曜でも投稿しない" "$(posts)" "1"
-run --no-fetch --today 2026-10-20 >/dev/null 2>&1   # 10/19（月）の実行を逃し火曜に動いた
-expect_eq "月曜を逃した週は次の実行で投稿する" "$(posts)" "2"
-grep -q 'aso-weekly:2026-10-12' "$FAKE_COMMENTS" && ok "取り戻したのは 10/12〜の週" || ng "取り戻した週が違う"
-printf '#!/bin/bash\nexit 1\n' >"$FAKE/gh"
-run --no-fetch --today 2026-10-26 >/dev/null 2>&1
-expect_eq "gh が失敗したら終了コード 1" "$?" "1"
+echo "== 4. 週次コメントは投稿しない =="
+if grep -nE "issue comment|gh_cmd|ASO_GH" "$TARGET"; then ng "Issue へのコメント投稿が残っている"; else ok "Issue へのコメント投稿が無い"; fi
 
 echo "== 5. ASC は GET だけ =="
-if grep -nE "method *=|\"(POST|PATCH|PUT|DELETE)\"" "$TARGET"; then ng "GET 以外のリクエストを組み立てている"; else ok "GET 以外のメソッド指定が無い"; fi
+# ASC の API を呼ぶ部分（class Asc〜fetch）だけを見る。GA4・Sheets は POST/PUT を使う
+ASC_SRC="$(awk '/^class Asc:/{f=1} /^# -+ GA4/{f=0} f' "$TARGET")"
+[ -n "$ASC_SRC" ] && ok "ASC の部分を切り出せる" || ng "ASC の部分を切り出せない"
+if grep -nE "method *=|\"(POST|PATCH|PUT|DELETE)\"" <<<"$ASC_SRC"; then ng "ASC で GET 以外のリクエストを組み立てている"; else ok "ASC は GET 以外のメソッド指定が無い"; fi
 if grep -nE "print\(.*(url|token|_auth|make_jwt)" "$TARGET"; then ng "URL・トークンを出力している疑い"; else ok "URL・トークンを print しない"; fi
 
 echo "== 6. GA4（#2238。runReport の応答 JSON を食わせる・API は呼ばない） =="
@@ -213,7 +188,7 @@ v = [r["value"] for r in csv.DictReader(open(sys.argv[1], encoding="utf-8"))
 print(",".join(v) if v else "<none>")
 PY
 }
-grun --no-weekly --ga4-from-json "$G1" >/dev/null 2>"$TMP/gerr" && ok "GA4 の取り込みが成功する" || { ng "GA4 の取り込みが失敗した"; cat "$TMP/gerr"; }
+grun --no-sheets --ga4-from-json "$G1" >/dev/null 2>"$TMP/gerr" && ok "GA4 の取り込みが成功する" || { ng "GA4 の取り込みが失敗した"; cat "$TMP/gerr"; }
 expect_eq "CSV の列" "$(head -1 "$GOUT/daily.csv" | tr -d '\r')" "date,metric,game_id,ad_unit,value"
 expect_eq "アクティブユーザー（10/12）" "$(gcol 2026-10-12 active_users)" "100"
 expect_eq "新規（first_open）" "$(gcol 2026-10-12 new_users)" "10"
@@ -227,57 +202,50 @@ expect_eq "広告収益（小数のまま）" "$(gcol 2026-10-12 ad_revenue)/$(g
 expect_eq "広告の表示回数・クリック" "$(gcol 2026-10-12 ad_impressions)/$(gcol 2026-10-12 ad_clicks)" "1000/3"
 expect_eq "広告フォーマット/ユニット別" "$(gcol 2026-10-12 ad_revenue '' Rewarded/rescue)" "1.5"
 
-grun --no-weekly --ga4-from-json "$G2" >/dev/null 2>&1
+grun --no-sheets --ga4-from-json "$G2" >/dev/null 2>&1
 expect_eq "取り直した日は上書き（アクティブ 100→111）" "$(gcol 2026-10-12 active_users)" "111"
 expect_eq "取り直した日は上書き（anzan 20→25）" "$(gcol 2026-10-12 game_start_count anzan)" "25"
 expect_eq "取り直しで返らなくなった行は消える（shogi）" "$(gcol 2026-10-12 game_start_count shogi)" "<none>"
 expect_eq "取り直していない日は残る（10/13）" "$(gcol 2026-10-13 active_users)" "101"
 cp "$GOUT/daily.csv" "$TMP/ga4-before.csv"
-grun --no-weekly --ga4-from-json "$G2" >/dev/null 2>&1
-grun --no-weekly >/dev/null 2>&1
+grun --no-sheets --ga4-from-json "$G2" >/dev/null 2>&1
+grun --no-sheets >/dev/null 2>&1
 if cmp -s "$TMP/ga4-before.csv" "$GOUT/daily.csv"; then ok "再実行で GA4 の CSV が変わらない（重複しない）"; else ng "再実行で GA4 の CSV が変わった"; fi
 expect_eq "(date, metric, game_id, ad_unit) が一意" "$(tail -n +2 "$GOUT/daily.csv" | cut -d, -f1-4 | sort | uniq -d | wc -l | tr -d ' ')" "0"
 
-echo "== 7. GA4 の週の表 =="
-GW="$("$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --print-weekly 2026-10-12 2>/dev/null)"
-grep -q '^## GA4（App Store 版）$' <<<"$GW" && ok "GA4 の節が付く" || ng "GA4 の節が無い"
-# 前週 (111+101+102+103+104+105+106)/7 = 104.6、前々週 80 → +30.7%
-grep -q '^| アクティブユーザー | 104.6 | 80.0 | +30.7% |$' <<<"$GW" && ok "アクティブユーザーの 1 日平均と前々週比" || { ng "アクティブユーザーの行が違う"; grep 'アクティブユーザー' <<<"$GW"; }
-grep -q '^| 1 | ポーカー（poker） | 30 | 10.0 | 15 | +100.0% |$' <<<"$GW" && ok "プレイ数の 1 位と前々週比" || { ng "上位の行が違う"; grep '^| 1 |' <<<"$GW"; }
-grep -q '^| 2 | ぱっと暗算（anzan） | 25 |' <<<"$GW" && ok "プレイ数の 2 位" || ng "2 位の行が違う"
-grep -q '^| 10/12 | 0 | 25／9 | 0 |$' <<<"$GW" && ok "新ゲーム・柵越えの推移（10/12）" || { ng "推移の行が違う"; grep '^| 10/12' <<<"$GW"; }
-grep -q '前週の視聴完了 4 回（前々週 0 回・—）、要求 8 回、完了率 50.0%' <<<"$GW" && ok "リワード広告の視聴" || { ng "視聴の行が違う"; grep '前週の視聴完了' <<<"$GW"; }
-# 表示回数 0 の日（10/11）は除く。前週は 10/12・10/13 の 2 日: 収益 (1.5+0.5)/2、表示 750、eCPM 2.0/1500*1000
-grep -q 'データのある日数: 前週 2 日／前々週 0 日' <<<"$GW" && ok "広告は表示回数 0 の日をデータなしにする" || { ng "広告の日数が違う"; grep '前週 .* 日／前々週' <<<"$GW"; }
-grep -q '^| 広告収益 | \$1.00 | — | — |$' <<<"$GW" && ok "広告収益の 1 日平均" || { ng "広告収益の行が違う"; grep '^| 広告収益' <<<"$GW"; }
-grep -q '^| 表示回数 | 750.0 |' <<<"$GW" && ok "表示回数の 1 日平均" || ng "表示回数の行が違う"
-grep -q '^| 1,000 回あたりの収益（eCPM 相当・期間合計の比） | \$1.33 |' <<<"$GW" && ok "1,000 回あたりの収益" || { ng "eCPM の行が違う"; grep 'eCPM' <<<"$GW"; }
-grep -q '^| Rewarded/rescue | \$1.50 | 1,000 | \$1.50 |$' <<<"$GW" && ok "広告ユニット別" || { ng "ユニット別の行が違う"; grep 'Rewarded' <<<"$GW"; }
-EMPTYW="$("$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$TMP/no-ga4" --print-weekly 2026-10-12 2>/dev/null)"
-grep -q '前週のデータがありません' <<<"$EMPTYW" && ok "GA4 のデータが無い週は無いと書く" || ng "データが無い週の表示が違う"
+echo "== 7. スプレッドシートの中身（GA4） =="
+GD="$TMP/gdump"
+"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --today 2026-10-19 --sheets-dump "$GD" >/dev/null 2>"$TMP/gerr" \
+  && ok "GA4 込みのタブの書き出しが成功する" || { ng "GA4 込みのタブの書き出しが失敗した"; cat "$TMP/gerr"; }
+row() { grep "^$2" "$GD/$1.tsv"; }
+expect_eq "GA4（日次）10/12: アクティブ（App Store 版）" "$(row 'GA4（日次）' 2026-10-12 | cut -f2)" "111"
+expect_eq "GA4（日次）10/12: 広告収益・表示回数・クリック" "$(row 'GA4（日次）' 2026-10-12 | awk -F'\t' '{print $(NF-2)"/"$(NF-1)"/"$NF}')" "1.5/1000/3"
+expect_eq "ゲーム別（日次）: anzan の 10/12（ID・名前・開いた・人数・プレイ開始・人数）" "$(row 'ゲーム別（日次）' "2026-10-12${T}'anzan" | cut -f2-7)" "'anzan${T}ぱっと暗算${T}0${T}0${T}25${T}9"
+expect_eq "広告（日次）: 10/12 全体（収益・表示・クリック・1,000 回あたり）" "$(row '広告（日次）' "2026-10-12${T}全体" | cut -f3-6)" "1.5${T}1000${T}3${T}1.5"
+expect_eq "広告（日次）: ユニット別" "$(row '広告（日次）' "2026-10-12${T}Rewarded/rescue" | cut -f3)" "1.5"
+expect_eq "広告（日次）: リンク前の 0 の日（10/11）は 1,000 回あたりを空に" "$(row '広告（日次）' "2026-10-11${T}全体" | cut -f6)" ""
+GWS="$GD/週次まとめ.tsv"
+expect_eq "表の最新の週は 10/12〜10/18" "$(sed -n 47p "$GWS" | cut -f4)" "10/12〜10/18"
+# 前週 (111+101+102+103+104+105+106)/7 = 104.57、前々週 80 → +30.7%
+expect_eq "アクティブユーザーの 1 日平均と前週比" "$(grep '^アクティブユーザー（App Store 版）' "$GWS" | cut -f4-5)" "104.57${T}+30.7%"
+# 広告は表示回数 0 の日（10/11）を除く。10/12・10/13 の 2 日: 収益 (1.5+0.5)/2、表示 750、1,000 回あたり 2.0/1500*1000
+expect_eq "広告収益の 1 日平均（0 の日を除く）" "$(grep '^広告収益 USD' "$GWS" | cut -f4)" "1.0"
+expect_eq "広告の表示回数の 1 日平均" "$(grep '^広告の表示回数' "$GWS" | cut -f4)" "750.0"
+expect_eq "1,000 回あたりの収益" "$(grep '^1,000 回あたりの収益' "$GWS" | cut -f4)" "1.33"
+expect_eq "前々週は広告のデータなし（0 の日だけ）→ 空" "$(grep '^広告収益 USD' "$GWS" | cut -f7)" ""
+expect_eq "新ゲームの推移（ぱっと暗算のプレイ開始）" "$(grep '^プレイ開始 ぱっと暗算' "$GWS" | cut -f4)" "25.0"
 
-echo "== 8. GA4 の失敗を黙らない =="
-cat >"$FAKE/gh" <<'SH'
-#!/bin/bash
-echo "$*" >>"$FAKE_LOG"
-case "$1" in
-  api) exit 0 ;;
-  issue) while [ $# -gt 0 ]; do [ "$1" = "--body-file" ] && cat "$2" >"$FAKE_BODY"; shift; done
-         echo "https://github.com/hiroky1983/game_collection/issues/2231#issuecomment-2"; exit 0 ;;
-esac
-exit 1
-SH
-export FAKE_BODY="$TMP/body.md"
+echo "== 8. 取得の失敗を黙らない =="
 cp "$GOUT/daily.csv" "$TMP/ga4-keep.csv"
-rm -f "$OUT/weekly-posted.txt"   # 偽の gh は投稿済みの印を返さないので、10/12 の週をもう一度投稿させる
-grun --today 2026-10-20 --ga4-from-json "$GBAD" >"$TMP/glog" 2>&1
+"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --ga4-from-json "$GBAD" --today 2026-10-19 --sheets-dump "$GD" >"$TMP/glog" 2>&1
 expect_eq "GA4 が失敗したら終了コード 1" "$?" "1"
 grep -q 'エラー: GA4' "$TMP/glog" && ok "ログに GA4 のエラーが出る" || { ng "ログに GA4 のエラーが無い"; cat "$TMP/glog"; }
-grep -q 'GA4 の取得に失敗しました' "$FAKE_BODY" && ok "週次コメントに GA4 の失敗が出る" || ng "週次コメントに失敗が出ない"
-grep -q '^| アクティブユーザー | 104.6 |' "$FAKE_BODY" && ok "失敗しても保存済みの数字で表を出す" || ng "保存済みの数字が出ない"
-grep -q '^## ASO 週次' "$FAKE_BODY" && ok "GA4 が失敗しても ASO の節は出る" || ng "ASO の節が無い"
+grep -q '^取得失敗: .* JST・GA4 — ' "$GWS" && ok "週次まとめの先頭に「取得失敗: 日時・どの取得か」" || { ng "取得失敗の行が無い"; head -3 "$GWS"; }
+expect_eq "取得失敗は 1 行目" "$(head -1 "$GWS" | cut -c1-5)" "取得失敗:"
+expect_eq "失敗しても保存済みの数字でタブを作る" "$(grep '^アクティブユーザー（App Store 版）' "$GWS" | cut -f4)" "104.57"
+expect_eq "GA4 が失敗しても ASO のタブは作る" "$(wc -l <"$GD/ASO（日次）.tsv" | tr -d ' ')" "5"
 if cmp -s "$TMP/ga4-keep.csv" "$GOUT/daily.csv"; then ok "失敗しても GA4 の CSV を消さない"; else ng "失敗で GA4 の CSV が変わった"; fi
-if grep -nE "print\(.*(private_key|access_token|assertion|tok\b)" "$TARGET"; then ng "鍵・トークンを出力している疑い"; else ok "鍵・トークンを print しない"; fi
+if grep -nE "print\(.*(private_key|access_token|assertion|tok\b)|log\(.*(private_key|access_token|assertion|tok\b)" "$TARGET"; then ng "鍵・トークンを出力している疑い"; else ok "鍵・トークンを出力しない"; fi
 
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"

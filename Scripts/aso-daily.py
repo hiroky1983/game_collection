@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
-"""ASO の日次の数字を App Store Connect から取って保存し、毎週の表を作る（Issue #2231）。
+"""ASO・GA4 の日次の数字を取って保存し、Google スプレッドシートに出す（Issue #2231・#2238）。
 
 なぜ要るか: App Analytics（Analytics Reports API）の日次インスタンスは数日分しか保持されないため、
-毎日取ってローカルに貯めないと v1.1.11 以降の推移が追えない。
+毎日取ってローカルに貯めないと v1.1.11 以降の推移が追えない。GA4・広告収益も同じ表で追う。
 
 やること（launchd から毎日 1 回。仕組みと入れ方・止め方は docs/ai-devops.md「ASO の日次取得」）:
-  1. 既存の ONGOING リクエスト（REQUEST_ID）から「App Store Discovery and Engagement Standard」
+  1. GA4（#2238）: サービスアカウントの鍵で GA4 Data API を読み、アクティブユーザー（App Store 版の絞り込みあり・なし・
+     日本／日本以外）・新規（first_open）・セッション・game_open / game_start / game_end / reward_offer /
+     reward_request / reward_ad / share_tap（全体とゲーム別）・広告収益（AdMob リンク経由）を
+     ~/asobiba-kpi/ga4/daily.csv に保存する。直近は毎回取り直して上書き
+  2. ASC: 既存の ONGOING リクエスト（REQUEST_ID）から「App Store Discovery and Engagement Standard」
      「App Downloads Standard」の DAILY インスタンスを一覧し、まだ保存していない processingDate の分を
      ~/asobiba-kpi/aso/raw/<種類>/<processingDate>.tsv に保存する（Mac が止まっていた日の分も、
      API に残っている範囲で次回に取り戻す）
-  2. raw/ の全ファイルから daily.csv を作り直す。1 つの日付は複数のインスタンスに重複して入るため、
+  3. raw/ の全ファイルから daily.csv を作り直す。1 つの日付は複数のインスタンスに重複して入るため、
      その日付を含むファイルのうち processingDate が最も新しいものだけを使う（= 重複排除）。
      raw/ に無くなった日付は既存の daily.csv の行を残す
-  3. 直近に終わった週（月〜日）の 1 日平均・前々週比・基準期間との比較を Issue #2231 にコメントする。
-     通常は月曜（JST）の実行で投稿され、月曜に Mac が止まっていて実行を逃した週は次の実行で取り戻す。
-     コメントに週の印（<!-- aso-weekly:YYYY-MM-DD -->）を埋め、同じ週には二重に投稿しない
-     （投稿済みの週は weekly-posted.txt に控え、控えに無ければ Issue のコメントを見て確かめる）
-
-  4. GA4（#2238）: App Store 版のアクティブユーザー・新規（first_open）・game_start / game_open /
-     reward_request / reward_ad（全体とゲーム別）・広告収益（AdMob リンク経由）を取り、
-     ~/asobiba-kpi/ga4/daily.csv に保存する。直近 3 日は毎回取り直して上書き。週次コメントに GA4 の節を足す。
-     失敗しても ASC 側は止めず、ログと週次コメントに失敗を明記する
+  4. スプレッドシート（SHEET_ID）の日次タブ・週次まとめを丸ごと書き直す（同じ日付は上書き・新しい日は追記）。
+     GA4・ASC のどちらかが失敗しても残りは続け、週次まとめの先頭に「取得失敗: 日時・どの取得か」を出す
 
 ASC の API は GET だけを使う（GA4 の runReport は読み取りの POST）。リクエストが無い・止まっている場合は作り直さずにエラー終了する
 （作成は会長の判断を経て手で行う）。鍵・トークン・署名付き URL はログにも CSV にも出さない。
@@ -44,8 +41,6 @@ import urllib.parse
 import urllib.request
 
 REQUEST_ID = "7e25e0eb-cb38-4e08-b230-981d472bb098"
-ISSUE = "2231"
-REPO = "hiroky1983/game_collection"
 API = "https://api.appstoreconnect.apple.com"
 KEY_JSON = os.path.expanduser("~/.appstoreconnect/asc-key.json")
 
@@ -224,28 +219,7 @@ def write_daily(path, rows):
     write_atomic(path, w)
 
 
-# ---------------------------------------------------------------- 週の表
-
-# (表示名, 分子の列, 分母の列 or None, 種類)。分母があるものは期間合計の比（%）
-WEEKLY_METRICS = [
-    ("インプレッション（合計）", "impr_total", None, "e"),
-    ("インプレッション（ユニーク）", "impr_unique", None, "e"),
-    ("　うち日本", "impr_total_jp", None, "e"),
-    ("　うち日本以外", "impr_total_other", None, "e"),
-    ("　うち検索", "impr_search", None, "e"),
-    ("　うちブラウズ", "impr_browse", None, "e"),
-    ("　うち Web 参照", "impr_web", None, "e"),
-    ("　うちアプリ参照", "impr_app", None, "e"),
-    ("プロダクトページ閲覧", "pv_total", None, "e"),
-    ("初回 DL", "dl_first_total", None, "d"),
-    ("　うち日本", "dl_first_jp", None, "d"),
-    ("　うち日本以外", "dl_first_other", None, "d"),
-    ("　うち検索", "dl_first_search", None, "d"),
-    ("再 DL", "dl_redownload_total", None, "d"),
-    ("押される割合（閲覧÷インプレッション）", "pv_total", "impr_total", "e"),
-    ("入れる割合（初回 DL÷閲覧）", "dl_first_total", "pv_total", "ed"),
-]
-
+# ---------------------------------------------------------------- 期間の集計
 
 def _has(row, kind):
     if "e" in kind and row.get("impr_total", "") == "":
@@ -266,131 +240,6 @@ def period_value(rows, start, end, num, den, kind):
         return n / len(sel), len(sel)
     d = sum(to_int(r.get(den)) for r in sel)
     return (n / d * 100 if d else None), len(sel)
-
-
-def _fmt(v, pct):
-    if v is None:
-        return "—"
-    return "%.1f%%" % v if pct else "{:,.1f}".format(v)
-
-
-def _diff(a, b, pct):
-    if a is None or b is None:
-        return "—"
-    if pct:
-        return "%+.1fpt" % (a - b)
-    if b == 0:
-        return "—"
-    return "%+.1f%%" % ((a / b - 1) * 100)
-
-
-def weekly_marker(week_start):
-    return "<!-- aso-weekly:%s -->" % week_start.isoformat()
-
-
-def weekly_report(rows, week_start, ga4=None):
-    """week_start（月曜）から 7 日間を「前週」とした週次コメントの本文（Markdown）。
-    ga4 = (GA4 の行, 今回の取得の失敗内容 or None) を渡すと GA4 の節を足す。"""
-    ws, we = week_start, week_start + datetime.timedelta(days=6)
-    ps, pe = ws - datetime.timedelta(days=7), ws - datetime.timedelta(days=1)
-    v_end = we if we >= V1111_START else V1111_START
-    _, e_days = period_value(rows, ws, we, "impr_total", None, "e")
-    _, d_days = period_value(rows, ws, we, "dl_first_total", None, "d")
-    _, pe_days = period_value(rows, ps, pe, "impr_total", None, "e")
-    _, pd_days = period_value(rows, ps, pe, "dl_first_total", None, "d")
-
-    def md(d):
-        return "%d/%d" % (d.month, d.day)
-
-    lines = [
-        weekly_marker(ws),
-        "## ASO 週次（%s〜%s）" % (md(ws), md(we)),
-        "",
-        "1 日平均（割合は期間合計の比）。データの無い日は平均から除く。",
-        "データのある日数: 前週 インプレッション系 %d 日・DL 系 %d 日／前々週 %d 日・%d 日"
-        % (e_days, d_days, pe_days, pd_days),
-        "",
-        "| 指標 | 前週 | 前々週 | 前々週比 | 基準（%s〜%s） | 基準比 | v1.1.11 以降（%s〜） |"
-        % (md(BASELINE_START), md(BASELINE_END), md(V1111_START)),
-        "|---|---:|---:|---:|---:|---:|---:|",
-    ]
-    for label, num, den, kind in WEEKLY_METRICS:
-        pct = den is not None
-        cur, _ = period_value(rows, ws, we, num, den, kind)
-        prev, _ = period_value(rows, ps, pe, num, den, kind)
-        base, _ = period_value(rows, BASELINE_START, BASELINE_END, num, den, kind)
-        v11, _ = period_value(rows, V1111_START, v_end, num, den, kind) if we >= V1111_START else (None, 0)
-        lines.append("| %s | %s | %s | %s | %s | %s | %s |" % (
-            label, _fmt(cur, pct), _fmt(prev, pct), _diff(cur, prev, pct),
-            _fmt(base, pct), _diff(cur, base, pct), _fmt(v11, pct)))
-    lines += [
-        "",
-        "前々週比・基準比は、件数は増減率、割合は差（ポイント）。"
-        "出典: App Store Connect Analytics Reports（`Scripts/aso-daily.py` が毎日取得し `~/asobiba-kpi/aso/daily.csv` に保存）。",
-    ]
-    if ga4 is not None:
-        lines += ga4_weekly_section(ga4[0], ws, ga4[1])
-    return "\n".join(lines) + "\n"
-
-
-def last_complete_week_start(today):
-    """today より前に終わった直近の週（月〜日）の月曜。"""
-    this_monday = today - datetime.timedelta(days=today.weekday())
-    return this_monday - datetime.timedelta(days=7)
-
-
-# ---------------------------------------------------------------- GitHub（週次コメント）
-
-def gh_cmd():
-    return os.environ.get("ASO_GH", "gh")
-
-
-def already_posted(marker):
-    out = subprocess.run(
-        [gh_cmd(), "api", "--paginate", "repos/%s/issues/%s/comments" % (REPO, ISSUE), "--jq", ".[].body"],
-        capture_output=True, text=True, timeout=120)
-    if out.returncode != 0:
-        raise RuntimeError("Issue のコメント一覧を取れませんでした（gh 終了コード %d）" % out.returncode)
-    return marker in out.stdout
-
-
-def _posted_local(state_path):
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            return set(ln.strip() for ln in f if ln.strip())
-    except FileNotFoundError:
-        return set()
-
-
-def _mark_posted(state_path, week_start):
-    os.makedirs(os.path.dirname(state_path), exist_ok=True)
-    with open(state_path, "a", encoding="utf-8") as f:
-        f.write(week_start.isoformat() + "\n")
-
-
-def post_weekly(rows, week_start, state_path, ga4=None):
-    """week_start の週を投稿する。投稿済み（控え or Issue のコメントに印がある）なら何もしない。"""
-    if week_start.isoformat() in _posted_local(state_path):
-        return None
-    if already_posted(weekly_marker(week_start)):
-        log("週次: %s の週は投稿済みのため見送り" % week_start.isoformat())
-        _mark_posted(state_path, week_start)
-        return None
-    body = weekly_report(rows, week_start, ga4)
-    fd, tmp = tempfile.mkstemp(prefix="aso-weekly-", suffix=".md")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(body)
-        out = subprocess.run([gh_cmd(), "issue", "comment", ISSUE, "--repo", REPO, "--body-file", tmp],
-                             capture_output=True, text=True, timeout=120)
-    finally:
-        os.unlink(tmp)
-    if out.returncode != 0:
-        raise RuntimeError("週次コメントの投稿に失敗しました（gh 終了コード %d）" % out.returncode)
-    url = out.stdout.strip()
-    _mark_posted(state_path, week_start)
-    log("週次: %s の週を投稿 %s" % (week_start.isoformat(), url))
-    return url
 
 
 # ---------------------------------------------------------------- App Store Connect（GET のみ）
@@ -554,9 +403,9 @@ def fetch(raw_dir):
 GA4_PROPERTY = "549325996"
 GA4_KEY = os.path.expanduser("~/asobiba-secrets/asobiba-510718-c05fe74afc23.json")
 GA4_API = "https://analyticsdata.googleapis.com/v1beta/properties/%s:runReport" % GA4_PROPERTY
-GA4_BACKFILL_START = datetime.date(2026, 9, 1)  # daily.csv が空のときに遡る日
+GA4_BACKFILL_START = datetime.date(2026, 8, 1)  # daily.csv が空のときに遡る日（GA4 のデータは 2026-08-10 から）
 GA4_REFETCH_DAYS = 3  # 直近は数字が変わるので毎回取り直す日数（昨日を含む）
-GA4_EVENTS = ["game_start", "game_open", "reward_request", "reward_ad"]
+GA4_EVENTS = ["game_open", "game_start", "game_end", "reward_offer", "reward_request", "reward_ad", "share_tap"]
 GA4_FIELDNAMES = ["date", "metric", "game_id", "ad_unit", "value"]
 GA4_AD_METRICS = {"totalAdRevenue": "ad_revenue", "publisherAdImpressions": "ad_impressions",
                   "publisherAdClicks": "ad_clicks"}
@@ -587,7 +436,11 @@ def ga4_queries(start, end):
     ev_metrics = [{"name": "eventCount"}, {"name": "totalUsers"}]
     return {
         "active": {"dateRanges": dr, "dimensions": [{"name": "date"}],
-                   "metrics": [{"name": "activeUsers"}], "dimensionFilter": APPSTORE_FILTER},
+                   "metrics": [{"name": "activeUsers"}, {"name": "sessions"}], "dimensionFilter": APPSTORE_FILTER},
+        "active_all": {"dateRanges": dr, "dimensions": [{"name": "date"}],
+                       "metrics": [{"name": "activeUsers"}, {"name": "sessions"}]},
+        "active_country": {"dateRanges": dr, "dimensions": [{"name": "date"}, {"name": "countryId"}],
+                           "metrics": [{"name": "activeUsers"}], "dimensionFilter": APPSTORE_FILTER},
         "events": {"dateRanges": dr, "dimensions": [{"name": "date"}, {"name": "eventName"}],
                    "metrics": ev_metrics,
                    "dimensionFilter": {"andGroup": {"expressions": [APPSTORE_FILTER, events]}}},
@@ -630,7 +483,7 @@ def _to_float(v):
 
 
 def ga4_rows_from_reports(reports):
-    """{"active"|"events"|"events_by_game"|"first_open"|"ads"|"ads_by_unit": runReport の応答} → 縦持ちの行。
+    """{ga4_queries のキー: runReport の応答} → 縦持ちの行。
     応答に無いキーは飛ばす。game_id の無い（(not set)・空）イベントはゲーム別には入れない（全体には入る）。
     広告の内訳は ad_unit 列に「広告フォーマット/広告ユニット名」で入れる。"""
     out = []
@@ -643,6 +496,19 @@ def ga4_rows_from_reports(reports):
 
     for r in ga4_report_rows(reports.get("active") or {}):
         add(r.get("date"), "active_users", "", r.get("activeUsers"))
+        add(r.get("date"), "sessions", "", r.get("sessions"))
+    for r in ga4_report_rows(reports.get("active_all") or {}):
+        add(r.get("date"), "active_users_all", "", r.get("activeUsers"))
+        add(r.get("date"), "sessions_all", "", r.get("sessions"))
+    country = {}
+    for r in ga4_report_rows(reports.get("active_country") or {}):
+        k = (r.get("date"), "active_users_jp" if r.get("countryId") == "JP" else "active_users_other")
+        country[k] = country.get(k, 0) + to_int(r.get("activeUsers"))
+    for d in set(d for d, _ in country):  # 片方しか無い日は 0 を入れる（平均から抜けないように）
+        country.setdefault((d, "active_users_jp"), 0)
+        country.setdefault((d, "active_users_other"), 0)
+    for (d, m), v in sorted(country.items()):
+        add(d, m, "", v)
     for r in ga4_report_rows(reports.get("first_open") or {}):
         add(r.get("date"), "new_users", "", r.get("eventCount"))
     for r in ga4_report_rows(reports.get("events") or {}):
@@ -704,7 +570,11 @@ def ga4_fetch_range(existing, today):
     return start, end
 
 
-def ga4_token():
+GA4_SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
+
+
+def google_token(scope):
     """サービスアカウントの鍵から JWT（RS256・openssl で署名）を作り、アクセストークンに替える。
     鍵・JWT・トークンはどこにも出さない。"""
     try:
@@ -717,7 +587,7 @@ def ga4_token():
     now = int(time.time())
     head = _b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
     claim = _b64(json.dumps({"iss": k.get("client_email", ""),
-                             "scope": "https://www.googleapis.com/auth/analytics.readonly",
+                             "scope": scope,
                              "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600}).encode())
     msg = head + b"." + claim
     fd, tmpkey = tempfile.mkstemp(prefix="ga4-", suffix=".pem")
@@ -780,7 +650,7 @@ def ga4_run(tok, body):
 
 def fetch_ga4(existing, today):
     start, end = ga4_fetch_range(existing, today)
-    tok = ga4_token()
+    tok = google_token(GA4_SCOPE)
     reports = {name: ga4_run(tok, body) for name, body in ga4_queries(start, end).items()}
     new = ga4_rows_from_reports(reports)
     if not new:
@@ -808,123 +678,390 @@ def _ad_days(rows, start, end):
                and to_int(r["value"]) > 0)
 
 
-def ga4_ad_section(rows, ws, we, ps, pe):
-    """広告収益・表示回数・1,000 回あたりの収益の節。表示回数 0 の日はデータなしとして平均に含めない。"""
-    cd, pdays = _ad_days(rows, ws, we), _ad_days(rows, ps, pe)
-    lines = ["", "### 広告収益（AdMob・GA4 経由）", ""]
-    if not cd:
-        return lines + ["前週は広告のデータがありません（AdMob の GA4 リンク前、または表示回数 0 の日だけ）。"]
+# ---------------------------------------------------------------- Google スプレッドシート（#2238）
+#
+# 毎回 daily.csv（ASO・GA4）から各タブの中身を作り直して丸ごと書き込む（= 新しい日は追記・同じ日付は上書き）。
+# 初回は ASO の既存データ（~/asobiba-kpi/aso/daily.csv）もそのまま入る。
+# 「週次まとめ」の先頭に最終更新と取得の成否（失敗したら「取得失敗: 日時・どの取得か」）を出す。
 
-    def stats(s, e, days):
-        rev, _ = _ga4_sum(rows, "ad_revenue", "", s, e, days=days)
-        imp, _ = _ga4_sum(rows, "ad_impressions", "", s, e, days=days)
-        clk, _ = _ga4_sum(rows, "ad_clicks", "", s, e, days=days)
-        n = len(days)
-        if not n:
-            return None, None, None, None
-        return rev / n, imp / n, clk / n, (rev / imp * 1000 if imp else None)
+SHEET_ID = "1FSwmBy81utUvmt8z2b0eo6kGQ8jgXFhZgDoj_rhuVU4"  # 「あそびば KPI（毎日の数字）」
+SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets/" + SHEET_ID
+TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS = "週次まとめ", "ASO（日次）", "GA4（日次）", "ゲーム別（日次）", "広告（日次）"
+TABS = [TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS]
+DEFAULT_SHEET_TITLES = ("シート1", "Sheet1")
+WEEKLY_TABLE_ROW = 47  # 週次の表の見出し行（1 始まり）。上は状態の行とグラフ 4 本の置き場
+CHART_ROWS = 5000  # グラフが参照する行数（日次の行が増えても描かれるよう広めに取る）
 
-    c, p = stats(ws, we, cd), stats(ps, pe, pdays)
+ASO_HEADERS = {
+    "date": "日付", "impr_total": "インプレッション", "impr_unique": "インプレッション（ユニーク）",
+    "impr_total_jp": "インプレッション（日本）", "impr_total_other": "インプレッション（日本以外）",
+    "impr_unique_jp": "ユニーク（日本）", "impr_unique_other": "ユニーク（日本以外）",
+    "impr_search": "インプレッション（検索）", "impr_browse": "インプレッション（ブラウズ）",
+    "impr_web": "インプレッション（Web 参照）", "impr_app": "インプレッション（アプリ参照）",
+    "pv_total": "閲覧", "pv_unique": "閲覧（ユニーク）", "pv_total_jp": "閲覧（日本）", "pv_total_other": "閲覧（日本以外）",
+    "pv_unique_jp": "閲覧ユニーク（日本）", "pv_unique_other": "閲覧ユニーク（日本以外）",
+    "pv_search": "閲覧（検索）", "pv_browse": "閲覧（ブラウズ）", "pv_web": "閲覧（Web 参照）", "pv_app": "閲覧（アプリ参照）",
+    "dl_first_total": "初回 DL", "dl_first_jp": "初回 DL（日本）", "dl_first_other": "初回 DL（日本以外）",
+    "dl_first_search": "初回 DL（検索）", "dl_first_browse": "初回 DL（ブラウズ）", "dl_first_web": "初回 DL（Web 参照）",
+    "dl_first_app": "初回 DL（アプリ参照）", "dl_redownload_total": "再 DL", "dl_redownload_jp": "再 DL（日本）",
+    "dl_redownload_other": "再 DL（日本以外）", "press_rate_pct": "押される割合 %", "install_rate_pct": "入れる割合 %",
+    "engagement_processing_date": "使った版（インプレッション系）", "downloads_processing_date": "使った版（DL 系）",
+}
+# GA4（日次）の列: (見出し, 指標名)。game_id・ad_unit が空の「全体」の行から取る
+GA4_DAILY_COLS = [
+    ("アクティブユーザー（App Store 版）", "active_users"), ("アクティブユーザー（全ビルド）", "active_users_all"),
+    ("アクティブ 日本（App Store 版）", "active_users_jp"), ("アクティブ 日本以外（App Store 版）", "active_users_other"),
+    ("新規（first_open・全ビルド）", "new_users"),
+    ("セッション（App Store 版）", "sessions"), ("セッション（全ビルド）", "sessions_all"),
+    ("ゲームを開いた（game_open）", "game_open_count"), ("開いた人数", "game_open_users"),
+    ("プレイ開始（game_start）", "game_start_count"), ("プレイした人数", "game_start_users"),
+    ("プレイ終了（game_end）", "game_end_count"), ("終えた人数", "game_end_users"),
+    ("広告の提示（reward_offer）", "reward_offer_count"), ("提示した人数", "reward_offer_users"),
+    ("広告の要求（reward_request）", "reward_request_count"), ("要求した人数", "reward_request_users"),
+    ("広告の視聴完了（reward_ad）", "reward_ad_count"), ("視聴した人数", "reward_ad_users"),
+    ("共有ボタン（share_tap）", "share_tap_count"), ("共有した人数", "share_tap_users"),
+    ("広告収益 USD（全ビルド）", "ad_revenue"), ("広告の表示回数", "ad_impressions"), ("広告のクリック", "ad_clicks"),
+]
+GAME_DAILY_COLS = [
+    ("開いた（game_open）", "game_open_count"), ("開いた人数", "game_open_users"),
+    ("プレイ開始（game_start）", "game_start_count"), ("プレイした人数", "game_start_users"),
+    ("プレイ終了（game_end）", "game_end_count"), ("終えた人数", "game_end_users"),
+    ("広告の提示", "reward_offer_count"), ("広告の要求", "reward_request_count"),
+    ("広告の視聴完了", "reward_ad_count"), ("共有ボタン", "share_tap_count"),
+]
+# 会長の目安（1 日あたり・2026-10-15）
+TARGETS = {"impr_total": 4000, "pv_total": 150, "dl_first_total": 50}
+TAB_MEMO = "メモ・基準値"
 
-    def money(v):
-        return "—" if v is None else "$%.2f" % v
 
-    lines += ["1 日平均（表示回数 0 の日はデータなしとして除く）。データのある日数: 前週 %d 日／前々週 %d 日。通貨は USD"
-              % (len(cd), len(pdays)), "",
-              "| 指標 | 前週 | 前々週 | 前々週比 |", "|---|---:|---:|---:|",
-              "| 広告収益 | %s | %s | %s |" % (money(c[0]), money(p[0]), _diff(c[0], p[0], False)),
-              "| 表示回数 | %s | %s | %s |" % (_fmt(c[1], False), _fmt(p[1], False), _diff(c[1], p[1], False)),
-              "| クリック数 | %s | %s | %s |" % (_fmt(c[2], False), _fmt(p[2], False), _diff(c[2], p[2], False)),
-              "| 1,000 回あたりの収益（eCPM 相当・期間合計の比） | %s | %s | %s |"
-              % (money(c[3]), money(p[3]), _diff(c[3], p[3], False))]
-    units = sorted(set(r["ad_unit"] for r in rows if r.get("ad_unit")))
-    by_unit = []
-    for u in units:
-        rev, _ = _ga4_sum(rows, "ad_revenue", "", ws, we, unit=u, days=cd)
-        imp, _ = _ga4_sum(rows, "ad_impressions", "", ws, we, unit=u, days=cd)
-        if imp or rev:
-            by_unit.append((rev, imp, u))
-    if by_unit:
-        lines += ["", "| 広告フォーマット/ユニット（前週の合計） | 収益 | 表示回数 | 1,000 回あたり |", "|---|---:|---:|---:|"]
-        for rev, imp, u in sorted(by_unit, key=lambda x: (-x[0], x[2])):
-            lines.append("| %s | %s | {:,} | %s |".format(imp) % (u, money(rev), money(rev / imp * 1000 if imp else None)))
-    return lines
+# 「メモ・基準値」タブの初期内容（#2231 の本文・週次コメントから移したもの・取れない項目の理由）。
+# タブが無いときだけ書く（以後は手で直してよく、スクリプトは上書きしない）
+MEMO_ROWS = [
+    ["メモ・基準値（初回だけスクリプトが書く。以後は手で直してよい・上書きされない）"],
+    ["由来", "https://github.com/hiroky1983/game_collection/issues/2231 （ASO の日次取得）・#2238（GA4・広告・スプレッドシート化）"],
+    [],
+    ["基準値（#2231 本文・10/3〜10/11 の 1 日平均。v1.1.11 公開前）"],
+    ["インプレッション", "約 3,260"], ["プロダクトページ閲覧", "約 142"], ["初回 DL", "約 44.5"],
+    ["押される割合（閲覧÷インプレッション）", "4.4%"],
+    ["入れる割合（DL÷閲覧）", "27.8%（#2231 本文の値。週次コメントの期間合計の比では 31.1%）"],
+    ["流入", "ほぼ全部 App Store 検索"],
+    [],
+    ["目安（会長・2026-10-15）", "1 日あたり"],
+    ["初回 DL", "50 前後"], ["インプレッション", "4,000"], ["プロダクトページ閲覧", "150"],
+    [],
+    ["#2231 の週次コメント（10/5〜10/11 の週・2026-10-14 投稿）を転記", "前週", "前々週", "前々週比", "基準（10/3〜10/11）", "基準比"],
+    ["インプレッション（合計）", "3,236.0", "3,348.5", "-3.4%", "3,261.0", "-0.8%"],
+    ["インプレッション（ユニーク）", "2,624.3", "2,699.0", "-2.8%", "2,640.9", "-0.6%"],
+    ["　うち日本", "3,178.4", "3,294.5", "-3.5%", "3,204.2", "-0.8%"],
+    ["　うち日本以外", "57.6", "54.0", "+6.6%", "56.8", "+1.4%"],
+    ["　うち検索", "3,200.1", "3,305.0", "-3.2%", "3,223.4", "-0.7%"],
+    ["　うちブラウズ", "35.9", "43.5", "-17.6%", "37.6", "-4.5%"],
+    ["　うち Web 参照", "0.0", "0.0", "—", "0.0", "—"],
+    ["　うちアプリ参照", "0.0", "0.0", "—", "0.0", "—"],
+    ["プロダクトページ閲覧", "140.9", "147.5", "-4.5%", "142.3", "-1.0%"],
+    ["初回 DL", "43.3", "53.0", "-18.3%", "44.5", "-2.7%"],
+    ["　うち日本", "43.0", "53.0", "-18.9%", "44.2", "-2.8%"],
+    ["　うち日本以外", "0.3", "0.0", "—", "0.2", "+14.3%"],
+    ["　うち検索", "42.3", "48.0", "-11.9%", "43.0", "-1.7%"],
+    ["再 DL", "2.9", "4.0", "-28.6%", "3.0", "-4.8%"],
+    ["押される割合（閲覧÷インプレッション）", "4.4%", "4.4%", "-0.1pt", "4.4%", "-0.0pt"],
+    ["入れる割合（初回 DL÷閲覧）", "30.7%", "33.3%", "-2.6pt", "31.1%", "-0.4pt"],
+    ["（データのある日数: 前週 7 日／前々週 インプレッション系 2 日・DL 系 1 日）"],
+    [],
+    ["取れない・欠ける項目と理由"],
+    ["ASC（ASO）の 10/2 以前", "Analytics Reports API は日次インスタンスを数日分しか持たず、取得を始めた時点で 10/3 より前は残っていなかった"],
+    ["GA4 の 2026-08-09 以前", "GA4 のデータが 2026-08-10 から（それ以前は計測していない）"],
+    ["App Store 版の絞り込み（build_channel）の 2026-08-31 以前",
+     "ユーザープロパティ build_channel が付き始めたのが 9/1 で、9/9 頃までは一部のユーザーにしか付いていない。全ビルドの列を併記している"],
+    ["新規（first_open）の App Store 版の絞り込み", "first_open は build_channel が付く前に送られるため絞れない。全ビルドの件数"],
+    ["広告収益・表示回数・クリック（10/14 以前）",
+     "AdMob を GA4 にリンクしたのが 2026-10-15。それ以前は GA4 に無い（AdMob API は OAuth が要るため毎日の自動取得には入れていない・#2238）"],
+    ["game_open・share_tap・reward_offer の古い日", "送り始めたのがそれぞれ v1.1.5・v1.1.6・v1.1.7 から。それより前の版の利用者の分は入らない"],
+    ["国別のアクティブユーザー", "日本／日本以外の 2 区分のみ（App Store 版の絞り込みあり）"],
+]
 
 
-def _game_label(g):
-    n = GAME_NAMES.get(g)
-    return "%s（%s）" % (n, g) if n and n != g else g
+class SheetsError(Exception):
+    pass
 
 
-def ga4_weekly_section(rows, week_start, error=None):
-    """週次コメントの GA4 の節（Markdown の行のリスト）。error は今回の取得の失敗内容（あれば先頭に出す）。"""
-    ws, we = week_start, week_start + datetime.timedelta(days=6)
-    ps, pe = ws - datetime.timedelta(days=7), ws - datetime.timedelta(days=1)
-    lines = ["", "## GA4（App Store 版）"]
-    if error:
-        lines += ["", "**⚠ GA4 の取得に失敗しました: %s**" % error,
-                  "以下は前回までに保存した数字です（直近の日は欠けている・古い可能性があります）。"]
-    _, cur_days = _ga4_sum(rows, "active_users", "", ws, we)
-    _, prev_days = _ga4_sum(rows, "active_users", "", ps, pe)
-    if cur_days == 0:
-        lines += ["", "前週のデータがありません（`~/asobiba-kpi/ga4/daily.csv` に該当日の行が無い）。"]
-        return lines
+def _num(v):
+    """CSV の値を数値に（空はそのまま空）。"""
+    if v is None or v == "":
+        return ""
+    try:
+        f = float(v)
+    except ValueError:
+        return v
+    return int(f) if f.is_integer() else f
 
-    def avg(metric, game, s, e):
-        t, n = _ga4_sum(rows, metric, game, s, e)
-        return (t / n) if n else None
 
-    lines += ["", "1 日平均。データのある日数: 前週 %d 日／前々週 %d 日" % (cur_days, prev_days), "",
-              "| 指標 | 前週 | 前々週 | 前々週比 |", "|---|---:|---:|---:|"]
-    for label, metric in (("アクティブユーザー", "active_users"), ("新規（first_open・全ビルド）", "new_users"),
-                          ("プレイ数（game_start）", "game_start_count"), ("ゲームを開いた（game_open）", "game_open_count"),
-                          ("広告の要求（reward_request）", "reward_request_count"),
-                          ("広告の視聴完了（reward_ad）", "reward_ad_count")):
-        c, p = avg(metric, "", ws, we), avg(metric, "", ps, pe)
-        lines.append("| %s | %s | %s | %s |" % (label, _fmt(c, False), _fmt(p, False), _diff(c, p, False)))
+def _ga4_index(ga4_rows):
+    """{(date, metric, game_id, ad_unit): value}"""
+    return {(r["date"], r["metric"], r.get("game_id", ""), r.get("ad_unit", "")): r["value"] for r in ga4_rows}
 
-    games = set(r["game_id"] for r in rows if r.get("game_id"))
-    plays = sorted(((_ga4_sum(rows, "game_start_count", g, ws, we)[0], g) for g in games), key=lambda x: (-x[0], x[1]))
-    lines += ["", "### プレイ数の上位 5 ゲーム（前週の合計）", "",
-              "| 順位 | ゲーム | プレイ数 | 1 日平均の人数 | 前々週のプレイ数 | 前々週比 |", "|---:|---|---:|---:|---:|---:|"]
-    for i, (n, g) in enumerate([x for x in plays if x[0] > 0][:5], 1):
-        p, _ = _ga4_sum(rows, "game_start_count", g, ps, pe)
-        lines.append("| %d | %s | {:,} | %s | {:,} | %s |".format(n, p) % (
-            i, _game_label(g), _fmt(avg("game_start_users", g, ws, we), False), _diff(n, p, False)))
 
-    lines += ["", "### 新ゲームと柵越えおじさんの推移（プレイ数／人数）", "",
-              "| 日付 | " + " | ".join(_game_label(g) for g in GA4_WATCH_GAMES) + " |",
-              "|---|" + "---:|" * len(GA4_WATCH_GAMES)]
-    for i in range(7):
-        d = ws + datetime.timedelta(days=i)
-        cells = []
-        for g in GA4_WATCH_GAMES:
-            c, has = _ga4_sum(rows, "game_start_count", g, d, d)
-            u, _ = _ga4_sum(rows, "game_start_users", g, d, d)
-            cells.append("%d／%d" % (c, u) if has else "0")
-        lines.append("| %d/%d | %s |" % (d.month, d.day, " | ".join(cells)))
-    cells = []
-    for g in GA4_WATCH_GAMES:
-        c, _ = _ga4_sum(rows, "game_start_count", g, ws, we)
-        p, _ = _ga4_sum(rows, "game_start_count", g, ps, pe)
-        cells.append("{:,}（前々週 {:,}）".format(c, p))
-    lines.append("| 週計 | %s |" % " | ".join(cells))
+def tab_aso(aso_rows):
+    return [[ASO_HEADERS.get(c, c) for c in FIELDNAMES]] + [[_num(r.get(c, "")) for c in FIELDNAMES] for r in aso_rows]
 
-    ad, _ = _ga4_sum(rows, "reward_ad_count", "", ws, we)
-    req, _ = _ga4_sum(rows, "reward_request_count", "", ws, we)
-    pad, _ = _ga4_sum(rows, "reward_ad_count", "", ps, pe)
-    by_game = sorted(((_ga4_sum(rows, "reward_ad_count", g, ws, we)[0], g) for g in games), key=lambda x: (-x[0], x[1]))
-    lines += ["", "### 広告（リワード）の視聴", "",
-              "前週の視聴完了 {:,} 回（前々週 {:,} 回・{}）、要求 {:,} 回、完了率 {}。".format(
-                  ad, pad, _diff(ad, pad, False), req, ("%.1f%%" % (ad / req * 100)) if req else "—")]
-    top = [x for x in by_game if x[0] > 0][:5]
-    if top:
-        lines.append("ゲーム別の視聴完了（上位 5）: " + "、".join("%s %d 回" % (_game_label(g), n) for n, g in top))
-    lines += ga4_ad_section(rows, ws, we, ps, pe)
-    lines += ["", "出典: GA4 Data API（プロパティ %s・`customUser:build_channel = appstore` で絞り込み。"
-                  "新規（first_open に build_channel が付かない）と広告収益は全ビルド）。`~/asobiba-kpi/ga4/daily.csv` に保存。"
-              % GA4_PROPERTY]
-    return lines
+
+def tab_ga4(ga4_rows):
+    idx = _ga4_index(ga4_rows)
+    dates = sorted(set(r["date"] for r in ga4_rows))
+    out = [["日付"] + [h for h, _ in GA4_DAILY_COLS]]
+    for d in dates:
+        out.append([d] + [_num(idx.get((d, m, "", ""), "")) for _, m in GA4_DAILY_COLS])
+    return out
+
+
+def tab_games(ga4_rows):
+    idx = _ga4_index(ga4_rows)
+    keys = sorted(set((r["date"], r["game_id"]) for r in ga4_rows if r.get("game_id")))
+    out = [["日付", "game_id", "ゲーム"] + [h for h, _ in GAME_DAILY_COLS]]
+    for d, g in keys:
+        out.append([d, "'" + g, GAME_NAMES.get(g, g)] + [_num(idx.get((d, m, g, ""), 0)) for _, m in GAME_DAILY_COLS])
+    return out
+
+
+def tab_ads(ga4_rows):
+    idx = _ga4_index(ga4_rows)
+    keys = sorted(set((r["date"], r.get("ad_unit", "")) for r in ga4_rows
+                      if r["metric"] in ("ad_revenue", "ad_impressions", "ad_clicks") and not r.get("game_id")))
+    out = [["日付", "広告フォーマット/ユニット", "収益 USD", "表示回数", "クリック", "1,000 回あたりの収益 USD"]]
+    for d, u in keys:
+        rev = _to_float(idx.get((d, "ad_revenue", "", u)))
+        imp = to_int(idx.get((d, "ad_impressions", "", u)))
+        out.append([d, u or "全体", rev, imp, to_int(idx.get((d, "ad_clicks", "", u))),
+                    round(rev / imp * 1000, 4) if imp else ""])
+    return out
+
+
+def _avg(total_days):
+    t, n = total_days
+    return t / n if n else None
+
+
+def _ratio(cur, base, pct=False):
+    """前週比・基準比。件数は増減率、割合（pct）は差（ポイント）。"""
+    if cur is None or base is None:
+        return ""
+    if pct:
+        return "%+.1fpt" % (cur - base)
+    if base == 0:
+        return ""
+    return "%+.1f%%" % ((cur / base - 1) * 100)
+
+
+def weekly_metrics(aso_rows, ga4_rows):
+    """週次まとめの指標: (見出し, 期間 → 1 日平均（割合は期間合計の比） or None, 割合か, 目安の列名) のリスト。"""
+    def aso(num, den=None, kind="e"):
+        return lambda s, e: period_value(aso_rows, s, e, num, den, kind)[0]
+
+    def ga(metric, game=""):
+        return lambda s, e: _avg(_ga4_sum(ga4_rows, metric, game, s, e))
+
+    def ad(metric):
+        return lambda s, e: _avg(_ga4_sum(ga4_rows, metric, "", s, e, days=_ad_days(ga4_rows, s, e)))
+
+    def ecpm(s, e):
+        days = _ad_days(ga4_rows, s, e)
+        rev, _ = _ga4_sum(ga4_rows, "ad_revenue", "", s, e, days=days)
+        imp, _ = _ga4_sum(ga4_rows, "ad_impressions", "", s, e, days=days)
+        return rev / imp * 1000 if imp else None
+
+    def days_aso(s, e):
+        return period_value(aso_rows, s, e, "impr_total", None, "e")[1]
+
+    def days_ga4(s, e):
+        return _ga4_sum(ga4_rows, "active_users_all", "", s, e)[1]
+
+    m = [("データのある日数（ASO）", days_aso, None, None), ("データのある日数（GA4）", days_ga4, None, None)]
+    m += [(label, aso(num, den, kind), den is not None, num if den is None else None)
+          for label, num, den, kind in (
+              ("インプレッション（合計）", "impr_total", None, "e"), ("インプレッション（ユニーク）", "impr_unique", None, "e"),
+              ("　うち日本", "impr_total_jp", None, "e"), ("　うち日本以外", "impr_total_other", None, "e"),
+              ("　うち検索", "impr_search", None, "e"), ("　うちブラウズ", "impr_browse", None, "e"),
+              ("　うち Web 参照", "impr_web", None, "e"), ("　うちアプリ参照", "impr_app", None, "e"),
+              ("プロダクトページ閲覧", "pv_total", None, "e"), ("初回 DL", "dl_first_total", None, "d"),
+              ("　うち日本", "dl_first_jp", None, "d"), ("　うち日本以外", "dl_first_other", None, "d"),
+              ("　うち検索", "dl_first_search", None, "d"), ("再 DL", "dl_redownload_total", None, "d"),
+              ("押される割合 %（閲覧÷インプレッション）", "pv_total", "impr_total", "e"),
+              ("入れる割合 %（初回 DL÷閲覧）", "dl_first_total", "pv_total", "ed"))]
+    m += [(label, ga(metric), False, None) for label, metric in (
+        ("アクティブユーザー（App Store 版）", "active_users"), ("アクティブユーザー（全ビルド）", "active_users_all"),
+        ("　うち日本（App Store 版）", "active_users_jp"), ("　うち日本以外（App Store 版）", "active_users_other"),
+        ("新規（first_open・全ビルド）", "new_users"), ("セッション（App Store 版）", "sessions"),
+        ("ゲームを開いた（game_open）", "game_open_count"), ("プレイ開始（game_start）", "game_start_count"),
+        ("プレイ終了（game_end）", "game_end_count"), ("広告の提示（reward_offer）", "reward_offer_count"),
+        ("広告の要求（reward_request）", "reward_request_count"), ("広告の視聴完了（reward_ad）", "reward_ad_count"),
+        ("共有ボタン（share_tap）", "share_tap_count"))]
+    m += [("広告収益 USD", ad("ad_revenue"), False, None), ("広告の表示回数", ad("ad_impressions"), False, None),
+          ("広告のクリック", ad("ad_clicks"), False, None), ("1,000 回あたりの収益 USD（eCPM 相当）", ecpm, False, None)]
+    m += [("プレイ開始 " + GAME_NAMES.get(g, g), ga("game_start_count", g), False, None) for g in GA4_WATCH_GAMES]
+    m += [("プレイした人数 " + GAME_NAMES.get(g, g), ga("game_start_users", g), False, None) for g in GA4_WATCH_GAMES]
+    return m
+
+
+def _r(v):
+    return round(v, 2) if isinstance(v, float) else ("" if v is None else v)
+
+
+def tab_weekly(aso_rows, ga4_rows, today, status):
+    """週次まとめ: 先頭に状態とグラフ、WEEKLY_TABLE_ROW 行目から表（行 = 指標、列 = 基準・目安・週。新しい週が左）。
+    各週は「1 日平均・前週比・基準比」の 3 列。基準は v1.1.11 公開前の 10/3〜10/11。
+    広告は表示回数 0 の日（AdMob リンク前）をデータなしとして平均から除く。"""
+    dates = [r["date"] for r in aso_rows] + [r["date"] for r in ga4_rows]
+    weeks = []
+    if dates:
+        ws = parse_date(min(dates))
+        ws -= datetime.timedelta(days=ws.weekday())
+        # 終わった週に加え、今日より前の日を含む途中の週も出す（見出しに「途中」と付ける）
+        last = today - datetime.timedelta(days=today.weekday() + (7 if today.weekday() == 0 else 0))
+        while ws <= last:
+            weeks.append(ws)
+            ws += datetime.timedelta(days=7)
+    weeks.reverse()
+    head = ["指標", "基準（%d/%d〜%d/%d）" % (BASELINE_START.month, BASELINE_START.day, BASELINE_END.month, BASELINE_END.day),
+            "目安（会長）"]
+    for ws in weeks:
+        we = ws + datetime.timedelta(days=6)
+        label = "%d/%d〜%d/%d" % (ws.month, ws.day, we.month, we.day) + ("（途中）" if we >= today else "")
+        head += [label, "前週比", "基準比"]
+    table = [head]
+    for label, f, pct, target in weekly_metrics(aso_rows, ga4_rows):
+        counts_days = pct is None
+        base = None if counts_days else f(BASELINE_START, BASELINE_END)
+        row = [label, _r(base), TARGETS.get(target, "")]
+        for ws in weeks:
+            cur = f(ws, ws + datetime.timedelta(days=6))
+            if counts_days:
+                row += [cur, "", ""]
+                continue
+            prev = f(ws - datetime.timedelta(days=7), ws - datetime.timedelta(days=1))
+            row += [_r(cur), _ratio(cur, prev, pct), _ratio(cur, base, pct)]
+        table.append(row)
+    note = ["1 日平均（データの無い日は除く。割合は期間合計の比）。前週比・基準比は件数は増減率、割合は差（ポイント）。"
+            "基準は v1.1.11（10/12 公開）前の 10/3〜10/11。広告は表示回数 0 の日（AdMob の GA4 リンク前）を除く。"
+            "ASO は App Store Connect、それ以外は GA4。表は新しい週が左。由来と取れない項目は「%s」タブ" % TAB_MEMO]
+    top = [[s] for s in status] + [note]
+    return top + [[] for _ in range(WEEKLY_TABLE_ROW - 1 - len(top))] + table
+
+
+def status_lines(now, errors):
+    """週次まとめの先頭の行。errors: [(どの取得, 内容)]"""
+    stamp = now.strftime("%Y-%m-%d %H:%M JST")
+    if not errors:
+        return ["最終更新: %s（ASC・GA4 とも取得成功）" % stamp]
+    return ["取得失敗: %s・%s — %s" % (stamp, what, msg) for what, msg in errors] + ["最終更新: %s（失敗した取得は前回までの数字のまま）" % stamp]
+
+
+def build_tabs(aso_rows, ga4_rows, today, now, errors):
+    return {
+        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, today, status_lines(now, errors)),
+        TAB_ASO: tab_aso(aso_rows),
+        TAB_GA4: tab_ga4(ga4_rows),
+        TAB_GAMES: tab_games(ga4_rows),
+        TAB_ADS: tab_ads(ga4_rows),
+    }
+
+
+def _chart(title, sheet_id, x_col, y_cols, anchor_sheet, row, col):
+    def src(c):
+        return {"sourceRange": {"sources": [{"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": CHART_ROWS,
+                                             "startColumnIndex": c, "endColumnIndex": c + 1}]}}
+    return {"addChart": {"chart": {
+        "spec": {"title": title, "basicChart": {
+            "chartType": "LINE", "legendPosition": "BOTTOM_LEGEND" if len(y_cols) > 1 else "NO_LEGEND",
+            "headerCount": 1,
+            "axis": [{"position": "BOTTOM_AXIS", "title": "日付"}, {"position": "LEFT_AXIS"}],
+            "domains": [{"domain": src(x_col)}],
+            "series": [{"series": src(c), "targetAxis": "LEFT_AXIS"} for c in y_cols]}},
+        "position": {"overlayPosition": {"anchorCell": {"sheetId": anchor_sheet, "rowIndex": row, "columnIndex": col},
+                                         "widthPixels": 600, "heightPixels": 400}}}}}
+
+
+def chart_requests(ids):
+    """週次まとめに置く日次の折れ線 4 本（初回 DL・インプレッション・アクティブユーザー・広告収益）。"""
+    w = ids[TAB_WEEKLY]
+    ga4_col = {m: i + 1 for i, (_, m) in enumerate(GA4_DAILY_COLS)}
+    return [
+        _chart("初回 DL（日次）", ids[TAB_ASO], 0, [FIELDNAMES.index("dl_first_total")], w, 4, 0),
+        _chart("インプレッション（日次）", ids[TAB_ASO], 0, [FIELDNAMES.index("impr_total")], w, 4, 6),
+        _chart("アクティブユーザー（日次）", ids[TAB_GA4], 0,
+               [ga4_col["active_users"], ga4_col["active_users_all"]], w, 25, 0),
+        _chart("広告収益 USD（日次）", ids[TAB_GA4], 0, [ga4_col["ad_revenue"]], w, 25, 6),
+    ]
+
+
+class Sheets:
+    def __init__(self, tok):
+        self.tok = tok
+
+    def call(self, method, path, body=None):
+        req = urllib.request.Request(SHEETS_API + path, method=method,
+                                     data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"Authorization": "Bearer " + self.tok, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            msg = ""
+            try:
+                msg = (json.loads(e.read()).get("error") or {}).get("message", "")[:200]
+            except Exception:
+                pass
+            raise SheetsError("Sheets API が HTTP %d を返しました %s" % (e.code, msg))
+        except urllib.error.URLError:
+            raise SheetsError("Sheets API に接続できませんでした")
+
+
+def write_sheets(api, tabs):
+    """タブを揃え（無ければ作る・既定の「シート1」は週次まとめに名前を変える）、中身を丸ごと書き、グラフを置き直す。"""
+    meta = api.call("GET", "?fields=sheets(properties(sheetId,title),charts(chartId))")
+    sheets = {s["properties"]["title"]: s for s in meta.get("sheets") or []}
+    reqs = []
+    if TAB_WEEKLY not in sheets:
+        default = next((t for t in DEFAULT_SHEET_TITLES if t in sheets), None)
+        if default:
+            reqs.append({"updateSheetProperties": {"properties": {"sheetId": sheets[default]["properties"]["sheetId"],
+                                                                  "title": TAB_WEEKLY, "index": 0},
+                                                   "fields": "title,index"}})
+    for i, t in enumerate(TABS):
+        if t not in sheets and not (t == TAB_WEEKLY and reqs):
+            reqs.append({"addSheet": {"properties": {"title": t, "index": i}}})
+    if reqs:
+        api.call("POST", ":batchUpdate", {"requests": reqs})
+        meta = api.call("GET", "?fields=sheets(properties(sheetId,title),charts(chartId))")
+        sheets = {s["properties"]["title"]: s for s in meta.get("sheets") or []}
+    ids = {t: sheets[t]["properties"]["sheetId"] for t in TABS}
+    if TAB_MEMO not in sheets:
+        # メモは初回だけ書く（以後は会長・社長が手で直すので上書きしない）
+        api.call("POST", ":batchUpdate", {"requests": [{"addSheet": {"properties": {"title": TAB_MEMO}}}]})
+        api.call("PUT", "/values/%s?valueInputOption=RAW" % urllib.parse.quote("'%s'!A1" % TAB_MEMO),
+                 {"values": MEMO_ROWS})
+    api.call("POST", "/values:batchClear", {"ranges": ["'%s'" % t for t in TABS]})
+    def cell(v):
+        # USER_ENTERED では「+22.3%」が数式として読まれるため、符号で始まる文字列（前週比など）は文字列のまま入れる
+        return "'" + v if isinstance(v, str) and v[:1] in "+-=" and v != "" else v
+
+    api.call("POST", "/values:batchUpdate", {"valueInputOption": "USER_ENTERED", "data": [
+        {"range": "'%s'!A1" % t, "values": [[cell(v) for v in r] for r in tabs[t]]} for t in TABS]})
+    old = [c["chartId"] for c in sheets[TAB_WEEKLY].get("charts") or []]
+    reqs = [{"deleteEmbeddedObject": {"objectId": c}} for c in old] + chart_requests(ids)
+    reqs.append({"updateSheetProperties": {"properties": {"sheetId": ids[TAB_WEEKLY],
+                                                          "gridProperties": {"frozenRowCount": 0}},
+                                           "fields": "gridProperties.frozenRowCount"}})
+    api.call("POST", ":batchUpdate", {"requests": reqs})
+
+
+def dump_tabs(tabs, out_dir):
+    """API を呼ばずに各タブの中身を <out_dir>/<タブ名>.tsv に出す（テスト用）。"""
+    os.makedirs(out_dir, exist_ok=True)
+    for t, rows in tabs.items():
+        with open(os.path.join(out_dir, t + ".tsv"), "w", encoding="utf-8", newline="") as f:
+            w = csv.writer(f, delimiter="\t", lineterminator="\n")
+            for r in rows:
+                w.writerow(["" if v is None else v for v in r])
 
 
 # ---------------------------------------------------------------- 本体
@@ -936,25 +1073,25 @@ def parse_date(s):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out-dir", default=os.environ.get("ASO_OUT_DIR", os.path.expanduser("~/asobiba-kpi/aso")))
-    ap.add_argument("--no-fetch", action="store_true", help="API を呼ばず raw/ から daily.csv を作り直すだけ")
+    ap.add_argument("--no-fetch", action="store_true", help="ASC・GA4 の API を呼ばず保存済みの数字から作り直すだけ")
     ap.add_argument("--import-engagement-tsv", nargs="*", default=[], metavar="TSV",
                     help="Discovery and Engagement の TSV を raw/ へ取り込む（ファイル名 = processingDate.tsv）")
     ap.add_argument("--import-downloads-tsv", nargs="*", default=[], metavar="TSV",
                     help="App Downloads の TSV を raw/ へ取り込む（ファイル名 = processingDate.tsv）")
     ap.add_argument("--today", type=parse_date, help="今日の日付（JST）を上書き。テスト用")
-    ap.add_argument("--no-weekly", action="store_true", help="週次コメントを投稿しない")
-    ap.add_argument("--print-weekly", type=parse_date, metavar="MONDAY",
-                    help="MONDAY から始まる週の週次コメントの本文を標準出力に出すだけ（投稿しない）")
     ap.add_argument("--ga4-out-dir", help="GA4 の保存先（既定: --out-dir と同じ階層の ga4/ = ~/asobiba-kpi/ga4）")
-    ap.add_argument("--no-ga4", action="store_true", help="GA4 を取らない（週次にも GA4 の節を出さない）")
+    ap.add_argument("--no-ga4", action="store_true", help="GA4 を取らない")
     ap.add_argument("--ga4-from-json", metavar="DIR",
-                    help="GA4 API を呼ばず DIR/<active|events|events_by_game|first_open|ads|ads_by_unit>.json"
-                         "（runReport の応答）を取り込む。テスト用")
+                    help="GA4 API を呼ばず DIR/<ga4_queries のキー>.json（runReport の応答）を取り込む。テスト用")
+    ap.add_argument("--no-sheets", action="store_true", help="スプレッドシートに書かない")
+    ap.add_argument("--sheets-dump", metavar="DIR",
+                    help="スプレッドシートに書く代わりに各タブの中身を DIR/<タブ名>.tsv に出す（API は呼ばない）")
     a = ap.parse_args(argv)
 
     raw_dir = os.path.join(a.out_dir, "raw")
     daily_path = os.path.join(a.out_dir, "daily.csv")
     today = a.today or datetime.datetime.now(JST).date()
+    errors = []  # [(どの取得, 内容)]。スプレッドシートの先頭に出す
 
     for kind, files in (("engagement", a.import_engagement_tsv), ("downloads", a.import_downloads_tsv)):
         for src in files:
@@ -970,11 +1107,10 @@ def main(argv=None):
 
     ga4_dir = a.ga4_out_dir or os.path.join(os.path.dirname(os.path.abspath(a.out_dir)), "ga4")
     ga4_path = os.path.join(ga4_dir, "daily.csv")
-    ga4_rows, ga4_error = read_ga4_daily(ga4_path), None
+    ga4_rows = read_ga4_daily(ga4_path)
 
-    status = 0
-    # GA4 は ASC より先に取る（ASC が失敗しても GA4 は保存する。逆も同じ）
-    if not a.no_ga4 and a.print_weekly is None and (a.ga4_from_json or not a.no_fetch):
+    # GA4 と ASC は互いに独立。片方が失敗しても、もう片方の取得・保存とスプレッドシートへの書き込みは続ける
+    if not a.no_ga4 and (a.ga4_from_json or not a.no_fetch):
         try:
             if a.ga4_from_json:
                 reports = {}
@@ -992,40 +1128,40 @@ def main(argv=None):
             if days:
                 log("GA4 daily.csv: %d 行（%s〜%s の %d 日分）" % (len(ga4_rows), days[0], days[-1], len(days)))
         except Ga4Error as e:
-            ga4_error = str(e)
+            errors.append(("GA4", str(e)))
         except Exception as e:  # 想定外の失敗でも ASC 側は止めない（中身は鍵・トークンを含みうるので型名だけ出す）
-            ga4_error = "GA4 の取得・保存に失敗しました（%s）" % type(e).__name__
-        if ga4_error:
-            log("エラー: GA4: %s" % ga4_error)
-            status = 1
-    ga4 = None if a.no_ga4 else (ga4_rows, ga4_error)
+            errors.append(("GA4", "取得・保存に失敗しました（%s）" % type(e).__name__))
 
-    if not a.no_fetch and a.print_weekly is None:
+    if not a.no_fetch:
         try:
             fetch(raw_dir)
         except AscError as e:
-            log("エラー: %s" % e)
-            status = 1
-        except (urllib.error.URLError, OSError, subprocess.TimeoutExpired) as e:
-            log("エラー: ASC からの取得に失敗しました（%s）" % type(e).__name__)
-            status = 1
+            errors.append(("ASC（App Store Connect）", str(e)))
+        except Exception as e:
+            errors.append(("ASC（App Store Connect）", "取得に失敗しました（%s）" % type(e).__name__))
 
     rows = build_daily(raw_dir, read_daily(daily_path))
-    if a.print_weekly is not None:
-        sys.stdout.write(weekly_report(rows, a.print_weekly, ga4))
-        return 0
     if rows:
         write_daily(daily_path, rows)
         log("daily.csv: %d 日分（%s〜%s）" % (len(rows), rows[0]["date"], rows[-1]["date"]))
+    for what, msg in errors:
+        log("エラー: %s: %s" % (what, msg))
 
-    # 月曜に限らず毎回、直近に終わった週が未投稿なら投稿する（通常は月曜に投稿され、以降の日は控えで素通り）
-    if not a.no_weekly:
+    if a.sheets_dump or not a.no_sheets:
+        tabs = build_tabs(rows, ga4_rows, today, datetime.datetime.now(JST), errors)
         try:
-            post_weekly(rows, last_complete_week_start(today), os.path.join(a.out_dir, "weekly-posted.txt"), ga4)
-        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
-            log("エラー: %s" % e)
-            status = 1
-    return status
+            if a.sheets_dump:
+                dump_tabs(tabs, a.sheets_dump)
+            else:
+                write_sheets(Sheets(google_token(SHEETS_SCOPE)), tabs)
+                log("スプレッドシート: %s" % ", ".join("%s %d 行" % (t, max(0, len(tabs[t]) - 1)) for t in TABS[1:]))
+        except (Ga4Error, SheetsError) as e:
+            errors.append(("スプレッドシート", str(e)))
+            log("エラー: スプレッドシート: %s" % e)
+        except Exception as e:
+            errors.append(("スプレッドシート", type(e).__name__))
+            log("エラー: スプレッドシートへの書き込みに失敗しました（%s）" % type(e).__name__)
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
