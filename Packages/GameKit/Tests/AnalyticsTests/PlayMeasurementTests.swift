@@ -823,8 +823,8 @@ struct PlayMeasurementCallSiteTests {
             "GameConcentration", // CPU の強さ 3 段階
             "GameGo",            // CPU の強さ 3 段階
             "GameGomoku",        // CPU の強さ 3 段階
-            "GameHanoi",         // 円盤 3〜7 枚を 5 段階に当てる（#2003・企画倉庫）
             "GameHanafuda",      // CPU の強さ 3 段階
+            "GameHanoi",         // 円盤 3〜7 枚を 5 段階に当てる（#2003・企画倉庫）
             "GameMinesweeper",   // 初級 / 中級 / 上級
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
