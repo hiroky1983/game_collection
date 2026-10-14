@@ -385,6 +385,10 @@ public final class PokerModel {
         notifyOutcome(after: noticeDelay)
         if rules == .bonus, winner == .player, pendingWinnings > 0, deck.count >= 2 {
             awaitsDoubleUp = true
+            // 記録（`gameDidFinish`）はダブルアップが終わるまで先送りだが、解析の `game_end` はここで
+            // 確定させる（#2237）。後回しにすると、提示中にハブへ戻った時点で `gameDidLeave` が先に走り、
+            // 勝った局が `quit` で送られる（しりとり・麻雀と同じ作法）。あとの `gameDidFinish` は二重に送らない。
+            services?.gameDidDecide(gameID: gameID, outcome: reviewOutcome)
             return
         }
         concludeRound()
