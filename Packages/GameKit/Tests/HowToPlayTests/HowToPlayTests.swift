@@ -54,6 +54,7 @@ import GameSpider
 @testable import GameBlocks
 @testable import GameFifteen
 @testable import GameAnzan
+@testable import GameTsunagi
 @testable import GameShiritori
 import GameChess
 import GameBlocks
@@ -93,6 +94,7 @@ private let registeredModules: [GameModule] = [
     ChessModule(),
     BlocksModule(),
     OjisanPuzzleModule(),
+    TsunagiModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
@@ -484,6 +486,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("blocks", .blocks, BlocksHowToFigures.items),
             ("fifteen", .fifteen, FifteenHowToFigures.items),
             ("anzan", .anzan, AnzanHowToFigures.items),
+            ("tsunagi", .tsunagi, TsunagiHowToFigures.items),
             ("shiritori", .shiritori, ShiritoriHowToFigures.items),
             ("shiritoriEndless", .shiritoriEndless, ShiritoriHowToFigures.endlessItems),
         ]
@@ -541,6 +544,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("GameBlocks/BlocksView.swift", ".howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items)", "blocks"),
             ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))", "fifteen"),
             ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),
+            ("GameTsunagi/TsunagiView.swift", ".howToPlay(HowToPlayGuide.tsunagi.illustrated(TsunagiHowToFigures.items))", "tsunagi"),
             ("GameShiritori/ShiritoriView.swift", ".howToPlay(model.mode.howToPlayGuide", "shiritori"),
             ("GameShiritori/ShiritoriView.swift", "mode.setupKeyItems", "shiritori の開始シート"),
         ]
