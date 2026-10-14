@@ -673,6 +673,30 @@ public extension HowToPlayGuide {
         hintIcon: "dice.fill"
     ) }
 
+    /// サイコロ役づくり（#1752・企画倉庫）。図は `GameDiceCombo` 側で `illustrated(_:)` を使って差し込む。
+    static var diceCombo: HowToPlayGuide { HowToPlayGuide(
+        gameID: "dicecombo",
+        title: tr("サイコロ役づくりの遊び方"),
+        lines: [
+            tr("「振る」でサイコロ 5 個を振ります。残したい目はタップでキープし、1 ターンに 3 回まで振れます。"),
+            tr("得点表の役を 1 つタップして点を入れるとターン終了。条件に合わない役に入れると 0 点です。"),
+            tr("12 の役をぜんぶ埋めたら終わり。1〜6 の目の小計が 63 点以上ならボーナス +35 点です。"),
+        ],
+        hint: tr("残したい目をタップでキープ"),
+        hintIcon: "dice.fill",
+        items: [
+            HowToPlayItem(tr("「振る」でサイコロ 5 個を振ります。1 ターンに 3 回まで振れます。")),
+            HowToPlayItem(tr("残したい目をタップするとキープ。キープした目は振り直しません。")),
+            HowToPlayItem(tr("得点表の役をタップして点を入れるとターン終了。条件に合わない役は 0 点です。")),
+            HowToPlayItem(tr("ストレートは目が続く並び、ファイブダイスは 5 個とも同じ目です。")),
+            HowToPlayItem(tr("1〜6 の目の小計が 63 点以上なら、ボーナス +35 点。")),
+        ],
+        notes: [
+            tr("12 の役をぜんぶ埋めたら終わり。合計点で自己ベストを目指そう。"),
+            tr("フォーダイス・フルハウスは 5 個の合計が点になります（5 個とも同じ目もフルハウスに数えます）。"),
+        ]
+    ) }
+
     static var speed: HowToPlayGuide { HowToPlayGuide(
         gameID: "speed",
         title: tr("スピードの遊び方"),
@@ -769,6 +793,7 @@ public extension HowToPlayGuide {
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
+        .diceCombo,
         .homerun, .ojisanPuzzleBackpain,
     ] }
 }

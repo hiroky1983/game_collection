@@ -106,6 +106,8 @@ targets:
       - package: GameKit
         product: GameOjisanPuzzle
       - package: GameKit
+        product: GameDiceCombo
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

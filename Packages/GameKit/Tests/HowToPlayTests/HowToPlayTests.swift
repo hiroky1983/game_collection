@@ -57,6 +57,7 @@ import GameSpider
 import GameChess
 import GameBlocks
 import GameOjisanPuzzle
+@testable import GameDiceCombo
 
 /// ハブに登録されている全ゲーム（= 遊び方ガイドが要るゲーム）。
 @MainActor
@@ -76,6 +77,7 @@ private let registeredModules: [GameModule] = [
     AnzanModule(),
     BackgammonModule(),
     SpeedModule(),
+    DiceComboModule(),
     HomerunModule(),
     BlackjackModule(),
     DaifugoModule(),
@@ -482,6 +484,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("blocks", .blocks, BlocksHowToFigures.items),
             ("fifteen", .fifteen, FifteenHowToFigures.items),
             ("anzan", .anzan, AnzanHowToFigures.items),
+            ("dicecombo", .diceCombo, DiceComboHowToFigures.items),
             ("shiritori", .shiritori, ShiritoriHowToFigures.items),
             ("shiritoriEndless", .shiritoriEndless, ShiritoriHowToFigures.endlessItems),
         ]
@@ -539,6 +542,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("GameBlocks/BlocksView.swift", ".howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items)", "blocks"),
             ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))", "fifteen"),
             ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),
+            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))", "dicecombo"),
             ("GameShiritori/ShiritoriView.swift", ".howToPlay(model.mode.howToPlayGuide", "shiritori"),
             ("GameShiritori/ShiritoriView.swift", "mode.setupKeyItems", "shiritori の開始シート"),
         ]
