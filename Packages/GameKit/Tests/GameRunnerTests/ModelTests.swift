@@ -319,6 +319,31 @@ struct RunnerCheckpointTests {
         #expect(after.canResumeFromCheckpoint)
     }
 
+    @Test("再開すると、再開位置から 1 画面ぶんの罠が無い面で走り出す")
+    func resumeStartsOnClearGround() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("cp-clear"))
+        failAfterCheckpoint(model)
+        #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
+        let x = model.field.distance
+        let window = x...(x + RunnerStage.resumeClearDistance)
+        #expect(model.stage.hazards.allSatisfy { !$0.activeRange.overlaps(window) })
+        // 取り除くのは再開した走行のコースだけ。定義済みの面（`RunnerStage.all`）は書き換わらない。
+        #expect(model.stage.hazards.count <= RunnerStage.all[0].hazards.count)
+        #expect(model.stage.hazards.count < RunnerStage.all[0].hazards.count, "1 面の再開位置の前方には元々罠があった")
+    }
+
+    @Test("代表ステージで、再開した面は自動操縦でゴールまで走り切れる（罠を取り除いても成立する）")
+    func resumedStageIsClearable() {
+        // 全 42 面だと 2 分かかるので、世界ごとの代表と最も密な 15 面に絞る。
+        for number in [1, 8, 15, 18, 24, 30, 36, 42] {
+            let model = RunnerModel(startingAt: number, preference: makePreference("cp-clearable-\(number)"))
+            failAfterCheckpoint(model)
+            #expect(model.resumeFromCheckpoint(forRun: model.runGeneration), "ステージ \(number): 再開できない")
+            #expect(autoPlayCurrentStage(model), "ステージ \(number): 打ち切りに達した")
+            #expect(model.phase == .cleared || model.phase == .allCleared, "ステージ \(number): 再開後にクリアできない")
+        }
+    }
+
     @Test("再開は 1 回の走行につき 1 回。「もう一度」で頭から走り直せば戻る（#958）")
     func oncePerRunAndBackAfterRetry() {
         let model = RunnerModel(startingAt: 1, preference: makePreference("cp-once"))
