@@ -1461,6 +1461,50 @@
           }
         }
       }
+    },
+    "役が強いほどボーナスも大きい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stronger hands earn bigger bonuses"
+          }
+        }
+      }
+    },
+    "見せ札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown card"
+          }
+        }
+      }
+    },
+    "次の札は上？下？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Higher or lower?"
+          }
+        }
+      }
+    },
+    "ルールの要点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules at a Glance"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

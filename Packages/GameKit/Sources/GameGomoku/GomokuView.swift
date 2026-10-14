@@ -54,9 +54,7 @@ public struct GomokuView: View {
                             showConfirmNewGame = true
                         }
                     })
-        .howToPlay(model.forbiddenMovesEnabled
-                   ? HowToPlayGuide.gomokuRenju.illustrated(GomokuHowToFigures.renjuItems)
-                   : HowToPlayGuide.gomoku.illustrated(GomokuHowToFigures.items))
+        .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled))
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
@@ -643,6 +641,18 @@ struct GomokuNewGameSheet: View {
                     GameSetupChooser(title: tr("あり"), subtitle: tr("黒に三三・四四・長連"),
                                      selected: renju,  accent: Theme.Fill.purple) { renju = true }
                 }
+            }
+            // 選んでいる方の遊び方の要点を、図つきでそのまま並べる（#2044・#2268）。禁じ手ありは三三の図まで出す。
+            // カードは「？」の遊び方シートと同じ部品で、中身も「？」と同じ（`GomokuView` の `.howToPlay`）。
+            GameSetupSection(tr("ルールの要点")) {
+                let guide = GomokuHowToFigures.guide(forbiddenMoves: renju)
+                VStack(spacing: 10) {
+                    ForEach(Array(guide.items.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    if !guide.notes.isEmpty { HowToPlayNotesCard(guide.notes) }
+                }
+                .id(renju)
             }
         }
     }

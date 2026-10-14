@@ -4702,6 +4702,61 @@
           }
         }
       }
+    },
+    "ポーカーの遊び方（ボーナスルール）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Poker (Bonus Rules)"
+          }
+        }
+      }
+    },
+    "勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win to earn a bonus for your hand, then try the Double-Up."
+          }
+        }
+      }
+    },
+    "勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win a showdown with two pair or better to earn a bonus on top of the pot."
+          }
+        }
+      }
+    },
+    "勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can bet your winnings on the Double-Up: guess whether the next card is higher or lower than the shown card. Win and you double it; lose and it's gone."
+          }
+        }
+      }
+    },
+    "ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is a limit to how many times in a row you can Double-Up. If the numbers match, the card is redrawn."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

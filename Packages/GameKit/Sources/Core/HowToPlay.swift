@@ -242,6 +242,32 @@ public extension HowToPlayGuide {
         ]
     ) }
 
+    /// 「ボーナスルール」で対局しているときのポーカー（#2268）。役ボーナスとダブルアップの項目が増える。
+    ///
+    /// `gameID` は `.poker` と同じ（同じゲームの表示違いなので、ミニガイドの「一度見たら出さない」
+    /// フラグも共有する）。そのため **`all` には入れない**＝登録漏れ検査は `.poker` のほうで担保される。
+    static var pokerBonus: HowToPlayGuide { HowToPlayGuide(
+        gameID: "poker",
+        title: tr("ポーカーの遊び方（ボーナスルール）"),
+        lines: [
+            tr("手札は 5 枚。残したいカードをタップで選びます。"),
+            tr("選ばなかったカードは 1 回だけ引き直せます。"),
+            tr("勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。"),
+        ],
+        hint: tr("残すカードをタップしよう"),
+        items: [
+            HowToPlayItem(tr("手札は 5 枚。残したいカードをタップで選びます。")),
+            HowToPlayItem(tr("選ばなかったカードは 1 回だけ引き直せます。")),
+            HowToPlayItem(tr("役の強い側がポットのチップをもらえます。")),
+            HowToPlayItem(tr("勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。")),
+            HowToPlayItem(tr("勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。")),
+        ],
+        notes: [
+            tr("役の一覧は「くわしいルール」で見られます。"),
+            tr("ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。"),
+        ]
+    ) }
+
     static var concentration: HowToPlayGuide { HowToPlayGuide(
         gameID: "concentration",
         title: tr("神経衰弱の遊び方"),
