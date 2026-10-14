@@ -15,8 +15,9 @@ public struct HanoiModule: GameModule {
     }
 
     /// 1 手でも動かした盤だけが「続き」（手つかずの盤はそもそも保存しない・#1847）。
+    /// 判定は `HanoiModel.init` の復元条件と同じにする（壊れた盤・解き終えた盤は開くと新規になるので「続き」と言わない）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(HanoiSnapshot.self, for: id) else { return false }
-        return snap.moves > 0
+        return HanoiSnapshot.isResumable(snap)
     }
 }

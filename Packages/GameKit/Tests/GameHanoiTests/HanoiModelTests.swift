@@ -146,6 +146,29 @@ struct HanoiModelTests {
         #expect(resumed.pegs == [[4, 3, 2], [1], []])
     }
 
+    @Test("同じ理由で続けて断っても、断った回数は毎回増える（読み上げを毎回出すため）")
+    func repeatedRejectionIsCounted() {
+        let model = HanoiModel(services: makeServices())
+        model.tap(peg: 1)
+        model.tap(peg: 1)
+        #expect(model.rejection == .emptySource)
+        #expect(model.rejectionCount == 2)
+    }
+
+    @Test("「続き」の判定は復元の条件と同じ（壊れた盤・揃った盤・手つかずの盤は続きにしない）")
+    func resumableMatchesRestore() throws {
+        let store = MemorySnapshotStore()
+        let module = HanoiModule()
+        try store.save(HanoiSnapshot(disks: 3, pegs: [[1, 3], [2], []], moves: 4, elapsedSeconds: 9), for: HanoiModel.gameID)
+        #expect(!module.hasResumableSnapshot(in: store), "壊れた盤")
+        try store.save(HanoiSnapshot(disks: 3, pegs: [[], [], [3, 2, 1]], moves: 7, elapsedSeconds: 9), for: HanoiModel.gameID)
+        #expect(!module.hasResumableSnapshot(in: store), "揃った盤")
+        try store.save(HanoiSnapshot(disks: 3, pegs: [[3, 2, 1], [], []], moves: 0, elapsedSeconds: 0), for: HanoiModel.gameID)
+        #expect(!module.hasResumableSnapshot(in: store), "手つかずの盤")
+        try store.save(HanoiSnapshot(disks: 3, pegs: [[3, 2], [], [1]], moves: 1, elapsedSeconds: 2), for: HanoiModel.gameID)
+        #expect(module.hasResumableSnapshot(in: store))
+    }
+
     @Test("壊れた中断データは捨てて新しく始める")
     func brokenSnapshotIsDiscarded() throws {
         let store = MemorySnapshotStore()

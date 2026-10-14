@@ -23,6 +23,8 @@ public final class HanoiModel {
     public private(set) var selectedPeg: Int?
     /// 直前の操作を断った理由。次に動かせたら消える。
     public private(set) var rejection: HanoiLogic.Rejection?
+    /// 断った回数。同じ理由が続いても読み上げを毎回出すため、View はこの値の変化で通知する。
+    public private(set) var rejectionCount = 0
     /// 直近の決着で確定した自己ベスト。クリアのカードに 1 行出す。
     public private(set) var recordResult: RecordResult?
 
@@ -38,8 +40,7 @@ public final class HanoiModel {
     public init(services: GameServices? = nil, disks: Int = HanoiLogic.defaultDisks) {
         self.services = services
         if let snap = services?.snapshots.load(HanoiSnapshot.self, for: Self.gameID),
-           HanoiLogic.isValid(snap.pegs, disks: snap.disks), !HanoiLogic.isSolved(snap.pegs, disks: snap.disks),
-           snap.moves > 0 {
+           HanoiSnapshot.isResumable(snap) {
             self.disks = snap.disks
             pegs = snap.pegs
             moves = snap.moves
@@ -166,6 +167,7 @@ public final class HanoiModel {
 
     private func reject(_ reason: HanoiLogic.Rejection) {
         rejection = reason
+        rejectionCount += 1
         services?.feedback.notify(.warning)
     }
 

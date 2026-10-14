@@ -44,8 +44,9 @@ public struct HanoiView: View {
                 Text(tr("途中で終了すると、いまの盤面と手数が失われます。"))
             }
         }
-        .onChange(of: model.rejection) { _, reason in
-            guard let reason else { return }
+        // 同じ理由が続いても毎回読み上げる（`rejection` の値は変わらないので、断った回数の変化で拾う）。
+        .onChange(of: model.rejectionCount) { _, _ in
+            guard let reason = model.rejection else { return }
             AccessibilityNotification.Announcement(HanoiAccessibility.message(for: reason)).post()
         }
         // 画面を離れたら・背面に回ったら計時を止め、戻ったら再開する（#375・#1734。`gameTimerLifecycle`・#1857）。

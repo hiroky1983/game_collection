@@ -13,4 +13,12 @@ public struct HanoiSnapshot: Codable, Equatable, Sendable {
         self.moves = moves
         self.elapsedSeconds = elapsedSeconds
     }
+
+    /// 続きから再開できる中断データか（正しい盤・まだ揃っていない・1 手以上動かした）。
+    /// `HanoiModel.init` の復元と `HanoiModule.hasResumableSnapshot` の両方がこれを使う。
+    public static func isResumable(_ snap: HanoiSnapshot) -> Bool {
+        HanoiLogic.isValid(snap.pegs, disks: snap.disks)
+            && !HanoiLogic.isSolved(snap.pegs, disks: snap.disks)
+            && snap.moves > 0
+    }
 }
