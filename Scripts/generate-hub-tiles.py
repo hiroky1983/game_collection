@@ -9,6 +9,8 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   `docs/design/hub-redesign-1831/hub-redesign/assets/tiles`）。
 - 荷物運びパズルはモックの絵が旧仕様の荷物なので、現行のゲーム内の荷物（`OjisanLuggage_*`）とおじさんの顔
   （`OjisanFace_cheer`）でモックと同じ作り（tiles/tile_art.py の方式）で描き直す。ぱっと暗算はモックに絵が無いので同じ方式で描く。
+- 花札こいこいはモックの絵が旧仕様の札なので、ゲーム内の札の画像（#2188 の `Hanafuda_NN.png`）で描き直す（#2273）。
+  左下・右下は「続きから」「NEW」が重なるので、文字や吹き出しは入れない。
 
 使い方:
   git archive origin/main docs/design/hub-redesign-1831 | tar -x -C /tmp/mock
@@ -20,6 +22,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   hubtile-<id>-en / hubtile-homerun-wide(-pad)-en.imageset … 英語のゲーム名入り（#2181。アプリ内の言語設定で切り替える）
 一部だけ書き直すとき（ほかのアセットは消さない・モック不要）:
   python3 Scripts/generate-hub-tiles.py --only homerun-wide
+柵越えおじさんの横長タイルの元絵は main の docs にある（release ブランチには docs が無いので取り出して --hero で渡す）:
+  git archive origin/main docs/design/homerun/hub-tile | tar -x -C /tmp/mock
+  python3 Scripts/generate-hub-tiles.py --only homerun-wide --hero /tmp/mock/docs/design/homerun/hub-tile/source.png
 英語版だけ書き直すとき（日本語版は消さない）:
   python3 Scripts/generate-hub-tiles.py --lang en --mock <上と同じ場所>
 """
@@ -36,6 +41,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "App/Assets.xcassets/HubTiles")
 CORE_RES = os.path.join(ROOT, "Packages/GameKit/Sources/Core/Resources")
 PUZZLE_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameOjisanPuzzle/Resources")
+HANAFUDA_CARDS = os.path.join(ROOT, "Packages/GameKit/Sources/GameHanafuda/Resources/Cards")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 W, H = 179, 215
 
@@ -131,7 +137,7 @@ def asset_name(base, lang):
 
 
 # モックの絵を使わず描き直すゲーム（上の docstring 参照）。
-REDRAWN = {"ojisanpuzzle", "anzan"}
+REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda"}
 
 # モックの tiles/tile_art.py と同じ下地の CSS（必要な部品だけ）。
 ART_CSS = """
@@ -143,6 +149,8 @@ body{font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans",sans-serif;-w
 .px{image-rendering:pixelated}
 .cell{position:absolute;width:52px;height:52px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:30px;box-shadow:0 6px 8px rgba(0,0,0,.28)}
 .num{position:absolute;font-weight:900;color:#fff;text-shadow:0 4px 6px rgba(0,0,0,.25)}
+.fuda{position:absolute;width:58px;height:87px;border-radius:7px;border:2.5px solid #FAF6EC;overflow:hidden;box-shadow:0 6px 8px rgba(0,0,0,.32)}
+.fuda img{display:block;width:100%;height:100%;object-fit:cover}
 """
 
 
@@ -171,6 +179,13 @@ def art_html(gid):
                  'background:#fff;color:#4A3B33;border:3px solid #4A3B33">12</div>'
                  '<div style="position:absolute;left:96px;top:14px;padding:3px 10px;border-radius:999px;background:#fff;color:#E85C45;'
                  'font-weight:900;font-size:13px;box-shadow:0 4px 6px rgba(0,0,0,.25);transform:rotate(8deg)">ぱっと！</div>')
+    elif gid == "hanafuda":
+        # モックと同じ赤い下地に、ゲーム内の光札 3 枚（松に鶴・桜に幕・芒に月）を扇に並べる。モックの「こいこい！」の
+        # 吹き出しは「続きから」に隠れるので入れない（#2273）。札はラベルの高さ（下 35pt）より上に収める。
+        card = lambda i, x, y, r: (f'<div class="fuda" style="left:{x}px;top:{y}px;transform:rotate({r}deg)">'
+                                   f'<img src="file://{os.path.join(HANAFUDA_CARDS, f"Hanafuda_{i:02d}.png")}"></div>')
+        bg = "linear-gradient(160deg,#E57F72 0%,#B3382E 50%,#8E261E 100%)"
+        body = card(0, 16, 46, -14) + card(28, 104, 46, 14) + card(8, 60, 36, 0)
     else:
         raise KeyError(gid)
     # モックと同じく、名前を上に重ねるぶん物を 24pt 下げる。
@@ -237,17 +252,32 @@ def tile_html(gid, art_path, lang="ja"):
 
 
 # 柵越えおじさんだけの横長タイル（#2184）。iPhone はグリッドの 2 列ぶん、iPad は 4 列ぶんの幅で、高さはふつうの
-# タイルと同じ 215pt。絵はハブの特別枠で使っていたロゴ入りの横長アート（GameHomerun の HomerunHubHeroArtLogo.jpg）
-# を切り抜いて使う。切り抜きは元画像（1206×804）の座標で、比率はタイルと同じ。「体験版」のバッジは出さない（会長指示・#2184）。
-# iPhone 用は、おじさんの顔が左上のゲーム名に隠れないよう、顔がまるごと入る高さ（ヘルメットの上端より上）から切り抜き、
-# 顔が名前の右下に来るよう左端を絵の左端に合わせる（会長 QA #2201）。そのぶん上端にロゴの下の端が少し入るが、
-# 白い霞（haze）の下になる。ロゴの無い元絵はリポジトリに無い（ChatGPT で作ったロゴ入りの 1 枚だけ・assets-license.md）。
-HERO_ART = os.path.join(ROOT, "Packages/GameKit/Sources/GameHomerun/Resources/HomerunHubHeroArtLogo.jpg")
+# タイルと同じ 215pt。絵は会長が用意したロゴ（文字）無しの正方形の絵（1254×1254・ChatGPT で作成。原画と出所は main の
+# docs/design/homerun/hub-tile/）を切り抜いて使う（#2273。以前はロゴ入りの HomerunHubHeroArtLogo.jpg を切っていた）。
+# 切り抜きは元画像の座標で、比率はタイルと同じ。「体験版」のバッジは出さない（会長指示・#2184）。
+# 左上のゲーム名と右下の残り回数のボールに、おじさんの顔・ボールが重ならない位置で切る。
+# iPhone 用は幅いっぱい・上端から（ヘルメットの頭頂が名前の下線の高さ。顔・バット・ボールがまるごと入り、右下は観客席）。
+# iPad 用は横長すぎて正方形の絵の幅では背が足りず、名前がヘルメットに重なるので、絵の左端（ヘルメットより左の
+# 150px・青空と照明塔）を鏡写しで 2 回継ぎ足して左へ 300px 広げ、名前をその上に置く。切り抜きは継ぎ足した後の座標（ボールは上が少し切れる）。
+HERO_ART = os.path.join(ROOT, "docs/design/homerun/hub-tile/source.png")
 WIDE_TILES = [
-    # (アセット名, タイルの寸法 pt, 切り抜き (left, top, right, bottom))
-    ("hubtile-homerun-wide", (179 * 2 + 12, 215), (0, 170, 1091, 804)),
-    ("hubtile-homerun-wide-pad", (179 * 4 + 12 * 3, 215), (0, 232, 1206, 577)),
+    # (アセット名, タイルの寸法 pt, 左に継ぎ足す幅 px, 切り抜き (left, top, right, bottom))
+    ("hubtile-homerun-wide", (179 * 2 + 12, 215), 0, (0, 0, 1254, 729)),
+    ("hubtile-homerun-wide-pad", (179 * 4 + 12 * 3, 215), 300, (0, 85, 1554, 529)),
 ]
+
+
+def extend_left(src, pad):
+    """絵の左端 150px（おじさんより左）を鏡写し・そのまま…と交互に `pad` px ぶん左へ継ぎ足す（継ぎ目が連続する）。"""
+    strip = 150
+    assert pad % strip == 0, pad
+    out = Image.new("RGB", (src.width + pad, src.height))
+    out.paste(src, (pad, 0))
+    edge = src.crop((0, 0, strip, src.height))
+    for i in range(pad // strip):
+        piece = edge.transpose(Image.FLIP_LEFT_RIGHT) if i % 2 == 0 else edge
+        out.paste(piece, (pad - strip * (i + 1), 0))
+    return out
 
 
 def wide_tile_html(art_path, size, lang="ja"):
@@ -263,12 +293,13 @@ def wide_tile_html(art_path, size, lang="ja"):
             f'<div class="name">{name}</div><div class="ul" style="background:{color}"></div></div></body></html>')
 
 
-def write_wide_tiles(tmp, langs):
-    src = Image.open(HERO_ART).convert("RGB")
-    for (base, size, box), lang in ((t, l) for t in WIDE_TILES for l in langs):
+def write_wide_tiles(tmp, langs, hero=HERO_ART):
+    assert os.path.exists(hero), f"柵越えおじさんの元絵が無い: {hero}（--hero で渡す。使い方は先頭の説明）"
+    src = Image.open(hero).convert("RGB")
+    for (base, size, pad, box), lang in ((t, l) for t in WIDE_TILES for l in langs):
         asset = asset_name(base, lang)
         art = os.path.join(tmp, f"art-{asset}.png")
-        crop = src.crop(box)
+        crop = extend_left(src, pad).crop(box)
         # 切り抜きの比率がタイルとずれていると object-fit:cover で意図しない所が切れるので確かめる。
         assert abs(crop.width / crop.height - size[0] / size[1]) < 0.03, (asset, crop.size, size)
         crop.save(art)
@@ -311,6 +342,7 @@ def write_imageset(name, image):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mock", help="モックのタイル絵の場所（hub-redesign/assets/tiles）。描き直すゲーム・横長タイルだけなら不要")
+    ap.add_argument("--hero", default=HERO_ART, help="柵越えおじさんの横長タイルの元絵（既定は docs/design/homerun/hub-tile/source.png）")
     ap.add_argument("--keep", help="途中の PNG（名前なしの絵）を残す場所")
     ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）。"
                     "homerun-wide で柵越えおじさんの横長タイルだけ")
@@ -329,7 +361,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmp:
         if not args.only or "homerun-wide" in args.only:
-            write_wide_tiles(tmp, args.lang)
+            write_wide_tiles(tmp, args.lang, args.hero)
         for gid in GAMES:
             if args.only and gid not in args.only:
                 continue
