@@ -31,6 +31,7 @@ import GameBackgammon
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
+import GameOldMaid
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -296,6 +297,9 @@ enum AppEnvironment {
         // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
         AnzanModule(),
+        // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // OldMaidModule(),
     ], categories: [
         // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
         "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan,

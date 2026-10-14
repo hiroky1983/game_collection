@@ -685,6 +685,29 @@ public extension HowToPlayGuide {
         hintIcon: "hare.fill"
     ) }
 
+    /// ババ抜き（#1577・企画倉庫）。図は `GameOldMaid` 側で `illustrated(_:)` を使って差し込む。
+    static var oldMaid: HowToPlayGuide { HowToPlayGuide(
+        gameID: "oldmaid",
+        title: tr("ババ抜きの遊び方"),
+        lines: [
+            tr("配られた手札から同じ数字の 2 枚（ペア）を捨てて始めます。ジョーカーはペアになりません。"),
+            tr("自分の番では、次の CPU の伏せた札を 1 枚選んで引きます。ペアができたら捨て、手札がなくなったら抜けられます。"),
+            tr("最後にジョーカーを持って残った人が負けです。札を選ぶと、CPU の顔に出ることがあります。"),
+        ],
+        hint: tr("引く札を選んで、CPU の顔をよく見よう"),
+        hintIcon: "theatermasks.fill",
+        items: [
+            HowToPlayItem(tr("同じ数字の 2 枚（ペア）は捨てます。配られた手札のペアは最初に捨ててから始めます。")),
+            HowToPlayItem(tr("自分の番では、次の CPU の伏せた札を 1 枚選んで引きます。ペアができたら捨てます。")),
+            HowToPlayItem(tr("札を選ぶと、ジョーカーを持つ CPU は顔に出ることがあります。にやりとしたらジョーカーかも。")),
+            HowToPlayItem(tr("手札がなくなった人から抜けていき、最後にジョーカーを持って残った人が負けです。")),
+        ],
+        notes: [
+            tr("引いたジョーカーは手札の右端に入り、CPU に場所を見られます。「シャッフル」で並びを混ぜましょう。"),
+            tr("CPU の強さは右上の「新規対局」から 4 段階で選べます。強いほど顔に出にくく、置き場所をよく覚えます。"),
+        ]
+    ) }
+
     static var homerun: HowToPlayGuide { HowToPlayGuide(
         gameID: "homerun",
         title: tr("柵越えおじさんの遊び方"),
@@ -770,6 +793,7 @@ public extension HowToPlayGuide {
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .homerun, .ojisanPuzzleBackpain,
+        .oldMaid,
     ] }
 }
 

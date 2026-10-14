@@ -44,6 +44,7 @@ struct GameSetupSheetSourceTests {
         ("GameBackgammon/BackgammonView.swift", ".versus"),
         ("GameConcentration/ConcentrationView.swift", ".versus"),
         ("GameSpeed/SpeedView.swift", ".versus"),
+        ("GameOldMaid/OldMaidView.swift", ".versus"),
         ("GameHanafuda/HanafudaSheets.swift", ".versus"),
         ("GameShiritori/ShiritoriView.swift", ".versus"),
         ("GameMinesweeper/MinesweeperView.swift", ".solo"),

@@ -38,6 +38,7 @@ let package = Package(
         .library(name: "GameAnzan",        targets: ["GameAnzan"]),
         .library(name: "GameBackgammon",   targets: ["GameBackgammon"]),
         .library(name: "GameSpeed",        targets: ["GameSpeed"]),
+        .library(name: "GameOldMaid",      targets: ["GameOldMaid"]),
         .library(name: "HomerunCore",      targets: ["HomerunCore"]),
         .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
@@ -134,6 +135,11 @@ let package = Package(
         // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
         // 「次に待つ時間」を返して View の `.task` が待つ形（ぱっと暗算と同じ）。
         .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
+        // ババ抜き（#1577・企画倉庫）。配り・引き方・終局判定・CPU の選び方・顔の出方は `OldMaidGame`（純粋な値）で、
+        // 乱数に CoreEngine の `SplitMix64` を使う。札の絵はトランプ共通基盤（#397・ジョーカー含む）。
+        // CPU の手番はいろリレーと同じ `AITurnGuarded` の定石。
+        .target(name: "GameOldMaid",        dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // 柵越えおじさんのロジック層（#1348・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積。
         // 画面は `GameHomerun`。`Game` 接頭辞のディレクトリは画面の走査テスト（GameChromeTests）が
@@ -259,6 +265,7 @@ let package = Package(
         .testTarget(name: "GameAnzanTests",          dependencies: ["GameAnzan", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBackgammonTests",     dependencies: ["GameBackgammon", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameOldMaidTests",        dependencies: ["GameOldMaid", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
         .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
@@ -299,6 +306,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
+            "GameOldMaid",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
