@@ -721,6 +721,28 @@ public extension HowToPlayGuide {
         hintIcon: "dice.fill"
     ) }
 
+    /// マンカラ（#1626・企画倉庫）。図は `GameMancala` 側で `illustrated(_:)` を使って差し込む。
+    static var mancala: HowToPlayGuide { HowToPlayGuide(
+        gameID: "mancala",
+        title: tr("マンカラの遊び方"),
+        lines: [
+            tr("手前の 6 つの穴があなたの陣地。穴をタップすると、中の種を右どなりから 1 個ずつ反時計回りにまきます。"),
+            tr("最後の 1 個が自分のストア（右端）に入ればもう一度。自分の空の穴に入れば、向かいの種もまとめて取れます。"),
+            tr("どちらかの側の穴が空になったら終わり。ストアの種が多いほうの勝ちです。"),
+        ],
+        hint: tr("手前の穴をタップして種をまこう"),
+        items: [
+            HowToPlayItem(tr("手前の穴をタップすると、中の種を右どなりから 1 個ずつまきます。")),
+            HowToPlayItem(tr("最後の 1 個が自分のストア（右端）に入ったら、もう一度あなたの番。")),
+            HowToPlayItem(tr("最後の 1 個が自分の空の穴に入ると、向かいの種もまとめて取れます。")),
+            HowToPlayItem(tr("片側の穴がすべて空になったら終わり。ストアの種が多いほうの勝ちです。")),
+        ],
+        notes: [
+            tr("種は反時計回りにまき、相手のストアは飛ばします。"),
+            tr("終わったとき穴に残った種は、その側のストアに入ります。"),
+        ]
+    ) }
+
     /// サイコロ役づくり（#1752・企画倉庫）。図は `GameDiceCombo` 側で `illustrated(_:)` を使って差し込む。
     static var diceCombo: HowToPlayGuide { HowToPlayGuide(
         gameID: "dicecombo",
@@ -914,6 +936,7 @@ public extension HowToPlayGuide {
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .akariKeshi, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .diceCombo,
+        .mancala,
         .homerun, .ojisanPuzzleBackpain,
         .oldMaid,
         .hearts,

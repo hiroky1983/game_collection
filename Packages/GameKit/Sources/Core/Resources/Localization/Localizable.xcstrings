@@ -1236,6 +1236,17 @@
         }
       }
     },
+    "どちらかの側の穴が空になったら終わり。ストアの種が多いほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when one side's pits are empty. Whoever has more seeds in their store wins."
+          }
+        }
+      }
+    },
     "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2290,6 +2301,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scarf"
+          }
+        }
+      }
+    },
+    "マンカラの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play Mancala"
           }
         }
       }
@@ -3405,6 +3427,39 @@
         }
       }
     },
+    "手前の 6 つの穴があなたの陣地。穴をタップすると、中の種を右どなりから 1 個ずつ反時計回りにまきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 6 pits nearest you are yours. Tap a pit to sow its seeds one at a time, counterclockwise, starting with the pit to its right."
+          }
+        }
+      }
+    },
+    "手前の穴をタップして種をまこう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one of your pits to sow its seeds"
+          }
+        }
+      }
+    },
+    "手前の穴をタップすると、中の種を右どなりから 1 個ずつまきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one of your pits to sow its seeds one at a time, starting to its right."
+          }
+        }
+      }
+    },
     "手合いで「飛車落ち」「角落ち」を選ぶと、上手（盤の上側）がその駒を外して始まります。上手が先に指します。自分が落とすか、CPU が落とすかを選べます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3801,6 +3856,39 @@
         }
       }
     },
+    "最後の 1 個が自分のストア（右端）に入ったら、もう一度あなたの番。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your last seed lands in your store (far right), it's your turn again."
+          }
+        }
+      }
+    },
+    "最後の 1 個が自分のストア（右端）に入ればもう一度。自分の空の穴に入れば、向かいの種もまとめて取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your last seed lands in your store (far right), go again. If it lands in an empty pit of yours, you also capture the seeds across from it."
+          }
+        }
+      }
+    },
+    "最後の 1 個が自分の空の穴に入ると、向かいの種もまとめて取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your last seed lands in an empty pit of yours, you also capture the seeds across from it."
+          }
+        }
+      }
+    },
     "最後の字から始まる札を取ろう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3973,6 +4061,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You've used your free undo.\nWatch an ad to take back your last move again (along with the CPU's reply)."
+          }
+        }
+      }
+    },
+    "片側の穴がすべて空になったら終わり。ストアの種が多いほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when all pits on one side are empty. More seeds in your store wins."
           }
         }
       }
@@ -4219,6 +4318,17 @@
         }
       }
     },
+    "種は反時計回りにまき、相手のストアは飛ばします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seeds go counterclockwise, skipping the opponent's store."
+          }
+        }
+      }
+    },
     "空" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4369,6 +4479,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Slide your finger left or right above the box to aim, then let go to drop the fruit."
+          }
+        }
+      }
+    },
+    "終わったとき穴に残った種は、その側のストアに入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At the end, seeds left in the pits go to that side's store."
           }
         }
       }

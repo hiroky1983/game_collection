@@ -37,6 +37,7 @@ let package = Package(
         .library(name: "GameColorRelay",   targets: ["GameColorRelay"]),
         .library(name: "GameAnzan",        targets: ["GameAnzan"]),
         .library(name: "GameBackgammon",   targets: ["GameBackgammon"]),
+        .library(name: "GameMancala",      targets: ["GameMancala"]),
         .library(name: "GameSpeed",        targets: ["GameSpeed"]),
         .library(name: "GameOldMaid",      targets: ["GameOldMaid"]),
         .library(name: "GameAkariKeshi",   targets: ["GameAkariKeshi"]),
@@ -137,6 +138,10 @@ let package = Package(
         // バックギャモン（#1322・企画倉庫）。移動・叩き・ベアオフの判定と CPU の手順選びは純粋ロジックで、
         // サイコロの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
         .target(name: "GameBackgammon",     dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
+        // マンカラ（#1626・企画倉庫）。種まき・取り・終局の回収と CPU の αβ 探索は純粋ロジックで、
+        // 入門の無作為選択に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
+        .target(name: "GameMancala",        dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // スピード（#1323・企画倉庫）。手番の無い同時進行のトランプ。出せるかの判定と CPU の選択は純粋ロジックで、
         // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
@@ -287,6 +292,7 @@ let package = Package(
         .testTarget(name: "GameColorRelayTests",     dependencies: ["GameColorRelay", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameAnzanTests",          dependencies: ["GameAnzan", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBackgammonTests",     dependencies: ["GameBackgammon", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameMancalaTests",        dependencies: ["GameMancala", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOldMaidTests",        dependencies: ["GameOldMaid", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameAkariKeshiTests",     dependencies: ["GameAkariKeshi", "GameKitTestSupport", "CoreTestSupport"]),
@@ -332,7 +338,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
+            "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
             "GameOldMaid",
             "GameHearts",
             "GameTsunagi", "GameAkariKeshi",
@@ -346,7 +352,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
             "GameTsunagi", "GameAkariKeshi",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
@@ -356,7 +362,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
-            "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
+            "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
             "GameTsunagi", "GameAkariKeshi",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
