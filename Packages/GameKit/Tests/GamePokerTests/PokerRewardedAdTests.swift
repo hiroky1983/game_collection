@@ -503,7 +503,43 @@ struct PokerRewardedAdTests {
         #expect(store.exists(for: "poker"), "復活したセッションなので中断データは在る")
 
         services.gameDidLeave(gameID: "poker")
-        #expect(spy.quits.count == 1, "続きの無い局が休憩として数えられている")
+        // 勝った局は提示に入った時点で `game_end(win)` を確定済み（#2237）。離脱の `quit` は出ない。
+        #expect(spy.quits.isEmpty, "勝った局が quit として送られている")
+        #expect(spy.outcomes == [.win], "game_end が勝ちで 1 回だけ送られていない")
+    }
+
+    /// ダブルアップの提示中に戻っても、受け取り・挑戦のどの経路でも `game_end` は 1 回だけで、
+    /// 結果は PlayLog に残る勝ちと一致する（#2237）。
+    @Test("ダブルアップ待ちで戻っても game_end は win が 1 回だけ（離脱→onDisappear の順・#2237）")
+    func leavingDuringDoubleUpSendsWinOnce() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["poker"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let (model, _, services) = makeRevivedWinAwaitingDoubleUp(
+            deckRanks: [5, 13], analytics: analytics
+        )
+        // ハブの `onChange(of: path)` が遷移先の `onDisappear` より先に走る順序。
+        services.gameDidLeave(gameID: "poker")
+        model.declineDoubleUp()
+        #expect(spy.outcomes == [.win])
+        #expect(!model.awaitsDoubleUp)
+    }
+
+    @Test("ダブルアップに挑戦して精算しても game_end は win が 1 回だけ（#2237）")
+    func doubleUpSettlementDoesNotResendGameEnd() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["poker"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let (model, _, services) = makeRevivedWinAwaitingDoubleUp(
+            deckRanks: [3, 13], analytics: analytics
+        )
+        model.startDoubleUp()
+        model.guessDoubleUp(.high)         // 成功
+        model.takeDoubleUpWinnings()
+        services.gameDidLeave(gameID: "poker")
+        #expect(spy.outcomes == [.win])
     }
 
     /// 復活の中断データ（#1104）が「もう一度はじめる」の初期化を邪魔しないこと。
