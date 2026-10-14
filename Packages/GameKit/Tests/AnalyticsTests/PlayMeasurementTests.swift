@@ -801,7 +801,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 31, "ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・明かり消しパズル（#1883）")
+        #expect(games.count == 32, "企画倉庫の線つなぎ（#2235）・明かり消しパズル（#1883）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -833,6 +833,7 @@ struct PlayMeasurementCallSiteTests {
             "GameSpeed",         // CPU の速さ 3 段階（#1323・企画倉庫）
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
+            "GameTsunagi",       // 盤の大きさ 5×5 / 7×7（#2235・企画倉庫）
         ])
     }
 }

@@ -27,6 +27,7 @@ import GameAnzan
 import GameAkariKeshi
 import GameBackgammon
 import GameSpeed
+import GameTsunagi
 import GameHomerun
 import GameOjisanPuzzle
 import GameSpider
@@ -102,6 +103,7 @@ func makeHubModules() -> [GameModule] {
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
         AkariKeshiModule(),
+        TsunagiModule(),
     ]
 }
 

@@ -1,0 +1,260 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$lld行%2$lld列、%3$lldの点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %1$lld, column %2$lld, dot %3$lld"
+          }
+        }
+      }
+    },
+    "%1$lld行%2$lld列、%3$lldの線" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %1$lld, column %2$lld, line %3$lld"
+          }
+        }
+      }
+    },
+    "%1$lld行%2$lld列、空き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %1$lld, column %2$lld, empty"
+          }
+        }
+      }
+    },
+    "%lld手でつなぎました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Connected in %lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Connected in %lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "、つながった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", connected"
+          }
+        }
+      }
+    },
+    "、つながっていない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", not connected"
+          }
+        }
+      }
+    },
+    "、選択中（隣のマスを選ぶと線がのびます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", selected (choose a neighboring square to extend the line)"
+          }
+        }
+      }
+    },
+    "つながった数字 %1$lld/%2$lld、うまったマス %3$lld/%4$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected %1$lld/%2$lld, filled %3$lld/%4$lld"
+          }
+        }
+      }
+    },
+    "もう一度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Again"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared!"
+          }
+        }
+      }
+    },
+    "全マスを埋めたらクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill every square to clear"
+          }
+        }
+      }
+    },
+    "全部つながりました。空いているマスも線で通りましょう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All connected! Now route the lines through the empty squares too"
+          }
+        }
+      }
+    },
+    "同じ数字を線でつないで、マスを全部うめよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect matching numbers with lines and fill every square"
+          }
+        }
+      }
+    },
+    "手数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves"
+          }
+        }
+      }
+    },
+    "新規ゲームを始めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "点からなぞる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trace from a dot"
+          }
+        }
+      }
+    },
+    "盤の大きさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Size"
+          }
+        }
+      }
+    },
+    "終了して新規ゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & New Game"
+          }
+        }
+      }
+    },
+    "線つなぎ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect Pairs"
+          }
+        }
+      }
+    },
+    "触れた線は切れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touched lines get cut"
+          }
+        }
+      }
+    },
+    "途中で終了すると、いまの盤面と手数が失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, your current board and move count will be lost."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
