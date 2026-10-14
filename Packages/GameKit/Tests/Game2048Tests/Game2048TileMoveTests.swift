@@ -132,7 +132,10 @@ struct Game2048TileModelTests {
         // 新タイルは 1 枚だけ、空いていたマスに出る。
         #expect(m.tiles.filter { $0.arrival == .spawned }.count == 1)
 
-        m.settleVanishing()
+        // 前の手の ID で片付けようとしても（キャンセルが間に合わなかった古い片付け）、今の合体元は消さない。
+        m.settleVanishing(ids: [-1])
+        #expect(!m.vanishing.isEmpty)
+        m.settleVanishing(ids: m.vanishing.map(\.id))
         #expect(m.vanishing.isEmpty)
     }
 

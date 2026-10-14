@@ -234,11 +234,13 @@ public struct Game2048View: View {
         // 盤の下に操作の段が増えても、余りを Spacer と山分けして盤が縮まないよう盤を先に確保する（#2023）。
         .layoutPriority(1)
         // 合体元の 2 枚は滑り終えたら片付ける。次の手が先に来たら、その手の中で入れ替わる。
+        // 待ち始めたときの ID を控えて渡し、キャンセルが間に合わなくても次の手の合体元は消さない。
         .task(id: model.vanishing.map(\.id)) {
-            guard !model.vanishing.isEmpty else { return }
+            let ids = model.vanishing.map(\.id)
+            guard !ids.isEmpty else { return }
             try? await Task.sleep(for: .seconds(Self.slideDuration + 0.1))
             guard !Task.isCancelled else { return }
-            model.settleVanishing()
+            model.settleVanishing(ids: ids)
         }
     }
 

@@ -64,7 +64,7 @@ public final class Game2048Model {
     /// 盤に描くタイル（#2253）。常に `board` と 1 対 1 で一致する（空きマスは含まない）。
     public private(set) var tiles: [Game2048Tile] = []
     /// 直前の手で合体した元の 2 枚。行き先まで滑らせてから消すために、`tiles` とは別に少しのあいだ残す。
-    /// View が滑り終えた後に `settleVanishing()` で片付ける。次の手・戻す・新しいゲームでも片付く。
+    /// View が滑り終えた後に `settleVanishing(ids:)` で片付ける。次の手・戻す・新しいゲームでも片付く。
     public private(set) var vanishing: [Game2048Tile] = []
     /// タイルの通し番号。合体・出現のたびに新しい番号を振り、使い回さない。
     private var nextTileID = 0
@@ -381,9 +381,10 @@ public final class Game2048Model {
 
     // MARK: - 描くタイル（#2253）
 
-    /// 合体元の 2 枚を片付ける。View が滑り終えた後に呼ぶ。
-    public func settleVanishing() {
-        guard !vanishing.isEmpty else { return }
+    /// 合体元の 2 枚を片付ける。View が滑り終えた後に、待ち始めたときの ID を渡して呼ぶ。
+    /// その間に次の手が入って `vanishing` が入れ替わっていたら何もしない（次の手の合体元を途中で消さない）。
+    public func settleVanishing(ids: [Int]) {
+        guard !vanishing.isEmpty, vanishing.map(\.id) == ids else { return }
         vanishing = []
     }
 
