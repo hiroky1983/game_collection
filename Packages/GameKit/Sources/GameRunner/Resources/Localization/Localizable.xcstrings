@@ -442,6 +442,28 @@
         }
       }
     },
+    "わら積みにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a stack of straw"
+          }
+        }
+      }
+    },
+    "イノシシにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a boar"
+          }
+        }
+      }
+    },
     "エンドレス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -486,6 +508,17 @@
         }
       }
     },
+    "コンテナにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a container"
+          }
+        }
+      }
+    },
     "ゴールでステージクリア" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -515,6 +548,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld percent to the goal"
+          }
+        }
+      }
+    },
+    "サルにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a monkey"
           }
         }
       }
@@ -717,6 +761,28 @@
         }
       }
     },
+    "ドラム缶にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a drum"
+          }
+        }
+      }
+    },
+    "フォークリフトにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a forklift"
+          }
+        }
+      }
+    },
     "ミス！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -735,6 +801,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mode"
+          }
+        }
+      }
+    },
+    "ロープにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a coil of rope"
           }
         }
       }
@@ -856,6 +933,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't continue"
+          }
+        }
+      }
+    },
+    "切り株にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a stump"
           }
         }
       }
@@ -1025,6 +1113,17 @@
         }
       }
     },
+    "木箱にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a stack of crates"
+          }
+        }
+      }
+    },
     "未到達" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1080,6 +1179,17 @@
         }
       }
     },
+    "波しぶきにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into sea spray"
+          }
+        }
+      }
+    },
     "温泉街" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1124,6 +1234,28 @@
         }
       }
     },
+    "湯柱にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a column of hot water"
+          }
+        }
+      }
+    },
+    "湯桶にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a wooden bucket"
+          }
+        }
+      }
+    },
     "無敵" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1158,6 +1290,28 @@
         }
       }
     },
+    "犬にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a dog"
+          }
+        }
+      }
+    },
+    "猫にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a cat"
+          }
+        }
+      }
+    },
     "用水路……海まで流れてまうやん！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1165,6 +1319,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The canal! It'll wash right out to sea!"
+          }
+        }
+      }
+    },
+    "石垣にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a stone wall"
           }
         }
       }
@@ -1209,6 +1374,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap again in midair"
+          }
+        }
+      }
+    },
+    "竹の子にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a bamboo shoot"
           }
         }
       }
@@ -1369,6 +1545,17 @@
         }
       }
     },
+    "足場にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into scaffolding"
+          }
+        }
+      }
+    },
     "里山" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1431,6 +1618,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Smacked into a bird"
+          }
+        }
+      }
+    },
+    "鹿にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a deer"
           }
         }
       }

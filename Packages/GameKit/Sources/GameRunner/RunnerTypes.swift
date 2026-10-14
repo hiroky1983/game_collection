@@ -910,3 +910,12 @@ public enum RunnerResultFace {
     /// スタート画面の笑顔の倍率（2 倍 = 32pt。主ボタンの脇に小さく添える）。
     public static let startDotScale = 2
 }
+
+/// ミスで当たった相手（#2254）。表示の 1 行を世界の着せ替えに合わせるための値で、
+/// 解析の `cause`（`AnalyticsEndCause`）とは別物——あちらは語彙を増やさない。
+public enum RunnerMissObject: Equatable, Sendable {
+    /// 障害物に当たった（穴は落ちるだけなので来ない）。
+    case hazard(RunnerHazardKind)
+    /// 台座の正面に突っ込んだ。
+    case platformFace
+}
