@@ -23,6 +23,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 OUT="$TMP/out"
 mkdir -p "$TMP/in/eng" "$TMP/in/dl"
+# 既定では AdMob の画面取得 CSV を読まない（この Mac の本物の ~/asobiba-kpi/admob/history_ui_export.csv を
+# 誤って拾ってテストが環境依存にならないよう、存在しないパスを既定にする。個別のテストで上書きする）
+NOADMOB="$TMP/no-admob.csv"
 
 T=$'\t'
 EH="Date${T}App Name${T}App Apple Identifier${T}Event${T}Page Type${T}Source Type${T}Engagement Type${T}Device${T}Platform Version${T}Territory${T}Counts${T}Unique Counts"
@@ -66,7 +69,7 @@ d() { echo "$1${T}あそびば${T}6781719499${T}$2${T}1.1.11${T}iPhone${T}iOS 27
 mkdir -p "$OUT"
 printf 'date,impr_total,pv_total,dl_first_total\n2026-10-01,1000,40,10\n' >"$OUT/daily.csv"
 
-run() { "$PY" "$TARGET" --out-dir "$OUT" "$@"; }
+run() { "$PY" "$TARGET" --out-dir "$OUT" --admob-history "$NOADMOB" "$@"; }
 # 列名で値を引く: col <date> <column>
 col() {
   "$PY" - "$OUT/daily.csv" "$1" "$2" <<'PY'
@@ -179,7 +182,7 @@ for d, g in ((sys.argv[1], g1), (sys.argv[2], g2)):
 PY
 echo '{not json' >"$GBAD/active.json"
 GOUT="$TMP/ga4out"
-grun() { "$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch "$@"; }
+grun() { "$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --admob-history "$NOADMOB" "$@"; }
 gcol() {  # gcol <date> <metric> [game_id] [ad_unit]
   "$PY" - "$GOUT/daily.csv" "$1" "$2" "${3:-}" "${4:-}" <<'PY'
 import csv, sys
@@ -215,15 +218,18 @@ expect_eq "(date, metric, game_id, ad_unit) が一意" "$(tail -n +2 "$GOUT/dail
 
 echo "== 7. スプレッドシートの中身（GA4） =="
 GD="$TMP/gdump"
-"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --today 2026-10-19 --sheets-dump "$GD" >/dev/null 2>"$TMP/gerr" \
+"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --admob-history "$NOADMOB" --today 2026-10-19 --sheets-dump "$GD" >/dev/null 2>"$TMP/gerr" \
   && ok "GA4 込みのタブの書き出しが成功する" || { ng "GA4 込みのタブの書き出しが失敗した"; cat "$TMP/gerr"; }
 row() { grep "^$2" "$GD/$1.tsv"; }
 expect_eq "GA4（日次）10/12: アクティブ（App Store 版）" "$(row 'GA4（日次）' 2026-10-12 | cut -f2)" "111"
-expect_eq "GA4（日次）10/12: 広告収益・表示回数・クリック" "$(row 'GA4（日次）' 2026-10-12 | awk -F'\t' '{print $(NF-2)"/"$(NF-1)"/"$NF}')" "1.5/1000/3"
+# 末尾に AdMob の画面取得（円）の列が 1 本付く（この区間は --admob-history を渡していないので空）
+expect_eq "GA4（日次）10/12: 広告収益・表示回数・クリック" "$(row 'GA4（日次）' 2026-10-12 | awk -F'\t' '{print $(NF-3)"/"$(NF-2)"/"$(NF-1)}')" "1.5/1000/3"
+expect_eq "GA4（日次）10/12: AdMob 画面の列は空（CSV を渡していない）" "$(row 'GA4（日次）' 2026-10-12 | awk -F'\t' '{print $NF}')" ""
 expect_eq "ゲーム別（日次）: anzan の 10/12（ID・名前・開いた・人数・プレイ開始・人数）" "$(row 'ゲーム別（日次）' "2026-10-12${T}'anzan" | cut -f2-7)" "'anzan${T}ぱっと暗算${T}0${T}0${T}25${T}9"
-expect_eq "広告（日次）: 10/12 全体（収益・表示・クリック・1,000 回あたり）" "$(row '広告（日次）' "2026-10-12${T}全体" | cut -f3-6)" "1.5${T}1000${T}3${T}1.5"
-expect_eq "広告（日次）: ユニット別" "$(row '広告（日次）' "2026-10-12${T}Rewarded/rescue" | cut -f3)" "1.5"
-expect_eq "広告（日次）: リンク前の 0 の日（10/11）は 1,000 回あたりを空に" "$(row '広告（日次）' "2026-10-11${T}全体" | cut -f6)" ""
+# 広告（日次）は 取得元 列が増えた（日付・取得元・ユニット・推定収益円・収益USD・表示回数・クリック・eCPM円・1,000回あたりUSD・リクエスト・マッチ率・表示率）
+expect_eq "広告（日次）: 10/12 GA4 全体（収益・表示・クリック・1,000 回あたり）" "$(row '広告（日次）' "2026-10-12${T}GA4${T}全体" | cut -f5-7,9)" "1.5${T}1000${T}3${T}1.5"
+expect_eq "広告（日次）: GA4 ユニット別" "$(row '広告（日次）' "2026-10-12${T}GA4${T}Rewarded/rescue" | cut -f5)" "1.5"
+expect_eq "広告（日次）: リンク前の 0 の日（10/11）は 1,000 回あたりを空に" "$(row '広告（日次）' "2026-10-11${T}GA4${T}全体" | cut -f9)" ""
 GWS="$GD/週次まとめ.tsv"
 expect_eq "表の最新の週は 10/12〜10/18" "$(sed -n 47p "$GWS" | cut -f4)" "10/12〜10/18"
 # 前週 (111+101+102+103+104+105+106)/7 = 104.57、前々週 80 → +30.7%
@@ -237,7 +243,7 @@ expect_eq "新ゲームの推移（ぱっと暗算のプレイ開始）" "$(grep
 
 echo "== 8. 取得の失敗を黙らない =="
 cp "$GOUT/daily.csv" "$TMP/ga4-keep.csv"
-"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --ga4-from-json "$GBAD" --today 2026-10-19 --sheets-dump "$GD" >"$TMP/glog" 2>&1
+"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --admob-history "$NOADMOB" --ga4-from-json "$GBAD" --today 2026-10-19 --sheets-dump "$GD" >"$TMP/glog" 2>&1
 expect_eq "GA4 が失敗したら終了コード 1" "$?" "1"
 grep -q 'エラー: GA4' "$TMP/glog" && ok "ログに GA4 のエラーが出る" || { ng "ログに GA4 のエラーが無い"; cat "$TMP/glog"; }
 grep -q '^取得失敗: .* JST・GA4 — ' "$GWS" && ok "週次まとめの先頭に「取得失敗: 日時・どの取得か」" || { ng "取得失敗の行が無い"; head -3 "$GWS"; }
@@ -246,6 +252,95 @@ expect_eq "失敗しても保存済みの数字でタブを作る" "$(grep '^ア
 expect_eq "GA4 が失敗しても ASO のタブは作る" "$(wc -l <"$GD/ASO（日次）.tsv" | tr -d ' ')" "5"
 if cmp -s "$TMP/ga4-keep.csv" "$GOUT/daily.csv"; then ok "失敗しても GA4 の CSV を消さない"; else ng "失敗で GA4 の CSV が変わった"; fi
 if grep -nE "print\(.*(private_key|access_token|assertion|tok\b)|log\(.*(private_key|access_token|assertion|tok\b)" "$TARGET"; then ng "鍵・トークンを出力している疑い"; else ok "鍵・トークンを出力しない"; fi
+
+echo "== 9. AdMob の画面取得（過去分）の組み込み（会長指示・#2238 追補） =="
+# 10/11・10/12 は GA4 にもデータがある日。10/11 は GA4 側が表示回数 0（AdMob リンク前のダミー）なので、
+# AdMob 画面の行が無いと「データなし」扱いだった → AdMob 画面があれば優先して使われることを確かめる。
+# 2026-08-27 は GA4 側に無い日（AdMob 画面だけの日）で、GA4（日次）に行として出ること（日付の和集合）も見る。
+ADMOB_CSV="$TMP/admob-history.csv"
+{
+  echo "date,est_revenue_jpy,ecpm_jpy,requests,match_rate_pct,matched_requests,show_rate_pct,impressions,clicks"
+  echo "2026-08-27,2,92,25,100.00,25,96.00,24,0"
+  echo "2026-10-11,20,60,600,85.00,510,91.00,5000,8"
+  echo "2026-10-12,30,70,700,86.00,600,92.00,6000,9"
+} >"$ADMOB_CSV"
+AD="$TMP/admobdump"
+"$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --admob-history "$ADMOB_CSV" --today 2026-10-19 --sheets-dump "$AD" >/dev/null 2>"$TMP/aerr" \
+  && ok "AdMob 込みのタブの書き出しが成功する" || { ng "AdMob 込みのタブの書き出しが失敗した"; cat "$TMP/aerr"; }
+arow() { grep "^$2" "$AD/$1.tsv"; }
+expect_eq "広告（日次）: AdMob 画面の行（10/12・推定収益・表示・クリック・eCPM・リクエスト・マッチ率・表示率）" \
+  "$(arow '広告（日次）' "2026-10-12${T}AdMob 画面${T}合計" | cut -f4,6-8,10-12)" "30${T}6000${T}9${T}70${T}700${T}86${T}92"
+expect_eq "広告（日次）: 同じ日の GA4 の行は消えずに残る（10/12・取得元=GA4）" \
+  "$(arow '広告（日次）' "2026-10-12${T}GA4${T}全体" | cut -f6)" "1000"
+expect_eq "GA4（日次）: 末尾の AdMob 推定収益（円）列（10/12）" "$(arow 'GA4（日次）' 2026-10-12 | awk -F'\t' '{print $NF}')" "30"
+expect_eq "GA4（日次）: GA4 に無い日も AdMob の日付で出る（8/27）" "$(grep -c '^2026-08-27' "$AD/GA4（日次）.tsv")" "1"
+AWS="$AD/週次まとめ.tsv"
+# 表示回数: 現週(10/12-10/18) は 10/12 が AdMob 画面(6000)優先・10/13 は GA4(500)のみ → (6000+500)/2 = 3250.0
+expect_eq "広告の表示回数（AdMob 画面優先・現週）" "$(grep '^広告の表示回数' "$AWS" | cut -f4)" "3250.0"
+# 基準(10/3-10/11): AdMob 画面が 10/11 にあるので、GA4 の 0 の日として除外されていた 10/11 が 5000 として入る
+expect_eq "広告の表示回数（AdMob 画面優先・基準。GA4 の 0 の日を上書き）" "$(grep '^広告の表示回数' "$AWS" | cut -f2)" "5000.0"
+expect_eq "AdMob 推定収益 円（過去分・現週。10/12 のみ）" "$(grep '^AdMob 推定収益 円' "$AWS" | cut -f4)" "30.0"
+expect_eq "AdMob eCPM 円（過去分・基準。10/11 のみ）" "$(grep '^AdMob eCPM 円' "$AWS" | cut -f2)" "60.0"
+# 広告収益 USD（GA4）行は AdMob の有無に関係なく GA4 のみの集計のまま（通貨が違うため混ぜない）
+expect_eq "広告収益 USD（GA4）は AdMob と混ぜない（現週は変わらず 1.0）" "$(grep '^広告収益 USD' "$AWS" | cut -f4)" "1.0"
+
+echo "== 10. 並べ替え・絞り込みができる表（addTable/updateTable の組み立て。API は呼ばない） =="
+"$PY" - "$TARGET" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aso_daily", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+ok, ng = 0, 0
+
+
+def check(label, cond):
+    global ok, ng
+    if cond:
+        ok += 1
+        print("  ok   - %s" % label)
+    else:
+        ng += 1
+        print("  NG   - %s" % label)
+
+
+header = ["日付", "取得元", "広告フォーマット/ユニット", "収益 USD"]
+spec_ads = {"date_idx": 0, "text_idxs": {1, 2}}
+m.TABLE_COL_SPECS[m.TAB_ADS] = spec_ads
+
+# 新規（表がまだ無い）: addTable で、日付は DATE・取得元とユニットは TEXT・それ以外は DOUBLE
+req = m.table_requests(m.TAB_ADS, 999, header, 5, [])
+check("表が無ければ addTable を返す", "addTable" in req)
+t = req["addTable"]["table"]
+check("tableId は固定（二重に作らないための鍵）", t["tableId"] == m.TABLE_IDS[m.TAB_ADS])
+check("範囲は渡した行数（見出し込み）に従う", t["range"]["endRowIndex"] == 5 and t["range"]["startRowIndex"] == 0)
+cols = {c["columnIndex"]: c["columnType"] for c in t["columnProperties"]}
+check("日付列は DATE", cols[0] == "DATE")
+check("取得元列は TEXT（数値型にしない）", cols[1] == "TEXT")
+check("ユニット列は TEXT", cols[2] == "TEXT")
+check("収益列は DOUBLE（数値型）", cols[3] == "DOUBLE")
+
+# 既存（表が既にある）: updateTable で範囲だけ。列の型・見出しは触らない（ヘッダ文字列を壊さないため）
+req2 = m.table_requests(m.TAB_ADS, 999, header, 5, [{"tableId": m.TABLE_IDS[m.TAB_ADS]}])
+check("表が既にあれば updateTable を返す（addTable で二重に作らない）", "updateTable" in req2)
+check("updateTable は range だけ書き換える", req2["updateTable"]["fields"] == "range")
+check("updateTable に columnProperties を含めない（見出し文字列を上書きしない）",
+      "columnProperties" not in req2["updateTable"]["table"])
+
+# 行が増えた日（毎日の書き込み）: 範囲が追従して広がる
+req3 = m.table_requests(m.TAB_ADS, 999, header, 12, [{"tableId": m.TABLE_IDS[m.TAB_ADS]}])
+check("行が増えると範囲が広がる（5→12 行）", req3["updateTable"]["table"]["range"]["endRowIndex"] == 12)
+# 行が減った日（CSV を作り直して行数が減る想定）: 範囲も追従して縮む
+req4 = m.table_requests(m.TAB_ADS, 999, header, 3, [{"tableId": m.TABLE_IDS[m.TAB_ADS]}])
+check("行が減ると範囲も縮む（12→3 行）", req4["updateTable"]["table"]["range"]["endRowIndex"] == 3)
+
+check("並べ替え・絞り込みの対象は日次 4 タブ（週次・メモは対象外）",
+      set(m.TABLE_IDS) == {m.TAB_ASO, m.TAB_GA4, m.TAB_GAMES, m.TAB_ADS})
+check("tableId はタブごとに別々（取り違えて二重に作らない）", len(set(m.TABLE_IDS.values())) == len(m.TABLE_IDS))
+
+print("小計: %d 件成功 / %d 件失敗" % (ok, ng))
+sys.exit(1 if ng else 0)
+PY
+if [ "$?" -eq 0 ]; then ok "table_requests のリクエスト組み立て（上の小計すべて成功）"; else ng "table_requests のリクエスト組み立てで失敗あり"; fi
 
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"
