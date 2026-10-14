@@ -573,6 +573,17 @@
           }
         }
       }
+    },
+    "ルールの要点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules at a Glance"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

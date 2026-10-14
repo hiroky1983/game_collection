@@ -35,14 +35,17 @@ struct PokerStartSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            GameSetupSection(tr("ゲームの流れ")) {
-                ruleRow("1", tr("アンティ 10枚 → 手札5枚配布"))
-                ruleRow("2", tr("ベット（チェック or 20枚ベット）"))
-                ruleRow("3", tr("カード交換（0〜5枚）"))
-                ruleRow("4", tr("最終ベット → 勝負"))
-                if rules == .bonus {
-                    ruleRow("5", tr("勝負に勝つと役ボーナス → ダブルアップに挑戦"))
+            // 選んでいるルールの遊び方を、図つきでそのまま並べる（#2044・#2268。荷物運びパズル #2132 と同じ型）。
+            // カードは「？」の遊び方シートと同じ部品。ルールを切り替えたら前のルールの図を引きずらず描き直す。
+            GameSetupSection(tr("ルールの要点")) {
+                let guide = PokerHowToFigures.guide(for: rules)
+                VStack(spacing: 10) {
+                    ForEach(Array(guide.items.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    if !guide.notes.isEmpty { HowToPlayNotesCard(guide.notes) }
                 }
+                .id(rules)
             }
 
             detailButton(tr("役一覧を見る"), systemImage: "list.bullet.rectangle", showing: .handGuide)
@@ -84,20 +87,6 @@ struct PokerStartSheet: View {
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
         }
         .buttonStyle(.plain)
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .scaledFont(12, weight: .black, design: .rounded)
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.Fill.coral))
-            Text(text)
-                .scaledFont(13, weight: .medium, design: .rounded)
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
     }
 }
 

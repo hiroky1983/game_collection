@@ -14,6 +14,13 @@ enum GomokuHowToFigures {
         { AnyView(DoubleThreeFigure()) },
     ]
 
+    /// 禁じ手の有無に合わせた遊び方（開始シートと「？」で共有する）。
+    static func guide(forbiddenMoves: Bool) -> HowToPlayGuide {
+        forbiddenMoves
+            ? HowToPlayGuide.gomokuRenju.illustrated(renjuItems)
+            : HowToPlayGuide.gomoku.illustrated(items)
+    }
+
     private static let common: [@MainActor @Sendable () -> AnyView] = [
         { AnyView(PlaceFigure()) },
         { AnyView(FiveFigure()) },

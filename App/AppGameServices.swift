@@ -32,6 +32,7 @@ import GameMancala
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
+import GameOldMaid
 import GameHearts
 import GameAkariKeshi
 import GameTsunagi
@@ -310,6 +311,9 @@ enum AppEnvironment {
         // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
         AnzanModule(),
+        // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // OldMaidModule(),
         // ハーツ（企画倉庫・#1884）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリー（`.cards`）にも足す。
         // HeartsModule(),

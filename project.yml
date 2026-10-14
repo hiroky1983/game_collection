@@ -104,6 +104,8 @@ targets:
       - package: GameKit
         product: GameSpeed
       - package: GameKit
+        product: GameOldMaid
+      - package: GameKit
         product: GameAkariKeshi
       - package: GameKit
         product: GameHomerun
