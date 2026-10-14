@@ -60,6 +60,8 @@ public enum RecordVariantLabels {
             return variant == "endless" ? tr("エンドレス", language: language) : nil
         case "hanafuda":
             return hanafuda(variant, language: language)
+        case "shogi":
+            return shogi(variant, language: language)
         default:
             return nil
         }
@@ -121,6 +123,25 @@ public enum RecordVariantLabels {
             }
         }
         return labels.isEmpty ? nil : labels.joined(separator: tr("・", language: language))
+    }
+
+    /// 将棋の駒落ち。キーは `<rook|bishop>-<player|cpu>`（平手は区分を持たない）。
+    private static func shogi(_ variant: String, language: AppLanguage?) -> String? {
+        let parts = variant.split(separator: "-").map(String.init)
+        guard parts.count == 2 else { return nil }
+        let handicap: String
+        switch parts[0] {
+        case "rook":   handicap = tr("飛車落ち", language: language)
+        case "bishop": handicap = tr("角落ち", language: language)
+        default:       return nil
+        }
+        let dropper: String
+        switch parts[1] {
+        case "player": dropper = tr("自分が落とす", language: language)
+        case "cpu":    dropper = tr("CPUが落とす", language: language)
+        default:       return nil
+        }
+        return tr("%1$@・%2$@", handicap, dropper, language: language)
     }
 
     private static func difficultyWord(_ raw: String, language: AppLanguage?) -> String? {

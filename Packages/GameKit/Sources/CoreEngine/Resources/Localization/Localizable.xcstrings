@@ -23,6 +23,17 @@
         }
       }
     },
+    "%1$@・%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
     "%1$@・%2$@・%3$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -324,6 +335,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CPU %@"
+          }
+        }
+      }
+    },
+    "CPUが落とす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU drops it"
           }
         }
       }
@@ -948,6 +970,17 @@
         }
       }
     },
+    "自分が落とす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I drop it"
+          }
+        }
+      }
+    },
     "自己ベスト %1$@（最大 %2$@）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -988,6 +1021,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No games to show. You can choose them in Settings."
+          }
+        }
+      }
+    },
+    "角落ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bishop handicap"
           }
         }
       }
@@ -1065,6 +1109,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No sake yaku"
+          }
+        }
+      }
+    },
+    "飛車落ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rook handicap"
           }
         }
       }

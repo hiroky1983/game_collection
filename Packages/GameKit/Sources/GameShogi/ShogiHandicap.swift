@@ -92,11 +92,10 @@ public struct ShogiMatchSetting: Equatable, Sendable {
         isHandicap ? "\(handicap.rawValue)-\(dropper.rawValue)" : nil
     }
 
-    /// 記録に保存する区分名。保存されてハブの記録行に出るので、表示言語によらず日本語のまま。
+    /// 記録に保存する区分名（日本語の控え）。ハブ・共有文に出す名前は `RecordVariantLabels` が
+    /// `recordVariant` のキーから表示のたびに引き直す（#2240）ので、保存と表示で綴りが食い違わない。
     public var recordVariantLabel: String? {
-        guard isHandicap else { return nil }
-        let who = dropper == .player ? "自分が落とす" : "CPUが落とす"  // i18n-keep: 記録に保存する区分名（保存時点の日本語）
-        return "\(handicap.kifName)・\(who)"
+        recordVariant.map { RecordVariantLabels.stored(gameID: "shogi", variant: $0) }
     }
 
     /// 解析イベントの `mode`。平手も値を持つ（`recordVariant` と違い保存先には使わないので互換の問題が無い）。
