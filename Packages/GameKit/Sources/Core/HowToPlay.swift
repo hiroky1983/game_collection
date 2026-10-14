@@ -685,6 +685,29 @@ public extension HowToPlayGuide {
         hintIcon: "hare.fill"
     ) }
 
+    /// 線つなぎ（#2235・企画倉庫）。図は `GameTsunagi` 側で `illustrated(_:)` を使って差し込む。
+    static var tsunagi: HowToPlayGuide { HowToPlayGuide(
+        gameID: "tsunagi",
+        title: tr("線つなぎの遊び方"),
+        lines: [
+            tr("同じ数字の点どうしを、指でなぞって線でつなぎます。"),
+            tr("線は交差できません。別の線に触れると、その線はそこで切れます。"),
+            tr("全部の数字をつなぎ、全マスを線で埋めたらクリアです。"),
+        ],
+        hint: tr("同じ数字の点を、なぞってつなごう"),
+        hintIcon: "point.topleft.down.to.point.bottomright.curvepath.fill",
+        items: [
+            HowToPlayItem(tr("同じ数字の点どうしを、指でなぞって線でつなぎます。")),
+            HowToPlayItem(tr("線は交差できません。別の線に触れると、その線はそこで切れます。")),
+            HowToPlayItem(tr("全部の数字をつなぎ、全マスを線で埋めたらクリアです。")),
+        ],
+        notes: [
+            tr("線の途中から触ると、そこから引き直せます。"),
+            tr("盤の大きさは 5×5 と 7×7 から選べます。どの問題も答えは 1 つです。"),
+            tr("手数は、別の数字の線に持ち替えた回数です。少ないほど良い記録です。"),
+        ]
+    ) }
+
     /// ハノイの塔（#2003・企画倉庫）。図は `GameHanoi` 側で `illustrated(_:)` を使って差し込む。
     static var hanoi: HowToPlayGuide { HowToPlayGuide(
         gameID: "hanoi",
@@ -791,7 +814,8 @@ public extension HowToPlayGuide {
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
-        .homerun, .ojisanPuzzleBackpain, .hanoi,
+        .homerun, .ojisanPuzzleBackpain,
+        .tsunagi, .hanoi,
     ] }
 }
 

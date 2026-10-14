@@ -106,6 +106,8 @@ targets:
       - package: GameKit
         product: GameOjisanPuzzle
       - package: GameKit
+        product: GameTsunagi
+      - package: GameKit
         product: GameHanoi
       - package: GameKit
         product: MahjongTiles

@@ -31,6 +31,7 @@ import GameBackgammon
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
+import GameTsunagi
 import GameHanoi
 
 /// アプリ本体が組み立てる GameServices の実体。
@@ -285,6 +286,9 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
+        // 線つなぎ（企画倉庫・#2235）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // TsunagiModule(),
         // ハノイの塔（企画倉庫・#2003）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリーのチップ（`"hanoi": .puzzleOther`）にも足す。
         // HanoiModule(),

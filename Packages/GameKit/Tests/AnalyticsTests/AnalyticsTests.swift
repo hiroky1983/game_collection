@@ -26,6 +26,7 @@ import GameColorRelay
 import GameAnzan
 import GameBackgammon
 import GameSpeed
+import GameTsunagi
 import GameHomerun
 import GameOjisanPuzzle
 import GameSpider
@@ -72,6 +73,7 @@ private func makeHubGameIDs() -> Set<String> {
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        TsunagiModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -474,7 +476,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 30, "ハブに並ぶゲームは30本（v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 31, "ハブに並ぶゲームは31本（企画倉庫の線つなぎ #2235 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -998,6 +1000,20 @@ struct AllGamesAnalyticsTests {
         model.resign()
         expectOnePair(spy, gameID: "backgammon")
         #expect(spy.ends.first?.result == .loss)
+    }
+
+    @Test("線つなぎ: 開いた時点で開始・解を引き終えて終局（1 組・level は盤の大きさ）")
+    func tsunagi() {
+        let (services, spy) = makeServices()
+        let model = TsunagiModel(services: services, size: .small, seed: 3)
+        #expect(spy.startLevels == [.beginner])
+        for path in model.puzzle.solution {
+            model.beginStroke(at: path[0])
+            for cell in path.dropFirst() { model.extendStroke(to: cell) }
+            model.endStroke()
+        }
+        #expect(model.isSolved)
+        expectOnePair(spy, gameID: "tsunagi")
     }
 
     @Test("スピード: 速さを選んだ時点で開始・出し切りで終局（自動対戦で 1 組）")
