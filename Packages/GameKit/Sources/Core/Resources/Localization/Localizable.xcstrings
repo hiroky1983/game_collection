@@ -157,6 +157,28 @@
         }
       }
     },
+    "12 の役をぜんぶ埋めたら終わり。1〜6 の目の小計が 63 点以上ならボーナス +35 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when all 12 combos are filled. If Ones–Sixes total 63 or more, you get a +35 bonus."
+          }
+        }
+      }
+    },
+    "12 の役をぜんぶ埋めたら終わり。合計点で自己ベストを目指そう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when all 12 combos are filled. Go for your best total."
+          }
+        }
+      }
+    },
     "13 枚ずつ配られます。まず 3 枚を選んで、左どなりへ渡します。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -208,6 +230,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Put 1-15 in order from the top left to win. Fewer moves is a better record."
+          }
+        }
+      }
+    },
+    "1〜6 の目の小計が 63 点以上なら、ボーナス +35 点。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If Ones–Sixes total 63 or more, you get a +35 bonus."
           }
         }
       }
@@ -616,6 +649,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“Hit” to draw a card, “Stand” to stop there. On your first 2 cards you can also “Double Down” (double your bet and draw just one card) or “Split” two cards of the same value (10, J, Q and K are all worth 10) into two hands."
+          }
+        }
+      }
+    },
+    "「振る」でサイコロ 5 個を振ります。1 ターンに 3 回まで振れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Roll to roll 5 dice. You can roll up to 3 times per turn."
+          }
+        }
+      }
+    },
+    "「振る」でサイコロ 5 個を振ります。残したい目はタップでキープし、1 ターンに 3 回まで振れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Roll to roll 5 dice. Tap dice to keep them; you can roll up to 3 times per turn."
           }
         }
       }
@@ -1621,6 +1676,17 @@
         }
       }
     },
+    "サイコロ役づくりの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Dice Combos"
+          }
+        }
+      }
+    },
     "シマウマ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1650,6 +1716,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start"
+          }
+        }
+      }
+    },
+    "ストレートは目が続く並び、ファイブダイスは 5 個とも同じ目です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A straight is a run of numbers. Five Dice means all 5 dice show the same number."
           }
         }
       }
@@ -2059,6 +2136,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "See “Detailed Rules” for how Hint, Shuffle and Undo work."
+          }
+        }
+      }
+    },
+    "フォーダイス・フルハウスは 5 個の合計が点になります（5 個とも同じ目もフルハウスに数えます）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four Dice and Full House score the sum of all 5 dice (5 of the same number also counts as a Full House)."
           }
         }
       }
@@ -3328,6 +3416,28 @@
         }
       }
     },
+    "得点表の役を 1 つタップして点を入れるとターン終了。条件に合わない役に入れると 0 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one combo on the score sheet to score it and end your turn. A combo you don't meet scores 0."
+          }
+        }
+      }
+    },
+    "得点表の役をタップして点を入れるとターン終了。条件に合わない役は 0 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a combo on the score sheet to score it and end your turn. A combo you don't meet scores 0."
+          }
+        }
+      }
+    },
     "戻す（無料）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3896,6 +4006,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Each correct answer extends your streak. Start with 1 digit and 5 numbers."
+          }
+        }
+      }
+    },
+    "残したい目をタップするとキープ。キープした目は振り直しません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a die to keep it. Kept dice are not rerolled."
+          }
+        }
+      }
+    },
+    "残したい目をタップでキープ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap dice to keep them"
           }
         }
       }
