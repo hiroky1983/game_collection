@@ -184,7 +184,7 @@ public enum HomerunText {
 
     /// 読み上げでは種別の語の「！」を落とす（英語の「!」も）。
     private static func withoutBang(_ text: String) -> String {
-        text.replacingOccurrences(of: "！", with: "").replacingOccurrences(of: "!", with: "")
+        text.replacingOccurrences(of: "！", with: "").replacingOccurrences(of: "!", with: "")  // i18n-keep: 読み上げでは使わない見出しの語を落とすだけ（表示する文ではない）
     }
 }
 

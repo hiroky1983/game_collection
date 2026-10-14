@@ -45,7 +45,7 @@ public struct BoardGameResultCard: View {
     /// VoiceOver が 1 回で読む文。記号・見出し・理由・決め手・補足をまとめる。
     public static func accessibilityLabel(verdict: Verdict, reason: String, decisiveMove: String?,
                                           details: [String]) -> String {
-        var parts = [verdict.title.replacingOccurrences(of: "！", with: ""), reason]  // i18n-keep: 日本語の見出しから「！」を外すだけ（表示する文ではない）
+        var parts = [verdict.title.replacingOccurrences(of: "！", with: "").replacingOccurrences(of: "!", with: ""), reason]  // i18n-keep: 見出しから「！」「!」を外すだけ（表示する文ではない）
         if let decisiveMove { parts.append(tr("決め手 %@", decisiveMove)) }
         parts.append(contentsOf: details)
         return parts.joined(separator: tr("。"))

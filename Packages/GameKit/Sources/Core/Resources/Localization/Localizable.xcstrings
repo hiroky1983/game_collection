@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%1$@%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%1$lld/%2$lld手" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -473,6 +484,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Build each of ♠♥♦♣ from A to K on the foundations to win. All 52 cards are face up from the start."
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
           }
         }
       }
