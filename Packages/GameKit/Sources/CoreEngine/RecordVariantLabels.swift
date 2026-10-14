@@ -62,6 +62,10 @@ public enum RecordVariantLabels {
             return hanafuda(variant, language: language)
         case "shogi":
             return shogi(variant, language: language)
+        case "hanoi":
+            // ハノイの塔（#2003）。キーは `<枚数>disks`（`HanoiModel.recordVariant`）。
+            guard variant.hasSuffix("disks"), let count = Int(variant.dropLast(5)) else { return nil }
+            return tr("円盤%lld枚", count, language: language)
         default:
             return nil
         }

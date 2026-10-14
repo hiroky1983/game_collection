@@ -685,6 +685,28 @@ public extension HowToPlayGuide {
         hintIcon: "hare.fill"
     ) }
 
+    /// ハノイの塔（#2003・企画倉庫）。図は `GameHanoi` 側で `illustrated(_:)` を使って差し込む。
+    static var hanoi: HowToPlayGuide { HowToPlayGuide(
+        gameID: "hanoi",
+        title: tr("ハノイの塔の遊び方"),
+        lines: [
+            tr("柱をタップすると、いちばん上の円盤を取ります。別の柱をタップすると、そこへ置きます。"),
+            tr("大きい円盤は、小さい円盤の上には置けません。"),
+            tr("左の柱の円盤を全部、右の柱へ移したらクリア。最少手数は 3 枚で 7 手、1 枚増えるごとに約 2 倍です。"),
+        ],
+        hint: tr("柱をタップして取り、別の柱に置く"),
+        hintIcon: "square.stack.3d.up.fill",
+        items: [
+            HowToPlayItem(tr("柱をタップして、いちばん上の円盤を取ります。別の柱をタップすると置けます。")),
+            HowToPlayItem(tr("大きい円盤は、小さい円盤の上には置けません。")),
+            HowToPlayItem(tr("円盤を全部、右の柱へ移したらクリアです。")),
+        ],
+        notes: [
+            tr("円盤は 3〜7 枚から選べます。最少手数は 3 枚で 7 手、1 枚増えるごとに約 2 倍です。"),
+            tr("手数が少ないほど良い記録です。クリアまでのタイムも残ります。"),
+        ]
+    ) }
+
     static var homerun: HowToPlayGuide { HowToPlayGuide(
         gameID: "homerun",
         title: tr("柵越えおじさんの遊び方"),
@@ -769,7 +791,7 @@ public extension HowToPlayGuide {
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
-        .homerun, .ojisanPuzzleBackpain,
+        .homerun, .ojisanPuzzleBackpain, .hanoi,
     ] }
 }
 

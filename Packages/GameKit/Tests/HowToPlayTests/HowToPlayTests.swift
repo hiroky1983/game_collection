@@ -57,6 +57,7 @@ import GameSpider
 import GameChess
 import GameBlocks
 import GameOjisanPuzzle
+import GameHanoi
 
 /// ハブに登録されている全ゲーム（= 遊び方ガイドが要るゲーム）。
 @MainActor
@@ -91,6 +92,7 @@ private let registeredModules: [GameModule] = [
     ChessModule(),
     BlocksModule(),
     OjisanPuzzleModule(),
+    HanoiModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
