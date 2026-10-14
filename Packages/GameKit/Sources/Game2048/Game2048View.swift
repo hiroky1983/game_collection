@@ -320,7 +320,7 @@ struct TileView: View {
                     Text("\(value)")
                         .font(.system(size: fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .minimumScaleFactor(0.4)
-                        .foregroundStyle(value <= 4 ? Color(white: 0.35) : .white)
+                        .foregroundStyle(Color(hex: Self.textHex))
                         .padding(2)
                 }
             }
@@ -330,20 +330,26 @@ struct TileView: View {
 
     private var fontSize: CGFloat { value >= 1024 ? size * 0.28 : size * 0.38 }
 
-    private var color: Color {
+    private var color: Color { Color(hex: Self.faceHex(for: value)) }
+
+    /// 文字色（`0xRRGGBB`）。全タイルで濃い茶を使う。明るい橙・黄の面に白文字だと 1.5〜2.6:1 しか出なかった（#2233）。
+    static let textHex: UInt32 = 0x33241A
+
+    /// 面色（`0xRRGGBB`）。文字色とのコントラスト比 4.5:1 以上をテストで固定している。
+    static func faceHex(for value: Int) -> UInt32 {
         switch value {
-        case 0:     return Color(hex: 0xD8C3A2)
-        case 2:     return Color(red: 0.93, green: 0.89, blue: 0.85)
-        case 4:     return Color(red: 0.93, green: 0.88, blue: 0.78)
-        case 8:     return Color(red: 0.95, green: 0.69, blue: 0.47)
-        case 16:    return Color(red: 0.96, green: 0.58, blue: 0.39)
-        case 32:    return Color(red: 0.96, green: 0.49, blue: 0.37)
-        case 64:    return Color(red: 0.96, green: 0.37, blue: 0.23)
-        case 128:   return Color(red: 0.93, green: 0.81, blue: 0.45)
-        case 256:   return Color(red: 0.93, green: 0.80, blue: 0.38)
-        case 512:   return Color(red: 0.93, green: 0.78, blue: 0.31)
-        case 1024:  return Color(red: 0.93, green: 0.77, blue: 0.25)
-        default:    return Color(red: 0.93, green: 0.76, blue: 0.18)
+        case 0:     return 0xD8C3A2
+        case 2:     return 0xEDE3D9
+        case 4:     return 0xEDE0C7
+        case 8:     return 0xF2B078
+        case 16:    return 0xF59463
+        case 32:    return 0xF57D5E
+        case 64:    return 0xF55E3B
+        case 128:   return 0xEDCF73
+        case 256:   return 0xEDCC61
+        case 512:   return 0xEDC74F
+        case 1024:  return 0xEDC440
+        default:    return 0xEDC22E
         }
     }
 }
