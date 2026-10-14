@@ -33,7 +33,7 @@ struct TsunagiModelTests {
         let model = TsunagiModel(services: makeServices(), size: .small, seed: 1)
         #expect(model.size == .small)
         #expect(model.puzzle.side == 5)
-        #expect(model.paths.allSatisfy(\.isEmpty))
+        #expect(model.paths.allSatisfy { $0.isEmpty })
         #expect(model.moves == 0)
         #expect(!model.isSolved)
         #expect(model.filledCount == model.puzzle.pairCount * 2)
@@ -118,7 +118,7 @@ struct TsunagiModelTests {
     func strokeFromEmptyDoesNothing() {
         let model = TsunagiModel(services: makeServices(), puzzle: sample)
         draw(model, [4, 5])
-        #expect(model.paths.allSatisfy(\.isEmpty))
+        #expect(model.paths.allSatisfy { $0.isEmpty })
         #expect(model.moves == 0)
     }
 
@@ -223,7 +223,7 @@ struct TsunagiModelTests {
         #expect(model.size == .large)
         #expect(model.puzzle.side == 7)
         #expect(model.paths.count == model.puzzle.pairCount)
-        #expect(model.paths.allSatisfy(\.isEmpty))
+        #expect(model.paths.allSatisfy { $0.isEmpty })
         #expect(model.moves == 0 && !model.isSolved && model.recordResult == nil)
         draw(model, Array(model.puzzle.solution[0].prefix(2)))
         #expect(model.hasProgressToLose)
