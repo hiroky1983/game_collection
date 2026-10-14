@@ -52,6 +52,8 @@ public enum RecordVariantLabels {
             }
         case "anzan":
             return anzan(variant, language: language)
+        case "akarikeshi":
+            return difficultyWord(variant, language: language)
         case "mahjong4":
             return variant == "singleHand" ? tr("一局戦", language: language) : nil
         case "poker":

@@ -34,7 +34,8 @@ import re
 import sys
 from dataclasses import dataclass, field
 
-JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff\uff01-\uff5e]")
+# U+3000-303F は「、」「。」などの CJK 句読点（読み上げの区切りの直書きを拾う・#2267）。
+JAPANESE = re.compile(r"[\u3000-\u30ff\u4e00-\u9fff\uff01-\uff5e]")
 # 開発者向けの文（ユーザーには出ない）。リテラルの直前（同じ文の中）にこれがあれば数えない。
 DEVELOPER_CALLS = re.compile(
     r"\b(precondition|preconditionFailure|assert|assertionFailure|fatalError|print|debugPrint|dump|"
