@@ -27,6 +27,7 @@ import GameFruits
 import GameColorRelay
 import GameAnzan
 import GameBackgammon
+import GameMancala
 import GameSpeed
 import GameOldMaid
 import GameHomerun
@@ -82,6 +83,7 @@ private let registeredModules: [GameModule] = [
     ColorRelayModule(),
     AnzanModule(),
     BackgammonModule(),
+    MancalaModule(),
     SpeedModule(),
     OldMaidModule(),
     DiceComboModule(),
