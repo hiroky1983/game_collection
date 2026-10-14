@@ -13,6 +13,27 @@ public enum Game2048UndoBudget {
     public static let historyLimit = 100
 }
 
+/// 盤に描くタイル 1 枚（#2253）。`id` を手をまたいで保つので、View は座標をアニメーションさせて滑らせられる。
+public struct Game2048Tile: Identifiable, Equatable, Sendable {
+    /// このタイルが今の位置に来た経緯。View が出方（すぐ出す・滑る・弾む・後から出る）を選ぶ。
+    public enum Arrival: Equatable, Sendable {
+        /// 盤から作り直した（再開・戻す・コンティニュー）。その場に出す。
+        case placed
+        /// 前の手から同じタイルが滑ってきた（動かなかったものも含む）。
+        case slid
+        /// 2 枚が合体してできた。滑り終えてから出て軽く弾む。
+        case merged
+        /// 新しく出現した。滑り終えてから出る。
+        case spawned
+    }
+
+    public let id: Int
+    public let value: Int
+    public let row: Int
+    public let col: Int
+    public let arrival: Arrival
+}
+
 /// 2048 のゲーム状態。盤面・スコア・終局を保持し、永続化サービスへ中断スナップショットを書く。
 /// 純粋ロジックは `Game2048Logic` に委譲し、ここは乱数生成・永続化・終局管理のみ担う。
 @MainActor
@@ -39,6 +60,14 @@ public final class Game2048Model {
     public private(set) var history: [Game2048Step] = []
     /// 今使える「戻す」の回数。新規ゲームで無料枠へ戻り、中断・復元では戻らない。
     public private(set) var undosRemaining = Game2048UndoBudget.free
+
+    /// 盤に描くタイル（#2253）。常に `board` と 1 対 1 で一致する（空きマスは含まない）。
+    public private(set) var tiles: [Game2048Tile] = []
+    /// 直前の手で合体した元の 2 枚。行き先まで滑らせてから消すために、`tiles` とは別に少しのあいだ残す。
+    /// View が滑り終えた後に `settleVanishing(ids:)` で片付ける。次の手・戻す・新しいゲームでも片付く。
+    public private(set) var vanishing: [Game2048Tile] = []
+    /// タイルの通し番号。合体・出現のたびに新しい番号を振り、使い回さない。
+    private var nextTileID = 0
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -78,13 +107,14 @@ public final class Game2048Model {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
             // 初期タイル 2 個。
-            Self.spawn(into: &initialBoard)
-            Self.spawn(into: &initialBoard)
+            _ = Self.spawn(into: &initialBoard)
+            _ = Self.spawn(into: &initialBoard)
             isFreshStart = true
         }
         board = initialBoard
         score = initialScore
         gameOver = Game2048Logic.isGameOver(initialBoard)
+        rebuildTiles(arrival: .placed)
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
@@ -100,6 +130,7 @@ public final class Game2048Model {
         gameOver = Game2048Logic.isGameOver(board)
         // 既に 2048 が乗っている盤から始めたときは到達済みとして扱う（次の合体で演出が出ない）。
         hasWon = Game2048Logic.hasWinningTile(board)
+        rebuildTiles(arrival: .placed)
         persist()
     }
 
@@ -117,11 +148,13 @@ public final class Game2048Model {
         // 戻す先は「この手の前」。出現したタイルも含めた盤とスコアをそのまま控える（#2023）。
         history.append(Game2048Step(board: board, score: score, hasWon: hasWon))
         if history.count > Game2048UndoBudget.historyLimit { history.removeFirst() }
+        let moves = Game2048Logic.moves(board, direction)
         board = result.board
         score += result.gained
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
-        Self.spawn(into: &board)
+        let spawned = Self.spawn(into: &board)
+        applyTileMoves(moves, spawned: spawned)
 
         // この手で初めて 2048 を作ったか（#438）。新タイルは 2 か 4 なので、判定は合体の結果だけを見る。
         let justWon = !hasWon && Game2048Logic.hasWinningTile(board)
@@ -199,6 +232,7 @@ public final class Game2048Model {
         // 最小値のタイルを消して空きマスを確保し、確実に続きを遊べる盤面で再開する。新タイルは置かない
         // （コンティニューは手番ではないうえ、せっかく確保した空きマスを潰して続行手数を削るだけのため）。
         board = Game2048Logic.revive(board)
+        rebuildTiles(arrival: .placed)
         persist()
         // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる。
@@ -228,6 +262,7 @@ public final class Game2048Model {
         undosRemaining -= 1
         board = step.board
         score = step.score
+        rebuildTiles(arrival: .placed)
         if gameOver {
             // 終局から戻る。`continueAfterAd` と同じ理由で、記録した「負け」は無かったことにし、
             // 続きを次の 1 プレイとして数え直す（`game_end` は送信済み）。勝ちで終局した局には取り消す負けが無い（#764）。
@@ -287,8 +322,9 @@ public final class Game2048Model {
         lastFinishWasLoss = false
         history = []
         undosRemaining = Game2048UndoBudget.free
-        Self.spawn(into: &board)
-        Self.spawn(into: &board)
+        _ = Self.spawn(into: &board)
+        _ = Self.spawn(into: &board)
+        rebuildTiles(arrival: .spawned)
         persist()
         services?.gameDidRestart(gameID: gameID)
     }
@@ -308,6 +344,7 @@ public final class Game2048Model {
             // 蛇行順（行ごとに向きを反転）にすることで、上下の行境界でも値が必ず食い違う。
             return r % 2 == 0 ? row : Array(row.reversed())
         }
+        rebuildTiles(arrival: .placed)
         gameOver = true
     }
     #endif
@@ -334,10 +371,84 @@ public final class Game2048Model {
             && board.allSatisfy { $0.count == Game2048Logic.size && $0.allSatisfy { $0 >= 0 } }
     }
 
-    /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。
-    private static func spawn(into board: inout [[Int]]) {
+    /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。置いたマスを返す（空きが無ければ nil）。
+    private static func spawn(into board: inout [[Int]]) -> Game2048Cell? {
         let cells = Game2048Logic.emptyCells(board)
-        guard let cell = cells.randomElement() else { return }
+        guard let cell = cells.randomElement() else { return nil }
         board[cell.row][cell.col] = Int.random(in: 0..<10) == 0 ? 4 : 2
+        return Game2048Cell(row: cell.row, col: cell.col)
+    }
+
+    // MARK: - 描くタイル（#2253）
+
+    /// 合体元の 2 枚を片付ける。View が滑り終えた後に、待ち始めたときの ID を渡して呼ぶ。
+    /// その間に次の手が入って `vanishing` が入れ替わっていたら何もしない（次の手の合体元を途中で消さない）。
+    public func settleVanishing(ids: [Int]) {
+        guard !vanishing.isEmpty, vanishing.map(\.id) == ids else { return }
+        vanishing = []
+    }
+
+    private func makeTile(value: Int, row: Int, col: Int, arrival: Game2048Tile.Arrival) -> Game2048Tile {
+        nextTileID += 1
+        return Game2048Tile(id: nextTileID, value: value, row: row, col: col, arrival: arrival)
+    }
+
+    /// `board` からタイルを作り直す（ID も新しくする）。滑らせる元が無い場面（再開・戻す・新しいゲーム）で使う。
+    private func rebuildTiles(arrival: Game2048Tile.Arrival) {
+        vanishing = []
+        var rebuilt: [Game2048Tile] = []
+        for r in board.indices {
+            for c in board[r].indices where board[r][c] != 0 {
+                rebuilt.append(makeTile(value: board[r][c], row: r, col: c, arrival: arrival))
+            }
+        }
+        tiles = rebuilt
+    }
+
+    /// 1 手ぶんのタイルの動きを反映する。`moves` は手の前の盤から求めたもの、`board` は手の後（出現込み）。
+    /// - 合体しないタイル: ID を保ったまま行き先へ（View が座標をアニメーションして滑らせる）。
+    /// - 合体する 2 枚: ID を保ったまま行き先へ滑らせて `vanishing` に移し、行き先には新しい ID の合体タイルを置く。
+    /// - 出現: 新しい ID で置く。
+    /// 前の手の `vanishing` はここで入れ替わる（連続スワイプで取り残さない）。
+    private func applyTileMoves(_ moves: [Game2048TileMove], spawned: Game2048Cell?) {
+        var byCell: [Game2048Cell: Game2048Tile] = [:]
+        for tile in tiles { byCell[Game2048Cell(row: tile.row, col: tile.col)] = tile }
+
+        var next: [Game2048Tile] = []
+        var gone: [Game2048Tile] = []
+        var mergedAt: [Game2048Cell] = []
+        for move in moves {
+            guard let tile = byCell[move.from] else { continue }
+            let moved = Game2048Tile(id: tile.id, value: tile.value, row: move.to.row, col: move.to.col,
+                                     arrival: .slid)
+            if move.merges {
+                gone.append(moved)
+                if !mergedAt.contains(move.to) { mergedAt.append(move.to) }
+            } else {
+                next.append(moved)
+            }
+        }
+        for cell in mergedAt {
+            next.append(makeTile(value: board[cell.row][cell.col], row: cell.row, col: cell.col, arrival: .merged))
+        }
+        if let spawned {
+            next.append(makeTile(value: board[spawned.row][spawned.col], row: spawned.row, col: spawned.col,
+                                 arrival: .spawned))
+        }
+        tiles = next
+        vanishing = gone
+        // 万一タイルと盤が食い違ったら、取り残しを出さないよう盤から作り直す。
+        if !tilesMatchBoard() { rebuildTiles(arrival: .placed) }
+    }
+
+    /// `tiles` が `board` と 1 対 1 で一致しているか。
+    private func tilesMatchBoard() -> Bool {
+        var drawn = Game2048Logic.emptyBoard()
+        for tile in tiles {
+            guard drawn.indices.contains(tile.row), drawn[tile.row].indices.contains(tile.col),
+                  drawn[tile.row][tile.col] == 0 else { return false }
+            drawn[tile.row][tile.col] = tile.value
+        }
+        return drawn == board
     }
 }
