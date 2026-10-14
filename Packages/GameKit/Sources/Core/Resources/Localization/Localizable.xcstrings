@@ -2272,6 +2272,17 @@
         }
       }
     },
+    "全部の数字をつなぎ、全マスを線で埋めたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect every number and fill every square with lines to clear the puzzle."
+          }
+        }
+      }
+    },
     "出した札のぶん、山札から手札に補充されます。手札も山札も先に出し切ったほうの勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2609,6 +2620,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "When two tiles with the same number collide, they merge into one with double the value."
+          }
+        }
+      }
+    },
+    "同じ数字の点どうしを、指でなぞって線でつなぎます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trace with your finger to connect each pair of matching numbers with a line."
+          }
+        }
+      }
+    },
+    "同じ数字の点を、なぞってつなごう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trace to connect matching numbers"
           }
         }
       }
@@ -3185,6 +3218,17 @@
         }
       }
     },
+    "手数は、別の数字の線に持ち替えた回数です。少ないほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves count each time you switch to a different number's line. Fewer is better."
+          }
+        }
+      }
+    },
     "手札は 5 枚。残したいカードをタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3691,6 +3735,17 @@
         }
       }
     },
+    "盤の大きさは 5×5 と 7×7 から選べます。どの問題も答えは 1 つです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a 5×5 or 7×7 board. Every puzzle has exactly one solution."
+          }
+        }
+      }
+    },
     "盤の球をすべて落とすと 1 ミス。3 回ミスで終わりです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4032,6 +4087,17 @@
         }
       }
     },
+    "線つなぎの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Connect Pairs"
+          }
+        }
+      }
+    },
     "線の交わるところをタップして、交互に石を置きます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4050,6 +4116,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Black and White take turns tapping where the lines cross to place a stone."
+          }
+        }
+      }
+    },
+    "線の途中から触ると、そこから引き直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch the middle of a line to redraw it from there."
+          }
+        }
+      }
+    },
+    "線は交差できません。別の線に触れると、その線はそこで切れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lines can't cross. Touching another line cuts that line at that point."
           }
         }
       }
