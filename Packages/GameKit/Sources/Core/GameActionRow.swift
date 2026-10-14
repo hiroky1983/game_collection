@@ -163,7 +163,7 @@ struct GameActionCapsule: View {
     /// 2 行目の読み上げ。専用の読み上げ文（残り回数まで含む）を渡された項目では重ねて読まない。
     private var accessibilityValue: String {
         guard item.accessibilityLabel == nil else { return "" }
-        return [item.note, item.badge.accessibilityValue].compactMap { $0 }.joined(separator: "、")
+        return [item.note, item.badge.accessibilityValue].compactMap { $0 }.joined(separator: tr("、"))
     }
 }
 

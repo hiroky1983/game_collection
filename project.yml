@@ -104,9 +104,13 @@ targets:
       - package: GameKit
         product: GameOldMaid
       - package: GameKit
+        product: GameAkariKeshi
+      - package: GameKit
         product: GameHomerun
       - package: GameKit
         product: GameOjisanPuzzle
+      - package: GameKit
+        product: GameHearts
       - package: GameKit
         product: GameTsunagi
       - package: GameKit

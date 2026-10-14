@@ -39,6 +39,7 @@ let package = Package(
         .library(name: "GameBackgammon",   targets: ["GameBackgammon"]),
         .library(name: "GameSpeed",        targets: ["GameSpeed"]),
         .library(name: "GameOldMaid",      targets: ["GameOldMaid"]),
+        .library(name: "GameAkariKeshi",   targets: ["GameAkariKeshi"]),
         .library(name: "HomerunCore",      targets: ["HomerunCore"]),
         .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
@@ -46,6 +47,8 @@ let package = Package(
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
         // おじさんの荷物運びパズル（#1016・v1.1.11 でハブに公開 #1904）。
         .library(name: "GameOjisanPuzzle", targets: ["GameOjisanPuzzle"]),
+        // ハーツ（#1884・企画倉庫）。
+        .library(name: "GameHearts",       targets: ["GameHearts"]),
         // 線つなぎ（#2235・企画倉庫）。
         .library(name: "GameTsunagi",      targets: ["GameTsunagi"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
@@ -143,6 +146,10 @@ let package = Package(
         // CPU の手番はいろリレーと同じ `AITurnGuarded` の定石。
         .target(name: "GameOldMaid",        dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
+        // 明かり消しパズル（#1883・企画倉庫）。押したマスと上下左右が入れ替わる 5×5 の盤。盤の規則・問題の逆生成・
+        // 解の数え上げは純粋ロジックで、出題の乱数に CoreEngine の `SplitMix64` を使う。
+        .target(name: "GameAkariKeshi",     dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         // 柵越えおじさんのロジック層（#1348・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積。
         // 画面は `GameHomerun`。`Game` 接頭辞のディレクトリは画面の走査テスト（GameChromeTests）が
         // gameChrome を要求するため、画面を持たないロジック層はこの名前にしている。
@@ -190,6 +197,10 @@ let package = Package(
                             .copy("Resources/OjisanLuggage_3_coolerbox.png"),
                             .copy("Resources/OjisanLuggage_4_polytank.png"),
                             .copy("Resources/OjisanLuggage_5_beercase.png")]),
+        // ハーツ（#1884・企画倉庫）。出せる札・巡の決着・CPU の選択は純粋ロジックで、配りの乱数に CoreEngine の
+        // `SplitMix64` を使う。札の絵は Core のトランプ共通描画（#397）。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
+        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         // 線つなぎ（#2235・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・線の判定は
         // 純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。絵はコード描画だけ（画像を持たない）。
         .target(name: "GameTsunagi",        dependencies: ["Core", "CoreEngine"],
@@ -272,11 +283,13 @@ let package = Package(
         .testTarget(name: "GameBackgammonTests",     dependencies: ["GameBackgammon", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOldMaidTests",        dependencies: ["GameOldMaid", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameAkariKeshiTests",     dependencies: ["GameAkariKeshi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
         .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
         .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameHeartsTests",         dependencies: ["GameHearts", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
@@ -314,7 +327,8 @@ let package = Package(
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
             "GameOldMaid",
-            "GameTsunagi",
+            "GameHearts",
+            "GameTsunagi", "GameAkariKeshi",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
@@ -325,7 +339,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
-            "GameTsunagi",
+            "GameTsunagi", "GameAkariKeshi",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -335,7 +349,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
-            "GameTsunagi",
+            "GameTsunagi", "GameAkariKeshi",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
