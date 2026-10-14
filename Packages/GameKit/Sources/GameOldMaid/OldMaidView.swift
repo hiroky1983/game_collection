@@ -130,7 +130,7 @@ public struct OldMaidView: View {
         let isCurrent = model.phase == .playing && model.currentPlayer == index
         let isTarget = model.humanTarget == index
         let count = model.hands[index].count
-        let action = OldMaidAccessibility.actionText(model.game?.lastActions[index] ?? .none)
+        let action = OldMaidAccessibility.actionText(model.game?.lastActions[index] ?? OldMaidAction.none)
         return VStack(spacing: 4) {
             OldMaidFaceView(face: model.face(of: index), isOut: count == 0 && model.phase != .idle)
                 .frame(width: layout.scaled(34), height: layout.scaled(34))
@@ -510,7 +510,8 @@ struct OldMaidCardFaceView: View {
     let card: OldMaidCard
     var highlighted: Bool
     var size: Size = .small
-    @Environment(\.adaptiveLayout) private var layout
+    // 別ファイル（遊び方の図）からも memberwise init で作るので private にしない。
+    @Environment(\.adaptiveLayout) var layout
 
     private var metrics: PlayingCardMetrics { size.metrics.scaled(by: layout.elementScale) }
 
@@ -533,7 +534,8 @@ struct OldMaidCardFaceView: View {
 /// 伏せた札（相手の手札）。裏はトランプ共通基盤（`PlayingCardBack`）。
 struct OldMaidCardBackView: View {
     var selected: Bool
-    @Environment(\.adaptiveLayout) private var layout
+    // 別ファイル（遊び方の図）からも memberwise init で作るので private にしない。
+    @Environment(\.adaptiveLayout) var layout
 
     private var metrics: PlayingCardMetrics { PlayingCardMetrics.compact.scaled(by: layout.elementScale) }
 
@@ -621,7 +623,6 @@ struct OldMaidFaceView: View {
             }
         }
         .opacity(isOut ? 0.35 : 1)
-        .accessibilityHidden(true)
     }
 }
 

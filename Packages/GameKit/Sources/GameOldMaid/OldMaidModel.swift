@@ -55,8 +55,8 @@ public final class OldMaidModel: AITurnGuarded {
     private let services: GameServices?
     let gameID = OldMaidModel.gameID
     private let cpuDelay: Duration
-    /// 配り・CPU の引き方・混ぜ方の乱数。種を渡すと再現できる（テスト用）。
-    private var generator: SplitMix64
+    /// 配り・CPU の引き方・混ぜ方の乱数。種を渡すと再現できる（テスト用）。画面の再描画には関わらない。
+    @ObservationIgnored private var generator: SplitMix64
     /// CPU の連続手番が二重に走らないようにする門番。テストが同期ゲートに使うので `internal`。
     var isRunningCPUTurns = false
 
