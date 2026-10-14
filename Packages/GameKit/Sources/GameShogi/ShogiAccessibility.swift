@@ -58,7 +58,7 @@ public enum ShogiAccessibility {
 
     /// 読み上げの区切り。日本語は読点、英語はカンマ。
     private static func separator(_ language: AppLanguage) -> String {
-        language == .english ? ", " : "、"
+        language == .english ? ", " : "、"  // i18n-keep: 読み上げの区切り（日本語のとき）。英語は直前の分岐で「, 」
     }
 
     /// 盤上 1 マスの読み上げ文。
