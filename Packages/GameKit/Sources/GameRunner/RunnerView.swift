@@ -438,7 +438,7 @@ public struct RunnerView: View {
             panel(title: tr("ミス！"), face: resultFace, faceScale: faceScale) {
                 // 何でミスしたかを 1 行で添える（#1755）。原因はミスの瞬間に判定済み。
                 if let cause = model.field.lastMissCause {
-                    Text(Self.missCauseText(cause))
+                    Text(Self.missText(cause: cause, object: model.field.lastMissObject, world: missWorld))
                         .themeBody(15, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
@@ -731,6 +731,68 @@ public struct RunnerView: View {
                 content()
             }
             .padding(20)
+        }
+    }
+
+    /// ミスしたコースの世界。ステージ 0（QA 用ショーケース）は朝の下町（`RunnerScene` と同じ倒し方）。
+    private var missWorld: RunnerWorld {
+        let number = model.field.stage.number
+        return number == 0 ? .morning : RunnerWorld.world(forStage: number)
+    }
+
+    /// ミスの 1 行（#2254）。当たった相手が分かるときは**その世界での見た目**に合わせた名前で言う
+    ///（港町の「イノシシ」の枠はフォークリフトなので「動物」とは言わない）。
+    /// 相手が無い原因（穴・沈む床）は `missCauseText` のまま。
+    static func missText(cause: AnalyticsEndCause, object: RunnerMissObject?, world: RunnerWorld) -> String {
+        guard let object else { return missCauseText(cause) }
+        let dressing = world.dressing
+        switch object {
+        case .platformFace:
+            switch dressing.platform {
+            case .scaffold: return tr("足場にぶつかった")
+            case .strawStack: return tr("わら積みにぶつかった")
+            case .crateStack: return tr("木箱にぶつかった")
+            }
+        case .hazard(let kind):
+            switch kind {
+            case .pit: return missCauseText(.pit)
+            case .bird: return missCauseText(.bird)
+            case .lowBlock: return blockText(dressing.lowBlock)
+            case .tallBlock: return blockText(dressing.tallBlock)
+            case .dog:
+                switch dressing.dog {
+                case .dog: return tr("犬にぶつかった")
+                case .cat: return tr("猫にぶつかった")
+                case .deer: return tr("鹿にぶつかった")
+                case .monkey: return tr("サルにぶつかった")
+                }
+            case .boar:
+                switch dressing.boar {
+                case .boar: return tr("イノシシにぶつかった")
+                case .forklift: return tr("フォークリフトにぶつかった")
+                }
+            case .shoot, .geyser:
+                switch dressing.shoot {
+                case .bambooShoot: return tr("竹の子にぶつかった")
+                case .seaSpray: return tr("波しぶきにぶつかった")
+                case .steamColumn: return tr("湯柱にぶつかった")
+                }
+            case .wall:
+                switch dressing.wall {
+                case .stoneWall: return tr("石垣にぶつかった")
+                case .containerStack: return tr("コンテナにぶつかった")
+                }
+            }
+        }
+    }
+
+    private static func blockText(_ block: RunnerWorld.Dressing.Block) -> String {
+        switch block {
+        case .boulder: return tr("岩にぶつかった")
+        case .stump: return tr("切り株にぶつかった")
+        case .ropeCoil: return tr("ロープにぶつかった")
+        case .drum: return tr("ドラム缶にぶつかった")
+        case .yuoke: return tr("湯桶にぶつかった")
         }
     }
 

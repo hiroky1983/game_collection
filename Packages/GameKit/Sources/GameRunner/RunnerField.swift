@@ -167,6 +167,10 @@ public struct RunnerField: Equatable, Sendable {
     /// 直近のミスの原因（#796）。`.fell` / `.crashed` を返した瞬間に決まり、解析の `game_end` の
     /// `cause` に載る。台座の正面（`isHittingPlatformFace`）は岩と同じ扱い。ミスするまで nil。
     public private(set) var lastMissCause: AnalyticsEndCause?
+    /// 直近のミスで当たった相手（#2254）。`lastMissCause` は解析の語彙（動物・岩…）に閉じているが、
+    /// ミスパネルの 1 行は世界ごとの着せ替え（港町のフォークリフトなど）に合わせて出すので種類が要る。
+    /// 穴・沈む床は相手が無いので nil。
+    public private(set) var lastMissObject: RunnerMissObject?
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
     ///
     /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
@@ -474,6 +478,7 @@ public struct RunnerField: Equatable, Sendable {
         // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
         self.jumpStartDistance = self.isGrounded ? nil : distance
         self.lastMissCause = nil
+        self.lastMissObject = nil
         self.sinkProgress = 0
         advanceTrack()
     }
@@ -605,11 +610,13 @@ public struct RunnerField: Equatable, Sendable {
         if !isInvincible {
             if let hit = hittingHazard {
                 lastMissCause = hit.kind.missCause
+                lastMissObject = .hazard(hit.kind)
                 events.append(.crashed)
                 return
             }
             if isHittingPlatformFace {
                 lastMissCause = .rock
+                lastMissObject = .platformFace
                 events.append(.crashed)
                 return
             }
