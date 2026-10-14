@@ -37,7 +37,7 @@ struct HubView: View {
     @State private var hiddenNotice: HiddenNotice?
     /// 柵越えおじさんの今日の残り回数（横長タイルの右下・#2208）。数え方は `HomerunHubCount`（打席前と同じ台帳）。
     /// ゲームから戻ったとき・前面に戻ったとき・ハブを開いたまま 0:00 を越えたときに読み直す。
-    @State private var homerunRemaining = HomerunHubCount.remaining()
+    @State private var homerunTally = HomerunHubCount.tally()
 
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
@@ -333,14 +333,14 @@ struct HubView: View {
                 while !Task.isCancelled {
                     let wait = HomerunHubCount.nextReset(after: Date()).timeIntervalSinceNow + 1
                     do { try await Task.sleep(for: .seconds(max(1, wait))) } catch { return }
-                    homerunRemaining = HomerunHubCount.remaining()
+                    homerunTally = HomerunHubCount.tally()
                 }
             }
             // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
             // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
             .onChange(of: scenePhase) { _, phase in
                 // 日付をまたいで戻った回数を、前面に戻ったハブで出し直す（#2208）。
-                if phase == .active { homerunRemaining = HomerunHubCount.remaining() }
+                if phase == .active { homerunTally = HomerunHubCount.tally() }
                 guard let current = path.last else { return }
                 switch phase {
                 case .background: services.gameDidEnterBackground(gameID: current.gameID)
@@ -355,7 +355,7 @@ struct HubView: View {
                 if !oldPath.isEmpty, newPath.isEmpty, let left = oldPath.last {
                     services.gameDidLeave(gameID: left.gameID)
                     // ハブに戻ったら柵越えおじさんの残り回数を読み直す（遊んだ分・0:00 の補充・#2208）。
-                    homerunRemaining = HomerunHubCount.remaining()
+                    homerunTally = HomerunHubCount.tally()
                 }
                 // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
                 // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
@@ -620,8 +620,8 @@ struct HubView: View {
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 wide: wide,
-                // 柵越えおじさんの横長タイルだけ、右下に今日の残り回数（#2208）。
-                countLabel: module.id == Self.heroGameID ? HomerunHubCount.labelText(remaining: homerunRemaining) : nil
+                // 柵越えおじさんの横長タイルだけ、右下に今日の残り回数（#2208。ボールの絵は #2273）。
+                count: module.id == Self.heroGameID ? homerunTally : nil
             )
         }
         // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
@@ -713,8 +713,9 @@ private struct GameCard: View {
     let isNew: Bool
     /// グリッドの全列ぶちぬきの横長タイル（柵越えおじさんだけ・#2184）。画像は iPhone 用（2 列ぶん）と iPad 用（4 列ぶん）。
     var wide = false
-    /// 右下に出す残り回数（柵越えおじさんだけ・#2208）。「続きから」「NEW」と同じ部品で出す。
-    var countLabel: String?
+    /// 右下に出す今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
+    /// 「続きから」「NEW」と同じ部品（`badgeCapsule`）・同じ大きさで出す。読み上げは「残り n 回」。
+    var count: HomerunHubCount.Tally?
 
     @Environment(\.adaptiveLayout) private var layout
 
@@ -740,8 +741,8 @@ private struct GameCard: View {
                 badge.padding(layout.scaled(10))
             }
             .overlay(alignment: .bottomTrailing) {
-                if let countLabel {
-                    badgeCapsule(countLabel).padding(layout.scaled(10))
+                if let count {
+                    badgeCapsule(ballsText(count), fill: Self.ballBadgeFill).padding(layout.scaled(10))
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
@@ -785,21 +786,46 @@ private struct GameCard: View {
     }
 
     /// モック 01 の `.badge`（白 92% の地に、そのゲームの下線と同じ色の太字）。
+    /// 文字は会長 QA（#2273）で 11pt → 14pt に上げた。「続きから」「NEW」「残り回数のボール」はすべてこの 1 つの部品で、
+    /// 同じ文字の大きさ・同じ余白なので高さもそろう。
     private func badgeCapsule(_ label: String) -> some View {
-        Text(label)
-            .themeCaption(layout.scaled(11), weight: .heavy, maxScale: 1.3)
-            .foregroundStyle(HubTileStyle.textAccent(for: module.id))
-            .padding(.horizontal, layout.scaled(9))
-            .padding(.vertical, layout.scaled(4))
-            .background(Capsule().fill(Color.white.opacity(0.92)))
+        badgeCapsule(Text(label).foregroundStyle(HubTileStyle.textAccent(for: module.id)), fill: Color.white.opacity(0.92))
+    }
+
+    private func badgeCapsule(_ label: Text, fill: Color) -> some View {
+        label
+            .themeCaption(layout.scaled(14), weight: .heavy, maxScale: 1.3)
+            .padding(.horizontal, layout.scaled(11))
+            .padding(.vertical, layout.scaled(5))
+            .background(Capsule().fill(fill))
             .fixedSize()
+    }
+
+    /// 残り回数のボールの地。白いボールが絵の上でも見えるよう、ほかのラベルの白い地の代わりに暗い地にする。
+    private static let ballBadgeFill = Color.black.opacity(0.55)
+    /// 使った分のボール（灰色）。
+    private static let usedBall = Color(white: 0.45)
+
+    /// ボールを上限ぶん並べた 1 行の文字（SF Symbols を文字に埋めるので、ほかのラベルと同じ書体の大きさ・行の高さになる）。
+    /// 上限が多すぎて並ばないとき（6 以上）は、打席前のボタンと同じくボール 1 つ＋「×残り」。
+    private func ballsText(_ count: HomerunHubCount.Tally) -> Text {
+        func ball(_ lit: Bool) -> Text {
+            Text(Image(systemName: "baseball.fill")).foregroundStyle(lit ? Color.white : Self.usedBall)
+        }
+        guard let dots = count.dots else {
+            return ball(count.remaining > 0) + Text(verbatim: " ×\(max(0, count.remaining))")
+                .foregroundStyle(count.remaining > 0 ? Color.white : Self.usedBall)
+        }
+        return (0..<dots.total).reduce(Text(verbatim: "")) { text, i in
+            text + (i == 0 ? Text(verbatim: "") : Text(verbatim: " ")) + ball(i < dots.lit)
+        }
     }
 
     private var accessibilityLabel: String {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
-        if let countLabel { parts.append(countLabel) }
+        if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
     }
 }

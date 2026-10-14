@@ -72,4 +72,23 @@ struct HomerunHubCountTests {
         #expect(HomerunHubCount.remaining(now: date(13, hour: 0), defaults: d, calendar: calendar)
                 == HomerunLedger.freePerDay)
     }
+    @Test("ボールの並び（#2273）: 上限ぶん並べ、残りだけ白。上限が 6 以上なら数字で出す")
+    func tallyDots() {
+        let d = defaults()
+        let today = HomerunLedger.dayKey(for: date(13), calendar: calendar)
+        HomerunStorage.saveLedger(HomerunLedger(dayKey: today, used: 1), d)
+        let tally = HomerunHubCount.tally(now: date(13), defaults: d, calendar: calendar)
+        #expect(tally == HomerunHubCount.Tally(remaining: 2, allowance: 3))
+        #expect(tally.dots?.total == 3)
+        #expect(tally.dots?.lit == 2)
+        #expect(tally.labelText(language: .japanese) == "残り 2 回")
+
+        HomerunStorage.saveLedger(HomerunLedger(dayKey: today, used: 3, bonus: 1), d)
+        let bonus = HomerunHubCount.tally(now: date(13), defaults: d, calendar: calendar)
+        #expect(bonus.dots?.total == 4)
+        #expect(bonus.dots?.lit == 1)
+
+        #expect(HomerunHubCount.Tally(remaining: 0, allowance: 3).dots?.lit == 0)
+        #expect(HomerunHubCount.Tally(remaining: 4, allowance: 6).dots == nil)
+    }
 }

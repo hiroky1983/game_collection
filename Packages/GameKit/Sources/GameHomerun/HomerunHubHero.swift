@@ -51,6 +51,38 @@ public enum HomerunHubCount {
         HomerunReturnPolicy.nextReset(after: now, calendar: calendar)
     }
 
+    /// 今日の残り回数と 1 日の上限（無料 3 回＋月のご褒美）。ハブはボールを上限ぶん並べ、残りだけを白くする（#2273）。
+    public struct Tally: Equatable, Sendable {
+        public var remaining: Int
+        public var allowance: Int
+
+        public init(remaining: Int, allowance: Int) {
+            self.remaining = remaining
+            self.allowance = allowance
+        }
+
+        /// ボールの並べ方。上限ぶん並べて先頭 `lit` 個を残り（白）にする。上限が多すぎて並ばないとき
+        /// （打席前の `HomerunCountMeter` と同じ 6 個以上）は nil で、呼び出し側はボール 1 つ＋「×残り」で出す。
+        public var dots: (total: Int, lit: Int)? {
+            switch HomerunCountDisplay(allowance: allowance, remaining: remaining) {
+            case .dots(let total, let lit): return (total, min(lit, total))
+            case .number: return nil
+            }
+        }
+
+        /// VoiceOver で読む数（今までどおり「残り n 回」）。
+        public func labelText(language: AppLanguage? = nil) -> String {
+            HomerunHubCount.labelText(remaining: remaining, language: language)
+        }
+    }
+
+    /// 保存された台帳を `now` の日付へ進めたときの残り回数と上限。
+    public static func tally(now: Date = Date(), defaults: UserDefaults = .standard,
+                             calendar: Calendar = .current) -> Tally {
+        let ledger = todayLedger(now: now, defaults: defaults, calendar: calendar)
+        return Tally(remaining: ledger.remaining, allowance: ledger.allowance)
+    }
+
     /// ラベルの文字。0 回も隠さず「残り 0 回」（打席前のボタンも 0 を消さずに灰色のボールで見せる）。広告の案内は付けない。
     public static func labelText(remaining: Int, language: AppLanguage? = nil) -> String {
         tr("残り %lld 回", max(0, remaining), language: language)
