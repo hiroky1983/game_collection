@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%1$@%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%1$lld/%2$lld手" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -102,6 +113,17 @@
         }
       }
     },
+    "1 巡目はハートとスペードの Q を出せません（それしか無いときは出せます）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hearts and the queen of spades can't be played on the first trick (unless you have nothing else)."
+          }
+        }
+      }
+    },
     "1 枚引いて 1 枚切ります。切る牌はタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -131,6 +153,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "10, J, Q and K are all worth 10, so any two of them can be split."
+          }
+        }
+      }
+    },
+    "13 枚ずつ配られます。まず 3 枚を選んで、左どなりへ渡します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone gets 13 cards. First, choose 3 cards to pass to the player on your left."
           }
         }
       }
@@ -366,6 +399,17 @@
         }
       }
     },
+    "CPU の強さは、右上の「新規対局」で選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the CPU strength from \"New Game\" at the top right."
+          }
+        }
+      }
+    },
     "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（かんたん4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。「とことん」はノルマが無く、札が尽きるまで続きます（取った場所には山札から新しい札が出ます）。全部の札を取りきればパーフェクトで勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -473,6 +517,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Build each of ♠♥♦♣ from A to K on the foundations to win. All 52 cards are face up from the start."
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
           }
         }
       }
@@ -1034,6 +1089,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Egg"
+          }
+        }
+      }
+    },
+    "だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when someone reaches 50 points. The lowest total wins."
           }
         }
       }
@@ -1854,6 +1920,39 @@
         }
       }
     },
+    "ハーツの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Hearts"
+          }
+        }
+      }
+    },
+    "ハートとスペードのQを取らないように" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avoid taking hearts and the queen of spades"
+          }
+        }
+      }
+    },
+    "ハートは、だれかが場に出すまで先頭に出せません（手札がハートだけなら出せます）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hearts can't be led until someone has played one (unless your hand is all hearts)."
+          }
+        }
+      }
+    },
     "バックギャモンの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2048,6 +2147,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap a square to open it. A number shows how many mines are in the 8 squares around it."
+          }
+        }
+      }
+    },
+    "マスを押すと、そのマスと上下左右の明かりが入れ替わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapping a tile flips its lamp and the lamps above, below, left and right."
+          }
+        }
+      }
+    },
+    "マスを押すと、そのマスと上下左右の明かりが入れ替わります（点いていれば消え、消えていれば点く）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapping a tile flips its lamp and the lamps above, below, left and right (lit ones go off, off ones light up)."
           }
         }
       }
@@ -2448,6 +2569,17 @@
         }
       }
     },
+    "取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど良い。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each heart you take is 1 point and the queen of spades is 13. Fewer points is better."
+          }
+        }
+      }
+    },
     "取れるのは、上に牌が乗っておらず、左右どちらかが空いている牌だけです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2510,6 +2642,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Go for the longest total distance. You get 3 rounds a day; one is used as soon as you step up to bat (they reset at 0:00)."
+          }
+        }
+      }
+    },
+    "同じスートが無いときは、どの札でも出せます。点の札を押し付けるチャンス。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you can't follow suit, you can play any card. A chance to dump point cards."
           }
         }
       }
@@ -3273,6 +3416,28 @@
         }
       }
     },
+    "押すと上下左右も入れ替わる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tap flips its neighbors too"
+          }
+        }
+      }
+    },
+    "押す順番は関係ありません。同じマスを 2 回押すと元に戻ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The order of taps doesn't matter. Tapping the same tile twice undoes it."
+          }
+        }
+      }
+    },
     "指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3394,6 +3559,61 @@
         }
       }
     },
+    "明かりをぜんぶ消したらクリア。最短の手数に近いほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn every lamp off to clear. The closer to the fewest possible moves, the better."
+          }
+        }
+      }
+    },
+    "明かりをぜんぶ消したらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn every lamp off to clear."
+          }
+        }
+      }
+    },
+    "明かり消しパズルの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Lamps Off Puzzle"
+          }
+        }
+      }
+    },
+    "最初に出たスートで数字がいちばん大きい人が 4 枚を取ります。ハートは 1 点、スペードの Q は 13 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The highest card of the suit led takes all 4 cards. Each heart is 1 point and the queen of spades is 13."
+          }
+        }
+      }
+    },
+    "最初に出たスートで数字がいちばん大きい人が、4 枚を取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The highest card of the suit led takes all 4 cards."
+          }
+        }
+      }
+    },
     "最初の 2 枚が同じ点数なら、2 手に分ける「スプリット」もできます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3412,6 +3632,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "On your first 2 cards you can also “Double Down”: double your bet and draw just one more card."
+          }
+        }
+      }
+    },
+    "最初はクラブの 2 から。出された札と同じスートを、順に 1 枚ずつ出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the 2 of clubs. In turn, each player plays one card of the suit that was led."
           }
         }
       }
@@ -3720,6 +3951,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Losing all your balls costs a life. The game ends after 3."
+          }
+        }
+      }
+    },
+    "盤の端や角では、盤の中にある隣だけが入れ替わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On edges and corners, only the neighbors inside the board flip."
           }
         }
       }
@@ -4417,6 +4659,17 @@
         }
       }
     },
+    "配られた 13 枚から 3 枚を左どなりへ渡し、クラブの 2 から順に 1 枚ずつ出します。出された札と同じスートがあれば必ず出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass 3 of your 13 cards to the left, then play one card each in turn, starting with the 2 of clubs. You must follow the suit that was led if you can."
+          }
+        }
+      }
+    },
     "配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4446,6 +4699,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "難易度は 3 段階で、最短の手数（4・7・10 手）が変わります。少ない手数ほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 3 difficulties with different fewest possible moves (4, 7 and 10). Fewer moves make a better record."
           }
         }
       }

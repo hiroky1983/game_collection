@@ -405,7 +405,7 @@ public struct SpeedView: View {
 
     private func resultRow(_ name: String, remaining: Int, isWinner: Bool) -> some View {
         HStack(spacing: 8) {
-            Text(isWinner ? tr("勝ち") : "　")
+            Text(isWinner ? tr("勝ち") : "　")  // i18n-keep: 行の高さをそろえる全角空白（文字としては読まれない）
                 .scaledFont(12, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .frame(width: 44)

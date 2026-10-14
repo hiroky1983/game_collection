@@ -34,7 +34,7 @@ struct GameSetupSheetSourceTests {
         }
     }
 
-    /// 開始シートを出す全 20 本（#1415。麻雀ソリティアは 2026-09-28、おじさんの荷物運びパズルは #1920 で追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
+    /// 開始シートを出す全 21 本（#1415。麻雀ソリティアは 2026-09-28、おじさんの荷物運びパズルは #1920、明かり消しパズルは #1883 で追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
     private static let allSheets: [(path: String, kind: String)] = [
         ("GameChess/ChessView.swift", ".versus"),
         ("GameShogi/ShogiView.swift", ".versus"),
@@ -50,6 +50,7 @@ struct GameSetupSheetSourceTests {
         ("GameMinesweeper/MinesweeperView.swift", ".solo"),
         ("GameSudoku/SudokuView.swift", ".solo"),
         ("GameAnzan/AnzanView.swift", ".solo"),
+        ("GameAkariKeshi/AkariKeshiView.swift", ".solo"),
         ("GameSpider/SpiderView.swift", ".solo"),
         ("GameRunner/RunnerStartSheet.swift", ".solo"),
         ("GameMahjong/MahjongStartSheet.swift", ".versus"),
@@ -57,6 +58,7 @@ struct GameSetupSheetSourceTests {
         ("GameSolitaire/SolitaireSetupSheet.swift", ".solo"),
         ("GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift", ".solo"),
         ("GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift", ".solo"),
+        ("GameHearts/HeartsView.swift", ".versus"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。

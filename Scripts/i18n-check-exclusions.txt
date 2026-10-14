@@ -12,12 +12,9 @@
 # --- 訳さない ---
 keep Packages/GameKit/Sources/MahjongTiles/MahjongTileGallery.swift DEBUG専用の牌の一覧（-showMahjongTiles）
 
-# --- 担当中（2026-10-12 時点） ---
-# 多言語④: 柵越えおじさん・チャリンコおじさん
-in-progress Packages/GameKit/Sources/GameHomerun/* #2167 柵越えおじさん
-in-progress Packages/GameKit/Sources/HomerunCore/* #2167 柵越えおじさん
-in-progress Packages/GameKit/Sources/GameRunner/* #2167 チャリンコおじさん
+# --- 担当中 ---
 # 遊び方（HowToPlay.swift・*HowToFigures.swift・Rule*.swift）は多言語②（#2165）で英語化済み。
 # #2044 の束3〜5 で書き直す文は、同じ PR で英訳も入れる（ここに除外を足さない）。
-# ハブ（#1831 の刷新・当番）
-in-progress App/Hub*.swift #1831 ハブ
+# 柵越えおじさん・チャリンコおじさん（#2167）とハブ（#1831）はクローズ済みのため除外を外した（#2267）。
+# 将棋の指し手（KIF 表記）と駒の文字は会長決定（#2267・2026-10-15）で翻訳対象外。ソース側は
+# 文字列リテラルではなく KIF.notation の出力なので、このスクリプトには掛からない。

@@ -44,22 +44,22 @@ final class RunnerScene: SKScene {
     private let riderTextures = RunnerScene.makeRiderTextures()
     /// たこ焼き（#956）のテクスチャ。走者と同じく起動時に 1 回だけ作り、面ごとの `addTakoyaki` は
     /// これを貼るだけ（毎面 `CGImage` を起こさない）。
-    let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
+    let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     /// ゴールに浮かべる宝くじ（#1092）のテクスチャ。全ステージで同じ 1 枚。
-    let lotteryTicketTexture = RunnerScene.makeTexture(RunnerPixelArt.lotteryTicket(), name: "宝くじ")
+    let lotteryTicketTexture = RunnerScene.makeTexture(RunnerPixelArt.lotteryTicket(), name: "宝くじ")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）で、
     /// 港町では絵ごと猫・フォークリフトに着せ替わる（`RunnerWorld.Dressing`・#1009）ので、
     /// 全世界（5 つ）× 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
     /// 貼るだけ（毎面 `CGImage` を起こさない）。
-    let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.walker($0, world: $1) }
-    let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.charger($0, world: $1) }
+    let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.walker($0, world: $1) }  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+    let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.charger($0, world: $1) }  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     /// 岩の枠の着せ替え（切り株・ロープの束・ドラム缶・#1009）のテクスチャ。色は世界によらないので
     /// 1 枚ずつ起動時に作る。岩塊（`makeRock`）は図形のままなのでテクスチャは無い。
     let blockTextures: [RunnerWorld.Dressing.Block: SKTexture] = [
-        .stump: RunnerScene.makeTexture(RunnerPixelArt.stump(), name: "切り株"),
-        .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),
-        .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),
-        .yuoke: RunnerScene.makeTexture(RunnerPixelArt.yuoke(), name: "湯桶"),
+        .stump: RunnerScene.makeTexture(RunnerPixelArt.stump(), name: "切り株"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .yuoke: RunnerScene.makeTexture(RunnerPixelArt.yuoke(), name: "湯桶"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     ]
     /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
     ///
@@ -73,7 +73,7 @@ final class RunnerScene: SKScene {
     /// ——`RunnerPixelArt.shootArt(for:)` に着せ替えをそのまま渡すだけ。
     func shootTexture(_ style: RunnerWorld.Dressing.Shoot) -> SKTexture {
         if let cached = shootTextureCache[style] { return cached }
-        let texture = Self.makeTexture(RunnerPixelArt.shootArt(for: style), name: "突き上げ \(style)")
+        let texture = Self.makeTexture(RunnerPixelArt.shootArt(for: style), name: "突き上げ \(style)")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         shootTextureCache[style] = texture
         return texture
     }
@@ -81,7 +81,7 @@ final class RunnerScene: SKScene {
     /// 突き上げの予告（土の塚・泡）の絵。初回だけ作る。
     func shootCueTexture(_ style: RunnerWorld.Dressing.Shoot) -> SKTexture {
         if let cached = shootCueTextureCache[style] { return cached }
-        let texture = Self.makeTexture(RunnerPixelArt.shootCueArt(for: style), name: "突き上げの予告 \(style)")
+        let texture = Self.makeTexture(RunnerPixelArt.shootCueArt(for: style), name: "突き上げの予告 \(style)")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         shootCueTextureCache[style] = texture
         return texture
     }
@@ -102,7 +102,7 @@ final class RunnerScene: SKScene {
     /// ——`RunnerPixelArt.wallArt(for:)` に着せ替えをそのまま渡すだけ。
     func wallTexture(_ style: RunnerWorld.Dressing.Wall) -> SKTexture {
         if let cached = wallTextureCache[style] { return cached }
-        let texture = Self.makeTexture(RunnerPixelArt.wallArt(for: style), name: "高い塀 \(style)")
+        let texture = Self.makeTexture(RunnerPixelArt.wallArt(for: style), name: "高い塀 \(style)")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         wallTextureCache[style] = texture
         return texture
     }
@@ -313,7 +313,7 @@ final class RunnerScene: SKScene {
     private static func makeRiderTextures() -> [OjisanPixel.RiderFrame: SKTexture] {
         var textures: [OjisanPixel.RiderFrame: SKTexture] = [:]
         for frame in OjisanPixel.RiderFrame.allCases {
-            textures[frame] = makeTexture(OjisanPixel.rider(frame), name: "走者のコマ \(frame)")
+            textures[frame] = makeTexture(OjisanPixel.rider(frame), name: "走者のコマ \(frame)")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         }
         return textures
     }
@@ -327,7 +327,7 @@ final class RunnerScene: SKScene {
         var textures: [RunnerWorld: [SKTexture]] = [:]
         for world in RunnerWorld.allCases {
             textures[world] = RunnerPixelArt.WalkFrame.allCases.map { frame in
-                makeTexture(sprite(frame, world), name: "\(name)のコマ \(frame)（\(world)）")
+                makeTexture(sprite(frame, world), name: "\(name)のコマ \(frame)（\(world)）")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
             }
         }
         return textures
