@@ -45,6 +45,8 @@ let package = Package(
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
         // おじさんの荷物運びパズル（#1016・v1.1.11 でハブに公開 #1904）。
         .library(name: "GameOjisanPuzzle", targets: ["GameOjisanPuzzle"]),
+        // ハーツ（#1884・企画倉庫）。
+        .library(name: "GameHearts",       targets: ["GameHearts"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -182,6 +184,10 @@ let package = Package(
                             .copy("Resources/OjisanLuggage_3_coolerbox.png"),
                             .copy("Resources/OjisanLuggage_4_polytank.png"),
                             .copy("Resources/OjisanLuggage_5_beercase.png")]),
+        // ハーツ（#1884・企画倉庫）。出せる札・巡の決着・CPU の選択は純粋ロジックで、配りの乱数に CoreEngine の
+        // `SplitMix64` を使う。札の絵は Core のトランプ共通描画（#397）。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
+        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -264,6 +270,7 @@ let package = Package(
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
         .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameHeartsTests",         dependencies: ["GameHearts", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -299,6 +306,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
+            "GameHearts",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。

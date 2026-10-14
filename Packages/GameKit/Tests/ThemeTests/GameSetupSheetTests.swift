@@ -56,6 +56,7 @@ struct GameSetupSheetSourceTests {
         ("GameSolitaire/SolitaireSetupSheet.swift", ".solo"),
         ("GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift", ".solo"),
         ("GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift", ".solo"),
+        ("GameHearts/HeartsView.swift", ".versus"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。

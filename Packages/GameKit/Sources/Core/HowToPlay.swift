@@ -685,6 +685,32 @@ public extension HowToPlayGuide {
         hintIcon: "hare.fill"
     ) }
 
+    /// ハーツ（Issue #1884・企画倉庫）。図は `GameHearts` 側で `illustrated(_:)` を使って差し込む。
+    static var hearts: HowToPlayGuide { HowToPlayGuide(
+        gameID: "hearts",
+        title: tr("ハーツの遊び方"),
+        lines: [
+            tr("配られた 13 枚から 3 枚を左どなりへ渡し、クラブの 2 から順に 1 枚ずつ出します。出された札と同じスートがあれば必ず出します。"),
+            tr("最初に出たスートで数字がいちばん大きい人が 4 枚を取ります。ハートは 1 点、スペードの Q は 13 点です。"),
+            tr("だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。"),
+        ],
+        hint: tr("ハートとスペードのQを取らないように"),
+        hintIcon: "suit.heart.fill",
+        items: [
+            HowToPlayItem(tr("13 枚ずつ配られます。まず 3 枚を選んで、左どなりへ渡します。")),
+            HowToPlayItem(tr("最初はクラブの 2 から。出された札と同じスートを、順に 1 枚ずつ出します。")),
+            HowToPlayItem(tr("最初に出たスートで数字がいちばん大きい人が、4 枚を取ります。")),
+            HowToPlayItem(tr("取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど良い。")),
+            HowToPlayItem(tr("同じスートが無いときは、どの札でも出せます。点の札を押し付けるチャンス。")),
+            HowToPlayItem(tr("だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。")),
+        ],
+        notes: [
+            tr("ハートは、だれかが場に出すまで先頭に出せません（手札がハートだけなら出せます）。"),
+            tr("1 巡目はハートとスペードの Q を出せません（それしか無いときは出せます）。"),
+            tr("CPU の強さは、右上の「新規対局」で選べます。"),
+        ]
+    ) }
+
     static var homerun: HowToPlayGuide { HowToPlayGuide(
         gameID: "homerun",
         title: tr("柵越えおじさんの遊び方"),
@@ -770,6 +796,7 @@ public extension HowToPlayGuide {
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .homerun, .ojisanPuzzleBackpain,
+        .hearts,
     ] }
 }
 
