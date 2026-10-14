@@ -31,6 +31,7 @@ import GameBackgammon
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
+import GameAkariKeshi
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -284,6 +285,10 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
+        // 明かり消しパズル（企画倉庫・#1883）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`categories` に "akarikeshi": .puzzleOther を、
+        // `web/app/lib/games.ts` にも同じ順で足す。
+        // AkariKeshiModule(),
         // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告）・
         // 解析・Game Center への送信まで入っている。
         HomerunModule(),

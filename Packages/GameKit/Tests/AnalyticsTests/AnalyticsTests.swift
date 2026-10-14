@@ -24,6 +24,7 @@ import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
+import GameAkariKeshi
 import GameBackgammon
 import GameSpeed
 import GameHomerun
@@ -72,6 +73,7 @@ private func makeHubGameIDs() -> Set<String> {
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        AkariKeshiModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
