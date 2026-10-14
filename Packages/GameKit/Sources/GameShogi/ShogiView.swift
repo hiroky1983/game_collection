@@ -489,7 +489,7 @@ public struct ShogiView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 // 駒落ちは手合いを添える（平手は従来どおり手数だけ）。
-                Text(model.matchSetting.displayName.map { "\($0)・" + tr("%lld手", model.moves.count) }
+                Text(model.matchSetting.displayName.map { tr("%1$@・%2$@", $0, tr("%lld手", model.moves.count)) }
                      ?? tr("%lld手", model.moves.count))
                     .themeBody(13).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)

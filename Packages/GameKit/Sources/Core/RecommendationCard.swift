@@ -69,7 +69,7 @@ public struct RecommendationCard: View {
             // `.plain` は押下フィードバックも消す（Theme.swift の PopButtonStyle）ので `.pop` にする。
             .buttonStyle(.pop)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(caption)\(module.title)")
+            .accessibilityLabel(tr("%1$@%2$@", caption, module.title))
             .accessibilityHint(tr("「%@」を開いて新しく始めます", module.title))
 
             RecommendationDismissButton(action: onDismiss)
@@ -103,7 +103,7 @@ public struct RecommendationCard: View {
                 .frame(width: iconSide, height: iconSide)
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("次はこれで遊ぶ？")).themeCaption(captionSize, weight: .semibold).lineLimit(1)
-                Text("　").themeBody(16)
+                Text("　").themeBody(16)  // i18n-keep: 行の高さをそろえる全角空白（文字としては読まれない）
             }
             Spacer(minLength: 4)
         }

@@ -32,6 +32,7 @@ import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
 import GameHearts
+import GameAkariKeshi
 import GameTsunagi
 
 /// アプリ本体が組み立てる GameServices の実体。
@@ -286,6 +287,10 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
+        // 明かり消しパズル（企画倉庫・#1883）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`categories` に "akarikeshi": .puzzleOther を、
+        // `web/app/lib/games.ts` にも同じ順で足す。
+        // AkariKeshiModule(),
         // 線つなぎ（企画倉庫・#2235）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // TsunagiModule(),
