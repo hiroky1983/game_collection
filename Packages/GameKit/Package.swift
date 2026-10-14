@@ -235,7 +235,7 @@ let package = Package(
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameChromeTests",   dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "OjisanTests",       dependencies: ["Core"]),
-        .testTarget(name: "Game2048Tests",    dependencies: ["Game2048", "CoreTestSupport"]),
+        .testTarget(name: "Game2048Tests",    dependencies: ["Game2048", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameGoTests",      dependencies: ["GameGo", "CoreTestSupport"]),
