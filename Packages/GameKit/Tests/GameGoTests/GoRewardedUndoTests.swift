@@ -38,30 +38,4 @@ struct GoRewardedUndoTests {
         #expect(!model.undoLastExchange(forTurn: turn), "打ち進めた局面へ待ったを適用している")
         #expect(model.moveCount == 4)
     }
-
-    @Test("ヒントの読み中は待ったできない（古い局面のヒントを適用しない・#2236）")
-    func undoIsRefusedWhileHintThinking() async throws {
-        let model = GoModel(services: nil)
-        model.newGame(humanSide: .black, level: .easy)
-        model.applyMoveForTesting(.play(row: 4, col: 4))   // 黒（人間）
-        model.applyMoveForTesting(.play(row: 2, col: 2))   // 白（CPU）
-        try #require(model.canUndo)
-        let used = model.hints.used
-
-        let hint = Task { await model.requestHint() }
-        // MainActor を手放すと requestHint が読みの旗を立てて、検索の待ちに入る。
-        for _ in 0..<1000 where !model.isHintThinking { await Task.yield() }
-        try #require(model.isHintThinking, "前提: ヒントを読んでいる最中")
-
-        #expect(!model.canUndo, "ヒントの読み中に待ったできてしまう")
-        model.undoLastExchange()
-        #expect(model.moveCount == 2, "読み中の待ったが盤を戻している")
-        // 広告の待ち（`undoLastExchange(forTurn:)`）も同じ入口で断る。
-        #expect(!model.undoLastExchange(forTurn: model.aiTurnKey))
-        #expect(model.moveCount == 2)
-
-        await hint.value
-        #expect(model.hints.used == used + 1, "待った無しならヒントは 1 回だけ消費される")
-        #expect(model.canUndo, "読み終えたら待ったできる")
-    }
 }

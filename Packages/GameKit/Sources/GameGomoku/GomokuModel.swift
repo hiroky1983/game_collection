@@ -348,6 +348,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
+    /// ヒントの読みの待ち合わせ点（テスト専用。本番では nil のまま。将棋の `thinkingGate` と同じ）。
+    @ObservationIgnored var hintThinkingGate: (@MainActor () async -> Void)?
 
     /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
@@ -371,6 +373,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 五目並べの level 0（弱）は探索せず確率で見逃すので、合わせると最善手にならない（#665）。
