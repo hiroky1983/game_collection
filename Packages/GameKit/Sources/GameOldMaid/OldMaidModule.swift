@@ -1,0 +1,26 @@
+import SwiftUI
+import Core
+
+/// ババ抜き（#1577）の `GameModule` 登録口。
+///
+/// 企画倉庫（`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」）の段階では
+/// `AppEnvironment.registry` への登録行がコメントアウトされている。出荷する版が決まったら
+/// そのコメントアウトを外すだけでハブに並ぶ。
+///
+/// 表示名「ババ抜き」（英語 Old Maid）は伝統的なトランプ遊びの一般名称で、Web 検索で文字商標の登録は
+/// 見つからなかった（Issue #1577 の権利チェック）。ババの図案は共通部品のジョーカー（道化帽・#397）。
+public struct OldMaidModule: GameModule {
+    // **文字列リテラルで書く**（`OldMaidModel.gameID` を参照しない）。LP の顔ぶれ照合
+    // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
+    // `OldMaidModel.gameID` との一致は `OldMaidModuleTests` が機械的に確かめる。
+    public let id = "oldmaid"
+    public var title: String { tr("ババ抜き") }
+    public var description: String { tr("CPUの顔を読んで、ジョーカーをよけよう。CPU3人と対戦") }
+    public var icon: Image { Image(systemName: "theatermasks.fill") }
+
+    public init() {}
+
+    @MainActor public func makeView(services: GameServices) -> AnyView {
+        AnyView(OldMaidView(services: services))
+    }
+}
