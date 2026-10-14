@@ -11,6 +11,20 @@ enum PokerHowToFigures {
         { AnyView(RankFigure()) },
     ]
 
+    /// ボーナスルール（`HowToPlayGuide.pokerBonus`）の図。先頭 3 つはスタンダードと同じ。
+    static let bonusItems: [@MainActor @Sendable () -> AnyView] = items + [
+        { AnyView(BonusFigure()) },
+        { AnyView(DoubleUpFigure()) },
+    ]
+
+    /// 選んでいるルールの遊び方（開始シートと「？」で共有する）。図は項目と同じ順。
+    static func guide(for rules: PokerRuleSet) -> HowToPlayGuide {
+        switch rules {
+        case .standard: return HowToPlayGuide.poker.illustrated(items)
+        case .bonus:    return HowToPlayGuide.pokerBonus.illustrated(bonusItems)
+        }
+    }
+
     /// 5 枚のうち残す 2 枚を選んだところ。
     private struct SelectFigure: View {
         var body: some View {
@@ -81,6 +95,52 @@ enum PokerHowToFigures {
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
                     .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.coral.opacity(0.15 + 0.12 * Double(index))))
+            }
+        }
+    }
+
+    /// 役ごとのボーナス（配当表の一部）。数字は `PokerBonusTable` から引く。
+    private struct BonusFigure: View {
+        private let ranks: [PokerHandRank] = [.twoPair, .fullHouse, .fourOfAKind]
+
+        var body: some View {
+            VStack(spacing: 6) {
+                ForEach(ranks, id: \.self) { rank in
+                    HStack {
+                        Text(rank.description)
+                            .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
+                            .foregroundStyle(Theme.ink)
+                        Spacer(minLength: 8)
+                        Text(verbatim: "+\(PokerBonusTable.chips(for: rank))")
+                            .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
+                            .foregroundStyle(Theme.coral)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.coral.opacity(0.15)))
+                }
+                RuleFigureLabel(tr("役が強いほどボーナスも大きい"))
+            }
+        }
+    }
+
+    /// ダブルアップ。見せ札より次の札が上か下かを当てる。
+    private struct DoubleUpFigure: View {
+        var body: some View {
+            VStack(spacing: 6) {
+                HStack(spacing: 10) {
+                    VStack(spacing: 3) {
+                        RuleMiniCard("7", suit: .spade)
+                        RuleFigureLabel(tr("見せ札"))
+                    }
+                    Image(systemName: "arrow.right")
+                        .scaledFont(12, weight: .black, maxScale: 1.2)
+                        .foregroundStyle(Theme.inkSub)
+                    VStack(spacing: 3) {
+                        RuleMiniCard("?", isFaceDown: true, isHighlighted: true)
+                        RuleFigureLabel(tr("次の札は上？下？"), color: Theme.coral)
+                    }
+                }
             }
         }
     }

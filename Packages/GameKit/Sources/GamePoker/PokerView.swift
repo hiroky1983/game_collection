@@ -80,7 +80,7 @@ public struct PokerView: View {
                         ? GameChromeReference(tr("役ボーナス配当表")) { showBonusTable = true }
                         : nil)
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
-        .howToPlay(HowToPlayGuide.poker.illustrated(PokerHowToFigures.items)) { HandGuideSheet() }
+        .howToPlay(PokerHowToFigures.guide(for: model.rules)) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {
             PokerStartSheet(rules: $selectedRules) {
                 showStartSheet = false

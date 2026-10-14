@@ -6,9 +6,9 @@ import Testing
 /// 遊び方の英語（多言語② #2165）。`swift test` は日本語で動くので、英語は `language: .english` を明示して引く。
 @Suite("遊び方: 英語の文言")
 struct HowToPlayLocalizationTests {
-    /// `all` に入らない出し分け用の版（五目並べの禁じ手・荷物運びパズルのパズルモード・麻雀の一局戦・チャリンコおじさんのエンドレス・カードしりとりのとことん）も含めた全部。
+    /// `all` に入らない出し分け用の版（五目並べの禁じ手・ポーカーのボーナスルール・荷物運びパズルのパズルモード・麻雀の一局戦・チャリンコおじさんのエンドレス・カードしりとりのとことん）も含めた全部。
     static var guides: [HowToPlayGuide] {
-        HowToPlayGuide.all + [.gomokuRenju, .ojisanPuzzlePuzzle, .mahjongSingleHand, .runnerEndless, .shiritoriEndless]
+        HowToPlayGuide.all + [.gomokuRenju, .pokerBonus, .ojisanPuzzlePuzzle, .mahjongSingleHand, .runnerEndless, .shiritoriEndless]
     }
 
     @Test("全部の遊び方の題名・本文・ミニガイド・項目・補足に英語の訳がある")
