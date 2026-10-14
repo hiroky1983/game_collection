@@ -214,10 +214,10 @@ struct OldMaidDrawTests {
             for level in CPUStrength.allCases {
                 var game = OldMaidGame(deck: shuffledDeck(seed: seed), firstPlayer: Int(seed % 4),
                                        aiLevel: level.rawValue, tellSeed: seed)
-                let draws = playOut(&game, seed: seed &* 31) { g in
+                let draws = playOut(&game, seed: seed &* 31, check: { g in
                     #expect(g.totalCardCount == 53)
                     #expect(hasNoPairs(g))
-                }
+                })
                 #expect(game.isOver, "seed \(seed) / \(level): \(draws) 回引いても決着しない")
                 #expect(game.isConsistent)
                 #expect(game.loser.map { game.hands[$0] == [OldMaidCard.joker] } == true, "最後に残るのはジョーカー 1 枚")
