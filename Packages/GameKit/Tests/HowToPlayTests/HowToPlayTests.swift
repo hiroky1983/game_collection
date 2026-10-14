@@ -28,6 +28,7 @@ import GameColorRelay
 import GameAnzan
 import GameBackgammon
 import GameSpeed
+import GameOldMaid
 import GameHomerun
 import GameSpider
 @testable import GamePoker
@@ -81,6 +82,7 @@ private let registeredModules: [GameModule] = [
     AnzanModule(),
     BackgammonModule(),
     SpeedModule(),
+    OldMaidModule(),
     HomerunModule(),
     BlackjackModule(),
     DaifugoModule(),
@@ -266,6 +268,7 @@ struct CardGameHowToFiguresTests {
     private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
         [
             ("poker", .poker, PokerHowToFigures.items),
+            ("pokerBonus", .pokerBonus, PokerHowToFigures.bonusItems),
             ("concentration", .concentration, ConcentrationHowToFigures.items),
             ("blackjack", .blackjack, BlackjackHowToFigures.items),
             ("daifugo", .daifugo, DaifugoHowToFigures.items),
@@ -287,10 +290,24 @@ struct CardGameHowToFiguresTests {
         }
     }
 
+    @Test("ポーカーのボーナスルールは gameID が同じで all に入らず、スタンダードの項目に役ボーナスとダブルアップが加わる（#2268）")
+    func pokerBonusVariant() throws {
+        let standard = HowToPlayGuide.poker
+        let bonus = HowToPlayGuide.pokerBonus
+        #expect(bonus.gameID == standard.gameID)
+        #expect(!HowToPlayGuide.all.contains(bonus))
+        #expect(Array(bonus.items.prefix(standard.items.count)) == standard.items)
+        #expect(bonus.items.count == standard.items.count + 2)
+        #expect(PokerHowToFigures.guide(for: .standard).items.count == standard.items.count)
+        #expect(PokerHowToFigures.guide(for: .bonus).items.count == bonus.items.count)
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GamePoker/PokerSheets.swift"))
+        #expect(code.contains("PokerHowToFigures.guide(for: rules)"), "開始シートに要点が埋まっていない")
+    }
+
     @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GamePoker/PokerView.swift", "HowToPlayGuide.poker.illustrated(PokerHowToFigures.items)", "poker"),
+            ("GamePoker/PokerView.swift", "PokerHowToFigures.guide(for: model.rules)", "poker"),
             ("GameConcentration/ConcentrationView.swift", "HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items)", "concentration"),
             ("GameBlackjack/BlackjackView.swift", "HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items)", "blackjack"),
             ("GameDaifugo/DaifugoView.swift", "HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)", "daifugo"),
@@ -321,6 +338,15 @@ struct BoardGameHowToFiguresTests {
         ]
     }
 
+    @Test("五目並べの開始シートは、禁じ手の選択に合わせた図入りの要点を並べる（#2268）")
+    func gomokuSetupSheetShowsGuide() throws {
+        #expect(GomokuHowToFigures.guide(forbiddenMoves: false).items.count == HowToPlayGuide.gomoku.items.count)
+        #expect(GomokuHowToFigures.guide(forbiddenMoves: true).items.count == HowToPlayGuide.gomokuRenju.items.count)
+        #expect(GomokuHowToFigures.guide(forbiddenMoves: true).items.allSatisfy { $0.figure != nil })
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameGomoku/GomokuView.swift"))
+        #expect(code.contains("GomokuHowToFigures.guide(forbiddenMoves: renju)"), "開始シートに要点が埋まっていない")
+    }
+
     @Test("項目ごとに図が 1 つずつあり、図を差し込んでも文言は変わらない")
     func everyItemHasFigure() {
         for (name, guide, figures) in pairs {
@@ -339,8 +365,7 @@ struct BoardGameHowToFiguresTests {
             ("GameGo/GoView.swift", "HowToPlayGuide.go.illustrated(GoHowToFigures.items)", "go"),
             ("GameOthello/OthelloView.swift", "HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items)", "othello"),
             ("GameChess/ChessView.swift", "HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)", "chess"),
-            ("GameGomoku/GomokuView.swift", "HowToPlayGuide.gomoku.illustrated(GomokuHowToFigures.items)", "gomoku"),
-            ("GameGomoku/GomokuView.swift", "HowToPlayGuide.gomokuRenju.illustrated(GomokuHowToFigures.renjuItems)", "gomokuRenju"),
+            ("GameGomoku/GomokuView.swift", "GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled)", "gomoku"),
         ]
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
