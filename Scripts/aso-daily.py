@@ -1092,7 +1092,9 @@ def table_requests(tab, sheet_id, header, n_rows, existing_tables):
     for i, name in enumerate(header):
         ct = "DATE" if i == spec["date_idx"] else ("TEXT" if i in spec["text_idxs"] else "DOUBLE")
         cols.append({"columnIndex": i, "columnName": str(name), "columnType": ct})
-    return {"addTable": {"table": {"tableId": table_id, "name": tab, "range": rng, "columnProperties": cols}}}
+    # name は数式と同じ命名規則（英数字・アンダースコアのみ、先頭は数字不可）が必要で、タブ名（日本語・全角括弧）は
+    # 使えない（HTTP 400 "The table name is invalid"）。tableId をそのまま使う
+    return {"addTable": {"table": {"tableId": table_id, "name": table_id, "range": rng, "columnProperties": cols}}}
 
 
 class Sheets:
