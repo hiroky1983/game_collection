@@ -55,4 +55,28 @@ struct ChessRewardedUndoTests {
         #expect(!model.undoLastExchange(forTurn: turn))
         #expect(model.moves.count == 2)
     }
+
+    @Test("ヒントの読み中は待ったできない（古い局面のヒントを適用しない・#2236）")
+    func undoIsRefusedWhileHintThinking() async throws {
+        let model = ChessGameModel(services: nil)
+        try await playExchange(model, "e2e4")
+        try #require(model.canUndo)
+        let used = model.hints.used
+
+        let hint = Task { await model.requestHint() }
+        // MainActor を手放すと requestHint が読みの旗を立てて、検索の待ちに入る。
+        for _ in 0..<1000 where !model.isHintThinking { await Task.yield() }
+        try #require(model.isHintThinking, "前提: ヒントを読んでいる最中")
+
+        #expect(!model.canUndo, "ヒントの読み中に待ったできてしまう")
+        model.undoLastExchange()
+        #expect(model.moves.count == 2, "読み中の待ったが盤を戻している")
+        // 広告の待ち（`undoLastExchange(forTurn:)`）も同じ入口で断る。
+        #expect(!model.undoLastExchange(forTurn: model.aiTurnKey))
+        #expect(model.moves.count == 2)
+
+        await hint.value
+        #expect(model.hints.used == used + 1, "待った無しならヒントは 1 回だけ消費される")
+        #expect(model.canUndo, "読み終えたら待ったできる")
+    }
 }

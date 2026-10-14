@@ -483,7 +483,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
     public var canUndo: Bool {
-        guard !gameOver, !isAITurn, !isThinking else { return false }
+        // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
+        guard !gameOver, !isAITurn, !isThinking, !isHintThinking else { return false }
         let n = moves.count
         guard n >= 2 else { return false }
         return mover(at: n - 1) == humanSide.opponent && mover(at: n - 2) == humanSide
