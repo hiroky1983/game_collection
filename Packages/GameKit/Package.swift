@@ -41,6 +41,8 @@ let package = Package(
         .library(name: "GameSpeed",        targets: ["GameSpeed"]),
         .library(name: "GameOldMaid",      targets: ["GameOldMaid"]),
         .library(name: "GameAkariKeshi",   targets: ["GameAkariKeshi"]),
+        // サイコロ役づくり（#1752・企画倉庫）。
+        .library(name: "GameDiceCombo",    targets: ["GameDiceCombo"]),
         .library(name: "HomerunCore",      targets: ["HomerunCore"]),
         .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
@@ -154,6 +156,10 @@ let package = Package(
         // 明かり消しパズル（#1883・企画倉庫）。押したマスと上下左右が入れ替わる 5×5 の盤。盤の規則・問題の逆生成・
         // 解の数え上げは純粋ロジックで、出題の乱数に CoreEngine の `SplitMix64` を使う。
         .target(name: "GameAkariKeshi",     dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
+        // サイコロ役づくり（#1752・企画倉庫）。1 人用のダイスゲーム。役の判定と得点は純粋ロジックで、
+        // サイコロの乱数に CoreEngine の `SplitMix64` を使う。サイコロの絵はコードで描く。
+        .target(name: "GameDiceCombo",      dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // 柵越えおじさんのロジック層（#1348・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積。
         // 画面は `GameHomerun`。`Game` 接頭辞のディレクトリは画面の走査テスト（GameChromeTests）が
@@ -290,6 +296,7 @@ let package = Package(
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOldMaidTests",        dependencies: ["GameOldMaid", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameAkariKeshiTests",     dependencies: ["GameAkariKeshi", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameDiceComboTests",      dependencies: ["GameDiceCombo", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
         .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
@@ -335,6 +342,7 @@ let package = Package(
             "GameOldMaid",
             "GameHearts",
             "GameTsunagi", "GameAkariKeshi",
+            "GameDiceCombo",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。

@@ -36,6 +36,7 @@ import GameOldMaid
 import GameHearts
 import GameAkariKeshi
 import GameTsunagi
+import GameDiceCombo
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -317,6 +318,9 @@ enum AppEnvironment {
         // ハーツ（企画倉庫・#1884）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリー（`.cards`）にも足す。
         // HeartsModule(),
+        // サイコロ役づくり（企画倉庫・#1752）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とハブのカテゴリーにも足す。
+        // DiceComboModule(),
     ], categories: [
         // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
         "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan,
