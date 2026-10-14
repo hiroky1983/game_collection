@@ -304,6 +304,8 @@ struct HeartsAnalyticsTests {
 @MainActor
 struct HeartsCancelTests {
     /// CPU1 の番から始まる 1 巡（自分はまだ出していない）。
+    /// キャンセルの検証では間合いを 1 時間にする。CI では並列のテストで MainActor が数十秒ふさがることがあり、
+    /// 60 秒だとキャンセルより先に sleep が明けて CPU が正当に指してしまう（PR #2266 の初回 CI）。
     private func cpuTurnModel(cpuDelay: Duration) -> HeartsModel {
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
         let model = HeartsModel(services: services, cpuDelay: cpuDelay, trickPause: cpuDelay, seed: 42)
@@ -318,7 +320,7 @@ struct HeartsCancelTests {
     /// キャンセルされる。ループが `Task.isCancelled` を見ていないと残りの手番が遅延ゼロで走り抜ける（#287・#1621）。
     @Test("キャンセルされたら遅延を飛ばして打ち続けない")
     func cancelledLoopDoesNotFastForward() async {
-        let model = cpuTurnModel(cpuDelay: .seconds(60))
+        let model = cpuTurnModel(cpuDelay: .seconds(3_600))
         let handsBefore = model.hands
         let task = Task { await model.runCPUTurnsIfNeeded() }
         task.cancel()
@@ -331,7 +333,7 @@ struct HeartsCancelTests {
     /// sleep に入ってからキャンセルされた場合も、sleep の直後の判定で止まる（#817 の変異で赤くなる側）。
     @Test("sleep に入った後にキャンセルされても手番を進めない")
     func cancelledDuringSleepDoesNotAdvance() async {
-        let model = cpuTurnModel(cpuDelay: .seconds(60))
+        let model = cpuTurnModel(cpuDelay: .seconds(3_600))
         let task = Task { await model.runCPUTurnsIfNeeded() }
         var gate = 0
         while !model.isRunningCPUTurns, gate < 1_000 {
