@@ -46,6 +46,8 @@ let package = Package(
         .library(name: "GameHanafuda",     targets: ["GameHanafuda"]),
         // おじさんの荷物運びパズル（#1016・v1.1.11 でハブに公開 #1904）。
         .library(name: "GameOjisanPuzzle", targets: ["GameOjisanPuzzle"]),
+        // ハーツ（#1884・企画倉庫）。
+        .library(name: "GameHearts",       targets: ["GameHearts"]),
         // 線つなぎ（#2235・企画倉庫）。
         .library(name: "GameTsunagi",      targets: ["GameTsunagi"]),
         // ハノイの塔（#2003・企画倉庫）。
@@ -191,6 +193,10 @@ let package = Package(
                             .copy("Resources/OjisanLuggage_3_coolerbox.png"),
                             .copy("Resources/OjisanLuggage_4_polytank.png"),
                             .copy("Resources/OjisanLuggage_5_beercase.png")]),
+        // ハーツ（#1884・企画倉庫）。出せる札・巡の決着・CPU の選択は純粋ロジックで、配りの乱数に CoreEngine の
+        // `SplitMix64` を使う。札の絵は Core のトランプ共通描画（#397）。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
+        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         // 線つなぎ（#2235・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・線の判定は
         // 純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。絵はコード描画だけ（画像を持たない）。
         .target(name: "GameTsunagi",        dependencies: ["Core", "CoreEngine"],
@@ -281,6 +287,7 @@ let package = Package(
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
         .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameHeartsTests",         dependencies: ["GameHearts", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanoiTests",          dependencies: ["GameHanoi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
@@ -318,6 +325,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
+            "GameHearts",
             "GameTsunagi", "GameAkariKeshi", "GameHanoi",
             "GameKitTestSupport",
         ]),

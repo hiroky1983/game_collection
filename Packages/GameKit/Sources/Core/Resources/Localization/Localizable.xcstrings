@@ -113,6 +113,17 @@
         }
       }
     },
+    "1 巡目はハートとスペードの Q を出せません（それしか無いときは出せます）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hearts and the queen of spades can't be played on the first trick (unless you have nothing else)."
+          }
+        }
+      }
+    },
     "1 枚引いて 1 枚切ります。切る牌はタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -142,6 +153,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "10, J, Q and K are all worth 10, so any two of them can be split."
+          }
+        }
+      }
+    },
+    "13 枚ずつ配られます。まず 3 枚を選んで、左どなりへ渡します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone gets 13 cards. First, choose 3 cards to pass to the player on your left."
           }
         }
       }
@@ -373,6 +395,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If the CPU can't continue, you win; if you can't, you lose."
+          }
+        }
+      }
+    },
+    "CPU の強さは、右上の「新規対局」で選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the CPU strength from \"New Game\" at the top right."
           }
         }
       }
@@ -1056,6 +1089,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Egg"
+          }
+        }
+      }
+    },
+    "だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when someone reaches 50 points. The lowest total wins."
           }
         }
       }
@@ -1876,6 +1920,39 @@
         }
       }
     },
+    "ハーツの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Hearts"
+          }
+        }
+      }
+    },
+    "ハートとスペードのQを取らないように" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avoid taking hearts and the queen of spades"
+          }
+        }
+      }
+    },
+    "ハートは、だれかが場に出すまで先頭に出せません（手札がハートだけなら出せます）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hearts can't be led until someone has played one (unless your hand is all hearts)."
+          }
+        }
+      }
+    },
     "バックギャモンの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2503,6 +2580,17 @@
         }
       }
     },
+    "取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど良い。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each heart you take is 1 point and the queen of spades is 13. Fewer points is better."
+          }
+        }
+      }
+    },
     "取れるのは、上に牌が乗っておらず、左右どちらかが空いている牌だけです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2565,6 +2653,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Go for the longest total distance. You get 3 rounds a day; one is used as soon as you step up to bat (they reset at 0:00)."
+          }
+        }
+      }
+    },
+    "同じスートが無いときは、どの札でも出せます。点の札を押し付けるチャンス。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you can't follow suit, you can play any card. A chance to dump point cards."
           }
         }
       }
@@ -3504,6 +3603,28 @@
         }
       }
     },
+    "最初に出たスートで数字がいちばん大きい人が 4 枚を取ります。ハートは 1 点、スペードの Q は 13 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The highest card of the suit led takes all 4 cards. Each heart is 1 point and the queen of spades is 13."
+          }
+        }
+      }
+    },
+    "最初に出たスートで数字がいちばん大きい人が、4 枚を取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The highest card of the suit led takes all 4 cards."
+          }
+        }
+      }
+    },
     "最初の 2 枚が同じ点数なら、2 手に分ける「スプリット」もできます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3522,6 +3643,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "On your first 2 cards you can also “Double Down”: double your bet and draw just one more card."
+          }
+        }
+      }
+    },
+    "最初はクラブの 2 から。出された札と同じスートを、順に 1 枚ずつ出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the 2 of clubs. In turn, each player plays one card of the suit that was led."
           }
         }
       }
@@ -4501,6 +4633,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You can redraw the cards you didn't pick, once."
+          }
+        }
+      }
+    },
+    "配られた 13 枚から 3 枚を左どなりへ渡し、クラブの 2 から順に 1 枚ずつ出します。出された札と同じスートがあれば必ず出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass 3 of your 13 cards to the left, then play one card each in turn, starting with the 2 of clubs. You must follow the suit that was led if you can."
           }
         }
       }
