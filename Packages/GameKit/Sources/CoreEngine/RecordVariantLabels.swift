@@ -67,6 +67,10 @@ public enum RecordVariantLabels {
         case "tsunagi":
             // 線つなぎ（#2235）の盤の大きさ。数字と記号だけなので言語で変わらない。
             return ["5x5": "5×5", "7x7": "7×7"][variant]
+        case "hanoi":
+            // ハノイの塔（#2003）。キーは `<枚数>disks`（`HanoiModel.recordVariant`）。
+            guard variant.hasSuffix("disks"), let count = Int(variant.dropLast(5)) else { return nil }
+            return tr("円盤%lld枚", count, language: language)
         default:
             return nil
         }

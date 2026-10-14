@@ -54,6 +54,8 @@ let package = Package(
         .library(name: "GameHearts",       targets: ["GameHearts"]),
         // 線つなぎ（#2235・企画倉庫）。
         .library(name: "GameTsunagi",      targets: ["GameTsunagi"]),
+        // ハノイの塔（#2003・企画倉庫）。
+        .library(name: "GameHanoi",        targets: ["GameHanoi"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -216,6 +218,9 @@ let package = Package(
         // 純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。絵はコード描画だけ（画像を持たない）。
         .target(name: "GameTsunagi",        dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
+        // ハノイの塔（#2003・企画倉庫）。移動の可否・最少手順は純粋ロジックで、乱数は使わない。円盤はコード描画。
+        .target(name: "GameHanoi",          dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -304,6 +309,7 @@ let package = Package(
         .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHeartsTests",         dependencies: ["GameHearts", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameHanoiTests",          dependencies: ["GameHanoi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -342,7 +348,7 @@ let package = Package(
             "GameOldMaid",
             "GameHearts",
             "GameTsunagi", "GameAkariKeshi",
-            "GameDiceCombo",
+            "GameDiceCombo", "GameHanoi",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。

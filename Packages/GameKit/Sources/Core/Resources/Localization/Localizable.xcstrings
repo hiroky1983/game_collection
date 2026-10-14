@@ -2008,6 +2008,17 @@
         }
       }
     },
+    "ハノイの塔の遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Tower of Hanoi"
+          }
+        }
+      }
+    },
     "ハーツの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2455,6 +2466,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Connect every number and fill every square with lines to clear the puzzle."
+          }
+        }
+      }
+    },
+    "円盤は 3〜7 枚から選べます。最少手数は 3 枚で 7 手、1 枚増えるごとに約 2 倍です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from 3 to 7 disks. The fewest moves is 7 with 3 disks, and about doubles with each extra disk."
+          }
+        }
+      }
+    },
+    "円盤を全部、右の柱へ移したらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move all the disks to the right peg to clear."
           }
         }
       }
@@ -3130,6 +3163,17 @@
         }
       }
     },
+    "大きい円盤は、小さい円盤の上には置けません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A larger disk can't be placed on top of a smaller one."
+          }
+        }
+      }
+    },
     "大富豪の遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3170,6 +3214,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap the stock to draw the number of cards you chose (1 or 3)."
+          }
+        }
+      }
+    },
+    "左の柱の円盤を全部、右の柱へ移したらクリア。最少手数は 3 枚で 7 手、1 枚増えるごとに約 2 倍です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move every disk from the left peg to the right peg to clear. The fewest moves is 7 with 3 disks, and about doubles with each extra disk."
           }
         }
       }
@@ -3478,6 +3533,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fewer moves is a better record."
+          }
+        }
+      }
+    },
+    "手数が少ないほど良い記録です。クリアまでのタイムも残ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fewer moves make a better record. Your clear time is saved too."
           }
         }
       }
@@ -3962,6 +4028,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "When you pick a card, a CPU holding the Joker may show it on its face. A grin might mean the Joker."
+          }
+        }
+      }
+    },
+    "柱をタップして、いちばん上の円盤を取ります。別の柱をタップすると置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a peg to pick up its top disk. Tap another peg to place it."
+          }
+        }
+      }
+    },
+    "柱をタップして取り、別の柱に置く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a peg to pick up, another to place"
+          }
+        }
+      }
+    },
+    "柱をタップすると、いちばん上の円盤を取ります。別の柱をタップすると、そこへ置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a peg to pick up its top disk. Tap another peg to place it there."
           }
         }
       }

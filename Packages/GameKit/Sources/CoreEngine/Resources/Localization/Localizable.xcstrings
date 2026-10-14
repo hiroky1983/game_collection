@@ -791,6 +791,29 @@
         }
       }
     },
+    "円盤%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Disk"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Disks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "初クリア" : {
       "extractionState" : "manual",
       "localizations" : {
