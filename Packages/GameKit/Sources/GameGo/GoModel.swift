@@ -379,7 +379,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     /// 人間の手番で、直前の自分の手と CPU の応手をまとめて戻せるか。
     public var canUndo: Bool {
-        guard phase == .playing, !isAITurn, !isThinking else { return false }
+        // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
+        guard phase == .playing, !isAITurn, !isThinking, !isHintThinking else { return false }
         return moves.count >= 2
     }
 

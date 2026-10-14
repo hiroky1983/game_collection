@@ -43,4 +43,28 @@ struct GomokuRewardedUndoTests {
         #expect(!model.undoLastExchange(forTurn: turn), "打ち進めた局面へ待ったを適用している")
         #expect(model.moveCount == 4)
     }
+
+    @Test("ヒントの読み中は待ったできない（古い局面のヒントを適用しない・#2236）")
+    func undoIsRefusedWhileHintThinking() async throws {
+        let model = GomokuModel(services: nil)
+        try await playExchange(model)
+        try #require(model.canUndo)
+        var duringRead: (canUndo: Bool, undid: Bool, adUndid: Bool)?
+        model.hintThinkingGate = {
+            let can = model.canUndo
+            model.undoLastExchange()
+            // 広告の待ち（`undoLastExchange(forTurn:)`）も同じ入口で断る。
+            duringRead = (can, model.moveCount != 2, model.undoLastExchange(forTurn: model.aiTurnKey))
+        }
+
+        await model.requestHint()
+
+        let seen = try #require(duringRead, "前提: 読みの待ち合わせ点を通っている")
+        #expect(!seen.canUndo, "ヒントの読み中に待ったできてしまう")
+        #expect(!seen.undid, "読み中の待ったが盤を戻している")
+        #expect(!seen.adUndid, "読み中に広告の待ったが通っている")
+        #expect(model.moveCount == 2)
+        #expect(model.hints.used == 1, "待った無しならヒントは 1 回だけ消費される")
+        #expect(model.canUndo, "読み終えたら待ったできる")
+    }
 }
