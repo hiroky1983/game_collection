@@ -114,6 +114,8 @@ targets:
       - package: GameKit
         product: GameTsunagi
       - package: GameKit
+        product: GameDiceCombo
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds
