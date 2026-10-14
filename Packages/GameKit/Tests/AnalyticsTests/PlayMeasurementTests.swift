@@ -791,7 +791,7 @@ struct PlayMeasurementCallSiteTests {
     }
 
     /// プレイを数えているモジュール（= ハブに並ぶ 24 本のゲーム（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ハブから外しているブロックならべ #493
-    /// + 企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323）。
+    /// + 企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323・明かり消しパズル #1883）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -801,7 +801,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 32, "企画倉庫の線つなぎ（#2235）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）")
+        #expect(games.count == 33, "企画倉庫の線つなぎ（#2235）・明かり消しパズル（#1883）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -816,6 +816,7 @@ struct PlayMeasurementCallSiteTests {
         // 難易度・段階を選べるゲームだけが対象。増減はプライバシー確認の対象になるので、
         // 「いつの間にか増えていた」を作らないためここで固定する（#500 の受け入れ条件）。
         #expect(leveled == [
+            "GameAkariKeshi",    // かんたん / ふつう / むずかしい（最短の手数 4・7・10・#1883・企画倉庫）
             "GameAnzan",         // 桁数・個数・速さの段の和を 4 段階へ丸める（#1321・企画倉庫）
             "GameBackgammon",    // CPU の強さ 4 段階（#1322・企画倉庫）
             "GameBlocks",        // 面番号 1〜12

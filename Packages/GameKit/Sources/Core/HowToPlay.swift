@@ -604,6 +604,28 @@ public extension HowToPlayGuide {
         ]
     ) }
 
+    /// 明かり消しパズル（#1883・企画倉庫）。図は `GameAkariKeshi` 側で `illustrated(_:)` を使って差し込む。
+    static var akariKeshi: HowToPlayGuide { HowToPlayGuide(
+        gameID: "akarikeshi",
+        title: tr("明かり消しパズルの遊び方"),
+        lines: [
+            tr("マスを押すと、そのマスと上下左右の明かりが入れ替わります（点いていれば消え、消えていれば点く）。"),
+            tr("盤の端や角では、盤の中にある隣だけが入れ替わります。"),
+            tr("明かりをぜんぶ消したらクリア。最短の手数に近いほど良い記録です。"),
+        ],
+        hint: tr("押すと上下左右も入れ替わる"),
+        hintIcon: "lightbulb.fill",
+        items: [
+            HowToPlayItem(tr("マスを押すと、そのマスと上下左右の明かりが入れ替わります。")),
+            HowToPlayItem(tr("盤の端や角では、盤の中にある隣だけが入れ替わります。")),
+            HowToPlayItem(tr("明かりをぜんぶ消したらクリアです。")),
+        ],
+        notes: [
+            tr("押す順番は関係ありません。同じマスを 2 回押すと元に戻ります。"),
+            tr("難易度は 3 段階で、最短の手数（4・7・10 手）が変わります。少ない手数ほど良い記録です。"),
+        ]
+    ) }
+
     static var roulette: HowToPlayGuide { HowToPlayGuide(
         gameID: "roulette",
         title: tr("ルーレットの遊び方"),
@@ -815,7 +837,7 @@ public extension HowToPlayGuide {
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
+        .hanafuda, .spider, .shiritori, .fifteen, .akariKeshi, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .diceCombo,
         .homerun, .ojisanPuzzleBackpain,
         .tsunagi,

@@ -24,6 +24,7 @@ import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
+import GameAkariKeshi
 import GameBackgammon
 import GameSpeed
 import GameTsunagi
@@ -73,6 +74,7 @@ private func makeHubGameIDs() -> Set<String> {
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        AkariKeshiModule(),
         TsunagiModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
@@ -476,7 +478,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 31, "ハブに並ぶゲームは31本（企画倉庫の線つなぎ #2235 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 32, "ハブに並ぶゲームは32本（企画倉庫の線つなぎ #2235・明かり消しパズル #1883 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
