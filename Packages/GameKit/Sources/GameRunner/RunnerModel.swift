@@ -559,7 +559,9 @@ public final class RunnerModel {
         // QA 用のショーケース（`-simulateRunner showcase` 等）は、ミスして「もう一度」を押しても
         // 本番の面に戻らない（2026-09-15。戻ると 1 回ミスしただけで見比べが終わってしまう）。
         // 面を選び直す入口（`startStages` / `newGame`）では解除する。
-        let stage = debugStageOverride ?? RunnerStage.all[stageNumber - 1]
+        var stage = debugStageOverride ?? RunnerStage.all[stageNumber - 1]
+        // 途中（チェックポイント）からの再開は、前方 1 画面ぶんの罠を取り除く（#2256）。
+        if passedCheckpoint, distance > 0 { stage = stage.clearingAhead(of: distance) }
         // 挑み始めた面は到達済み（#798）。次の面へ進んだとき・QA 用の `stage:N` で飛んだときも
         // ここを通るので、到達点の更新はこの 1 か所と `clearStage`（次の面を開ける）だけ。
         reachedStage = max(reachedStage, stageNumber)
