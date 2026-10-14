@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%1$@%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%1$lld/%2$lld手" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -473,6 +484,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Build each of ♠♥♦♣ from A to K on the foundations to win. All 52 cards are face up from the start."
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
           }
         }
       }
@@ -2041,6 +2063,28 @@
         }
       }
     },
+    "マスを押すと、そのマスと上下左右の明かりが入れ替わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapping a tile flips its lamp and the lamps above, below, left and right."
+          }
+        }
+      }
+    },
+    "マスを押すと、そのマスと上下左右の明かりが入れ替わります（点いていれば消え、消えていれば点く）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapping a tile flips its lamp and the lamps above, below, left and right (lit ones go off, off ones light up)."
+          }
+        }
+      }
+    },
     "マスを選んで数字を入れよう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3218,6 +3262,28 @@
         }
       }
     },
+    "押すと上下左右も入れ替わる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tap flips its neighbors too"
+          }
+        }
+      }
+    },
+    "押す順番は関係ありません。同じマスを 2 回押すと元に戻ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The order of taps doesn't matter. Tapping the same tile twice undoes it."
+          }
+        }
+      }
+    },
     "指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3335,6 +3401,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flagged squares won't open when tapped."
+          }
+        }
+      }
+    },
+    "明かりをぜんぶ消したらクリア。最短の手数に近いほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn every lamp off to clear. The closer to the fewest possible moves, the better."
+          }
+        }
+      }
+    },
+    "明かりをぜんぶ消したらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn every lamp off to clear."
+          }
+        }
+      }
+    },
+    "明かり消しパズルの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Lamps Off Puzzle"
           }
         }
       }
@@ -3621,6 +3720,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Losing all your balls costs a life. The game ends after 3."
+          }
+        }
+      }
+    },
+    "盤の端や角では、盤の中にある隣だけが入れ替わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On edges and corners, only the neighbors inside the board flip."
           }
         }
       }
@@ -4325,6 +4435,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "難易度は 3 段階で、最短の手数（4・7・10 手）が変わります。少ない手数ほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 3 difficulties with different fewest possible moves (4, 7 and 10). Fewer moves make a better record."
           }
         }
       }

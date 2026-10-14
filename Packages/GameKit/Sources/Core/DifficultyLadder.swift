@@ -123,7 +123,7 @@ struct DifficultyLadderCard: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(offer.caption)\(offer.title)")
+            .accessibilityLabel(tr("%1$@%2$@", offer.caption, offer.title))
             .accessibilityHint(tr("「%@」で新しく始めます", offer.nextLevelLabel))
 
             RecommendationDismissButton(action: onDismiss)

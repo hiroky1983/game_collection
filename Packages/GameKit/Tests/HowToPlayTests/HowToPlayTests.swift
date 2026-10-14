@@ -53,6 +53,7 @@ import GameSpider
 @testable import GameBlocks
 @testable import GameFifteen
 @testable import GameAnzan
+@testable import GameAkariKeshi
 @testable import GameTsunagi
 @testable import GameShiritori
 import GameChess
@@ -71,6 +72,7 @@ private let registeredModules: [GameModule] = [
     ConcentrationModule(),
     ShiritoriModule(),
     FifteenModule(),
+    AkariKeshiModule(),
     RouletteModule(),
     FruitsModule(),
     ColorRelayModule(),
@@ -484,6 +486,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("blocks", .blocks, BlocksHowToFigures.items),
             ("fifteen", .fifteen, FifteenHowToFigures.items),
             ("anzan", .anzan, AnzanHowToFigures.items),
+            ("akarikeshi", .akariKeshi, AkariKeshiHowToFigures.items),
             ("tsunagi", .tsunagi, TsunagiHowToFigures.items),
             ("shiritori", .shiritori, ShiritoriHowToFigures.items),
             ("shiritoriEndless", .shiritoriEndless, ShiritoriHowToFigures.endlessItems),
@@ -542,6 +545,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("GameBlocks/BlocksView.swift", ".howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items)", "blocks"),
             ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))", "fifteen"),
             ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),
+            ("GameAkariKeshi/AkariKeshiView.swift", ".howToPlay(HowToPlayGuide.akariKeshi.illustrated(AkariKeshiHowToFigures.items))", "akarikeshi"),
             ("GameTsunagi/TsunagiView.swift", ".howToPlay(HowToPlayGuide.tsunagi.illustrated(TsunagiHowToFigures.items))", "tsunagi"),
             ("GameShiritori/ShiritoriView.swift", ".howToPlay(model.mode.howToPlayGuide", "shiritori"),
             ("GameShiritori/ShiritoriView.swift", "mode.setupKeyItems", "shiritori の開始シート"),
