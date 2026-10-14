@@ -678,10 +678,29 @@ def _ad_days(rows, start, end):
                and to_int(r["value"]) > 0)
 
 
+# ---------------------------------------------------------------- AdMob の画面取得分（過去分・固定データ）
+#
+# GA4 に AdMob をリンクしたのが 2026-10-15 のため、それより前の広告収益・表示回数等は GA4 に無い。
+# 会長が AdMob の画面から読み取った 2026-08-27〜10-14 分を ~/asobiba-kpi/admob/history_ui_export.csv に
+# 置いてあり、毎回読み込んで「広告（日次）」タブに「取得元 = AdMob 画面」の行として入れる（CSV が原本なので
+# 毎回作り直してよい。GA4 側の行とは「取得元」列で区別し、どちらも消さない）。
+
+ADMOB_HISTORY_PATH = os.path.expanduser("~/asobiba-kpi/admob/history_ui_export.csv")
+ADMOB_FIELDNAMES = ["date", "est_revenue_jpy", "ecpm_jpy", "requests", "match_rate_pct",
+                    "matched_requests", "show_rate_pct", "impressions", "clicks"]
+
+
+def read_admob_history(path):
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8", newline="") as f:
+        return [r for r in csv.DictReader(f) if r.get("date")]
+
+
 # ---------------------------------------------------------------- Google スプレッドシート（#2238）
 #
-# 毎回 daily.csv（ASO・GA4）から各タブの中身を作り直して丸ごと書き込む（= 新しい日は追記・同じ日付は上書き）。
-# 初回は ASO の既存データ（~/asobiba-kpi/aso/daily.csv）もそのまま入る。
+# 毎回 daily.csv（ASO・GA4）・AdMob の画面取得 CSV から各タブの中身を作り直して丸ごと書き込む
+# （= 新しい日は追記・同じ日付は上書き）。初回は ASO の既存データ（~/asobiba-kpi/aso/daily.csv）もそのまま入る。
 # 「週次まとめ」の先頭に最終更新と取得の成否（失敗したら「取得失敗: 日時・どの取得か」）を出す。
 
 SHEET_ID = "1FSwmBy81utUvmt8z2b0eo6kGQ8jgXFhZgDoj_rhuVU4"  # 「あそびば KPI（毎日の数字）」
@@ -776,6 +795,8 @@ MEMO_ROWS = [
     ["新規（first_open）の App Store 版の絞り込み", "first_open は build_channel が付く前に送られるため絞れない。全ビルドの件数"],
     ["広告収益・表示回数・クリック（10/14 以前）",
      "AdMob を GA4 にリンクしたのが 2026-10-15。それ以前は GA4 に無い（AdMob API は OAuth が要るため毎日の自動取得には入れていない・#2238）"],
+    ["AdMob の過去分（8/27〜10/14）", "画面から 2026-10-15 に取得。10/15 以降は GA4 連携で取得"
+     "（「広告（日次）」タブに取得元=AdMob 画面として入っている。CSV が原本で毎回作り直す）"],
     ["game_open・share_tap・reward_offer の古い日", "送り始めたのがそれぞれ v1.1.5・v1.1.6・v1.1.7 から。それより前の版の利用者の分は入らない"],
     ["国別のアクティブユーザー", "日本／日本以外の 2 区分のみ（App Store 版の絞り込みあり）"],
 ]
@@ -805,12 +826,17 @@ def tab_aso(aso_rows):
     return [[ASO_HEADERS.get(c, c) for c in FIELDNAMES]] + [[_num(r.get(c, "")) for c in FIELDNAMES] for r in aso_rows]
 
 
-def tab_ga4(ga4_rows):
+def tab_ga4(ga4_rows, admob_rows):
+    """GA4（日次）。末尾に AdMob の画面取得（円）の列を 1 本足す（グラフ用。日付 1 行 1 列で描けるように
+    「広告（日次）」側の取得元別の行持ちとは別にここへ重ねる）。"""
     idx = _ga4_index(ga4_rows)
-    dates = sorted(set(r["date"] for r in ga4_rows))
-    out = [["日付"] + [h for h, _ in GA4_DAILY_COLS]]
+    admob_idx = {r["date"]: r for r in admob_rows}
+    dates = sorted(set(r["date"] for r in ga4_rows) | set(admob_idx))
+    out = [["日付"] + [h for h, _ in GA4_DAILY_COLS] + ["AdMob 推定収益（円・画面取得）"]]
     for d in dates:
-        out.append([d] + [_num(idx.get((d, m, "", ""), "")) for _, m in GA4_DAILY_COLS])
+        row = [d] + [_num(idx.get((d, m, "", ""), "")) for _, m in GA4_DAILY_COLS]
+        row.append(_num(admob_idx[d]["est_revenue_jpy"]) if d in admob_idx else "")
+        out.append(row)
     return out
 
 
@@ -823,17 +849,29 @@ def tab_games(ga4_rows):
     return out
 
 
-def tab_ads(ga4_rows):
+ADS_HEADERS = ["日付", "取得元", "広告フォーマット/ユニット", "推定収益（円）", "収益 USD", "表示回数", "クリック",
+               "eCPM（円）", "1,000 回あたりの収益 USD", "リクエスト", "マッチ率（%）", "表示率（%）"]
+
+
+def tab_ads(ga4_rows, admob_rows):
+    """広告（日次）。AdMob の画面取得（過去分・取得元=AdMob 画面）と GA4 経由（取得元=GA4）を
+    同じ列構成で 1 本のタブに入れる（会長指示・#2238 追補）。AdMob 画面の行は CSV から毎回作り直すだけで、
+    GA4 側の行を消したり上書きしたりはしない（別々の行なので干渉しない）。"""
     idx = _ga4_index(ga4_rows)
+    rows = []
+    for r in admob_rows:
+        rows.append([r["date"], "AdMob 画面", "合計", _num(r.get("est_revenue_jpy", "")), "",
+                    _num(r.get("impressions", "")), _num(r.get("clicks", "")), _num(r.get("ecpm_jpy", "")), "",
+                    _num(r.get("requests", "")), _num(r.get("match_rate_pct", "")), _num(r.get("show_rate_pct", ""))])
     keys = sorted(set((r["date"], r.get("ad_unit", "")) for r in ga4_rows
                       if r["metric"] in ("ad_revenue", "ad_impressions", "ad_clicks") and not r.get("game_id")))
-    out = [["日付", "広告フォーマット/ユニット", "収益 USD", "表示回数", "クリック", "1,000 回あたりの収益 USD"]]
     for d, u in keys:
         rev = _to_float(idx.get((d, "ad_revenue", "", u)))
         imp = to_int(idx.get((d, "ad_impressions", "", u)))
-        out.append([d, u or "全体", rev, imp, to_int(idx.get((d, "ad_clicks", "", u))),
-                    round(rev / imp * 1000, 4) if imp else ""])
-    return out
+        rows.append([d, "GA4", u or "全体", "", rev, imp, to_int(idx.get((d, "ad_clicks", "", u))), "",
+                    round(rev / imp * 1000, 4) if imp else "", "", "", ""])
+    rows.sort(key=lambda r: (r[0], r[1], r[2]))
+    return [ADS_HEADERS] + rows
 
 
 def _avg(total_days):
@@ -852,7 +890,33 @@ def _ratio(cur, base, pct=False):
     return "%+.1f%%" % ((cur / base - 1) * 100)
 
 
-def weekly_metrics(aso_rows, ga4_rows):
+def _admob_avg(admob_rows, metric, start, end):
+    """admob_rows（AdMob 画面取得の過去分）の期間 1 日平均。データの無い日は除く。"""
+    vals = [_to_float(r[metric]) for r in admob_rows
+            if start.isoformat() <= r["date"] <= end.isoformat() and r.get(metric, "") != ""]
+    return sum(vals) / len(vals) if vals else None
+
+
+def _ads_merged_avg(ga4_rows, admob_rows, admob_col, ga4_metric, start, end):
+    """表示回数・クリックの期間 1 日平均。同じ日に AdMob 画面と GA4 の両方があれば AdMob 画面を優先する
+    （会長指示）。GA4 だけの日は _ad_days（AdMob リンク後で表示回数が出ている日）のみ数える。"""
+    admob_idx = {r["date"]: r for r in admob_rows}
+    total, n, d = 0.0, 0, start
+    while d <= end:
+        ds = d.isoformat()
+        a = admob_idx.get(ds)
+        if a is not None and a.get(admob_col, "") != "":
+            total += _to_float(a[admob_col])
+            n += 1
+        elif ds in _ad_days(ga4_rows, d, d):
+            v, _ = _ga4_sum(ga4_rows, ga4_metric, "", d, d)
+            total += v
+            n += 1
+        d += datetime.timedelta(days=1)
+    return total / n if n else None
+
+
+def weekly_metrics(aso_rows, ga4_rows, admob_rows):
     """週次まとめの指標: (見出し, 期間 → 1 日平均（割合は期間合計の比） or None, 割合か, 目安の列名) のリスト。"""
     def aso(num, den=None, kind="e"):
         return lambda s, e: period_value(aso_rows, s, e, num, den, kind)[0]
@@ -895,8 +959,12 @@ def weekly_metrics(aso_rows, ga4_rows):
         ("プレイ終了（game_end）", "game_end_count"), ("広告の提示（reward_offer）", "reward_offer_count"),
         ("広告の要求（reward_request）", "reward_request_count"), ("広告の視聴完了（reward_ad）", "reward_ad_count"),
         ("共有ボタン（share_tap）", "share_tap_count"))]
-    m += [("広告収益 USD", ad("ad_revenue"), False, None), ("広告の表示回数", ad("ad_impressions"), False, None),
-          ("広告のクリック", ad("ad_clicks"), False, None), ("1,000 回あたりの収益 USD（eCPM 相当）", ecpm, False, None)]
+    m += [("広告収益 USD（GA4）", ad("ad_revenue"), False, None),
+          ("広告の表示回数（AdMob 画面優先）", lambda s, e: _ads_merged_avg(ga4_rows, admob_rows, "impressions", "ad_impressions", s, e), False, None),
+          ("広告のクリック（AdMob 画面優先）", lambda s, e: _ads_merged_avg(ga4_rows, admob_rows, "clicks", "ad_clicks", s, e), False, None),
+          ("1,000 回あたりの収益 USD（eCPM 相当・GA4）", ecpm, False, None)]
+    m += [("AdMob 推定収益 円（画面取得・過去分）", lambda s, e: _admob_avg(admob_rows, "est_revenue_jpy", s, e), False, None),
+          ("AdMob eCPM 円（画面取得・過去分）", lambda s, e: _admob_avg(admob_rows, "ecpm_jpy", s, e), False, None)]
     m += [("プレイ開始 " + GAME_NAMES.get(g, g), ga("game_start_count", g), False, None) for g in GA4_WATCH_GAMES]
     m += [("プレイした人数 " + GAME_NAMES.get(g, g), ga("game_start_users", g), False, None) for g in GA4_WATCH_GAMES]
     return m
@@ -906,10 +974,11 @@ def _r(v):
     return round(v, 2) if isinstance(v, float) else ("" if v is None else v)
 
 
-def tab_weekly(aso_rows, ga4_rows, today, status):
+def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status):
     """週次まとめ: 先頭に状態とグラフ、WEEKLY_TABLE_ROW 行目から表（行 = 指標、列 = 基準・目安・週。新しい週が左）。
     各週は「1 日平均・前週比・基準比」の 3 列。基準は v1.1.11 公開前の 10/3〜10/11。
-    広告は表示回数 0 の日（AdMob リンク前）をデータなしとして平均から除く。"""
+    表示回数・クリックは同じ日に AdMob 画面と GA4 の両方があれば AdMob 画面を優先し、GA4 だけの日は
+    表示回数 0 の日（AdMob リンク前）をデータなしとして平均から除く。"""
     dates = [r["date"] for r in aso_rows] + [r["date"] for r in ga4_rows]
     weeks = []
     if dates:
@@ -928,7 +997,7 @@ def tab_weekly(aso_rows, ga4_rows, today, status):
         label = "%d/%d〜%d/%d" % (ws.month, ws.day, we.month, we.day) + ("（途中）" if we >= today else "")
         head += [label, "前週比", "基準比"]
     table = [head]
-    for label, f, pct, target in weekly_metrics(aso_rows, ga4_rows):
+    for label, f, pct, target in weekly_metrics(aso_rows, ga4_rows, admob_rows):
         counts_days = pct is None
         base = None if counts_days else f(BASELINE_START, BASELINE_END)
         row = [label, _r(base), TARGETS.get(target, "")]
@@ -955,13 +1024,13 @@ def status_lines(now, errors):
     return ["取得失敗: %s・%s — %s" % (stamp, what, msg) for what, msg in errors] + ["最終更新: %s（失敗した取得は前回までの数字のまま）" % stamp]
 
 
-def build_tabs(aso_rows, ga4_rows, today, now, errors):
+def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors):
     return {
-        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, today, status_lines(now, errors)),
+        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors)),
         TAB_ASO: tab_aso(aso_rows),
-        TAB_GA4: tab_ga4(ga4_rows),
+        TAB_GA4: tab_ga4(ga4_rows, admob_rows),
         TAB_GAMES: tab_games(ga4_rows),
-        TAB_ADS: tab_ads(ga4_rows),
+        TAB_ADS: tab_ads(ga4_rows, admob_rows),
     }
 
 
@@ -981,16 +1050,49 @@ def _chart(title, sheet_id, x_col, y_cols, anchor_sheet, row, col):
 
 
 def chart_requests(ids):
-    """週次まとめに置く日次の折れ線 4 本（初回 DL・インプレッション・アクティブユーザー・広告収益）。"""
+    """週次まとめに置く日次の折れ線 4 本（初回 DL・インプレッション・アクティブユーザー・広告収益）。
+    広告収益は GA4（日次）内の「広告収益 USD（全ビルド）」と末尾の「AdMob 推定収益（円・画面取得）」の
+    2 本を同じグラフに描く（単位は違うが、AdMob 画面の過去分（〜10/14）と GA4 経由（10/15〜）をつなげて見るため）。"""
     w = ids[TAB_WEEKLY]
     ga4_col = {m: i + 1 for i, (_, m) in enumerate(GA4_DAILY_COLS)}
+    admob_rev_col = len(GA4_DAILY_COLS) + 1
     return [
         _chart("初回 DL（日次）", ids[TAB_ASO], 0, [FIELDNAMES.index("dl_first_total")], w, 4, 0),
         _chart("インプレッション（日次）", ids[TAB_ASO], 0, [FIELDNAMES.index("impr_total")], w, 4, 6),
         _chart("アクティブユーザー（日次）", ids[TAB_GA4], 0,
                [ga4_col["active_users"], ga4_col["active_users_all"]], w, 25, 0),
-        _chart("広告収益 USD（日次）", ids[TAB_GA4], 0, [ga4_col["ad_revenue"]], w, 25, 6),
+        _chart("広告収益（日次・円=AdMob 画面／USD=GA4）", ids[TAB_GA4], 0,
+               [admob_rev_col, ga4_col["ad_revenue"]], w, 25, 6),
     ]
+
+
+# 並べ替え・絞り込みができる表（Sheets API の Tables 機能・addTable/updateTable）にする 4 タブ（会長指示）。
+# 週次まとめ・メモ・基準値は対象外（今のまま）。tableId は固定し、無ければ addTable、あれば範囲だけ
+# updateTable で行の増減に追従させる（= 二重に作らない・毎日壊れない）。列の型（日付・数値）は新規作成時だけ付ける
+# （既存の表に付け直しても実害は無いが、ヘッダ文字列は書き込んだ値から毎回そのまま拾われるので触らない）。
+TABLE_IDS = {TAB_ASO: "tbl_aso_daily", TAB_GA4: "tbl_ga4_daily", TAB_GAMES: "tbl_games_daily", TAB_ADS: "tbl_ads_daily"}
+TABLE_COL_SPECS = {
+    TAB_ASO: {"date_idx": 0, "text_idxs": {FIELDNAMES.index(c) for c in META_COLS}},
+    TAB_GA4: {"date_idx": 0, "text_idxs": set()},
+    TAB_GAMES: {"date_idx": 0, "text_idxs": {1, 2}},  # game_id・ゲーム名
+    TAB_ADS: {"date_idx": 0, "text_idxs": {1, 2}},  # 取得元・広告フォーマット/ユニット
+}
+
+
+def table_requests(tab, sheet_id, header, n_rows, existing_tables):
+    """tab を並べ替え・絞り込みができる表にする 1 件の batchUpdate リクエストを返す。
+    既にその tableId の表があれば範囲だけ広げ縮めし（updateTable）、無ければ列の型付きで新規作成する（addTable）。"""
+    table_id = TABLE_IDS[tab]
+    spec = TABLE_COL_SPECS[tab]
+    rng = {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": max(1, n_rows),
+           "startColumnIndex": 0, "endColumnIndex": len(header)}
+    if any(t.get("tableId") == table_id for t in existing_tables or []):
+        return {"updateTable": {"table": {"tableId": table_id, "range": rng}, "fields": "range"}}
+    cols = []
+    for i, name in enumerate(header):
+        ct = "DATE" if i == spec["date_idx"] else ("TEXT" if i in spec["text_idxs"] else "DOUBLE")
+        cols.append({"columnIndex": i, "columnName": str(name), "columnType": ct})
+    return {"addTable": {"table": {"tableId": table_id, "name": tab, "range": rng, "columnProperties": cols}}}
 
 
 class Sheets:
@@ -1016,8 +1118,10 @@ class Sheets:
 
 
 def write_sheets(api, tabs):
-    """タブを揃え（無ければ作る・既定の「シート1」は週次まとめに名前を変える）、中身を丸ごと書き、グラフを置き直す。"""
-    meta = api.call("GET", "?fields=sheets(properties(sheetId,title),charts(chartId))")
+    """タブを揃え（無ければ作る・既定の「シート1」は週次まとめに名前を変える）、中身を丸ごと書き、
+    日次の 4 タブを並べ替え・絞り込みができる表にし、グラフを置き直す。"""
+    FIELDS = "?fields=sheets(properties(sheetId,title),charts(chartId),tables(tableId))"
+    meta = api.call("GET", FIELDS)
     sheets = {s["properties"]["title"]: s for s in meta.get("sheets") or []}
     reqs = []
     if TAB_WEEKLY not in sheets:
@@ -1031,7 +1135,7 @@ def write_sheets(api, tabs):
             reqs.append({"addSheet": {"properties": {"title": t, "index": i}}})
     if reqs:
         api.call("POST", ":batchUpdate", {"requests": reqs})
-        meta = api.call("GET", "?fields=sheets(properties(sheetId,title),charts(chartId))")
+        meta = api.call("GET", FIELDS)
         sheets = {s["properties"]["title"]: s for s in meta.get("sheets") or []}
     ids = {t: sheets[t]["properties"]["sheetId"] for t in TABS}
     if TAB_MEMO not in sheets:
@@ -1046,6 +1150,13 @@ def write_sheets(api, tabs):
 
     api.call("POST", "/values:batchUpdate", {"valueInputOption": "USER_ENTERED", "data": [
         {"range": "'%s'!A1" % t, "values": [[cell(v) for v in r] for r in tabs[t]]} for t in TABS]})
+    table_reqs = [table_requests(t, ids[t], tabs[t][0], len(tabs[t]), sheets[t].get("tables"))
+                  for t in TABLE_IDS if tabs.get(t)]
+    table_reqs += [{"autoResizeDimensions": {"dimensions": {"sheetId": ids[t], "dimension": "COLUMNS",
+                                                            "startIndex": 0, "endIndex": len(tabs[t][0])}}}
+                   for t in TABLE_IDS if tabs.get(t)]
+    if table_reqs:
+        api.call("POST", ":batchUpdate", {"requests": table_reqs})
     old = [c["chartId"] for c in sheets[TAB_WEEKLY].get("charts") or []]
     reqs = [{"deleteEmbeddedObject": {"objectId": c}} for c in old] + chart_requests(ids)
     reqs.append({"updateSheetProperties": {"properties": {"sheetId": ids[TAB_WEEKLY],
@@ -1086,6 +1197,8 @@ def main(argv=None):
     ap.add_argument("--no-sheets", action="store_true", help="スプレッドシートに書かない")
     ap.add_argument("--sheets-dump", metavar="DIR",
                     help="スプレッドシートに書く代わりに各タブの中身を DIR/<タブ名>.tsv に出す（API は呼ばない）")
+    ap.add_argument("--admob-history", default=ADMOB_HISTORY_PATH,
+                    help="AdMob の画面取得（過去分）CSV（既定: %s）。テスト用に差し替え可" % ADMOB_HISTORY_PATH)
     a = ap.parse_args(argv)
 
     raw_dir = os.path.join(a.out_dir, "raw")
@@ -1147,8 +1260,13 @@ def main(argv=None):
     for what, msg in errors:
         log("エラー: %s: %s" % (what, msg))
 
+    admob_rows = read_admob_history(a.admob_history)
+    if admob_rows:
+        log("AdMob 画面取得（過去分）: %d 日分（%s〜%s）" % (
+            len(admob_rows), admob_rows[0]["date"], admob_rows[-1]["date"]))
+
     if a.sheets_dump or not a.no_sheets:
-        tabs = build_tabs(rows, ga4_rows, today, datetime.datetime.now(JST), errors)
+        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors)
         try:
             if a.sheets_dump:
                 dump_tabs(tabs, a.sheets_dump)
