@@ -65,6 +65,19 @@ struct MissTextTests {
         #expect(face(.harbor) == "木箱にぶつかった")
     }
 
+    @Test("崩れる足場の正面は足場の見た目（吊り橋・桟橋）で言う（#2285）")
+    func crumblingPlatformFace() {
+        func face(_ world: RunnerWorld) -> String {
+            RunnerView.missText(cause: .rock, object: .crumblingPlatformFace, world: world)
+        }
+        #expect(face(.satoyama) == "吊り橋にぶつかった")
+        #expect(face(.harbor) == "桟橋にぶつかった")
+        #expect(face(.kyotoNara) == "吊り橋にぶつかった")
+        for world in RunnerWorld.allCases {
+            #expect(face(world) != RunnerView.missText(cause: .rock, object: .platformFace, world: world))
+        }
+    }
+
     @Test("相手が無い原因（穴・沈む床）は従来の文のまま")
     func causeOnly() {
         #expect(RunnerView.missText(cause: .pit, object: nil, world: .harbor) == "穴に落ちた")
@@ -77,6 +90,7 @@ struct MissTextTests {
         for world in RunnerWorld.allCases {
             var texts = kinds.map { text($0, world) }
             texts.append(RunnerView.missText(cause: .rock, object: .platformFace, world: world))
+            texts.append(RunnerView.missText(cause: .rock, object: .crumblingPlatformFace, world: world))
             for t in texts {
                 #expect(!t.isEmpty)
                 #expect(GameRunner.tr.hasTranslation(t, language: .english), "「\(t)」に英語が無い（\(world)）")
@@ -104,7 +118,7 @@ struct MissTextTests {
             switch field.lastMissObject {
             case .hazard(let kind)?:
                 #expect(kind.missCause == field.lastMissCause, "ステージ \(stage.number): \(kind)")
-            case .platformFace?:
+            case .platformFace?, .crumblingPlatformFace?:
                 #expect(field.lastMissCause == .rock, "ステージ \(stage.number)")
             case nil:
                 Issue.record("ステージ \(stage.number): ぶつかったのに相手が記録されていない")

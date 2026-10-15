@@ -918,4 +918,6 @@ public enum RunnerMissObject: Equatable, Sendable {
     case hazard(RunnerHazardKind)
     /// 台座の正面に突っ込んだ。
     case platformFace
+    /// 崩れる足場（吊り橋・桟橋）の板の端に突っ込んだ。見た目が `dressing.crumblingPlatform` なので台座とは別に持つ。
+    case crumblingPlatformFace
 }

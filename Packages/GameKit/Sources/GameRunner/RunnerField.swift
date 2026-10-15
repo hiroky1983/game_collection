@@ -614,9 +614,9 @@ public struct RunnerField: Equatable, Sendable {
                 events.append(.crashed)
                 return
             }
-            if isHittingPlatformFace {
+            if let face = hittingPlatformFace {
                 lastMissCause = .rock
-                lastMissObject = .platformFace
+                lastMissObject = face.kind == .crumbling ? .crumblingPlatformFace : .platformFace
                 events.append(.crashed)
                 return
             }
@@ -821,12 +821,15 @@ public struct RunnerField: Equatable, Sendable {
     /// この判定に来る前に `distance` と `footY` が動いてしまい、「中心が左端ちょうど」
     /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
     /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
-    var isHittingPlatformFace: Bool {
+    var isHittingPlatformFace: Bool { hittingPlatformFace != nil }
+
+    /// 正面に突っ込んだ台座（無ければ nil）。ミスの文言を台座と崩れる足場で分けるために種類まで返す（#2285）。
+    var hittingPlatformFace: RunnerPlatform? {
         firstPlatform { platform in
             guard distance < platform.start else { return false }
             guard platform.start < playerMaxX else { return false }
             return footY < Metrics.groundY + platform.top
-        } != nil
+        }
     }
 
     // MARK: - コースの中身（#1086）

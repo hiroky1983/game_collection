@@ -753,6 +753,11 @@ public struct RunnerView: View {
             case .strawStack: return tr("わら積みにぶつかった")
             case .crateStack: return tr("木箱にぶつかった")
             }
+        case .crumblingPlatformFace:
+            switch dressing.crumblingPlatform {
+            case .suspensionBridge: return tr("吊り橋にぶつかった")
+            case .woodenPier: return tr("桟橋にぶつかった")
+            }
         case .hazard(let kind):
             switch kind {
             case .pit: return missCauseText(.pit)
