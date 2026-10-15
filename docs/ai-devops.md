@@ -486,6 +486,38 @@ launchd 常駐。ログは `~/Library/Logs/asobiba-<name>.log`、読み込みは
   ときだけ `documentation` + `ai:approved` で起票して開発当番に回す（`ai:proposed` は付けない）
 - 正常終了した回だけ対象窓を進める（異常終了した回の PR は次回もう一度対象になる）
 
+### 自動QA当番（日次・2026-10-16 会長決裁・#2314）
+
+`Scripts/ai-qa-duty.sh`（`Scripts/com.asobiba.ai-qa.plist`・毎日 03:00 JST・Sonnet）。会長が多忙で Issue の洗い出しが
+減るため、**会長の代わりにアプリを触って Issue の種を出す**。
+
+- **流れ**: origin の最大の `release/vX.Y.Z` をビルド → 自分で `simctl create` した端末（名前 `ai-qa-*`）で全ゲーム
+  （`Scripts/list-game-ids.sh` が `App/AppGameServices.swift` の registry から実行時に作る。ID 一覧は docs に持たない）と
+  ハブを `-screenshotMode -startGame <id>` で開いて撮影 → `claude` が画像を見て起票（`Scripts/ai-qa-prompt.md`）→
+  端末を shutdown・delete、撮影物を消す。
+- **撮る条件**: 標準の iPhone（iPhone 17）と iPhone SE（3 世代・小画面）× 日本語・標準サイズ／英語・文字サイズ特大
+  （`-AppleLanguages (en)` と `simctl ui content_size extra-extra-large`）。端末は 1 台ずつ作って壊す（同時に 1 台まで）。
+- **見る点**: 文字のはみ出し・切れ／押せる範囲が 44pt 未満／日本語が残った英語表示／真っ白・読み込みのまま／起動直後に落ちる
+  （スクリプトが「起動 5 秒後にアプリが生きているか」と新しいクラッシュログを機械的に拾って渡す）。
+- **起票**: 同じ性質は 1 本にまとめる（1 ゲーム 1 本に割らない）。既存 Issue と重複しないか検索してから出す。
+  **ラベルは `ai:proposed` 固定**（自動ハンコの線引きは別途決まるまで。`ai:approved` は付けない）。マイルストーンは次版。
+  根拠の画像は `ui-review` リリースへ上げて貼る（リポジトリにはコミットしない）。異常なしならログに 1 行残すだけで Issue は作らない。
+  コードは変更しない（claude に Edit/Write を渡していない）。
+- **資源の規律**: 会長の端末（UDID 指定の `7B217727-…`）には触らず、DeviceHub を quit しない。操作するのはこの実行が作った UDID だけ
+  （削除前に名前が `ai-qa-` で始まることを確かめる）。起動中のシミュレータが 2 台以上なら見送る（全体上限 2 台）。
+  **開発当番の全スロットのロックを取ってから走る**（`duty:heavy` と同じ「重い処理は当番と同時に走らせない」排他）。
+  当番が 1 つでも動いていれば見送り、QA が走っている間に起動した当番は「全スロット使用中」で空振りして 3 分後に回る
+  （詰まらず後ろへずれる。撮影は上限 45 分で打ち切り、残りは次回）。派生データは当番とは別（`~/.asobiba-qa/derived-data`）。
+- **セットアップ**（会長の Mac・一度だけ）: plist の原本は `Scripts/com.asobiba.ai-qa.plist`。当番クローンの origin/main から
+  スクリプトを `~/.asobiba-qa/bin` に取り出して実行する（会長の作業ツリーのブランチに依存しない）。
+  ```bash
+  git -C ~/.asobiba-duty/game_collection show origin/main:Scripts/com.asobiba.ai-qa.plist \
+    > ~/Library/LaunchAgents/com.asobiba.ai-qa.plist
+  launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-qa.plist
+  ```
+  ログは `~/Library/Logs/asobiba-ai-qa.log`。止めるときは `launchctl bootout gui/501/com.asobiba.ai-qa`
+  （止めたら「停止中のジョブ」に追記する）。テストは `bash Scripts/tests/test-ai-qa-duty.sh`。
+
 `Scripts/ai-weekly-meeting.sh`（週次）は2026-08-24までクラウドルーティンで動いていたが、
 アプリの運営に無関係な MCP 接続（Supabase・Canva・Sentry・Notion 等）がクラウド側の設定に
 紐づいており、ヘッドレス実行時に認証待ちで即座に詰まって毎週空振りしていた。ローカル実行は
