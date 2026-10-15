@@ -37,8 +37,8 @@ struct MinesweeperFlagModeTests {
         #expect(!model.flagMode)
     }
 
-    @Test("旗モードは中断データに書かず、再開時はオフ")
-    func flagModeIsNotRestored() {
+    @Test("旗モードは中断データに書かれ、再開時もオンのまま（#2247）")
+    func flagModeIsRestored() {
         let store = MemorySnapshotStore()
         let services = GameServices(snapshots: store, ads: NoopAdService())
         let model = MinesweeperModel(services: services, rows: 9, cols: 9, mines: 10)
@@ -50,6 +50,6 @@ struct MinesweeperFlagModeTests {
 
         let restored = MinesweeperModel(services: services)
         #expect(restored.gameState == .playing, "中断データから復元できている（空振り防止）")
-        #expect(!restored.flagMode)
+        #expect(restored.flagMode, "旗のつもりのタップがマスを開く操作にならない")
     }
 }
