@@ -164,7 +164,7 @@ private struct ShogiPieceGuideRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.name)
                     .scaledFont(14, weight: .black, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(entry.movement)
                     .scaledFont(12, weight: .medium, design: .rounded)

@@ -42,7 +42,7 @@ enum MinesweeperHowToFigures {
                     Image(systemName: "flag.fill")
                         .resizable().scaledToFit()
                         .frame(width: MinesweeperHowToFigures.size * 0.52, height: MinesweeperHowToFigures.size * 0.52)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 case .mine:
                     Image(systemName: "circle.fill")
                         .resizable().scaledToFit()

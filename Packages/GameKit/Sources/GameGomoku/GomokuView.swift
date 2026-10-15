@@ -327,7 +327,7 @@ public struct GomokuView: View {
             if let w = model.winner {
                 Label(w == model.humanSide ? tr("あなたの勝ち！") : tr("CPUの勝ち"),
                       systemImage: "flag.checkered")
-                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.isDraw {
                 Label(tr("引き分け"), systemImage: "equal.circle")

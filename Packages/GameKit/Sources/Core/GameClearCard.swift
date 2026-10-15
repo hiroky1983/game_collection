@@ -27,10 +27,10 @@ public struct GameClearCard: View {
             VStack(spacing: 10) {
                 Image(systemName: "trophy.fill")
                     .scaledFont(40, maxScale: 1.2)
-                    .foregroundStyle(Theme.yellow)
+                    .foregroundStyle(Theme.yellowText)
                 Text(title)
                     .themeBody(24, weight: .bold, maxScale: 1.5)
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.tealText)
                 ForEach(details, id: \.self) { line in
                     Text(line)
                         .themeBody(15, weight: .semibold, maxScale: 1.5)

@@ -143,7 +143,7 @@ struct HomerunLobbyRankRow: View {
         HStack(spacing: 10) {
             Image(systemName: "trophy.fill")
                 .scaledFont(20, weight: .bold)
-                .foregroundStyle(Theme.yellow)
+                .foregroundStyle(Theme.yellowText)
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("今週のランキング")).themeCaption(12).foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
@@ -319,7 +319,7 @@ struct HomerunRankingBoardView: View {
         HStack(spacing: 12) {
             Image(systemName: "trophy.fill")
                 .scaledFont(26, weight: .bold)
-                .foregroundStyle(Theme.yellow)
+                .foregroundStyle(Theme.yellowText)
             VStack(alignment: .leading, spacing: 3) {
                 Text(tr("今週のランキング")).themeBody(16).foregroundStyle(Theme.ink)
                 if let range = HomerunRankingText.weekRange(start: board.start, end: board.end, now: Date()) {
@@ -366,10 +366,10 @@ struct HomerunRankingBoardView: View {
                         Text(verbatim: " ").themeCaption(13)
                     } else if let above {
                         Text(verbatim: HomerunRankingText.gap(aboveMeters: above.entry.meters, myMeters: myMeters, aboveRank: above.rank))
-                            .themeCaption(13).foregroundStyle(Theme.coral)
+                            .themeCaption(13).foregroundStyle(Theme.coralText)
                             .multilineTextAlignment(.trailing)
                     } else if myRank == 1 {
-                        Text(tr("今週の 1 位！")).themeCaption(13).foregroundStyle(Theme.coral)
+                        Text(tr("今週の 1 位！")).themeCaption(13).foregroundStyle(Theme.coralText)
                     }
                 }
             }

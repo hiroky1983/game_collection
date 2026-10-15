@@ -38,7 +38,7 @@ enum Game2048HowToFigures {
                 HStack(spacing: 4) {
                     Image(systemName: "hand.draw.fill")
                         .scaledFont(13, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     RuleFigureLabel(tr("左へスワイプ"), color: Theme.coral)
                 }
             }

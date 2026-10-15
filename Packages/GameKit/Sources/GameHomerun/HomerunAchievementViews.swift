@@ -72,9 +72,9 @@ struct HomerunUnlockBanner: View {
         HStack(spacing: 10) {
             Image(systemName: "trophy.fill")
                 .scaledFont(26, weight: .bold)
-                .foregroundStyle(Theme.yellow)
+                .foregroundStyle(Theme.yellowText)
             VStack(alignment: .leading, spacing: 2) {
-                Text(tr("実績解禁！")).themeCaption(12).foregroundStyle(Theme.coral)
+                Text(tr("実績解禁！")).themeCaption(12).foregroundStyle(Theme.coralText)
                 ForEach(items, id: \.self) { item in
                     Text(verbatim: item.title)
                         .scaledFont(18, weight: .black, design: .rounded)
@@ -104,7 +104,7 @@ struct HomerunUnlockedCard: View {
                     .foregroundStyle(Theme.ink)
                 ForEach(items, id: \.self) { item in
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(verbatim: item.title).themeBody(15, weight: .heavy).foregroundStyle(Theme.coral)
+                        Text(verbatim: item.title).themeBody(15, weight: .heavy).foregroundStyle(Theme.coralText)
                         Text(verbatim: item.detail).themeCaption(11).foregroundStyle(Theme.inkSub)
                     }
                     .accessibilityElement(children: .combine)

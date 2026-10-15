@@ -258,7 +258,7 @@ public struct SudokuView: View {
                     Label(tr("残り%lld", model.remainingCount), systemImage: "square.grid.3x3")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
                     Label(tr("ミス %1$lld/%2$lld", model.mistakes, SudokuModel.maxMistakes), systemImage: "xmark.circle")
                         .themeBody(15, weight: .bold, maxScale: 1.5)

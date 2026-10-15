@@ -54,7 +54,7 @@ enum OjisanPuzzleHowToFigures {
             ForEach(icons, id: \.self) { icon in
                 Image(systemName: icon)
                     .scaledFont(13, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
             Text(title)
                 .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
@@ -231,14 +231,14 @@ private struct GoalFigure: View {
                 HStack(alignment: .top, spacing: 2) {
                     Image(systemName: "flag.checkered")
                         .scaledFont(10, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                     OjisanPuzzleHowToFigures.label(tr("ここまで\n下げたら\nクリア"), size: 9.5)
                 }
                 Spacer(minLength: 8)
                 HStack(alignment: .top, spacing: 2) {
                     Image(systemName: "arrow.up")
                         .scaledFont(10, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     OjisanPuzzleHowToFigures.label(tr("時間で\n下から\nせり上がる"), size: 9.5, color: Theme.coral)
                 }
             }
@@ -441,7 +441,7 @@ private struct GaugeFigure: View {
                         if index == Self.poses.count - 1 {
                             Image(systemName: "cross.case.fill")
                                 .scaledFont(12, weight: .bold, maxScale: 1.15)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                         }
                     }
                 )

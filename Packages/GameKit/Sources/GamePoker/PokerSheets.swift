@@ -81,7 +81,7 @@ struct PokerStartSheet: View {
                     .scaledFont(13, weight: .semibold)
                     .foregroundStyle(Theme.inkSub)
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .padding(16)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
@@ -106,13 +106,13 @@ struct BonusTableSheet: View {
                     HStack(spacing: 8) {
                         Text(payout.rank.description)
                             .scaledFont(14, weight: .black, design: .rounded)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer()
                         Text(tr("+%@枚", RecordFormat.number(payout.chips)))
                             .scaledFont(16, weight: .black, design: .rounded)
-                            .foregroundStyle(Theme.yellow)
+                            .foregroundStyle(Theme.yellowText)
                     }
                 }
                 HStack(spacing: 8) {

@@ -71,7 +71,7 @@ public struct SolitaireSetupSheet: View {
                 Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),
                       systemImage: "exclamationmark.triangle.fill")
                     .scaledFont(13, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
         }
     }

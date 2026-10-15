@@ -9,7 +9,7 @@ extension MahjongView {
         VStack(spacing: 8) {
             Text(handResultTitle)
                 .scaledFont(20, weight: .black, design: .rounded)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
             if let result = model.handResult, result.kind != .exhaustiveDraw {
                 Text(Self.hanFuLine(result))
                     .scaledFont(14, weight: .bold, design: .rounded)
@@ -24,7 +24,7 @@ extension MahjongView {
                 }
                 Text(Self.pointsText(result.gainedPoints))
                     .scaledFont(18, weight: .black, design: .rounded)
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.tealText)
                 // 和了者の手を開く（#351）。何に振り込んだか・どんな手だったかを学べるようにする。
                 if let tiles = result.winningHand, let winTile = result.winningTile {
                     winningHandRow(
@@ -123,7 +123,7 @@ extension MahjongView {
         VStack(spacing: 10) {
             Text(gameResultTitle)
                 .scaledFont(22, weight: .black, design: .rounded)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
             if let place = model.playerPlace {
                 Text(tr("あなたは %@", Self.placeText(place)))
                     .scaledFont(18, weight: .black, design: .rounded)
@@ -134,7 +134,7 @@ extension MahjongView {
                     HStack {
                         Text(Self.placeText(place))
                             .scaledFont(13, weight: .black, design: .rounded)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                             .frame(width: 36, alignment: .leading)
                         Text(model.playerName(player))
                             .scaledFont(13, weight: .bold, design: .rounded)

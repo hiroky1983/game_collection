@@ -108,6 +108,34 @@ struct ThemeContrastTests {
         }
     }
 
+    // MARK: - #2282: 差し色を文字色に使うときの可読性
+
+    /// 文字として使う差し色は、ライト・ダークの地と面（カード）の上で AA を満たす。
+    /// 生の差し色はダークでは足りているがライトでは足りない（yellow 1.50 / teal 2.04 / coral 2.55）。
+    @Test func accentTextMeetsAAOnBothModes() {
+        let pairs: [(name: String, pair: Theme.Hex.Pair)] = [
+            ("yellowText", Theme.Hex.yellowText),
+            ("tealText", Theme.Hex.tealText),
+            ("coralText", Theme.Hex.coralText),
+        ]
+        for (_, pair) in pairs {
+            #expect(WCAG.contrast(pair.light, Theme.Hex.background.light) >= Self.aa)
+            #expect(WCAG.contrast(pair.light, Theme.Hex.surface.light) >= Self.aa)
+            #expect(WCAG.contrast(pair.dark, Theme.Hex.background.dark) >= Self.aa)
+            #expect(WCAG.contrast(pair.dark, Theme.Hex.surface.dark) >= Self.aa)
+        }
+    }
+
+    /// ダークは元の差し色のまま（ダークの見た目を変えない）。ライトの生の差し色が足りないことも固定する。
+    @Test func accentTextKeepsDarkValueAndRawAccentsFailOnLight() {
+        #expect(Theme.Hex.yellowText.dark == Theme.Hex.yellow)
+        #expect(Theme.Hex.tealText.dark == Theme.Hex.teal)
+        #expect(Theme.Hex.coralText.dark == Theme.Hex.coral)
+        for raw in [Theme.Hex.yellow, Theme.Hex.teal, Theme.Hex.coral] {
+            #expect(WCAG.contrast(raw, Theme.Hex.background.light) < Self.aa)
+        }
+    }
+
     // MARK: - #220: 差し色を面色にした箇所の可読性
 
     /// 差し色を**面色**にしてその上に文字を置く組み合わせ（アプリ全体で 26 箇所以上ある）は、

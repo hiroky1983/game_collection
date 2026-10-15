@@ -108,7 +108,7 @@ public struct BlackjackView: View {
             if model.bet > 0 {
                 Label(tr("ベット: %@枚", model.bet.formatted()), systemImage: "dollarsign.circle.fill")
                     .themeBody(14)
-                    .foregroundStyle(Theme.yellow)
+                    .foregroundStyle(Theme.yellowText)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
@@ -490,7 +490,7 @@ public struct BlackjackView: View {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
                     .scaledFont(24)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
@@ -499,7 +499,7 @@ public struct BlackjackView: View {
                         .themeBody(16, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     Text(sessionOverSubtitle)
                         .themeCaption(12, weight: .medium, maxScale: 1.5)
                         .lineLimit(2)

@@ -161,7 +161,7 @@ public struct GoView: View {
                 .frame(maxWidth: .infinity)
             } else if let endgame = model.endgame {
                 Text(endgame.score.summary)
-                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coralText)
                 Text(tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", endgame.score.blackArea, endgame.score.whiteArea, komiText(endgame.score)))
                     .themeBody(12).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -409,7 +409,7 @@ public struct GoView: View {
             switch model.phase {
             case .finished:
                 Label(resultText, systemImage: "flag.checkered")
-                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .scoring:
                 Label(tr("終局の確認"), systemImage: "list.bullet.clipboard")

@@ -361,7 +361,7 @@ public struct OldMaidView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
             }

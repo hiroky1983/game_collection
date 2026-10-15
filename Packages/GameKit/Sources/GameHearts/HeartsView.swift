@@ -316,7 +316,7 @@ public struct HeartsView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
@@ -542,7 +542,7 @@ struct HeartsCardView: View {
             if received {
                 Image(systemName: "arrow.down.circle.fill")
                     .scaledFont(10, weight: .bold, maxScale: 1.1)
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.tealText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .padding(2)
                     .accessibilityHidden(true)

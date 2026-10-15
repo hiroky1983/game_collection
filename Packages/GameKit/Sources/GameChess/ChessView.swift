@@ -437,7 +437,7 @@ public struct ChessView: View {
         GameStatusBar {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
-                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 TurnBadge(isYourTurn: model.position.sideToMove == model.humanSide)

@@ -60,7 +60,7 @@ enum BlocksHowToFigures {
                         Image(systemName: "arrow.left")
                         Image(systemName: "hand.point.up.left.fill")
                             .scaledFont(20, weight: .bold, maxScale: 1.15)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                         Image(systemName: "arrow.right")
                     }
                     .scaledFont(12, weight: .black, maxScale: 1.2)
@@ -72,7 +72,7 @@ enum BlocksHowToFigures {
                     Paddle()
                     Image(systemName: "hand.tap.fill")
                         .scaledFont(20, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     RuleFigureLabel(tr("タップで発射"))
                 }
             }
@@ -173,7 +173,7 @@ enum BlocksHowToFigures {
                         ForEach(0..<3, id: \.self) { _ in
                             Image(systemName: "xmark.circle.fill")
                                 .scaledFont(18, weight: .bold, maxScale: 1.15)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                         }
                     }
                     RuleFigureLabel(tr("3 回で終わり"), color: Theme.coral)

@@ -180,7 +180,7 @@ public struct DiceComboView: View {
                             .rotationEffect(.degrees(isHeld || value == nil ? 0 : Double((model.rollSerial * 37 + index * 53) % 21 - 10)))
                         Text(tr("キープ"))
                             .scaledFont(10, weight: .black, design: .rounded, maxScale: 1.1)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                             .opacity(isHeld ? 1 : 0)

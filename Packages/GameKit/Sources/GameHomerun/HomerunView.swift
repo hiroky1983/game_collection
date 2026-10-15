@@ -377,7 +377,7 @@ struct HomerunResultView: View {
             HStack(spacing: 12) {
                 Image(systemName: challenge.isMoonBroken ? "moon.circle.fill" : "moon.stars.fill")
                     .scaledFont(34, weight: .bold, maxScale: 1.2)
-                    .foregroundStyle(Theme.yellow)
+                    .foregroundStyle(Theme.yellowText)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(challenge.isMoonBroken ? tr("月が割れた！") : tr("月まで飛んだ！"))
                         .themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
@@ -386,7 +386,7 @@ struct HomerunResultView: View {
                         .foregroundStyle(Theme.ink)
                     if challenge.isMoonBroken {
                         Text(tr("挑戦はここで終わり。プレイ回数 +%lld をプレゼント", HomerunLedger.moonBonus))
-                            .themeCaption(12).foregroundStyle(Theme.coral)
+                            .themeCaption(12).foregroundStyle(Theme.coralText)
                     } else {
                         Text(tr("記録には 180 m として数えます")).themeCaption(11).foregroundStyle(Theme.inkSub)
                     }
@@ -706,7 +706,7 @@ struct HomerunResetCountdown: View {
             Text(verbatim: HomerunReturnPolicy.remainingText(from: context.date, calendar: .current,
                                                              freePlays: freePlays))
                 .themeBody(15, weight: .heavy)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
         }
         .accessibilityHidden(!readsAloud)
     }

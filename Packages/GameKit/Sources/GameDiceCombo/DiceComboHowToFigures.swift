@@ -109,7 +109,7 @@ enum DiceComboHowToFigures {
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: "+\(DiceComboLogic.upperBonus)")
                     .scaledFont(22, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
         }
     }

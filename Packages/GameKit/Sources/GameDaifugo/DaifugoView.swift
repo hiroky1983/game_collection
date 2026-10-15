@@ -235,7 +235,7 @@ public struct DaifugoView: View {
                 if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
                     Text(model.actionLabel(DaifugoModel.humanIndex))
                         .scaledFont(11, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 }
             }
             LazyVGrid(
@@ -295,7 +295,7 @@ public struct DaifugoView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
@@ -438,7 +438,7 @@ public struct DaifugoView: View {
                         if let note = rankRowNote(player) {
                             Text(note)
                                 .scaledFont(10, weight: .bold, design: .rounded)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                         }
                         Spacer()
                     }

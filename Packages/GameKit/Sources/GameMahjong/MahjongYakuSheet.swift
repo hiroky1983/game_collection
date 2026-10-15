@@ -65,7 +65,7 @@ public struct MahjongYakuSheet: View {
                 Spacer(minLength: 6)
                 Text(yaku.hanText)
                     .scaledFont(13, weight: .heavy, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                     .fixedSize()
             }
             Text(yaku.requirement)

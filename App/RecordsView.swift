@@ -179,7 +179,7 @@ struct RecordsView: View {
                         ForEach(row.milestones, id: \.self) { milestone in
                             Text(row.milestoneTitle(milestone))
                                 .themeCaption(10)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Capsule().fill(Theme.coral.opacity(0.12)))
@@ -199,7 +199,7 @@ struct RecordsView: View {
                 Text(tr("あそぶ"))
                     .themeCaption(13)
                     .fontWeight(.semibold)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
             Image(systemName: "chevron.right")
                 .scaledFont(12, weight: .semibold)

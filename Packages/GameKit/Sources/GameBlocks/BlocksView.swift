@@ -153,7 +153,7 @@ public struct BlocksView: View {
             ForEach(0..<max(0, model.lives), id: \.self) { _ in
                 Image(systemName: "heart.fill")
                     .scaledFont(12)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
         }
         .accessibilityElement()

@@ -62,11 +62,11 @@ enum ShiritoriHowToFigures {
                     ForEach(0..<8, id: \.self) { _ in
                         Image(systemName: "rectangle.portrait.fill")
                             .scaledFont(20, weight: .bold, maxScale: 1.15)
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.tealText)
                     }
                     Image(systemName: "infinity")
                         .scaledFont(20, weight: .black, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 }
                 RuleFigureLabel(tr("全部取りきればパーフェクト"), color: Theme.coral)
             }
@@ -113,7 +113,7 @@ enum ShiritoriHowToFigures {
                 VStack(spacing: 4) {
                     Image(systemName: "cpu")
                         .scaledFont(26, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     RuleFigureLabel(tr("CPU の番"))
                 }
             }
@@ -163,7 +163,7 @@ enum ShiritoriHowToFigures {
                         if win {
                             Image(systemName: "crown.fill")
                                 .scaledFont(12, weight: .bold, maxScale: 1.15)
-                                .foregroundStyle(Theme.yellow)
+                                .foregroundStyle(Theme.yellowText)
                                 .offset(x: 8, y: -8)
                         }
                     }

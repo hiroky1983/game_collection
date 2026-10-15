@@ -225,7 +225,7 @@ public struct ColorRelayView: View {
                 if !model.lastActions[ColorRelayModel.humanIndex].isEmpty {
                     Text(model.lastActions[ColorRelayModel.humanIndex])
                         .scaledFont(11, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                         .lineLimit(1).minimumScaleFactor(0.6)
                 }
             }
@@ -291,7 +291,7 @@ public struct ColorRelayView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }

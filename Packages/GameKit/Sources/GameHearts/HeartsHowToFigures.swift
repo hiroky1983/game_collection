@@ -43,7 +43,7 @@ enum HeartsHowToFigures {
                 }
                 Image(systemName: "arrow.left")
                     .scaledFont(14, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                 VStack(spacing: 2) {
                     Image(systemName: "cpu")
                         .scaledFont(18, weight: .bold, maxScale: 1.15)

@@ -63,7 +63,7 @@ struct MahjongStartSheet: View {
                         .scaledFont(13, weight: .semibold)
                         .foregroundStyle(Theme.inkSub)
                 }
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 3))

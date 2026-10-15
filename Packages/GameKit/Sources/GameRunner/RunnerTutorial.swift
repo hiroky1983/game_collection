@@ -99,7 +99,7 @@ struct RunnerTutorialSteps: View {
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: step.symbol)
                         .scaledFont(fontSize + 7, weight: .heavy)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                         .frame(width: fontSize + 11)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(step.text)
@@ -108,7 +108,7 @@ struct RunnerTutorialSteps: View {
                         if let note = step.note {
                             Text(note)
                                 .scaledFont(fontSize - 2, weight: .bold, design: .rounded)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                         }
                     }
                     .fixedSize(horizontal: false, vertical: true)

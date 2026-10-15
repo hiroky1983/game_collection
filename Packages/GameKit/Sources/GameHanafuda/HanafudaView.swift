@@ -247,7 +247,7 @@ public struct HanafudaView: View {
                         Text(tr("めくり札"))
                             .themeCaption(12, weight: .bold, maxScale: 1.5)
                             .fitOneLine()
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                         HanafudaCardFace(card: drawn, isHighlighted: true)
                             .frame(height: fit.stripHeight)
                     }
@@ -436,7 +436,7 @@ public struct HanafudaView: View {
                 Text(tr("%lld文", result.score))
                     .themeBody(22, weight: .heavy)
                     .fitOneLine()
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
         }
         .frame(maxWidth: .infinity)
