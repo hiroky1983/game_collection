@@ -36,6 +36,7 @@ import GameChess
 import GameBlocks
 import MahjongTiles
 import CoreTestSupport
+import GameKitTestSupport
 import GameRunnerTestSupport
 
 // MARK: - Mocks
@@ -1727,9 +1728,7 @@ struct UntouchedSnapshotReopenTests {
             "RouletteModule.swift": "同上（口の無い賭け中の保存）",
             "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",
         ]
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources")
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
         let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
         var checked = 0
         for case let url as URL in files where url.lastPathComponent.hasSuffix("Module.swift") {
