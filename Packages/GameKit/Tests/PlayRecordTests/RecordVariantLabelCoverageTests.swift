@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 import GameShogi
 import GameMinesweeper
 import GamePoker
@@ -68,10 +69,7 @@ struct RecordVariantLabelCoverageTests {
 
     /// `RecordVariantLabels.label` の `switch` が持つゲーム ID（表のソースから読む）。
     static var tableGameIDs: Set<String> {
-        let path = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/CoreEngine/RecordVariantLabels.swift").path
-        let whole = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        let whole = (try? SourceScan.packageSource("Sources/CoreEngine/RecordVariantLabels.swift")) ?? ""
         // 組み立て用の補助関数にも同じ字下げの case があるので、`label` の範囲（`stored` の手前まで）だけ読む。
         let source = whole.components(separatedBy: "public static func stored").first ?? ""
         let pattern = try! NSRegularExpression(pattern: #"^        case "([a-z0-9]+)":"#, options: .anchorsMatchLines)
