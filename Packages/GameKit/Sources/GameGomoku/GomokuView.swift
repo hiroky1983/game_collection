@@ -165,7 +165,8 @@ public struct GomokuView: View {
                             let row = Int(((val.location.y - pad) / spacing).rounded())
                             // 盤外・手番違いの判定は Model 側に集約する（#202）。
                             // ここで早期 return すると無効タップが無反応のまま残る。
-                            model.tap(row: row, col: col)
+                            // 設定が 2 段なら仮置き → 確定（#2297）。
+                            model.tapOnBoard(row: row, col: col)
                         }
                 )
                 .accessibilityRepresentation {
@@ -186,6 +187,9 @@ public struct GomokuView: View {
                 // ヒントが示す交点（#1118）。盤の前面に重ねるので、勝ち筋と同じく
                 // タップと VoiceOver の交点グリッドを横取りしないよう両方から外す。
                 hintMark(pad: pad, spacing: spacing)
+
+                // 仮置きの印（#2297）。同じく盤の前面で、タップと VoiceOver を横取りしない。
+                pendingMark(pad: pad, spacing: spacing)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -212,6 +216,33 @@ public struct GomokuView: View {
                           y: pad + spacing * CGFloat(point.row))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+        }
+    }
+
+    /// 仮置き中の交点の印（#2297）。薄い石と、指で隠れても位置が分かる十字の強調。
+    ///
+    /// 出す条件は `model.pendingPoint` だけ。確定・移動・手番交代などで Model が消す。
+    @ViewBuilder
+    private func pendingMark(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let point = model.pendingPoint {
+            let x = pad + spacing * CGFloat(point.col)
+            let y = pad + spacing * CGFloat(point.row)
+            let reach = spacing * 0.9
+            ZStack {
+                Path { path in
+                    path.move(to: CGPoint(x: x - reach, y: y)); path.addLine(to: CGPoint(x: x + reach, y: y))
+                    path.move(to: CGPoint(x: x, y: y - reach)); path.addLine(to: CGPoint(x: x, y: y + reach))
+                }
+                .stroke(Theme.coral, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                Circle()
+                    .fill(model.currentStone == .black ? Color(hex: 0x18140E) : Color(hex: 0xF0E8D0))
+                    .opacity(0.55)
+                    .overlay(Circle().stroke(Theme.coral, lineWidth: 2))
+                    .frame(width: spacing * 0.92, height: spacing * 0.92)
+                    .position(x: x, y: y)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
@@ -357,6 +388,14 @@ public struct GomokuView: View {
         BoardGameControlBar(
             model: model, services: services, rescue: undoRescue,
             hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
+            extraItems: [
+                // 盤のタップの方式（#2297）。慣れた人は 1 タップで置くへ戻せる。
+                GameControlMenuItem(id: "confirmPlacement", title: tr("タップは2回で置く"), systemImage: "hand.tap",
+                                    isChecked: model.confirmsPlacement,
+                                    accessibilityHint: tr("オンのとき、1回目のタップで仮置き、同じ交点をもう一度タップで確定します")) {
+                    model.setConfirmsPlacement(!model.confirmsPlacement)
+                }
+            ],
             onResign: { model.resign() }
         )
     }
