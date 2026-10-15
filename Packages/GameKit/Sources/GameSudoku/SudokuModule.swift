@@ -19,10 +19,20 @@ public struct SudokuModule: GameModule {
     /// 経過時間は手を入れなくても進むので見ない。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(SudokuSnapshot.self, for: id) else { return false }
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが 1 マスも入力していない盤（#2301）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(SudokuSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: SudokuSnapshot) -> Bool {
         let entered = snap.board.indices.contains { index in
             index < snap.given.count && !snap.given[index] && snap.board[index] != 0
         }
         let noted = snap.notes.contains { $0 != 0 }
-        return entered || noted || snap.hintsUsed > 0 || (snap.mistakes ?? 0) > 0
+        return !(entered || noted || snap.hintsUsed > 0 || (snap.mistakes ?? 0) > 0)
     }
 }

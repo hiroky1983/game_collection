@@ -17,7 +17,17 @@ public struct ConcentrationModule: GameModule {
     /// 表向きの札・揃った札・得点・待ったの使用のどれかが変わる。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(ConcentrationSnapshot.self, for: id) else { return false }
-        return snap.isFaceUp.contains(true) || snap.isMatched.contains(true)
-            || snap.playerScore > 0 || snap.cpuScore > 0 || snap.mattaUsed
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが一枚もめくっていない盤（#2301）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(ConcentrationSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: ConcentrationSnapshot) -> Bool {
+        !(snap.isFaceUp.contains(true) || snap.isMatched.contains(true)
+            || snap.playerScore > 0 || snap.cpuScore > 0 || snap.mattaUsed)
     }
 }
