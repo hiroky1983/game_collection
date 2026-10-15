@@ -68,6 +68,12 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
     public private(set) var selectedPoint: Int?
     /// 直前に動いた駒（演出・読み上げ用）。
     public private(set) var lastMove: BackgammonMove?
+    /// CPU の手番が終わった（またはパスした）直後の `aiTurnKey`（#2280）。駒を 1 つ動かすたびに鍵は進むが、
+    /// 読み上げは手番ごとに 1 回なので、手番が人間へ渡ったときだけ控える。
+    public private(set) var lastCPUMoveKey: AITurnKey?
+    /// `lastCPUMoveKey` の手番で CPU が動かした駒。空ならパス（#2280）。
+    public private(set) var lastCPUTurnMoves: [BackgammonMove] = []
+    private var cpuTurnMoves: [BackgammonMove] = []
     /// オープニングロール（人間の目, CPU の目）。開始直後の案内に使う。
     public private(set) var openingRoll: (human: Int, cpu: Int)?
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
@@ -253,6 +259,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
             } commit: { _ in
                 guard isAITurn, mustPass else { return }
                 confirmPass()
+                lastCPUTurnMoves = []
+                lastCPUMoveKey = aiTurnKey
             }
             return
         }
@@ -269,7 +277,15 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
             guard isAITurn, !gameOver, let move else { return }
             // 旧局面で選んだ手をそのまま打たない。いまの合法手に含まれるときだけ進める。
             guard BackgammonRules.legalMoves(board: board, side: currentSide, dice: remainingDice).contains(move) else { return }
+            // 手番の最初の 1 手で数え直す（途中で画面を離れて積み残した分を持ち越さない）。
+            if remainingDice.count == dice.count { cpuTurnMoves = [] }
+            cpuTurnMoves.append(move)
             play(move)
+            if gameOver || currentSide == humanSide {
+                lastCPUTurnMoves = cpuTurnMoves
+                cpuTurnMoves = []
+                lastCPUMoveKey = aiTurnKey
+            }
         }
     }
 

@@ -73,6 +73,10 @@ public struct GomokuView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の着手を読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            model.lastMove.map { GomokuAccessibility.cpuMoveAnnouncement(row: $0.row, col: $0.col) }
+        }
         // 禁じ手で断られた理由を読み上げる（#1574）。連続して同じ手を打っても毎回読ませるため、
         // `lastRejection` ではなく数え上げの `rejectedTapCount` で見張る。
         .onChange(of: model.rejectedTapCount) {

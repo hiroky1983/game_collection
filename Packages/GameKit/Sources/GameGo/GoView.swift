@@ -73,6 +73,10 @@ public struct GoView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の着手・パスを読み上げる（#2280）。パスは `lastMove` が nil になる。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            GoAccessibility.cpuMoveAnnouncement(point: model.lastMove)
+        }
         .task(id: model.phase) {
             await model.evaluateEndgameIfNeeded()
         }

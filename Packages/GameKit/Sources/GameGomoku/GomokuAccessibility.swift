@@ -31,4 +31,9 @@ public enum GomokuAccessibility {
     public static func forbiddenAnnouncement(reason: GomokuForbidden) -> String {
         tr("%@は打てません（禁じ手）", reason.label)
     }
+
+    /// CPU が石を置いたときの読み上げ文（#2280）。
+    public static func cpuMoveAnnouncement(row: Int, col: Int) -> String {
+        tr("CPUは%1$lld行%2$lld列に打ちました", row + 1, col + 1)
+    }
 }

@@ -561,6 +561,39 @@
           }
         }
       }
+    },
+    "CPUはパスしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU passed"
+          }
+        }
+      }
+    },
+    "CPUは駒を%lld個動かしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU moved %lld checker(s)"
+          }
+        }
+      }
+    },
+    "あなたの駒が%lld個バーに送られました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of your checker(s) sent to the bar"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -57,6 +57,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var isThinking: Bool
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var moveCount: Int
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var undoUsed: Bool
     /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェスと共通）。
     public private(set) var hints: BoardHintBudget
@@ -337,6 +339,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } commit: { move in
             guard isAITurn, let (r, c) = move, board[r, c] == nil else { return }
             place(row: r, col: c)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 

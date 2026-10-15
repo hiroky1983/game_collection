@@ -1167,6 +1167,61 @@
           }
         }
       }
+    },
+    "CPUは%1$@を%2$@から%3$@へ動かしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU moved %1$@ from %2$@ to %3$@"
+          }
+        }
+      }
+    },
+    "CPUは%1$@を%2$@に打ちました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU dropped %1$@ at %2$@"
+          }
+        }
+      }
+    },
+    "成りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "promoted"
+          }
+        }
+      }
+    },
+    "王手です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

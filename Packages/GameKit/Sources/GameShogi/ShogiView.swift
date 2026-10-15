@@ -91,6 +91,17 @@ public struct ShogiView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の着手（と王手）を読み上げる（#2280）。王手バナーは 1 秒で消えるのでここで補う。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            guard let move = model.moves.last else { return nil }
+            let to: Int
+            switch move {
+            case let .board(_, t, _), let .drop(_, t): to = t
+            }
+            return ShogiAccessibility.cpuMoveAnnouncement(
+                move: move, piece: model.position.squares[to],
+                isCheck: model.position.isKingInCheck(model.position.sideToMove))
+        }
         .task {
             #if DEBUG
             // 撮影用: 終局後レイアウト（検討ナビ・レコメンドのオーバーレイ）を即再現する。

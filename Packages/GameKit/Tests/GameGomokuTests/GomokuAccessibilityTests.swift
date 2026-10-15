@@ -14,3 +14,26 @@ struct GomokuAccessibilityTests {
         #expect(GomokuAccessibility.forbiddenAnnouncement(reason: reason) == expected)
     }
 }
+
+/// CPU の着手の読み上げ（#2280）。
+@MainActor
+@Suite("五目並べ: CPU の着手の読み上げ")
+struct GomokuCPUMoveAnnouncementTests {
+    @Test("文言は 1 始まりの行列で読む")
+    func text() {
+        #expect(GomokuAccessibility.cpuMoveAnnouncement(row: 3, col: 4) == "CPUは4行5列に打ちました")
+    }
+
+    @Test("CPU が打った直後の鍵だけが控えられ、人間が打つと外れる")
+    func keyTracksCPUMoveOnly() async throws {
+        let model = GomokuModel(services: nil)
+        model.newGame(humanSide: .white, aiLevel: 1) // CPU=黒(先手)
+        #expect(model.lastCPUMoveKey == nil)
+        await model.performAIMoveIfNeeded()
+        #expect(model.lastCPUMoveKey == model.aiTurnKey)
+        let (r, c) = try #require((0..<gomokuBoardSize).lazy.flatMap { r in (0..<gomokuBoardSize).map { (r, $0) } }
+            .first { model.board[$0.0, $0.1] == nil })
+        model.tap(row: r, col: c)
+        #expect(model.lastCPUMoveKey != model.aiTurnKey)
+    }
+}

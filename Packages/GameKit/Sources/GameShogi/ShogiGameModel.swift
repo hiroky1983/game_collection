@@ -10,6 +10,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 開始局面。手合い（#2179）はここに焼き込む（平手は初形、駒落ちは上手の駒を欠いた後手番の局面）。
     public private(set) var initialSFEN: String
     public private(set) var moves: [Move]
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var position: Position
     public private(set) var legalMovesCache: [Move]
 
@@ -591,6 +593,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             guard isAITurn, let usi, let move = Move.fromUSI(usi),
                   legalMovesCache.contains(move) else { return }
             apply(move)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 

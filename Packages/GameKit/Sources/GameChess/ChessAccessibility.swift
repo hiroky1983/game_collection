@@ -57,4 +57,18 @@ public enum ChessAccessibility {
             .joined(separator: tr("、"))
         return tr("%1$@の取られた駒、%2$@", owner.name, text)
     }
+
+    /// CPU が指したときの読み上げ文（#2280）。`piece` は指したあとの `to` にある駒。
+    /// チェックは「なぜ動かせない駒があるのか」に直結するので、掛かっていれば続けて読ませる。
+    public static func cpuMoveAnnouncement(piece: ChessPiece?, move: ChessMove, isCheck: Bool) -> String {
+        let from = squareName(move.from), to = squareName(move.to)
+        var text: String
+        if let piece {
+            text = tr("CPUは%1$@を%2$@から%3$@へ動かしました", pieceName(piece), from, to)
+        } else {
+            text = tr("CPUは%1$@から%2$@へ動かしました", from, to)
+        }
+        if isCheck { text += tr("。") + tr("チェックです") }
+        return text
+    }
 }

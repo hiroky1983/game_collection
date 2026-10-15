@@ -418,6 +418,39 @@
           }
         }
       }
+    },
+    "黒 %1$lld 対 白 %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black %1$lld, White %2$lld"
+          }
+        }
+      }
+    },
+    "CPUはパスしました。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU passed. %@"
+          }
+        }
+      }
+    },
+    "CPUは%1$lld行%2$lld列に置きました。%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU placed at row %1$lld, column %2$lld. %3$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

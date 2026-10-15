@@ -96,6 +96,10 @@ public struct HanafudaView: View {
         .task(id: model.aiTurnKey) {
             await model.runCPUTurnIfNeeded()
         }
+        // CPU の手番の締めに 1 回だけ読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            model.lastCPUTurn.map(HanafudaSpeech.cpuTurnAnnouncement)
+        }
         #if DEBUG
         // 撮影用。シミュレータはタップを自動化できないため、役の早見表はこの経路でしか撮れない
         // （中断データの注入では「シートが開いている」状態を作れない）。
