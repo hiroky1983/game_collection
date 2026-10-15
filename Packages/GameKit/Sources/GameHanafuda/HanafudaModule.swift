@@ -30,11 +30,20 @@ public struct HanafudaModule: GameModule {
     /// 2 局目以降の配り直しは前の局の結果があるので続きとして扱う。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return false }
-        let untouched = snap.round <= 1
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが配っただけで一枚も出していない 1 局目（#2301）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: HanafudaSnapshot) -> Bool {
+        snap.round <= 1
             && snap.phase == .playing
             && snap.selection == nil && snap.drawnCard == nil
             && snap.hands.allSatisfy { $0.count == 8 }
             && snap.captured.allSatisfy(\.isEmpty)
-        return !untouched
     }
 }

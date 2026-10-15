@@ -30,8 +30,17 @@ public struct BlocksModule: GameModule {
     /// 2 面以降・残機が減った・コンティニュー済みは進行なので続きとして扱う。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(BlocksSnapshot.self, for: id) else { return false }
-        let untouched = snap.stage <= 1 && snap.score == 0
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが 1 面の頭から一度も落としていない盤（#2301）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(BlocksSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: BlocksSnapshot) -> Bool {
+        snap.stage <= 1 && snap.score == 0
             && snap.lives >= BlocksRules.initialLives && !snap.continueUsed
-        return !untouched
     }
 }

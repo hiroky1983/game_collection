@@ -36,6 +36,7 @@ import GameChess
 import GameBlocks
 import MahjongTiles
 import CoreTestSupport
+import GameKitTestSupport
 import GameRunnerTestSupport
 
 // MARK: - Mocks
@@ -1637,6 +1638,112 @@ struct UntouchedSnapshotReopenTests {
         reopened.resign()
         #expect(spy.starts(of: "gomoku") == startsBefore + 1)
         #expect(spy.ends(of: "gomoku") == 1)
+    }
+
+    @Test("ブロック崩し: 1 面の頭で動かさずに戻って開き直すと、2 回目にも game_start が付く（#2301）")
+    func blocks() {
+        let snapshots = MemorySnapshotStore()
+        let module = BlocksModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        _ = BlocksModel(services: services)
+        services.gameDidLeave(gameID: "blocks")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 初期盤の保存が残っている")
+        #expect(!module.hasResumableSnapshot(in: snapshots))
+        let startsBefore = spy.starts(of: "blocks")
+
+        _ = BlocksModel(services: services)
+        appear(module, services, snapshots)
+        appear(module, services, snapshots)
+        #expect(spy.starts(of: "blocks") == startsBefore + 1, "二重にはならない")
+    }
+
+    @Test("神経衰弱: 一枚もめくらずに戻って開き直すと、2 回目にも game_start が付く（#2301）")
+    func concentration() {
+        let snapshots = MemorySnapshotStore()
+        let module = ConcentrationModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = ConcentrationModel(services: services)
+        first.newGame(pairCount: .medium, cpuLevel: .normal)
+        services.gameDidLeave(gameID: "concentration")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 手つかずの保存が残っている")
+        #expect(!module.hasResumableSnapshot(in: snapshots))
+        let startsBefore = spy.starts(of: "concentration")
+
+        _ = ConcentrationModel(services: services)
+        appear(module, services, snapshots)
+        appear(module, services, snapshots)
+        #expect(spy.starts(of: "concentration") == startsBefore + 1, "二重にはならない")
+    }
+
+    @Test("花札: 配っただけで戻って開き直し、投了すると game_start / game_end が付く（#2301）")
+    func hanafuda() {
+        let snapshots = MemorySnapshotStore()
+        let module = HanafudaModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = HanafudaModel(services: services, cpuDelay: .zero, seed: 1)
+        first.startMatch(options: HanafudaOptions(rounds: 3))
+        services.gameDidLeave(gameID: "hanafuda")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 配っただけの保存が残っている")
+        #expect(!module.hasResumableSnapshot(in: snapshots))
+        let startsBefore = spy.starts(of: "hanafuda")
+
+        let reopened = HanafudaModel(services: services, cpuDelay: .zero, seed: 1)
+        appear(module, services, snapshots)
+        reopened.resign()
+        #expect(spy.starts(of: "hanafuda") == startsBefore + 1)
+        #expect(spy.ends(of: "hanafuda") == 1)
+    }
+
+    @Test("ナンプレ: 1 マスも入れずに戻って開き直し、諦めると game_start / game_end が付く（#2301）")
+    func sudoku() async {
+        let snapshots = MemorySnapshotStore()
+        let module = SudokuModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = SudokuModel(services: services, seed: 1)
+        await first.newGame(difficulty: .easy)
+        services.gameDidLeave(gameID: "sudoku")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 出題直後の保存が残っている")
+        #expect(!module.hasResumableSnapshot(in: snapshots))
+        let startsBefore = spy.starts(of: "sudoku")
+
+        let reopened = SudokuModel(services: services, seed: 1)
+        appear(module, services, snapshots)
+        reopened.giveUp()
+        #expect(spy.starts(of: "sudoku") == startsBefore + 1)
+        #expect(spy.ends(of: "sudoku") == 1)
+    }
+
+    /// `hasResumableSnapshot` を持つ `GameModule` は `hasUntouchedSnapshot` も持つ（#2301）。
+    /// 片方だけだと、手つかずの盤を開き直した回の計測が欠ける（#2161）。**ソースを走査**して見張る。
+    /// 持たなくてよいのは、中断データの形から「手つかず」が起こらないものだけ（理由は表のとおり）。
+    @Test("hasResumableSnapshot を実装する Module は hasUntouchedSnapshot も実装している")
+    func resumableImpliesUntouched() throws {
+        let exempt: [String: String] = [
+            "BlackjackModule.swift": "復活チップだけの保存は賭け待ちで、game_start は賭けた時点で数える",
+            "PokerModule.swift": "同上（局を持たない .idle の保存）",
+            "RouletteModule.swift": "同上（口の無い賭け中の保存）",
+            "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",
+        ]
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var checked = 0
+        for case let url as URL in files where url.lastPathComponent.hasSuffix("Module.swift") {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            guard text.contains("public func hasResumableSnapshot(") else { continue }
+            checked += 1
+            let name = url.lastPathComponent
+            let hasUntouched = text.contains("public func hasUntouchedSnapshot(")
+            if exempt[name] != nil {
+                #expect(!hasUntouched, "\(name) は免除表にあるのに実装している。表から外す")
+            } else {
+                #expect(hasUntouched, "\(name) が hasUntouchedSnapshot を実装していない（#2161・#2301）")
+            }
+        }
+        #expect(checked >= 15, "走査が空振りしていないこと（見つかった Module: \(checked)）")
     }
 
     @Test("再開できる中断データから開き直しても game_start は増えない")
