@@ -674,9 +674,18 @@ public final class GameAnalytics {
     }
 
     /// アプリが前面から外れたときに呼ぶ（#1373）。戻るまでの時間は `duration_sec` に入れない。
+    ///
+    /// 背面で OS にアプリを終了されても「続きから」で決着した局の `game_end` が出るよう、
+    /// 再開できる進行中のプレイ（休憩中を除く）は休憩の控えを書いておく（#2300）。
+    /// 控えは決着・離脱・新規開始で消える既存の仕組みのままなので、前面に戻って遊び続けても害は無い。
     public func appDidResignActive() {
         isAppActive = false
         for gameID in plays.keys { pauseClock(gameID: gameID) }
+        for (gameID, state) in plays {
+            if case let .inFlight(_, _, canResume, _) = state, canResume, !resting.contains(gameID) {
+                rememberRest(gameID: gameID)
+            }
+        }
     }
 
     /// アプリが前面に戻ったときに呼ぶ（#1373）。休憩中のプレイは再開まで止めたまま。

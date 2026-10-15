@@ -975,6 +975,60 @@ struct RestAcrossRelaunchTests {
         #expect(afterSpy.ends.first?.durationSec == 65, "休憩前の 40 秒 + 戻ってからの 25 秒。終了中の時間は入れない")
     }
 
+    @Test("ハブへ戻らず背面でアプリが終了しても、「続きから」で決着すれば game_end が出る（#2300）")
+    func finishAfterBackgroundTerminationSendsEnd() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, beforeSpy) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048", mode: .endless)
+        before.recordProgress(gameID: "2048")
+        clock.advance(40)
+        before.appDidResignActive()                            // ホームへ。leaveGame は呼ばれずここで終了される
+        #expect(beforeSpy.starts.count == 1)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        clock.advance(3600)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        clock.advance(25)
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(afterSpy.starts.isEmpty)
+        #expect(afterSpy.ends.map(\.result) == [.win])
+        #expect(afterSpy.ends.first?.durationSec == 65)
+    }
+
+    @Test("背面化では、再開できない局・休憩中の局・決着済みの局に控えを書かない（#2300）")
+    func resignDoesNotRememberOtherPlays() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (analytics, _) = relaunch(store, clock: clock)
+        analytics.startPlay(gameID: "2048")
+        analytics.markUnresumable(gameID: "2048")
+        analytics.appDidResignActive()
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "再開できない局")
+
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        analytics.appDidResignActive()
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "決着済みの局")
+    }
+
+    @Test("背面化で控えを書いても、前面に戻って決着すれば控えは消え、次回は二重に出ない（#2300）")
+    func resignThenFinishInSameProcessClearsEntry() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, beforeSpy) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.appDidResignActive()
+        before.appDidBecomeActive()
+        before.finishPlay(gameID: "2048", outcome: .win)
+        before.leaveGame(gameID: "2048", isResumable: false)
+        #expect(beforeSpy.ends.count == 1)
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil)
+    }
+
     @Test("復元した局を捨てると、1 手指していた分は quit として出る")
     func quitAfterRelaunchSendsQuit() {
         let store = makeStore()
