@@ -336,6 +336,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
+            "GameAnzan", "GameAkariKeshi", "GameTsunagi", "GameHanoi", "GameOjisanPuzzle", "GameSpeed", "GameKitTestSupport",
         ]),
         // 遊び方ガイド（#118）も全ゲーム横断（全ゲームぶんの文言と初回フラグの永続化を検証する）。
         .testTarget(name: "HowToPlayTests", dependencies: [
