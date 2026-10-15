@@ -248,7 +248,8 @@ case "$probe" in *DUTY-SHIM-LEAK*) log "入力フィルタ: 第三者の本文�
 # ---- claude: 画像を見て起票 ------------------------------------------------------------------
 # Edit/Write は渡さない（コードは触らない）。Sonnet 固定（週間リミット対策・監査当番と同じ）
 cd "$SCRATCH" || exit 0
-PATH="$GH_SHIM_DIR:$PATH" claude --model "${QA_MODEL:-sonnet}" \
+# 認証・ネットワーク待ちで止まっても全スロットを握り続けないよう、perl の alarm で上限を付ける（macOS に timeout(1) は無い）
+PATH="$GH_SHIM_DIR:$PATH" perl -e 'alarm shift; exec @ARGV' "${QA_CLAUDE_TIMEOUT:-1800}" claude --model "${QA_MODEL:-sonnet}" \
   --allowedTools "Bash,Read,Glob,Grep" \
   -p "$(cat "$QA_HOME_DIR/prompt.md")
 
