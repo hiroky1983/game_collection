@@ -257,6 +257,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             place(row: row, col: col)   // 確定。`place` が仮置きを消す
         } else {
             pendingPoint = point
+            // 打てる交点を選び直したので、直前の禁じ手の帯は引っ込める。
+            lastRejection = nil
             services?.feedback.impact(.light)
         }
     }

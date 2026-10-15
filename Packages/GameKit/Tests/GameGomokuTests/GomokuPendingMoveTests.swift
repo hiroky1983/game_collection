@@ -56,6 +56,15 @@ struct GomokuPendingMoveTests {
         #expect(model.rejectedTapCount == before + 1)
     }
 
+    @Test("有効な交点を仮置きしたら、直前の拒否の表示は消える")
+    func aimingClearsPreviousRejection() async {
+        let (model, _, _) = makeModel()
+        model.tapOnBoard(row: -1, col: 0)
+        #expect(model.lastRejection == .outOfBoard)
+        model.tapOnBoard(row: 7, col: 7)
+        #expect(model.lastRejection == nil)
+    }
+
     @Test("VoiceOver 用の tap は仮置きを経ず1操作で確定する")
     func directTapCommitsImmediately() {
         let (model, _, _) = makeModel()
