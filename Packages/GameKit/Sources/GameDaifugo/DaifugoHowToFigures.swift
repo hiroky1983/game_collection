@@ -62,7 +62,7 @@ enum DaifugoHowToFigures {
                             RuleMiniCard("9", suit: .diamond)
                             Text(tr("パス ×全員"))
                                 .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                         }
                         RuleFigureLabel(tr("みんな出せない"))
                     } else {

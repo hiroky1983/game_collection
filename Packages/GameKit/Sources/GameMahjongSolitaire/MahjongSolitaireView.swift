@@ -306,11 +306,11 @@ public struct MahjongSolitaireView: View {
                     // 残り枚数は 0 で固定になるため、入れ替えても失われる情報は無い。
                     Label(tr("クリア！"), systemImage: "flag.checkered")
                         .themeBody(15)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 } else {
                     Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
                         .scaledFont(16, weight: .bold, design: .monospaced)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 }
             }
             .lineLimit(1)

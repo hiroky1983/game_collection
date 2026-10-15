@@ -74,7 +74,7 @@ public struct AkariKeshiView: View {
                 if model.state == .cleared {
                     Label(tr("クリア！"), systemImage: "checkmark.seal.fill")
                         .themeBody(15)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 } else if model.hasPuzzle {
                     Text(tr("手数 %1$lld ／ 最短 %2$lld", model.moves, model.par))
                         .scaledFont(15, weight: .bold, design: .rounded).monospacedDigit()

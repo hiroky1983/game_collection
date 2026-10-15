@@ -269,7 +269,7 @@ public struct OjisanPuzzleView: View {
                 Text(tr("%lld連鎖", model.lastChain))
                     .scaledFont(16, weight: .bold, design: .rounded, maxScale: 1.2)
                     .lineLimit(1).fixedSize()
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                     // 同じ連鎖数が続くと値が変わらずトランジションが再生されないので、
                     // 連鎖のたびに増える通し番号を `.id` にする（ブロックならべと同じ手）。
                     .id(model.chainEventID)
@@ -414,7 +414,7 @@ public struct OjisanPuzzleView: View {
             Text(model.lastChain > 1 ? tr("%lld連鎖", model.lastChain) : " ")
                 .scaledFont(11, weight: .bold, design: .rounded, maxScale: 1.15)
                 .lineLimit(1)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
                 .id(model.chainEventID)
                 .transition(.scale.combined(with: .opacity))
             if let remaining = model.millisecondsUntilRise {

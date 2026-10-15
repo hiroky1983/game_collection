@@ -1218,7 +1218,7 @@ public struct RuleLineup<Entry: View>: View {
                 HStack {
                     if let low { Text(low).foregroundStyle(Theme.inkSub) }
                     Spacer()
-                    if let high { Text(high).foregroundStyle(Theme.coral) }
+                    if let high { Text(high).foregroundStyle(Theme.coralText) }
                 }
                 .scaledFont(11, weight: .black, design: .rounded, maxScale: 1.2)
                 .padding(.horizontal, 6)
@@ -1313,7 +1313,7 @@ public struct RuleListSheet<Figures: View>: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(rule.0)
                             .themeBody(14, weight: .black)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                         Text(rule.1)
                             .themeBody(13, weight: .medium)
                             .foregroundStyle(Theme.ink)
@@ -1366,7 +1366,7 @@ public struct RuleFigureCard<Content: View>: View {
                     if let title {
                         Text(title)
                             .themeBody(14, weight: .black)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                     }
                     if let detail {
                         Text(detail)

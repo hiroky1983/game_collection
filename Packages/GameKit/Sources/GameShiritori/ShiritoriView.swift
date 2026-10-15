@@ -215,9 +215,9 @@ public struct ShiritoriView: View {
     private var scoreLine: some View {
         HStack(spacing: 10) {
             Label(tr("あなた %lld", model.playerCount), systemImage: "person.fill")
-                .foregroundStyle(Theme.teal)
+                .foregroundStyle(Theme.tealText)
             Label("CPU \(model.cpuCount)", systemImage: "cpu")
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
             if model.mode == .endless {
                 Label(tr("山札 %lld", model.stockCount), systemImage: "square.stack.fill")
                     .foregroundStyle(Theme.inkSub)

@@ -119,7 +119,7 @@ enum RunnerHowToFigures {
                             .overlay(alignment: .trailing) {
                                 Image(systemName: "arrowtriangle.right.fill")
                                     .scaledFont(10, maxScale: 1.2)
-                                    .foregroundStyle(Theme.coral)
+                                    .foregroundStyle(Theme.coralText)
                                     .offset(x: 6)
                             }
                             .padding(.bottom, 20)
@@ -138,7 +138,7 @@ enum RunnerHowToFigures {
             HStack(spacing: 14) {
                 Image(systemName: "hand.tap.fill")
                     .scaledFont(28, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                 Image(systemName: "arrow.right")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
                     .foregroundStyle(Theme.inkSub)
@@ -201,7 +201,7 @@ enum RunnerHowToFigures {
                         .padding(.leading, 55).padding(.bottom, 14 + 22)
                     Image(systemName: "hand.tap.fill")
                         .scaledFont(18, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                         .padding(.leading, 46).padding(.bottom, 14 + 22 + 4)
                     RunnerHowToFigures.rider(.jump, height: 30)
                         .padding(.leading, 90).padding(.bottom, 14 + 22 + 26)

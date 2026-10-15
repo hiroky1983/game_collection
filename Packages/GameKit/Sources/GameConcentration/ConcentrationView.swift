@@ -345,12 +345,12 @@ public struct ConcentrationView: View {
             HStack(spacing: 20) {
                 VStack {
                     Text(tr("あなた")).themeBody(13).foregroundStyle(Theme.inkSub)
-                    Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.teal)
+                    Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.tealText)
                 }
                 Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
                 VStack {
                     Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
-                    Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coral)
+                    Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coralText)
                 }
             }
 

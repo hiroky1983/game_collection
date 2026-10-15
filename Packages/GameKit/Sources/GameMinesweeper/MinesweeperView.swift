@@ -360,7 +360,7 @@ public struct MinesweeperView: View {
                           systemImage: "flag.fill")
                         .scaledFont(16, weight: .bold, design: .monospaced)
                         .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 }
             }
             .lineLimit(1)
@@ -566,7 +566,7 @@ public struct MinesweeperView: View {
                 Image(systemName: "xmark.circle.fill")
                     .resizable().scaledToFit()
                     .frame(width: iconSize, height: iconSize)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             } else {
                 // 正しい旗（プレイ中は通常の赤、ゲームオーバー後は緑）
                 Image(systemName: "flag.fill")

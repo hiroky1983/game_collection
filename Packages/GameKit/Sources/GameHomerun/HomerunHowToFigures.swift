@@ -28,7 +28,7 @@ enum HomerunHowToFigures {
                 HStack(spacing: 6) {
                     Image(systemName: "sum")
                         .scaledFont(13, weight: .black, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     RuleFigureLabel(tr("10 球の合計飛距離が記録"), color: Theme.coral)
                 }
             }
@@ -71,7 +71,7 @@ enum HomerunHowToFigures {
                 VStack(spacing: 4) {
                     Image(systemName: "arrow.up.right")
                         .scaledFont(28, weight: .black, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     RuleFigureLabel(tr("少し下で打つと上がる"), color: Theme.coral)
                 }
             }

@@ -58,7 +58,7 @@ enum HanoiHowToFigures {
                     MiniBoard(pegs: [[3], [2], [1]], lifted: 1)
                     Image(systemName: "xmark.circle.fill")
                         .scaledFont(20, weight: .bold, maxScale: 1.2)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                         .accessibilityHidden(true)
                 }
                 RuleFigureLabel(tr("2 は 1 の上に置けない"), color: Theme.coral)

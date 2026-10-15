@@ -113,7 +113,7 @@ enum PokerHowToFigures {
                         Spacer(minLength: 8)
                         Text(verbatim: "+\(PokerBonusTable.chips(for: rank))")
                             .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)

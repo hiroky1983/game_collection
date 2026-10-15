@@ -421,11 +421,11 @@ public struct RouletteView: View {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
                     .scaledFont(24)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("チップが足りなくなりました"))
                         .scaledFont(16, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     Text(sessionOverSubtitle)
                         .scaledFont(12, weight: .medium, design: .rounded)
                         .foregroundStyle(Theme.inkSub)

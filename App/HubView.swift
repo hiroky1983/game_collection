@@ -589,7 +589,7 @@ struct HubView: View {
                 }
                 .accessibilityLabel(tr("設定"))
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .buttonStyle(.pop)
             .padding(.horizontal, layout.scaled(6))
             .background(

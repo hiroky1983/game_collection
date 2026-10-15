@@ -165,7 +165,7 @@ public struct HanoiView: View {
             } else if let reason = model.rejection {
                 Label(HanoiAccessibility.message(for: reason), systemImage: "exclamationmark.triangle.fill")
                     .scaledFont(14, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                     .multilineTextAlignment(.center)
                     // 読み上げは `onChange` の通知で 1 回だけ伝える。
                     .accessibilityHidden(true)

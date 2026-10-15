@@ -352,7 +352,7 @@ public struct PokerView: View {
                         .themeBody(20, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.yellow)
+                        .foregroundStyle(Theme.yellowText)
                         // ベット・コールで増え、決着で勝者に渡って 0 に戻る。数字が瞬時に
                         // 入れ替わると増減の向きが分からないので、転がして見せる（#206）。
                         .contentTransition(.numericText(value: Double(model.pot)))
@@ -389,7 +389,7 @@ public struct PokerView: View {
                         .themeCaption(11, weight: .semibold, maxScale: 1.5)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 }
                 if model.phase == .result {
                     if let w = model.winner {
@@ -401,7 +401,7 @@ public struct PokerView: View {
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 }
             }
             HStack(spacing: 8) {
@@ -581,7 +581,7 @@ public struct PokerView: View {
         let chips = isPlayer ? model.playerBonus : model.cpuBonus
         return HStack(spacing: 6) {
             Image(systemName: "star.circle.fill")
-                .foregroundStyle(Theme.yellow)
+                .foregroundStyle(Theme.yellowText)
                 .accessibilityHidden(true)
             Text(isPlayer ? tr("役ボーナス あなた +%@枚", RecordFormat.number(chips)) : tr("役ボーナス CPU +%@枚", RecordFormat.number(chips)))
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
@@ -630,7 +630,7 @@ public struct PokerView: View {
             VStack(spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.up.right.circle.fill")
-                        .foregroundStyle(Theme.yellow)
+                        .foregroundStyle(Theme.yellowText)
                         .accessibilityHidden(true)
                     Text(tr("獲得 %@枚 をダブルアップに賭けますか？", RecordFormat.number(model.pendingWinnings)))
                         .themeCaption(13, weight: .bold, maxScale: 1.5)

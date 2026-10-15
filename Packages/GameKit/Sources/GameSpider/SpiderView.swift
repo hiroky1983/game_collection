@@ -198,11 +198,11 @@ public struct SpiderView: View {
                 if model.phase == .won {
                     Label(tr("クリア！"), systemImage: "flag.checkered")
                         .themeBody(15)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 } else {
                     Label(tr("%lld手", model.moveCount), systemImage: "hand.tap.fill")
                         .scaledFont(15, weight: .bold, design: .monospaced)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 }
             }
             .lineLimit(1)
@@ -751,7 +751,7 @@ struct SpiderSetupSheet: View {
                 Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),
                       systemImage: "exclamationmark.triangle.fill")
                     .scaledFont(13, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
         }
     }

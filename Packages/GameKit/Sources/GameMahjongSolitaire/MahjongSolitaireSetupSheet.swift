@@ -46,7 +46,7 @@ struct MahjongSolitaireSetupSheet: View {
             Label(tr("途中で終了すると今の盤面が失われます。"),
                   systemImage: "exclamationmark.triangle.fill")
                 .scaledFont(13, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
         }
     }
 }

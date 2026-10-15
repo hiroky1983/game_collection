@@ -44,7 +44,7 @@ enum AnzanHowToFigures {
             HStack(spacing: 8) {
                 Image(systemName: "brain.head.profile")
                     .scaledFont(26, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                 Text(verbatim: "3 + 7 + 5 = 15")
                     .scaledFont(20, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(Theme.ink)
@@ -105,7 +105,7 @@ enum AnzanHowToFigures {
                     }
                 }
                 .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
                 .frame(width: 60, height: 34)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous)
                     .fill(Theme.coral.opacity(0.12)))

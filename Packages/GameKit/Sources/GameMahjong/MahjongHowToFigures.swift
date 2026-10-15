@@ -116,7 +116,7 @@ enum MahjongHowToFigures {
                     }
                     Image(systemName: "questionmark")
                         .scaledFont(13, weight: .black, maxScale: 1.15)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                         .frame(width: 18, height: 25)
                         .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 3, style: .continuous)
                             .strokeBorder(Theme.coral, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])))

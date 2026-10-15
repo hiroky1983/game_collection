@@ -682,7 +682,7 @@ struct HomerunBallResultCard: View {
                         .foregroundStyle(Theme.inkSub)
                     Label(tr("プレイ回数 +%lld プレゼント", HomerunLedger.moonBonus), systemImage: "gift.fill")
                         .scaledFont(18, weight: .heavy, design: .rounded)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 }
             } else if ball.distance > 0 {
                 Text(verbatim: tr("%1$@　%2$@", HomerunText.meters(ball.distance), HomerunSector(direction: ball.direction).label))
@@ -692,7 +692,7 @@ struct HomerunBallResultCard: View {
             if let reason {
                 Text(verbatim: reason)
                     .scaledFont(18, weight: .heavy, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
             }
             if ball.kind != .miss || ball.timing != .miss {
                 Text(verbatim: tr("タイミング: %@", HomerunText.timing(ball.timing)))
