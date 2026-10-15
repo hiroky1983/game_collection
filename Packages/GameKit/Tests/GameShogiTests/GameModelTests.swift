@@ -397,3 +397,20 @@ struct ShogiRepetitionTests {
         #expect(resumed.endVerdict == .loss)
     }
 }
+
+@MainActor
+@Suite("駒を選ぶ触覚（#2303）")
+struct ShogiSelectionFeedbackTests {
+    @Test("自分の駒を選ぶと selection、空きマスの拒否は warning、選択だけでは medium を鳴らさない")
+    func selectingPieceFiresSelection() {
+        let spy = SpyFeedbackService()
+        let model = ShogiGameModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        )
+        model.tapSquare(Sq.fromUSI("7g")!)
+        #expect(spy.impacts == [.selection])
+        model.tapSquare(Sq.fromUSI("5e")!) // 指せない空きマス
+        #expect(spy.notices == [.warning])
+        #expect(spy.impacts == [.selection])
+    }
+}

@@ -377,7 +377,7 @@ private final class SpySoundService: FeedbackService {
     var kinds: Set<SoundEffect> { Set(effects) }
     var callCount: Int { effects.count }
 
-    func impact(_ style: FeedbackImpact) { effects.append(SoundEffect(style)) }
+    func impact(_ style: FeedbackImpact) { if style.hasSound { effects.append(SoundEffect(style)) } }
     func notify(_ type: FeedbackNotice) { effects.append(SoundEffect(type)) }
 }
 

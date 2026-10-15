@@ -289,6 +289,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
+            services?.feedback.impact(.selection)
         } else {
             // 駒を選んだ状態で指せないマスを叩いた = 着手の拒否。
             if selectedSquare != nil { services?.feedback.notify(.warning) }

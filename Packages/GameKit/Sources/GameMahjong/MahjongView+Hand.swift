@@ -232,10 +232,12 @@ extension MahjongView {
     private func handleHandTap(
         _ tile: MahjongTile, id: String, canDiscard: Bool, scrollsBottomHand: Bool
     ) {
-        switch MahjongHandTap.outcome(
+        let outcome = MahjongHandTap.outcome(
             tappedID: id, selectedID: selectedTileID,
             isPlayerTurn: model.isPlayerTurn, isDiscardable: canDiscard
-        ) {
+        )
+        model.playHandTapFeedback(MahjongHandTap.feedback(for: outcome, isPlayerTurn: model.isPlayerTurn))
+        switch outcome {
         case .ignored:
             return
         case .select(let selected):

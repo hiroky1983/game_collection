@@ -388,6 +388,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
             selectedHand = nil
+            services?.feedback.impact(.selection)
         } else {
             // 駒を選んだ状態で指せないマスを叩いた = 着手の拒否。
             if selectedSquare != nil || selectedHand != nil {
@@ -403,6 +404,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
               position.hands[color.rawValue][type.rawValue] > 0 else { return }
         selectedHand = type
         selectedSquare = nil
+        services?.feedback.impact(.selection)
     }
 
     private func attemptMove(to sq: Int) {
