@@ -442,6 +442,28 @@
         }
       }
     },
+    "吊り橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a suspension bridge"
+          }
+        }
+      }
+    },
+    "桟橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a pier"
+          }
+        }
+      }
+    },
     "わら積みにぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
