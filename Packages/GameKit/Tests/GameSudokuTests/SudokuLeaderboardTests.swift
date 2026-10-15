@@ -213,7 +213,7 @@ struct SudokuSnapshotTests {
         #expect(restored.state == .playing)
         #expect(!restored.noteMode)
 
-        model.toggleNoteMode()
+        #expect(model.noteMode, "前提: 新規対局の直前は ON")
         await model.newGame(difficulty: .easy)
         #expect(!model.noteMode, "新規対局は OFF")
     }
