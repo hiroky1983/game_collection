@@ -256,10 +256,10 @@ public struct OjisanPuzzleView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("スコア"))
-                    .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.2)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
-                    .font(.system(size: 26, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .scaledFont(26, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     // 桁が増えても折り返さない（見出しの高さ＝盤の大きさが揺れるため・#2063）。
                     .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
@@ -267,7 +267,7 @@ public struct OjisanPuzzleView: View {
             }
             if model.lastChain > 1 {
                 Text(tr("%lld連鎖", model.lastChain))
-                    .font(.system(size: 16, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .scaledFont(16, weight: .bold, design: .rounded, maxScale: 1.2)
                     .lineLimit(1).fixedSize()
                     .foregroundStyle(Theme.coral)
                     // 同じ連鎖数が続くと値が変わらずトランジションが再生されないので、
@@ -320,16 +320,16 @@ public struct OjisanPuzzleView: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(tr("腰痛ゲージ"))
-                    .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
+                    .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(Theme.inkSub)
                     .fixedSize()
                 Text(caption)
-                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
+                    .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(stage == .easy ? Theme.inkSub : Theme.coral)
                 Spacer(minLength: 0)
                 Text("\(model.pain)")
-                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 見出しの高さを固定して盤の大きさを揺らさない（#2064）
+                    .scaledFont(20, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).fixedSize()
                     .foregroundStyle(warning ? Theme.coral : Theme.ink)
                     .contentTransition(.numericText())
@@ -404,22 +404,22 @@ public struct OjisanPuzzleView: View {
     private var scoreCard: some View {
         VStack(spacing: 2) {
             Text(tr("スコア"))
-                .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 右の列の幅に収める寸法（#2064）
+                .scaledFont(11, weight: .bold, design: .rounded, maxScale: 1.15)
                 .foregroundStyle(Theme.inkSub)
             Text("\(model.score)")
-                .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit()) // fixed-size: 右の列の幅に収める寸法（#2064）
+                .scaledFont(20, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
             Text(model.lastChain > 1 ? tr("%lld連鎖", model.lastChain) : " ")
-                .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 右の列の幅に収める寸法（#2064）
+                .scaledFont(11, weight: .bold, design: .rounded, maxScale: 1.15)
                 .lineLimit(1)
                 .foregroundStyle(Theme.coral)
                 .id(model.chainEventID)
                 .transition(.scale.combined(with: .opacity))
             if let remaining = model.millisecondsUntilRise {
                 Text(tr("せり上がり %lld秒", (remaining + 999) / 1000))
-                    .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 右の列の幅に収める寸法（#2064）
+                    .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -637,7 +637,7 @@ public struct OjisanPuzzleView: View {
                 ojisanFigure()
                 if model.mode.hasGauge {
                     Text(model.painStage.caption)
-                        .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                        .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.15)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
                 }
@@ -650,7 +650,7 @@ public struct OjisanPuzzleView: View {
 
             VStack(spacing: 6) {
                 Text(tr("つぎ"))
-                    .font(.system(size: 12, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.3)
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 2) {
                     // 一時停止中は「つぎ」も空の枠にする（盤と同じ理由・#2135）。
@@ -678,7 +678,7 @@ public struct OjisanPuzzleView: View {
             hintItem(tr("タップで回す"), systemImage: "arrow.clockwise")
             hintItem(tr("下スワイプ"), systemImage: "arrow.down")
         }
-        .font(.system(size: 11, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+        .scaledFont(11, weight: .bold, design: .rounded, maxScale: 1.3)
         .foregroundStyle(Theme.inkSub)
     }
 
@@ -717,19 +717,19 @@ public struct OjisanPuzzleView: View {
                 OjisanPuzzleArt.image(OjisanPuzzleArt.resultPose(for: outcome))
             }
             Text(resultTitle)
-                .font(.system(size: 24, weight: .heavy, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                .scaledFont(24, weight: .heavy, design: .rounded, maxScale: 1.4)
                 .foregroundStyle(Theme.ink)
             Text(resultMessage)
-                .font(.system(size: 14, weight: .semibold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                .scaledFont(14, weight: .semibold, design: .rounded, maxScale: 1.4)
                 .foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
             if model.outcome == .cleared {
                 Text(tr("タイム %@", Self.timeText(model.elapsedMilliseconds / 1000)))
-                    .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .scaledFont(18, weight: .bold, design: .rounded, maxScale: 1.4).monospacedDigit()
                     .foregroundStyle(Theme.ink)
             }
             Text(tr("スコア %@", model.score.formatted()))
-                .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit()) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                .scaledFont(18, weight: .bold, design: .rounded, maxScale: 1.4).monospacedDigit()
                 .foregroundStyle(Theme.ink)
             // 自己ベストの 1 行（他ゲームのリザルトと同じ共通部品・#1904）。
             RecordLabel(model.recordResult)
@@ -737,7 +737,7 @@ public struct OjisanPuzzleView: View {
                 withGameAnimation { model.newGame() }
             } label: {
                 Text(tr("もう一度"))
-                    .font(.system(size: 17, weight: .bold, design: .rounded)) // fixed-size: 試作から移したままの寸法。文字サイズ設定への追従は作り込みの別 issue で扱う（#1904）
+                    .scaledFont(17, weight: .bold, design: .rounded, maxScale: 1.4)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 28).padding(.vertical, 12)
                     .background(
