@@ -113,7 +113,7 @@ struct MahjongCallBar: View {
     private static let maximumColumns = 4
     // 会長再指摘: 見出し行（牌＋「が出ました」）自体が対局中の1行ボタン行との差を生んでいた。
     // 見出しを独立した行にせず、牌をボタン行の左に**同じ行で**並べて行数そのものを揃える。
-    private static let buttonHeight: CGFloat = 40
+    private static let buttonHeight: CGFloat = GameButtonMetrics.minTapTarget
 
     var body: some View {
         HStack(alignment: .center, spacing: 6) {
@@ -249,6 +249,6 @@ struct MahjongKanButton: View {
     private var label: some View {
         Text(tr("カン"))
             .scaledFont(16, weight: .bold, design: .rounded)
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)
     }
 }
