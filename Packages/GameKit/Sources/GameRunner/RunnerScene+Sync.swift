@@ -13,13 +13,13 @@ extension RunnerScene {
         // 折り返しは `RunnerParallax`（#921: 左端に周期的な空白が出ないよう 2 間隔ぶん左へずらす）。
         for (i, cloud) in clouds.enumerated() {
             cloud.position.x = RunnerParallax.wrappedX(
-                base: cloudBaseX[i], distance: field.distance, parallax: Self.cloudParallax,
+                base: cloudBaseX[i], distance: field.backdropDistance, parallax: Self.cloudParallax,
                 spacing: Self.cloudSpacing, count: clouds.count)
         }
         // 丘は雲より近く（速く）、コースより遠く（遅く）流す。仕組みは雲と同じ無限スクロール。
         for (i, tile) in hillTiles.enumerated() {
             tile.position.x = RunnerParallax.wrappedX(
-                base: hillBaseX[i], distance: field.distance, parallax: Self.hillParallax,
+                base: hillBaseX[i], distance: field.backdropDistance, parallax: Self.hillParallax,
                 spacing: Self.hillSpacing, count: hillTiles.count)
         }
         // エンドレス（#1086）は枠に入った区画だけを置き、遠くへ進んだらコース層の原点を動かす。
