@@ -461,6 +461,7 @@ struct RewardGuardCallSiteTests {
             .map(\.path)
             .sorted()
         #expect(callers == [
+            "GameBackgammon/BackgammonModel.swift",
             "GameBlackjack/BlackjackModel.swift",
             "GameChess/ChessGameModel.swift",
             "GameGo/GoModel.swift",
