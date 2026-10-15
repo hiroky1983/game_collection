@@ -38,10 +38,33 @@ struct RunnerAmbientLoopTests {
 
     /// 装飾の `repeatForever` を `runAmbientLoop` を通さず直に足すと、この数が合わなくなる。
     /// 直書きが残るのは、いずれも別に `reducesMotion` / ゲーム進行の都合で扱っているもの:
-    /// ヘルパー本体・宝くじの揺れ（`applyGoalTicketSway`）・宝くじの煌めき・無敵中の点滅。
+    /// ヘルパー本体・宝くじの揺れ（`applyGoalTicketSway`）・宝くじの煌めき・無敵中の点滅（`invincibleLook` が Reduce Motion で `.blink` を外す）。
     @Test("repeatForever の直書きは、ヘルパーと既に配慮済みの3箇所だけ")
     func repeatForeverGoesThroughHelper() throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
         #expect(SourceScan.matchCount(of: #"\.repeatForever\("#, in: source) == 4)
+    }
+
+    @Test("無敵の見せ方: 視差効果を減らすなら点滅せず半透明で固定、オフなら今までどおり点滅")
+    @MainActor
+    func invincibleLookFollowsReduceMotion() {
+        #expect(RunnerScene.invincibleLook(reducesMotion: true) == .steady(alpha: 0.6))
+        #expect(RunnerScene.invincibleLook(reducesMotion: false) == .blink)
+    }
+
+    @Test("無敵中、視差効果を減らすなら点滅の action が掛からず alpha が固定される")
+    @MainActor
+    func invincibleSceneDoesNotBlinkWhenReducingMotion() {
+        for reduce in [true, false] {
+            let model = RunnerModel(startingAt: 1, preference: makePreference("invincible-look-\(reduce)"))
+            let scene = RunnerScene(model: model)
+            scene.reduceMotionOverride = reduce
+            scene.rebuildCourse()
+            model.applyDebugScenario("invincible")
+            scene.sync()
+            let blinking = scene.player.action(forKey: RunnerScene.invincibleBlinkKey) != nil
+            #expect(blinking == !reduce)
+            if reduce { #expect(abs(scene.player.alpha - 0.6) < 0.001) }
+        }
     }
 }
