@@ -59,4 +59,14 @@ public enum BackgammonAccessibility {
         if remaining.isEmpty { return tr("サイコロ %@、使い切りました", shown) }
         return tr("サイコロ %1$@、残り %2$@", shown, remaining.map(String.init).joined(separator: tr("と")))
     }
+
+    /// CPU の手番が終わったときの読み上げ文（#2280）。`moves` が空ならパス。
+    /// 駒を 1 つ動かすたびには読まず、手番の締めに 1 回だけ、動かした数と叩かれた駒の数を伝える。
+    public static func cpuTurnAnnouncement(moves: [BackgammonMove]) -> String {
+        guard !moves.isEmpty else { return tr("CPUはパスしました") }
+        let hits = moves.filter(\.hits).count
+        let moved = tr("CPUは駒を%lld個動かしました", moves.count)
+        guard hits > 0 else { return moved }
+        return moved + tr("。") + tr("あなたの駒が%lld個バーに送られました", hits)
+    }
 }

@@ -95,6 +95,13 @@ public struct ChessView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の着手（とチェック）を読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            guard let move = model.moves.last else { return nil }
+            return ChessAccessibility.cpuMoveAnnouncement(
+                piece: model.position.squares[move.to], move: move,
+                isCheck: model.position.isKingInCheck(model.position.sideToMove))
+        }
         .task {
             #if DEBUG
             // 撮影用: 終局後レイアウト（検討ナビ・レコメンドのオーバーレイ）を即再現する。

@@ -65,4 +65,20 @@ public enum HanafudaSpeech {
             ? tr("あなたのあがり。%1$@。%2$@。獲得%3$lld文", summary, multiplier, score)
             : tr("CPUのあがり。%1$@。%2$@。獲得%3$lld文", summary, multiplier, score)
     }
+
+    /// CPU の手番が終わったときの読み上げ文（#2280）。手札の 1 枚、山札のめくり札、こいこいの順に読む。
+    /// 取った枚数だけでなく、取れなかったとき（場に出しただけ）も伝える。
+    public static func cpuTurnAnnouncement(_ turn: HanafudaCPUTurnSummary) -> String {
+        var parts: [String] = []
+        parts.append(turn.playedCaptured > 0
+            ? tr("CPUは%1$@で%2$lld枚取りました", turn.played.displayName, turn.playedCaptured)
+            : tr("CPUは%@を場に出しました", turn.played.displayName))
+        if let drawn = turn.drawn {
+            parts.append(turn.drawnCaptured > 0
+                ? tr("めくり札「%1$@」で%2$lld枚取りました", drawn.displayName, turn.drawnCaptured)
+                : tr("めくり札は「%@」でした", drawn.displayName))
+        }
+        if turn.koiKoi { parts.append(tr("CPUがこいこいしました")) }
+        return parts.joined(separator: tr("。"))
+    }
 }

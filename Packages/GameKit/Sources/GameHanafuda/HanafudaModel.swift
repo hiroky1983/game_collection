@@ -29,6 +29,15 @@ public enum HanafudaPhase: String, Codable, Sendable, Equatable {
     case matchResult
 }
 
+/// CPU の 1 手番でしたこと（読み上げ用・#2280）。手札の 1 枚と山札のめくり札、こいこいの有無。
+public struct HanafudaCPUTurnSummary: Equatable, Sendable {
+    public var played: HanafudaCard
+    public var playedCaptured: Int
+    public var drawn: HanafudaCard?
+    public var drawnCaptured = 0
+    public var koiKoi = false
+}
+
 /// 場札を 2 枚から選ぶ必要があるときの保留状態。
 public struct HanafudaSelection: Equatable, Sendable, Codable {
     /// どこから出た札か。
@@ -162,6 +171,12 @@ public final class HanafudaModel: AITurnGuarded {
     public private(set) var gameSerial = 0
     /// その局で消化した手番数。単調に増えるので `.task(id:)` のキーに使える。
     public private(set) var turnCount = 0
+    /// CPU の手番が終わって人間へ渡った直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    /// 局の決着（`endRound`）では `turnCount` が進まないので控えない（結果の札が出る）。
+    public private(set) var lastCPUMoveKey: AITurnKey?
+    /// `lastCPUMoveKey` の手番でしたこと。
+    public private(set) var lastCPUTurn: HanafudaCPUTurnSummary?
+    private var pendingCPUTurn: HanafudaCPUTurnSummary?
 
     public init(
         services: GameServices? = nil,
@@ -359,6 +374,9 @@ public final class HanafudaModel: AITurnGuarded {
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
+        if player == .cpu {
+            pendingCPUTurn = HanafudaCPUTurnSummary(played: card, playedCaptured: result.captured.count)
+        }
         switch (player, result.captured.isEmpty) {
         case (.human, true):
             message = tr("あなたは%@を場に出した", card.displayName)
@@ -406,6 +424,10 @@ public final class HanafudaModel: AITurnGuarded {
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
+        if player == .cpu {
+            pendingCPUTurn?.drawn = card
+            pendingCPUTurn?.drawnCaptured = result.captured.count
+        }
         if !result.captured.isEmpty {
             message = tr("めくり札「%1$@」で%2$lld枚取った", card.displayName, result.captured.count)
             services?.feedback.impact(.rigid)
@@ -487,6 +509,7 @@ public final class HanafudaModel: AITurnGuarded {
         case .cpu:
             cpuClaimed = points
             cpuKoiKoiCount += 1
+            pendingCPUTurn?.koiKoi = true
         }
         message = player == .human
             ? tr("あなたがこいこい！（%lld文）", points)
@@ -701,7 +724,14 @@ public final class HanafudaModel: AITurnGuarded {
             hand: cpuHand, field: field, captured: cpuCaptured, opponentCaptured: humanCaptured,
             options: options, difficulty: options.difficulty, using: &rng
         ) else { return }
+        let turnBefore = turnCount
         applyHandPlay(move.card, chosen: move.target, for: .cpu)
+        // 手番が人間へ渡ったときだけ控える。局が決着したときは `turnCount` が進まない。
+        if turnCount != turnBefore, let summary = pendingCPUTurn {
+            lastCPUTurn = summary
+            lastCPUMoveKey = aiTurnKey
+        }
+        pendingCPUTurn = nil
     }
 
     // MARK: - 参照

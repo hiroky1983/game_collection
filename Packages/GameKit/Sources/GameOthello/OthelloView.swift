@@ -90,6 +90,12 @@ public struct OthelloView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の着手・パスを読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            OthelloAccessibility.cpuMoveAnnouncement(
+                move: model.lastCPUPassed ? nil : model.lastMove,
+                black: model.blackScore, white: model.whiteScore)
+        }
         .task {
             #if DEBUG
             // 撮影用（#366）: 中盤の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
@@ -133,6 +139,9 @@ public struct OthelloView: View {
                     .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                     .frame(width: 13, height: 13)
             }
+            // 黒・白の石は図形なので、どちらの数字かが読み上げに出ない。終局カードと同じ文言で読ませる（#2280）。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(OthelloAccessibility.scoreLabel(black: model.blackScore, white: model.whiteScore))
         }
     }
 

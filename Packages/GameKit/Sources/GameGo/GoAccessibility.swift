@@ -50,4 +50,10 @@ public enum GoAccessibility {
             return result ?? tr("対局終了")
         }
     }
+
+    /// CPU が着手・パスしたときの読み上げ文（#2280）。`point` が nil ならパス。
+    public static func cpuMoveAnnouncement(point: GoPoint?) -> String {
+        guard let point else { return tr("CPUはパスしました") }
+        return tr("CPUは%1$lld行%2$lld列に打ちました", point.row + 1, point.col + 1)
+    }
 }

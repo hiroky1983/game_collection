@@ -70,6 +70,10 @@ public struct BackgammonView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の手番の締めに 1 回だけ読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            BackgammonAccessibility.cpuTurnAnnouncement(moves: model.lastCPUTurnMoves)
+        }
         .task {
             #if DEBUG
             // 撮影・動作確認用: `-backgammonScenario hit|bar|bearoff|result` で局面を差し替える。

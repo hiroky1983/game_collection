@@ -63,6 +63,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var winner: GoStone?
     public private(set) var isThinking: Bool
     public private(set) var lastMove: GoPoint?
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var undoUsed: Bool
     /// 終局の計算結果（`scoring` / `finished` で有効）。
     public private(set) var endgame: GoEndgame?
@@ -470,6 +472,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } commit: { move in
             guard isAITurn else { return }
             apply(move)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 

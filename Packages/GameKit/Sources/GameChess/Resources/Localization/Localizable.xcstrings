@@ -914,6 +914,50 @@
           }
         }
       }
+    },
+    "CPUは%1$@を%2$@から%3$@へ動かしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU moved %1$@ from %2$@ to %3$@"
+          }
+        }
+      }
+    },
+    "CPUは%1$@から%2$@へ動かしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU moved from %1$@ to %2$@"
+          }
+        }
+      }
+    },
+    "チェックです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -9,6 +9,8 @@ import Core
 public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var position: ChessPosition
     public private(set) var legalMovesCache: [ChessMove]
 
@@ -459,6 +461,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             guard isAITurn, let uci, let move = ChessMove.fromUCI(uci),
                   legalMovesCache.contains(move) else { return }
             apply(move)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 

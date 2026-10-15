@@ -108,4 +108,25 @@ public enum ShogiAccessibility {
         if isSelected { text += separator(language) + tr("選択中", language: language) }
         return text
     }
+
+    /// CPU が指したときの読み上げ文（#2280）。`piece` は指したあとの `to` にある駒（成ったあとの姿）。
+    /// 王手は「なぜ動かせない駒があるのか」に直結するが、バナーは 1 秒で消えるので続けて読ませる。
+    public static func cpuMoveAnnouncement(
+        move: Move, piece: Piece?, isCheck: Bool, language: AppLanguage? = nil
+    ) -> String {
+        let language = resolved(language)
+        var text: String
+        switch move {
+        case let .board(from, to, promote):
+            let name = piece.map { pieceName($0, language: language) } ?? ""
+            text = tr("CPUは%1$@を%2$@から%3$@へ動かしました", name,
+                      squareName(from, language: language), squareName(to, language: language), language: language)
+            if promote { text += tr("。", language: language) + tr("成りました", language: language) }
+        case let .drop(type, to):
+            let name = pieceName(Piece(type: type, color: piece?.color ?? .white), language: language)
+            text = tr("CPUは%1$@を%2$@に打ちました", name, squareName(to, language: language), language: language)
+        }
+        if isCheck { text += tr("。", language: language) + tr("王手です", language: language) }
+        return text
+    }
 }

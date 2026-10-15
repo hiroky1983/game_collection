@@ -2501,6 +2501,72 @@
           }
         }
       }
+    },
+    "CPUは%1$@で%2$lld枚取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU captured %2$lld card with %1$@"
+          }
+        }
+      }
+    },
+    "CPUは%@を場に出しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU placed %@ on the table"
+          }
+        }
+      }
+    },
+    "めくり札「%1$@」で%2$lld枚取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drew %1$@ and captured %2$lld card"
+          }
+        }
+      }
+    },
+    "めくり札は「%@」でした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drew %@"
+          }
+        }
+      }
+    },
+    "CPUがこいこいしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU called Koi-Koi"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
