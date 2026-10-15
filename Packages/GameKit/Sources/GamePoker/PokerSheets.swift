@@ -143,6 +143,9 @@ struct HandGuideSheet: View {
                             MiniCardView(card: card)
                         }
                     }
+                    // 5 枚を 1 要素にまとめる（1 枚 2 要素 × 5 枚の読み上げを避ける）。
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(PokerAccessibility.handGuideCardsLabel(cards: guide.cards))
                 }
             }
         }
@@ -192,26 +195,31 @@ struct HandGuideSheet: View {
 
 // MARK: - Mini Card View
 
+/// 役一覧の見本札。外形・面は手札と同じ共通部品（`PlayingCardSurface` / `PlayingCardFace`）で、
+/// 寸法だけ小さい `PlayingCardMetrics` を `elementScale` で拡大する。読み上げは `HandGuideSheet` が 5 枚まとめて行う。
 struct MiniCardView: View {
     let card: PokerCard
 
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var metrics: PlayingCardMetrics {
+        PlayingCardMetrics(width: 38, height: 54, cornerRadius: 5, rankFont: 13, suitFont: 14,
+                           pipSpacing: 0, backMotifFont: 14)
+            .scaled(by: layout.elementScale)
+    }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
-            VStack(spacing: 0) {
-                Text(card.rankLabel)
-                    .scaledFont(13, weight: .black, design: .rounded)
-                Text(card.suit.symbol)
-                    .scaledFont(14)
-            }
-            .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+            PlayingCardSurface(
+                faceUp: true,
+                cornerRadius: metrics.cornerRadius,
+                border: Color.gray.opacity(0.2),
+                borderWidth: 0.5,
+                shadowColor: .black.opacity(0.12),
+                shadowRadius: 2
+            )
+            PlayingCardFace(figure: card.figure, metrics: metrics)
         }
-        .frame(width: 38, height: 54)
+        .frame(width: metrics.width, height: metrics.height)
     }
 }
