@@ -594,6 +594,39 @@
           }
         }
       }
+    },
+    "ヒントの駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hint piece"
+          }
+        }
+      }
+    },
+    "ヒントの行き先" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hint destination"
+          }
+        }
+      }
+    },
+    "ヒント：紫の印の駒を、紫の行き先へ動かします" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move the piece ringed in purple to the purple destination"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

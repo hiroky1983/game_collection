@@ -20,7 +20,9 @@ public enum BackgammonAccessibility {
         count: Int,
         isMovable: Bool,
         isSelected: Bool,
-        isDestination: Bool
+        isDestination: Bool,
+        isHintSource: Bool = false,
+        isHintDestination: Bool = false
     ) -> String {
         var parts = [tr("%lldポイント", index + 1)]
         switch owner {
@@ -31,24 +33,30 @@ public enum BackgammonAccessibility {
         if isSelected { parts.append(tr("選択中")) }
         else if isMovable { parts.append(tr("動かせます")) }
         if isDestination { parts.append(tr("ここへ動かせます")) }
+        if isHintSource { parts.append(tr("ヒントの駒")) }
+        if isHintDestination { parts.append(tr("ヒントの行き先")) }
         return parts.joined(separator: tr("、"))
     }
 
     /// バーの読み上げ文。
-    public static func barLabel(humanCount: Int, cpuCount: Int, isMovable: Bool, isSelected: Bool) -> String {
+    public static func barLabel(humanCount: Int, cpuCount: Int, isMovable: Bool, isSelected: Bool,
+                                isHintSource: Bool = false) -> String {
         var parts = [tr("バー")]
         if humanCount == 0 && cpuCount == 0 { parts.append(tr("空")) }
         if humanCount > 0 { parts.append(tr("あなたの駒%lld個", humanCount)) }
         if cpuCount > 0 { parts.append(tr("CPUの駒%lld個", cpuCount)) }
         if isSelected { parts.append(tr("選択中")) }
         else if isMovable { parts.append(tr("動かせます")) }
+        if isHintSource { parts.append(tr("ヒントの駒")) }
         return parts.joined(separator: tr("、"))
     }
 
     /// あがりの置き場の読み上げ文。
-    public static func offLabel(humanCount: Int, cpuCount: Int, isDestination: Bool) -> String {
+    public static func offLabel(humanCount: Int, cpuCount: Int, isDestination: Bool,
+                                isHintDestination: Bool = false) -> String {
         var parts = [tr("あがり"), tr("あなた%lld個", humanCount), tr("CPU%lld個", cpuCount)]
         if isDestination { parts.append(tr("ここへあがれます")) }
+        if isHintDestination { parts.append(tr("ヒントの行き先")) }
         return parts.joined(separator: tr("、"))
     }
 
