@@ -207,8 +207,22 @@ capture_device() {  # capture_device <tag> <devicetype id>
   xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1
   destroy_sim "$UDID"; UDID=""
 }
-capture_device iphone com.apple.CoreSimulator.SimDeviceType.iPhone-17
-capture_device se com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation
+# 異常終了（SIGKILL・電源断）で前回残った ai-qa-* 端末を片付ける。この時点で QA のロックと当番の全スロットを
+# 握っているので、ai-qa-* が使われている心配は無い（会長の端末は名前が違うので対象外）
+for old_udid in $(xcrun simctl list devices -j 2>/dev/null | python3 -c "
+import json,sys
+for r in json.load(sys.stdin)['devices'].values():
+    for d in r:
+        if d['name'].startswith('ai-qa-'): print(d['udid'])
+"); do destroy_sim "$old_udid"; done
+# 失敗（boot・install など）で途中で戻った端末はここで必ず消す。時間上限に達したら次の端末は作らない
+run_device() {
+  if [ $(( $(date +%s) - START )) -gt "$QA_MAX_SECONDS" ]; then log "撮影時間の上限に達したため $1 は次回に回す"; return 0; fi
+  capture_device "$@"
+  if [ -n "$UDID" ]; then destroy_sim "$UDID"; UDID=""; fi
+}
+run_device iphone com.apple.CoreSimulator.SimDeviceType.iPhone-17
+run_device se com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation
 
 CRASH_AFTER=$(ls ~/Library/Logs/DiagnosticReports/GameCollection-*.ips 2>/dev/null | sort)
 NEW_CRASHES=$(comm -13 <(echo "$CRASH_BEFORE") <(echo "$CRASH_AFTER") | grep . || true)
