@@ -172,7 +172,7 @@ public final class HanafudaModel: AITurnGuarded {
     /// その局で消化した手番数。単調に増えるので `.task(id:)` のキーに使える。
     public private(set) var turnCount = 0
     /// CPU の手番が終わって人間へ渡った直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
-    /// 局の決着（`endRound`）では `turnCount` が進まないので控えない（結果の札が出る）。
+    /// 手札を出し切る流局は `passTurn` を通るので読み上げる。あがりでの決着は `turnCount` が進まないので控えない（結果の札が出る）。
     public private(set) var lastCPUMoveKey: AITurnKey?
     /// `lastCPUMoveKey` の手番でしたこと。
     public private(set) var lastCPUTurn: HanafudaCPUTurnSummary?
@@ -726,7 +726,7 @@ public final class HanafudaModel: AITurnGuarded {
         ) else { return }
         let turnBefore = turnCount
         applyHandPlay(move.card, chosen: move.target, for: .cpu)
-        // 手番が人間へ渡ったときだけ控える。局が決着したときは `turnCount` が進まない。
+        // `passTurn` を通ったとき（`turnCount` が進んだとき）だけ控える。CPU があがって局が決着したときは進まない。
         if turnCount != turnBefore, let summary = pendingCPUTurn {
             lastCPUTurn = summary
             lastCPUMoveKey = aiTurnKey
