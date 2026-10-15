@@ -66,4 +66,31 @@ struct ShogiRewardedUndoTests {
         #expect(model.hints.used == 1, "待った無しならヒントは 1 回だけ消費される")
         #expect(model.canUndo, "読み終えたら待ったできる")
     }
+
+    @Test("広告ヒントの読み中も待ったできない（古い局面のヒントを適用しない・#2287）")
+    func undoIsRefusedWhileAdHintThinking() async throws {
+        let model = ShogiGameModel(services: nil)
+        try await playExchange(model, from: "7g", to: "7f")
+        try #require(model.canUndo)
+        // 無料枠を使い切り、次のヒントを広告経由（requestAdHint）にする。
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+        try #require(model.needsAdForHint, "前提: 次のヒントは広告が要る")
+        var duringRead: (canUndo: Bool, undid: Bool, adUndid: Bool)?
+        model.thinkingGate = {
+            let can = model.canUndo
+            model.undoLastExchange()
+            duringRead = (can, model.moves.count != 2, model.undoLastExchange(forTurn: model.aiTurnKey))
+        }
+
+        let outcome = await model.requestAdHint()
+
+        let seen = try #require(duringRead, "前提: 広告ヒントの読みの待ち合わせ点を通っている")
+        #expect(!seen.canUndo, "広告ヒントの読み中に待ったできてしまう")
+        #expect(!seen.undid, "読み中の待ったが盤を戻している")
+        #expect(!seen.adUndid, "読み中に広告の待ったが通っている")
+        #expect(outcome == .granted)
+        #expect(model.moves.count == 2)
+        #expect(model.hints.used == BoardHintBudget.perGame + 1, "待った無しなら広告ヒントは 1 回だけ消費される")
+        #expect(model.canUndo, "読み終えたら待ったできる")
+    }
 }

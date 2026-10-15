@@ -10,11 +10,20 @@ import GameSolitaire
 import GameRunner
 import GameHanafuda
 import GameSpider
+@testable import GameShiritori
+@testable import GameMahjongSolitaire
+import GameAnzan
+@testable import GameAkariKeshi
+@testable import GameTsunagi
+import GameHanoi
+import GameOjisanPuzzle
+import GameSpeed
 
 /// 区分（`recordVariant`）を持つゲームが、全部 `RecordVariantLabels` の表に載っていること（#2240）。
 ///
 /// 表に載っていない区分は、英語表示でも保存済みの日本語の区分名にフォールバックしてしまう
-/// （将棋の駒落ちが #2227 と #2228 の行き違いでこれになった）。ゲームに区分を足したら、ここへも足す。
+/// （将棋の駒落ちが #2227 と #2228 の行き違いでこれになった）。
+/// 区分を足し忘れても、`RecordVariantLabels` の表にゲームを足した時点で `tableGamesAreAllScanned` が落ちる（#2287）。
 @Suite("記録の区分名の表の網羅")
 struct RecordVariantLabelCoverageTests {
     /// 区分を持つゲームの (gameID, 区分キー) の全部。nil（既定の保存先）は区分名を引かないので含めない。
@@ -39,7 +48,46 @@ struct RecordVariantLabelCoverageTests {
                 }
             }
         }
+        for preset in ["9x9-10", "16x16-40", "20x20-82"] { add("minesweeper", preset) }
+        for mode in ShiritoriMode.allCases { add("shiritori", mode.scoreVariant?.key) }
+        for layout in MahjongSolitaireLayout.all { add("mahjong", layout.id) }
+        for level in SpeedLevel.allCases { add("speed", level.rawValue) }
+        for mode in OjisanPuzzleMode.allCases { add("ojisanpuzzle", mode.recordVariant) }
+        for digits in AnzanDigits.allCases {
+            for count in AnzanCount.allCases {
+                for speed in AnzanSpeed.allCases {
+                    add("anzan", AnzanSettings(digits: digits, count: count, speed: speed).variant)
+                }
+            }
+        }
+        for level in AkariKeshiDifficulty.allCases { add("akarikeshi", level.rawValue) }
+        for size in TsunagiSize.allCases { add("tsunagi", size.recordVariant) }
+        for disks in HanoiLogic.diskRange { add("hanoi", "\(disks)disks") }
         return result
+    }
+
+    /// `RecordVariantLabels.label` の `switch` が持つゲーム ID（表のソースから読む）。
+    static var tableGameIDs: Set<String> {
+        let path = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/CoreEngine/RecordVariantLabels.swift").path
+        let whole = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        // 組み立て用の補助関数にも同じ字下げの case があるので、`label` の範囲（`stored` の手前まで）だけ読む。
+        let source = whole.components(separatedBy: "public static func stored").first ?? ""
+        let pattern = try! NSRegularExpression(pattern: #"^        case "([a-z0-9]+)":"#, options: .anchorsMatchLines)
+        let range = NSRange(source.startIndex..., in: source)
+        return Set(pattern.matches(in: source, range: range).compactMap {
+            Range($0.range(at: 1), in: source).map { String(source[$0]) }
+        })
+    }
+
+    @Test("区分名の表にあるゲームは、全部この走査の対象に入っている（足し忘れで落ちる）")
+    func tableGamesAreAllScanned() {
+        let table = Self.tableGameIDs
+        #expect(table.count >= 17, "表のゲームを読めていない: \(table)")
+        let scanned = Set(Self.allVariants.map(\.gameID))
+        #expect(table.subtracting(scanned).isEmpty, "走査の対象に無いゲーム: \(table.subtracting(scanned).sorted())")
+        #expect(scanned.subtracting(table).isEmpty, "表に無いゲーム: \(scanned.subtracting(table).sorted())")
     }
 
     @Test("区分を持つ全ゲームの全区分が、英語の表示名を引ける（日本語が混ざらない）")

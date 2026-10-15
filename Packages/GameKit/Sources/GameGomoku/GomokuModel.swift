@@ -415,6 +415,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 await SimpleGomokuEngine.hint(forbiddenMoves: renju)
                     .bestMove(board: b, stone: stone)
