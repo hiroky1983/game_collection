@@ -119,3 +119,15 @@
   広告のあいだに盤・画面が変わっていたら回数を減らさず「ヒントを出せませんでした」。確認ダイアログは挟まない（`reward_offer` は出ない）
 - **ヒントを使った局は順位表に送らない**（ジョーカーと同じ。`isLeaderboardEligible` に `!hints.wasUsed`）。自己ベストは残る
 - 使った回数は中断データに持ち回る（`hintsUsed` は Optional。鍵の無い旧形式は 0 回）。`GameServices.gameDidUseHint` で `game_end` の `hints_used`（1〜8）に載る
+
+#### バックギャモン: ヒント（#2302・`release/v1.1.12`・企画倉庫）
+
+将棋・チェス・五目並べ・オセロ・囲碁と同じ仕組み（`BoardHintBudget`・無料 3 回＋広告で最大 5 回・合計 8 回）。盤の下は共通の `BoardGameControlBar`
+（待った・ヒント・「⋯」）で、広告の無い**やり直しと投了は「⋯」に入る**。
+
+- 押すと `BackgammonEngine`（`BoardHintBudget.engineLevel`＝むずかしい）が**残りの目に対する最善手順の先頭 1 手**を読み、
+  **動かす駒を紫の輪・行き先を紫の三角（あがりは置き場）**で示す（`BoardGameHintColor`）。手順全体は示さず、指すと印は消える。続きは押し直す（1 回消費）
+- 読みは `withAITurnGuard` の照合に載せる。読んでいるあいだに盤が動いたら印を出さず回数も減らさない。広告は視聴完了後に読む（`requestAdHint()`）
+- 押せるのは自分の手番で動かせる手があるとき（パスの局面・CPU の手番・決着後は押せない）
+- ヒントを使った局は順位表に送らない（`hints.winLossScore`）。使った回数は中断データに持ち回る（`hintsUsed` は Optional・鍵の無い旧形式は 0 回）。**印は保存しない**
+- `GameServices.gameDidUseHint` で `game_end` の `hints_used`（1〜8）に載る。解析イベントは増やさない
