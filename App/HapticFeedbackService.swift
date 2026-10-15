@@ -9,14 +9,21 @@ final class HapticFeedbackService: FeedbackService {
     private let light  = UIImpactFeedbackGenerator(style: .light)
     private let medium = UIImpactFeedbackGenerator(style: .medium)
     private let rigid  = UIImpactFeedbackGenerator(style: .rigid)
+    private let selection = UISelectionFeedbackGenerator()
     private let notification = UINotificationFeedbackGenerator()
 
     func impact(_ style: FeedbackImpact) {
+        if style == .selection {
+            selection.selectionChanged()
+            selection.prepare()
+            return
+        }
         let generator: UIImpactFeedbackGenerator
         switch style {
         case .light:  generator = light
         case .medium: generator = medium
         case .rigid:  generator = rigid
+        case .selection: return // 上で処理済み
         }
         generator.impactOccurred()
         generator.prepare() // 連打される操作なので次回に備えて温めておく

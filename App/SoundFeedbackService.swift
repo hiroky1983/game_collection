@@ -26,6 +26,7 @@ final class SoundFeedbackService: FeedbackService {
     private var isPreparingHomerun = false
 
     func impact(_ style: FeedbackImpact) {
+        guard style.hasSound else { return }
         play(SoundEffect(style))
     }
 

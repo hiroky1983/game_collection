@@ -36,11 +36,13 @@ public enum SoundEffect: String, CaseIterable, Sendable {
     /// 大きな節目の達成（`FeedbackNotice.milestone`）。他の音より長く派手にしてよい唯一の種類。
     case fanfare
 
+    /// `.selection` は触覚だけで鳴らさない（`FeedbackImpact.hasSound`）。ここでは switch を網羅するために
+    /// 近い `rigid` へ対応させているだけで、呼び出し側は `hasSound` を見てから使う。
     public init(_ impact: FeedbackImpact) {
         switch impact {
-        case .light:  self = .light
-        case .medium: self = .medium
-        case .rigid:  self = .rigid
+        case .light:     self = .light
+        case .medium:    self = .medium
+        case .rigid, .selection: self = .rigid
         }
     }
 
