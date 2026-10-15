@@ -48,6 +48,8 @@ public final class TsunagiModel {
             puzzle = snap.puzzle
             paths = snap.paths
             moves = snap.moves
+            // 範囲外の値（壊れた中断データ）は無かったことにする。
+            lastMovedColor = snap.lastMovedColor.flatMap { (0..<snap.puzzle.pairCount).contains($0) ? $0 : nil }
             owners = Self.owners(puzzle: snap.puzzle, paths: snap.paths)
         } else {
             self.size = size
@@ -285,7 +287,7 @@ public final class TsunagiModel {
     private func persist() {
         guard !isSolved else { return }
         try? services?.snapshots.save(
-            TsunagiSnapshot(size: size.rawValue, puzzle: puzzle, paths: paths, moves: moves),
+            TsunagiSnapshot(size: size.rawValue, puzzle: puzzle, paths: paths, moves: moves, lastMovedColor: lastMovedColor),
             for: Self.gameID
         )
     }

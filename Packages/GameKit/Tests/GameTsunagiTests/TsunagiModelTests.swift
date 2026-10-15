@@ -190,6 +190,42 @@ struct TsunagiModelTests {
         #expect(restored.moves == 1)
     }
 
+    @Test("復元の直後に同じ数字の線を伸ばしても手数は増えない（#2286）")
+    func resumeKeepsLastMovedColor() {
+        let store = MemorySnapshotStore()
+        let first = TsunagiModel(services: makeServices(store: store), size: .large, seed: 5)
+        let path = first.puzzle.solution[0]
+        draw(first, Array(path.prefix(2)))
+        #expect(first.moves == 1)
+        let restored = TsunagiModel(services: makeServices(store: store), size: .small, seed: 9)
+        draw(restored, Array(path.prefix(3)))
+        #expect(restored.moves == 1, "同じ数字の続きは 1 手のまま")
+        // 別の数字に移れば従来どおり +1。
+        draw(restored, Array(restored.puzzle.solution[1].prefix(2)))
+        #expect(restored.moves == 2)
+    }
+
+    @Test("lastMovedColor の無い旧形式の中断データも復元できる（#2286）")
+    func restoresLegacySnapshotWithoutLastMovedColor() throws {
+        var generator = SplitMix64(seed: 11)
+        let puzzle = TsunagiLogic.generate(size: .small, using: &generator)
+        var paths = Array(repeating: [Int](), count: puzzle.pairCount)
+        paths[0] = Array(puzzle.solution[0].prefix(2))
+        let data = try JSONEncoder().encode(TsunagiSnapshot(size: "5x5", puzzle: puzzle, paths: paths, moves: 1, lastMovedColor: 0))
+        var json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json.removeValue(forKey: "lastMovedColor")
+        let legacy = try JSONDecoder().decode(TsunagiSnapshot.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(legacy.lastMovedColor == nil)
+        let store = MemorySnapshotStore()
+        try store.save(legacy, for: TsunagiModel.gameID)
+        let model = TsunagiModel(services: makeServices(store: store), seed: 2)
+        #expect(model.puzzle == puzzle)
+        #expect(model.moves == 1)
+        // 範囲外の値は無視して復元する。
+        try store.save(TsunagiSnapshot(size: "5x5", puzzle: puzzle, paths: paths, moves: 1, lastMovedColor: 99), for: TsunagiModel.gameID)
+        #expect(TsunagiModel(services: makeServices(store: store), seed: 2).puzzle == puzzle)
+    }
+
     @Test("壊れた中断データは捨てて新しい問題で始める")
     func rejectsBrokenSnapshot() throws {
         let store = MemorySnapshotStore()
