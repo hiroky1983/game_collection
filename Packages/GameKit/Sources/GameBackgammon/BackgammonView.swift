@@ -6,9 +6,10 @@ public struct BackgammonView: View {
     private let services: GameServices
     @State private var showNewGame = false
     @State private var showPassAlert = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 「ヒント」のリワード広告の段取り（#2302）。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -57,7 +58,6 @@ public struct BackgammonView: View {
                 Text(tr("この目で動かせる駒がありません。CPU の番になります。"))
             }
         }
-        .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
         // パスの案内は **`mustPass` ではなく手番の鍵（`aiTurnKey`）の変化で出す**。CPU がパスした直後に
         // 自分もパスになると、`confirmPass()` → `beginTurn()` が同期で続いて `mustPass` は true → true のまま
         // 変化せず、`onChange(of: mustPass)` では案内が出ずに操作不能になる（verifier 指摘・PR #1344。
@@ -144,6 +144,7 @@ public struct BackgammonView: View {
             if model.turnID == 1, let o = model.openingRoll { return tr("先手は CPU（オープニングロール CPU %1$lld – あなた %2$lld）", o.cpu, o.human) }
             return tr("CPU が考えています…")
         }
+        if model.hintMove != nil { return tr("ヒント：紫の印の駒を、紫の行き先へ動かします") }
         if model.selectedPoint != nil { return tr("行き先をタップ（同じ駒をもう一度タップで選び直し）") }
         if model.turnID == 1, let o = model.openingRoll { return tr("先手はあなた（オープニングロール あなた %1$lld – CPU %2$lld）", o.human, o.cpu) }
         return tr("動かす駒をタップ")
@@ -180,7 +181,8 @@ public struct BackgammonView: View {
                     movable: model.isAITurn ? [] : model.movableSources,
                     selected: model.selectedPoint,
                     destinations: Set(model.destinations.map(\.to)),
-                    lastMove: model.lastMove
+                    lastMove: model.lastMove,
+                    hint: model.hintMove
                 )
                 .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
                 .contentShape(Rectangle())
@@ -211,12 +213,14 @@ public struct BackgammonView: View {
                     .disabled(disabled)
                     .accessibilityLabel(BackgammonAccessibility.barLabel(
                         humanCount: model.board.bar(for: .white), cpuCount: model.board.bar(for: .black),
-                        isMovable: movable.contains(BackgammonBoard.bar), isSelected: model.selectedPoint == BackgammonBoard.bar))
+                        isMovable: movable.contains(BackgammonBoard.bar), isSelected: model.selectedPoint == BackgammonBoard.bar,
+                        isHintSource: model.hintMove?.from == BackgammonBoard.bar))
                 Button { model.tap(BackgammonBoard.off) } label: { Color.clear.frame(width: 44, height: 44) }
                     .disabled(disabled)
                     .accessibilityLabel(BackgammonAccessibility.offLabel(
                         humanCount: model.board.off(for: .white), cpuCount: model.board.off(for: .black),
-                        isDestination: destinations.contains(BackgammonBoard.off)))
+                        isDestination: destinations.contains(BackgammonBoard.off),
+                        isHintDestination: model.hintMove?.to == BackgammonBoard.off))
             }
             HStack(spacing: 0) {
                 ForEach(Array((0..<12).reversed()), id: \.self) { index in pointButton(index, movable: movable, destinations: destinations, disabled: disabled) }
@@ -230,28 +234,27 @@ public struct BackgammonView: View {
             .accessibilityLabel(BackgammonAccessibility.pointLabel(
                 index: index, owner: model.board.owner(at: index), count: model.board.count(at: index),
                 isMovable: movable.contains(index), isSelected: model.selectedPoint == index,
-                isDestination: destinations.contains(index)))
+                isDestination: destinations.contains(index),
+                isHintSource: model.hintMove?.from == index, isHintDestination: model.hintMove?.to == index))
     }
 
     // MARK: - Controls
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
-            // 3 つとも 44pt の共通カプセル（#711・#828）。投了の確認ダイアログは画面全体に付けている。
-            BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
-            Spacer(minLength: 0)
-            Button { model.restartTurn() } label: {
-                Label(tr("やり直し"), systemImage: "arrow.counterclockwise")
-            }
-            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))
-            .disabled(!model.canRestartTurn)
-            .accessibilityHint(tr("この手番で動かした駒を、サイコロを振った直後に戻します"))
-            Spacer(minLength: 0)
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
-        }
-        .themeBody(14)
-        .padding(.horizontal, 12).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・ヒント・「⋯」（やり直し・投了）の並びは盤ゲームで共通（#1421・#2302）。
+        // やり直しは広告の無い操作なので「⋯」に入れる（囲碁のパスと同じ置き場）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.turnID]),
+            extraItems: [
+                GameControlMenuItem(id: "restartTurn", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
+                                    isEnabled: model.canRestartTurn,
+                                    accessibilityHint: tr("この手番で動かした駒を、サイコロを振った直後に戻します")) {
+                    model.restartTurn()
+                }
+            ],
+            onResign: { model.resign() }
+        )
     }
 
     private var resultOverlay: some View {
@@ -488,6 +491,8 @@ private struct BackgammonBoardCanvas: View {
     let selected: Int?
     let destinations: Set<Int>
     let lastMove: BackgammonMove?
+    /// ヒントが示している 1 手（#2302）。動かす駒を紫の輪で囲み、行き先を紫で塗る。
+    let hint: BackgammonMove?
 
     var body: some View {
         Canvas { ctx, _ in
@@ -513,7 +518,8 @@ private struct BackgammonBoardCanvas: View {
                 path.closeSubpath()
                 let dark = (index % 2 == 0)
                 var color = Color(hex: dark ? BackgammonBoardStyle.pointDark : BackgammonBoardStyle.pointLight)
-                if destinations.contains(index) { color = Color(hex: BackgammonBoardStyle.hint).opacity(0.55) }
+                if hint?.to == index { color = BoardGameHintColor.color.opacity(0.6) }
+                else if destinations.contains(index) { color = Color(hex: BackgammonBoardStyle.hint).opacity(0.55) }
                 else if selected == index { color = Color(hex: BackgammonBoardStyle.selected).opacity(0.75) }
                 ctx.fill(path, with: .color(color))
             }
@@ -526,6 +532,10 @@ private struct BackgammonBoardCanvas: View {
             if destinations.contains(BackgammonBoard.off) {
                 ctx.fill(Path(CGRect(x: layout.trayMinX, y: h / 2 + u * 0.1, width: layout.width - layout.trayMinX, height: h / 2 - u * 0.1)),
                          with: .color(Color(hex: BackgammonBoardStyle.hint).opacity(0.5)))
+            }
+            if hint?.to == BackgammonBoard.off {
+                ctx.fill(Path(CGRect(x: layout.trayMinX, y: h / 2 + u * 0.1, width: layout.width - layout.trayMinX, height: h / 2 - u * 0.1)),
+                         with: .color(BoardGameHintColor.color.opacity(0.55)))
             }
             if selected == BackgammonBoard.bar {
                 ctx.fill(Path(CGRect(x: layout.barMinX, y: h / 2, width: layout.barMaxX - layout.barMinX, height: h / 2)),
@@ -553,7 +563,7 @@ private struct BackgammonBoardCanvas: View {
             }
 
             // 駒。
-            func drawChecker(center: CGPoint, side: BackgammonSide, label: String?, highlighted: Bool) {
+            func drawChecker(center: CGPoint, side: BackgammonSide, label: String?, highlighted: Bool, hinted: Bool = false) {
                 let r = d / 2
                 let rim = r * 0.16
                 let face = CGRect(x: center.x - r, y: center.y - r - rim / 2, width: d, height: d)
@@ -566,6 +576,10 @@ private struct BackgammonBoardCanvas: View {
                 if highlighted {
                     ctx.stroke(Path(ellipseIn: face.insetBy(dx: -1.5, dy: -1.5)),
                                with: .color(Color(hex: BackgammonBoardStyle.selected)), lineWidth: 2.5)
+                }
+                if hinted {
+                    ctx.stroke(Path(ellipseIn: face.insetBy(dx: -2.5, dy: -2.5)),
+                               with: .color(BoardGameHintColor.color), lineWidth: 3)
                 }
                 if let label {
                     ctx.draw(Text(label).font(.system(size: d * 0.5, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
@@ -584,7 +598,8 @@ private struct BackgammonBoardCanvas: View {
                     let isLast = k == drawn - 1
                     drawChecker(center: CGPoint(x: cx, y: layout.checkerCenterY(k: k, isTop: isTop)), side: owner,
                                 label: isLast && count > drawn ? "\(count)" : nil,
-                                highlighted: isLast && (selected == index || lastMove?.to == index))
+                                highlighted: isLast && (selected == index || lastMove?.to == index),
+                                hinted: isLast && hint?.from == index)
                 }
             }
             // バーの駒（白は下半分・黒は上半分に、中央から外へ積む）。
@@ -597,7 +612,8 @@ private struct BackgammonBoardCanvas: View {
                     let y = side == .white ? h / 2 + d * (CGFloat(k) + 0.6) : h / 2 - d * (CGFloat(k) + 0.6)
                     drawChecker(center: CGPoint(x: barX, y: y), side: side,
                                 label: k == drawn - 1 && count > drawn ? "\(count)" : nil,
-                                highlighted: k == drawn - 1 && side == .white && selected == BackgammonBoard.bar)
+                                highlighted: k == drawn - 1 && side == .white && selected == BackgammonBoard.bar,
+                                hinted: k == drawn - 1 && side == .white && hint?.from == BackgammonBoard.bar)
                 }
             }
             // あがった駒（薄い板を積む）。白は下から、黒は上から。
