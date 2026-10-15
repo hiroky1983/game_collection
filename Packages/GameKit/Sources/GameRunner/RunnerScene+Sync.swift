@@ -202,14 +202,29 @@ extension RunnerScene {
         guard shouldBlink != isBlinkingInvincible else { return }
         if shouldBlink {
             isBlinkingInvincible = true
-            let blink = SKAction.sequence([
-                .fadeAlpha(to: 0.35, duration: 0.18),
-                .fadeAlpha(to: 1.0, duration: 0.18),
-            ])
-            player.run(.repeatForever(blink), withKey: Self.invincibleBlinkKey)
+            switch Self.invincibleLook(reducesMotion: reducesMotion) {
+            case .blink:
+                let blink = SKAction.sequence([
+                    .fadeAlpha(to: 0.35, duration: 0.18),
+                    .fadeAlpha(to: 1.0, duration: 0.18),
+                ])
+                player.run(.repeatForever(blink), withKey: Self.invincibleBlinkKey)
+            case .steady(let alpha):
+                player.alpha = alpha
+            }
         } else {
             stopInvincibleBlink()
         }
+    }
+
+    /// 無敵中の見せ方。「視差効果を減らす」では点滅せず、半透明で固定して無敵と分かるようにする（#2249）。
+    enum InvincibleLook: Equatable {
+        case blink
+        case steady(alpha: CGFloat)
+    }
+
+    static func invincibleLook(reducesMotion: Bool) -> InvincibleLook {
+        reducesMotion ? .steady(alpha: 0.6) : .blink
     }
 
     /// 無敵の点滅を外し、走者を不透明に戻す。無敵でないときに呼んでも何もしない。
