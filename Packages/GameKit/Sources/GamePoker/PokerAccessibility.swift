@@ -22,6 +22,12 @@ public enum PokerAccessibility {
         return tr("%@、捨てる札に選択中", name)
     }
 
+    /// 役一覧の見本 5 枚の読み上げ文（例: "スペードのA、スペードのK、…"）。役名と説明は
+    /// 隣の Text が読むので、ここは札の並びだけにする。
+    public static func handGuideCardsLabel(cards: [PokerCard]) -> String {
+        cards.map { $0.figure.spokenLabel }.joined(separator: "、")
+    }
+
     /// 手札 1 枚のヒント。交換フェーズ以外は空（選べない札に操作を案内しない）。
     public static func handCardHint(phase: PokerPhase) -> String {
         acceptsSelection(phase: phase) ? tr("ダブルタップで捨てる札の選択を切り替えます") : ""
