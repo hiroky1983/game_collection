@@ -86,6 +86,29 @@ struct MahjongWinStateSnapshotTests {
         #expect(!restored.temporaryFuriten[1])
     }
 
+    @Test("ロンを見逃した直後にポン選択が出た状態で中断して再開しても、同巡内はフリテンのまま（#2298）")
+    func temporaryFuritenSurvivesRelaunchDuringCallOffer() throws {
+        let store = MemorySnapshotStore()
+        let model = makeModel(store: store)
+        model.startGame()
+        // 双碰 5m・8s 待ち … ではなく、8s 待ちの聴牌に 8s のポン材（88s）を持たせて、ロンとポンが両方できる形にする。
+        model.configureForTesting(
+            hands: [MahjongNotation.hand("234m567m88s345p67s"), junkHand(), junkHand(), junkHand()],
+            wall: MahjongNotation.tiles("1111m"),
+            currentPlayer: 1,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.discardForTesting(MahjongNotation.tile("8s"), by: 1)
+        try #require(model.phase == .ronOffer)
+        model.declineRon()
+        try #require(model.phase == .callOffer, "見逃した直後はポン選択")
+
+        let restored = relaunch(store)
+        #expect(restored.temporaryFuriten[MahjongModel.humanIndex])
+        #expect(restored.isFuriten(MahjongModel.humanIndex))
+    }
+
     @Test("3 項目の鍵が無い旧形式の中断データは、従来どおり（立直中は宣言巡 0・他は false）に戻る")
     func legacySnapshotFallsBack() throws {
         let store = MemorySnapshotStore()
