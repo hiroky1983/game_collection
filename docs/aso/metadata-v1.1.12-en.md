@@ -1,11 +1,13 @@
-# App Store 商品ページ 入稿パック（v1.1.12 / en-US）— 下書き
+# App Store 商品ページ 入稿パック（v1.1.12 / en-US）
 
 #2170（多言語⑦）の en-US 欄。会長決定（2026-10-12・案A）で、ASC の英語（米国）の欄は日本のストアの
 2つ目の日本語キーワード欄として使うのをやめ、**本当の英語ページ**にする。ja 欄は #2271 の担当で、このファイルでは扱わない。
 
-> **状態: 下書き（2026-10-17）**。ASC への入稿・英語スクショ・Game Center の英語名の入稿は、
-> アプリ側の英語名の変更（オセロ → Osero・おじさんシリーズのローマ字化）がマージされてから行う（スクショに名前が写るため）。
-> 入稿したら、この注記を「入稿済み」と ASC の読み戻し結果に差し替える。
+> **状態: 入稿済み（2026-10-17）**。アプリ側の英語名の変更（#2341 Osero・#2344 Sakugoe Ojisan / Charinko Ojisan / Daifugo）の
+> マージ後に ASC API で入れ、GET の読み戻しで §2〜§7 と URL の全項目が一致することを確認した（ja 欄は未変更）。
+> Game Center は §9 の 41 件（リーダーボード 20・実績 21、実績の画像は ja と同じもの）を各項目の新しい版
+> （version 2・PREPARE_FOR_SUBMISSION）に入れた。**v1.1.12 の審査提出のときに、この 41 件の版も一緒に提出に含める**。
+> 英語のスクショは別の担当（ハブ差し替え・並び合わせ）が入れる。
 
 ## 0. 決まっていること（会長 2026-10-17）
 
@@ -152,7 +154,7 @@ Asobiba is now available in English!
 | asobiba.poker.chips | ポーカー 最高チップ | Poker Most Chips |
 | asobiba.blackjack.chips | ブラックジャック 最高チップ | Blackjack Most Chips |
 | asobiba.minesweeper.time.beginner | マインスイーパー 初級 最短タイム | Minesweeper Beginner Best Time |
-| asobiba.minesweeper.time.intermediate | マインスイーパー 中級 最短タイム | Minesweeper Intermediate Best Time |
+| asobiba.minesweeper.time.intermediate | マインスイーパー 中級 最短タイム | Minesweeper Intermediate Time |
 | asobiba.minesweeper.time.expert | マインスイーパー 上級 最短タイム | Minesweeper Expert Best Time |
 | asobiba.sudoku.time.easy | ナンプレ かんたん 最短タイム | Number Place Easy Best Time |
 | asobiba.sudoku.time.normal | ナンプレ ふつう 最短タイム | Number Place Normal Best Time |
@@ -160,14 +162,14 @@ Asobiba is now available in English!
 | asobiba.mahjongsolitaire.time | 麻雀ソリティア 最短タイム | Mahjong Solitaire Best Time |
 | asobiba.runner.stage | チャリンコおじさん 到達ステージ | Charinko Ojisan Stage Reached |
 | asobiba.freecell.time | フリーセル 最短タイム | FreeCell Best Time |
-| asobiba.runner.distance | チャリンコおじさん エンドレス 走行距離 | Charinko Ojisan Endless Distance |
-| asobiba.spider.time.1suit | スパイダーソリティア 最短タイム（1スート） | Spider Solitaire Best Time (1 Suit) |
-| asobiba.spider.time.2suit | スパイダーソリティア 最短タイム（2スート） | Spider Solitaire Best Time (2 Suits) |
-| asobiba.spider.time.4suit | スパイダーソリティア 最短タイム（4スート） | Spider Solitaire Best Time (4 Suits) |
+| asobiba.runner.distance | チャリンコおじさん エンドレス 走行距離 | Charinko Ojisan Endless Run |
+| asobiba.spider.time.1suit | スパイダーソリティア 最短タイム（1スート） | Spider Solitaire 1-Suit Time |
+| asobiba.spider.time.2suit | スパイダーソリティア 最短タイム（2スート） | Spider Solitaire 2-Suit Time |
+| asobiba.spider.time.4suit | スパイダーソリティア 最短タイム（4スート） | Spider Solitaire 4-Suit Time |
 | asobiba.hanafuda.points | 花札こいこい 最高得点 | Hanafuda Koi-Koi High Score |
 | asobiba.homerun.weekly | 柵越えおじさん 週間ランキング | Sakugoe Ojisan Weekly Ranking（単位 `m` は ja と同じ） |
 
-名前の文字数の上限は入稿時に API の応答で確かめ、超えたら `Best Time` → `Best` 等で詰める。
+名前の上限は 30 字（API の応答で確認）。収まらない 5 本は `Minesweeper Intermediate Time`・`Charinko Ojisan Endless Run`・`Spider Solitaire N-Suit Time` に詰めた。
 
 ### 実績
 
@@ -198,7 +200,7 @@ Asobiba is now available in English!
 | careerhomers50 | 50 Career Homers | You might be halfway there | Hit 50 career homers |
 | careerhomers100 | 100 Career Homers | Clear the fence more times than you can count | Hit 100 career homers |
 
-## 10. 入稿の手順（アプリ側のマージ後）
+## 10. 入稿の手順（記録）
 
 1. §2〜§7 の字数と使用禁止語を再確認する。
 2. ASC API で v1.1.12 の en-US の appStoreVersionLocalization（説明文・キーワード・プロモーション・新機能・URL）と
