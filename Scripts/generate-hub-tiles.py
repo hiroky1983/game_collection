@@ -78,10 +78,10 @@ GAMES = {
 # （#2166〜#2169）。食い違いは `check_english_names` が書き出しの前に止める。2048 は訳さない（タイトルを直書き）、
 # 大富豪は表のキーが身分の「大富豪」と重なるため `daifugoGameName()` に直書き（GameDaifugo/Localization.swift）。
 GAMES_EN = {
-    "homerun": "Homerun Ojisan",
+    "homerun": "Sakugoe Ojisan",
     "poker": "Poker",
     "solitaire": "Solitaire",
-    "runner": "Bike Ojisan",
+    "runner": "Charinko Ojisan",
     "mahjong4": "Mahjong",
     "sudoku": "Number Place",
     "othello": "Reversi",
