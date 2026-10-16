@@ -18,6 +18,9 @@
      raw/ に無くなった日付は既存の daily.csv の行を残す
   4. スプレッドシート（SHEET_ID）の日次タブ・週次まとめを丸ごと書き直す（同じ日付は上書き・新しい日は追記）。
      GA4・ASC のどちらかが失敗しても残りは続け、週次まとめの先頭に「取得失敗: 日時・どの取得か」を出す
+  5. GA4 の広告収益（USD）は、その日の USD/JPY（Frankfurter・ECB 基準）で円にして「広告（日次）」に出し、日付ごとの合計行に
+     「その日の合計（円）」を入れる（AdMob 画面の行がある日はそちらを優先）。レートは ~/asobiba-kpi/ga4/fx_usdjpy.csv に貯め、
+     取れない日は円を空欄にしてログに警告する
 
 ASC の API は GET だけを使う（GA4 の runReport は読み取りの POST）。リクエストが無い・止まっている場合は作り直さずにエラー終了する
 （作成は会長の判断を経て手で行う）。鍵・トークン・署名付き URL はログにも CSV にも出さない。
@@ -697,6 +700,102 @@ def read_admob_history(path):
         return [r for r in csv.DictReader(f) if r.get("date")]
 
 
+# ---------------------------------------------------------------- USD/JPY レート（GA4 の広告収益を円にする）
+#
+# GA4 の広告収益（totalAdRevenue）はプロパティの通貨 USD。「広告（日次）」で円の合計を見るため（会長要望 2026-10-16）、
+# その日の USD/JPY を Frankfurter（ECB 基準・キー不要。休日はその前の営業日の値が返る）から取り、
+# <GA4 の保存先>/fx_usdjpy.csv（date, usd_jpy, rate_date）に貯める。rate_date は API が返した基準日。
+# rate_date が日付と違う（= 休日、またはまだその日の値が出ていない）日は、直近 FX_REFETCH_DAYS 日以内なら毎回取り直す。
+# 取れなかった日は円を空欄にしてログに警告を出す（推測値は入れない）。
+
+FX_API = "https://api.frankfurter.dev/v1/{date}?from=USD&to=JPY"
+FX_FIELDNAMES = ["date", "usd_jpy", "rate_date"]
+FX_REFETCH_DAYS = 3
+
+
+class FxError(Exception):
+    pass
+
+
+def read_fx(path):
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8", newline="") as f:
+        return {r["date"]: r for r in csv.DictReader(f) if r.get("date") and r.get("usd_jpy")}
+
+
+def write_fx(path, fx):
+    def w(f):
+        cw = csv.DictWriter(f, fieldnames=FX_FIELDNAMES)
+        cw.writeheader()
+        cw.writerows([{k: fx[d].get(k, "") for k in FX_FIELDNAMES} for d in sorted(fx)])
+    write_atomic(path, w)
+
+
+def fetch_fx_rate(date, api=FX_API):
+    """(USD/JPY, 基準日) を返す。取れなければ FxError。"""
+    try:
+        # 既定の User-Agent（Python-urllib）は Cloudflare に HTTP 403 で弾かれるため名乗る
+        req = urllib.request.Request(api.replace("{date}", date),
+                                     headers={"User-Agent": "asobiba-aso-daily/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            r = json.loads(resp.read())
+        rate = float((r.get("rates") or {})["JPY"])
+        rate_date = str(r.get("date") or "")
+        parse_date(rate_date)
+    except urllib.error.HTTPError as e:
+        raise FxError("HTTP %d" % e.code)
+    except urllib.error.URLError:
+        raise FxError("接続できない")
+    except (OSError, ValueError, KeyError, TypeError):
+        raise FxError("応答を読めない")
+    if not rate > 0 or rate_date > date:
+        raise FxError("応答の値がおかしい")
+    return rate, rate_date
+
+
+def update_fx(fx, dates, today, api=FX_API):
+    """dates（ISO）のうちレートが無い日・取り直す日だけ取る。fx を更新し、取れなかった日のリストを返す。"""
+    failed = []
+    for d in sorted(dates):
+        have = fx.get(d)
+        if have and (have.get("rate_date") == d
+                     or (today - parse_date(d)).days > FX_REFETCH_DAYS):
+            continue
+        try:
+            rate, rate_date = fetch_fx_rate(d, api)
+        except FxError as e:
+            if not have:
+                failed.append(d)
+                log("警告: USD/JPY レート（%s）を取得できませんでした（%s）。その日の GA4 の円は空欄" % (d, e))
+            continue
+        fx[d] = {"date": d, "usd_jpy": ("%.4f" % rate).rstrip("0").rstrip("."), "rate_date": rate_date}
+    return failed
+
+
+def fx_rates(fx):
+    """{date: float}"""
+    return {d: _to_float(r["usd_jpy"]) for d, r in fx.items() if _to_float(r["usd_jpy"]) > 0}
+
+
+def daily_ad_total_jpy(ga4_rows, admob_rows, rates):
+    """{date: その日の広告収益の合計（円）, 取得元}。同じ日に AdMob 画面と GA4 の両方があれば AdMob 画面を優先する
+    （_ads_merged_avg と同じ方針・二重計上しない）。GA4 だけの日は表示回数が出ている日（_ad_days）だけで、
+    全体の USD × その日のレート。レートが無い日は None（空欄）。"""
+    out = {}
+    for r in admob_rows:
+        if r.get("est_revenue_jpy", "") != "":
+            out[r["date"]] = (_to_float(r["est_revenue_jpy"]), "AdMob 画面")
+    if ga4_rows:
+        lo, hi = min(r["date"] for r in ga4_rows), max(r["date"] for r in ga4_rows)
+        for d in _ad_days(ga4_rows, parse_date(lo), parse_date(hi)):
+            if d in out:
+                continue
+            usd, _ = _ga4_sum(ga4_rows, "ad_revenue", "", parse_date(d), parse_date(d))
+            out[d] = (round(usd * rates[d], 2) if d in rates else None, "GA4")
+    return out
+
+
 # ---------------------------------------------------------------- Google スプレッドシート（#2238）
 #
 # 毎回 daily.csv（ASO・GA4）・AdMob の画面取得 CSV から各タブの中身を作り直して丸ごと書き込む
@@ -850,26 +949,39 @@ def tab_games(ga4_rows):
 
 
 ADS_HEADERS = ["日付", "取得元", "広告フォーマット/ユニット", "推定収益（円）", "収益 USD", "表示回数", "クリック",
-               "eCPM（円）", "1,000 回あたりの収益 USD", "リクエスト", "マッチ率（%）", "表示率（%）"]
+               "eCPM（円）", "1,000 回あたりの収益 USD", "リクエスト", "マッチ率（%）", "表示率（%）",
+               # 2026-10-16 追加。既存の表（並べ替え・絞り込み）の列番号をずらさないよう末尾に足す
+               "その日の合計（円）", "USD/JPY"]
 
 
-def tab_ads(ga4_rows, admob_rows):
+def tab_ads(ga4_rows, admob_rows, rates=None):
     """広告（日次）。AdMob の画面取得（過去分・取得元=AdMob 画面）と GA4 経由（取得元=GA4）を
     同じ列構成で 1 本のタブに入れる（会長指示・#2238 追補）。AdMob 画面の行は CSV から毎回作り直すだけで、
-    GA4 側の行を消したり上書きしたりはしない（別々の行なので干渉しない）。"""
+    GA4 側の行を消したり上書きしたりはしない（別々の行なので干渉しない）。
+    GA4 の行の円（推定収益・eCPM）は USD × その日の USD/JPY（rates: {date: レート}。無い日は空欄）。
+    「その日の合計（円）」は日付ごとの合計行（AdMob 画面の「合計」、AdMob 画面が無い日は GA4 の「全体」）にだけ入れる。"""
+    rates = rates or {}
+    totals = daily_ad_total_jpy(ga4_rows, admob_rows, rates)
     idx = _ga4_index(ga4_rows)
     rows = []
     for r in admob_rows:
+        t = totals.get(r["date"])
         rows.append([r["date"], "AdMob 画面", "合計", _num(r.get("est_revenue_jpy", "")), "",
                     _num(r.get("impressions", "")), _num(r.get("clicks", "")), _num(r.get("ecpm_jpy", "")), "",
-                    _num(r.get("requests", "")), _num(r.get("match_rate_pct", "")), _num(r.get("show_rate_pct", ""))])
+                    _num(r.get("requests", "")), _num(r.get("match_rate_pct", "")), _num(r.get("show_rate_pct", "")),
+                    t[0] if t and t[1] == "AdMob 画面" else "", ""])
     keys = sorted(set((r["date"], r.get("ad_unit", "")) for r in ga4_rows
                       if r["metric"] in ("ad_revenue", "ad_impressions", "ad_clicks") and not r.get("game_id")))
     for d, u in keys:
         rev = _to_float(idx.get((d, "ad_revenue", "", u)))
         imp = to_int(idx.get((d, "ad_impressions", "", u)))
-        rows.append([d, "GA4", u or "全体", "", rev, imp, to_int(idx.get((d, "ad_clicks", "", u))), "",
-                    round(rev / imp * 1000, 4) if imp else "", "", "", ""])
+        rate = rates.get(d)
+        jpy = round(rev * rate, 2) if rate else ""
+        t = totals.get(d)
+        total = t[0] if not u and t and t[1] == "GA4" and t[0] is not None else ""
+        rows.append([d, "GA4", u or "全体", jpy, rev, imp, to_int(idx.get((d, "ad_clicks", "", u))),
+                    round(rev * rate / imp * 1000, 2) if rate and imp else "",
+                    round(rev / imp * 1000, 4) if imp else "", "", "", "", total, rate or ""])
     rows.sort(key=lambda r: (r[0], r[1], r[2]))
     return [ADS_HEADERS] + rows
 
@@ -916,8 +1028,20 @@ def _ads_merged_avg(ga4_rows, admob_rows, admob_col, ga4_metric, start, end):
     return total / n if n else None
 
 
-def weekly_metrics(aso_rows, ga4_rows, admob_rows):
+def _ad_week_total_jpy(totals, start, end):
+    """期間の広告収益の合計（円）。7 日の期間は合計そのもの、それ以外（基準の 9 日など）は 1 日平均 × 7 の 7 日換算。
+    データの無い期間、またはレートが取れず円にできない日を含む期間は None（少なく見せない）。"""
+    vals = [v for d, (v, _) in totals.items() if start.isoformat() <= d <= end.isoformat()]
+    if not vals or any(v is None for v in vals):
+        return None
+    if (end - start).days + 1 == 7:
+        return sum(vals)
+    return sum(vals) / len(vals) * 7
+
+
+def weekly_metrics(aso_rows, ga4_rows, admob_rows, rates=None):
     """週次まとめの指標: (見出し, 期間 → 1 日平均（割合は期間合計の比） or None, 割合か, 目安の列名) のリスト。"""
+    totals = daily_ad_total_jpy(ga4_rows, admob_rows, rates or {})
     def aso(num, den=None, kind="e"):
         return lambda s, e: period_value(aso_rows, s, e, num, den, kind)[0]
 
@@ -963,6 +1087,8 @@ def weekly_metrics(aso_rows, ga4_rows, admob_rows):
           ("広告の表示回数（AdMob 画面優先）", lambda s, e: _ads_merged_avg(ga4_rows, admob_rows, "impressions", "ad_impressions", s, e), False, None),
           ("広告のクリック（AdMob 画面優先）", lambda s, e: _ads_merged_avg(ga4_rows, admob_rows, "clicks", "ad_clicks", s, e), False, None),
           ("1,000 回あたりの収益 USD（eCPM 相当・GA4）", ecpm, False, None)]
+    m += [("広告収益 円の週合計（AdMob 画面優先・GA4 は USD×当日レート。基準は 7 日換算）",
+           lambda s, e: _ad_week_total_jpy(totals, s, e), False, None)]
     m += [("AdMob 推定収益 円（画面取得・過去分）", lambda s, e: _admob_avg(admob_rows, "est_revenue_jpy", s, e), False, None),
           ("AdMob eCPM 円（画面取得・過去分）", lambda s, e: _admob_avg(admob_rows, "ecpm_jpy", s, e), False, None)]
     m += [("プレイ開始 " + GAME_NAMES.get(g, g), ga("game_start_count", g), False, None) for g in GA4_WATCH_GAMES]
@@ -974,7 +1100,7 @@ def _r(v):
     return round(v, 2) if isinstance(v, float) else ("" if v is None else v)
 
 
-def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status):
+def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status, rates=None):
     """週次まとめ: 先頭に状態とグラフ、WEEKLY_TABLE_ROW 行目から表（行 = 指標、列 = 基準・目安・週。新しい週が左）。
     各週は「1 日平均・前週比・基準比」の 3 列。基準は v1.1.11 公開前の 10/3〜10/11。
     表示回数・クリックは同じ日に AdMob 画面と GA4 の両方があれば AdMob 画面を優先し、GA4 だけの日は
@@ -997,7 +1123,7 @@ def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status):
         label = "%d/%d〜%d/%d" % (ws.month, ws.day, we.month, we.day) + ("（途中）" if we >= today else "")
         head += [label, "前週比", "基準比"]
     table = [head]
-    for label, f, pct, target in weekly_metrics(aso_rows, ga4_rows, admob_rows):
+    for label, f, pct, target in weekly_metrics(aso_rows, ga4_rows, admob_rows, rates):
         counts_days = pct is None
         base = None if counts_days else f(BASELINE_START, BASELINE_END)
         row = [label, _r(base), TARGETS.get(target, "")]
@@ -1024,13 +1150,13 @@ def status_lines(now, errors):
     return ["取得失敗: %s・%s — %s" % (stamp, what, msg) for what, msg in errors] + ["最終更新: %s（失敗した取得は前回までの数字のまま）" % stamp]
 
 
-def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors):
+def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None):
     return {
-        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors)),
+        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors), rates),
         TAB_ASO: tab_aso(aso_rows),
         TAB_GA4: tab_ga4(ga4_rows, admob_rows),
         TAB_GAMES: tab_games(ga4_rows),
-        TAB_ADS: tab_ads(ga4_rows, admob_rows),
+        TAB_ADS: tab_ads(ga4_rows, admob_rows, rates),
     }
 
 
@@ -1086,12 +1212,20 @@ def table_requests(tab, sheet_id, header, n_rows, existing_tables):
     spec = TABLE_COL_SPECS[tab]
     rng = {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": max(1, n_rows),
            "startColumnIndex": 0, "endColumnIndex": len(header)}
-    if any(t.get("tableId") == table_id for t in existing_tables or []):
-        return {"updateTable": {"table": {"tableId": table_id, "range": rng}, "fields": "range"}}
     cols = []
     for i, name in enumerate(header):
         ct = "DATE" if i == spec["date_idx"] else ("TEXT" if i in spec["text_idxs"] else "DOUBLE")
         cols.append({"columnIndex": i, "columnName": str(name), "columnType": ct})
+    existing = next((t for t in existing_tables or [] if t.get("tableId") == table_id), None)
+    if existing is not None:
+        # 列を末尾に足した日（例: 広告（日次）の「その日の合計（円）」・2026-10-16）だけ、足した列にも型が付くよう
+        # 列の定義を一緒に渡す（既存の列は名前・型とも今と同じ値）。それ以外の日は範囲だけ
+        old_cols = ((existing.get("range") or {}).get("endColumnIndex") or 0) - (
+            (existing.get("range") or {}).get("startColumnIndex") or 0)
+        if 0 < old_cols < len(header):
+            return {"updateTable": {"table": {"tableId": table_id, "range": rng, "columnProperties": cols},
+                                    "fields": "range,columnProperties"}}
+        return {"updateTable": {"table": {"tableId": table_id, "range": rng}, "fields": "range"}}
     # name は数式と同じ命名規則（英数字・アンダースコアのみ、先頭は数字不可）が必要で、タブ名（日本語・全角括弧）は
     # 使えない（HTTP 400 "The table name is invalid"）。tableId をそのまま使う
     return {"addTable": {"table": {"tableId": table_id, "name": table_id, "range": rng, "columnProperties": cols}}}
@@ -1122,7 +1256,7 @@ class Sheets:
 def write_sheets(api, tabs):
     """タブを揃え（無ければ作る・既定の「シート1」は週次まとめに名前を変える）、中身を丸ごと書き、
     日次の 4 タブを並べ替え・絞り込みができる表にし、グラフを置き直す。"""
-    FIELDS = "?fields=sheets(properties(sheetId,title),charts(chartId),tables(tableId))"
+    FIELDS = "?fields=sheets(properties(sheetId,title),charts(chartId),tables(tableId,range))"
     meta = api.call("GET", FIELDS)
     sheets = {s["properties"]["title"]: s for s in meta.get("sheets") or []}
     reqs = []
@@ -1201,6 +1335,9 @@ def main(argv=None):
                     help="スプレッドシートに書く代わりに各タブの中身を DIR/<タブ名>.tsv に出す（API は呼ばない）")
     ap.add_argument("--admob-history", default=ADMOB_HISTORY_PATH,
                     help="AdMob の画面取得（過去分）CSV（既定: %s）。テスト用に差し替え可" % ADMOB_HISTORY_PATH)
+    ap.add_argument("--fx-api", metavar="URL",
+                    help="USD/JPY レートの取得先（{date} を日付に置き換える。既定: %s）。テスト用に file:// へ差し替える。"
+                         "指定すると --no-fetch でも取る" % FX_API)
     a = ap.parse_args(argv)
 
     raw_dir = os.path.join(a.out_dir, "raw")
@@ -1267,8 +1404,21 @@ def main(argv=None):
         log("AdMob 画面取得（過去分）: %d 日分（%s〜%s）" % (
             len(admob_rows), admob_rows[0]["date"], admob_rows[-1]["date"]))
 
+    # GA4 の広告収益（USD）を円にするレート。取れなくても他は止めない（その日の円が空欄になるだけ・ログに警告）
+    fx_path = os.path.join(ga4_dir, "fx_usdjpy.csv")
+    fx = read_fx(fx_path)
+    if a.fx_api or not a.no_fetch:
+        ad_days = _ad_days(ga4_rows, GA4_BACKFILL_START, today) if ga4_rows else set()
+        try:
+            update_fx(fx, ad_days, today, a.fx_api or FX_API)
+            if fx:
+                write_fx(fx_path, fx)
+        except Exception as e:  # 想定外でもスプレッドシートの書き込みは続ける
+            log("警告: USD/JPY レートの取得・保存に失敗しました（%s）。GA4 の円は保存済みのレートの日だけ" % type(e).__name__)
+    rates = fx_rates(fx)
+
     if a.sheets_dump or not a.no_sheets:
-        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors)
+        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors, rates)
         try:
             if a.sheets_dump:
                 dump_tabs(tabs, a.sheets_dump)

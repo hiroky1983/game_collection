@@ -342,6 +342,82 @@ sys.exit(1 if ng else 0)
 PY
 if [ "$?" -eq 0 ]; then ok "table_requests のリクエスト組み立て（上の小計すべて成功）"; else ng "table_requests のリクエスト組み立てで失敗あり"; fi
 
+echo "== 11. GA4 の広告収益の円換算と「その日の合計（円）」（会長要望 2026-10-16。レート API は file:// に差し替え） =="
+# GA4 の広告: 10/12 全体 1.5 USD・1000 回（内訳 Rewarded/rescue 1.5 USD）、10/13 全体 0.5 USD・500 回、10/11 は 0（リンク前）
+FX="$TMP/fx" FX2="$TMP/fx2" FXNONE="$TMP/fx-none"
+mkdir -p "$FX" "$FX2" "$FXNONE"
+echo '{"amount":1.0,"base":"USD","date":"2026-10-12","rates":{"JPY":150}}' >"$FX/2026-10-12.json"
+FD="$TMP/fxdump"
+frun() { "$PY" "$TARGET" --out-dir "$OUT" --ga4-out-dir "$GOUT" --no-fetch --today "${TODAY:-2026-10-19}" --sheets-dump "$FD" "$@"; }
+frow() { grep "^$1" "$FD/広告（日次）.tsv"; }
+fxcsv() { grep "^$1," "$GOUT/fx_usdjpy.csv" | tr -d '\r'; }
+
+# a. 10/13 のレートが取れない（ファイルが無い = 接続失敗と同じ扱い）
+frun --admob-history "$NOADMOB" --fx-api "file://$FX/{date}.json" >"$TMP/flog" 2>&1
+expect_eq "レートが取れない日があっても終了コード 0（警告だけ）" "$?" "0"
+grep -q '警告: USD/JPY レート（2026-10-13）を取得できませんでした' "$TMP/flog" && ok "取れなかった日をログに警告する" || { ng "警告が無い"; cat "$TMP/flog"; }
+expect_eq "見出しの末尾に合計とレートの列（既存の列はずらさない）" "$(head -1 "$FD/広告（日次）.tsv" | cut -f4,13-14)" "推定収益（円）${T}その日の合計（円）${T}USD/JPY"
+# 1.5 USD × 150 = 225 円、eCPM 円 = 225 / 1000 × 1000
+expect_eq "10/12 GA4 全体: 推定収益（円）・eCPM（円）・合計・レート" "$(frow "2026-10-12${T}GA4${T}全体" | cut -f4,8,13,14)" "225.0${T}225.0${T}225.0${T}150.0"
+expect_eq "10/12 GA4 内訳: 円は入るが合計は空欄" "$(frow "2026-10-12${T}GA4${T}Rewarded/rescue" | cut -f4,13,14)" "225.0${T}${T}150.0"
+expect_eq "10/13 はレートが無い → 円・eCPM 円・合計・レートとも空欄（推測値を入れない）" "$(frow "2026-10-13${T}GA4${T}全体" | cut -f4,8,13,14)" "${T}${T}${T}"
+expect_eq "10/11（表示回数 0・リンク前）は合計を入れない" "$(frow "2026-10-11${T}GA4${T}全体" | cut -f13)" ""
+expect_eq "週合計（円）: レートが無い日を含む週は空欄（少なく見せない）" "$(grep '^広告収益 円の週合計' "$FD/週次まとめ.tsv" | cut -f4)" ""
+expect_eq "取れたレートを保存する（日付・レート・基準日）" "$(fxcsv 2026-10-12)" "2026-10-12,150,2026-10-12"
+
+# b. 10/13 は休日扱い（直近営業日 10/12 の値が返る）。今日から 3 日より前なのでそのまま確定
+echo '{"amount":1.0,"base":"USD","date":"2026-10-12","rates":{"JPY":151}}' >"$FX/2026-10-13.json"
+frun --admob-history "$NOADMOB" --fx-api "file://$FX/{date}.json" >"$TMP/flog" 2>&1
+expect_eq "10/13 GA4 全体: 0.5 USD × 151（直近営業日の値）" "$(frow "2026-10-13${T}GA4${T}全体" | cut -f4,13,14)" "75.5${T}75.5${T}151.0"
+expect_eq "週合計（円）: 225 + 75.5" "$(grep '^広告収益 円の週合計' "$FD/週次まとめ.tsv" | cut -f4)" "300.5"
+expect_eq "前週はデータなし → 前週比は空" "$(grep '^広告収益 円の週合計' "$FD/週次まとめ.tsv" | cut -f5)" ""
+grep -q '警告: USD/JPY' "$TMP/flog" && ng "取れたのに警告が出ている" || ok "全部取れたら警告を出さない"
+
+# c. 保存済みのレートは取り直さない（取得先が全部失敗しても円は埋まる・警告も出ない）。--fx-api 無しの --no-fetch も保存分を使う
+frun --admob-history "$NOADMOB" --fx-api "file://$FXNONE/{date}.json" >"$TMP/flog" 2>&1
+expect_eq "保存済みのレートで埋まる（取得先が全滅でも）" "$(frow "2026-10-13${T}GA4${T}全体" | cut -f4)" "75.5"
+grep -q '警告: USD/JPY' "$TMP/flog" && ng "保存済みなのに取りに行った" || ok "保存済みの日は取りに行かない"
+frun --admob-history "$NOADMOB" >/dev/null 2>&1
+expect_eq "--no-fetch（--fx-api 無し）でも保存済みのレートを使う" "$(frow "2026-10-12${T}GA4${T}全体" | cut -f4)" "225.0"
+
+# d. 直近（3 日以内）で基準日が違う（= その日の値がまだ出ていなかった）レートは毎回取り直す
+echo '{"amount":1.0,"base":"USD","date":"2026-10-13","rates":{"JPY":152}}' >"$FX2/2026-10-13.json"
+cp "$FX/2026-10-12.json" "$FX2/"
+TODAY=2026-10-14 frun --admob-history "$NOADMOB" --fx-api "file://$FX2/{date}.json" >/dev/null 2>&1
+expect_eq "直近の仮のレートは取り直して置き換える" "$(fxcsv 2026-10-13)" "2026-10-13,152,2026-10-13"
+
+# e. 同じ日に AdMob 画面と GA4 の両方がある日（10/12）は AdMob 画面を優先し、二重計上しない
+frun --admob-history "$ADMOB_CSV" >/dev/null 2>&1
+expect_eq "10/12 AdMob 画面の合計行に合計（円）" "$(frow "2026-10-12${T}AdMob 画面${T}合計" | cut -f4,13,14)" "30${T}30.0${T}"
+expect_eq "10/12 GA4 全体は円は出すが合計は空欄（二重計上しない）" "$(frow "2026-10-12${T}GA4${T}全体" | cut -f4,13)" "225.0${T}"
+expect_eq "AdMob 画面だけの日（8/27）も合計が入る" "$(frow "2026-08-27${T}AdMob 画面${T}合計" | cut -f13)" "2.0"
+# 現週 = 10/12 AdMob 画面 30 + 10/13 GA4 0.5 × 152 = 76 → 106
+expect_eq "週合計（円）は AdMob 画面優先で 1 日 1 回だけ数える" "$(grep '^広告収益 円の週合計' "$FD/週次まとめ.tsv" | cut -f4)" "106.0"
+# 基準（10/3〜10/11 の 9 日）は 10/11 の AdMob 画面 20 円だけ → 1 日平均 × 7 = 140
+expect_eq "週合計（円）の基準は 7 日換算" "$(grep '^広告収益 円の週合計' "$FD/週次まとめ.tsv" | cut -f2)" "140.0"
+
+# f. 既存の表に列を足した日は、足した列にも型が付くよう列の定義を一緒に送る（それ以外の日は範囲だけ）
+"$PY" - "$TARGET" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aso_daily", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+h = m.ADS_HEADERS
+old = [{"tableId": m.TABLE_IDS[m.TAB_ADS], "range": {"startColumnIndex": 0, "endColumnIndex": 12}}]
+same = [{"tableId": m.TABLE_IDS[m.TAB_ADS], "range": {"startColumnIndex": 0, "endColumnIndex": len(h)}}]
+r1 = m.table_requests(m.TAB_ADS, 1, h, 10, old)["updateTable"]
+r2 = m.table_requests(m.TAB_ADS, 1, h, 10, same)["updateTable"]
+cols = {c["columnIndex"]: (c["columnName"], c["columnType"]) for c in r1["table"].get("columnProperties", [])}
+bad = []
+if r1["fields"] != "range,columnProperties": bad.append("列が増えた日に列の定義を送らない")
+if cols.get(12) != ("その日の合計（円）", "DOUBLE") or cols.get(13) != ("USD/JPY", "DOUBLE"): bad.append("足した列が DOUBLE でない")
+if cols.get(1) != ("取得元", "TEXT") or cols.get(0) != ("日付", "DATE"): bad.append("既存の列の型が変わる")
+if r2["fields"] != "range" or "columnProperties" in r2["table"]: bad.append("列が同じ日も列の定義を送っている")
+print("; ".join(bad))
+sys.exit(1 if bad else 0)
+PY
+if [ "$?" -eq 0 ]; then ok "列を足した日だけ updateTable に列の定義を付ける"; else ng "列を足した日の updateTable が違う"; fi
+
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"
 [ "$FAIL" -eq 0 ]
