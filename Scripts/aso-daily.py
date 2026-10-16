@@ -21,6 +21,8 @@
   5. GA4 の広告収益（USD）は、その日の USD/JPY（Frankfurter・ECB 基準）で円にして「広告（日次）」に出し、日付ごとの合計行に
      「その日の合計（円）」を入れる（AdMob 画面の行がある日はそちらを優先）。レートは ~/asobiba-kpi/ga4/fx_usdjpy.csv に貯め、
      取れない日は円を空欄にしてログに警告する
+  6. ASO（日次）に 3〜10 日前の欠けがあれば、週次まとめの最終更新の行とログに「警告: ASO（日次）に欠けた日 …」を出す
+     （10 日より前は API に残らないので対象外・補完もしない）
 
 ASC の API は GET だけを使う（GA4 の runReport は読み取りの POST）。リクエストが無い・止まっている場合は作り直さずにエラー終了する
 （作成は会長の判断を経て手で行う）。鍵・トークン・署名付き URL はログにも CSV にも出さない。
@@ -1142,17 +1144,56 @@ def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status, rates=None):
     return top + [[] for _ in range(WEEKLY_TABLE_ROW - 1 - len(top))] + table
 
 
-def status_lines(now, errors):
-    """週次まとめの先頭の行。errors: [(どの取得, 内容)]"""
+# ASO（日次）の欠けの警告（会長要望 2026-10-16）。ASC の日次は 1〜2 日遅れて届くのがふつうなので、それより前
+# （GAP_WARN_MIN_DAYS 日以上前）の欠けは到着遅れでは説明できない。API の保持期間（約 10 日）を過ぎると取れなくなるため、
+# その前に気づけるよう最終更新の行とログに出す。GAP_WARN_MAX_DAYS 日より前の欠けは取り戻せないので対象外
+# （別の API での補完もしない・会長「10日以上は補完しなくていいです」）
+GAP_WARN_MIN_DAYS = 3
+GAP_WARN_MAX_DAYS = 10
+
+
+def missing_aso_days(aso_rows, today):
+    """today から GAP_WARN_MIN_DAYS〜GAP_WARN_MAX_DAYS 日前のうち、daily.csv に行が無い（またはインプレッション系・DL 系の
+    片方が空の）日。daily.csv の最初の日より前は数えない。戻り値: [(日付 ISO, 欠けている種類 or "")]（"" = 両方）"""
+    have = {r["date"]: r for r in aso_rows if r.get("date")}
+    if not have:
+        return []
+    first = min(have)
+    out = []
+    for age in range(GAP_WARN_MAX_DAYS, GAP_WARN_MIN_DAYS - 1, -1):
+        d = (today - datetime.timedelta(days=age)).isoformat()
+        if d < first:
+            continue
+        r = have.get(d)
+        e, dl = r is not None and _has(r, "e"), r is not None and _has(r, "d")
+        if e and dl:
+            continue
+        out.append((d, "" if not e and not dl else ("インプレッション系" if not e else "DL 系")))
+    return out
+
+
+def gap_warning(missing):
+    """欠けの警告の文言（無ければ ""）。"""
+    if not missing:
+        return ""
+    days = "・".join(d + ("（%sのみ）" % what if what else "") for d, what in missing)
+    return ("警告: ASO（日次）に欠けた日 %s。%d 日以上前の欠けは到着遅れでは説明できない。"
+            "API の保持期間（約 %d 日）を過ぎると取り戻せない" % (days, GAP_WARN_MIN_DAYS, GAP_WARN_MAX_DAYS))
+
+
+def status_lines(now, errors, warning=""):
+    """週次まとめの先頭の行。errors: [(どの取得, 内容)]。warning は最終更新の行の末尾に足す（行数は変えない）"""
     stamp = now.strftime("%Y-%m-%d %H:%M JST")
+    tail = "／" + warning if warning else ""
     if not errors:
-        return ["最終更新: %s（ASC・GA4 とも取得成功）" % stamp]
-    return ["取得失敗: %s・%s — %s" % (stamp, what, msg) for what, msg in errors] + ["最終更新: %s（失敗した取得は前回までの数字のまま）" % stamp]
+        return ["最終更新: %s（ASC・GA4 とも取得成功）%s" % (stamp, tail)]
+    return ["取得失敗: %s・%s — %s" % (stamp, what, msg) for what, msg in errors] + [
+        "最終更新: %s（失敗した取得は前回までの数字のまま）%s" % (stamp, tail)]
 
 
-def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None):
+def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None, warning=""):
     return {
-        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors), rates),
+        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors, warning), rates),
         TAB_ASO: tab_aso(aso_rows),
         TAB_GA4: tab_ga4(ga4_rows, admob_rows),
         TAB_GAMES: tab_games(ga4_rows),
@@ -1398,6 +1439,10 @@ def main(argv=None):
         log("daily.csv: %d 日分（%s〜%s）" % (len(rows), rows[0]["date"], rows[-1]["date"]))
     for what, msg in errors:
         log("エラー: %s: %s" % (what, msg))
+    # 欠けは取得の失敗ではないので終了コードは変えない（ログと最終更新の行に出すだけ）
+    warning = gap_warning(missing_aso_days(rows, today))
+    if warning:
+        log(warning)
 
     admob_rows = read_admob_history(a.admob_history)
     if admob_rows:
@@ -1418,7 +1463,7 @@ def main(argv=None):
     rates = fx_rates(fx)
 
     if a.sheets_dump or not a.no_sheets:
-        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors, rates)
+        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors, rates, warning)
         try:
             if a.sheets_dump:
                 dump_tabs(tabs, a.sheets_dump)
