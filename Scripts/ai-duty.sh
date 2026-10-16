@@ -1593,12 +1593,21 @@ if [ -n "$OTHER_CLAIMS" ]; then
   DUTY_SLOT_NOTE="${DUTY_SLOT_NOTE}他スロットが作業中の Issue: $(hash_numbers "$OTHER_CLAIMS")（これらの Issue と、それを Closes する PR・その作業ブランチには触れない。2-c の孤児回収の対象からも外す）。"
 fi
 
+# 自動起票の積み先（会長決裁 2026-10-16）。判定は Scripts/pick-issue-milestone.sh が決定論的に出す
+# （本物の gh で呼ぶ。入力フィルタを通す前だが、扱うのはマイルストーン名・ラベル・タグ・ブランチ名だけで本文は読まない）
+if ISSUE_MILESTONE=$(bash "$RUN_DIR/Scripts/pick-issue-milestone.sh" 2>>"$LOG") && [ -n "$ISSUE_MILESTONE" ]; then
+  ISSUE_MILESTONE_NOTE="${ISSUE_MILESTONE}（Scripts/pick-issue-milestone.sh の判定。タイトルの接頭辞は [${ISSUE_MILESTONE}]）"
+else
+  ISSUE_MILESTONE_NOTE="判定できなかった（理由はログ）。マイルストーンを推測で付けず、マイルストーンが要る Issue の起票は見送って理由を最後に書く"
+fi
 log "当番起動 (slot=$DUTY_SLOT/$DUTY_MAX_SLOTS, issue=${DUTY_ISSUE:-なし}, other_claims=[${OTHER_CLAIMS}], model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 PATH="$GH_SHIM_DIR:$PATH" claude --model "$DUTY_MODEL" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")
 
-（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。シミュレータを起動したら UDID を \`${DUTY_SIM_RECORD}\`（環境変数 DUTY_SIM_RECORD）に1行ずつ追記すること。${DUTY_SLOT_NOTE}${DUTY_ISSUE_NOTE}${DUTY_MODEL_NOTE}${DUTY_SHIP_NOTE}" >>"$LOG" 2>&1
+（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。シミュレータを起動したら UDID を \`${DUTY_SIM_RECORD}\`（環境変数 DUTY_SIM_RECORD）に1行ずつ追記すること。${DUTY_SLOT_NOTE}${DUTY_ISSUE_NOTE}${DUTY_MODEL_NOTE}${DUTY_SHIP_NOTE}
+
+（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
 RC=$?
 log "当番終了 (mode=$MODE, exit=$RC)"

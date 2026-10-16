@@ -308,6 +308,13 @@ if [ -z "$MERGED_PRS" ]; then
 fi
 PR_COUNT=$(printf '%s\n' "$MERGED_PRS" | wc -l | tr -d ' ')
 
+# 自動起票の積み先（会長決裁 2026-10-16）。判定は Scripts/pick-issue-milestone.sh が決定論的に出す
+# （本物の gh で呼ぶ。入力フィルタを通す前だが、扱うのはマイルストーン名・ラベル・タグ・ブランチ名だけで本文は読まない）
+if ISSUE_MILESTONE=$(bash "$RUN_DIR/Scripts/pick-issue-milestone.sh" 2>>"$LOG") && [ -n "$ISSUE_MILESTONE" ]; then
+  ISSUE_MILESTONE_NOTE="${ISSUE_MILESTONE}（Scripts/pick-issue-milestone.sh の判定。タイトルの接頭辞は [${ISSUE_MILESTONE}]）"
+else
+  ISSUE_MILESTONE_NOTE="判定できなかった（理由はログ）。マイルストーンを推測で付けず、マイルストーンが要る Issue の起票は見送って理由を最後に書く"
+fi
 log "監査当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, since=$SINCE, prs=$PR_COUNT)"
 cd "$RUN_DIR" || exit 0
 # Sonnet で起動する（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
@@ -319,7 +326,9 @@ PATH="$GH_SHIM_DIR:$PATH" claude --model "${AUDIT_MODEL:-sonnet}" \
   -p "$(cat "$RUN_DIR/Scripts/ai-audit-prompt.md")
 
 （今回の監査対象）${SINCE} 〜 ${NOW}（UTC）にマージされた PR ${PR_COUNT} 本:
-$MERGED_PRS" >>"$LOG" 2>&1
+$MERGED_PRS
+
+（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
 RC=$?
 # 正常終了したときだけ窓を進める（異常終了した回の PR は次回もう一度対象にする）
 if [ "$RC" -eq 0 ]; then mkdir -p "$STATE_DIR" && echo "$NOW" >"$LAST_RUN_FILE"; fi
