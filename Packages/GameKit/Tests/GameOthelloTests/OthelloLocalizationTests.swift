@@ -6,9 +6,9 @@ import CoreEngine
 @Suite("オセロ: 英語の文言")
 struct OthelloLocalizationTests {
 
-    @Test("英語の表示名は商標を避けて Reversi")
+    @Test("英語の表示名は商標を避けて Osero（ローマ字）")
     func englishTitleAvoidsTrademark() {
-        #expect(GameOthello.tr("オセロ", language: .english) == "Reversi")
+        #expect(GameOthello.tr("オセロ", language: .english) == "Osero")
         #expect(!GameOthello.tr("石を挟んでひっくり返せ！CPU に挑戦", language: .english).contains("Othello"))
     }
 

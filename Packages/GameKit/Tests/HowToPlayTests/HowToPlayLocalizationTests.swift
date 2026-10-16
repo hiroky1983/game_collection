@@ -24,7 +24,7 @@ struct HowToPlayLocalizationTests {
     @Test("題名は How to Play の形で、ゲーム名は既存の訳に揃える（他社の商標名を使わない）")
     func titlesFollowExistingNames() {
         #expect(Core.tr("将棋の遊び方", language: .english) == "How to Play Shogi")
-        #expect(Core.tr("オセロの遊び方", language: .english) == "How to Play Reversi")
+        #expect(Core.tr("オセロの遊び方", language: .english) == "How to Play Osero")
         #expect(Core.tr("ナンプレの遊び方", language: .english) == "How to Play Number Place")
         #expect(Core.tr("大富豪の遊び方", language: .english) == "How to Play Daifugo")
         #expect(Core.tr("おじさんの荷物運びパズルの遊び方", language: .english) == "How to Play Ojisan's Box Puzzle")
