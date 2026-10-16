@@ -84,7 +84,7 @@ GAMES_EN = {
     "runner": "Bike Ojisan",
     "mahjong4": "Mahjong",
     "sudoku": "Number Place",
-    "othello": "Reversi",
+    "othello": "Osero",
     "2048": "2048",
     "shogi": "Shogi",
     "shiritori": "Card Shiritori",
