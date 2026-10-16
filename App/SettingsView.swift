@@ -21,6 +21,15 @@ struct SettingsView: View {
         return "\(v) (\(b))"
     }
 
+    private static let legalBaseURL = "https://web-murex-sigma-62.vercel.app"
+
+    /// 規約・プライバシーポリシーの URL。表示言語（#2109・端末の言語ではなくアプリ内で選んだ言語）が
+    /// English なら英語ページ（`/en/...`）、日本語ならそのまま（#2170）。
+    private func legalPageURL(path: String) -> URL {
+        let prefix = AppLanguageStore.shared.language == .english ? "/en" : ""
+        return URL(string: "\(Self.legalBaseURL)\(prefix)/\(path)")!
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -186,13 +195,13 @@ struct SettingsView: View {
                 // MARK: 規約
                 Section(tr("規約")) {
                     Button {
-                        legalURL = IdentifiableURL(url: URL(string: "https://web-murex-sigma-62.vercel.app/terms")!)
+                        legalURL = IdentifiableURL(url: legalPageURL(path: "terms"))
                     } label: {
                         Label(tr("利用規約"), systemImage: "doc.text")
                     }
                     .foregroundStyle(Theme.ink)
                     Button {
-                        legalURL = IdentifiableURL(url: URL(string: "https://web-murex-sigma-62.vercel.app/privacy")!)
+                        legalURL = IdentifiableURL(url: legalPageURL(path: "privacy"))
                     } label: {
                         Label(tr("プライバシーポリシー"), systemImage: "hand.raised")
                     }
