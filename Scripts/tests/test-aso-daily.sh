@@ -4,7 +4,7 @@
 # API は呼ばない（--no-fetch）。手書きの TSV を食わせて、日次の集計・重複排除（同じ日付が複数の
 # インスタンスに入るので processingDate の新しい方だけを使う）・再実行で行が増えないこと・
 # スプレッドシートに出す各タブの中身（--sheets-dump で TSV に出す）・GA4 の応答 JSON からの保存と取り直しの上書き・
-# 取得失敗を週次まとめの先頭に出すこと・ASC は GET 以外を使わないことを確かめる。
+# 取得失敗を週次まとめの先頭に出すこと・ASO（日次）の欠けの警告（3〜10 日前だけ）・ASC は GET 以外を使わないことを確かめる。
 #
 # 使い方: bash Scripts/tests/test-aso-daily.sh
 set -uo pipefail
@@ -121,7 +121,8 @@ expect_eq "ASO（日次）は daily.csv の全行（見出し + 4 日）" "$(wc 
 expect_eq "ASO（日次）の見出しは日本語" "$(head -1 "$DUMP/ASO（日次）.tsv" | cut -f1-2)" "日付${T}インプレッション"
 expect_eq "ASO（日次）の 10/05 の行" "$(grep '^2026-10-05' "$DUMP/ASO（日次）.tsv" | cut -f1-2)" "2026-10-05${T}250"
 W="$DUMP/週次まとめ.tsv"
-grep -q '^最終更新: .*（ASC・GA4 とも取得成功）$' "$W" && ok "先頭に最終更新" || { ng "先頭の行が違う"; head -2 "$W"; }
+# この入力は 10/2・10/3・10/7〜10/9 が欠けているので、行末には欠けの警告が続く（12 で確かめる）
+grep -q '^最終更新: .*（ASC・GA4 とも取得成功）' "$W" && ok "先頭に最終更新" || { ng "先頭の行が違う"; head -2 "$W"; }
 # 表は 47 行目から。月曜（10/12）の実行では 10/5〜10/11 が最新の週（終わった週）
 expect_eq "表の見出し" "$(sed -n 47p "$W" | cut -f1-6)" "指標${T}基準（10/3〜10/11）${T}目安（会長）${T}10/5〜10/11${T}前週比${T}基準比"
 # 10/5 週のインプレッション 1 日平均 (250+300)/2 = 275、前週 (1000+100)/2 = 550 → -50.0%、基準 (100+250+300)/3 = 216.67 → +26.9%
@@ -417,6 +418,69 @@ print("; ".join(bad))
 sys.exit(1 if bad else 0)
 PY
 if [ "$?" -eq 0 ]; then ok "列を足した日だけ updateTable に列の定義を付ける"; else ng "列を足した日の updateTable が違う"; fi
+
+echo "== 12. ASO（日次）の欠けの警告（会長要望 2026-10-16。3〜10 日前の欠けだけ） =="
+GAP="$TMP/gap" GAPD="$TMP/gapdump"
+mkdir -p "$GAP"
+# gap_csv <最初の日> <最後の日> [抜く日 ...] [<日>:e（DL 系だけ空）]
+gap_csv() {
+  "$PY" - "$GAP/daily.csv" "$@" <<'PY'
+import datetime, sys
+path, first, last, *skip = sys.argv[1:]
+d, end = datetime.date.fromisoformat(first), datetime.date.fromisoformat(last)
+with open(path, "w", encoding="utf-8") as f:
+    f.write("date,impr_total,pv_total,dl_first_total\n")
+    while d <= end:
+        s = d.isoformat()
+        if s + ":e" in skip:
+            f.write("%s,100,5,\n" % s)
+        elif s not in skip:
+            f.write("%s,100,5,2\n" % s)
+        d += datetime.timedelta(days=1)
+PY
+}
+gap_run() { "$PY" "$TARGET" --out-dir "$GAP" --no-fetch --no-ga4 --admob-history "$NOADMOB" --today 2026-10-16 --sheets-dump "$GAPD" >"$TMP/gaplog" 2>&1; }
+gap_top() { head -1 "$GAPD/週次まとめ.tsv"; }
+
+gap_csv 2026-10-01 2026-10-15
+gap_run
+expect_eq "欠けが無ければ終了コード 0" "$?" "0"
+grep -q '警告: ASO' "$TMP/gaplog" && ng "欠けが無いのに警告が出た" || ok "欠けが無ければ警告しない"
+expect_eq "欠けが無ければ最終更新の行は従来どおり" "$(gap_top | sed 's/ [0-9: -]*JST/ <時刻>/')" "最終更新: <時刻>（ASC・GA4 とも取得成功）"
+
+# 1・2 日前（10/15・10/14）が無いのはふつうの到着遅れ → 警告しない
+gap_csv 2026-10-01 2026-10-13
+gap_run
+grep -q '警告: ASO' "$TMP/gaplog" && ng "2 日以内の欠けで警告が出た" || ok "2 日以内の欠け（到着遅れ）は警告しない"
+gap_top | grep -q '警告' && ng "2 日以内の欠けで最終更新の行に警告が出た" || ok "2 日以内の欠けは最終更新の行にも出さない"
+
+# 3 日前（10/13）が無い → 警告。行数は増やさず最終更新の行の末尾に足す・終了コードは 0 のまま
+gap_csv 2026-10-01 2026-10-15 2026-10-13
+gap_run
+expect_eq "欠けがあっても終了コード 0（警告だけ）" "$?" "0"
+grep -q '警告: ASO（日次）に欠けた日 2026-10-13。' "$TMP/gaplog" && ok "3 日前の欠けをログに警告する" || { ng "3 日前の欠けの警告がログに無い"; cat "$TMP/gaplog"; }
+gap_top | grep -q '^最終更新: .*（ASC・GA4 とも取得成功）／警告: ASO（日次）に欠けた日 2026-10-13。' \
+  && ok "最終更新の行に欠けの警告が出る" || { ng "最終更新の行に警告が無い"; gap_top; }
+expect_eq "警告で週次まとめの表の位置（47 行目）は動かない" "$(sed -n 47p "$GAPD/週次まとめ.tsv" | cut -f1)" "指標"
+
+# 10 日前（10/6）は対象・11 日前（10/5）は対象外（API に残っていないので補完も警告もしない）
+gap_csv 2026-10-01 2026-10-15 2026-10-05 2026-10-06
+gap_run
+grep -q '欠けた日 2026-10-06。' "$TMP/gaplog" && ok "10 日前の欠けは警告する" || { ng "10 日前の欠けの警告が無い"; cat "$TMP/gaplog"; }
+grep -q '2026-10-05' "$TMP/gaplog" && ng "11 日前の欠けまで警告している" || ok "10 日より前の欠けは対象外"
+gap_csv 2026-10-01 2026-10-15 2026-10-05
+gap_run
+grep -q '警告: ASO' "$TMP/gaplog" && ng "11 日前だけの欠けで警告が出た" || ok "11 日前だけの欠けなら警告しない"
+
+# 最新日が古い（10/12 で止まっている）→ 10/13 は 3 日前なので欠け。片方だけ空の日は種類を添える
+gap_csv 2026-10-01 2026-10-12 2026-10-12:e
+gap_run
+grep -q '欠けた日 2026-10-12（DL 系のみ）・2026-10-13。' "$TMP/gaplog" && ok "最新日以降の欠け・片方だけの欠けも出す" || { ng "最新日以降・片方だけの欠けの警告が違う"; cat "$TMP/gaplog"; }
+
+# daily.csv の最初の日より前（取得を始める前）は欠けと数えない
+gap_csv 2026-10-10 2026-10-15
+gap_run
+grep -q '警告: ASO' "$TMP/gaplog" && ng "取得開始前の日を欠けと数えた" || ok "最初の日より前は欠けと数えない"
 
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"
