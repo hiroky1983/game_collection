@@ -130,7 +130,7 @@ export const games: Game[] = [
     name: "オセロ",
     emoji: "⚪",
     tagline: "石を挟んでひっくり返せ！CPU に挑戦",
-    nameEn: "Disc Flip",
+    nameEn: "Osero",
     taglineEn: "Sandwich discs to flip them! Take on the CPU",
     pageTitle: "オセロ - CPU と対戦できる無料のオセロ",
     description:
@@ -224,7 +224,7 @@ export const games: Game[] = [
     emoji: "🃏",
     tagline: "クロンダイク。52枚を組札に積み上げよう",
     nameEn: "Solitaire",
-    taglineEn: "Classic Klondike. Build all 52 cards onto the foundations",
+    taglineEn: "The classic. Build all 52 cards onto the foundations",
     pageTitle: "ソリティア（クロンダイク） - 無料でオフラインで遊べる定番のトランプ1人遊び",
     description:
       "トランプ52枚を ♠♥♦♣ ごとに A から K まで積み上げる、定番のソリティア（クロンダイク）。出題する配札はすべて事前に解いてクリアできることを確かめてあります。「戻す」は1局につき3回まで無料。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -498,7 +498,7 @@ export const games: Game[] = [
     // おじさんの正面顔（アプリの Core/OjisanPixel と同じ 16×15 ドットを 8 倍で書き出したもの、#700）
     icon: { src: "/games/ojisan-face.png", width: 16, height: 15 },
     tagline: "タップで跳んで30ステージを走りぬけよう",
-    nameEn: "Bike Ojisan",
+    nameEn: "Charinko Ojisan",
     taglineEn: "Tap to jump and pedal through all 42 stages",
     pageTitle: "チャリンコおじさん - 全30ステージの無料ワンタップ横スクロールランナー",
     description:
@@ -545,7 +545,7 @@ export const games: Game[] = [
     name: "柵越えおじさん",
     emoji: "⚾",
     tagline: "1日3回、10球勝負。狙って離して柵の向こうへ",
-    nameEn: "Homerun Ojisan",
+    nameEn: "Sakugoe Ojisan",
     taglineEn: "3 rounds a day, 10 pitches each. Hold to aim, let go to swing, and send it over the fence",
     pageTitle: "柵越えおじさん - 1日3回遊べる無料の一人用バッティングゲーム",
     description:
@@ -592,7 +592,7 @@ export const games: Game[] = [
     emoji: "➕",
     tagline: "パッと出て消える数を、頭の中で足していこう",
     nameEn: "Quick Mental Math",
-    taglineEn: "Add up numbers that flash and vanish. Choose the digits, count and speed",
+    taglineEn: "Add up numbers that pop up and vanish. Choose the digits, count and speed",
     pageTitle: "ぱっと暗算 - 出ては消える数を足す無料の暗算ゲーム",
     description:
       "数が1つずつパッと出ては消えるので、頭の中でぜんぶ足して合計をテンキーで答える一人用の暗算ゲーム。桁数・個数・速さをそれぞれ選べて、1桁・5個のやさしい問題から始められます。正解が続くほど連続正解が伸び、回答の速さも記録に残ります。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
