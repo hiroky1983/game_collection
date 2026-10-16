@@ -136,6 +136,9 @@ SHA=$(git -C "$RUN_DIR" rev-parse --short HEAD)
 if [ -n "${QA_PROMPT_FILE:-}" ]; then cp "$QA_PROMPT_FILE" "$QA_HOME_DIR/prompt.md"
 else git -C "$QA_DIR" show origin/main:Scripts/ai-qa-prompt.md >"$QA_HOME_DIR/prompt.md" 2>/dev/null; fi
 [ -s "$QA_HOME_DIR/prompt.md" ] || { log "ai-qa-prompt.md が見つからないため見送り"; exit 0; }
+# 起票の積み先を決めるスクリプトもプロンプトと同じく main から取る（撮影するのは release ブランチのため）
+if [ -n "${QA_PICK_MILESTONE:-}" ]; then cp "$QA_PICK_MILESTONE" "$QA_HOME_DIR/pick-issue-milestone.sh"
+else git -C "$QA_DIR" show origin/main:Scripts/pick-issue-milestone.sh >"$QA_HOME_DIR/pick-issue-milestone.sh" 2>/dev/null; fi
 GAME_IDS=$(bash "$SCRIPT_DIR/list-game-ids.sh" "$RUN_DIR" 2>>"$LOG") || { log "ゲーム ID を列挙できないため見送り"; exit 0; }
 
 SCRATCH="$QA_HOME_DIR/scratch-$$"
@@ -245,6 +248,14 @@ probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" issue view 1 2>/dev/null)
 rm -f "$stub" "$json"
 case "$probe" in *DUTY-SHIM-LEAK*) log "入力フィルタ: 第三者の本文が素通しのため claude は起動しない"; exit 0 ;; esac
 
+# 自動起票の積み先（会長決裁 2026-10-16）。判定は Scripts/pick-issue-milestone.sh が決定論的に出す
+# （本物の gh で呼ぶ。入力フィルタを通す前だが、扱うのはマイルストーン名・ラベル・タグ・ブランチ名だけで本文は読まない）
+if ISSUE_MILESTONE=$(bash "$QA_HOME_DIR/pick-issue-milestone.sh" 2>>"$LOG") && [ -n "$ISSUE_MILESTONE" ]; then
+  ISSUE_MILESTONE_NOTE="${ISSUE_MILESTONE}（Scripts/pick-issue-milestone.sh の判定。タイトルの接頭辞は [${ISSUE_MILESTONE}]）"
+else
+  ISSUE_MILESTONE_NOTE="判定できなかった（理由はログ）。マイルストーンを推測で付けず、マイルストーンが要る Issue の起票は見送って理由を最後に書く"
+fi
+
 # ---- claude: 画像を見て起票 ------------------------------------------------------------------
 # Edit/Write は渡さない（コードは触らない）。Sonnet 固定（週間リミット対策・監査当番と同じ）
 cd "$SCRATCH" || exit 0
@@ -258,5 +269,6 @@ PATH="$GH_SHIM_DIR:$PATH" perl -e 'alarm shift; exec @ARGV' "${QA_CLAUDE_TIMEOUT
 - 撮影物の置き場: ${SHOTS}（一覧と起動直後の生死: ${MANIFEST}。列 = ファイル名・端末・条件・ゲームID・起動 ${QA_LAUNCH_WAIT} 秒後にアプリが生きていたか）
 - 起動直後に消えていた撮影: ${DEAD:-なし}
 - この実行中に増えたクラッシュログ: ${NEW_CRASHES:-なし}
-- 撮影した枚数: ${TOTAL}" >>"$LOG" 2>&1
+- 撮影した枚数: ${TOTAL}
+- 起票のマイルストーン: ${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
 log "自動QA終了 (exit=$?)"
