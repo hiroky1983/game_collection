@@ -26,7 +26,7 @@ struct HowToPlayLocalizationTests {
         #expect(Core.tr("将棋の遊び方", language: .english) == "How to Play Shogi")
         #expect(Core.tr("オセロの遊び方", language: .english) == "How to Play Reversi")
         #expect(Core.tr("ナンプレの遊び方", language: .english) == "How to Play Number Place")
-        #expect(Core.tr("大富豪の遊び方", language: .english) == "How to Play Tycoon")
+        #expect(Core.tr("大富豪の遊び方", language: .english) == "How to Play Daifugo")
         #expect(Core.tr("おじさんの荷物運びパズルの遊び方", language: .english) == "How to Play Ojisan's Box Puzzle")
         #expect(Core.tr("くわしいルール", language: .english) == "Detailed Rules")
     }
