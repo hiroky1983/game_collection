@@ -1,5 +1,8 @@
 export const metadata = {
   title: "利用規約 | あそびば",
+  // 英語版（/en/terms）との対応を検索エンジンに伝える（#2170）。alternates はレイアウトの値を
+  // 丸ごと置き換えるので canonical もここで持つ
+  alternates: { canonical: "/terms", languages: { ja: "/terms", en: "/en/terms" } },
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

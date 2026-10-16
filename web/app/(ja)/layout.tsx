@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import "./globals.css";
-import { games } from "./lib/games";
-import { APP_STORE_URL, SITE_NAME, SITE_URL } from "./lib/site";
+import "../globals.css";
+import { games } from "../lib/games";
+import { APP_STORE_URL, SITE_NAME, SITE_URL } from "../lib/site";
+import LanguageSwitch from "../components/LanguageSwitch";
 
-/// 収録本数とゲーム名は `games` から導出する（`app/page.tsx` と同じ理由。本数をベタ書きしない）。
+/// 収録本数とゲーム名は `games` から導出する（`app/(ja)/page.tsx` と同じ理由。本数をベタ書きしない）。
 /// 「収録◯種」と数えてよいのは配信済み（`comingSoon` 無し）のものだけ（2026-08-28・会長指示）。
 const releasedGames = games.filter((g) => !g.comingSoon);
 const gameCount = releasedGames.length;
@@ -52,6 +53,7 @@ export default function RootLayout({
             <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white hover:text-orange-500 transition-colors">
               あそびば
             </Link>
+            <LanguageSwitch to="en" />
           </div>
         </header>
 

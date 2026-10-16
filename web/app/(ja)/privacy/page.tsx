@@ -1,5 +1,8 @@
 export const metadata = {
   title: "プライバシーポリシー | あそびば",
+  // 英語版（/en/privacy）との対応を検索エンジンに伝える（#2170）。alternates はレイアウトの値を
+  // 丸ごと置き換えるので canonical もここで持つ
+  alternates: { canonical: "/privacy", languages: { ja: "/privacy", en: "/en/privacy" } },
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
