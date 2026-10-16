@@ -11,7 +11,7 @@
 
 - 英語名は**アプリ内の英語名と同じ**にする。おじさんシリーズとオセロはローマ字:
   オセロ = **Osero**、柵越えおじさん = **Sakugoe Ojisan**、チャリンコおじさん = **Charinko Ojisan**、
-  おじさんの荷物運びパズル = **（アプリ側の担当が決める・未定）**。
+  おじさんの荷物運びパズル = **Ojisan's Box Puzzle**（ローマ字はハブのタイルに収まらないため・2026-10-17）、大富豪 = **Daifugo**。
 - 本数は **25本**（柵越えおじさんを含む。ja も 25本）。
 - 「made in Japan」は残す（ja も「日本製」を戻した）。
 - 使わない語（`docs/aso/metadata-v1.1.1.md` §3 の ⚠️ ブロック）: `Reversi` `Othello` `Sudoku` `Breakout` `Arkanoid`
@@ -78,7 +78,7 @@ No full-screen ad will ever pop up in the middle of your game.
 - Free, no account: no sign-up, no login. Full-screen video ads only play when you choose to watch one, for example to get an extra undo.
 - Continue anytime: close the app mid-game and pick up from the same spot next time.
 - Records: personal bests, wins and streaks for every game on one screen.
-- Play the CPU: one-on-one board and card games, plus four-player Mahjong and Tycoon against three CPU opponents.
+- Play the CPU: one-on-one board and card games, plus four-player Mahjong and Daifugo against three CPU opponents.
 - Game Center: global leaderboards and achievements.
 - Make it yours: move favorites to the top and hide the rest.
 - English and Japanese: switch the language anytime in Settings.
@@ -93,7 +93,7 @@ No full-screen ad will ever pop up in the middle of your game.
 - Hanafuda Koi-Koi: match cards by month and build scoring sets. Call "koi-koi" to double your points, if you dare.
 - Poker: five-card draw against the CPU, with optional hand bonuses and a double-up round.
 - Blackjack: beat the dealer without going over 21.
-- Tycoon: a Japanese climbing card game with revolutions and card swaps.
+- Daifugo: a Japanese climbing card game with revolutions and card swaps.
 - Memory Match: find the pairs before the CPU does.
 - Card Shiritori: grab picture cards whose words chain together, against the CPU and the clock. (The words are in Japanese.)
 - Solitaire: the classic, with draw-one or draw-three.
@@ -107,7 +107,7 @@ No full-screen ad will ever pop up in the middle of your game.
 - Block Breaker: clear every block, with power-ups.
 - Charinko Ojisan: a tap-to-jump runner across 42 stages in seven worlds, chasing a lottery ticket blown away by the wind. Endless mode too.
 - Sakugoe Ojisan: a home run derby. Hit the machine's pitches over the fence. Three free rounds a day, plus a weekly Game Center leaderboard.
-- {BOX_PUZZLE_NAME}: stack falling pairs of boxes and clear four or more in a row. Every box strains Ojisan's back.
+- Ojisan's Box Puzzle: stack falling pairs of boxes and clear four or more in a row. Every box strains Ojisan's back.
 - Quick Mental Math: numbers appear one at a time; add them in your head and enter the total.
 
 [GREAT FOR]
@@ -116,8 +116,8 @@ No full-screen ad will ever pop up in the middle of your game.
 - When you feel like a game of shogi or mahjong
 ```
 
-- 約 3,100 字。`{BOX_PUZZLE_NAME}` は荷物運びパズルの英語名が決まったら置き換える（入稿前に必ず消えていること）。
-- ゲーム名はアプリ内の英語名と同じ（`Tycoon` `Memory Match` `Number Place` `Block Breaker` など）。
+- 約 3,100 字。
+- ゲーム名はアプリ内の英語名と同じ（`Daifugo` `Memory Match` `Number Place` `Block Breaker` など）。
 
 ## 7. このバージョンの新機能
 
@@ -200,7 +200,7 @@ Asobiba is now available in English!
 
 ## 10. 入稿の手順（アプリ側のマージ後）
 
-1. `{BOX_PUZZLE_NAME}` を確定名に置き換え、§2〜§7 の字数と使用禁止語を再確認する。
+1. §2〜§7 の字数と使用禁止語を再確認する。
 2. ASC API で v1.1.12 の en-US の appStoreVersionLocalization（説明文・キーワード・プロモーション・新機能・URL）と
    appInfoLocalization（名前・サブタイトル・プライバシー URL）を更新し、GET で読み戻して全文一致を確かめる。ja 欄には触らない。
 3. 英語スクショを撮って en-US の 6.9 インチに入れる（§8）。
