@@ -1078,17 +1078,6 @@
         }
       }
     },
-    "体験版" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trial"
-          }
-        }
-      }
-    },
     "先週は %lld位" : {
       "extractionState" : "manual",
       "localizations" : {
