@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { findGame, games, pageDescription } from "../../lib/games";
-import { APP_STORE_URL, SITE_NAME } from "../../lib/site";
-import GameMark from "../../components/GameMark";
+import { findGame, games, pageDescription } from "../../../lib/games";
+import { APP_STORE_URL, SITE_NAME } from "../../../lib/site";
+import GameMark from "../../../components/GameMark";
 
 type Props = { params: Promise<{ slug: string }> };
 

@@ -1,12 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { games } from "./lib/games";
+import { games } from "../lib/games";
 import {
   APP_STORE_URL,
   MIN_IOS_VERSION,
   SITE_NAME,
   SITE_URL,
-} from "./lib/site";
-import GameMark from "./components/GameMark";
+} from "../lib/site";
+import GameMark from "../components/GameMark";
+
+/// 英語版（/en）との対応を検索エンジンに伝える（#2170）。alternates はレイアウトの値を丸ごと
+/// 置き換えるので canonical もここで持つ（ゲーム別ページは英語版が無いのでレイアウトには書かない）。
+export const metadata: Metadata = {
+  alternates: { canonical: "/", languages: { ja: "/", en: "/en" } },
+};
 
 /// 収録本数とゲーム名の列挙は `games` から導出する（本数をベタ書きすると追加のたびに直し漏れる）。
 /// 「収録」と言えるのは配信済み（`comingSoon` 無し）のものだけ。配信予定のゲームは別枠で見せる
