@@ -20,6 +20,8 @@ Packages/GameKit/
   Sources/
     CoreEngine/         ← 共通基盤のうち純ロジック (Analytics, SnapshotStore, PlayLog, PlayRecord, GameCenter 等。release/v1.1.6 から)
     Core/               ← 共通基盤 (Protocol, Theme, AdService, RewardedRescue。`@_exported import CoreEngine` で再公開)
+    CoreTestSupport/    ← テスト用の Core 差し替え部品（#841。ManualClock・メモリ上の中断データ置き場・触覚/解析イベント/お知らせ予約のスパイ。製品には含めず、テストターゲットからだけ依存する）
+    MahjongTiles/       ← 麻雀牌の絵柄と描画（`MahjongTile`・牌ビュー・ギャラリー。麻雀ソリティアと四人打ち麻雀で共有し、各ゲームで描き直さない）
     Game2048/           ← 2048
     GameShogi/          ← 将棋
     GameMahjong/        ← 麻雀（4人打ち）
