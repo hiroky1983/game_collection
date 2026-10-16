@@ -212,7 +212,6 @@ struct HomerunLobbyView: View {
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .fixedSize(horizontal: false, vertical: true)
-                HomerunHeroTrialBadge()
             }
             Spacer(minLength: 0)
         }

@@ -5,7 +5,7 @@ import HomerunCore
 
 // ハブ先頭の特別枠（#1761・会長決裁 2026-10-02）。会長提供のロゴ入り横長画像を 2.05:1 のカードに
 // 上端合わせで入れ（下を切る。ロゴ・顔・バット・ボールは絵の上 73% に収まり、足元だけが切れる）、
-// 左下に「体験版」・右下に札（今日の残り回数の点・自己ベスト）だけを重ねる。タイトル文字は重ねない。
+// 右下に札（今日の残り回数の点・自己ベスト）だけを重ねる。タイトル文字は重ねない。
 
 /// 特別枠に載せる値（今日の残り回数・自己ベスト）。台帳と蓄積は打席前の画面と同じ保存先から読む。
 struct HomerunHubHeroInfo {
@@ -24,7 +24,7 @@ struct HomerunHubHeroInfo {
     var bestText: String? { bestMeters.map { HomerunText.meters($0) } }
 
     func accessibilityLabel(description: String) -> String {
-        var parts = [tr("柵越えおじさん"), description, tr("体験版"), tr("今日の挑戦 残り %lld 回", remaining)]
+        var parts = [tr("柵越えおじさん"), description, tr("今日の挑戦 残り %lld 回", remaining)]
         if let bestText { parts.append(tr("自己ベスト %@", bestText)) }
         return parts.joined(separator: tr("、"))
     }
@@ -110,22 +110,6 @@ public struct HomerunHubHeroCard: View {
 
 // MARK: - 部品
 
-/// 「体験版」の印。打席前の画面（`HomerunLobbyView.introCard`）と同じ部品・同じ配色（#1768）。
-/// キービジュアル（青空・赤黄のロゴ）の上でも読めるよう、濃い面＋白文字＋白い縁取り＋影で絵から浮かせる。
-/// 文字と面のコントラスト比は 7.1:1（WCAG AA の 4.5:1 以上）。文字は Dynamic Type に追従し、拡大は 1.3 倍まで。
-struct HomerunHeroTrialBadge: View {
-    var body: some View {
-        Label(tr("体験版"), systemImage: "sparkles")
-            .themeCaption(15, weight: .heavy, maxScale: 1.3)
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(Capsule().fill(Color(hex: 0x5B3FC4)))
-            .overlay(Capsule().strokeBorder(Color.white, lineWidth: 2))
-            .shadow(color: Color.black.opacity(0.35), radius: 3, y: 2)
-            .fixedSize()
-    }
-}
-
 /// 今日の残り回数の点表示。打席前の `HomerunCountMeter` と同じ見せ方（野球のボール・残りだけ色付き）を小さくしたもの。
 struct HomerunHeroCountDots: View {
     let allowance: Int
@@ -183,7 +167,7 @@ struct HomerunHeroCompactPill: View {
 
 // MARK: - ロゴ入りの横長の静止画
 
-/// ロゴが絵に描き込まれているので、重ねるのは左下の「体験版」と右下の札だけ（ロゴ = 上 30%・顔 = 左の中段・ボール = 右の中段に
+/// ロゴが絵に描き込まれているので、重ねるのは右下の札だけ（ロゴ = 上 30%・顔 = 左の中段・ボール = 右の中段に
 /// 重ねない）。絵の部分は比率 2.05:1 で**上端を合わせて下を切る**（カード全体の上 80%）。
 /// その下に `GameCard` と同じ白い面の帯（カード全体の下 20%）を足し、ゲームの説明を `GameCard` の説明文と同じ書体・色で入れる。
 struct HomerunHeroLogoImageCard: View {
@@ -213,7 +197,7 @@ struct HomerunHeroLogoImageCard: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).strokeBorder(Theme.cardBorder, lineWidth: 1))
     }
 
-    /// 上 80%: ロゴ入りの絵・左下「体験版」・右下の札。
+    /// 上 80%: ロゴ入りの絵・右下の札。
     private var art: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
@@ -231,11 +215,7 @@ struct HomerunHeroLogoImageCard: View {
                 LinearGradient(stops: [.init(color: .clear, location: 0.7), .init(color: Self.ink.opacity(0.45), location: 1)],
                                startPoint: .top, endPoint: .bottom)
                     .frame(width: w, height: h)
-                // Dynamic Type で札が伸びて横に収まらないときは、縦に積む（絵の高さは比率で決まるので折り返しは使えない）。
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .bottom) { badge; Spacer(minLength: 0); HomerunHeroCompactPill(info: info) }
-                    VStack(alignment: .leading, spacing: 4) { HomerunHeroCompactPill(info: info); badge }
-                }
+                HStack(alignment: .bottom) { Spacer(minLength: 0); HomerunHeroCompactPill(info: info) }
                 .padding(12)
                 .frame(width: w, height: h, alignment: .bottom)
             }
@@ -258,9 +238,5 @@ struct HomerunHeroLogoImageCard: View {
         }
         .aspectRatio(AdaptiveLayout.hubHeroAspect / AdaptiveLayout.hubHeroBandRatio, contentMode: .fit)
         .background(Theme.surface)
-    }
-
-    private var badge: some View {
-        HomerunHeroTrialBadge()
     }
 }
