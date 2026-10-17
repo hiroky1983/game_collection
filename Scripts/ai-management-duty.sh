@@ -252,7 +252,7 @@ PROBE
     case "$probe" in
       *DUTY-SHIM-LEAK*)
         rm -f "$stub" "$json"
-        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        log "入力フィルタ: 第三者の本文が素通しした（gh ${args}）"
         return 1 ;;
     esac
   done
@@ -271,10 +271,20 @@ if ! install_gh_shim; then
   exit 0
 fi
 
+# 自動起票の積み先（会長決裁 2026-10-16）。判定は Scripts/pick-issue-milestone.sh が決定論的に出す
+# （本物の gh で呼ぶ。入力フィルタを通す前だが、扱うのはマイルストーン名・ラベル・タグ・ブランチ名だけで本文は読まない）
+if ISSUE_MILESTONE=$(bash "$RUN_DIR/Scripts/pick-issue-milestone.sh" 2>>"$LOG") && [ -n "$ISSUE_MILESTONE" ]; then
+  ISSUE_MILESTONE_NOTE="${ISSUE_MILESTONE}（Scripts/pick-issue-milestone.sh の判定。タイトルの接頭辞は [${ISSUE_MILESTONE}]）"
+else
+  ISSUE_MILESTONE_NOTE="判定できなかった（理由はログ）。マイルストーンを推測で付けず、マイルストーンが要る Issue の起票は見送って理由を最後に書く"
+fi
 log "経営当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR)"
 cd "$RUN_DIR" || exit 0
-PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
+# 会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
+PATH="$GH_SHIM_DIR:$PATH" claude --model sonnet \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
-  -p "$(cat "$RUN_DIR/Scripts/ai-management-prompt.md")" >>"$LOG" 2>&1
+  -p "$(cat "$RUN_DIR/Scripts/ai-management-prompt.md")
+
+（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
 RC=$?
 log "経営当番終了 (exit=$RC)"

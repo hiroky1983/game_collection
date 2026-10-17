@@ -29,21 +29,34 @@ filter() { jq -c --arg trusted "$ACTORS" -f "$FILTER"; }
 STUB_HOME=$(mktemp -d "${TMPDIR:-/tmp}/duty-gh-shim-test-XXXXXX") || exit 1
 trap 'rm -rf "$STUB_HOME"' EXIT
 STUB="$STUB_HOME/gh-stub"
+# マージ保留ガード（== 13）は `pr merge` の内側で `pr view` → （Closes # があれば）`issue view` →
+# 素通しの実マージ、と複数回 $GH_REAL を呼ぶ。issue view だけ別の応答を返せるよう
+# DUTY_STUB_OUT_ISSUE を見る（無指定なら DUTY_STUB_OUT にフォールバックし、既存テストはそのまま通る）。
 cat >"$STUB" <<'STUBEOF'
 #!/bin/bash
 : >"$DUTY_STUB_ARGS"
 for a in "$@"; do printf '%s\n' "$a" >>"$DUTY_STUB_ARGS"; done
-cat "$DUTY_STUB_OUT"
+IS_ISSUE=0
+for a in "$@"; do [ "$a" = "issue" ] && IS_ISSUE=1 && break; done
+if [ "$IS_ISSUE" -eq 1 ] && [ -n "${DUTY_STUB_OUT_ISSUE:-}" ]; then
+  cat "$DUTY_STUB_OUT_ISSUE"
+else
+  cat "$DUTY_STUB_OUT"
+fi
 exit "${DUTY_STUB_RC:-0}"
 STUBEOF
 chmod +x "$STUB"
 export DUTY_REAL_GH="$STUB"
 export DUTY_STUB_OUT="$STUB_HOME/out"
+export DUTY_STUB_OUT_ISSUE="$STUB_HOME/out-issue"
 export DUTY_STUB_ARGS="$STUB_HOME/args"
 export DUTY_STUB_RC=0
 export DUTY_TRUSTED_ACTORS="hiroky1983"
 
-stub_out() { printf '%s' "$1" >"$DUTY_STUB_OUT"; }
+# 既定では issue 向けも同じ内容にする（従来テストは issue/pr の呼び分けを意識していないため）。
+# == 13 のように issue view の応答だけ変えたいテストは、stub_out の後に stub_out_issue で上書きする。
+stub_out() { printf '%s' "$1" >"$DUTY_STUB_OUT"; printf '%s' "$1" >"$DUTY_STUB_OUT_ISSUE"; }
+stub_out_issue() { printf '%s' "$1" >"$DUTY_STUB_OUT_ISSUE"; }
 stub_args() { cat "$DUTY_STUB_ARGS" 2>/dev/null | tr '\n' ' '; }
 
 echo "== 1. 構文チェック =="
@@ -91,8 +104,12 @@ echo "== 4. ラッパー: 素通しする経路 =="
 stub_out ""
 "$SHIM" issue comment 164 --body "hello" >/dev/null 2>&1
 contains "issue comment は素通し" "$(stub_args)" "issue comment 164 --body hello"
+# pr merge は == 13 のマージ保留ガードを内側で通るため、ガードの pr view 用に
+# ai:hold の無い PR 情報を返しておく（ガードが通れば最終的に素通しの実マージ呼び出しになる）
+stub_out '{"number":1,"labels":[],"body":""}'
 "$SHIM" pr merge 1 --merge >/dev/null 2>&1
-contains "pr merge は素通し" "$(stub_args)" "pr merge 1 --merge"
+contains "pr merge は（ai:hold が無ければ）素通し" "$(stub_args)" "pr merge 1 --merge"
+stub_out ""
 "$SHIM" issue edit 164 --add-label "ai:in-progress" >/dev/null 2>&1
 contains "issue edit は素通し" "$(stub_args)" "issue edit 164 --add-label ai:in-progress"
 
@@ -192,6 +209,34 @@ echo "== 12. ラッパー: --jq の失敗を成功に変えない =="
 stub_out '[{"number":1,"author":{"login":"hiroky1983"},"body":"OK"}]'
 "$SHIM" issue list --json number,body --jq 'this is not valid jq(' >/dev/null 2>&1
 check "壊れた --jq は非ゼロで終わる" "1" "$([ $? -ne 0 ] && echo 1 || echo 0)"
+
+echo "== 13. ラッパー: マージ保留（ai:hold）ガード（Issue #1797/#1798 の事故・2026-10-04） =="
+DUTY_STUB_RC=0
+
+stub_out '{"number":5,"labels":[{"name":"ai:hold"}],"body":""}'
+stub_out_issue ""
+OUT=$("$SHIM" pr merge 5 --merge 2>&1); RC=$?
+check "PR 自身の ai:hold はマージを拒否する（終了コード78）" "78" "$RC"
+contains "拒否メッセージに PR 番号とマージ保留が出る" "$OUT" "マージ保留"
+lacks "ai:hold が付いていれば実マージは呼ばれない" "$(stub_args)" "pr merge 5 --merge"
+
+stub_out '{"number":7,"labels":[],"body":"Closes #42\n\n本文"}'
+stub_out_issue '{"number":42,"labels":[{"name":"ai:hold"}]}'
+OUT=$("$SHIM" pr merge 7 --merge 2>&1); RC=$?
+check "Closes # で紐づく Issue の ai:hold もマージを拒否する" "78" "$RC"
+contains "拒否メッセージに Issue 番号が出る" "$OUT" "#42"
+lacks "紐づく Issue に ai:hold があれば実マージは呼ばれない" "$(stub_args)" "pr merge 7 --merge"
+
+stub_out '{"number":8,"labels":[],"body":"Closes #43\n\n本文"}'
+stub_out_issue '{"number":43,"labels":[{"name":"ai:approved"}]}'
+"$SHIM" pr merge 8 --merge >/dev/null 2>&1
+contains "ai:hold が無ければ Closes # 付きでも素通しでマージする" "$(stub_args)" "pr merge 8 --merge"
+
+stub_out 'gh: Not Found'
+DUTY_STUB_RC=1
+OUT=$("$SHIM" pr merge 9 --merge 2>&1); RC=$?
+check "pr view 自体の失敗も fail closed でマージを拒否する" "78" "$RC"
+DUTY_STUB_RC=0
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"

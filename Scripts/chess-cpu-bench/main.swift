@@ -10,9 +10,12 @@ import Foundation
 //                                        上の段階と下の段階を、先後入れ替えで局面数×2 局。確率は 0...1 か shipped（出荷値）。
 //                                        段階は novice / easy / normal / hard。`easy:1` のように付けると読む深さの上限を差し替える（#1566）
 //   random <段階> <確率|shipped> <局面数>  一様乱択の相手と先後入れ替えで局面数×2 局
+//   hint <局面数>                        毎手ヒントどおりに指す側（むずかしいの設定で考える時間 +HINT_EXTRA 秒）と
+//                                        「むずかしい」を先後入れ替えで局面数×2 局（#1491）。結果はヒント側から見て出す
+//   hinttiming [positions]               ヒント（むずかしいの設定・考える時間 +HINT_EXTRA 秒）の 1 手の時間（実時間）
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: SLIP_MARGIN（外したときに許す損の幅の差し替え）・NPS（match / random / depth で使う 1 秒あたりの局面数）・
-// PLIES（手数上限・既定 300）・CONCURRENCY（既定 4）・FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）。
+// HINT_EXTRA（ヒントの考える時間の上乗せ・既定 0.5 秒）・PLIES（手数上限・既定 300）・CONCURRENCY（既定 4）・FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）。
 
 func strength(_ name: String) -> CPUStrength {
     switch name {
@@ -59,6 +62,18 @@ func samplePositions(count: Int) async -> [String] {
 }
 
 func f3(_ v: Double) -> String { String(format: "%.3f", v) }
+
+/// ヒントのエンジン（#1491）。アプリのヒントは `BoardHintBudget.engineLevel`（= むずかしい）で読むので、
+/// むずかしいの設定（深さ上限なし・確率 100%・定跡あり）のまま、考える時間だけ `extra` 秒足す。
+/// `nodesPerSecond` を渡すと考える時間を局面数に置き換える（`CPUBenchLadder.engine` と同じ扱い）。
+func hintEngine(extra: Double, nodesPerSecond: Double?, seed: UInt64?) -> SimpleChessEngine {
+    let hard = SimpleChessEngine(level: CPUStrength.hard.rawValue)
+    let seconds = hard.timeLimit + extra
+    return SimpleChessEngine(
+        depth: hard.depth, usePositional: hard.usePositional, useQuiescence: hard.useQuiescence,
+        useBook: hard.useBook, timeLimit: nodesPerSecond == nil ? seconds : .infinity,
+        nodeLimit: nodesPerSecond.map { max(1, Int(seconds * $0)) }, policy: hard.policy, seed: seed)
+}
 
 @main
 struct Bench {
@@ -164,6 +179,34 @@ struct Bench {
                     lower: nil, openings: openings, maxPlies: plies, concurrency: conc, firstOpening: first)
                 print("RANDOM 損の幅 \(margin.map(String.init) ?? "shipped") \(s.label)(確率 \(args[3])) 対 一様乱択: \(t.games)局 勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws)（勝率 \(String(format: "%.1f", Double(t.upperWins) * 100 / Double(t.games)))%）")
             }
+        case "hint":
+            let nps = Double(env["NPS"] ?? "") ?? 300_000
+            let plies = Int(env["PLIES"] ?? "") ?? 300
+            let conc = Int(env["CONCURRENCY"] ?? "") ?? 4
+            let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
+            let extra = Double(env["HINT_EXTRA"] ?? "") ?? 0.5
+            let openings = args.count > 2 ? Int(args[2]) ?? 10 : 10
+            let t0 = Date()
+            // upper = むずかしい（相手）、lower = ヒントどおりに指す側。
+            let t = await CPUBenchLadder.run(
+                upper: { CPUBenchLadder.engine(.hard, nodesPerSecond: nps, seed: $0) },
+                lower: { hintEngine(extra: extra, nodesPerSecond: nps, seed: $0) },
+                openings: openings, maxPlies: plies, concurrency: conc, firstOpening: first)
+            let score = (Double(t.lowerWins) + Double(t.draws) * 0.5) * 100 / Double(t.games)
+            print("HINT ヒント(むずかしい +\(extra)秒) 対 むずかしい NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 ヒント側の勝ち \(t.lowerWins) 負け \(t.upperWins) 引き分け \(t.draws)（うちヒント側が駒損 \(t.draws - t.drawsLowerAhead)・駒得 \(t.drawsLowerAhead)） ヒント側の得点率 \(String(format: "%.1f", score))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
+        case "hinttiming":
+            let n = args.count > 2 ? Int(args[2]) ?? 40 : 40
+            let extra = Double(env["HINT_EXTRA"] ?? "") ?? 0.5
+            let fens = await samplePositions(count: n)
+            var wall: [Double] = []
+            for fen in fens {
+                let t = Date()
+                _ = await hintEngine(extra: extra, nodesPerSecond: nil, seed: nil).bestMove(fen: fen)
+                wall.append(Date().timeIntervalSince(t))
+            }
+            let limit = SimpleChessEngine(level: CPUStrength.hard.rawValue).timeLimit + extra
+            let cut = wall.filter { $0 >= limit * 0.95 }.count
+            print("HINTTIMING 上限 \(limit)s: 実時間 平均 \(f3(wall.reduce(0, +) / Double(wall.count)))s 最大 \(f3(wall.max()!))s 最小 \(f3(wall.min()!))s / 上限で打ち切り \(cut)/\(wall.count)")
         default:
             print("不明なコマンド")
         }
