@@ -214,7 +214,7 @@ extension MahjongView {
         .accessibilityLabel(
             MahjongAccessibility.handTileLabel(tile, isDrawn: isDrawn, isDiscardable: canDiscard)
         )
-        .accessibilityHint("ダブルタップでこの牌を切ります")
+        .accessibilityHint(tr("ダブルタップでこの牌を切ります"))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
             // VoiceOver の打牌もタップと同じ位置から飛ばす（verifier 指摘）
@@ -232,10 +232,12 @@ extension MahjongView {
     private func handleHandTap(
         _ tile: MahjongTile, id: String, canDiscard: Bool, scrollsBottomHand: Bool
     ) {
-        switch MahjongHandTap.outcome(
+        let outcome = MahjongHandTap.outcome(
             tappedID: id, selectedID: selectedTileID,
             isPlayerTurn: model.isPlayerTurn, isDiscardable: canDiscard
-        ) {
+        )
+        model.playHandTapFeedback(MahjongHandTap.feedback(for: outcome, isPlayerTurn: model.isPlayerTurn))
+        switch outcome {
         case .ignored:
             return
         case .select(let selected):
@@ -265,11 +267,11 @@ extension MahjongView {
     @ViewBuilder
     private func hintLine(waits: [MahjongTile]) -> some View {
         let message: String? = {
-            if model.isDeclaringRiichi { return "立直します。切る牌を選んでください" }
-            if model.isPlayerFuriten && !waits.isEmpty { return "フリテンです（ツモでのみ和了できます）" }
+            if model.isDeclaringRiichi { return tr("立直します。切る牌を選んでください") }
+            if model.isPlayerFuriten && !waits.isEmpty { return tr("フリテンです（ツモでのみ和了できます）") }
             if !waits.isEmpty {
                 // ツモ牌を除いた 13 枚の待ちなので、条件つきの言い方にする（`playerWaits` を参照）。
-                return "ツモ切りすると " + waits.map(\.displayName).joined(separator: "・") + " 待ち"
+                return tr("ツモ切りすると %@ 待ち", waits.map(\.displayName).joined(separator: tr("・")))
             }
             return nil
         }()

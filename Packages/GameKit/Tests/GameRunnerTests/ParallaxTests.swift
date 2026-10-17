@@ -65,4 +65,19 @@ struct ParallaxTests {
             }
         }
     }
+
+    /// #2255: 背景を流す距離は基準速が上がっても同じペース。地面（`distance`）は基準速に比例して進む。
+    @Test("基準速が上がっても背景の進みは序盤と同じ、地面は速くなる")
+    func backdropAdvancesAtConstantPaceRegardlessOfBaseSpeed() {
+        func run(speed: Double) -> RunnerField {
+            var field = RunnerField(stage: RunnerStage(number: 1, pattern: String(repeating: "-", count: 40), speed: speed))
+            for _ in 0..<60 { _ = field.step(dt: 1.0 / 60) }
+            return field
+        }
+        let slow = run(speed: RunnerRules.baseSpeed)
+        let fast = run(speed: RunnerRules.baseSpeed * 1.8)
+        #expect(abs(slow.backdropDistance - fast.backdropDistance) < slow.backdropDistance * 0.01)
+        #expect(abs(slow.backdropDistance - slow.distance) < 1e-6)
+        #expect(fast.distance > slow.distance * 1.7)
+    }
 }

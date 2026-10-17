@@ -86,7 +86,7 @@ public enum ResumeReminderPolicy {
 
     /// 通知の文言。汎用の「遊びに来てね」は送らず、戻る理由（途中の局）だけを書く。
     public static func content(gameTitle: String) -> (title: String, body: String) {
-        ("「\(gameTitle)」が途中のままです", "続きから、そのまま遊べます。")
+        (tr("「%@」が途中のままです", gameTitle), tr("続きから、そのまま遊べます。"))
     }
 }
 

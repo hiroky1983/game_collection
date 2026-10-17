@@ -1,0 +1,1336 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%1$@。%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. %2$@"
+          }
+        }
+      }
+    },
+    "%1$@から上の%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the %2$lld cards from %1$@ up"
+          }
+        }
+      }
+    },
+    "%1$@の組札、%2$@まで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foundation for %1$@, up to %2$@"
+          }
+        }
+      }
+    },
+    "%1$lld手 / タイム %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld move / Time %2$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld moves / Time %2$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@の組札、空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foundation for %@, empty"
+          }
+        }
+      }
+    },
+    "%lld列目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Column %lld"
+          }
+        }
+      }
+    },
+    "%lld列目、空、キングだけ置けます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Column %lld, empty, only a King can go here"
+          }
+        }
+      }
+    },
+    "%lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld枚目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "card %lld"
+          }
+        }
+      }
+    },
+    "1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have one per game. Place it on a tableau column and any one card can go on top of it (not on an empty column or one that already has a Joker). Once the cards on top of it are all cleared, it disappears and the card underneath can be used again"
+          }
+        }
+      }
+    },
+    "1手戻す、残り%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo, %lld left"
+          }
+        }
+      }
+    },
+    "1手戻す、残りなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo, none left"
+          }
+        }
+      }
+    },
+    "1手戻す（残り%lld）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo (%lld left)"
+          }
+        }
+      }
+    },
+    "1枚めくり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw 1"
+          }
+        }
+      }
+    },
+    "3枚めくり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw 3"
+          }
+        }
+      }
+    },
+    "K だけ置ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only a K can go here"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "「戻す」で戻れます。ヒントの回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Undo to go back. This didn't use up a hint."
+          }
+        }
+      }
+    },
+    "「戻す」は1局につき%1$lld回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると%2$lld回ぶん補充できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You get %1$lld free undos per game. The button shows how many are left. Once they're used up, watch an ad to get %2$lld more"
+          }
+        }
+      }
+    },
+    "「戻す」を補充できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Add Undos"
+          }
+        }
+      }
+    },
+    "「新規ゲーム」を押すと、山札を1枚ずつめくるか3枚ずつめくるかを選べます。3枚めくりでは使えるのがいちばん上の1枚だけになるぶん歯ごたえがあり、自己ベストは1枚めくりとは別に記録されます（Game Center の順位表に載るのは1枚めくりだけです）。選んだめくり方はその配札のあいだ変わりません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap New Game to choose whether to draw 1 or 3 cards at a time from the stock. In Draw 3 only the top card can be played, which makes it tougher, and personal bests are kept separately from Draw 1 (only Draw 1 goes on the leaderboard). The draw mode stays the same for the whole deal"
+          }
+        }
+      }
+    },
+    "このままではクリアできません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Be Cleared from Here"
+          }
+        }
+      }
+    },
+    "このままではクリアできません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't be cleared from here. %@"
+          }
+        }
+      }
+    },
+    "このまま続ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Playing"
+          }
+        }
+      }
+    },
+    "この盤からは勝てません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Board Can't Be Won"
+          }
+        }
+      }
+    },
+    "まだ戻せる手がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No moves to undo yet"
+          }
+        }
+      }
+    },
+    "めくり方を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choosing the draw"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "クリア。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared. %@"
+          }
+        }
+      }
+    },
+    "クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared!"
+          }
+        }
+      }
+    },
+    "クロンダイク。52枚を組札に積み上げよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classic Klondike. Build all 52 cards onto the foundations"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overview"
+          }
+        }
+      }
+    },
+    "ジョーカー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joker"
+          }
+        }
+      }
+    },
+    "ジョーカー、所持していません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joker, none in hand"
+          }
+        }
+      }
+    },
+    "ジョーカーが1枚使えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have a Joker to use"
+          }
+        }
+      }
+    },
+    "ジョーカーの補充" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getting another Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーをもらえませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Get a Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーをやめる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーを使う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーを使う、1枚所持" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Joker, 1 in hand"
+          }
+        }
+      }
+    },
+    "ジョーカーを受け取れませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Receive a Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーを場札に置くと、その上へどんな札でも1枚だけ重ねられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place the Joker on the tableau and any one card can go on top of it."
+          }
+        }
+      }
+    },
+    "ジョーカーを置くのをやめる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop placing the Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーを置く列をタップしてください（空の列と、すでにジョーカーがある列には置けません）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a column to place the Joker (not an empty column or one that already has a Joker)"
+          }
+        }
+      }
+    },
+    "ソリティア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solitaire"
+          }
+        }
+      }
+    },
+    "ヒント" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint"
+          }
+        }
+      }
+    },
+    "ヒント、%1$@を%2$lld列目へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %1$@ to Column %2$lld"
+          }
+        }
+      }
+    },
+    "ヒント、%1$lld列目の%2$@を組札へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %2$@ from Column %1$lld to a foundation"
+          }
+        }
+      }
+    },
+    "ヒント、山札をめくります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: draw from the stock"
+          }
+        }
+      }
+    },
+    "ヒント、捨て札の%1$@を%2$lld列目へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %1$@ from the waste to Column %2$lld"
+          }
+        }
+      }
+    },
+    "ヒント、捨て札の%@を組札へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %@ from the waste to a foundation"
+          }
+        }
+      }
+    },
+    "ヒント、考え中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint, thinking"
+          }
+        }
+      }
+    },
+    "ヒントを出せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Give a Hint"
+          }
+        }
+      }
+    },
+    "ヒントを表示できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Show a Hint"
+          }
+        }
+      }
+    },
+    "ヒント（広告を見て表示）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint (watch an ad)"
+          }
+        }
+      }
+    },
+    "ヒント（残り%lld回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint (%lld left)"
+          }
+        }
+      }
+    },
+    "上に%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card on top"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards on top"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "下に%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "below: %@"
+          }
+        }
+      }
+    },
+    "伏せ札%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld face-down card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld face-down cards"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "使い切ったあと、手詰まりになったときや、指せる手はあってもクリアできなくなったときに、広告を見て1枚受け取れます。「戻す」でジョーカーを置いた手を巻き戻せば、手持ちに戻ります。ジョーカーを使ってクリアした記録は、自己ベストには残りますが Game Center の順位表には送りません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once it's used, you can watch an ad to get another when you're stuck, or when moves remain but the game can no longer be cleared. Undoing the move where you placed a Joker puts it back in your hand. Clears that used a Joker count toward your personal best but aren't sent to the leaderboard"
+          }
+        }
+      }
+    },
+    "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every deal has been solved by computer in advance to make sure it can be cleared. If you get stuck, it's down to how you played, not the deal"
+          }
+        }
+      }
+    },
+    "動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap the column or foundation to move it to. Tap the same card again to deselect it"
+          }
+        }
+      }
+    },
+    "動かせません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "can't be moved"
+          }
+        }
+      }
+    },
+    "場札の並べ方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building the tableau"
+          }
+        }
+      }
+    },
+    "場札（下の7列）には、ひとつ上の札より1つ小さくて色ちがいの札だけを置けます（黒の8 の上には 赤の7）。そろっている並びは何枚でもまとめて動かせます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the tableau (the 7 columns at the bottom), a card can only go on one that's one higher and the opposite color (a red 7 on a black 8). A correctly ordered run can be moved together, however long it is"
+          }
+        }
+      }
+    },
+    "山札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stock"
+          }
+        }
+      }
+    },
+    "山札、残り%lld枚、タップでめくる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stock, %lld card left, tap to draw"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stock, %lld cards left, tap to draw"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "山札、空、タップで捨て札を戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stock, empty, tap to turn the waste back over"
+          }
+        }
+      }
+    },
+    "山札のめくり方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stock draw"
+          }
+        }
+      }
+    },
+    "山札を1枚ずつめくります。いちばん標準的なクロンダイクで、Game Center の「ソリティア 最短タイム」に載るのはこちらだけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw one card at a time from the stock. This is classic Klondike, and the only mode on the Solitaire fastest-time leaderboard."
+          }
+        }
+      }
+    },
+    "山札を3枚ずつめくり、使えるのはいちばん上の1枚だけです。同じ配札でも使える札が減るぶん歯ごたえがあります。自己ベストは1枚めくりとは別に記録され、Game Center の順位表には送りません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw three cards at a time; only the top one can be played. With fewer usable cards from the same deal, it's more of a challenge. Personal bests are kept separately from Draw 1 and aren't sent to the leaderboard."
+          }
+        }
+      }
+    },
+    "山札をめくるか、盤面が進まない入れ替えしか残っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All that's left is drawing from the stock or moves that don't get you anywhere."
+          }
+        }
+      }
+    },
+    "左上の山札はタップでめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the stock at the top left to draw. Once it's empty, tap it again to turn the waste back into the stock (as many times as you like)"
+          }
+        }
+      }
+    },
+    "広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch the ad to the end to get %lld more undo.\nThe board stays as it is."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch the ad to the end to get %lld more undos.\nThe board stays as it is."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見て%lld回補充する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad for %lld More"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game changed while the ad was playing, so no Joker could be added.\nAny Joker you already have is still yours."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The board changed or you left the screen while the ad was playing, so no hint could be given."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new deal started or the game ended while the ad was playing, so no undos were added.\nThe new deal starts with its free undos again."
+          }
+        }
+      }
+    },
+    "広告を見てジョーカーをもらう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad for a Joker"
+          }
+        }
+      }
+    },
+    "広告を見ると%lld回ぶん補充できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to get %lld more undo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to get %lld more undos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見るとジョーカーを1枚受け取れます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to get a Joker"
+          }
+        }
+      }
+    },
+    "広告を見るとジョーカーを1枚受け取れます。手を戻すか、新しい配札にすることもできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to get a Joker. You can also undo moves or start a new deal."
+          }
+        }
+      }
+    },
+    "戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "手詰まりかクリアできない局面になったとき、広告を見て1枚受け取れます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you're stuck or the game can't be cleared, watch an ad to get one"
+          }
+        }
+      }
+    },
+    "押したあと、置きたい列をタップします" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then tap the column to place it on"
+          }
+        }
+      }
+    },
+    "指せる手はありますが、ここからは組札を揃えきれません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are moves left, but the foundations can't be completed from here."
+          }
+        }
+      }
+    },
+    "捨て札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waste"
+          }
+        }
+      }
+    },
+    "捨て札、空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waste, empty"
+          }
+        }
+      }
+    },
+    "操作" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controls"
+          }
+        }
+      }
+    },
+    "新しい配札にする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Deal"
+          }
+        }
+      }
+    },
+    "札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "card"
+          }
+        }
+      }
+    },
+    "札が無くなった列に置けるのは K だけです。K を引くまで空けておくか、思い切って埋めるかがクロンダイクの読みどころです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only a K can go in an empty column. Whether to keep it open until a K turns up or fill it boldly is the key decision in Klondike"
+          }
+        }
+      }
+    },
+    "次に指す1手を、動かす札と行き先に紫の枠で示します。動かすのはあなたです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows your next move with purple frames on the card to move and where it goes. You make the move yourself"
+          }
+        }
+      }
+    },
+    "次のゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Game"
+          }
+        }
+      }
+    },
+    "残りの札をまとめて組札へ送ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sends all remaining cards to the foundations"
+          }
+        }
+      }
+    },
+    "無料で戻せるのは1局につき%lld回までです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You can undo %lld time per game for free"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You can undo up to %lld times per game for free"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "無料の「戻す」を使い切りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've Used Your Free Undos"
+          }
+        }
+      }
+    },
+    "空いた列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty columns"
+          }
+        }
+      }
+    },
+    "経過%1$@、%2$lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Time %1$@, %2$lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Time %1$@, %2$lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "経過%1$@、%2$lld手、ルールは%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Time %1$@, %2$lld move, rule: %3$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Time %1$@, %2$lld moves, rule: %3$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "置き先の列をタップすると置けます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a column to place it"
+          }
+        }
+      }
+    },
+    "自動で上がる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-finish"
+          }
+        }
+      }
+    },
+    "途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this board is lost and the deal is recorded as not cleared."
+          }
+        }
+      }
+    },
+    "進める手がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Useful Moves"
+          }
+        }
+      }
+    },
+    "進める手がありません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No useful moves. %@"
+          }
+        }
+      }
+    },
+    "進める手がありません。山札をめくるか、盤面が進まない入れ替えしか残っていません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No useful moves. All that's left is drawing from the stock or moves that don't get you anywhere"
+          }
+        }
+      }
+    },
+    "選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "selected"
+          }
+        }
+      }
+    },
+    "配られた52枚を、右上の組札（4か所）に ♠♥♦♣ ごとに A から K まで順に積み上げれば クリアです。クロンダイクと呼ばれる、いちばん標準的なソリティアです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build all 52 cards onto the 4 foundations at the top right, one per suit (♠♥♦♣), from A up to K. This is Klondike, the most classic kind of solitaire"
+          }
+        }
+      }
+    },
+    "配られる札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About the deals"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

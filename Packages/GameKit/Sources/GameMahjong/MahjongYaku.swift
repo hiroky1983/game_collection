@@ -53,84 +53,128 @@ public enum MahjongYaku: String, CaseIterable, Sendable, Equatable {
     case uraDora
 
     /// 役の表記。**判定側が付ける名前もこれ**（役牌だけは牌の名前を足すので `MahjongYakuEntry` 側で上書きする）。
+    /// 和了の結果に入って中断データに保存されるので、表示言語によらず日本語のまま（画面は `displayName`）。
     public var name: String {
         switch self {
-        case .riichi:          return "立直"
-        case .ippatsu:         return "一発"
-        case .menzenTsumo:     return "門前清自摸和"
-        case .pinfu:           return "平和"
-        case .tanyao:          return "断幺九"
-        case .yakuhaiDragon:   return "役牌"
-        case .yakuhaiSeatWind: return "役牌 自風"
-        case .yakuhaiRoundWind: return "役牌 場風"
-        case .iipeikou:        return "一盃口"
-        case .haitei:          return "海底摸月"
-        case .houtei:          return "河底撈魚"
-        case .rinshan:         return "嶺上開花"
-        case .chankan:         return "槍槓"
-        case .chiitoitsu:      return "七対子"
-        case .toitoi:          return "対々和"
-        case .sanankou:        return "三暗刻"
-        case .sankantsu:       return "三槓子"
-        case .sanshokuDoujun:  return "三色同順"
-        case .ittsuu:          return "一気通貫"
-        case .chanta:          return "混全帯幺九"
-        case .honroutou:       return "混老頭"
-        case .ryanpeikou:      return "二盃口"
-        case .junchan:         return "純全帯幺九"
-        case .honitsu:         return "混一色"
-        case .chinitsu:        return "清一色"
-        case .kokushi:         return "国士無双"
-        case .suuankou:        return "四暗刻"
-        case .daisangen:       return "大三元"
-        case .shousuushii:     return "小四喜"
-        case .daisuushii:      return "大四喜"
-        case .tsuuiisou:       return "字一色"
-        case .chinroutou:      return "清老頭"
-        case .suukantsu:       return "四槓子"
-        case .dora:            return "ドラ"
-        case .uraDora:         return "裏ドラ"
+        case .riichi:          return "立直"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .ippatsu:         return "一発"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .menzenTsumo:     return "門前清自摸和"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .pinfu:           return "平和"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .tanyao:          return "断幺九"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .yakuhaiDragon:   return "役牌"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .yakuhaiSeatWind: return "役牌 自風"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .yakuhaiRoundWind: return "役牌 場風"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .iipeikou:        return "一盃口"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .haitei:          return "海底摸月"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .houtei:          return "河底撈魚"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .rinshan:         return "嶺上開花"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chankan:         return "槍槓"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chiitoitsu:      return "七対子"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .toitoi:          return "対々和"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .sanankou:        return "三暗刻"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .sankantsu:       return "三槓子"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .sanshokuDoujun:  return "三色同順"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .ittsuu:          return "一気通貫"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chanta:          return "混全帯幺九"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .honroutou:       return "混老頭"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .ryanpeikou:      return "二盃口"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .junchan:         return "純全帯幺九"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .honitsu:         return "混一色"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chinitsu:        return "清一色"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .kokushi:         return "国士無双"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .suuankou:        return "四暗刻"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .daisangen:       return "大三元"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .shousuushii:     return "小四喜"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .daisuushii:      return "大四喜"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .tsuuiisou:       return "字一色"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .chinroutou:      return "清老頭"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .suukantsu:       return "四槓子"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .dora:            return "ドラ"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        case .uraDora:         return "裏ドラ"  // i18n-keep: 中断データ・判定に使う役名の原文（表示は displayName / title で訳す）
+        }
+    }
+
+    /// 表示する役名（#2166）。`name` は中断データに入る保存値・判定側の名前なので日本語のまま持ち、
+    /// 画面にはこちらを出す。英語は英語圏のリーチ麻雀で通じるローマ字表記（Riichi・Tanyao…）。
+    public var displayName: String {
+        switch self {
+        case .riichi:          return tr("立直")
+        case .ippatsu:         return tr("一発")
+        case .menzenTsumo:     return tr("門前清自摸和")
+        case .pinfu:           return tr("平和")
+        case .tanyao:          return tr("断幺九")
+        case .yakuhaiDragon:   return tr("役牌")
+        case .yakuhaiSeatWind: return tr("役牌 自風")
+        case .yakuhaiRoundWind: return tr("役牌 場風")
+        case .iipeikou:        return tr("一盃口")
+        case .haitei:          return tr("海底摸月")
+        case .houtei:          return tr("河底撈魚")
+        case .rinshan:         return tr("嶺上開花")
+        case .chankan:         return tr("槍槓")
+        case .chiitoitsu:      return tr("七対子")
+        case .toitoi:          return tr("対々和")
+        case .sanankou:        return tr("三暗刻")
+        case .sankantsu:       return tr("三槓子")
+        case .sanshokuDoujun:  return tr("三色同順")
+        case .ittsuu:          return tr("一気通貫")
+        case .chanta:          return tr("混全帯幺九")
+        case .honroutou:       return tr("混老頭")
+        case .ryanpeikou:      return tr("二盃口")
+        case .junchan:         return tr("純全帯幺九")
+        case .honitsu:         return tr("混一色")
+        case .chinitsu:        return tr("清一色")
+        case .kokushi:         return tr("国士無双")
+        case .suuankou:        return tr("四暗刻")
+        case .daisangen:       return tr("大三元")
+        case .shousuushii:     return tr("小四喜")
+        case .daisuushii:      return tr("大四喜")
+        case .tsuuiisou:       return tr("字一色")
+        case .chinroutou:      return tr("清老頭")
+        case .suukantsu:       return tr("四槓子")
+        case .dora:            return tr("ドラ")
+        case .uraDora:         return tr("裏ドラ")
         }
     }
 
     /// 読み。役名は漢字だけでは読めないものが多く、読めないと早見表を引く気にならない（#501 の前提）。
+    /// 英語では役名がすでにローマ字なので、読みの代わりに役の意味（All Simples 等）を出す（#2166）。
     public var reading: String {
         switch self {
-        case .riichi:          return "リーチ"
-        case .ippatsu:         return "イッパツ"
-        case .menzenTsumo:     return "メンゼンツモ"
-        case .pinfu:           return "ピンフ"
-        case .tanyao:          return "タンヤオ"
-        case .yakuhaiDragon:   return "ヤクハイ"
-        case .yakuhaiSeatWind: return "ヤクハイ ジカゼ"
-        case .yakuhaiRoundWind: return "ヤクハイ バカゼ"
-        case .iipeikou:        return "イーペーコー"
-        case .haitei:          return "ハイテイラオユエ"
-        case .houtei:          return "ホウテイラオユイ"
-        case .rinshan:         return "リンシャンカイホウ"
-        case .chankan:         return "チャンカン"
-        case .chiitoitsu:      return "チートイツ"
-        case .toitoi:          return "トイトイ"
-        case .sanankou:        return "サンアンコー"
-        case .sankantsu:       return "サンカンツ"
-        case .sanshokuDoujun:  return "サンショクドウジュン"
-        case .ittsuu:          return "イッキツウカン"
-        case .chanta:          return "ホンチャンタ"
-        case .honroutou:       return "ホンロウトウ"
-        case .ryanpeikou:      return "リャンペーコー"
-        case .junchan:         return "ジュンチャン"
-        case .honitsu:         return "ホンイツ"
-        case .chinitsu:        return "チンイツ"
-        case .kokushi:         return "コクシムソウ"
-        case .suuankou:        return "スーアンコー"
-        case .daisangen:       return "ダイサンゲン"
-        case .shousuushii:     return "ショウスーシー"
-        case .daisuushii:      return "ダイスーシー"
-        case .tsuuiisou:       return "ツーイーソー"
-        case .chinroutou:      return "チンロウトウ"
-        case .suukantsu:       return "スーカンツ"
-        case .dora:            return "ドラ"
-        case .uraDora:         return "ウラドラ"
+        case .riichi:          return tr("リーチ")
+        case .ippatsu:         return tr("イッパツ")
+        case .menzenTsumo:     return tr("メンゼンツモ")
+        case .pinfu:           return tr("ピンフ")
+        case .tanyao:          return tr("タンヤオ")
+        case .yakuhaiDragon:   return tr("ヤクハイ")
+        case .yakuhaiSeatWind: return tr("ヤクハイ ジカゼ")
+        case .yakuhaiRoundWind: return tr("ヤクハイ バカゼ")
+        case .iipeikou:        return tr("イーペーコー")
+        case .haitei:          return tr("ハイテイラオユエ")
+        case .houtei:          return tr("ホウテイラオユイ")
+        case .rinshan:         return tr("リンシャンカイホウ")
+        case .chankan:         return tr("チャンカン")
+        case .chiitoitsu:      return tr("チートイツ")
+        case .toitoi:          return tr("トイトイ")
+        case .sanankou:        return tr("サンアンコー")
+        case .sankantsu:       return tr("サンカンツ")
+        case .sanshokuDoujun:  return tr("サンショクドウジュン")
+        case .ittsuu:          return tr("イッキツウカン")
+        case .chanta:          return tr("ホンチャンタ")
+        case .honroutou:       return tr("ホンロウトウ")
+        case .ryanpeikou:      return tr("リャンペーコー")
+        case .junchan:         return tr("ジュンチャン")
+        case .honitsu:         return tr("ホンイツ")
+        case .chinitsu:        return tr("チンイツ")
+        case .kokushi:         return tr("コクシムソウ")
+        case .suuankou:        return tr("スーアンコー")
+        case .daisangen:       return tr("ダイサンゲン")
+        case .shousuushii:     return tr("ショウスーシー")
+        case .daisuushii:      return tr("ダイスーシー")
+        case .tsuuiisou:       return tr("ツーイーソー")
+        case .chinroutou:      return tr("チンロウトウ")
+        case .suukantsu:       return tr("スーカンツ")
+        case .dora:            return tr("ドラ")
+        case .uraDora:         return tr("ウラドラ")
         }
     }
 
@@ -138,75 +182,75 @@ public enum MahjongYaku: String, CaseIterable, Sendable, Equatable {
     public var requirement: String {
         switch self {
         case .riichi:
-            return "門前で聴牌したら1000点を供託して宣言。以後は手牌を変えられない"
+            return tr("門前で聴牌したら1000点を供託して宣言。以後は手牌を変えられない")
         case .ippatsu:
-            return "立直の宣言から1巡以内（誰にも鳴かれずに）和了する"
+            return tr("立直の宣言から1巡以内（誰にも鳴かれずに）和了する")
         case .menzenTsumo:
-            return "門前のままツモ和了する"
+            return tr("門前のままツモ和了する")
         case .pinfu:
-            return "門前で、4組すべて順子・雀頭が役牌でない・両面待ち"
+            return tr("門前で、4組すべて順子・雀頭が役牌でない・両面待ち")
         case .tanyao:
-            return "1と9と字牌を1枚も使わない"
+            return tr("1と9と字牌を1枚も使わない")
         case .yakuhaiDragon:
-            return "白・發・中のどれかを3枚そろえる（鳴いても付く）"
+            return tr("白・發・中のどれかを3枚そろえる（鳴いても付く）")
         case .yakuhaiSeatWind:
-            return "自分の風（東家なら東）を3枚そろえる（鳴いても付く）"
+            return tr("自分の風（東家なら東）を3枚そろえる（鳴いても付く）")
         case .yakuhaiRoundWind:
-            return "場の風（東風戦は常に東）を3枚そろえる（鳴いても付く）"
+            return tr("場の風（東風戦は常に東）を3枚そろえる（鳴いても付く）")
         case .iipeikou:
-            return "門前で、同じ順子を2組そろえる"
+            return tr("門前で、同じ順子を2組そろえる")
         case .haitei:
-            return "山の最後の牌をツモって和了する"
+            return tr("山の最後の牌をツモって和了する")
         case .houtei:
-            return "最後に捨てられた牌でロンする"
+            return tr("最後に捨てられた牌でロンする")
         case .rinshan:
-            return "カンの直後に引いた牌（嶺上牌）で和了する"
+            return tr("カンの直後に引いた牌（嶺上牌）で和了する")
         case .chankan:
-            return "他家が加槓した牌でロンする"
+            return tr("他家が加槓した牌でロンする")
         case .chiitoitsu:
-            return "門前で、対子を7組そろえる（同じ牌4枚は2組に数えない）"
+            return tr("門前で、対子を7組そろえる（同じ牌4枚は2組に数えない）")
         case .toitoi:
-            return "4組すべてを刻子（槓子）でそろえる"
+            return tr("4組すべてを刻子（槓子）でそろえる")
         case .sanankou:
-            return "鳴かずに作った刻子（槓子）を3組そろえる"
+            return tr("鳴かずに作った刻子（槓子）を3組そろえる")
         case .sankantsu:
-            return "カンを3回する"
+            return tr("カンを3回する")
         case .sanshokuDoujun:
-            return "萬子・筒子・索子で同じ並びの順子をそろえる"
+            return tr("萬子・筒子・索子で同じ並びの順子をそろえる")
         case .ittsuu:
-            return "同じ種類の数牌で123・456・789をそろえる"
+            return tr("同じ種類の数牌で123・456・789をそろえる")
         case .chanta:
-            return "すべての組に1・9・字牌のどれかが入る（字牌を1枚以上使う）"
+            return tr("すべての組に1・9・字牌のどれかが入る（字牌を1枚以上使う）")
         case .honroutou:
-            return "1・9・字牌だけで作る"
+            return tr("1・9・字牌だけで作る")
         case .ryanpeikou:
-            return "門前で、同じ順子2組を2種類そろえる"
+            return tr("門前で、同じ順子2組を2種類そろえる")
         case .junchan:
-            return "すべての組に1か9が入る（字牌は使わない）"
+            return tr("すべての組に1か9が入る（字牌は使わない）")
         case .honitsu:
-            return "1種類の数牌と字牌だけで作る"
+            return tr("1種類の数牌と字牌だけで作る")
         case .chinitsu:
-            return "1種類の数牌だけで作る（字牌も使わない）"
+            return tr("1種類の数牌だけで作る（字牌も使わない）")
         case .kokushi:
-            return "1・9・字牌の13種を1枚ずつ集め、どれか1種をもう1枚"
+            return tr("1・9・字牌の13種を1枚ずつ集め、どれか1種をもう1枚")
         case .suuankou:
-            return "鳴かずに作った刻子（槓子）を4組そろえる"
+            return tr("鳴かずに作った刻子（槓子）を4組そろえる")
         case .daisangen:
-            return "白・發・中をすべて3枚ずつそろえる"
+            return tr("白・發・中をすべて3枚ずつそろえる")
         case .shousuushii:
-            return "東南西北のうち3種を刻子、残り1種を雀頭にする"
+            return tr("東南西北のうち3種を刻子、残り1種を雀頭にする")
         case .daisuushii:
-            return "東南西北をすべて3枚ずつそろえる"
+            return tr("東南西北をすべて3枚ずつそろえる")
         case .tsuuiisou:
-            return "字牌だけで作る"
+            return tr("字牌だけで作る")
         case .chinroutou:
-            return "1と9だけで作る（字牌も使わない）"
+            return tr("1と9だけで作る（字牌も使わない）")
         case .suukantsu:
-            return "カンを4回する"
+            return tr("カンを4回する")
         case .dora:
-            return "ドラ表示牌の次の牌1枚につき1飜。単独では和了できない"
+            return tr("ドラ表示牌の次の牌1枚につき1飜。単独では和了できない")
         case .uraDora:
-            return "立直して和了したときだけ、裏ドラ表示牌の次の牌1枚につき1飜"
+            return tr("立直して和了したときだけ、裏ドラ表示牌の次の牌1枚につき1飜")
         }
     }
 
@@ -265,10 +309,10 @@ public enum MahjongYaku: String, CaseIterable, Sendable, Equatable {
 
     /// 早見表の飜数欄の表記。
     public var hanText: String {
-        if isDora { return "1枚 1飜" }
-        if isYakuman { return "役満" }
-        guard let open = openHan else { return "\(closedHan)飜（門前のみ）" }
-        return open == closedHan ? "\(closedHan)飜" : "\(closedHan)飜（鳴き\(open)飜）"
+        if isDora { return tr("1枚 1飜") }
+        if isYakuman { return tr("役満") }
+        guard let open = openHan else { return tr("%lld飜（門前のみ）", closedHan) }
+        return open == closedHan ? tr("%lld飜", closedHan) : tr("%1$lld飜（鳴き%2$lld飜）", closedHan, open)
     }
 
     /// 早見表に出す牌例。面子ごとに区切った並び。
@@ -433,11 +477,22 @@ public enum MahjongYaku: String, CaseIterable, Sendable, Equatable {
 
     /// 早見表のセクション見出しごとの区分け。`displayOrder` を並べ替えずにそのまま切る。
     public enum Section: String, CaseIterable, Sendable {
-        case one = "1飜"
-        case two = "2飜"
-        case three = "3飜以上"
-        case yakuman = "役満"
-        case dora = "ドラ"
+        case one = "1飜"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case two = "2飜"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case three = "3飜以上"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case yakuman = "役満"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+        case dora = "ドラ"  // i18n-keep: 早見表の区分の識別子（見出しは title で訳す）
+
+        /// 見出しの表示（#2166）。`rawValue` は識別子として据え置き、画面にはこちらを出す。
+        public var title: String {
+            switch self {
+            case .one:     return tr("1飜")
+            case .two:     return tr("2飜")
+            case .three:   return tr("3飜以上")
+            case .yakuman: return tr("役満")
+            case .dora:    return tr("ドラ")
+            }
+        }
     }
 
     public var section: Section {

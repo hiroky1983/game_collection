@@ -384,11 +384,11 @@ public enum HomerunSector: Int, Codable, Equatable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .left: "レフト"
-        case .leftCenter: "左中間"
-        case .center: "センター"
-        case .rightCenter: "右中間"
-        case .right: "ライト"
+        case .left: tr("レフト")
+        case .leftCenter: tr("左中間")
+        case .center: tr("センター")
+        case .rightCenter: tr("右中間")
+        case .right: tr("ライト")
         }
     }
 }

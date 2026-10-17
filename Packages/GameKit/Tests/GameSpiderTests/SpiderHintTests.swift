@@ -219,6 +219,30 @@ struct SpiderHintModelTests {
         #expect(!model.isHintThinking)
     }
 
+    @Test("広告の経路で、読みの最中に盤が動いて結果が捨てられても「広告を見ているあいだに」とは出さない（#2125）")
+    func movingDuringAdSearchIsSupersededNotUnavailable() async {
+        let f = makeFixture()
+        let model = f.model
+        for _ in 0..<3 { await model.requestHint() }
+        #expect(model.needsAdForHint, "前提: 無料を使い切った")
+        let play = playAnyMove
+        model.hintSearchDidFinishForTesting = { play(model) }
+        #expect(await model.requestAdHint() == .superseded, "広告を出す前に捨てられたので、適用できなかった知らせは出さない")
+        #expect(model.hints.used == 3)
+        #expect(!model.isHintThinking)
+    }
+
+    @Test("広告の経路でも、読みの間は広告を出す前の合図（readDidFinish）が来ていない")
+    func readDidFinishComesAfterTheRead() async {
+        let f = makeFixture()
+        let model = f.model
+        for _ in 0..<3 { await model.requestHint() }
+        var order: [String] = []
+        model.hintSearchDidFinishForTesting = { order.append("read") }
+        _ = await model.requestAdHint(readDidFinish: { order.append("finish") })
+        #expect(order == ["read", "finish"], "読み終えてから広告へ進む")
+    }
+
     @Test("無料 3 回 → 広告で +1 を最大 5 回 → 使い切り")
     func freeThenAdsThenExhausted() async {
         let f = makeFixture()

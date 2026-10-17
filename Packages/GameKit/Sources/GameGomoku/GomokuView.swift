@@ -46,7 +46,7 @@ public struct GomokuView: View {
             if !over { resultCardClosed = false }
         }
         .padding(Theme.pad)
-        .gameChrome(title: "五目並べ", review: services.review,
+        .gameChrome(title: tr("五目並べ"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         if model.gameOver || model.moveCount == 0 {
                             showNewGame = true
@@ -54,7 +54,7 @@ public struct GomokuView: View {
                             showConfirmNewGame = true
                         }
                     })
-        .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
+        .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled))
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
@@ -63,15 +63,19 @@ public struct GomokuView: View {
             } onCancel: { showNewGame = false }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規対局", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると対局データが失われます。")
+                Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        // CPU の着手を読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            model.lastMove.map { GomokuAccessibility.cpuMoveAnnouncement(row: $0.row, col: $0.col) }
         }
         // 禁じ手で断られた理由を読み上げる（#1574）。連続して同じ手を打っても毎回読ませるため、
         // `lastRejection` ではなく数え上げの `rejectedTapCount` で見張る。
@@ -161,7 +165,8 @@ public struct GomokuView: View {
                             let row = Int(((val.location.y - pad) / spacing).rounded())
                             // 盤外・手番違いの判定は Model 側に集約する（#202）。
                             // ここで早期 return すると無効タップが無反応のまま残る。
-                            model.tap(row: row, col: col)
+                            // 設定が 2 段なら仮置き → 確定（#2297）。
+                            model.tapOnBoard(row: row, col: col)
                         }
                 )
                 .accessibilityRepresentation {
@@ -182,6 +187,9 @@ public struct GomokuView: View {
                 // ヒントが示す交点（#1118）。盤の前面に重ねるので、勝ち筋と同じく
                 // タップと VoiceOver の交点グリッドを横取りしないよう両方から外す。
                 hintMark(pad: pad, spacing: spacing)
+
+                // 仮置きの印（#2297）。同じく盤の前面で、タップと VoiceOver を横取りしない。
+                pendingMark(pad: pad, spacing: spacing)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -208,6 +216,33 @@ public struct GomokuView: View {
                           y: pad + spacing * CGFloat(point.row))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+        }
+    }
+
+    /// 仮置き中の交点の印（#2297）。薄い石と、指で隠れても位置が分かる十字の強調。
+    ///
+    /// 出す条件は `model.pendingPoint` だけ。確定・移動・手番交代などで Model が消す。
+    @ViewBuilder
+    private func pendingMark(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let point = model.pendingPoint {
+            let x = pad + spacing * CGFloat(point.col)
+            let y = pad + spacing * CGFloat(point.row)
+            let reach = spacing * 0.9
+            ZStack {
+                Path { path in
+                    path.move(to: CGPoint(x: x - reach, y: y)); path.addLine(to: CGPoint(x: x + reach, y: y))
+                    path.move(to: CGPoint(x: x, y: y - reach)); path.addLine(to: CGPoint(x: x, y: y + reach))
+                }
+                .stroke(Theme.coral, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                Circle()
+                    .fill(model.currentStone == .black ? Color(hex: 0x18140E) : Color(hex: 0xF0E8D0))
+                    .opacity(0.55)
+                    .overlay(Circle().stroke(Theme.coral, lineWidth: 2))
+                    .frame(width: spacing * 0.92, height: spacing * 0.92)
+                    .position(x: x, y: y)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
@@ -291,10 +326,10 @@ public struct GomokuView: View {
                       : AnyShapeStyle(Color(hex: 0xF0E8D0)))
                 .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                 .frame(width: 18, height: 18)
-            Text(isYou ? "あなた" : "CPU")
+            Text(isYou ? tr("あなた") : "CPU")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
-            Text(stone == .black ? "黒・先手" : "白・後手")
+            Text(stone == .black ? tr("黒・先手") : tr("白・後手"))
                 .themeCaption(13, weight: .regular, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
         }
@@ -310,7 +345,7 @@ public struct GomokuView: View {
                 : (model.winner == model.humanSide ? .win : .loss)
             BoardGameResultCard(
                 verdict: verdict,
-                reason: model.isDraw ? "盤が埋まった" : (model.winningLine != nil ? "五連" : "投了"),
+                reason: model.isDraw ? tr("盤が埋まった") : (model.winningLine != nil ? tr("五連") : tr("投了")),
                 record: model.recordResult
             ) { resultCardClosed = true }
         }
@@ -321,19 +356,19 @@ public struct GomokuView: View {
     private var statusBar: some View {
         GameStatusBar {
             if let w = model.winner {
-                Label(w == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち",
+                Label(w == model.humanSide ? tr("あなたの勝ち！") : tr("CPUの勝ち"),
                       systemImage: "flag.checkered")
-                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.isDraw {
-                Label("引き分け", systemImage: "equal.circle")
+                Label(tr("引き分け"), systemImage: "equal.circle")
                     .themeBody(16).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 TurnBadge(isYourTurn: model.currentStone == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
         } trailing: {
@@ -344,7 +379,7 @@ public struct GomokuView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
         }
     }
 
@@ -353,6 +388,14 @@ public struct GomokuView: View {
         BoardGameControlBar(
             model: model, services: services, rescue: undoRescue,
             hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
+            extraItems: [
+                // 盤のタップの方式（#2297）。慣れた人は 1 タップで置くへ戻せる。
+                GameControlMenuItem(id: "confirmPlacement", title: tr("タップは2回で置く"), systemImage: "hand.tap",
+                                    isChecked: model.confirmsPlacement,
+                                    accessibilityHint: tr("オンのとき、1回目のタップで仮置き、同じ交点をもう一度タップで確定します")) {
+                    model.setConfirmsPlacement(!model.confirmsPlacement)
+                }
+            ],
             onResign: { model.resign() }
         )
     }
@@ -617,30 +660,42 @@ struct GomokuNewGameSheet: View {
             kind: .versus,
             onStart: { onStart(side, level, renju) }, onCancel: onCancel
         ) {
-            GameSetupSection("あなたの石") {
+            GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: "●黒", subtitle: "先手",
+                    GameSetupChooser(title: tr("●黒"), subtitle: tr("先手"),
                                      selected: side == .black, accent: Theme.fillStrong,
                                      onAccent: .white) { side = .black }
-                    GameSetupChooser(title: "○白", subtitle: "後手",
+                    GameSetupChooser(title: tr("○白"), subtitle: tr("後手"),
                                      selected: side == .white, accent: Theme.fillMuted,
                                      onAccent: .white) { side = .white }
                 }
             }
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `SimpleGomokuEngine.init(level:)` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [
-                    "見のがしが多い", "浅い読み", "標準", "深い読み",
+                    tr("見のがしが多い"), tr("浅い読み"), tr("標準"), tr("深い読み"),
                 ])
             }
             // 既定はオフ（自由五目）。オンにすると黒だけが三三・四四・長連を打てなくなる。
-            GameSetupSection("禁じ手（連珠ルール）") {
+            GameSetupSection(tr("禁じ手（連珠ルール）")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: "なし", subtitle: "自由五目",
+                    GameSetupChooser(title: tr("なし"), subtitle: tr("自由五目"),
                                      selected: !renju, accent: Theme.Fill.teal)   { renju = false }
-                    GameSetupChooser(title: "あり", subtitle: "黒に三三・四四・長連",
+                    GameSetupChooser(title: tr("あり"), subtitle: tr("黒に三三・四四・長連"),
                                      selected: renju,  accent: Theme.Fill.purple) { renju = true }
                 }
+            }
+            // 選んでいる方の遊び方の要点を、図つきでそのまま並べる（#2044・#2268）。禁じ手ありは三三の図まで出す。
+            // カードは「？」の遊び方シートと同じ部品で、中身も「？」と同じ（`GomokuView` の `.howToPlay`）。
+            GameSetupSection(tr("ルールの要点")) {
+                let guide = GomokuHowToFigures.guide(forbiddenMoves: renju)
+                VStack(spacing: 10) {
+                    ForEach(Array(guide.items.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    if !guide.notes.isEmpty { HowToPlayNotesCard(guide.notes) }
+                }
+                .id(renju)
             }
         }
     }

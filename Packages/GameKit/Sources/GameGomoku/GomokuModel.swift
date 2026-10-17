@@ -57,6 +57,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var isThinking: Bool
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var moveCount: Int
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var undoUsed: Bool
     /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェスと共通）。
     public private(set) var hints: BoardHintBudget
@@ -73,12 +75,24 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// View はこれを盤上の勝ち筋として光らせ、「なぜ負けたか」を見せる。
     public private(set) var winningLine: [GomokuPoint]?
     private var resigned: Bool
+    /// 仮置き中の交点（#2297）。1 回目のタップで照準だけ置き、同じ交点の再タップで確定する。
+    /// **永続化しない**（中断データに入れず、復元時は無し）。着手・投了・待った・新規対局で消える。
+    public private(set) var pendingPoint: GomokuPoint?
+    /// 盤のタップを「仮置き → 確定」の 2 段にするか（#2297）。既定は 2 段。
+    /// 端末内の固定キー 1 つ（`Self.confirmsPlacementKey`・Bool の上書き）にだけ保存し、サーバは使わない。
+    public private(set) var confirmsPlacement: Bool
+    @ObservationIgnored private let defaults: UserDefaults
+    /// 保存キー。改名すると、既に選んでいる人の設定が既定（2 段）へ戻る。
+    static let confirmsPlacementKey = "gomokuConfirmsPlacement_v1"
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     public let gameID = "gomoku"
     private var startedAt: Date
     private var moves: [(row: Int, col: Int, stone: GomokuStone)]
+    /// 手順を持たない旧形式の中断データから復元した石（#2200）。打たれた順が分からないので `moves` には
+    /// 入れず、盤の土台として別に持つ。再保存・待ったで盤を作り直すときもここから始めるので、復元前の石は消えない。
+    private var baseBoard = GomokuBoard()
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
@@ -88,8 +102,10 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// CPU の初手が起動しない（#140。将棋 #82 と同じ原因）。対局の通し番号と組にする。
     public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: moveCount) }
 
-    public init(services: GameServices? = nil) {
+    public init(services: GameServices? = nil, defaults: UserDefaults = .standard) {
         self.services = services
+        self.defaults = defaults
+        self.confirmsPlacement = defaults.object(forKey: Self.confirmsPlacementKey) as? Bool ?? true
 
         let board: GomokuBoard
         let currentStone: GomokuStone
@@ -99,6 +115,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         let startedAt: Date
         let moveCount: Int
         let moves: [(row: Int, col: Int, stone: GomokuStone)]
+        let baseBoard: GomokuBoard
         let lastMove: (row: Int, col: Int)?
         let undoUsed: Bool
         let resigned: Bool
@@ -125,8 +142,18 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
                     return (rec.row, rec.col, stone)
                 }
                 moves     = parsed
-                board     = Self.board(from: parsed)
-                moveCount = parsed.count
+                // 手順に無い石（旧形式から再開して保存し直した局の復元前の石）は `cells` から土台として拾う（#2200）。
+                var base = GomokuBoard()
+                if snap.cells.count == gomokuBoardSize * gomokuBoardSize {
+                    for (index, raw) in snap.cells.enumerated() {
+                        guard let raw, let stone = GomokuStone(rawValue: raw) else { continue }
+                        let row = index / gomokuBoardSize, col = index % gomokuBoardSize
+                        if !parsed.contains(where: { $0.0 == row && $0.1 == col }) { base[row, col] = stone }
+                    }
+                }
+                baseBoard = base
+                board     = Self.board(from: parsed, base: base)
+                moveCount = board.moveCount
                 if let last = parsed.last {
                     lastMove      = (last.0, last.1)
                     currentStone  = last.2.opponent
@@ -140,6 +167,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
                 currentStone = GomokuStone(rawValue: snap.currentStone) ?? .black
                 moveCount    = cells.compactMap { $0 }.count
                 moves        = []
+                baseBoard    = board
                 lastMove     = nil
             }
             undoUsed    = snap.undoUsed ?? false
@@ -156,6 +184,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             startedAt    = Date()
             moveCount    = 0
             moves        = []
+            baseBoard    = GomokuBoard()
             lastMove     = nil
             undoUsed     = false
             resigned     = false
@@ -172,6 +201,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         self.startedAt    = startedAt
         self.moveCount    = moveCount
         self.moves        = moves
+        self.baseBoard    = baseBoard
         // savedWinner が最優先。なければ resign フラグで補完（旧スナップショット互換）
         self.winner       = savedWinner ?? (resigned ? humanSide.opponent : nil)
         self.isDraw       = (savedWinner == nil && !resigned && board.isFull)
@@ -211,12 +241,43 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public func tap(row: Int, col: Int) {
         // 決着後は結果表示が出ているので、拒否として鳴らさず黙って無視する。
         guard !gameOver else { return }
-        guard !isAITurn else { return reject(.notYourTurn) }
-        guard row >= 0, row < gomokuBoardSize,
-              col >= 0, col < gomokuBoardSize else { return reject(.outOfBoard) }
-        guard board[row, col] == nil else { return reject(.occupied) }
-        if let reason = forbiddenReason(row: row, col: col) { return reject(.forbidden(reason)) }
+        if let reason = rejection(row: row, col: col) { return reject(reason) }
         place(row: row, col: col)
+    }
+
+    /// 指での盤タップ（#2297）。設定が 2 段のとき、1 回目は仮置き・同じ交点の再タップで確定する。
+    /// 別の交点なら仮置きがそこへ移る。打てない交点は従来どおり拒否（仮置きは動かさない）。
+    /// VoiceOver の交点グリッドは 2 度押しを強いないよう、これを通さず `tap` を直接呼ぶ。
+    public func tapOnBoard(row: Int, col: Int) {
+        guard confirmsPlacement else { return tap(row: row, col: col) }
+        guard !gameOver else { return }
+        if let reason = rejection(row: row, col: col) { return reject(reason) }
+        let point = GomokuPoint(row: row, col: col)
+        if pendingPoint == point {
+            place(row: row, col: col)   // 確定。`place` が仮置きを消す
+        } else {
+            pendingPoint = point
+            // 打てる交点を選び直したので、直前の禁じ手の帯は引っ込める。
+            lastRejection = nil
+            services?.feedback.impact(.light)
+        }
+    }
+
+    /// 「タップで置く」の方式を切り替える（#2297）。切り替えたら仮置きは捨てる。
+    public func setConfirmsPlacement(_ value: Bool) {
+        confirmsPlacement = value
+        pendingPoint = nil
+        defaults.set(value, forKey: Self.confirmsPlacementKey)
+    }
+
+    /// 今のタップが拒否される理由。打てるなら `nil`（決着後は呼ばない）。
+    private func rejection(row: Int, col: Int) -> GomokuTapRejection? {
+        guard !isAITurn else { return .notYourTurn }
+        guard row >= 0, row < gomokuBoardSize,
+              col >= 0, col < gomokuBoardSize else { return .outOfBoard }
+        guard board[row, col] == nil else { return .occupied }
+        if let reason = forbiddenReason(row: row, col: col) { return .forbidden(reason) }
+        return nil
     }
 
     /// 現在の手番がその交点へ打てない禁じ手の理由（#441）。打てるなら `nil`。
@@ -240,6 +301,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastRejection = nil
         // 盤が動いたらヒントの印は用済み（#1118）。示した交点に打ったかどうかは問わない。
         hintPoint = nil
+        pendingPoint = nil
         board[row, col] = currentStone
         moves.append((row, col, currentStone))
         lastMove = (row, col)
@@ -320,6 +382,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } commit: { move in
             guard isAITurn, let (r, c) = move, board[r, c] == nil else { return }
             place(row: r, col: c)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 
@@ -331,6 +394,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
+    /// ヒントの読みの待ち合わせ点（テスト専用。本番では nil のまま。将棋の `thinkingGate` と同じ）。
+    @ObservationIgnored var hintThinkingGate: (@MainActor () async -> Void)?
 
     /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
@@ -354,6 +419,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 五目並べの level 0（弱）は探索せず確率で見逃すので、合わせると最善手にならない（#665）。
@@ -392,6 +458,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 await SimpleGomokuEngine.hint(forbiddenMoves: renju)
                     .bestMove(board: b, stone: stone)
@@ -423,11 +490,13 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastMove       = nil
         moveCount      = 0
         moves          = []
+        baseBoard      = GomokuBoard()
         undoUsed       = false
         resigned       = false
         // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
         hints.reset()
         hintPoint      = nil
+        pendingPoint   = nil
         recordResult   = nil
         startedAt      = Date()
         gameSerial    += 1
@@ -449,6 +518,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastRejection = nil
         // ヒントの印も同じ理由で片付ける（#1118）。
         hintPoint = nil
+        pendingPoint = nil
         resigned = true
         winner = humanSide.opponent
         services?.feedback.notify(.error)
@@ -465,7 +535,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
     public var canUndo: Bool {
-        guard !gameOver, !isAITurn, !isThinking else { return false }
+        // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
+        guard !gameOver, !isAITurn, !isThinking, !isHintThinking else { return false }
         let n = moves.count
         guard n >= 2 else { return false }
         return mover(at: n - 1) == humanSide.opponent && mover(at: n - 2) == humanSide
@@ -478,9 +549,10 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastRejection = nil
         // ヒントの印も 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
         hintPoint = nil
+        pendingPoint = nil
         moves.removeLast(2)
-        board        = Self.board(from: moves)
-        moveCount    = moves.count
+        board        = Self.board(from: moves, base: baseBoard)
+        moveCount    = board.moveCount
         winner       = nil
         isDraw       = false
         undoUsed     = true
@@ -515,8 +587,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         return snap.cells.count == gomokuBoardSize * gomokuBoardSize
     }
 
-    private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {
-        var board = GomokuBoard()
+    private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)], base: GomokuBoard) -> GomokuBoard {
+        var board = base
         for move in moves {
             board[move.row, move.col] = move.stone
         }

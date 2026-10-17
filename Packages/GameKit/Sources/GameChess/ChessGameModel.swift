@@ -9,6 +9,8 @@ import Core
 public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var position: ChessPosition
     public private(set) var legalMovesCache: [ChessMove]
 
@@ -287,6 +289,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
+            services?.feedback.impact(.selection)
         } else {
             // 駒を選んだ状態で指せないマスを叩いた = 着手の拒否。
             if selectedSquare != nil { services?.feedback.notify(.warning) }
@@ -459,6 +462,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             guard isAITurn, let uci, let move = ChessMove.fromUCI(uci),
                   legalMovesCache.contains(move) else { return }
             apply(move)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 
@@ -598,7 +602,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
     public var canUndo: Bool {
-        guard phase == .playing, !gameOver, !isAITurn, !isThinking, pendingPromotion == nil else {
+        // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
+        guard phase == .playing, !gameOver, !isAITurn, !isThinking, !isHintThinking, pendingPromotion == nil else {
             return false
         }
         let n = moves.count

@@ -125,9 +125,9 @@ struct GameActionRowTests {
     @Test("麻雀ソリティアと神経衰弱の 2 行目は広告の有無を ▶ で見せる")
     func mahjongAndConcentrationBadges() throws {
         let mahjong = SourceScan.strippingComments(try SourceScan.moduleSources("GameMahjongSolitaire"))
-        #expect(SourceScan.matchCount(of: #"id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: \.hint, badge: \.ad\(\)"#, in: mahjong) == 1,
+        #expect(SourceScan.matchCount(of: #"id: "hint", title: tr\("ヒント"\), systemImage: "lightbulb.fill", role: \.hint, badge: \.ad\(\)"#, in: mahjong) == 1,
                 "麻雀ソリティアのヒントの 2 行目が「▶ 広告を見て」でない")
-        #expect(SourceScan.matchCount(of: #"id: "shuffle", title: "並べ替え", systemImage: "shuffle", role: \.primary, badge: \.ad\(\)"#, in: mahjong) == 1,
+        #expect(SourceScan.matchCount(of: #"id: "shuffle", title: tr\("並べ替え"\), systemImage: "shuffle", role: \.primary, badge: \.ad\(\)"#, in: mahjong) == 1,
                 "麻雀ソリティアの並べ替えの 2 行目が「▶ 広告を見て」でない")
         let concentration = SourceScan.strippingComments(try SourceScan.moduleSources("GameConcentration"))
         #expect(concentration.contains("badge: model.mattaUsed ? .ad() : .count(1)"),
@@ -179,7 +179,7 @@ struct GameActionRowTests {
           arguments: ["GameMahjongSolitaire", "GameSudoku"])
     func undoLabelAnnouncesAdWhenUsedUp(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
-        #expect(SourceScan.matchCount(of: #"accessibilityLabel: model\.undosRemaining > 0\s*\?[^:]*:\s*"[^"]*広告を見て"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"accessibilityLabel: model\.undosRemaining > 0\s*\?[^:]*:\s*tr\("[^"]*広告を見て"#, in: source) == 1,
                 "\(module) の戻すの読み上げが残り 0 回で広告に触れていない")
     }
 
@@ -200,9 +200,9 @@ struct GameActionRowTests {
     @Test("行の左端にあった一言は、段のあるゲームでも読める場所に残る")
     func captionsSurviveTheRow() throws {
         let concentration = SourceScan.strippingComments(try SourceScan.moduleSources("GameConcentration"))
-        #expect(concentration.contains(#"note: model.canMatta ? "今だけ！" : nil"#), "神経衰弱の「今だけ」が消えている")
+        #expect(concentration.contains(#"note: model.canMatta ? tr("今だけ！") : nil"#), "神経衰弱の「今だけ」が消えている")
         let spider = SourceScan.strippingComments(try SourceScan.moduleSources("GameSpider"))
-        #expect(spider.contains(#"GameOverflowCaption("空の列を埋めると配れます""#), "スパイダーの配れない理由が消えている")
+        #expect(spider.contains(#"GameOverflowCaption(tr("空の列を埋めると配れます")"#), "スパイダーの配れない理由が消えている")
         let solitaire = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSolitaire/SolitaireView.swift"))
         let status = try #require(SourceScan.declaration(of: "private var statusBar: some View", in: solitaire))
         #expect(status.contains("if model.rules.drawMode != .one {"), "ソリティアのルール名が帯に無い")

@@ -60,7 +60,7 @@ public struct SolitaireView: View {
                 .cardTable(topInset: CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
-                               details: ["\(model.moveCount)手 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
+                               details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
                 .padding(.horizontal, CardStackLayout.boardSideInset)
                 .layoutPriority(1)
             SolitaireControlsView(
@@ -80,11 +80,11 @@ public struct SolitaireView: View {
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "ソリティア", review: services.review,
+        .gameChrome(title: tr("ソリティア"), review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
-        .howToPlay(.solitaire) { SolitaireRuleSheet() }
+        .howToPlay(HowToPlayGuide.solitaire.illustrated(SolitaireHowToFigures.items)) { SolitaireRuleSheet() }
         // めくり方を選んでから配る（#498）。局に焼き込むのは「配る」を押した瞬間だけ。
         .sheet(isPresented: $showSetup) {
             SolitaireSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
@@ -96,23 +96,23 @@ public struct SolitaireView: View {
         }
         .rewardedRescueAlerts(
             jokerRescue,
-            notEarned: "ジョーカーをもらえませんでした",
+            notEarned: tr("ジョーカーをもらえませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ジョーカーを受け取れませんでした",
-                message: "広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。"
+                title: tr("ジョーカーを受け取れませんでした"),
+                message: tr("広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。")
             )
         )
         .dialogs { anchor in
-            anchor.alert("この盤からは勝てません", isPresented: hopelessBinding) {
+            anchor.alert(tr("この盤からは勝てません"), isPresented: hopelessBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+                Text(tr("「戻す」で戻れます。ヒントの回数は減っていません。"))
             }
-            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-                Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
-                Button("キャンセル", role: .cancel) {}
+            .alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
+                Button(tr("広告を見て%lld回補充する", SolitaireUndoBudget.refill)) { requestUndoRefill() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。", SolitaireUndoBudget.refill))
             }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
@@ -122,18 +122,18 @@ public struct SolitaireView: View {
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
-            notEarned: "「戻す」を補充できませんでした",
+            notEarned: tr("「戻す」を補充できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "「戻す」を補充できませんでした",
-                message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
+                title: tr("「戻す」を補充できませんでした"),
+                message: tr("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
             )
         )
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを表示できませんでした",
+            notEarned: tr("ヒントを表示できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。")
             )
         )
         // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
@@ -212,13 +212,13 @@ public struct SolitaireView: View {
             HStack(spacing: 8) {
                 Group {
                     if model.phase == .won {
-                        Label("クリア！", systemImage: "flag.checkered")
+                        Label(tr("クリア！"), systemImage: "flag.checkered")
                             .themeBody(15)
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.tealText)
                     } else {
-                        Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
+                        Label(tr("%lld手", model.moveCount), systemImage: "hand.tap.fill")
                             .scaledFont(15, weight: .bold, design: .monospaced)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                     }
                 }
                 .lineLimit(1)
@@ -276,7 +276,7 @@ public struct SolitaireView: View {
     private func requestHint() {
         guard !hintRescue.isWatching, model.canUseHint else { return }
         if model.needsAdForHint {
-            hintRescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+            hintRescue.requestHandledByModel(withOutcome: { readDidFinish in await model.requestAdHint(readDidFinish: readDidFinish) }, until: services.screenGeneration)
         } else {
             services.screenGeneration.runUntilLeave { await model.requestHint() }
         }
@@ -314,18 +314,18 @@ public struct SolitaireView: View {
 /// 「遊び方」シートから開く詳細ページ。組み方は `MahjongSolitaireRuleSheet` と同じ。
 struct SolitaireRuleSheet: View {
     /// 文言はテストから検証したいので型の外に出しておく。
-    static let rules: [(String, String)] = [
-        ("ゲームの流れ", "配られた52枚を、右上の組札（4か所）に ♠♥♦♣ ごとに A から K まで順に積み上げれば クリアです。クロンダイクと呼ばれる、いちばん標準的なソリティアです"),
-        ("場札の並べ方", "場札（下の7列）には、ひとつ上の札より1つ小さくて色ちがいの札だけを置けます（黒の8 の上には 赤の7）。そろっている並びは何枚でもまとめて動かせます"),
-        ("空いた列", "札が無くなった列に置けるのは K だけです。K を引くまで空けておくか、思い切って埋めるかがクロンダイクの読みどころです"),
-        ("山札", "左上の山札はタップでめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）"),
-        ("めくり方を選ぶ", "「新規ゲーム」を押すと、山札を1枚ずつめくるか3枚ずつめくるかを選べます。3枚めくりでは使えるのがいちばん上の1枚だけになるぶん歯ごたえがあり、自己ベストは1枚めくりとは別に記録されます（Game Center の順位表に載るのは1枚めくりだけです）。選んだめくり方はその配札のあいだ変わりません"),
-        ("操作", "動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます"),
-        ("戻す", "「戻す」は1局につき\(SolitaireUndoBudget.free)回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充できます"),
-        ("ジョーカー", "1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります"),
-        ("ジョーカーの補充", "使い切ったあと、手詰まりになったときや、指せる手はあってもクリアできなくなったときに、広告を見て1枚受け取れます。「戻す」でジョーカーを置いた手を巻き戻せば、手持ちに戻ります。ジョーカーを使ってクリアした記録は、自己ベストには残りますが Game Center の順位表には送りません"),
-        ("配られる札", "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります"),
-    ]
+    static var rules: [(String, String)] { [
+        (tr("ゲームの流れ"), tr("配られた52枚を、右上の組札（4か所）に ♠♥♦♣ ごとに A から K まで順に積み上げれば クリアです。クロンダイクと呼ばれる、いちばん標準的なソリティアです")),
+        (tr("場札の並べ方"), tr("場札（下の7列）には、ひとつ上の札より1つ小さくて色ちがいの札だけを置けます（黒の8 の上には 赤の7）。そろっている並びは何枚でもまとめて動かせます")),
+        (tr("空いた列"), tr("札が無くなった列に置けるのは K だけです。K を引くまで空けておくか、思い切って埋めるかがクロンダイクの読みどころです")),
+        (tr("山札"), tr("左上の山札はタップでめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）")),
+        (tr("めくり方を選ぶ"), tr("「新規ゲーム」を押すと、山札を1枚ずつめくるか3枚ずつめくるかを選べます。3枚めくりでは使えるのがいちばん上の1枚だけになるぶん歯ごたえがあり、自己ベストは1枚めくりとは別に記録されます（Game Center の順位表に載るのは1枚めくりだけです）。選んだめくり方はその配札のあいだ変わりません")),
+        (tr("操作"), tr("動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます")),
+        (tr("戻す"), tr("「戻す」は1局につき%1$lld回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると%2$lld回ぶん補充できます", SolitaireUndoBudget.free, SolitaireUndoBudget.refill)),
+        (tr("ジョーカー"), tr("1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります")),
+        (tr("ジョーカーの補充"), tr("使い切ったあと、手詰まりになったときや、指せる手はあってもクリアできなくなったときに、広告を見て1枚受け取れます。「戻す」でジョーカーを置いた手を巻き戻せば、手持ちに戻ります。ジョーカーを使ってクリアした記録は、自己ベストには残りますが Game Center の順位表には送りません")),
+        (tr("配られる札"), tr("出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります")),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: Self.rules)

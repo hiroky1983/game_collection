@@ -23,7 +23,10 @@ public struct Game2048View: View {
         VStack(spacing: 14) {
             header
             boardView
+            // 「戻す」は盤から離す（#2253）。広げたぶんは「戻す」の段の下側の余白から詰めて
+            // 縦の合計を据え置く（SE では盤の大きさが縦で決まるため、合計が増えると盤が縮む）。
             gameControls
+                .padding(.bottom, -Self.undoGapExtra)
             // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.game2048, playLog: services.playLog)
             recommendationArea
@@ -39,29 +42,29 @@ public struct Game2048View: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(.game2048)
+        .howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items))
         .dialogs { anchor in
-            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると、いまの盤面と得点が失われます。")
+                Text(tr("途中で終了すると、いまの盤面と得点が失われます。"))
             }
-            anchor.alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-                Button("広告を見て\(Game2048UndoBudget.refill)回補充する") { requestUndoRefill() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
+                Button(tr("広告を見て%lld回補充する", Game2048UndoBudget.refill)) { requestUndoRefill() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(Game2048UndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。", Game2048UndoBudget.refill))
             }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
-            notEarned: "「戻す」を補充できませんでした",
+            notEarned: tr("「戻す」を補充できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "「戻す」を補充できませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。"
+                title: tr("「戻す」を補充できませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。")
             )
         )
         .onAppear {
@@ -72,7 +75,25 @@ public struct Game2048View: View {
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulate2048Move"), i + 1 < args.count,
                let direction = Self.direction(named: args[i + 1]) {
-                withGameAnimation(.easeInOut(duration: 0.12)) { model.move(direction) }
+                withGameAnimation(Self.slideAnimation) { model.move(direction) }
+            }
+            // 動作確認用: `-simulate2048Moves left,up,undo,new,...` を `-simulate2048MoveInterval`（秒・既定 0.6）おきに
+            // 指す（#2253 のスライドの画面収録用。シミュレータではスワイプを打てないため）。
+            if let i = args.firstIndex(of: "-simulate2048Moves"), i + 1 < args.count {
+                let steps = args[i + 1].split(separator: ",").map(String.init)
+                let interval = args.firstIndex(of: "-simulate2048MoveInterval")
+                    .flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil } ?? 0.6
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.5))
+                    for step in steps {
+                        switch step {
+                        case "undo": requestUndo()
+                        case "new": withGameAnimation { model.newGame() }
+                        default: if let direction = Self.direction(named: step) { slide(direction) }
+                        }
+                        try? await Task.sleep(for: .seconds(interval))
+                    }
+                }
             }
             // 撮影・動作確認用: `-simulate2048GameOver` でゲームオーバーの幕（盤だけに重ねる・#1486）を出す。
             if args.contains("-simulate2048GameOver") {
@@ -82,10 +103,10 @@ public struct Game2048View: View {
         }
         .rewardedRescueAlerts(
             continueRescue,
-            notEarned: "コンティニューできませんでした",
+            notEarned: tr("コンティニューできませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "コンティニューできませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+                title: tr("コンティニューできませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
             )
         )
     }
@@ -94,16 +115,16 @@ public struct Game2048View: View {
     private var gameControls: some View {
         GameOverflowBar(actions: [
             GameActionItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !undoRescue.isWatching && !continueRescue.isWatching,
                 // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
                 accessibilityLabel: model.undosRemaining > 0
-                    ? "1手戻す（残り\(model.undosRemaining)回）"
-                    : "1手戻す（広告を見て補充）",
+                    ? tr("1手戻す（残り%lld回）", model.undosRemaining)
+                    : tr("1手戻す（広告を見て補充）"),
                 accessibilityHint: model.canUndo
-                    ? "直前のスワイプの前の盤面と得点に戻します"
-                    : "戻せる手がありません"
+                    ? tr("直前のスワイプの前の盤面と得点に戻します")
+                    : tr("戻せる手がありません")
             ) { requestUndo() },
         ])
         .lineLimit(1)
@@ -116,7 +137,7 @@ public struct Game2048View: View {
         if model.needsUndoRefill {
             showUndoRefillPrompt = true
         } else {
-            withGameAnimation(.easeInOut(duration: 0.12)) { _ = model.undo() }
+            withGameAnimation(Self.slideAnimation) { _ = model.undo() }
         }
     }
 
@@ -144,7 +165,7 @@ public struct Game2048View: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("スコア")
+                Text(tr("スコア"))
                     .themeCaption(12, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.score)")
@@ -164,21 +185,32 @@ public struct Game2048View: View {
         GeometryReader { geo in
             let spacing: CGFloat = 8
             let n = Game2048Logic.size
-            let tileSize = (geo.size.width - spacing * CGFloat(n + 1)) / CGFloat(n)
-            ZStack {
+            // GeometryReader は最初に大きさ 0 を渡すことがあるので、負の寸法にしない。
+            let tileSize = max(0, (geo.size.width - spacing * CGFloat(n + 1)) / CGFloat(n))
+            ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Color(hex: 0xE7C9A8))
                     .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
+                // 空きマスの下地。タイルはこの上に座標で置いて滑らせる。
                 VStack(spacing: spacing) {
-                    ForEach(0..<n, id: \.self) { r in
+                    ForEach(0..<n, id: \.self) { _ in
                         HStack(spacing: spacing) {
-                            ForEach(0..<n, id: \.self) { c in
-                                TileView(value: model.board[r][c], size: tileSize)
+                            ForEach(0..<n, id: \.self) { _ in
+                                TileView(value: 0, size: tileSize)
                             }
                         }
                     }
                 }
                 .padding(spacing)
+                // タイルは ID ごとに 1 つのビューを保ち、行・列の変化を座標のアニメーションにする（#2253）。
+                // 合体元の 2 枚（`vanishing`）も同じ ForEach に入れる。別の ForEach に移すと別のビュー扱いになり、
+                // 滑らずにその場で消えてしまう。
+                ForEach(drawnTiles, id: \.tile.id) { item in
+                    Game2048TileView(tile: item.tile, size: tileSize, appearDelay: Self.slideDuration)
+                        .offset(x: spacing + CGFloat(item.tile.col) * (tileSize + spacing),
+                                y: spacing + CGFloat(item.tile.row) * (tileSize + spacing))
+                        .zIndex(item.isVanishing ? 0 : 1)
+                }
             }
             // 支援技術にだけ 16 マスを見せる（#712）。勝敗の幕（下の overlay）より手前に付けるので、
             // 幕の「続ける」「もう一度」などのボタンは置き換わらずそのまま読める。
@@ -194,11 +226,34 @@ public struct Game2048View: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
-        // 盤の下に操作の段が増えても、余りを Spacer と山分けして盤が縮まないよう盤を先に確保する（#2023）。
-        .layoutPriority(1)
-        .gameAnimation(.easeInOut(duration: 0.12), value: model.board)
+        // 盤の直下の余白もスワイプの範囲にする（#2253）。盤の下端ぎりぎりから始めたスワイプを「戻す」が拾わないよう、
+        // 盤 → スワイプの余白 → 何も反応しない余白 → 「戻す」の順に並べる。
+        .padding(.bottom, Self.undoGapExtra)
         .contentShape(Rectangle())
         .gesture(swipeGesture)
+        // 盤の下に操作の段が増えても、余りを Spacer と山分けして盤が縮まないよう盤を先に確保する（#2023）。
+        .layoutPriority(1)
+        // 合体元の 2 枚は滑り終えたら片付ける。次の手が先に来たら、その手の中で入れ替わる。
+        // 待ち始めたときの ID を控えて渡し、キャンセルが間に合わなくても次の手の合体元は消さない。
+        .task(id: model.vanishing.map(\.id)) {
+            let ids = model.vanishing.map(\.id)
+            guard !ids.isEmpty else { return }
+            try? await Task.sleep(for: .seconds(Self.slideDuration + 0.1))
+            guard !Task.isCancelled else { return }
+            model.settleVanishing(ids: ids)
+        }
+    }
+
+    /// 「戻す」の段を盤から追加で離す量（#2253）。盤の下端 → 「戻す」のすき間は 22pt → 34pt。
+    static let undoGapExtra: CGFloat = 12
+
+    /// タイルが滑る時間（#2253）。合体の弾み・新しいタイルはこの後に出る。
+    static let slideDuration: Double = 0.12
+    static let slideAnimation: Animation = .easeInOut(duration: slideDuration)
+
+    /// 描く順（合体元の 2 枚 → 盤のタイル）。ID は両者で重ならない。
+    private var drawnTiles: [(tile: Game2048Tile, isVanishing: Bool)] {
+        model.vanishing.map { ($0, true) } + model.tiles.map { ($0, false) }
     }
 
     /// 2048 初到達の勝利演出（#438）。原典と同じく、ここから同じ盤面のまま続けられる。
@@ -206,17 +261,17 @@ public struct Game2048View: View {
         ZStack {
             RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
-                Text("2048 達成！").font(.title2.bold()).foregroundStyle(.white)
+                Text(tr("2048 達成！")).font(.title2.bold()).foregroundStyle(.white)
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 Button {
                     withGameAnimation { model.continueAfterWin() }
                 } label: {
-                    Label("続ける", systemImage: "arrow.forward.circle.fill")
+                    Label(tr("続ける"), systemImage: "arrow.forward.circle.fill")
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Fill.coral)
-                Button("もう一度") { withGameAnimation { model.newGame() } }
+                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)
                     .tint(.white)
             }
@@ -225,14 +280,14 @@ public struct Game2048View: View {
 
     private var gameOverOverlay: some View {
         RewardedContinueOverlay(
-            title: "ゲームオーバー",
+            title: tr("ゲームオーバー"),
             detail: RecordLabel(model.recordResult, textColor: .white.opacity(0.85)),
-            rescueLabel: "広告を見てコンティニュー",
+            rescueLabel: tr("広告を見てコンティニュー"),
             canContinue: !model.continueUsed,
             rescue: continueRescue, services: services, gameID: model.gameID,
             serial: model.gameSerial,
             grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
-            secondaryTitle: "もう一度",
+            secondaryTitle: tr("もう一度"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }
@@ -264,7 +319,7 @@ public struct Game2048View: View {
 
     /// スワイプと VoiceOver のアクションが共通で通る 1 手。
     private func slide(_ direction: Direction) {
-        withGameAnimation(.easeInOut(duration: 0.12)) {
+        withGameAnimation(Self.slideAnimation) {
             model.move(direction)
         }
     }
@@ -306,6 +361,61 @@ public struct Game2048View: View {
     }
 }
 
+/// 盤の上で動く 1 枚（#2253）。位置は親が `offset` で決め、ここは出方だけを持つ。
+/// - 合体してできたタイル: 滑り終える（`appearDelay`）まで隠し、出たら軽く弾む。その間は合体元の 2 枚が滑って見える。
+/// - 新しいタイル: 滑り終えてから小さい所から出る。
+/// - それ以外（滑ってきた・作り直した）: そのまま見せる。
+/// Reduce Motion のときは待たずにそのまま出す。
+struct Game2048TileView: View {
+    let tile: Game2048Tile
+    let size: CGFloat
+    let appearDelay: Double
+
+    @State private var isShown: Bool
+    @State private var scale: CGFloat
+
+    init(tile: Game2048Tile, size: CGFloat, appearDelay: Double) {
+        self.tile = tile
+        self.size = size
+        self.appearDelay = appearDelay
+        let waits = tile.arrival == .merged || tile.arrival == .spawned
+        _isShown = State(initialValue: !waits)
+        _scale = State(initialValue: tile.arrival == .spawned ? 0.3 : 1)
+    }
+
+    var body: some View {
+        TileView(value: tile.value, size: size)
+            .scaleEffect(scale)
+            .opacity(isShown ? 1 : 0)
+            // 合体・出現の入り方は下の task が受け持つ。挿入・削除の既定のフェードは、戻す・新しいゲームの作り直しにだけ効かせる。
+            .transition(tile.arrival == .placed ? .opacity : .asymmetric(insertion: .identity, removal: .opacity))
+            .task { await appear() }
+    }
+
+    private func appear() async {
+        guard !isShown else { return }
+        if Motion.isReduceMotionEnabled {
+            isShown = true
+            scale = 1
+            return
+        }
+        try? await Task.sleep(for: .seconds(appearDelay))
+        guard !Task.isCancelled else { return }
+        switch tile.arrival {
+        case .merged:
+            isShown = true
+            withGameAnimation(.easeOut(duration: 0.07)) { scale = 1.12 }
+            try? await Task.sleep(for: .seconds(0.07))
+            withGameAnimation(.easeIn(duration: 0.08)) { scale = 1 }
+        default:
+            withGameAnimation(.easeOut(duration: 0.12)) {
+                isShown = true
+                scale = 1
+            }
+        }
+    }
+}
+
 /// 1 タイル。値に応じて配色する。
 struct TileView: View {
     let value: Int
@@ -320,30 +430,34 @@ struct TileView: View {
                     Text("\(value)")
                         .font(.system(size: fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .minimumScaleFactor(0.4)
-                        .foregroundStyle(value <= 4 ? Color(white: 0.35) : .white)
+                        .foregroundStyle(Color(hex: Self.textHex))
                         .padding(2)
                 }
             }
-            .id(value) // 値変化時に出現アニメを効かせる
-            .transition(.scale.combined(with: .opacity))
     }
 
     private var fontSize: CGFloat { value >= 1024 ? size * 0.28 : size * 0.38 }
 
-    private var color: Color {
+    private var color: Color { Color(hex: Self.faceHex(for: value)) }
+
+    /// 文字色（`0xRRGGBB`）。全タイルで濃い茶を使う。明るい橙・黄の面に白文字だと 1.5〜2.6:1 しか出なかった（#2233）。
+    static let textHex: UInt32 = 0x33241A
+
+    /// 面色（`0xRRGGBB`）。文字色とのコントラスト比 4.5:1 以上をテストで固定している。
+    static func faceHex(for value: Int) -> UInt32 {
         switch value {
-        case 0:     return Color(hex: 0xD8C3A2)
-        case 2:     return Color(red: 0.93, green: 0.89, blue: 0.85)
-        case 4:     return Color(red: 0.93, green: 0.88, blue: 0.78)
-        case 8:     return Color(red: 0.95, green: 0.69, blue: 0.47)
-        case 16:    return Color(red: 0.96, green: 0.58, blue: 0.39)
-        case 32:    return Color(red: 0.96, green: 0.49, blue: 0.37)
-        case 64:    return Color(red: 0.96, green: 0.37, blue: 0.23)
-        case 128:   return Color(red: 0.93, green: 0.81, blue: 0.45)
-        case 256:   return Color(red: 0.93, green: 0.80, blue: 0.38)
-        case 512:   return Color(red: 0.93, green: 0.78, blue: 0.31)
-        case 1024:  return Color(red: 0.93, green: 0.77, blue: 0.25)
-        default:    return Color(red: 0.93, green: 0.76, blue: 0.18)
+        case 0:     return 0xD8C3A2
+        case 2:     return 0xEDE3D9
+        case 4:     return 0xEDE0C7
+        case 8:     return 0xF2B078
+        case 16:    return 0xF59463
+        case 32:    return 0xF57D5E
+        case 64:    return 0xF55E3B
+        case 128:   return 0xEDCF73
+        case 256:   return 0xEDCC61
+        case 512:   return 0xEDC74F
+        case 1024:  return 0xEDC440
+        default:    return 0xEDC22E
         }
     }
 }

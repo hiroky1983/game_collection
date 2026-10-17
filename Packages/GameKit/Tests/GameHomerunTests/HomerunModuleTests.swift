@@ -71,8 +71,8 @@ struct HomerunModuleTests {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         #expect(view.contains("VStack(spacing: 10) { actions }"), "ボタン欄は縦並び")
         // 同じ部品で文言だけ違う。文字で回数を出す「もう一回（残り N）」・「今日はおしまい」は使わない。
-        #expect(view.contains("HomerunStartButton(model: model, title: \"打席に立つ\")"))
-        #expect(view.contains("HomerunStartButton(model: model, title: \"もう一回\")"))
+        #expect(view.contains("HomerunStartButton(model: model, title: tr(\"打席に立つ\"))"))
+        #expect(view.contains("HomerunStartButton(model: model, title: tr(\"もう一回\"))"))
         #expect(!view.contains("もう一回（残り"))
         #expect(!view.contains("今日はおしまい"))
         // 回数 0 の扱いも部品の中（押せない灰色＋すぐ下に残り時間）。
@@ -85,7 +85,7 @@ struct HomerunModuleTests {
         let barStart = try #require(tail.range(of: "\nenum HomerunActionPlacement"))
         let body = String(tail[..<barStart.lowerBound])
         #expect(!body.contains("HStack("), "結果のボタンは縦並び")
-        let again = try #require(body.range(of: "title: \"もう一回\""))
+        let again = try #require(body.range(of: "title: tr(\"もう一回\")"))
         let ad = try #require(body.range(of: "HomerunRecoveryButton("))
         let back = try #require(body.range(of: "打席前へ"))
         #expect(again.lowerBound < ad.lowerBound && ad.lowerBound < back.lowerBound)
@@ -93,7 +93,7 @@ struct HomerunModuleTests {
         let canStartBranch = try #require(body.range(of: "if model.ledger.canStart {"))
         let elseBranch = try #require(body.range(of: "} else {"))
         #expect(canStartBranch.lowerBound < again.lowerBound && again.lowerBound < elseBranch.lowerBound)
-        let countdown = try #require(body.range(of: "HomerunResetCountdown(lead: \"あと\", ending: \"無料枠が戻ります\", readsAloud: true)"))
+        let countdown = try #require(body.range(of: "HomerunResetCountdown(freePlays: true, readsAloud: true)"))
         #expect(elseBranch.lowerBound < ad.lowerBound && ad.lowerBound < countdown.lowerBound
                 && countdown.lowerBound < back.lowerBound)
         // 結果では上限に達しても「今日はここまで…」を出さない（残りの 1 行だけ・会長決定 2026-10-05）。
@@ -105,7 +105,7 @@ struct HomerunModuleTests {
         // 打席前: 打席に立つ → 広告を見てプレイ。
         let lobby = try #require(view.range(of: "@ViewBuilder private var startActions: some View {"))
         let lobbyBody = view[lobby.upperBound...].prefix(600)
-        let start = try #require(lobbyBody.range(of: "title: \"打席に立つ\""))
+        let start = try #require(lobbyBody.range(of: "title: tr(\"打席に立つ\")"))
         let lobbyAd = try #require(lobbyBody.range(of: "HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)"))
         #expect(start.lowerBound < lobbyAd.lowerBound)
     }
@@ -115,6 +115,7 @@ struct HomerunModuleTests {
         let module = HomerunModule()
         let texts = [module.title, module.description]
             + HowToPlayGuide.homerun.lines + [HowToPlayGuide.homerun.title, HowToPlayGuide.homerun.hint]
+            + HowToPlayGuide.homerun.items.map(\.text) + HowToPlayGuide.homerun.notes
             + HomerunRuleSheet.rules.flatMap { [$0.0, $0.1] }
         for banned in ["ダービー", "Derby", "derby", "パワフル", "スラッガー", "公式", "®", "™"] {
             #expect(texts.allSatisfy { !$0.contains(banned) }, "「\(banned)」を含む文言がある")
@@ -125,8 +126,9 @@ struct HomerunModuleTests {
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
-        // バナーは打席の 1 か所（#1696 で上部に足した。#1348 の無バナーは改めた）。打席前・結果の一番下は 300×250。
-        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 1, "打席に 1 つ")
+        // バナーは打席（#1696 で上部に足した。#1348 の無バナーは改めた）と週間ランキング画面（#2221）の 2 か所。
+        // 打席前・結果の一番下は 300×250。
+        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 2, "打席と週間ランキング画面に 1 つずつ")
         let screens = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunView.swift"))
         #expect(screens.components(separatedBy: "MediumRectangleSlot(ads: services.ads)").count - 1 == 2, "打席前・結果の一番下に 1 つずつ")
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
@@ -144,7 +146,7 @@ struct HomerunModuleTests {
         #expect(banner.lowerBound < pad.lowerBound && !atBat[pad.lowerBound...].contains("BannerSlot("),
                 "押せる帯にバナーを重ねない")
         #expect(code.contains("HowToPlayHint(.homerun"))
-        #expect(code.contains(".howToPlay(.homerun"))
+        #expect(code.contains(".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)"))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("Timer.") && !code.contains("DispatchQueue"), "時間は Model の締め切りを .task で待つだけ")
         #expect(code.contains(".task(id: model.step)"))

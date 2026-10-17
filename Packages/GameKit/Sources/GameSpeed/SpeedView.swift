@@ -59,10 +59,10 @@ public struct SpeedView: View {
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "スピード", review: services.review) {
+        .gameChrome(title: tr("スピード"), review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { showSetup = true } label: {
-                    Label("速さ", systemImage: "slider.horizontal.3")
+                    Label(tr("速さ"), systemImage: "slider.horizontal.3")
                 }
                 // 広告の視聴中は塞ぐ（速さを変えるとゲームが入れ替わり、見終えた広告のタイムが乗らない）。
                 .disabled(timeoutRescue.isWatching)
@@ -85,10 +85,10 @@ public struct SpeedView: View {
                      services: services, gameID: SpeedModel.gameID)
         .rewardedRescueAlerts(
             timeoutRescue,
-            notEarned: "タイムを取れませんでした",
+            notEarned: tr("タイムを取れませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "タイムを取れませんでした",
-                message: "広告を見ているあいだにゲームが終わったか、負けそうな局面ではなくなったため、タイムを取れませんでした。"
+                title: tr("タイムを取れませんでした"),
+                message: tr("広告を見ているあいだにゲームが終わったか、負けそうな局面ではなくなったため、タイムを取れませんでした。")
             )
         )
         // 広告の視聴中とバックグラウンドでは CPU を止める。あなたが触れないあいだに CPU だけが出し切ると、
@@ -124,17 +124,17 @@ public struct SpeedView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("CPU の速さ").themeCaption(11).foregroundStyle(Theme.inkSub)
-                Text(model.settings.variantLabel)
+                Text(tr("CPU の速さ")).themeCaption(11).foregroundStyle(Theme.inkSub)
+                Text(model.settings.level.label)
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 8)
-            stat("連勝", value: "\(model.streak)")
+            stat(tr("連勝"), value: "\(model.streak)")
             if let best = model.bestSeconds {
-                stat("最速", value: "\(best)秒")
+                stat(tr("最速"), value: tr("%lld秒", best))
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -163,7 +163,7 @@ public struct SpeedView: View {
                 Image(systemName: "cpu")
                     .scaledFont(12, weight: .bold)
                     .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coral)
-                Text(model.isTimeoutActive ? "タイム中" : "CPU")
+                Text(model.isTimeoutActive ? tr("タイム中") : "CPU")
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
@@ -200,7 +200,7 @@ public struct SpeedView: View {
         .popCard(corner: Theme.cornerSmall)
         .overlay(alignment: .top) {
             if model.isStuck {
-                Text("どちらも出せない！")
+                Text(tr("どちらも出せない！"))
                     .scaledFont(11, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 10).padding(.vertical, 3)
@@ -235,7 +235,7 @@ public struct SpeedView: View {
         .buttonStyle(.plain)
         .gameAnimation(.easeOut(duration: 0.15), value: top)
         .accessibilityLabel(SpeedAccessibility.pileLabel(index: index, top: top))
-        .accessibilityHint(selected == nil ? "この台札に置ける手札が1枚だけならダブルタップで出します" : "ダブルタップで選択中の札を置きます")
+        .accessibilityHint(selected == nil ? tr("この台札に置ける手札が1枚だけならダブルタップで出します") : tr("ダブルタップで選択中の札を置きます"))
     }
 
     // MARK: - 手札
@@ -260,7 +260,7 @@ public struct SpeedView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(SpeedAccessibility.handCardLabel(card, isSelected: isSelected, isPlayable: isPlayable))
-                .accessibilityHint("ダブルタップで台札に出します")
+                .accessibilityHint(tr("ダブルタップで台札に出します"))
             }
             Spacer(minLength: 0)
             SpeedStockView(metrics: tableMetrics, count: model.humanStock.count)
@@ -278,7 +278,7 @@ public struct SpeedView: View {
         switch model.phase {
         case .idle:
             Button { showSetup = true } label: {
-                Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
+                Text(tr("はじめる")).themeBody(18).frame(maxWidth: .infinity)
                     .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
@@ -289,7 +289,7 @@ public struct SpeedView: View {
                     timeoutButton
                 }
                 if model.canFlip {
-                    actionButton("めくる（両方の山札から1枚ずつ）", color: Theme.Fill.coral) {
+                    actionButton(tr("めくる（両方の山札から1枚ずつ）"), color: Theme.Fill.coral) {
                         model.flipStocks()
                     }
                 } else {
@@ -306,13 +306,13 @@ public struct SpeedView: View {
         case .result:
             VStack(spacing: 10) {
                 Button { withGameAnimation { model.restart() } } label: {
-                    Label("もう一度", systemImage: "arrow.counterclockwise.circle.fill")
+                    Label(tr("もう一度"), systemImage: "arrow.counterclockwise.circle.fill")
                         .themeBody(17).frame(maxWidth: .infinity)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
                 Button { showSetup = true } label: {
-                    Text("速さを変える").themeBody(15).frame(maxWidth: .infinity)
+                    Text(tr("速さを変える")).themeBody(15).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
             }
@@ -340,7 +340,7 @@ public struct SpeedView: View {
                 model.grantTimeoutAfterAd(forGame: serial)
             }
         } label: {
-            Label("広告を見てタイム（CPU が8秒休む）", systemImage: "play.rectangle.fill")
+            Label(tr("広告を見てタイム（CPU が8秒休む）"), systemImage: "play.rectangle.fill")
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -382,13 +382,13 @@ public struct SpeedView: View {
                 Spacer()
             }
             VStack(spacing: 4) {
-                resultRow("あなた", remaining: model.remaining(of: .human), isWinner: model.winner == .human)
+                resultRow(tr("あなた"), remaining: model.remaining(of: .human), isWinner: model.winner == .human)
                 resultRow("CPU", remaining: model.remaining(of: .cpu), isWinner: model.winner == .cpu)
             }
             if let seconds = model.winSeconds {
                 // 記録の 1 行（`RecordLabel`）は勝敗の指標なので秒数を出さない。最速を更新した回は
                 // 「自己ベスト更新！」の中身がここで分かるように添える。
-                Text(verbatim: model.recordResult?.update.seconds == true ? "所要 \(seconds)秒（最速！）" : "所要 \(seconds)秒")
+                Text(verbatim: model.recordResult?.update.seconds == true ? tr("所要 %lld秒（最速！）", seconds) : tr("所要 %lld秒", seconds))
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -405,7 +405,7 @@ public struct SpeedView: View {
 
     private func resultRow(_ name: String, remaining: Int, isWinner: Bool) -> some View {
         HStack(spacing: 8) {
-            Text(isWinner ? "勝ち" : "　")
+            Text(isWinner ? tr("勝ち") : "　")  // i18n-keep: 行の高さをそろえる全角空白（文字としては読まれない）
                 .scaledFont(12, weight: .black, design: .rounded)
                 .foregroundStyle(Theme.onAccent)
                 .frame(width: 44)
@@ -413,9 +413,9 @@ public struct SpeedView: View {
                 .background(Capsule().fill(isWinner ? Theme.Fill.yellow : Color.clear))
             Text(name)
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(name == "あなた" ? Theme.coral : Theme.ink)
+                .foregroundStyle(name == tr("あなた") ? Theme.coral : Theme.ink)
             Spacer()
-            Text(remaining == 0 ? "出し切り" : "残り\(remaining)枚")
+            Text(remaining == 0 ? tr("出し切り") : tr("残り%lld枚", remaining))
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
@@ -519,7 +519,7 @@ struct SpeedSetupSheet: View {
             kind: .versus,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
-            GameSetupSection("速さ") {
+            GameSetupSection(tr("速さ")) {
                 HStack(spacing: 12) {
                     ForEach(SpeedLevel.allCases, id: \.self) { level in
                         GameSetupChooser(title: level.label, subtitle: level.subtitle,
@@ -529,7 +529,7 @@ struct SpeedSetupSheet: View {
                         }
                     }
                 }
-                Text("あなたに制限時間はありません。設定の「ゆっくりモード」をオンにすると、CPU はさらにゆっくりになります。")
+                Text(tr("あなたに制限時間はありません。設定の「ゆっくりモード」をオンにすると、CPU はさらにゆっくりになります。"))
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -542,16 +542,16 @@ struct SpeedSetupSheet: View {
 // MARK: - Rule Sheet
 
 struct SpeedRuleSheet: View {
-    static let rules: [(String, String)] = [
-        ("ゲームの流れ", "トランプを赤（♥♦）と黒（♠♣）の26枚ずつに分け、あなたが赤、CPU が黒を使います。手札は4枚。真ん中の台札2山に、手札から札を重ねていきます"),
-        ("出せる札", "台札の数字と1つ違いの札（台札が7なら6か8）。A と K もつながります。マークは関係ありません"),
-        ("順番はない", "出せる札があればいつでも出せます。CPU も同時に出してくるので、早い者勝ちです。あなたの側に制限時間はありません"),
-        ("補充", "札を出すと、自分の山札から手札に1枚補充されます（手札はいつも4枚まで）"),
-        ("つまったら", "どちらも出せる札が無くなったら「めくる」。両方の山札から1枚ずつ台札に置きます。山札が無いときは、自分側の台札を切り直して山札にします"),
-        ("勝ち", "手札と山札を先に出し切ったほうの勝ち。めくるだけが続いて場が動かないときは引き分けです"),
-        ("タイム", "負けそうなとき（CPU の残りが8枚以下で、あなたより少ないとき）、広告を見ると1ゲームに1回だけ CPU が8秒休みます"),
-        ("速さ", "CPU の反応は「ゆっくり / ふつう / はやい」から選べます。設定の「ゆっくりモード」をオンにすると、さらにゆっくりになります"),
-    ]
+    static var rules: [(String, String)] { [
+        (tr("ゲームの流れ"), tr("トランプを赤（♥♦）と黒（♠♣）の26枚ずつに分け、あなたが赤、CPU が黒を使います。手札は4枚。真ん中の台札2山に、手札から札を重ねていきます")),
+        (tr("出せる札"), tr("台札の数字と1つ違いの札（台札が7なら6か8）。A と K もつながります。マークは関係ありません")),
+        (tr("順番はない"), tr("出せる札があればいつでも出せます。CPU も同時に出してくるので、早い者勝ちです。あなたの側に制限時間はありません")),
+        (tr("補充"), tr("札を出すと、自分の山札から手札に1枚補充されます（手札はいつも4枚まで）")),
+        (tr("つまったら"), tr("どちらも出せる札が無くなったら「めくる」。両方の山札から1枚ずつ台札に置きます。山札が無いときは、自分側の台札を切り直して山札にします")),
+        (tr("勝ち"), tr("手札と山札を先に出し切ったほうの勝ち。めくるだけが続いて場が動かないときは引き分けです")),
+        (tr("タイム"), tr("負けそうなとき（CPU の残りが8枚以下で、あなたより少ないとき）、広告を見ると1ゲームに1回だけ CPU が8秒休みます")),
+        (tr("速さ"), tr("CPU の反応は「ゆっくり / ふつう / はやい」から選べます。設定の「ゆっくりモード」をオンにすると、さらにゆっくりになります")),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: Self.rules)

@@ -11,8 +11,8 @@ public struct BackgammonModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `BackgammonModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "backgammon"
-    public let title = "バックギャモン"
-    public let description = "サイコロで駒を進めて先にあがれ！CPU と対戦"
+    public var title: String { tr("バックギャモン") }
+    public var description: String { tr("サイコロで駒を進めて先にあがれ！CPU と対戦") }
     public var icon: Image { Image(systemName: "dice.fill") }
 
     public init() {}

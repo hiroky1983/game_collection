@@ -19,7 +19,7 @@ struct PokerStartSheet: View {
     var body: some View {
         // 節が増えても（ボーナスルール選択時）中身がスクロールするので押し出されない。
         GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
-            GameSetupSection("ルール") {
+            GameSetupSection(tr("ルール")) {
                 // 他ゲームの開始シートと同じ大きめのタイルに揃える（会長指摘・2026-09-23）。
                 HStack(spacing: 12) {
                     ForEach(PokerRuleSet.allCases) { rule in
@@ -35,19 +35,22 @@ struct PokerStartSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            GameSetupSection("ゲームの流れ") {
-                ruleRow("1", "アンティ 10枚 → 手札5枚配布")
-                ruleRow("2", "ベット（チェック or 20枚ベット）")
-                ruleRow("3", "カード交換（0〜5枚）")
-                ruleRow("4", "最終ベット → 勝負")
-                if rules == .bonus {
-                    ruleRow("5", "勝負に勝つと役ボーナス → ダブルアップに挑戦")
+            // 選んでいるルールの遊び方を、図つきでそのまま並べる（#2044・#2268。荷物運びパズル #2132 と同じ型）。
+            // カードは「？」の遊び方シートと同じ部品。ルールを切り替えたら前のルールの図を引きずらず描き直す。
+            GameSetupSection(tr("ルールの要点")) {
+                let guide = PokerHowToFigures.guide(for: rules)
+                VStack(spacing: 10) {
+                    ForEach(Array(guide.items.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    if !guide.notes.isEmpty { HowToPlayNotesCard(guide.notes) }
                 }
+                .id(rules)
             }
 
-            detailButton("役一覧を見る", systemImage: "list.bullet.rectangle", showing: .handGuide)
+            detailButton(tr("役一覧を見る"), systemImage: "list.bullet.rectangle", showing: .handGuide)
             if rules == .bonus {
-                detailButton("役ボーナス配当表を見る", systemImage: "list.number", showing: .bonusTable)
+                detailButton(tr("役ボーナス配当表を見る"), systemImage: "list.number", showing: .bonusTable)
             }
         }
         .sheet(item: $detail) { detail in
@@ -60,7 +63,7 @@ struct PokerStartSheet: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("閉じる") { self.detail = nil }
+                        Button(tr("閉じる")) { self.detail = nil }
                     }
                 }
             }
@@ -78,26 +81,12 @@ struct PokerStartSheet: View {
                     .scaledFont(13, weight: .semibold)
                     .foregroundStyle(Theme.inkSub)
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .padding(16)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
         }
         .buttonStyle(.plain)
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .scaledFont(12, weight: .black, design: .rounded)
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.Fill.coral))
-            Text(text)
-                .scaledFont(13, weight: .medium, design: .rounded)
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
     }
 }
 
@@ -106,34 +95,34 @@ struct PokerStartSheet: View {
 /// 役ボーナスの配当表（#496）。役を覚える教材を兼ねるので、金額だけでなく役の説明も添える。
 struct BonusTableSheet: View {
     var body: some View {
-        YakuTableSheet(title: "役ボーナス配当表") {
+        YakuTableSheet(title: tr("役ボーナス配当表")) {
             YakuTableSection(
-                footer: "勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。"
+                footer: tr("勝って得たチップは、最大%lld回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。", PokerModel.maxDoubleUpStreak)
             ) {
-                Text("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。")
+                Text(tr("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。"))
                     .scaledFont(12, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 ForEach(PokerBonusTable.payouts) { payout in
                     HStack(spacing: 8) {
                         Text(payout.rank.description)
                             .scaledFont(14, weight: .black, design: .rounded)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(Theme.coralText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer()
-                        Text("+\(payout.chips)枚")
+                        Text(tr("+%@枚", RecordFormat.number(payout.chips)))
                             .scaledFont(16, weight: .black, design: .rounded)
-                            .foregroundStyle(Theme.yellow)
+                            .foregroundStyle(Theme.yellowText)
                     }
                 }
                 HStack(spacing: 8) {
-                    Text("ワンペア・ハイカード")
+                    Text(tr("ワンペア・ハイカード"))
                         .scaledFont(14, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Spacer()
-                    Text("なし")
+                    Text(tr("なし"))
                         .scaledFont(14, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                 }
@@ -154,6 +143,9 @@ struct HandGuideSheet: View {
                             MiniCardView(card: card)
                         }
                     }
+                    // 5 枚を 1 要素にまとめる（1 枚 2 要素 × 5 枚の読み上げを避ける）。
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(PokerAccessibility.handGuideCardsLabel(cards: guide.cards))
                 }
             }
         }
@@ -167,25 +159,25 @@ struct HandGuideSheet: View {
         let s = PokerSuit.spades; let h = PokerSuit.hearts
         let d = PokerSuit.diamonds; let cl = PokerSuit.clubs
         return [
-            HandGuide("ロイヤルフラッシュ", "最強・同スーツ A K Q J 10",
+            HandGuide(tr("ロイヤルフラッシュ"), tr("最強・同スーツ A K Q J 10"),
                       [c(14,s), c(13,s), c(12,s), c(11,s), c(10,s)]),
-            HandGuide("ストレートフラッシュ", "連続5枚の同スーツ",
+            HandGuide(tr("ストレートフラッシュ"), tr("連続5枚の同スーツ"),
                       [c(9,h), c(8,h), c(7,h), c(6,h), c(5,h)]),
-            HandGuide("フォーカード", "同ランク4枚",
+            HandGuide(tr("フォーカード"), tr("同ランク4枚"),
                       [c(14,s), c(14,h), c(14,d), c(14,cl), c(7,s)]),
-            HandGuide("フルハウス", "3枚 ＋ 2枚",
+            HandGuide(tr("フルハウス"), tr("3枚 ＋ 2枚"),
                       [c(13,s), c(13,h), c(13,d), c(9,s), c(9,h)]),
-            HandGuide("フラッシュ", "同スーツ5枚（順不同）",
+            HandGuide(tr("フラッシュ"), tr("同スーツ5枚（順不同）"),
                       [c(14,cl), c(10,cl), c(7,cl), c(4,cl), c(2,cl)]),
-            HandGuide("ストレート", "連続5枚（スーツ混在）",
+            HandGuide(tr("ストレート"), tr("連続5枚（スーツ混在）"),
                       [c(9,s), c(8,h), c(7,d), c(6,cl), c(5,s)]),
-            HandGuide("スリーカード", "同ランク3枚",
+            HandGuide(tr("スリーカード"), tr("同ランク3枚"),
                       [c(8,s), c(8,h), c(8,d), c(4,cl), c(2,s)]),
-            HandGuide("ツーペア", "ペア2組",
+            HandGuide(tr("ツーペア"), tr("ペア2組"),
                       [c(13,s), c(13,h), c(9,d), c(9,cl), c(5,s)]),
-            HandGuide("ワンペア", "ペア1組",
+            HandGuide(tr("ワンペア"), tr("ペア1組"),
                       [c(11,s), c(11,h), c(8,d), c(4,cl), c(2,s)]),
-            HandGuide("ハイカード", "役なし・最高位カードで比較",
+            HandGuide(tr("ハイカード"), tr("役なし・最高位カードで比較"),
                       [c(14,s), c(10,h), c(7,d), c(4,cl), c(2,s)]),
         ]
     }
@@ -203,26 +195,31 @@ struct HandGuideSheet: View {
 
 // MARK: - Mini Card View
 
+/// 役一覧の見本札。外形・面は手札と同じ共通部品（`PlayingCardSurface` / `PlayingCardFace`）で、
+/// 寸法だけ小さい `PlayingCardMetrics` を `elementScale` で拡大する。読み上げは `HandGuideSheet` が 5 枚まとめて行う。
 struct MiniCardView: View {
     let card: PokerCard
 
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var metrics: PlayingCardMetrics {
+        PlayingCardMetrics(width: 38, height: 54, cornerRadius: 5, rankFont: 13, suitFont: 14,
+                           pipSpacing: 0, backMotifFont: 14)
+            .scaled(by: layout.elementScale)
+    }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
-            VStack(spacing: 0) {
-                Text(card.rankLabel)
-                    .scaledFont(13, weight: .black, design: .rounded)
-                Text(card.suit.symbol)
-                    .scaledFont(14)
-            }
-            .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+            PlayingCardSurface(
+                faceUp: true,
+                cornerRadius: metrics.cornerRadius,
+                border: Color.gray.opacity(0.2),
+                borderWidth: 0.5,
+                shadowColor: .black.opacity(0.12),
+                shadowRadius: 2
+            )
+            PlayingCardFace(figure: card.figure, metrics: metrics)
         }
-        .frame(width: 38, height: 54)
+        .frame(width: metrics.width, height: metrics.height)
     }
 }

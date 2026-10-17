@@ -35,7 +35,7 @@ public enum QuickActions {
                 type: typePrefix + candidate.gameID,
                 gameID: candidate.gameID,
                 title: name,
-                subtitle: candidate.hasResume ? "続きから" : nil
+                subtitle: candidate.hasResume ? tr("続きから") : nil
             )
         }
         .prefix(RecentGames.maxCount)

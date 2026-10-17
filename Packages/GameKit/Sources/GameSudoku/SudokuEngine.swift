@@ -5,13 +5,18 @@ import CoreEngine
 public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
     case easy, normal, hard
 
-    /// 記録の区分名（ハブ・リザルトの 1 行に添える）。
+    /// 画面に出す難易度名（表示言語に従う）。記録の区分名には `recordLabel` を使う。
     public var label: String {
         switch self {
-        case .easy:   return "かんたん"
-        case .normal: return "ふつう"
-        case .hard:   return "むずかしい"
+        case .easy:   return tr("かんたん")
+        case .normal: return tr("ふつう")
+        case .hard:   return tr("むずかしい")
         }
+    }
+
+    /// 記録の区分名（`GameScore.variantLabel`・ハブ・リザルトの 1 行に添える）。保存されるので表示言語によらず日本語のまま。
+    public var recordLabel: String {
+        RecordVariantLabels.stored(gameID: "sudoku", variant: rawValue)
     }
 
     /// 盤から取り除くマスの数の範囲。旧実装（#5・`fa4377a`）の値をそのまま踏襲する。

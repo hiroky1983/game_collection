@@ -163,7 +163,7 @@ struct GameOverflowBarTests {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHanafuda/HanafudaView.swift"))
         let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source))
         let card = try #require(body.range(of: "matchResultCard"))
-        let button = try #require(body.range(of: #"actionButton("もう一度""#, range: card.upperBound..<body.endIndex))
+        let button = try #require(body.range(of: #"actionButton(tr("もう一度")"#, range: card.upperBound..<body.endIndex))
         let hint = try #require(body.range(of: "HowToPlayHint("))
         #expect(button.upperBound < hint.lowerBound, "「もう一度」が結果カードの枠の外（広告側）に出ている")
         let actionArea = try #require(SourceScan.declaration(of: "private var actionArea: some View", in: source))

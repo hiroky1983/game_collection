@@ -21,12 +21,30 @@ struct SettingsView: View {
         return "\(v) (\(b))"
     }
 
+    private static let legalBaseURL = "https://web-murex-sigma-62.vercel.app"
+
+    /// 規約・プライバシーポリシーの URL。表示言語（#2109・端末の言語ではなくアプリ内で選んだ言語）が
+    /// English なら英語ページ（`/en/...`）、日本語ならそのまま（#2170）。
+    private func legalPageURL(path: String) -> URL {
+        let prefix = AppLanguageStore.shared.language == .english ? "/en" : ""
+        return URL(string: "\(Self.legalBaseURL)\(prefix)/\(path)")!
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 // MARK: アプリ
-                Section("アプリ") {
-                    LabeledContent("バージョン", value: appVersion)
+                Section(tr("アプリ")) {
+                    LabeledContent(tr("バージョン"), value: appVersion)
+                }
+
+                // MARK: 言語（#2109）
+                Section {
+                    languagePicker
+                } header: {
+                    Text(tr("言語"))
+                } footer: {
+                    Text(tr("はじめは端末の言語に合わせています。切り替えるとすぐに反映され、アプリの再起動はいりません。"))
                 }
 
                 // MARK: あそび
@@ -38,9 +56,9 @@ struct SettingsView: View {
                     }
                     .onMove { settings.move(from: $0, to: $1) }
                 } header: {
-                    Text("あそび")
+                    Text(tr("あそび"))
                 } footer: {
-                    Text("ドラッグで並べ替え、トグルで表示 / 非表示を切り替えられます。")
+                    Text(tr("ドラッグで並べ替え、トグルで表示 / 非表示を切り替えられます。"))
                 }
 
                 // MARK: フィードバック
@@ -49,7 +67,7 @@ struct SettingsView: View {
                         get: { settings.hapticsEnabled },
                         set: { settings.hapticsEnabled = $0 }
                     )) {
-                        Label("触覚フィードバック", systemImage: "iphone.radiowaves.left.and.right")
+                        Label(tr("触覚フィードバック"), systemImage: "iphone.radiowaves.left.and.right")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
@@ -58,14 +76,14 @@ struct SettingsView: View {
                         get: { settings.soundEnabled },
                         set: { settings.soundEnabled = $0 }
                     )) {
-                        Label("効果音", systemImage: "speaker.wave.2")
+                        Label(tr("効果音"), systemImage: "speaker.wave.2")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
                 } header: {
-                    Text("フィードバック")
+                    Text(tr("フィードバック"))
                 } footer: {
-                    Text("駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。")
+                    Text(tr("駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。"))
                 }
 
                 // MARK: ヒント
@@ -74,14 +92,14 @@ struct SettingsView: View {
                         get: { settings.hintsEnabled },
                         set: { settings.hintsEnabled = $0 }
                     )) {
-                        Label("ヒント表示", systemImage: "lightbulb")
+                        Label(tr("ヒント表示"), systemImage: "lightbulb")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
                 } header: {
-                    Text("ヒント")
+                    Text(tr("ヒント"))
                 } footer: {
-                    Text("大富豪で、いま出せるカードを枠の色で目立たせ、出せない組を選んだときはその理由を1行で表示します。オフにすると何も表示しません。")
+                    Text(tr("大富豪で、いま出せるカードを枠の色で目立たせ、出せない組を選んだときはその理由を1行で表示します。オフにすると何も表示しません。"))
                 }
 
                 // MARK: あそびやすさ
@@ -90,14 +108,14 @@ struct SettingsView: View {
                         get: { settings.slowModeEnabled },
                         set: { settings.slowModeEnabled = $0 }
                     )) {
-                        Label("ゆっくりモード", systemImage: "tortoise")
+                        Label(tr("ゆっくりモード"), systemImage: "tortoise")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
                 } header: {
-                    Text("あそびやすさ")
+                    Text(tr("あそびやすさ"))
                 } footer: {
-                    Text("ブロック崩しの球と、チャリンコおじさんの進みを遅くします。切り替えると、両方の進行中のデータは消えます。")
+                    Text(tr("ブロック崩しの球と、チャリンコおじさんの進みを遅くします。切り替えると、両方の進行中のデータは消えます。"))
                 }
 
                 // MARK: 通知
@@ -106,24 +124,24 @@ struct SettingsView: View {
                         get: { settings.notificationsEnabled },
                         set: { settings.notificationsEnabled = $0 }
                     )) {
-                        Label("お知らせ", systemImage: "bell")
+                        Label(tr("お知らせ"), systemImage: "bell")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
                     if notificationAuthorization == .denied {
-                        Text("この端末の設定で、あそびばの通知が許可されていません。スイッチをオンにしても、お知らせは届きません。")
+                        Text(tr("この端末の設定で、あそびばの通知が許可されていません。スイッチをオンにしても、お知らせは届きません。"))
                             .font(.footnote)
                             .foregroundStyle(Theme.ink)
                         Button {
                             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                         } label: {
-                            Label("設定アプリを開く", systemImage: "gear")
+                            Label(tr("設定アプリを開く"), systemImage: "gear")
                         }
                     }
                 } header: {
-                    Text("通知")
+                    Text(tr("通知"))
                 } footer: {
-                    Text("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nオフにすると、両方の予約済みのお知らせを取り消します。")
+                    Text(tr("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nオフにすると、両方の予約済みのお知らせを取り消します。"))
                 }
 
                 // MARK: 解析
@@ -132,14 +150,14 @@ struct SettingsView: View {
                         get: { settings.analyticsEnabled },
                         set: { settings.analyticsEnabled = $0 }
                     )) {
-                        Label("利用状況の送信", systemImage: "chart.bar.doc.horizontal")
+                        Label(tr("利用状況の送信"), systemImage: "chart.bar.doc.horizontal")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
                 } header: {
-                    Text("解析")
+                    Text(tr("解析"))
                 } footer: {
-                    Text("どのあそびがどれくらい遊ばれているかを知るために、あそびの名前・勝敗・かかった時間を送ります。スコアや盤面、名前や連絡先のような個人を特定できる情報は送りません。オフにすると、これらに加えて起動回数などの自動計測もまとめて送信を止めます。")
+                    Text(tr("どのあそびがどれくらい遊ばれているかを知るために、あそびの名前・勝敗・かかった時間を送ります。スコアや盤面、名前や連絡先のような個人を特定できる情報は送りません。オフにすると、これらに加えて起動回数などの自動計測もまとめて送信を止めます。"))
                 }
 
                 // MARK: プレイ記録
@@ -148,65 +166,65 @@ struct SettingsView: View {
                         Button(role: .destructive) {
                             showClearPlayLogConfirm = true
                         } label: {
-                            Label("プレイ記録を消去", systemImage: "trash")
+                            Label(tr("プレイ記録を消去"), systemImage: "trash")
                         }
                         .dialogs { anchor in
                             anchor.confirmationDialog(
-                                "プレイ記録を消去しますか？",
+                                tr("プレイ記録を消去しますか？"),
                                 isPresented: $showClearPlayLogConfirm,
                                 titleVisibility: .visible
                             ) {
-                                Button("消去する", role: .destructive) {
+                                Button(tr("消去する"), role: .destructive) {
                                     playLog.clear()
                                     // 久しぶり通知（#1193）はプレイ記録の最終プレイ日時を基準に予約するため、
                                     // 記録を消したのにスレッドや予約だけ残らないよう合わせて取り消す（#1269）。
                                     AppEnvironment.reengagement.cancelAll()
                                 }
-                                Button("キャンセル", role: .cancel) {}
+                                Button(tr("キャンセル"), role: .cancel) {}
                             } message: {
-                                Text("ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。")
+                                Text(tr("ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。"))
                             }
                         }
                     } header: {
-                        Text("プレイ記録")
+                        Text(tr("プレイ記録"))
                     } footer: {
-                        Text("あそびごとのベストスコア・最短タイム・勝敗と連勝を、遊んだ回数・勝った回数・遊んだあそびの種類・おすすめと評価のお願い・遊び方ガイドの表示履歴とあわせてこの端末に保存しています（送信はしません）。盤面や棋譜は残していません。")
+                        Text(tr("あそびごとのベストスコア・最短タイム・勝敗と連勝を、遊んだ回数・勝った回数・遊んだあそびの種類・おすすめと評価のお願い・遊び方ガイドの表示履歴とあわせてこの端末に保存しています（送信はしません）。盤面や棋譜は残していません。"))
                     }
                 }
 
                 // MARK: 規約
-                Section("規約") {
+                Section(tr("規約")) {
                     Button {
-                        legalURL = IdentifiableURL(url: URL(string: "https://web-murex-sigma-62.vercel.app/terms")!)
+                        legalURL = IdentifiableURL(url: legalPageURL(path: "terms"))
                     } label: {
-                        Label("利用規約", systemImage: "doc.text")
+                        Label(tr("利用規約"), systemImage: "doc.text")
                     }
                     .foregroundStyle(Theme.ink)
                     Button {
-                        legalURL = IdentifiableURL(url: URL(string: "https://web-murex-sigma-62.vercel.app/privacy")!)
+                        legalURL = IdentifiableURL(url: legalPageURL(path: "privacy"))
                     } label: {
-                        Label("プライバシーポリシー", systemImage: "hand.raised")
+                        Label(tr("プライバシーポリシー"), systemImage: "hand.raised")
                     }
                     .foregroundStyle(Theme.ink)
                 }
 
                 // MARK: その他
-                Section("その他") {
+                Section(tr("その他")) {
                     Button {
                         // OS の `requestReview` は上限に達すると何も出ない。自分から押した人には
                         // 必ずレビュー画面が開く App Store の URL を使う（#1471）。
                         openURL(AppEnvironment.writeReviewURL)
                     } label: {
-                        Label("アプリを評価する", systemImage: "star")
+                        Label(tr("アプリを評価する"), systemImage: "star")
                     }
                     .foregroundStyle(Theme.ink)
 
                     ShareLink(
                         item: AppEnvironment.appStoreURL,
-                        subject: Text("あそびばアプリ"),
-                        message: Text("このゲームアプリ面白いよ！")
+                        subject: Text(tr("あそびばアプリ")),
+                        message: Text(tr("このゲームアプリ面白いよ！"))
                     ) {
-                        Label("アプリをシェア", systemImage: "square.and.arrow.up")
+                        Label(tr("アプリをシェア"), systemImage: "square.and.arrow.up")
                     }
                     .foregroundStyle(Theme.ink)
                 }
@@ -217,7 +235,7 @@ struct SettingsView: View {
                 guard scenePhase == .active else { return }
                 notificationAuthorization = await UserNotificationReminderScheduler().authorization()
             }
-            .navigationTitle("設定")
+            .navigationTitle(tr("設定"))
             .sheet(item: $legalURL) { item in
                 SafariView(url: item.url)
                     .ignoresSafeArea()
@@ -225,11 +243,30 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") { dismiss() }
+                    Button(tr("完了")) { dismiss() }
                         .fontWeight(.semibold)
                 }
             }
         }
+    }
+
+    /// 表示言語のセレクトボックス（#2109）。初期値は端末の言語（`AppLanguageStore.bootstrap`）。
+    /// 選んだ言語は保存され、アプリ本体と GameKit の全モジュールの文言にその場で効く。
+    /// 選択肢はどの言語で表示していても、その言語自身の呼び名（日本語 / English）で出す。
+    private var languagePicker: some View {
+        Picker(selection: Binding(
+            get: { AppLanguageStore.shared.language },
+            set: { AppLanguageStore.shared.select($0) }
+        )) {
+            ForEach(AppLanguage.allCases) { language in
+                Text(verbatim: language.nativeName).tag(language)
+            }
+        } label: {
+            Label(tr("言語"), systemImage: "globe")
+                .foregroundStyle(Theme.ink)
+        }
+        .pickerStyle(.menu)
+        .tint(Theme.coral)
     }
 
     private func gameRow(module: GameModule, id: String) -> some View {

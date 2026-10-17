@@ -17,7 +17,7 @@ struct OjisanPuzzleSetupSheet: View {
 
     var body: some View {
         GameSetupSheet(kind: .solo, onStart: onStart, onCancel: onCancel) {
-            GameSetupSection("遊び方") {
+            GameSetupSection(tr("遊び方")) {
                 HStack(spacing: 12) {
                     ForEach(OjisanPuzzleMode.allCases) { option in
                         GameSetupChooser(
@@ -29,7 +29,7 @@ struct OjisanPuzzleSetupSheet: View {
                     }
                 }
             }
-            GameSetupSection("\(mode.title)のルール") {
+            GameSetupSection(tr("%@のルール", mode.title)) {
                 VStack(spacing: 10) {
                     ForEach(Array(mode.setupKeyItems.enumerated()), id: \.offset) { _, item in
                         HowToPlayItemCard(item)
@@ -55,7 +55,7 @@ struct OjisanPuzzleSetupSheet: View {
             withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
         } label: {
             HStack {
-                Label("操作・れんさのくわしい説明", systemImage: "hand.draw.fill")
+                Label(tr("操作・れんさのくわしい説明"), systemImage: "hand.draw.fill")
                     .themeBody(15)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
@@ -71,7 +71,7 @@ struct OjisanPuzzleSetupSheet: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(Theme.ink)
-        .accessibilityValue(showsDetails ? "開いている" : "閉じている")
+        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 }
 

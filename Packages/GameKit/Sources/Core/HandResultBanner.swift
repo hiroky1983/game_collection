@@ -28,9 +28,9 @@ public struct HandResult: Equatable, Sendable {
     /// 増減の表示（例: "+40枚" / "−20枚" / "±0枚"）。数値の桁区切りを避けるため文字列で組む。
     public var chipText: String? {
         guard let delta = chipDelta else { return nil }
-        if delta > 0 { return "+\(delta)枚" }
-        if delta < 0 { return "−\(-delta)枚" }
-        return "±0枚"
+        if delta > 0 { return tr("+%lld枚", delta) }
+        if delta < 0 { return tr("−%lld枚", -delta) }
+        return tr("±0枚")
     }
 
     /// 読み上げ全文。「勝ちです。ツーペア 対 ワンペア。チップ 40枚増えました」。
@@ -38,11 +38,11 @@ public struct HandResult: Equatable, Sendable {
         var parts = [spokenResult]
         if !reason.isEmpty { parts.append(reason) }
         if let delta = chipDelta {
-            if delta > 0 { parts.append("チップが\(delta)枚増えました") }
-            else if delta < 0 { parts.append("チップが\(-delta)枚減りました") }
-            else { parts.append("チップの増減はありません") }
+            if delta > 0 { parts.append(tr("チップが%lld枚増えました", delta)) }
+            else if delta < 0 { parts.append(tr("チップが%lld枚減りました", -delta)) }
+            else { parts.append(tr("チップの増減はありません")) }
         }
-        return parts.joined(separator: "。")
+        return parts.joined(separator: tr("。"))
     }
 }
 

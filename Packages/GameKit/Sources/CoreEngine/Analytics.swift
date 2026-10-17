@@ -186,6 +186,16 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case backpain
     /// おじさんの荷物運びパズルのパズルモード（ゲージなし・得点を競う。#1920）。
     case puzzle
+    /// 将棋の平手（#2179）。駒落ちを足したので、平手も値を持つ（`mode` 無しの旧プレイとは分かれる）。
+    case even
+    /// 将棋の飛車落ちで、自分が駒を落とす（自分が上手）。
+    case rookPlayer = "rook_player"
+    /// 将棋の飛車落ちで、CPU が駒を落とす（CPU が上手）。
+    case rookCPU = "rook_cpu"
+    /// 将棋の角落ちで、自分が駒を落とす。
+    case bishopPlayer = "bishop_player"
+    /// 将棋の角落ちで、CPU が駒を落とす。
+    case bishopCPU = "bishop_cpu"
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
@@ -664,9 +674,18 @@ public final class GameAnalytics {
     }
 
     /// アプリが前面から外れたときに呼ぶ（#1373）。戻るまでの時間は `duration_sec` に入れない。
+    ///
+    /// 背面で OS にアプリを終了されても「続きから」で決着した局の `game_end` が出るよう、
+    /// 再開できる進行中のプレイ（休憩中を除く）は休憩の控えを書いておく（#2300）。
+    /// 控えは決着・離脱・新規開始で消える既存の仕組みのままなので、前面に戻って遊び続けても害は無い。
     public func appDidResignActive() {
         isAppActive = false
         for gameID in plays.keys { pauseClock(gameID: gameID) }
+        for (gameID, state) in plays {
+            if case let .inFlight(_, _, canResume, _) = state, canResume, !resting.contains(gameID) {
+                rememberRest(gameID: gameID)
+            }
+        }
     }
 
     /// アプリが前面に戻ったときに呼ぶ（#1373）。休憩中のプレイは再開まで止めたまま。

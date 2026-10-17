@@ -47,7 +47,7 @@ public struct ShiritoriView: View {
         }
         .padding(Theme.pad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .gameChrome(title: "カードしりとり", review: services.review,
+        .gameChrome(title: tr("カードしりとり"), review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         model.pause()
                         if model.hasProgressToLose {
@@ -57,15 +57,16 @@ public struct ShiritoriView: View {
                         }
                     })
         .dialogs { anchor in
-            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { showSetup = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると、いまの対局が失われます。")
+                Text(tr("途中で終了すると、いまの対局が失われます。"))
             }
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
-        .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
+        // 「？」は遊んでいる遊び方（ノルマ・とことん）に合わせて出し分ける（#2044）。
+        .howToPlay(model.mode.howToPlayGuide, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
         .sheet(isPresented: $showSetup) {
             ShiritoriSetupSheet(quota: model.quota, mode: model.mode) { quota, mode in
                 model.startGame(quota: quota, mode: mode)
@@ -77,10 +78,10 @@ public struct ShiritoriView: View {
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             extendRescue,
-            notEarned: "続けられませんでした",
+            notEarned: tr("続けられませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "続けられませんでした",
-                message: "広告を見ているあいだに対局が終わったため、時間を延長できませんでした。"
+                title: tr("続けられませんでした"),
+                message: tr("広告を見ているあいだに対局が終わったため、時間を延長できませんでした。")
             )
         )
         // 保留している負けは、画面を離れても落とさず記録する。
@@ -133,9 +134,9 @@ public struct ShiritoriView: View {
                 switch model.phase {
                 case .idle: EmptyView()
                 case .playing: TurnBadge(isYourTurn: model.isPlayerTurn)
-                default: TurnBadge("終了", kind: .finished)
+                default: TurnBadge(tr("終了"), kind: .finished)
                 }
-                Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
+                Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -167,14 +168,14 @@ public struct ShiritoriView: View {
                 }
             }
             .frame(height: 8)
-            Text(model.isPaused ? "一時停止" : "\(seconds)びょう")
+            Text(model.isPaused ? tr("一時停止") : tr("%lldびょう", seconds))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .monospacedDigit()
                 .foregroundStyle(urgent ? Theme.coral : Theme.ink)
                 .frame(minWidth: 52, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(model.isPaused ? "一時停止中。札をタップすると再開します" : "のこり\(seconds)秒")
+        .accessibilityLabel(model.isPaused ? tr("一時停止中。札をタップすると再開します") : tr("のこり%lld秒", seconds))
     }
 
     // MARK: - 場の札
@@ -213,20 +214,20 @@ public struct ShiritoriView: View {
 
     private var scoreLine: some View {
         HStack(spacing: 10) {
-            Label("あなた \(model.playerCount)", systemImage: "person.fill")
-                .foregroundStyle(Theme.teal)
+            Label(tr("あなた %lld", model.playerCount), systemImage: "person.fill")
+                .foregroundStyle(Theme.tealText)
             Label("CPU \(model.cpuCount)", systemImage: "cpu")
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
             if model.mode == .endless {
-                Label("山札 \(model.stockCount)", systemImage: "square.stack.fill")
+                Label(tr("山札 %lld", model.stockCount), systemImage: "square.stack.fill")
                     .foregroundStyle(Theme.inkSub)
             }
         }
         .scaledFont(12, weight: .bold, design: .rounded)
         .lineLimit(1).minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("あなた\(model.playerCount)枚、CPU\(model.cpuCount)枚"
-                            + (model.mode == .endless ? "、山札\(model.stockCount)枚" : ""))
+        .accessibilityLabel(tr("あなた%1$lld枚、CPU%2$lld枚", model.playerCount, model.cpuCount)
+                            + (model.mode == .endless ? tr("、山札%lld枚", model.stockCount) : ""))
     }
 
     // MARK: - 盤
@@ -268,7 +269,7 @@ public struct ShiritoriView: View {
     private var actionArea: some View {
         switch model.phase {
         case .idle:
-            actionButton("ゲームを始める", role: .primary) { showSetup = true }
+            actionButton(tr("ゲームを始める"), role: .primary) { showSetup = true }
         case .playing:
             EmptyView()
         case .result:
@@ -300,7 +301,7 @@ public struct ShiritoriView: View {
                 model.extendTimeAfterAd(forGame: serial)
             }
         } label: {
-            Label("広告を見て +30 秒で続ける（1 局に 1 回）", systemImage: "play.rectangle.fill")
+            Label(tr("広告を見て +30 秒で続ける（1 局に 1 回）"), systemImage: "play.rectangle.fill")
                 .themeBody(14, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -478,6 +479,8 @@ struct ShiritoriCardTile: View {
 struct ShiritoriSetupSheet: View {
     @State private var quota: ShiritoriQuota
     @State private var mode: ShiritoriMode
+    /// 番の交代・制限時間・勝ち負けの説明を開いているか。遊び方を切り替えても開閉はそのまま。
+    @State private var showsDetails = false
     let onStart: (ShiritoriQuota, ShiritoriMode) -> Void
     let onCancel: () -> Void
 
@@ -496,7 +499,7 @@ struct ShiritoriSetupSheet: View {
             kind: .versus,
             onStart: { onStart(quota, mode) }, onCancel: onCancel
         ) {
-            GameSetupSection("あそびかた") {
+            GameSetupSection(tr("あそびかた")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
                         ForEach(Array(ShiritoriMode.allCases.enumerated()), id: \.element) { step, item in
@@ -519,12 +522,56 @@ struct ShiritoriSetupSheet: View {
             if mode == .quota {
                 difficultySection
             }
+            // 選んでいる遊び方のルールの要点を、図つきでそのまま並べる（#2044。荷物運びパズルの開始シート #2132 と
+            // 同じ型・会長指示「遷移リンクを貼るだけでは駄目」）。カードは「？」の遊び方シートと同じ部品。
+            GameSetupSection(tr("%@のルール", mode.label)) {
+                VStack(spacing: 10) {
+                    ForEach(Array(mode.setupKeyItems.enumerated()), id: \.offset) { _, item in
+                        HowToPlayItemCard(item)
+                    }
+                    detailsToggle
+                    if showsDetails {
+                        ForEach(Array(mode.setupDetailItems.enumerated()), id: \.offset) { _, item in
+                            HowToPlayItemCard(item)
+                        }
+                        let notes = mode.howToPlayGuide.notes
+                        if !notes.isEmpty { HowToPlayNotesCard(notes) }
+                    }
+                }
+                // 遊び方を切り替えたら、前の遊び方の図を引きずらずに丸ごと描き直す。
+                .id(mode)
+            }
         }
+    }
+
+    /// 番の交代・制限時間・勝ち負けの説明を開閉する行。別画面へは移らず、この場で下に広げる（荷物運びパズルと同じ）。
+    private var detailsToggle: some View {
+        Button {
+            withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
+        } label: {
+            HStack {
+                Label(tr("制限時間・勝ち負けのくわしい説明"), systemImage: "timer")
+                    .themeBody(15)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .scaledFont(13, weight: .bold)
+                    .foregroundStyle(Theme.inkSub)
+                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .popCard(corner: Theme.cornerSmall)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 
     private var difficultySection: some View {
         Group {
-            GameSetupSection("むずかしさ") {
+            GameSetupSection(tr("むずかしさ")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
                         ForEach(Array(ShiritoriQuota.allCases.enumerated()), id: \.element) { step, level in
@@ -536,7 +583,7 @@ struct ShiritoriSetupSheet: View {
                             ) { quota = level }
                         }
                     }
-                    Text("ノルマ: " + quota.summary)
+                    Text(tr("ノルマ: %@", quota.summary))
                         .themeBody(13)
                         .foregroundStyle(Theme.inkSub)
                         .lineLimit(2).minimumScaleFactor(0.7)
@@ -550,15 +597,22 @@ struct ShiritoriSetupSheet: View {
 // MARK: - ルールシート
 
 struct ShiritoriRuleSheet: View {
-    private let rules: [(String, String)] = [
-        ("ゲームの流れ", "CPUと交互に札を取ります。場の札の読みの最後の字から始まる読みの札を選べたら、その札を取れます。取った札が新しい場の札になります"),
-        ("読みのルール", "「ー」で終わるときはひとつ前の字で受けます。「ぎ」のような濁音は、そのまま「ぎ」でも、濁点を取った「き」でも受けられます。1枚の札が別の読みを持つこともあります（うらよみ）"),
-        ("制限時間", "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります。時間切れで負けたときは、広告を見ると30秒足して続けられます（1局に1回）"),
-        ("「ん」で終わると負け", "「ん」で終わる読みの札を選んだ人は、その場で負けです"),
-        ("勝ち負け", "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです"),
-        ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),
-        ("とことん", "ノルマは無く、札が尽きるか、どちらかが続けられなくなるまで続きます。札を取ると空いた場所に山札から新しい札が出ます（山札が尽きたら出ません）。盤と山札の札を全部なくすとパーフェクトで勝ち。時間切れは負けです"),
-    ]
+    /// 表示言語が変わったら引き直せるよう、毎回 `tr` で組む（#2169）。かな（「ー」「ぎ」など）は
+    /// しりとりの中身なので英語でも日本語のまま見せ、`%@` で埋め込む。
+    private var rules: [(String, String)] {
+        let n = ShiritoriPresentation.nKana
+        let longMark = "ー"  // i18n-keep: しりとりのかなそのもの（言語を切り替えられない）
+        let (voiced, unvoiced) = ("ぎ", "き")  // i18n-keep: しりとりのかなそのもの（言語を切り替えられない）
+        return [
+            (tr("ゲームの流れ"), tr("CPUと交互に札を取ります。場の札の読みの最後の字から始まる読みの札を選べたら、その札を取れます。取った札が新しい場の札になります")),
+            (tr("読みのルール"), tr("「%1$@」で終わるときはひとつ前の字で受けます。「%2$@」のような濁音は、そのまま「%2$@」でも、濁点を取った「%3$@」でも受けられます。1枚の札が別の読みを持つこともあります（うらよみ）", longMark, voiced, unvoiced)),
+            (tr("制限時間"), tr("制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります。時間切れで負けたときは、広告を見ると30秒足して続けられます（1局に1回）")),
+            (tr("「%@」で終わると負け", n), tr("「%@」で終わる読みの札を選んだ人は、その場で負けです", n)),
+            (tr("勝ち負け"), tr("CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです")),
+            (tr("ノルマ"), tr("自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです")),
+            (tr("とことん"), tr("ノルマは無く、札が尽きるか、どちらかが続けられなくなるまで続きます。札を取ると空いた場所に山札から新しい札が出ます（山札が尽きたら出ません）。盤と山札の札を全部なくすとパーフェクトで勝ち。時間切れは負けです")),
+        ]
+    }
 
     var body: some View {
         RuleListSheet(rules: rules)

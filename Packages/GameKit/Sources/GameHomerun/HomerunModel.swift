@@ -132,6 +132,9 @@ public final class HomerunModel {
     /// いまの挑戦の週間ランキングの状態。決着で読み込みを始め、結果ページの前後で画面が読む。
     public internal(set) var weekly: WeeklyState = .off
     var weeklyTask: Task<Void, Never>?
+    /// 打席前に出す今週の順位（#2216）。打席前に出るたびに読み直す（`refreshLobbyWeekly`）。表示は `lobbyWeeklyState(now:)` を通す。
+    public internal(set) var lobbyWeekly: WeeklyState = .off
+    var lobbyWeeklyTask: Task<Void, Never>?
     /// Game Center に連携しているか（実績一覧の注意文の出し分け）。打席前に出たときの同期で更新する。
     public internal(set) var gameCenterLinked = false
     /// 方向メーター（打席の左上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。

@@ -250,14 +250,14 @@ public struct BoardResignButton: View {
         switch look {
         case .handDrawnCapsule(let horizontalPadding):
             Button(action: action) {
-                Label("投了", systemImage: "flag.fill")
+                Label(tr("投了"), systemImage: "flag.fill")
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, horizontalPadding).padding(.vertical, 6)
                     .background(Capsule().fill(Theme.Fill.coral))
             }
         case .tapTargetCapsule:
             Button(action: action) {
-                Label("投了", systemImage: "flag.fill")
+                Label(tr("投了"), systemImage: "flag.fill")
             }
             .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.coral))
         }
@@ -268,11 +268,11 @@ public extension View {
     /// 投了の確認ダイアログ（#828）。文言を盤ゲーム 5 本で 1 か所にする。
     func boardResignConfirmation(isPresented: Binding<Bool>, onResign: @escaping () -> Void) -> some View {
         dialogs { anchor in
-            anchor.confirmationDialog("投了しますか？", isPresented: isPresented, titleVisibility: .visible) {
-                Button("投了する", role: .destructive) { onResign() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("投了しますか？"), isPresented: isPresented, titleVisibility: .visible) {
+                Button(tr("投了する"), role: .destructive) { onResign() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("現在の対局を終了します。CPUの勝ちになります。")
+                Text(tr("現在の対局を終了します。CPUの勝ちになります。"))
             }
         }
     }
@@ -307,14 +307,32 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
     @ViewBuilder private var button: some View {
         if usesTapTargetCapsule {
             Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
+                Label(tr("待った"), systemImage: "arrow.uturn.backward")
             }
             .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
         } else {
             Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
+                Label(tr("待った"), systemImage: "arrow.uturn.backward")
             }
         }
+    }
+}
+
+extension BoardUndoModel {
+    /// 戻る前後の `aiTurnKey` が変わったときだけ成功とみなし、触覚・効果音を 1 回鳴らす（#2193）。
+    /// `undoLastExchange()` は `Void` なので、各モデルに散らさず成否はここで判定する。
+    @MainActor func performFreeUndo(services: GameServices) {
+        let before = aiTurnKey
+        undoLastExchange()
+        if aiTurnKey != before { services.feedback.impact(.medium) }
+    }
+
+    /// 広告経由の待ったは、局面が変わっていて戻せなかった（`false`）ときは鳴らさない。
+    @MainActor @discardableResult
+    func performAdUndo(forTurn turn: AITurnKey, services: GameServices) -> Bool {
+        let undone = undoLastExchange(forTurn: turn)
+        if undone { services.feedback.impact(.medium) }
+        return undone
     }
 }
 
@@ -328,13 +346,13 @@ public extension View {
         let showUndoConfirm = isPresented.wrappedValue
         return self
             .dialogs { anchor in
-                anchor.alert("待った確認", isPresented: isPresented) {
-                    Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
+                anchor.alert(tr("待った確認"), isPresented: isPresented) {
+                    Button(model.undoUsed ? tr("広告を見て戻す") : tr("戻す（無料）")) {
                         guard model.undoUsed else {
                             // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
                             // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
                             // アラートの終了アニメーションに巻き込まれる）。
-                            Task { model.undoLastExchange() }
+                            Task { @MainActor in model.performFreeUndo(services: services) }
                             return
                         }
                         // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
@@ -344,16 +362,16 @@ public extension View {
                             services, gameID: model.gameID, purpose: .undo,
                             guardedBy: .checkedByGrant
                         ) {
-                            model.undoLastExchange(forTurn: turn)
+                            model.performAdUndo(forTurn: turn, services: services)
                         }
                     }
-                    Button("キャンセル", role: .cancel) {}
+                    Button(tr("キャンセル"), role: .cancel) {}
                 } message: {
                     // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。
                     // 「直前の1手」とだけ書くと、盤が2手ぶん戻ることが伝わらない（#665）。
                     Text(model.undoUsed
-                         ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
-                         : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
+                         ? tr("無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。")
+                         : tr("あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。"))
                 }
             }
             // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
@@ -361,10 +379,10 @@ public extension View {
                          services: services, gameID: model.gameID)
             .rewardedRescueAlerts(
                 undoRescue,
-                notEarned: "待ったは使えませんでした",
+                notEarned: tr("待ったは使えませんでした"),
                 unavailable: RewardUnavailableAlert(
-                    title: "待ったは使えませんでした",
-                    message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
+                    title: tr("待ったは使えませんでした"),
+                    message: tr("広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。")
                 )
             )
     }
@@ -463,14 +481,14 @@ public struct ReviewNavBar: View {
                 Button(action: onBack) { Self.navSymbol("backward.frame.fill") }
                     .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
                     .disabled(ply <= 0)
-                    .accessibilityLabel("1手戻す")
-                Text("\(ply)/\(total)手")
+                    .accessibilityLabel(tr("1手戻す"))
+                Text(tr("%1$lld/%2$lld手", ply, total))
                     .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
-                    .accessibilityLabel("\(total)手中 \(ply)手目")
+                    .accessibilityLabel(tr("%1$lld手中 %2$lld手目", total, ply))
                 Button(action: onForward) { Self.navSymbol("forward.frame.fill") }
                     .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
                     .disabled(ply >= total)
-                    .accessibilityLabel("1手進める")
+                    .accessibilityLabel(tr("1手進める"))
             }
 
             Spacer(minLength: 8)

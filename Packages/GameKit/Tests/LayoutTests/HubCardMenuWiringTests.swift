@@ -19,11 +19,12 @@ struct HubCardMenuWiringTests {
     @Test("グリッドのカードは .pop のあとに長押しメニューを持ち、先頭へ移動と非表示の2項目を呼ぶ")
     func gridCardHasContextMenu() throws {
         let source = try SourceScan.appSources()
+        // 柵越えおじさん（#2175 でグリッドの先頭のタイルになった）は常に先頭なので「いちばん上に置く」を押せなくしてよい。
         // カード → `.pop` → メニューの**結線**まで見る。メニューの項目名だけを contains で見ると、
         // 別の場所に同じ文言があっても緑になる。
         #expect(
             source.range(
-                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\("いちばん上に置く"[^\n]*\n\s*\}\s*\.disabled\(settings\.orderedIDs\.first == module\.id\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\("非表示にする""#,
+                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\(tr\("いちばん上に置く"\)[^\n]*\n\s*\}\s*\.disabled\((module\.id == Self\.heroGameID \|\| )?NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs\)\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\(tr\("非表示にする"\)"#,
                 options: .regularExpression
             ) != nil,
             "グリッドのカードに「いちばん上に置く」「非表示にする」のメニューが結線されていない"
@@ -42,6 +43,7 @@ struct HubCardMenuWiringTests {
         let hide = try Self.functionBody("hide", in: source)
         #expect(hide.contains("settings.toggleHidden(module.id)"), "非表示が GameSettings.toggleHidden を通っていない")
         #expect(hide.contains("AccessibilityNotification.Announcement("), "非表示の案内が VoiceOver で読まれない")
+        #expect(moveToTop.contains("NewGames.moveToTopAnnouncement("), "先頭へ移動の案内が新着の固定を踏まえていない（#2124）")
         #expect(moveToTop.contains("AccessibilityNotification.Announcement("), "先頭へ移動の完了が VoiceOver で読まれない（#1602）")
         #expect(moveToTop.contains("withGameAnimation("), "先頭へ移動が Reduce Motion 追従のアニメーションを通っていない（#1602）")
         #expect(!moveToTop.contains("UserDefaults") && !hide.contains("UserDefaults"),

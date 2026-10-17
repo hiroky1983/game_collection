@@ -59,7 +59,7 @@ public struct ChessView: View {
             if !over { resultCardClosed = false }
         }
         .padding(Theme.pad)
-        .gameChrome(title: "チェス", review: services.review,
+        .gameChrome(title: tr("チェス"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         if model.phase == .playing && !model.moves.isEmpty {
                             showConfirmNewGame = true
@@ -67,7 +67,7 @@ public struct ChessView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.chess) {
+        .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)) {
             ChessRuleDetail(style: pieceStyle)
         }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
@@ -83,17 +83,24 @@ public struct ChessView: View {
             }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規対局", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると対局データが失われます。")
+                Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        // CPU の着手（とチェック）を読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            guard let move = model.moves.last else { return nil }
+            return ChessAccessibility.cpuMoveAnnouncement(
+                piece: model.position.squares[move.to], move: move,
+                isCheck: model.position.isKingInCheck(model.position.sideToMove))
         }
         .task {
             #if DEBUG
@@ -136,7 +143,7 @@ public struct ChessView: View {
     private var checkOverlay: some View {
         ZStack {
             if checkBannerID != nil {
-                BoardGameCheckBanner("チェック")
+                BoardGameCheckBanner(tr("チェック"))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
         }
@@ -157,7 +164,7 @@ public struct ChessView: View {
                     // 暗幕のタップは VoiceOver の代わりに「やめる」ボタンがある。読ませる要素にしない（#1641）。
                     .accessibilityHidden(true)
                 VStack(spacing: 18) {
-                    Text("何に成りますか？")
+                    Text(tr("何に成りますか？"))
                         .themeBody(18, weight: .bold)
                         .foregroundStyle(Theme.ink)
                     HStack(spacing: 12) {
@@ -171,7 +178,7 @@ public struct ChessView: View {
                                         size: 44,
                                         style: pieceStyle
                                     )
-                                    Text(type.japaneseName)
+                                    Text(type.displayName)
                                         .themeCaption(11, weight: .semibold, maxScale: 1.5)
                                         .lineLimit(1).minimumScaleFactor(0.5)
                                         .foregroundStyle(Theme.inkSub)
@@ -180,10 +187,10 @@ public struct ChessView: View {
                                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("\(type.japaneseName)に成る")
+                            .accessibilityLabel(tr("%@に成る", type.displayName))
                         }
                     }
-                    Button("やめる") { model.cancelPromotion() }
+                    Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
                         .foregroundStyle(Theme.inkSub)
                 }
@@ -430,16 +437,16 @@ public struct ChessView: View {
         GameStatusBar {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
-                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 TurnBadge(isYourTurn: model.position.sideToMove == model.humanSide)
                     .gameAnimation(ChessMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("CPU思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 } else if let last = model.highlightedMoveText {
-                    Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
+                    Text(tr("直前 %@", last)).themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
         } trailing: {
@@ -447,7 +454,7 @@ public struct ChessView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
+                Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
     }
@@ -509,7 +516,7 @@ private struct CapturedAreaView: View {
 
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(isYou ? "あなた" : "CPU")
+                Text(isYou ? tr("あなた") : "CPU")
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -522,7 +529,7 @@ private struct CapturedAreaView: View {
             // ZStack で「取られていない / 取られた」を共通の高さに収め、ガタつきを防ぐ。
             ZStack(alignment: .leading) {
                 if lost.isEmpty {
-                    Text("取られた駒なし")
+                    Text(tr("取られた駒なし"))
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
@@ -579,23 +586,23 @@ struct ChessNewGameSheet: View {
             kind: .versus,
             onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
-            GameSetupSection("あなたの手番") {
+            GameSetupSection(tr("あなたの手番")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: "白", subtitle: "先に指す", selected: side == .white,
+                    GameSetupChooser(title: tr("白"), subtitle: tr("先に指す"), selected: side == .white,
                                      accent: Theme.Fill.teal, metrics: Self.metrics) { side = .white }
-                    GameSetupChooser(title: "黒", subtitle: "後に指す", selected: side == .black,
+                    GameSetupChooser(title: tr("黒"), subtitle: tr("後に指す"), selected: side == .black,
                                      accent: Theme.fillStrong, onAccent: .white,
                                      metrics: Self.metrics) { side = .black }
                 }
             }
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleChessEngine.init(level:)`。
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率（入門〜ふつうは 1 手先）。
                 CPUStrengthPicker(level: $level, details: [
-                    "浅い読み・ミス多め", "浅い読み・ミスあり", "浅い読み・ミス少なめ", "定跡＋深読み",
+                    tr("浅い読み・ミス多め"), tr("浅い読み・ミスあり"), tr("浅い読み・ミス少なめ"), tr("定跡＋深読み"),
                 ])
             }
-            GameSetupSection("駒の見た目") {
+            GameSetupSection(tr("駒の見た目")) {
                 VStack(spacing: 10) {
                     HStack(spacing: 12) {
                         ForEach(ChessPieceStyle.allCases, id: \.rawValue) { candidate in
@@ -641,7 +648,7 @@ private struct ChessPieceStylePreview: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(style.label)の駒の見本")
+        .accessibilityLabel(tr("%@の駒の見本", style.label))
     }
 }
 
@@ -653,26 +660,27 @@ struct ChessRuleDetail: View {
     /// 駒の意匠（#598）。盤に出ているものと同じ見た目で並べる。
     var style: ChessPieceStyle = .flat
 
-    private let pieces: [(ChessPieceType, String)] = [
-        (.king, "たて・よこ・ななめに1マス。逃げ場のない王手（チェックメイト）で負け"),
-        (.queen, "たて・よこ・ななめに何マスでも"),
-        (.rook, "たて・よこに何マスでも"),
-        (.bishop, "ななめに何マスでも"),
-        (.knight, "L字（2+1マス）。駒を飛び越えられる"),
-        (.pawn, "前へ1マス（最初だけ2マス）。取るときだけ斜め前"),
-    ]
+    // 文言は `body` の中で引く（表示言語の切り替えで描き直されるように・#2169）。
+    private var pieces: [(ChessPieceType, String)] { [
+        (.king, tr("たて・よこ・ななめに1マス。逃げ場のない王手（チェックメイト）で負け")),
+        (.queen, tr("たて・よこ・ななめに何マスでも")),
+        (.rook, tr("たて・よこに何マスでも")),
+        (.bishop, tr("ななめに何マスでも")),
+        (.knight, tr("L字（2+1マス）。駒を飛び越えられる")),
+        (.pawn, tr("前へ1マス（最初だけ2マス）。取るときだけ斜め前")),
+    ] }
 
-    private let rules: [(String, String)] = [
-        ("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。"),
-        ("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。間に駒があるとき、王手されているとき、通り道か着地のマスが攻撃されているときは使えません。"),
-        ("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。"),
-        ("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。"),
-        ("自動の引き分け", "同じ局面が3回くり返される・50手のあいだポーンも駒取りも無い・駒が足りずチェックメイトできない、のいずれかで引き分けになります。"),
-    ]
+    private var rules: [(String, String)] { [
+        (tr("プロモーション"), tr("ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。")),
+        (tr("キャスリング"), tr("キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。間に駒があるとき、王手されているとき、通り道か着地のマスが攻撃されているときは使えません。")),
+        (tr("アンパッサン"), tr("相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。")),
+        (tr("ステイルメイト"), tr("王手されていないのに動かせる駒が1つも無いと、引き分けです。")),
+        (tr("自動の引き分け"), tr("同じ局面が3回くり返される・50手のあいだポーンも駒取りも無い・駒が足りずチェックメイトできない、のいずれかで引き分けになります。")),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: rules) {
-            RuleFigureCard(title: "駒の動き") {
+            RuleFigureCard(title: tr("駒の動き")) {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(pieces, id: \.0.rawValue) { type, movement in
                         HStack(alignment: .center, spacing: 10) {
@@ -680,7 +688,7 @@ struct ChessRuleDetail: View {
                                            style: style)
                                 .frame(width: 30, height: 30)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(type.japaneseName)
+                                Text(type.displayName)
                                     .themeCaption(13, weight: .bold, maxScale: 1.5)
                                     .foregroundStyle(Theme.ink)
                                 Text(movement)

@@ -27,7 +27,7 @@ public struct FifteenView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "15パズル", review: services.review,
+        .gameChrome(title: tr("15パズル"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching) {
                         if model.hasProgressToLose {
                             showConfirmReset = true
@@ -35,21 +35,21 @@ public struct FifteenView: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(.fifteen)
+        .howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを使えませんでした",
+            notEarned: tr("ヒントを使えませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
             )
         )
         .dialogs { anchor in
-            anchor.confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると、いまの盤面と手数が失われます。")
+                Text(tr("途中で終了すると、いまの盤面と手数が失われます。"))
             }
         }
     }
@@ -57,7 +57,7 @@ public struct FifteenView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("手数")
+                Text(tr("手数"))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text("\(model.moves)")
@@ -76,12 +76,12 @@ public struct FifteenView: View {
         GameOverflowBar(
             actions: [
                 GameActionItem(
-                    id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+                    id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
                     badge: .hint(totalRemaining: model.hintsRemaining, needsAd: model.needsAdForHint),
                     isEnabled: model.canUseHint && !hintRescue.isWatching,
                     accessibilityLabel: FifteenAccessibility.hintLabel(
                         remaining: model.hints.freeRemaining, needsAd: model.needsAdForHint),
-                    accessibilityHint: "次に動かすタイルを光らせます"
+                    accessibilityHint: tr("次に動かすタイルを光らせます")
                 ) { requestHint() },
             ],
             verticalPadding: 4,
@@ -147,11 +147,11 @@ public struct FifteenView: View {
         ZStack {
             RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
-                Text("クリア！").font(.title2.bold()).foregroundStyle(.white)
-                Text("\(model.moves)手で揃えました")
+                Text(tr("クリア！")).font(.title2.bold()).foregroundStyle(.white)
+                Text(tr("%lld手で揃えました", model.moves))
                     .font(.subheadline).foregroundStyle(.white.opacity(0.85))
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button("もう一度") { withGameAnimation { model.newGame() } }
+                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.Fill.coral)
             }

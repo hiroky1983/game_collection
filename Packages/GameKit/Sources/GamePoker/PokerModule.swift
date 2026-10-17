@@ -3,8 +3,8 @@ import Core
 
 public struct PokerModule: GameModule {
     public let id = "poker"
-    public let title = "ポーカー"
-    public let description = "5カードドロー。チップを稼ごう！"
+    public var title: String { tr("ポーカー") }
+    public var description: String { tr("5カードドロー。チップを稼ごう！") }
     public var icon: Image { Image(systemName: "suit.spade.fill") }
 
     public init() {}

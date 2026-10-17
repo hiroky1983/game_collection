@@ -134,8 +134,8 @@ public enum ReengagementReminderPolicy {
 
     /// 通知の文言。`recordSummary`（ハブのカードと同じ 1 行・#1604）があれば、戻る理由として本文に添える。
     public static func content(gameTitle: String, recordSummary: String? = nil) -> (title: String, body: String) {
-        let body = recordSummary.map { "以前よく遊んでいたあそびです。記録: \($0)" } ?? "以前よく遊んでいたあそびです。"
-        return ("「\(gameTitle)」、久しぶりに遊んでみませんか？", body)
+        let body = recordSummary.map { tr("以前よく遊んでいたあそびです。記録: %@", $0) } ?? tr("以前よく遊んでいたあそびです。")
+        return (tr("「%@」、久しぶりに遊んでみませんか？", gameTitle), body)
     }
 }
 

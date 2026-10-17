@@ -23,10 +23,12 @@ public enum HanafudaMotif: String, CaseIterable, Sendable, Equatable {
     case phoenix    // 鳳凰
 }
 
-/// 絵柄まわりの純粋な定義。**描画そのものは `HanafudaCardFace`（Canvas 1 枚）が行う**。
+/// 絵柄まわりの純粋な定義。**表示そのものは `HanafudaCardFace`（画像 ＋ 帯の Canvas）が行う**。
 ///
-/// 図案は既存メーカーの札を一切参照せず、伝統的なモチーフ（公有）だけを題材に
-/// 単純化して起こしている（権利チェックの結論・Issue #495）。
+/// 図案は既存メーカーの札を一切参照せず、伝統的なモチーフ（公有）だけを題材にしている
+/// （権利チェックの結論・Issue #495。v1.1.12 からは文章の指示だけで描かせた画像・#2188）。
+/// `HanafudaMotif` と `distinguishingKey` は「同じ月の 4 枚が見分けられる」ことの定義で、
+/// 画像の図柄もこの表どおりに主役を置いている。
 public enum HanafudaCardArt {
 
     /// その札の主役。カス札は主役を持たない（月の植物だけで描く）。

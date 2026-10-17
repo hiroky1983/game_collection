@@ -486,6 +486,19 @@ struct RunnerFieldTests {
         #expect(field.step(dt: 1.0 / 600).contains(.crashed), "上面より下なら正面衝突")
     }
 
+    /// 崩れる足場の正面は、台座とは別の相手として記録される（#2285。文言が足場の見た目に合う）。
+    @Test("崩れる足場の正面に当たると crumblingPlatformFace、通常の台座は platformFace")
+    func platformFaceKindIsRecorded() {
+        for (pattern, expected) in [("---CC----", RunnerMissObject.crumblingPlatformFace), ("---PP----", .platformFace)] {
+            let stage = RunnerStage(number: 1, pattern: pattern, speed: 40)
+            guard let platform = stage.platforms.first else { Issue.record("台座が無い: \(pattern)"); continue }
+            var field = RunnerField(stage: stage)
+            field.placeForTesting(distance: platform.start - 1, altitude: platform.top - 1, vy: 0)
+            #expect(field.step(dt: 1.0 / 600).contains(.crashed), "\(pattern)")
+            #expect(field.lastMissObject == expected, "\(pattern)")
+        }
+    }
+
     /// **等号ちょうどは「乗った」側に倒す**（#674）。`isHittingPlatformFace` の 2 つの
     /// 不等号がどちらも strict であること——「足が上面ちょうど」も「中心が左端ちょうど」も
     /// 当たりではないこと——を、判定を直接読んで固定する。

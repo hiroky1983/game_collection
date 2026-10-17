@@ -27,7 +27,7 @@ struct MahjongSolitaireSetupSheet: View {
 
     /// シートの中身（節と警告）。枠の外でも描いて確かめられるよう分けてある。
     @ViewBuilder var sections: some View {
-        GameSetupSection("盤面のかたち") {
+        GameSetupSection(tr("盤面のかたち")) {
             HStack(spacing: 6) {
                 // 並び順は `MahjongSolitaireLayout.all`（亀甲・ピラミッド・十字）。
                 ForEach(MahjongSolitaireLayout.all) { layout in
@@ -38,15 +38,15 @@ struct MahjongSolitaireSetupSheet: View {
                     }
                 }
             }
-            Text("どのかたちも144枚で、必ず取り切れるように配ります。最短タイムはかたちごとに別々に記録されます。")
+            Text(tr("どのかたちも144枚で、必ず取り切れるように配ります。最短タイムはかたちごとに別々に記録されます。"))
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
         if discardsProgress {
-            Label("途中で終了すると今の盤面が失われます。",
+            Label(tr("途中で終了すると今の盤面が失われます。"),
                   systemImage: "exclamationmark.triangle.fill")
                 .scaledFont(13, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(Theme.coralText)
         }
     }
 }

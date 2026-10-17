@@ -3,8 +3,8 @@ import Core
 
 public struct GomokuModule: GameModule {
     public let id = "gomoku"
-    public let title = "五目並べ"
-    public let description = "先に5つ並べた方が勝ち！CPU に挑戦"
+    public var title: String { tr("五目並べ") }
+    public var description: String { tr("先に5つ並べた方が勝ち！CPU に挑戦") }
     public var icon: Image { Image(systemName: "circle.grid.3x3.fill") }
 
     public init() {}
@@ -17,5 +17,10 @@ public struct GomokuModule: GameModule {
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(GomokuSnapshot.self, for: id) else { return false }
         return !(snap.moveHistory ?? []).isEmpty || snap.cells.contains { $0 != nil }
+    }
+
+    /// 一手も打っていない盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
     }
 }

@@ -20,43 +20,61 @@ public enum BackgammonAccessibility {
         count: Int,
         isMovable: Bool,
         isSelected: Bool,
-        isDestination: Bool
+        isDestination: Bool,
+        isHintSource: Bool = false,
+        isHintDestination: Bool = false
     ) -> String {
-        var parts = ["\(index + 1)ポイント"]
+        var parts = [tr("%lldポイント", index + 1)]
         switch owner {
-        case .white: parts.append("あなたの駒\(count)個")
-        case .black: parts.append("CPUの駒\(count)個")
-        case nil:    parts.append("空")
+        case .white: parts.append(tr("あなたの駒%lld個", count))
+        case .black: parts.append(tr("CPUの駒%lld個", count))
+        case nil:    parts.append(tr("空"))
         }
-        if isSelected { parts.append("選択中") }
-        else if isMovable { parts.append("動かせます") }
-        if isDestination { parts.append("ここへ動かせます") }
-        return parts.joined(separator: "、")
+        if isSelected { parts.append(tr("選択中")) }
+        else if isMovable { parts.append(tr("動かせます")) }
+        if isDestination { parts.append(tr("ここへ動かせます")) }
+        if isHintSource { parts.append(tr("ヒントの駒")) }
+        if isHintDestination { parts.append(tr("ヒントの行き先")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// バーの読み上げ文。
-    public static func barLabel(humanCount: Int, cpuCount: Int, isMovable: Bool, isSelected: Bool) -> String {
-        var parts = ["バー"]
-        if humanCount == 0 && cpuCount == 0 { parts.append("空") }
-        if humanCount > 0 { parts.append("あなたの駒\(humanCount)個") }
-        if cpuCount > 0 { parts.append("CPUの駒\(cpuCount)個") }
-        if isSelected { parts.append("選択中") }
-        else if isMovable { parts.append("動かせます") }
-        return parts.joined(separator: "、")
+    public static func barLabel(humanCount: Int, cpuCount: Int, isMovable: Bool, isSelected: Bool,
+                                isHintSource: Bool = false) -> String {
+        var parts = [tr("バー")]
+        if humanCount == 0 && cpuCount == 0 { parts.append(tr("空")) }
+        if humanCount > 0 { parts.append(tr("あなたの駒%lld個", humanCount)) }
+        if cpuCount > 0 { parts.append(tr("CPUの駒%lld個", cpuCount)) }
+        if isSelected { parts.append(tr("選択中")) }
+        else if isMovable { parts.append(tr("動かせます")) }
+        if isHintSource { parts.append(tr("ヒントの駒")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// あがりの置き場の読み上げ文。
-    public static func offLabel(humanCount: Int, cpuCount: Int, isDestination: Bool) -> String {
-        var parts = ["あがり", "あなた\(humanCount)個", "CPU\(cpuCount)個"]
-        if isDestination { parts.append("ここへあがれます") }
-        return parts.joined(separator: "、")
+    public static func offLabel(humanCount: Int, cpuCount: Int, isDestination: Bool,
+                                isHintDestination: Bool = false) -> String {
+        var parts = [tr("あがり"), tr("あなた%lld個", humanCount), tr("CPU%lld個", cpuCount)]
+        if isDestination { parts.append(tr("ここへあがれます")) }
+        if isHintDestination { parts.append(tr("ヒントの行き先")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// サイコロの読み上げ文（例: "サイコロ 5と3、残り 3"）。
     public static func diceLabel(dice: [Int], remaining: [Int]) -> String {
-        guard !dice.isEmpty else { return "サイコロはまだ振っていません" }
-        let shown = dice.count == 4 ? "\(dice[0])のゾロ目" : dice.map(String.init).joined(separator: "と")
-        if remaining.isEmpty { return "サイコロ \(shown)、使い切りました" }
-        return "サイコロ \(shown)、残り \(remaining.map(String.init).joined(separator: "と"))"
+        guard !dice.isEmpty else { return tr("サイコロはまだ振っていません") }
+        let shown = dice.count == 4 ? tr("%lldのゾロ目", dice[0]) : dice.map(String.init).joined(separator: tr("と"))
+        if remaining.isEmpty { return tr("サイコロ %@、使い切りました", shown) }
+        return tr("サイコロ %1$@、残り %2$@", shown, remaining.map(String.init).joined(separator: tr("と")))
+    }
+
+    /// CPU の手番が終わったときの読み上げ文（#2280）。`moves` が空ならパス。
+    /// 駒を 1 つ動かすたびには読まず、手番の締めに 1 回だけ、動かした数と叩かれた駒の数を伝える。
+    public static func cpuTurnAnnouncement(moves: [BackgammonMove]) -> String {
+        guard !moves.isEmpty else { return tr("CPUはパスしました") }
+        let hits = moves.filter(\.hits).count
+        let moved = tr("CPUは駒を%lld個動かしました", moves.count)
+        guard hits > 0 else { return moved }
+        return moved + tr("。") + tr("あなたの駒が%lld個バーに送られました", hits)
     }
 }

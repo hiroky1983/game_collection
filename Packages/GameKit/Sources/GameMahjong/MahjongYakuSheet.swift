@@ -16,9 +16,9 @@ public struct MahjongYakuSheet: View {
     public init() {}
 
     public var body: some View {
-        YakuTableSheet(title: "役の早見表", standalone: true) {
+        YakuTableSheet(title: tr("役の早見表"), standalone: true) {
             ForEach(MahjongYaku.Section.allCases, id: \.self) { section in
-                YakuTableSection(header: section.rawValue, footer: Self.footer(for: section)) {
+                YakuTableSection(header: section.title, footer: Self.footer(for: section)) {
                     ForEach(MahjongYaku.yaku(in: section), id: \.self) { yaku in
                         row(yaku)
                     }
@@ -31,31 +31,41 @@ public struct MahjongYakuSheet: View {
         switch section {
         case .one:
             // 門前を崩さないのは暗槓だけ（`MahjongCall.breaksConcealment`）。大明槓も崩す。
-            return "「門前のみ」はポン・チー・大明槓をすると消える役です（暗槓は門前のままなので消えません）。"
+            return tr("「門前のみ」はポン・チー・大明槓をすると消える役です（暗槓は門前のままなので消えません）。")
         case .two, .three:
-            return "「鳴きN飜」はポン・チー・大明槓をすると飜数が下がる役、「門前のみ」は消える役です。"
+            return tr("「鳴きN飜」はポン・チー・大明槓をすると飜数が下がる役、「門前のみ」は消える役です。")
         case .yakuman:
-            return "役満は飜数によらず点数が固定で、複数そろうと倍役満になります。"
+            return tr("役満は飜数によらず点数が固定で、複数そろうと倍役満になります。")
         case .dora:
-            return "ドラは役ではありません。ドラだけでは和了できず、ほかに役が1つ以上要ります。"
+            return tr("ドラは役ではありません。ドラだけでは和了できず、ほかに役が1つ以上要ります。")
         }
     }
 
     // MARK: - 行
 
+    /// 役名の横に添える読み。英語では読みの代わりに役の意味を出すが、ドラだけは役名と同じ語
+    /// （"Dora"）になるので、同じ語を 2 度並べない。日本語は従来どおり常に出す（ドラも「ドラ ドラ」のまま）。
+    static func readingText(_ yaku: MahjongYaku) -> String? {
+        let reading = yaku.reading
+        let isTranslated = yaku.displayName != yaku.name
+        return isTranslated && reading == yaku.displayName ? nil : reading
+    }
+
     private func row(_ yaku: MahjongYaku) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(yaku.name)
+                Text(yaku.displayName)
                     .scaledFont(15, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
-                Text(yaku.reading)
-                    .scaledFont(11, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                if let reading = Self.readingText(yaku) {
+                    Text(reading)
+                        .scaledFont(11, weight: .medium, design: .rounded)
+                        .foregroundStyle(Theme.inkSub)
+                }
                 Spacer(minLength: 6)
                 Text(yaku.hanText)
                     .scaledFont(13, weight: .heavy, design: .rounded)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                     .fixedSize()
             }
             Text(yaku.requirement)
@@ -66,7 +76,11 @@ public struct MahjongYakuSheet: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(yaku.name)。\(yaku.reading)。\(yaku.hanText)。\(yaku.requirement)")
+        .accessibilityLabel(
+            [yaku.displayName, Self.readingText(yaku), yaku.hanText, yaku.requirement]
+                .compactMap { $0 }
+                .joined(separator: tr("。"))
+        )
     }
 
     /// 牌例。牌が多い役は行を折り返す（横スクロールにすると、動かさないと全体が見えない）。

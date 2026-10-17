@@ -4,8 +4,8 @@ import Core
 /// 将棋の `GameModule` 登録口。
 public struct ShogiModule: GameModule {
     public let id = "shogi"
-    public let title = "将棋"
-    public let description = "CPU と本格的な将棋で対決しよう"
+    public var title: String { tr("将棋") }
+    public var description: String { tr("CPU と本格的な将棋で対決しよう") }
     public var icon: Image { Image(systemName: "square.grid.3x3.fill") }
 
     public init() {}
@@ -20,5 +20,11 @@ public struct ShogiModule: GameModule {
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return false }
         return snap.phase == .playing && !snap.moves.isEmpty
+    }
+
+    /// 対局中で一手も指していない局（#2161）。終局後の見返しは手つかずではない。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return false }
+        return snap.phase == .playing && snap.moves.isEmpty
     }
 }

@@ -10,12 +10,18 @@ public enum SpeedLevel: String, CaseIterable, Codable, Sendable {
     case normal
     case fast
 
+    /// 画面に出す名前（表示言語に従う）。
     public var label: String {
         switch self {
-        case .slow:   return "ゆっくり"
-        case .normal: return "ふつう"
-        case .fast:   return "はやい"
+        case .slow:   return tr("ゆっくり")
+        case .normal: return tr("ふつう")
+        case .fast:   return tr("はやい")
         }
+    }
+
+    /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されるので表示言語によらず日本語で固定する。
+    public var recordLabel: String {
+        RecordVariantLabels.stored(gameID: "speed", variant: rawValue)
     }
 
     /// CPU が出せる札を見つけてから置くまでの基準（ミリ秒）。実際は ±20% の揺らぎが乗る。
@@ -30,9 +36,9 @@ public enum SpeedLevel: String, CaseIterable, Codable, Sendable {
     /// 開始シートの副題（「約2.6秒」など）。
     public var subtitle: String {
         switch self {
-        case .slow:   return "約2.6秒で出す"
-        case .normal: return "約1.4秒で出す"
-        case .fast:   return "約0.75秒で出す"
+        case .slow:   return tr("約2.6秒で出す")
+        case .normal: return tr("約1.4秒で出す")
+        case .fast:   return tr("約0.75秒で出す")
         }
     }
 
@@ -63,8 +69,8 @@ public struct SpeedSettings: Codable, Equatable, Sendable {
     /// 記録（勝敗・連勝・最速）を分ける区分のキー。速さごとに 1 件。
     public var variant: String { level.rawValue }
 
-    /// 区分の表示名。ハブの記録行と画面の見出しに使う。
-    public var variantLabel: String { level.label }
+    /// 区分名。記録（`GameScore.variantLabel`）に保存するので日本語で固定する（画面の見出しは `level.label`）。
+    public var variantLabel: String { level.recordLabel }
 }
 
 /// 中断データ。**ゲームそのものは復元しない**（同時進行の駆け引きで成り立つゲームなので、途中から

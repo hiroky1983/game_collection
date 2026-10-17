@@ -55,9 +55,38 @@ public enum NewGames {
         visibleIDs.filter { newIDs.contains($0) } + visibleIDs.filter { !newIDs.contains($0) }
     }
 
+    /// 長押しメニューの「いちばん上に置く」（#662）が、すでに**表示上**その位置にあるか（#2124）。
+    ///
+    /// 位置は非表示も含む `orderedIDs` で数える（設定シートの座標）。新着は表示で先頭に固定されるため、
+    /// 通常のゲームの前に新着（表示中のもの）しか無ければ、すでに「新着の直後」＝メニューが言う先頭にある。
+    /// 新着自身は、前に何かあれば動かす余地がある。前に非表示のゲームがあるときも動かす余地を残す。
+    public static func isAlreadyAtTop(
+        id: String,
+        orderedIDs: [String],
+        hiddenIDs: Set<String>,
+        newIDs: Set<String> = currentVersionIDs
+    ) -> Bool {
+        guard let index = orderedIDs.firstIndex(of: id) else { return true }
+        let before = orderedIDs[..<index]
+        if newIDs.contains(id) { return before.isEmpty }
+        return before.allSatisfy { newIDs.contains($0) && !hiddenIDs.contains($0) }
+    }
+
+    /// 「いちばん上に置く」のあとの VoiceOver 案内。新着が先頭に固定されているときは、実際の位置（新着の次）を伝える。
+    public static func moveToTopAnnouncement(
+        title: String,
+        id: String,
+        orderedIDs: [String],
+        hiddenIDs: Set<String>,
+        newIDs: Set<String> = currentVersionIDs
+    ) -> String {
+        let pinnedAhead = !newIDs.contains(id) && orderedIDs.contains { newIDs.contains($0) && !hiddenIDs.contains($0) }
+        return pinnedAhead ? tr("「%@」を新着の次に移しました", title) : tr("「%@」を先頭に移しました", title)
+    }
+
     /// ハブ上部の1行。増えたゲームが無ければ nil（行ごと出さない）。
     public static func notice(count: Int) -> String? {
         guard count > 0 else { return nil }
-        return "新しいあそびが\(count)本増えました"
+        return tr("新しいあそびが%lld本増えました", count)
     }
 }

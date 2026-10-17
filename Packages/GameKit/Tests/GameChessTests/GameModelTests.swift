@@ -463,3 +463,20 @@ struct ChessCorruptedSnapshotTests {
         #expect(model.highlightedMove == nil)
     }
 }
+
+@MainActor
+@Suite("駒を選ぶ触覚（#2303）")
+struct ChessSelectionFeedbackTests {
+    @Test("自分の駒を選ぶと selection、空きマスの拒否は warning")
+    func selectingPieceFiresSelection() {
+        let spy = SpyFeedbackService()
+        let model = ChessGameModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        )
+        model.tapSquare(ChessSquare.fromName("e2")!)
+        #expect(spy.impacts == [.selection])
+        model.tapSquare(ChessSquare.fromName("e5")!)
+        #expect(spy.notices == [.warning])
+        #expect(spy.impacts == [.selection])
+    }
+}

@@ -151,24 +151,24 @@ enum Glyph {
     static func kanji(for p: Piece) -> String {
         if p.promoted {
             switch p.type {
-            case .pawn: return "と"
-            case .lance: return "杏"
-            case .knight: return "圭"
-            case .silver: return "全"
-            case .bishop: return "馬"
-            case .rook: return "龍"
+            case .pawn: return "と"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+            case .lance: return "杏"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+            case .knight: return "圭"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+            case .silver: return "全"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+            case .bishop: return "馬"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+            case .rook: return "龍"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
             default: break
             }
         }
         switch p.type {
-        case .pawn: return "歩"
-        case .lance: return "香"
-        case .knight: return "桂"
-        case .silver: return "銀"
-        case .gold: return "金"
-        case .bishop: return "角"
-        case .rook: return "飛"
-        case .king: return p.color == .black ? "玉" : "王"
+        case .pawn: return "歩"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .lance: return "香"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .knight: return "桂"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .silver: return "銀"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .gold: return "金"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .bishop: return "角"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .rook: return "飛"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
+        case .king: return p.color == .black ? "玉" : "王"  // i18n-keep: 駒の絵柄の文字（会長決定 #2166 で漢字のまま）
         }
     }
 }

@@ -54,7 +54,7 @@ public struct CPUStrengthPicker: View {
                         accent: strength.accent, metrics: Self.metrics
                     ) { level = strength.rawValue }
                         // 読み上げでは説明もタイルに添える（画面では選んだ段のぶんしか出ないため）。
-                        .accessibilityLabel("\(strength.label)、\(detail(strength))")
+                        .accessibilityLabel(strength.label + tr("、") + detail(strength))
                 }
             }
             // 段を選び直しても高さが変わらないよう 1 行に固定する（シートが伸び縮みしない）。

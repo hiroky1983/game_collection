@@ -13,6 +13,9 @@ import AppKit
 /// ライト時に確保できている可読性を下げてしまうため。値を動かさなくてもダークの地・面に対する
 /// コントラストはライト時より必ず良くなる（最小は面の上の `purple` で 4.32:1）。
 ///
+/// 差し色を**文字色**として使うときも `Theme.yellow` 等ではなく `Theme.yellowText` / `tealText` / `coralText` を使う（#2282。
+/// 明るい地で yellow 1.50 / teal 2.04 / coral 2.55 しか取れなかった）。
+///
 /// 差し色を**面色**として使うときは `Theme.coral` ではなく `Theme.Fill.coral` を使い、
 /// その上の文字には `Theme.onAccent` を載せる（#220。白文字は全差し色で AA 未達だった）。
 public enum Theme {
@@ -65,6 +68,16 @@ public enum Theme {
         /// 差し色の面の上に載せる文字色。面色はモードによらず固定なので、`ink` のライト側で固定する。
         public static let onAccent: UInt32 = ink.light
 
+        /// 差し色を**文字色**として明るい地（クリーム・白）に載せるときの値（#2282）。
+        ///
+        /// 元の差し色は明るい地の上で yellow 1.50 / teal 2.04 / coral 2.55（クリーム地）しか取れず、
+        /// ベット額・ポット額のような判断に使う数字が読めなかった。ライトだけ同じ色相のまま濃くして
+        /// AA（4.5:1）に乗せ、ダークは元の差し色のまま（暗い地では元から十分に読める）。
+        /// `foregroundStyle(Theme.yellowText)` のように差し色を直接文字へ使うのは `AccentTextScanTests` が落とす。
+        public static let yellowText: Pair = (0x976400, yellow)
+        public static let tealText: Pair = (0x167B78, teal)
+        public static let coralText: Pair = (0xC93D2E, coral)     // `dialogTint` と同じ値
+
         /// 標準ダイアログ（`.alert` / `.confirmationDialog`）のボタンの文字色（#1874）。
         ///
         /// ダイアログの背景は OS のすりガラスで変えられず、アプリ全体の tint の `coral`（白に対し 2.7:1）では
@@ -87,6 +100,12 @@ public enum Theme {
     public static let purple = Color(hex: Hex.purple)
     public static let yellow = Color(hex: Hex.yellow)
     public static let pink = Color(hex: Hex.pink)
+
+    /// 差し色を**文字色**として使うときの値（#2282）。明るい地の上でも AA に乗る。値の根拠は `Hex.yellowText` を参照。
+    /// 面色には使えない（面は `Fill`、その上の文字は `onAccent`）。
+    public static let yellowText = Color(Hex.yellowText)
+    public static let tealText = Color(Hex.tealText)
+    public static let coralText = Color(Hex.coralText)
 
     /// 差し色を**面色**（チップ・ボタンの塗り）として使うときの値。文字は必ず `Theme.onAccent` を載せる。
     /// 値の根拠と、文字色用の差し色と別に持つ理由は `Hex.Fill` のコメントを参照（#220）。

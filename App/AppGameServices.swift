@@ -28,9 +28,16 @@ import GameFruits
 import GameColorRelay
 import GameAnzan
 import GameBackgammon
+import GameMancala
 import GameSpeed
 import GameHomerun
 import GameOjisanPuzzle
+import GameOldMaid
+import GameHearts
+import GameAkariKeshi
+import GameTsunagi
+import GameDiceCombo
+import GameHanoi
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -207,6 +214,19 @@ enum AppEnvironment {
     /// `-screenshotMode` 付きで起動すると広告を出さず ATT も聞かない。
     /// シミュレータは AdMob 側で自動的にテストデバイス扱いになり、Release ビルドでも
     /// バナーに `Test mode` の帯が写り込むため、撮影時は広告そのものを無効化する。
+    /// 表示言語の起動時の読み込み（#2109）。保存した選択があればそれ、無ければ端末の言語。
+    /// 動作確認・英語のスクリーンショット撮影用に、起動引数 `-appLanguage en`（または `ja`）で
+    /// その回だけ上書きできる（保存はしない。設定画面で選び直すと、その選択が保存される）。
+    static func bootstrapLanguage() {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-appLanguage"), i + 1 < args.count,
+           let forced = AppLanguage(rawValue: args[i + 1]) {
+            AppLanguageStore.shared.apply(forced)
+        } else {
+            AppLanguageStore.shared.bootstrap()
+        }
+    }
+
     static var isScreenshotMode: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-screenshotMode")
@@ -268,9 +288,22 @@ enum AppEnvironment {
         // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // BackgammonModule(),
+        // マンカラ（企画倉庫・#1626）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // MancalaModule(),
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
+        // 明かり消しパズル（企画倉庫・#1883）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`categories` に "akarikeshi": .puzzleOther を、
+        // `web/app/lib/games.ts` にも同じ順で足す。
+        // AkariKeshiModule(),
+        // 線つなぎ（企画倉庫・#2235）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // TsunagiModule(),
+        // ハノイの塔（企画倉庫・#2003）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリーのチップ（`"hanoi": .puzzleOther`）にも足す。
+        // HanoiModule(),
         // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告）・
         // 解析・Game Center への送信まで入っている。
         HomerunModule(),
@@ -283,6 +316,24 @@ enum AppEnvironment {
         // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
         AnzanModule(),
+        // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // OldMaidModule(),
+        // ハーツ（企画倉庫・#1884）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリー（`.cards`）にも足す。
+        // HeartsModule(),
+        // サイコロ役づくり（企画倉庫・#1752）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とハブのカテゴリーにも足す。
+        // DiceComboModule(),
+    ], categories: [
+        // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
+        "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan,
+        "shogi": .board, "chess": .board, "othello": .board, "gomoku": .board, "go": .board,
+        "poker": .cards, "solitaire": .cards, "daifugo": .cards, "spider": .cards,
+        "blackjack": .cards, "concentration": .cards, "freecell": .cards,
+        "mahjong4": .mahjongHanafuda, "mahjong": .mahjongHanafuda, "hanafuda": .mahjongHanafuda,
+        "sudoku": .puzzleOther, "2048": .puzzleOther, "shiritori": .puzzleOther, "minesweeper": .puzzleOther,
+        "blocks": .puzzleOther, "fifteen": .puzzleOther, "anzan": .puzzleOther,
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

@@ -24,30 +24,30 @@ public struct HanafudaSetupSheet: View {
             kind: .versus,
             onStart: onStart, onCancel: onCancel
         ) {
-            GameSetupSection("何局戦うか") {
+            GameSetupSection(tr("何局戦うか")) {
                 HStack(spacing: 12) {
                     ForEach(HanafudaOptions.allowedRounds, id: \.self) { count in
-                        GameSetupChooser(title: "\(count)局", subtitle: "",
+                        GameSetupChooser(title: tr("%lld局", count), subtitle: "",
                                           selected: draft.rounds == count,
                                           accent: Theme.Fill.purple) { draft.rounds = count }
                     }
                 }
-                Text("全局が終わった時点で、合計の文数が多いほうの勝ちです。")
+                Text(tr("全局が終わった時点で、合計の文数が多いほうの勝ちです。"))
                     .themeBody(12).foregroundStyle(Theme.inkSub)
             }
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 HStack(spacing: 6) {
                     ForEach(Array(HanafudaDifficulty.allCases.enumerated()), id: \.element) { step, value in
                         difficultyTile(value, accent: DifficultyTile.accent(step: step, of: HanafudaDifficulty.allCases.count))
                     }
                 }
             }
-            GameSetupSection("ローカルルール") {
+            GameSetupSection(tr("ローカルルール")) {
                 Toggle(isOn: $draft.sakeYakuEnabled) {
-                    Label("月見酒・花見酒", systemImage: "moon.stars")
+                    Label(tr("月見酒・花見酒"), systemImage: "moon.stars")
                         .foregroundStyle(Theme.ink)
                 }
-                Text("「芒に月＋菊に盃」「桜に幕＋菊に盃」を役として数えます。オフにすると菊に盃はタネ札としてだけ働きます。")
+                Text(tr("「芒に月＋菊に盃」「桜に幕＋菊に盃」を役として数えます。オフにすると菊に盃はタネ札としてだけ働きます。"))
                     .themeBody(12).foregroundStyle(Theme.inkSub)
             }
         }
@@ -76,21 +76,21 @@ public struct HanafudaYakuSheet: View {
     }
 
     public var body: some View {
-        YakuTableSheet(title: "役の早見表", standalone: true) {
+        YakuTableSheet(title: tr("役の早見表"), standalone: true) {
             YakuTableSection(
-                header: "出来役",
+                header: tr("出来役"),
                 footer: options.sakeYakuEnabled
-                    ? "この試合は月見酒・花見酒を採用しています。"
-                    : "この試合は月見酒・花見酒を採用していません（灰色の行は数えません）。"
+                    ? tr("この試合は月見酒・花見酒を採用しています。")
+                    : tr("この試合は月見酒・花見酒を採用していません（灰色の行は数えません）。")
             ) {
                 ForEach(HanafudaYaku.displayOrder, id: \.self) { yaku in
                     row(yaku)
                 }
             }
-            YakuTableSection(header: "倍率") {
-                labeled("7文以上", "合計が7文以上のとき2倍")
-                labeled("こいこい返し", "相手がこいこいを宣言したあとにあがると2倍")
-                labeled("両方", "重なると4倍（掛け算）")
+            YakuTableSection(header: tr("倍率")) {
+                labeled(tr("7文以上"), tr("合計が7文以上のとき2倍"))
+                labeled(tr("こいこい返し"), tr("相手がこいこいを宣言したあとにあがると2倍"))
+                labeled(tr("両方"), tr("重なると4倍（掛け算）"))
             }
         }
     }
@@ -99,20 +99,25 @@ public struct HanafudaYakuSheet: View {
         let isDisabled = !options.sakeYakuEnabled
             && (yaku == .tsukimizake || yaku == .hanamizake)
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(yaku.name)
+            // 名前の列は幅が固定なので短い名前（英語はローマ字だけ）。英語の説明は成立条件の列の頭に入れてある（#2166）。
+            Text(yaku.shortName)
                 .scaledFont(15, weight: .bold, design: .rounded)
                 .foregroundStyle(isDisabled ? Theme.inkSub : Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(width: 76, alignment: .leading)
             Text(yaku.requirement)
                 .scaledFont(13, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Spacer(minLength: 6)
-            Text("\(yaku.basePoints)文")
+            Text(tr("%lld文", yaku.basePoints))
                 .scaledFont(14, weight: .heavy, design: .rounded)
                 .foregroundStyle(isDisabled ? Theme.inkSub : Theme.coral)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(yaku.name)。\(yaku.requirement)。\(yaku.basePoints)文\(isDisabled ? "。この試合では数えません" : "")")
+        .accessibilityLabel(isDisabled
+            ? tr("%1$@。%2$@。%3$lld文。この試合では数えません", yaku.shortName, yaku.requirement, yaku.basePoints)
+            : tr("%1$@。%2$@。%3$lld文", yaku.shortName, yaku.requirement, yaku.basePoints))
     }
 
     private func labeled(_ title: String, _ detail: String) -> some View {
@@ -120,6 +125,7 @@ public struct HanafudaYakuSheet: View {
             Text(title)
                 .scaledFont(15, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
+                .minimumScaleFactor(0.7)
                 .frame(width: 96, alignment: .leading)
             Text(detail)
                 .scaledFont(13, design: .rounded)
@@ -136,35 +142,36 @@ public struct HanafudaRuleSheet: View {
 
     public var body: some View {
         RuleListSheet(rules: Self.sections.map { title, lines in
-            (title, lines.map { "・\($0)" }.joined(separator: "\n"))
+            (title, lines.map { tr("・%@", $0) }.joined(separator: "\n"))
         })
     }
 
-    private static let sections: [(String, [String])] = [
-        ("札の見かた", [
-            "札の上の帯に、左が月・右が種別（光・タネ・短・カス）を出しています。",
-            "合わせられるのは月が同じ札どうしです。",
-            "タネ・タン・カスの役は種別ごとの枚数で決まります。帯の色も種別に対応しています。",
-            "光・猪鹿蝶・赤短・青短は枚数だけでは決まりません。どの札がそろったかで変わるので、役の早見表で確かめてください。",
-            "短冊の帯は、赤短が赤・青短が青です。",
+    /// 表示言語で引くので `static let` にしない（起動時の言語で固まるため・#2166）。
+    private static var sections: [(String, [String])] { [
+        (tr("札の見かた"), [
+            tr("札の上の帯に、左が月・右が種別（光・タネ・短・カス）を出しています。"),
+            tr("合わせられるのは月が同じ札どうしです。"),
+            tr("タネ・タン・カスの役は種別ごとの枚数で決まります。帯の色も種別に対応しています。"),
+            tr("光・猪鹿蝶・赤短・青短は枚数だけでは決まりません。どの札がそろったかで変わるので、役の早見表で確かめてください。"),
+            tr("短冊の帯は、赤短が赤・青短が青です。"),
         ]),
-        ("進行", [
-            "手札8枚・場札8枚で始まります。親から順に打ちます。",
-            "手札を1枚出し、場の同じ月の札と合わせて取ります。合う札が無ければ場に置きます。",
-            "続けて山札を1枚めくり、同じように合わせます。ここまでで1手番です。",
-            "場に同じ月が3枚あるときは、4枚まとめて取れます。",
+        (tr("進行"), [
+            tr("手札8枚・場札8枚で始まります。親から順に打ちます。"),
+            tr("手札を1枚出し、場の同じ月の札と合わせて取ります。合う札が無ければ場に置きます。"),
+            tr("続けて山札を1枚めくり、同じように合わせます。ここまでで1手番です。"),
+            tr("場に同じ月が3枚あるときは、4枚まとめて取れます。"),
         ]),
-        ("こいこい", [
-            "役ができたら「あがり」か「こいこい」を選びます。",
-            "あがるとその場で得点が確定し、局が終わります。",
-            "こいこいを選ぶと局が続き、役を伸ばせます。ただし相手にあがられると相手の得点が2倍になります。",
-            "こいこいのあとは、宣言したときより文数が増えないとあがれません。",
+        (tr("こいこい"), [
+            tr("役ができたら「あがり」か「こいこい」を選びます。"),
+            tr("あがるとその場で得点が確定し、局が終わります。"),
+            tr("こいこいを選ぶと局が続き、役を伸ばせます。ただし相手にあがられると相手の得点が2倍になります。"),
+            tr("こいこいのあとは、宣言したときより文数が増えないとあがれません。"),
         ]),
-        ("得点", [
-            "合計が7文以上のとき2倍になります。",
-            "相手のこいこいのあとにあがると2倍（両方重なると4倍）。",
-            "だれもあがれずに手札が尽きたら流局で、その局は0文です。",
-            "あがった人が次の局の親になります。流局のときは親が続きます。",
+        (tr("得点"), [
+            tr("合計が7文以上のとき2倍になります。"),
+            tr("相手のこいこいのあとにあがると2倍（両方重なると4倍）。"),
+            tr("だれもあがれずに手札が尽きたら流局で、その局は0文です。"),
+            tr("あがった人が次の局の親になります。流局のときは親が続きます。"),
         ]),
-    ]
+    ] }
 }

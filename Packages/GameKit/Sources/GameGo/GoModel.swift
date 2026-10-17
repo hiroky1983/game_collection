@@ -23,7 +23,7 @@ public enum GoTapRejection: Equatable, Sendable {
 
     public var message: String {
         switch self {
-        case .notYourTurn:       return "CPU の番です"
+        case .notYourTurn:       return tr("CPU の番です")
         case .illegal(let why):  return why.message
         }
     }
@@ -63,6 +63,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var winner: GoStone?
     public private(set) var isThinking: Bool
     public private(set) var lastMove: GoPoint?
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var undoUsed: Bool
     /// 終局の計算結果（`scoring` / `finished` で有効）。
     public private(set) var endgame: GoEndgame?
@@ -379,7 +381,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     /// 人間の手番で、直前の自分の手と CPU の応手をまとめて戻せるか。
     public var canUndo: Bool {
-        guard phase == .playing, !isAITurn, !isThinking else { return false }
+        // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
+        guard phase == .playing, !isAITurn, !isThinking, !isHintThinking else { return false }
         return moves.count >= 2
     }
 
@@ -469,6 +472,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } commit: { move in
             guard isAITurn else { return }
             apply(move)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 

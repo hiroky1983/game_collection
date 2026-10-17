@@ -12,15 +12,15 @@ public enum RecommendationReason: Equatable, Sendable {
     public var caption: String {
         switch self {
         case .unplayed:
-            return "次はこれで遊ぶ？"
+            return tr("次はこれで遊ぶ？")
         case .revisit(let days?) where days >= 1:
-            return "\(days)日ぶりに遊んでみない？"
+            return tr("%lld日ぶりに遊んでみない？", days)
         case .revisit(nil):
             // 遊んだのは確かだが日付が無い＝この機能より前。「◯日ぶり」と断言しない。
-            return "ひさしぶりに遊んでみない？"
+            return tr("ひさしぶりに遊んでみない？")
         case .revisit:
             // 今日も遊んでいる。嘘にならない言い方に倒す。
-            return "また遊んでみない？"
+            return tr("また遊んでみない？")
         }
     }
 }

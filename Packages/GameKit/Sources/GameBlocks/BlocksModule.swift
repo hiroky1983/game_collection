@@ -13,8 +13,8 @@ public struct BlocksModule: GameModule {
     // 定数参照にすると slug を突き合わせられずに CI が落ちる。
     // `BlocksModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "blocks"
-    public let title = "ブロック崩し"
-    public let description = "パドルではね返して全部くずそう"
+    public var title: String { tr("ブロック崩し") }
+    public var description: String { tr("パドルではね返して全部くずそう") }
     // 球の絵にしてある。ブロックを模した格子（`rectangle.grid.2x2.fill` 等）は、
     // ハブで隣に並ぶ 2048（`square.grid.2x2`）と見分けが付かなかった（実機確認で判明）。
     public var icon: Image { Image(systemName: "tennisball.fill") }
@@ -30,8 +30,17 @@ public struct BlocksModule: GameModule {
     /// 2 面以降・残機が減った・コンティニュー済みは進行なので続きとして扱う。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(BlocksSnapshot.self, for: id) else { return false }
-        let untouched = snap.stage <= 1 && snap.score == 0
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが 1 面の頭から一度も落としていない盤（#2301）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(BlocksSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: BlocksSnapshot) -> Bool {
+        snap.stage <= 1 && snap.score == 0
             && snap.lives >= BlocksRules.initialLives && !snap.continueUsed
-        return !untouched
     }
 }

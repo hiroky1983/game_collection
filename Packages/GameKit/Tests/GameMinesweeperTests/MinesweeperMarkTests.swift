@@ -410,7 +410,7 @@ struct MinesweeperDifficultyPresetTests {
     func presetsHaveJapaneseRecordLabels() {
         for preset in Self.presets {
             let model = MinesweeperModel(rows: preset.rows, cols: preset.cols, mines: preset.mines)
-            #expect(model.recordVariantLabel == preset.label)
+            #expect(model.recordVariantLabel == preset.recordLabel)
         }
     }
 }

@@ -30,14 +30,14 @@ public struct RecordLabel: View {
             HStack(spacing: 8) {
                 HStack(spacing: 8) {
                     if result.update.isNewBest {
-                        RecordBadge("自己ベスト更新！", accent: accent)
+                        RecordBadge(tr("自己ベスト更新！"), accent: accent)
                     }
                     Text(line)
                         .themeCaption(13, weight: .semibold, maxScale: 1.3)
                         .foregroundStyle(textColor)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(result.update.isNewBest ? "自己ベスト更新。\(line)" : line)
+                .accessibilityLabel(result.update.isNewBest ? tr("自己ベスト更新。%@", line) : line)
 
                 // 共有ボタンは読み上げの結合の**外**に置く（中に入れると 1 つの要素に畳まれて押せなくなる）。
                 if result.update.isNewBest, let share,
@@ -101,7 +101,7 @@ struct RecordShareButton: View {
     static let tapTarget: CGFloat = 44
 
     var body: some View {
-        ShareLink(item: context.url, subject: Text("あそびば"), message: Text(verbatim: message)) {
+        ShareLink(item: context.url, subject: Text(tr("あそびば")), message: Text(verbatim: message)) {
             Image(systemName: "square.and.arrow.up")
                 .scaledFont(12, weight: .bold)
                 .foregroundStyle(Theme.onAccent)
@@ -115,7 +115,7 @@ struct RecordShareButton: View {
         .simultaneousGesture(TapGesture().onEnded { context.didTap() })
         .padding(.vertical, -(Self.tapTarget - Self.symbolSide) / 2)
         .padding(.horizontal, -(Self.tapTarget - Self.symbolSide) / 4)
-        .accessibilityLabel("記録をシェア")
+        .accessibilityLabel(tr("記録をシェア"))
     }
 }
 

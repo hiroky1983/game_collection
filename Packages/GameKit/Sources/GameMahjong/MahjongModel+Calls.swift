@@ -108,3 +108,15 @@ extension MahjongModel {
         riichiTurn = Array(repeating: nil, count: Self.playerCount)
     }
 }
+
+extension MahjongModel {
+    /// 手牌タップの触覚（#2303）。選択状態が View の `@State` にあるため View から呼ぶが、
+    /// 発火は規約どおり Model 経由にして `services` を View に持ち込まない。
+    func playHandTapFeedback(_ feedback: MahjongHandTapFeedback?) {
+        switch feedback {
+        case .selection: services?.feedback.impact(.selection)
+        case .rejected:  services?.feedback.notify(.warning)
+        case nil:        break
+        }
+    }
+}

@@ -51,14 +51,14 @@ public enum ShiritoriQuota: Int, CaseIterable, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .easy:   return "かんたん"
-        case .normal: return "ふつう"
-        case .hard:   return "むずかしい"
+        case .easy:   return tr("かんたん")
+        case .normal: return tr("ふつう")
+        case .hard:   return tr("むずかしい")
         }
     }
 
     /// 開始シート・結果に出すノルマの説明。
-    public var summary: String { "\(cardCount)枚取ったらクリア" }
+    public var summary: String { tr("%lld枚取ったらクリア", cardCount) }
 
     /// 勝ちになる、プレイヤーが取った枚数。
     public var cardCount: Int {
@@ -94,16 +94,16 @@ public enum ShiritoriMode: Int, CaseIterable, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .quota:   return "ノルマ"
-        case .endless: return "とことん"
+        case .quota:   return tr("ノルマ")
+        case .endless: return tr("とことん")
         }
     }
 
     /// 開始シートの選択肢に添える一言。
     public var summary: String {
         switch self {
-        case .quota:   return "ノルマの枚数を取れば勝ち"
-        case .endless: return "札が尽きるまで続く"
+        case .quota:   return tr("ノルマの枚数を取れば勝ち")
+        case .endless: return tr("札が尽きるまで続く")
         }
     }
 
@@ -111,7 +111,7 @@ public enum ShiritoriMode: Int, CaseIterable, Codable, Sendable {
     var scoreVariant: (key: String, label: String)? {
         switch self {
         case .quota:   return nil
-        case .endless: return ("endless", "とことん")
+        case .endless: return ("endless", RecordVariantLabels.stored(gameID: "shiritori", variant: "endless"))
         }
     }
 }

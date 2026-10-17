@@ -4,8 +4,8 @@ import Core
 /// チェスの `GameModule` 登録口。
 public struct ChessModule: GameModule {
     public let id = "chess"
-    public let title = "チェス"
-    public let description = "CPU と本格的なチェスで対決しよう"
+    public var title: String { tr("チェス") }
+    public var description: String { tr("CPU と本格的なチェスで対決しよう") }
     /// 市松模様。`crown.fill` は大富豪が使っているので避ける（ハブで同じ絵が2枚並ぶ）。
     public var icon: Image { Image(systemName: "checkerboard.rectangle") }
 
@@ -20,5 +20,11 @@ public struct ChessModule: GameModule {
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return false }
         return snap.phase == .playing && !snap.moves.isEmpty
+    }
+
+    /// 対局中で一手も指していない局（#2161）。終局後の見返しは手つかずではない。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return false }
+        return snap.phase == .playing && snap.moves.isEmpty
     }
 }

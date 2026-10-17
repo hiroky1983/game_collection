@@ -65,7 +65,7 @@ public struct FreeCellView: View {
                 .cardTable(topInset: CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
-                               details: ["\(model.moveCount)手 / タイム \(RecordFormat.time(model.elapsedSeconds))"])
+                               details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
                 .padding(.horizontal, FreeCellMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea
@@ -78,46 +78,46 @@ public struct FreeCellView: View {
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "フリーセル", review: services.review,
+        .gameChrome(title: tr("フリーセル"), review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         startNewGame()
                     })
-        .howToPlay(.freecell) { FreeCellRuleSheet() }
+        .howToPlay(HowToPlayGuide.freecell.illustrated(FreeCellHowToFigures.items)) { FreeCellRuleSheet() }
         .dialogs { anchor in
-            anchor.confirmationDialog("新しい配札にしますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新しい配札にしますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規ゲーム"), role: .destructive) { model.newGame() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。")
+                Text(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"))
             }
-            .alert("この盤からは勝てません", isPresented: hopelessBinding) {
+            .alert(tr("この盤からは勝てません"), isPresented: hopelessBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("「戻す」で戻れます。ヒントの回数は減っていません。")
+                Text(tr("「戻す」で戻れます。ヒントの回数は減っていません。"))
             }
-            .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
-                Button("広告を見て\(FreeCellUndoBudget.refill)回補充する") { requestUndoRefill() }
-                Button("キャンセル", role: .cancel) {}
+            .alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
+                Button(tr("広告を見て%lld回補充する", FreeCellUndoBudget.refill)) { requestUndoRefill() }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("広告を最後まで視聴すると「戻す」を\(FreeCellUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。", FreeCellUndoBudget.refill))
             }
         }
         .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
-            notEarned: "「戻す」を補充できませんでした",
+            notEarned: tr("「戻す」を補充できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "「戻す」を補充できませんでした",
-                message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
+                title: tr("「戻す」を補充できませんでした"),
+                message: tr("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
             )
         )
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを表示できませんでした",
+            notEarned: tr("ヒントを表示できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。")
             )
         )
         .overlay {
@@ -191,13 +191,13 @@ public struct FreeCellView: View {
         HStack(spacing: 8) {
             Group {
                 if model.phase == .won {
-                    Label("クリア！", systemImage: "flag.checkered")
+                    Label(tr("クリア！"), systemImage: "flag.checkered")
                         .themeBody(15)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                 } else {
-                    Label("\(model.moveCount)手", systemImage: "hand.tap.fill")
+                    Label(tr("%lld手", model.moveCount), systemImage: "hand.tap.fill")
                         .scaledFont(15, weight: .bold, design: .monospaced)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                 }
             }
             .lineLimit(1)
@@ -206,7 +206,7 @@ public struct FreeCellView: View {
             // 番号付きディールはフリーセルの文化なので、どの配札を解いているかを常時出す（#492）。
             // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
             // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
-            Text(verbatim: "配札 #" + String(model.dealNumber))
+            Text(verbatim: tr("配札 #%@", String(model.dealNumber)))
                 .scaledFont(10, weight: .bold, design: .monospaced)
                 .foregroundStyle(Theme.inkSub)
 
@@ -625,7 +625,7 @@ public struct FreeCellView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label("次のゲーム", systemImage: "arrow.clockwise")
+                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
         }
@@ -641,22 +641,22 @@ public struct FreeCellView: View {
             // 拡大（#604）。ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
             // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
             GameControlMenuItem(
-                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
-                accessibilityLabel: zoomMode ? "盤全体を表示" : "札を拡大",
+                id: "zoom", title: tr("拡大"), systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                accessibilityLabel: zoomMode ? tr("盤全体を表示") : tr("札を拡大"),
                 accessibilityHint: zoomMode
-                    ? "等倍に戻して盤全体を画面に収めます"
-                    : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
+                    ? tr("等倍に戻して盤全体を画面に収めます")
+                    : tr("札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
             ) { zoomMode.toggle() },
             // 「あとは組札へ積むだけ」になった局面でだけ押せる。終盤の連打を 1 回に畳む。
             GameControlMenuItem(
-                id: "autoFinish", title: "自動で上がる", systemImage: "wand.and.stars",
+                id: "autoFinish", title: tr("自動で上がる"), systemImage: "wand.and.stars",
                 isEnabled: model.canAutoFinish,
-                accessibilityHint: "残りの札をまとめて組札へ送ります"
+                accessibilityHint: tr("残りの札をまとめて組札へ送ります")
             ) { model.autoFinish() },
         ], actions: [
             // 残り回数は 2 行目に出す（#476 と同じ見せ方）。無料枠を使い切ったら「▶ 広告を見て」。押せない間も項目は残す（#198）。
             GameActionItem(
-                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward", role: .undo,
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                 badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
                 isEnabled: model.canUndo && !undoRescue.isWatching,
                 accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
@@ -671,12 +671,12 @@ public struct FreeCellView: View {
     private var hintAction: GameActionItem {
         let free = model.hints.freeRemaining
         return GameActionItem(
-            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
             badge: model.needsAdForHint ? .ad() : .count(free),
             isEnabled: model.canUseHint && !hintRescue.isWatching,
             accessibilityLabel: FreeCellAccessibility.hintButtonLabel(
                 freeRemaining: free, needsAd: model.needsAdForHint, isThinking: model.isHintThinking),
-            accessibilityHint: "次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです"
+            accessibilityHint: tr("次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです")
         ) { requestHint() }
     }
 
@@ -693,7 +693,7 @@ public struct FreeCellView: View {
     private func requestHint() {
         guard !hintRescue.isWatching, model.canUseHint else { return }
         if model.needsAdForHint {
-            hintRescue.requestHandledByModel(withOutcome: { await model.requestAdHint() })
+            hintRescue.requestHandledByModel(withOutcome: { readDidFinish in await model.requestAdHint(readDidFinish: readDidFinish) }, until: services.screenGeneration)
         } else {
             services.screenGeneration.runUntilLeave { await model.requestHint() }
         }
@@ -720,12 +720,12 @@ public struct FreeCellView: View {
     private var deadEndOverlay: some View {
         GameDeadEndPanel(
             emoji: "😵",
-            title: "指せる手がありません",
-            message: "フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。"
+            title: tr("指せる手がありません"),
+            message: tr("フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。")
         ) {
             if model.canUndo {
                 GameDeadEndActionButton(
-                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tr("1手戻す（残り%lld）", model.undosRemaining), systemImage: "arrow.uturn.backward",
                     tint: Theme.Fill.coral, isDisabled: undoRescue.isWatching
                 ) {
                     requestUndo()
@@ -735,11 +735,11 @@ public struct FreeCellView: View {
                     canUndo: model.canUndo, remaining: model.undosRemaining))
             }
 
-            GameDeadEndDismissButton("新しい配札にする", isDisabled: undoRescue.isWatching) {
+            GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: undoRescue.isWatching) {
                 model.newGame()
             }
 
-            GameDeadEndDismissButton("盤面を見る", isDisabled: undoRescue.isWatching) {
+            GameDeadEndDismissButton(tr("盤面を見る"), isDisabled: undoRescue.isWatching) {
                 model.dismissDeadEndPrompt()
             }
         }

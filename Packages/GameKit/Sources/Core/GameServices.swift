@@ -132,6 +132,19 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
+    /// ゲーム画面が出たあとにハブから呼ぶ（#2161）。**手つかずの中断データ**から開いたとき、そのプレイの
+    /// `game_start` を数える。
+    ///
+    /// 各 Model は中断データがあると `game_start` を呼ばず、手つかずの盤は「再開できない」ので離脱時に
+    /// プレイの記録ごと捨てられる。開き直した回の `game_start` / `game_end` が欠けるのを、ここ 1 か所で直す。
+    /// `gameDidStart` は冪等なので、Model が既に数えていれば何も増えない。画面が出たあとに呼ぶのは、
+    /// 難易度などを持つ Model の `gameDidStart` を先に通すため。
+    @MainActor
+    public func gameScreenDidAppear(gameID: String, hasUntouchedSnapshot: Bool) {
+        guard hasUntouchedSnapshot else { return }
+        gameDidStart(gameID: gameID)
+    }
+
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。
     /// 冪等ではなく、呼ぶたびに1プレイとして数える。
     ///

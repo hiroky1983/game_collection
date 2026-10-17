@@ -41,17 +41,17 @@ public struct ColorRelayView: View {
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "いろリレー", review: services.review)
+        .gameChrome(title: tr("いろリレー"), review: services.review)
         .howToPlay(.colorRelay) { ColorRelayRuleSheet() }
         // 免除の提示（#780）。自分の番で引き札を課され、免除ボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(waiveRescue, for: .revival, isPresented: model.canWaivePenalty,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             waiveRescue,
-            notEarned: "引き札を免除できませんでした",
+            notEarned: tr("引き札を免除できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "引き札を免除できませんでした",
-                message: "広告を見ているあいだに番が進んだため、免除できませんでした。"
+                title: tr("引き札を免除できませんでした"),
+                message: tr("広告を見ているあいだに番が進んだため、免除できませんでした。")
             )
         )
         .onDisappear { cpuTask?.cancel() }
@@ -82,13 +82,13 @@ public struct ColorRelayView: View {
 
     private var statusBar: some View {
         HStack(spacing: 8) {
-            Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
+            Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
                 .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
             Image(systemName: model.isClockwise ? "arrow.clockwise" : "arrow.counterclockwise")
                 .scaledFont(12, weight: .bold)
                 .foregroundStyle(Theme.inkSub)
-                .accessibilityLabel(model.isClockwise ? "順回り" : "逆回り")
+                .accessibilityLabel(model.isClockwise ? tr("順回り") : tr("逆回り"))
             Spacer()
             Text(turnLabel)
                 .scaledFont(12, weight: .bold, design: .rounded)
@@ -100,9 +100,9 @@ public struct ColorRelayView: View {
 
     private var turnLabel: String {
         switch model.phase {
-        case .idle:    return "開始待ち"
-        case .result:  return "決着"
-        case .playing: return model.isPlayerTurn ? "あなたの番" : "\(model.playerName(model.currentPlayer))の番"
+        case .idle:    return tr("開始待ち")
+        case .result:  return tr("決着")
+        case .playing: return model.isPlayerTurn ? tr("あなたの番") : tr("%@の番", model.playerName(model.currentPlayer))
         }
     }
 
@@ -127,7 +127,7 @@ public struct ColorRelayView: View {
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
             }
-            Text("残り\(model.hands[index].count)枚")
+            Text(tr("残り%lld枚", model.hands[index].count))
                 .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(model.lastActions[index].isEmpty ? " " : model.lastActions[index])
@@ -155,7 +155,7 @@ public struct ColorRelayView: View {
                         .id(top.id)
                         .transition(.scale.combined(with: .opacity))
                 }
-                Text("場")
+                Text(tr("場"))
                     .scaledFont(11, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }
@@ -183,8 +183,8 @@ public struct ColorRelayView: View {
             }
             .buttonStyle(.pop)
             .disabled(!model.canDraw)
-            .accessibilityLabel("山から1枚引く")
-            Text("山 \(model.drawPile.count)枚")
+            .accessibilityLabel(tr("山から1枚引く"))
+            Text(tr("山 %lld枚", model.drawPile.count))
                 .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
         }
@@ -200,7 +200,7 @@ public struct ColorRelayView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.7), lineWidth: 2)
                 )
-            Text("いまの色")
+            Text(tr("いまの色"))
                 .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
             Text(model.activeColor.name)
@@ -218,14 +218,14 @@ public struct ColorRelayView: View {
         let playable = model.playableCardIDs
         return VStack(spacing: 6) {
             HStack {
-                Text("あなた（残り\(model.playerHand.count)枚）")
+                Text(tr("あなた（残り%lld枚）", model.playerHand.count))
                     .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if !model.lastActions[ColorRelayModel.humanIndex].isEmpty {
                     Text(model.lastActions[ColorRelayModel.humanIndex])
                         .scaledFont(11, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.tealText)
                         .lineLimit(1).minimumScaleFactor(0.6)
                 }
             }
@@ -254,7 +254,7 @@ public struct ColorRelayView: View {
                             .accessibilityLabel(
                                 ColorRelayAccessibility.handCardLabel(card, isSelected: isSelected, hint: hint)
                             )
-                            .accessibilityHint("ダブルタップで選択を切り替えます")
+                            .accessibilityHint(tr("ダブルタップで選択を切り替えます"))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.toggleSelection(card) }
                             .disabled(!model.isPlayerTurn || model.isPlayerPenalized)
@@ -277,9 +277,9 @@ public struct ColorRelayView: View {
     @ViewBuilder
     private func hintLine(_ handHint: RelayHandHint?, playable: Set<Int>) -> some View {
         let message: String? = {
-            if model.isPlayerPenalized { return "\(model.pendingDraw)枚引いて、番は飛ばされます" }
-            if model.canEndTurn, !playable.isEmpty { return "引いた札は出せます。出さずに次へ回すこともできます" }
-            if model.isPlayerTurn, handHint?.playable.isEmpty == true, model.canDraw { return "出せる札がありません。山から1枚引いてください" }
+            if model.isPlayerPenalized { return tr("%lld枚引いて、番は飛ばされます", model.pendingDraw) }
+            if model.canEndTurn, !playable.isEmpty { return tr("引いた札は出せます。出さずに次へ回すこともできます") }
+            if model.isPlayerTurn, handHint?.playable.isEmpty == true, model.canDraw { return tr("出せる札がありません。山から1枚引いてください") }
             return nil
         }()
         if let message {
@@ -291,7 +291,7 @@ public struct ColorRelayView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(Theme.coralText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
@@ -310,7 +310,7 @@ public struct ColorRelayView: View {
                     waivePenaltyButton
                 }
                 // 視聴中に引くと番が進み、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
-                actionButton("\(model.pendingDraw)枚引く", role: .primary, disabled: waiveRescue.isWatching) {
+                actionButton(tr("%lld枚引く", model.pendingDraw), role: .primary, disabled: waiveRescue.isWatching) {
                     model.takePenalty()
                     runCPU()
                 }
@@ -319,7 +319,7 @@ public struct ColorRelayView: View {
             .popCard(corner: Theme.cornerSmall)
         case .playing where model.needsColorChoice:
             VStack(spacing: 6) {
-                Text("次の色を選ぶ")
+                Text(tr("次の色を選ぶ"))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 HStack(spacing: 8) {
@@ -333,12 +333,12 @@ public struct ColorRelayView: View {
         case .playing:
             HStack(spacing: 12) {
                 if model.canEndTurn {
-                    actionButton("出さずに次へ", role: .skip) {
+                    actionButton(tr("出さずに次へ"), role: .skip) {
                         model.endTurn()
                         runCPU()
                     }
                 } else {
-                    actionButton("1枚引く", role: .skip, disabled: !model.canDraw) {
+                    actionButton(tr("1枚引く"), role: .skip, disabled: !model.canDraw) {
                         model.drawCard()
                         runCPU()
                     }
@@ -351,7 +351,7 @@ public struct ColorRelayView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton("次のゲーム", role: .primary) {
+            actionButton(tr("次のゲーム"), role: .primary) {
                 model.startGame()
                 runCPU()
             }
@@ -375,7 +375,7 @@ public struct ColorRelayView: View {
                 return applied
             }
         } label: {
-            Label("広告を見て\(model.pendingDraw)枚の引き札を免除", systemImage: "play.rectangle.fill")
+            Label(tr("広告を見て%lld枚の引き札を免除", model.pendingDraw), systemImage: "play.rectangle.fill")
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -401,11 +401,11 @@ public struct ColorRelayView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pop)
-        .accessibilityLabel("\(color.name)にして出す")
+        .accessibilityLabel(tr("%@にして出す", color.name))
     }
 
     private var playButtonTitle: String {
-        model.selectedID == nil ? "札を選ぶ" : "出す"
+        model.selectedID == nil ? tr("札を選ぶ") : tr("出す")
     }
 
     // MARK: - リザルト
@@ -424,7 +424,7 @@ public struct ColorRelayView: View {
             VStack(spacing: 4) {
                 ForEach(Array(model.ranking.enumerated()), id: \.element) { place, player in
                     HStack(spacing: 8) {
-                        Text("\(place + 1)位")
+                        Text(tr("%lld位", place + 1))
                             .scaledFont(12, weight: .black, design: .rounded)
                             // 1 位だけ差し色の面。他は濃いグレーの面なので文字色を分ける（#220）。
                             .foregroundStyle(place == 0 ? Theme.onAccent : .white)
@@ -435,7 +435,7 @@ public struct ColorRelayView: View {
                             .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(player == ColorRelayModel.humanIndex ? Theme.coral : Theme.ink)
                         Spacer()
-                        Text(place == 0 ? "あがり" : "残り\(model.hands[player].count)枚")
+                        Text(place == 0 ? tr("あがり") : tr("残り%lld枚", model.hands[player].count))
                             .scaledFont(12, weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
@@ -452,8 +452,8 @@ public struct ColorRelayView: View {
     }
 
     private var resultHeadline: String {
-        guard let winner = model.ranking.first else { return "決着" }
-        return winner == ColorRelayModel.humanIndex ? "あなたの勝ち！" : "\(model.playerName(winner))の勝ち"
+        guard let winner = model.ranking.first else { return tr("決着") }
+        return winner == ColorRelayModel.humanIndex ? tr("あなたの勝ち！") : tr("%@の勝ち", model.playerName(winner))
     }
 
     /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
@@ -693,17 +693,17 @@ struct ColorRelayCardBack: View {
 // MARK: - Rule Sheet
 
 struct ColorRelayRuleSheet: View {
-    static let rules: [(String, String)] = [
-        ("ゲームの流れ", "CPU3人と対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです"),
-        ("引くとき", "出せる札が無いとき（出したくないときも）は山から1枚引きます。引いた札が出せるならそのまま出せます（出さずに次へ回してもかまいません）。出せなければ自動で次の人の番になります"),
-        ("とばし", "次の人の番を飛ばします"),
-        ("ぎゃく", "番の回る向きが逆になります"),
-        ("+2", "次の人は山から2枚引き、番を飛ばされます"),
-        ("いろがえ", "どの札の上にも出せて、次の色を自分で選べます"),
-        ("いろがえ+4", "いろがえに加えて、次の人は4枚引いて番を飛ばされます"),
-        ("引き札の免除", "+2 / いろがえ+4 を受けたとき、広告を見ると1ゲームに1回だけ引かずに済みます（番は飛ばされます）"),
-        ("順位", "上がった人が1位。残りは手札の少ない順です。次のゲームは親が1人ずつ回ります"),
-    ]
+    static var rules: [(String, String)] { [
+        (tr("ゲームの流れ"), tr("CPU3人と対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです")),
+        (tr("引くとき"), tr("出せる札が無いとき（出したくないときも）は山から1枚引きます。引いた札が出せるならそのまま出せます（出さずに次へ回してもかまいません）。出せなければ自動で次の人の番になります")),
+        (tr("とばし"), tr("次の人の番を飛ばします")),
+        (tr("ぎゃく"), tr("番の回る向きが逆になります")),
+        ("+2", tr("次の人は山から2枚引き、番を飛ばされます")),
+        (tr("いろがえ"), tr("どの札の上にも出せて、次の色を自分で選べます")),
+        (tr("いろがえ+4"), tr("いろがえに加えて、次の人は4枚引いて番を飛ばされます")),
+        (tr("引き札の免除"), tr("+2 / いろがえ+4 を受けたとき、広告を見ると1ゲームに1回だけ引かずに済みます（番は飛ばされます）")),
+        (tr("順位"), tr("上がった人が1位。残りは手札の少ない順です。次のゲームは親が1人ずつ回ります")),
+    ] }
 
     var body: some View {
         RuleListSheet(rules: Self.rules)

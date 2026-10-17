@@ -18,15 +18,27 @@ public enum OthelloAccessibility {
         isLastMove: Bool,
         isHint: Bool = false
     ) -> String {
-        var parts = ["\(row + 1)行\(col + 1)列"]
+        var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1)]
         switch stone {
-        case .black: parts.append("黒")
-        case .white: parts.append("白")
-        case nil:    parts.append("空")
+        case .black: parts.append(tr("黒"))
+        case .white: parts.append(tr("白"))
+        case nil:    parts.append(tr("空"))
         }
-        if isValidMove { parts.append("ここに置けます") }
-        if isLastMove { parts.append("直前の手") }
-        if isHint { parts.append("ヒントの手") }
-        return parts.joined(separator: "、")
+        if isValidMove { parts.append(tr("ここに置けます")) }
+        if isLastMove { parts.append(tr("直前の手")) }
+        if isHint { parts.append(tr("ヒントの手")) }
+        return parts.joined(separator: tr("、"))
+    }
+
+    /// 黒と白の石数（手番バーと CPU の読み上げで共通。終局カードの「黒 N 対 白 M」と同じ文言・#2280）。
+    public static func scoreLabel(black: Int, white: Int) -> String {
+        tr("黒 %1$lld 対 白 %2$lld", black, white)
+    }
+
+    /// CPU が着手・パスしたときの読み上げ文（#2280）。`move` が nil ならパス。
+    public static func cpuMoveAnnouncement(move: (row: Int, col: Int)?, black: Int, white: Int) -> String {
+        let score = scoreLabel(black: black, white: white)
+        guard let move else { return tr("CPUはパスしました。%@", score) }
+        return tr("CPUは%1$lld行%2$lld列に置きました。%3$@", move.row + 1, move.col + 1, score)
     }
 }

@@ -53,7 +53,7 @@ public struct OthelloView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "オセロ", review: services.review,
+        .gameChrome(title: tr("オセロ"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         if model.hasProgressToLose {
                             showConfirmNewGame = true
@@ -61,7 +61,7 @@ public struct OthelloView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.othello)
+        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
@@ -69,16 +69,16 @@ public struct OthelloView: View {
             } onCancel: { showNewGame = false }
         }
         .dialogs { anchor in
-            anchor.confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規対局", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると対局データが失われます。")
+                Text(tr("途中で終了すると対局データが失われます。"))
             }
-            .alert("パス", isPresented: $showPassAlert) {
+            .alert(tr("パス"), isPresented: $showPassAlert) {
                 Button("OK") { model.confirmPass() }
             } message: {
-                Text("打てるマスがありません。パスします。")
+                Text(tr("打てるマスがありません。パスします。"))
             }
         }
         // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
@@ -89,6 +89,12 @@ public struct OthelloView: View {
         }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        // CPU の着手・パスを読み上げる（#2280）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            OthelloAccessibility.cpuMoveAnnouncement(
+                move: model.lastCPUPassed ? nil : model.lastMove,
+                black: model.blackScore, white: model.whiteScore)
         }
         .task {
             #if DEBUG
@@ -106,7 +112,7 @@ public struct OthelloView: View {
         GameStatusBar {
             // 手番 / 結果
             if model.gameOver {
-                TurnBadge("終局", kind: .finished)
+                TurnBadge(tr("終局"), kind: .finished)
             } else {
                 TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
@@ -133,6 +139,9 @@ public struct OthelloView: View {
                     .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                     .frame(width: 13, height: 13)
             }
+            // 黒・白の石は図形なので、どちらの数字かが読み上げに出ない。終局カードと同じ文言で読ませる（#2280）。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(OthelloAccessibility.scoreLabel(black: model.blackScore, white: model.whiteScore))
         }
     }
 
@@ -280,14 +289,14 @@ public struct OthelloView: View {
                         Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                             .scaledFont(40, maxScale: 1.2)
                             .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
-                        Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
+                        Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                             .themeBody(24, weight: .bold)
                             .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                     } else {
                         Image(systemName: "equal.circle.fill")
                             .scaledFont(40, maxScale: 1.2)
                             .foregroundStyle(Theme.inkSub)
-                        Text("引き分け")
+                        Text(tr("引き分け"))
                             .themeBody(24, weight: .bold)
                             .foregroundStyle(Theme.inkSub)
                     }
@@ -318,16 +327,20 @@ public struct OthelloView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        // 背後の盤へ VoiceOver が移れないようにし、出現を告げる（#2232。`BoardGameResultCard` と同じ形）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(resultAccessibilityLabel)
     }
 
     private var resultAccessibilityLabel: String {
         let verdict: String
         if let w = model.winner {
-            verdict = w == model.humanSide ? "あなたの勝ち" : "CPUの勝ち"
+            verdict = w == model.humanSide ? tr("あなたの勝ち") : tr("CPUの勝ち")
         } else {
-            verdict = "引き分け"
+            verdict = tr("引き分け")
         }
-        return "\(verdict) 黒 \(model.blackScore) 対 白 \(model.whiteScore)"
+        return tr("%1$@ 黒 %2$lld 対 白 %3$lld", verdict, model.blackScore, model.whiteScore)
     }
 
     // MARK: - 盤の下の操作エリア
@@ -558,20 +571,20 @@ struct OthelloNewGameSheet: View {
             kind: .versus,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
-            GameSetupSection("あなたの石") {
+            GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {
-                    GameSetupChooser(title: "●黒", subtitle: "先手",
+                    GameSetupChooser(title: tr("●黒"), subtitle: tr("先手"),
                                      selected: side == .black, accent: Theme.fillStrong,
                                      onAccent: .white) { side = .black }
-                    GameSetupChooser(title: "○白", subtitle: "後手",
+                    GameSetupChooser(title: tr("○白"), subtitle: tr("後手"),
                                      selected: side == .white, accent: Theme.fillMuted,
                                      onAccent: .white) { side = .white }
                 }
             }
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `OthelloEngine.bestMove` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [
-                    "1手先だけ読む", "3手先まで読む", "5手先まで読む", "終盤は最後まで読む",
+                    tr("1手先だけ読む"), tr("3手先まで読む"), tr("5手先まで読む"), tr("終盤は最後まで読む"),
                 ])
             }
         }

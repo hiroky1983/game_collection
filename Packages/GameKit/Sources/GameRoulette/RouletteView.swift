@@ -56,7 +56,7 @@ public struct RouletteView: View {
         }
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
-        .gameChrome(title: "ルーレット", review: services.review)
+        .gameChrome(title: tr("ルーレット"), review: services.review)
         .howToPlay(.roulette) { RouletteRuleSheet() }
         .onAppear {
             // 回転中に中断して戻ってきたときも、保存された出目の位置まで回す。
@@ -85,10 +85,10 @@ public struct RouletteView: View {
         }
         .rewardedRescueAlerts(
             reviveRescue,
-            notEarned: "チップは回復しませんでした",
+            notEarned: tr("チップは回復しませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "チップは回復しませんでした",
-                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+                title: tr("チップは回復しませんでした"),
+                message: tr("広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。")
             )
         )
     }
@@ -130,10 +130,10 @@ public struct RouletteView: View {
                    height: layout.scaled(sizing.wheelDiameter))
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("チップ: \(model.chips)枚", systemImage: "circle.hexagongrid.fill")
+                Label(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill")
                     .themeBody(14)
                     .foregroundStyle(Theme.ink)
-                Label("ベット: \(model.totalBet)枚", systemImage: "dollarsign.circle.fill")
+                Label(tr("ベット: %@枚", model.totalBet.formatted()), systemImage: "dollarsign.circle.fill")
                     .themeBody(14)
                     .foregroundStyle(model.totalBet > 0 ? Theme.yellow : Theme.inkSub)
                 resultLine
@@ -150,11 +150,11 @@ public struct RouletteView: View {
         ZStack(alignment: .leading) {
             switch model.phase {
             case .betting:
-                Text(model.bets.isEmpty ? "賭ける場所をタップ" : "「スピン」で回します")
+                Text(model.bets.isEmpty ? tr("賭ける場所をタップ") : tr("「スピン」で回します"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
             case .spinning:
-                Text("回転中…")
+                Text(tr("回転中…"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
             case .result:
@@ -177,9 +177,9 @@ public struct RouletteView: View {
 
     /// 収支の文言。`Text` 補間の桁区切り（#484）を避けて文字列を先に組む。
     private func netLabel(_ net: Int) -> String {
-        if net > 0 { return "+\(net)枚" }
-        if net == 0 { return "±0枚" }
-        return "\(net)枚"
+        if net > 0 { return tr("+%lld枚", net) }
+        if net == 0 { return tr("±0枚") }
+        return tr("%lld枚", net)
     }
 
     /// 直近の出目（新しい順）。
@@ -187,7 +187,7 @@ public struct RouletteView: View {
     private var historyStrip: some View {
         if !model.history.isEmpty {
             HStack(spacing: 4) {
-                Text("出目")
+                Text(tr("出目"))
                     .scaledFont(11, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 ForEach(Array(model.history.prefix(6).enumerated()), id: \.offset) { _, number in
@@ -205,14 +205,14 @@ public struct RouletteView: View {
             .minimumScaleFactor(0.6)
             .frame(width: size, height: size)
             .background(Circle().fill(RouletteWheelView.fill(for: number)))
-            .accessibilityLabel("\(number)・\(colorName(of: number))")
+            .accessibilityLabel(tr("%1$lld・%2$@", number, colorName(of: number)))
     }
 
     private func colorName(of number: Int) -> String {
         switch RouletteWheel.color(of: number) {
-        case .red:   return "赤"
-        case .black: return "黒"
-        case .green: return "緑"
+        case .red:   return tr("赤")
+        case .black: return tr("黒")
+        case .green: return tr("緑")
         }
     }
 
@@ -278,8 +278,8 @@ public struct RouletteView: View {
         // `.plain` は押下フィードバックも消えるので、押している間だけ沈む `.pop` を使う（#195）。
         .buttonStyle(.pop)
         .disabled(!model.canBet)
-        .accessibilityLabel("\(kind.label)に賭ける")
-        .accessibilityValue(staked > 0 ? "\(staked)枚" : "なし")
+        .accessibilityLabel(tr("%@に賭ける", kind.label))
+        .accessibilityValue(staked > 0 ? tr("%lld枚", staked) : tr("なし"))
     }
 
     /// マスに置いた額。白地に固定の濃い文字で、どの面色の上でも読める。
@@ -325,7 +325,7 @@ public struct RouletteView: View {
     private func bettingView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
-                Text("チップ")
+                Text(tr("チップ"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                 ForEach(RouletteModel.chipOptions, id: \.self) { amount in
@@ -334,10 +334,10 @@ public struct RouletteView: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 12) {
-                actionButton("戻す", color: Theme.fillMuted, foreground: .white, disabled: model.bets.isEmpty) {
+                actionButton(tr("戻す"), color: Theme.fillMuted, foreground: .white, disabled: model.bets.isEmpty) {
                     model.undoLastBet()
                 }
-                actionButton("スピン", color: Theme.Fill.coral, disabled: !model.canSpin) {
+                actionButton(tr("スピン"), color: Theme.Fill.coral, disabled: !model.canSpin) {
                     model.spin()
                 }
             }
@@ -367,14 +367,14 @@ public struct RouletteView: View {
         }
         .buttonStyle(.pop)
         .disabled(!affordable)
-        .accessibilityLabel("\(amount)枚のチップ")
+        .accessibilityLabel(tr("%lld枚のチップ", amount))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     /// ホイールが回っているあいだの操作欄。待ちを飛ばして結果まで進められる。
     private func spinningView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
-            actionButton("結果まで進める", color: Theme.fillMuted, foreground: .white) {
+            actionButton(tr("結果まで進める"), color: Theme.fillMuted, foreground: .white) {
                 skipSpin()
             }
         }
@@ -386,10 +386,10 @@ public struct RouletteView: View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
             HStack(spacing: 12) {
-                actionButton("同じ賭けでもう一度", color: Theme.Fill.yellow) {
+                actionButton(tr("同じ賭けでもう一度"), color: Theme.Fill.yellow) {
                     model.repeatLastBets()
                 }
-                actionButton("次のゲーム", color: Theme.Fill.coral) {
+                actionButton(tr("次のゲーム"), color: Theme.Fill.coral) {
                     model.nextRound()
                 }
             }
@@ -404,16 +404,16 @@ public struct RouletteView: View {
     /// 数値は `Text` 補間の桁区切り（#484）を避けて文字列を先に組む。
     private var sessionOverSubtitle: String {
         model.canReviveAfterBust
-            ? "広告を見て\(RouletteModel.reviveChips)枚で復活するか、最初からやり直せます"
-            : "復活はこのセッションで使いました。最初からやり直せます"
+            ? tr("広告を見て%lld枚で復活するか、最初からやり直せます", RouletteModel.reviveChips)
+            : tr("復活はこのセッションで使いました。最初からやり直せます")
     }
 
     private var reviveButtonTitle: String {
-        "広告を見て\(RouletteModel.reviveChips)枚で復活（1セッションに1回）"
+        tr("広告を見て%lld枚で復活（1セッションに1回）", RouletteModel.reviveChips)
     }
 
     private var restartButtonTitle: String {
-        "最初からやり直す (\(RouletteModel.initialChips)枚)"
+        tr("最初からやり直す (%lld枚)", RouletteModel.initialChips)
     }
 
     private func sessionOverView(_ sizing: RouletteMetrics.Sizing) -> some View {
@@ -421,11 +421,11 @@ public struct RouletteView: View {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
                     .scaledFont(24)
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(Theme.coralText)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("チップが足りなくなりました")
+                    Text(tr("チップが足りなくなりました"))
                         .scaledFont(16, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                     Text(sessionOverSubtitle)
                         .scaledFont(12, weight: .medium, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
@@ -493,12 +493,12 @@ public struct RouletteView: View {
 struct RouletteRuleSheet: View {
     var body: some View {
         RuleListSheet(rules: [
-            ("数字 1 点（0〜36）", "配当 35 倍。当たると元金に加えて 35 倍が戻ります（10 枚なら 360 枚）。"),
-            ("1〜12・13〜24・25〜36", "配当 2 倍。12 個の数字のどれかが出れば当たり（10 枚なら 30 枚）。"),
-            ("赤・黒・奇数・偶数・1〜18・19〜36", "配当 1 倍。当たると元金と同額が戻ります（10 枚なら 20 枚）。"),
-            ("0（緑）", "赤黒・奇数偶数・1〜18・19〜36・12 個の区分はすべて外れ。数字 1 点の 0 だけが当たりです。"),
-            ("複数の場所に賭ける", "1 回のスピンで何か所にも置けます。「戻す」で最後に置いた 1 口を外せます。"),
-            ("チップが足りなくなったら", "広告を見ると 1 セッションに 1 回だけ \(RouletteModel.reviveChips) 枚で復活できます。最初からやり直すと \(RouletteModel.initialChips) 枚に戻ります。チップはゲーム内だけのもので、現金とは交換できません。"),
+            (tr("数字 1 点（0〜36）"), tr("配当 35 倍。当たると元金に加えて 35 倍が戻ります（10 枚なら 360 枚）。")),
+            (tr("1〜12・13〜24・25〜36"), tr("配当 2 倍。12 個の数字のどれかが出れば当たり（10 枚なら 30 枚）。")),
+            (tr("赤・黒・奇数・偶数・1〜18・19〜36"), tr("配当 1 倍。当たると元金と同額が戻ります（10 枚なら 20 枚）。")),
+            (tr("0（緑）"), tr("赤黒・奇数偶数・1〜18・19〜36・12 個の区分はすべて外れ。数字 1 点の 0 だけが当たりです。")),
+            (tr("複数の場所に賭ける"), tr("1 回のスピンで何か所にも置けます。「戻す」で最後に置いた 1 口を外せます。")),
+            (tr("チップが足りなくなったら"), tr("広告を見ると 1 セッションに 1 回だけ %1$lld 枚で復活できます。最初からやり直すと %2$lld 枚に戻ります。チップはゲーム内だけのもので、現金とは交換できません。", RouletteModel.reviveChips, RouletteModel.initialChips)),
         ])
     }
 }

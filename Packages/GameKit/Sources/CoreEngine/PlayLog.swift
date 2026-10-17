@@ -55,9 +55,9 @@ public struct ReviewRequestState: Equatable, Sendable {
 /// 保存先は端末内の `UserDefaults` のみ（サーバ送信なし・iCloud 同期なし）。既存の `GameSettings`
 /// （`gameOrder_v1` / `hiddenGames_v1`）と同じ場所・同じ命名規則。
 ///
-/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の12キー
+/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の13キー
 /// （レコメンド #52 の5キー + 評価リクエスト #53 の4キー + プレイ記録 #115 の1キー
-/// + 遊び方ガイド #118 の1キー + 新しいゲームの印 #723 の1キー）だけで、
+/// + 遊び方ガイド #118 の1キー + 新しいゲームの印 #723 の1キー + 連続プレイ日数 #1625 の1キー）だけで、
 /// いずれも追記型ログではなく同じ値の上書きのため、何回遊んでもキー数もデータ量も増えない
 /// （`playedGameIDs` と `records` と `guidedGameIDs` と `knownGameIDs` だけは増えるが、上限は登録ゲーム数
 /// （+ 難易度数）でプレイ回数には依存しない）。
@@ -104,6 +104,14 @@ public final class PlayLog {
     /// 新しいゲームの印（#723）が書き込むキー。
     public static let newGameKeys = [knownGameIDsKey]
 
+    /// 遊んだ日の日番号（#1625・`PlayDayStreak.dayNumber`）。整数の配列を**1キー**に入れる。
+    /// 1 日に何局遊んでも 1 個で、直近 `PlayDayStreak.maxStoredDays`（366）個を超えたら古い日から捨てる
+    /// （最大 366 個の整数）。端末内のみ・サーバ送信なし・「プレイ記録を消去」で消える。
+    public static let playDaysKey = "playLog_playDays_v1"
+
+    /// 連続プレイ日数（#1625）が書き込むキー。
+    public static let playDayKeys = [playDaysKey]
+
     /// 柵越えおじさんの蓄積（#1348・通算・集計・直近 20 挑戦）。ゲームのフォルダはここを参照できない（`Core` が上流）ので
     /// 文字列で持ち、`GameHomerunTests` が `HomerunStorage.recordsKey` と一致することを確かめる。
     /// **日次台帳（`homerun_ledger_v1`）は入れない**（消去で回数が補充される穴になるため）。
@@ -112,7 +120,7 @@ public final class PlayLog {
     public static let homerunKeys = ["homerun_records_v1", "homerun_achievements_v1"]
 
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + homerunKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + playDayKeys + homerunKeys
 
     private let defaults: UserDefaults
 
@@ -139,6 +147,9 @@ public final class PlayLog {
     /// 初回のミニガイド（#118）を出し終えた gameID。
     public private(set) var guidedGameIDs: Set<String>
 
+    /// 遊んだ日の日番号（昇順・重複なし・最大 366 個）。
+    public private(set) var playDays: [Int]
+
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.totalFinishes = defaults.integer(forKey: Self.totalFinishesKey)
@@ -156,6 +167,8 @@ public final class PlayLog {
         self.lastRequestedVersion = defaults.string(forKey: Self.lastRequestedVersionKey)
 
         self.guidedGameIDs = Set(defaults.stringArray(forKey: Self.guidedGameIDsKey) ?? [])
+        // 壊れた値は空に倒す。上限を超えて入っていても読み込み時に切り詰める。
+        self.playDays = Array(((defaults.array(forKey: Self.playDaysKey) as? [Int]) ?? []).sorted().suffix(PlayDayStreak.maxStoredDays))
 
         // 壊れた JSON（旧形式・書き込み途中の中断）で起動できなくならないよう、失敗したら空に倒す。
         // 記録は再取得できない代わりに失っても遊べるため、可用性を優先する。
@@ -166,7 +179,7 @@ public final class PlayLog {
         } else {
             stored = [:]
         }
-        self.records = Self.migratingLegacyRecords(stored)
+        self.records = Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored))
         // 移し替えが起きた回だけ書き戻す。次の起動では旧キーが無いので何も起きない。
         if self.records != stored { persistRecords() }
     }
@@ -252,8 +265,25 @@ public final class PlayLog {
     /// 更新後の初回クリアが無条件に「新記録」になる（麻雀ソリティアが #239 で該当した）。
     /// 値は「区分が無かった頃に遊べた唯一の区分」= 既定区分を指す。
     static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
-        "mahjong": (variant: "turtle", label: "亀甲"),
+        "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle")),
     ]
+
+    /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
+    ///
+    /// `variantLabel` は保存した時点の文字列で、次に遊んで記録を更新するまで書き換わらない。改名後も
+    /// ハブに旧名が出続けるので、読み込み時に新名へ直す。区分キー（`backpain`）は変えない。
+    static let renamedVariantLabels: [String: (old: String, new: String)] = [
+        "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),  // i18n-keep: 記録に保存済みの区分名の読み替え
+    ]
+
+    /// 保存済みの旧表示名を新表示名へ直した結果を返す純粋関数（#2176）。旧名以外のラベルには触れない。
+    static func renamingStaleVariantLabels(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        var result = records
+        for (key, rename) in renamedVariantLabels where result[key]?.variantLabel == rename.old {
+            result[key]?.variantLabel = rename.new
+        }
+        return result
+    }
 
     /// 旧キーの記録を既定区分のキーへ移し替えた結果を返す純粋関数（#383）。
     ///
@@ -274,7 +304,15 @@ public final class PlayLog {
 
     /// 1 件ぶんの記録を取り出す。まだ遊んでいなければ nil。
     public func record(gameID: String, variant: String? = nil) -> PlayRecord? {
-        records[Self.recordKey(gameID: gameID, variant: variant)]
+        let key = Self.recordKey(gameID: gameID, variant: variant)
+        return records[key].map { Self.keyed($0, key) }
+    }
+
+    /// 表示用に保存先のキーを添えた記録（保存はしない。`PlayRecord.recordKey`）。
+    private static func keyed(_ record: PlayRecord, _ key: String) -> PlayRecord {
+        var record = record
+        record.recordKey = key
+        return record
     }
 
     /// そのゲームの全区分の記録。キー順で安定させる（表示のちらつき防止）。
@@ -283,7 +321,7 @@ public final class PlayLog {
         return records
             .filter { $0.key == gameID || $0.key.hasPrefix(prefix) }
             .sorted { $0.key < $1.key }
-            .map(\.value)
+            .map { Self.keyed($0.value, $0.key) }
     }
 
     /// ハブのカードに出す 1 行。記録がまだ無ければ nil。
@@ -338,7 +376,21 @@ public final class PlayLog {
         let result = PlayRecord.applying(outcome: outcome, score: score, to: records[key], at: date)
         records[key] = result.record
         persistRecords()
-        return result
+        recordPlayDay(at: date)
+        return RecordResult(record: Self.keyed(result.record, key), update: result.update)
+    }
+
+    /// 決着した日を遊んだ日として足す（#1625）。同じ日は何局目でも増えない。
+    private func recordPlayDay(at date: Date, calendar: Calendar = .current) {
+        let updated = PlayDayStreak.inserting(PlayDayStreak.dayNumber(for: date, calendar: calendar), into: playDays)
+        guard updated != playDays else { return }
+        playDays = updated
+        defaults.set(playDays, forKey: Self.playDaysKey)
+    }
+
+    /// 今日時点の連続プレイ日数（#1625）。1 日空くと 0。保存は `playDays` だけで、開くたびに計算し直す。
+    public func playStreak(now: Date = Date(), calendar: Calendar = .current) -> Int {
+        PlayDayStreak.current(days: playDays, today: PlayDayStreak.dayNumber(for: now, calendar: calendar))
     }
 
     /// リワード広告のコンティニューで「その負けが無かったことになった」ときに呼ぶ。
@@ -444,5 +496,6 @@ public final class PlayLog {
         lastRequestedVersion = nil
         records = [:]
         guidedGameIDs = []
+        playDays = []
     }
 }

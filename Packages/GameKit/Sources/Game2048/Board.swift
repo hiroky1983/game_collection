@@ -154,3 +154,66 @@ public enum Game2048Logic {
         return out
     }
 }
+
+/// 盤のマス（行・列）。
+public struct Game2048Cell: Hashable, Sendable {
+    public let row: Int
+    public let col: Int
+
+    public init(row: Int, col: Int) {
+        self.row = row
+        self.col = col
+    }
+}
+
+/// 1 手でタイル 1 枚がどこからどこへ動くか（#2253）。View はこれでタイルを滑らせる。
+public struct Game2048TileMove: Equatable, Sendable {
+    public let from: Game2048Cell
+    public let to: Game2048Cell
+    /// 行き先で別のタイルと合体するか。合体する 2 枚はどちらも true で、同じ `to` を持つ。
+    public let merges: Bool
+
+    public init(from: Game2048Cell, to: Game2048Cell, merges: Bool) {
+        self.from = from
+        self.to = to
+        self.merges = merges
+    }
+}
+
+extension Game2048Logic {
+    /// 盤上の全タイルの「移動元 → 移動先」（#2253）。合体の規則は `slideRowLeft` と同じで、
+    /// 行き先に値を足し合わせると `slide(_:_:)` の盤と一致する（テストで固定）。
+    /// 並びは列（行）ごとに、進む向きの先頭（壁）側から。動かないタイルも `from == to` で含む。
+    public static func moves(_ board: [[Int]], _ direction: Direction) -> [Game2048TileMove] {
+        let n = board.count
+        var result: [Game2048TileMove] = []
+        for line in 0..<n {
+            // 壁側から順に並べたマス。左スライドへ正規化したときの 1 行に当たる。
+            let cells: [Game2048Cell] = (0..<n).map { i in
+                switch direction {
+                case .left:  Game2048Cell(row: line, col: i)
+                case .right: Game2048Cell(row: line, col: n - 1 - i)
+                case .up:    Game2048Cell(row: i, col: line)
+                case .down:  Game2048Cell(row: n - 1 - i, col: line)
+                }
+            }
+            let tiles = cells.filter { board[$0.row][$0.col] != 0 }
+            var target = 0
+            var i = 0
+            while i < tiles.count {
+                let to = cells[target]
+                let value = board[tiles[i].row][tiles[i].col]
+                if i + 1 < tiles.count, value == board[tiles[i + 1].row][tiles[i + 1].col] {
+                    result.append(Game2048TileMove(from: tiles[i], to: to, merges: true))
+                    result.append(Game2048TileMove(from: tiles[i + 1], to: to, merges: true))
+                    i += 2
+                } else {
+                    result.append(Game2048TileMove(from: tiles[i], to: to, merges: false))
+                    i += 1
+                }
+                target += 1
+            }
+        }
+        return result
+    }
+}

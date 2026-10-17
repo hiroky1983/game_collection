@@ -34,7 +34,7 @@ struct GameSetupSheetSourceTests {
         }
     }
 
-    /// 開始シートを出す全 20 本（#1415。麻雀ソリティアは 2026-09-28、おじさんの荷物運びパズルは #1920 で追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
+    /// 開始シートを出す全 21 本（#1415。麻雀ソリティアは 2026-09-28、おじさんの荷物運びパズルは #1920、明かり消しパズルは #1883 で追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
     private static let allSheets: [(path: String, kind: String)] = [
         ("GameChess/ChessView.swift", ".versus"),
         ("GameShogi/ShogiView.swift", ".versus"),
@@ -42,13 +42,16 @@ struct GameSetupSheetSourceTests {
         ("GameOthello/OthelloView.swift", ".versus"),
         ("GameGomoku/GomokuView.swift", ".versus"),
         ("GameBackgammon/BackgammonView.swift", ".versus"),
+        ("GameMancala/MancalaView.swift", ".versus"),
         ("GameConcentration/ConcentrationView.swift", ".versus"),
         ("GameSpeed/SpeedView.swift", ".versus"),
+        ("GameOldMaid/OldMaidView.swift", ".versus"),
         ("GameHanafuda/HanafudaSheets.swift", ".versus"),
         ("GameShiritori/ShiritoriView.swift", ".versus"),
         ("GameMinesweeper/MinesweeperView.swift", ".solo"),
         ("GameSudoku/SudokuView.swift", ".solo"),
         ("GameAnzan/AnzanView.swift", ".solo"),
+        ("GameAkariKeshi/AkariKeshiView.swift", ".solo"),
         ("GameSpider/SpiderView.swift", ".solo"),
         ("GameRunner/RunnerStartSheet.swift", ".solo"),
         ("GameMahjong/MahjongStartSheet.swift", ".versus"),
@@ -56,6 +59,7 @@ struct GameSetupSheetSourceTests {
         ("GameSolitaire/SolitaireSetupSheet.swift", ".solo"),
         ("GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift", ".solo"),
         ("GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift", ".solo"),
+        ("GameHearts/HeartsView.swift", ".versus"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。
@@ -95,7 +99,7 @@ struct GameSetupSheetSourceTests {
         #expect(source.contains(".presentationDetents([.large])"), "シートが large 固定でない")
         #expect(!source.contains("presentationDetents([.medium"), "medium から開く並べ方が戻っている")
         #expect(source.contains(".safeAreaInset(edge: .bottom)"), "開始ボタンが下端に固定されていない")
-        #expect(source.contains("終了して\\(kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
+        #expect(source.contains("tr(\"終了して%@\", kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
     }
 
     /// 開始シートから遊び方を別画面で開く形（#2128 の「◯◯の遊び方を見る」）は会長指示 2026-10-12 で廃止。
@@ -205,7 +209,9 @@ struct CPUStrengthPickerSourceTests {
                 contentsOf: SourceScan.packageRoot
                     .appendingPathComponent("Sources").appendingPathComponent(path),
                 encoding: .utf8)
-            #expect(source.contains(#"GameSetupSection("CPUの強さ")"#), "\(path) に強さの節が無い")
+            // 多言語化（#2169）後は `tr(...)` で引く形。まだ変換していないゲームがあっても通るよう両方を許す。
+            #expect(source.contains(#"GameSetupSection(tr("CPUの強さ"))"#)
+                        || source.contains(#"GameSetupSection("CPUの強さ")"#), "\(path) に強さの節が無い")
             #expect(source.contains("CPUStrengthPicker(level: $level"),
                     "\(path) が共通のピッカーを使っていない")
             // 「ガチ」は v1.1.6 で一旦見送ったので、その説明（「とことん読む」）は書かれていない。

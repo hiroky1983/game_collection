@@ -121,12 +121,13 @@ public struct RunnerView: View {
         // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
         // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
         // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
-        .gameChrome(title: "チャリンコおじさん", review: services.review,
+        .gameChrome(title: tr("チャリンコおじさん"), review: services.review,
                     newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil) {
                         if model.phase == .running { model.pause() }
                         openStartSheet(mode: model.mode, stage: 1)
                     })
-        .howToPlay(.runner) {
+        // 「？」は走っているモード（ステージ制・エンドレス）に合わせて出し分ける（#2044）。
+        .howToPlay(model.mode.howToPlayGuide) {
             // 読んでいる間にミスしないよう止める。走り出す前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
             if model.phase == .running { model.pause() }
@@ -223,10 +224,10 @@ public struct RunnerView: View {
         }
         .rewardedRescueAlerts(
             resumeRescue,
-            notEarned: "再開できませんでした",
+            notEarned: tr("再開できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "再開できませんでした",
-                message: "広告を見ているあいだに新しいコースが始まったため、途中から再開できませんでした。"
+                title: tr("再開できませんでした"),
+                message: tr("広告を見ているあいだに新しいコースが始まったため、途中から再開できませんでした。")
             )
         )
     }
@@ -365,7 +366,7 @@ public struct RunnerView: View {
             base = RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
         }
         guard model.phase == .running, model.isInvincible else { return base }
-        return base + "、" + RunnerAccessibility.invincibleLabel(remaining: model.displayInvincibleRemaining)
+        return base + tr("、") + RunnerAccessibility.invincibleLabel(remaining: model.displayInvincibleRemaining)
     }
 
     /// たこ焼き（#797）の無敵の残り時間。縮むゲージと秒数の両方で見せる（受け入れ条件
@@ -377,7 +378,7 @@ public struct RunnerView: View {
             let remaining = model.displayInvincibleRemaining
             let ratio = min(1, max(0, remaining / RunnerRules.invincibleDuration))
             HStack(spacing: 8) {
-                Text("無敵")
+                Text(tr("無敵"))
                     .scaledFont(13, weight: .heavy, design: .rounded)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -434,10 +435,10 @@ public struct RunnerView: View {
         case .failed:
             // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは
             // ミスがそのまま決着なので、走行距離と自己ベストの行が加わる。
-            panel(title: "ミス！", face: resultFace, faceScale: faceScale) {
+            panel(title: tr("ミス！"), face: resultFace, faceScale: faceScale) {
                 // 何でミスしたかを 1 行で添える（#1755）。原因はミスの瞬間に判定済み。
                 if let cause = model.field.lastMissCause {
-                    Text(Self.missCauseText(cause))
+                    Text(Self.missText(cause: cause, object: model.field.lastMissObject, world: missWorld))
                         .themeBody(15, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
@@ -450,17 +451,17 @@ public struct RunnerView: View {
             // 主役は「次の面へ」（#931）。秒数の表示・ベストタイム更新の印は廃止し、
             // 到達点が伸びた回だけ「新しい面に到達！」の印を出す。
             panel(
-                title: "\(stageHeadlineText) クリア！",
+                title: tr("%@ クリア！", stageHeadlineText),
                 face: resultFace, faceScale: faceScale
             ) {
                 clearedDetail
-                GameDeadEndActionButton("次の面へ", systemImage: "arrow.forward.circle.fill", tint: Theme.Fill.coral) {
+                GameDeadEndActionButton(tr("次の面へ"), systemImage: "arrow.forward.circle.fill", tint: Theme.Fill.coral) {
                     model.advanceToNextStage()
                 }
                 replayButton
             }
         case .allCleared:
-            panel(title: "全ステージクリア！", face: resultFace, faceScale: faceScale) {
+            panel(title: tr("全ステージクリア！"), face: resultFace, faceScale: faceScale) {
                 replayButton
                 restartButton
             }
@@ -483,9 +484,9 @@ public struct RunnerView: View {
             if model.didReachNewStage {
                 // 見た目は共通の `RecordBadge`（塗りつぶさない印。「次の面へ」ボタンと
                 // 同じ塗りだと押せるものに見える・会長 QA 2026-09-14）。
-                RecordBadge("新しい面に到達！")
+                RecordBadge(tr("新しい面に到達！"))
             }
-            Text("つぎは \(RunnerAccessibility.stageHeadline(number: model.stageNumber + 1))")
+            Text(tr("つぎは %@", RunnerAccessibility.stageHeadline(number: model.stageNumber + 1)))
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.85))
         }
@@ -498,23 +499,23 @@ public struct RunnerView: View {
     /// 走行距離であることが読み取れない。
     private var endlessDetail: some View {
         VStack(spacing: 4) {
-            Text("走行距離 \(distanceText(model.distanceMeters))")
+            Text(tr("走行距離 %@", distanceText(model.distanceMeters)))
                 .themeBody(15)
                 .foregroundStyle(.white)
-            Text(model.endlessBestDistance.map { "自己ベスト \(distanceText($0))" } ?? "自己ベストはまだありません")
+            Text(model.endlessBestDistance.map { tr("自己ベスト %@", distanceText($0)) } ?? tr("自己ベストはまだありません"))
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.85))
             if model.didSetBestDistance {
                 // 全ゲーム共通の印（#794）。塗りつぶしだと隣の「もう一度」ボタンと同色で押せるものに見える
                 // （監査 #808 → #819。#794 の 22 分後にマージされた #795 が旧来の書き方を持ち込んでいた）。
-                RecordBadge("自己ベスト更新！")
+                RecordBadge(tr("自己ベスト更新！"))
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            RunnerAccessibility.distanceLabel(model.distanceMeters) + "。"
+            RunnerAccessibility.distanceLabel(model.distanceMeters) + tr("。")
                 + RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance)
-                + (model.didSetBestDistance ? "。自己ベスト更新" : "")
+                + (model.didSetBestDistance ? tr("。自己ベスト更新") : "")
         )
     }
 
@@ -527,7 +528,7 @@ public struct RunnerView: View {
     /// 足されても、「もう一度」の見た目は変えない（会長 QA 2026-09-28「広告のボタンと色を分ける」「同じ機能なのに
     /// 50% の前後でデザインが違うのはおかしい」）。
     private var retryButton: some View {
-        GameDeadEndDismissButton("もう一度", isDisabled: resumeRescue.isWatching) {
+        GameDeadEndDismissButton(tr("もう一度"), isDisabled: resumeRescue.isWatching) {
             model.retryStage()
         }
     }
@@ -594,7 +595,7 @@ public struct RunnerView: View {
             HStack(spacing: 8) {
                 Image(systemName: "hand.tap.fill")
                     .scaledFont(17, weight: .heavy)
-                Text("タップでスタート")
+                Text(tr("タップでスタート"))
                     .scaledFont(19, weight: .heavy, design: .rounded)
             }
             .foregroundStyle(Theme.onAccent)
@@ -621,7 +622,7 @@ public struct RunnerView: View {
     /// 名乗らない——コースが本番の面と違うのに「3-3」と出ると取り違える（2026-09-15）。
     var stageHeadlineText: String {
         model.isRunningDebugStage
-            ? "ショーケース"
+            ? tr("ショーケース")
             : RunnerAccessibility.stageHeadline(number: model.stageNumber)
     }
 
@@ -638,10 +639,10 @@ public struct RunnerView: View {
                     .scaledFont(20, weight: .heavy)
                 VStack(alignment: .leading, spacing: 1) {
                     if resumingFromCheckpoint {
-                        Text("つづきから")
+                        Text(tr("つづきから"))
                             .scaledFont(20, weight: .heavy, design: .rounded)
                     } else {
-                        Text("ワールド \(world.number) \(world.displayName)")
+                        Text(tr("ワールド %1$lld %2$@", world.number, world.displayName))
                             .scaledFont(11, weight: .bold, design: .rounded)
                             .opacity(0.8)
                         Text(RunnerAccessibility.stageHeadline(number: number))
@@ -662,12 +663,12 @@ public struct RunnerView: View {
         }
         .buttonStyle(.pop)
         .accessibilityLabel(
-            resumingFromCheckpoint ? "つづきから走る" : RunnerAccessibility.startStageLabel(number: number)
+            resumingFromCheckpoint ? tr("つづきから走る") : RunnerAccessibility.startStageLabel(number: number)
         )
     }
 
     private var pausedOverlay: some View {
-        panel(title: "一時停止") {
+        panel(title: tr("一時停止")) {
             // ゆっくりモードの切り替えは設定画面のみに一本化した（#631）。ゲーム内の
             // 一時停止からいつでも切り替えられると、難所の直前で止めてオンにする→通過後に
             // オフへ戻す、を繰り返すだけで難易度をいくらでも調整できてしまい、
@@ -676,7 +677,7 @@ public struct RunnerView: View {
             // 2026-09-11）。設定変更時は`GameSettings.slowModeEnabled`のdidSetで
             // 中断データを破棄するため、この画面を経由した抜け道は無い。
 
-            GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
+            GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
                 model.resume()
             }
 
@@ -686,7 +687,7 @@ public struct RunnerView: View {
 
     private var resumeButton: some View {
         GameDeadEndActionButton(
-            "広告を見て途中から再開", systemImage: "play.rectangle.fill",
+            tr("広告を見て途中から再開"), systemImage: "play.rectangle.fill",
             tint: Theme.Fill.coral, isDisabled: resumeRescue.isWatching
         ) {
             // どのコースへの再開かを広告前に控える。ロード中に「はじめから」等で
@@ -702,14 +703,14 @@ public struct RunnerView: View {
     }
 
     private var replayButton: some View {
-        GameDeadEndDismissButton("このステージをもう一度") { model.replayCurrentStage() }
+        GameDeadEndDismissButton(tr("このステージをもう一度")) { model.replayCurrentStage() }
     }
 
     /// 一時停止・全ステージクリアから「はじめから」。ツールバーの同名ボタンと同じく
     /// 開始シートを経由する（#1027。`.ready` に着地しただけではシートを出さなくなったので、
     /// モードや面を選び直したいこの導線だけは自分で開く）。
     private var restartButton: some View {
-        GameDeadEndDismissButton("はじめから") { openStartSheet(mode: model.mode, stage: 1) }
+        GameDeadEndDismissButton(tr("はじめから")) { openStartSheet(mode: model.mode, stage: 1) }
     }
 
     /// リザルト・一時停止の幕。`face` を渡すと見出しの上におじさんの顔を出す（#702。一時停止は nil）。
@@ -733,14 +734,81 @@ public struct RunnerView: View {
         }
     }
 
+    /// ミスしたコースの世界。ステージ 0（QA 用ショーケース）は朝の下町（`RunnerScene` と同じ倒し方）。
+    private var missWorld: RunnerWorld {
+        let number = model.field.stage.number
+        return number == 0 ? .morning : RunnerWorld.world(forStage: number)
+    }
+
+    /// ミスの 1 行（#2254）。当たった相手が分かるときは**その世界での見た目**に合わせた名前で言う
+    ///（港町の「イノシシ」の枠はフォークリフトなので「動物」とは言わない）。
+    /// 相手が無い原因（穴・沈む床）は `missCauseText` のまま。
+    static func missText(cause: AnalyticsEndCause, object: RunnerMissObject?, world: RunnerWorld) -> String {
+        guard let object else { return missCauseText(cause) }
+        let dressing = world.dressing
+        switch object {
+        case .platformFace:
+            switch dressing.platform {
+            case .scaffold: return tr("足場にぶつかった")
+            case .strawStack: return tr("わら積みにぶつかった")
+            case .crateStack: return tr("木箱にぶつかった")
+            }
+        case .crumblingPlatformFace:
+            switch dressing.crumblingPlatform {
+            case .suspensionBridge: return tr("吊り橋にぶつかった")
+            case .woodenPier: return tr("桟橋にぶつかった")
+            }
+        case .hazard(let kind):
+            switch kind {
+            case .pit: return missCauseText(.pit)
+            case .bird: return missCauseText(.bird)
+            case .lowBlock: return blockText(dressing.lowBlock)
+            case .tallBlock: return blockText(dressing.tallBlock)
+            case .dog:
+                switch dressing.dog {
+                case .dog: return tr("犬にぶつかった")
+                case .cat: return tr("猫にぶつかった")
+                case .deer: return tr("鹿にぶつかった")
+                case .monkey: return tr("サルにぶつかった")
+                }
+            case .boar:
+                switch dressing.boar {
+                case .boar: return tr("イノシシにぶつかった")
+                case .forklift: return tr("フォークリフトにぶつかった")
+                }
+            case .shoot, .geyser:
+                switch dressing.shoot {
+                case .bambooShoot: return tr("竹の子にぶつかった")
+                case .seaSpray: return tr("波しぶきにぶつかった")
+                case .steamColumn: return tr("湯柱にぶつかった")
+                }
+            case .wall:
+                switch dressing.wall {
+                case .stoneWall: return tr("石垣にぶつかった")
+                case .containerStack: return tr("コンテナにぶつかった")
+                }
+            }
+        }
+    }
+
+    private static func blockText(_ block: RunnerWorld.Dressing.Block) -> String {
+        switch block {
+        case .boulder: return tr("岩にぶつかった")
+        case .stump: return tr("切り株にぶつかった")
+        case .ropeCoil: return tr("ロープにぶつかった")
+        case .drum: return tr("ドラム缶にぶつかった")
+        case .yuoke: return tr("湯桶にぶつかった")
+        }
+    }
+
     /// ミスの原因を 1 行にした文（#1755）。
     static func missCauseText(_ cause: AnalyticsEndCause) -> String {
         switch cause {
-        case .pit: return "穴に落ちた"
-        case .rock: return "岩にぶつかった"
-        case .bird: return "鳥にぶつかった"
-        case .animal: return "動物にぶつかった"
-        case .sink: return "沈んでしまった"
+        case .pit: return tr("穴に落ちた")
+        case .rock: return tr("岩にぶつかった")
+        case .bird: return tr("鳥にぶつかった")
+        case .animal: return tr("動物にぶつかった")
+        case .sink: return tr("沈んでしまった")
         }
     }
 

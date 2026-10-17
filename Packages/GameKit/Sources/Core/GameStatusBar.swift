@@ -72,7 +72,7 @@ public struct TurnBadge: View {
 
     /// 「あなたの番」「CPUの番」。
     public init(isYourTurn: Bool) {
-        self.init(isYourTurn ? "あなたの番" : "CPUの番", kind: isYourTurn ? .you : .cpu)
+        self.init(isYourTurn ? tr("あなたの番") : tr("CPUの番"), kind: isYourTurn ? .you : .cpu)
     }
 
     public var body: some View {

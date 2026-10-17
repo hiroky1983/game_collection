@@ -78,4 +78,12 @@ struct MahjongHandTapTests {
         #expect(MahjongHandTap.handTileID(index: 3) == MahjongHandTap.handTileID(index: 3))
         #expect(MahjongHandTap.handTileID(index: 3) != MahjongHandTap.handTileID(index: 4))
     }
+
+    @Test("触覚: 選択は弱い触覚、自分の手番の切れない牌は拒否、手番外と打牌は無し（#2303）")
+    func feedbackPerOutcome() {
+        #expect(MahjongHandTap.feedback(for: .select("hand1"), isPlayerTurn: true) == .selection)
+        #expect(MahjongHandTap.feedback(for: .ignored, isPlayerTurn: true) == .rejected)
+        #expect(MahjongHandTap.feedback(for: .ignored, isPlayerTurn: false) == nil)
+        #expect(MahjongHandTap.feedback(for: .discard, isPlayerTurn: true) == nil)
+    }
 }

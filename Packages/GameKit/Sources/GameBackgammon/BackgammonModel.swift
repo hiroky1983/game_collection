@@ -27,6 +27,8 @@ struct BackgammonSnapshot: Codable {
     let turnStartPoints: [Int]?
     let turnStartBar: [Int]?
     let turnStartOff: [Int]?
+    /// この局で使ったヒントの回数（#2302）。鍵を持たない旧形式の中断データでは nil = 未使用。
+    var hintsUsed: Int? = nil
 }
 
 /// 巻き戻しの単位（盤 + 振った目）。手番の持ち主は常に人間。
@@ -43,7 +45,7 @@ struct BackgammonTurnState: Equatable {
 /// 手番が移った後は「待った」（無料 1 回、以後は広告）で CPU の応手ごと戻せる（`BoardUndoModel`）。
 @MainActor
 @Observable
-public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
+public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// `GameModule.id` と同じ値。`ModuleTests` が一致を確かめる。
     public static let gameID = "backgammon"
     /// 人間は常に白。
@@ -68,6 +70,12 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
     public private(set) var selectedPoint: Int?
     /// 直前に動いた駒（演出・読み上げ用）。
     public private(set) var lastMove: BackgammonMove?
+    /// CPU の手番が終わった（またはパスした）直後の `aiTurnKey`（#2280）。駒を 1 つ動かすたびに鍵は進むが、
+    /// 読み上げは手番ごとに 1 回なので、手番が人間へ渡ったときだけ控える。
+    public private(set) var lastCPUMoveKey: AITurnKey?
+    /// `lastCPUMoveKey` の手番で CPU が動かした駒。空ならパス（#2280）。
+    public private(set) var lastCPUTurnMoves: [BackgammonMove] = []
+    private var cpuTurnMoves: [BackgammonMove] = []
     /// オープニングロール（人間の目, CPU の目）。開始直後の案内に使う。
     public private(set) var openingRoll: (human: Int, cpu: Int)?
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
@@ -83,6 +91,13 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
     /// この局で 1 手でも動いたか（`gameDidProgress` の冪等化と「配っただけ」の判定）。
     private var hasProgressed: Bool
     private var undoHistory: [BackgammonTurnState] = []
+    /// この局のヒントの残り（#2302）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェス・オセロ等と共通）。
+    public private(set) var hints = BoardHintBudget()
+    /// ヒントが示している 1 手（動かす駒の元と先）。着手・やり直し・待った・パス・新規対局・決着で消える
+    /// （盤が変われば印は嘘になる）。**永続化しない** — 中断データに残すのは使った回数だけ。
+    public private(set) var hintMove: BackgammonMove?
+    /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ。
+    public private(set) var isHintThinking = false
     /// いまの手番の開始時点（「やり直し」の戻り先）。人間の手番でだけ持つ。
     private var turnStart: BackgammonBoard?
     /// 思考タスクの待ち合わせ点（テスト専用）。
@@ -142,6 +157,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
             undoUsed      = snap.undoUsed ?? false
             mustPass      = snap.mustPass ?? false
             hasProgressed = snap.hasProgressed ?? true
+            hints         = BoardHintBudget(used: snap.hintsUsed ?? 0)
             if let h = snap.openingHuman, let c = snap.openingCPU { openingRoll = (h, c) }
             if let p = snap.undoPoints, let b = snap.undoBar, let o = snap.undoOff, let d = snap.undoDice,
                BackgammonRules.isConsistent(BackgammonBoard(points: p, bar: b, off: o)) {
@@ -203,6 +219,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         remainingDice = dice
         selectedPoint = nil
         lastMove = nil
+        hintMove = nil
         // この手番の最初の 1 手で積んだ「待った」の戻り先も取り下げる。残すと次の 1 手でもう 1 本積まれ、
         // 同じ盤面のエントリが 2 本並んで広告の待ったが空振りする（verifier 指摘・PR #1344）。
         if undoHistory.last?.board == start { undoHistory.removeLast() }
@@ -227,6 +244,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         currentSide = humanSide
         selectedPoint = nil
         lastMove = nil
+        hintMove = nil
         mustPass = false
         undoUsed = true
         turnID += 1
@@ -253,6 +271,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
             } commit: { _ in
                 guard isAITurn, mustPass else { return }
                 confirmPass()
+                lastCPUTurnMoves = []
+                lastCPUMoveKey = aiTurnKey
             }
             return
         }
@@ -269,7 +289,15 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
             guard isAITurn, !gameOver, let move else { return }
             // 旧局面で選んだ手をそのまま打たない。いまの合法手に含まれるときだけ進める。
             guard BackgammonRules.legalMoves(board: board, side: currentSide, dice: remainingDice).contains(move) else { return }
+            // 手番の最初の 1 手で数え直す（途中で画面を離れて積み残した分を持ち越さない）。
+            if remainingDice.count == dice.count { cpuTurnMoves = [] }
+            cpuTurnMoves.append(move)
             play(move)
+            if gameOver || currentSide == humanSide {
+                lastCPUTurnMoves = cpuTurnMoves
+                cpuTurnMoves = []
+                lastCPUMoveKey = aiTurnKey
+            }
         }
     }
 
@@ -290,6 +318,9 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         turnID = 0
         gameSerial += 1
         isThinking = false
+        isHintThinking = false
+        hints.reset()
+        hintMove = nil
         // まだ 1 手も動いていない局は `persist()` が保存しないので、前の対局の中断データはここで消す
         // （残すと、新規対局を始めて 1 手も指さずに離れたとき「続きから」が前の対局を復元する）。
         services?.snapshots.clear(for: gameID)
@@ -298,6 +329,75 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
+
+    // MARK: - ヒント（#2302）
+
+    /// 残り回数（`BoardControlBarHint` が読む）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// いまヒントを押せるか。**自分の手番で、対局中で、動かせる手があり、残りが在るとき**だけ。
+    public var canUseHint: Bool {
+        !gameOver && !isAITurn && !mustPass && !isThinking && !isHintThinking && !hints.isExhausted
+            && !legalMoves.isEmpty
+    }
+
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
+    /// 残りの目に対する最善の手順の**先頭の 1 手**を盤の上に示す（手順の続きは 1 手動かしてから改めて聞く）。
+    /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。**求まらなかった局・盤が変わった局では回数を減らさない**。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            await hintSearch()
+        } commit: { move in
+            guard let move, hintStillValid(move), hints.consume() else { return }
+            showHint(move)
+        }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する。広告の視聴完了を確かめてから読みを始める
+    /// （読み終えてから広告を流さない契約）。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            await hintSearch()
+        } commit: { move in
+            guard let move, hintStillValid(move), hints.consumeAd() else { return }
+            showHint(move)
+            outcome = .granted
+        }
+        return outcome
+    }
+
+    private func hintSearch() async -> BackgammonMove? {
+        let b = board, s = humanSide, d = remainingDice
+        return await Task.detached(priority: .userInitiated) {
+            BackgammonEngine(level: BoardHintBudget.engineLevel).bestSequence(board: b, side: s, dice: d).first
+        }.value
+    }
+
+    /// 読んでいるあいだに盤が動いていないか、いまの合法手に含まれるか。
+    private func hintStillValid(_ move: BackgammonMove) -> Bool {
+        !gameOver && !isAITurn && !mustPass && !hints.isExhausted && legalMoves.contains(move)
+    }
+
+    private func showHint(_ move: BackgammonMove) {
+        services?.gameDidUseHint(gameID: gameID)
+        hintMove = move
+        selectedPoint = nil
+        services?.feedback.impact(.light)
+        // 残り回数は中断データに持ち回る（再開でヒントが戻らないように）。
+        persist()
+    }
 
     // MARK: - 進行
 
@@ -315,6 +415,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
     /// 手番を回し、目を振る。動かせる手が無ければ `mustPass` を立てる。
     private func beginTurn(for side: BackgammonSide, roll: (Int, Int)? = nil) {
         currentSide = side
+        hintMove = nil
         let r = roll ?? (rollDie(), rollDie())
         dice = BackgammonRules.dice(for: r)
         remainingDice = dice
@@ -340,6 +441,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         services?.gameDidProgress(gameID: gameID)
         board = BackgammonRules.apply(move, to: board, side: mover)
+        hintMove = nil
         if let i = remainingDice.firstIndex(of: move.die) { remainingDice.remove(at: i) }
         lastMove = move
         turnID += 1
@@ -362,10 +464,11 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         winner = side
         winKind = kind
         selectedPoint = nil
+        hintMove = nil
         mustPass = false
         turnStart = nil
         services?.feedback.notify(side == humanSide ? .success : .error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: hints.winLossScore)
         persist()
     }
 
@@ -388,7 +491,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
             openingHuman: openingRoll?.human, openingCPU: openingRoll?.cpu,
             undoPoints: undoHistory.last?.board.points, undoBar: undoHistory.last?.board.bar,
             undoOff: undoHistory.last?.board.off, undoDice: undoHistory.last?.dice,
-            turnStartPoints: turnStart?.points, turnStartBar: turnStart?.bar, turnStartOff: turnStart?.off
+            turnStartPoints: turnStart?.points, turnStartBar: turnStart?.bar, turnStartOff: turnStart?.off,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -409,6 +513,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         recordResult = nil
         gameSerial += 1
         isThinking = false
+        isHintThinking = false
+        hints.reset()
         beginTurn(for: side, roll: roll)
     }
 

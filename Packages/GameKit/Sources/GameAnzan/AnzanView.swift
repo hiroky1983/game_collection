@@ -43,17 +43,17 @@ public struct AnzanView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "ぱっと暗算", review: services.review) {
+        .gameChrome(title: tr("ぱっと暗算"), review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { showSetup = true } label: {
-                    Label("難易度", systemImage: "slider.horizontal.3")
+                    Label(tr("難易度"), systemImage: "slider.horizontal.3")
                 }
                 // 数が出ているあいだにシートを被せると見逃すので、出し終わるまで待たせる。
                 // 広告の視聴中も塞ぐ（難易度を変えると問題が入れ替わり、見終えた広告の見直しが乗らない）。
                 .disabled(model.phase == .flashing || replayRescue.isWatching)
             }
         }
-        .howToPlay(.anzan, onPresent: {
+        .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items), onPresent: {
             // 数が出ているあいだに読むと出題が進んで誤答になるので、止めて頭から出し直す。
             showHowToPlay = true
             model.pauseDisplay()
@@ -90,10 +90,10 @@ public struct AnzanView: View {
                      services: services, gameID: AnzanModel.gameID)
         .rewardedRescueAlerts(
             replayRescue,
-            notEarned: "もう一度見られませんでした",
+            notEarned: tr("もう一度見られませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "もう一度見られませんでした",
-                message: "広告を見ているあいだに問題が変わったため、見直せませんでした。"
+                title: tr("もう一度見られませんでした"),
+                message: tr("広告を見ているあいだに問題が変わったため、見直せませんでした。")
             )
         )
         // 表示の並びは Model が 1 コマずつ進め、ここは待つだけ。問題が変わる・見直すたびに
@@ -112,7 +112,7 @@ public struct AnzanView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("難易度").themeCaption(11).foregroundStyle(Theme.inkSub)
+                Text(tr("難易度")).themeCaption(11).foregroundStyle(Theme.inkSub)
                 Text(model.settings.variantLabel)
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
@@ -120,9 +120,9 @@ public struct AnzanView: View {
                     .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 8)
-            stat("連続正解", value: "\(model.streak)")
+            stat(tr("連続正解"), value: "\(model.streak)")
             if let best = model.bestSeconds {
-                stat("最速", value: "\(best)秒")
+                stat(tr("最速"), value: tr("%lld秒", best))
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -166,7 +166,7 @@ public struct AnzanView: View {
     private var stageContent: some View {
         switch model.phase {
         case .idle:
-            Text("難易度を選んでスタート")
+            Text(tr("難易度を選んでスタート"))
                 .themeBody(17)
                 .foregroundStyle(.white.opacity(0.85))
         case .flashing:
@@ -181,7 +181,7 @@ public struct AnzanView: View {
     @ViewBuilder
     private var flashContent: some View {
         if model.isShowingReady {
-            Text("よーい")
+            Text(tr("よーい"))
                 .scaledFont(34, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(Theme.Fill.yellow)
         } else if let number = model.displayedNumber {
@@ -194,7 +194,7 @@ public struct AnzanView: View {
 
     private var answerContent: some View {
         VStack(spacing: 10) {
-            Text("ぜんぶ足すと？")
+            Text(tr("ぜんぶ足すと？"))
                 .themeBody(15)
                 .foregroundStyle(.white.opacity(0.85))
             Text(verbatim: model.input.isEmpty ? "?" : model.input)
@@ -205,7 +205,7 @@ public struct AnzanView: View {
             if model.canReplay {
                 replayButton
             } else if model.replayUsed {
-                Text("見直しずみ")
+                Text(tr("見直しずみ"))
                     .themeCaption(11)
                     .foregroundStyle(.white.opacity(0.7))
             }
@@ -225,7 +225,7 @@ public struct AnzanView: View {
                 model.replayAfterAd(forGame: serial)
             }
         } label: {
-            Label("もう一度見る（広告）", systemImage: "play.rectangle.fill")
+            Label(tr("もう一度見る（広告）"), systemImage: "play.rectangle.fill")
                 .themeBody(13)
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12).padding(.vertical, 7)
@@ -237,7 +237,7 @@ public struct AnzanView: View {
 
     private var resultContent: some View {
         VStack(spacing: 8) {
-            Text(model.isCorrect ? "せいかい！" : "ざんねん…")
+            Text(model.isCorrect ? tr("せいかい！") : tr("ざんねん…"))
                 .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(model.isCorrect ? Theme.Fill.yellow : .white)
             Text(verbatim: AnzanLogic.expression(model.numbers))
@@ -248,12 +248,12 @@ public struct AnzanView: View {
                 .minimumScaleFactor(0.6)
             HStack(spacing: 12) {
                 if !model.isCorrect, let answer = model.answer {
-                    Text(verbatim: "あなたの答え \(answer)")
+                    Text(verbatim: tr("あなたの答え %lld", answer))
                 }
                 if let seconds = model.answerSeconds {
                     // 記録の 1 行（`RecordLabel`）は勝敗の指標なので秒数を出さない。最速を更新した回は
                     // 「自己ベスト更新！」の中身がここで分かるように添える。
-                    Text(verbatim: model.recordResult?.update.seconds == true ? "回答 \(seconds)秒（最速！）" : "回答 \(seconds)秒")
+                    Text(verbatim: model.recordResult?.update.seconds == true ? tr("回答 %lld秒（最速！）", seconds) : tr("回答 %lld秒", seconds))
                 }
             }
             .themeCaption(12)
@@ -278,13 +278,13 @@ public struct AnzanView: View {
             switch model.phase {
             case .idle:
                 Button { showSetup = true } label: {
-                    Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
+                    Text(tr("はじめる")).themeBody(18).frame(maxWidth: .infinity)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
                 .padding(.horizontal, 24)
             case .flashing:
-                Text("出た数をぜんぶ足そう")
+                Text(tr("出た数をぜんぶ足そう"))
                     .themeBody(15)
                     .foregroundStyle(Theme.inkSub)
             case .answering:
@@ -325,7 +325,7 @@ public struct AnzanView: View {
                     Image(systemName: "delete.left.fill")
                         .scaledFont(20, weight: .bold)
                 case .submit:
-                    Text("決定")
+                    Text(tr("決定"))
                         .scaledFont(18, weight: .heavy, design: .rounded)
                 }
             }
@@ -354,13 +354,13 @@ public struct AnzanView: View {
     private var resultControls: some View {
         VStack(spacing: 10) {
             Button { withGameAnimation { model.next() } } label: {
-                Label("次の問題", systemImage: "arrow.right.circle.fill")
+                Label(tr("次の問題"), systemImage: "arrow.right.circle.fill")
                     .themeBody(17).frame(maxWidth: .infinity)
                     .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             Button { showSetup = true } label: {
-                Text("難易度を変える").themeBody(15).frame(maxWidth: .infinity)
+                Text(tr("難易度を変える")).themeBody(15).frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
         }
@@ -391,7 +391,7 @@ struct AnzanSetupSheet: View {
             kind: .solo,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
-            GameSetupSection("桁数") {
+            GameSetupSection(tr("桁数")) {
                 HStack(spacing: 12) {
                     ForEach(AnzanDigits.allCases, id: \.self) { digits in
                         GameSetupChooser(title: digits.label, subtitle: digits.subtitle,
@@ -402,7 +402,7 @@ struct AnzanSetupSheet: View {
                     }
                 }
             }
-            GameSetupSection("個数") {
+            GameSetupSection(tr("個数")) {
                 HStack(spacing: 12) {
                     ForEach(AnzanCount.allCases, id: \.self) { count in
                         GameSetupChooser(title: count.label, subtitle: "",
@@ -413,7 +413,7 @@ struct AnzanSetupSheet: View {
                     }
                 }
             }
-            GameSetupSection("速さ") {
+            GameSetupSection(tr("速さ")) {
                 HStack(spacing: 12) {
                     ForEach(AnzanSpeed.allCases, id: \.self) { speed in
                         GameSetupChooser(title: speed.label, subtitle: speed.subtitle,

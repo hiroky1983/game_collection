@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// 盤面のかたち（#239）。
 ///
@@ -13,8 +14,18 @@ public struct MahjongSolitaireLayout: Identifiable, Sendable {
 
     /// 保存・記録の区分キー（`GameScore.variant`）に使う識別子。**値を変えると記録が別物になる**。
     public let id: String
-    /// 画面と記録に出す名前。
-    public let displayName: String
+    /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されるので表示言語によらず日本語のまま。
+    /// 画面に出す名前は `displayName`。
+    public let recordLabel: String
+    /// 画面に出す名前（表示言語に従う）。
+    public var displayName: String {
+        switch id {
+        case "turtle":  return tr("亀甲")
+        case "pyramid": return tr("ピラミッド")
+        case "cross":   return tr("十字")
+        default:        return recordLabel
+        }
+    }
     /// 牌 1 枚ぶんの置き場所。添字がそのまま盤上の位置 ID になる。
     public let positions: [MahjongPosition]
     /// 盤面の広さ（半マス単位）。描画のスケール計算に使う。**位置から導出する**ので取り違えない。
@@ -38,9 +49,9 @@ public struct MahjongSolitaireLayout: Identifiable, Sendable {
     /// 牌の枚数。
     public var count: Int { positions.count }
 
-    init(id: String, displayName: String, positions: [MahjongPosition]) {
+    init(id: String, recordLabel: String, positions: [MahjongPosition]) {
         self.id = id
-        self.displayName = displayName
+        self.recordLabel = recordLabel
         self.positions = positions
         // 盤の広さは位置から導く。定数として別に持つと、レイアウトを足したときに更新し忘れて
         // 牌が枠からはみ出す（= タップ標的の計算がずれる）。
@@ -98,7 +109,7 @@ public extension MahjongSolitaireLayout {
     /// 第2段 36 枚（6×6）、第3段 16 枚（4×4）、第4段 4 枚（2×2）、第5段 1 枚。
     static let turtle = MahjongSolitaireLayout(
         id: "turtle",
-        displayName: "亀甲",
+        recordLabel: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle"),
         positions: {
             var result: [MahjongPosition] = []
 
@@ -136,7 +147,7 @@ public extension MahjongSolitaireLayout {
     /// 手数の見通しが立てやすい**代わりに、覆われている牌の割合が高い（下の段を掘る順序が問われる）。
     static let pyramid = MahjongSolitaireLayout(
         id: "pyramid",
-        displayName: "ピラミッド",
+        recordLabel: RecordVariantLabels.stored(gameID: "mahjong", variant: "pyramid"),
         positions: {
             var result = MahjongSolitaireLayout.rectangles([
                 (0, 0...12, 0...5),     // 13×6 = 78
@@ -158,7 +169,7 @@ public extension MahjongSolitaireLayout {
     /// 縦に長く（10 枚ぶん）盤面を見て回る距離が長い。亀甲・ピラミッドと遊び味を変えるための 1 つ。
     static let cross = MahjongSolitaireLayout(
         id: "cross",
-        displayName: "十字",
+        recordLabel: RecordVariantLabels.stored(gameID: "mahjong", variant: "cross"),
         positions: MahjongSolitaireLayout.rectangles([
             (0, 0...14, 3...6),     // 横棒 15×4
             (0, 5...9, 0...9),      // 縦棒  5×10（重なる 5×4 は捨てて 90 枚）

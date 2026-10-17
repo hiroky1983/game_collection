@@ -4,12 +4,12 @@ import Foundation
 ///
 /// 読みはひらがなで持つが、カタカナで書かれても同じに扱えるよう先にひらがなへ揃える。
 enum ShiritoriKana {
-    private static let longMark: Character = "ー"
+    private static let longMark: Character = "ー"  // i18n-keep: しりとりの判定に使うかな（ゲームの中身）
 
     /// 小さい字は大きい字に直して受ける（「エミュー」→「ゆ」）。
     private static let smallToLarge: [Character: Character] = [
-        "ゃ": "や", "ゅ": "ゆ", "ょ": "よ", "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",
-        "ゎ": "わ", "っ": "つ",
+        "ゃ": "や", "ゅ": "ゆ", "ょ": "よ", "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",  // i18n-keep: しりとりの判定に使うかな（ゲームの中身）
+        "ゎ": "わ", "っ": "つ",  // i18n-keep: しりとりの判定に使うかな（ゲームの中身）
     ]
 
     /// カタカナをひらがなに揃える（長音符「ー」はそのまま）。
@@ -48,5 +48,5 @@ enum ShiritoriKana {
     }
 
     /// 「ん」か（語尾がこれの札を選んだ側は即負け）。
-    static func isN(_ char: Character) -> Bool { char == "ん" }
+    static func isN(_ char: Character) -> Bool { char == "ん" }  // i18n-keep: しりとりの判定に使うかな（ゲームの中身）
 }
