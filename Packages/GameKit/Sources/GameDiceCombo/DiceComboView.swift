@@ -8,10 +8,11 @@ public struct DiceComboView: View {
     private let services: GameServices
     @State private var model: DiceComboModel
     @State private var showConfirmReset = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: DiceComboModel(services: services))
+        _model = State(initialValue: DiceComboModel(services: services, rollInterval: DiceComboMotion.rollInterval))
     }
 
     public var body: some View {
@@ -167,17 +168,56 @@ public struct DiceComboView: View {
 
     // MARK: - サイコロ
 
+    /// 振ると、キープしていないサイコロが目をパラパラ変えながら跳ねて回り、止まる（#2365）。
+    /// 出目は Model が振った瞬間に確定済みで、ここは止まるまで途中の目を描くだけ。
+    /// 「視差効果を減らす」がオンなら跳ねる・回るは止め、目の切り替えだけにする。
     private var diceRow: some View {
+        TimelineView(AnimationTimelineSchedule(minimumInterval: DiceComboMotion.flickerStep, paused: !model.isRolling)) { timeline in
+            diceButtons(tick: DiceComboMotion.tick(at: timeline.date))
+        }
+        .onChange(of: model.isRolling) { wasRolling, isRolling in
+            // 止まってから目を読み上げる（転がっている途中の目は読まない）。
+            guard wasRolling, !isRolling, !model.dice.isEmpty else { return }
+            AccessibilityNotification.Announcement(
+                DiceComboAccessibility.diceLabel(dice: model.dice, held: model.held)
+            ).post()
+        }
+    }
+
+    private func diceButtons(tick: Int) -> some View {
         HStack(spacing: 10) {
             ForEach(0..<DiceComboLogic.diceCount, id: \.self) { index in
                 let value = model.dice.indices.contains(index) ? model.dice[index] : nil
                 let isHeld = model.held.indices.contains(index) && model.held[index]
+                let shown = DiceComboMotion.displayedFace(final: value, isRolling: model.isRolling,
+                                                          isHeld: isHeld, index: index, tick: tick)
+                let tumbles = !isHeld && !reduceMotion
                 Button {
                     model.toggleHold(index)
                 } label: {
                     VStack(spacing: 3) {
-                        DiceComboDieFace(value: value, isHeld: isHeld)
-                            .rotationEffect(.degrees(isHeld || value == nil ? 0 : Double((model.rollSerial * 37 + index * 53) % 21 - 10)))
+                        DiceComboDieFace(value: shown, isHeld: isHeld)
+                            // 目の切り替えは補間しない（ばねが掛かると点が滑って見える）。動かすのは傾き・跳ね・回転だけ。
+                            .transaction { $0.animation = nil }
+                            // 止まったあとの少しの傾き。転がっている間は 0 にして、止まるときにばねで傾ける。
+                            .rotationEffect(.degrees(isHeld || value == nil || model.isRolling
+                                ? 0 : Double((model.rollSerial * 37 + index * 53) % 21 - 10)))
+                            .keyframeAnimator(initialValue: DiceComboTumble(), trigger: model.rollSerial) { content, tumble in
+                                content
+                                    .rotationEffect(.degrees(tumbles ? tumble.spin * DiceComboMotion.spinDirection(index: index) : 0))
+                                    .offset(y: tumbles ? tumble.lift : 0)
+                            } keyframes: { _ in
+                                KeyframeTrack(\.lift) {
+                                    for segment in DiceComboMotion.bounceSegments {
+                                        CubicKeyframe(segment.lift, duration: segment.duration)
+                                    }
+                                }
+                                KeyframeTrack(\.spin) {
+                                    CubicKeyframe(DiceComboMotion.spinDegrees, duration: DiceComboMotion.spinDuration)
+                                    CubicKeyframe(DiceComboMotion.spinDegrees,
+                                                  duration: DiceComboMotion.rollDuration - DiceComboMotion.spinDuration)
+                                }
+                            }
                         Text(tr("キープ"))
                             .scaledFont(10, weight: .black, design: .rounded, maxScale: 1.1)
                             .foregroundStyle(Theme.coralText)
@@ -187,7 +227,9 @@ public struct DiceComboView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(!model.canHold)
+                // 転がっている間は押しても何も起きない（Model が弾く）が、見た目は薄くしない（0.8 秒ごとに点滅して見えるため）。
+                .disabled(!model.canHold && !model.isRolling)
+                // 読み上げは常に確定した目（`value`）。途中の目（`shown`）は読まない。
                 .accessibilityLabel(value.map { DiceComboAccessibility.dieLabel(index: index, value: $0, isHeld: isHeld) }
                     ?? tr("サイコロ%lld、まだ振っていません", index + 1))
                 .accessibilityHint(model.canHold ? tr("タップでキープを切り替えます") : "")
@@ -195,6 +237,7 @@ public struct DiceComboView: View {
         }
         .frame(maxWidth: 360)
         .gameAnimation(.spring(response: 0.3, dampingFraction: 0.6), value: model.rollSerial)
+        .gameAnimation(.spring(response: 0.3, dampingFraction: 0.6), value: model.isRolling)
         .accessibilityElement(children: .contain)
     }
 
@@ -206,7 +249,8 @@ public struct DiceComboView: View {
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.2)
         }
         .buttonStyle(.game(.primary, shape: .block))
-        .disabled(!model.canRoll)
+        // 転がっている間の連打は Model が黙って捨てる。ボタンは薄くしない（振るたびに点滅して見えるため）。
+        .disabled(!model.canRoll && !model.isRolling)
         .accessibilityLabel(DiceComboAccessibility.rollLabel(remaining: model.rollsRemaining))
     }
 
