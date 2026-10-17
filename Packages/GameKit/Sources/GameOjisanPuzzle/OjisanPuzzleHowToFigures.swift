@@ -149,12 +149,13 @@ struct OjisanPuzzleMiniBoard: View {
     private var spawnMark: some View {
         if let spawnColumn {
             let tint = spawnWarn ? Theme.coral : Theme.inkSub
+            let iconTint = spawnWarn ? Theme.coralText : Theme.inkSub
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: max(1, cell * 0.2), style: .continuous)
                     .fill(tint.opacity(spawnWarn ? 0.22 : 0.10))
                 Image(systemName: "arrowtriangle.down.fill")
                     .font(.system(size: max(5, cell * 0.55))) // fixed-size: 盤の枠内に収める印（盤の大きさに比例）
-                    .foregroundStyle(tint)
+                    .foregroundStyle(iconTint)
                     .offset(y: -cell * 0.6)
             }
             .frame(width: cell, height: cell * CGFloat(rows))
@@ -239,7 +240,7 @@ private struct GoalFigure: View {
                     Image(systemName: "arrow.up")
                         .scaledFont(10, weight: .bold, maxScale: 1.15)
                         .foregroundStyle(Theme.coralText)
-                    OjisanPuzzleHowToFigures.label(tr("時間で\n下から\nせり上がる"), size: 9.5, color: Theme.coral)
+                    OjisanPuzzleHowToFigures.label(tr("時間で\n下から\nせり上がる"), size: 9.5, color: Theme.coralText)
                 }
             }
             .frame(height: boardHeight)
@@ -254,7 +255,7 @@ private struct GoalFigure: View {
             VStack(alignment: .leading, spacing: 2) {
                 OjisanPuzzleHowToFigures.label(tr("スコア"), size: 9, color: Theme.inkSub)
                 OjisanPuzzleHowToFigures.label("1280", size: 16)
-                OjisanPuzzleHowToFigures.label(tr("2連鎖"), size: 11, color: Theme.coral)
+                OjisanPuzzleHowToFigures.label(tr("2連鎖"), size: 11, color: Theme.coralText)
                 Spacer(minLength: 0)
                 OjisanPuzzleHowToFigures.label(tr("ゲージ\nなし"), size: 9.5, color: Theme.inkSub)
             }
@@ -296,7 +297,7 @@ private struct ControlsFigure: View {
                       frames: [Self.with(Self.pinched, [(2, 1, 4), (3, 1, 2)]),
                                Self.with(Self.pinched, [(2, 1, 4), (3, 1, 2)]),
                                Self.with(Self.pinched, [(3, 1, 2), (4, 1, 4)])],
-                      marks: [nil, ("xmark", Theme.coral), ("arrow.up.arrow.down", Theme.teal)],
+                      marks: [nil, ("xmark", Theme.coralText), ("arrow.up.arrow.down", Theme.tealText)],
                       caption: tr("回せないときは、もう 1 回で上下が入れかわる"))
             }
         }
@@ -376,7 +377,7 @@ private struct ChainFigure: View {
         RuleFrames(count: Self.steps.count, spacing: 5) { index in
             let step = Self.steps[index]
             VStack(spacing: 4) {
-                OjisanPuzzleHowToFigures.label(step.label, size: 10.5, color: step.emphasized ? Theme.coral : Theme.inkSub)
+                OjisanPuzzleHowToFigures.label(step.label, size: 10.5, color: step.emphasized ? Theme.coralText : Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 OjisanPuzzleMiniBoard(grid: step.grid, cell: Self.cell, highlight: step.highlight)
@@ -411,7 +412,7 @@ private struct WeightFigure: View {
                             .scaledFont(8, weight: .regular, maxScale: 1.1)
                     }
                 }
-                .foregroundStyle(kind.weight >= 4 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(kind.weight >= 4 ? Theme.coralText : Theme.inkSub)
             }
         }
     }
@@ -448,11 +449,11 @@ private struct GaugeFigure: View {
             }
             .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 5) {
-                row("arrow.up", Theme.coral, tr("重い荷物をかかえるほど腰にくる"))
-                row("arrow.down", Theme.teal, tr("消すと楽になる"))
+                row("arrow.up", Theme.coralText, tr("重い荷物をかかえるほど腰にくる"))
+                row("arrow.down", Theme.tealText, tr("消すと楽になる"))
                 row("shippingbox.fill", Theme.inkSub, tr("荷物が多い盤ほど、最初から腰にきている"))
-                row("hare.fill", Theme.coral, tr("腰にくると落ちるのが速くなり、操作が遅れる"))
-                row("cross.case.fill", Theme.coral, tr("満タンで入院"))
+                row("hare.fill", Theme.coralText, tr("腰にくると落ちるのが速くなり、操作が遅れる"))
+                row("cross.case.fill", Theme.coralText, tr("満タンで入院"))
             }
         }
     }
@@ -511,7 +512,7 @@ private struct EndFigure: View {
             HStack(alignment: .top, spacing: 4) {
                 OjisanPuzzleMiniBoard(grid: Self.buriedBoard, cell: 10,
                                       spawnColumn: OjisanPuzzleBoard.spawnColumn, spawnWarn: true)
-                OjisanPuzzleHowToFigures.label(tr("▼の列が\nふさがる"), size: 9.5, color: Theme.coral)
+                OjisanPuzzleHowToFigures.label(tr("▼の列が\nふさがる"), size: 9.5, color: Theme.coralText)
             }
             .frame(maxWidth: .infinity)
             OjisanPuzzleHowToFigures.caption(tr("荷物が出てくる位置（▼の列のいちばん上）が埋まる"))

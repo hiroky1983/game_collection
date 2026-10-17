@@ -347,12 +347,12 @@ public struct OjisanPuzzleView: View {
                 Text(caption)
                     .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .foregroundStyle(stage == .easy ? Theme.inkSub : Theme.coral)
+                    .foregroundStyle(stage == .easy ? Theme.inkSub : Theme.coralText)
                 Spacer(minLength: 0)
                 Text("\(model.pain)")
                     .scaledFont(20, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).fixedSize()
-                    .foregroundStyle(warning ? Theme.coral : Theme.ink)
+                    .foregroundStyle(warning ? Theme.coralText : Theme.ink)
                     .contentTransition(.numericText())
             }
             gaugeBar(stage: stage, dimmed: warning && !lit)
@@ -528,12 +528,13 @@ public struct OjisanPuzzleView: View {
     private func spawnColumnMark(cell: CGFloat, origin: CGPoint) -> some View {
         let warn = model.outcome == .buried || OjisanPuzzleBoard.isSpawnColumnNearTop(model.board)
         let tint = warn ? Theme.coral : Theme.inkSub
+        let iconTint = warn ? Theme.coralText : Theme.inkSub
         return ZStack(alignment: .top) {
             RoundedRectangle(cornerRadius: max(1, cell * 0.2), style: .continuous)
                 .fill(tint.opacity(warn ? 0.22 : 0.10))
             Image(systemName: "arrowtriangle.down.fill")
                 .font(.system(size: 9)) // fixed-size: 盤の枠内に収める印
-                .foregroundStyle(tint)
+                .foregroundStyle(iconTint)
                 .offset(y: -7)
         }
         .frame(width: cell, height: cell * CGFloat(OjisanPuzzleBoard.rows))
@@ -660,7 +661,7 @@ public struct OjisanPuzzleView: View {
                     Text(model.painStage.caption)
                         .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.15)
                         .lineLimit(1).minimumScaleFactor(0.7)
-                        .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coral)
+                        .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coralText)
                 }
             }
             .frame(width: Self.sideWidth)

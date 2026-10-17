@@ -37,7 +37,7 @@ enum PokerHowToFigures {
                     RuleMiniCard("2", suit: .spade)
                 }
                 .padding(.top, 4)
-                RuleFigureLabel(tr("タップで選んだ札は残る"), color: Theme.coral)
+                RuleFigureLabel(tr("タップで選んだ札は残る"), color: Theme.coralText)
             }
         }
     }
@@ -138,7 +138,7 @@ enum PokerHowToFigures {
                         .foregroundStyle(Theme.inkSub)
                     VStack(spacing: 3) {
                         RuleMiniCard("?", isFaceDown: true, isHighlighted: true)
-                        RuleFigureLabel(tr("次の札は上？下？"), color: Theme.coral)
+                        RuleFigureLabel(tr("次の札は上？下？"), color: Theme.coralText)
                     }
                 }
             }

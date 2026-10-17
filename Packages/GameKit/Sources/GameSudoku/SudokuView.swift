@@ -253,7 +253,7 @@ public struct SudokuView: View {
                         .themeBody(15)
                         // 文字を拡大しても右のタイマー・トグルを押し出さないよう縮めて収める（#189）。
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(cleared ? Theme.teal : Theme.coral)
+                        .foregroundStyle(cleared ? Theme.tealText : Theme.coralText)
                 } else if model.hasPuzzle {
                     Label(tr("残り%lld", model.remainingCount), systemImage: "square.grid.3x3")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
@@ -263,7 +263,7 @@ public struct SudokuView: View {
                     Label(tr("ミス %1$lld/%2$lld", model.mistakes, SudokuModel.maxMistakes), systemImage: "xmark.circle")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
+                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coralText : Theme.inkSub)
                 } else {
                     // まだ出題が無い（#354）。存在しない問題の「残り81」「ミス 0/3」を出さない。
                     Text(tr("難易度を選んでください"))
@@ -474,13 +474,13 @@ public struct SudokuView: View {
     }
 
     private func digitColor(isGiven: Bool, isError: Bool, isHinted: Bool) -> Color {
-        if isError { return Theme.coral }
+        if isError { return Theme.coralText }
         if isGiven { return Theme.ink }
         // 諦めて表示した答えは自力で入れた数字と同じ色にしない
         // （同じ teal だと「自分で解いた盤」と見分けが付かない）。
         if model.state == .givenUp { return Theme.inkSub }
         if isHinted { return Theme.purple }
-        return Theme.teal
+        return Theme.tealText
     }
 
     // MARK: - 盤の下の操作エリア

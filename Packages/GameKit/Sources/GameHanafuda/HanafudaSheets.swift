@@ -112,7 +112,7 @@ public struct HanafudaYakuSheet: View {
             Spacer(minLength: 6)
             Text(tr("%lld文", yaku.basePoints))
                 .scaledFont(14, weight: .heavy, design: .rounded)
-                .foregroundStyle(isDisabled ? Theme.inkSub : Theme.coral)
+                .foregroundStyle(isDisabled ? Theme.inkSub : Theme.coralText)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isDisabled

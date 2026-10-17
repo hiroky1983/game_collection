@@ -41,7 +41,7 @@ struct HomerunAchievementsCard: View {
         return HStack(alignment: .top, spacing: 10) {
             Image(systemName: unlocked ? "trophy.fill" : "lock.fill")
                 .scaledFont(22)
-                .foregroundStyle(unlocked ? Theme.yellow : Theme.inkSub.opacity(0.5))
+                .foregroundStyle(unlocked ? Theme.yellowText : Theme.inkSub.opacity(0.5))
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: unlocked ? achievement.title : tr("？？？"))

@@ -39,7 +39,7 @@ enum Game2048HowToFigures {
                     Image(systemName: "hand.draw.fill")
                         .scaledFont(13, weight: .bold, maxScale: 1.15)
                         .foregroundStyle(Theme.coralText)
-                    RuleFigureLabel(tr("左へスワイプ"), color: Theme.coral)
+                    RuleFigureLabel(tr("左へスワイプ"), color: Theme.coralText)
                 }
             }
         }
@@ -68,7 +68,7 @@ enum Game2048HowToFigures {
                     .foregroundStyle(Theme.inkSub)
                 VStack(spacing: 4) {
                     TileView(value: 2048, size: 48)
-                    RuleFigureLabel(tr("クリア！"), color: Theme.coral)
+                    RuleFigureLabel(tr("クリア！"), color: Theme.coralText)
                 }
             }
         }

@@ -587,7 +587,7 @@ public struct PokerView: View {
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .foregroundStyle(isPlayer ? Theme.teal : Theme.inkSub)
+                .foregroundStyle(isPlayer ? Theme.tealText : Theme.inkSub)
             Spacer()
         }
     }
@@ -609,7 +609,7 @@ public struct PokerView: View {
                         .themeBody(14, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(state.isSettled && state.payout == 0 ? Theme.coral : Theme.yellow)
+                        .foregroundStyle(state.isSettled && state.payout == 0 ? Theme.coralText : Theme.yellowText)
                 }
                 HStack(spacing: 12) {
                     CardView(card: state.baseCard, faceUp: true)
@@ -720,9 +720,9 @@ public struct PokerView: View {
             HStack(spacing: 10) {
                 let winner = model.sessionWinner
                 let icon = winner == .player ? "trophy.fill" : winner == .tie ? "equal.circle.fill" : "xmark.octagon.fill"
-                let iconColor = winner == .player ? Theme.yellow : winner == .tie ? Theme.teal : Theme.coral
+                let iconColor = winner == .player ? Theme.yellowText : winner == .tie ? Theme.tealText : Theme.coralText
                 let title = winner == .player ? tr("セッション勝利！") : winner == .tie ? tr("引き分け") : tr("セッション敗北")
-                let titleColor = winner == .player ? Theme.teal : winner == .tie ? Theme.teal : Theme.coral
+                let titleColor = winner == .player ? Theme.tealText : winner == .tie ? Theme.tealText : Theme.coralText
                 let subtitle = sessionOverSubtitle
                 Image(systemName: icon)
                     .scaledFont(24)

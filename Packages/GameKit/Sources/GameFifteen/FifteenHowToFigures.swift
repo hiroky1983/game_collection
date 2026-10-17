@@ -49,7 +49,7 @@ enum FifteenHowToFigures {
                         Line(values: [9, 3])
                     }
                 }
-                RuleFigureLabel(tr("空白の隣をタップ"), color: Theme.coral)
+                RuleFigureLabel(tr("空白の隣をタップ"), color: Theme.coralText)
             }
         }
     }
@@ -61,7 +61,7 @@ enum FifteenHowToFigures {
                 RuleFrames(count: 2, spacing: 8) { index in
                     Line(values: index == 0 ? [7, 2, 11, 0] : [0, 7, 2, 11], hint: index == 0 ? 7 : nil)
                 }
-                RuleFigureLabel(tr("まとめて動く"), color: Theme.coral)
+                RuleFigureLabel(tr("まとめて動く"), color: Theme.coralText)
             }
         }
     }

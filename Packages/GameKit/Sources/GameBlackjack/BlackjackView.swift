@@ -160,7 +160,7 @@ public struct BlackjackView: View {
                         .themeBody(14, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(model.dealerValue > 21 ? Theme.coral : Theme.purple)
+                        .foregroundStyle(model.dealerValue > 21 ? Theme.coralText : Theme.purple)
                         .accessibilityLabel(BlackjackAccessibility.totalLabel(
                             owner: tr("ディーラー"), value: model.dealerValue
                         ))
@@ -229,7 +229,7 @@ public struct BlackjackView: View {
                         .themeBody(14, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(model.playerValue > 21 ? Theme.coral : Theme.teal)
+                        .foregroundStyle(model.playerValue > 21 ? Theme.coralText : Theme.tealText)
                         .accessibilityLabel(BlackjackAccessibility.totalLabel(
                             owner: tr("あなた"), value: model.playerValue
                         ))
@@ -293,7 +293,7 @@ public struct BlackjackView: View {
                     .themeBody(14, weight: .black, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
-                    .foregroundStyle(hand.isBusted ? Theme.coral : Theme.teal)
+                    .foregroundStyle(hand.isBusted ? Theme.coralText : Theme.tealText)
                     .accessibilityLabel(BlackjackAccessibility.totalLabel(
                         owner: tr("ハンド%lld", index + 1), value: hand.value
                     ))

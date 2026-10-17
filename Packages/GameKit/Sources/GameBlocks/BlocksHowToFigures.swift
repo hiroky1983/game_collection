@@ -129,7 +129,7 @@ enum BlocksHowToFigures {
                         Paddle(width: 84)
                     }
                     RuleFigureLabel(index == 0 ? tr("アイテムを受ける") : tr("伸びる・球が増える"),
-                                    color: index == 1 ? Theme.coral : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -147,7 +147,7 @@ enum BlocksHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("あと 1 つ") : tr("次のステージへ"),
-                                    color: index == 1 ? Theme.coral : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -176,7 +176,7 @@ enum BlocksHowToFigures {
                                 .foregroundStyle(Theme.coralText)
                         }
                     }
-                    RuleFigureLabel(tr("3 回で終わり"), color: Theme.coral)
+                    RuleFigureLabel(tr("3 回で終わり"), color: Theme.coralText)
                 }
             }
         }

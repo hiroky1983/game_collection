@@ -328,10 +328,10 @@ public struct ConcentrationView: View {
                     let isWin = winner == .human
                     Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                         .scaledFont(52, maxScale: 1.2)
-                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                        .foregroundStyle(isWin ? Theme.yellowText : Theme.coralText)
                     Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                         .scaledFont(26, weight: .black, design: .rounded)
-                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                        .foregroundStyle(isWin ? Theme.tealText : Theme.coralText)
                 } else {
                     Image(systemName: "equal.circle.fill")
                         .scaledFont(52, maxScale: 1.2)

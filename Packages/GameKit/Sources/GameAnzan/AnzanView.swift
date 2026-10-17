@@ -362,7 +362,7 @@ public struct AnzanView: View {
             Button { showSetup = true } label: {
                 Text(tr("難易度を変える")).themeBody(15).frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
+            .buttonStyle(.bordered).controlSize(.large).tint(Theme.coralText)
         }
         .padding(.horizontal, 24)
     }

@@ -70,7 +70,7 @@ struct SettingsView: View {
                         Label(tr("触覚フィードバック"), systemImage: "iphone.radiowaves.left.and.right")
                             .foregroundStyle(Theme.ink)
                     }
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
 
                     Toggle(isOn: Binding(
                         get: { settings.soundEnabled },
@@ -79,7 +79,7 @@ struct SettingsView: View {
                         Label(tr("効果音"), systemImage: "speaker.wave.2")
                             .foregroundStyle(Theme.ink)
                     }
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
                 } header: {
                     Text(tr("フィードバック"))
                 } footer: {
@@ -95,7 +95,7 @@ struct SettingsView: View {
                         Label(tr("ヒント表示"), systemImage: "lightbulb")
                             .foregroundStyle(Theme.ink)
                     }
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
                 } header: {
                     Text(tr("ヒント"))
                 } footer: {
@@ -111,7 +111,7 @@ struct SettingsView: View {
                         Label(tr("ゆっくりモード"), systemImage: "tortoise")
                             .foregroundStyle(Theme.ink)
                     }
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
                 } header: {
                     Text(tr("あそびやすさ"))
                 } footer: {
@@ -127,7 +127,7 @@ struct SettingsView: View {
                         Label(tr("お知らせ"), systemImage: "bell")
                             .foregroundStyle(Theme.ink)
                     }
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
                     if notificationAuthorization == .denied {
                         Text(tr("この端末の設定で、あそびばの通知が許可されていません。スイッチをオンにしても、お知らせは届きません。"))
                             .font(.footnote)
@@ -153,7 +153,7 @@ struct SettingsView: View {
                         Label(tr("利用状況の送信"), systemImage: "chart.bar.doc.horizontal")
                             .foregroundStyle(Theme.ink)
                     }
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
                 } header: {
                     Text(tr("解析"))
                 } footer: {
@@ -266,7 +266,7 @@ struct SettingsView: View {
                 .foregroundStyle(Theme.ink)
         }
         .pickerStyle(.menu)
-        .tint(Theme.coral)
+        .tint(Theme.coralText)
     }
 
     private func gameRow(module: GameModule, id: String) -> some View {
@@ -293,7 +293,7 @@ struct SettingsView: View {
                     .foregroundStyle(isVisible ? Theme.ink : Theme.inkSub)
             }
         }
-        .tint(Theme.coral)
+        .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
     }
 }
 

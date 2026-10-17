@@ -43,13 +43,13 @@ enum ShiritoriHowToFigures {
                     ForEach(0..<6, id: \.self) { i in
                         Image(systemName: i < 4 ? "rectangle.portrait.fill" : "rectangle.portrait")
                             .scaledFont(20, weight: .bold, maxScale: 1.15)
-                            .foregroundStyle(i < 4 ? Theme.teal : Theme.inkSub.opacity(0.5))
+                            .foregroundStyle(i < 4 ? Theme.tealText : Theme.inkSub.opacity(0.5))
                     }
                     Image(systemName: "flag.checkered")
                         .scaledFont(20, weight: .bold, maxScale: 1.15)
                         .foregroundStyle(Theme.ink)
                 }
-                RuleFigureLabel(tr("取った札がノルマに届けば勝ち"), color: Theme.coral)
+                RuleFigureLabel(tr("取った札がノルマに届けば勝ち"), color: Theme.coralText)
             }
         }
     }
@@ -68,7 +68,7 @@ enum ShiritoriHowToFigures {
                         .scaledFont(20, weight: .black, maxScale: 1.15)
                         .foregroundStyle(Theme.coralText)
                 }
-                RuleFigureLabel(tr("全部取りきればパーフェクト"), color: Theme.coral)
+                RuleFigureLabel(tr("全部取りきればパーフェクト"), color: Theme.coralText)
             }
         }
     }
@@ -93,7 +93,7 @@ enum ShiritoriHowToFigures {
                             .overlay(alignment: .bottom) { RuleVerdictMark(false).offset(y: 12) }
                     }
                     .padding(.bottom, 12)
-                    RuleFigureLabel(tr("「ご」で始まる札を取る"), color: Theme.coral)
+                    RuleFigureLabel(tr("「ご」で始まる札を取る"), color: Theme.coralText)
                 }
             }
         }
@@ -126,7 +126,7 @@ enum ShiritoriHowToFigures {
             HStack(spacing: 10) {
                 chip("timer", "60", Theme.ink)
                 chip("checkmark.circle.fill", "+10", Color(hex: 0x2E9D6B))
-                chip("xmark.circle.fill", "-5", Theme.coral)
+                chip("xmark.circle.fill", "-5", Theme.coralText)
             }
         }
 
@@ -158,7 +158,7 @@ enum ShiritoriHowToFigures {
             VStack(spacing: 4) {
                 Image(systemName: symbol)
                     .scaledFont(24, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(win ? Theme.teal : Theme.inkSub)
+                    .foregroundStyle(win ? Theme.tealText : Theme.inkSub)
                     .overlay(alignment: .topTrailing) {
                         if win {
                             Image(systemName: "crown.fill")
@@ -167,7 +167,7 @@ enum ShiritoriHowToFigures {
                                 .offset(x: 8, y: -8)
                         }
                     }
-                RuleFigureLabel(win ? tr("勝ち") : label, color: win ? Theme.coral : Theme.inkSub)
+                RuleFigureLabel(win ? tr("勝ち") : label, color: win ? Theme.coralText : Theme.inkSub)
             }
         }
     }

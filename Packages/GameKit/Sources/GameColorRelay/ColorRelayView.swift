@@ -522,10 +522,10 @@ public struct ColorRelayView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellow : Theme.inkSub)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
                 Text(resultHeadline)
                     .scaledFont(17, weight: .black, design: .rounded)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.teal : Theme.ink)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
                 Spacer()
             }
             VStack(spacing: 4) {
@@ -544,7 +544,7 @@ public struct ColorRelayView: View {
                         }
                         Text(model.playerName(player))
                             .scaledFont(13, weight: .bold, design: .rounded)
-                            .foregroundStyle(player == ColorRelayModel.humanIndex ? Theme.coral : Theme.ink)
+                            .foregroundStyle(player == ColorRelayModel.humanIndex ? Theme.coralText : Theme.ink)
                         Spacer()
                         Text(place == 0 ? tr("あがり") : tr("残り%lld枚", model.hands[player].count))
                             .scaledFont(12, weight: .semibold, design: .rounded)

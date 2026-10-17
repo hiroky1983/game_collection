@@ -670,7 +670,7 @@ struct HomerunBallResultCard: View {
         VStack(spacing: 6) {
             Text(verbatim: Self.headline(ball, tookPitch: tookPitch))
                 .scaledFont(30, weight: .black, design: .rounded, maxScale: 1.2)
-                .foregroundStyle(ball.kind == .homer ? Theme.coral : Theme.ink)
+                .foregroundStyle(ball.kind == .homer ? Theme.coralText : Theme.ink)
             if ball.isMoon {
                 // 月まで飛んだ打球（#1680）: 距離は 384,400 km と出す（記録には 180m で数える）。方向は出さない。
                 Text(verbatim: HomerunText.moonDistance)
