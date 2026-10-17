@@ -3,7 +3,7 @@ import Core
 import GameKitTestSupport
 @testable import GameColorRelay
 
-/// 札の色の読みやすさ（#2007）。窓の数字・四隅の印を載せる文字色 `Theme.onAccent` が、
+/// 札の色の読みやすさ（#2007）。窓の数字・隅の形の印を載せる文字色 `Theme.onAccent` が、
 /// 札の面と白い窓の両方に対して AA（4.5:1）に届くことを固定する。
 @Suite struct ColorRelayContrastTests {
     @Test func textOnEveryCardFaceMeetsAA() {
@@ -25,8 +25,11 @@ import GameKitTestSupport
         #expect(ColorRelayHandLayout.compactHandCardWidth * 0.62 >= 24)
     }
 
-    @Test func initialsAreDistinct() {
-        let initials = RelayColor.allCases.map(\.initial)
-        #expect(Set(initials).count == RelayColor.allCases.count)
+    /// #2387: 隅の色の手がかりは文字ではなく形。4 色で形が違い、相手のアイコンの記号とも重ならない。
+    @Test func shapeSymbolsAreDistinct() {
+        let shapes = RelayColor.allCases.map(\.shapeSymbol)
+        #expect(Set(shapes).count == RelayColor.allCases.count)
+        let opponentSymbols = Set((1...3).map(ColorRelayOpponentStyle.symbol(for:)))
+        #expect(opponentSymbols.isDisjoint(with: shapes))
     }
 }
