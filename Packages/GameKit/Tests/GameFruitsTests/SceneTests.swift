@@ -103,11 +103,22 @@ struct SceneTests {
         }
     }
 
-    @Test("手前（下）の盆栽ほど前に重ねる")
-    func lowerBonsaiIsInFront() {
-        #expect(FruitsScene.zPosition(forBottomY: 0) > FruitsScene.zPosition(forBottomY: 30))
-        #expect(FruitsScene.zPosition(forBottomY: 0) <= 3)
-        #expect(FruitsScene.zPosition(forBottomY: FruitField.Metrics.height) >= 2)
+    @Test("小さい盆栽ほど前に重ね、大きい盆栽の木の陰に隠れない（#2388）")
+    func smallerBonsaiIsInFront() {
+        // 大きい盆栽の上に小さい盆栽が載った（小さいほうの鉢の底が高い）場面でも、小さいほうが前。
+        let top = FruitField.Metrics.height
+        for (small, large) in zip(FruitKind.allCases, FruitKind.allCases.dropFirst()) {
+            #expect(FruitsScene.zPosition(for: small, bottomY: top) > FruitsScene.zPosition(for: large, bottomY: 0),
+                    "\(small.name) が \(large.name) の後ろ")
+        }
+        #expect(FruitsScene.zPosition(for: .sakura, bottomY: top) > FruitsScene.zPosition(for: .kinmatsu, bottomY: 0))
+        // 同じ段どうしは手前（下）が前。
+        for kind in FruitKind.allCases {
+            #expect(FruitsScene.zPosition(for: kind, bottomY: 0) > FruitsScene.zPosition(for: kind, bottomY: 30))
+        }
+        // 危険線（1）より前・合体の輪（4）より奥。
+        #expect(FruitsScene.zPosition(for: .sakura, bottomY: 0) < 3)
+        #expect(FruitsScene.zPosition(for: .kinmatsu, bottomY: top) >= 2)
     }
 
     @Test("1 フレームの進みには上限がある")
