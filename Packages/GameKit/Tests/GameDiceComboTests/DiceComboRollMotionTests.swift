@@ -158,7 +158,7 @@ struct DiceComboRollMotionTests {
         #expect(DiceComboMotion.displayedFace(final: 4, isRolling: false, isHeld: false, index: 0, tick: 9) == 4)
         // キープ中は転がらない。
         #expect(DiceComboMotion.displayedFace(final: 4, isRolling: true, isHeld: true, index: 0, tick: 9) == 4)
-        // まだ振っていなければ「？」のまま。
+        // まだ振っていなければ確定した目はない（View が振る前の固定の目で埋める）。
         #expect(DiceComboMotion.displayedFace(final: nil, isRolling: true, isHeld: false, index: 0, tick: 9) == nil)
         #expect(DiceComboMotion.displayedFace(final: 4, isRolling: true, isHeld: false, index: 0, tick: 9)
                 == DiceComboMotion.flickerFace(final: 4, index: 0, tick: 9))
@@ -167,20 +167,110 @@ struct DiceComboRollMotionTests {
     // MARK: - 長さ
 
     @Test("長さは 0.6〜1 秒で、跳ねる・回るは止まるまでに収まり、Model の待ちと同じ値から作る")
-    func durations() {
+    func durations() throws {
         #expect((0.6...1.0).contains(DiceComboMotion.rollDuration))
         #expect(DiceComboMotion.rollInterval == .milliseconds(Int((DiceComboMotion.rollDuration * 1000).rounded())))
         let bounce = DiceComboMotion.bounceSegments.map(\.duration).reduce(0, +)
         #expect(abs(bounce - DiceComboMotion.rollDuration) < 1e-9, "跳ね終わりと止まる時刻をそろえる")
         #expect(DiceComboMotion.bounceSegments.last?.lift == 0, "最後は着地している")
         #expect(DiceComboMotion.spinDuration <= DiceComboMotion.rollDuration)
-        #expect(DiceComboMotion.spinDegrees.truncatingRemainder(dividingBy: 360) == 0, "回り終えたら元の向き")
+        for segments in [DiceComboMotion.tumbleSegmentsX, DiceComboMotion.tumbleSegmentsY] {
+            let total = segments.map(\.duration).reduce(0, +)
+            #expect(abs(total - DiceComboMotion.spinDuration) < 1e-9, "転がりきる時刻をそろえる")
+            let last = try #require(segments.last?.degrees)
+            #expect(last.truncatingRemainder(dividingBy: 360) == 0 && last != 0, "転がり終えたら前面が正面に戻る")
+        }
         #expect(DiceComboMotion.flickerStep < DiceComboMotion.rollDuration / 5, "止まるまでに何度も目が変わる")
+    }
+
+    @Test("キーフレームのコマ: 最初は正面・途中は転がって浮いている・止まる時刻には着地して正面に戻る")
+    func tumbleFrames() {
+        let start = DiceComboMotion.tumble(at: 0)
+        #expect(start.lift == 0 && start.rollX == 0 && start.rollY == 0)
+
+        let middle = DiceComboMotion.tumble(at: 0.2)
+        #expect(middle.lift < -1, "跳ねて浮いている")
+        #expect(middle.rollX > 30 && middle.rollX < 330, "手前へ転がっている途中")
+        #expect(middle.rollY > 30 && middle.rollY < 330, "横へ転がっている途中")
+        // 正面でない向きでは立方体の面が 2 枚以上見える。
+        #expect(DiceComboCube.visibleFaces(front: 3, rotation: middle.rotation(direction: 1), side: 60).count >= 2)
+
+        let end = DiceComboMotion.tumble(at: DiceComboMotion.rollDuration)
+        #expect(abs(end.lift) < 1e-6, "止まる時刻には着地")
+        #expect(abs(end.rollX.truncatingRemainder(dividingBy: 360)) < 1e-6)
+        #expect(abs(end.rollY.truncatingRemainder(dividingBy: 360)) < 1e-6)
+        // 止まった向きで描くと、回転 0 と同じく前面 1 枚だけ。
+        let settled = DiceComboCube.visibleFaces(front: 3, rotation: end.rotation(direction: -1), side: 60)
+        #expect(settled.count == 1 && settled.first?.value == 3)
+    }
+
+    // MARK: - 振る前の目
+
+    @Test("振る前の目は 1〜6 の固定の並びで、添字がはみ出しても落ちない")
+    func idleFaces() {
+        #expect(DiceComboMotion.idleFaces.count == DiceComboLogic.diceCount)
+        #expect(DiceComboMotion.idleFaces.allSatisfy { (1...6).contains($0) })
+        #expect(Set(DiceComboMotion.idleFaces).count == DiceComboMotion.idleFaces.count, "同じ目を並べない")
+        #expect(DiceComboMotion.idleFaces.sorted() != DiceComboMotion.idleFaces, "連番に見せない")
+        for index in -2..<10 {
+            #expect((1...6).contains(DiceComboMotion.idleFace(index: index)))
+        }
+        #expect(DiceComboMotion.idleFace(index: 1) == DiceComboMotion.idleFaces[1])
+    }
+
+    // MARK: - 立方体
+
+    @Test("向かい合う面の和は 7 で、6 面に 1〜6 がちょうど 1 回ずつ")
+    func cubeFaceValues() {
+        for front in 1...6 {
+            let values = DiceComboCube.faceValues(front: front)
+            #expect(values[.front] == front)
+            #expect(values[.front]! + values[.back]! == 7)
+            #expect(values[.right]! + values[.left]! == 7)
+            #expect(values[.top]! + values[.bottom]! == 7)
+            #expect(Set(values.values) == Set(1...6))
+        }
+        #expect(DiceComboCube.faceValues(front: 9)[.front] == 1, "範囲外は 1 に丸める")
+    }
+
+    @Test("回転 0 なら前面 1 枚だけで、その写像は辺の長さへの拡大そのもの")
+    func cubeIdentityIsFlatSquare() throws {
+        let faces = DiceComboCube.visibleFaces(front: 5, rotation: .identity, side: 40)
+        let face = try #require(faces.first)
+        #expect(faces.count == 1 && face.value == 5)
+        #expect(face.brightness == 1)
+        let t = face.transform
+        #expect(t.a == 40 && t.d == 40 && t.b == 0 && t.c == 0 && t.tx == 0 && t.ty == 0)
+        // 1 周しても同じ絵。
+        let turned = DiceComboCube.visibleFaces(front: 5, rotation: .init(x: 360, y: -360), side: 40)
+        #expect(turned.count == 1 && turned.first?.value == 5)
+        #expect(abs((turned.first?.transform.tx ?? 1) - 0) < 1e-6)
+    }
+
+    @Test("横へ 45° 回すと前面と右面が同じ明るさで見え、横の面は正面より暗い")
+    func cubeSideFacesAreShaded() throws {
+        // y を負に回すと右面が手前へ出てくる。
+        let faces = DiceComboCube.visibleFaces(front: 1, rotation: .init(y: -45), side: 40)
+        #expect(faces.count == 2)
+        let values = Set(faces.map(\.value))
+        #expect(values == [1, 2], "前面 1 と右面（1 の残りの組の小さい方 2）")
+        #expect(abs(faces[0].brightness - faces[1].brightness) < 1e-6)
+        #expect(faces.allSatisfy { $0.brightness < 1 && $0.brightness >= DiceComboCube.shadowFloor })
+        // 投影した幅は辺の √2 倍（平行投影）。
+        let xs = faces.flatMap { face in
+            [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0), CGPoint(x: 0, y: 1), CGPoint(x: 1, y: 1)].map { $0.applying(face.transform).x }
+        }
+        #expect(abs((xs.max()! - xs.min()!) - 40 * 2.0.squareRoot()) < 1e-6)
+
+        // 3 軸とも傾ければ 3 面見える。
+        #expect(DiceComboCube.visibleFaces(front: 1, rotation: .init(x: 30, y: 40), side: 40).count == 3)
+        // 真横（90°）は幅がないので描かない。
+        #expect(DiceComboCube.visibleFaces(front: 1, rotation: .init(y: 90), side: 40).count == 1)
     }
 
     // MARK: - View の結線
 
-    @Test("View は Motion の待ちを Model に渡し、Reduce Motion で跳ねる・回るを止め、止まってから読み上げる")
+    @Test("View は Motion の待ちを Model に渡し、Reduce Motion で跳ねる・転がるを止め、止まってから読み上げる")
     func viewIsWiredToMotion() throws {
         let view = try SourceScan.packageSource("Sources/GameDiceCombo/DiceComboView.swift")
         #expect(SourceScan.matchCount(
@@ -188,6 +278,13 @@ struct DiceComboRollMotionTests {
         #expect(SourceScan.matchCount(of: #"@Environment\(\\\.accessibilityReduceMotion\)"#, in: view) == 1)
         #expect(SourceScan.matchCount(of: #"let tumbles = !isHeld && !reduceMotion && value != nil"#, in: view) == 1)
         #expect(SourceScan.matchCount(of: #"DiceComboMotion\.displayedFace\("#, in: view) == 1)
+        // 立体の向きはキーフレームの値から作り、View と テストで同じキーフレームを使う。
+        #expect(SourceScan.matchCount(of: #"DiceComboMotion\.tumbleKeyframes\(\)"#, in: view) == 1)
+        #expect(SourceScan.matchCount(of: #"tumble\.rotation\(direction:"#, in: view) == 1)
+        // 振る前は「？」ではなく固定の目を薄く出す。
+        #expect(SourceScan.matchCount(of: #"DiceComboMotion\.idleFace\(index: index\)"#, in: view) == 1)
+        #expect(SourceScan.matchCount(of: #"isUnrolled: value == nil"#, in: view) == 1)
+        #expect(!view.contains(#"Text(verbatim: "?")"#))
         #expect(SourceScan.matchCount(of: #"paused: !model\.isRolling"#, in: view) == 1,
                 "止まったあとも目の切り替えの時計が回り続ける")
         #expect(SourceScan.matchCount(of: #"guard wasRolling, !isRolling"#, in: view) == 1)

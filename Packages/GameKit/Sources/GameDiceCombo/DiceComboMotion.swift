@@ -40,7 +40,7 @@ enum DiceComboMotion {
         Int((date.timeIntervalSinceReferenceDate / flickerStep).rounded(.down))
     }
 
-    // MARK: - 跳ねる・回る
+    // MARK: - 跳ねる・転がる
 
     /// 跳ねる動きの区切り（持ち上がる高さ pt と、そこへ着くまでの秒）。だんだん低く跳ねて着地する。
     /// 合計の長さは `rollDuration` と同じにする（止まる前に跳ね終わる・止まったあとも跳ねている、を防ぐ）。
@@ -50,20 +50,74 @@ enum DiceComboMotion {
         (-3, 0.10), (0, 0.14),
     ]
 
-    /// 回りきるまでの秒。最後の小さな跳ねの間は回さず、着地の手前で向きをそろえる。
+    /// 転がりきるまでの秒。最後の小さな跳ねの間は回さず、着地の手前で向きをそろえる。
     static let spinDuration: TimeInterval = 0.6
 
-    /// 回る向き。隣どうしで逆に回すと、転がっている感じが出る。
+    /// 転がる向き。隣どうしで逆に回すと、転がっている感じが出る。
     static func spinDirection(index: Int) -> Double {
         index.isMultiple(of: 2) ? 1 : -1
     }
 
-    /// 転がるあいだに回る角度（度）。1 周して元の向きに戻る（止まったあとの傾きは View が別に付ける）。
-    static let spinDegrees: Double = 360
+    /// 立体に転がる角度（度）の区切り（#2389）。手前へ転がる x 軸と横へ転がる y 軸を別の速さで回し、
+    /// どちらもちょうど 1 周して正面に戻る（止まったときに読む目が前面に来る）。
+    /// 最初は速く、着地へ向けて減速する（投げたサイコロは勢いよく転がり始めて止まる）。
+    /// それぞれの長さの合計は `spinDuration`。
+    static let tumbleSegmentsX: [(degrees: Double, duration: TimeInterval)] = [
+        (230, 0.26), (360, 0.34),
+    ]
+    static let tumbleSegmentsY: [(degrees: Double, duration: TimeInterval)] = [
+        (150, 0.20), (360, 0.40),
+    ]
+
+    /// 跳ねる・転がる演出のキーフレーム。View の `KeyframeAnimator` と、コマを取り出すテストで同じものを使う。
+    @KeyframesBuilder<DiceComboTumble>
+    static func tumbleKeyframes() -> some Keyframes<DiceComboTumble> {
+        KeyframeTrack(\.lift) {
+            for segment in bounceSegments {
+                CubicKeyframe(segment.lift, duration: segment.duration)
+            }
+        }
+        KeyframeTrack(\.rollX) {
+            for segment in tumbleSegmentsX {
+                CubicKeyframe(segment.degrees, duration: segment.duration)
+            }
+            CubicKeyframe(tumbleSegmentsX.last?.degrees ?? 0, duration: rollDuration - spinDuration)
+        }
+        KeyframeTrack(\.rollY) {
+            for segment in tumbleSegmentsY {
+                CubicKeyframe(segment.degrees, duration: segment.duration)
+            }
+            CubicKeyframe(tumbleSegmentsY.last?.degrees ?? 0, duration: rollDuration - spinDuration)
+        }
+    }
+
+    /// `tumbleKeyframes()` の時刻 `time`（秒）のコマ。テストと静止画の書き出しに使う。
+    static func tumble(at time: TimeInterval) -> DiceComboTumble {
+        KeyframeTimeline(initialValue: DiceComboTumble()) { tumbleKeyframes() }.value(time: time)
+    }
+
+    // MARK: - 振る前の目
+
+    /// まだ振っていないサイコロに見せる目（#2389）。「？」ではなく最初からサイコロの形で出し、薄く描いて
+    /// 「まだ振っていない」ことを表す。**役の計算には使わない**（Model の `dice` は空のまま）。
+    /// 並びは固定。1 列で見たときに役（連番・そろい）に見えない順にしてある。
+    static let idleFaces = [5, 2, 6, 3, 1]
+
+    static func idleFace(index: Int) -> Int {
+        idleFaces[((index % idleFaces.count) + idleFaces.count) % idleFaces.count]
+    }
 }
 
-/// 跳ねる・回る演出の 1 コマ。`keyframeAnimator` の値として使う。
+/// 跳ねる・転がる演出の 1 コマ。`KeyframeAnimator` の値として使う。
 struct DiceComboTumble {
+    /// 持ち上がる高さ（pt・上が負）。
     var lift: CGFloat = 0
-    var spin: Double = 0
+    /// 立体の転がり（度）。x は手前へ、y は横へ。
+    var rollX: Double = 0
+    var rollY: Double = 0
+
+    /// `direction`（±1）の向きに手前へ転がす立方体の向き。
+    func rotation(direction: Double) -> DiceComboCube.Rotation {
+        DiceComboCube.Rotation(x: rollX * direction, y: rollY)
+    }
 }

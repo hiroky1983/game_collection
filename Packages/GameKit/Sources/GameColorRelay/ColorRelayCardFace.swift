@@ -52,10 +52,11 @@ struct FourColorMark: View {
 // MARK: - 札の面
 
 /// 札 1 枚の面（#2369 の描き直し）。**白い角丸の枠** + 色の地 + 中央の**角丸の長方形の窓**に大きな数字・記号。
-/// 四隅は数字・記号と色名の頭文字。いろがえ系の地は 4 色の斜めの帯。
+/// 隅は色ごとの形の印だけ（#2387 で四隅の数字・色名の頭文字を外した）。いろがえ系の地は 4 色の斜めの帯。
+/// 読み上げは面の文字に頼らず `accessibilityLabel`（`ColorRelayAccessibility.cardName`）で色と種類を伝える。
 ///
 /// 札の面はライト / ダークで色を変えない（盤・駒と同じ扱い）。窓の数字は地の色を濃くした文字色
-/// （`RelayColor.glyphHex`）、四隅の印は `Theme.onAccent`（どちらも `ColorRelayContrastTests` で固定）。
+/// （`RelayColor.glyphHex`）、隅の印は `Theme.onAccent`（どちらも `ColorRelayContrastTests` で固定）。
 struct ColorRelayCardView: View {
     let card: RelayCard
     let width: CGFloat
@@ -99,6 +100,9 @@ struct ColorRelayCardView: View {
                 .strokeBorder(selected ? Theme.Fixed.ink : Color.black.opacity(0.28), lineWidth: selected ? 3 : 1)
         )
         .opacity(isDimmed ? 0.5 : 1)
+        // 面の文字を外しても読み上げは落とさない（#2387）。手札・場は親が状態つきの文で上書きする。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ColorRelayAccessibility.cardName(card))
     }
 
     @ViewBuilder
@@ -142,65 +146,35 @@ struct ColorRelayCardView: View {
         }
     }
 
-    /// 四隅の小さな印（左上・右上と、180 度回した左下・右下）。重ねた手札でも種類と色が読めるようにする。
+    /// 隅の色の印（左上と、180 度回した右下）。#2387 で四隅の数字・色名の頭文字を外し、**文字なしの形**だけを残した。
+    /// 色が見分けにくい人にも、形で札の色が分かる（#2007 の手がかりを文字から形へ置き換え）。万能札には置かない。
+    @ViewBuilder
     private var cornerMarks: some View {
-        let f = width * 0.2
-        let s = size
-        return VStack {
-            HStack {
-                cornerMark(f)
-                Spacer(minLength: 0)
-                initialMark(f)
-            }
-            Spacer(minLength: 0)
-            HStack {
-                initialMark(f)
-                    .rotationEffect(.degrees(180))
-                Spacer(minLength: 0)
-                cornerMark(f)
-                    .rotationEffect(.degrees(180))
-            }
-        }
-        .padding(.horizontal, s.border + width * 0.07)
-        .padding(.vertical, s.border + width * 0.05)
-    }
-
-    /// 色名の頭文字。色だけに頼らず札の色が読める（#2007。万能札には置かない）。
-    @ViewBuilder
-    private func initialMark(_ f: CGFloat) -> some View {
         if let color = card.color {
-            Text(color.initial)
-                .font(.system(size: f * 0.9, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Theme.onAccent)
+            let f = width * 0.16
+            let s = size
+            VStack {
+                HStack {
+                    colorShape(color, f)
+                    Spacer(minLength: 0)
+                }
+                Spacer(minLength: 0)
+                HStack {
+                    Spacer(minLength: 0)
+                    colorShape(color, f)
+                        .rotationEffect(.degrees(180))
+                }
+            }
+            .padding(.horizontal, s.border + width * 0.07)
+            .padding(.vertical, s.border + width * 0.06)
         }
     }
 
-    @ViewBuilder
-    private func cornerMark(_ f: CGFloat) -> some View {
-        switch card.kind {
-        case .number(let n):
-            Text(verbatim: "\(n)")
-                .font(.system(size: f, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Theme.onAccent)
-        case .skip:
-            Image(systemName: "circle.slash")
-                .font(.system(size: f * 0.85, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Theme.onAccent)
-        case .reverse:
-            Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: f * 0.8, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Theme.onAccent)
-        case .drawTwo:
-            Text(verbatim: "+2")
-                .font(.system(size: f * 0.85, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Theme.onAccent)
-        case .wild:
-            FourColorMark(size: f * 0.9, spacing: 1)
-        case .wildDrawFour:
-            Text(verbatim: "+4")
-                .font(.system(size: f * 0.85, weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Theme.onAccent)
-        }
+    private func colorShape(_ color: RelayColor, _ f: CGFloat) -> some View {
+        Image(systemName: color.shapeSymbol)
+            .font(.system(size: f, weight: .black)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+            .foregroundStyle(Theme.onAccent)
+            .frame(width: f * 1.1, height: f * 1.1)
     }
 }
 

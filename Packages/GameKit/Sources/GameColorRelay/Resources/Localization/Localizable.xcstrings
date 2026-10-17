@@ -189,17 +189,6 @@
         }
       }
     },
-    "あ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "R"
-          }
-        }
-      }
-    },
     "あか" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -366,17 +355,6 @@
         }
       }
     },
-    "き" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Y"
-          }
-        }
-      }
-    },
     "きいろ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -421,17 +399,6 @@
         }
       }
     },
-    "み" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "G"
-          }
-        }
-      }
-    },
     "みどり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -439,17 +406,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Green"
-          }
-        }
-      }
-    },
-    "む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "P"
           }
         }
       }

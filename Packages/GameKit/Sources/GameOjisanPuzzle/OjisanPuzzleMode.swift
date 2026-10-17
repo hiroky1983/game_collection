@@ -146,3 +146,21 @@ public enum OjisanPuzzleSpeedUp {
         max(minimumFactor, 1.0 - stepFactor * Double(max(0, locks) / locksPerLevel))
     }
 }
+
+/// 広告を見て 1 局 1 回だけ続けられる救済（#2013）の数値。いずれも会長確認前の仮置きで、マージ後の QA で調整する。
+public enum OjisanPuzzleRescue {
+    /// 入院から続けるときの腰痛ゲージ（満タンの半分に戻す）。荷運びモードだけ。
+    public static let painAfterContinue = 50
+    /// 積み上がりから続けるときに片づける段数（荷物のある一番上の行から数える）。
+    public static let clearedRows = 4
+
+    /// 一番上の荷物の行から `clearedRows` 段ぶんの荷物を取り除く。下の荷物は動かない（上を削るだけなので浮かない）。
+    public static func clearingTopRows(_ board: [[Int]]) -> [[Int]] {
+        guard let top = OjisanPuzzleCleanup.topLuggageRow(board) else { return board }
+        var result = board
+        for row in top..<min(OjisanPuzzleBoard.rows, top + clearedRows) {
+            result[row] = Array(repeating: 0, count: OjisanPuzzleBoard.columns)
+        }
+        return result
+    }
+}
