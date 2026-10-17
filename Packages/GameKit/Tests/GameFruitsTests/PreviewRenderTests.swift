@@ -24,14 +24,17 @@ struct PreviewRenderTests {
     /// 盤の抽象単位 1 を何 px で描くか（盤の幅 400pt・3x 相当）。
     private static let unit: CGFloat = 12
 
-    private var outputDirectory: URL? {
+    /// 書き出し先。環境変数が無ければ nil。あれば作っておく。
+    private func outputDirectory() throws -> URL? {
         guard let path = ProcessInfo.processInfo.environment["BONSAI_PREVIEW_DIR"], !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true)
+        let url = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
     }
 
     @Test("11 段の一覧")
     func tiers() throws {
-        guard let dir = outputDirectory else { return }
+        guard let dir = try outputDirectory() else { return }
         let unit = Self.unit
         let view = HStack(alignment: .bottom, spacing: 16) {
             ForEach(FruitKind.allCases, id: \.self) { kind in
@@ -58,7 +61,7 @@ struct PreviewRenderTests {
 
     @Test("重なった場面")
     func overlap() throws {
-        guard let dir = outputDirectory else { return }
+        guard let dir = try outputDirectory() else { return }
         // 大きい盆栽の上に小さい盆栽が載った盤。年齢を進めておき、生まれた直後の「膨らむ」演出に入らないようにする。
         var fruits: [Fruit] = []
         func place(_ kind: FruitKind, x: Double, y: Double) {
@@ -122,7 +125,6 @@ struct PreviewRenderTests {
     }
 
     private static func write(_ image: CGImage, to url: URL) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil))
         CGImageDestinationAddImage(destination, image, nil)
         #expect(CGImageDestinationFinalize(destination), "\(url.path) に書けない")
