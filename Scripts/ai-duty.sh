@@ -465,6 +465,8 @@ self_update() {
 #     競合しうる以上、どちらを選んでも止まるよう集合を揃えるほかない）。
 #     仕事13 の停止マーカー `出荷準備:` も同じ集合に入れる（#483。会長操作依頼の Issue に blocked や
 #     ai:proposed が付いていても、依頼コメントを置いた瞬間に仕事5・8・11 が鳴らないようにするため）。
+#     仕事14 の `自動ハンコ: …`（付け替えの記録）と `自動ハンコ（週次まとめ）: …` も同じ集合に入れる
+#     （会長が後から ai:approved を外して ai:proposed に戻した Issue や、決裁待ちの週次レポートで鳴らないため）。
 #     `last_owner_body` 側の除外には**入れない**。あちらは「経営企画室のコメントを飛ばして
 #     手前の会長コメントを見る」ためのもので、当番マーカーを入れると自分の応答を飛ばして
 #     応答済みの古い会長コメントを拾い、かえって鳴り止まなくなる。
@@ -486,7 +488,8 @@ def is_duty_reply($b):
   or ($b | startswith("着手見送り:"))
   or ($b | startswith("## 【要決裁】"))
   or ($b | startswith("決裁反映:"))
-  or ($b | startswith("出荷準備:"));
+  or ($b | startswith("出荷準備:"))
+  or ($b | startswith("自動ハンコ"));
 
 def is_ringi_reply($actors):
   last_owner_body($actors) as $b
@@ -782,6 +785,185 @@ def linked_to_busy($busy):
   | any($ns[]; . as $n | ($busy | index($n)) != null);
 '
 
+# 仕事14: 自動ハンコ（会長決裁 2026-10-17）。会長が多忙でハンコ（ai:approved）が滞り開発が止まるため、
+# AI が起票した Issue のうち「仕様・見た目の方針を変えない」OK 範囲のもの（判定は起票者が行い `stamp:auto` を
+# 付ける。基準の正典は docs/ai-company.md「自動ハンコ」）は、起票から 24 時間、会長が止めなければ
+# ハンコ扱いにする。止めたいものは会長が `ai:hold` を付ける（または `stamp:auto` を外す）だけ。
+# ここ（シェル）は判定をやり直さず、ラベルと時刻だけで決定論的に付け替える。claude は起動しない。
+#   - 対象: オープン・`ai:proposed` と `stamp:auto` の両方が付き、下の NG ラベルがどれも無い Issue
+#   - NG ラベル: ai:approved（もう押されている）/ ai:in-progress / ai:hold / blocked / ringi:pending /
+#     risk:sensitive / 広告 / 新ゲーム / ops:chairman。企画倉庫のマイルストーンも対象外（倉庫ゲームは NG）
+#   - 24 時間の起点は「起票」と「`stamp:auto` の付与」の遅いほう（後から付けた場合も会長に 24 時間を残す）
+#   - **出所を信頼アカウントで絞る**（仕事12 の ai_approved_at と同じ考え方・PR #446）。Issue の作成者が
+#     信頼アカウントであること、`stamp:auto` の**最新のラベル操作**が信頼アカウントによる付与であること。
+#     PUBLIC リポジトリなので、第三者の起票や信頼外の付け直しで ai:approved が付く経路を作らない
+#   - 既に開いていた Issue には遡らない: DUTY_AUTO_STAMP_SINCE より前に作られた Issue は対象外
+#   - 区分（OK 範囲のどれか）は本文の `自動ハンコの区分: <語>` の1行から取り、決まった語だけを受ける。
+#     行が無い・語が表に無いときは付けない（迷ったら付けない側に倒す。ログに残す）。コメントに載せるのは
+#     下の表の固定文字列だけで、本文の文字列そのものは出力しない
+#   - 付けた後は `stamp:auto` を残す（会長が後から見分けられるように・仕事1 の hold 除外に使う）
+# ai:approved を付けたのは hiroky1983 の gh（信頼アカウント）なので、ハンコの出所の検査（仕事12）とも
+# 矛盾しない。根拠は Issue に置く「自動ハンコ: …」のコメント（is_duty_reply の当番マーカー）。
+DUTY_AUTO_STAMP_SINCE="${DUTY_AUTO_STAMP_SINCE:-2026-10-17T00:00:00Z}"
+DUTY_AUTO_STAMP_WAIT="${DUTY_AUTO_STAMP_WAIT:-86400}"  # 起票から自動ハンコまでの秒数（24時間）
+DUTY_AUTO_STAMP_LOG="${DUTY_AUTO_STAMP_LOG:-$HOME/.asobiba-duty/auto-stamp.log}"  # 週次まとめの材料（時刻・番号・区分）
+DUTY_AUTO_STAMP_SUMMARY_STATE="${DUTY_AUTO_STAMP_SUMMARY_STATE:-$HOME/.asobiba-duty/auto-stamp-summary}"  # 前回まとめた時刻
+DUTY_AUTO_STAMP_SUMMARY_INTERVAL="${DUTY_AUTO_STAMP_SUMMARY_INTERVAL:-604800}"  # 週1回
+DUTY_JQ_AUTO_STAMP_LIB='
+def auto_stamp_area($k):
+  {"不具合": "不具合の修正",
+   "使いやすさ": "使いやすさ・アクセシビリティ",
+   "英訳": "英語の訳の漏れ・誤り",
+   "仕組み": "テスト・CI・当番の仕組み・docs の追従",
+   "動作改善": "遊び方も見た目も変わらない動作の改善"}[$k] // "";
+
+def auto_stamp_key:
+  [(.body // "") | split("\n")[] | rtrimstr("\r")
+   | capture("^[\\s\\-*]*自動ハンコの区分\\s*[:：]\\s*(?<k>[^\\s　]+)")? | .k] | first // "";
+
+def auto_stamp_labeled_at($actors):
+  ([.timelineItems.nodes[]? | select((.label.name // "") == "stamp:auto")]
+   | sort_by(.createdAt // "") | last) as $latest
+  | if $latest == null then ""
+    elif ($latest.__typename // "") != "LabeledEvent" then ""
+    elif (($latest.actor.login // "") as $a | ($actors | index($a)) == null) then ""
+    else ($latest.createdAt // "")
+    end;
+
+def auto_stamp_epoch($s): try ($s | fromdateiso8601) catch null;
+
+# 戻り値: "ok:<区分の表示名>" = 付ける / "nokey" = 他の条件は満たすが区分の行が無い・語が表に無い / "" = 対象外
+def auto_stamp_status($actors; $now; $wait; $since):
+  ([.labels.nodes[]?.name]) as $l
+  | auto_stamp_labeled_at($actors) as $at
+  | (.createdAt // "") as $c
+  | if ($l | index("ai:proposed")) == null or ($l | index("stamp:auto")) == null then ""
+    elif any("ai:approved", "ai:in-progress", "ai:hold", "blocked", "ringi:pending",
+             "risk:sensitive", "広告", "新ゲーム", "ops:chairman"; . as $ng | ($l | index($ng)) != null) then ""
+    elif ((.milestone.title // "") | contains("倉庫")) then ""
+    elif ((.author.login // "") as $a | ($actors | index($a)) == null) then ""
+    elif $at == "" or $c == "" or $c < $since then ""
+    elif (auto_stamp_epoch($c) == null or auto_stamp_epoch($at) == null) then ""
+    elif ($now - ([auto_stamp_epoch($c), auto_stamp_epoch($at)] | max)) < $wait then ""
+    else (auto_stamp_area(auto_stamp_key) as $area | if $area == "" then "nokey" else "ok:\($area)" end)
+    end;
+'
+
+# 仕事14 の本体。スロット1が毎回、claude の起動判定より前に呼ぶ（付けた Issue をその回の仕事1 で拾えるように）。
+# 失敗しても当番の他の仕事は止めない（ログに残して次回へ）。順序は「ラベル → コメント」: コメントだけ残って
+# ラベルが付かないと、ai:proposed の Issue に会長名義のコメントが残り仕事8 の着信に見えるため
+# （コメント本文も当番マーカー `自動ハンコ:` で始めて二重に防ぐ）
+run_auto_stamp() {
+  local now resp rows n st area actors
+  now="${DUTY_NOW:-$(date +%s)}"
+  actors="${DUTY_TRUSTED_ACTORS:-hiroky1983}"
+  resp=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["stamp:auto"], first: 50, orderBy: {field: CREATED_AT, direction: ASC}) {
+      nodes {
+        number
+        createdAt
+        author { login }
+        body
+        milestone { title }
+        labels(first: 30) { nodes { name } }
+        timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } actor { login } }
+            ... on UnlabeledEvent { createdAt label { name } actor { login } }
+          }
+        }
+      }
+    }
+  }
+}' 2>/dev/null) || { log "自動ハンコ: 一覧の取得に失敗したため見送り"; return 0; }
+  rows=$(printf '%s' "$resp" | jq -r --arg trusted "$actors" --argjson now "$now" \
+    --argjson wait "$DUTY_AUTO_STAMP_WAIT" --arg since "$DUTY_AUTO_STAMP_SINCE" \
+    "$DUTY_JQ_AUTO_STAMP_LIB"'($trusted | split(",")) as $a
+    | .data.repository.issues.nodes[]
+    | auto_stamp_status($a; $now; $wait; $since) as $s | select($s != "") | "\(.number)\t\($s)"' 2>/dev/null) \
+    || { log "自動ハンコ: 応答を解釈できないため見送り"; return 0; }
+  [ -n "$rows" ] || return 0
+  while IFS=$'\t' read -r n st; do
+    case "$n" in '' | *[!0-9]*) continue ;; esac
+    if [ "$st" = "nokey" ]; then
+      log "自動ハンコ: #$n は本文に「自動ハンコの区分: <語>」が無い（または表に無い語）ため付けない（会長のハンコ待ちのまま）"
+      continue
+    fi
+    area="${st#ok:}"
+    if ! gh issue edit "$n" -R hiroky1983/game_collection --add-label "ai:approved" --remove-label "ai:proposed" >/dev/null 2>&1; then
+      log "自動ハンコ: #$n のラベル付け替えに失敗（次回やり直す）"
+      continue
+    fi
+    gh issue comment "$n" -R hiroky1983/game_collection --body "自動ハンコ: 起票から 24 時間経過・自動ハンコ（OK 範囲: ${area}）。会長決裁 2026-10-17 により \`stamp:auto\` の Issue を \`ai:approved\` に付け替えました（\`docs/ai-company.md\`「自動ハンコ」）。止めたいときは \`ai:hold\` を付けてください（着手前なら着手せず、着手後は PR をマージしません）。取り消すときは \`ai:approved\` を外してください。" >/dev/null 2>&1 \
+      || log "自動ハンコ: #$n のコメントに失敗（ラベルは付け替え済み）"
+    mkdir -p "$(dirname "$DUTY_AUTO_STAMP_LOG")" 2>/dev/null
+    printf '%s\t%s\t%s\n' "$now" "$n" "$area" >>"$DUTY_AUTO_STAMP_LOG" 2>/dev/null
+    log "自動ハンコ: #$n に ai:approved を付けた（${area}）"
+  done <<EOF
+$rows
+EOF
+}
+
+# 週次まとめの本文を作る純粋関数。$1 = 記録ファイル、$2 = この時刻（UNIX 秒）より後の記録だけを載せる。
+# 対象が無ければ何も出さない。番号は数字だけを通し、区分は記録時に固定の表から選んだ文字列
+auto_stamp_summary_body() {
+  local file="$1" since="$2" lines="" at n area d
+  [ -f "$file" ] || return 0
+  while IFS=$'\t' read -r at n area; do
+    case "$at" in '' | *[!0-9]*) continue ;; esac
+    case "$n" in '' | *[!0-9]*) continue ;; esac
+    [ "$at" -gt "$since" ] || continue
+    d=$(date -r "$at" +%F 2>/dev/null || date -d "@$at" +%F 2>/dev/null)
+    lines="${lines}- #${n}（OK 範囲: ${area}・${d}）"$'\n'
+  done <"$file"
+  lines="${lines%$'\n'}"
+  [ -n "$lines" ] || return 0
+  printf '自動ハンコ（週次まとめ）: この 1 週間に自動ハンコで着手対象にした Issue は %s 件です（会長決裁 2026-10-17・`docs/ai-company.md`「自動ハンコ」）。\n\n%s\n\n止めたいものがあれば `ai:hold` を付けてください（読むのは任意です）。\n' \
+    "$(printf '%s\n' "$lines" | grep -c '^- #')" "$lines"
+}
+
+# 週次まとめが要るか（$1 = 前回の時刻・$2 = 今の時刻）。前回の時刻が数字でなければ「要らない」に倒し、
+# 呼び出し側が基準の時刻を書く（初回にいきなり出さない）
+is_auto_stamp_summary_due() {
+  case "${1:-}" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$(( ${2:-0} - $1 ))" -ge "$DUTY_AUTO_STAMP_SUMMARY_INTERVAL" ]
+}
+
+# 週1回、自動ハンコで着手対象にした Issue の一覧を1本のコメントにまとめる。置き場所は最新のオープンな
+# 週次経営レポート（report:weekly）。無ければ当番の通知（osascript。番号だけ）に出す。会長の作業は増やさない
+run_auto_stamp_weekly_summary() {
+  local now last body target nums
+  now="${DUTY_NOW:-$(date +%s)}"
+  last=$(sed -n '1p' "$DUTY_AUTO_STAMP_SUMMARY_STATE" 2>/dev/null)
+  case "${last:-}" in
+    '' | *[!0-9]*)
+      mkdir -p "$(dirname "$DUTY_AUTO_STAMP_SUMMARY_STATE")" 2>/dev/null
+      printf '%s\n' "$now" >"$DUTY_AUTO_STAMP_SUMMARY_STATE" 2>/dev/null
+      return 0 ;;
+  esac
+  is_auto_stamp_summary_due "$last" "$now" || return 0
+  body=$(auto_stamp_summary_body "$DUTY_AUTO_STAMP_LOG" "$last")
+  if [ -n "$body" ]; then
+    target=$(gh issue list -R hiroky1983/game_collection --label "report:weekly" --state open --limit 1 \
+      --json number --jq '.[0].number // empty' 2>/dev/null) || { log "自動ハンコ: 週次まとめの置き場所を取れないため次回へ"; return 0; }
+    case "$target" in *[!0-9]*) target="" ;; esac
+    if [ -n "$target" ]; then
+      gh issue comment "$target" -R hiroky1983/game_collection --body "$body" >/dev/null 2>&1 \
+        || { log "自動ハンコ: 週次まとめを #$target に書けなかったため次回へ"; return 0; }
+      log "自動ハンコ: 週次まとめを #$target にコメント"
+    else
+      nums=$(printf '%s\n' "$body" | grep -oE '^- #[0-9]+' | grep -oE '[0-9]+' | tr '\n' ' ')
+      osascript -e "display notification \"自動ハンコで着手対象にした Issue: $(hash_numbers "$nums")\" with title \"あそびば: 自動ハンコの週次まとめ\"" >/dev/null 2>&1 \
+        || { log "自動ハンコ: 週次まとめの通知に失敗したため次回へ"; return 0; }
+      log "自動ハンコ: 週次まとめを通知（週次レポートが無いため）: $(hash_numbers "$nums")"
+    fi
+  fi
+  printf '%s\n' "$now" >"$DUTY_AUTO_STAMP_SUMMARY_STATE" 2>/dev/null
+}
+
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
 # （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
 if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
@@ -929,7 +1111,11 @@ gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; 
 # 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る。
 # 集めて通知するのはスロット1だけ（2並列化 2026-09-25）。両スロットが集めると、連投防止の状態ファイルを
 # 読んでから書くまでの間に2つとも「未通知」と判断して同じ内容を2回鳴らしうる
+# 仕事14（自動ハンコ）と週次まとめはスロット1だけが行う（全体に1つしかない仕事）。通知の収集より前に
+# 付け替え、付け替えた Issue を会長の「承認待ち」通知に載せず、この回の仕事1 で拾えるようにする
 if [ "$DUTY_SLOT" -eq 1 ]; then
+  run_auto_stamp
+  run_auto_stamp_weekly_summary
   collect_notify_targets
 fi
 
@@ -939,11 +1125,14 @@ fi
 # blocked（Issue 自身が定めた着手条件が未達 = 外部イベント待ち）も同じ理由で除外する。
 # 例: 「v1.1.0 リリースから2週間経過後」のような条件は当番の努力では満たせないため、
 # 除外しないと条件成立まで毎時空振りで当番を起動し続けることになる（#54 で実際に発生）。
+# 自動ハンコ（仕事14・stamp:auto）で付いた Issue に会長が ai:hold を付けたら着手しない（会長決裁 2026-10-17
+# 「止めたいものは ai:hold を付けるだけ」。会長が自分で押したハンコ + ai:hold は従来どおり「マージだけ止める」）。
 APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
   --json number,labels \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
-                 and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null)] | length' 2>/dev/null || echo 0)
+                 and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null
+                 and (($l | index("stamp:auto")) == null or ($l | index("ai:hold")) == null))] | length' 2>/dev/null || echo 0)
 
 # 重い Issue（duty:heavy）はこの Mac の当番では拾わない。クラウド（claude.ai の routine）で進める
 # （会長決裁 2026-09-27「duty:heavy がついてるやつはクラウドに移そう」。対局計測が Mac を何時間もふさぐため）。
@@ -959,7 +1148,8 @@ CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" -
   --json number,labels,milestone \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
-                 and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null)
+                 and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null
+                 and (($l | index("stamp:auto")) == null or ($l | index("ai:hold")) == null))
         | {number: .number,
            fable: (($l | index("model:fable")) != null),
            heavy: (($l | index("duty:heavy")) != null),
