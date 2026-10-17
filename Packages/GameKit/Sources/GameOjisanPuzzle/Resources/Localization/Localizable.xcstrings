@@ -518,6 +518,28 @@
         }
       }
     },
+    "広告を見ているあいだに新しいゲームが始まったため、続けられませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started while the ad was playing, so you couldn't continue."
+          }
+        }
+      }
+    },
+    "広告を見て続ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
     "座布団\nの山" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -657,6 +679,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quit & New Game"
+          }
+        }
+      }
+    },
+    "続けられませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Continue"
           }
         }
       }

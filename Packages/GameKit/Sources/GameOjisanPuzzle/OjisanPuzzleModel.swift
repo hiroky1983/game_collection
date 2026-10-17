@@ -13,7 +13,7 @@ import Observation
 /// 解析（`game_start` / `game_end`）と記録（得点の自己ベスト）は `GameServices` の共通の入口でつなぐ（#1904）。
 /// 中断と復元は持たない（落ちものの途中局面を戻す形を決めていないため。`OjisanPuzzleModule.resumesFromSnapshot`
 /// は false のまま）。画面を離れれば局は捨てられ、1 つでも荷物を置いていれば途中離脱（quit）として数える。
-/// Game Center・広告にはつないでいない。
+/// Game Center にはつないでいない。広告は負けたときの「広告を見て続ける」（リワード・1 局 1 回・#2013）だけ。
 @MainActor
 @Observable
 public final class OjisanPuzzleModel {
@@ -52,6 +52,10 @@ public final class OjisanPuzzleModel {
     public private(set) var outcome: Outcome?
     /// 決着時に記録した結果（自己ベストの更新内訳）。リザルトに `RecordLabel` で出す。
     public private(set) var recordResult: RecordResult?
+    /// 広告を見て続けた局か（1 局 1 回。続けた局は順位表へ送らない）。
+    public private(set) var continueUsed = false
+    /// 局の通し番号。広告のロード〜視聴のあいだに始め直されたら、報酬を別の局に乗せないための照合に使う。
+    public private(set) var gameGeneration = 0
 
     /// 局が始まってからの時間（ミリ秒）。落下ループの刻みを足していくので、止めているあいだは進まない。
     /// 荷運びモードのクリアタイムになる。
@@ -68,6 +72,12 @@ public final class OjisanPuzzleModel {
     /// プレイヤーが一時停止ボタンで止めているか（#2135）。立っているあいだは `resume()` が落下を再開しない
     /// （遊び方・確認ダイアログ・アプリの前面復帰が閉じても止めたまま。再開は `resumeFromUserPause()` だけ）。
     public private(set) var isUserPaused = false
+
+    /// 負けの結果から、広告を見て続けられるか（入院・積み上がりのとき、1 局 1 回）。
+    public var canContinue: Bool {
+        guard !continueUsed, let outcome else { return false }
+        return outcome == .hospitalized || outcome == .buried
+    }
 
     /// 組を 1 つでも固定した、まだ決着していない局か。捨てると途中離脱として数えられる局かどうか（新規ゲームの確認に使う）。
     public var hasProgress: Bool { outcome == nil && lockCount > 0 }
@@ -400,11 +410,42 @@ public final class OjisanPuzzleModel {
         rotationBlockedOnce = false
         resetGroundGrace()
         recordResult = nil
+        continueUsed = false
+        gameGeneration += 1
         // 未決着のまま捨てた局は、始め直す前に途中離脱（quit）として送られる（#500）。
         // 捨てた局の `mode` は開始時に焼き込んだ値で出る（`game_end` の `mode` は途中で替わらない・#820）。
         hasAnnouncedStart = true
         services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
         resume()
+    }
+
+    /// リワード広告の視聴後に続ける（#2013）。入院は腰痛ゲージを半分に戻し、積み上がりは上から 4 段を片づける。
+    /// 得点・経過時間はそのまま引き継ぐ。
+    ///
+    /// - Parameter generation: 広告を出す前に控えた `gameGeneration`。**広告のロード〜視聴のあいだに
+    ///   始め直されたら適用しない**（報酬が別の局に乗り、`cancelLoss` まで走るのを防ぐ）。
+    @discardableResult
+    public func continueAfterAd(forRun generation: Int) -> Bool {
+        guard canContinue, generation == gameGeneration, let outcome else { return false }
+        // 同じ 1 プレイの続きなので、直前に記録した「負け」は無かったことにする（自己ベストは戻さない）。
+        services?.playLog?.cancelLoss(gameID: Self.gameID, variant: mode.recordVariant)
+        recordResult = nil
+        continueUsed = true
+        if outcome == .hospitalized {
+            pain = OjisanPuzzlePain.clamped(OjisanPuzzleRescue.painAfterContinue)
+        } else {
+            board = OjisanPuzzleRescue.clearingTopRows(board)
+        }
+        self.outcome = nil
+        // 後片付け（重力・消去・クリア判定）を一巡させてから次の組を出す。出す位置は塞がっていない。
+        phase = .settling
+        lastChain = 0
+        chainDepth = 0
+        // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。盤は動いているので離脱の数え方も立てる。
+        services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
+        services?.gameDidProgress(gameID: Self.gameID)
+        resume()
+        return true
     }
 
     // MARK: - 固定と連鎖
@@ -519,12 +560,14 @@ public final class OjisanPuzzleModel {
                 metric: .shortestTime,
                 seconds: outcome == .cleared ? max(1, elapsedMilliseconds / 1000) : nil,
                 variant: mode.recordVariant,
-                variantLabel: mode.recordVariantLabel
+                variantLabel: mode.recordVariantLabel,
+                isLeaderboardEligible: !continueUsed
             )
         }
         return GameScore(
             metric: .points, points: score,
-            variant: mode.recordVariant, variantLabel: mode.recordVariantLabel
+            variant: mode.recordVariant, variantLabel: mode.recordVariantLabel,
+            isLeaderboardEligible: !continueUsed
         )
     }
 }

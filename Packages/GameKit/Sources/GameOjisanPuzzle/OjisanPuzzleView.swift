@@ -25,6 +25,8 @@ public struct OjisanPuzzleView: View {
     @State private var cellSide: CGFloat = 0
     /// 決着の結果シートを出してよいか。決着の瞬間は盤の上に一言だけ出し、少し置いてから結果に切り替える（#1954）。
     @State private var showResult = false
+    /// 負けたあとの「広告を見て続ける」の段取り（連打ガード・広告・失敗アラート。#2013）。
+    @State private var continueRescue = RewardedRescue()
 
     /// 決着してから結果シートを出すまでの間。何が起きて終わったかを盤で見せる時間。
     private static let resultDelay: Duration = .milliseconds(1200)
@@ -89,6 +91,16 @@ public struct OjisanPuzzleView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        .rewardOffer(continueRescue, for: .continue, isPresented: showResult && model.canContinue,
+                     services: services, gameID: OjisanPuzzleModel.gameID)
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: tr("続けられませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("続けられませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、続けられませんでした。")
+            )
+        )
         .task(id: model.outcome) {
             guard model.outcome != nil else { showResult = false; return }
             try? await Task.sleep(for: Self.resultDelay)
@@ -733,6 +745,7 @@ public struct OjisanPuzzleView: View {
                 .foregroundStyle(Theme.ink)
             // 自己ベストの 1 行（他ゲームのリザルトと同じ共通部品・#1904）。
             RecordLabel(model.recordResult)
+            if model.canContinue { continueButton }
             Button {
                 withGameAnimation { model.newGame() }
             } label: {
@@ -746,9 +759,28 @@ public struct OjisanPuzzleView: View {
                     )
             }
             .buttonStyle(.pop)
+            // 広告の読み込み中に始め直すと、見終えても照合で弾かれて見損になる。
+            .disabled(continueRescue.isWatching)
         }
         .padding(22)
         .popCard()
         .padding(12)
+    }
+
+    /// 負けから 1 局 1 回だけ続ける（入院はゲージ半分、積み上がりは上から 4 段を片づける・#2013）。
+    private var continueButton: some View {
+        GameDeadEndActionButton(
+            tr("広告を見て続ける"), systemImage: "play.rectangle.fill",
+            tint: Theme.Fill.teal, isDisabled: continueRescue.isWatching
+        ) {
+            // どの局への続きかを広告前に控える。ロード中に始め直されたら適用せず知らせる。
+            let run = model.gameGeneration
+            continueRescue.request(
+                services, gameID: OjisanPuzzleModel.gameID, purpose: .continue,
+                guardedBy: .checkedByGrant
+            ) {
+                model.continueAfterAd(forRun: run)
+            }
+        }
     }
 }
