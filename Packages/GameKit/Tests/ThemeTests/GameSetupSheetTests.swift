@@ -43,6 +43,7 @@ struct GameSetupSheetSourceTests {
         ("GameGomoku/GomokuView.swift", ".versus"),
         ("GameBackgammon/BackgammonView.swift", ".versus"),
         ("GameMancala/MancalaView.swift", ".versus"),
+        ("GameYonmoku/YonmokuView.swift", ".versus"),
         ("GameConcentration/ConcentrationView.swift", ".versus"),
         ("GameSpeed/SpeedView.swift", ".versus"),
         ("GameOldMaid/OldMaidView.swift", ".versus"),

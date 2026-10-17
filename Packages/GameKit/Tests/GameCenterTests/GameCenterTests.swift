@@ -29,6 +29,7 @@ import GameBackgammon
 import GameMancala
 import GameSpeed
 import GameTsunagi
+import GameYonmoku
 import GameHomerun
 import GameOjisanPuzzle
 import GameSpider
@@ -106,6 +107,7 @@ func makeHubModules() -> [GameModule] {
         MancalaModule(),
         AkariKeshiModule(),
         TsunagiModule(),
+        YonmokuModule(),
     ]
 }
 
@@ -236,7 +238,7 @@ struct GameCenterLeaderboardTests {
 
     @Test("勝敗しか残らないゲームは対象外")
     func winLossGamesAreExcluded() {
-        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay", "backgammon", "mancala"] {
+        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay", "backgammon", "mancala", "yonmoku"] {
             #expect(
                 GameCenterLeaderboard.score(
                     gameID: gameID, outcome: .win, score: GameScore(metric: .winLoss)

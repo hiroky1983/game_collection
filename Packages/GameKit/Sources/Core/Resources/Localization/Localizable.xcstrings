@@ -1137,6 +1137,17 @@
         }
       }
     },
+    "たて・よこ・ななめのどれかで先に 4 つ並べたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line up 4 first (down, across, or diagonally) to win."
+          }
+        }
+      }
+    },
     "たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2558,6 +2569,28 @@
         }
       }
     },
+    "列をタップして石を落とそう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a column to drop a stone"
+          }
+        }
+      }
+    },
+    "列をタップすると、石が上から落ちて、その列の一番下の空きに入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a column and your stone drops from the top into the lowest empty space."
+          }
+        }
+      }
+    },
     "制限時間は 60 秒。しりとりが成立すると +10 秒、成立しない札を選ぶと -5 秒。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2983,6 +3016,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A winning shape still needs at least one yaku to win. Declare Riichi when you're in Tenpai to get one."
+          }
+        }
+      }
+    },
+    "四目並べの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Yonmoku Narabe"
           }
         }
       }
@@ -4318,6 +4362,17 @@
         }
       }
     },
+    "相手が 3 つ並べたら、4 つ目の場所を先にふさぎましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When your opponent has 3 in a row, block the fourth spot first."
+          }
+        }
+      }
+    },
     "相手が 4 つ並べたら、次の一手で止めましょう。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5150,6 +5205,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mahjong & Hanafuda"
+          }
+        }
+      }
+    },
+    "黒が先手です。盤が全部埋まったら引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black moves first. If the board fills up, it's a draw."
           }
         }
       }
