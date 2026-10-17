@@ -57,6 +57,14 @@ enum RouletteMotion {
         rotation - 360
     }
 
+    // MARK: - 画面の切り替え（#2364）
+
+    /// 賭けの画面 ⇄ ホイールの画面の切り替えの長さ（秒）。回転（2.6 秒）の頭を食わないよう短く取る。
+    static let screenSwapDuration: TimeInterval = 0.25
+
+    /// 画面の切り替え。ホイールが大きくなって現れる・表が戻ってくるのを、溶けるように見せる。
+    static let screenSwap: Animation = .easeInOut(duration: screenSwapDuration)
+
     // MARK: - 結果
 
     /// 出目のバッジが現れるまでの長さ（秒）。日常の表示なので山場より短く取る。

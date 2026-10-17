@@ -168,6 +168,17 @@
         }
       }
     },
+    "あなたの賭け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Bets"
+          }
+        }
+      }
+    },
     "なし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -175,6 +186,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "None"
+          }
+        }
+      }
+    },
+    "ほか%lld口" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld more"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld more"
+                }
+              }
+            }
           }
         }
       }
@@ -410,6 +444,17 @@
         }
       }
     },
+    "数字（0〜36）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numbers (0-36)"
+          }
+        }
+      }
+    },
     "最初からやり直す (%lld枚)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -428,6 +473,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Round"
+          }
+        }
+      }
+    },
+    "結果" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Result"
           }
         }
       }
@@ -494,6 +550,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Red/black, odd/even, 1-18/19-36"
+          }
+        }
+      }
+    },
+    "赤黒・奇偶・区分" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colors, Odd/Even, Dozens"
           }
         }
       }
