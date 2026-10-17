@@ -895,13 +895,13 @@
         }
       }
     },
-    "くっつきフルーツの遊び方" : {
+    "おじさんの盆栽の遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "How to Play Fruit Merge"
+            "value" : "How to Play Ojisan no Bonsai"
           }
         }
       }
@@ -2404,13 +2404,13 @@
         }
       }
     },
-    "上の点線より上に果物がとどまるとゲームオーバー。大きく育てて高得点を狙いましょう。" : {
+    "上の点線より上に盆栽がとどまるとゲームオーバー。立派に育てて高得点を狙いましょう。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If fruit stays above the dotted line at the top, it's game over. Grow big fruit for a high score."
+            "value" : "If a bonsai stays above the dotted line at the top, it's game over. Grow them grand for a high score."
           }
         }
       }
@@ -2932,13 +2932,13 @@
         }
       }
     },
-    "同じ果物どうしが触れるとくっついて、1 つ大きい果物になります。いちばん大きいのはメロンです。" : {
+    "同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。いちばん立派なのは金の松です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When two of the same fruit touch, they merge into the next bigger fruit. The biggest is the melon."
+            "value" : "When two of the same bonsai touch, they merge into the next, grander bonsai. The grandest is the Golden Pine."
           }
         }
       }
@@ -4626,13 +4626,13 @@
         }
       }
     },
-    "箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。" : {
+    "指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。離すとその真下の庭へ落とします。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slide your finger left or right above the box to aim, then let go to drop the fruit."
+            "value" : "Slide your finger left or right and Ojisan follows along the veranda with the bonsai. Let go to drop it into the garden below."
           }
         }
       }

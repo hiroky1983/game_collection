@@ -46,13 +46,13 @@ public enum FruitEvent: Equatable, Sendable {
     case touched(id: Int)
     /// 同じ種類が触れて 1 つ上の種類になった。`x` / `y` は新しい果物の位置。
     case merged(from: FruitKind, into: FruitKind, x: Double, y: Double, id: Int)
-    /// いちばん大きい種類（メロン）が 2 つ触れて消えた。
+    /// いちばん大きい種類（金の松）が 2 つ触れて消えた。
     case vanished(x: Double, y: Double)
     /// 危険線より上に果物が居続けた（終局）。
     case gameOver
 }
 
-/// くっつきフルーツの盤面そのもの（#1319）。
+/// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の盤面そのもの。型と変数の名前は果物のまま引き継いでいる。
 ///
 /// **SpriteKit にも SwiftUI にも依存しない値型**で、`step(dt:)` を呼ぶと果物が落ちて転がる。
 /// 得点・次に落とす果物・中断復元は持たない（それは `FruitsModel` の仕事）。
@@ -100,7 +100,10 @@ public struct FruitField: Equatable, Sendable {
         public static let overLineGrace: Double = 0.6
         /// これより遅ければ「止まっている」とみなす（単位/秒）。中断データの書き出しに使う。
         public static let sleepSpeed: Double = 2.0
-        /// 広告コンティニューで取り除く小さい種類の数（ブルーベリー〜ライムの 4 種）。
+        /// 「危険線に近い」とみなす幅。線の下でも上端がこの幅より線に近い盆栽があれば、縁側のおじさんを
+        /// しかめ面にする（#2361）。見た目だけの合図で、終局の判定には使わない。
+        public static let nearLineMargin: Double = 12
+        /// 広告コンティニューで取り除く小さい種類の数（桜〜梅の 4 種）。
         public static let continueRemovedKinds = 4
 
         /// 盤の縦横比（幅 / 高さ）。View はこの比で枠を作る。
@@ -165,6 +168,12 @@ public struct FruitField: Equatable, Sendable {
 
     /// 果物がすべて止まっているか。
     public var isSettled: Bool { fruits.allSatisfy { $0.speed < Metrics.sleepSpeed } }
+
+    /// 危険線に近い（または越えた）果物があるか（`Metrics.nearLineMargin`）。落としたばかりで猶予
+    /// （`Metrics.overLineGrace`）の内にある果物は数えない（手から落ちる途中で毎回しかめ面にならないように）。
+    public var isNearLine: Bool {
+        fruits.contains { $0.age > Metrics.overLineGrace && $0.top > Metrics.deadlineY - Metrics.nearLineMargin }
+    }
 
     /// いちばん高い果物の上端。何も無ければ 0。
     public var highestTop: Double { fruits.map(\.top).max() ?? 0 }
@@ -343,7 +352,7 @@ public struct FruitField: Equatable, Sendable {
         }
     }
 
-    /// 同じ種類の組を 1 つ上の種類に置き換える。メロンどうしは消す。
+    /// 同じ種類の組を 1 つ上の種類に置き換える。金の松どうしは消す。
     private mutating func applyMerges(_ merges: [(Int, Int)]) -> [FruitEvent] {
         var events: [FruitEvent] = []
         var removed = Set<Int>()

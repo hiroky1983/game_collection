@@ -3,7 +3,7 @@ import Foundation
 @testable import GameFruits
 
 /// 盤面（`FruitField`）の物理。SpriteKit 抜きで 1 プレイ丸ごと再生できる。
-@Suite("くっつきフルーツの盤面")
+@Suite("おじさんの盆栽の盤面")
 struct FieldTests {
     private typealias M = FruitField.Metrics
     private let frame = 1.0 / 60
@@ -47,11 +47,11 @@ struct FieldTests {
     @Test("落とした果物は落とす前の位置の真下、天井近くから落ち始める")
     func dropSpawnsAtCursor() {
         var field = FruitField()
-        field.moveCursor(to: 30, holding: .cherry)
-        let fruit = field.drop(.cherry)
+        field.moveCursor(to: 30, holding: .tsubaki)
+        let fruit = field.drop(.tsubaki)
         #expect(fruit.x == 30)
         #expect(fruit.y == M.spawnY)
-        #expect(fruit.kind == .cherry)
+        #expect(fruit.kind == .tsubaki)
         #expect(field.count == 1)
         #expect(field.fruits.first?.id == 0)
         #expect(field.nextID == 1)
@@ -60,14 +60,14 @@ struct FieldTests {
     @Test("落とす前の位置は壁から半径ぶん離した範囲に丸める")
     func cursorIsClampedByRadius() {
         var field = FruitField()
-        field.moveCursor(to: -20, holding: .mandarin)
-        #expect(field.cursorX == FruitKind.mandarin.radius)
-        field.moveCursor(to: 500, holding: .lime)
-        #expect(field.cursorX == M.width - FruitKind.lime.radius)
+        field.moveCursor(to: -20, holding: .mikan)
+        #expect(field.cursorX == FruitKind.mikan.radius)
+        field.moveCursor(to: 500, holding: .ume)
+        #expect(field.cursorX == M.width - FruitKind.ume.radius)
         // 持ち替えて大きくなったぶんは落とす瞬間にも丸める。
-        field.moveCursor(to: M.width, holding: .blueberry)
-        let fruit = field.drop(.mandarin)
-        #expect(fruit.x == M.width - FruitKind.mandarin.radius)
+        field.moveCursor(to: M.width, holding: .sakura)
+        let fruit = field.drop(.mikan)
+        #expect(fruit.x == M.width - FruitKind.mikan.radius)
     }
 
     @Test("画面の x を盤の x へ写す")
@@ -83,7 +83,7 @@ struct FieldTests {
     @Test("落とした果物は床に着いて止まる")
     func fruitFallsAndRests() {
         var field = FruitField()
-        field.drop(.lime)
+        field.drop(.ume)
         let events = run(&field, seconds: 2)
         let fruit = field.fruits[0]
         #expect(abs(fruit.y - fruit.radius) < 0.2, "床の上で止まる（y=\(fruit.y)）")
@@ -98,32 +98,32 @@ struct FieldTests {
     @Test("速く落としても床をすり抜けない")
     func noTunnelingThroughFloor() {
         var field = FruitField()
-        field.placeFruitForTesting(.blueberry, x: 50, y: 60, vx: 0, vy: -400)
+        field.placeFruitForTesting(.sakura, x: 50, y: 60, vx: 0, vy: -400)
         run(&field, seconds: 1)
         #expect(insideWalls(field))
-        #expect(field.fruits[0].y >= FruitKind.blueberry.radius - 0.05)
+        #expect(field.fruits[0].y >= FruitKind.sakura.radius - 0.05)
     }
 
     @Test("横に飛んだ果物は壁の内側で止まる")
     func wallsKeepFruitInside() {
         var field = FruitField()
-        field.placeFruitForTesting(.kiwi, x: 50, y: 30, vx: 500, vy: 0)
+        field.placeFruitForTesting(.icho, x: 50, y: 30, vx: 500, vy: 0)
         run(&field, seconds: 2)
         #expect(insideWalls(field))
         #expect(field.isSettled)
-        #expect(field.fruits[0].x + FruitKind.kiwi.radius <= M.width + 0.05)
+        #expect(field.fruits[0].x + FruitKind.icho.radius <= M.width + 0.05)
     }
 
     @Test("大きい果物の上に小さい果物が乗る（重ならず、下に落ちない）")
     func smallFruitRestsOnLargeOne() {
         var field = FruitField()
-        field.drop(.mandarin)
+        field.drop(.mikan)
         run(&field, seconds: 2)
-        field.drop(.cherry)
+        field.drop(.tsubaki)
         run(&field, seconds: 3)
-        let mandarin = field.fruits.first { $0.kind == .mandarin }!
-        let cherry = field.fruits.first { $0.kind == .cherry }!
-        #expect(cherry.y > mandarin.y + FruitKind.mandarin.radius, "さくらんぼはみかんの上（y=\(cherry.y)）")
+        let mikan = field.fruits.first { $0.kind == .mikan }!
+        let tsubaki = field.fruits.first { $0.kind == .tsubaki }!
+        #expect(tsubaki.y > mikan.y + FruitKind.mikan.radius, "椿はみかんの上（y=\(tsubaki.y)）")
         #expect(overlaps(in: field, tolerance: 0.3).isEmpty)
         #expect(field.isSettled)
     }
@@ -131,7 +131,7 @@ struct FieldTests {
     @Test("いろいろな果物を積んでも塊は落ち着く（重ならず、壁の中で、止まる）")
     func pileSettles() {
         var field = FruitField()
-        let kinds: [FruitKind] = [.mandarin, .lime, .kiwi, .strawberry, .peach, .blueberry, .lime, .cherry, .mandarin, .kiwi]
+        let kinds: [FruitKind] = [.mikan, .ume, .icho, .fuji, .nanten, .sakura, .ume, .tsubaki, .mikan, .icho]
         for (index, kind) in kinds.enumerated() {
             field.moveCursor(to: 30 + Double(index % 4) * 13, holding: kind)
             field.drop(kind)
@@ -150,55 +150,55 @@ struct FieldTests {
     @Test("同じ種類が触れると 1 つ上の種類になり、位置は 2 個の間")
     func sameKindMerges() {
         var field = FruitField()
-        field.moveCursor(to: 40, holding: .cherry)
-        field.drop(.cherry)
+        field.moveCursor(to: 40, holding: .tsubaki)
+        field.drop(.tsubaki)
         run(&field, seconds: 1.5)
-        field.moveCursor(to: 44, holding: .cherry)
-        field.drop(.cherry)
+        field.moveCursor(to: 44, holding: .tsubaki)
+        field.drop(.tsubaki)
         let events = run(&field, seconds: 2)
         #expect(field.count == 1)
-        #expect(field.fruits.first?.kind == .strawberry)
+        #expect(field.fruits.first?.kind == .fuji)
         let merged = events.compactMap { event -> (FruitKind, FruitKind, Int)? in
             if case let .merged(from, into, _, _, id) = event { return (from, into, id) }
             return nil
         }
         #expect(merged.count == 1)
-        #expect(merged.first?.0 == .cherry)
-        #expect(merged.first?.1 == .strawberry)
+        #expect(merged.first?.0 == .tsubaki)
+        #expect(merged.first?.1 == .fuji)
         #expect(merged.first?.2 == 2, "新しい果物は新しい ID を持つ")
         #expect(field.fruits.first?.id == 2)
         #expect(insideWalls(field))
     }
 
-    @Test("合体は連鎖する（いちご + いちご → ライムができた先でライムと合体）")
+    @Test("合体は連鎖する（藤 + 藤 → 梅ができた先で梅と合体）")
     func mergesChain() {
         var field = FruitField()
-        // ライムを左の壁際に置き、その右隣にいちごを 2 個縦に重ねる。上のいちごが下のいちごに触れて
-        // ライムになり、そのライムが壁際のライムに触れてみかんになる。
-        field.moveCursor(to: 0, holding: .lime)
-        field.drop(.lime)
+        // 梅を左の壁際に置き、その右隣に藤を 2 個縦に重ねる。上の藤が下の藤に触れて
+        // 梅になり、その梅が壁際の梅に触れてみかんになる。
+        field.moveCursor(to: 0, holding: .ume)
+        field.drop(.ume)
         run(&field, seconds: 1.5)
-        let strawberryX = FruitKind.lime.radius * 2 + FruitKind.strawberry.radius
-        field.moveCursor(to: strawberryX, holding: .strawberry)
-        field.drop(.strawberry)
+        let strawberryX = FruitKind.ume.radius * 2 + FruitKind.fuji.radius
+        field.moveCursor(to: strawberryX, holding: .fuji)
+        field.drop(.fuji)
         run(&field, seconds: 1.5)
-        field.drop(.strawberry)
+        field.drop(.fuji)
         let events = run(&field, seconds: 3)
         let intos = events.compactMap { event -> FruitKind? in
             if case let .merged(_, into, _, _, _) = event { return into }
             return nil
         }
-        #expect(intos == [.lime, .mandarin], "いちご→ライム、ライム→みかんの順（実際: \(intos)）")
+        #expect(intos == [.ume, .mikan], "藤→梅、梅→みかんの順（実際: \(intos)）")
         #expect(field.count == 1)
-        #expect(field.fruits.first?.kind == .mandarin)
+        #expect(field.fruits.first?.kind == .mikan)
     }
 
-    @Test("メロンどうしが触れると 2 個とも消える")
+    @Test("金の松どうしが触れると 2 個とも消える")
     func melonsVanish() {
         var field = FruitField()
-        let r = FruitKind.melon.radius
-        field.placeFruitForTesting(.melon, x: r + 1, y: r)
-        field.placeFruitForTesting(.melon, x: M.width - r - 1, y: r + 30, vx: -60)
+        let r = FruitKind.kinmatsu.radius
+        field.placeFruitForTesting(.kinmatsu, x: r + 1, y: r)
+        field.placeFruitForTesting(.kinmatsu, x: M.width - r - 1, y: r + 30, vx: -60)
         let events = run(&field, seconds: 3)
         #expect(field.count == 0)
         #expect(events.contains { if case .vanished = $0 { return true } else { return false } })
@@ -208,14 +208,14 @@ struct FieldTests {
     func threeOfAKindMergeOnlyOnePair() {
         var field = FruitField()
         // 3 個が横一列で隣どうし触れている状態から始める（間隔 17 < 直径 17.6）。
-        let r = FruitKind.kiwi.radius
+        let r = FruitKind.icho.radius
         for x in [30.0, 47, 64] {
-            field.placeFruitForTesting(.kiwi, x: x, y: r)
+            field.placeFruitForTesting(.icho, x: x, y: r)
         }
         run(&field, seconds: 3)
-        // 左の 2 個がももになり、残りの 1 個はキウイのまま。ももとキウイは合体しない。
+        // 左の 2 個が南天になり、残りの 1 個は銀杏のまま。南天と銀杏は合体しない。
         let kinds = field.fruits.map(\.kind).sorted()
-        #expect(kinds == [.kiwi, .peach], "実際: \(kinds.map(\.name))")
+        #expect(kinds == [.icho, .nanten], "実際: \(kinds.map(\.name))")
         #expect(field.isSettled)
     }
 
@@ -226,9 +226,9 @@ struct FieldTests {
         var field = FruitField()
         var events: [FruitEvent] = []
         var drops = 0
-        // 合体しにくいよう大きい種類を巡回して落とす。盤の面積は 100 × 96 で、ぶどう（半径 17.2）は
+        // 合体しにくいよう大きい種類を巡回して落とす。盤の面積は 100 × 96 で、真柏（半径 17.2）は
         // 10 個ほどで埋まる。
-        let kinds: [FruitKind] = [.grape, .pineapple, .apple, .peach]
+        let kinds: [FruitKind] = [.shinpaku, .kuromatsu, .momiji, .nanten]
         while !field.isOver, drops < 40 {
             field.moveCursor(to: 30 + Double(drops % 3) * 20, holding: kinds[drops % kinds.count])
             field.drop(kinds[drops % kinds.count])
@@ -248,9 +248,9 @@ struct FieldTests {
     func passingThroughTheLineDoesNotCount() {
         var field = FruitField()
         // 床にみかんを 1 個。落とした果物はその上に乗るが、上端は危険線より下。
-        field.drop(.mandarin)
+        field.drop(.mikan)
         run(&field, seconds: 2)
-        field.drop(.lime)
+        field.drop(.ume)
         let events = run(&field, seconds: 3)
         #expect(!events.contains(.gameOver))
         #expect(!field.isOver)
@@ -262,12 +262,12 @@ struct FieldTests {
     func restingAboveTheLineEndsAfterOneSecond() {
         var field = FruitField()
         // 左の壁に沿って大きい果物を柱にし、その上の果物の頭を危険線より上に出す。
-        let melon = FruitKind.melon.radius
-        let pineapple = FruitKind.pineapple.radius
-        let grape = FruitKind.grape.radius
-        field.placeFruitForTesting(.melon, x: melon, y: melon)
-        field.placeFruitForTesting(.pineapple, x: pineapple, y: melon * 2 + pineapple)
-        field.placeFruitForTesting(.grape, x: grape, y: melon * 2 + pineapple * 2 + grape)
+        let kinmatsu = FruitKind.kinmatsu.radius
+        let kuromatsu = FruitKind.kuromatsu.radius
+        let shinpaku = FruitKind.shinpaku.radius
+        field.placeFruitForTesting(.kinmatsu, x: kinmatsu, y: kinmatsu)
+        field.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
+        field.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
         #expect(field.fruits[2].top > M.deadlineY, "柱の頭が危険線より上（\(field.fruits[2].top)）")
         // 置いた直後は猶予を過ぎている（`placeFruitForTesting` は age を進めて置く）。
         var elapsed = 0.0
@@ -284,7 +284,7 @@ struct FieldTests {
     @Test("危険線の下へ戻れば計時は 0 に戻る")
     func timerResetsBelowTheLine() {
         var field = FruitField()
-        field.placeFruitForTesting(.cherry, x: 50, y: M.deadlineY + 10)
+        field.placeFruitForTesting(.tsubaki, x: 50, y: M.deadlineY + 10)
         // 落ちている途中の数フレームは線より上（猶予は過ぎている）。
         var timers: [Double] = []
         for _ in 0..<60 {
@@ -301,14 +301,14 @@ struct FieldTests {
     @Test("コンティニューは小さい 4 種と危険線より上の果物を取り除き、終局を取り消す")
     func clearForContinueRemovesSmallAndOverflowing() {
         var field = FruitField()
-        field.placeFruitForTesting(.blueberry, x: 10, y: 5)
-        field.placeFruitForTesting(.lime, x: 30, y: 8)
-        field.placeFruitForTesting(.mandarin, x: 50, y: 9)
-        field.placeFruitForTesting(.apple, x: 75, y: 15)
-        field.placeFruitForTesting(.peach, x: 50, y: M.deadlineY + 5)
+        field.placeFruitForTesting(.sakura, x: 10, y: 5)
+        field.placeFruitForTesting(.ume, x: 30, y: 8)
+        field.placeFruitForTesting(.mikan, x: 50, y: 9)
+        field.placeFruitForTesting(.momiji, x: 75, y: 15)
+        field.placeFruitForTesting(.nanten, x: 50, y: M.deadlineY + 5)
         let removed = field.clearForContinue()
         #expect(removed == 3)
-        #expect(field.fruits.map(\.kind).sorted() == [.mandarin, .apple])
+        #expect(field.fruits.map(\.kind).sorted() == [.mikan, .momiji])
         #expect(!field.isOver)
         #expect(!field.isOverLine)
         #expect(field.fruits.allSatisfy { $0.overLineTime == 0 })
@@ -317,17 +317,17 @@ struct FieldTests {
     @Test("終局した盤もコンティニューで再び進む")
     func continueResumesAfterGameOver() {
         var field = FruitField()
-        let melon = FruitKind.melon.radius
-        let pineapple = FruitKind.pineapple.radius
-        let grape = FruitKind.grape.radius
-        field.placeFruitForTesting(.melon, x: melon, y: melon)
-        field.placeFruitForTesting(.pineapple, x: pineapple, y: melon * 2 + pineapple)
-        field.placeFruitForTesting(.grape, x: grape, y: melon * 2 + pineapple * 2 + grape)
+        let kinmatsu = FruitKind.kinmatsu.radius
+        let kuromatsu = FruitKind.kuromatsu.radius
+        let shinpaku = FruitKind.shinpaku.radius
+        field.placeFruitForTesting(.kinmatsu, x: kinmatsu, y: kinmatsu)
+        field.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
+        field.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
         run(&field, seconds: 3)
         #expect(field.isOver)
         field.clearForContinue()
-        #expect(field.count == 2, "線より上のぶどうだけ消える")
-        field.drop(.cherry)
+        #expect(field.count == 2, "線より上の真柏だけ消える")
+        field.drop(.tsubaki)
         let events = run(&field, seconds: 2)
         #expect(events.contains(.touched(id: 3)))
         #expect(!field.isOver)
@@ -339,7 +339,7 @@ struct FieldTests {
     func deterministic() {
         func play() -> FruitField {
             var field = FruitField()
-            let kinds: [FruitKind] = [.cherry, .lime, .cherry, .mandarin, .strawberry, .lime, .blueberry]
+            let kinds: [FruitKind] = [.tsubaki, .ume, .tsubaki, .mikan, .fuji, .ume, .sakura]
             for (index, kind) in kinds.enumerated() {
                 field.moveCursor(to: 25 + Double(index) * 8, holding: kind)
                 field.drop(kind)
@@ -354,8 +354,8 @@ struct FieldTests {
     @Test("中断データから作ると危険線の計時は 0 に戻り、ID は続きから振る")
     func restoreResetsTimersAndContinuesIDs() {
         var original = FruitField()
-        original.placeFruitForTesting(.lime, x: 20, y: 8)
-        original.placeFruitForTesting(.kiwi, x: 60, y: 11)
+        original.placeFruitForTesting(.ume, x: 20, y: 8)
+        original.placeFruitForTesting(.icho, x: 60, y: 11)
         var saved = original.fruits
         saved[0].overLineTime = 0.7
         let restored = FruitField(fruits: saved, cursorX: 42)
@@ -368,7 +368,7 @@ struct FieldTests {
 
     @Test("Fruit は JSON に往復できる")
     func fruitRoundTripsThroughJSON() throws {
-        let fruit = Fruit(id: 7, kind: .grape, x: 12.5, y: 30, vx: -1, vy: 2, angle: 0.3, age: 4, overLineTime: 0.1, hasTouched: true)
+        let fruit = Fruit(id: 7, kind: .shinpaku, x: 12.5, y: 30, vx: -1, vy: 2, angle: 0.3, age: 4, overLineTime: 0.1, hasTouched: true)
         let data = try JSONEncoder().encode(fruit)
         let decoded = try JSONDecoder().decode(Fruit.self, from: data)
         #expect(decoded == fruit)

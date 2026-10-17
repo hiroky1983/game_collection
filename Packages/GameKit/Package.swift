@@ -127,10 +127,14 @@ let package = Package(
         // `SplitMix64` を使うので CoreEngine への依存も明示する。
         .target(name: "GameRoulette",       dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
-        // くっつきフルーツ（#1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない純粋ロジックで、
-        // 落とす果物の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
+        // おじさんの盆栽（#2361。もとは くっつきフルーツ #1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない
+        // 純粋ロジックで、落とす盆栽の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
         .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine"],
-                resources: [.copy("Resources/Localization")]),
+                resources: [.copy("Resources/Localization"),
+                            // 盆栽 11 段の絵（会長提供・ChatGPT 生成。出どころは docs/design/bonsai/assets-license.md）。
+                            .copy("Resources/Bonsai"),
+                            // 縁側のおじさん（専用ドット絵ができるまでの代用。作業服おじさんから箱を消したコマ）。
+                            .copy("Resources/BonsaiOjisan_hold.png")]),
         // いろリレー（#1320・企画倉庫）。色合わせのカードゲーム。出せるかの判定・CPU は純粋ロジックで、
         // 配りの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
         .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine"],
