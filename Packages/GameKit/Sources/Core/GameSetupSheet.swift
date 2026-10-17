@@ -287,16 +287,16 @@ public struct GameSetupChooser: View {
     }
 }
 
-/// 1 行に収まらない文字を縮めて収める。`nil` のときは何もしない（＝従来どおり折り返す）。
+/// 収まらない文字を、単語の途中では折らずに 2 行まで使い、それでも足りなければ縮めて収める。
+/// `nil` のときも既定の下限（0.6）まで縮める（英語 + 特大文字で「stones」が `ston/es` と折れたり
+/// 末尾が `...` になったりするのを防ぐ・#2318）。
 private struct ShrinkToFit: ViewModifier {
     let minimumScale: CGFloat?
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if let minimumScale {
-            content.lineLimit(1).minimumScaleFactor(minimumScale)
-        } else {
-            content
-        }
+        content
+            .lineLimit(2)
+            .minimumScaleFactor(minimumScale ?? 0.6)
+            .padding(.horizontal, 4)
     }
 }
