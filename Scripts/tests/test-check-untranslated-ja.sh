@@ -47,7 +47,7 @@ check() {
   if [ "$got" = "$want" ] && [ "$count" = "$want_count" ]; then
     ok "$desc"
   else
-    ng "$desc（終了コード $got・件数 $count。期待は $want・$want_count）"
+    ng "${desc}（終了コード ${got}・件数 ${count}。期待は ${want}・${want_count}）"
     printf '%s\n' "$out" | sed 's/^/        /'
   fi
 }
