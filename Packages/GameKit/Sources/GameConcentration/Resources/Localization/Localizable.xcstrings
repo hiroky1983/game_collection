@@ -23,6 +23,17 @@
         }
       }
     },
+    "%@（一致しませんでした）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (no match)"
+          }
+        }
+      }
+    },
     "%lld ペア" : {
       "extractionState" : "manual",
       "localizations" : {
