@@ -279,7 +279,7 @@ enum AppEnvironment {
         // ルーレット（企画倉庫・#1318）。出荷する版が決まるまでハブには並べない
         // （`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」。`#if DEBUG` では分岐しない）。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`"roulette": .puzzleOther`）は #2385 で先に入れてある。
+        // カテゴリー（`"roulette": .cards`。ポーカー・ブラックジャックと同じカジノ系）は #2385 で先に入れてある。
         // RouletteModule(),
         // おじさんの盆栽（もとは くっつきフルーツ・#1319 → #2361 で改称）。ルーレットと同じ扱いで、
         // 出荷する版が決まるまでハブには並べない。出荷を決める Issue でこの行のコメントアウトを外し、
@@ -287,7 +287,7 @@ enum AppEnvironment {
         // FruitsModule(),
         // いろリレー（企画倉庫・#1320）。ルーレット・おじさんの盆栽と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`"colorrelay": .puzzleOther`）は #2385 で先に入れてある。
+        // カテゴリー（`"colorrelay": .cards`。色と数字のカードゲーム）は #2385 で先に入れてある。
         // ColorRelayModule(),
         // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
@@ -351,12 +351,11 @@ enum AppEnvironment {
         "yonmoku": .board, "backgammon": .board, "mancala": .board,
         "poker": .cards, "solitaire": .cards, "daifugo": .cards, "spider": .cards,
         "blackjack": .cards, "concentration": .cards, "freecell": .cards,
-        "speed": .cards, "oldmaid": .cards, "hearts": .cards,
+        "speed": .cards, "oldmaid": .cards, "hearts": .cards, "roulette": .cards, "colorrelay": .cards,
         "mahjong4": .mahjongHanafuda, "mahjong": .mahjongHanafuda, "hanafuda": .mahjongHanafuda,
         "sudoku": .puzzleOther, "2048": .puzzleOther, "shiritori": .puzzleOther, "minesweeper": .puzzleOther,
         "blocks": .puzzleOther, "fifteen": .puzzleOther, "anzan": .puzzleOther,
-        "roulette": .puzzleOther, "colorrelay": .puzzleOther, "akarikeshi": .puzzleOther,
-        "tsunagi": .puzzleOther, "hanoi": .puzzleOther, "dicecombo": .puzzleOther,
+        "akarikeshi": .puzzleOther, "tsunagi": .puzzleOther, "hanoi": .puzzleOther, "dicecombo": .puzzleOther,
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
