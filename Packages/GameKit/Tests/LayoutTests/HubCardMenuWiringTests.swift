@@ -62,7 +62,7 @@ struct HubCardMenuWiringTests {
         )
         #expect(
             source.range(
-                of: #"\.task\(id: hiddenNotice\) \{\s*guard hiddenNotice != nil else \{ return \}\s*try\? await Task\.sleep"#,
+                of: #"\.task\(id: hiddenNotice\) \{\s*guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else \{ return \}\s*try\? await Task\.sleep"#,
                 options: .regularExpression
             ) != nil,
             "案内を消す時間が hiddenNotice ごとに数えられていない"
@@ -88,5 +88,15 @@ struct HubCardMenuWiringTests {
         #expect(source.contains("HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }"), "案内に元に戻すが結線されていない")
         #expect(source.contains(".frame(minHeight: 44)"), "元に戻すボタンが 44pt に満たない")
         #expect(source.contains("Task.sleep(for: .seconds(5))"), "案内が押せる長さ（5 秒）で出ていない")
+    }
+
+    @Test("VoiceOver・スイッチコントロール中は非表示の案内を自動で消さず、二本指スクラブで閉じられる（#2330）")
+    func noticeStaysWhileAssistiveTechIsOn() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("@Environment(\\.accessibilityVoiceOverEnabled)"), "VoiceOver の状態を読んでいない")
+        #expect(source.contains("@Environment(\\.accessibilitySwitchControlEnabled)"), "スイッチコントロールの状態を読んでいない")
+        #expect(source.contains("guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else { return }"),
+                "支援技術中も 5 秒で案内が消える")
+        #expect(source.contains(".accessibilityAction(.escape, onDismiss)"), "支援技術中に案内を閉じる手段が無い")
     }
 }
