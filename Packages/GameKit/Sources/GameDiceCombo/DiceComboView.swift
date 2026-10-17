@@ -191,7 +191,7 @@ public struct DiceComboView: View {
                 let isHeld = model.held.indices.contains(index) && model.held[index]
                 let shown = DiceComboMotion.displayedFace(final: value, isRolling: model.isRolling,
                                                           isHeld: isHeld, index: index, tick: tick)
-                let tumbles = !isHeld && !reduceMotion
+                let tumbles = !isHeld && !reduceMotion && value != nil  // 転がり中に新しいゲームにしたら「？」は跳ねない
                 Button {
                     model.toggleHold(index)
                 } label: {

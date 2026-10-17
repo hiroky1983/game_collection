@@ -186,7 +186,7 @@ struct DiceComboRollMotionTests {
         #expect(SourceScan.matchCount(
             of: #"DiceComboModel\(services: services, rollInterval: DiceComboMotion\.rollInterval\)"#, in: view) == 1)
         #expect(SourceScan.matchCount(of: #"@Environment\(\\\.accessibilityReduceMotion\)"#, in: view) == 1)
-        #expect(SourceScan.matchCount(of: #"let tumbles = !isHeld && !reduceMotion"#, in: view) == 1)
+        #expect(SourceScan.matchCount(of: #"let tumbles = !isHeld && !reduceMotion && value != nil"#, in: view) == 1)
         #expect(SourceScan.matchCount(of: #"DiceComboMotion\.displayedFace\("#, in: view) == 1)
         #expect(SourceScan.matchCount(of: #"paused: !model\.isRolling"#, in: view) == 1,
                 "止まったあとも目の切り替えの時計が回り続ける")
