@@ -276,20 +276,8 @@ enum AppEnvironment {
         ChessModule(),
         FreeCellModule(),
         FifteenModule(),
-        // ルーレット（企画倉庫・#1318）。出荷する版が決まるまでハブには並べない
+        // バックギャモン（企画倉庫・#1322）。出荷する版が決まるまでハブには並べない
         // （`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」。`#if DEBUG` では分岐しない）。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`"roulette": .cards`。ポーカー・ブラックジャックと同じカジノ系）は #2385 で先に入れてある。
-        // RouletteModule(),
-        // おじさんの盆栽（もとは くっつきフルーツ・#1319 → #2361 で改称）。ルーレットと同じ扱いで、
-        // 出荷する版が決まるまでハブには並べない。出荷を決める Issue でこの行のコメントアウトを外し、
-        // `web/app/lib/games.ts` にも同じ順で足す。カテゴリー（`"fruits": .ojisan`。おじさんシリーズの1本）は #2385 で先に入れてある。
-        // FruitsModule(),
-        // いろリレー（企画倉庫・#1320）。ルーレット・おじさんの盆栽と同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`"colorrelay": .cards`。色と数字のカードゲーム）は #2385 で先に入れてある。
-        // ColorRelayModule(),
-        // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`"backgammon": .board`）は #2385 で先に入れてある。
         // BackgammonModule(),
@@ -297,7 +285,7 @@ enum AppEnvironment {
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`"mancala": .board`）は #2385 で先に入れてある。
         // MancalaModule(),
-        // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // スピード（企画倉庫・#1323）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`"speed": .cards`）は #2385 で先に入れてある。
         // SpeedModule(),
@@ -325,6 +313,14 @@ enum AppEnvironment {
         // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
         AnzanModule(),
+        // いろリレー（#1320）・ルーレット（#1318）・おじさんの盆栽（#1319。もとは くっつきフルーツ）・
+        // サイコロ役づくり（#1752）。企画倉庫から v1.1.13 でハブに公開（#2384）。倉庫へ戻す判断が出たら、
+        // その 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` のその行と、他のゲームの候補に入れた分）も戻すこと。
+        ColorRelayModule(),
+        RouletteModule(),
+        FruitsModule(),
+        DiceComboModule(),
         // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`"oldmaid": .cards`）は #2385 で先に入れてある。
@@ -333,10 +329,6 @@ enum AppEnvironment {
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`.cards`）は #2385 で先に入れてある。
         // HeartsModule(),
-        // サイコロ役づくり（企画倉庫・#1752）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // ハブのカテゴリー（`"dicecombo": .puzzleOther`）は #2385 で先に入れてある。
-        // DiceComboModule(),
         // 四目並べ（企画倉庫・#1738）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリーのチップ（`"yonmoku": .board`）は #2385 で先に入れてある。

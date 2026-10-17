@@ -73,6 +73,11 @@ GAMES = {
     "fifteen": ("15パズル", TEAL),
     "ojisanpuzzle": ("おじさんの荷物運びパズル", YELLOW),
     "anzan": ("ぱっと暗算", CORAL),
+    # 企画倉庫から v1.1.13 でハブに出した 4 本（#2384）。モックに絵が無いので `art_html` で描く。
+    "colorrelay": ("いろリレー", PURPLE),
+    "roulette": ("ルーレット", YELLOW),
+    "fruits": ("おじさんの盆栽", TEAL),
+    "dicecombo": ("サイコロ役づくり", PINK),
 }
 # 英語のゲーム名（#2181）。各ゲームの String Catalog（`Resources/Localization/Localizable.xcstrings`）の訳と同じ
 # （#2166〜#2169）。食い違いは `check_english_names` が書き出しの前に止める。2048 は訳さない（タイトルを直書き）、
@@ -103,6 +108,10 @@ GAMES_EN = {
     "fifteen": "15 Puzzle",
     "ojisanpuzzle": "Ojisan's Box Puzzle",
     "anzan": "Quick Mental Math",
+    "colorrelay": "Color Relay",
+    "roulette": "Roulette",
+    "fruits": "Ojisan no Bonsai",
+    "dicecombo": "Dice Combos",
 }
 # String Catalog を引かずに上の表で持つゲーム（理由は上）。
 EN_NOT_IN_CATALOG = {"2048", "daifugo"}
@@ -136,8 +145,10 @@ def asset_name(base, lang):
     return base if lang == "ja" else f"{base}-en"
 
 
-# モックの絵を使わず描き直すゲーム（上の docstring 参照）。
-REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda"}
+# モックの絵を使わず描き直すゲーム（上の docstring 参照）。倉庫から出した 4 本（#2384）はモックに絵が無いので、
+# ゲーム内の部品（いろリレーの札・ルーレットのホイール・盆栽の絵と縁側のおじさん・サイコロ）を同じ方式で組む。
+REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "roulette", "fruits", "dicecombo"}
+FRUITS_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameFruits/Resources")
 
 # モックの tiles/tile_art.py と同じ下地の CSS（必要な部品だけ）。
 ART_CSS = """
@@ -151,6 +162,13 @@ body{font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans",sans-serif;-w
 .num{position:absolute;font-weight:900;color:#fff;text-shadow:0 4px 6px rgba(0,0,0,.25)}
 .fuda{position:absolute;width:58px;height:87px;border-radius:7px;border:2.5px solid #FAF6EC;overflow:hidden;box-shadow:0 6px 8px rgba(0,0,0,.32)}
 .fuda img{display:block;width:100%;height:100%;object-fit:cover}
+.rc{position:absolute;width:58px;height:82px;border-radius:10px;border:3px solid #fff;box-shadow:0 6px 8px rgba(0,0,0,.28)}
+.rc .win{position:absolute;left:9px;right:9px;top:17px;bottom:17px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:32px;line-height:1}
+.rc .mk{position:absolute;left:5px;top:3px;font-weight:900;font-size:11px;line-height:1;color:#fff}
+.chip{position:absolute;width:46px;height:46px;border-radius:50%;border:5px dashed #fff;box-shadow:0 5px 6px rgba(0,0,0,.3)}
+.die{position:absolute;width:54px;height:54px;border-radius:12px;background:#fff;box-shadow:0 6px 8px rgba(0,0,0,.28)}
+.die i{position:absolute;border-radius:50%;background:#2B2624;transform:translate(-50%,-50%)}
+.pill{position:absolute;padding:3px 10px;border-radius:999px;background:#fff;font-weight:900;font-size:13px;box-shadow:0 4px 6px rgba(0,0,0,.25)}
 """
 
 
@@ -186,6 +204,80 @@ def art_html(gid):
                                    f'<img src="file://{os.path.join(HANAFUDA_CARDS, f"Hanafuda_{i:02d}.png")}"></div>')
         bg = "linear-gradient(160deg,#E57F72 0%,#B3382E 50%,#8E261E 100%)"
         body = card(0, 16, 46, -14) + card(28, 104, 46, 14) + card(8, 60, 36, 0)
+    elif gid == "colorrelay":
+        # ゲーム内の札（`ColorRelayCardView`: 白い角丸の枠 + 色の地 + 白い角丸の窓に大きな数字・記号）を 4 色ぶん
+        # 扇に並べる（ポーカーのモックと同じ配置）。地の色は `Theme.Hex.Fill`、窓の文字色は `RelayColor.glyphHex`。
+        rc = lambda x, y, r, fill, ink, text, mark: (
+            f'<div class="rc" style="left:{x}px;top:{y}px;background:{fill};transform:rotate({r}deg)">'
+            f'<div class="mk">{mark}</div><div class="win" style="color:{ink}">{text}</div></div>')
+        bg = "linear-gradient(160deg,#5C6B8A 0%,#3A4766 50%,#2B354F 100%)"
+        body = (rc(10, 92, -22, "#FF8A7E", "#C93D2E", "7", "7")
+                + rc(44, 78, -8, "#22C3BE", "#167B78", "3", "3")
+                + rc(80, 76, 8, "#B3A6F0", "#8C7BE0", "+2", "+2")
+                + rc(116, 86, 22, "#FFC24B", "#976400", "9", "9")
+                # 万能札の印（`FourColorMark`: 4 色の角丸を 2 × 2）を右上に 1 つ。
+                + '<div class="o" style="left:120px;top:14px;width:44px;height:44px;transform:rotate(12deg);display:grid;'
+                  'grid-template-columns:1fr 1fr;gap:3px;padding:4px;border-radius:10px;background:#fff">'
+                + "".join(f'<div style="border-radius:4px;background:{c}"></div>' for c in ("#FF8A7E", "#22C3BE", "#FFC24B", "#B3A6F0"))
+                + '</div>')
+    elif gid == "roulette":
+        # ゲーム内のホイール（`RouletteWheelView`: 赤 = coral・黒 = fillStrong・0 = teal のポケット環と、くすんだ外枠）を
+        # 右下に大きく置き、玉は 12 時。左上にチップ（ブラックジャックのモックと同じ部品）。ポケットは図案として 18 に減らす。
+        n, cx, cy, ro, ri = 18, 100, 100, 92, 58
+        import math
+        wedges = ""
+        for i in range(n):
+            a0, a1 = math.radians(i * 360 / n - 90 - 10), math.radians((i + 1) * 360 / n - 90 - 10)
+            fill = "#22C3BE" if i == 0 else ("#FF6F61" if i % 2 else "#4A3B33")
+            pts = [(cx + ro * math.cos(a0), cy + ro * math.sin(a0)), (cx + ro * math.cos(a1), cy + ro * math.sin(a1)),
+                   (cx + ri * math.cos(a1), cy + ri * math.sin(a1)), (cx + ri * math.cos(a0), cy + ri * math.sin(a0))]
+            d = f"M{pts[0][0]:.1f},{pts[0][1]:.1f} A{ro},{ro} 0 0 1 {pts[1][0]:.1f},{pts[1][1]:.1f} L{pts[2][0]:.1f},{pts[2][1]:.1f} A{ri},{ri} 0 0 0 {pts[3][0]:.1f},{pts[3][1]:.1f} Z"
+            wedges += f'<path d="{d}" fill="{fill}" stroke="rgba(255,255,255,.7)" stroke-width="0.8"/>'
+            am = (a0 + a1) / 2
+            num = ("0", "32", "15", "19", "4", "21", "2", "25", "17", "34", "6", "27", "13", "36", "11", "30", "8", "23")[i]
+            tx, ty = cx + (ro + ri) / 2 * math.cos(am), cy + (ro + ri) / 2 * math.sin(am)
+            wedges += (f'<text x="{tx:.1f}" y="{ty:.1f}" transform="rotate({math.degrees(am) + 90:.1f} {tx:.1f} {ty:.1f})" '
+                       f'text-anchor="middle" dominant-baseline="central" font-family="SF Pro Rounded,Hiragino Sans,sans-serif" '
+                       f'font-weight="800" font-size="10" fill="#fff">{num}</text>')
+        wheel = (f'<svg class="o" style="left:36px;top:66px;width:200px;height:200px" viewBox="0 0 200 200">'
+                 f'<circle cx="{cx}" cy="{cy}" r="100" fill="#9A8A80"/>{wedges}'
+                 f'<circle cx="{cx}" cy="{cy}" r="{ri - 2}" fill="#E8DCC8"/><circle cx="{cx}" cy="{cy}" r="34" fill="#C9BEA8"/>'
+                 f'<circle cx="{cx}" cy="{cy}" r="10" fill="#4A3B33"/>'
+                 f'<circle cx="{cx}" cy="{cy - (ro + ri) / 2:.1f}" r="7" fill="#fff" stroke="rgba(0,0,0,.25)" stroke-width="1"/></svg>')
+        bg = "linear-gradient(160deg,#3FA97F 0%,#1E7A5A 50%,#145741 100%)"
+        body = wheel + "".join(f'<div class="chip" style="left:{x}px;top:{y}px;background:{c}"></div>'
+                               for x, y, c in [(8, 60, "#FFC24B"), (16, 48, "#FF6F61"), (24, 36, "#22C3BE")])
+    elif gid == "fruits":
+        # 縁側（`FruitsPalette.wood`）に立つおじさん（`BonsaiOjisan_hold`）と、庭（`FruitsPalette.box`）に落ちた盆栽
+        # 3 鉢（ゲーム内の `Bonsai_*.png`）。ゲーム内と同じく上に危険線（白の点線）を引く。
+        bz = lambda n, x, y, w: f'<img class="o" src="file://{os.path.join(FRUITS_RES, "Bonsai", n)}" style="left:{x}px;top:{y}px;width:{w}px">'
+        bg = "linear-gradient(180deg,#CDE7F7 0%,#E3F0F8 30%,#EFE7D3 30%,#DCD0B6 100%)"
+        # 縁側は名前の下（タイルの 56〜92pt）。おじさんは名前と重ならないよう右端に置く。
+        body = ('<div style="position:absolute;left:0;right:0;top:32px;height:36px;background:#C89E6B;'
+                'box-shadow:0 4px 6px rgba(0,0,0,.18)"></div>'
+                '<div style="position:absolute;left:0;right:0;top:32px;height:36px;background:repeating-linear-gradient('
+                '90deg,transparent 0 26px,#A87D4E 26px 28px)"></div>'
+                '<div style="position:absolute;left:0;right:0;top:36px;height:2px;background:#D9B484"></div>'
+                '<div style="position:absolute;left:0;right:0;top:70px;border-top:2.5px dashed rgba(255,255,255,.9)"></div>'
+                # おじさんは鏡写しで左向きにし、差し出した手の先に持っている桜を置く。
+                + f'<img class="o px" src="file://{os.path.join(FRUITS_RES, "BonsaiOjisan_hold.png")}" '
+                  'style="left:134px;top:13px;width:42px;transform:scaleX(-1)">'
+                + bz("Bonsai_01_sakura.png", 106, 30, 30)
+                + bz("Bonsai_10_kuromatsu.png", -2, 78, 92)
+                + bz("Bonsai_05_mikan.png", 100, 100, 66))
+    elif gid == "dicecombo":
+        # ゲーム内のサイコロ（`DiceComboDieFace`: 白い角丸・墨の目・1 だけ coral）を 4 つ散らし、役の名前のピル。
+        pips = {1: [(.5, .5)], 3: [(.27, .27), (.5, .5), (.73, .73)],
+                5: [(.27, .27), (.73, .27), (.5, .5), (.27, .73), (.73, .73)],
+                6: [(.27, .27), (.73, .27), (.27, .5), (.73, .5), (.27, .73), (.73, .73)]}
+        s = 50
+        die = lambda v, x, y, r: (f'<div class="die" style="left:{x}px;top:{y}px;width:{s}px;height:{s}px;transform:rotate({r}deg)">'
+                                  + "".join(f'<i style="left:{px * s:.1f}px;top:{py * s:.1f}px;width:{(13 if v == 1 else 9)}px;'
+                                            f'height:{(13 if v == 1 else 9)}px;{"background:#FF6F61" if v == 1 else ""}"></i>'
+                                            for px, py in pips[v]) + '</div>')
+        bg = "linear-gradient(160deg,#6C7CC9 0%,#3F4F9E 50%,#2C3875 100%)"
+        # フルハウス（5・5・5・1・1）。上の段に 3 つ、下の段に 2 つ。絵は日本語・英語で共通なので役の名前の文字は入れない。
+        body = die(5, 8, 58, -10) + die(5, 64, 52, 4) + die(5, 120, 60, 12) + die(1, 34, 118, -6) + die(1, 96, 122, 8)
     else:
         raise KeyError(gid)
     # モックと同じく、名前を上に重ねるぶん物を 24pt 下げる。
