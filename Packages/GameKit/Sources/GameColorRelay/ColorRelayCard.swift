@@ -19,13 +19,14 @@ public enum RelayColor: Int, CaseIterable, Codable, Sendable, Hashable {
         }
     }
 
-    /// 色名の頭文字。札の四隅に添えて、色が見分けにくい人にも札の色が伝わるようにする（#2007）。
-    public var initial: String {
+    /// 色ごとの形の印（SF Symbols）。札の隅に添えて、色が見分けにくい人にも札の色が伝わるようにする
+    /// （#2007 の頭文字を #2387 で文字なしの形に置き換えた）。相手のアイコン（星・月・雲）とは重ならない形にする。
+    public var shapeSymbol: String {
         switch self {
-        case .red:    return tr("あ")
-        case .green:  return tr("み")
-        case .purple: return tr("む")
-        case .yellow: return tr("き")
+        case .red:    return "circle.fill"
+        case .green:  return "triangle.fill"
+        case .purple: return "diamond.fill"
+        case .yellow: return "square.fill"
         }
     }
 
