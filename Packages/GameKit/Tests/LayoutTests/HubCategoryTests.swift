@@ -49,7 +49,7 @@ struct HubCategoryTests {
         #expect(r.populatedCategories(among: []).isEmpty)
     }
 
-    /// `AppEnvironment.registry` の `categories:` に載った ID。
+    /// `AppEnvironment.registry` の `categories:` に載った ID（登録中・企画倉庫どちらも含む）。
     private func categorizedIDs(_ source: String) throws -> [String] {
         let start = try #require(source.range(of: "categories: ["))
         let end = try #require(source.range(of: "])", range: start.upperBound..<source.endIndex))
@@ -59,16 +59,58 @@ struct HubCategoryTests {
         return ids
     }
 
+    /// `registry = GameRegistry([ ... ], categories:` のゲーム一覧から、コメントアウトされていない
+    /// （= ハブに登録中の）`XxxModule()` の型名一覧を拾う。倉庫ゲームの説明文コメントも行頭が `//` なので、
+    /// 行単位で `//` 始まりを落とすだけで登録行だけが残る。
+    private func registeredModuleTypeNames(_ source: String) throws -> [String] {
+        let start = try #require(source.range(of: "static let registry = GameRegistry(["))
+        let end = try #require(source.range(of: "], categories: [", range: start.upperBound..<source.endIndex))
+        let body = String(source[start.upperBound..<end.lowerBound])
+        let activeBody = body.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        return try activeBody.matches(of: Regex(#"([A-Za-z0-9]+Module)\(\)"#))
+            .compactMap { $0.output[1].substring.map(String.init) }
+    }
+
+    /// `Packages/GameKit/Sources/**/*Module.swift` 全部から `id` を読み、型名をキーにして返す
+    /// （ハブに登録中・企画倉庫（コメントアウト中）どちらも含む・#2385）。
+    private func allGameModuleIDsByTypeName() throws -> [String: String] {
+        let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let enumerator = try #require(
+            FileManager.default.enumerator(at: sourcesRoot, includingPropertiesForKeys: nil),
+            "\(sourcesRoot.path) を走査できない")
+        var result: [String: String] = [:]
+        while let item = enumerator.nextObject() {
+            guard let url = item as? URL, url.lastPathComponent.hasSuffix("Module.swift"),
+                  url.lastPathComponent != "GameModule.swift" else { continue }
+            let text = try String(contentsOf: url, encoding: .utf8)
+            guard let typeMatch = text.firstMatch(of: /public struct (\w+): GameModule/),
+                  let idMatch = text.firstMatch(of: /public let id = "([a-z0-9]+)"/) else { continue }
+            result[String(typeMatch.output.1)] = String(idMatch.output.1)
+        }
+        // 空振り防止。パスがずれて 0 件になると、以降の照合がすべて素通りしてしまう。
+        #expect(result.count >= 35, "ゲームモジュールの走査が空振りしている可能性（\(result.count) 件しか読めていない）")
+        return result
+    }
+
     @Test("ハブに並ぶ全ゲームがカテゴリーを持ち、絵のアセットが同梱されている")
     func everyRegisteredGameHasCategoryAndArt() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
-        let ids = try categorizedIDs(source)
-        // コメントアウトされていない `XxxModule(),` の行数 = 登録ゲーム数。
-        let registered = SourceScan.matchCount(of: #"(?m)^\s{8}[A-Za-z0-9]+Module\(\),"#, in: source)
-        #expect(Set(ids).count == ids.count, "同じ ID が 2 回載っている")
-        #expect(ids.count == registered, "カテゴリーの表（\(ids.count)）と登録ゲーム数（\(registered)）が合わない")
-        for id in ids {
+        let categorized = try categorizedIDs(source)
+        #expect(Set(categorized).count == categorized.count, "同じ ID が 2 回載っている")
+
+        // 実際にハブへ出るのは、コメントアウトされていない登録行の分だけ（企画倉庫のゲームは除く）。
+        let moduleIDsByType = try allGameModuleIDsByTypeName()
+        let registeredTypeNames = try registeredModuleTypeNames(source)
+        let registeredIDs = registeredTypeNames.compactMap { moduleIDsByType[$0] }
+        #expect(registeredIDs.count == registeredTypeNames.count,
+                 "登録行の型名からゲーム ID を引けないものがある: \(Set(registeredTypeNames).subtracting(moduleIDsByType.keys))")
+        #expect(Set(registeredIDs).isSubset(of: Set(categorized)),
+                 "ハブに登録中なのにカテゴリーの表に無い: \(Set(registeredIDs).subtracting(categorized))")
+
+        for id in registeredIDs {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/hubtile-\(id).imageset/hubtile-\(id).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(id) の絵（hubtile-\(id).png）が無い")
@@ -81,6 +123,16 @@ struct HubCategoryTests {
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/hubthumb-\(id).imageset/hubthumb-\(id).png")
             #expect(FileManager.default.fileExists(atPath: thumb.path), "\(id) の小さい絵（hubthumb-\(id).png）が無い")
         }
+    }
+
+    @Test("企画倉庫（コメントアウト中）のゲームも含め、ゲームモジュール全部がカテゴリーの表に載っている（#2385）")
+    func everyGameModuleIncludingWarehousedHasCategory() throws {
+        let source = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
+        let categorized = Set(try categorizedIDs(source))
+        let allIDs = Set(try allGameModuleIDsByTypeName().values)
+        #expect(allIDs.isSubset(of: categorized),
+                 "カテゴリーの表に無いゲームモジュールがある（倉庫のコメントアウト分も含めて行を用意すること）: \(allIDs.subtracting(categorized))")
     }
 
     @Test("ハブはカテゴリーを GameRegistry から引き、ゲーム ID を直書きしない")
