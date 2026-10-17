@@ -774,8 +774,8 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
 
     public var title: String {
         switch self {
-        case .stages:  return "ステージ"
-        case .endless: return "エンドレス"
+        case .stages:  return tr("ステージ")
+        case .endless: return tr("エンドレス")
         }
     }
 
@@ -783,8 +783,9 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     public var summary: String {
         switch self {
         case .stages:
-            return "ステージ 1 から \(RunnerRules.stageCount) 面を順にクリアして、\(RunnerWorld.allCases.count) つの世界を先へ進む、いつもの遊び方"
-        case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
+            return tr("ステージ 1 から %1$lld 面を順にクリアして、%2$lld つの世界を先へ進む、いつもの遊び方",
+                      RunnerRules.stageCount, RunnerWorld.allCases.count)
+        case .endless: return tr("毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません")
         }
     }
 
@@ -908,4 +909,15 @@ public enum RunnerResultFace {
 
     /// スタート画面の笑顔の倍率（2 倍 = 32pt。主ボタンの脇に小さく添える）。
     public static let startDotScale = 2
+}
+
+/// ミスで当たった相手（#2254）。表示の 1 行を世界の着せ替えに合わせるための値で、
+/// 解析の `cause`（`AnalyticsEndCause`）とは別物——あちらは語彙を増やさない。
+public enum RunnerMissObject: Equatable, Sendable {
+    /// 障害物に当たった（穴は落ちるだけなので来ない）。
+    case hazard(RunnerHazardKind)
+    /// 台座の正面に突っ込んだ。
+    case platformFace
+    /// 崩れる足場（吊り橋・桟橋）の板の端に突っ込んだ。見た目が `dressing.crumblingPlatform` なので台座とは別に持つ。
+    case crumblingPlatformFace
 }

@@ -13,7 +13,7 @@ public enum ChessAccessibility {
 
     /// 駒の呼び名（例: "白のナイト"）。
     public static func pieceName(_ piece: ChessPiece) -> String {
-        "\(piece.color.name)の\(piece.type.japaneseName)"
+        tr("%1$@の%2$@", piece.color.name, piece.type.displayName)
     }
 
     /// 盤上 1 マスの読み上げ文。
@@ -30,31 +30,45 @@ public enum ChessAccessibility {
         if let piece {
             parts.append(pieceName(piece))
         } else {
-            parts.append("空きマス")
+            parts.append(tr("空きマス"))
         }
         // 王手は「なぜ動かせないのか」に直結する情報なので、選択状態より先に読ませる。
-        if isCheckedKing { parts.append("チェックされています") }
-        if isSelected { parts.append("選択中") }
-        if isTarget { parts.append(piece == nil ? "ここに指せます" : "取れます") }
-        if isLastMove { parts.append("直前の手") }
+        if isCheckedKing { parts.append(tr("チェックされています")) }
+        if isSelected { parts.append(tr("選択中")) }
+        if isTarget { parts.append(piece == nil ? tr("ここに指せます") : tr("取れます")) }
+        if isLastMove { parts.append(tr("直前の手")) }
         // ヒントの印（#1118）。見た目の枠（`ChessView.targetLayer` が描くヒントの印）と同じ条件で読ませる。
-        if isHint { parts.append("ヒントの手") }
-        return parts.joined(separator: "、")
+        if isHint { parts.append(tr("ヒントの手")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// 成り先の選択札の読み上げ文（#1641）。見た目の問い（`ChessView.promotionOverlay`）と同じ文言にする。
-    public static let promotionPromptLabel = "何に成りますか？"
+    public static var promotionPromptLabel: String { tr("何に成りますか？") }
 
     /// 取られた駒の列の読み上げ文。1 マスずつ読ませると数だけ増えて意味が伝わらないので、
     /// 「誰が何を何枚失ったか」の 1 文にまとめる。
     public static func capturedLabel(owner: ChessColor, lost: [ChessPieceType]) -> String {
-        guard !lost.isEmpty else { return "\(owner.name)の取られた駒、なし" }
+        guard !lost.isEmpty else { return tr("%@の取られた駒、なし", owner.name) }
         var counts: [ChessPieceType: Int] = [:]
         for type in lost { counts[type, default: 0] += 1 }
         let text = ChessPieceType.allCases
             .filter { counts[$0] != nil }
-            .map { "\($0.japaneseName)\(counts[$0]!)枚" }
-            .joined(separator: "、")
-        return "\(owner.name)の取られた駒、\(text)"
+            .map { tr("%1$@%2$lld枚", $0.displayName, counts[$0]!) }
+            .joined(separator: tr("、"))
+        return tr("%1$@の取られた駒、%2$@", owner.name, text)
+    }
+
+    /// CPU が指したときの読み上げ文（#2280）。`piece` は指したあとの `to` にある駒。
+    /// チェックは「なぜ動かせない駒があるのか」に直結するので、掛かっていれば続けて読ませる。
+    public static func cpuMoveAnnouncement(piece: ChessPiece?, move: ChessMove, isCheck: Bool) -> String {
+        let from = squareName(move.from), to = squareName(move.to)
+        var text: String
+        if let piece {
+            text = tr("CPUは%1$@を%2$@から%3$@へ動かしました", pieceName(piece), from, to)
+        } else {
+            text = tr("CPUは%1$@から%2$@へ動かしました", from, to)
+        }
+        if isCheck { text += tr("。") + tr("チェックです") }
+        return text
     }
 }

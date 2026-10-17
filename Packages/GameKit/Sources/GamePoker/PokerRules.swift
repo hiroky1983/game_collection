@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 // MARK: - RuleSet
 
@@ -18,15 +19,15 @@ public enum PokerRuleSet: String, Codable, Sendable, CaseIterable, Identifiable 
 
     public var title: String {
         switch self {
-        case .standard: return "スタンダード"
-        case .bonus:    return "ボーナスルール"
+        case .standard: return tr("スタンダード")
+        case .bonus:    return tr("ボーナスルール")
         }
     }
 
     public var summary: String {
         switch self {
-        case .standard: return "ポットの総取りだけで競う、いつもの5カードドロー"
-        case .bonus:    return "勝負に勝つと役ごとのボーナス。さらにダブルアップに挑戦できる"
+        case .standard: return tr("ポットの総取りだけで競う、いつもの5カードドロー")
+        case .bonus:    return tr("勝負に勝つと役ごとのボーナス。さらにダブルアップに挑戦できる")
         }
     }
 

@@ -3,8 +3,8 @@ import Core
 
 public struct GoModule: GameModule {
     public let id = "go"
-    public let title = "囲碁"
-    public let description = "9路盤で CPU と対局。ルールも読める"
+    public var title: String { tr("囲碁") }
+    public var description: String { tr("9路盤で CPU と対局。ルールも読める") }
     // 碁石 2 つに見える記号を選ぶ。格子系のアイコンは将棋・ナンプレ・五目並べと
     // ハブ上で見分けが付かない。
     public var icon: Image { Image(systemName: "circlebadge.2.fill") }
@@ -21,5 +21,10 @@ public struct GoModule: GameModule {
         guard let snap = snapshots.load(GoSnapshot.self, for: id) else { return false }
         let cpuOpening = snap.humanSide == GoStone.white.rawValue ? 1 : 0
         return snap.moves.count > cpuOpening || (snap.phase ?? 0) != GoPhase.playing.rawValue
+    }
+
+    /// 対局中で、人間がまだ一手も打っていない局（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
     }
 }

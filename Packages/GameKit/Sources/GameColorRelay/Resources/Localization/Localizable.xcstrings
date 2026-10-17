@@ -1,0 +1,879 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@の%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ あがり！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Out!"
+          }
+        }
+      }
+    },
+    "%@にして出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play as %@"
+          }
+        }
+      }
+    },
+    "%@の勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Wins"
+          }
+        }
+      }
+    },
+    "%@の番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@'s turn"
+          }
+        }
+      }
+    },
+    "%lldゲーム目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game %lld"
+          }
+        }
+      }
+    },
+    "%lld位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld"
+          }
+        }
+      }
+    },
+    "%lld枚引いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drew %lld"
+          }
+        }
+      }
+    },
+    "%lld枚引いて、番は飛ばされます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw %lld and lose your turn"
+          }
+        }
+      }
+    },
+    "%lld枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw %lld"
+          }
+        }
+      }
+    },
+    "+2 / いろがえ+4 を受けたとき、広告を見ると1ゲームに1回だけ引かずに済みます（番は飛ばされます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you're hit with +2 or Color Change +4, watch an ad to skip the draw, once per game (you still lose your turn)"
+          }
+        }
+      }
+    },
+    "1枚引いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drew 1"
+          }
+        }
+      }
+    },
+    "1枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw 1"
+          }
+        }
+      }
+    },
+    "CPU3人と対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play against 3 CPUs. Everyone gets 7 cards. Take turns playing a card that matches the pile's color, number or symbol. The first to empty their hand wins."
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "あ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R"
+          }
+        }
+      }
+    },
+    "あか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red"
+          }
+        }
+      }
+    },
+    "あがり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなたの勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You Win!"
+          }
+        }
+      }
+    },
+    "あなたの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your turn"
+          }
+        }
+      }
+    },
+    "あなた（残り%lld枚）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You (%lld card)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You (%lld cards)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "いまの色" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        }
+      }
+    },
+    "いまは出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "can't play now"
+          }
+        }
+      }
+    },
+    "いろがえ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Change"
+          }
+        }
+      }
+    },
+    "いろがえ+4" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Change +4"
+          }
+        }
+      }
+    },
+    "いろがえに加えて、次の人は4枚引いて番を飛ばされます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Works like Color Change, and the next player also draws 4 cards and loses their turn"
+          }
+        }
+      }
+    },
+    "いろがえプラス4" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Change Plus 4"
+          }
+        }
+      }
+    },
+    "いろリレー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Relay"
+          }
+        }
+      }
+    },
+    "き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Y"
+          }
+        }
+      }
+    },
+    "きいろ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow"
+          }
+        }
+      }
+    },
+    "ぎゃく" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverse"
+          }
+        }
+      }
+    },
+    "とばし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
+          }
+        }
+      }
+    },
+    "どの札の上にも出せて、次の色を自分で選べます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can be played on any card, and you choose the next color"
+          }
+        }
+      }
+    },
+    "み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "G"
+          }
+        }
+      }
+    },
+    "みどり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green"
+          }
+        }
+      }
+    },
+    "む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "P"
+          }
+        }
+      }
+    },
+    "むらさき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purple"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How it plays"
+          }
+        }
+      }
+    },
+    "ダブルタップで選択を切り替えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to select or deselect"
+          }
+        }
+      }
+    },
+    "プラス2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus 2"
+          }
+        }
+      }
+    },
+    "上がった人が1位。残りは手札の少ない順です。次のゲームは親が1人ずつ回ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever goes out first takes 1st place. Everyone else is ranked by fewest cards left. The dealer rotates each game."
+          }
+        }
+      }
+    },
+    "出さずに次へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass"
+          }
+        }
+      }
+    },
+    "出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        }
+      }
+    },
+    "出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "playable"
+          }
+        }
+      }
+    },
+    "出せる札がありません。山から1枚引いてください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No playable cards. Draw one from the deck"
+          }
+        }
+      }
+    },
+    "出せる札が無いとき（出したくないときも）は山から1枚引きます。引いた札が出せるならそのまま出せます（出さずに次へ回してもかまいません）。出せなければ自動で次の人の番になります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you can't play (or don't want to), draw one card from the deck. If the card you drew can be played, you can play it right away (or pass). If not, play moves on automatically."
+          }
+        }
+      }
+    },
+    "場" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pile"
+          }
+        }
+      }
+    },
+    "場に札はありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No card on the pile"
+          }
+        }
+      }
+    },
+    "場の札、%1$@。いまの色は%2$@。山は残り%3$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pile: %1$@. Current color: %2$@. %3$lld card left in the deck"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pile: %1$@. Current color: %2$@. %3$lld cards left in the deck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "場の札、%1$@。山は残り%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pile: %1$@. %2$lld card left in the deck"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pile: %1$@. %2$lld cards left in the deck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "山 %lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deck %lld"
+          }
+        }
+      }
+    },
+    "山から1枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw a card from the deck"
+          }
+        }
+      }
+    },
+    "広告を見て%lld枚の引き札を免除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to skip drawing %lld"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに番が進んだため、免除できませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play moved on while the ad was playing, so the draw couldn't be skipped."
+          }
+        }
+      }
+    },
+    "引いた札は出せます。出さずに次へ回すこともできます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play the card you drew, or pass"
+          }
+        }
+      }
+    },
+    "引き札の免除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipping a draw"
+          }
+        }
+      }
+    },
+    "引き札を免除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw skipped"
+          }
+        }
+      }
+    },
+    "引き札を免除できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Skip the Draw"
+          }
+        }
+      }
+    },
+    "引くとき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawing"
+          }
+        }
+      }
+    },
+    "札を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a Card"
+          }
+        }
+      }
+    },
+    "次のゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Game"
+          }
+        }
+      }
+    },
+    "次の人の番を飛ばします" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skips the next player's turn"
+          }
+        }
+      }
+    },
+    "次の人は山から2枚引き、番を飛ばされます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next player draws 2 cards and loses their turn"
+          }
+        }
+      }
+    },
+    "次の色を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the next color"
+          }
+        }
+      }
+    },
+    "残り%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "決着" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game over"
+          }
+        }
+      }
+    },
+    "番の回る向きが逆になります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverses the direction of play"
+          }
+        }
+      }
+    },
+    "色か数字をつないで手札を出し切ろう。CPU3人と対戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match the color or number and empty your hand first. Play against 3 CPUs"
+          }
+        }
+      }
+    },
+    "逆回り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counterclockwise"
+          }
+        }
+      }
+    },
+    "選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "selected"
+          }
+        }
+      }
+    },
+    "開始待ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to start"
+          }
+        }
+      }
+    },
+    "順位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ranking"
+          }
+        }
+      }
+    },
+    "順回り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clockwise"
+          }
+        }
+      }
+    },
+    "！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "!"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

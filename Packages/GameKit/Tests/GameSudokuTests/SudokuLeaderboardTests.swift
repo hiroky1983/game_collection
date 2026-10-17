@@ -181,4 +181,40 @@ struct SudokuSnapshotTests {
         #expect(restored.state == .playing, "鍵が増えても既存の中断データを失わせない")
         #expect(!restored.continueUsed, "欠けていたら『まだ使っていない』として読む")
     }
+
+    @Test("メモモードは中断→復元でも ON のまま（#2247）")
+    func noteModeSurvivesRestart() async {
+        let f = Fixture(suite: "notemode")
+        let model = f.makeModel()
+        await model.newGame(difficulty: .easy)
+        model.toggleNoteMode()
+        #expect(model.noteMode)
+
+        let restored = f.makeModel()
+        #expect(restored.state == .playing, "前提: 中断データから続きを復元している")
+        #expect(restored.noteMode, "メモモード ON のまま復元される")
+    }
+
+    @Test("モードの鍵を持たない旧形式は OFF として読み、新規対局は OFF に戻る（#2247）")
+    func legacySnapshotReadsNoteModeOff() async throws {
+        let f = Fixture(suite: "notemode-legacy")
+        let model = f.makeModel()
+        await model.newGame(difficulty: .easy)
+        model.toggleNoteMode()
+
+        var snapshot = try #require(f.store.load(SudokuSnapshot.self, for: "sudoku"))
+        snapshot.noteMode = nil
+        try f.store.save(snapshot, for: "sudoku")
+        let legacyData = try #require(f.store.rawData(for: "sudoku"))
+        let legacy = try #require(String(data: legacyData, encoding: .utf8))
+        #expect(!legacy.contains("noteMode"), "前提: 旧形式と同じく鍵が無い")
+
+        let restored = f.makeModel()
+        #expect(restored.state == .playing)
+        #expect(!restored.noteMode)
+
+        #expect(model.noteMode, "前提: 新規対局の直前は ON")
+        await model.newGame(difficulty: .easy)
+        #expect(!model.noteMode, "新規対局は OFF")
+    }
 }

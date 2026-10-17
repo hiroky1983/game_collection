@@ -42,7 +42,7 @@ struct MinesweeperRewardedContinueTests {
     @Test("視聴中は「あきらめる」を押せない")
     func giveUpButtonIsDisabledWhileWatching() throws {
         let source = try SourceScan.packageSource("Sources/GameMinesweeper/MinesweeperView.swift")
-        let start = try #require(source.range(of: "GameDeadEndDismissButton(\"諦める\""),
+        let start = try #require(source.range(of: "GameDeadEndDismissButton(tr(\"諦める\")"),
                                  "「あきらめる」ボタンの定義が見つからない（走査が空振りしている）")
         let end = try #require(source.range(of: "showContinue = false", range: start.upperBound..<source.endIndex),
                                  "「あきらめる」ボタンの本体が見つからない")

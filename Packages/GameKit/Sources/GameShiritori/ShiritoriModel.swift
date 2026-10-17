@@ -438,8 +438,8 @@ extension ShiritoriModel {
     /// （`cpuCursorSlot` は中断データを持たないため注入できず、シミュレータは自動タップできない・#1286）。
     func debugShowCPUCursor() {
         configureForTesting(
-            opener: ShiritoriCard(.apple, "りんご"),
-            board: [ShiritoriCard(.gorilla, "ごりら"), ShiritoriCard(.spinningTop, "こま")],
+            opener: ShiritoriCard(.apple, "りんご"),  // i18n-keep: しりとりの読み（撮影用・ゲームの中身）
+            board: [ShiritoriCard(.gorilla, "ごりら"), ShiritoriCard(.spinningTop, "こま")],  // i18n-keep: しりとりの読み（撮影用・ゲームの中身）
             isPlayerTurn: false
         )
         cpuCursorSlot = 0

@@ -110,6 +110,9 @@ extension MahjongModel {
         }
         // 打牌に対するロンを見逃したときは、続けて鳴きの主張を順に聞く
         // （ロンを見逃した牌をポンすること自体は妨げられない）。
+        // 鳴きの選択（`.callOffer`）は保存対象外なので、ここで保存しておかないと同巡フリテンが
+        // ディスクに残らず、再開後に同じ牌でロンできてしまう（#2298）。
+        persist()
         pendingDiscard = (offer.tile, offer.discarder)
         pendingClaims = claimOrder(for: offer.tile, discardedBy: offer.discarder)
         resolveNextClaim()

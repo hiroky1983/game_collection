@@ -281,6 +281,27 @@ struct MinesweeperHintTests {
         #expect(f.model.hintsRemaining == 4)
     }
 
+    @Test("旗モードは中断→復元でも ON のまま。旧形式は OFF、新規対局は OFF（#2247）")
+    func flagModeSurvivesRestart() throws {
+        let f = Self.guessBoard()
+        #expect(!f.model.flagMode)
+        f.model.toggleFlagMode()
+
+        let restored = MinesweeperModel(services: f.services)
+        #expect(restored.flagMode, "旗モード ON のまま復元される")
+
+        var snap = try #require(f.store.load(MinesweeperSnapshot.self, for: "minesweeper"))
+        snap.flagMode = nil
+        try f.store.save(snap, for: "minesweeper")
+        let data = try #require(f.store.rawData(for: "minesweeper"))
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.contains("flagMode"), "前提: 旧形式と同じく鍵が無い")
+        #expect(!MinesweeperModel(services: f.services).flagMode)
+
+        f.model.newGame(rows: 4, cols: 4, mines: 2)
+        #expect(!f.model.flagMode)
+    }
+
     @Test("範囲外の使用回数は丸める")
     func outOfRangeUsedCountIsClamped() {
         #expect(Self.guessBoard(hintsUsed: 99).model.hints.used == 4)

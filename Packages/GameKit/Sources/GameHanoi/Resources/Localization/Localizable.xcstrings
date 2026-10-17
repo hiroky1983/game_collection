@@ -1,0 +1,360 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@、上から小さい順に %2$@（%3$lld枚）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, from the top, smallest first: %2$@ (%3$lld disk)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, from the top, smallest first: %2$@ (%3$lld disks)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@、円盤なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, no disks"
+          }
+        }
+      }
+    },
+    "2 は 1 の上に置けない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 can't go on top of 1"
+          }
+        }
+      }
+    },
+    "3 枚なら最少 7 手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 disks: 7 moves at best"
+          }
+        }
+      }
+    },
+    "、いちばん上を取っています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", holding the top disk"
+          }
+        }
+      }
+    },
+    "いちばん上の円盤を取ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picks up the top disk"
+          }
+        }
+      }
+    },
+    "その柱には円盤がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no disks on that peg"
+          }
+        }
+      }
+    },
+    "まんなかの柱" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Middle peg"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared!"
+          }
+        }
+      }
+    },
+    "タイム %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time %@"
+          }
+        }
+      }
+    },
+    "ハノイの塔" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tower of Hanoi"
+          }
+        }
+      }
+    },
+    "・" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "円盤" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disks"
+          }
+        }
+      }
+    },
+    "円盤%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld disk"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld disks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "円盤を1枚ずつ動かして、右の柱へ全部移そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the disks one at a time and stack them all on the right peg"
+          }
+        }
+      }
+    },
+    "取った円盤をここに置きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Places the disk you are holding here"
+          }
+        }
+      }
+    },
+    "取って、別の柱に置く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick up, then place on another peg"
+          }
+        }
+      }
+    },
+    "右の柱" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right peg"
+          }
+        }
+      }
+    },
+    "大きい円盤は、小さい円盤の上には置けません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A larger disk can't go on top of a smaller one"
+          }
+        }
+      }
+    },
+    "左の柱" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left peg"
+          }
+        }
+      }
+    },
+    "手数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves"
+          }
+        }
+      }
+    },
+    "新規ゲームを始めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "最少 %1$lld手に対して %2$lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld moves (fewest possible: %1$lld)"
+          }
+        }
+      }
+    },
+    "最少 %lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fewest: %lld"
+          }
+        }
+      }
+    },
+    "最少手数でクリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared in the fewest moves!"
+          }
+        }
+      }
+    },
+    "柱をタップして円盤を取ろう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a peg to pick up its top disk"
+          }
+        }
+      }
+    },
+    "終了して新規ゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit and Start New Game"
+          }
+        }
+      }
+    },
+    "置きたい柱をタップしよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the peg to place it on"
+          }
+        }
+      }
+    },
+    "途中で終了すると、いまの盤面と手数が失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, the current board and move count will be lost."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

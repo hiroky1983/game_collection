@@ -51,29 +51,29 @@ public struct RecordsSummary: Equatable, Sendable {
             guard isPlayed else { return RecordsSummary.unplayedText }
             // 遊んだのに数字が無い（スコアの無い終わり方だけ・コンティニューで負けが取り消された）
             // ときも空欄にはしない。
-            return recordLine ?? "記録なし"
+            return recordLine ?? tr("記録なし")
         }
 
         /// 遊んだ回数の表記。0 回（未プレイ）は出さない。
         public var playsText: String? {
-            plays > 0 ? "\(RecordFormat.number(plays))回" : nil
+            plays > 0 ? tr("%@回", RecordFormat.number(plays)) : nil
         }
 
         /// 節目の呼び名。勝敗のゲームは「初勝利」、それ以外（タイム・スコア）は「初クリア」。
         public func milestoneTitle(_ milestone: GameMilestone) -> String {
             switch milestone {
-            case .firstWin: return isWinLoss ? "初勝利" : "初クリア"
-            case .plays10:  return "\(GameMilestone.playsTarget)回あそんだ"
+            case .firstWin: return isWinLoss ? tr("初勝利") : tr("初クリア")
+            case .plays10:  return tr("%lld回あそんだ", GameMilestone.playsTarget)
             }
         }
 
         /// VoiceOver で 1 行ずつ読むためのラベル（受け入れ条件）。必ずゲーム名から読ませる。
         public var accessibilityLabel: String {
             var parts = [title, detailText]
-            if plays > 0 { parts.append("\(RecordFormat.number(plays))回あそんだ") }
+            if plays > 0 { parts.append(tr("%@回あそんだ", RecordFormat.number(plays))) }
             // 10回の節目は直前の回数と同じことを言うので、読み上げでは初勝利だけを添える。
             if milestones.contains(.firstWin) { parts.append(milestoneTitle(.firstWin)) }
-            return parts.joined(separator: "、")
+            return parts.joined(separator: tr("、"))
         }
     }
 
@@ -94,7 +94,7 @@ public struct RecordsSummary: Equatable, Sendable {
         }
 
         public var accessibilityLabel: String {
-            isAchieved ? "\(title)、達成" : "\(title)、\(min(value, target))/\(target)"
+            isAchieved ? tr("%@、達成", title) : tr("%1$@、%2$lld/%3$lld", title, min(value, target), target)
         }
     }
 
@@ -110,11 +110,11 @@ public struct RecordsSummary: Equatable, Sendable {
     public let milestones: [Milestone]
 
     /// 未プレイの行の文言。
-    public static let unplayedText = "まだ遊んでいない"
+    public static var unplayedText: String { tr("まだ遊んでいない") }
 
     /// 進捗バーの見出し（「全部あそぶ 12/18」）。
     public var progressText: String {
-        "全部あそぶ \(playedCount)/\(gameCount)"
+        tr("全部あそぶ %1$lld/%2$lld", playedCount, gameCount)
     }
 
     /// 記録から組み立てる**純粋関数**（保存も送信もしない）。
@@ -155,13 +155,13 @@ public struct RecordsSummary: Equatable, Sendable {
             .map(\.bestStreak)
             .max() ?? 0
         let milestones = [
-            Milestone(achievementID: GameCenterAchievements.firstWin, title: "はじめての勝利",
+            Milestone(achievementID: GameCenterAchievements.firstWin, title: tr("はじめての勝利"),
                       value: totalWins, target: 1),
-            Milestone(achievementID: GameCenterAchievements.wins10, title: "通算10勝",
+            Milestone(achievementID: GameCenterAchievements.wins10, title: tr("通算10勝"),
                       value: totalWins, target: 10),
-            Milestone(achievementID: GameCenterAchievements.wins50, title: "通算50勝",
+            Milestone(achievementID: GameCenterAchievements.wins50, title: tr("通算50勝"),
                       value: totalWins, target: 50),
-            Milestone(achievementID: GameCenterAchievements.playAll, title: "全部のあそびを遊ぶ",
+            Milestone(achievementID: GameCenterAchievements.playAll, title: tr("全部のあそびを遊ぶ"),
                       value: playedCount, target: games.count),
         ]
         return RecordsSummary(

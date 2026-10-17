@@ -129,9 +129,11 @@ public struct RunnerStage: Equatable, Sendable {
     /// - Parameters:
     ///   - speedGain: 距離あたりの加速（#675）。既定の 0 で従来どおり一定の速さ。
     ///   - speedCap: 加速の上限。省略すると `speed`（= 加速しない）。
+    ///   - checkpoint: チェックポイントの位置を指定する（`clearingAhead(of:)` が元の位置を引き継ぐ用）。
+    ///     省略すると `makeCheckpoint` で求める。
     public init(
         number: Int, pattern: String, speed: Double,
-        speedGain: Double = 0, speedCap: Double? = nil
+        speedGain: Double = 0, speedCap: Double? = nil, checkpoint: Double? = nil
     ) {
         self.number = number
         self.pattern = pattern
@@ -147,13 +149,48 @@ public struct RunnerStage: Equatable, Sendable {
         self.hazards = hazards
         self.pickups = Self.makePickups(pattern: pattern)
         self.platforms = platforms
-        self.checkpoint = Self.makeCheckpoint(
+        self.checkpoint = checkpoint ?? Self.makeCheckpoint(
             length: length, hazards: hazards, platforms: platforms, sinkFloors: sinkFloors
         )
 
         self.boostFloors = Self.makeBoostFloors(pattern: pattern)
         self.sinkFloors = sinkFloors
         self.steamBanks = Self.makeSteamBanks(pattern: pattern)
+    }
+
+    /// 再開位置の前方で、罠を置かない距離（#2256）。画面の横幅 1 枚ぶん（会長指示 2026-10-14）。
+    /// 画面の横幅は端末によらず `Metrics.width` で固定（iPad でも同じ比率に拡縮されるだけ）なので、
+    /// いちばん横に長い画面でも 1 画面ぶん空く。
+    public static let resumeClearDistance: Double = RunnerField.Metrics.width
+
+    /// 距離 `distance` から再開するときのコース: **前方 1 画面ぶん（`resumeClearDistance`）の罠・
+    /// 障害・穴・動物・台座・沈む床を取り除いた**ステージを返す（#2256）。
+    ///
+    /// 広告を見て中間地点から再開した直後に、助走なしで穴へ落ちる／いきなり跳ばされる、という会長QA。
+    /// 障害は取り除くだけなので「すべての障害が越えられる」成立条件は崩れない（減る方向にしか変わらない）。
+    /// 区画記号は 1 文字 = 1 区画なので、窓に関わる障害を持つ区画を平地（`-`）に置き換える。
+    /// 動く障害は当たり判定の位置ではなく関わる距離の範囲（`activeRange`）で判定する。
+    /// 面番号・速さ・チェックポイントの位置は変えない。
+    public func clearingAhead(of distance: Double) -> RunnerStage {
+        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        let window = distance...(distance + Self.resumeClearDistance)
+        var blank: Set<Int> = []
+        func index(_ x: Double) -> Int { Int((x / segmentWidth).rounded(.down)) }
+        for hazard in hazards where hazard.activeRange.overlaps(window) {
+            blank.insert(index(hazard.start))
+        }
+        for platform in platforms where platform.start < window.upperBound && platform.end > window.lowerBound {
+            blank.formUnion(index(platform.start)...index(platform.end - 0.001))
+        }
+        for floor in sinkFloors where floor.start < window.upperBound && floor.end > window.lowerBound {
+            blank.formUnion(index(floor.start)...index(floor.end - 0.001))
+        }
+        guard !blank.isEmpty else { return self }
+        let symbols = pattern.enumerated().map { blank.contains($0.offset) ? "-" : String($0.element) }
+        return RunnerStage(
+            number: number, pattern: symbols.joined(), speed: speed,
+            speedGain: speedGain, speedCap: speedCap, checkpoint: checkpoint
+        )
     }
 
     /// 走者が距離 `distance` にいるときの湯けむりの濃さ（0…1・#1938）。区間の中は 1、その前後は

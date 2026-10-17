@@ -1,0 +1,622 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@ あなた %2$lld 対 CPU %3$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. You %2$lld, CPU %3$lld"
+          }
+        }
+      }
+    },
+    "1手先だけ見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks 1 move ahead"
+          }
+        }
+      }
+    },
+    "2 個をまくと…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sow 2 seeds…"
+          }
+        }
+      }
+    },
+    "3 個の穴をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a pit with 3"
+          }
+        }
+      }
+    },
+    "4手先まで読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads 4 moves ahead"
+          }
+        }
+      }
+    },
+    "8手先まで読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads 8 moves ahead"
+          }
+        }
+      }
+    },
+    "CPU から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU starts"
+          }
+        }
+      }
+    },
+    "CPU が %lld 個取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU captured %lld seeds"
+          }
+        }
+      }
+    },
+    "CPU がもう一度まきます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU sows again"
+          }
+        }
+      }
+    },
+    "CPU が考えています…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU is thinking…"
+          }
+        }
+      }
+    },
+    "CPUのストア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU's store"
+          }
+        }
+      }
+    },
+    "CPUの勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU wins"
+          }
+        }
+      }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "CPUの穴 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU pit %lld"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなた %1$lld – CPU %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You %1$lld – CPU %2$lld"
+          }
+        }
+      }
+    },
+    "あなたから" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You start"
+          }
+        }
+      }
+    },
+    "あなたのストア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your store"
+          }
+        }
+      }
+    },
+    "あなたの勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win"
+          }
+        }
+      }
+    },
+    "あなたの勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win!"
+          }
+        }
+      }
+    },
+    "あなたの穴 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your pit %lld"
+          }
+        }
+      }
+    },
+    "でたらめに選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picks at random"
+          }
+        }
+      }
+    },
+    "どちらかの側の穴がすべて空になったら終わりです。残った種はそれぞれの側のストアに入り、ストアの種が多いほうの勝ち。同じ数なら引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when all pits on either side are empty. Seeds left in the pits go to that side's store, and whoever has more seeds in their store wins. Equal counts are a draw."
+          }
+        }
+      }
+    },
+    "まき方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sowing"
+          }
+        }
+      }
+    },
+    "まけます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "can sow"
+          }
+        }
+      }
+    },
+    "もう一度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go again"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "ストア、あなた%1$lld個、CPU%2$lld個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stores: you %1$lld, CPU %2$lld"
+          }
+        }
+      }
+    },
+    "ストアに入った！もう一度あなたの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Into your store! Your turn again"
+          }
+        }
+      }
+    },
+    "ストアに入って もう一度！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Into the store: go again!"
+          }
+        }
+      }
+    },
+    "マンカラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mancala"
+          }
+        }
+      }
+    },
+    "先手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First"
+          }
+        }
+      }
+    },
+    "取り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture"
+          }
+        }
+      }
+    },
+    "右へ 1 個ずつ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One each to the right"
+          }
+        }
+      }
+    },
+    "向かいの %lld 個を取った！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You captured %lld seeds!"
+          }
+        }
+      }
+    },
+    "向かいの 5 個と合わせて 6 個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Takes the 5 across, 6 in all"
+          }
+        }
+      }
+    },
+    "多いほうの勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More seeds wins"
+          }
+        }
+      }
+    },
+    "引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw"
+          }
+        }
+      }
+    },
+    "後手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Second"
+          }
+        }
+      }
+    },
+    "手前の 6 つの穴があなた、奥の 6 つが CPU。右端の大きなくぼみがあなたのストア、左端が CPU のストアです。はじめは各穴に 4 個ずつ、合わせて 48 個の種があります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 6 pits nearest you are yours and the far 6 are the CPU's. The large hollow on the right is your store; the one on the left is the CPU's. Each pit starts with 4 seeds, 48 in all."
+          }
+        }
+      }
+    },
+    "手前の穴をタップして種をまこう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one of your pits to sow its seeds"
+          }
+        }
+      }
+    },
+    "手番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn order"
+          }
+        }
+      }
+    },
+    "新規対局しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "最後の 1 個が自分のストアに入ったら、もう一度続けてまけます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your last seed lands in your own store, you sow again."
+          }
+        }
+      }
+    },
+    "最後の 1 個が自分の側の空の穴に入り、向かいの相手の穴に種があれば、その種と最後の 1 個をまとめて自分のストアに入れます。向かいが空なら取れません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your last seed lands in an empty pit on your side and the opposite pit has seeds, you put those seeds and your last seed into your store. Nothing is captured if the opposite pit is empty."
+          }
+        }
+      }
+    },
+    "盤" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board"
+          }
+        }
+      }
+    },
+    "直前にまいた穴" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "last pit sown"
+          }
+        }
+      }
+    },
+    "種 %lld個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld seeds"
+          }
+        }
+      }
+    },
+    "種をまいて、ストアにたくさん集めよう！CPU と対戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sow seeds and gather the most in your store! Play the CPU"
+          }
+        }
+      }
+    },
+    "空の穴へ 1 個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last seed into an empty pit"
+          }
+        }
+      }
+    },
+    "終わり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End of the game"
+          }
+        }
+      }
+    },
+    "終了して新規対局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End and start new game"
+          }
+        }
+      }
+    },
+    "終局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game over"
+          }
+        }
+      }
+    },
+    "自分の穴を 1 つ選ぶと、中の種をすべて取り、反時計回りに 1 個ずつ次の穴へ入れていきます。自分のストアには入れますが、相手のストアは飛ばします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick one of your pits, take all its seeds, and drop them one at a time into the following pits, counterclockwise. You drop seeds into your own store but skip the opponent's."
+          }
+        }
+      }
+    },
+    "途中で終了すると対局データが失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

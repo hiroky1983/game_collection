@@ -82,6 +82,8 @@ struct MahjongMeldRow: View {
                 Text(Self.badge(meld))
                     .scaledFont(8, weight: .black, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
+                    // 英語（"Closed Kan" 等）は日本語より長い。折り返して副露の行の高さを変えない。
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -90,11 +92,11 @@ struct MahjongMeldRow: View {
 
     static func badge(_ meld: MahjongCall) -> String {
         switch meld.kind {
-        case .pon:       return "ポン"
-        case .chi:       return "チー"
-        case .openKan:   return "カン"
-        case .addedKan:  return "加槓"
-        case .closedKan: return "暗槓"
+        case .pon:       return tr("ポン")
+        case .chi:       return tr("チー")
+        case .openKan:   return tr("カン")
+        case .addedKan:  return tr("加槓")
+        case .closedKan: return tr("暗槓")
         }
     }
 }
@@ -111,13 +113,13 @@ struct MahjongCallBar: View {
     private static let maximumColumns = 4
     // 会長再指摘: 見出し行（牌＋「が出ました」）自体が対局中の1行ボタン行との差を生んでいた。
     // 見出しを独立した行にせず、牌をボタン行の左に**同じ行で**並べて行数そのものを揃える。
-    private static let buttonHeight: CGFloat = 40
+    private static let buttonHeight: CGFloat = GameButtonMetrics.minTapTarget
 
     var body: some View {
         HStack(alignment: .center, spacing: 6) {
             MahjongTileView(tile: offer.tile, width: 18, height: 24)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
+                .accessibilityLabel(tr("%@が出ました。鳴きますか", offer.tile.displayName))
             // 選択肢はチーの取り方違いで最大 3 つ増える（カン + ポン + チー3通り + スルーで 6 つ）。
             // 縦に積むと iPhone SE では画面からはみ出すので、入る数だけ横に並べて折り返す。
             LazyVGrid(columns: columns, spacing: 4) {
@@ -128,7 +130,7 @@ struct MahjongCallBar: View {
                     // 4列（チー3択+スルー）まで並ぶと1列がかなり狭くなり、`lineLimit(1)` だと
                     // `minimumScaleFactor` を下げても「ス…」と省略され続けた。1行に収める
                     // こと自体を諦め、必要なら2行に折り返させて省略記号そのものを起こさせない。
-                    Text("スルー")
+                    Text(tr("スルー"))
                         .scaledFont(12, weight: .bold, design: .rounded)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
@@ -140,7 +142,7 @@ struct MahjongCallBar: View {
                 // 角丸の四角形だと明示して、幅・高さの比に関わらず同じ見た目にする。
                 .buttonBorderShape(.roundedRectangle(radius: 8))
                 .tint(Theme.fillMuted)
-                .accessibilityLabel("鳴かずに進める")
+                .accessibilityLabel(tr("鳴かずに進める"))
             }
             // 会長再々指摘（2026-08-29「文言が…になる」）の真因: `.frame(maxWidth:)` を
             // HStack の外に付けても**外枠が広がるだけ**で、中の LazyVGrid には理想幅
@@ -219,7 +221,7 @@ struct MahjongKanButton: View {
         if options.count > 1 {
             Menu {
                 ForEach(Array(options.enumerated()), id: \.offset) { _, option in
-                    Button("\(MahjongMeldRow.badge(option)) \(option.tile.displayName)") {
+                    Button(MahjongMeldRow.badge(option) + " " + option.tile.displayName) {
                         onSelect(option)
                     }
                 }
@@ -229,7 +231,7 @@ struct MahjongKanButton: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.Fill.purple)
-            .accessibilityLabel("カンする牌を選ぶ")
+            .accessibilityLabel(tr("カンする牌を選ぶ"))
         } else {
             Button {
                 if let option = options.first { onSelect(option) }
@@ -240,13 +242,13 @@ struct MahjongKanButton: View {
             .buttonStyle(.borderedProminent)
             .tint(Theme.Fill.purple)
             .disabled(options.isEmpty)
-            .accessibilityLabel(options.first.map(MahjongAccessibility.callOptionLabel) ?? "カン")
+            .accessibilityLabel(options.first.map(MahjongAccessibility.callOptionLabel) ?? tr("カン"))
         }
     }
 
     private var label: some View {
-        Text("カン")
+        Text(tr("カン"))
             .scaledFont(16, weight: .bold, design: .rounded)
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)
     }
 }

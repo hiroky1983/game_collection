@@ -67,6 +67,11 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var track: RunnerEndlessTrack?
     /// 走者の中心のワールド x。ステージ先頭が 0、`stage.length` でゴール。
     public private(set) var distance: Double
+    /// 雲・丘（背景）を流す距離（#2255）。`distance` と同じく `currentSpeed × dt` ずつ進むが、
+    /// 難易度で上がった基準速のぶんを `RunnerRules.baseSpeed / 基準速` で打ち消すので、
+    /// 背景は序盤と同じ速さで流れる（速さの酔い対策）。乗り・アイテム・加速床のぶんは今どおり乗る。
+    /// 描画専用で、当たり判定・ジャンプの物理は `distance` のまま。
+    public private(set) var backdropDistance: Double
     /// 足元の高さ。`Metrics.groundY` が接地。
     public private(set) var footY: Double
     /// 上下の速度。
@@ -167,6 +172,10 @@ public struct RunnerField: Equatable, Sendable {
     /// 直近のミスの原因（#796）。`.fell` / `.crashed` を返した瞬間に決まり、解析の `game_end` の
     /// `cause` に載る。台座の正面（`isHittingPlatformFace`）は岩と同じ扱い。ミスするまで nil。
     public private(set) var lastMissCause: AnalyticsEndCause?
+    /// 直近のミスで当たった相手（#2254）。`lastMissCause` は解析の語彙（動物・岩…）に閉じているが、
+    /// ミスパネルの 1 行は世界ごとの着せ替え（港町のフォークリフトなど）に合わせて出すので種類が要る。
+    /// 穴・沈む床は相手が無いので nil。
+    public private(set) var lastMissObject: RunnerMissObject?
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
     ///
     /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
@@ -188,6 +197,7 @@ public struct RunnerField: Equatable, Sendable {
     public init(stage: RunnerStage, startingAt distance: Double, passedCheckpoint: Bool) {
         self.stage = stage
         self.distance = distance
+        self.backdropDistance = distance
         self.footY = Metrics.groundY
         self.vy = 0
         self.isGrounded = true
@@ -474,6 +484,7 @@ public struct RunnerField: Equatable, Sendable {
         // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
         self.jumpStartDistance = self.isGrounded ? nil : distance
         self.lastMissCause = nil
+        self.lastMissObject = nil
         self.sinkProgress = 0
         advanceTrack()
     }
@@ -559,7 +570,9 @@ public struct RunnerField: Equatable, Sendable {
             crumbleElapsed[index]? += dt
         }
         let previousDistance = distance
-        distance += currentSpeed * dt
+        let step = currentSpeed * dt
+        backdropDistance += step * RunnerRules.baseSpeed / stage.speed(at: distance)
+        distance += step
         // エンドレス（#1086）は、進んだぶんだけ前の区画を作って後ろの区画を捨てる。
         advanceTrack()
 
@@ -605,11 +618,13 @@ public struct RunnerField: Equatable, Sendable {
         if !isInvincible {
             if let hit = hittingHazard {
                 lastMissCause = hit.kind.missCause
+                lastMissObject = .hazard(hit.kind)
                 events.append(.crashed)
                 return
             }
-            if isHittingPlatformFace {
+            if let face = hittingPlatformFace {
                 lastMissCause = .rock
+                lastMissObject = face.kind == .crumbling ? .crumblingPlatformFace : .platformFace
                 events.append(.crashed)
                 return
             }
@@ -814,12 +829,15 @@ public struct RunnerField: Equatable, Sendable {
     /// この判定に来る前に `distance` と `footY` が動いてしまい、「中心が左端ちょうど」
     /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
     /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
-    var isHittingPlatformFace: Bool {
+    var isHittingPlatformFace: Bool { hittingPlatformFace != nil }
+
+    /// 正面に突っ込んだ台座（無ければ nil）。ミスの文言を台座と崩れる足場で分けるために種類まで返す（#2285）。
+    var hittingPlatformFace: RunnerPlatform? {
         firstPlatform { platform in
             guard distance < platform.start else { return false }
             guard platform.start < playerMaxX else { return false }
             return footY < Metrics.groundY + platform.top
-        } != nil
+        }
     }
 
     // MARK: - コースの中身（#1086）

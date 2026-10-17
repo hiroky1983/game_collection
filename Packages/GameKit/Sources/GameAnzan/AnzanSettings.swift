@@ -6,7 +6,10 @@ public enum AnzanDigits: Int, CaseIterable, Codable, Sendable {
     case two = 2
     case three = 3
 
-    public var label: String { "\(rawValue)桁" }
+    public var label: String { label(language: nil) }
+
+    /// `language` を指定した表示名（nil ならいまの表示言語）。記録用の区分名は日本語で引く。
+    func label(language: AppLanguage?) -> String { tr("%lld桁", rawValue, language: language) }
 
     /// 出す数の範囲。0 で始まる数は出さない（1 桁は 1〜9、2 桁は 10〜99）。
     public var range: ClosedRange<Int> {
@@ -18,7 +21,7 @@ public enum AnzanDigits: Int, CaseIterable, Codable, Sendable {
     }
 
     /// 開始シートの副題（「1〜9」など）。
-    public var subtitle: String { "\(range.lowerBound)〜\(range.upperBound)" }
+    public var subtitle: String { tr("%1$lld〜%2$lld", range.lowerBound, range.upperBound) }
 }
 
 /// 出す数の個数（そろばん教室の言い方では「口数」）。
@@ -27,7 +30,10 @@ public enum AnzanCount: Int, CaseIterable, Codable, Sendable {
     case ten = 10
     case fifteen = 15
 
-    public var label: String { "\(rawValue)個" }
+    public var label: String { label(language: nil) }
+
+    /// `language` を指定した表示名（nil ならいまの表示言語）。記録用の区分名は日本語で引く。
+    func label(language: AppLanguage?) -> String { tr("%lld個", rawValue, language: language) }
 }
 
 /// 表示の速さ。1 つの数を出してから次の数を出すまでの間隔で決める。
@@ -36,11 +42,14 @@ public enum AnzanSpeed: String, CaseIterable, Codable, Sendable {
     case normal
     case fast
 
-    public var label: String {
+    public var label: String { label(language: nil) }
+
+    /// `language` を指定した表示名（nil ならいまの表示言語）。記録用の区分名は日本語で引く。
+    func label(language: AppLanguage?) -> String {
         switch self {
-        case .slow:   return "ゆっくり"
-        case .normal: return "ふつう"
-        case .fast:   return "はやい"
+        case .slow:   return tr("ゆっくり", language: language)
+        case .normal: return tr("ふつう", language: language)
+        case .fast:   return tr("はやい", language: language)
         }
     }
 
@@ -56,9 +65,9 @@ public enum AnzanSpeed: String, CaseIterable, Codable, Sendable {
     /// 開始シートの副題（「1.5秒」など）。
     public var subtitle: String {
         switch self {
-        case .slow:   return "1.5秒"
-        case .normal: return "1秒"
-        case .fast:   return "0.6秒"
+        case .slow:   return tr("1.5秒")
+        case .normal: return tr("1秒")
+        case .fast:   return tr("0.6秒")
         }
     }
 }
@@ -84,8 +93,14 @@ public struct AnzanSettings: Codable, Equatable, Sendable {
     /// 記録（自己ベスト・連続正解）を分ける区分のキー。3 軸の組ごとに 1 件。
     public var variant: String { "d\(digits.rawValue)-n\(count.rawValue)-\(speed.rawValue)" }
 
-    /// 区分の表示名（「2桁・10個・ふつう」）。ハブの記録行と画面の見出しに使う。
-    public var variantLabel: String { "\(digits.label)・\(count.label)・\(speed.label)" }
+    /// 区分の表示名（「2桁・10個・ふつう」）。画面の見出しに使う。いまの表示言語で引く。
+    public var variantLabel: String { tr("%1$@・%2$@・%3$@", digits.label, count.label, speed.label) }
+
+    /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されてハブの記録行に出るので、
+    /// 表示言語によらず日本語で組む（表示の英語化は #2168）。
+    public var recordVariantLabel: String {
+        RecordVariantLabels.stored(gameID: "anzan", variant: variant)
+    }
 
     /// 難しさの段。3 軸それぞれの段（0 始まり）の和で、0（全部いちばんやさしい）〜 6。
     public var rank: Int {

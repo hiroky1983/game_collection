@@ -47,10 +47,10 @@ struct RunnerResultBadgeScanTests {
         let cleared = try #require(SourceScan.declaration(of: "private var clearedDetail", in: source))
         let endless = try #require(SourceScan.declaration(of: "private var endlessDetail", in: source))
 
-        #expect(cleared.contains(#"RecordBadge("新しい面に到達！")"#))
-        #expect(endless.contains(#"RecordBadge("自己ベスト更新！")"#))
-        #expect(SourceScan.matchCount(of: #"RecordBadge\("新しい面に到達！"\)"#, in: source) == 1)
-        #expect(SourceScan.matchCount(of: #"RecordBadge\("自己ベスト更新！"\)"#, in: source) == 1)
+        #expect(cleared.contains(#"RecordBadge(tr("新しい面に到達！"))"#))
+        #expect(endless.contains(#"RecordBadge(tr("自己ベスト更新！"))"#))
+        #expect(SourceScan.matchCount(of: #"RecordBadge\(tr\("新しい面に到達！"\)\)"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"RecordBadge\(tr\("自己ベスト更新！"\)\)"#, in: source) == 1)
     }
 
     @Test("リザルトの添え書きに塗りつぶしのカプセルが無い")

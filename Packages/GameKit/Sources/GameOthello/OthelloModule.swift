@@ -3,8 +3,8 @@ import Core
 
 public struct OthelloModule: GameModule {
     public let id = "othello"
-    public let title = "オセロ"
-    public let description = "石を挟んでひっくり返せ！CPU に挑戦"
+    public var title: String { tr("オセロ") }
+    public var description: String { tr("石を挟んでひっくり返せ！CPU に挑戦") }
     public var icon: Image { Image(systemName: "circle.lefthalf.filled") }
 
     public init() {}
@@ -17,5 +17,10 @@ public struct OthelloModule: GameModule {
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(OthelloSnapshot.self, for: id) else { return false }
         return snap.cells.compactMap { $0 }.count > 4
+    }
+
+    /// 初形のままの盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
     }
 }

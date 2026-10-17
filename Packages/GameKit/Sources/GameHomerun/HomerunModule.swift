@@ -16,8 +16,9 @@ public struct HomerunModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `HomerunModel.gameID` との一致は `HomerunModuleTests` が機械的に確かめる。
     public let id = "homerun"
-    public let title = "柵越えおじさん"
-    public let description = "1日3回、10球勝負。押したまま狙って離して振り、柵の向こうへ"
+    // 表示名と説明は表示言語で引く（多言語④ #2167）。`id` はリテラルのまま訳さない。
+    public var title: String { tr("柵越えおじさん") }
+    public var description: String { tr("1日3回、10球勝負。押したまま狙って離して振り、柵の向こうへ") }
     public var icon: Image { Image(systemName: "figure.baseball") }
     /// 1 挑戦は途中から戻せない（打席に立った時点で回数を使う）ので中断データを持たない。
     /// 「途中のままです」のお知らせ（#663）の対象から外す。

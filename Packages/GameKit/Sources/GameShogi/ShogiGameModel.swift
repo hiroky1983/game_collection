@@ -7,8 +7,11 @@ import Core
 @MainActor
 @Observable
 public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
-    public let initialSFEN: String
+    /// 開始局面。手合い（#2179）はここに焼き込む（平手は初形、駒落ちは上手の駒を欠いた後手番の局面）。
+    public private(set) var initialSFEN: String
     public private(set) var moves: [Move]
+    /// CPU が着手した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     public private(set) var position: Position
     public private(set) var legalMovesCache: [Move]
 
@@ -22,7 +25,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public private(set) var phase: GamePhase
     public private(set) var reviewPly: Int
     public private(set) var gameOver: Bool
-    public private(set) var resultText: String?
+    /// 決着の文言の原文（日本語）。終局の種類の判定（`endKind`・`endVerdict`）はこの原文で行い、
+    /// 表示は `resultText` が表示言語に訳す（#2109。訳した文で判定すると、言語を切り替えた瞬間に食い違う）。
+    private(set) var resultKey: String?
+    /// 決着の文言（表示用）。表示言語で引く。
+    public var resultText: String? { resultKey.map(Self.localizedResultText) }
     public var sente: PlayerKind
     public var gote: PlayerKind
     public var aiLevel: Int
@@ -101,7 +108,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 鍵を持たない v1.1.5 までの中断データは「まだ使っていない」として読む（#1118）。
         self.hints = BoardHintBudget(used: snap?.hintsUsed ?? 0)
         self.gameOver = false
-        self.resultText = nil
+        self.resultKey = nil
 
         if legalMovesCache.isEmpty {
             self.gameOver = true
@@ -109,25 +116,25 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // 詰みの勝敗表示は状態として保存していないので、復元時にここで組み直す。
             // 以前は `gameOver` だけ立てて `resultText` を nil のままにしていたため、
             // 詰んだ対局をアプリの再起動で開くと決着の文字だけが消えていた（#375）。
-            self.resultText = Self.checkmateResultText(loser: pos.sideToMove)
+            self.resultKey = Self.checkmateResultText(loser: pos.sideToMove)
         } else if Self.isFourfoldRepetition(initialSFEN: sfen, moves: moveList, current: pos) {
             // 千日手も指し手列から導けるので、復元時も同じ判定でそのまま決着に戻る。
             self.gameOver = true
             self.phase = .review
-            self.resultText = Self.repetitionResultText(
+            self.resultKey = Self.repetitionResultText(
                 perpetualCheckLoser: Self.perpetualCheckLoser(initialSFEN: sfen, moves: moveList)
             )
         }
         if snap?.resigned == true {
             self.gameOver = true
-            self.resultText = "あなたの負け（投了）"
+            self.resultKey = Self.resignationResultText
             self.phase = .review
         }
         // 将棋だけは終局後の検討画面をスナップショットに残す（他ゲームは終局で破棄する）。
         // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
         // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
         // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: matchSetting.recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -151,7 +158,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public func startPlayIfPending() {
         guard pendingInitialStart else { return }
         pendingInitialStart = false
-        services?.gameDidStart(gameID: gameID)
+        services?.gameDidStart(gameID: gameID, mode: matchSetting.analyticsMode)
     }
 
     // MARK: - 終局の判定
@@ -160,14 +167,29 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     static let repetitionLimit = 4
 
     static func checkmateResultText(loser: Side) -> String {
-        (loser == .black ? "先手" : "後手") + "の負け（詰み）"
+        (loser == .black ? "先手" : "後手") + "の負け（詰み）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
     }
 
-    static let drawRepetitionResultText = "引き分け（千日手）"
-    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"
+    static let drawRepetitionResultText = "引き分け（千日手）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    static let perpetualCheckSuffix = "の負け（連続王手の千日手）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    static let resignationResultText = "あなたの負け（投了）"  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
 
     static func perpetualCheckResultText(loser: Side) -> String {
-        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix
+        (loser == .black ? "先手" : "後手") + perpetualCheckSuffix  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+    }
+
+    /// 決着の文言の原文を表示言語の文にする（#2109）。原文は上の関数が組む 6 通りだけ。
+    /// 表のキーはリテラルで書く決まりなので、原文ごとに `tr` を書き分ける。
+    static func localizedResultText(_ key: String) -> String {
+        switch key {
+        case "先手の負け（詰み）": return tr("先手の負け（詰み）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "後手の負け（詰み）": return tr("後手の負け（詰み）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "先手の負け（連続王手の千日手）": return tr("先手の負け（連続王手の千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "後手の負け（連続王手の千日手）": return tr("後手の負け（連続王手の千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "引き分け（千日手）": return tr("引き分け（千日手）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        case "あなたの負け（投了）": return tr("あなたの負け（投了）")  // i18n-keep: 決着の判定に使う原文（表示は localizedResultText で訳す）
+        default: return key
+        }
     }
 
     /// 千日手の結果文言。連続王手の側がいれば、その側の負け。
@@ -302,10 +324,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         /// 結果カードに出す理由。
         public var reasonText: String {
             switch self {
-            case .checkmate: return "詰み"
-            case .repetition: return "千日手"
-            case .perpetualCheck: return "連続王手の千日手"
-            case .resignation: return "投了"
+            case .checkmate: return tr("詰み")
+            case .repetition: return tr("千日手")
+            case .perpetualCheck: return tr("連続王手の千日手")
+            case .resignation: return tr("投了")
             }
         }
     }
@@ -313,8 +335,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var endKind: EndKind? {
         guard gameOver else { return nil }
         if resigned { return .resignation }
-        if resultText == Self.drawRepetitionResultText { return .repetition }
-        if resultText?.hasSuffix(Self.perpetualCheckSuffix) == true { return .perpetualCheck }
+        if resultKey == Self.drawRepetitionResultText { return .repetition }
+        if resultKey?.hasSuffix(Self.perpetualCheckSuffix) == true { return .perpetualCheck }
         return .checkmate
     }
 
@@ -325,7 +347,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         case .resignation: return .loss
         case .repetition: return .draw
         case .perpetualCheck:
-            return resultText == Self.perpetualCheckResultText(loser: humanSide) ? .loss : .win
+            return resultKey == Self.perpetualCheckResultText(loser: humanSide) ? .loss : .win
         case .checkmate: return position.sideToMove == humanSide ? .loss : .win
         }
     }
@@ -366,6 +388,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
             selectedHand = nil
+            services?.feedback.impact(.selection)
         } else {
             // 駒を選んだ状態で指せないマスを叩いた = 着手の拒否。
             if selectedSquare != nil || selectedHand != nil {
@@ -381,6 +404,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
               position.hands[color.rawValue][type.rawValue] > 0 else { return }
         selectedHand = type
         selectedSquare = nil
+        services?.feedback.impact(.selection)
     }
 
     private func attemptMove(to sq: Int) {
@@ -429,14 +453,14 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         if legalMovesCache.isEmpty {
             gameOver = true
             let loser = position.sideToMove
-            resultText = Self.checkmateResultText(loser: loser)
+            resultKey = Self.checkmateResultText(loser: loser)
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser == humanSide ? .loss : .win,
-                score: hints.winLossScore,
+                score: recordScore,
                 // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
                 isReviewHighlight: beatsWorthyCPU
             )
@@ -446,14 +470,14 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // しか無かった。繰り返しの間ずっと王手を掛け続けた側がいれば、その側の負け（#2005）。
             let loser = Self.perpetualCheckLoser(initialSFEN: initialSFEN, moves: moves)
             gameOver = true
-            resultText = Self.repetitionResultText(perpetualCheckLoser: loser)
+            resultKey = Self.repetitionResultText(perpetualCheckLoser: loser)
             phase = .review
             services?.feedback.notify(loser == nil ? .warning : (loser == humanSide ? .error : .success))
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser.map { $0 == humanSide ? .loss : .win } ?? .draw,
-                score: hints.winLossScore
+                score: recordScore
             )
         } else if position.isKingInCheck(position.sideToMove) {
             // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
@@ -476,14 +500,22 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     /// 新規対局（CPU 対戦）。人間が指す側を選ぶ。
-    public func newGame(humanSide: Side = .black, aiLevel: Int = 1) {
-        position = Position.start()
+    ///
+    /// 駒落ち（#2179）のときは、落とす側で人間の座る側が決まる（上手＝後手の位置）ので `humanSide` は使わない。
+    /// 手合いはここで開始局面に焼き込む。途中で個人設定を読み直さない（1局＝1ルール）。
+    public func newGame(
+        humanSide: Side = .black, aiLevel: Int = 1,
+        handicap: ShogiHandicap = .even, dropper: ShogiHandicapDropper = .player
+    ) {
+        let humanSide = handicap == .even ? humanSide : dropper.humanSide
+        initialSFEN = handicap.initialSFEN
+        position = Position.fromSFEN(initialSFEN) ?? Position.start()
         moves = []
         legalMovesCache = position.legalMoves()
         phase = .playing
         reviewPly = 0
         gameOver = false
-        resultText = nil
+        resultKey = nil
         undoUsed = false
         resigned = false
         // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
@@ -508,7 +540,24 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         clearSelection()
         persist()
         pendingInitialStart = false
-        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
+        services?.gameDidRestart(
+            gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel), mode: matchSetting.analyticsMode)
+    }
+
+    /// この局の手合いと落とす側（#2179）。開始局面と人間の座る側から毎回導く（状態として持たない）ので、
+    /// 中断データに項目を足さなくても、続きから再開して手合いが保たれる。
+    public var matchSetting: ShogiMatchSetting {
+        ShogiMatchSetting(
+            handicap: ShogiHandicap.detect(initialSFEN: initialSFEN),
+            dropper: .from(humanSide: humanSide))
+    }
+
+    /// 決着に渡す成績。手合いごとに記録を分ける（平手は従来の保存先のまま）。
+    private var recordScore: GameScore {
+        var score = hints.winLossScore
+        score.variant = matchSetting.recordVariant
+        score.variantLabel = matchSetting.recordVariantLabel
+        return score
     }
 
     /// 人間が指している側（CPU 戦の表示用）。
@@ -546,6 +595,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             guard isAITurn, let usi, let move = Move.fromUSI(usi),
                   legalMovesCache.contains(move) else { return }
             apply(move)
+            lastCPUMoveKey = aiTurnKey
         }
     }
 
@@ -689,8 +739,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         gameOver = true
         services?.feedback.notify(.error)
         startPlayIfPending()
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
-        resultText = "あなたの負け（投了）"
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: recordScore)
+        resultKey = Self.resignationResultText
         phase = .review
         reviewPly = moves.count
         clearSelection()
@@ -699,13 +749,19 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
 
+    /// 開始局面で最初に指す側。平手は先手、駒落ちは上手（後手の位置・#2179）。
+    private var firstMover: Side {
+        initialSFEN.split(separator: " ").dropFirst().first == "w" ? .white : .black
+    }
+
     private func mover(at index: Int) -> Side {
-        index % 2 == 0 ? .black : .white
+        index % 2 == 0 ? firstMover : firstMover.opponent
     }
 
     /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
     public var canUndo: Bool {
-        guard phase == .playing, !gameOver, !isAITurn, !isThinking, pendingPromotion == nil else {
+        // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
+        guard phase == .playing, !gameOver, !isAITurn, !isThinking, !isHintThinking, pendingPromotion == nil else {
             return false
         }
         let n = moves.count
@@ -744,7 +800,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
     private var beatsWorthyCPU: Bool {
-        (sente == .ai || gote == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
+        guard sente == .ai || gote == .ai else { return false }
+        // CPU に駒を落とされた勝ちは、手加減してもらった勝ちなので見せ場にしない（#2179）。
+        let setting = matchSetting
+        if setting.isHandicap && setting.dropper == .cpu { return false }
+        return CPUStrength.isReviewWorthy(level: aiLevel)
     }
 
     private func persist() {

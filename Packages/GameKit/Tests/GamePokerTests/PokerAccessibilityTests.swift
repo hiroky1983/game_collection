@@ -36,6 +36,12 @@ struct PokerAccessibilityTests {
         )
     }
 
+    @Test("役一覧の見本 5 枚は札の名前を順に 1 つの文で読む")
+    func handGuideCardsLabel() {
+        let cards = [aceOfSpades, sevenOfHearts]
+        #expect(PokerAccessibility.handGuideCardsLabel(cards: cards) == "スペードのA、ハートの7")
+    }
+
     @Test("選択のヒントは交換フェーズでだけ出す", arguments: [
         PokerPhase.idle, .dealing, .betting1, .exchange, .cpuExchange, .betting2, .showdown, .result,
     ])
@@ -43,5 +49,10 @@ struct PokerAccessibilityTests {
         let hint = PokerAccessibility.handCardHint(phase: phase)
         #expect(PokerAccessibility.acceptsSelection(phase: phase) == (phase == .exchange))
         #expect(hint.isEmpty == (phase != .exchange))
+    }
+
+    @Test("ポットは「ポット」と枚数を 1 文で読む") func potLabel() {
+        #expect(PokerAccessibility.potLabel(pot: 30) == "ポット30枚")
+        #expect(PokerAccessibility.potLabel(pot: 0) == "ポット0枚")
     }
 }

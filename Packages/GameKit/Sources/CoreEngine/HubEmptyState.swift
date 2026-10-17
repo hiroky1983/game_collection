@@ -6,8 +6,8 @@ import Foundation
 /// View は App ターゲットにあり GameKit のテストから import できないため、**出す条件と文言だけをここへ
 /// 切り出して**テストで固定する（`FirstPick` と同じ作り）。
 public enum HubEmptyState {
-    public static let message = "表示するゲームがありません。設定で選べます"
-    public static let buttonTitle = "設定を開く"
+    public static var message: String { tr("表示するゲームがありません。設定で選べます") }
+    public static var buttonTitle: String { tr("設定を開く") }
 
     /// 見えているゲーム（特別枠を含む）が 1 本も無いとき true。
     public static func isShown(visibleGameIDs: [String]) -> Bool {

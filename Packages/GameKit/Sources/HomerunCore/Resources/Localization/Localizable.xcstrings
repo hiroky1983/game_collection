@@ -1,0 +1,497 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "1 挑戦で %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ in One Round"
+          }
+        }
+      }
+    },
+    "1 挑戦の 10 球をすべて柵越えにした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent all 10 pitches of a round over the fence"
+          }
+        }
+      }
+    },
+    "1 挑戦の合計飛距離が %@ を超えた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Topped %@ of total distance in one round"
+          }
+        }
+      }
+    },
+    "10球すべて柵越え" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ten for Ten"
+          }
+        }
+      }
+    },
+    "あと%lld分で無料枠が戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Free plays return in %lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Free plays return in %lld minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あと%lld時間%lld分で無料枠が戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free plays return in %lldh %lldm"
+          }
+        }
+      }
+    },
+    "あと%lld時間で無料枠が戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Free plays return in %lld hour"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Free plays return in %lld hours"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あと約%lld分で戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Back in about %lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Back in about %lld minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あと約%lld時間%lld分で戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back in about %lldh %lldm"
+          }
+        }
+      }
+    },
+    "あと約%lld時間で戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Back in about %lld hour"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Back in about %lld hours"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "これまでに柵越えを %lld 本打った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Hit %lld career homer"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Hit %lld career homers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "これまでの飛距離の合計が %@ に届いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reached %@ of total career distance"
+          }
+        }
+      }
+    },
+    "はじめての柵越え" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First Homer"
+          }
+        }
+      }
+    },
+    "ゴツン！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonk!"
+          }
+        }
+      }
+    },
+    "ジャストミート" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sweet Spot"
+          }
+        }
+      }
+    },
+    "スタンドの最後列まで越えて場外へ飛ばした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared the very last row and left the ballpark"
+          }
+        }
+      }
+    },
+    "センター" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Center"
+          }
+        }
+      }
+    },
+    "タイミングも芯もぴったりでとらえた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfect timing, dead on the sweet spot"
+          }
+        }
+      }
+    },
+    "ファウルポールに当てて柵を越えた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clanged it off the foul pole for a homer"
+          }
+        }
+      }
+    },
+    "ポール直撃" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ping Off the Pole"
+          }
+        }
+      }
+    },
+    "ライト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right"
+          }
+        }
+      }
+    },
+    "レフト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left"
+          }
+        }
+      }
+    },
+    "右中間" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right-center"
+          }
+        }
+      }
+    },
+    "同じ挑戦で月に 2 回当てて、月を割った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit the moon twice in one round and cracked it in half"
+          }
+        }
+      }
+    },
+    "回って倒れた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spin Cycle"
+          }
+        }
+      }
+    },
+    "場外ホームラン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out of the Park"
+          }
+        }
+      }
+    },
+    "左中間" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left-center"
+          }
+        }
+      }
+    },
+    "打ち上げた球が自分の頭に落ちてきた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popped one straight up and it came down on your own head"
+          }
+        }
+      }
+    },
+    "打球が月まで届いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit a ball all the way to the moon"
+          }
+        }
+      }
+    },
+    "挑戦回数が %lld 回に戻りました。今日も 10 球勝負！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your %lld play is back. Ten pitches—step up to the plate!"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your %lld plays are back. Ten pitches—step up to the plate!"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "月まで飛ばした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fly Me to the Moon"
+          }
+        }
+      }
+    },
+    "月を割った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon Breaker"
+          }
+        }
+      }
+    },
+    "柵を越える打球を初めて打った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit your first ball over the fence"
+          }
+        }
+      }
+    },
+    "柵越えおじさん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sakugoe Ojisan"
+          }
+        }
+      }
+    },
+    "空振りの勢いで回って倒れた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiffed so hard you spun around and fell over"
+          }
+        }
+      }
+    },
+    "通算 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Career"
+          }
+        }
+      }
+    },
+    "通算 柵越え %lld本" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Career Homer"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Career Homers"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

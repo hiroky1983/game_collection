@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// カードの VoiceOver 読み上げ文（#188）。
 ///
@@ -6,21 +7,19 @@ import Foundation
 /// 記号は読み上げても意味が伝わらない。読み上げ文はここに集約して純関数にし、
 /// View を組まずにテストできるようにする。
 public enum DaifugoAccessibility {
-    private static let suitNames = ["スペード", "ハート", "ダイヤ", "クラブ"]
-
-    /// スートの読み（ジョーカーは nil）。
+    /// スートの読み（ジョーカーは nil）。トランプ共通基盤（CoreEngine）の読みをそのまま使う（#2166）。
     public static func suitName(_ suit: DaifugoSuit?) -> String? {
-        suit.map { suitNames[$0.rawValue] }
+        suit.map { $0.playing.spokenName }
     }
 
     /// ランクの読み（A / J / Q / K は記号のままだと読みが安定しない）。
     public static func rankName(_ card: DaifugoCard) -> String {
         switch card.rank {
-        case DaifugoRules.jokerRank: return "ジョーカー"
-        case 1:  return "エース"
-        case 11: return "ジャック"
-        case 12: return "クイーン"
-        case 13: return "キング"
+        case DaifugoRules.jokerRank: return tr("ジョーカー")
+        case 1:  return tr("エース")
+        case 11: return tr("ジャック")
+        case 12: return tr("クイーン")
+        case 13: return tr("キング")
         default: return "\(card.rank)"
         }
     }
@@ -28,7 +27,7 @@ public enum DaifugoAccessibility {
     /// カード 1 枚の呼び名（例: "ハートの7"）。
     public static func cardName(_ card: DaifugoCard) -> String {
         guard let suit = suitName(card.suit) else { return rankName(card) }
-        return "\(suit)の\(rankName(card))"
+        return tr("%1$@の%2$@", suit, rankName(card))
     }
 
     /// 手札 1 枚の読み上げ文。選択中かどうかは見た目では浮き上がりと枠色でしか分からない。
@@ -38,23 +37,23 @@ public enum DaifugoAccessibility {
         isSelected: Bool,
         hint: DaifugoCardHint = .none
     ) -> String {
-        var parts = [cardName(card)]
-        if isSelected { parts.append("選択中") }
+        var label = cardName(card)
+        if isSelected { label = tr("%@、選択中", label) }
         switch hint {
         case .none:       break
-        case .playable:   parts.append("出せます")
-        case .unplayable: parts.append("いまは出せません")
+        case .playable:   label = tr("%@、出せます", label)
+        case .unplayable: label = tr("%@、いまは出せません", label)
         }
-        return parts.joined(separator: "、")
+        return label
     }
 
     /// 場に出ている組の読み上げ文。空なら「場は流れています」。
     ///
     /// 出し手（`ownerName`）は画面ではバッジで示しているだけなので、読み上げにも足す（#193）。
     public static func fieldLabel(_ cards: [DaifugoCard], ownerName: String? = nil) -> String {
-        guard !cards.isEmpty else { return "場は流れています" }
-        let cardsText = "場のカード、" + cards.map(cardName).joined(separator: "、")
+        guard !cards.isEmpty else { return tr("場は流れています") }
+        let cardsText = tr("場のカード、%@", cards.map(cardName).joined(separator: tr("、")))
         guard let ownerName else { return cardsText }
-        return "\(cardsText)。\(ownerName)が出しました"
+        return tr("%1$@。%2$@が出しました", cardsText, ownerName)
     }
 }

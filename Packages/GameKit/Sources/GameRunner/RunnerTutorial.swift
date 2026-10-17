@@ -32,11 +32,11 @@ enum RunnerTutorial {
     }
 
     /// 覚えてほしい 3 つ。増やさない（1 画面に収まらなくなる）。
-    static let steps: [Step] = [
-        Step(id: 1, text: "タップでジャンプ", symbol: "hand.tap.fill"),
-        Step(id: 2, text: "長く押すほど高く跳ぶ", symbol: "arrow.up.circle.fill"),
-        Step(id: 3, text: "空中でもう一度タップ", symbol: "2.circle.fill", note: "二段ジャンプ"),
-    ]
+    static var steps: [Step] { [
+        Step(id: 1, text: tr("タップでジャンプ"), symbol: "hand.tap.fill"),
+        Step(id: 2, text: tr("長く押すほど高く跳ぶ"), symbol: "arrow.up.circle.fill"),
+        Step(id: 3, text: tr("空中でもう一度タップ"), symbol: "2.circle.fill", note: tr("二段ジャンプ")),
+    ] }
 
     /// 「見た」印のキー。保存先を増やさず `PlayLog` のミニガイドと同じ棚に置く。
     ///
@@ -99,7 +99,7 @@ struct RunnerTutorialSteps: View {
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: step.symbol)
                         .scaledFont(fontSize + 7, weight: .heavy)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.coralText)
                         .frame(width: fontSize + 11)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(step.text)
@@ -108,14 +108,14 @@ struct RunnerTutorialSteps: View {
                         if let note = step.note {
                             Text(note)
                                 .scaledFont(fontSize - 2, weight: .bold, design: .rounded)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(Theme.coralText)
                         }
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(step.id)、\(step.text)\(step.note.map { "、\($0)" } ?? "")")
+                .accessibilityLabel(([String(step.id), step.text] + [step.note].compactMap { $0 }).joined(separator: tr("、")))
             }
         }
     }
@@ -131,7 +131,7 @@ struct RunnerTutorialPage: View {
     var body: some View {
         RuleListSheet(rules: []) {
             RunnerTutorial.riderJump(height: 74)
-            RuleFigureCard(title: "そうさのしかた") {
+            RuleFigureCard(title: tr("そうさのしかた")) {
                 RunnerTutorialSteps(fontSize: 15)
             }
         }
@@ -157,7 +157,7 @@ struct RunnerTutorialSheet: View {
             VStack(spacing: 0) {
                 RunnerTutorialPage()
                 Button(action: onClose) {
-                    Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
+                    Text(tr("はじめる")).themeBody(18).frame(maxWidth: .infinity)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)

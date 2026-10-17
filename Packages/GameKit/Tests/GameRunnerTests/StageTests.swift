@@ -792,6 +792,48 @@ struct RunnerStageTests {
         }
     }
 
+    /// 再開直後（#2256）: 再開位置から画面 1 枚ぶんは、障害・穴・動物・台座・沈む床が 1 つも無い。
+    /// 広告を見て再開した直後に穴へ落ちる、という会長QA。
+    @Test("再開位置の前方 1 画面ぶんには罠も台座も沈む床も無い")
+    func resumeHasOneScreenClearAhead() {
+        #expect(RunnerStage.resumeClearDistance >= RunnerField.Metrics.width, "1 画面ぶん（横幅）以上")
+        for stage in RunnerStage.all {
+            let x = stage.checkpoint
+            let resumed = stage.clearingAhead(of: x)
+            let window = x...(x + RunnerStage.resumeClearDistance)
+            #expect(resumed.number == stage.number && resumed.checkpoint == stage.checkpoint)
+            #expect(resumed.length == stage.length && resumed.speed == stage.speed)
+            #expect(resumed.hazards.count <= stage.hazards.count)
+            for hazard in resumed.hazards {
+                #expect(
+                    !hazard.activeRange.overlaps(window),
+                    "ステージ \(stage.number): 再開直後に \(hazard.kind)（\(hazard.start)）がある"
+                )
+            }
+            for platform in resumed.platforms {
+                #expect(
+                    platform.end <= window.lowerBound || platform.start >= window.upperBound,
+                    "ステージ \(stage.number): 再開直後に台座がある"
+                )
+            }
+            for floor in resumed.sinkFloors {
+                #expect(
+                    floor.end <= window.lowerBound || floor.start >= window.upperBound,
+                    "ステージ \(stage.number): 再開直後に沈む床がある"
+                )
+            }
+            // 窓より前（走ってきた側）と窓より後ろの障害は、そのまま残る。
+            let kept = stage.hazards.filter { !$0.activeRange.overlaps(window) }
+            #expect(kept.count == resumed.hazards.count, "ステージ \(stage.number): 窓の外の障害は変えない")
+        }
+    }
+
+    @Test("前方に罠が無い距離の再開では、ステージはそのまま返る")
+    func resumeInEmptyStretchKeepsStage() {
+        let stage = RunnerStage(number: 1, pattern: "--------", speed: RunnerRules.baseSpeed)
+        #expect(stage.clearingAhead(of: 64).pattern == stage.pattern)
+    }
+
     // MARK: - 乗れる台座（#674）
 
     /// 区画記号 `P` の展開。**連続する `P` は 1 つの台座にまとまる**（継ぎ目を作らない）。

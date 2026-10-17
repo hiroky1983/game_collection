@@ -254,7 +254,39 @@ public final class DaifugoModel: AITurnGuarded {
     }
 
     public func playerName(_ index: Int) -> String {
-        index == Self.humanIndex ? "あなた" : "CPU\(index)"
+        index == Self.humanIndex ? tr("あなた") : "CPU\(index)"
+    }
+
+    /// 直近の動きのバッジに出す文言（#2166）。
+    ///
+    /// `lastActions` は中断データ（`DaifugoSnapshot.lastActions`）に載る値なので、これまでどおり日本語の原文で持ち、
+    /// 訳は表示の境目のここで引く（保存した時点の言語に固まらない・旧データもそのまま読める）。
+    public func actionLabel(_ index: Int) -> String {
+        guard lastActions.indices.contains(index) else { return "" }
+        return Self.localizedAction(lastActions[index])
+    }
+
+    /// `play(_:by:)` などが組んだ原文の動き（例: "8 8 革命！ 8切り！"）を表示用に訳す。
+    /// ランクの文字（"8"・"JOKER" など）はどの言語でも同じなので、決まった言い回しの部分だけを置き換える。
+    static func localizedAction(_ action: String) -> String {
+        switch action {
+        case "パス": return tr("パス")  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+        case "投了": return tr("投了")  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+        default: break
+        }
+        let phrases: [(String, String)] = [
+            ("革命返し！", tr("革命返し！")),  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+            ("革命！", tr("革命！")),  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+            ("反則上がり", tr("反則上がり")),  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+            ("あがり！", tr("あがり！")),  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+            ("（8切り）", tr("（8切り）")),  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+            ("8切り！", tr("8切り！")),  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
+        ]
+        var text = action
+        for (original, label) in phrases where original != label {
+            text = text.replacingOccurrences(of: original, with: label)
+        }
+        return text
     }
 
     private var selectedCards: [DaifugoCard] {
@@ -404,7 +436,7 @@ public final class DaifugoModel: AITurnGuarded {
         hands[Self.humanIndex] = []
         finishOrder.append(Self.humanIndex)
         resigned.insert(Self.humanIndex)
-        lastActions[Self.humanIndex] = "投了"
+        lastActions[Self.humanIndex] = "投了"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         concludeGame()
     }
 
@@ -433,7 +465,7 @@ public final class DaifugoModel: AITurnGuarded {
         var note = cards.map(\.rankLabel).joined(separator: " ")
         if DaifugoRules.triggersRevolution(cards) {
             isRevolution.toggle()
-            note += isRevolution ? " 革命！" : " 革命返し！"
+            note += isRevolution ? " 革命！" : " 革命返し！"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         }
 
         field = cards
@@ -444,14 +476,14 @@ public final class DaifugoModel: AITurnGuarded {
             finishOrder.append(player)
             if DaifugoRules.isFoulFinish(cards) {
                 fouls.insert(player)
-                note += " 反則上がり"
+                note += " 反則上がり"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
             } else {
-                note += " あがり！"
+                note += " あがり！"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
             }
         }
 
         let clears = DaifugoRules.clearsField(cards)
-        if clears { note += finished ? "（8切り）" : " 8切り！" }
+        if clears { note += finished ? "（8切り）" : " 8切り！" }  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         lastActions[player] = note
 
         if isGameOver() {
@@ -471,7 +503,7 @@ public final class DaifugoModel: AITurnGuarded {
 
     private func passTurn(by player: Int) {
         passedPlayers.insert(player)
-        lastActions[player] = "パス"
+        lastActions[player] = "パス"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         advanceTurn(from: player)
         persist()
     }

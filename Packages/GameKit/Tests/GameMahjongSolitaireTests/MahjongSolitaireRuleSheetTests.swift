@@ -93,7 +93,7 @@ struct MahjongSolitaireRuleSheetTests {
     func viewWiresUpTheExtraPage() throws {
         let source = try Self.viewSource()
         #expect(
-            source.contains(".howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }"),
+            source.contains(".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items)) { MahjongSolitaireRuleSheet() }"),
             "詳細ページ付きの howToPlay になっていない"
         )
         // extra 無しの呼び出しが残っていたら、そちらが使われている可能性がある。

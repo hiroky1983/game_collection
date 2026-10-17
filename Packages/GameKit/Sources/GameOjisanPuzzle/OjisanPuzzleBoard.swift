@@ -242,19 +242,29 @@ public enum OjisanPuzzleLuggage {
     public struct Kind: Equatable, Sendable {
         /// 盤に入る番号（1...5）。
         public let value: Int
-        /// 表示名（読み上げ・説明に使う）。
-        public let name: String
         /// 重さ（1 = いちばん軽い 〜 5 = いちばん重い。実物の重さの順・会長決定 2026-10-08）。
         public let weight: Int
+
+        /// 表示名（読み上げ・説明に使う）。表示言語に追従させるため、引くたびに表から引く。
+        public var name: String {
+            switch value {
+            case 1: tr("座布団の山")
+            case 2: tr("スイカ")
+            case 3: tr("クーラーボックス")
+            case 4: tr("灯油のポリタンク")
+            case 5: tr("ビールケース")
+            default: ""
+            }
+        }
     }
 
     /// 軽い順に並べた 5 種（色は 紫・緑・青・赤・黄。ぷよぷよに準えた 5 色）。
     public static let all: [Kind] = [
-        Kind(value: 1, name: "座布団の山",         weight: 1),
-        Kind(value: 2, name: "スイカ",             weight: 2),
-        Kind(value: 3, name: "クーラーボックス",   weight: 3),
-        Kind(value: 4, name: "灯油のポリタンク",   weight: 4),
-        Kind(value: 5, name: "ビールケース",       weight: 5),
+        Kind(value: 1, weight: 1),  // 座布団の山
+        Kind(value: 2, weight: 2),  // スイカ
+        Kind(value: 3, weight: 3),  // クーラーボックス
+        Kind(value: 4, weight: 4),  // 灯油のポリタンク
+        Kind(value: 5, weight: 5),  // ビールケース
     ]
 
     /// 盤の番号から引く。空きマス（0）・範囲外は nil。
@@ -283,9 +293,9 @@ public enum OjisanPuzzlePain {
         /// 見出しに出す短い呼び名。
         public var caption: String {
             switch self {
-            case .easy: "まだ平気"
-            case .aching: "腰にくる"
-            case .severe: "こしが限界"
+            case .easy: tr("まだ平気")
+            case .aching: tr("腰にくる")
+            case .severe: tr("こしが限界")
             }
         }
     }

@@ -30,10 +30,12 @@ struct HubFirstPickCard: View {
                         .foregroundStyle(Theme.onAccent)
                 }
             VStack(alignment: .leading, spacing: 2) {
-                Text("はじめてなら、これ")
+                Text(tr("はじめてなら、これ"))
                     .themeCaption(layout.scaled(11), weight: .semibold)
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
+                    // 英語（#2109）は日本語より横に長い。右の「あそぶ」に押されて切れる前に縮める。
+                    .minimumScaleFactor(0.8)
                 Text(module.title)
                     .themeBody(layout.scaled(16))
                     .foregroundStyle(Theme.ink)
@@ -41,7 +43,7 @@ struct HubFirstPickCard: View {
                     .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 4)
-            Text("あそぶ")
+            Text(tr("あそぶ"))
                 .themeCaption(layout.scaled(13))
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12).padding(.vertical, 6)
@@ -52,7 +54,7 @@ struct HubFirstPickCard: View {
         .popCard(corner: Theme.cornerSmall)
         // 3つの文字をばらばらに読ませず、カードを1要素にまとめる（グリッドのカードと同じ作法）。
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("はじめてなら、これ。\(module.title)")
-        .accessibilityHint("\(module.title)を開きます")
+        .accessibilityLabel(tr("はじめてなら、これ。%@", module.title))
+        .accessibilityHint(tr("%@を開きます", module.title))
     }
 }

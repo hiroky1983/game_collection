@@ -1,0 +1,1511 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@ 対 %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ vs. %2$@"
+          }
+        }
+      }
+    },
+    "%@、捨てる札に選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, selected to discard"
+          }
+        }
+      }
+    },
+    "%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld枚を交換" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Draw %lld Card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Draw %lld Cards"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld枚交換" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Drew %lld card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Drew %lld cards"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "+%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "3枚 ＋ 2枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three of a kind plus a pair"
+          }
+        }
+      }
+    },
+    "5カードドロー。チップを稼ごう！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Five-card draw. Rake in those chips!"
+          }
+        }
+      }
+    },
+    "CPU: %@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "CPU: %@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "CPU: %@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUがフォールド" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU folded"
+          }
+        }
+      }
+    },
+    "CPUが交換中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU is drawing…"
+          }
+        }
+      }
+    },
+    "CPUのチップが尽きました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU is out of chips"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなた: %@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You: %@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You: %@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたがフォールド" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You folded"
+          }
+        }
+      }
+    },
+    "あなたのチップが尽きました。%lld枚で復活すると順位表に載りません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're out of chips. If you revive with %lld chip, this run won't go on the leaderboard"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're out of chips. If you revive with %lld chips, this run won't go on the leaderboard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたのチップが尽きました。復活はこのセッションで%lld回使いました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're out of chips. You've used your %lld revival this session"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're out of chips. You've used all %lld revivals this session"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "お互いのチップが尽きました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're both out of chips"
+          }
+        }
+      }
+    },
+    "どちらも%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Both have %@"
+          }
+        }
+      }
+    },
+    "なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        }
+      }
+    },
+    "はずれ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong"
+          }
+        }
+      }
+    },
+    "もう一度はじめる (%lld枚)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Start Over (%lld chip)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Start Over (%lld chips)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "アンティ 10枚 → 手札5枚配布" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ante 10 chips → you're dealt 5 cards"
+          }
+        }
+      }
+    },
+    "カード交換なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stands pat"
+          }
+        }
+      }
+    },
+    "カード交換（0〜5枚）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw (swap 0–5 cards)"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How It Plays"
+          }
+        }
+      }
+    },
+    "コール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Call"
+          }
+        }
+      }
+    },
+    "コール %lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Call %lld"
+          }
+        }
+      }
+    },
+    "スタンダード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        }
+      }
+    },
+    "ストレート" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straight"
+          }
+        }
+      }
+    },
+    "ストレートフラッシュ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straight Flush"
+          }
+        }
+      }
+    },
+    "スリー\nカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three of\na Kind"
+          }
+        }
+      }
+    },
+    "スリーカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three of a Kind"
+          }
+        }
+      }
+    },
+    "セッション勝利！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session won!"
+          }
+        }
+      }
+    },
+    "セッション敗北" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session lost"
+          }
+        }
+      }
+    },
+    "タップで選んだ札は残る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapped cards are kept"
+          }
+        }
+      }
+    },
+    "ダブルアップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double Up"
+          }
+        }
+      }
+    },
+    "ダブルアップ %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double Up %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "ダブルアップ終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double Up over"
+          }
+        }
+      }
+    },
+    "ダブルタップで捨てる札の選択を切り替えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to mark or unmark this card for discard"
+          }
+        }
+      }
+    },
+    "チェック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "チップは回復しませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your chips weren't restored"
+          }
+        }
+      }
+    },
+    "ツー\nペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two\nPair"
+          }
+        }
+      }
+    },
+    "ツーペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two Pair"
+          }
+        }
+      }
+    },
+    "ハイ ↑" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High ↑"
+          }
+        }
+      }
+    },
+    "ハイカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High Card"
+          }
+        }
+      }
+    },
+    "フォーカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four of a Kind"
+          }
+        }
+      }
+    },
+    "フォールド" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fold"
+          }
+        }
+      }
+    },
+    "フラッシュ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flush"
+          }
+        }
+      }
+    },
+    "フル\nハウス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full\nHouse"
+          }
+        }
+      }
+    },
+    "フルハウス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full House"
+          }
+        }
+      }
+    },
+    "ベット %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet %lld"
+          }
+        }
+      }
+    },
+    "ベット %lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet %lld"
+          }
+        }
+      }
+    },
+    "ベット（チェック or 20枚ベット）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet (check, or bet 20 chips)"
+          }
+        }
+      }
+    },
+    "ペア1組" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One pair"
+          }
+        }
+      }
+    },
+    "ペア2組" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two different pairs"
+          }
+        }
+      }
+    },
+    "ボーナスルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus Rules"
+          }
+        }
+      }
+    },
+    "ポット%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pot: %@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pot: %@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ポット" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pot"
+          }
+        }
+      }
+    },
+    "ポットの総取りだけで競う、いつもの5カードドロー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classic five-card draw: the winner takes the pot"
+          }
+        }
+      }
+    },
+    "ポーカー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poker"
+          }
+        }
+      }
+    },
+    "ルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules"
+          }
+        }
+      }
+    },
+    "ロイヤルフラッシュ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Royal Flush"
+          }
+        }
+      }
+    },
+    "ロー ↓" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low ↓"
+          }
+        }
+      }
+    },
+    "ワン\nペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One\nPair"
+          }
+        }
+      }
+    },
+    "ワンペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One Pair"
+          }
+        }
+      }
+    },
+    "ワンペア・ハイカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One Pair / High Card"
+          }
+        }
+      }
+    },
+    "交換しない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stand Pat"
+          }
+        }
+      }
+    },
+    "勝ちです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win"
+          }
+        }
+      }
+    },
+    "勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win!"
+          }
+        }
+      }
+    },
+    "勝って得たチップは、最大%lld回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You can bet the chips you win on Double Up up to %lld time (guess whether the next card is higher or lower than the one shown; on the same number, draw again)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You can bet the chips you win on Double Up up to %lld times (guess whether the next card is higher or lower than the one shown; on the same number, draw again)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "勝負に勝つと役ごとのボーナス。さらにダブルアップに挑戦できる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win a showdown to earn a bonus for your hand, then try your luck at Double Up"
+          }
+        }
+      }
+    },
+    "勝負に勝つと役ボーナス → ダブルアップに挑戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win the showdown for a hand bonus → try Double Up"
+          }
+        }
+      }
+    },
+    "勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paid to the winner of the showdown, on top of the pot. Not paid when you win because the other player folded."
+          }
+        }
+      }
+    },
+    "受け取る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collect"
+          }
+        }
+      }
+    },
+    "受け取る %lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collect %lld"
+          }
+        }
+      }
+    },
+    "同スーツ5枚（順不同）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Five cards of one suit, in any order"
+          }
+        }
+      }
+    },
+    "同ランク3枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three cards of the same rank"
+          }
+        }
+      }
+    },
+    "同ランク4枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four cards of the same rank"
+          }
+        }
+      }
+    },
+    "広告を見て%1$lld枚で復活（あと%2$lld回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to revive with %1$lld chip (%2$lld left)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to revive with %1$lld chips (%2$lld left)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見て%lld枚で復活（最後の1回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to revive with %lld chip (last one)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to revive with %lld chips (last one)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The session changed while the ad was playing, so the revival wasn't applied. You still have the same number of revivals left."
+          }
+        }
+      }
+    },
+    "引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tie"
+          }
+        }
+      }
+    },
+    "引き分けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's a tie"
+          }
+        }
+      }
+    },
+    "引き直した 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 new cards"
+          }
+        }
+      }
+    },
+    "引き直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw Again"
+          }
+        }
+      }
+    },
+    "弱い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak"
+          }
+        }
+      }
+    },
+    "強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strong"
+          }
+        }
+      }
+    },
+    "当たり！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correct!"
+          }
+        }
+      }
+    },
+    "役なし・最高位カードで比較" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hand; the highest card wins"
+          }
+        }
+      }
+    },
+    "役ボーナス CPU +%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "CPU hand bonus +%@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "CPU hand bonus +%@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "役ボーナス あなた +%@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your hand bonus +%@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your hand bonus +%@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "役ボーナス配当表" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus Payout Table"
+          }
+        }
+      }
+    },
+    "役ボーナス配当表を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Bonus Payout Table"
+          }
+        }
+      }
+    },
+    "役一覧を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Hand Rankings"
+          }
+        }
+      }
+    },
+    "捨てるカードを選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose cards to discard"
+          }
+        }
+      }
+    },
+    "最強・同スーツ A K Q J 10" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The best hand: A K Q J 10, all one suit"
+          }
+        }
+      }
+    },
+    "最終ベット → 勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final bet → showdown"
+          }
+        }
+      }
+    },
+    "次のゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Hand"
+          }
+        }
+      }
+    },
+    "獲得 %@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Won %@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Won %@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "獲得 %@枚 をダブルアップに賭けますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Bet the %@ chip you won on Double Up?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Bet the %@ chips you won on Double Up?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "続ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        }
+      }
+    },
+    "負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose"
+          }
+        }
+      }
+    },
+    "負けです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose"
+          }
+        }
+      }
+    },
+    "賭け金 %@枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stake: %@ chip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stake: %@ chips"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "連続5枚の同スーツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Five in a row, all one suit"
+          }
+        }
+      }
+    },
+    "連続5枚（スーツ混在）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Five in a row, mixed suits"
+          }
+        }
+      }
+    },
+    "選ばなかった 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 3 you didn't pick"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "（CPUに役ボーナス+%lld枚）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : " (CPU gets a +%lld chip hand bonus)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : " (CPU gets a +%lld chip hand bonus)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "（役ボーナス+%lld枚込み）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : " (includes a +%lld chip hand bonus)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : " (includes a +%lld chip hand bonus)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "役が強いほどボーナスも大きい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stronger hands earn bigger bonuses"
+          }
+        }
+      }
+    },
+    "見せ札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown card"
+          }
+        }
+      }
+    },
+    "次の札は上？下？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Higher or lower?"
+          }
+        }
+      }
+    },
+    "ルールの要点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules at a Glance"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -37,7 +37,7 @@ struct HubPressFeedbackWiringTests {
         // アイコンだけのボタンは VoiceOver がシンボル名を読む。ボタンとラベルの**結線**まで見る。
         #expect(
             source.range(
-                of: #"Button \{ showSettings = true \} label: \{\s*Image\(systemName: "gearshape\.fill"\)[^{}]*\}\s*\.accessibilityLabel\("設定"\)"#,
+                of: #"Button \{ showSettings = true \} label: \{\s*Image\(systemName: "gearshape\.fill"\)[^{}]*\}\s*\.accessibilityLabel\(tr\("設定"\)\)"#,
                 options: .regularExpression
             ) != nil,
             "設定の歯車ボタンに読み上げラベルが付いていない"

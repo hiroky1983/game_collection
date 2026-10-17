@@ -1,0 +1,967 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@。%2$@が出しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. Played by %2$@"
+          }
+        }
+      }
+    },
+    "%1$@の%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$@ of %1$@"
+          }
+        }
+      }
+    },
+    "%@、いまは出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, can't be played now"
+          }
+        }
+      }
+    },
+    "%@、出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, playable"
+          }
+        }
+      }
+    },
+    "%@、選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, selected"
+          }
+        }
+      }
+    },
+    "%@が出した" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ played"
+          }
+        }
+      }
+    },
+    "%@の番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@'s turn"
+          }
+        }
+      }
+    },
+    "%lldゲーム目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game %lld"
+          }
+        }
+      }
+    },
+    "%lld枚出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Play %lld Card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Play %lld Cards"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "8 を含む組を出すと場が流れ、そのまま続けて出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing a set that includes an 8 clears the table right away, and you get to lead the next play."
+          }
+        }
+      }
+    },
+    "8切り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8-Stop"
+          }
+        }
+      }
+    },
+    "8切り！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8-Stop!"
+          }
+        }
+      }
+    },
+    "CPU3人と対戦。革命・8切りあり！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take on 3 CPUs. With Revolutions and 8-Stops!"
+          }
+        }
+      }
+    },
+    "CPU3人と対戦します。手札を早く出し切るほど上の階級になり、決着すると階級に応じてカードを交換して次のゲームへ進みます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play against 3 CPUs. The sooner you get rid of all your cards, the higher your rank. When a game ends, players exchange cards based on their rank and the next game begins."
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "あがり！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out!"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなたが出した" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You played"
+          }
+        }
+      }
+    },
+    "あなたの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Turn"
+          }
+        }
+      }
+    },
+    "あなたは %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're the %@"
+          }
+        }
+      }
+    },
+    "あなた（残り%lld枚）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You (%lld card left)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You (%lld cards left)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "その他の操作" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More Actions"
+          }
+        }
+      }
+    },
+    "みんな出せない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No one can play"
+          }
+        }
+      }
+    },
+    "より強い札を" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a stronger card"
+          }
+        }
+      }
+    },
+    "エース" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ace"
+          }
+        }
+      }
+    },
+    "カードの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card Strength"
+          }
+        }
+      }
+    },
+    "カードを選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Cards"
+          }
+        }
+      }
+    },
+    "カード交換を免除できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't skip the card exchange"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "キング" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "King"
+          }
+        }
+      }
+    },
+    "クイーン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queen"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How It Plays"
+          }
+        }
+      }
+    },
+    "ジャック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jack"
+          }
+        }
+      }
+    },
+    "ジョーカー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joker"
+          }
+        }
+      }
+    },
+    "ダブルタップで選択を切り替えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to select or deselect"
+          }
+        }
+      }
+    },
+    "パス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass"
+          }
+        }
+      }
+    },
+    "パス ×全員" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone passes"
+          }
+        }
+      }
+    },
+    "上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Players are ranked Tycoon, Rich, Poor, and Beggar in the order they go out. Before the next game, the Beggar gives the Tycoon their 2 strongest cards, and the Tycoon gives the Beggar 2 weak cards (the Rich and the Poor swap 1 card each)."
+          }
+        }
+      }
+    },
+    "今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This ends the current game. You'll become the Beggar, and it will count as a loss."
+          }
+        }
+      }
+    },
+    "出して場が J に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now the table is J"
+          }
+        }
+      }
+    },
+    "出し方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing Cards"
+          }
+        }
+      }
+    },
+    "出せる組がありません。パスしてください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have nothing you can play. Please pass."
+          }
+        }
+      }
+    },
+    "反則" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foul"
+          }
+        }
+      }
+    },
+    "反則上がり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foul Finish"
+          }
+        }
+      }
+    },
+    "同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing 4 or more cards of the same number at once starts a Revolution: card strength is reversed (another Revolution flips it back)."
+          }
+        }
+      }
+    },
+    "場" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table"
+          }
+        }
+      }
+    },
+    "場が流れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table is cleared"
+          }
+        }
+      }
+    },
+    "場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the table is clear, you can lead any set (a single card, a pair, three of a kind…). Otherwise, you must play the same number of cards, and they must be stronger."
+          }
+        }
+      }
+    },
+    "場の %@ より強い数字が必要です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You need a number stronger than the %@ on the table"
+          }
+        }
+      }
+    },
+    "場のカード、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cards on the table: %@"
+          }
+        }
+      }
+    },
+    "場の札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the table"
+          }
+        }
+      }
+    },
+    "場は%1$lld枚です。%2$lld枚では出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The table has %1$lld card. You can't play %2$lld."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The table has %1$lld cards. You can't play %2$lld."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "場は流れています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The table is clear"
+          }
+        }
+      }
+    },
+    "場は流れています（好きな組を出せます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table is clear (lead any set)"
+          }
+        }
+      }
+    },
+    "大富豪" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tycoon"
+          }
+        }
+      }
+    },
+    "大貧民" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beggar"
+          }
+        }
+      }
+    },
+    "富豪" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rich"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに次のゲームが始まったため、免除できませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next game started while the ad was playing, so the exchange couldn't be skipped."
+          }
+        }
+      }
+    },
+    "広告を見て次のカード交換を免除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad to Skip the Next Card Exchange"
+          }
+        }
+      }
+    },
+    "弱い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak"
+          }
+        }
+      }
+    },
+    "弱い ← 3 4 5 6 7 8 9 10 J Q K A 2 → 強い。ジョーカーが最強で、どのカードの代わりにもなります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak ← 3 4 5 6 7 8 9 10 J Q K A 2 → Strong. The Joker is the strongest card and can stand in for any card."
+          }
+        }
+      }
+    },
+    "強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strong"
+          }
+        }
+      }
+    },
+    "投了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resign"
+          }
+        }
+      }
+    },
+    "投了しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resign this game?"
+          }
+        }
+      }
+    },
+    "投了する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resign"
+          }
+        }
+      }
+    },
+    "数字がそろっていません（ジョーカーは他の数字の代わりに使えます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The numbers don't match (a Joker can stand in for any number)"
+          }
+        }
+      }
+    },
+    "最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Going out with a 2, an 8, or a Joker as your final play is a foul. You drop to Beggar even though you went out."
+          }
+        }
+      }
+    },
+    "次のゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Game"
+          }
+        }
+      }
+    },
+    "次のゲームは大富豪⇔大貧民のカード交換を免除します（富豪⇔貧民は1枚ずつ交換します）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next game, the Tycoon and Beggar skip their card exchange (the Rich and Poor still swap 1 card each)"
+          }
+        }
+      }
+    },
+    "次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next game, cards are exchanged by rank (Tycoon ⇔ Beggar: 2 cards / Rich ⇔ Poor: 1 card)"
+          }
+        }
+      }
+    },
+    "残り%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "決着" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game Over"
+          }
+        }
+      }
+    },
+    "空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty"
+          }
+        }
+      }
+    },
+    "結果まで進める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip to Results"
+          }
+        }
+      }
+    },
+    "貧民" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poor"
+          }
+        }
+      }
+    },
+    "開始待ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting"
+          }
+        }
+      }
+    },
+    "階級とカード交換" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ranks and Card Exchange"
+          }
+        }
+      }
+    },
+    "革命" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution"
+          }
+        }
+      }
+    },
+    "革命中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution"
+          }
+        }
+      }
+    },
+    "革命中です。場の %@ より弱い数字が必要です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution is on. You need a number weaker than the %@ on the table"
+          }
+        }
+      }
+    },
+    "革命返し！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counter-Revolution!"
+          }
+        }
+      }
+    },
+    "革命！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution!"
+          }
+        }
+      }
+    },
+    "（8切り）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (8-Stop)"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

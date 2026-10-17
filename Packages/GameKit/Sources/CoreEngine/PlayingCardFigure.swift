@@ -14,7 +14,7 @@ public enum PlayingCardSuit: Int, CaseIterable, Sendable, Equatable {
     public var isRed: Bool { self == .heart || self == .diamond }
 
     /// VoiceOver 用の読み（記号のままだと読み上げが端末設定に左右されるため文字で持つ）。
-    public var spokenName: String { ["スペード", "ハート", "ダイヤ", "クラブ"][rawValue] }
+    public var spokenName: String { [tr("スペード"), tr("ハート"), tr("ダイヤ"), tr("クラブ")][rawValue] }
 }
 
 // MARK: - 面に描くもの
@@ -53,8 +53,8 @@ public enum PlayingCardFigure: Sendable, Equatable {
     /// VoiceOver 用の読み上げ文（例: "スペードのA"）。
     public var spokenLabel: String {
         switch self {
-        case .joker: return "ジョーカー"
-        case .pip(let suit, _): return "\(suit.spokenName)の\(rankLabel)"
+        case .joker: return tr("ジョーカー")
+        case .pip(let suit, _): return tr("%1$@の%2$@", suit.spokenName, rankLabel)
         }
     }
 }

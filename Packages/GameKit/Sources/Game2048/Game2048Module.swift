@@ -5,7 +5,7 @@ import Core
 public struct Game2048Module: GameModule {
     public let id = "2048"
     public let title = "2048"
-    public let description = "タイルを合体させて2048を目指そう"
+    public var description: String { tr("タイルを合体させて2048を目指そう") }
     public var icon: Image { Image(systemName: "square.grid.2x2") }
 
     public init() {}
@@ -20,5 +20,10 @@ public struct Game2048Module: GameModule {
         guard let snap = snapshots.load(Game2048Snapshot.self, for: id) else { return false }
         let tiles = snap.board.reduce(0) { $0 + $1.filter { $0 != 0 }.count }
         return snap.score > 0 || tiles > 2
+    }
+
+    /// 保存はあるが続きではない盤 = 一度も動かしていない盤（#2161）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
     }
 }

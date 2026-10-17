@@ -12,8 +12,9 @@ public struct HanafudaModule: GameModule {
     // 定数参照にすると slug を突き合わせられずに CI が落ちる。
     // `HanafudaModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "hanafuda"
-    public let title = "花札こいこい"
-    public let description = "CPUと役を競う。こいこいで倍を狙おう"
+    // 表示名・説明は表示言語で引く（#2166）。英語も「Online」の組合せと酒の役名は載せない。
+    public var title: String { tr("花札こいこい") }
+    public var description: String { tr("CPUと役を競う。こいこいで倍を狙おう") }
     // 和風の看板。ハブに並ぶ他ゲームに草花のアイコンは無く、ひと目で見分けられる。
     public var icon: Image { Image(systemName: "leaf.fill") }
 
@@ -29,11 +30,20 @@ public struct HanafudaModule: GameModule {
     /// 2 局目以降の配り直しは前の局の結果があるので続きとして扱う。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return false }
-        let untouched = snap.round <= 1
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが配っただけで一枚も出していない 1 局目（#2301）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: HanafudaSnapshot) -> Bool {
+        snap.round <= 1
             && snap.phase == .playing
             && snap.selection == nil && snap.drawnCard == nil
             && snap.hands.allSatisfy { $0.count == 8 }
             && snap.captured.allSatisfy(\.isEmpty)
-        return !untouched
     }
 }

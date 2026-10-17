@@ -24,8 +24,11 @@ import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
+import GameAkariKeshi
 import GameBackgammon
+import GameMancala
 import GameSpeed
+import GameTsunagi
 import GameHomerun
 import GameOjisanPuzzle
 import GameSpider
@@ -100,6 +103,9 @@ func makeHubModules() -> [GameModule] {
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
         RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        MancalaModule(),
+        AkariKeshiModule(),
+        TsunagiModule(),
     ]
 }
 
@@ -230,7 +236,7 @@ struct GameCenterLeaderboardTests {
 
     @Test("勝敗しか残らないゲームは対象外")
     func winLossGamesAreExcluded() {
-        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay", "backgammon"] {
+        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay", "backgammon", "mancala"] {
             #expect(
                 GameCenterLeaderboard.score(
                     gameID: gameID, outcome: .win, score: GameScore(metric: .winLoss)
@@ -800,7 +806,7 @@ struct GameCenterEntryPointTests {
             "きろく のシートが RecordsView を出していない、または閉じたあとに Game Center を開く結線が無い"
         )
         // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
-        #expect(source.contains(#"accessibilityLabel("きろく")"#),
+        #expect(source.contains(#"accessibilityLabel(tr("きろく"))"#),
                 "アイコンボタンの読み上げラベルが消えている")
     }
 
@@ -829,7 +835,7 @@ struct GameCenterEntryPointTests {
         let records = try appSource("RecordsView.swift")
         #expect(
             records.range(
-                of: #"Button \{ onOpenGameCenter\(\) \} label: \{\s*Label\("Game Center で実績・ランキングを見る""#,
+                of: #"Button \{ onOpenGameCenter\(\) \} label: \{\s*Label\(tr\("Game Center で実績・ランキングを見る"\)"#,
                 options: .regularExpression
             ) != nil,
             "きろく の Game Center ボタンの結線が切れている"

@@ -44,6 +44,10 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var mustPass: Bool
     public private(set) var turnID: Int
+    /// CPU が着手（またはパス）した直後の `aiTurnKey`（#2280）。View はこれと一致する鍵の変化だけを読み上げる。
+    public private(set) var lastCPUMoveKey: AITurnKey?
+    /// `lastCPUMoveKey` の手がパスだったか（#2280）。
+    public private(set) var lastCPUPassed = false
     public private(set) var undoUsed: Bool
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
@@ -255,6 +259,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             } commit: { _ in
                 guard isAITurn, mustPass else { return }
                 confirmPass()
+                lastCPUPassed = true
+                lastCPUMoveKey = aiTurnKey
             }
             return
         }
@@ -275,6 +281,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
             if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
                 place(row: r, col: c)
+                lastCPUPassed = false
+                lastCPUMoveKey = aiTurnKey
             }
         }
     }

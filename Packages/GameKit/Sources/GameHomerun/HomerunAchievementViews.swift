@@ -8,12 +8,12 @@ struct HomerunAchievementsCard: View {
     let model: HomerunModel
 
     /// Game Center に連携していない人への注意（機種変更・アプリの削除で端末の記録が消えるため）。
-    static let unlinkedNotice = "Game Center と連携していないと、機種変更やアプリの削除で実績が消えます"
+    static var unlinkedNotice: String { tr("Game Center と連携していないと、機種変更やアプリの削除で実績が消えます") }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("実績").themeBody(16).foregroundStyle(Theme.ink)
+                Text(tr("実績")).themeBody(16).foregroundStyle(Theme.ink)
                 Spacer()
                 Text(verbatim: "\(model.achievements.count) / \(HomerunAchievement.allCases.count)")
                     .themeBody(16, weight: .heavy)
@@ -44,7 +44,7 @@ struct HomerunAchievementsCard: View {
                 .foregroundStyle(unlocked ? Theme.yellow : Theme.inkSub.opacity(0.5))
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
-                Text(verbatim: unlocked ? achievement.title : "？？？")
+                Text(verbatim: unlocked ? achievement.title : tr("？？？"))
                     .themeBody(17, weight: .heavy)
                     .foregroundStyle(unlocked ? Theme.ink : Theme.inkSub)
                     .lineLimit(2)
@@ -60,7 +60,7 @@ struct HomerunAchievementsCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(unlocked ? "\(achievement.title)。\(achievement.detail)" : "未解除の実績")
+        .accessibilityLabel(unlocked ? tr("%1$@。%2$@", achievement.title, achievement.detail) : tr("未解除の実績"))
     }
 }
 
@@ -72,9 +72,9 @@ struct HomerunUnlockBanner: View {
         HStack(spacing: 10) {
             Image(systemName: "trophy.fill")
                 .scaledFont(26, weight: .bold)
-                .foregroundStyle(Theme.yellow)
+                .foregroundStyle(Theme.yellowText)
             VStack(alignment: .leading, spacing: 2) {
-                Text("実績解禁！").themeCaption(12).foregroundStyle(Theme.coral)
+                Text(tr("実績解禁！")).themeCaption(12).foregroundStyle(Theme.coralText)
                 ForEach(items, id: \.self) { item in
                     Text(verbatim: item.title)
                         .scaledFont(18, weight: .black, design: .rounded)
@@ -88,7 +88,7 @@ struct HomerunUnlockBanner: View {
         .padding(12)
         .popCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("実績解禁。" + items.map(\.title).joined(separator: "、"))
+        .accessibilityLabel(tr("実績解禁。%@", items.map(\.title).joined(separator: tr("、"))))
     }
 }
 
@@ -99,12 +99,12 @@ struct HomerunUnlockedCard: View {
     var body: some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Label("実績解禁！", systemImage: "trophy.fill")
+                Label(tr("実績解禁！"), systemImage: "trophy.fill")
                     .themeBody(16, weight: .heavy)
                     .foregroundStyle(Theme.ink)
                 ForEach(items, id: \.self) { item in
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(verbatim: item.title).themeBody(15, weight: .heavy).foregroundStyle(Theme.coral)
+                        Text(verbatim: item.title).themeBody(15, weight: .heavy).foregroundStyle(Theme.coralText)
                         Text(verbatim: item.detail).themeCaption(11).foregroundStyle(Theme.inkSub)
                     }
                     .accessibilityElement(children: .combine)

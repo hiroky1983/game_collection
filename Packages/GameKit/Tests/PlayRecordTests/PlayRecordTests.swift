@@ -453,7 +453,8 @@ struct PlayRecordStorageTests {
             )
         }
         let keys = Set((defaults.persistentDomain(forName: name) ?? [:]).keys)
-        #expect(keys == Set(PlayLog.playRecordKeys))
+        // 記録の1キー + 遊んだ日（#1625）の1キー。200 局遊んでも増えない。
+        #expect(keys == Set(PlayLog.playRecordKeys + PlayLog.playDayKeys))
         #expect(log.records.count == 1)
     }
 
@@ -515,7 +516,7 @@ struct PlayRecordStorageTests {
         #expect(log.lastPlayedAtByGame["minesweeper"] == newer)
         // 再起動しても保持される（records と同じ1キーに入っているだけで、キーは増えない）。
         #expect(PlayLog(defaults: defaults).lastPlayedAtByGame["minesweeper"] == newer)
-        #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys) == Set(PlayLog.playRecordKeys),
+        #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys) == Set(PlayLog.playRecordKeys + PlayLog.playDayKeys),
                 "日付を足してもキーは増えない")
     }
 
@@ -563,6 +564,24 @@ struct LegacyRecordMigrationTests {
         // 旧キーは残さない（残すとハブに区分名の無い行がもう1つ出る）
         #expect(reopened.record(gameID: "mahjong") == nil)
         #expect(reopened.records(gameID: "mahjong").count == 1)
+    }
+
+    @Test("荷運びモードの旧表示名「腰痛モード」は読み込み時に直り、記録の中身は変わらない（#2176）")
+    func staleOjisanVariantLabelIsRenamedOnLoad() {
+        let (log, defaults, name) = makeLog(suite: "rename-ojisan-label")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        log.recordResult(
+            gameID: "ojisanpuzzle", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 37, variant: "backpain", variantLabel: "腰痛モード")
+        )
+        #expect(log.record(gameID: "ojisanpuzzle", variant: "backpain")?.variantLabel == "腰痛モード", "前提: 旧名で保存されている")
+
+        let reopened = PlayLog(defaults: defaults)
+        let record = reopened.record(gameID: "ojisanpuzzle", variant: "backpain")
+        #expect(record?.variantLabel == "荷運びモード")
+        #expect(record?.bestSeconds == 37)
+        #expect(RecordFormat.hubLine(reopened.records(gameID: "ojisanpuzzle")) == "最短 0:37（荷運びモード）")
     }
 
     @Test("引き継いだ記録は更新後の初回クリアと比較される（無条件の新記録にならない）")

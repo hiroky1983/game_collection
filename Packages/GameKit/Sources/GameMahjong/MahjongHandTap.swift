@@ -14,6 +14,11 @@ enum MahjongHandTapOutcome: Equatable {
     case discard
 }
 
+enum MahjongHandTapFeedback: Equatable {
+    case selection
+    case rejected
+}
+
 enum MahjongHandTap {
     /// タップされた牌の ID と現在の選択から、起こすべきことを決める。
     ///
@@ -26,6 +31,16 @@ enum MahjongHandTap {
     ) -> MahjongHandTapOutcome {
         guard isPlayerTurn, isDiscardable else { return .ignored }
         return tappedID == selectedID ? .discard : .select(tappedID)
+    }
+
+    /// 結果に応じて鳴らす触覚。選択は弱い触覚、自分の手番に切れない牌（立直中など）を叩いたら拒否。
+    /// 手番外のタップや打牌（Model 側が別に鳴らす）では何も返さない。
+    static func feedback(for outcome: MahjongHandTapOutcome, isPlayerTurn: Bool) -> MahjongHandTapFeedback? {
+        switch outcome {
+        case .select:  return .selection
+        case .ignored: return isPlayerTurn ? .rejected : nil
+        case .discard: return nil
+        }
     }
 
     /// 手牌 n 枚目（`MahjongModel.playerHand.tiles` の位置）を指す ID。

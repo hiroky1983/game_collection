@@ -119,7 +119,7 @@ extension MahjongModel {
             kind: isTsumo ? .tsumo : .ron,
             winner: winner,
             loser: loser,
-            yaku: score.yaku.map { "\($0.name) \($0.isYakuman ? "役満" : "\($0.han)飜")" },
+            yaku: score.yaku.map { "\($0.name) \($0.isYakuman ? "役満" : "\($0.han)飜")" },  // i18n-keep: 中断データに保存する役の行（表示は displayYakuLine で訳す）
             han: score.han,
             fu: score.fu,
             limitName: score.limitName,

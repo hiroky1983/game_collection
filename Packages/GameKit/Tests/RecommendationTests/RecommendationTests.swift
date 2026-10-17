@@ -228,7 +228,7 @@ struct RecommendationTableTests {
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
         )
         guard let block = source.range(
-            of: #"static let registry = GameRegistry\(\[[^\]]*\]\)"#, options: .regularExpression
+            of: #"static let registry = GameRegistry\(\[[^\]]*\]"#, options: .regularExpression
         ) else {
             Issue.record("AppEnvironment.registry の定義が見つからない（走査のパターンが壊れている可能性）")
             return

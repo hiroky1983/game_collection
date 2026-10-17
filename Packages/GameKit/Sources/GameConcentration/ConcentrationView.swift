@@ -38,7 +38,7 @@ public struct ConcentrationView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "神経衰弱", review: services.review,
+        .gameChrome(title: tr("神経衰弱"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         if model.hasProgressToLose {
                             showConfirmNewGame = true
@@ -46,13 +46,13 @@ public struct ConcentrationView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(.concentration)
+        .howToPlay(HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items))
         .dialogs { anchor in
-            anchor.confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button("終了して新規対局", role: .destructive) { showNewGame = true }
-                Button("キャンセル", role: .cancel) {}
+            anchor.confirmationDialog(tr("新規対局を始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
+                Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text("途中で終了すると、いまの対戦が失われます。")
+                Text(tr("途中で終了すると、いまの対戦が失われます。"))
             }
         }
         .sheet(isPresented: $showNewGame) {
@@ -78,8 +78,8 @@ public struct ConcentrationView: View {
             .gameAnimation(ConcentrationMotion.resultOverlayFade, value: model.isGameOver)
         }
         .dialogs { anchor in
-            anchor.alert("待った確認", isPresented: $showMattaConfirm) {
-                Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
+            anchor.alert(tr("待った確認"), isPresented: $showMattaConfirm) {
+                Button(model.mattaUsed ? tr("広告を見て戻す") : tr("戻す（無料）")) {
                     guard model.mattaUsed else {
                         // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
                         // 手番で盤を動かす（同じ transaction に乗せると札の変化が
@@ -104,11 +104,11 @@ public struct ConcentrationView: View {
                         return true
                     }
                 }
-                Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
+                Button(tr("キャンセル"), role: .cancel) { model.resumeAutoTurn() }
             } message: {
                 Text(model.mattaUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
+                     ? tr("無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。")
+                     : tr("ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。"))
             }
         }
         // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
@@ -116,18 +116,18 @@ public struct ConcentrationView: View {
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
-            notEarned: "待ったは使えませんでした",
+            notEarned: tr("待ったは使えませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "待ったは使えませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったか、手番が変わったため、戻せませんでした。"
+                title: tr("待ったは使えませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったか、手番が変わったため、戻せませんでした。")
             )
         )
         .rewardedRescueAlerts(
             hintRescue,
-            notEarned: "ヒントを表示できませんでした",
+            notEarned: tr("ヒントを表示できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: "ヒントを出せませんでした",
-                message: "広告を見ているあいだに新しいゲームが始まったか、札の状況が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。"
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったか、札の状況が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
             )
         )
         .task(id: model.turnID) {
@@ -148,7 +148,7 @@ public struct ConcentrationView: View {
 
     private var statusBar: some View {
         GameStatusBar {
-            scoreChip(label: "あなた", score: model.playerScore,
+            scoreChip(label: tr("あなた"), score: model.playerScore,
                       color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
         } trailing: {
             // 常に場所を取り、思考中の出入りで CPU のチップが左右に動かないようにする。
@@ -186,12 +186,12 @@ public struct ConcentrationView: View {
             actions: [
                 hintAction,
                 GameActionItem(
-                    id: "matta", title: "待った",
+                    id: "matta", title: tr("待った"),
                     systemImage: "arrow.uturn.backward", role: .undo,
                     badge: model.mattaUsed ? .ad() : .count(1),
-                    note: model.canMatta ? "今だけ！" : nil,
+                    note: model.canMatta ? tr("今だけ！") : nil,
                     isEnabled: model.canMatta,
-                    accessibilityHint: model.canMatta ? "ミスマッチの札が裏返る前なら、直前のめくりをやり直せます" : "ミスマッチの直後だけ使えます"
+                    accessibilityHint: model.canMatta ? tr("ミスマッチの札が裏返る前なら、直前のめくりをやり直せます") : tr("ミスマッチの直後だけ使えます")
                 ) {
                     // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
                     model.pauseAutoTurn()
@@ -211,15 +211,15 @@ public struct ConcentrationView: View {
     private var hintAction: GameActionItem {
         let free = model.hints.freeRemaining
         return GameActionItem(
-            id: "hint", title: "ヒント", systemImage: "lightbulb.fill", role: .hint,
+            id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
             badge: model.needsAdForHint ? .ad() : .count(free),
             isEnabled: model.canUseHint && !hintRescue.isWatching,
             accessibilityLabel: model.needsAdForHint
-                ? "ヒント（広告を見て表示）"
-                : "ヒント（残り\(free)回）",
+                ? tr("ヒント（広告を見て表示）")
+                : tr("ヒント（残り%lld回）", free),
             accessibilityHint: model.firstFlippedIndex == nil
-                ? "自分の番で1枚目をめくると使えます"
-                : "1枚目の札の相方を、少しのあいだ光らせます"
+                ? tr("自分の番で1枚目をめくると使えます")
+                : tr("1枚目の札の相方を、少しのあいだ光らせます")
         ) { requestHint() }
     }
 
@@ -228,7 +228,7 @@ public struct ConcentrationView: View {
         guard !hintRescue.isWatching, model.canUseHint else { return }
         guard model.needsAdForHint else {
             if model.requestHint() {
-                AccessibilityNotification.Announcement("ヒント、光っている札が相方です").post()
+                AccessibilityNotification.Announcement(tr("ヒント、光っている札が相方です")).post()
             }
             return
         }
@@ -329,14 +329,14 @@ public struct ConcentrationView: View {
                     Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                         .scaledFont(52, maxScale: 1.2)
                         .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
-                    Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
+                    Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                         .scaledFont(26, weight: .black, design: .rounded)
                         .foregroundStyle(isWin ? Theme.teal : Theme.coral)
                 } else {
                     Image(systemName: "equal.circle.fill")
                         .scaledFont(52, maxScale: 1.2)
                         .foregroundStyle(Theme.inkSub)
-                    Text("引き分け")
+                    Text(tr("引き分け"))
                         .scaledFont(26, weight: .black, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
                 }
@@ -344,13 +344,13 @@ public struct ConcentrationView: View {
 
             HStack(spacing: 20) {
                 VStack {
-                    Text("あなた").themeBody(13).foregroundStyle(Theme.inkSub)
-                    Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.teal)
+                    Text(tr("あなた")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.tealText)
                 }
                 Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
                 VStack {
                     Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
-                    Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coral)
+                    Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coralText)
                 }
             }
 
@@ -412,9 +412,9 @@ private struct CardView: View {
 
     /// 絵文字をやめると読み上げも消えるため、札の状態を言葉で持ち直す（#601）。
     private var accessibilityText: String {
-        if isHint { return "裏向きの札、ヒント（1枚目の相方）" }
-        guard isFaceUp, let name = card.figure?.displayName else { return "裏向きの札" }
-        return card.isMatched ? "\(name)（獲得済み）" : name
+        if isHint { return tr("裏向きの札、ヒント（1枚目の相方）") }
+        guard isFaceUp, let name = card.figure?.displayName else { return tr("裏向きの札") }
+        return card.isMatched ? tr("%@（獲得済み）", name) : name
     }
 
     @ViewBuilder
@@ -484,7 +484,7 @@ struct ConcentrationNewGameSheet: View {
             kind: .versus, startTint: Theme.Fill.purple,
             onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
         ) {
-            GameSetupSection("盤面サイズ") {
+            GameSetupSection(tr("盤面サイズ")) {
                 HStack(spacing: 12) {
                     ForEach(ConcentrationPairCount.allCases, id: \.rawValue) { p in
                         GameSetupChooser(
@@ -498,7 +498,7 @@ struct ConcentrationNewGameSheet: View {
                 }
             }
 
-            GameSetupSection("CPUの強さ") {
+            GameSetupSection(tr("CPUの強さ")) {
                 HStack(spacing: 6) {
                     ForEach(Array(ConcentrationCPULevel.allCases.enumerated()), id: \.element) { step, l in
                         GameSetupChooser(

@@ -189,6 +189,56 @@ struct Game2048WinTests {
         #expect(model.board != boardAtWin)
     }
 
+    @Test("2048 を作った手で盤が埋まった終局は、触覚が成功用になり勝ちとして記録される（#2048）")
+    func winningMoveThatFillsBoardNotifiesSuccess() {
+        let feedback = SpyFeedbackService()
+        let name = "asobiba.2048win.tests.\(#function)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(),
+            ads: NoopAdService(),
+            feedback: feedback,
+            playLog: log
+        )
+        let model = Game2048Model(services: services, board: Self.winningMoveEndsTheGame)
+        services.gameDidStart(gameID: "2048")
+
+        model.move(.left)
+
+        #expect(model.gameOver, "前提: この手で終局する")
+        #expect(feedback.notices == [.success])
+        #expect(log.record(gameID: "2048")?.wins == 1)
+    }
+
+    @Test("2048 を作らずに盤が埋まった終局は、触覚が失敗用のまま（#2048）")
+    func losingMoveThatFillsBoardNotifiesError() {
+        let feedback = SpyFeedbackService()
+        let name = "asobiba.2048win.tests.\(#function)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(),
+            ads: NoopAdService(),
+            feedback: feedback,
+            playLog: log
+        )
+        var board = Self.winningMoveEndsTheGame
+        board[0][0] = 512
+        board[0][1] = 512
+        let model = Game2048Model(services: services, board: board)
+        services.gameDidStart(gameID: "2048")
+
+        model.move(.left)
+
+        #expect(model.gameOver, "前提: この手で終局する")
+        #expect(feedback.notices == [.error])
+        #expect(log.record(gameID: "2048")?.wins == 0)
+        #expect(log.record(gameID: "2048")?.losses == 1)
+    }
+
     @Test("広告コンティニュー → 無操作で新規開始: `game_end`(quit) が 1 回出て対応が取れる（#1953）")
     func newGameRightAfterAdContinueSendsQuit() {
         let harness = makeHarness(suite: "ad-continue-then-new-game")
@@ -379,6 +429,45 @@ struct Game2048WinTests {
         #expect(!model.showWinPrompt, "終局しているので続行の演出は出さない")
         #expect(harness.analytics.outcomes == [.win], "決着の通知は 1 回で、内容は勝ち")
         #expect(harness.log.record(gameID: "2048")?.wins == 1)
+    }
+
+    // MARK: - 「戻す」と到達済みフラグ（#2056）
+
+    @Test("2048 を作った手で終局 →「戻す」→ 同じ手をやり直すと勝ちとして記録される（#2056）")
+    func undoingTheWinningGameOverRestoresHasWon() {
+        let harness = makeHarness(suite: "undo-winning-game-over")
+        let model = makeModel(harness, board: Self.winningMoveEndsTheGame)
+        model.move(.left)
+        #expect(model.gameOver && model.hasWon, "前提: 勝ちで終局")
+
+        #expect(model.undo())
+        #expect(!model.gameOver)
+        #expect(!model.hasWon, "手の前は未到達なので、到達の印も戻る")
+
+        model.move(.left)
+        #expect(model.gameOver && model.hasWon)
+        #expect(harness.analytics.outcomes == [.win, .win], "やり直しの終局も勝ちとして送られる（負けにならない）")
+    }
+
+    @Test("非終局で勝ってから「続ける」→「戻す」しても到達済みのまま（再演出しない）（#2056）")
+    func undoingAfterANonFinalWinKeepsHasWon() {
+        let model = Game2048Model(board: Self.oneMoveFromWin)
+        model.move(.left)
+        model.continueAfterWin()
+        // 新タイルは乱数なので、動く向きは盤を見て選ぶ。
+        let direction = Direction.allCases.first { Game2048Logic.slide(model.board, $0).moved }!
+        model.move(direction)
+        #expect(model.undo())
+        #expect(model.undo(), "勝った手そのものも戻せる")
+        #expect(model.hasWon, "終局からの undo ではないので復元しない")
+        #expect(!model.showWinPrompt)
+    }
+
+    @Test("手前の到達の印を持たない旧データの履歴を戻しても hasWon は変わらない（#2056）")
+    func undoWithLegacyStepKeepsHasWon() throws {
+        let json = #"{"board":[[2,0],[0,2]],"score":0}"#
+        let step = try JSONDecoder().decode(Game2048Step.self, from: Data(json.utf8))
+        #expect(step.hasWon == nil)
     }
 
     // MARK: - 勝ちで終局した局のコンティニュー（#764）

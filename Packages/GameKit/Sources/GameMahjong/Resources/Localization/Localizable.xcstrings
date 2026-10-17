@@ -1,0 +1,2760 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@ → %2$@のロン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ron: %1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%1$@、手牌から%2$@を使います" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, using %2$@ from your hand"
+          }
+        }
+      }
+    },
+    "%1$@、持ち点%2$lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, %2$lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, %2$lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%1$@。%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. %2$@"
+          }
+        }
+      }
+    },
+    "%1$@の捨て牌 %2$lld枚、最後は%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@: %2$lld discard, last was %3$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@: %2$lld discards, last was %3$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%1$lld飜（鳴き%2$lld飜）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld Han (open: %2$lld)"
+          }
+        }
+      }
+    },
+    "%@が出ました。鳴きますか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was discarded. Call it?"
+          }
+        }
+      }
+    },
+    "%@のツモ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tsumo: %@"
+          }
+        }
+      }
+    },
+    "%@のルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Rules"
+          }
+        }
+      }
+    },
+    "%@のロン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ron: %@"
+          }
+        }
+      }
+    },
+    "%@の捨て牌はまだありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: no discards yet"
+          }
+        }
+      }
+    },
+    "%@終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ complete"
+          }
+        }
+      }
+    },
+    "%lld位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld"
+          }
+        }
+      }
+    },
+    "%lld倍役満" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldx Yakuman"
+          }
+        }
+      }
+    },
+    "%lld本場" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld honba"
+          }
+        }
+      }
+    },
+    "%lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld符" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Fu"
+          }
+        }
+      }
+    },
+    "%lld飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Han"
+          }
+        }
+      }
+    },
+    "%lld飜（門前のみ）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Han (closed only)"
+          }
+        }
+      }
+    },
+    "1 枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw 1"
+          }
+        }
+      }
+    },
+    "1と9だけで作る（字牌も使わない）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only 1s and 9s (no honor tiles)"
+          }
+        }
+      }
+    },
+    "1と9と字牌を1枚も使わない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No 1s, 9s or honor tiles at all"
+          }
+        }
+      }
+    },
+    "1・9・字牌だけで作る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only 1s, 9s and honor tiles"
+          }
+        }
+      }
+    },
+    "1・9・字牌の13種を1枚ずつ集め、どれか1種をもう1枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One of each of the 13 terminal and honor tiles, plus a second of any one"
+          }
+        }
+      }
+    },
+    "1位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1st"
+          }
+        }
+      }
+    },
+    "1枚 1飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Han per tile"
+          }
+        }
+      }
+    },
+    "1枚ツモって1枚切る。4面子+雀頭で和了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw a tile, discard a tile. Win with 4 sets + a pair"
+          }
+        }
+      }
+    },
+    "1種類の数牌だけで作る（字牌も使わない）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only tiles of one suit (no honor tiles)"
+          }
+        }
+      }
+    },
+    "1種類の数牌と字牌だけで作る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only tiles of one suit plus honor tiles"
+          }
+        }
+      }
+    },
+    "1飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Han"
+          }
+        }
+      }
+    },
+    "2位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2nd"
+          }
+        }
+      }
+    },
+    "2飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 Han"
+          }
+        }
+      }
+    },
+    "3位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3rd"
+          }
+        }
+      }
+    },
+    "3飜以上" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3+ Han"
+          }
+        }
+      }
+    },
+    "4 組 ＋ 1 組 ＝ 和了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 sets + 1 pair = win"
+          }
+        }
+      }
+    },
+    "4位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4th"
+          }
+        }
+      }
+    },
+    "4組すべてを刻子（槓子）でそろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All four sets are triplets (or kans)"
+          }
+        }
+      }
+    },
+    "CPU3人と一局戦（東1局のみ）。持ち点は25000点から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Single Hand against 3 CPUs (East 1 only). Everyone starts with 25000 points"
+          }
+        }
+      }
+    },
+    "CPU3人と東風戦。立直・鳴きあり！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An East Round against 3 CPUs. Riichi and calls included!"
+          }
+        }
+      }
+    },
+    "CPU3人と東風戦（東1局〜東4局）。持ち点は25000点から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An East Round against 3 CPUs (East 1 to East 4). Everyone starts with 25000 points"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
+    },
+    "「門前のみ」はポン・チー・大明槓をすると消える役です（暗槓は門前のままなので消えません）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"Closed only\" yaku are lost if you call Pon, Chii or an open Kan (a closed Kan keeps your hand closed)."
+          }
+        }
+      }
+    },
+    "「鳴きN飜」はポン・チー・大明槓をすると飜数が下がる役、「門前のみ」は消える役です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"Open: N\" yaku are worth fewer Han if you call Pon, Chii or an open Kan. \"Closed only\" yaku are lost."
+          }
+        }
+      }
+    },
+    "あと 1 枚で和了（聴牌）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One tile from winning (Tenpai)"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなたは %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You finished %@"
+          }
+        }
+      }
+    },
+    "いまは切れません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't discard now"
+          }
+        }
+      }
+    },
+    "すべての組に1か9が入る（字牌は使わない）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every set and the pair include a 1 or 9 (no honor tiles)"
+          }
+        }
+      }
+    },
+    "すべての組に1・9・字牌のどれかが入る（字牌を1枚以上使う）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every set and the pair include a 1, 9 or honor tile (at least one honor tile)"
+          }
+        }
+      }
+    },
+    "もう一度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play again"
+          }
+        }
+      }
+    },
+    "やめる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "アガリやめで終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended: the leading dealer stopped"
+          }
+        }
+      }
+    },
+    "イッキツウカン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pure straight"
+          }
+        }
+      }
+    },
+    "イッパツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One-shot"
+          }
+        }
+      }
+    },
+    "イーペーコー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pure double sequence"
+          }
+        }
+      }
+    },
+    "ウラドラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden dora"
+          }
+        }
+      }
+    },
+    "カン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kan"
+          }
+        }
+      }
+    },
+    "カンする牌を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a tile to Kan"
+          }
+        }
+      }
+    },
+    "カンの直後に引いた牌（嶺上牌）で和了する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win on the replacement tile drawn after a kan"
+          }
+        }
+      }
+    },
+    "カンを3回する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make three kans"
+          }
+        }
+      }
+    },
+    "カンを4回する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make four kans"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play"
+          }
+        }
+      }
+    },
+    "コクシムソウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirteen orphans"
+          }
+        }
+      }
+    },
+    "サンアンコー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three concealed triplets"
+          }
+        }
+      }
+    },
+    "サンカンツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three kans"
+          }
+        }
+      }
+    },
+    "サンショクドウジュン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mixed triple sequence"
+          }
+        }
+      }
+    },
+    "ショウスーシー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Little four winds"
+          }
+        }
+      }
+    },
+    "ジュンチャン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminals in all sets"
+          }
+        }
+      }
+    },
+    "スルー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass"
+          }
+        }
+      }
+    },
+    "スーアンコー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four concealed triplets"
+          }
+        }
+      }
+    },
+    "スーカンツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four kans"
+          }
+        }
+      }
+    },
+    "タップで切る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to discard"
+          }
+        }
+      }
+    },
+    "タンヤオ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All simples"
+          }
+        }
+      }
+    },
+    "ダイサンゲン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Big three dragons"
+          }
+        }
+      }
+    },
+    "ダイスーシー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Big four winds"
+          }
+        }
+      }
+    },
+    "ダブルタップでこの牌を切ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to discard this tile"
+          }
+        }
+      }
+    },
+    "チャンカン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Robbing a kan"
+          }
+        }
+      }
+    },
+    "チンイツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full flush"
+          }
+        }
+      }
+    },
+    "チンロウトウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All terminals"
+          }
+        }
+      }
+    },
+    "チー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chii"
+          }
+        }
+      }
+    },
+    "チートイツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seven pairs"
+          }
+        }
+      }
+    },
+    "ツモ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tsumo"
+          }
+        }
+      }
+    },
+    "ツモとロン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tsumo and Ron"
+          }
+        }
+      }
+    },
+    "ツモ・立直・鳴きのくわしい説明" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More on drawing, Riichi & calls"
+          }
+        }
+      }
+    },
+    "ツモ切りすると %@ 待ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard the drawn tile to wait on %@"
+          }
+        }
+      }
+    },
+    "ツモ牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawn tile"
+          }
+        }
+      }
+    },
+    "ツーイーソー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All honors"
+          }
+        }
+      }
+    },
+    "トイトイ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All triplets"
+          }
+        }
+      }
+    },
+    "トビで終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended: a player went bust"
+          }
+        }
+      }
+    },
+    "ドラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dora"
+          }
+        }
+      }
+    },
+    "ドラは役ではありません。ドラだけでは和了できず、ほかに役が1つ以上要ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dora are not yaku. You can't win with dora alone; you need at least one yaku."
+          }
+        }
+      }
+    },
+    "ドラ表示牌、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dora indicators: %@"
+          }
+        }
+      }
+    },
+    "ドラ表示牌の次の牌1枚につき1飜。単独では和了できない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Han per tile following a dora indicator. Can't win with dora alone"
+          }
+        }
+      }
+    },
+    "ハイテイラオユエ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last tile draw"
+          }
+        }
+      }
+    },
+    "ピンフ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All sequences"
+          }
+        }
+      }
+    },
+    "フリテン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Furiten"
+          }
+        }
+      }
+    },
+    "フリテンです（ツモでのみ和了できます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Furiten (you can only win by Tsumo)"
+          }
+        }
+      }
+    },
+    "ホウテイラオユイ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last tile discard"
+          }
+        }
+      }
+    },
+    "ホンイツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Half flush"
+          }
+        }
+      }
+    },
+    "ホンチャンタ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminals or honors in all sets"
+          }
+        }
+      }
+    },
+    "ホンロウトウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All terminals and honors"
+          }
+        }
+      }
+    },
+    "ポン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pon"
+          }
+        }
+      }
+    },
+    "ポン・チー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pon and Chii"
+          }
+        }
+      }
+    },
+    "メンゼンツモ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed self-draw"
+          }
+        }
+      }
+    },
+    "ヤクハイ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value tiles"
+          }
+        }
+      }
+    },
+    "ヤクハイ ジカゼ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value tiles: seat wind"
+          }
+        }
+      }
+    },
+    "ヤクハイ バカゼ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value tiles: round wind"
+          }
+        }
+      }
+    },
+    "リャンペーコー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twice pure double sequence"
+          }
+        }
+      }
+    },
+    "リンシャンカイホウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a kan"
+          }
+        }
+      }
+    },
+    "リーチ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready hand"
+          }
+        }
+      }
+    },
+    "ルールと役を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules and yaku"
+          }
+        }
+      }
+    },
+    "ロン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ron"
+          }
+        }
+      }
+    },
+    "・" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "一局戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Hand"
+          }
+        }
+      }
+    },
+    "一気通貫" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ittsu"
+          }
+        }
+      }
+    },
+    "一発" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ippatsu"
+          }
+        }
+      }
+    },
+    "一盃口" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iipeikou"
+          }
+        }
+      }
+    },
+    "七対子" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiitoitsu"
+          }
+        }
+      }
+    },
+    "三倍満" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sanbaiman"
+          }
+        }
+      }
+    },
+    "三暗刻" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "San Ankou"
+          }
+        }
+      }
+    },
+    "三槓子" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "San Kantsu"
+          }
+        }
+      }
+    },
+    "三色同順" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sanshoku Doujun"
+          }
+        }
+      }
+    },
+    "二盃口" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ryanpeikou"
+          }
+        }
+      }
+    },
+    "他の人の捨て牌はポン・チー・カンで鳴けます（鳴くと立直はできません）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Call others' discards with Pon, Chii or Kan (an open hand can't declare Riichi)"
+          }
+        }
+      }
+    },
+    "他家が加槓した牌でロンする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ron on the tile another player adds to make a kan"
+          }
+        }
+      }
+    },
+    "倍満" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baiman"
+          }
+        }
+      }
+    },
+    "全員ノーテンです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone is noten"
+          }
+        }
+      }
+    },
+    "加槓" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added Kan"
+          }
+        }
+      }
+    },
+    "北" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N"
+          }
+        }
+      }
+    },
+    "半荘戦・立直したあとのカン・食い替えの禁止・流し満貫は採用していません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Half games (East-South), Kan after Riichi, swap-calling restrictions and Nagashi Mangan are not used"
+          }
+        }
+      }
+    },
+    "南" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S"
+          }
+        }
+      }
+    },
+    "同じ 2 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair"
+          }
+        }
+      }
+    },
+    "同じ 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        }
+      }
+    },
+    "同じ牌3枚（刻子）か連番3枚（順子）を4組と、同じ牌2枚（雀頭）を1組そろえると和了です。ほかに七対子（対子7組）と国士無双もあります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win with four sets (three of a kind or three in a row) plus a pair. Chiitoitsu (seven pairs) and Kokushi Musou also win"
+          }
+        }
+      }
+    },
+    "同じ牌4枚でカンできます。手の内の4枚なら暗槓、他の人の捨て牌でそろえば明槓、ポン済みの牌に4枚目を足せば加槓です。カンすると新しいドラがめくれ、王牌から1枚（嶺上牌）を引きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four of a kind makes a Kan: a closed Kan from your own hand, an open Kan on a discard, or an added Kan onto a Pon. Each Kan reveals a new dora and you draw a replacement tile from the dead wall"
+          }
+        }
+      }
+    },
+    "同じ牌が2枚あれば誰の捨て牌でもポン、連番であと2枚そろうときは上家（左の人）の捨て牌をチーできます。鳴くとその牌を含む面子を手牌の外に晒し、そのまま自分の番になって1枚切ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With two matching tiles you can Pon anyone's discard. To complete a sequence you can Chii the discard of the player on your left. The called set is placed face up and you then discard a tile"
+          }
+        }
+      }
+    },
+    "同じ種類の数牌で123・456・789をそろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "123, 456 and 789 in the same suit"
+          }
+        }
+      }
+    },
+    "和了した手: %1$@、和了牌は %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning hand: %1$@. Winning tile: %2$@"
+          }
+        }
+      }
+    },
+    "和了の形" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning hand"
+          }
+        }
+      }
+    },
+    "和了の形になっても、役が1つも無いと和了できません。立直・断幺九・役牌などが役です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Even with a complete hand, you can't win without at least one yaku. Riichi, Tanyao and Yakuhai are examples"
+          }
+        }
+      }
+    },
+    "四暗刻" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suuankou"
+          }
+        }
+      }
+    },
+    "四槓子" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suukantsu"
+          }
+        }
+      }
+    },
+    "国士無双" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kokushi Musou"
+          }
+        }
+      }
+    },
+    "場の風（東風戦は常に東）を3枚そろえる（鳴いても付く）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A triplet of the round wind (always East in an East Round). Counts when open"
+          }
+        }
+      }
+    },
+    "大三元" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daisangen"
+          }
+        }
+      }
+    },
+    "大四喜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daisuushii"
+          }
+        }
+      }
+    },
+    "字一色" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tsuuiisou"
+          }
+        }
+      }
+    },
+    "字牌だけで作る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only honor tiles"
+          }
+        }
+      }
+    },
+    "対々和" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toitoi"
+          }
+        }
+      }
+    },
+    "対局の長さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game length"
+          }
+        }
+      }
+    },
+    "小四喜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shousuushii"
+          }
+        }
+      }
+    },
+    "山が尽きたら流局。聴牌していた人が3000点を分け合い、ノーテンの人が払います" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the wall runs out, it's an exhaustive draw. Tenpai players share 3000 points, paid by the noten players"
+          }
+        }
+      }
+    },
+    "山の最後の牌をツモって和了する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win by Tsumo on the last tile of the wall"
+          }
+        }
+      }
+    },
+    "山の残り%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tile left in the wall"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tiles left in the wall"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "嶺上開花" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rinshan Kaihou"
+          }
+        }
+      }
+    },
+    "平和" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinfu"
+          }
+        }
+      }
+    },
+    "広告を最後まで見ると25,000点で対局を続けられます。1対局に1回だけです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the whole ad to keep playing with 25,000 points. Once per game only"
+          }
+        }
+      }
+    },
+    "広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1対局に1回だけです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the whole ad to play one more hand, East 5. Only when in last place, once per game"
+          }
+        }
+      }
+    },
+    "広告を見て25,000点で復活（1対局に1回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to revive with 25,000 pts (once per game)"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに対局が変わったため、延長は適用していません。延長の回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game changed while the ad was playing, so the extension wasn't applied. You haven't used up your extension."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに対局が変わったため、復活は適用していません。復活の回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game changed while the ad was playing, so the revive wasn't applied. You haven't used up your revive."
+          }
+        }
+      }
+    },
+    "広告を見て東5局を追加（1対局に1回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to add East 5 (once per game)"
+          }
+        }
+      }
+    },
+    "延長できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't extend"
+          }
+        }
+      }
+    },
+    "役が付く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Earns a yaku"
+          }
+        }
+      }
+    },
+    "役が要ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You need a yaku"
+          }
+        }
+      }
+    },
+    "役の早見表" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yaku list"
+          }
+        }
+      }
+    },
+    "役満" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuman"
+          }
+        }
+      }
+    },
+    "役満は飜数によらず点数が固定で、複数そろうと倍役満になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuman pay a fixed score regardless of Han. Several together make a double Yakuman or more."
+          }
+        }
+      }
+    },
+    "役牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuhai: Dragon"
+          }
+        }
+      }
+    },
+    "役牌 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuhai: %@"
+          }
+        }
+      }
+    },
+    "役牌 場風" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuhai: Round Wind"
+          }
+        }
+      }
+    },
+    "役牌 自風" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuhai: Seat Wind"
+          }
+        }
+      }
+    },
+    "復活できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't revive"
+          }
+        }
+      }
+    },
+    "手牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
+          }
+        }
+      }
+    },
+    "手番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current turn"
+          }
+        }
+      }
+    },
+    "持ち点 25000 点から。多い順に順位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with 25000 points. Ranked by points"
+          }
+        }
+      }
+    },
+    "捨て牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard"
+          }
+        }
+      }
+    },
+    "採用していないルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules not used"
+          }
+        }
+      }
+    },
+    "数え役満" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counted Yakuman"
+          }
+        }
+      }
+    },
+    "断幺九" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanyao"
+          }
+        }
+      }
+    },
+    "新規対局しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "暗槓" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed Kan"
+          }
+        }
+      }
+    },
+    "最後に捨てられた牌でロンする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win by Ron on the very last discard"
+          }
+        }
+      }
+    },
+    "本場%1$lld 供託%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Honba %1$lld Pot %2$lld"
+          }
+        }
+      }
+    },
+    "東" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E"
+          }
+        }
+      }
+    },
+    "東%lld局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "East %lld"
+          }
+        }
+      }
+    },
+    "東1局から東4局までの4局。親が和了または聴牌で流局すると連荘します。流局のときは親が流れても本場が増えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four hands, East 1 to East 4. The dealer repeats after winning or being tenpai at a draw. After a draw the honba count goes up even if the dealer passes"
+          }
+        }
+      }
+    },
+    "東1局から東4局まで打って順位を決める、いつもの対局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The standard game: play East 1 to East 4 to decide the ranking"
+          }
+        }
+      }
+    },
+    "東1局だけで順位を決める短い対局。すきま時間に1局だけ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A short game ranked on East 1 alone. One hand for a spare moment"
+          }
+        }
+      }
+    },
+    "東1局だけを打って順位を決める短い対局です。親が和了っても連荘はせず、その局で終わります。成績は東風戦とは別に数えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A short game ranked on East 1 alone. Even if the dealer wins there is no repeat; the game ends there. Stats are kept separately from the East Round"
+          }
+        }
+      }
+    },
+    "東南西北のうち3種を刻子、残り1種を雀頭にする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Triplets of three winds and a pair of the fourth"
+          }
+        }
+      }
+    },
+    "東南西北をすべて3枚ずつそろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Triplets of all four winds"
+          }
+        }
+      }
+    },
+    "東風戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "East Round"
+          }
+        }
+      }
+    },
+    "槍槓" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chankan"
+          }
+        }
+      }
+    },
+    "次の局へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next hand"
+          }
+        }
+      }
+    },
+    "河底撈魚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Houtei Raoyui"
+          }
+        }
+      }
+    },
+    "流局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exhaustive draw"
+          }
+        }
+      }
+    },
+    "海底摸月" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haitei Raoyue"
+          }
+        }
+      }
+    },
+    "混一色" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Honitsu"
+          }
+        }
+      }
+    },
+    "混全帯幺九" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chanta"
+          }
+        }
+      }
+    },
+    "混老頭" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Honroutou"
+          }
+        }
+      }
+    },
+    "清一色" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinitsu"
+          }
+        }
+      }
+    },
+    "清老頭" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinroutou"
+          }
+        }
+      }
+    },
+    "満貫" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mangan"
+          }
+        }
+      }
+    },
+    "白・發・中のどれかを3枚そろえる（鳴いても付く）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A triplet of White, Green or Red Dragons. Counts when open"
+          }
+        }
+      }
+    },
+    "白・發・中をすべて3枚ずつそろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Triplets of all three dragons"
+          }
+        }
+      }
+    },
+    "立直" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riichi"
+          }
+        }
+      }
+    },
+    "立直して和了したときだけ、裏ドラ表示牌の次の牌1枚につき1飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only when winning after Riichi: 1 Han per tile following an ura dora indicator"
+          }
+        }
+      }
+    },
+    "立直します。切る牌を選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declaring Riichi. Choose a tile to discard"
+          }
+        }
+      }
+    },
+    "立直の宣言から1巡以内（誰にも鳴かれずに）和了する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win within one go-around after declaring Riichi (with no calls in between)"
+          }
+        }
+      }
+    },
+    "立直・門前清自摸和・平和・一盃口・七対子は付かなくなり、三色同順・一気通貫・チャンタ・混一色などは1飜下がります。役牌のように鳴いても付く役をねらいます。暗槓だけは門前のままです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riichi, Menzen Tsumo, Pinfu, Iipeikou and Chiitoitsu are lost, and Sanshoku, Ittsu, Chanta, Honitsu and others drop 1 Han. Aim for yaku that still count when open, like Yakuhai. Only a closed Kan keeps your hand closed"
+          }
+        }
+      }
+    },
+    "立直中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Riichi"
+          }
+        }
+      }
+    },
+    "純全帯幺九" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Junchan"
+          }
+        }
+      }
+    },
+    "終了して%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End and start %@"
+          }
+        }
+      }
+    },
+    "結果を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See results"
+          }
+        }
+      }
+    },
+    "聴牌: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenpai: %@"
+          }
+        }
+      }
+    },
+    "聴牌したら1000点を供託して宣言できます。以後は引いてきた牌をそのまま切ります（手牌は変えられません）。鳴いた手では宣言できません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When tenpai, declare by putting up 1000 points. After that you discard every tile you draw (your hand is locked). Not possible with an open hand"
+          }
+        }
+      }
+    },
+    "聴牌したら立直できます（1000点を供託）。門前のときだけ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When tenpai you can declare Riichi (putting up 1000 points). Closed hands only"
+          }
+        }
+      }
+    },
+    "自分で引いた牌で和了すればツモ、他の人が切った牌で和了すればロンです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning on a tile you drew is Tsumo; winning on another player's discard is Ron"
+          }
+        }
+      }
+    },
+    "自分の待ち牌を自分で捨てているとロンできません（ツモなら和了できます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have discarded one of your own winning tiles, you can't Ron (you can still win by Tsumo)"
+          }
+        }
+      }
+    },
+    "自分の風（東家なら東）を3枚そろえる（鳴いても付く）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A triplet of your seat wind (East if you are East). Counts when open"
+          }
+        }
+      }
+    },
+    "萬子・筒子・索子で同じ並びの順子をそろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same sequence in Characters, Circles and Bamboo"
+          }
+        }
+      }
+    },
+    "裏ドラ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ura Dora"
+          }
+        }
+      }
+    },
+    "裏ドラ表示牌: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ura dora indicators: %@"
+          }
+        }
+      }
+    },
+    "西" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W"
+          }
+        }
+      }
+    },
+    "見逃す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass"
+          }
+        }
+      }
+    },
+    "跳満" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haneman"
+          }
+        }
+      }
+    },
+    "途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ending now discards your current points and progress. This game won't count toward your stats."
+          }
+        }
+      }
+    },
+    "連番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run"
+          }
+        }
+      }
+    },
+    "門前で、4組すべて順子・雀頭が役牌でない・両面待ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed hand: four sequences, a non-value pair and a two-sided wait"
+          }
+        }
+      }
+    },
+    "門前で、同じ順子2組を2種類そろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed hand: two different pairs of identical sequences"
+          }
+        }
+      }
+    },
+    "門前で、同じ順子を2組そろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed hand: two identical sequences"
+          }
+        }
+      }
+    },
+    "門前で、対子を7組そろえる（同じ牌4枚は2組に数えない）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed hand: seven pairs (four of a kind doesn't count as two pairs)"
+          }
+        }
+      }
+    },
+    "門前で聴牌したら1000点を供託して宣言。以後は手牌を変えられない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declare with a closed tenpai hand by putting up 1000 points. Your hand is then locked"
+          }
+        }
+      }
+    },
+    "門前のままツモ和了する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win by Tsumo with a closed hand"
+          }
+        }
+      }
+    },
+    "門前清自摸和" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menzen Tsumo"
+          }
+        }
+      }
+    },
+    "閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "開いている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
+          }
+        }
+      }
+    },
+    "鳴かずに作った刻子（槓子）を3組そろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three concealed triplets (or kans)"
+          }
+        }
+      }
+    },
+    "鳴かずに作った刻子（槓子）を4組そろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four concealed triplets (or kans)"
+          }
+        }
+      }
+    },
+    "鳴かずに進める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass without calling"
+          }
+        }
+      }
+    },
+    "鳴くと何が変わるか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What calling changes"
+          }
+        }
+      }
+    },
+    "麻雀" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mahjong"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -440,6 +440,54 @@ struct OjisanPuzzleModelTests {
         #expect(model.current == nil, "上限を超えたら延びずに固定する")
     }
 
+    @Test("接地→壁キックで持ち上げる回転→落ちる、を繰り返しても有限回で固定する（#2123）")
+    func groundGraceCannotBeResetByWallKickLift() throws {
+        let floor = OjisanPuzzleBoard.rows - 1
+        let model = OjisanPuzzleModel(
+            services: nil, board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: floor, col: 1, rotation: .left)
+        )
+        // 床に着いたあと、時計回りに 4 回回して（下向きで壁キックにより軸が 1 段上がる）tick、を繰り返す。
+        for _ in 0..<50 where model.current != nil {
+            for _ in 0..<4 { _ = model.rotate(clockwise: true) }
+            model.tick()
+        }
+        #expect(model.current == nil, "無限に引き延ばせず固定する")
+    }
+
+    @Test("より低い行へ落ちたら接地猶予の回数は数え直す（#2123）")
+    func groundGraceResetsWhenReachingLowerRow() throws {
+        let floor = OjisanPuzzleBoard.rows - 1
+        var board = OjisanPuzzleBoard.emptyBoard()
+        board[floor][0] = 3
+        board[floor][1] = 3
+        // 列 0・1 は荷物の上（行 floor-1）で接地する。列 2 以降は床まで落ちられる。
+        let model = OjisanPuzzleModel(
+            services: nil, board: board,
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: floor - 1, col: 1, rotation: .up)
+        )
+        // 上限の手前まで延ばしておく。
+        for index in 0..<(OjisanPuzzleModel.groundExtensionLimit - 1) {
+            #expect(model.move(by: index.isMultiple(of: 2) ? -1 : 1))
+            model.tick()
+            #expect(model.current != nil)
+        }
+        // 段差の向こうへ動かして床まで落とす（より低い行に達する）。
+        for _ in 0..<4 where model.current?.col != 3 {
+            #expect(model.move(by: model.current?.col ?? 0 < 3 ? 1 : -1))
+            model.tick()
+        }
+        for _ in 0..<(floor) where (model.current?.row ?? floor) < floor { model.tick() }
+        let landed = try #require(model.current)
+        #expect(landed.row == floor)
+        // 数え直されている。床へ着いたあとの横移動で 1 回使っているので、残りの上限ぶんは延ばせる。
+        for index in 0..<(OjisanPuzzleModel.groundExtensionLimit - 1) {
+            #expect(model.move(by: model.current?.col == 3 ? 1 : -1), "\(index + 1) 回目")
+            model.tick()
+            #expect(model.current != nil, "\(index + 1) 回目は延びる")
+        }
+    }
+
     @Test("出口の列に余裕があれば、いつも同じ列から次の組が出る（#1954）")
     func spawnsFromFixedColumn() throws {
         let model = OjisanPuzzleModel(

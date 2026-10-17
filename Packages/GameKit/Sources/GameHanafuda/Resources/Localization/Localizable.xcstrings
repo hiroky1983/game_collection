@@ -1,0 +1,2573 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@。%2$@。%3$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. %2$@. %3$lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. %2$@. %3$lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%1$@。%2$@。%3$lld文。この試合では数えません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. %2$@. %3$lld point. Not counted in this match"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. %2$@. %3$lld points. Not counted in this match"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%1$@。場の%2$lld枚と合う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. Matches %2$lld card on the table"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. Matches %2$lld cards on the table"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%1$lld / %2$lld局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "%1$lld局目・親は%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round %1$lld. Dealer: %2$@"
+          }
+        }
+      }
+    },
+    "%@ %lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@%lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@: %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@: %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@。合う場札なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. No match on the table"
+          }
+        }
+      }
+    },
+    "%@。合計%lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@. Total: %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@. Total: %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@（%lld文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ (%lld pt)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ (%lld pts)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld round"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rounds"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld月 %@ カス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month %lld, %@, Plain"
+          }
+        }
+      }
+    },
+    "%lld月 %@ タネ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month %lld, %@, Animal"
+          }
+        }
+      }
+    },
+    "%lld月 %@ 光" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month %lld, %@, Bright"
+          }
+        }
+      }
+    },
+    "%lld月 %@ 短冊" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month %lld, %@, Ribbon"
+          }
+        }
+      }
+    },
+    "1 月（松）の 4 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month 1 (Pine): 4 cards"
+          }
+        }
+      }
+    },
+    "3 月（桜）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month 3 (Cherry)"
+          }
+        }
+      }
+    },
+    "7文以上" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7+ points"
+          }
+        }
+      }
+    },
+    "7文以上で2倍" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×2 for 7+ points"
+          }
+        }
+      }
+    },
+    "CPU%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU %@"
+          }
+        }
+      }
+    },
+    "CPUが%1$@で%2$lld枚取った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU captured %2$lld card with %1$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU captured %2$lld cards with %1$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUがこいこい！（%lld文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU called Koi-Koi! (%lld point)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU called Koi-Koi! (%lld points)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUと役を競う。こいこいで倍を狙おう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Race the CPU to form yaku. Call Koi-Koi to go for double!"
+          }
+        }
+      }
+    },
+    "CPUのあがり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU won the round"
+          }
+        }
+      }
+    },
+    "CPUのあがり。%1$@。%2$@。獲得%3$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU won the round. %1$@. %2$@. It gets %3$lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU won the round. %1$@. %2$@. It gets %3$lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUのあがり。%@。獲得%lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU won the round. %@. It gets %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU won the round. %@. It gets %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUのあがり！ %lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU won the round! %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU won the round! %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CPUの勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU Wins"
+          }
+        }
+      }
+    },
+    "CPUの勝ち。%1$lld文 対 %2$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU wins. %1$lld to %2$lld"
+          }
+        }
+      }
+    },
+    "CPUの取り札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU's captures"
+          }
+        }
+      }
+    },
+    "CPUの取り札。%1$@。%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU's captures. %1$@. %2$@"
+          }
+        }
+      }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "CPUは%@を場に出した" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU placed %@ on the table"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "「芒に月＋菊に盃」「桜に幕＋菊に盃」を役として数えます。オフにすると菊に盃はタネ札としてだけ働きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counts \"Moon (Pampas) + Sake Cup (Chrysanthemum)\" and \"Curtain (Cherry Blossom) + Sake Cup (Chrysanthemum)\" as yaku. When off, the Sake Cup only counts as an Animal card."
+          }
+        }
+      }
+    },
+    "あがった人が次の局の親になります。流局のときは親が続きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever stops deals the next round. After a draw, the dealer stays the same."
+          }
+        }
+      }
+    },
+    "あがり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        }
+      }
+    },
+    "あがるとその場で得点が確定し、局が終わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopping locks in your points and ends the round."
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなた %1$lld文 ・ CPU %2$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You %1$lld pts · CPU %2$lld pts"
+          }
+        }
+      }
+    },
+    "あなたが%1$@で%2$lld枚取った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You captured %2$lld card with %1$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You captured %2$lld cards with %1$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたがこいこい！（%lld文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You called Koi-Koi! (%lld point)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You called Koi-Koi! (%lld points)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたのあがり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You won the round"
+          }
+        }
+      }
+    },
+    "あなたのあがり。%1$@。%2$@。獲得%3$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You won the round. %1$@. %2$@. You get %3$lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You won the round. %1$@. %2$@. You get %3$lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたのあがり。%@。獲得%lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You won the round. %@. You get %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You won the round. %@. You get %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたのあがり！ %lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You won the round! %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You won the round! %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "あなたの勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You Win!"
+          }
+        }
+      }
+    },
+    "あなたの勝ち！ %1$lld文 対 %2$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You win! %1$lld to %2$lld"
+          }
+        }
+      }
+    },
+    "あなたの取り札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your captures"
+          }
+        }
+      }
+    },
+    "あなたは%@を場に出した" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You placed %@ on the table"
+          }
+        }
+      }
+    },
+    "かんたん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easy"
+          }
+        }
+      }
+    },
+    "こいこい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koi-Koi"
+          }
+        }
+      }
+    },
+    "こいこいのあとは、宣言したときより文数が増えないとあがれません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After calling Koi-Koi, you can only stop once your points go higher than when you called it."
+          }
+        }
+      }
+    },
+    "こいこいを選ぶと局が続き、役を伸ばせます。ただし相手にあがられると相手の得点が2倍になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koi-Koi keeps the round going so you can build more yaku. But if your opponent stops first, their points are doubled."
+          }
+        }
+      }
+    },
+    "こいこい返し" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koi-Koi payback"
+          }
+        }
+      }
+    },
+    "こいこい返しで2倍" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×2 Koi-Koi payback"
+          }
+        }
+      }
+    },
+    "この試合は月見酒・花見酒を採用しています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This match counts the Tsukimi-zake and Hanami-zake yaku."
+          }
+        }
+      }
+    },
+    "この試合は月見酒・花見酒を採用していません（灰色の行は数えません）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This match does not count Tsukimi-zake or Hanami-zake (grayed-out rows do not count)."
+          }
+        }
+      }
+    },
+    "この試合を打ち切ります。負けとして記録されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This ends the match. It will be recorded as a loss."
+          }
+        }
+      }
+    },
+    "だれもあがれずに手札が尽きたら流局で、その局は0文です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the hands run out and nobody has stopped, the round is a draw worth 0 points."
+          }
+        }
+      }
+    },
+    "なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        }
+      }
+    },
+    "ふつう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        }
+      }
+    },
+    "むずかしい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hard"
+          }
+        }
+      }
+    },
+    "めくり札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawn"
+          }
+        }
+      }
+    },
+    "めくり札「%1$@」で%2$lld枚取った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Drew %1$@ and captured %2$lld card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Drew %1$@ and captured %2$lld cards"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "めくり札「%@」に合わせる札を選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a card to match the drawn %@"
+          }
+        }
+      }
+    },
+    "もう一度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Again"
+          }
+        }
+      }
+    },
+    "カス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kasu (Plains)"
+          }
+        }
+      }
+    },
+    "カス%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Plain"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Plains"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "カス札 10 枚（1 枚増えるごとに ＋1 文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plains: 10 Plain cards (+1 point for each extra card)"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "タネ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tane (Animals)"
+          }
+        }
+      }
+    },
+    "タネ%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Animal"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Animals"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "タネ・タン・カスの役は種別ごとの枚数で決まります。帯の色も種別に対応しています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Tane, Tan and Kasu yaku depend on how many cards of each type you have. The band color also shows the type."
+          }
+        }
+      }
+    },
+    "タネ札 5 枚（1 枚増えるごとに ＋1 文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Animals: 5 Animal cards (+1 point for each extra card)"
+          }
+        }
+      }
+    },
+    "タン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tan (Ribbons)"
+          }
+        }
+      }
+    },
+    "ローカルルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local rules"
+          }
+        }
+      }
+    },
+    "・" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "・%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• %@"
+          }
+        }
+      }
+    },
+    "三光" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sankou (Three Brights)"
+          }
+        }
+      }
+    },
+    "両方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Both"
+          }
+        }
+      }
+    },
+    "五光" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gokou (Five Brights)"
+          }
+        }
+      }
+    },
+    "何局戦うか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number of rounds"
+          }
+        }
+      }
+    },
+    "倍率" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multipliers"
+          }
+        }
+      }
+    },
+    "光" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brights"
+          }
+        }
+      }
+    },
+    "光%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Bright"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Brights"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "光・猪鹿蝶・赤短・青短は枚数だけでは決まりません。どの札がそろったかで変わるので、役の早見表で確かめてください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bright yaku, Inoshikachou, Akatan and Aotan need specific cards, not just a count. Check the yaku list to see which ones."
+          }
+        }
+      }
+    },
+    "光札 5 枚すべて" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Five Brights: all 5 Bright cards"
+          }
+        }
+      }
+    },
+    "全局が終わった時点で、合計の文数が多いほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After the last round, whoever has more points in total wins."
+          }
+        }
+      }
+    },
+    "出来役" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yaku"
+          }
+        }
+      }
+    },
+    "取り札なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cards captured"
+          }
+        }
+      }
+    },
+    "合わせられるのは月が同じ札どうしです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can only match cards of the same month."
+          }
+        }
+      }
+    },
+    "合わせる札を選んでください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a card to match"
+          }
+        }
+      }
+    },
+    "合計が7文以上のとき2倍" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×2 when your total is 7 points or more"
+          }
+        }
+      }
+    },
+    "合計が7文以上のとき2倍になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A total of 7 points or more is doubled."
+          }
+        }
+      }
+    },
+    "同じ月を取る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture the same month"
+          }
+        }
+      }
+    },
+    "四光" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shikou (Four Brights)"
+          }
+        }
+      }
+    },
+    "場" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table"
+          }
+        }
+      }
+    },
+    "場に同じ月が3枚あるときは、4枚まとめて取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If 3 cards of the same month are on the table, you capture all 4 at once."
+          }
+        }
+      }
+    },
+    "場の同じ月と合わさる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matches the same month"
+          }
+        }
+      }
+    },
+    "局の終わり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round over"
+          }
+        }
+      }
+    },
+    "山札%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deck: %lld"
+          }
+        }
+      }
+    },
+    "山札から 1 枚めくる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip 1 from the deck"
+          }
+        }
+      }
+    },
+    "広告を見て1局延長（1試合に1回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad for 1 extra round (once per match)"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに試合が終わったため、延長できませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The match ended while the ad was playing, so no round was added."
+          }
+        }
+      }
+    },
+    "延長できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't add a round"
+          }
+        }
+      }
+    },
+    "延長戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extra round"
+          }
+        }
+      }
+    },
+    "延長戦・親は%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extra round. Dealer: %@"
+          }
+        }
+      }
+    },
+    "引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw"
+          }
+        }
+      }
+    },
+    "引き分け。%1$lld文 対 %2$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw. %1$lld to %2$lld"
+          }
+        }
+      }
+    },
+    "役ができたら「あがり」か「こいこい」を選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you form a yaku, choose \"Stop\" or \"Koi-Koi\"."
+          }
+        }
+      }
+    },
+    "役ができた！（猪鹿蝶）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A yaku! (Inoshikachou)"
+          }
+        }
+      }
+    },
+    "役ができました（%lld文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You made a yaku! (%lld point)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You made a yaku! (%lld points)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "役なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No yaku"
+          }
+        }
+      }
+    },
+    "役の早見表" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yaku list"
+          }
+        }
+      }
+    },
+    "得点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scoring"
+          }
+        }
+      }
+    },
+    "得点する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score"
+          }
+        }
+      }
+    },
+    "手札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
+          }
+        }
+      }
+    },
+    "手札%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card in hand"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards in hand"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "手札8枚・場札8枚で始まります。親から順に打ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each player gets 8 cards and 8 cards go on the table. The dealer plays first."
+          }
+        }
+      }
+    },
+    "手札を1枚出し、場の同じ月の札と合わせて取ります。合う札が無ければ場に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 1 card from your hand and capture a table card of the same month. If nothing matches, the card stays on the table."
+          }
+        }
+      }
+    },
+    "投了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resign"
+          }
+        }
+      }
+    },
+    "投了しました。%1$lld文 対 %2$lld文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You resigned. %1$lld to %2$lld"
+          }
+        }
+      }
+    },
+    "投了しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resign this game?"
+          }
+        }
+      }
+    },
+    "投了する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resign"
+          }
+        }
+      }
+    },
+    "投了（CPUの勝ち）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resigned (CPU wins)"
+          }
+        }
+      }
+    },
+    "月見酒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tsukimi-zake (Moon Viewing Sake)"
+          }
+        }
+      }
+    },
+    "月見酒・花見酒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon & Cherry Viewing Sake"
+          }
+        }
+      }
+    },
+    "札の上の帯に、左が月・右が種別（光・タネ・短・カス）を出しています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The band at the top of each card shows the month on the left and the card type on the right (Br = Bright, An = Animal, Rb = Ribbon, Pl = Plain)."
+          }
+        }
+      }
+    },
+    "札の見かた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the cards"
+          }
+        }
+      }
+    },
+    "松に赤短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red Poetry Ribbon (Pine)"
+          }
+        }
+      }
+    },
+    "松に鶴" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crane and Sun (Pine)"
+          }
+        }
+      }
+    },
+    "松のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Pine)"
+          }
+        }
+      }
+    },
+    "松・梅・桜の赤短 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red Poetry Ribbons: the 3 poetry ribbons of Pine, Plum Blossom and Cherry Blossom"
+          }
+        }
+      }
+    },
+    "柳に小野道風" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rain Man (Willow)"
+          }
+        }
+      }
+    },
+    "柳に燕" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swallow (Willow)"
+          }
+        }
+      }
+    },
+    "柳に短冊" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ribbon (Willow)"
+          }
+        }
+      }
+    },
+    "柳に鬼札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lightning (Willow)"
+          }
+        }
+      }
+    },
+    "柳を含む光札 4 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rainy Four Brights: 4 Brights including the Rain Man"
+          }
+        }
+      }
+    },
+    "柳を除く光札 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three Brights: 3 Brights without the Rain Man"
+          }
+        }
+      }
+    },
+    "柳を除く光札 4 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four Brights: 4 Brights without the Rain Man"
+          }
+        }
+      }
+    },
+    "桐に鳳凰" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phoenix (Paulownia)"
+          }
+        }
+      }
+    },
+    "桐のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Paulownia)"
+          }
+        }
+      }
+    },
+    "桜に幕" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Curtain (Cherry Blossom)"
+          }
+        }
+      }
+    },
+    "桜に幕 ＋ 菊に盃" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cherry Viewing Sake: Curtain (Cherry Blossom) + Sake Cup (Chrysanthemum)"
+          }
+        }
+      }
+    },
+    "桜に赤短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red Poetry Ribbon (Cherry Blossom)"
+          }
+        }
+      }
+    },
+    "桜のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Cherry Blossom)"
+          }
+        }
+      }
+    },
+    "梅に赤短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red Poetry Ribbon (Plum Blossom)"
+          }
+        }
+      }
+    },
+    "梅に鶯" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bush Warbler (Plum Blossom)"
+          }
+        }
+      }
+    },
+    "梅のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Plum Blossom)"
+          }
+        }
+      }
+    },
+    "次の局へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Round"
+          }
+        }
+      }
+    },
+    "決着" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match over"
+          }
+        }
+      }
+    },
+    "流局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw"
+          }
+        }
+      }
+    },
+    "流局。だれもあがれませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw. Nobody stopped this round"
+          }
+        }
+      }
+    },
+    "牡丹に蝶" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Butterflies (Peony)"
+          }
+        }
+      }
+    },
+    "牡丹に青短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue Ribbon (Peony)"
+          }
+        }
+      }
+    },
+    "牡丹のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Peony)"
+          }
+        }
+      }
+    },
+    "牡丹・菊・紅葉の青短 3 枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue Ribbons: the 3 blue ribbons of Peony, Chrysanthemum and Maple"
+          }
+        }
+      }
+    },
+    "猪鹿蝶" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inoshikachou (Boar, Deer & Butterfly)"
+          }
+        }
+      }
+    },
+    "相手がこいこいを宣言したあとにあがると2倍" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×2 when you stop after your opponent called Koi-Koi"
+          }
+        }
+      }
+    },
+    "相手のこいこいのあとにあがると2倍（両方重なると4倍）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopping after your opponent called Koi-Koi doubles your points (×4 when both apply)."
+          }
+        }
+      }
+    },
+    "短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rb"
+          }
+        }
+      }
+    },
+    "短冊" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ribbons"
+          }
+        }
+      }
+    },
+    "短冊%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Ribbon"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Ribbons"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "短冊の帯は、赤短が赤・青短が青です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On Ribbon cards, the band is red for red poetry ribbons and blue for blue ribbons."
+          }
+        }
+      }
+    },
+    "短冊札 5 枚（1 枚増えるごとに ＋1 文）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ribbons: 5 Ribbon cards (+1 point for each extra card)"
+          }
+        }
+      }
+    },
+    "紅葉に青短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue Ribbon (Maple)"
+          }
+        }
+      }
+    },
+    "紅葉に鹿" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deer (Maple)"
+          }
+        }
+      }
+    },
+    "紅葉のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Maple)"
+          }
+        }
+      }
+    },
+    "続けて伸ばす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep going"
+          }
+        }
+      }
+    },
+    "続けて山札を1枚めくり、同じように合わせます。ここまでで1手番です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then draw 1 card from the deck and match it the same way. That completes your turn."
+          }
+        }
+      }
+    },
+    "芒に月" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon (Pampas)"
+          }
+        }
+      }
+    },
+    "芒に月 ＋ 菊に盃" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon Viewing Sake: Moon (Pampas) + Sake Cup (Chrysanthemum)"
+          }
+        }
+      }
+    },
+    "芒に雁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geese (Pampas)"
+          }
+        }
+      }
+    },
+    "芒のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Pampas)"
+          }
+        }
+      }
+    },
+    "花札こいこい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hanafuda Koi-Koi"
+          }
+        }
+      }
+    },
+    "花見酒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hanami-zake (Cherry Viewing Sake)"
+          }
+        }
+      }
+    },
+    "菊に盃" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sake Cup (Chrysanthemum)"
+          }
+        }
+      }
+    },
+    "菊に青短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue Ribbon (Chrysanthemum)"
+          }
+        }
+      }
+    },
+    "菊のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Chrysanthemum)"
+          }
+        }
+      }
+    },
+    "菖蒲に八橋" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eight-Plank Bridge (Iris)"
+          }
+        }
+      }
+    },
+    "菖蒲に短冊" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ribbon (Iris)"
+          }
+        }
+      }
+    },
+    "菖蒲のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Iris)"
+          }
+        }
+      }
+    },
+    "萩に猪" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boar (Bush Clover)"
+          }
+        }
+      }
+    },
+    "萩に猪・紅葉に鹿・牡丹に蝶" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boar, Deer & Butterfly: Boar (Bush Clover), Deer (Maple) and Butterflies (Peony)"
+          }
+        }
+      }
+    },
+    "萩に短冊" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ribbon (Bush Clover)"
+          }
+        }
+      }
+    },
+    "萩のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Bush Clover)"
+          }
+        }
+      }
+    },
+    "藤に不如帰" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuckoo (Wisteria)"
+          }
+        }
+      }
+    },
+    "藤に短冊" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ribbon (Wisteria)"
+          }
+        }
+      }
+    },
+    "藤のカス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain (Wisteria)"
+          }
+        }
+      }
+    },
+    "試合の結果へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See Results"
+          }
+        }
+      }
+    },
+    "赤短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Akatan (Red Poetry Ribbons)"
+          }
+        }
+      }
+    },
+    "進行" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How a round goes"
+          }
+        }
+      }
+    },
+    "酒の役なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sake yaku"
+          }
+        }
+      }
+    },
+    "重なると4倍（掛け算）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×4 when both apply (they multiply)"
+          }
+        }
+      }
+    },
+    "開始待ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        }
+      }
+    },
+    "雨四光" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ame-Shikou (Rainy Four Brights)"
+          }
+        }
+      }
+    },
+    "青短" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aotan (Blue Ribbons)"
+          }
+        }
+      }
+    },
+    "CPUは%1$@で%2$lld枚取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU captured %2$lld card with %1$@"
+          }
+        }
+      }
+    },
+    "CPUは%@を場に出しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU placed %@ on the table"
+          }
+        }
+      }
+    },
+    "めくり札「%1$@」で%2$lld枚取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drew %1$@ and captured %2$lld card"
+          }
+        }
+      }
+    },
+    "めくり札は「%@」でした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drew %@"
+          }
+        }
+      }
+    },
+    "CPUがこいこいしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU called Koi-Koi"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

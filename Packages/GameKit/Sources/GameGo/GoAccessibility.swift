@@ -17,20 +17,20 @@ public enum GoAccessibility {
         isDead: Bool = false,
         isHint: Bool = false
     ) -> String {
-        var parts = ["\(row + 1)行\(col + 1)列"]
+        var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1)]
         switch stone {
-        case .black: parts.append("黒石")
-        case .white: parts.append("白石")
-        case nil:    parts.append("空点")
+        case .black: parts.append(tr("黒石"))
+        case .white: parts.append(tr("白石"))
+        case nil:    parts.append(tr("空点"))
         }
-        if isDead { parts.append("死に石") }
-        if isLastMove { parts.append("直前の手") }
-        if isHint { parts.append("ヒントの手") }
-        return parts.joined(separator: "、")
+        if isDead { parts.append(tr("死に石")) }
+        if isLastMove { parts.append(tr("直前の手")) }
+        if isHint { parts.append(tr("ヒントの手")) }
+        return parts.joined(separator: tr("、"))
     }
 
     /// ヒントの最善手がパスのときの案内（#2027）。盤に印を置けないので文字で示し、VoiceOver にも同じ文を読ませる。
-    public static let hintPassMessage = "ここはパスでよい局面です"
+    public static var hintPassMessage: String { tr("ここはパスでよい局面です") }
 
     /// 対局の状況を 1 行で（ステータスバーの読み上げ）。
     public static func statusLabel(
@@ -42,11 +42,18 @@ public enum GoAccessibility {
     ) -> String {
         switch phase {
         case .playing:
-            return "\(isHumanTurn ? "あなたの番" : "CPUの番")、あなたが取った石 \(capturedByHuman)、CPUが取った石 \(capturedByCPU)"
+            return tr("%1$@、あなたが取った石 %2$lld、CPUが取った石 %3$lld",
+                      isHumanTurn ? tr("あなたの番") : tr("CPUの番"), capturedByHuman, capturedByCPU)
         case .scoring:
-            return "終局の確認。\(result ?? "計算中")"
+            return tr("終局の確認。%@", result ?? tr("計算中"))
         case .finished:
-            return result ?? "対局終了"
+            return result ?? tr("対局終了")
         }
+    }
+
+    /// CPU が着手・パスしたときの読み上げ文（#2280）。`point` が nil ならパス。
+    public static func cpuMoveAnnouncement(point: GoPoint?) -> String {
+        guard let point else { return tr("CPUはパスしました") }
+        return tr("CPUは%1$lld行%2$lld列に打ちました", point.row + 1, point.col + 1)
     }
 }

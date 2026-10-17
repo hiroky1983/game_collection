@@ -8,29 +8,30 @@ import Foundation
 public extension MahjongTile {
     var displayName: String {
         switch self {
-        case .characters(let n): return "萬子の\(n)"
-        case .circles(let n):    return "筒子の\(n)"
-        case .bamboos(let n):    return "索子の\(n)"
-        case .wind(let n):       return "字牌の\(Self.windNames[safe: n] ?? "風牌")"
-        case .dragon(let n):     return "字牌の\(Self.dragonNames[safe: n] ?? "三元牌")"
+        case .characters(let n): return tr("萬子の%lld", n)
+        case .circles(let n):    return tr("筒子の%lld", n)
+        case .bamboos(let n):    return tr("索子の%lld", n)
+        case .wind(let n):       return Self.windNames[safe: n].map { tr("字牌の%@", $0) } ?? tr("字牌の風牌")
+        case .dragon(let n):     return Self.dragonNames[safe: n].map { tr("字牌の%@", $0) } ?? tr("字牌の三元牌")
         }
     }
 
-    private static let windNames = ["東", "南", "西", "北"]
-    private static let dragonNames = ["中", "發", "白"]
+    // 読み上げ用の名前（表示言語に従う）。牌の面に描く文字（`MahjongTileView`）とは別物。
+    private static var windNames: [String] { [tr("東"), tr("南"), tr("西"), tr("北")] }
+    private static var dragonNames: [String] { [tr("中"), tr("發"), tr("白")] }
 }
 
 public extension MahjongFace {
     var displayName: String {
         switch self {
         case .standard(let tile): return tile.displayName
-        case .flower(let n):      return "花牌の\(Self.flowerNames[safe: n] ?? "花")"
-        case .season(let n):      return "季節牌の\(Self.seasonNames[safe: n] ?? "季節")"
+        case .flower(let n):      return Self.flowerNames[safe: n].map { tr("花牌の%@", $0) } ?? tr("花牌の花")
+        case .season(let n):      return Self.seasonNames[safe: n].map { tr("季節牌の%@", $0) } ?? tr("季節牌の季節")
         }
     }
 
-    private static let flowerNames = ["梅", "蘭", "菊", "竹"]
-    private static let seasonNames = ["春", "夏", "秋", "冬"]
+    private static var flowerNames: [String] { [tr("梅"), tr("蘭"), tr("菊"), tr("竹")] }
+    private static var seasonNames: [String] { [tr("春"), tr("夏"), tr("秋"), tr("冬")] }
 }
 
 private extension Array {

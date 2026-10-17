@@ -690,8 +690,13 @@ struct GameOpenWiringTests {
         #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
                 "導線を持たない遷移がある（game_open の source が分からない）")
         // 導線ごとに正しい source を載せている。
-        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: index \+ 1"#,
+        // グリッド（#2175 から柵越えおじさんも同じグリッドのタイル。導線は以前の特別枠と同じ `.hero`・位置なし）。
+        #expect(source.range(of: #"gameID: module\.id, source: entry\.source, position: entry\.position"#,
                              options: .regularExpression) != nil, "グリッド")
+        #expect(source.range(of: #"GridEntry\(module: \$0\.element, position: \$0\.offset \+ 1, source: \.hub\)"#,
+                             options: .regularExpression) != nil, "グリッド（.hub と位置）")
+        #expect(source.range(of: #"GridEntry\(module: hero, position: nil, source: \.hero\)"#,
+                             options: .regularExpression) != nil, "柵越えおじさん（.hero）")
         #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
                              options: .regularExpression) != nil, "つづき・最近")
         #expect(source.range(of: #"gameID: id, source: \.recommendation, position: nil"#,
@@ -756,8 +761,9 @@ struct RewardAdCallSiteTests {
         // 麻雀の最終局延長（#1201）で 1 か所増えて 17。ルーレットのチップ切れ復活（#1318）で 18。
         // いろリレーの引き札の免除（#1320）で 19。ぱっと暗算の見直し（#1321）で 20。スピードのタイム（#1323）で 21。柵越えおじさんの挑戦回数（#1348）で 22。
         // 将棋・チェス・五目並べのヒント（無料枠を使い切った後の広告・#1500）で3か所増えて25。しりとりの時間切れ延長（#1717）で 26。
-        // 麻雀ソリティア・ナンプレの「戻す」の補充（#1855）で2か所増えて28。オセロのヒント（#2011）で29。2048 の「戻す」の補充（#2023）で30。マインスイーパーのヒント（#2024）で31。15パズルのヒント（#1975）で32。神経衰弱のヒント（#2026）で33。囲碁のヒント（#2027）で34。フリーセルのヒント（#2025）で35。スパイダーのヒント（#2025）で36。ソリティアのヒント（#2025）で37。
-        #expect(counts.values.reduce(0, +) == 37, "リワード広告の面は37箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        // 麻雀ソリティア・ナンプレの「戻す」の補充（#1855）で2か所増えて28。オセロのヒント（#2011）で29。2048 の「戻す」の補充（#2023）で30。マインスイーパーのヒント（#2024）で31。15パズルのヒント（#1975）で32。神経衰弱のヒント（#2026）で33。囲碁のヒント（#2027）で34。フリーセルのヒント（#2025）で35。スパイダーのヒント（#2025）で36。ソリティアのヒント（#2025）で37。バックギャモンのヒント（#2302）で1か所増える（現在値は下の期待値）。
+        // フリーセル・スパイダー・ソリティアのヒントの広告は Core の `BoardHintReader` に寄せた（#2125）ので 3 か所減って34。
+        #expect(counts.values.reduce(0, +) == 35, "リワード広告の面は35箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
     }
 }
 
@@ -785,7 +791,7 @@ struct PlayMeasurementCallSiteTests {
     }
 
     /// プレイを数えているモジュール（= ハブに並ぶ 24 本のゲーム（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ハブから外しているブロックならべ #493
-    /// + 企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323）。
+    /// + 企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323・明かり消しパズル #1883・マンカラ #1626・ハーツ #1884）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -795,7 +801,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 30, "ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
+        #expect(games.count == 37, "企画倉庫の線つなぎ（#2235）・明かり消しパズル（#1883）・ハーツ（#1884）・ババ抜き（#1577）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -810,6 +816,7 @@ struct PlayMeasurementCallSiteTests {
         // 難易度・段階を選べるゲームだけが対象。増減はプライバシー確認の対象になるので、
         // 「いつの間にか増えていた」を作らないためここで固定する（#500 の受け入れ条件）。
         #expect(leveled == [
+            "GameAkariKeshi",    // かんたん / ふつう / むずかしい（最短の手数 4・7・10・#1883・企画倉庫）
             "GameAnzan",         // 桁数・個数・速さの段の和を 4 段階へ丸める（#1321・企画倉庫）
             "GameBackgammon",    // CPU の強さ 4 段階（#1322・企画倉庫）
             "GameBlocks",        // 面番号 1〜12
@@ -818,7 +825,11 @@ struct PlayMeasurementCallSiteTests {
             "GameGo",            // CPU の強さ 3 段階
             "GameGomoku",        // CPU の強さ 3 段階
             "GameHanafuda",      // CPU の強さ 3 段階
+            "GameHanoi",         // 円盤 3〜7 枚を 5 段階に当てる（#2003・企画倉庫）
+            "GameHearts",        // CPU の強さ 4 段階（#1884・企画倉庫）
+            "GameMancala",       // CPU の強さ 4 段階（#1626・企画倉庫）
             "GameMinesweeper",   // 初級 / 中級 / 上級
+            "GameOldMaid",       // CPU の強さ 4 段階（#1577・企画倉庫）
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
             "GameShiritori",     // ノルマ 3 段階（やさしい / ふつう / むずかしい・#1243）
@@ -826,6 +837,7 @@ struct PlayMeasurementCallSiteTests {
             "GameSpeed",         // CPU の速さ 3 段階（#1323・企画倉庫）
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
+            "GameTsunagi",       // 盤の大きさ 5×5 / 7×7（#2235・企画倉庫）
         ])
     }
 }
@@ -961,6 +973,60 @@ struct RestAcrossRelaunchTests {
         #expect(afterSpy.starts.isEmpty, "開始は送信済みなので数え直さない")
         #expect(afterSpy.ends.map(\.result) == [.win])
         #expect(afterSpy.ends.first?.durationSec == 65, "休憩前の 40 秒 + 戻ってからの 25 秒。終了中の時間は入れない")
+    }
+
+    @Test("ハブへ戻らず背面でアプリが終了しても、「続きから」で決着すれば game_end が出る（#2300）")
+    func finishAfterBackgroundTerminationSendsEnd() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, beforeSpy) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048", mode: .endless)
+        before.recordProgress(gameID: "2048")
+        clock.advance(40)
+        before.appDidResignActive()                            // ホームへ。leaveGame は呼ばれずここで終了される
+        #expect(beforeSpy.starts.count == 1)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        clock.advance(3600)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        clock.advance(25)
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(afterSpy.starts.isEmpty)
+        #expect(afterSpy.ends.map(\.result) == [.win])
+        #expect(afterSpy.ends.first?.durationSec == 65)
+    }
+
+    @Test("背面化では、再開できない局・休憩中の局・決着済みの局に控えを書かない（#2300）")
+    func resignDoesNotRememberOtherPlays() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (analytics, _) = relaunch(store, clock: clock)
+        analytics.startPlay(gameID: "2048")
+        analytics.markUnresumable(gameID: "2048")
+        analytics.appDidResignActive()
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "再開できない局")
+
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        analytics.appDidResignActive()
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "決着済みの局")
+    }
+
+    @Test("背面化で控えを書いても、前面に戻って決着すれば控えは消え、次回は二重に出ない（#2300）")
+    func resignThenFinishInSameProcessClearsEntry() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, beforeSpy) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.appDidResignActive()
+        before.appDidBecomeActive()
+        before.finishPlay(gameID: "2048", outcome: .win)
+        before.leaveGame(gameID: "2048", isResumable: false)
+        #expect(beforeSpy.ends.count == 1)
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil)
     }
 
     @Test("復元した局を捨てると、1 手指していた分は quit として出る")

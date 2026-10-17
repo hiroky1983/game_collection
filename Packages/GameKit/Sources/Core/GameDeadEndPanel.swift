@@ -41,6 +41,10 @@ public struct GameDeadEndPanel<Buttons: View>: View {
             }
             .padding(.horizontal, 28)
         }
+        // 背後の盤・札へ VoiceOver が移れないようにする（#2232。各ゲームの個別指定は重ねても害は無い）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance([title, message].joined(separator: tr("。")))
     }
 
     private var card: some View {
@@ -66,14 +70,14 @@ public struct GameDeadEndPanel<Buttons: View>: View {
 
 /// 主・救済系のボタン（塗りつぶし）。高さ・文字は #1486 の基準（52pt 以上・17pt 相当）。
 public struct GameDeadEndActionButton: View {
-    private let label: LocalizedStringKey
+    private let label: String
     private let systemImage: String?
     private let tint: Color
     private let isDisabled: Bool
     private let action: () -> Void
 
     public init(
-        _ label: LocalizedStringKey,
+        _ label: String,
         systemImage: String? = nil,
         tint: Color = Theme.Fill.purple,
         isDisabled: Bool = false,
@@ -112,11 +116,11 @@ public struct GameDeadEndActionButton: View {
 /// やめる・最初から・このまま続ける等の締めのボタン。主ボタンと色を分ける
 /// （白地＋濃い文字＋枠線。ナンプレの薄いグレー地＋白文字のような低コントラストにはしない・#1486）。
 public struct GameDeadEndDismissButton: View {
-    private let label: LocalizedStringKey
+    private let label: String
     private let isDisabled: Bool
     private let action: () -> Void
 
-    public init(_ label: LocalizedStringKey, isDisabled: Bool = false, action: @escaping () -> Void) {
+    public init(_ label: String, isDisabled: Bool = false, action: @escaping () -> Void) {
         self.label = label
         self.isDisabled = isDisabled
         self.action = action

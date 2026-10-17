@@ -24,12 +24,18 @@ public enum MinesweeperState: Equatable, Sendable {
 public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
     case beginner, intermediate, advanced
 
+    /// 画面に出す名前（表示言語に従う）。記録の区分名には `recordLabel` を使う。
     public var label: String {
         switch self {
-        case .beginner:     return "初級"
-        case .intermediate: return "中級"
-        case .advanced:     return "上級"
+        case .beginner:     return tr("初級")
+        case .intermediate: return tr("中級")
+        case .advanced:     return tr("上級")
         }
+    }
+
+    /// 記録（`GameScore.variantLabel`）に保存する区分名。保存されるので表示言語によらず日本語のまま。
+    public var recordLabel: String {
+        RecordVariantLabels.stored(gameID: "minesweeper", variant: "\(rows)x\(cols)-\(mines)")
     }
 
     public var rows: Int {
@@ -52,7 +58,7 @@ public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
     }
 
     /// 新規対局シートの副題（例: "16×16  40地雷"）。
-    public var subtitle: String { "\(rows)×\(cols)  \(mines)地雷" }
+    public var subtitle: String { tr("%1$lld×%2$lld  %3$lld地雷", rows, cols, mines) }
 }
 
 /// マスに置くマーク（#444）。本家と同じ「なし → 旗 → ? → なし」の循環を表す。
@@ -112,6 +118,10 @@ struct MinesweeperSnapshot: Codable {
 
     /// この局で使ったヒントの回数（#2024）。再開で回数が戻らないよう保存する。旧形式には無いので optional で、無ければ 0 として読む。
     var hintsUsed: Int? = nil
+
+    /// 旗モード（#2247）。中断→復元でモードが OFF に戻り、旗のつもりのタップがマスを開く操作になるのを防ぐ。
+    /// 旧形式には無いので optional で、無ければ OFF として読む。
+    var flagMode: Bool? = nil
 }
 
 /// ヒントの回数（会長決裁 2026-10-11・#2024）。1 盤 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回。
@@ -195,10 +205,10 @@ public final class MinesweeperModel {
         if let preset = MinesweeperDifficulty.allCases.first(where: {
             $0.rows == rows && $0.cols == cols && $0.mines == totalMines
         }) {
-            return preset.label
+            return preset.recordLabel
         }
         // 区分は地雷数込みで分かれるため、ラベルにも地雷数を入れて別区分だと分かるようにする。
-        return "\(rows)×\(cols)・地雷\(totalMines)"
+        return RecordVariantLabels.stored(gameID: "minesweeper", variant: recordVariant)
     }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
@@ -248,6 +258,7 @@ public final class MinesweeperModel {
             // 未使用に倒すと、v1.1.4 で使った局に2回目のコンティニューと順位表送信が通る。
             self.continueUsed = snap.continueUsed
                 ?? snap.cells.contains { $0.contains(where: \.isContinuedMine) }
+            self.flagMode = snap.flagMode ?? false
             self.hints = BoardHintBudget(
                 used: snap.hintsUsed ?? 0,
                 freeLimit: MinesweeperHintPolicy.freeCount, adLimit: MinesweeperHintPolicy.adRefillMax
@@ -286,6 +297,7 @@ public final class MinesweeperModel {
     public func toggleFlagMode() {
         flagMode.toggle()
         services?.feedback.impact(.rigid)
+        if gameState == .playing { persist() }
     }
 
     // MARK: - Timer resume (call from onAppear when restoring saved game)
@@ -676,7 +688,8 @@ public final class MinesweeperModel {
             revealedCount: revealedCount,
             elapsedSeconds: elapsedSeconds,
             continueUsed: continueUsed,
-            hintsUsed: hints.used
+            hintsUsed: hints.used,
+            flagMode: flagMode
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

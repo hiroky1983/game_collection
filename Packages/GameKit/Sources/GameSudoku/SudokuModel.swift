@@ -58,6 +58,9 @@ struct SudokuSnapshot: Codable {
     var continueUsed: Bool? = nil
     /// 「戻す」の残り回数（#1855）。旧形式には無いので optional で、無ければ無料枠いっぱいとして読む。
     var undosRemaining: Int? = nil
+    /// メモモード（#2247）。中断→復元でモードが OFF に戻り、メモのつもりの入力が確定入力（ミス加算）になるのを防ぐ。
+    /// 旧形式には無いので optional で、無ければ OFF として読む。
+    var noteMode: Bool? = nil
 }
 
 @MainActor
@@ -220,7 +223,7 @@ public final class SudokuModel {
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: difficulty.rawValue,
-            variantLabel: difficulty.label,
+            variantLabel: difficulty.recordLabel,
             // 広告コンティニューを使った局は順位表へ送らない（#730・`Core/GameCenter.swift` の #406 の方針）。
             // 自己ベスト（端末内）には従来どおり残す。
             isLeaderboardEligible: !continueUsed
@@ -251,6 +254,7 @@ public final class SudokuModel {
                 mistakes       = snapshot.mistakes ?? 0
                 continueUsed   = snapshot.continueUsed ?? false
                 undosRemaining = max(0, snapshot.undosRemaining ?? SudokuUndoBudget.free)
+                noteMode       = snapshot.noteMode ?? false
                 // 復元した時点で揃っているユニットは光らせ済みとして扱う（中断をまたいで光り直させない）。
                 celebratedUnits = Self.completedUnits(board: board, solution: solution)
                 // ミス上限のまま閉じていたら `failed` に戻す（コンティニューの選択からやり直せる）。
@@ -473,6 +477,7 @@ public final class SudokuModel {
     public func toggleNoteMode() {
         noteMode.toggle()
         services?.feedback.impact(.rigid)
+        if state == .playing || state == .failed { persist() }
     }
 
     /// 指定のマスに正解を 1 つ入れる。**広告の視聴が済んでから** View が呼ぶ（#262）。
@@ -667,7 +672,8 @@ public final class SudokuModel {
             hintedCells: Array(hintedCells),
             mistakes: mistakes,
             continueUsed: continueUsed,
-            undosRemaining: undosRemaining
+            undosRemaining: undosRemaining,
+            noteMode: noteMode
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }

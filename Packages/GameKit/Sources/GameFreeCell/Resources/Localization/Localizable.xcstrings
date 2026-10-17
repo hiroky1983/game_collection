@@ -1,0 +1,1027 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@。広告を見ると「戻す」を%2$lld回ぶん補充できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. Watch an ad to get %2$lld more undo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@. Watch an ad to get %2$lld more undos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%1$@。手を戻せます。残り%2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. You can undo moves, %2$lld left"
+          }
+        }
+      }
+    },
+    "%1$@から上の%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the %2$lld cards from %1$@ up"
+          }
+        }
+      }
+    },
+    "%1$@の組札、%2$@まで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foundation for %1$@, up to %2$@"
+          }
+        }
+      }
+    },
+    "%1$lld手 / タイム %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld move / Time %2$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld moves / Time %2$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@、選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, selected"
+          }
+        }
+      }
+    },
+    "%@。新しい配札にできます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. You can start a new deal"
+          }
+        }
+      }
+    },
+    "%@の組札、空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foundation for %@, empty"
+          }
+        }
+      }
+    },
+    "%lld列目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Column %lld"
+          }
+        }
+      }
+    },
+    "%lld列目、空、どの札でも置けます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Column %lld, empty, any card can go here"
+          }
+        }
+      }
+    },
+    "%lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld枚目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "card %lld"
+          }
+        }
+      }
+    },
+    "1手戻す、残り%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo, %lld left"
+          }
+        }
+      }
+    },
+    "1手戻す、残りなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo, none left"
+          }
+        }
+      }
+    },
+    "1手戻す（残り%lld）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo (%lld left)"
+          }
+        }
+      }
+    },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
+    "「戻す」で戻れます。ヒントの回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Undo to go back. This didn't use up a hint."
+          }
+        }
+      }
+    },
+    "「戻す」は1局につき%1$lld回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると%2$lld回ぶん補充できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You get %1$lld free undos per game. The button shows how many are left. Once they're used up, watch an ad to get %2$lld more"
+          }
+        }
+      }
+    },
+    "「戻す」を補充できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Add Undos"
+          }
+        }
+      }
+    },
+    "この盤からは勝てません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Board Can't Be Won"
+          }
+        }
+      }
+    },
+    "そろっている並びは「（空きフリーセル + 1）×（2の空き列数乗）」枚までまとめて動かせます。いま何枚動かせるかは盤の下に出ています。置き先が空列のときは、その列は数えません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can move an ordered run of up to (empty free cells + 1) x 2^(empty columns) cards at once. How many you can move right now is shown below the board. If you're moving to an empty column, that column isn't counted"
+          }
+        }
+      }
+    },
+    "どの札でも置ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any card can go here"
+          }
+        }
+      }
+    },
+    "まだ戻せる手がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No moves to undo yet"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "クリア。配札%1$@番、経過%2$@、%3$lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Cleared. Deal #%1$@, time %2$@, %3$lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Cleared. Deal #%1$@, time %2$@, %3$lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared!"
+          }
+        }
+      }
+    },
+    "ゲームの流れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overview"
+          }
+        }
+      }
+    },
+    "ヒント" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint"
+          }
+        }
+      }
+    },
+    "ヒント、%1$@を%2$@の組札へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %1$@ to the %2$@ foundation"
+          }
+        }
+      }
+    },
+    "ヒント、%1$@を%2$lld列目へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %1$@ to Column %2$lld"
+          }
+        }
+      }
+    },
+    "ヒント、%1$@をフリーセル%2$lldへ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: move %1$@ to Cell %2$lld"
+          }
+        }
+      }
+    },
+    "ヒント、考え中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint, thinking"
+          }
+        }
+      }
+    },
+    "ヒントを出せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Give a Hint"
+          }
+        }
+      }
+    },
+    "ヒントを表示できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Show a Hint"
+          }
+        }
+      }
+    },
+    "ヒント（広告を見て表示）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint (watch an ad)"
+          }
+        }
+      }
+    },
+    "ヒント（残り%lld回）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint (%lld left)"
+          }
+        }
+      }
+    },
+    "フリーセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeCell"
+          }
+        }
+      }
+    },
+    "フリーセル%1$lld、%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cell %1$lld, %2$@"
+          }
+        }
+      }
+    },
+    "フリーセル%lld、空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cell %lld, empty"
+          }
+        }
+      }
+    },
+    "フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All free cells are full and no card has anywhere to go. This deal can always be cleared, so undo some moves and try again."
+          }
+        }
+      }
+    },
+    "フリーセル（1 枚ずつ置いておける）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free cells (hold 1 card each)"
+          }
+        }
+      }
+    },
+    "上に%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card on top"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards on top"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "何枚まとめて動かせるか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How many cards can move at once"
+          }
+        }
+      }
+    },
+    "全部見える52枚。詰まない配札を読み切ろう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All 52 cards face up. Plan your way through a winnable deal"
+          }
+        }
+      }
+    },
+    "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります。配札の番号は画面の上に出ています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every deal has been solved by computer in advance to make sure it can be cleared. If you get stuck, it's down to how you played, not the deal. The deal number is shown at the top of the screen"
+          }
+        }
+      }
+    },
+    "動かしたい札をタップして選び、置きたい列・フリーセル・組札をタップします。ドラッグでも動かせます。もう一度同じ札をタップすると選択を外せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to select it, then tap a column, free cell or foundation to move it there. You can also drag. Tap the same card again to deselect it"
+          }
+        }
+      }
+    },
+    "動かせません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "can't be moved"
+          }
+        }
+      }
+    },
+    "場札の並べ方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building the tableau"
+          }
+        }
+      }
+    },
+    "場札（下の8列）には、ひとつ上の札より1つ小さくて色ちがいの札だけを置けます（黒の8 の上には 赤の7）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the tableau (the 8 columns at the bottom), a card can only go on one that's one higher and the opposite color (a red 7 on a black 8)"
+          }
+        }
+      }
+    },
+    "左上の4つの枠が「フリーセル」です。札を1枚ずつ一時的に置けます。ここに入れた札は、場札か組札へいつでも戻せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 4 slots at the top left are the free cells. Each can hold one card for a while, and a card there can go back to the tableau or a foundation at any time"
+          }
+        }
+      }
+    },
+    "広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n盤面はそのままです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch the ad to the end to get %lld more undo.\nThe board stays as it is."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch the ad to the end to get %lld more undos.\nThe board stays as it is."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見て%lld回補充する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad for %lld More"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The board changed or you left the screen while the ad was playing, so no hint could be given."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new deal started or the game ended while the ad was playing, so no undos were added.\nThe new deal starts with its free undos again."
+          }
+        }
+      }
+    },
+    "広告を見ると%lld回ぶん補充できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to get %lld more undo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to get %lld more undos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "拡大" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom"
+          }
+        }
+      }
+    },
+    "指せる手がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Moves Left"
+          }
+        }
+      }
+    },
+    "指せる手がありません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No moves left. %@"
+          }
+        }
+      }
+    },
+    "指せる手がありません。フリーセルが全部埋まり、どの札も置き先がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No moves left. All free cells are full and no card has anywhere to go"
+          }
+        }
+      }
+    },
+    "操作" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controls"
+          }
+        }
+      }
+    },
+    "新しい配札にしますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a New Deal?"
+          }
+        }
+      }
+    },
+    "新しい配札にする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Deal"
+          }
+        }
+      }
+    },
+    "札が無くなった列には、どの札でも置けます（クロンダイクのように K だけ、ではありません）。空列はフリーセル以上に強い資源です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any card can go in an empty column (not just a K, as in Klondike). An empty column is an even stronger resource than a free cell"
+          }
+        }
+      }
+    },
+    "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Makes the cards bigger and easier to tap. Scroll sideways to see columns that don't fit"
+          }
+        }
+      }
+    },
+    "札を拡大" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom in on cards"
+          }
+        }
+      }
+    },
+    "次に指す1手を、動かす札と行き先の列に紫の枠で示します。動かすのはあなたです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows your next move with purple frames on the card to move and the column it goes to. You make the move yourself"
+          }
+        }
+      }
+    },
+    "次のゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Game"
+          }
+        }
+      }
+    },
+    "残りの札をまとめて組札へ送ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sends all remaining cards to the foundations"
+          }
+        }
+      }
+    },
+    "無料で戻せるのは1局につき%lld回までです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You can undo %lld time per game for free"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You can undo up to %lld times per game for free"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "無料の「戻す」を使い切りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've Used Your Free Undos"
+          }
+        }
+      }
+    },
+    "盤全体を表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show whole board"
+          }
+        }
+      }
+    },
+    "盤面を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Board"
+          }
+        }
+      }
+    },
+    "空いた列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty columns"
+          }
+        }
+      }
+    },
+    "等倍に戻して盤全体を画面に収めます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returns to normal size so the whole board fits on screen"
+          }
+        }
+      }
+    },
+    "終了して新規ゲーム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & New Game"
+          }
+        }
+      }
+    },
+    "自動で上がる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-finish"
+          }
+        }
+      }
+    },
+    "途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this board is lost and the deal is recorded as not cleared."
+          }
+        }
+      }
+    },
+    "選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "selected"
+          }
+        }
+      }
+    },
+    "配られた52枚を、右上の組札（4か所）に ♠♥♦♣ ごとに A から K まで順に積み上げればクリアです。最初から全部の札が見えているので、運ではなく読みで決まります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build all 52 cards onto the 4 foundations at the top right, one per suit (♠♥♦♣), from A up to K. Every card is visible from the start, so it comes down to planning, not luck"
+          }
+        }
+      }
+    },
+    "配られる札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About the deals"
+          }
+        }
+      }
+    },
+    "配札 #%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deal #%@"
+          }
+        }
+      }
+    },
+    "配札%1$@番、経過%2$@、%3$lld手、一度に%4$lld枚まで動かせます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deal #%1$@, time %2$@, %3$lld move, up to %4$lld cards can move at once"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deal #%1$@, time %2$@, %3$lld moves, up to %4$lld cards can move at once"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

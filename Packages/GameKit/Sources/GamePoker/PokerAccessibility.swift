@@ -19,11 +19,23 @@ public enum PokerAccessibility {
     public static func handCardLabel(card: PokerCard, isSelected: Bool, phase: PokerPhase) -> String {
         let name = card.figure.spokenLabel
         guard acceptsSelection(phase: phase), isSelected else { return name }
-        return "\(name)、捨てる札に選択中"
+        return tr("%@、捨てる札に選択中", name)
+    }
+
+    /// 役一覧の見本 5 枚の読み上げ文（例: "スペードのA、スペードのK、…"）。役名と説明は
+    /// 隣の Text が読むので、ここは札の並びだけにする。
+    public static func handGuideCardsLabel(cards: [PokerCard]) -> String {
+        cards.map { $0.figure.spokenLabel }.joined(separator: "、")
     }
 
     /// 手札 1 枚のヒント。交換フェーズ以外は空（選べない札に操作を案内しない）。
     public static func handCardHint(phase: PokerPhase) -> String {
-        acceptsSelection(phase: phase) ? "ダブルタップで捨てる札の選択を切り替えます" : ""
+        acceptsSelection(phase: phase) ? tr("ダブルタップで捨てる札の選択を切り替えます") : ""
+    }
+
+    /// ポットの読み上げ文（例: "ポット30枚"）。画面は「ポット」と「30枚」が別の Text で、
+    /// そのままだと 2 要素に分かれて読まれる（#2162）。
+    public static func potLabel(pot: Int) -> String {
+        tr("ポット%@枚", RecordFormat.number(pot))
     }
 }

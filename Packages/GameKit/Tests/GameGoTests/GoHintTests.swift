@@ -199,18 +199,27 @@ struct GoHintTests {
         #expect(model.hints.used == 0)
     }
 
-    @Test("読んでいるあいだに待ったすると、印を出さず回数も減らさない")
-    func undoDuringReadingDiscardsTheHint() async {
+    @Test("読んでいるあいだは待ったできない（古い局面のヒントを適用しない・#2236）")
+    func undoIsRefusedDuringReading() async {
         let (model, _) = makeModel()
         model.applyMoveForTesting(.play(row: 4, col: 4))
         model.applyMoveForTesting(.play(row: 2, col: 2))
-        model.hintThinkingGate = { model.undoLastExchange() }
+        var duringRead: (canUndo: Bool, undid: Bool, adUndid: Bool)?
+        model.hintThinkingGate = {
+            let can = model.canUndo
+            model.undoLastExchange()
+            // 広告の待ち（`undoLastExchange(forTurn:)`）も同じ入口で断る。
+            duringRead = (can, model.moveCount != 2, model.undoLastExchange(forTurn: model.aiTurnKey))
+        }
 
         await model.requestHint()
 
-        #expect(model.moveCount == 0, "前提: 待ったが通っている")
-        #expect(model.hintMove == nil)
-        #expect(model.hints.used == 0)
+        #expect(duringRead?.canUndo == false, "ヒントの読み中に待ったできてしまう")
+        #expect(duringRead?.undid == false, "読み中の待ったが盤を戻している")
+        #expect(duringRead?.adUndid == false, "読み中に広告の待ったが通っている")
+        #expect(model.moveCount == 2)
+        #expect(model.hints.used == 1, "待った無しならヒントは 1 回だけ消費される")
+        #expect(model.canUndo, "読み終えたら待ったできる")
     }
 
     @Test("読んでいるあいだに新規対局を始めると、印を出さず新しい対局の回数も減らさない")

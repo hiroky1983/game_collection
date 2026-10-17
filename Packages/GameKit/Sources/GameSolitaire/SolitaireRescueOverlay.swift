@@ -30,7 +30,7 @@ struct SolitaireRescueOverlay: View {
     var body: some View {
         GameDeadEndPanel(
             emoji: model.isDeadEnd ? "😵" : "🤔",
-            title: model.isDeadEnd ? "進める手がありません" : "このままではクリアできません",
+            title: model.isDeadEnd ? tr("進める手がありません") : tr("このままではクリアできません"),
             message: rescueMessage
         ) {
             jokerRescueButton
@@ -39,7 +39,7 @@ struct SolitaireRescueOverlay: View {
                 // ここでも残り回数を見せる（#476 仕様3）。押した先で初めて
                 // 「使い切っていた」と分かるのでは、救済の面で二度手間になる。
                 GameDeadEndActionButton(
-                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tr("1手戻す（残り%lld）", model.undosRemaining), systemImage: "arrow.uturn.backward",
                     tint: Theme.Fill.coral, isDisabled: isBusy
                 ) {
                     onUndo()
@@ -51,12 +51,12 @@ struct SolitaireRescueOverlay: View {
                 ))
             }
 
-            GameDeadEndDismissButton("新しい配札にする", isDisabled: isBusy) {
+            GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: isBusy) {
                 model.newGame()
             }
 
             // どちらの告知でも盤には触れる手が残っている。宣告で操作を奪わない（#491）。
-            GameDeadEndDismissButton("このまま続ける", isDisabled: isBusy) {
+            GameDeadEndDismissButton(tr("このまま続ける"), isDisabled: isBusy) {
                 model.dismissRescuePrompt()
             }
         }
@@ -71,18 +71,18 @@ struct SolitaireRescueOverlay: View {
         // 行き止まりでも K → 空列の入れ替えは残る。「めくるしかない」と書くと、
         // 盤に手が見えている人には事実に反して見える（#475 の会長QA → #491）。
         let head = model.isDeadEnd
-            ? "山札をめくるか、盤面が進まない入れ替えしか残っていません。"
-            : "指せる手はありますが、ここからは組札を揃えきれません。"
+            ? tr("山札をめくるか、盤面が進まない入れ替えしか残っていません。")
+            : tr("指せる手はありますが、ここからは組札を揃えきれません。")
         let tail = model.hasJoker
-            ? "ジョーカーを場札に置くと、その上へどんな札でも1枚だけ重ねられます。"
-            : "広告を見るとジョーカーを1枚受け取れます。手を戻すか、新しい配札にすることもできます。"
-        return head + tail
+            ? tr("ジョーカーを場札に置くと、その上へどんな札でも1枚だけ重ねられます。")
+            : tr("広告を見るとジョーカーを1枚受け取れます。手を戻すか、新しい配札にすることもできます。")
+        return tr("%1$@%2$@", head, tail)
     }
 
     /// 所持していれば広告なしで使い、持っていなければリワード広告で補充する。
     private var jokerRescueButton: some View {
         GameDeadEndActionButton(
-            model.hasJoker ? "ジョーカーを使う" : "広告を見てジョーカーをもらう",
+            model.hasJoker ? tr("ジョーカーを使う") : tr("広告を見てジョーカーをもらう"),
             systemImage: model.hasJoker ? "questionmark.app.fill" : "play.rectangle.fill",
             tint: Theme.Fill.purple,
             // 「戻す」の補充広告を出している最中もここは押させない（2 本の広告が並走する）。

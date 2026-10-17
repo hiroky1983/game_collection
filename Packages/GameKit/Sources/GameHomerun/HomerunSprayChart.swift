@@ -77,7 +77,7 @@ struct HomerunSprayChart: View {
                         .foregroundStyle(Theme.inkSub), at: p)
                 }
                 let outLabel = map(HomerunSprayGeometry.point(direction: -22, distance: HomerunBallChase.outOfParkDistance(atDirection: -22) + 8))
-                ctx.draw(Text(verbatim: "場外").font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
+                ctx.draw(Text(verbatim: tr("場外")).font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                     .foregroundStyle(Theme.inkSub), at: outLabel)
             }
 
@@ -91,7 +91,7 @@ struct HomerunSprayChart: View {
                 let p = map(HomerunSprayGeometry.mark(for: ball))
                 switch ball.kind {
                 case .homer:
-                    ctx.draw(Text(verbatim: "★").font(.system(size: 18, weight: .black)).foregroundStyle(Theme.yellow), at: p) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
+                    ctx.draw(Text(verbatim: "★").font(.system(size: 18, weight: .black)).foregroundStyle(Theme.yellow), at: p) // accent-text-ok: 図の印（地の上に描く記号）で文章ではない // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
                 case .inPlay, .fenceHit:
                     let r = 5.5
                     let dot = Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))

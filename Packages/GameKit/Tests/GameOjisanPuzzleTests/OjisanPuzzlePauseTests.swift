@@ -33,7 +33,10 @@ struct OjisanPuzzlePauseTests {
         model.pauseByUser()
         model.resumeFromUserPause()
         #expect(!model.isUserPaused)
-        try await Task.sleep(for: .milliseconds(model.dropInterval + 400))
+        // CI の高負荷では固定の待ちだと実行が間に合わないことがあるので、進むまで最大 10 秒待つ。
+        for _ in 0..<100 where model.elapsedMilliseconds == 0 {
+            try await Task.sleep(for: .milliseconds(100))
+        }
         model.pause()
         #expect(model.elapsedMilliseconds > 0)
     }

@@ -1,0 +1,1228 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%1$@の%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@'s %2$@"
+          }
+        }
+      }
+    },
+    "%1$@の持ち駒、%2$@%3$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@'s captured pieces, %2$@ ×%3$lld"
+          }
+        }
+      }
+    },
+    "%1$@・%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%1$@：%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%lld手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld move"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld moves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "1手先だけ読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks 1 move ahead"
+          }
+        }
+      }
+    },
+    "2マス前の左右どちらかへ跳ぶ（間の駒を飛び越せる）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jumps two squares forward and one to the side (can jump over pieces)"
+          }
+        }
+      }
+    },
+    "2手先まで読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks 2 moves ahead"
+          }
+        }
+      }
+    },
+    "3手先まで読む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks 3 moves ahead"
+          }
+        }
+      }
+    },
+    "CPU と本格的な将棋で対決しよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take on the CPU in a full game of shogi"
+          }
+        }
+      }
+    },
+    "CPUが落とす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU drops it"
+          }
+        }
+      }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "CPU思考中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU is thinking…"
+          }
+        }
+      }
+    },
+    "▲ 下手・駒が揃う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "▲ Lower · full set"
+          }
+        }
+      }
+    },
+    "▲ 先に指す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "▲ You move first"
+          }
+        }
+      }
+    },
+    "△ 上手・先に指す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "△ Upper · moves first"
+          }
+        }
+      }
+    },
+    "△ 後に指す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "△ You move second"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "あなたの手番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play as"
+          }
+        }
+      }
+    },
+    "あなたの負け（投了）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose (resigned)"
+          }
+        }
+      }
+    },
+    "ここに指せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can move here"
+          }
+        }
+      }
+    },
+    "と金" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokin"
+          }
+        }
+      }
+    },
+    "と金（成った歩兵）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokin (promoted Pawn)"
+          }
+        }
+      }
+    },
+    "やめる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "タップで移動" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to move"
+          }
+        }
+      }
+    },
+    "ハンデなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No handicap"
+          }
+        }
+      }
+    },
+    "ヒントの手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint move"
+          }
+        }
+      }
+    },
+    "上手が駒を落とす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upper player drops a piece"
+          }
+        }
+      }
+    },
+    "不成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't promote"
+          }
+        }
+      }
+    },
+    "先手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sente"
+          }
+        }
+      }
+    },
+    "先手の負け（詰み）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sente loses (checkmate)"
+          }
+        }
+      }
+    },
+    "先手の負け（連続王手の千日手）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sente loses (perpetual check)"
+          }
+        }
+      }
+    },
+    "入ると成れる（歩 → と）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter to promote (Pawn → Tokin)"
+          }
+        }
+      }
+    },
+    "全方向に1マス。取られたら負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One square in any direction. Lose it and you lose the game"
+          }
+        }
+      }
+    },
+    "前に1マス進む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One square straight forward"
+          }
+        }
+      }
+    },
+    "前にどこまでも進む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any number of squares straight forward"
+          }
+        }
+      }
+    },
+    "千日手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repetition (Sennichite)"
+          }
+        }
+      }
+    },
+    "取った相手の駒は持ち駒になり、自分の駒として好きなマスに打てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pieces you capture go to your hand. You can drop them on any empty square as your own."
+          }
+        }
+      }
+    },
+    "取れて、持ち駒に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured: now it's yours"
+          }
+        }
+      }
+    },
+    "取れます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can capture"
+          }
+        }
+      }
+    },
+    "基本の駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Basic pieces"
+          }
+        }
+      }
+    },
+    "定跡＋深読み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Openings + deep search"
+          }
+        }
+      }
+    },
+    "将棋" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shogi"
+          }
+        }
+      }
+    },
+    "平手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Even game"
+          }
+        }
+      }
+    },
+    "引き分け（千日手）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw (repetition)"
+          }
+        }
+      }
+    },
+    "後手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gote"
+          }
+        }
+      }
+    },
+    "後手の負け（詰み）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gote loses (checkmate)"
+          }
+        }
+      }
+    },
+    "後手の負け（連続王手の千日手）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gote loses (perpetual check)"
+          }
+        }
+      }
+    },
+    "成った駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promoted pieces"
+          }
+        }
+      }
+    },
+    "成り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promotion"
+          }
+        }
+      }
+    },
+    "成りますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promote?"
+          }
+        }
+      }
+    },
+    "成る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promote"
+          }
+        }
+      }
+    },
+    "成桂" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promoted Knight"
+          }
+        }
+      }
+    },
+    "成銀" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promoted Silver"
+          }
+        }
+      }
+    },
+    "成銀・成桂・成香" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promoted Silver, Knight, Lance"
+          }
+        }
+      }
+    },
+    "成香" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promoted Lance"
+          }
+        }
+      }
+    },
+    "手合い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handicap"
+          }
+        }
+      }
+    },
+    "投了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resignation"
+          }
+        }
+      }
+    },
+    "持ち駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured pieces"
+          }
+        }
+      }
+    },
+    "持ち駒なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No captured pieces"
+          }
+        }
+      }
+    },
+    "斜め4方向と前に1マス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One square diagonally or straight forward"
+          }
+        }
+      }
+    },
+    "斜めにどこまでも進む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any number of squares diagonally"
+          }
+        }
+      }
+    },
+    "斜め後ろ以外の6方向に1マス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One square in any direction except diagonally backward"
+          }
+        }
+      }
+    },
+    "新規対局しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "桂馬" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Knight"
+          }
+        }
+      }
+    },
+    "歩" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawn"
+          }
+        }
+      }
+    },
+    "歩兵" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawn"
+          }
+        }
+      }
+    },
+    "玉" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "King"
+          }
+        }
+      }
+    },
+    "玉将・王将" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "King"
+          }
+        }
+      }
+    },
+    "王手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "王手されています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In check"
+          }
+        }
+      }
+    },
+    "王手！ 逃げ場も、金を取る手もない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check! No escape, and no way to take the Gold"
+          }
+        }
+      }
+    },
+    "直前 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last: %@"
+          }
+        }
+      }
+    },
+    "直前の手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last move"
+          }
+        }
+      }
+    },
+    "相手の駒のマスへ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move onto an enemy piece"
+          }
+        }
+      }
+    },
+    "相手陣（奥の3段）に入る・その中で動く・そこから出るときに成れます。金と玉は成りません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A piece may promote when it moves into, within, or out of the far three rows. Gold Generals and Kings don't promote."
+          }
+        }
+      }
+    },
+    "空きマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty square"
+          }
+        }
+      }
+    },
+    "終了して新規対局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End and start a new game"
+          }
+        }
+      }
+    },
+    "縦・横にどこまでも進む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any number of squares vertically or horizontally"
+          }
+        }
+      }
+    },
+    "自分が落とす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I drop it"
+          }
+        }
+      }
+    },
+    "角" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bishop"
+          }
+        }
+      }
+    },
+    "角落ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bishop handicap"
+          }
+        }
+      }
+    },
+    "角行" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bishop"
+          }
+        }
+      }
+    },
+    "角行の動きに加えて、縦・横に1マス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves like a Bishop, plus one square vertically or horizontally"
+          }
+        }
+      }
+    },
+    "詰み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkmate"
+          }
+        }
+      }
+    },
+    "赤い 3 段が相手陣" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The red 3 rows are the enemy camp"
+          }
+        }
+      }
+    },
+    "途中で終了すると対局データが失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    },
+    "連続王手の千日手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perpetual check"
+          }
+        }
+      }
+    },
+    "選択中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected"
+          }
+        }
+      }
+    },
+    "金" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gold"
+          }
+        }
+      }
+    },
+    "金将" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gold General"
+          }
+        }
+      }
+    },
+    "金将と同じ動き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves like a Gold General"
+          }
+        }
+      }
+    },
+    "銀" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Silver"
+          }
+        }
+      }
+    },
+    "銀将" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Silver General"
+          }
+        }
+      }
+    },
+    "飛車" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rook"
+          }
+        }
+      }
+    },
+    "飛車の動きに加えて、斜めに1マス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves like a Rook, plus one square diagonally"
+          }
+        }
+      }
+    },
+    "飛車落ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rook handicap"
+          }
+        }
+      }
+    },
+    "香車" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lance"
+          }
+        }
+      }
+    },
+    "馬" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horse"
+          }
+        }
+      }
+    },
+    "駒をタップ → 光るマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a piece → squares light up"
+          }
+        }
+      }
+    },
+    "駒を落とす側" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who drops the piece"
+          }
+        }
+      }
+    },
+    "龍" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dragon"
+          }
+        }
+      }
+    },
+    "龍王（成った飛車）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dragon (promoted Rook)"
+          }
+        }
+      }
+    },
+    "龍馬（成った角行）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horse (promoted Bishop)"
+          }
+        }
+      }
+    },
+    "CPUは%1$@を%2$@から%3$@へ動かしました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU moved %1$@ from %2$@ to %3$@"
+          }
+        }
+      }
+    },
+    "CPUは%1$@を%2$@に打ちました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU dropped %1$@ at %2$@"
+          }
+        }
+      }
+    },
+    "成りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "promoted"
+          }
+        }
+      }
+    },
+    "王手です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

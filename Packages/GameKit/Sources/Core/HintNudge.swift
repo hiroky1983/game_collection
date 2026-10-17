@@ -174,7 +174,7 @@ struct HintNudgeBubble: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Label("ヒントは「⋯」から", systemImage: "lightbulb.fill")
+            Label(tr("ヒントは「⋯」から"), systemImage: "lightbulb.fill")
                 .themeCaption(15, maxScale: 1.5)
                 .lineLimit(1)
                 .foregroundStyle(Color.black.opacity(0.85))

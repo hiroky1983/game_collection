@@ -16,7 +16,7 @@ public struct GameClockLabel: View {
     public var body: some View {
         Label(text, systemImage: "clock")
             .scaledFont(size, weight: .bold, design: .monospaced)
-            .foregroundStyle(Theme.teal)
+            .foregroundStyle(Theme.tealText)
     }
 }
 
@@ -56,7 +56,7 @@ private struct GameTimerLifecycle: ViewModifier {
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active {
                     pause()
-                } else if !isHeld && !rescues.contains(where: { $0.isWatching }) {
+                } else if !isHeld && !rescues.contains(where: { $0.holdsClock }) {
                     resume()
                 }
             }

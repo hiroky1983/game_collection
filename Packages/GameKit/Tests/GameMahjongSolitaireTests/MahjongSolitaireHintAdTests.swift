@@ -169,8 +169,8 @@ struct MahjongSolitaireHintAdContractTests {
         #expect(body.contains("guardedBy: .checkedByGrant"),
                 "局ガードを宣言していない（視聴中に手詰まりになった盤面へヒントが乗る）")
         // 視聴未完了・出せなかったときのアラートは共通 modifier が持つ。
-        #expect(source.contains(#"notEarned: "ヒントを表示できませんでした""#), "視聴未完了のときのアラートが無い")
-        #expect(source.contains(#"title: "ヒントを出せませんでした""#), "広告を見たのに出せなかったときのアラートが無い")
+        #expect(source.contains(#"notEarned: tr("ヒントを表示できませんでした")"#), "視聴未完了のときのアラートが無い")
+        #expect(source.contains(#"title: tr("ヒントを出せませんでした")"#), "広告を見たのに出せなかったときのアラートが無い")
     }
 
     @Test("ヒントボタンは確認ダイアログを開くだけで、押した直後に広告を出さない")
@@ -178,11 +178,11 @@ struct MahjongSolitaireHintAdContractTests {
         let source = try Self.viewSource()
         // ヒントは #1422 で盤下の「⋯」メニューに移った。押すと確認ダイアログを開くだけ。
         #expect(
-            source.contains(#"id: "hint", title: "ヒント", systemImage: "lightbulb.fill","#),
+            source.contains(#"id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill","#),
             "ヒントのメニュー項目の定義が見つからない（テストの走査が空振りしている）"
         )
         #expect(source.contains("showHintConfirm = true"), "確認ダイアログを開いていない")
-        #expect(source.contains("Button(\"広告を見てヒントを見る\") { onWatchAd() }"), "確認ダイアログの視聴ボタンが無い")
+        #expect(source.contains("Button(tr(\"広告を見てヒントを見る\")) { onWatchAd() }"), "確認ダイアログの視聴ボタンが無い")
         #expect(source.contains("isEnabled: model.canHint && !isWatchingRewardAd"), "取れる組が無いときに項目を塞いでいない")
     }
 

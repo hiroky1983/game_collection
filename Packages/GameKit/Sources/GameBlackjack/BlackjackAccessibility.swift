@@ -13,14 +13,23 @@ public enum BlackjackAccessibility {
     ///
     /// 伏せているあいだは中身を読まない（見た目で隠している情報を音声で漏らさない）。
     public static func cardLabel(card: BlackjackCard, faceUp: Bool) -> String {
-        faceUp ? card.figure.spokenLabel : "伏せたカード"
+        faceUp ? card.figure.spokenLabel : tr("伏せたカード")
     }
 
     /// 伏せ札があるあいだのディーラーの点数（例: "見えているカードの合計7、1枚は伏せています"）。
     ///
     /// 画面の「7 + ?」は記号のままだと「プラス、クエスチョン」と読まれて意味が伝わらない。
     public static func dealerPartialValueLabel(visibleValue: Int) -> String {
-        "見えているカードの合計\(visibleValue)、1枚は伏せています"
+        tr("見えているカードの合計%lld、1枚は伏せています", visibleValue)
+    }
+
+    /// 手札の合計の読み上げ文（例: "あなたの合計17" / "ディーラーの合計22、バスト"）。
+    ///
+    /// 画面の合計は数字だけで、誰の手かは隣のラベルとの位置関係、バストは赤色でしか伝わらない（#2162）。
+    /// 誰の・何点・バストかを 1 つの文にまとめ、ラベルの要素は読ませない。
+    public static func totalLabel(owner: String, value: Int) -> String {
+        let base = tr("%@の合計%lld", owner, value)
+        return value > 21 ? tr("%@、バスト", base) : base
     }
 
     /// 勝敗が決まったときの読み上げ文（#1574）。画面の勝敗バッジと同じ言葉で読ませる。
@@ -30,12 +39,12 @@ public enum BlackjackAccessibility {
     public static func outcomeAnnouncement(outcome: BlackjackOutcome, isSplit: Bool = false) -> String {
         let result: String
         switch outcome {
-        case .playerBlackjack: result = "ブラックジャック！勝ちです"
-        case .win:             result = "勝ちです"
-        case .push:            result = "引き分けです"
-        case .lose:            result = "負けです"
-        case .bust:            result = "バストして負けです"
+        case .playerBlackjack: result = tr("ブラックジャック！勝ちです")
+        case .win:             result = tr("勝ちです")
+        case .push:            result = tr("引き分けです")
+        case .lose:            result = tr("負けです")
+        case .bust:            result = tr("バストして負けです")
         }
-        return isSplit ? "全体の結果は、\(result)" : result
+        return isSplit ? tr("全体の結果は、%@", result) : result
     }
 }

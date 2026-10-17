@@ -24,11 +24,16 @@ public final class RewardedRescue {
     /// 「広告を見たのに何も起きない」経路を作らないのがリワード広告の契約なので、
     /// 失敗の知らせだけはどのゲームでも同じ言い回しにする。タイトル（何ができなかったか）は
     /// ゲームごとに違うので `rewardedRescueAlerts(_:notEarned:unavailable:)` で受け取る。
-    public static let notEarnedMessage =
-        "広告を最後まで視聴しなかったか、広告を読み込めませんでした。\n通信状態をご確認のうえ、もう一度お試しください。"
+    public static var notEarnedMessage: String {
+        tr("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\n通信状態をご確認のうえ、もう一度お試しください。")
+    }
 
     /// 広告のロード〜視聴中。救済ボタンの `disabled` に使う。
     public private(set) var isWatching = false
+    /// `isWatching` のうち、広告を出す前の**先読みの最中**（#2125）。広告はまだ出ていないので計時は止めない。
+    public private(set) var isReading = false
+    /// 広告のロード〜視聴中で、計時を止めておくべきか。先読みの最中は止めない。
+    public var holdsClock: Bool { isWatching && !isReading }
     /// 視聴しなかった・読み込めなかった。
     public var showsNotEarned = false
     /// 視聴は完了したが、局面が変わっていて適用できなかった。
@@ -148,21 +153,67 @@ public extension RewardedRescue {
     /// 「広告を最後まで視聴しなかったか…」のアラートが出てしまう。`.unavailable` は
     /// `showsUnavailable` を立てるので、この形を呼ぶ面は `rewardedRescueAlerts(unavailable:)` を
     /// 必ず渡す（`RewardGuardCallSiteTests` がファイル単位で数を突き合わせる）。
+    ///
+    /// - Parameter screenGeneration: 渡すと、読み〜適用の Task を**画面を離れたら cancel される**形で走らせ、
+    ///   cancel されていたら結果の通知（アラート・`whenGranted`）も出さない（#2195）。素の `Task` は離脱で
+    ///   止まらず、離脱後に読みが確定してヒント回数・`game_start`・中断データが動く（無料経路は #1903）。
     func requestHandledByModel(
         withOutcome perform: @escaping @MainActor () async -> RewardedModelOutcome,
+        until screenGeneration: GameScreenGeneration? = nil,
         whenGranted: (@MainActor () async -> Void)? = nil
     ) {
         guard !isWatching else { return }
         isWatching = true
         offerDidAccept()
-        Task {
+        runUntilLeave(screenGeneration) { [self] in
             let outcome = await perform()
             isWatching = false
+            guard !Task.isCancelled else { return }
             switch outcome {
             case .granted:     await whenGranted?()
             case .notEarned:   showsNotEarned = true
             case .unavailable: showsUnavailable = true
+            case .superseded:  break
             }
+        }
+    }
+
+    /// `requestHandledByModel(withOutcome:whenGranted:)` のうち、**広告の前に先読みを挟む**形（#2125）。
+    ///
+    /// ヒントのように「読み終えてから広告を出す」面で、読みの間まで計時を止めないための口。
+    /// `perform` は読みを終えて広告を出す直前に `readDidFinish` を呼ぶ（呼ばないまま終えても後始末は同じ）。
+    func requestHandledByModel(
+        withOutcome perform: @escaping @MainActor (_ readDidFinish: @escaping @MainActor () -> Void) async -> RewardedModelOutcome,
+        until screenGeneration: GameScreenGeneration? = nil,
+        whenGranted: (@MainActor () async -> Void)? = nil
+    ) {
+        guard !isWatching else { return }
+        isWatching = true
+        isReading = true
+        offerDidAccept()
+        runUntilLeave(screenGeneration) { [self] in
+            let outcome = await perform { [self] in isReading = false }
+            isReading = false
+            isWatching = false
+            guard !Task.isCancelled else { return }
+            switch outcome {
+            case .granted:     await whenGranted?()
+            case .notEarned:   showsNotEarned = true
+            case .unavailable: showsUnavailable = true
+            case .superseded:  break
+            }
+        }
+    }
+
+    /// `screenGeneration` があれば離脱で cancel される Task として、無ければ素の Task として走らせる（#2195）。
+    private func runUntilLeave(
+        _ screenGeneration: GameScreenGeneration?,
+        _ operation: @escaping @MainActor () async -> Void
+    ) {
+        if let screenGeneration {
+            screenGeneration.runUntilLeave(operation)
+        } else {
+            Task { await operation() }
         }
     }
 }
@@ -176,6 +227,8 @@ public enum RewardedModelOutcome: Sendable, Equatable {
     /// 救済できる状態ではなかった、または視聴のあいだに局が入れ替わって適用しなかった
     /// （→ `showsUnavailable`）。
     case unavailable
+    /// 広告を出す前に、先読みが捨てられた（盤が変わった・画面を離れた）。広告は出していないので何も知らせない（#2125）。
+    case superseded
 }
 
 /// 広告の前後で局が入れ替わっていないことを、どうやって確かめるか（#526）。
@@ -217,19 +270,19 @@ public enum RewardedPanelLayout {
 /// ゲームごとに違う見た目（見出しの大きさ・幕の角丸・見出しの下の一行・内側の余白）だけを引数で受ける。
 /// 失敗のアラート（`rewardedRescueAlerts`）は画面全体に付くものなので、呼び出し側に残す。
 public struct RewardedContinueOverlay<Detail: View>: View {
-    private let title: LocalizedStringKey
+    private let title: String
     private let titleFont: Font
     private let cornerRadius: CGFloat
     private let contentPadding: CGFloat
     private let detail: Detail
-    private let rescueLabel: LocalizedStringKey
+    private let rescueLabel: String
     private let canContinue: Bool
     private let continueRescue: RewardedRescue
     private let services: GameServices
     private let gameID: String
     private let serial: () -> Int
     private let grant: (Int) -> Bool
-    private let secondaryTitle: LocalizedStringKey
+    private let secondaryTitle: String
     private let secondaryAction: () -> Void
 
     /// - Parameters:
@@ -239,19 +292,19 @@ public struct RewardedContinueOverlay<Detail: View>: View {
     ///   - grant: 控えた通し番号の局へコンティニューを適用する。局が入れ替わっていたら false を返す。
     ///   - secondaryTitle: 救済を選ばないときのボタン（「もう一度」「諦めて答えを見る」）。
     public init(
-        title: LocalizedStringKey,
+        title: String,
         titleFont: Font = .title2.bold(),
         cornerRadius: CGFloat = 8,
         contentPadding: CGFloat = RewardedPanelLayout.contentPadding,
         detail: Detail,
-        rescueLabel: LocalizedStringKey,
+        rescueLabel: String,
         canContinue: Bool = true,
         rescue: RewardedRescue,
         services: GameServices,
         gameID: String,
         serial: @autoclosure @escaping () -> Int,
         grant: @escaping (Int) -> Bool,
-        secondaryTitle: LocalizedStringKey,
+        secondaryTitle: String,
         secondaryAction: @escaping () -> Void
     ) {
         self.title = title
@@ -358,7 +411,7 @@ public extension View {
         pause: @escaping @MainActor () -> Void,
         resume: @escaping @MainActor () -> Void
     ) -> some View {
-        onChange(of: rescues.contains { $0.isWatching }) { _, watching in
+        onChange(of: rescues.contains { $0.holdsClock }) { _, watching in
             if watching { pause() } else { resume() }
         }
     }

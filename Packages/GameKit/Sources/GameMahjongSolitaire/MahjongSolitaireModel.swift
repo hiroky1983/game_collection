@@ -428,7 +428,7 @@ public final class MahjongSolitaireModel {
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: layout.id,
-            variantLabel: layout.displayName
+            variantLabel: layout.recordLabel
         )
     }
 
