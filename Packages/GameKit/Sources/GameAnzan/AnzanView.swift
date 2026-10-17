@@ -65,7 +65,7 @@ public struct AnzanView: View {
             // 背面ではタイマーが即満了して数が飛ぶので、数の表示中に画面が引っ込んだら止める（入力中は何もしない）。
             if phase != .active {
                 model.pauseDisplay()
-            } else if !showHowToPlay {
+            } else if AnzanModel.canResumeDisplay(isActive: true, showHowToPlay: showHowToPlay, showSetup: showSetup) {
                 model.resumeDisplay()
             }
         }
@@ -73,7 +73,7 @@ public struct AnzanView: View {
             // 入力中に難易度のシートを開いたままにした時間は回答時間に乗せない。
             if open {
                 model.pauseDisplay()
-            } else if scenePhase == .active, !showHowToPlay {
+            } else if AnzanModel.canResumeDisplay(isActive: scenePhase == .active, showHowToPlay: showHowToPlay, showSetup: showSetup) {
                 model.resumeDisplay()
             }
         }
