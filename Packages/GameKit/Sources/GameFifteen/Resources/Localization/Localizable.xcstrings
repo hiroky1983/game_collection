@@ -57,6 +57,17 @@
         }
       }
     },
+    "、正しい位置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", in the right place"
+          }
+        }
+      }
+    },
     "、ヒント（次に動かすタイル）" : {
       "extractionState" : "manual",
       "localizations" : {

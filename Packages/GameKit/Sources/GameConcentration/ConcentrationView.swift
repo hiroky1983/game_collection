@@ -414,7 +414,9 @@ private struct CardView: View {
     private var accessibilityText: String {
         if isHint { return tr("裏向きの札、ヒント（1枚目の相方）") }
         guard isFaceUp, let name = card.figure?.displayName else { return tr("裏向きの札") }
-        return card.isMatched ? tr("%@（獲得済み）", name) : name
+        if card.isMatched { return tr("%@（獲得済み）", name) }
+        // 不一致は coral の枠だけで示していたので、読み上げにも出す（#2322）。
+        return isMismatched ? tr("%@（一致しませんでした）", name) : name
     }
 
     @ViewBuilder
