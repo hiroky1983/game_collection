@@ -494,6 +494,10 @@ public final class SudokuModel {
         notes[index] = 0
         hintsUsed += 1
         hintedCells.insert(index)
+        // 計測へ伝える（ヒントだけの局を捨てても離脱として数える・game_end の hints_used に載せる・#2323）。
+        // 終局の判定（checkCompletion → game_end）より前に呼ぶ。
+        services?.gameDidProgress(gameID: gameID)
+        services?.gameDidUseHint(gameID: gameID)
         clearPeerNotes(for: index, digit: solution[index])
         // ヒント自体は `UndoStep` を作らないが、**手前の履歴も捨てる**（#383）。
         // 残しておくと、その `changedPeerNotes` が「ヒントを使う前のメモ」を持っているため、
