@@ -197,8 +197,18 @@ sims_to_shutdown() {
   done
 }
 
+# simctl の一覧取得に時間制限を付ける。Xcode 更新直後は初回起動処理（xcodebuild -runFirstLaunch）待ちで
+# simctl が無期限に固まり、当番の 2 スロットが半日止まった（2026-10-17・Xcode 27.1）。固まったら一覧取得の失敗として扱う。
+simctl_list_booted() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 30 xcrun simctl list devices booted -j 2>/dev/null
+  else
+    perl -e 'alarm 30; exec @ARGV' xcrun simctl list devices booted -j 2>/dev/null
+  fi
+}
+
 booted_sims() {
-  xcrun simctl list devices booted -j 2>/dev/null \
+  simctl_list_booted \
     | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null
 }
 
@@ -206,7 +216,7 @@ booted_sims() {
 # 静かに効かなくなり、シミュレータが溜まり続ける（Issue #100 の実害そのもの）
 capture_sims_before() {
   local raw
-  raw=$(xcrun simctl list devices booted -j 2>/dev/null) || { log "後片付け: シミュレータ一覧の取得に失敗（simctl）。後片付けは行わない"; return 0; }
+  raw=$(simctl_list_booted) || { log "後片付け: シミュレータ一覧の取得に失敗（simctl）。後片付けは行わない"; return 0; }
   SIMS_BEFORE=$(printf '%s' "$raw" | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | tr '\n' ' ') \
     || { log "後片付け: シミュレータ一覧の解析に失敗（jq）。後片付けは行わない"; SIMS_BEFORE=""; return 0; }
   SIMS_TRACKED=1
@@ -215,7 +225,10 @@ capture_sims_before() {
 cleanup_simulators() {
   [ "$SIMS_TRACKED" -eq 1 ] || return 0
   local u d booted mine theirs="" target
-  booted=$(booted_sims)
+  booted=$(booted_sims) || {
+    log "後片付け: シミュレータ一覧の取得に失敗（simctl）。後片付けは行わない"
+    return 0
+  }
   mine=$(cat "$LOCK_DIR/sims" 2>/dev/null | tr '\n' ' ')
   for d in $(other_live_slot_dirs); do
     theirs="$theirs $(cat "$d/sims" 2>/dev/null | tr '\n' ' ')"
