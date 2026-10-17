@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%1$@、残り%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, %2$lld card left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, %2$lld cards left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%1$@の%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -251,6 +274,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "いまの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Their turn"
           }
         }
       }
@@ -793,6 +827,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reverses the direction of play"
+          }
+        }
+      }
+    },
+    "直前の手、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last move: %@"
           }
         }
       }

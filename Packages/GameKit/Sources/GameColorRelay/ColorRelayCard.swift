@@ -39,6 +39,20 @@ public enum RelayColor: Int, CaseIterable, Codable, Sendable, Hashable {
         }
     }
 
+    /// 札の窓（白）に描く大きな数字・記号の色（`0xRRGGBB`・#2369）。地の色の系統のまま、白の上で
+    /// 大きな文字の基準（3:1）に届く濃さにする（`ColorRelayContrastTests`）。札の面はモードで変えないのでライトの値。
+    public var glyphHex: UInt32 {
+        switch self {
+        case .red:    return Theme.Hex.coralText.light
+        case .green:  return Theme.Hex.tealText.light
+        case .purple: return Theme.Hex.purple
+        case .yellow: return Theme.Hex.yellowText.light
+        }
+    }
+
+    /// 窓の数字・記号の色。
+    public var glyphColor: Color { Color(hex: glyphHex) }
+
     /// 札の面の色。
     public var color: Color {
         switch self {

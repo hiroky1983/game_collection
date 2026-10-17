@@ -36,6 +36,23 @@ public enum ColorRelayAccessibility {
         return parts.joined(separator: tr("、"))
     }
 
+    /// 相手 1 人の席の読み上げ文（#2369）。画面ではアイコンと裏向きの束で見せている内容を文字にする。
+    /// 例: "CPU2、残り1枚、いまの番、直前の手、ぎゃく！"
+    public static func seatLabel(name: String, cardCount: Int, isCurrent: Bool, lastAction: String) -> String {
+        var parts = [tr("%1$@、残り%2$lld枚", name, cardCount)]
+        if isCurrent { parts.append(tr("いまの番")) }
+        if !lastAction.isEmpty { parts.append(tr("直前の手、%@", lastAction)) }
+        return parts.joined(separator: tr("、"))
+    }
+
+    /// 卓の見出しの読み上げ文（#2369）。何ゲーム目か・回る向き・誰の番か。
+    /// 例: "3ゲーム目、順回り、CPU2の番"
+    public static func tableHeaderLabel(gameNumber: Int, isClockwise: Bool, turn: String) -> String {
+        [tr("%lldゲーム目", gameNumber), isClockwise ? tr("順回り") : tr("逆回り"), turn]
+            .filter { !$0.isEmpty }
+            .joined(separator: tr("、"))
+    }
+
     /// 場の読み上げ文（いまの札と、いまの色）。
     public static func fieldLabel(top: RelayCard?, activeColor: RelayColor, drawPileCount: Int) -> String {
         guard let top else { return tr("場に札はありません") }
