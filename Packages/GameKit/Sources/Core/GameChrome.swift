@@ -28,7 +28,8 @@ public struct GameChromeReference {
     }
 }
 
-/// ヘッダー右の「新規」ボタン（#1418）。種類ごとに絵柄と読み上げ名が決まる（会長決裁 #1011）。
+/// ヘッダー右の「新規」ボタン（#1418）。種類ごとに読み上げ名が決まる（会長決裁 #1011）。
+/// 絵柄は種類によらず `plus.circle.fill` の 1 つにそろえる（#2370。アクションだけ `arrow.clockwise` で＋と⟳が混ざっていた）。
 public struct GameChromeNewGame {
     public enum Kind {
         /// 対戦ゲーム（CPU 戦）＝「新規対局」。
@@ -46,12 +47,8 @@ public struct GameChromeNewGame {
             }
         }
 
-        var systemImage: String {
-            switch self {
-            case .match, .solo: "plus.circle.fill"
-            case .restart: "arrow.clockwise"
-            }
-        }
+        /// 全種類で同じ絵柄（#2370）。種類の違いは読み上げ名だけで表す。
+        var systemImage: String { "plus.circle.fill" }
     }
 
     let kind: Kind
