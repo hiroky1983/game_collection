@@ -21,6 +21,8 @@ public struct OjisanPuzzleView: View {
     /// シートで選んでいる遊び方。最初は荷運びモード。
     @State private var setupMode: OjisanPuzzleMode = .backpain
     @State private var showConfirmNewGame = false
+    /// 遊び方（「？」）のシートを開いているか。背面から戻ったときに、読んでいるあいだの荷物を動かさないために持つ（#2353）。
+    @State private var showHowTo = false
     /// 盤の 1 マスの大きさ。画面のどこで触っても同じ手触りになるよう、盤の外の操作もこれで刻む（#1946）。
     @State private var cellSide: CGFloat = 0
     /// 決着の結果シートを出してよいか。決着の瞬間は盤の上に一言だけ出し、少し置いてから結果に切り替える（#1954）。
@@ -114,8 +116,11 @@ public struct OjisanPuzzleView: View {
         // 内容は遊んでいるモードに合わせる（会長指示 2026-10-12。パズルモード中に腰痛ゲージ・入院・
         // クリアライン・せり上がりを出さない）。
         .howToPlay(howToPlayGuide,
-                   onPresent: { model.pause() },
-                   onDismiss: { if !showSetup, scenePhase == .active { model.resume() } })
+                   onPresent: { showHowTo = true; model.pause() },
+                   onDismiss: {
+                       showHowTo = false
+                       if !showSetup, scenePhase == .active { model.resume() }
+                   })
         .sheet(isPresented: $showSetup) {
             OjisanPuzzleSetupSheet(mode: $setupMode) {
                 showSetup = false
@@ -153,7 +158,11 @@ public struct OjisanPuzzleView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             // 裏に回っているあいだに荷物が落ち続けないようにする。
-            if phase == .active, !showSetup { model.resume() } else { model.pause() }
+            if OjisanPuzzleResume.shouldResume(phase: phase, showSetup: showSetup, showHowTo: showHowTo) {
+                model.resume()
+            } else {
+                model.pause()
+            }
         }
     }
 
@@ -782,5 +791,12 @@ public struct OjisanPuzzleView: View {
                 model.continueAfterAd(forRun: run)
             }
         }
+    }
+}
+
+/// 背面から戻ったときに荷物の落下を再開してよいか。開始シートや遊び方を開いているあいだは再開しない（#2353）。
+enum OjisanPuzzleResume {
+    static func shouldResume(phase: ScenePhase, showSetup: Bool, showHowTo: Bool) -> Bool {
+        phase == .active && !showSetup && !showHowTo
     }
 }
