@@ -286,7 +286,8 @@ final class YonmokuSearch {
         if depth <= 0 { return Self.evaluate(p) }
 
         var alpha = alpha, beta = beta
-        let slot = Int(p.key & UInt64((1 << Self.tableBits) - 1))
+        // 鍵の下位ビットは左の列だけで決まるので、混ぜてから上位ビットを使う（中央の列だけ違う局面が同じ場所を奪い合わない）。
+        let slot = Int((p.key &* SplitMix64.goldenGamma) >> UInt64(64 - Self.tableBits))
         if keys[slot] == p.key, Int(depths[slot]) >= depth {
             let v = Int(values[slot])
             switch flags[slot] {

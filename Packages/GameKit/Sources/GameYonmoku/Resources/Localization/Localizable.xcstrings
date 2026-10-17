@@ -51,7 +51,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Four in a row"
+            "value" : "Lined up 4"
           }
         }
       }
@@ -194,7 +194,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If all 42 spaces fill up and nobody has 4 in a row, the game is a draw."
+            "value" : "If all 42 spaces fill up and nobody has lined up 4, the game is a draw."
           }
         }
       }

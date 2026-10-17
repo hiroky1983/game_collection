@@ -138,11 +138,11 @@ struct YonmokuModuleTests {
 
 @Suite("四目並べの盤の寸法")
 struct YonmokuLayoutTests {
-    @Test("1 列のタップ領域は iPhone SE の幅でも 44pt 以上、横長の盤")
+    @Test("盤が幅いっぱいに取れるとき、1 列のタップ領域は幅 375 の端末で 44pt 以上、横長の盤")
     func tapTargets() {
-        // SE（幅 320 の旧機種でも）: 画面の左右の余白を引いた幅。盤は余白の半分まで広げている。
-        let layout = YonmokuBoardLayout(width: 320 - 16)
-        #expect(layout.cell >= 40)
+        // 幅 375 から左右の余白（盤は余白の半分まで広げる）を引いた幅で決まる場合の値。
+        // 高さが足りず盤が縮む端末（SE の縦 667pt）では列幅が下がりうる。実測は QA で（PR 本文に記載）。
+        #expect(YonmokuBoardLayout(width: 320 - 16).cell >= 40)
         #expect(YonmokuBoardLayout(width: 375 - 16).cell >= 44)
         #expect(YonmokuBoardLayout.aspectRatio > 1)
         #expect(YonmokuBoardLayout(width: 0).cell == 0, "GeometryReader の最初の 0 幅でも落ちない")
