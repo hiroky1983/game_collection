@@ -35,7 +35,7 @@ enum BlackjackHowToFigures {
                         RuleMiniCard("7", suit: .diamond)
                         RuleMiniCard("6", suit: .spade)
                     }
-                    BlackjackHowToFigures.total(tr("合計 23"), color: Theme.coral)
+                    BlackjackHowToFigures.total(tr("合計 23"), color: Theme.coralText)
                     RuleVerdictMark(false)
                 }
             }
@@ -75,9 +75,9 @@ enum BlackjackHowToFigures {
                         if index > 0 { RuleMiniCard("5", suit: .club, isHighlighted: true) }
                     }
                     .padding(.top, 4)
-                    BlackjackHowToFigures.total(index == 0 ? tr("合計 14") : tr("合計 19"), color: index == 0 ? Theme.ink : Theme.coral)
+                    BlackjackHowToFigures.total(index == 0 ? tr("合計 14") : tr("合計 19"), color: index == 0 ? Theme.ink : Theme.coralText)
                     RuleFigureLabel(index == 0 ? tr("いま") : tr("ヒット（+1 枚）\nここで止めるのがスタンド"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coral)
+                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
                 }
             }
         }
@@ -99,7 +99,7 @@ enum BlackjackHowToFigures {
                             RuleMiniCard("8", suit: .spade)
                             RuleMiniCard("8", suit: .heart)
                         }
-                        RuleFigureLabel(tr("2 つの手に分ける"), color: Theme.coral)
+                        RuleFigureLabel(tr("2 つの手に分ける"), color: Theme.coralText)
                     }
                 }
             }

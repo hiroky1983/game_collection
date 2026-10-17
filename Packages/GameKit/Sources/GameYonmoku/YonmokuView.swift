@@ -218,7 +218,7 @@ public struct YonmokuView: View {
             YonmokuDiscView(disc: disc, size: 18, isLast: false)
             Text(isYou ? tr("あなた") : "CPU")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
-                .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
             Text(disc == .black ? tr("黒・先手") : tr("白・後手"))
                 .themeCaption(13, weight: .regular, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)

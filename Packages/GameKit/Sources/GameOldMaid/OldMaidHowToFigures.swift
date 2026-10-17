@@ -23,7 +23,7 @@ enum OldMaidHowToFigures {
                             RuleMiniCard("9", suit: .diamond)
                             RuleMiniCard("5", suit: .heart, isHighlighted: true)
                         }
-                        RuleFigureLabel(tr("同じ数字の2枚"), color: Theme.coral)
+                        RuleFigureLabel(tr("同じ数字の2枚"), color: Theme.coralText)
                     } else {
                         RuleMiniCardRow(overlap: 6) {
                             RuleMiniCard("5", suit: .spade, isDimmed: true)
@@ -53,7 +53,7 @@ enum OldMaidHowToFigures {
                             RuleMiniCard("7", suit: .club)
                             RuleMiniCard("7", suit: .diamond, isHighlighted: true)
                         }
-                        RuleFigureLabel(tr("そろったら捨てる"), color: Theme.coral)
+                        RuleFigureLabel(tr("そろったら捨てる"), color: Theme.coralText)
                     }
                 }
             }
@@ -64,7 +64,7 @@ enum OldMaidHowToFigures {
     private struct FaceFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 20) {
-                example(face: .smile, label: tr("にやり→ジョーカーかも"), color: Theme.coral) {
+                example(face: .smile, label: tr("にやり→ジョーカーかも"), color: Theme.coralText) {
                     OldMaidCardFaceView(card: .joker, highlighted: true)
                 }
                 example(face: .worried, label: tr("ひやり→ほかの札かも"), color: Theme.inkSub) {
@@ -98,7 +98,7 @@ enum OldMaidHowToFigures {
                 }
                 VStack(spacing: 4) {
                     OldMaidCardFaceView(card: .joker, highlighted: true)
-                    RuleFigureLabel(tr("残ったら負け"), color: Theme.coral)
+                    RuleFigureLabel(tr("残ったら負け"), color: Theme.coralText)
                 }
             }
         }

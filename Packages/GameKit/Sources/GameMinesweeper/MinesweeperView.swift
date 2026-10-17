@@ -354,7 +354,7 @@ public struct MinesweeperView: View {
                         // 右のタイマー・旗・ズームを押し出すため、ここだけは縮めて収める（#189）。
                         // 残り地雷数（下の分岐）は等幅で幅を固定したいので `fixedSize` を残す。
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(won ? Theme.teal : Theme.coral)
+                        .foregroundStyle(won ? Theme.tealText : Theme.coralText)
                 } else {
                     Label(String(format: "%02d", max(0, model.remainingMines)),
                           systemImage: "flag.fill")
@@ -572,7 +572,7 @@ public struct MinesweeperView: View {
                 Image(systemName: "flag.fill")
                     .resizable().scaledToFit()
                     .frame(width: iconSize, height: iconSize)
-                    .foregroundStyle(gameIsOver && cell.isMine ? Theme.teal : Theme.coral)
+                    .foregroundStyle(gameIsOver && cell.isMine ? Theme.tealText : Theme.coralText)
             }
         } else if !cell.isRevealed && cell.mark == .question {
             // 「たぶん地雷」の保留マーク（#444）。面（0xBDBDBD）はモードによらず固定なので
@@ -597,7 +597,7 @@ public struct MinesweeperView: View {
         switch n {
         case 1: return Color(hex: 0x1565C0)
         case 2: return Color(hex: 0x2E7D32)
-        case 3: return Theme.coral
+        case 3: return Theme.coralText
         case 4: return Color(hex: 0x0D47A1)
         case 5: return Color(hex: 0xB71C1C)
         case 6: return Color(hex: 0x006064)

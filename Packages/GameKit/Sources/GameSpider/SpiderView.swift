@@ -612,7 +612,7 @@ public struct SpiderView: View {
             nudge: hintNudge,
             // 「配る」が拒否された理由。段と「⋯」のあいだに出て、空の列が埋まると自動で消える。
             caption: showDealBlockedHint && model.board.isDealBlockedByEmptyPile
-                ? GameOverflowCaption(tr("空の列を埋めると配れます"), color: Theme.coral)
+                ? GameOverflowCaption(tr("空の列を埋めると配れます"), color: Theme.coralText)
                 : nil
         )
     }

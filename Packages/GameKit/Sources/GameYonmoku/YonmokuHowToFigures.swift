@@ -49,7 +49,7 @@ enum YonmokuHowToFigures {
                     VStack(spacing: 2) {
                         Image(systemName: "arrowtriangle.down.fill")
                             .scaledFont(12, maxScale: 1.15)
-                            .foregroundStyle(index == 0 ? Theme.coral : Color.clear)
+                            .foregroundStyle(index == 0 ? Theme.coralText : Color.clear)
                             // 2 列目（左から）の真上に置く: 盤の中心から 1 マスぶん左。
                             .offset(x: -20)
                             .accessibilityHidden(true)
@@ -61,7 +61,7 @@ enum YonmokuHowToFigures {
                         }, mark: { col, row in index == 0 && col == 1 && row == 1 })
                     }
                     RuleFigureLabel(index == 0 ? tr("列をタップ") : tr("一番下の空きに入る"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -103,7 +103,7 @@ enum YonmokuHowToFigures {
                         return nil
                     }, mark: { col, row in index == 0 && col == 4 && row == 0 })
                     RuleFigureLabel(index == 0 ? tr("白が 3 つ！ ここで 4 つ") : tr("黒で先にふさいだ"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }

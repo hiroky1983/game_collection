@@ -159,7 +159,7 @@ public struct ShiritoriView: View {
         return HStack(spacing: 8) {
             Image(systemName: "timer")
                 .scaledFont(12, weight: .bold)
-                .foregroundStyle(urgent ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(urgent ? Theme.coralText : Theme.inkSub)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.inkSub.opacity(0.2))
@@ -171,7 +171,7 @@ public struct ShiritoriView: View {
             Text(model.isPaused ? tr("一時停止") : tr("%lldびょう", seconds))
                 .scaledFont(12, weight: .bold, design: .rounded)
                 .monospacedDigit()
-                .foregroundStyle(urgent ? Theme.coral : Theme.ink)
+                .foregroundStyle(urgent ? Theme.coralText : Theme.ink)
                 .frame(minWidth: 52, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
@@ -196,11 +196,11 @@ public struct ShiritoriView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(ShiritoriPresentation.prompt(tail: model.requiredTail, isPlayerTurn: model.isPlayerTurn, phase: model.phase))
                     .scaledFont(15, weight: .black, design: .rounded)
-                    .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
+                    .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSub)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Text(model.lastEvent.map(ShiritoriPresentation.eventText) ?? " ")
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(isMiss ? Theme.coral : Theme.inkSub)
+                    .foregroundStyle(isMiss ? Theme.coralText : Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 scoreLine
             }
@@ -349,11 +349,11 @@ public struct ShiritoriView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.didPlayerWin ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.didPlayerWin ? Theme.yellow : Theme.inkSub)
+                    .foregroundStyle(model.didPlayerWin ? Theme.yellowText : Theme.inkSub)
                 Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
                                                               mode: model.mode))
                     .scaledFont(16, weight: .black, design: .rounded)
-                    .foregroundStyle(model.didPlayerWin ? Theme.teal : Theme.ink)
+                    .foregroundStyle(model.didPlayerWin ? Theme.tealText : Theme.ink)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
             }

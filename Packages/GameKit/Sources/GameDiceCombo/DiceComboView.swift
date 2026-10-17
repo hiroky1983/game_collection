@@ -156,7 +156,7 @@ public struct DiceComboView: View {
             Spacer(minLength: 2)
             Text(verbatim: model.bonus > 0 ? "+\(model.bonus)" : "0")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                .foregroundStyle(model.bonus > 0 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(model.bonus > 0 ? Theme.coralText : Theme.inkSub)
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, minHeight: DiceComboScoreRow.height)
@@ -318,7 +318,7 @@ struct DiceComboScoreRow: View {
         } else if let preview {
             Text(verbatim: "\(preview)")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                .foregroundStyle(preview > 0 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(preview > 0 ? Theme.coralText : Theme.inkSub)
         } else {
             Text(verbatim: "–")
                 .scaledFont(15, weight: .bold, design: .rounded, maxScale: 1.15)

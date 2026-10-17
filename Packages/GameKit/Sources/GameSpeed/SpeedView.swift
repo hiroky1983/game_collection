@@ -194,7 +194,7 @@ public struct SpeedView: View {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
                     .scaledFont(12, weight: .bold)
-                    .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coral)
+                    .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coralText)
                 Text(model.isTimeoutActive ? tr("タイム中") : "CPU")
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
@@ -346,7 +346,7 @@ public struct SpeedView: View {
                 Button { showSetup = true } label: {
                     Text(tr("速さを変える")).themeBody(15).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.bordered).controlSize(.large).tint(Theme.coralText)
             }
             .padding(.horizontal, 24)
         }
@@ -407,10 +407,10 @@ public struct SpeedView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.winner == .human ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.winner == .human ? Theme.yellow : Theme.inkSub)
+                    .foregroundStyle(model.winner == .human ? Theme.yellowText : Theme.inkSub)
                 Text(statusText)
                     .scaledFont(17, weight: .black, design: .rounded)
-                    .foregroundStyle(model.winner == .human ? Theme.teal : Theme.ink)
+                    .foregroundStyle(model.winner == .human ? Theme.tealText : Theme.ink)
                 Spacer()
             }
             VStack(spacing: 4) {
@@ -445,7 +445,7 @@ public struct SpeedView: View {
                 .background(Capsule().fill(isWinner ? Theme.Fill.yellow : Color.clear))
             Text(name)
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(name == tr("あなた") ? Theme.coral : Theme.ink)
+                .foregroundStyle(name == tr("あなた") ? Theme.coralText : Theme.ink)
             Spacer()
             Text(remaining == 0 ? tr("出し切り") : tr("残り%lld枚", remaining))
                 .scaledFont(12, weight: .semibold, design: .rounded)

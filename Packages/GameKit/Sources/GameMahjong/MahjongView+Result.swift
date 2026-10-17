@@ -169,11 +169,11 @@ extension MahjongView {
                     if let change = model.handResult?.pointChanges[player], change != 0 {
                         Text(change > 0 ? "+\(change)" : "\(change)")
                             .scaledFont(12, weight: .bold, design: .rounded)
-                            .foregroundStyle(change > 0 ? Theme.teal : Theme.coral)
+                            .foregroundStyle(change > 0 ? Theme.tealText : Theme.coralText)
                     }
                     Text(Self.pointsText(model.scores[player]))
                         .scaledFont(12, weight: .black, design: .rounded)
-                        .foregroundStyle(model.scores[player] < 0 ? Theme.coral : Theme.ink)
+                        .foregroundStyle(model.scores[player] < 0 ? Theme.coralText : Theme.ink)
                         // 英語（"25000 pts"）は日本語より長く、幅が固定の欄に 1 行で収める。
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(width: 66, alignment: .trailing)

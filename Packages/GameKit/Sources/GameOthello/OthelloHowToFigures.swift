@@ -27,7 +27,7 @@ enum OthelloHowToFigures {
                         if row == 2, col == 1 || col == 2 { RuleStone(col == 1 ? .black : .white, size: cell) }
                     }
                 }
-                RuleFigureLabel(tr("○ のマスに置ける"), color: Theme.coral)
+                RuleFigureLabel(tr("○ のマスに置ける"), color: Theme.coralText)
             }
         }
     }
@@ -51,7 +51,7 @@ enum OthelloHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("黒を置くと…") : tr("はさんだ白が黒に"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -69,8 +69,8 @@ enum OthelloHowToFigures {
         private func tally(_ tone: RuleStone.Tone, _ label: String, isWinner: Bool) -> some View {
             VStack(spacing: 4) {
                 RuleStone(tone, size: 34)
-                RuleFigureLabel(label, color: isWinner ? Theme.coral : Theme.inkSub)
-                if isWinner { RuleFigureLabel(tr("多い方の勝ち"), color: Theme.coral) }
+                RuleFigureLabel(label, color: isWinner ? Theme.coralText : Theme.inkSub)
+                if isWinner { RuleFigureLabel(tr("多い方の勝ち"), color: Theme.coralText) }
             }
         }
     }

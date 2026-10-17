@@ -239,8 +239,8 @@ public struct MancalaView: View {
 
     private var resultColor: Color {
         switch model.reviewOutcome {
-        case .win:  return Theme.teal
-        case .loss: return Theme.coral
+        case .win:  return Theme.tealText
+        case .loss: return Theme.coralText
         case .draw: return Theme.inkSub
         }
     }

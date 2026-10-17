@@ -124,7 +124,7 @@ enum MinesweeperHowToFigures {
                 RuleFrames(count: 2, spacing: 10) { index in
                     Grid(cells: [[.open(1), index == 0 ? .closed : .flag]], highlight: index == 0 ? [1] : [])
                 }
-                RuleFigureLabel(tr("長押しで旗"), color: Theme.coral)
+                RuleFigureLabel(tr("長押しで旗"), color: Theme.coralText)
             }
         }
     }
@@ -141,7 +141,7 @@ enum MinesweeperHowToFigures {
                         [opened ? .open(0) : .closed, opened ? .open(0) : .closed, opened ? .open(0) : .closed],
                     ], highlight: index == 0 ? [11] : [])
                 }
-                RuleFigureLabel(tr("旗が 1 つ → 1 をタップ"), color: Theme.coral)
+                RuleFigureLabel(tr("旗が 1 つ → 1 をタップ"), color: Theme.coralText)
             }
         }
     }

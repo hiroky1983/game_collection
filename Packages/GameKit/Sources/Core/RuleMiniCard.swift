@@ -155,6 +155,6 @@ public struct RuleVerdictMark: View {
     public var body: some View {
         Image(systemName: isOK ? "checkmark.circle.fill" : "xmark.circle.fill")
             .scaledFont(18, weight: .bold, maxScale: 1.15)
-            .foregroundStyle(isOK ? Color(hex: 0x2E9D6B) : Theme.coral)
+            .foregroundStyle(isOK ? Color(hex: 0x2E9D6B) : Theme.coralText)
     }
 }

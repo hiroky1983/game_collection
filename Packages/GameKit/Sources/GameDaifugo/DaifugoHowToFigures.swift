@@ -23,7 +23,7 @@ enum DaifugoHowToFigures {
                             }
                             VStack(spacing: 4) {
                                 RuleMiniCard("J", suit: .heart, isHighlighted: true)
-                                RuleFigureLabel(tr("より強い札を"), color: Theme.coral)
+                                RuleFigureLabel(tr("より強い札を"), color: Theme.coralText)
                             }
                         }
                     } else {

@@ -81,8 +81,8 @@ public extension View {
     /// ゲーム側からは変えられない（#1418。並びが各ゲームの書き方しだいだった）。
     ///
     /// ナビバーの背景は全ゲームで画面の背景色（`Theme.background`）に揃え、ツールバーのボタンは
-    /// `Theme.coral` に固定する（#1412・会長決裁 2026-09-25。既定の白い帯がクリーム色の画面と
-    /// 食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
+    /// `Theme.coralText`（文字用の濃い赤・#2377）に固定する（#1412・会長決裁 2026-09-25。既定の白い帯が
+    /// クリーム色の画面と食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
     func gameChrome<Actions: ToolbarContent>(
         title: String,
         review: ReviewRequestService?,
@@ -156,7 +156,7 @@ private struct GameChromeBase: ViewModifier {
             .navigationBarBackButtonHidden(true)
             .modifier(NavigationBarBackgroundMatch())
             #endif
-            .tint(Theme.coral)
+            .tint(Theme.coralText)
     }
 }
 

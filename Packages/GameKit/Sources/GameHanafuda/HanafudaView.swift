@@ -190,7 +190,7 @@ public struct HanafudaView: View {
                 Text(tr("CPUの取り札"))
                     .themeCaption(13, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(model.turn == .cpu ? Theme.coral : Theme.inkSub)
+                    .foregroundStyle(model.turn == .cpu ? Theme.coralText : Theme.inkSub)
                 Text(yakuLine(for: .cpu))
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
@@ -322,7 +322,7 @@ public struct HanafudaView: View {
                 Text(tr("あなたの取り札"))
                     .themeCaption(13, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
+                    .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSub)
                 Text(yakuLine(for: .human))
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
@@ -448,7 +448,7 @@ public struct HanafudaView: View {
                 Text(roundResultTitle(result.winner))
                     .themeBody(18, weight: .heavy)
                     .fitOneLine()
-                    .foregroundStyle(result.winner == .human ? Theme.teal : Theme.ink)
+                    .foregroundStyle(result.winner == .human ? Theme.tealText : Theme.ink)
                 if !result.hits.isEmpty {
                     Text(result.hits.map { tr("%@ %lld文", $0.name, $0.points) }.joined(separator: tr("・")))
                         .themeCaption(13, weight: .semibold, maxScale: 1.5)
@@ -518,7 +518,7 @@ public struct HanafudaView: View {
 
     private var matchTitleColor: Color {
         if model.wasResigned { return Theme.ink }
-        return model.humanTotal > model.cpuTotal ? Theme.teal : Theme.ink
+        return model.humanTotal > model.cpuTotal ? Theme.tealText : Theme.ink
     }
 
     /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。

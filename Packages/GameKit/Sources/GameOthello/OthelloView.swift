@@ -288,10 +288,10 @@ public struct OthelloView: View {
                         let isWin = w == model.humanSide
                         Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                             .scaledFont(40, maxScale: 1.2)
-                            .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                            .foregroundStyle(isWin ? Theme.yellowText : Theme.coralText)
                         Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                             .themeBody(24, weight: .bold)
-                            .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                            .foregroundStyle(isWin ? Theme.tealText : Theme.coralText)
                     } else {
                         Image(systemName: "equal.circle.fill")
                             .scaledFont(40, maxScale: 1.2)

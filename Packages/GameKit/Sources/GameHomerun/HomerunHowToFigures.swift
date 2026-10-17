@@ -29,7 +29,7 @@ enum HomerunHowToFigures {
                     Image(systemName: "sum")
                         .scaledFont(13, weight: .black, maxScale: 1.15)
                         .foregroundStyle(Theme.coralText)
-                    RuleFigureLabel(tr("10 球の合計飛距離が記録"), color: Theme.coral)
+                    RuleFigureLabel(tr("10 球の合計飛距離が記録"), color: Theme.coralText)
                 }
             }
         }
@@ -72,7 +72,7 @@ enum HomerunHowToFigures {
                     Image(systemName: "arrow.up.right")
                         .scaledFont(28, weight: .black, maxScale: 1.15)
                         .foregroundStyle(Theme.coralText)
-                    RuleFigureLabel(tr("少し下で打つと上がる"), color: Theme.coral)
+                    RuleFigureLabel(tr("少し下で打つと上がる"), color: Theme.coralText)
                 }
             }
         }
@@ -85,7 +85,7 @@ enum HomerunHowToFigures {
                 VStack(spacing: 6) {
                     HomerunHeroCountDots(allowance: 3, remaining: index == 0 ? 2 : 3, size: 18)
                     RuleFigureLabel(index == 0 ? tr("打席に立つと 1 回減る") : tr("0:00 に 3 回に戻る"),
-                                    color: index == 1 ? Theme.coral : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }

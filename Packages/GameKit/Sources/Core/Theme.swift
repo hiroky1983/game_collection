@@ -13,7 +13,7 @@ import AppKit
 /// ライト時に確保できている可読性を下げてしまうため。値を動かさなくてもダークの地・面に対する
 /// コントラストはライト時より必ず良くなる（最小は面の上の `purple` で 4.32:1）。
 ///
-/// 差し色を**文字色**として使うときも `Theme.yellow` 等ではなく `Theme.yellowText` / `tealText` / `coralText` を使う（#2282。
+/// 差し色を**前景（文字・アイコン・記号）**として使うときも `Theme.yellow` 等ではなく `Theme.yellowText` / `tealText` / `coralText` を使う（#2282・#2377。
 /// 明るい地で yellow 1.50 / teal 2.04 / coral 2.55 しか取れなかった）。
 ///
 /// 差し色を**面色**として使うときは `Theme.coral` ではなく `Theme.Fill.coral` を使い、

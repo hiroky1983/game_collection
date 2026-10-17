@@ -689,7 +689,7 @@ private struct HandAreaView: View {
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
+                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
                 Text(color == .black ? "☗" : "☖")
                     .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSub)
             }
@@ -721,7 +721,7 @@ private struct HandAreaView: View {
                                         )
                                     Text("×\(count)")
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
-                                        .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
+                                        .foregroundStyle(selected ? Theme.coralText : Theme.inkSub)
                                 }
                                 .frame(minWidth: tapWidth)
                                 .contentShape(Rectangle())
