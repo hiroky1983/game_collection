@@ -591,6 +591,7 @@ enum HanafudaFit {
                         fieldCount: Int, handCount: Int) -> Metrics {
         let innerWidth = max(0, availableWidth - 2 * cardPadding)
         var best = Metrics(cardWidth: 0, stripHeight: stripHeight * minScale, columnCount: columnChoices[0])
+        var bestUsedHeight = CGFloat.infinity
         // 縮小の下限は札の幅で揃える（6 列の自然な幅の `minScale` 倍）。列ごとの比率で下限を持つと、
         // 列が少ないほど下限の札が大きくなり、高さに収まらない並べ方が選ばれてしまう（#2336）。
         let floorWidth = minScale * (innerWidth - 5 * gap) / 6
@@ -615,29 +616,46 @@ enum HanafudaFit {
                 cardScale = min(1, max(floorScale, (availableHeight - fixedHeight - rowGaps - 2 * stripHeight * stripScale)
                                        / cardsNaturalHeight))
             }
-            // 同じ大きさなら列の少ない（＝これまでどおりの）並べ方を残す。
-            if naturalWidth * cardScale > best.cardWidth {
-                best = Metrics(cardWidth: naturalWidth * cardScale, stripHeight: stripHeight * stripScale,
-                               columnCount: columns)
+            // 同じ大きさなら、段が少なく背の低い並べ方を残す（下限に張り付いた低い画面で、段の多い
+            // 4 列が先頭だからと選ばれて高さを溢れさせない）。
+            let width = naturalWidth * cardScale
+            let usedHeight = CGFloat(fieldRows + handRows) * width * HanafudaCardArt.aspectRatio + rowGaps
+            if width > best.cardWidth + 0.001 || (abs(width - best.cardWidth) <= 0.001 && usedHeight < bestUsedHeight) {
+                best = Metrics(cardWidth: width, stripHeight: stripHeight * stripScale, columnCount: columns)
+                bestUsedHeight = usedHeight
             }
         }
         return best
     }
 
     /// 取り札の 4 列の幅。札の重なりが多い列（カス）ほど広く取り、どの列も札 1 枚ぶんは確保する。
+    /// 下限で持ち上げた列の分は、残りの列から重みに応じて差し引くので、合計は `total` を超えない。
     static func groupWidths(total: CGFloat, cardWidth: CGFloat, counts: [Int]) -> [CGFloat] {
         guard !counts.isEmpty else { return [] }
         let usable = max(0, total - CGFloat(counts.count - 1) * groupSpacing)
         let weights = counts.map { cardWidth + CGFloat(max(0, $0 - 1)) * cardWidth * 0.45 }
-        let sum = weights.reduce(0, +)
-        return weights.map { max(cardWidth, usable * $0 / sum) }
+        var widths = [CGFloat](repeating: cardWidth, count: counts.count)
+        var pinned = Set<Int>()
+        while true {
+            let free = counts.indices.filter { !pinned.contains($0) }
+            let freeWeight = free.reduce(0) { $0 + weights[$1] }
+            let room = usable - CGFloat(pinned.count) * cardWidth
+            guard !free.isEmpty, freeWeight > 0 else { break }
+            let newlyPinned = free.filter { room * weights[$0] / freeWeight < cardWidth }
+            if newlyPinned.isEmpty {
+                for i in free { widths[i] = room * weights[i] / freeWeight }
+                break
+            }
+            pinned.formUnion(newlyPinned)
+        }
+        return widths
     }
 
-    /// 列の中で札を重ねる間隔。月の数字（札の左端に出る）が読めるよう、広い列でも札の幅の 0.9 倍までに抑え、
-    /// 狭い列でも 4pt は残す。
+    /// 列の中で札を重ねる間隔。月の数字（札の左端に出る）が読めるよう、広い列でも札の幅の 0.9 倍までに抑える。
+    /// 列が狭ければ間隔も詰まる（列の外へはみ出さない）。
     static func overlapStep(groupWidth: CGFloat, cardWidth: CGFloat, count: Int) -> CGFloat {
         guard count > 1 else { return 0 }
-        return max(4, min(cardWidth * 0.9, (groupWidth - cardWidth) / CGFloat(count - 1)))
+        return max(0, min(cardWidth * 0.9, (groupWidth - cardWidth) / CGFloat(count - 1)))
     }
 
     private static func rows(_ count: Int, columns: Int) -> Int {

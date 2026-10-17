@@ -105,15 +105,34 @@ struct HanafudaFitTests {
         #expect(groups.allSatisfy { !$0.isComplete })
     }
 
-    @Test("取り札の列幅: どの列も札 1 枚ぶんは取り、重なりの間隔は 4pt 以上")
+    @Test("取り札の列幅: どの列も札 1 枚ぶんは取り、合計は枠を超えない")
     func capturedGroupWidthsAndStep() {
         let cardWidth: CGFloat = 34
         let widths = HanafudaFit.groupWidths(total: 300, cardWidth: cardWidth, counts: [0, 0, 0, 12])
         #expect(widths.allSatisfy { $0 >= cardWidth })
         #expect(widths[3] > widths[0])
         #expect(HanafudaFit.overlapStep(groupWidth: widths[3], cardWidth: cardWidth, count: 12) >= 4)
+        for counts in [[1, 5, 5, 10], [3, 8, 10, 24], [0, 0, 0, 24], [2, 5, 5, 16], [0, 0, 0, 0]] {
+            let w = HanafudaFit.groupWidths(total: 323, cardWidth: cardWidth, counts: counts)
+            #expect(w.allSatisfy { $0 >= cardWidth - 0.001 })
+            #expect(w.reduce(0, +) + 3 * HanafudaFit.groupSpacing <= 323 + 0.001, "\(counts): \(w)")
+            // 列に収まる間隔なので、札の右端が列からはみ出さない。
+            for (i, n) in counts.enumerated() {
+                let step = HanafudaFit.overlapStep(groupWidth: w[i], cardWidth: cardWidth, count: n)
+                #expect(cardWidth + CGFloat(max(0, n - 1)) * step <= w[i] + 0.001)
+            }
+        }
         #expect(HanafudaFit.overlapStep(groupWidth: 80, cardWidth: cardWidth, count: 1) == 0)
         // 広い列でも札の幅の 0.9 倍を超えて離さない。
         #expect(HanafudaFit.overlapStep(groupWidth: 300, cardWidth: cardWidth, count: 2) == cardWidth * 0.9)
+    }
+
+    @Test("下限に張り付く低い画面では、同じ札幅なら背の低い並べ方を選ぶ")
+    func floorPrefersShorterLayout() {
+        for height in [250.0, 300, 340] {
+            let m = HanafudaFit.metrics(availableWidth: 343, availableHeight: height, stripHeight: 52,
+                                        fieldCount: 8, handCount: 8)
+            #expect(m.columnCount == 8, "高さ \(height): \(m)")
+        }
     }
 }
