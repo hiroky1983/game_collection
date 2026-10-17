@@ -98,11 +98,16 @@ public enum HanafudaCardArt {
         if let ribbon = card.ribbon {
             return ribbon == .blue ? blueRibbonBandHex : redRibbonBandHex
         }
-        switch card.kind {
+        return kindHex(for: card.kind)
+    }
+
+    /// 種別だけで決まる帯の色（取り札の見出し #2336 も使う。短冊は赤短の赤を代表にする）。
+    public static func kindHex(for kind: HanafudaKind) -> UInt32 {
+        switch kind {
         case .hikari:  return 0xD4A93A   // 金
         case .tane:    return 0x2F7050   // 常緑
         case .kasu:    return 0x6F675E   // 薄墨
-        // 短冊札は 10 枚すべてが `ribbon` を持つので、ここには来ない（`HanafudaBandTests` で固定）。
+        // 短冊札は 10 枚すべてが `ribbon` を持つので、札の帯ではここには来ない（`HanafudaBandTests` で固定）。
         case .tanzaku: return redRibbonBandHex
         }
     }
