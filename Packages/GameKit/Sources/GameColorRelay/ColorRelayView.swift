@@ -517,49 +517,75 @@ public struct ColorRelayView: View {
 
     // MARK: - リザルト
 
+    /// 結果の寸法（#2393）。広い画面で横に間延びしないよう幅に上限を置き、文字は盤の上の小さな札向けでなく読む前提の大きさにする。
+    private enum ResultLayout {
+        static let maxWidth: CGFloat = 520
+        static let placeWidth: CGFloat = 56
+    }
+
+    /// 枠は中身の高さで止め、余りは枠の下に空ける（#2393）。文字サイズ特大で収まらないときだけ縦にスクロールする。
     private var resultCard: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
+        ViewThatFits(in: .vertical) {
+            VStack(spacing: 0) {
+                resultContent
+                Spacer(minLength: 0)
+            }
+            ScrollView {
+                resultContent
+            }
+        }
+    }
+
+    private var resultContent: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 10) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
-                    .scaledFont(20)
+                    .scaledFont(26)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
                 Text(resultHeadline)
-                    .scaledFont(17, weight: .black, design: .rounded)
+                    .scaledFont(22, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
-                Spacer()
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
             }
-            VStack(spacing: 4) {
+            VStack(spacing: 8) {
                 ForEach(Array(model.ranking.enumerated()), id: \.element) { place, player in
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         Text(tr("%lld位", place + 1))
-                            .scaledFont(12, weight: .black, design: .rounded)
+                            .scaledFont(15, weight: .black, design: .rounded)
                             // 1 位だけ差し色の面。他は濃いグレーの面なので文字色を分ける（#220）。
                             .foregroundStyle(place == 0 ? Theme.onAccent : .white)
-                            .frame(width: 44)
-                            .padding(.vertical, 3)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(width: ResultLayout.placeWidth)
+                            .padding(.vertical, 4)
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         // 卓では名前を出さずアイコンで見分けているので、順位にも同じアイコンを添える（#2369）。
                         if player != ColorRelayModel.humanIndex {
-                            ColorRelayOpponentIcon(index: player, diameter: layout.scaled(22))
+                            ColorRelayOpponentIcon(index: player, diameter: layout.scaled(28))
                         }
                         Text(model.playerName(player))
-                            .scaledFont(13, weight: .bold, design: .rounded)
+                            .scaledFont(17, weight: .bold, design: .rounded)
                             .foregroundStyle(player == ColorRelayModel.humanIndex ? Theme.coralText : Theme.ink)
-                        Spacer()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Spacer(minLength: 4)
                         Text(place == 0 ? tr("あがり") : tr("残り%lld枚", model.hands[player].count))
-                            .scaledFont(12, weight: .semibold, design: .rounded)
+                            .scaledFont(15, weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
             }
-            // 「今回の結果」を上、「通算」を下に置き、余りは 2 つの塊の**間**に集める（#193）。
-            Spacer(minLength: 8)
             RecordLabel(model.recordResult)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.horizontal, 16).padding(.vertical, 16)
         .popCard(corner: Theme.cornerSmall)
+        .frame(maxWidth: ResultLayout.maxWidth)
+        .frame(maxWidth: .infinity)
     }
 
     private var resultHeadline: String {
