@@ -28,6 +28,14 @@ enum RouletteMetrics {
     /// 操作欄の 2 段の間隔。
     static let actionRowSpacing: CGFloat = 8
 
+    /// 賭けの表のタブ（数字 / 赤黒・区分）のボタンの高さ。毎スピン触るので HIG の下限に置く
+    /// （外枠の内側の余白 `tabTrackInset` はこの外に足す。余白ぶん削って 44pt を割らない）。
+    static let tabButtonHeight: CGFloat = minimumTapTarget
+    /// タブの外枠とボタンのあいだの余白。
+    static let tabTrackInset: CGFloat = 3
+    /// タブの外枠の高さ（ボタン + 上下の余白）。
+    static var tabTrackHeight: CGFloat { tabButtonHeight + tabTrackInset * 2 }
+
     // MARK: - ホイール
 
     /// 賭けの画面のホイールのカードの内側の余白（ホイールの上下左右）。
@@ -59,7 +67,7 @@ enum RouletteMetrics {
     /// 「縦が狭い」と見なす境目（pt）。画面の中身に使える高さがこれを下回ったら `Sizing.compact` に落とす。
     ///
     /// 通常の寸法（`Sizing.regular`）が初回ガイドとバナー込み・ホイールを最小の直径にして要る高さ
-    /// （約 635pt・`RouletteMetricsTests` が見積もる）より上に置く。iPhone SE（第 3 世代）は約 603pt・
+    /// （約 641pt・`RouletteMetricsTests` が見積もる）より上に置く。iPhone SE（第 3 世代）は約 603pt・
     /// iPhone 13 mini は約 687pt で詰める側、iPhone 17 は約 715pt で通常の側。
     static let compactHeightThreshold: CGFloat = 690
 
@@ -69,15 +77,13 @@ enum RouletteMetrics {
         /// （幅は 4 段 × 9 列で約 32pt）。隣を押しても同じ「数字 1 点」の賭けで、置いた口は
         /// 「戻す」で外せるので、誤タップの損は 1 タップで取り返せる。
         let numberCellHeight: CGFloat
-        /// 賭けの表のタブ（数字 / 赤黒・区分）の高さ。横幅が画面の半分あるので、SE では高さを少し詰める。
-        let tabHeight: CGFloat
         /// カード同士の縦の間隔。
         let stackSpacing: CGFloat
         /// 操作欄の上下の余白。
         let cardVerticalPadding: CGFloat
 
-        static let regular = Sizing(numberCellHeight: 34, tabHeight: 44, stackSpacing: 10, cardVerticalPadding: 12)
-        static let compact = Sizing(numberCellHeight: 30, tabHeight: 36, stackSpacing: 8, cardVerticalPadding: 6)
+        static let regular = Sizing(numberCellHeight: 34, stackSpacing: 10, cardVerticalPadding: 12)
+        static let compact = Sizing(numberCellHeight: 30, stackSpacing: 8, cardVerticalPadding: 6)
 
         /// 表の中身の高さ。2 つのタブで同じ高さにして、切り替えても画面が上下に動かないようにする。
         var tableContentHeight: CGFloat {
@@ -89,9 +95,9 @@ enum RouletteMetrics {
             (tableContentHeight - cellSpacing) / 2
         }
 
-        /// 賭けの表のカードの高さ（タブ + 間隔 + 表 + 内側の余白）。
+        /// 賭けの表のカードの高さ（タブの外枠 + 間隔 + 表 + 内側の余白）。
         var tableCardHeight: CGFloat {
-            tabHeight + tableTabSpacing + tableContentHeight + boardPadding * 2
+            tabTrackHeight + tableTabSpacing + tableContentHeight + boardPadding * 2
         }
 
         /// 操作欄の高さ（チップ額 4 つ + 戻す / スピンの 2 段）。

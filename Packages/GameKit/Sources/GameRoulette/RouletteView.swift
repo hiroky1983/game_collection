@@ -238,7 +238,7 @@ public struct RouletteView: View {
     /// 賭けの表。「数字」「赤黒・区分」のタブで切り替える。2 つのタブで高さは同じ。
     private func tableCard(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: RouletteMetrics.tableTabSpacing) {
-            betTabs(sizing)
+            betTabs
             Group {
                 switch betTab {
                 case .numbers: numberGrid(sizing)
@@ -252,8 +252,8 @@ public struct RouletteView: View {
     }
 
     /// タブの見出し。もう片方のタブに置いた額も見出しのバッジで分かるようにする。
-    private func betTabs(_ sizing: RouletteMetrics.Sizing) -> some View {
-        let inset: CGFloat = 3
+    private var betTabs: some View {
+        let inset = RouletteMetrics.tabTrackInset
         return HStack(spacing: 4) {
             ForEach(RouletteBetTab.allCases, id: \.self) { tab in
                 let selected = betTab == tab
@@ -271,7 +271,8 @@ public struct RouletteView: View {
                         }
                     }
                     .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
-                    .frame(maxWidth: .infinity, minHeight: sizing.tabHeight - inset * 2)
+                    // タップ領域は 44pt 以上（外枠の余白はこの外側に足す）。
+                    .frame(maxWidth: .infinity, minHeight: RouletteMetrics.tabButtonHeight)
                     .background(
                         RoundedRectangle(cornerRadius: Theme.cornerSmall - inset, style: .continuous)
                             .fill(selected ? Theme.Fill.yellow : Color.clear)

@@ -28,6 +28,9 @@ struct RouletteMetricsTests {
         #expect(Metrics.minimumTapTarget >= 44)
         #expect(Metrics.actionButtonMinHeight >= 44)
         #expect(Metrics.chipButtonSize >= 44)
+        // 賭けの表のタブもボタン自体が 44pt 以上。外枠の余白はその外に足す（余白ぶん削って割らない）。
+        #expect(Metrics.tabButtonHeight >= 44)
+        #expect(Metrics.tabTrackHeight == Metrics.tabButtonHeight + Metrics.tabTrackInset * 2)
         // 「赤黒・区分」タブのマスは数字の表と同じ高さを 2 段で分け合うので 44pt を超える。
         for sizing in [Metrics.Sizing.regular, .compact] {
             #expect(sizing.outsideCellHeight >= 44)
@@ -43,7 +46,6 @@ struct RouletteMetricsTests {
         #expect(Metrics.sizing(forHeight: Metrics.compactHeightThreshold) == .regular)
         #expect(Metrics.sizing(forHeight: Metrics.compactHeightThreshold - 1) == .compact)
         #expect(Metrics.Sizing.compact.numberCellHeight < Metrics.Sizing.regular.numberCellHeight)
-        #expect(Metrics.Sizing.compact.tabHeight <= Metrics.Sizing.regular.tabHeight)
     }
 
     @Test("ホイールの直径は枠の短い辺。大きさ 0 や負の枠でも負にならない")
@@ -105,7 +107,7 @@ struct RouletteMetricsTests {
         let proBetting = Self.bettingWheel(height: Self.pro17ContentHeight, width: Self.pro17ContentWidth, hint: false)
         let seBetting = Self.bettingWheel(height: Self.seContentHeight, width: Self.seContentWidth, hint: false)
         #expect(proBetting >= 200, "17 Pro の賭けの画面 \(proBetting)pt")
-        #expect(seBetting >= 130, "SE の賭けの画面 \(seBetting)pt")
+        #expect(seBetting >= 120, "SE の賭けの画面 \(seBetting)pt")
 
         let proSpin = Self.spinningWheel(height: Self.pro17ContentHeight, width: Self.pro17ContentWidth, hint: false)
         let seSpin = Self.spinningWheel(height: Self.seContentHeight, width: Self.seContentWidth, hint: false)
@@ -129,7 +131,8 @@ struct RouletteMetricsTests {
     func cellsStayLegible() {
         for sizing in [Metrics.Sizing.regular, .compact] {
             #expect(sizing.numberCellHeight >= 30)
-            #expect(sizing.tabHeight >= 36)
+            #expect(sizing.tableCardHeight >= Metrics.tabTrackHeight + sizing.tableContentHeight,
+                    "表のカードの見積もりにタブの外枠（ボタン 44pt + 余白）が入っていない")
         }
     }
 
@@ -174,7 +177,11 @@ struct RouletteMetricsTests {
         #expect(SourceScan.matchCount(of: #"\.buttonStyle\(\.pop\)"#, in: cell) == 1)
         #expect(SourceScan.matchCount(of: #"sizing\.numberCellHeight"#, in: view) >= 2, "0 の幅と 1〜36")
         #expect(SourceScan.matchCount(of: #"sizing\.outsideCellHeight"#, in: view) == 2, "区分と赤黒などの 2 段")
-        #expect(SourceScan.matchCount(of: #"sizing\.tabHeight"#, in: view) == 1)
+        // タブのボタンは 44pt の定数をそのまま高さの下限にする（余白を引かない）。
+        let tabs = SourceScan.functionSource(startingWith: "private var betTabs", in: view)
+        #expect(SourceScan.matchCount(of: #"minHeight:\s*RouletteMetrics\.tabButtonHeight\)"#, in: tabs) == 1)
+        #expect(SourceScan.matchCount(of: #"tabButtonHeight\s*-"#, in: view) == 0, "タップ領域を余白ぶん削っている")
+        #expect(SourceScan.matchCount(of: #"\.padding\(inset\)"#, in: tabs) == 1, "余白はボタンの外側")
         // ホイールは固定の直径ではなく、枠から測った直径で描く。
         #expect(SourceScan.matchCount(of: #"RouletteMetrics\.wheelDiameter\(fitting: proxy\.size\)"#, in: view) == 1)
     }
