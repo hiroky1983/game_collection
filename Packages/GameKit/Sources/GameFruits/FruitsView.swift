@@ -39,7 +39,7 @@ public struct FruitsView: View {
                     newGame: GameChromeNewGame(.restart) {
                         startNewGame()
                     })
-        .howToPlay(.fruits) { FruitsRuleSheet() }
+        .howToPlay(HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items)) { FruitsRuleSheet() }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateFruits <stack|kinmatsu|gameover>`（#1319）。

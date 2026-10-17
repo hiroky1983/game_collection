@@ -44,7 +44,7 @@ public struct BackgammonView: View {
                     newGame: GameChromeNewGame(.match) {
                         showNewGame = true
                     })
-        .howToPlay(.backgammon)
+        .howToPlay(HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             BackgammonNewGameSheet(aiLevel: model.aiLevel) { level in
                 model.newGame(aiLevel: level)

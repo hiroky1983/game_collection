@@ -661,7 +661,16 @@ public extension HowToPlayGuide {
             tr("配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。"),
         ],
         hint: tr("賭ける場所をタップしてスピン"),
-        hintIcon: "circle.circle.fill"
+        hintIcon: "circle.circle.fill",
+        items: [
+            HowToPlayItem(tr("チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。")),
+            HowToPlayItem(tr("「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。")),
+            HowToPlayItem(tr("配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。")),
+            HowToPlayItem(tr("0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。")),
+        ],
+        notes: [
+            tr("「戻す」で、最後に置いた 1 口を外せます。"),
+        ]
     ) }
 
     static var fruits: HowToPlayGuide { HowToPlayGuide(
@@ -673,7 +682,17 @@ public extension HowToPlayGuide {
             tr("上の点線より上に盆栽がとどまるとゲームオーバー。立派に育てて高得点を狙いましょう。"),
         ],
         hint: tr("左右に動かして、離すと落ちる"),
-        hintIcon: "hand.draw.fill"
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem(tr("指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。")),
+            HowToPlayItem(tr("指を離すと、その真下の庭へ盆栽が落ちます。")),
+            HowToPlayItem(tr("同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。")),
+            HowToPlayItem(tr("盆栽は 11 種類。いちばん立派なのは金の松です。")),
+            HowToPlayItem(tr("上の点線より上に盆栽がとどまると、ゲームオーバーです。")),
+        ],
+        notes: [
+            tr("立派に育てるほど高得点です。"),
+        ]
     ) }
 
     static var colorRelay: HowToPlayGuide { HowToPlayGuide(
@@ -685,7 +704,15 @@ public extension HowToPlayGuide {
             tr("とばし・ぎゃく・+2・いろがえ・いろがえ+4 の特殊札で流れを変えましょう。"),
         ],
         hint: tr("同じ色か同じ数字の札を出そう"),
-        hintIcon: "rectangle.on.rectangle.angled"
+        hintIcon: "rectangle.on.rectangle.angled",
+        items: [
+            HowToPlayItem(tr("場の札と同じ色か、同じ数字・記号の札を出せます。")),
+            HowToPlayItem(tr("出せる札がなければ、山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。")),
+            HowToPlayItem(tr("とばしは次の人の番を飛ばし、ぎゃくは回る向きを逆にします。")),
+            HowToPlayItem(tr("+2 は、次の人が 2 枚引いて番を飛ばされます。")),
+            HowToPlayItem(tr("いろがえはどの札の上にも出せて、次の色を選べます。いろがえ+4 は次の人が 4 枚引きます。")),
+            HowToPlayItem(tr("手札を先になくした人が勝ちです。")),
+        ]
     ) }
 
     static var anzan: HowToPlayGuide { HowToPlayGuide(
@@ -718,7 +745,18 @@ public extension HowToPlayGuide {
             tr("15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。先に全部あげたほうの勝ちです。"),
         ],
         hint: tr("動かす駒 → 行き先の順にタップ"),
-        hintIcon: "dice.fill"
+        hintIcon: "dice.fill",
+        items: [
+            HowToPlayItem(tr("あなたは白。サイコロの目のぶん、駒を右下の自陣へ向けて進めます。")),
+            HowToPlayItem(tr("動かす駒 → 行き先の順にタップします。")),
+            HowToPlayItem(tr("相手の駒が 2 個以上あるポイントには止まれません。")),
+            HowToPlayItem(tr("相手の駒が 1 個だけなら、叩いてバー（中央）へ送れます。")),
+            HowToPlayItem(tr("15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。")),
+        ],
+        notes: [
+            tr("バーに自分の駒があるときは、先にその駒を盤へ戻さないと、他の駒を動かせません。"),
+            tr("先に 15 個すべてをあげたほうの勝ちです。"),
+        ]
     ) }
 
     /// マンカラ（#1626・企画倉庫）。図は `GameMancala` 側で `illustrated(_:)` を使って差し込む。
@@ -796,7 +834,17 @@ public extension HowToPlayGuide {
             tr("どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。"),
         ],
         hint: tr("台札と1つ違いの札を重ねよう"),
-        hintIcon: "hare.fill"
+        hintIcon: "hare.fill",
+        items: [
+            HowToPlayItem(tr("台札は真ん中の 2 山。数字が 1 つ違いの札を、どちらかの台札に重ねます。")),
+            HowToPlayItem(tr("A と K もつながります。マークは関係ありません。")),
+            HowToPlayItem(tr("順番はなく、CPU も同時に出してきます。出したぶん、山札から手札に補充されます。")),
+            HowToPlayItem(tr("どちらも出せなくなったら「めくる」。両方の山札から 1 枚ずつ台札に置きます。")),
+            HowToPlayItem(tr("手札も山札も先に出し切ったほうの勝ちです。")),
+        ],
+        notes: [
+            tr("CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。"),
+        ]
     ) }
 
     /// ババ抜き（#1577・企画倉庫）。図は `GameOldMaid` 側で `illustrated(_:)` を使って差し込む。

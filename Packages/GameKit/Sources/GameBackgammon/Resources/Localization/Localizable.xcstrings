@@ -627,6 +627,83 @@
           }
         }
       }
+    },
+    "3の目なら3つ先へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A 3 moves 3 points"
+          }
+        }
+      }
+    },
+    "駒 → 行き先" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checker → target"
+          }
+        }
+      }
+    },
+    "移動" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved"
+          }
+        }
+      }
+    },
+    "相手が2個以上 → 止まれない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2+ opposing: blocked"
+          }
+        }
+      }
+    },
+    "1個だけの駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A lone checker"
+          }
+        }
+      }
+    },
+    "バーへ送る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to the bar"
+          }
+        }
+      }
+    },
+    "15個そろったら置き場へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All 15 in: bear off"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

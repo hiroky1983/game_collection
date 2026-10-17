@@ -73,7 +73,7 @@ public struct RouletteView: View {
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
         .gameChrome(title: tr("ルーレット"), review: services.review)
-        .howToPlay(.roulette) { RouletteRuleSheet() }
+        .howToPlay(HowToPlayGuide.roulette.illustrated(RouletteHowToFigures.items)) { RouletteRuleSheet() }
         .onAppear {
             // 回転中に中断して戻ってきたときも、保存された出目の位置まで回す。
             if model.phase == .spinning { spinWheel() }
