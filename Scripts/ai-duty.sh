@@ -225,7 +225,10 @@ capture_sims_before() {
 cleanup_simulators() {
   [ "$SIMS_TRACKED" -eq 1 ] || return 0
   local u d booted mine theirs="" target
-  booted=$(booted_sims)
+  booted=$(booted_sims) || {
+    log "後片付け: シミュレータ一覧の取得に失敗（simctl）。後片付けは行わない"
+    return 0
+  }
   mine=$(cat "$LOCK_DIR/sims" 2>/dev/null | tr '\n' ' ')
   for d in $(other_live_slot_dirs); do
     theirs="$theirs $(cat "$d/sims" 2>/dev/null | tr '\n' ' ')"
