@@ -49,6 +49,9 @@ struct HubView: View {
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
     @Environment(\.scenePhase) private var scenePhase
+    /// VoiceOver・スイッチコントロール中は「元に戻す」に辿り着くのに 5 秒では足りないため、案内を自動で消さない（#2330）。
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControlEnabled
 
     /// 選んでいるカテゴリーのチップ（#1831）。保存しない（起動のたびに「すべて」）。
     @State private var selectedCategory: HubCategory = .all
@@ -288,14 +291,14 @@ struct HubView: View {
                 .overlay(alignment: .bottom) {
                     Group {
                         if let hiddenNotice {
-                            HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }
+                            HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) } onDismiss: { self.hiddenNotice = nil }
                                 .transition(.opacity)
                         }
                     }
                     .gameAnimation(.easeOut(duration: 0.2), value: hiddenNotice)
                 }
                 .task(id: hiddenNotice) {
-                    guard hiddenNotice != nil else { return }
+                    guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else { return }
                     try? await Task.sleep(for: .seconds(5))
                     guard !Task.isCancelled else { return }
                     hiddenNotice = nil
@@ -981,6 +984,8 @@ private struct HubEmptyStateView: View {
 private struct HubHiddenNotice: View {
     let title: String
     let onUndo: () -> Void
+    /// 支援技術中は自動で消えないため、VoiceOver の「戻る」ジェスチャ（二本指のスクラブ）で閉じられるようにする（#2330）。
+    let onDismiss: () -> Void
 
     static func message(title: String) -> String {
         tr("「%@」を非表示にしました。元に戻せます", title)
@@ -1009,5 +1014,6 @@ private struct HubHiddenNotice: View {
         .padding(.horizontal, Theme.pad)
         .popCard(corner: Theme.cornerSmall)
         .padding(Theme.pad)
+        .accessibilityAction(.escape, onDismiss)
     }
 }
