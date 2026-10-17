@@ -43,7 +43,8 @@ public enum FruitKind: Int, Codable, CaseIterable, Sendable, Comparable {
     }
 
     /// 絵の素材名（`Resources/Bonsai/<名前>.png`）。会長提供の盆栽シート（ChatGPT 生成・2026-10-17）から
-    /// 切り出したもの。出どころは docs/design/bonsai/assets-license.md。
+    /// 切り出し、段ごとに鉢の形を変えたもの（#2388・`docs/design/bonsai/make_pots.py`）。
+    /// 出どころは docs/design/bonsai/assets-license.md。
     public var artName: String {
         let index = String(format: "%02d", rawValue + 1)
         return "Bonsai_\(index)_\(slug)"

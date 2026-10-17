@@ -180,8 +180,8 @@ final class FruitsScene: SKScene {
             }
             // 鉢の底（ノードの下端・anchorPoint の y = 0）を円の下端に置く。`fruit.angle` は使わない（回転させない）。
             node.position = CGPoint(x: fruit.x, y: fruit.y - fruit.radius)
-            // 手前（下）の盆栽の鉢が、奥（上）の盆栽の木より前に来るように重ねる。
-            node.zPosition = Self.zPosition(forBottomY: fruit.y - fruit.radius)
+            // 小さい盆栽ほど前に重ねる（#2388。大きい盆栽の木の陰に小さい盆栽が隠れない）。
+            node.zPosition = Self.zPosition(for: fruit.kind, bottomY: fruit.y - fruit.radius)
         }
         for (id, node) in fruitNodes where !present.contains(id) {
             fruitNodes.removeValue(forKey: id)
@@ -257,10 +257,16 @@ final class FruitsScene: SKScene {
         return node
     }
 
-    /// 盆栽の重なり順。鉢の底が低い（手前の）ものほど前。2〜3 の範囲に収め、危険線（1）より前・合体の輪（4）より奥。
-    static func zPosition(forBottomY bottomY: Double) -> CGFloat {
+    /// 盆栽の重なり順（#2388）。**小さい段ほど前**に描く。絵は当たり判定の円より大きく（木が上へはみ出す）、
+    /// 大きい盆栽の上に小さい盆栽が載ると、鉢の底の高さで重ねていたときは小さいほうが大きい木の陰に隠れた。
+    /// 小さい盆栽が前なら、大きい盆栽は隠れても木の大半が見え、小さい盆栽は全部見える。
+    /// 同じ段どうしは鉢の底が低い（手前の）ものを前にする。2〜3 の範囲に収め、危険線（1）より前・合体の輪（4）より奥。
+    static func zPosition(for kind: FruitKind, bottomY: Double) -> CGFloat {
+        let tiers = Double(FruitKind.allCases.count - 1)
+        // 段の帯: 金の松 2.0 → 桜 2.9（帯の幅 0.09）。帯の中で鉢の底の高さぶん 0〜0.08 を足す。
+        let band = 2 + 0.9 * (1 - Double(kind.rawValue) / tiers)
         let depth = min(max(bottomY / FruitField.Metrics.height, 0), 1)
-        return CGFloat(3 - depth)
+        return CGFloat(band + 0.08 * (1 - depth))
     }
 
     /// 盆栽のノード（テスト用）。`Fruit.id` で引く。
