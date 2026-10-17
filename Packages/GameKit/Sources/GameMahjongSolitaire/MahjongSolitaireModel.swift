@@ -306,6 +306,7 @@ public final class MahjongSolitaireModel {
         }
         hintPair = [pair.0, pair.1]
         hintCount += 1
+        services?.gameDidUseHint(gameID: gameID)
         services?.feedback.impact(.light)
         persist()
         return true
