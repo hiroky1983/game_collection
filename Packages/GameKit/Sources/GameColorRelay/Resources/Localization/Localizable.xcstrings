@@ -918,6 +918,105 @@
           }
         }
       }
+    },
+    "場の札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pile card"
+          }
+        }
+      }
+    },
+    "同じ色か同じ数字" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same color or number"
+          }
+        }
+      }
+    },
+    "山から1枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 from the deck"
+          }
+        }
+      }
+    },
+    "出せるならそのまま" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play it if you can"
+          }
+        }
+      }
+    },
+    "次の人の番を飛ばす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skips the next turn"
+          }
+        }
+      }
+    },
+    "向きが逆になる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverses direction"
+          }
+        }
+      }
+    },
+    "+2を出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play +2"
+          }
+        }
+      }
+    },
+    "次の人が2枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next player draws 2"
+          }
+        }
+      }
+    },
+    "手札0枚でゴール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 cards = win"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

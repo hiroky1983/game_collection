@@ -50,7 +50,7 @@ public struct ColorRelayView: View {
                             startNewGame()
                         }
                     })
-        .howToPlay(.colorRelay) { ColorRelayRuleSheet() }
+        .howToPlay(HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)) { ColorRelayRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規対局"), role: .destructive) { startNewGame() }

@@ -80,7 +80,7 @@ public struct SpeedView: View {
             }
         }
         // シートを開いているあいだも CPU は止める（背面で出し切ると、読んでいる間に敗北が記録される。#1358）。
-        .howToPlay(.speed, onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
+        .howToPlay(HowToPlayGuide.speed.illustrated(SpeedHowToFigures.items), onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
             SpeedRuleSheet()
         }
         .sheet(isPresented: $showSetup) {

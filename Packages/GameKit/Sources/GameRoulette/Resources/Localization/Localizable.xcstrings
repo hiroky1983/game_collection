@@ -34,6 +34,17 @@
         }
       }
     },
+    "%lld倍" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×%lld"
+          }
+        }
+      }
+    },
     "%lld枚" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -91,6 +102,17 @@
         }
       }
     },
+    "0が出ると" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When 0 comes up"
+          }
+        }
+      }
+    },
     "0（緑）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -109,6 +131,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You can bet on as many spots as you like in one spin. Undo takes back the last chip you placed."
+          }
+        }
+      }
+    },
+    "12個の区分" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dozen"
           }
         }
       }
@@ -175,6 +208,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your Bets"
+          }
+        }
+      }
+    },
+    "すべて外れ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All lose"
           }
         }
       }
@@ -433,6 +477,17 @@
         }
       }
     },
+    "数字1点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single number"
+          }
+        }
+      }
+    },
     "数字や色にチップを賭けて、ホイールの出目を当てよう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -473,6 +528,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Round"
+          }
+        }
+      }
+    },
+    "玉の真下の数字が出目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The number under the ball"
           }
         }
       }
@@ -554,6 +620,17 @@
         }
       }
     },
+    "赤黒など" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red/black, etc."
+          }
+        }
+      }
+    },
     "赤黒・奇偶・区分" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -605,6 +682,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pays 35 to 1. A win returns your bet plus 35 times it (a 10-chip bet returns 360)."
+          }
+        }
+      }
+    },
+    "額を選んで、マスをタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick an amount, tap a spot"
           }
         }
       }

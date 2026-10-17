@@ -23,6 +23,17 @@
         }
       }
     },
+    "1つ立派に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grows grander"
+          }
+        }
+      }
+    },
     "、" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -232,6 +243,17 @@
         }
       }
     },
+    "同じ盆栽が触れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matching bonsai touch"
+          }
+        }
+      }
+    },
     "同じ盆栽をくっつけて、立派に育てよう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -243,6 +265,17 @@
         }
       }
     },
+    "小さい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Small"
+          }
+        }
+      }
+    },
     "左へ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -250,6 +283,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move left"
+          }
+        }
+      }
+    },
+    "左右に動かす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide left/right"
           }
         }
       }
@@ -320,6 +364,17 @@
         }
       }
     },
+    "指を離す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lift your finger"
+          }
+        }
+      }
+    },
     "桜" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -349,6 +404,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Camellia"
+          }
+        }
+      }
+    },
+    "点線より上は危ない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Above the line is danger"
           }
         }
       }
@@ -383,6 +449,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bonsai ranks"
+          }
+        }
+      }
+    },
+    "真下に落ちる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drops straight down"
           }
         }
       }

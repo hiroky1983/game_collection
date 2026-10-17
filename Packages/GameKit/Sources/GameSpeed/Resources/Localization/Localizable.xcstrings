@@ -805,6 +805,116 @@
           }
         }
       }
+    },
+    "台札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pile"
+          }
+        }
+      }
+    },
+    "1つ違いの札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One up or down"
+          }
+        }
+      }
+    },
+    "K の上に A" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A on K"
+          }
+        }
+      }
+    },
+    "A の上に K" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "K on A"
+          }
+        }
+      }
+    },
+    "手札は4枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 cards in hand"
+          }
+        }
+      }
+    },
+    "山札から補充" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refilled from stock"
+          }
+        }
+      }
+    },
+    "両方の山札から1枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 from each stock"
+          }
+        }
+      }
+    },
+    "台札になる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Become the piles"
+          }
+        }
+      }
+    },
+    "手札0枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 in hand"
+          }
+        }
+      }
+    },
+    "山札0枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 in stock"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

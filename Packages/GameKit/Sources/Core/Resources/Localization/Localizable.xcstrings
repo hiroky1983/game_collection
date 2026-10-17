@@ -5296,6 +5296,325 @@
           }
         }
       }
+    },
+    "チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a chip amount, then tap the spots you want to bet on. You can bet on several spots at once."
+          }
+        }
+      }
+    },
+    "配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payouts: 35× for a single number, 2× for a dozen, and 1× for red/black and similar bets (your stake comes back too)."
+          }
+        }
+      }
+    },
+    "0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 is green. If 0 comes up, red/black, odd/even and similar bets all lose."
+          }
+        }
+      }
+    },
+    "「戻す」で、最後に置いた 1 口を外せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap “Undo” to take back the last bet you placed."
+          }
+        }
+      }
+    },
+    "指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide your finger left and right, and Ojisan on the veranda follows, holding a bonsai."
+          }
+        }
+      }
+    },
+    "指を離すと、その真下の庭へ盆栽が落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lift your finger and the bonsai drops into the garden right below."
+          }
+        }
+      }
+    },
+    "同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two matching bonsai touch, they merge into one grander bonsai."
+          }
+        }
+      }
+    },
+    "盆栽は 11 種類。いちばん立派なのは金の松です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 11 kinds of bonsai. The grandest is the Golden Pine."
+          }
+        }
+      }
+    },
+    "上の点線より上に盆栽がとどまると、ゲームオーバーです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a bonsai stays above the dotted line at the top, the game is over."
+          }
+        }
+      }
+    },
+    "立派に育てるほど高得点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The grander they grow, the higher your score."
+          }
+        }
+      }
+    },
+    "場の札と同じ色か、同じ数字・記号の札を出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play a card of the same color, or the same number or symbol, as the top card of the pile."
+          }
+        }
+      }
+    },
+    "出せる札がなければ、山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have no card to play, draw one from the deck. If the drawn card can be played, you can play it right away."
+          }
+        }
+      }
+    },
+    "とばしは次の人の番を飛ばし、ぎゃくは回る向きを逆にします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip skips the next player's turn, and Reverse flips the direction of play."
+          }
+        }
+      }
+    },
+    "+2 は、次の人が 2 枚引いて番を飛ばされます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With +2, the next player draws 2 cards and loses their turn."
+          }
+        }
+      }
+    },
+    "いろがえはどの札の上にも出せて、次の色を選べます。いろがえ+4 は次の人が 4 枚引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Change can go on any card and lets you pick the next color. With Color Change +4, the next player draws 4 cards."
+          }
+        }
+      }
+    },
+    "手札を先になくした人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first player to get rid of all their cards wins."
+          }
+        }
+      }
+    },
+    "あなたは白。サイコロの目のぶん、駒を右下の自陣へ向けて進めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play White. Move your checkers by the numbers rolled, toward your home board at the bottom right."
+          }
+        }
+      }
+    },
+    "動かす駒 → 行き先の順にタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the checker to move, then where it goes."
+          }
+        }
+      }
+    },
+    "相手の駒が 2 個以上あるポイントには止まれません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't land on a point with 2 or more opposing checkers."
+          }
+        }
+      }
+    },
+    "相手の駒が 1 個だけなら、叩いてバー（中央）へ送れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If there's only 1 opposing checker, you can hit it and send it to the bar (center)."
+          }
+        }
+      }
+    },
+    "15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once all 15 checkers are in your home board (points 1-6), bear them off to the tray on the right."
+          }
+        }
+      }
+    },
+    "バーに自分の駒があるときは、先にその駒を盤へ戻さないと、他の駒を動かせません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While you have a checker on the bar, you must bring it back onto the board before moving any other checker."
+          }
+        }
+      }
+    },
+    "先に 15 個すべてをあげたほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first to bear off all 15 checkers wins."
+          }
+        }
+      }
+    },
+    "台札は真ん中の 2 山。数字が 1 つ違いの札を、どちらかの台札に重ねます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two piles in the middle are the target piles. Play a card whose number is one higher or lower onto either pile."
+          }
+        }
+      }
+    },
+    "A と K もつながります。マークは関係ありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A and K connect, too. Suits don't matter."
+          }
+        }
+      }
+    },
+    "順番はなく、CPU も同時に出してきます。出したぶん、山札から手札に補充されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no turns — the CPU plays at the same time. Cards you play are replaced from your stock."
+          }
+        }
+      }
+    },
+    "どちらも出せなくなったら「めくる」。両方の山札から 1 枚ずつ台札に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles."
+          }
+        }
+      }
+    },
+    "手札も山札も先に出し切ったほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first to play out both hand and stock wins."
+          }
+        }
+      }
+    },
+    "CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
