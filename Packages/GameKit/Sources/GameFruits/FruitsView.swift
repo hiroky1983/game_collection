@@ -2,10 +2,11 @@ import Core
 import SpriteKit
 import SwiftUI
 
-/// くっつきフルーツのプレイ画面（#1319）。
+/// おじさんの盆栽のプレイ画面（#2361。もとは くっつきフルーツ #1319）。
 ///
-/// SpriteKit（`FruitsScene`）が描くのは箱の中だけで、ヘッダー・終局の幕・遊び方・レコメンド・バナーは
-/// これまでのゲームと同じ SwiftUI 部品を使う（アクション枠の基盤規約「メニュー・リザルトは SwiftUI」）。
+/// SpriteKit（`FruitsScene`）が描くのは庭（盤）の中だけで、その上の縁側とおじさん（`BonsaiEngawaBoards` /
+/// `BonsaiOjisanLayer`）・ヘッダー・終局の幕・遊び方・レコメンド・バナーは SwiftUI で描く
+/// （アクション枠の基盤規約「メニュー・リザルトは SwiftUI」）。
 public struct FruitsView: View {
     private let services: GameServices
     @State private var model: FruitsModel
@@ -34,14 +35,14 @@ public struct FruitsView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: tr("くっつきフルーツ"), review: services.review,
+        .gameChrome(title: tr("おじさんの盆栽"), review: services.review,
                     newGame: GameChromeNewGame(.restart) {
                         startNewGame()
                     })
         .howToPlay(.fruits) { FruitsRuleSheet() }
         .onAppear {
             #if DEBUG
-            // 撮影・動作確認用: `-simulateFruits <stack|melon|gameover>`（#1319）。
+            // 撮影・動作確認用: `-simulateFruits <stack|kinmatsu|gameover>`（#1319）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateFruits"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -74,7 +75,7 @@ public struct FruitsView: View {
         }
     }
 
-    /// 進行中は確認を挟んでからやり直す（#515）。果物は勝手に動かないので止める必要は無い。
+    /// 進行中は確認を挟んでからやり直す（#515）。盆栽は勝手に動かないので止める必要は無い。
     private func startNewGame() {
         guard model.hasProgressToLose else {
             withGameAnimation { model.newGame() }
@@ -120,7 +121,7 @@ public struct FruitsView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
-                FruitIcon(model.nextKind)
+                BonsaiIcon(model.nextKind)
                     .frame(width: 40, height: 40)
             }
             .accessibilityElement(children: .ignore)
@@ -132,23 +133,35 @@ public struct FruitsView: View {
         .gameAnimation(.easeInOut(duration: 0.15), value: model.nextKind)
     }
 
-    // MARK: - 箱
+    // MARK: - 縁側と庭
 
+    /// 縁側（おじさんが立つ板）と庭（盤）を縦に積んだ 1 枚の枠（#2361）。
     private var playfield: some View {
         GeometryReader { geo in
-            ZStack {
-                // 操作はすべて下の透明レイヤーの `DragGesture` で受ける。SpriteView 自身に
-                // 当たり判定を残すと、機種によってはドラッグが SKView に吸われる（ブロック崩し）。
-                SpriteView(scene: scene, preferredFramesPerSecond: 60)
-                    .allowsHitTesting(false)
-                    // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直された
-                    // ときも、次の 1 フレームでここに戻ってくる（#522）。
-                    .onAppear { scene.onFrameRendered = { syncRenderLoop() } }
+            let unit = geo.size.width / FruitField.Metrics.width
+            ZStack(alignment: .top) {
+                VStack(spacing: 0) {
+                    BonsaiEngawaBoards()
+                        .frame(height: BonsaiEngawaLayout.height * unit)
+                    // 操作はすべて下の透明レイヤーの `DragGesture` で受ける。SpriteView 自身に
+                    // 当たり判定を残すと、機種によってはドラッグが SKView に吸われる（ブロック崩し）。
+                    SpriteView(scene: scene, preferredFramesPerSecond: 60)
+                        .allowsHitTesting(false)
+                        // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直された
+                        // ときも、次の 1 フレームでここに戻ってくる（#522）。
+                        .onAppear { scene.onFrameRendered = { syncRenderLoop() } }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                // おじさんと手元の盆栽は枠で切らない（大きい盆栽の木は縁側の上へ少しはみ出す）。
+                BonsaiOjisanLayer(
+                    cursorX: model.field.cursorX, heldKind: model.heldKind,
+                    isNearLine: model.isNearLine, unit: unit
+                )
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(dropGesture(width: geo.size.width))
                     .accessibilityElement()
-                    .accessibilityLabel(tr("箱"))
+                    .accessibilityLabel(tr("庭"))
                     .accessibilityValue(accessibilityValue)
                     .accessibilityAction(named: tr("左へ")) { nudge(-Self.accessibilityNudge) }
                     .accessibilityAction(named: tr("右へ")) { nudge(Self.accessibilityNudge) }
@@ -157,17 +170,17 @@ public struct FruitsView: View {
                     gameOverOverlay
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
         }
-        // シーンは `.aspectFit` なので、枠の縦横比を盤と必ず一致させる。
-        .aspectRatio(FruitField.Metrics.aspectRatio, contentMode: .fit)
+        // シーンは `.aspectFit` なので、庭の枠の縦横比を盤と必ず一致させる（縁側の高さは盤の単位で決まっているので、
+        // 縁側と庭を合わせた比で切れば庭は盤と同じ比になる）。
+        .aspectRatio(BonsaiEngawaLayout.aspectRatio, contentMode: .fit)
         // 余った縦を**先に**箱へ渡す（ブロック崩し #597）。付けないと下の余白と山分けになり、
         // 箱は使える高さの手前で止まって横幅が余る。
         .layoutPriority(1)
     }
 
     private var accessibilityValue: String {
-        var parts = [tr("果物 %lld 個", model.fruitCount)]
+        var parts = [tr("盆栽 %lld 鉢", model.fruitCount)]
         if let held = model.heldKind {
             parts.append(tr("手に%@", held.name))
         } else {
@@ -181,7 +194,7 @@ public struct FruitsView: View {
         model.moveCursor(to: model.field.cursorX + delta)
     }
 
-    /// 指の x に果物が付いてきて、離した位置へ落ちる。タップなら、その位置へ移ってすぐ落ちる。
+    /// 指の x におじさん（と手元の盆栽）が付いてきて、離した位置へ落ちる。タップなら、その位置へ移ってすぐ落ちる。
     private func dropGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
@@ -202,7 +215,7 @@ public struct FruitsView: View {
             detail: VStack(spacing: 6) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
-                    Text(tr("広告を見ると、小さい果物と線より上の果物を片づけて続けられます"))
+                    Text(tr("広告を見ると、小さい盆栽と線より上の盆栽を片づけて続けられます"))
                         .scaledFont(12, weight: .medium, design: .rounded)
                         .foregroundStyle(.white.opacity(0.85))
                         .multilineTextAlignment(.center)
@@ -221,18 +234,18 @@ public struct FruitsView: View {
 
 // MARK: - くわしいルール
 
-/// 「くわしいルール」（果物の順番と得点）。対局画面の `?` から 1 タップで開ける。
+/// 「くわしいルール」（盆栽の段と得点）。対局画面の `?` から 1 タップで開ける。
 struct FruitsRuleSheet: View {
     var body: some View {
         RuleListSheet(rules: [
-            (tr("果物の順番"), FruitKind.allCases.map(\.name).joined(separator: " → ")),
-            (tr("落とす果物"), tr("%@の 5 種だけが出てきます。大きい果物はくっつけて作ります。",
+            (tr("盆栽の段"), FruitKind.allCases.map(\.name).joined(separator: " → ")),
+            (tr("落とす盆栽"), tr("%@の 5 種だけが出てきます。大きい盆栽はくっつけて育てます。",
                                FruitKind.dropPool.map(\.name).joined(separator: tr("・")))),
-            (tr("得点"), tr("%1$@。メロンどうしがくっつくと 2 つとも消えて %2$lld 点。",
+            (tr("得点"), tr("%1$@。金の松どうしがくっつくと 2 つとも消えて %2$lld 点。",
                           FruitKind.allCases.dropFirst().map { "\($0.name) \($0.points)" }.joined(separator: tr("・")),
-                          FruitKind.melonVanishPoints)),
-            (tr("ゲームオーバー"), tr("上の点線より上に果物が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
-            (tr("コンティニュー"), tr("ゲームオーバー後に広告を見ると、1 回だけ小さい果物（%@）と線より上の果物を片づけて続けられます。スコアはそのままです。",
+                          FruitKind.kinmatsuVanishPoints)),
+            (tr("ゲームオーバー"), tr("上の点線より上に盆栽が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
+            (tr("コンティニュー"), tr("ゲームオーバー後に広告を見ると、1 回だけ小さい盆栽（%@）と線より上の盆栽を片づけて続けられます。スコアはそのままです。",
                                  FruitKind.allCases.prefix(FruitField.Metrics.continueRemovedKinds).map(\.name).joined(separator: tr("・")))),
         ])
     }

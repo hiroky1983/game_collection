@@ -10,6 +10,8 @@ public struct ColorRelayView: View {
     /// `.task` の側は View のライフサイクルで自動的にキャンセルされるが、ボタンから起こした
     /// 非構造化タスクはそのままでは生き残り、画面外で CPU が打ち続けて決着・記録まで進んでしまう。
     @State private var cpuTask: Task<Void, Never>?
+    /// 進行中に右上の新規を押したときの確認（#2370）。
+    @State private var showConfirmNewGame = false
     /// 画面の広さ（#458）。幅で札の大きさを決め、広い画面では同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -39,8 +41,24 @@ public struct ColorRelayView: View {
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: tr("いろリレー"), review: services.review)
+        // 右上の新規（#2370）。視聴中に配り直すと、見終えた免除が局ガードで弾かれて見損になる（#911 と同型）。
+        .gameChrome(title: tr("いろリレー"), review: services.review,
+                    newGame: GameChromeNewGame(.match, isDisabled: waiveRescue.isWatching) {
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            startNewGame()
+                        }
+                    })
         .howToPlay(.colorRelay) { ColorRelayRuleSheet() }
+        .dialogs { anchor in
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { startNewGame() }
+                Button(tr("キャンセル"), role: .cancel) {}
+            } message: {
+                Text(tr("途中で終了すると対局データが失われます。"))
+            }
+        }
         // 免除の提示（#780）。自分の番で引き札を課され、免除ボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(waiveRescue, for: .revival, isPresented: model.canWaivePenalty,
                      services: services, gameID: model.gameID)
@@ -68,6 +86,12 @@ public struct ColorRelayView: View {
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
+    }
+
+    /// 新しい 1 ゲームを配って、CPU が親なら手番を回す（右上の新規・#2370）。
+    private func startNewGame() {
+        model.startGame()
+        runCPU()
     }
 
     /// 人間の操作の後に CPU の手番を回す。前のタスクは止めてから起こす（走者は `withAITurnRunner` が 1 本に保つ）。

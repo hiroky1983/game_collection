@@ -1,10 +1,18 @@
 import SwiftUI
 import Core
 
+/// ルーレットの画面。
+///
+/// #2364（会長決裁 2026-10-17）でホイールを主役にした。画面は 2 つで、どちらを出すかは
+/// `RouletteScreen.of(phase:sessionOver:)` が局面から決める。
+/// - **賭けの画面（案 A）**: ホイールを余った高さいっぱいに取り、賭けの表は「数字」「赤黒・区分」の
+///   タブで切り替える。
+/// - **ホイールの画面（案 B）**: 「スピン」を押した瞬間にホイールを画面いっぱいに出して回し、止まったら
+///   出目と収支をホイールの中心に大きく出す。「同じ賭けでもう一度」「次のゲーム」で賭けの画面へ戻る。
 public struct RouletteView: View {
     @State private var model: RouletteModel
     private let services: GameServices
-    /// 画面の広さ（#458）。ホイールとマスの高さを同じ倍率で拡大する。
+    /// 画面の広さ（#458）。マスの高さを同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
     /// Reduce Motion。ON ならホイールは回らず止まる位置へ飛ぶので、結果も待たせずに出す。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -13,6 +21,8 @@ public struct RouletteView: View {
     /// ホイールの累積回転角（度）。止まった位置を保ったまま、スピンごとに数周ぶん増える
     /// （巻き戻すと逆回転になるので減らさない）。
     @State private var wheelRotation: Double = 0
+    /// 賭けの表で開いているタブ（#2364）。回して戻ってきても同じタブのまま。
+    @State private var betTab: RouletteBetTab = .numbers
 
     public init(services: GameServices) {
         self.services = services
@@ -28,16 +38,23 @@ public struct RouletteView: View {
         _model = State(initialValue: RouletteModel(services: services, spinInterval: spinInterval))
     }
 
+    /// いま出す画面（賭け / ホイール）。
+    private var screen: RouletteScreen {
+        RouletteScreen.of(phase: model.phase, sessionOver: model.sessionOver)
+    }
+
     public var body: some View {
         // 縦の狭さ（iPhone SE）はこの画面で測る。`AdaptiveLayout` は幅しか持たない（#458）。
         GeometryReader { geometry in
             let sizing = RouletteMetrics.sizing(forHeight: geometry.size.height)
             VStack(spacing: sizing.stackSpacing) {
-                tableCard(sizing)
-                // チップが尽きたら盤面は畳む（置けないし精算も済んでいる。出目と収支は上のカードに残る）。
-                // 復活・やり直しの操作欄は賭け中の操作欄より高く、盤面と同居させると SE で下が切れる。
-                if !model.sessionOver {
-                    boardCard(sizing)
+                // ホイールは余った高さいっぱいに取る（下の部品はどれも高さが決まっている）。
+                switch screen {
+                case .betting:
+                    bettingWheelCard
+                    tableCard(sizing)
+                case .wheel:
+                    wheelScreen
                 }
                 HowToPlayHint(.roulette, playLog: services.playLog)
                 if model.sessionOver {
@@ -45,14 +62,13 @@ public struct RouletteView: View {
                 } else {
                     actionArea(sizing)
                 }
-                // 操作欄の高さは局面で変わる（賭け中は 2 段・回転中は 1 段）。余りはここで吸って
-                // 盤面を上に固定し、バナーは下に留める（中央寄せだと局面ごとに盤面が上下に動く）。
-                Spacer(minLength: 0)
                 RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
                 BannerSlot(ads: services.ads)
             }
             .padding(Theme.pad)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            // 「スピン」で賭けの画面からホイールの画面へ、「次のゲーム」で戻る。どちらも溶けるように切り替える。
+            .gameAnimation(RouletteMotion.screenSwap, value: screen)
         }
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
@@ -118,68 +134,337 @@ public struct RouletteView: View {
         model.skipSpin()
     }
 
-    // MARK: - Table (wheel + chips + result)
+    // MARK: - Wheel
 
-    private func tableCard(_ sizing: RouletteMetrics.Sizing) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            RouletteWheelView(
-                rotation: wheelRotation,
-                highlighted: model.phase == .result ? model.winningNumber : nil
-            )
-            .frame(width: layout.scaled(sizing.wheelDiameter),
-                   height: layout.scaled(sizing.wheelDiameter))
-
-            VStack(alignment: .leading, spacing: 8) {
-                Label(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill")
-                    .themeBody(14)
-                    .foregroundStyle(Theme.ink)
-                Label(tr("ベット: %@枚", model.totalBet.formatted()), systemImage: "dollarsign.circle.fill")
-                    .themeBody(14)
-                    .foregroundStyle(model.totalBet > 0 ? Theme.yellow : Theme.inkSub)
-                resultLine
-                historyStrip
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+    /// ホイール本体。`diameter` は呼び出し側が枠から測って渡す。
+    private func wheel(diameter: CGFloat) -> some View {
+        RouletteWheelView(
+            rotation: wheelRotation,
+            highlighted: model.phase == .result ? model.winningNumber : nil
+        )
+        .frame(width: diameter, height: diameter)
     }
 
-    /// 出目と収支。ホイールが止まる（= Model が精算する）まで答えを見せない。
-    private var resultLine: some View {
-        ZStack(alignment: .leading) {
+    /// 余った枠いっぱいのホイール。中心（ハブ）には回転中・結果の表示を重ねる。
+    private var flexibleWheel: some View {
+        GeometryReader { proxy in
+            let diameter = RouletteMetrics.wheelDiameter(fitting: proxy.size)
+            ZStack {
+                wheel(diameter: diameter)
+                hubOverlay(diameter: diameter)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+
+    /// ホイールの中心に出す答え。ホイールが止まる（= Model が精算する）まで出目を見せない。
+    private func hubOverlay(diameter: CGFloat) -> some View {
+        ZStack {
             switch model.phase {
             case .betting:
-                Text(model.bets.isEmpty ? tr("賭ける場所をタップ") : tr("「スピン」で回します"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
+                EmptyView()
             case .spinning:
                 Text(tr("回転中…"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
+                    .font(.system(size: max(12, diameter * 0.055), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Capsule().fill(Theme.surface.opacity(0.92)))
             case .result:
                 if let number = model.winningNumber, let settlement = model.lastSettlement {
-                    HStack(spacing: 8) {
-                        numberBadge(number, size: 30)
+                    VStack(spacing: 2) {
+                        numberBadge(number, size: diameter * 0.17)
                         Text(netLabel(settlement.net))
-                            .scaledFont(16, weight: .black, design: .rounded)
-                            .foregroundStyle(settlement.net > 0 ? Theme.teal
-                                             : (settlement.net < 0 ? Theme.coral : Theme.inkSub))
+                            .font(.system(size: max(12, diameter * 0.065), weight: .black, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                            .foregroundStyle(netColor(settlement.net))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                     }
+                    .padding(10)
+                    .background(Circle().fill(Theme.surface).shadow(color: Theme.cardShadow, radius: 6, y: 3))
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
         }
-        .frame(minHeight: 30)
+        .frame(maxWidth: diameter * 0.5)
         // 修飾子は 1 つのビューに 1 つだけ置く（入れ子にすると打ち消し合う・#199）。
         .gameAnimation(RouletteMotion.resultBadge, value: model.phase)
     }
+
+    /// チップの残り・今の賭けの札。どちらの画面でも常に見せる。
+    private var chipsPill: some View {
+        statPill(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill",
+                 color: Theme.ink)
+    }
+
+    private var betPill: some View {
+        statPill(tr("ベット: %@枚", model.totalBet.formatted()), systemImage: "dollarsign.circle.fill",
+                 color: model.totalBet > 0 ? Theme.yellowText : Theme.inkSub)
+    }
+
+    private func statPill(_ text: String, systemImage: String, color: Color) -> some View {
+        Label(text, systemImage: systemImage)
+            .scaledFont(13, weight: .bold, design: .rounded)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(color)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Capsule().fill(Theme.surface))
+            .overlay(Capsule().strokeBorder(Theme.inkSub.opacity(0.35), lineWidth: 1))
+    }
+
+    // MARK: - Betting screen (A)
+
+    /// 賭けの画面のホイールのカード。札は上の角に重ね、下の 1 行に出目の履歴と案内を出す。
+    private var bettingWheelCard: some View {
+        VStack(spacing: RouletteMetrics.wheelCardFooterSpacing) {
+            flexibleWheel
+                .overlay(alignment: .topLeading) { chipsPill }
+                .overlay(alignment: .topTrailing) { betPill }
+            HStack(spacing: 8) {
+                historyStrip
+                Spacer(minLength: 0)
+                Text(model.bets.isEmpty ? tr("賭ける場所をタップ") : tr("「スピン」で回します"))
+                    .themeBody(12)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(Theme.inkSub)
+            }
+            .frame(height: RouletteMetrics.wheelCardFooterHeight)
+        }
+        .padding(RouletteMetrics.wheelCardPadding)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 賭けの表。「数字」「赤黒・区分」のタブで切り替える。2 つのタブで高さは同じ。
+    private func tableCard(_ sizing: RouletteMetrics.Sizing) -> some View {
+        VStack(spacing: RouletteMetrics.tableTabSpacing) {
+            betTabs
+            Group {
+                switch betTab {
+                case .numbers: numberGrid(sizing)
+                case .outside: outsideGrid(sizing)
+                }
+            }
+            .frame(height: layout.scaled(sizing.tableContentHeight))
+        }
+        .padding(RouletteMetrics.boardPadding)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// タブの見出し。もう片方のタブに置いた額も見出しのバッジで分かるようにする。
+    private var betTabs: some View {
+        let inset = RouletteMetrics.tabTrackInset
+        return HStack(spacing: 4) {
+            ForEach(RouletteBetTab.allCases, id: \.self) { tab in
+                let selected = betTab == tab
+                let staked = model.bets.filter { tab.contains($0.kind) }.reduce(0) { $0 + $1.amount }
+                Button {
+                    betTab = tab
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(tabTitle(tab))
+                            .scaledFont(13, weight: .bold, design: .rounded)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        if staked > 0 {
+                            chipBadge(staked)
+                        }
+                    }
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
+                    // タップ領域は 44pt 以上（外枠の余白はこの外側に足す）。
+                    .frame(maxWidth: .infinity, minHeight: RouletteMetrics.tabButtonHeight)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.cornerSmall - inset, style: .continuous)
+                            .fill(selected ? Theme.Fill.yellow : Color.clear)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.pop)
+                .accessibilityLabel(tabTitle(tab))
+                .accessibilityValue(staked > 0 ? tr("%lld枚", staked) : tr("なし"))
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(inset)
+        .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.background))
+    }
+
+    private func tabTitle(_ tab: RouletteBetTab) -> String {
+        switch tab {
+        case .numbers: return tr("数字（0〜36）")
+        case .outside: return tr("赤黒・奇偶・区分")
+        }
+    }
+
+    /// 「数字」タブ。0 の右に 1〜36 を 4 段 × 9 列で並べる。
+    private func numberGrid(_ sizing: RouletteMetrics.Sizing) -> some View {
+        let spacing = RouletteMetrics.cellSpacing
+        return HStack(spacing: spacing) {
+            betCell(.straight(0), height: sizing.tableContentHeight)
+                .frame(width: layout.scaled(sizing.numberCellHeight))
+            VStack(spacing: spacing) {
+                ForEach(0..<4, id: \.self) { row in
+                    HStack(spacing: spacing) {
+                        ForEach(1...9, id: \.self) { column in
+                            betCell(.straight(row * 9 + column), height: sizing.numberCellHeight)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 「赤黒・区分」タブ。12 個ずつの区分 3 つと、赤黒など 6 つの 2 段。数字の表と同じ高さを分け合うので、
+    /// マスは 44pt を超える。
+    private func outsideGrid(_ sizing: RouletteMetrics.Sizing) -> some View {
+        let spacing = RouletteMetrics.cellSpacing
+        return VStack(spacing: spacing) {
+            HStack(spacing: spacing) {
+                ForEach(RouletteBetKind.dozens, id: \.self) { kind in
+                    betCell(kind, height: sizing.outsideCellHeight)
+                }
+            }
+            HStack(spacing: spacing) {
+                ForEach(RouletteBetKind.evenMoney, id: \.self) { kind in
+                    betCell(kind, height: sizing.outsideCellHeight)
+                }
+            }
+        }
+    }
+
+    /// 賭けのマス 1 つ。タップで `selectedChip` を 1 口置く。置いた額は右上のバッジに出す。
+    private func betCell(_ kind: RouletteBetKind, height: CGFloat) -> some View {
+        let staked = model.amount(on: kind)
+        return Button {
+            model.placeBet(kind)
+        } label: {
+            Text(kind.label)
+                .scaledFont(12, weight: .bold, design: .rounded)
+                .foregroundStyle(cellTextColor(kind))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 2)
+                .frame(maxWidth: .infinity, minHeight: layout.scaled(height))
+                .background(cellFill(kind), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if staked > 0 {
+                        chipBadge(staked).offset(x: 3, y: -5)
+                    }
+                }
+        }
+        // `.plain` は押下フィードバックも消えるので、押している間だけ沈む `.pop` を使う（#195）。
+        .buttonStyle(.pop)
+        .disabled(!model.canBet)
+        .accessibilityLabel(tr("%@に賭ける", kind.label))
+        .accessibilityValue(staked > 0 ? tr("%lld枚", staked) : tr("なし"))
+    }
+
+    // MARK: - Wheel screen (B)
+
+    /// ホイールが主役の画面（回転中・結果・チップ切れ）。上に札、真ん中にホイール、下に置いた口。
+    private var wheelScreen: some View {
+        VStack(spacing: 8) {
+            HStack {
+                chipsPill
+                Spacer(minLength: 8)
+                betPill
+            }
+            .frame(height: RouletteMetrics.wheelScreenStatsHeight)
+            flexibleWheel
+            // チップ切れのときは操作欄が高い（見出し・記録・復活・やり直し）。置いた口は畳んで
+            // ホイールの大きさを保つ（出目と収支はホイールの中心に残る）。
+            if !model.sessionOver {
+                betSummaryCard
+            }
+        }
+    }
+
+    /// 置いた口の一覧。回転中は「あなたの賭け」、結果では当たった口に戻りを出し、外れた口は薄くする。
+    private var betSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(model.phase == .result ? tr("結果") : tr("あなたの賭け"))
+                    .scaledFont(13, weight: .bold, design: .rounded)
+                    .foregroundStyle(Theme.inkSub)
+                Spacer(minLength: 0)
+                if model.phase == .result, let settlement = model.lastSettlement {
+                    Text(netLabel(settlement.net))
+                        .scaledFont(18, weight: .black, design: .rounded)
+                        .foregroundStyle(netColor(settlement.net))
+                } else {
+                    Text(tr("回転中…"))
+                        .themeBody(13)
+                        .foregroundStyle(Theme.inkSub)
+                }
+            }
+            placedBetsRow
+                .frame(height: 26)
+            historyStrip
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: RouletteMetrics.betSummaryHeight, alignment: .topLeading)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 置いた口を 1 行に並べる。入りきらなければ後ろを「ほか n 口」にまとめる（横にはみ出さない）。
+    private var placedBetsRow: some View {
+        let kinds = placedKinds
+        return ViewThatFits(in: .horizontal) {
+            ForEach(Array(stride(from: kinds.count, through: 1, by: -1)), id: \.self) { shown in
+                HStack(spacing: 8) {
+                    ForEach(kinds.prefix(shown), id: \.self) { kind in
+                        placedBet(kind)
+                    }
+                    if shown < kinds.count {
+                        Text(tr("ほか%lld口", kinds.count - shown))
+                            .scaledFont(12, weight: .bold, design: .rounded)
+                            .foregroundStyle(Theme.inkSub)
+                            .lineLimit(1)
+                    }
+                }
+                .fixedSize()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 置いた口の種類（置いた順・重複なし）。同じ場所に何口置いても 1 つにまとめて額を足す。
+    private var placedKinds: [RouletteBetKind] {
+        var seen = Set<RouletteBetKind>()
+        return model.bets.map(\.kind).filter { seen.insert($0).inserted }
+    }
+
+    private func placedBet(_ kind: RouletteBetKind) -> some View {
+        let amount = model.amount(on: kind)
+        let settled = model.phase == .result
+        let hit = settled && model.winningNumber.map(kind.covers) == true
+        return HStack(spacing: 4) {
+            Text(kind.label)
+                .scaledFont(12, weight: .bold, design: .rounded)
+                .foregroundStyle(cellTextColor(kind))
+                .lineLimit(1)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(cellFill(kind)))
+            Text(hit ? tr("+%lld枚", amount * kind.payout) : tr("%lld枚", amount))
+                .scaledFont(12, weight: .black, design: .rounded)
+                .foregroundStyle(hit ? Theme.tealText : Theme.ink)
+                .lineLimit(1)
+        }
+        .opacity(settled && !hit ? 0.4 : 1)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Shared parts
 
     /// 収支の文言。`Text` 補間の桁区切り（#484）を避けて文字列を先に組む。
     private func netLabel(_ net: Int) -> String {
         if net > 0 { return tr("+%lld枚", net) }
         if net == 0 { return tr("±0枚") }
         return tr("%lld枚", net)
+    }
+
+    private func netColor(_ net: Int) -> Color {
+        net > 0 ? Theme.tealText : (net < 0 ? Theme.coralText : Theme.inkSub)
     }
 
     /// 直近の出目（新しい順）。
@@ -190,6 +475,7 @@ public struct RouletteView: View {
                 Text(tr("出目"))
                     .scaledFont(11, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
+                    .fixedSize()
                 ForEach(Array(model.history.prefix(6).enumerated()), id: \.offset) { _, number in
                     numberBadge(number, size: 20)
                 }
@@ -214,72 +500,6 @@ public struct RouletteView: View {
         case .black: return tr("黒")
         case .green: return tr("緑")
         }
-    }
-
-    // MARK: - Board
-
-    /// 盤面。0 の左に 1〜36 を 4 段 × 9 列で並べ、下に 12 個ずつの区分と赤黒などを置く。
-    private func boardCard(_ sizing: RouletteMetrics.Sizing) -> some View {
-        let spacing = RouletteMetrics.cellSpacing
-        return VStack(spacing: spacing) {
-            HStack(spacing: spacing) {
-                betCell(.straight(0), height: sizing.numberCellHeight * 4 + spacing * 3)
-                    .frame(width: layout.scaled(sizing.numberCellHeight))
-                VStack(spacing: spacing) {
-                    ForEach(0..<4, id: \.self) { row in
-                        HStack(spacing: spacing) {
-                            ForEach(1...9, id: \.self) { column in
-                                betCell(.straight(row * 9 + column), height: sizing.numberCellHeight)
-                            }
-                        }
-                    }
-                }
-            }
-            HStack(spacing: spacing) {
-                ForEach(RouletteBetKind.dozens, id: \.self) { kind in
-                    betCell(kind, height: sizing.outsideCellHeight)
-                }
-            }
-            HStack(spacing: spacing) {
-                ForEach(RouletteBetKind.evenMoney, id: \.self) { kind in
-                    betCell(kind, height: sizing.outsideCellHeight)
-                }
-            }
-        }
-        .padding(RouletteMetrics.boardPadding)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    /// 賭けのマス 1 つ。タップで `selectedChip` を 1 口置く。置いた額は右上のバッジに出す。
-    private func betCell(_ kind: RouletteBetKind, height: CGFloat) -> some View {
-        let staked = model.amount(on: kind)
-        let isWinner = model.phase == .result && model.winningNumber.map(kind.covers) == true
-        return Button {
-            model.placeBet(kind)
-        } label: {
-            Text(kind.label)
-                .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(cellTextColor(kind))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .padding(.horizontal, 2)
-                .frame(maxWidth: .infinity, minHeight: layout.scaled(height))
-                .background(cellFill(kind), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(isWinner ? Theme.yellow : Color.clear, lineWidth: 2.5)
-                )
-                .overlay(alignment: .topTrailing) {
-                    if staked > 0 {
-                        chipBadge(staked).offset(x: 3, y: -5)
-                    }
-                }
-        }
-        // `.plain` は押下フィードバックも消えるので、押している間だけ沈む `.pop` を使う（#195）。
-        .buttonStyle(.pop)
-        .disabled(!model.canBet)
-        .accessibilityLabel(tr("%@に賭ける", kind.label))
-        .accessibilityValue(staked > 0 ? tr("%lld枚", staked) : tr("なし"))
     }
 
     /// マスに置いた額。白地に固定の濃い文字で、どの面色の上でも読める。
@@ -322,24 +542,23 @@ public struct RouletteView: View {
         }
     }
 
+    /// 賭け中の操作欄。1 段目にチップ額 4 つ + 戻す、2 段目にスピンを全幅（#2364）。
     private func bettingView(_ sizing: RouletteMetrics.Sizing) -> some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
+        VStack(spacing: RouletteMetrics.actionRowSpacing) {
+            HStack(spacing: 8) {
                 Text(tr("チップ"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
+                    .fixedSize()
                 ForEach(RouletteModel.chipOptions, id: \.self) { amount in
                     chipButton(amount)
                 }
-                Spacer(minLength: 0)
-            }
-            HStack(spacing: 12) {
                 actionButton(tr("戻す"), color: Theme.fillMuted, foreground: .white, disabled: model.bets.isEmpty) {
                     model.undoLastBet()
                 }
-                actionButton(tr("スピン"), color: Theme.Fill.coral, disabled: !model.canSpin) {
-                    model.spin()
-                }
+            }
+            actionButton(tr("スピン"), color: Theme.Fill.coral, disabled: !model.canSpin) {
+                model.spin()
             }
         }
         .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
@@ -382,6 +601,7 @@ public struct RouletteView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// 結果の操作欄。どちらを押しても賭けの画面へ戻る（同じ口を置き直すか、空の表から賭けるか）。
     private func resultView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)

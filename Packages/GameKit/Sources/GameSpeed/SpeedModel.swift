@@ -183,6 +183,9 @@ public final class SpeedModel {
             && remaining(of: .cpu) < remaining(of: .human)
     }
 
+    /// 「新規対局」で失われる進行があるか（場が 1 度でも動いた未決着のゲーム。#2370）。
+    public var hasProgressToLose: Bool { phase == .playing && hasProgressed }
+
     /// タイムの最中か。
     public var isTimeoutActive: Bool {
         guard let timeoutEndsAt else { return false }

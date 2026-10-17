@@ -3,86 +3,45 @@ import CoreGraphics
 import Foundation
 @testable import GameFruits
 
-/// 果物の絵（Core Graphics）。`SKTexture` の同一性では「どの絵を貼ったか」を確かめられないので、
-/// 画素を読んで裏を取る。
-@Suite("果物の絵")
-@MainActor
+/// 盆栽の絵（#2361・案 B「木を大きく見せる」）。素材が全段そろって読めることと、絵の枠の置き方を確かめる。
+@Suite("盆栽の絵")
 struct ArtTests {
-    /// `image` の画素（RGBA・premultiplied）を読む。
-    private func pixels(of image: CGImage) -> [UInt8] {
-        let width = image.width
-        let height = image.height
-        var data = [UInt8](repeating: 0, count: width * height * 4)
-        let space = CGColorSpace(name: CGColorSpace.sRGB)!
-        data.withUnsafeMutableBytes { buffer in
-            let context = CGContext(
-                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
-                bytesPerRow: width * 4, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            )!
-            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        }
-        return data
-    }
-
-    private func pixel(_ data: [UInt8], width: Int, x: Int, y: Int) -> (r: Int, g: Int, b: Int, a: Int) {
-        let index = (y * width + x) * 4
-        return (Int(data[index]), Int(data[index + 1]), Int(data[index + 2]), Int(data[index + 3]))
-    }
-
-    @Test("全種の絵が描け、中央は不透明で地の色に近く、四隅は透明")
-    func everyKindRenders() throws {
+    @Test("11 段すべての絵が読め、段ごとに違う絵になっている")
+    func everyTierHasItsOwnArt() throws {
+        var seen: [Data] = []
         for kind in FruitKind.allCases {
-            let image = try #require(FruitArt.image(kind, pixels: 96), "\(kind.name) が描けない")
-            #expect(image.width == 96 && image.height == 96)
-            let data = pixels(of: image)
-            let center = pixel(data, width: 96, x: 48, y: 52)
-            #expect(center.a == 255, "\(kind.name) の中央が透明")
-            let corner = pixel(data, width: 96, x: 2, y: 2)
-            #expect(corner.a == 0, "\(kind.name) の四隅（キャンバスの余白）が塗られている")
-            // 中央付近の色相は地の色に近い（模様が乗る種類は多少ずれる）。
-            let base = kind.baseColor
-            let expected = (r: Int((base >> 16) & 0xFF), g: Int((base >> 8) & 0xFF), b: Int(base & 0xFF))
-            let distance = abs(center.r - expected.r) + abs(center.g - expected.g) + abs(center.b - expected.b)
-            #expect(distance < 200, "\(kind.name) の中央の色 \(center) が地の色 \(expected) から遠い")
+            let image = try #require(BonsaiArt.image(kind), "\(kind.name)（\(kind.artName)）が読めない")
+            #expect(image.width > 0 && image.height > 0)
+            let bytes = try #require(image.dataProvider?.data as Data?)
+            #expect(!seen.contains(bytes), "\(kind.name) の絵が別の段と同じ")
+            seen.append(bytes)
         }
     }
 
-    @Test("種類が違えば絵も違う（同じバイト列にならない）")
-    func kindsAreDistinct() throws {
-        var seen: [[UInt8]] = []
+    @Test("素材は表示の大きさに見合う解像度に縮めてある（小さい段ほど小さい・最大でも 320px）")
+    func artIsDownscaled() throws {
         for kind in FruitKind.allCases {
-            let image = try #require(FruitArt.image(kind, pixels: 48))
-            let data = pixels(of: image)
-            #expect(!seen.contains(data), "\(kind.name) の絵が別の種類と同じ")
-            seen.append(data)
+            let image = try #require(BonsaiArt.image(kind))
+            #expect(max(image.width, image.height) <= 320, "\(kind.name) が \(image.width)×\(image.height)")
+            // 盤の幅 400pt・3x の画面で、絵の枠（直径の 1.3 倍）を 1px 以上の細かさで出せる大きさの 8 割はある。
+            let needed = kind.radius * 2 * BonsaiArt.canvasScale / FruitField.Metrics.width * 400 * 3 * 0.8
+            #expect(Double(max(image.width, image.height)) >= min(needed, 280), "\(kind.name) が粗すぎる")
         }
+        #expect(try #require(BonsaiArt.image(.sakura)).width < (try #require(BonsaiArt.image(.kinmatsu))).width)
     }
 
-    @Test("茎や葉は円の外（キャンバスの余白）に出るので、キャンバスは直径より大きい")
-    func canvasLeavesRoomForStems() throws {
-        #expect(FruitArt.canvasScale > 1)
-        // りんごの真上（円の外側）に茎の画素がある。
-        let image = try #require(FruitArt.image(.apple, pixels: 120))
-        let data = pixels(of: image)
-        // 上端から 6% の位置（円の頭は 11.5% の位置）。
-        let above = pixel(data, width: 120, x: 60, y: 8)
-        #expect(above.a > 0, "りんごの茎がキャンバスの余白に描かれていない")
-        // 何も描かないブルーベリーの同じ位置は透明。
-        let blueberry = try #require(FruitArt.image(.blueberry, pixels: 120))
-        #expect(pixel(pixels(of: blueberry), width: 120, x: 60, y: 8).a == 0)
-    }
-
-    @Test("同じ寸法の絵は 1 回だけ描いて使い回す")
-    func cacheReturnsTheSameImage() throws {
-        let first = try #require(FruitArtCache.image(.melon, pixels: 64))
-        let second = try #require(FruitArtCache.image(.melon, pixels: 64))
-        #expect(first === second)
-        let other = try #require(FruitArtCache.image(.melon, pixels: 32))
-        #expect(other !== first)
-    }
-
-    @Test("寸法 0 では描かない")
-    func zeroSizeIsNil() {
-        #expect(FruitArt.image(.cherry, pixels: 0) == nil)
+    @Test("絵は円の直径の 1.3 倍の枠に収まり、鉢の底は円の下端・横は円の中心に揃う（案 B）")
+    func spriteFrameSitsOnTheCircleBottom() {
+        #expect(BonsaiArt.canvasScale == 1.3)
+        for kind in FruitKind.allCases {
+            let frame = BonsaiArt.spriteFrame(for: kind, x: 40, y: 30)
+            let side = kind.radius * 2 * BonsaiArt.canvasScale
+            #expect(abs(frame.minY - (30 - kind.radius)) < 1e-9, "\(kind.name) の鉢の底が円の下端に無い")
+            #expect(abs(frame.midX - 40) < 1e-9)
+            #expect(frame.width <= side + 1e-9 && frame.height <= side + 1e-9)
+            #expect(max(frame.width, frame.height) > side - 1e-9, "長い辺は枠いっぱい")
+            // 木は円の上端より上へはみ出す。
+            #expect(frame.maxY > 30 + kind.radius)
+        }
     }
 }
