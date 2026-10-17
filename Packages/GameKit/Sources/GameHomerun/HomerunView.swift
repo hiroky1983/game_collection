@@ -243,7 +243,7 @@ struct HomerunCountMeter: View {
     let allowance: Int
     let remaining: Int
     /// 残りのボールの色と、使ったボールの色（「打席に立つ」の中では白と薄い色）。
-    var lit: Color = Theme.coral
+    var lit: Color = Theme.coralText
     var unlit: Color = Theme.inkSub.opacity(0.35)
 
     var body: some View {

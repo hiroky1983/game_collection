@@ -12,7 +12,7 @@ import GameKitTestSupport
 /// 行末に `// accent-text-ok: 理由` を付ける。
 ///
 /// 見るのは行単位の書き方だけ: `foregroundStyle(` の引数・`.tint(`・文字ラベル部品（`RuleFigureLabel` /
-/// `GameOverflowCaption`）の `color:`・その `color:` だけを折り返した行。`-> Color` を返す関数経由の色は
+/// `GameOverflowCaption`）の `color:`・帯のキャプションの `captionColor:`・その `color:` だけを折り返した行。`-> Color` を返す関数経由の色は
 /// 検査できないので、前景に使う色を返す関数は最初から `...Text` を返すこと。
 struct AccentTextScanTests {
 
@@ -21,6 +21,7 @@ struct AccentTextScanTests {
         #"foregroundStyle\(.*"# + accent,
         #"\.tint\(\s*"# + accent,
         #"(RuleFigureLabel|GameOverflowCaption)\(.*\bcolor:.*"# + accent,
+        #"\bcaptionColor:\s*"# + accent,
         // 折り返した `color:` 行（線の色を渡す `color: ..., lineWidth:` は前景ではないので除く）
         #"^\s*color:(?!.*(lineWidth|dash)).*"# + accent,
     ]
@@ -71,6 +72,8 @@ struct AccentTextScanTests {
         #expect(Self.isOffending("    .foregroundStyle( Theme.coral)"))
         #expect(Self.isOffending("    .foregroundStyle(isWin ? Theme.yellow : Theme.coral)"))
         #expect(Self.isOffending("    .tint(Theme.coral)"))
+        #expect(Self.isOffending("    .init(c, share: 0.2, color: Theme.Fill.coral, captionColor: Theme.coral)"))
+        #expect(!Self.isOffending("    .init(c, share: 0.2, color: Theme.Fill.coral, captionColor: Theme.coralText)"))
         #expect(Self.isOffending("    RuleFigureLabel(tr(\"あ\"), color: Theme.teal)"))
         #expect(Self.isOffending("                                    color: index == 0 ? Theme.coral : Theme.inkSub)"))
         #expect(!Self.isOffending("                   to: p, color: Theme.yellow, lineWidth: 4)"))

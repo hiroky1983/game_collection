@@ -427,8 +427,8 @@ private struct GaugeFigure: View {
     // 数値の目盛りは出さない（ゲージの計算方法は会長検討中・#2069）。段階の帯と姿だけ。
     private static var stages: [RuleStageBand<AnyView>.Stage] { [
         .init(OjisanPuzzlePain.Stage.easy.caption, share: 0.4, color: Theme.Fill.teal),
-        .init(OjisanPuzzlePain.Stage.aching.caption, share: 0.4, color: Theme.Fill.yellow, captionColor: Theme.coral),
-        .init(OjisanPuzzlePain.Stage.severe.caption, share: 0.2, color: Theme.Fill.coral, captionColor: Theme.coral),
+        .init(OjisanPuzzlePain.Stage.aching.caption, share: 0.4, color: Theme.Fill.yellow, captionColor: Theme.coralText),
+        .init(OjisanPuzzlePain.Stage.severe.caption, share: 0.2, color: Theme.Fill.coral, captionColor: Theme.coralText),
     ] }
 
     private static let poses: [OjisanPuzzleArt.Pose] = [.easy, .aching, .severe]
