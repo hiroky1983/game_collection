@@ -743,6 +743,26 @@ public extension HowToPlayGuide {
         ]
     ) }
 
+    /// 四目並べ（#1738・企画倉庫）。図は `GameYonmoku` 側で `illustrated(_:)` を使って差し込む。
+    static var yonmoku: HowToPlayGuide { HowToPlayGuide(
+        gameID: "yonmoku",
+        title: tr("四目並べの遊び方"),
+        lines: [
+            tr("列をタップすると、石が上から落ちて、その列の一番下の空きに入ります。"),
+            tr("たて・よこ・ななめのどれかで先に 4 つ並べたら勝ちです。"),
+            tr("相手が 3 つ並べたら、4 つ目の場所を先にふさぎましょう。"),
+        ],
+        hint: tr("列をタップして石を落とそう"),
+        items: [
+            HowToPlayItem(tr("列をタップすると、石が上から落ちて、その列の一番下の空きに入ります。")),
+            HowToPlayItem(tr("たて・よこ・ななめのどれかで先に 4 つ並べたら勝ちです。")),
+            HowToPlayItem(tr("相手が 3 つ並べたら、4 つ目の場所を先にふさぎましょう。")),
+        ],
+        notes: [
+            tr("黒が先手です。盤が全部埋まったら引き分けです。"),
+        ]
+    ) }
+
     /// サイコロ役づくり（#1752・企画倉庫）。図は `GameDiceCombo` 側で `illustrated(_:)` を使って差し込む。
     static var diceCombo: HowToPlayGuide { HowToPlayGuide(
         gameID: "dicecombo",
@@ -963,6 +983,7 @@ public extension HowToPlayGuide {
         .oldMaid,
         .hearts,
         .tsunagi, .hanoi,
+        .yonmoku,
     ] }
 }
 

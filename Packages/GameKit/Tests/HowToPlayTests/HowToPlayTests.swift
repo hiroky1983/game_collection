@@ -58,6 +58,7 @@ import GameSpider
 @testable import GameAkariKeshi
 @testable import GameTsunagi
 import GameHanoi
+import GameYonmoku
 @testable import GameShiritori
 import GameChess
 import GameBlocks
@@ -105,6 +106,7 @@ private let registeredModules: [GameModule] = [
     HeartsModule(),
     TsunagiModule(),
     HanoiModule(),
+    YonmokuModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）

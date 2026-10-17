@@ -29,6 +29,7 @@ import GameBackgammon
 import GameMancala
 import GameSpeed
 import GameTsunagi
+import GameYonmoku
 import GameHomerun
 import GameOjisanPuzzle
 import GameSpider
@@ -79,6 +80,7 @@ private func makeHubGameIDs() -> Set<String> {
         MancalaModule(),
         AkariKeshiModule(),
         TsunagiModule(),
+        YonmokuModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -481,7 +483,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 33, "ハブに並ぶゲームは33本（企画倉庫の線つなぎ #2235・明かり消しパズル #1883・マンカラ #1626 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 34, "ハブに並ぶゲームは34本（企画倉庫の四目並べ #1738・線つなぎ #2235・明かり消しパズル #1883・マンカラ #1626 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -1014,6 +1016,25 @@ struct AllGamesAnalyticsTests {
         model.resign()
         expectOnePair(spy, gameID: "mancala")
         #expect(spy.ends.first?.result == .loss)
+    }
+
+    @Test("四目並べ: シートを閉じた・最初の操作で開始、投了で終局（loss）。シートで選ぶと強さ付きで 1 組")
+    func yonmoku() {
+        let (services, spy) = makeServices()
+        let model = YonmokuModel(services: services, cpuDelay: .zero, seed: 7)
+        #expect(spy.starts(of: "yonmoku") == 0, "開始シートで選ぶまで数えない（五目並べと同じ・PR #572）")
+        model.resign()
+        expectOnePair(spy, gameID: "yonmoku")
+        #expect(spy.ends.first?.result == .loss)
+
+        let (services2, spy2) = makeServices()
+        let chosen = YonmokuModel(services: services2, cpuDelay: .zero, seed: 7)
+        chosen.newGame(humanSide: .black, aiLevel: 2)
+        chosen.startPlayIfPending()   // シートが閉じた（開始で閉じても二重に数えない）
+        chosen.tap(column: 3)
+        chosen.resign()
+        expectOnePair(spy2, gameID: "yonmoku")
+        #expect(spy2.startLevels == [.hard])
     }
 
     @Test("線つなぎ: 開いた時点で開始・解を引き終えて終局（1 組・level は盤の大きさ）")
