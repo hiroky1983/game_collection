@@ -60,7 +60,6 @@ struct NumericCornerRadiusScanTests {
         "GameBackgammon/BackgammonView.swift": 2,
         "GameBlackjack/BlackjackView.swift": 1,
         "GameChess/ChessView.swift": 7,
-        "GameColorRelay/ColorRelayView.swift": 3,
         "GameConcentration/ConcentrationView.swift": 4,
         "GameDaifugo/DaifugoView.swift": 1,
         "GameFifteen/FifteenView.swift": 1,

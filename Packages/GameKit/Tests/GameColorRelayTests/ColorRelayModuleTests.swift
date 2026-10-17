@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import Core
 import CoreEngine
 @testable import GameColorRelay
@@ -85,10 +86,65 @@ struct ColorRelayModuleTests {
         #expect(release.contains("public func startGame()"), "走査そのものが機能している")
     }
 
-    @Test("手札のタップ判定は iPhone SE の幅でも 44pt 以上")
-    func handTapTarget() {
-        #expect(ColorRelayHandLayout.tapWidth(screenWidth: 375) >= ColorRelayHandLayout.minimumTapTarget)
-        #expect(ColorRelayHandLayout.columns == 7)
+    @Test("手札の 1 枚あたりの見える幅（タップ判定）は、何枚になっても 44pt 以上", arguments: [375.0, 393.0, 402.0, 440.0])
+    func handTapTarget(screenWidth: Double) {
+        let width = CGFloat(screenWidth)
+        let card = ColorRelayHandLayout.metrics(screenWidth: width).handCardWidth
+        let strip = ColorRelayHandLayout.stripWidth(screenWidth: width)
+        for count in 1...30 {
+            let exposure = ColorRelayHandLayout.exposure(count: count, cardWidth: card, available: strip)
+            #expect(exposure >= ColorRelayHandLayout.minimumTapTarget, "\(count) 枚")
+            // 札の高さもタップの最小に届く。
+            #expect(ColorRelayCardSize(width: card).height >= ColorRelayHandLayout.minimumTapTarget)
+        }
+    }
+
+    @Test("SE（375pt）でも配られた 7 枚 + 1 枚引いた 8 枚までは横スクロール無しで並ぶ")
+    func seFitsEightCards() {
+        #expect(ColorRelayHandLayout.maxCardsWithoutScroll(screenWidth: 375) >= 8)
+        #expect(ColorRelayHandLayout.maxCardsWithoutScroll(screenWidth: 402) >= 8)
+        let card = ColorRelayHandLayout.metrics(screenWidth: 375).handCardWidth
+        let strip = ColorRelayHandLayout.stripWidth(screenWidth: 375)
+        let exposure = ColorRelayHandLayout.exposure(count: 8, cardWidth: card, available: strip)
+        #expect(ColorRelayHandLayout.totalWidth(count: 8, cardWidth: card, exposure: exposure) <= strip)
+        // 17 Pro は札を大きく、SE だけ小さくする。
+        #expect(ColorRelayHandLayout.metrics(screenWidth: 402).handCardWidth
+                > ColorRelayHandLayout.metrics(screenWidth: 375).handCardWidth)
+    }
+
+    @Test("場の札は卓の中段の大きさに収まり、大きさ 0 でも負にならない")
+    func fieldFitsTheTable() {
+        let zero = ColorRelayHandLayout.field(size: .zero, maxTopWidth: 96)
+        #expect(zero.topWidth == 0 && zero.pileWidth == 0)
+        let size = CGSize(width: 340, height: 150)
+        let field = ColorRelayHandLayout.field(size: size, maxTopWidth: 96)
+        #expect(field.topWidth * ColorRelayHandLayout.plateRatio + ColorRelayHandLayout.fieldLabelHeight <= size.height + 0.5)
+        #expect(field.pileWidth + field.spacing + field.topWidth * ColorRelayHandLayout.plateRatio <= size.width + 0.5)
+        #expect(ColorRelayHandLayout.field(size: CGSize(width: 1000, height: 1000), maxTopWidth: 96).topWidth == 96)
+    }
+
+    @Test("卓はアプリ共通の卓（cardTable）に載せ、茶色の独自の卓やおじさんの顔を使わない")
+    func tableUsesTheSharedSurface() throws {
+        let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameColorRelay"))
+        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: code) == 1)
+        #expect(!code.contains("CardTableSurface("), "卓の面を直接組み立てない")
+        #expect(!code.contains("rimMiddle") && !code.contains("rimBottom"), "木枠の色で独自の茶色の卓を塗らない")
+        #expect(!code.contains("OjisanPixel"), "相手のアイコンにおじさんの絵を使わない（会長決裁 2026-10-18）")
+    }
+
+    @Test("相手 3 人のアイコンは記号も丸の色も互いに違い、丸の色は札の 4 色と重ならない")
+    func opponentIconsAreDistinct() {
+        let seats = Array(1..<ColorRelayModel.playerCount)
+        #expect(Set(seats.map(ColorRelayOpponentStyle.symbol(for:))).count == seats.count)
+        let discs = seats.map { ColorRelayOpponentStyle.colors(for: $0).disc }
+        #expect(Set(discs).count == seats.count)
+        let faces = Set(RelayColor.allCases.map(\.faceHex))
+        for disc in discs { #expect(!faces.contains(disc)) }
+        // 記号は丸の上で読める（非テキストの 3:1）。
+        for seat in seats {
+            let c = ColorRelayOpponentStyle.colors(for: seat)
+            #expect(WCAG.contrast(c.mark, c.disc) >= 3, "CPU\(seat)")
+        }
     }
 }
 
@@ -123,5 +179,23 @@ struct ColorRelayAccessibilityTests {
         #expect(ColorRelayAccessibility.fieldLabel(top: card(nil, .wild), activeColor: .yellow, drawPileCount: 3)
                 == "場の札、いろがえ。いまの色はきいろ。山は残り3枚")
         #expect(ColorRelayAccessibility.fieldLabel(top: nil, activeColor: .red, drawPileCount: 0) == "場に札はありません")
+    }
+
+    @Test("相手の席の読み上げは名前・残り枚数・手番・直前の手（画面はアイコンだけなので名前を文字で補う）")
+    func seatLabel() {
+        #expect(ColorRelayAccessibility.seatLabel(name: "CPU1", cardCount: 5, isCurrent: false, lastAction: "")
+                == "CPU1、残り5枚")
+        #expect(ColorRelayAccessibility.seatLabel(name: "CPU2", cardCount: 1, isCurrent: true, lastAction: "ぎゃく！")
+                == "CPU2、残り1枚、いまの番、直前の手、ぎゃく！")
+        #expect(GameColorRelay.tr("%1$@、残り%2$lld枚", "CPU1", 1, language: .english) == "CPU1, 1 card left")
+        #expect(GameColorRelay.tr("%1$@、残り%2$lld枚", "CPU1", 4, language: .english) == "CPU1, 4 cards left")
+    }
+
+    @Test("卓の見出しの読み上げは何ゲーム目・回る向き・誰の番")
+    func tableHeaderLabel() {
+        #expect(ColorRelayAccessibility.tableHeaderLabel(gameNumber: 3, isClockwise: true, turn: "CPU2の番")
+                == "3ゲーム目、順回り、CPU2の番")
+        #expect(ColorRelayAccessibility.tableHeaderLabel(gameNumber: 1, isClockwise: false, turn: "")
+                == "1ゲーム目、逆回り")
     }
 }
