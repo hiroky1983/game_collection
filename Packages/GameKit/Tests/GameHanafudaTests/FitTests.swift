@@ -10,24 +10,24 @@ struct HanafudaFitTests {
     private func totalHeight(_ m: HanafudaFit.Metrics, fieldRows: Int, handRows: Int) -> CGFloat {
         let cardH = m.cardWidth * HanafudaCardArt.aspectRatio
         let gaps = CGFloat(fieldRows - 1 + handRows - 1) * HanafudaFit.gap
-        return HanafudaFit.fixedHeight + gaps + 3 * m.stripHeight + CGFloat(fieldRows + handRows) * cardH
+        return HanafudaFit.fixedHeight + gaps + 2 * m.stripHeight + CGFloat(fieldRows + handRows) * cardH
     }
 
-    @Test("十分に高い画面では縮めない（これまでの 6 列 2 段）")
+    @Test("十分に高い画面では縮めない（8 枚なら 4 列 2 段で大きく取る・#2336）")
     func tallScreenKeepsNaturalSize() {
         let m = HanafudaFit.metrics(availableWidth: 361, availableHeight: 900, stripHeight: 40,
                                     fieldCount: 8, handCount: 8)
-        #expect(m.columnCount == 6)
+        #expect(m.columnCount == 4)
         #expect(m.stripHeight == 40)
-        #expect(abs(m.cardWidth - (361 - 20 - 5 * HanafudaFit.gap) / 6) < 0.001)
+        #expect(abs(m.cardWidth - (361 - 20 - 3 * HanafudaFit.gap) / 4) < 0.001)
     }
 
     @Test("低い画面では残りの高さに収まる大きさまで縮む")
     func shortScreenFitsAvailableHeight() {
-        for height in [320.0, 380, 450, 520] {
+        for height in [400.0, 450, 520] {
             let m = HanafudaFit.metrics(availableWidth: 343, availableHeight: height, stripHeight: 40,
                                         fieldCount: 8, handCount: 8)
-            let rows = m.columnCount == 6 ? 2 : 1
+            let rows = (8 + m.columnCount - 1) / m.columnCount
             #expect(totalHeight(m, fieldRows: rows, handRows: rows) <= height + 0.001,
                     "高さ \(height) に収まらない: \(m)")
         }
@@ -35,7 +35,7 @@ struct HanafudaFitTests {
 
     @Test("狭くて低い画面では 8 列 1 段のほうが札を大きく取れる")
     func veryShortScreenPrefersOneRow() {
-        let m = HanafudaFit.metrics(availableWidth: 343, availableHeight: 320, stripHeight: 40,
+        let m = HanafudaFit.metrics(availableWidth: 343, availableHeight: 400, stripHeight: 40,
                                     fieldCount: 8, handCount: 8)
         #expect(m.columnCount == 8)
         let sixColumns = (343 - 20 - 5 * HanafudaFit.gap) / 6 * HanafudaFit.minScale
@@ -77,11 +77,43 @@ struct HanafudaFitTests {
         }
     }
 
-    /// 見出し 3 行（16pt）＋ 3 カードの上下余白（60）＋ カード内の縦の間隔 4 か所（24）＋ カード間 2 か所（16）。
+    /// 見出し 3 行（16pt）＋ 取り札の見出し 2 つ（18pt）＋ めくり札で伸びる分（24）＋ 3 カードの上下余白（60）＋ カード内の縦の間隔 4 か所（24）＋ カード間 2 か所（16）。
     /// 実装と同じ式をテストが参照すると、式を壊しても収まりテストが一緒に動いて緑のまま残るため、値で固定する。
-    @Test("縮められない高さの見積もりは 148pt")
+    @Test("縮められない高さの見積もりは 208pt")
     func fixedHeightIsPinned() {
-        #expect(HanafudaFit.fixedHeight == 148)
+        #expect(HanafudaFit.fixedHeight == 208)
         #expect(HanafudaCardArt.aspectRatio == 1.5)
+    }
+
+    @Test("手札が減って 1 段になると札が大きくなる（下の空きを使う・#2336）")
+    func fewerCardsMakeBiggerCards() {
+        let full = HanafudaFit.metrics(availableWidth: 361, availableHeight: 560, stripHeight: 52,
+                                       fieldCount: 8, handCount: 8)
+        let late = HanafudaFit.metrics(availableWidth: 361, availableHeight: 560, stripHeight: 52,
+                                       fieldCount: 4, handCount: 3)
+        #expect(late.cardWidth > full.cardWidth)
+    }
+
+    @Test("取り札の 4 列は光・タネ・短冊・カスの順で、空の種別も残る")
+    func capturedGroupsKeepAllFourKinds() {
+        let deck = HanafudaCard.fullDeck
+        let cards = [deck.first { $0.kind == .kasu }!, deck.first { $0.kind == .hikari }!]
+        let groups = HanafudaCapturedGroup.groups(of: cards)
+        #expect(groups.map(\.kind) == [.hikari, .tane, .tanzaku, .kasu])
+        #expect(groups.map { $0.cards.count } == [1, 0, 0, 1])
+        #expect(groups.map(\.goal) == [3, 5, 5, 10])
+        #expect(groups.allSatisfy { !$0.isComplete })
+    }
+
+    @Test("取り札の列幅: どの列も札 1 枚ぶんは取り、重なりの間隔は 4pt 以上")
+    func capturedGroupWidthsAndStep() {
+        let cardWidth: CGFloat = 34
+        let widths = HanafudaFit.groupWidths(total: 300, cardWidth: cardWidth, counts: [0, 0, 0, 12])
+        #expect(widths.allSatisfy { $0 >= cardWidth })
+        #expect(widths[3] > widths[0])
+        #expect(HanafudaFit.overlapStep(groupWidth: widths[3], cardWidth: cardWidth, count: 12) >= 4)
+        #expect(HanafudaFit.overlapStep(groupWidth: 80, cardWidth: cardWidth, count: 1) == 0)
+        // 広い列でも札の幅の 0.9 倍を超えて離さない。
+        #expect(HanafudaFit.overlapStep(groupWidth: 300, cardWidth: cardWidth, count: 2) == cardWidth * 0.9)
     }
 }
