@@ -279,32 +279,32 @@ enum AppEnvironment {
         // ルーレット（企画倉庫・#1318）。出荷する版が決まるまでハブには並べない
         // （`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」。`#if DEBUG` では分岐しない）。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // RouletteModule(),
+        RouletteModule(),
         // くっつきフルーツ（企画倉庫・#1319）。ルーレットと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // FruitsModule(),
+        FruitsModule(),
         // いろリレー（企画倉庫・#1320）。ルーレット・くっつきフルーツと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // ColorRelayModule(),
+        ColorRelayModule(),
         // バックギャモン（企画倉庫・#1322）。上の 4 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // BackgammonModule(),
+        BackgammonModule(),
         // マンカラ（企画倉庫・#1626）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // MancalaModule(),
+        MancalaModule(),
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // SpeedModule(),
+        SpeedModule(),
         // 明かり消しパズル（企画倉庫・#1883）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`categories` に "akarikeshi": .puzzleOther を、
         // `web/app/lib/games.ts` にも同じ順で足す。
-        // AkariKeshiModule(),
+        AkariKeshiModule(),
         // 線つなぎ（企画倉庫・#2235）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // TsunagiModule(),
+        TsunagiModule(),
         // ハノイの塔（企画倉庫・#2003）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリーのチップ（`"hanoi": .puzzleOther`）にも足す。
-        // HanoiModule(),
+        HanoiModule(),
         // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告）・
         // 解析・Game Center への送信まで入っている。
         HomerunModule(),
@@ -319,16 +319,16 @@ enum AppEnvironment {
         AnzanModule(),
         // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // OldMaidModule(),
+        OldMaidModule(),
         // ハーツ（企画倉庫・#1884）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリー（`.cards`）にも足す。
-        // HeartsModule(),
+        HeartsModule(),
         // サイコロ役づくり（企画倉庫・#1752）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とハブのカテゴリーにも足す。
-        // DiceComboModule(),
+        DiceComboModule(),
         // 四目並べ（企画倉庫・#1738）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` とカテゴリーのチップ（`"yonmoku": .board`）にも足す。
-        // YonmokuModule(),
+        YonmokuModule(),
     ], categories: [
         // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
         "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan,
