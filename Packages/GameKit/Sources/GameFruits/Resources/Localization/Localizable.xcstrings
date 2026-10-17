@@ -1,24 +1,24 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
-    "%1$@。メロンどうしがくっつくと 2 つとも消えて %2$lld 点。" : {
+    "%1$@。金の松どうしがくっつくと 2 つとも消えて %2$lld 点。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@. When two melons merge, both vanish for %2$lld points."
+            "value" : "%1$@. When two Golden Pines merge, both vanish for %2$lld points."
           }
         }
       }
     },
-    "%@の 5 種だけが出てきます。大きい果物はくっつけて作ります。" : {
+    "%@の 5 種だけが出てきます。大きい盆栽はくっつけて育てます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Only these 5 fruits drop: %@. Make bigger fruits by merging."
+            "value" : "Only these 5 bonsai drop: %@. Grow bigger bonsai by merging."
           }
         }
       }
@@ -34,35 +34,13 @@
         }
       }
     },
-    "いちご" : {
+    "おじさんの盆栽" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strawberry"
-          }
-        }
-      }
-    },
-    "くっつきフルーツ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fruit Merge"
-          }
-        }
-      }
-    },
-    "さくらんぼ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cherry"
+            "value" : "Ojisan no Bonsai"
           }
         }
       }
@@ -95,7 +73,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Waiting for the next fruit"
+            "value" : "Waiting for the next bonsai"
           }
         }
       }
@@ -107,17 +85,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start over?"
-          }
-        }
-      }
-    },
-    "ぶどう" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Grapes"
           }
         }
       }
@@ -144,39 +111,6 @@
         }
       }
     },
-    "もも" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Peach"
-          }
-        }
-      }
-    },
-    "りんご" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple"
-          }
-        }
-      }
-    },
-    "キウイ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kiwi"
-          }
-        }
-      }
-    },
     "キャンセル" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -199,13 +133,13 @@
         }
       }
     },
-    "ゲームオーバー後に広告を見ると、1 回だけ小さい果物（%@）と線より上の果物を片づけて続けられます。スコアはそのままです。" : {
+    "ゲームオーバー後に広告を見ると、1 回だけ小さい盆栽（%@）と線より上の盆栽を片づけて続けられます。スコアはそのままです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "After a game over, you can watch an ad once to clear the small fruits (%@) and any fruit above the line, then keep playing. Your score stays."
+            "value" : "After a game over, you can watch an ad once to clear the small bonsai (%@) and any bonsai above the line, then keep playing. Your score stays."
           }
         }
       }
@@ -243,50 +177,6 @@
         }
       }
     },
-    "パイナップル" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pineapple"
-          }
-        }
-      }
-    },
-    "ブルーベリー" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blueberry"
-          }
-        }
-      }
-    },
-    "メロン" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Melon"
-          }
-        }
-      }
-    },
-    "ライム" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lime"
-          }
-        }
-      }
-    },
     "・" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -298,13 +188,24 @@
         }
       }
     },
-    "上の点線より上に果物が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。" : {
+    "上の点線より上に盆栽が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The game ends if a fruit stays above the dotted line at the top for 1 second or more. Fruit crossing the line as it falls doesn't count."
+            "value" : "The game ends if a bonsai stays above the dotted line at the top for 1 second or more. A bonsai crossing the line as it falls doesn't count."
+          }
+        }
+      }
+    },
+    "南天" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nandina"
           }
         }
       }
@@ -331,13 +232,13 @@
         }
       }
     },
-    "同じくだものをくっつけて、大きく育てよう" : {
+    "同じ盆栽をくっつけて、立派に育てよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Merge matching fruits to grow them bigger"
+            "value" : "Merge matching bonsai to grow them grander"
           }
         }
       }
@@ -375,13 +276,24 @@
         }
       }
     },
-    "広告を見ると、小さい果物と線より上の果物を片づけて続けられます" : {
+    "広告を見ると、小さい盆栽と線より上の盆栽を片づけて続けられます" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Watch an ad to clear the small fruits and any fruit above the line, then keep going"
+            "value" : "Watch an ad to clear the small bonsai and any bonsai above the line, then keep going"
+          }
+        }
+      }
+    },
+    "庭" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garden"
           }
         }
       }
@@ -408,7 +320,40 @@
         }
       }
     },
-    "果物 %lld 個" : {
+    "桜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cherry Blossom"
+          }
+        }
+      }
+    },
+    "梅" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plum Blossom"
+          }
+        }
+      }
+    },
+    "椿" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camellia"
+          }
+        }
+      }
+    },
+    "盆栽 %lld 鉢" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -417,13 +362,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld fruit"
+                  "value" : "%lld bonsai"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld fruits"
+                  "value" : "%lld bonsai"
                 }
               }
             }
@@ -431,24 +376,35 @@
         }
       }
     },
-    "果物の順番" : {
+    "盆栽の段" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fruit order"
+            "value" : "Bonsai ranks"
           }
         }
       }
     },
-    "箱" : {
+    "真柏" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Box"
+            "value" : "Shimpaku Juniper"
+          }
+        }
+      }
+    },
+    "紅葉" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Japanese Maple"
           }
         }
       }
@@ -475,13 +431,24 @@
         }
       }
     },
-    "落とす果物" : {
+    "落とす盆栽" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fruits you drop"
+            "value" : "Bonsai you drop"
+          }
+        }
+      }
+    },
+    "藤" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wisteria"
           }
         }
       }
@@ -493,6 +460,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, your current score will be lost."
+          }
+        }
+      }
+    },
+    "金の松" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Golden Pine"
+          }
+        }
+      }
+    },
+    "銀杏" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ginkgo"
+          }
+        }
+      }
+    },
+    "黒松" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black Pine"
           }
         }
       }

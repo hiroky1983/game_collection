@@ -7,8 +7,16 @@ import SpriteKit
 /// **SpriteKit の面は SwiftUI の `Theme` に追従しない**（ブロック崩し #463 と同じ）。盤・駒・牌と同じ
 /// 「モードによらず固定の面」として扱い、値は `Theme.Hex` から取って揃える。
 enum FruitsPalette {
-    /// 箱の地。アプリの背景（クリーム）より少し濃くして、果物の明るい色を浮かせる。
-    static let box: UInt32 = 0xF6E7CF
+    /// 庭（箱）の地。砂利の色（#2361）。アプリの背景（クリーム）より少し灰色寄りにして、盆栽の色を浮かせる。
+    static let box: UInt32 = 0xEFE7D3
+    /// 砂利の箒目（ほうきめ）の線。
+    static let rake: UInt32 = 0xDCD0B6
+    /// 砂利の中の石。
+    static let stone: UInt32 = 0xC9BEA8
+    /// 縁側の板（SwiftUI 側の `BonsaiEngawaBoards` が使う）。
+    static let wood: UInt32 = 0xC89E6B
+    static let woodDark: UInt32 = 0xA87D4E
+    static let woodLight: UInt32 = 0xD9B484
     /// 箱の縁。`Theme.Hex.fillMuted` のライト側。
     static let boxEdge: UInt32 = Theme.Hex.fillMuted.light
     /// 危険線（通常）。`Theme.Hex.inkSub` のライト側。
@@ -30,7 +38,11 @@ enum FruitsPalette {
     }
 }
 
-/// くっつきフルーツの描画とゲームループ（#1319）。
+/// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の庭（盤）の描画とゲームループ。
+///
+/// 盆栽は**回転させない**（会長決裁 2026-10-17。物理の円が転がっても鉢は傾けない）。絵の置き方は
+/// `BonsaiArt.spriteFrame`（鉢の底を円の下端に合わせ、木は上へはみ出す）。手に持っている盆栽は
+/// ここでは描かず、縁側のおじさん（SwiftUI 側の `BonsaiOjisanLayer`）が持つ。
 ///
 /// **ここにゲームのルールは無い**。毎フレーム `FruitsModel.tick(dt:)` を呼び、結果として決まった
 /// `FruitField` の状態をノードへ写すだけの層で、得点・合体の条件・終局は一切知らない
@@ -45,8 +57,6 @@ final class FruitsScene: SKScene {
     private var lastUpdate: TimeInterval?
     /// 盤の果物のノード（`Fruit.id` → ノード）。
     private var fruitNodes: [Int: SKSpriteNode] = [:]
-    /// 手に持っている果物のノード。種類が変わるたびにテクスチャを差し替えて使い回す。
-    private let heldNode = SKSpriteNode()
     /// 落とす位置の案内線。
     private let guideNode = SKShapeNode()
     private let deadlineNode = SKShapeNode()
@@ -82,6 +92,7 @@ final class FruitsScene: SKScene {
 
     override func didMove(to view: SKView) {
         guard deadlineNode.parent == nil else { return }
+        addGarden()
         // 箱の縁。
         let edge = SKShapeNode(rect: CGRect(x: 0.4, y: 0.4, width: FruitField.Metrics.width - 0.8, height: FruitField.Metrics.height - 0.8))
         edge.strokeColor = FruitsPalette.color(FruitsPalette.boxEdge, alpha: 0.6)
@@ -106,8 +117,6 @@ final class FruitsScene: SKScene {
         guideNode.zPosition = 1
         addChild(guideNode)
 
-        heldNode.zPosition = 3
-        addChild(heldNode)
         sync()
     }
 
@@ -169,8 +178,10 @@ final class FruitsScene: SKScene {
                     node.run(.scale(to: 1, duration: 0.14))
                 }
             }
-            node.position = CGPoint(x: fruit.x, y: fruit.y)
-            node.zRotation = CGFloat(fruit.angle)
+            // 鉢の底（ノードの下端・anchorPoint の y = 0）を円の下端に置く。`fruit.angle` は使わない（回転させない）。
+            node.position = CGPoint(x: fruit.x, y: fruit.y - fruit.radius)
+            // 手前（下）の盆栽の鉢が、奥（上）の盆栽の木より前に来るように重ねる。
+            node.zPosition = Self.zPosition(forBottomY: fruit.y - fruit.radius)
         }
         for (id, node) in fruitNodes where !present.contains(id) {
             fruitNodes.removeValue(forKey: id)
@@ -184,14 +195,7 @@ final class FruitsScene: SKScene {
 
     private func syncHeld() {
         let field = model.field
-        if let kind = model.heldKind {
-            heldNode.isHidden = false
-            heldNode.texture = texture(for: kind)
-            heldNode.size = spriteSize(for: kind)
-            heldNode.position = CGPoint(x: field.cursorX, y: FruitField.Metrics.spawnY)
-        } else {
-            heldNode.isHidden = true
-        }
+        // 手に持っている盆栽は縁側のおじさんが持つ（SwiftUI 側）。ここは案内線だけ。
         // 案内線は手が空でも出す（次の果物をどこへ落とすか狙えるように）。終局の幕の裏では消す。
         guideNode.isHidden = model.phase != .playing
         if renderedGuideX != field.cursorX {
@@ -230,7 +234,7 @@ final class FruitsScene: SKScene {
             let radius: Double
             switch effect.kind {
             case .merge(let kind): radius = kind.radius
-            case .vanish:          radius = FruitKind.melon.radius
+            case .vanish:          radius = FruitKind.kinmatsu.radius
             }
             let ring = SKShapeNode(circleOfRadius: radius)
             ring.position = CGPoint(x: effect.x, y: effect.y)
@@ -247,22 +251,47 @@ final class FruitsScene: SKScene {
 
     private func makeFruitNode(_ kind: FruitKind) -> SKSpriteNode {
         let node = SKSpriteNode(texture: texture(for: kind))
-        node.size = spriteSize(for: kind)
-        node.zPosition = 2
+        node.size = BonsaiArt.spriteSize(for: kind)
+        // 下端の中央を基準にする（鉢の底を円の下端に合わせる・`BonsaiArt.spriteFrame`）。
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
         return node
     }
 
-    /// 見た目の一辺。茎・葉のぶん円より大きい（`FruitArt.canvasScale`）。
-    private func spriteSize(for kind: FruitKind) -> CGSize {
-        let side = kind.radius * 2 * FruitArt.canvasScale
-        return CGSize(width: side, height: side)
+    /// 盆栽の重なり順。鉢の底が低い（手前の）ものほど前。2〜3 の範囲に収め、危険線（1）より前・合体の輪（4）より奥。
+    static func zPosition(forBottomY bottomY: Double) -> CGFloat {
+        let depth = min(max(bottomY / FruitField.Metrics.height, 0), 1)
+        return CGFloat(3 - depth)
     }
 
-    /// 種類ごとのテクスチャ。大きい果物ほど高い解像度で描く（iPad ではメロンが 300pt を超える）。
+    /// 盆栽のノード（テスト用）。`Fruit.id` で引く。
+    func node(forFruit id: Int) -> SKSpriteNode? { fruitNodes[id] }
+
+    /// 庭の砂利。箒目（横の線）と石を少し。盆栽より奥（`zPosition` 0.1〜0.2）。
+    private func addGarden() {
+        let rake = CGMutablePath()
+        for y in stride(from: 4.0, to: FruitField.Metrics.height, by: 4.0) {
+            rake.move(to: CGPoint(x: 0, y: y))
+            rake.addLine(to: CGPoint(x: FruitField.Metrics.width, y: y))
+        }
+        let rakeNode = SKShapeNode(path: rake)
+        rakeNode.strokeColor = FruitsPalette.color(FruitsPalette.rake, alpha: 0.7)
+        rakeNode.lineWidth = 0.35
+        rakeNode.zPosition = 0.1
+        addChild(rakeNode)
+        for (x, y, r) in [(12.0, 6.0, 3.6), (86.0, 4.5, 2.8), (50.0, 2.5, 2.2)] {
+            let stone = SKShapeNode(ellipseOf: CGSize(width: r * 2, height: r * 1.2))
+            stone.position = CGPoint(x: x, y: y)
+            stone.fillColor = FruitsPalette.color(FruitsPalette.stone)
+            stone.strokeColor = .clear
+            stone.zPosition = 0.2
+            addChild(stone)
+        }
+    }
+
+    /// 段ごとのテクスチャ（`BonsaiArt` の PNG をそのまま使う）。
     private func texture(for kind: FruitKind) -> SKTexture? {
         if let cached = textures[kind] { return cached }
-        let pixels = kind.radius >= FruitKind.kiwi.radius ? 512 : 256
-        guard let image = FruitArtCache.image(kind, pixels: pixels) else { return nil }
+        guard let image = BonsaiArt.image(kind) else { return nil }
         let texture = SKTexture(cgImage: image)
         texture.filteringMode = .linear
         textures[kind] = texture

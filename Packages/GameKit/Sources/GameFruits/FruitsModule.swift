@@ -1,7 +1,9 @@
 import Core
 import SwiftUI
 
-/// くっつきフルーツ（#1319）の `GameModule` 登録口。
+/// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の `GameModule` 登録口。
+///
+/// `id` は くっつきフルーツ時代の `fruits` のまま（記録・中断データ・解析の `game_id`・リーダーボード ID との互換。#2361）。
 ///
 /// 企画倉庫（`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」）の段階では
 /// `AppEnvironment.registry` への登録行がコメントアウトされている。出荷する版が決まったら
@@ -11,8 +13,8 @@ public struct FruitsModule: GameModule {
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。
     // `FruitsModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "fruits"
-    public var title: String { tr("くっつきフルーツ") }
-    public var description: String { tr("同じくだものをくっつけて、大きく育てよう") }
+    public var title: String { tr("おじさんの盆栽") }
+    public var description: String { tr("同じ盆栽をくっつけて、立派に育てよう") }
     public var icon: Image { Image(systemName: "leaf.circle.fill") }
 
     public init() {}
