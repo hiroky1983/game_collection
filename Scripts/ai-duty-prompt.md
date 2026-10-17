@@ -360,6 +360,9 @@ App Store で公開されたバージョンが `release/vX.Y.Z` に追いつい�
    （タグの push はブランチへの直接プッシュではないので可）。
 4. マイルストーン vX.Y.Z をクローズする（`gh api -X PATCH repos/hiroky1983/game_collection/milestones/<番号> -f state=closed`）。
    リリース Issue が残っていれば、取り込み・タグ・クローズの結果をコメントで記録する。
+5. その版の `[vX.Y.Z]【会長操作依頼】vX.Y.Z の実機確認と審査提出` Issue（`ops:chairman`）が開いていれば、
+   公開・取り込み・タグの結果をコメントしてクローズする（会長は提出したら閉じない運用で、公開後も開いたまま残っていた・
+   2026-10-17 #2140）。提出時点では閉じない（リジェクト対応が要るかもしれないため）。
 
 ## 3.5. 審査提出時の release ブランチ凍結（`-submitted` タグ + `lock_branch`）
 

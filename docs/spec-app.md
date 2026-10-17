@@ -76,6 +76,7 @@ Packages/GameKit/
     GameDiceCombo/      ← サイコロ役づくり（企画倉庫・#1752。1 人用。サイコロ 5 個を 1 ターン 3 回まで振り、12 役に 1 回ずつ記入。上段 63 点以上で +35・記録は合計点。「ヤッツィー / Yahtzee」は使わない）
     GameMancala/        ← マンカラ（企画倉庫・#1626。ハブの登録行はコメントアウト。1 人 対 CPU・2×6 穴・各 4 個・ストア付きの基本ルール。最後の種が自分のストアならもう一度・自分側の空の穴に入り向かいに種があれば取る・片側が空で終局し残りは各側のストアへ回収。CPU は `CPUStrength` 4 段階）
     GameHearts/         ← ハーツ（企画倉庫・#1884。ハブの登録行はコメントアウト。1 人 対 CPU 3 人。13 枚配り・左どなりへ 3 枚渡し・クラブの 2 から・ハート 1 点とスペードの Q 13 点を取らない・誰かが 50 点に届いた手で終了し合計の少ない人が勝ち。CPU は `CPUStrength` 4 段階）
+    GameYonmoku/        ← 四目並べ（企画倉庫・#1738。ハブの登録行はコメントアウト。1 人 対 CPU・横 7 列 × 縦 6 段の立てた盤。列を選ぶと石が一番下の空きに落ち、縦・横・斜めに 4 つで勝ち、42 マス埋まれば引き分け。先手（黒）・後手（白）を選べ、CPU は `CPUStrength` 4 段階（ビットボードの反復深化 αβ）。中断データは手順で保存し、手つかずの盤は保存しない。「Connect 4 / コネクトフォー」は他社の商品名なので使わない）
     GameOldMaid/        ← ババ抜き（企画倉庫・#1577。ハブの登録行はコメントアウト。あなた 1 人 対 CPU 3 人・53 枚（ジョーカー 1）・ペアを捨てて抜け、最後にジョーカーを持った人が負け。CPU は `CPUStrength` 4 段階）
     GameColorRelay/     ← いろリレー（企画倉庫・ハブ未登録。2026-09-24 時点・#1320。色合わせのカードゲーム（CPU 3 人と対戦）。108 枚＝4 色 × 25 枚（0 が 1 枚・1〜9 が 2 枚ずつ・とばし / ぎゃく / +2 が 2 枚ずつ）+ いろがえ 4 + いろがえ+4 の 4。場の札と同じ色か同じ数字・記号の札を出し、出せなければ山から 1 枚（出せればその札だけ出せる）。+2 / いろがえ+4 は積み重ね無しで、受けた自分の番に広告で 1 ゲーム 1 回だけ免除できる（`purpose: .revival`・手番の通し番号で局ガード）。記録は勝敗のみ（順位表無し）。CPU は難易度を持たない貪欲法。名称・札の意匠はオリジナル（白い角丸の窓 + SF Symbols + 2×2 の 4 色印）。`AppGameServices.registry` の登録行はコメントアウトで、出荷の版が決まったら外す）
     GameAnzan/          ← ぱっと暗算（v1.1.11 でハブに公開済み・#2050。以下は 2026-09-24 時点・#1321 の記述。数が 1 つずつ出ては消え、合計を暗算して入力する脳トレ。難易度は桁数（1〜3）・個数（5 / 10 / 15）・速さ（1.5 / 1 / 0.6 秒）の 3 軸を開始シートで独立に選び、問題の開始時に焼き込む。1 問 = 1 プレイで、記録は難易度の組（27 通り）ごとに正誤・連続正解・最速回答（`GameScore(metric: .winLoss, seconds:, variant:)`。順位表無し）。`game_start` の `level` は 3 軸の段の和を beginner / normal / hard / expert に丸める。広告救済は入力中の「もう一度見る」（1 問 1 回・`purpose: .hint`・問題の通し番号で局ガード。見直した問題は最速回答の記録から外す）。中断データは最後に選んだ難易度の控えだけで問題は復元しない（`resumesFromSnapshot = false` + `gameWillNotResume`）。表示の進行は Model が待ち時間を返し View の `.task(id: displayRun)` が待つだけで、テストは実時間を待たない。**表示名は「フラッシュ暗算」にしない**（登録第4801121号・株式会社グリーン・フィールド・第9類/第41類。`docs/aso/metadata-v1.1.1.md` §3 ⚠️）。`AppGameServices.registry` に登録済み・#2050）
@@ -484,6 +485,146 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 - 並び順・非表示設定は `UserDefaults` に保存 (キー: `gameOrder_v1`, `hiddenGames_v1`)
 - 新ゲーム追加時は末尾に自動追記
+- 「アプリを評価する」は `AppEnvironment.writeReviewURL`（`https://apps.apple.com/app/id6781719499?action=write-review`）を
+  `openURL` で開き、App Store のレビュー記入画面へ直接遷移する（#1471）。OS の `requestReview` は
+  上限（365 日で 3 回）に達すると何も出ないため、自分から押した人には使わない
+
+---
+
+## 多言語（#2109・v1.1.12）
+
+日本語（開発言語）と英語。**アプリ内で選んだ言語に、再起動なしで即時に切り替わる**。
+
+### 仕組み
+
+- **表示言語** `AppLanguage`（`ja` / `en`）と置き場 `AppLanguageStore.shared`（CoreEngine）。
+  - 初期値は端末の言語（`Locale.preferredLanguages` の先頭が日本語なら日本語、**それ以外はすべて英語**）。
+    設定画面で選ぶと `UserDefaults` のキー `appLanguage_v1` に保存し、以後はそれが勝つ。
+  - アプリ本体が起動時（`GameCollectionApp.init` の先頭）に `AppEnvironment.bootstrapLanguage()` で読み込む。
+    動作確認・英語のスクショ撮影は起動引数 `-appLanguage en`（その回だけ・保存しない）。
+  - **`swift test` は bootstrap しないので常に日本語**。日本語の文言を確かめている既存のテストは、
+    CI の macOS が英語でも結果が変わらない。英語を確かめるテストは `language: .english` を明示して引く。
+    テストから `AppLanguageStore.shared` を書き換えない（並列のテストが巻き込まれる）。
+- **文言の表** `StringTable`（CoreEngine）。モジュールごとに 1 つ、`Resources/Localization/Localizable.xcstrings`
+  （Xcode の String Catalog と同じ形式）を持ち、各モジュールの `Localization.swift` の
+  `let tr = StringTable(bundle: .module)` で引く（アプリ本体は `App/AppStrings.swift` の `bundle: .main` と
+  `App/Localization/Localizable.xcstrings`）。
+  - **キーは日本語の原文**。日本語のときはキーをそのまま返し、英語のときは表の `en` を返す。訳が無ければ日本語のまま。
+  - 表は**コンパイルせずに同梱して実行時に読む**（Package.swift は `.copy("Resources/Localization")`、
+    project.yml は folder 参照）。Xcode がコンパイルした `.lproj` はシステムの言語で引かれ、アプリ内で選んだ言語に
+    追従しないため。同じ JSON を `swift test` とアプリの両方で同じコードが読むので、英語の表示をテストで確かめられる。
+  - 即時の切り替えは Observation で行う。`tr(...)` は `AppLanguageStore.shared.language` を読むので、`body` の中で
+    文言を引いた View は言語を変えた瞬間に描き直される。根の `.appLanguageEnvironment()` が `\.locale` も配る
+    （数字・日付の書式とシステムの部品用）。
+- **システムの言語に従うもの**（アプリ内の選択は効かない）: ATT の説明文（`App/en.lproj/InfoPlist.strings`）・
+  通知の許可ダイアログなど OS が出す文言、ホーム画面のアプリ名、共有シート。予約済みの通知は**予約した時点の言語**のまま届く。
+
+### 新しい文言の足し方（②〜⑥とそれ以降の全員）
+
+1. ソースでは日本語をそのまま書かず、`tr("日本語の原文")` で引く。`Text(tr("設定"))`・`Button(tr("完了")) { … }`・
+   `Label(tr("ヒント"), systemImage: …)`・`.accessibilityLabel(tr("…"))` のように、`String` を受ける初期化子に渡す。
+   - 値を埋め込む文は**文字列補間を使わず書式にする**: `tr("「%@」が途中のままです", title)`（文字列は `%@`、
+     整数は `%lld`）。英語で語順が変わるなら訳文側で `%2$@ of %1$@` のように位置を指定する。
+   - 数で単語が変わる英語は、表の `en` を複数形（`variations.plural` の `one` / `other`）にする。最初の整数の引数で選ぶ。
+   - `static let x = "…"` は起動時の言語で固まるので `static var x: String { tr("…") }` にする。
+     `public` な関数の既定引数には `tr` を書けない（内部の宣言のため）。`String? = nil` にして本体で `?? tr("…")` にする。
+   - キーを変数で渡す（`tr(name)`）と、下の検査が訳し漏れを拾えない。表に載せるキーはリテラルで書く。
+2. そのモジュールの `Resources/Localization/Localizable.xcstrings` の `strings` に、キー（日本語の原文）と `en` の訳を足す。
+   Xcode で開けば String Catalog の画面で編集できる。JSON を直接書くときは既存の項目の形に合わせる
+   （`"extractionState" : "manual"` を付ける。表はコンパイルしないので、Xcode の自動抽出は働かない）。
+3. `swift test --package-path Packages/GameKit --filter LocalizationTests` で確かめる。落ちる条件:
+   ソースの `tr("…")` のキーが表に無い・英語の訳が無い／空／日本語が残っている・`%@` や `%lld` の種類と数が
+   原文と訳で食い違う・キーに文字列補間（`\(…)`）がある・モジュールに表や `tr` が無い／Package.swift で同梱していない。
+4. 英語は日本語より横に長い。1 行に収める所（`lineLimit(1)`・幅が固定の枠）は `minimumScaleFactor` か、
+   `ViewThatFits` で短い言い回しに切り替える形にして、SE（幅 375pt）で確かめる。
+
+### 遊び方の文言（#2165）
+
+- 遊び方の本文（`Core/HowToPlay.swift` の `HowToPlayGuide`：題名・3 行ルール・ミニガイド・図入りの項目・補足）は
+  **Core の表**で引く。各ガイドは `static var x: HowToPlayGuide { HowToPlayGuide(…) }`（計算型）にしてあり、
+  言語を切り替えると「？」のシートも引き直される。新しいガイドや項目も同じ形で `tr("…")` に書く。
+- 図の中の文字（`*HowToFigures.swift`）と、モード選択シートの説明（荷物運びパズルの `OjisanPuzzleSetupSheet`）は
+  **そのゲームのモジュールの表**で引く。図の文字を `static let` に入れると最初の言語で固まるので、配列や段階の
+  定義も `static var`（計算型）にする。
+- `HowToPlayLocalizationTests` が、全部のガイド（`all` に入らない出し分け用の版を含む）の文に英語の訳があることを確かめる。
+- 訳語は各ゲームの表の既存訳に揃える（例: オセロ → Reversi、ナンプレ → Number Place、組札 → foundation、
+  腰痛ゲージ → Back Pain）。将棋の駒の名前は英語（Pawn・Gold・King…）で書き、盤の駒は漢字のまま
+  （対応表は「くわしいルール」）。
+
+### 数字・単位・記録の表記（#2168）
+
+数と単位・「ベスト」「最短」をつなげて文にする所は、**語順ごと文言の表の書式で組む**（英語は語順も単位も変わる）。
+記録の 1 行（ハブ・リザルト・共有）は `RecordFormat`（CoreEngine）に集約してあり、各関数は `language:` を省略すると
+いまの表示言語で出す。日本語の表記は #2168 の前と 1 文字も変えていない（`RecordFormatLocalizationTests` が
+前の実装の写しとあらゆる記録の組み合わせで突き合わせる）。
+
+| 表記 | 日本語 | 英語 | 使うもの |
+|------|------|------|------|
+| 時間 | `1:23` / `1:02:05` | 同じ | `RecordFormat.time` |
+| 数 | `12,340` | 同じ | `RecordFormat.number`（整形してから `%@` で渡す） |
+| 順位 | `1位` | `1st` `2nd` `3rd` `11th` `21st` | `RecordFormat.rank` |
+| 距離 | `1,234 m` | 同じ（数と m の間に空白） | 数は `RecordFormat.number` |
+| 回数・手数 | `3回` `24手` | `3 plays` `24 moves`（単数は `1 play`） | 表の複数形 |
+| 勝敗 | `3勝5敗1分` | `3W 5L 1D` | `RecordFormat.hubLine` / `resultLine` |
+
+- **桁区切りの数は `%lld` にしない**（日本語の表示が変わるため `RecordFormat.number` で整形して `%@`）。
+  英語の単数・複数は、表の `en` を複数形にすれば整形済みの「1,234」でも選ばれる（`StringTable` が整数の引数が
+  無いときは数字だけの文字列引数を数として読む）。
+- 英語の序数は 4 通りに分かれ、表の複数形（one / other）で表せないので、文言の表ではなく `RecordFormat.rank` で組む。
+- 区分の表示名（`PlayRecord.variantLabel`・「初級」など）は記録に保存された文字列をそのまま出す（`RecordFormat` では訳さない）。
+
+### 訳し漏れの機械チェック（#2169）
+
+`python3 Scripts/check-untranslated-ja.py` が、App と GameKit の Swift ソースから **`tr("…")` を通していない日本語の
+文字列リテラル**を洗い出す（残りがあれば終了コード 1）。あわせて `tr` のキーと表の対応（上の 3. と同じ規則）も見る。
+`--summary` でファイルごとの件数。検査自体のテストは `bash Scripts/tests/test-check-untranslated-ja.sh`。
+
+- 数えないもの: コメント、`tr` のキー、開発者にしか見えない文（`precondition`・`assert`・`fatalError`・`print`・
+  `debugDescription:` の引数）、`#Preview` の中。
+- **訳さないと決めたもの**は、行末（か直前の行）に `// i18n-keep: 理由` を書く。カードしりとりの単語・かな、
+  牌や駒の絵柄の文字、言語の自称（「日本語」）など。
+- ファイル単位の除外と、別の issue が**担当中**の範囲は `Scripts/i18n-check-exclusions.txt`。担当中の範囲は既定では
+  数えず件数だけ出す（`--include-in-progress` で数える）。担当の PR がマージされたら、その行を消して 0 件を確かめる。
+- **記録の区分名**（`GameScore(variantLabel:)`）は、保存した文字列をそのまま出さず、記録の保存先のキー
+  （`sudoku#normal`。`PlayRecord.recordKey`・保存しない）から表示のたびに引き直す（`CoreEngine/RecordVariantLabels.swift`・#2199）。
+  新しい区分を足すときはこの表にキーと訳を足す。ゲームが保存する区分名（日本語）も `RecordVariantLabels.stored` で同じ表から作る。
+  引けないキーだけ、保存済みの `variantLabel` にフォールバックする。
+
+**訳さないもの**: 解析イベント名とパラメータ（`game_start` 等・`game_id`）、`UserDefaults` の保存キー、中断データの鍵、
+Game Center の ID。英語の訳文には他社の商標名を入れない（既存の日本語の文に入っている場合も英語では言い換える）。
+新しいモジュール（ゲーム）を足すときは、`Resources/Localization/Localizable.xcstrings`（中身が空の表でよい）・
+`Localization.swift`・Package.swift の `.copy("Resources/Localization")` の 3 点も一緒に足す（検査が要求する）。
+
+---
+
+## 評価リクエスト（`ReviewRequestPolicy`・#53 / #1471・v1.1.7）
+
+勝ちの中でも「見せ場」の直後にだけ、OS の評価ダイアログ（`requestReview`）を依頼する。
+判定は `ReviewRequestPolicy`（純粋関数）、予定と記録は `ReviewRequestService`、
+決着の入口は `GameServices.gameDidFinish`（`isReviewHighlight` 引数）に集約している。
+
+| 条件 | 内容 |
+|------|------|
+| 1 | 勝利・クリアの直後、かつ**見せ場**のみ（下表）。勝利数は見せ場でなくても従来どおり数える |
+| 2 | 通算 5 勝するまでは出さない |
+| 3 | 前回から **60 日**以上（#1471 で 120 日から短縮） |
+| 4 | 前回から +20 勝以上 |
+| 5 | 同一バージョンでは 1 回まで |
+| 6 | リザルト表示の 1.0 秒後（進行中には出さない） |
+
+**見せ場**: 全ゲーム共通で「得点・最高値・時間・手数の自己ベストを更新した」（連勝記録は含めない）。
+加えて、次のゲームは勝ちの中でも絞る。表に無いゲームは「勝った・クリアした」がそのまま見せ場（既定）。
+
+| ゲーム | 見せ場 |
+|------|------|
+| ブラックジャック | 最初の 2 枚で 21（ブラックジャック）で勝った |
+| ポーカー | スリーカード以上の役で勝った |
+| 将棋・チェス・囲碁・オセロ・五目並べ | 「ふつう」以上の CPU に勝った（`CPUStrength.isReviewWorthy`。人間同士は含まない） |
+| 麻雀（4 人打ち）・大富豪 | 1 位で終えた（＝勝ち。既定のまま） |
+| 2048 | 2048 のタイルを作った（＝勝ち。既定のまま） |
+
+禁止: 独自の「楽しんでいますか？」画面で振り分けてから OS の評価に回すこと（ガイドライン違反のおそれ）、
+評価と引き換えの特典。
 
 ---
 
@@ -873,7 +1014,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 | 種別 | 配置 |
 |------|------|
-| バナー (320×50 適応型) | ハブ画面・各ゲーム画面の最下部（例外は下記） |
+| バナー (320×50 適応型) | ハブ画面・各ゲーム画面の最下部（柵越えおじさんの週間ランキング画面も同じ。ゲーム終わり・打席前の両方から開く `HomerunWeeklyRankingScreen` 共通・#2221） |
 | ミディアムレクタングル (300×250) | 柵越えおじさんの「記録と実績」ページの記録と実績のあいだに 1 枠（このページは下部バナーなし・会長決裁 2026-10-04） |
 | リワード | ほぼ全ゲーム共通の「救済」導線（`RewardedRescue` 経由。下表） |
 

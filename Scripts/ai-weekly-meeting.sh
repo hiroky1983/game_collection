@@ -25,6 +25,14 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 
+# 月曜以外は起動しない（2026-10-17）。plist は Weekday=1 だが、2026-10-16（金）02:00 に launchd が起動して
+# 週次レポート #2316 が金曜に出た。原因が launchd 側で特定できないため、スクリプト側で曜日を確かめる。
+# 手で回したいときは WEEKLY_FORCE=1 を付ける。
+if [ "${WEEKLY_FORCE:-0}" != 1 ] && [ "$(date +%u)" != 1 ]; then
+  log "月曜以外のため起動しない（$(date +%A)）"
+  exit 0
+fi
+
 # タイムアウト付き fetch（自己更新・本更新の両方から使う共通処理）。
 # パターンは ai-management-duty.sh の fetch_with_timeout と同一（詳細な理由もそちらを参照）。
 fetch_with_timeout() {
