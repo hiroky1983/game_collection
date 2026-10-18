@@ -404,13 +404,13 @@ public struct ChessView: View {
                     let rankSquare = squareIndex(row: i, col: 0)
                     let fileSquare = squareIndex(row: 7, col: i)
                     Text(ChessSquare.name(rankSquare).suffix(1))
-                        .font(.system(size: max(7, cell * 0.20), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                        .font(.system(size: max(10, cell * 0.24), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .foregroundStyle(ChessBoardStyle.coordinate(onLight: ChessSquare.isLightSquare(rankSquare)))
-                        .position(x: slot * 0.18, y: slot * (CGFloat(i) + 0.18))
+                        .position(x: slot * 0.15, y: slot * (CGFloat(i) + 0.16))
                     Text(ChessSquare.name(fileSquare).prefix(1))
-                        .font(.system(size: max(7, cell * 0.20), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                        .font(.system(size: max(10, cell * 0.24), weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                         .foregroundStyle(ChessBoardStyle.coordinate(onLight: ChessSquare.isLightSquare(fileSquare)))
-                        .position(x: slot * (CGFloat(i) + 0.84), y: slot * 7.84)
+                        .position(x: slot * (CGFloat(i) + 0.86), y: slot * 7.85)
                 }
             }
         }
