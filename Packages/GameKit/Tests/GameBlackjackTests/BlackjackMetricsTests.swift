@@ -62,7 +62,7 @@ struct BlackjackMetricsTests {
             "tr(\"ヒット\")",
             "tr(\"ダブルダウン\")",
             "tr(\"スプリット\")",
-            "tr(\"次のゲーム\")",
+            "tr(\"もう一回\")",
             "tr(\"結果まで進める\")",
         ] {
             let pattern = #"actionButton\(\s*"# + NSRegularExpression.escapedPattern(for: label)

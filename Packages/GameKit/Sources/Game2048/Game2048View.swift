@@ -271,7 +271,7 @@ public struct Game2048View: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Fill.coral)
-                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
+                Button(tr("もう一回")) { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)
                     .tint(.white)
             }
@@ -290,7 +290,7 @@ public struct Game2048View: View {
             rescue: continueRescue, services: services, gameID: model.gameID,
             serial: model.gameSerial,
             grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
-            secondaryTitle: tr("もう一度"),
+            secondaryTitle: tr("もう一回"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }

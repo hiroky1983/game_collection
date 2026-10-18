@@ -386,7 +386,7 @@ public struct OldMaidView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton(tr("次のゲーム"), role: .primary) {
+            actionButton(tr("もう一回"), role: .primary) {
                 model.startGame()
                 runCPU()
             }

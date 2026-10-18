@@ -467,6 +467,23 @@ struct GameReplayBarTests {
         #expect(GameReplayBarText.changeSettings == "設定を変える")
     }
 
+    /// 終局後ボタンの語は 2 つだけ（#2482）。続けて遊ぶ＝「もう一回」、進行を捨てて最初から＝「はじめから」。
+    /// 「もう一度」「次のゲーム」「最初から」が画面のボタンに戻ってこないこと。
+    /// マンカラの「もう一度」は遊び方の用語（もう一度続けてまける）なので対象外。
+    @Test("終局後ボタンの語は「もう一回」「はじめから」に揃っている")
+    func replayButtonWordsAreUnified() throws {
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let modules = try FileManager.default.contentsOfDirectory(atPath: sources.path)
+            .filter { $0.hasPrefix("Game") && $0 != "GameMancala" }
+        #expect(modules.count > 20)
+        for module in modules {
+            let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+            for old in ["もう一度", "次のゲーム", "最初から"] {
+                #expect(!source.contains("tr(\"\(old)\""), "\(module) の画面に「\(old)」が残っている（「もう一回」「はじめから」に揃える）")
+            }
+        }
+    }
+
     /// 9 本が自作のボタンではなく共通部品に乗っていて、「同じ条件」の始め直しを持つこと。
     /// 文言・見た目はこの部品が持つので、画面側に「もう一度」「次のゲーム」が残っていないこと。
     @Test("9 本は GameReplayBar に乗り、終局後に自作の「もう一度」を持たない",

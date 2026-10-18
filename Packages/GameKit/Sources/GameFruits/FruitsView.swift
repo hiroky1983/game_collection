@@ -226,7 +226,7 @@ public struct FruitsView: View {
             rescue: continueRescue, services: services, gameID: FruitsModel.gameID,
             serial: model.gameSerial,
             grant: { game in model.continueAfterAd(forGame: game) },
-            secondaryTitle: tr("もう一度"),
+            secondaryTitle: tr("もう一回"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }

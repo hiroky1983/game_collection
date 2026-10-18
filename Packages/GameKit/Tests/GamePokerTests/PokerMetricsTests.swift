@@ -56,7 +56,7 @@ struct PokerMetricsTests {
             "\"フォールド\"",
             "tr(\"コール %lld枚\", model.currentBet)",
             "tr(\"%lld枚を交換\", count)",
-            "\"次のゲーム\"",
+            "tr(\"もう一回\")",
         ] {
             let pattern = #"actionButton\([^\n]*"# + NSRegularExpression.escapedPattern(for: label)
             #expect(

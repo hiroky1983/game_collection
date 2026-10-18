@@ -759,7 +759,7 @@ public struct OjisanPuzzleView: View {
             Button {
                 withGameAnimation { model.newGame() }
             } label: {
-                Text(tr("もう一度"))
+                Text(tr("もう一回"))
                     .scaledFont(17, weight: .bold, design: .rounded, maxScale: 1.4)
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 28).padding(.vertical, 12)

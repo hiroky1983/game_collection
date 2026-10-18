@@ -541,24 +541,24 @@
         }
       }
     },
-    "最初から" : {
+    "はじめから" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start Over"
+            "value" : "Restart"
           }
         }
       }
     },
-    "次のゲーム" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Next Game"
+            "value" : "Play Again"
           }
         }
       }

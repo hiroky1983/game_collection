@@ -580,7 +580,7 @@ public struct MahjongView: View {
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
             // 復活・延長の広告を読み込んでいる間は局を捨てさせない（#1381）。
-            actionButton(tr("もう一度"), role: .primary, disabled: isWatchingRescueAd) {
+            actionButton(tr("もう一回"), role: .primary, disabled: isWatchingRescueAd) {
                 model.startGame()
                 runCPU()
             }

@@ -326,7 +326,7 @@ public struct BackgammonView: View {
         HStack(spacing: 12) {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
-                Label(tr("もう一度"), systemImage: "arrow.clockwise")
+                Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
             Spacer(minLength: 0)
