@@ -95,3 +95,12 @@ struct DiceComboModuleTests {
         #expect(DiceComboText.rule(.threes) == "3の目の合計")
     }
 }
+
+@Suite("サイコロ役づくりの得点表")
+@MainActor
+struct DiceComboScoreRowSizeTests {
+    @Test("役を選ぶと取り消せないので、得点表の行は 44pt 以上（Issue #2491）")
+    func rowHeightIsAtLeast44() {
+        #expect(DiceComboScoreRow.height >= 44)
+    }
+}
