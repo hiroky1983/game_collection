@@ -193,6 +193,17 @@
         }
       }
     },
+    "、" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        }
+      }
+    },
     "あなた" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -22,6 +22,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: 訳し漏れの検査（#2402）
+        run: python3 Scripts/check-untranslated-ja.py
+
       # 将棋の自己対戦テスト（SelfPlayTests）は決定的だがCIの中で最も重い1本（実測304秒）で、
       # 将棋AI強化は中止済み（2026-08-10決裁）のためソースが変わる見込みが低い。
       # nightly-shogi-selfplay.yml へ分離する（#1039）。
