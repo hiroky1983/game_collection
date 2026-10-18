@@ -756,6 +756,8 @@ struct ChessCell: View {
     let isLight: Bool
     let isSelected: Bool
     let isLastMove: Bool
+    /// 「色なしで区別」の設定。ON のとき、直前手・選択中に色以外の印を足す（#2486）。
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         ZStack {
@@ -765,6 +767,9 @@ struct ChessCell: View {
             }
             if isSelected {
                 Rectangle().fill(Theme.yellow.opacity(0.6))
+            }
+            if differentiateWithoutColor {
+                BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
             }
         }
         .frame(width: size, height: size)
