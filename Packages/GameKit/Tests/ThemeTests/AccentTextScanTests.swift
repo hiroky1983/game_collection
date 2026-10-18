@@ -86,3 +86,55 @@ struct AccentTextScanTests {
         #expect(!Self.isOffending("    .foregroundStyle(Theme.Fill.yellow)"))
     }
 }
+
+/// `.borderedProminent` は既定で白文字。`Theme.Fill.*` の面に載せるときは、ラベル側で `Theme.onAccent` を付ける（#2478・#220 の漏れ）。
+///
+/// 見るのは行単位: `.buttonStyle(.borderedProminent)` の直後 4 行以内に `.tint(Theme.Fill.` があるボタンについて、
+/// その `.buttonStyle` の直前 8 行以内に `Theme.onAccent` があること。
+struct ProminentButtonOnAccentScanTests {
+
+    static func offenders(in lines: [Substring]) -> [Int] {
+        var result: [Int] = []
+        for (index, line) in lines.enumerated() where line.contains(".buttonStyle(.borderedProminent)") {
+            let after = lines[index..<min(lines.count, index + 5)]
+            guard after.contains(where: { $0.contains(".tint(Theme.Fill.") }) else { continue }
+            let before = lines[max(0, index - 8)..<index]
+            if !before.contains(where: { $0.contains("Theme.onAccent") }) { result.append(index + 1) }
+        }
+        return result
+    }
+
+    @Test(".borderedProminent + Theme.Fill の面には Theme.onAccent の文字を付ける")
+    func prominentButtonsUseOnAccent() throws {
+        let roots = [
+            SourceScan.packageRoot.appendingPathComponent("Sources"),
+            SourceScan.repositoryRoot.appendingPathComponent("App"),
+        ]
+        var offenders: [String] = []
+        var scanned = 0
+        for root in roots {
+            let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            for case let file as URL in enumerator where file.pathExtension == "swift" {
+                let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false)
+                scanned += 1
+                offenders += Self.offenders(in: lines).map { "\(file.path):\($0)" }
+            }
+        }
+        #expect(scanned > 100)
+        #expect(offenders.isEmpty, """
+            .borderedProminent の既定は白文字で、Theme.Fill の面では AA に届かない。
+            ラベルに .foregroundStyle(Theme.onAccent) を付ける（#220・#2478）。
+            \(offenders.joined(separator: "\n"))
+            """)
+    }
+
+    @Test("判定は onAccent の無い prominent ボタンだけを落とす")
+    func detectionRules() {
+        let bad = ["Button(action: a) {", "    Text(t)", "}", ".buttonStyle(.borderedProminent)", ".tint(Theme.Fill.coral)"].map { Substring($0) }
+        #expect(Self.offenders(in: bad) == [4])
+        let good = ["Button(action: a) {", "    Text(t).foregroundStyle(Theme.onAccent)", "}", ".buttonStyle(.borderedProminent)", ".tint(Theme.Fill.coral)"].map { Substring($0) }
+        #expect(Self.offenders(in: good).isEmpty)
+        let other = [".buttonStyle(.borderedProminent)", ".tint(Theme.ink)"].map { Substring($0) }
+        #expect(Self.offenders(in: other).isEmpty)
+    }
+}

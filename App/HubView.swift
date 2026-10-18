@@ -966,10 +966,12 @@ private struct HubEmptyStateView: View {
                 .themeCaption(15)
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
-            Button(HubEmptyState.buttonTitle, action: openSettings)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(Theme.Fill.coral)
+            Button(action: openSettings) {
+                Text(HubEmptyState.buttonTitle).foregroundStyle(Theme.onAccent)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(Theme.Fill.coral)
         }
         .frame(maxWidth: .infinity)
         .padding(Theme.pad)
