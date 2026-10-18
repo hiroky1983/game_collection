@@ -590,7 +590,7 @@ private struct SideBySide<Left: View, Right: View>: View {
 private enum Situation: String, CaseIterable {
     /// 2 ゲーム目の途中: 場に CPU2 の 9 のペア、手札 8 枚、J のペアを選んで「2枚出す」が押せる。
     case mid
-    /// 配った直後: 手札 14 枚（7 列 × 2 段）、場は流れている。
+    /// 配った直後: 手札 14 枚（7 列 × 2 段）、場は流れている。人間が ♦3 を持っていて親（1 ゲーム目の最初の手番）。
     case deal
 }
 
@@ -629,10 +629,19 @@ struct LayoutMock2431Tests {
                 lastActions: ["5", "6", "9 9", "パス"])
             selected = [card(.spades, 11), card(.hearts, 11)]
         case .deal:
-            var rng = SeededGenerator(seed: 2431)
-            let deck = DaifugoCard.makeDeck().shuffled(using: &rng)
-            var hands = Array(repeating: [DaifugoCard](), count: DaifugoModel.playerCount)
-            for (i, c) in deck.enumerated() { hands[i % DaifugoModel.playerCount].append(c) }
+            // 1 ゲーム目の親は ♦3 の持ち主（`DaifugoModel.openingPlayer()`）。人間が親になる配りを、
+            // 2431 から順に試して最初に見つかった種で固定する（人間は最初に配られるので常に 14 枚）。
+            var hands: [[DaifugoCard]] = []
+            var seed: UInt64 = 2431
+            while true {
+                var rng = SeededGenerator(seed: seed)
+                let deck = DaifugoCard.makeDeck().shuffled(using: &rng)
+                hands = Array(repeating: [DaifugoCard](), count: DaifugoModel.playerCount)
+                for (i, c) in deck.enumerated() { hands[i % DaifugoModel.playerCount].append(c) }
+                if hands[DaifugoModel.humanIndex].contains(card(.diamonds, 3)) { break }
+                seed += 1
+            }
+            print("deal seed: \(seed)")
             snapshot = DaifugoSnapshot(
                 hands: hands.map { $0.sorted { $0.sortKey < $1.sortKey } },
                 field: [], fieldOwner: nil,
