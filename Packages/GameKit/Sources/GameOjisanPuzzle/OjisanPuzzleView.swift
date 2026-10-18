@@ -488,6 +488,17 @@ public struct OjisanPuzzleView: View {
             }
             // マスの中身が替わるたびに空き⇄荷物がクロスフェードして点滅して見えるので、盤の中は補間しない（#1946）。
             .transaction { $0.animation = nil }
+            // VoiceOver ではドラッグもタップもできないので、同じ操作をアクションで出す（#2490）。
+            // マス単位の荷物は読み上げず、落下中の組の位置を値で伝える。覆い・バナーは別要素のまま残す。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tr("荷物の盤"))
+            .accessibilityValue(boardAccessibilityValue)
+            .accessibilityAction(named: tr("左へ")) { if canOperate { model.move(by: -1) } }
+            .accessibilityAction(named: tr("右へ")) { if canOperate { model.move(by: 1) } }
+            .accessibilityAction(named: tr("回す")) {
+                if canOperate { withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) } }
+            }
+            .accessibilityAction(named: tr("落とす")) { if canOperate { model.softDrop() } }
             .padding(Self.boardInset)
             .frame(width: geo.size.width, height: geo.size.height)
             .background {
@@ -515,6 +526,16 @@ public struct OjisanPuzzleView: View {
             .onChange(of: cell, initial: true) { _, newValue in cellSide = newValue }
         }
         .aspectRatio(CGFloat(OjisanPuzzleBoard.columns) / CGFloat(OjisanPuzzleBoard.rows), contentMode: .fit)
+    }
+
+    /// ドラッグと同じ条件で、操作を受け付けてよいか。
+    private var canOperate: Bool { model.outcome == nil && !showSetup && !model.isUserPaused }
+
+    /// 落下中の組の位置（左から何列目・何と何か）。落下中でなければ空。
+    private var boardAccessibilityValue: String {
+        guard let pair = model.current, model.outcome == nil else { return "" }
+        let names = [pair.axisKind, pair.childKind].map { OjisanPuzzleLuggage.kind($0)?.name ?? "" }
+        return tr("落下中 左から%1$lld列目（%2$@と%3$@）", pair.col + 1, names[0], names[1])
     }
 
     /// マスが並ぶ領域の左上。盤の枠は 1:2 固定で中身は枠の中央に置かれるため、余りぶんの上下左右のずれを含めて求める。
