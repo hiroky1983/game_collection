@@ -186,6 +186,13 @@ public struct RouletteView: View {
             }
         }
         .frame(maxWidth: diameter * 0.5)
+        .onChange(of: model.phase) { _, phase in
+            // 止まった瞬間に出目と収支を 1 回だけ読み上げる（回転中は読まない・#2479）。
+            guard phase == .result, let number = model.winningNumber, let settlement = model.lastSettlement else { return }
+            AccessibilityNotification.Announcement(
+                [tr("%1$lld・%2$@", number, colorName(of: number)), netLabel(settlement.net)].joined(separator: tr("。"))
+            ).post()
+        }
         // 修飾子は 1 つのビューに 1 つだけ置く（入れ子にすると打ち消し合う・#199）。
         .gameAnimation(RouletteMotion.resultBadge, value: model.phase)
     }

@@ -357,6 +357,9 @@ public struct RewardedContinueOverlay<Detail: View>: View {
         // 幕が出ている間が提示。使い切った局（`canContinue` が false）の幕は広告を選ばせていない（#780）。
         .rewardOffer(continueRescue, for: .continue, isPresented: canContinue,
                      services: services, gameID: gameID)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(title)
     }
 }
 

@@ -276,6 +276,9 @@ public struct Game2048View: View {
                     .tint(.white)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(tr("2048 達成！"))
     }
 
     private var gameOverOverlay: some View {
