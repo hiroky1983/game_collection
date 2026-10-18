@@ -871,17 +871,6 @@
         }
       }
     },
-    "一時停止中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paused"
-          }
-        }
-      }
-    },
     "二段ジャンプ" : {
       "extractionState" : "manual",
       "localizations" : {

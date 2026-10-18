@@ -734,13 +734,13 @@
         }
       }
     },
-    "ニューレコード！" : {
+    "自己ベスト更新！" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "New Record!"
+            "value" : "New Personal Best!"
           }
         }
       }
@@ -808,17 +808,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "BEST"
-          }
-        }
-      }
-    },
-    "ベスト更新！" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Best!"
           }
         }
       }

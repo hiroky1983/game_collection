@@ -368,7 +368,7 @@ public struct GomokuView: View {
                 TurnBadge(isYourTurn: model.currentStone == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
         } trailing: {

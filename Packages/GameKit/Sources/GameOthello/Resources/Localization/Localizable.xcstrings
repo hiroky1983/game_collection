@@ -23,6 +23,17 @@
         }
       }
     },
+    "CPU思考中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU thinking…"
+          }
+        }
+      }
+    },
     "1手先だけ読む" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -695,8 +695,10 @@ struct PokerReviveUnevenTableTests {
 
         #expect(rounds > 0, "復活直後に 1 局も始められない")
         if model.sessionOver {
-            // どちらが尽きても、復活はもう使えない（1 セッション 1 回）。
-            #expect(!model.canReviveAfterBust)
+            // 復活は 1 セッション maxRevivesPerSession 回まで。1 回使った後は残りがあるので、
+            // 自分が尽きたときだけ再び復活できる（CPU が尽きた＝自分の勝ちなら出ない）。
+            #expect(model.revivesRemaining == PokerModel.maxRevivesPerSession - 1)
+            #expect(model.canReviveAfterBust == (model.sessionWinner == .cpu))
             switch model.sessionWinner {
             case .cpu:    #expect(model.playerChips < 10)
             case .player: #expect(model.cpuChips < 10)

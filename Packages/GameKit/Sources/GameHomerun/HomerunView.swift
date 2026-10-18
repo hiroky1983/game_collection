@@ -325,7 +325,7 @@ struct HomerunResultView: View {
                 HStack(spacing: 6) {
                     chip(tr("柵越え %lld 本", homers), systemImage: "flag.checkered", fill: Theme.Fill.yellow)
                     if model.isNewBest {
-                        chip(tr("ベスト更新！"), systemImage: nil, fill: Theme.Fill.pink)
+                        chip(tr("自己ベスト更新！"), systemImage: nil, fill: Theme.Fill.pink)
                     }
                 }
             }

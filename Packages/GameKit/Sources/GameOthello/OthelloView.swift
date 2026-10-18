@@ -117,6 +117,7 @@ public struct OthelloView: View {
                 TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
         } trailing: {

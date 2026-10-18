@@ -310,13 +310,13 @@
         }
       }
     },
-    "思考中…" : {
+    "CPU思考中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thinking…"
+            "value" : "CPU thinking…"
           }
         }
       }

@@ -696,7 +696,7 @@ public struct PokerView: View {
 
     /// やり直しの文言。復活の枚数と並べて読めるように、こちらにも枚数を出す（#523・ブラックジャックと揃える）。
     private var restartButtonTitle: String {
-        tr("もう一度はじめる (%lld枚)", PokerModel.initialChips)
+        tr("最初からやり直す (%lld枚)", PokerModel.initialChips)
     }
 
     /// セッション終了の見出し下の説明。**自分が負けた回だけ**、復活を使い切ったことを書き添える

@@ -441,17 +441,6 @@
         }
       }
     },
-    "一時停止中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paused"
-          }
-        }
-      }
-    },
     "下にスワイプ" : {
       "extractionState" : "manual",
       "localizations" : {
