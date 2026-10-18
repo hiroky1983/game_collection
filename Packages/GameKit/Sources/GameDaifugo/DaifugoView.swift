@@ -354,7 +354,7 @@ public struct DaifugoView: View {
                     waiveExchangeButton
                 }
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
-                actionButton(tr("次のゲーム"), role: .primary, disabled: waiveRescue.isWatching) {
+                actionButton(tr("もう一回"), role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
                     runCPU()
                 }

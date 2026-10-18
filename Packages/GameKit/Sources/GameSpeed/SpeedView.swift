@@ -338,7 +338,7 @@ public struct SpeedView: View {
         case .result:
             VStack(spacing: 10) {
                 Button { withGameAnimation { model.restart() } } label: {
-                    Label(tr("もう一度"), systemImage: "arrow.counterclockwise.circle.fill")
+                    Label(tr("もう一回"), systemImage: "arrow.counterclockwise.circle.fill")
                         .themeBody(17).frame(maxWidth: .infinity)
                         .foregroundStyle(Theme.onAccent)
                 }

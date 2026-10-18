@@ -267,7 +267,7 @@ public struct DiceComboView: View {
                     .foregroundStyle(.white)
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 Button { withGameAnimation { model.newGame() } } label: {
-                    Text(tr("もう一度")).foregroundStyle(Theme.onAccent)
+                    Text(tr("もう一回")).foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

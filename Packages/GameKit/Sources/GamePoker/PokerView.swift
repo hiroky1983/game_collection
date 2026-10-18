@@ -561,7 +561,7 @@ public struct PokerView: View {
             // ダブルアップの決着待ちの間は記録がまだ確定していない（#496）。確定してから出す。
             if !model.awaitsDoubleUp {
                 RecordLabel(model.recordResult)
-                actionButton(tr("次のゲーム"), role: .primary) {
+                actionButton(tr("もう一回"), role: .primary) {
                     revealCPU = false
                     if hasPlayedOnce {
                         model.startGame()

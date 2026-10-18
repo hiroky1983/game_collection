@@ -532,13 +532,13 @@
         }
       }
     },
-    "次のゲーム" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Next Round"
+            "value" : "Play Again"
           }
         }
       }

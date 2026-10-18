@@ -528,7 +528,7 @@ public struct RunnerView: View {
     /// 足されても、「もう一度」の見た目は変えない（会長 QA 2026-09-28「広告のボタンと色を分ける」「同じ機能なのに
     /// 50% の前後でデザインが違うのはおかしい」）。
     private var retryButton: some View {
-        GameDeadEndDismissButton(tr("もう一度"), isDisabled: resumeRescue.isWatching) {
+        GameDeadEndDismissButton(tr("もう一回"), isDisabled: resumeRescue.isWatching) {
             model.retryStage()
         }
     }
@@ -703,7 +703,7 @@ public struct RunnerView: View {
     }
 
     private var replayButton: some View {
-        GameDeadEndDismissButton(tr("このステージをもう一度")) { model.replayCurrentStage() }
+        GameDeadEndDismissButton(tr("このステージをもう一回")) { model.replayCurrentStage() }
     }
 
     /// 一時停止・全ステージクリアから「はじめから」。ツールバーの同名ボタンと同じく

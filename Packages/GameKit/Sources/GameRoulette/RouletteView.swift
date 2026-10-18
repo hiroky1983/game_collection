@@ -616,7 +616,7 @@ public struct RouletteView: View {
                 actionButton(tr("同じ賭けでもう一度"), color: Theme.Fill.yellow) {
                     model.repeatLastBets()
                 }
-                actionButton(tr("次のゲーム"), color: Theme.Fill.coral) {
+                actionButton(tr("もう一回"), color: Theme.Fill.coral) {
                     model.nextRound()
                 }
             }

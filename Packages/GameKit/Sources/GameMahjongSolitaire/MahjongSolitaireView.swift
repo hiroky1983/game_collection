@@ -194,7 +194,7 @@ public struct MahjongSolitaireView: View {
             // 取り切れない残り方だけを理由にしない（#815）。
             unavailable: RewardUnavailableAlert(
                 title: tr("並べ替えられませんでした"),
-                message: tr("広告を見ているあいだに新しい盤面が配られたか、残った牌が重なっていて取り切れません。取り切れないときは「最初から」で新しい盤面を配ってください。")
+                message: tr("広告を見ているあいだに新しい盤面が配られたか、残った牌が重なっていて取り切れません。取り切れないときは「はじめから」で新しい盤面を配ってください。")
             )
         )
         // ヒントもリワード広告制（#336）。確認ダイアログは `HintAlerts` にまとめてある
@@ -523,7 +523,7 @@ public struct MahjongSolitaireView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
+                Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
         }
@@ -613,7 +613,7 @@ public struct MahjongSolitaireView: View {
                 }
             }
 
-            GameDeadEndDismissButton(tr("最初から")) {
+            GameDeadEndDismissButton(tr("はじめから")) {
                 model.giveUpAndRestart()
             }
         }

@@ -452,7 +452,7 @@ public struct BlackjackView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
-            actionButton(tr("次のゲーム"), role: .primary) {
+            actionButton(tr("もう一回"), role: .primary) {
                 model.nextRound()
             }
         }

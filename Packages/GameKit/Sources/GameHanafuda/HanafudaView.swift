@@ -32,7 +32,7 @@ public struct HanafudaView: View {
                     // 下の操作エリアに置くと、この枠が残り高さを取るぶんボタンが広告の直上へ押し下げられて誤タップを招く。
                     VStack(spacing: 8) {
                         matchResultCard
-                        actionButton(tr("もう一度"), role: .primary) { model.restartMatch() }
+                        actionButton(tr("もう一回"), role: .primary) { model.restartMatch() }
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .transition(.opacity)

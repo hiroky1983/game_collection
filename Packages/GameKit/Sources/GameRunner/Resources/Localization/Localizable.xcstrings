@@ -233,7 +233,7 @@
         }
       }
     },
-    "このステージをもう一度" : {
+    "このステージをもう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -371,7 +371,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start Over"
+            "value" : "Restart"
           }
         }
       }
@@ -409,13 +409,13 @@
         }
       }
     },
-    "もう一度" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Try Again"
+            "value" : "Play Again"
           }
         }
       }

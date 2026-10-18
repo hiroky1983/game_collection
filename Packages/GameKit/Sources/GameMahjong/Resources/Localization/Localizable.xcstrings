@@ -587,13 +587,13 @@
         }
       }
     },
-    "もう一度" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Play again"
+            "value" : "Play Again"
           }
         }
       }

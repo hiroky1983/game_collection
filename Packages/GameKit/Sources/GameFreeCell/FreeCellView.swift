@@ -625,7 +625,7 @@ public struct FreeCellView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
+                Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
         }

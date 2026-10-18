@@ -351,7 +351,7 @@ public struct HeartsView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton(tr("もう一度"), role: .primary) {
+            actionButton(tr("もう一回"), role: .primary) {
                 model.startMatch()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
