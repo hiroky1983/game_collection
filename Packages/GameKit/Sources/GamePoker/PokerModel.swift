@@ -555,9 +555,11 @@ public final class PokerModel {
         guard phase == .betting2 else { return }
         switch action {
         case .check:
+            guard currentBet == 0 else { return }  // CPU のベット後はコール／フォールドのみ（#2448）
             playerBetInRound = 0
             cpuBet2Response(playerBet: 0)
         case .bet(let amount):
+            guard currentBet == 0 else { return }  // 同上
             guard playerChips >= amount else {
                 services?.feedback.notify(.warning) // チップ不足でベットできない
                 return
