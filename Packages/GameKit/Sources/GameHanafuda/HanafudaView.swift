@@ -558,6 +558,12 @@ enum HanafudaFit {
     static let minScale: CGFloat = 0.4
     /// 取り札（と めくり札）の縮小率の下限。月の数字が読めなくならないよう、場・手札より縮めない（#2336）。
     static let minStripScale: CGFloat = 0.85
+    /// 低い画面（iPhone SE など）での取り札の縮小率の下限。押せる場・手札の札を優先して、取り札はここまで縮める（#2452）。
+    /// 残りの高さが `shortScreenHeight` 以下で下限になり、`tallScreenHeight` 以上では `minStripScale` のまま
+    /// （iPhone 17 の取り札は変わらない）。そのあいだは線形に移るので、高さが減るほど札が大きくなるような逆転は起きない。
+    static let shortScreenMinStripScale: CGFloat = 0.6
+    static let shortScreenHeight: CGFloat = 380
+    static let tallScreenHeight: CGFloat = 480
     /// 札の並べ方の候補（列数）。空いた高さがある局は 4・5 列で大きく、広い画面は 6 列 2 段、
     /// 狭い画面は 8 列 1 段のほうが大きく取れる（#2336）。
     static let columnChoices = [4, 5, 6, 8]
@@ -595,6 +601,7 @@ enum HanafudaFit {
         // 縮小の下限は札の幅で揃える（6 列の自然な幅の `minScale` 倍）。列ごとの比率で下限を持つと、
         // 列が少ないほど下限の札が大きくなり、高さに収まらない並べ方が選ばれてしまう（#2336）。
         let floorWidth = minScale * (innerWidth - 5 * gap) / 6
+        let stripFloor = stripFloor(availableHeight: availableHeight)
         for columns in columnChoices {
             let naturalWidth = (innerWidth - CGFloat(columns - 1) * gap) / CGFloat(columns)
             let floorScale = naturalWidth > 0 ? min(1, floorWidth / naturalWidth) : minScale
@@ -611,8 +618,8 @@ enum HanafudaFit {
             var cardScale = scale
             var stripScale = scale
             // 取り札は月の数字が読める大きさを下限にして、足りない高さは場・手札の札で受ける（#2336）。
-            if scale < minStripScale, cardsNaturalHeight > 0 {
-                stripScale = minStripScale
+            if scale < stripFloor, cardsNaturalHeight > 0 {
+                stripScale = stripFloor
                 cardScale = min(1, max(floorScale, (availableHeight - fixedHeight - rowGaps - 2 * stripHeight * stripScale)
                                        / cardsNaturalHeight))
             }
@@ -626,6 +633,12 @@ enum HanafudaFit {
             }
         }
         return best
+    }
+
+    /// 残りの高さに応じた取り札の縮小率の下限（#2452）。
+    static func stripFloor(availableHeight: CGFloat) -> CGFloat {
+        let t = min(1, max(0, (availableHeight - shortScreenHeight) / (tallScreenHeight - shortScreenHeight)))
+        return shortScreenMinStripScale + (minStripScale - shortScreenMinStripScale) * t
     }
 
     /// 取り札の 4 列の幅。札の重なりが多い列（カス）ほど広く取り、どの列も札 1 枚ぶんは確保する。

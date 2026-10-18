@@ -135,4 +135,30 @@ struct HanafudaFitTests {
             #expect(m.columnCount == 8, "高さ \(height): \(m)")
         }
     }
+
+    /// iPhone SE（375×667pt）の残り高さは約 373pt、幅は約 343pt（#2452）。
+    @Test("iPhone SE: 局の途中・配り直後とも、札の幅が今（25.5pt）より大きくなり、高さに収まる")
+    func smallScreenGivesCardsMoreRoom() {
+        for (field, hand) in [(6, 5), (8, 8)] {
+            let m = HanafudaFit.metrics(availableWidth: 343, availableHeight: 373, stripHeight: 52,
+                                        fieldCount: field, handCount: hand)
+            // 局の途中（6/5）は 25.5 → 30 台、配り直後（8/8）は 8 列 1 段で高さが律速し、27.7pt まで。44pt には届かない。
+            #expect(m.cardWidth > (field == 6 ? 30 : 27), "\(field)/\(hand): \(m)")
+            #expect(m.stripHeight >= 52 * HanafudaFit.shortScreenMinStripScale - 0.001)
+            let rows = (field + m.columnCount - 1) / m.columnCount + (hand + m.columnCount - 1) / m.columnCount
+            let used = HanafudaFit.fixedHeight + 2 * m.stripHeight
+                + CGFloat(rows) * m.cardWidth * HanafudaCardArt.aspectRatio + CGFloat(rows - 2) * HanafudaFit.gap
+            #expect(used <= 373 + 0.001, "\(field)/\(hand): \(m)")
+        }
+    }
+
+    @Test("iPhone 17 の高さ（560pt）では取り札の下限は今のまま 0.85")
+    func tallScreenKeepsStripFloor() {
+        #expect(HanafudaFit.stripFloor(availableHeight: 560) == HanafudaFit.minStripScale)
+        #expect(HanafudaFit.stripFloor(availableHeight: 373) == HanafudaFit.shortScreenMinStripScale)
+        let m = HanafudaFit.metrics(availableWidth: 370, availableHeight: 560, stripHeight: 52,
+                                    fieldCount: 6, handCount: 5)
+        // 今（#2336 反映後）の局の途中の札幅 53.3pt を割らない。
+        #expect(m.cardWidth >= 53.3, "\(m)")
+    }
 }
