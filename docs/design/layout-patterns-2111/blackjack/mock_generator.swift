@@ -508,8 +508,8 @@ private struct CurrentScreen: View {
         ZStack(alignment: .top) {
             Theme.background
             VStack(spacing: 0) {
-                StatusStrip(phone: phone)
-                NavHeader(phone: phone, title: tr("ブラックジャック"))
+                // ステータスバー・ナビバーの分（中身は別の層に描く。下を見よ）。
+                Color.clear.frame(height: phone.safeTop + phone.navBarHeight)
                 VStack(spacing: 10) {
                     ChipsBar(model: model, measure: measure, prefix: prefix)
                     VStack(spacing: 10) {
@@ -527,7 +527,16 @@ private struct CurrentScreen: View {
                 // 札の行が幅に収まらないと VStack ごと広がる。実機ではナビバーは別物（画面幅のまま）なので、
                 // 中身だけを画面幅の枠に収めて、溢れた分が左右に等しくはみ出す実機の見え方にする。
                 .frame(width: phone.width)
+                // 中身の枠の高さを使える高さに固定する。固定しないと溢れた分だけ画面全体（ナビバーごと）が上へずれて写る。
+                // 実機と同じく、溢れた中身はこの枠の上下に等しくはみ出す（上はナビバーの下へ潜る）。
+                .frame(height: phone.height - phone.safeTop - phone.navBarHeight - phone.safeBottom)
                 Color.clear.frame(height: phone.safeBottom)
+            }
+            // 実機ではステータスバー・ナビバーは中身と別の層で、中身が縦に溢れても動かない（溢れた中身は上下に等しく
+            // はみ出し、上はナビバーの下に潜る）。同じ見え方にするため、中身とは別にいちばん上の層へ描く。
+            VStack(spacing: 0) {
+                StatusStrip(phone: phone)
+                NavHeader(phone: phone, title: tr("ブラックジャック"))
             }
         }
         .frame(width: phone.width, height: phone.height)
