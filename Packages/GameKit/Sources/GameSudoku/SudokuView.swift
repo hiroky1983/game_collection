@@ -11,6 +11,8 @@ public struct SudokuView: View {
     @State private var showGiveUpConfirm = false
     /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var hintRescue = RewardedRescue()
+    /// 「色なしで区別」の設定。ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405）。
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
@@ -420,6 +422,9 @@ public struct SudokuView: View {
             } else if !noteDigits.isEmpty {
                 noteGrid(noteDigits: noteDigits, side: side)
             }
+            if isError && differentiateWithoutColor {
+                errorMark(side: side)
+            }
         }
         // 誤答を入れたマスの中身だけを短く横に揺らす（#666。五目並べの無効タップ #202 と同じ型）。
         .modifier(SudokuShake(animatableData: CGFloat(shakes)))
@@ -445,6 +450,20 @@ public struct SudokuView: View {
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.select(index: index) }
+    }
+
+    /// 間違いのマスの色以外の印（#2405）: 内枠と右上の×。数字は隠さない。
+    private func errorMark(side: CGFloat) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Rectangle()
+                .strokeBorder(Theme.coralText, lineWidth: max(2, side * 0.06))
+            Image(systemName: "xmark")
+                .font(.system(size: side * 0.2, weight: .heavy)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                .foregroundStyle(Theme.coralText)
+                .padding(side * 0.08)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func noteGrid(noteDigits: [Int], side: CGFloat) -> some View {
