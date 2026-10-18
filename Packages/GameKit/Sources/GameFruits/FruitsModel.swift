@@ -379,13 +379,17 @@ public final class FruitsModel {
             score = 480
             settleForDebug(seconds: 3)
         case "gameover":
-            var guardCount = 0
-            while phase == .playing, guardCount < 80 {
-                guardCount += 1
-                let kind: FruitKind = [.shinpaku, .kuromatsu, .momiji, .nanten][guardCount % 4]
-                field.placeFruitForTesting(kind, x: 30 + Double(guardCount % 3) * 20, y: FruitField.Metrics.spawnY)
-                settleForDebug(seconds: 0.8)
-            }
+            // 左の壁沿いに真柏が危険線を越える柱を直接置く（`FieldTests` の
+            // 「止まって3秒居座ると終局する」と同じ、安定して倒れない柱）。乱数で積んで待つ旧実装は
+            // #2463 で危険線の計時が 1 → 3 秒に伸びたあと、積み方によって頭の果物が揺れ続けて
+            // `sleepSpeed` を切らず、いつまでも終局しないことがあった。
+            let kinmatsu = FruitKind.kinmatsu.radius
+            let kuromatsu = FruitKind.kuromatsu.radius
+            let shinpaku = FruitKind.shinpaku.radius
+            field.placeFruitForTesting(.kinmatsu, x: kinmatsu, y: kinmatsu)
+            field.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
+            field.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
+            settleForDebug(seconds: FruitField.Metrics.overLineLimit + 1)
         default:
             break
         }

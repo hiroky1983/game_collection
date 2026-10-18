@@ -276,7 +276,7 @@ struct FruitsGameOverTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let store = MemorySnapshotStore()
         let model = makeModel(fruits: overflowingColumn, store: store, score: 120, feedback: feedback, playLog: playLog, analytics: spy)
-        advance(model, seconds: 1.5)
+        advance(model, seconds: 3.5)
         #expect(model.phase == .gameOver)
         #expect(model.heldKind == nil)
         #expect(!model.canDrop)
@@ -304,7 +304,7 @@ struct FruitsGameOverTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let spy = SpyAnalyticsService()
         let model = makeModel(fruits: overflowingColumn, score: 500, hasMadeKinmatsu: true, playLog: playLog, analytics: spy)
-        advance(model, seconds: 1.5)
+        advance(model, seconds: 3.5)
         #expect(model.phase == .gameOver)
         #expect(model.recordResult?.record.wins == 1)
         #expect(spy.outcomes == [.win])
@@ -328,7 +328,7 @@ struct FruitsGameOverTests {
         let fruits = overflowingColumn + [resting(3, .sakura, x: 70, y: FruitKind.sakura.radius),
                                           resting(4, .mikan, x: 85, y: FruitKind.mikan.radius)]
         let model = makeModel(fruits: fruits, store: store, score: 300, playLog: playLog, analytics: spy)
-        advance(model, seconds: 1.5)
+        advance(model, seconds: 3.5)
         #expect(model.phase == .gameOver)
         let serial = model.gameSerial
 
@@ -356,7 +356,7 @@ struct FruitsGameOverTests {
         let (playLog, defaults, name) = makePlayLog("continue-win")
         defer { defaults.removePersistentDomain(forName: name) }
         let model = makeModel(fruits: overflowingColumn, score: 400, hasMadeKinmatsu: true, playLog: playLog)
-        advance(model, seconds: 1.5)
+        advance(model, seconds: 3.5)
         #expect(model.phase == .gameOver)
         #expect(playLog.record(gameID: "fruits")?.wins == 1)
         #expect(model.continueAfterAd(forGame: model.gameSerial))
@@ -381,7 +381,7 @@ struct FruitsGameOverTests {
     @Test("広告のあいだに「はじめから」で入れ替わった局へは適用しない（#729）")
     func continueRejectsStaleSerial() {
         let model = makeModel(fruits: overflowingColumn)
-        advance(model, seconds: 1.5)
+        advance(model, seconds: 3.5)
         #expect(model.phase == .gameOver)
         let stale = model.gameSerial
         model.newGame()
@@ -397,7 +397,7 @@ struct FruitsGameOverTests {
         let spy = SpyAnalyticsService()
         let store = MemorySnapshotStore()
         let model = makeModel(fruits: overflowingColumn, store: store, score: 77, continueUsed: true, hasMadeKinmatsu: true, analytics: spy)
-        advance(model, seconds: 1.5)
+        advance(model, seconds: 3.5)
         model.newGame()
         #expect(model.phase == .playing)
         #expect(model.score == 0)
