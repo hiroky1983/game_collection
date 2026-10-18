@@ -163,7 +163,7 @@ public struct MinesweeperView: View {
         GameOverflowBar(menuItems: [
             // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
             GameControlMenuItem(
-                id: "flag", title: tr("旗モード"), systemImage: "flag.fill", isChecked: model.flagMode,
+                id: "flag", title: tr("旗モード"), systemImage: "flag.badge.ellipsis", isChecked: model.flagMode,
                 accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
             ) { model.toggleFlagMode() },
             GameControlMenuItem(
