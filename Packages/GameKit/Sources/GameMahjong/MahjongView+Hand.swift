@@ -12,6 +12,8 @@ extension MahjongView {
     /// 一覧で選択中の牌を持ち上げる量。下部（`tableHandLift` 側の -10pt）と同じ言語だが、
     /// 牌が小さく行の高さも詰まっているので控えめにする。
     private static let handOverviewLift: CGFloat = 3
+    /// 卓下の手牌（幅 34pt）の当たり判定を左右へ広げる量。34 + 5×2 = 44pt（#2480。数値は仮置き・QA で調整）。
+    private static let handTileHitPadding: CGFloat = 5
 
     /// 卓の上（フェルトの手前の縁）に置く、手牌14枚を河の牌と同じ大きさで一目で見渡せる一覧。
     ///
@@ -205,7 +207,13 @@ extension MahjongView {
         .shadow(color: isSelected ? .black.opacity(0.3) : .clear, radius: isSelected ? 5 : 0, y: 3)
         .offset(y: isSelected ? -10 : 0)
         .gameAnimation(.spring(response: 0.22, dampingFraction: 0.7), value: isSelected)
+        // 当たり判定だけを横へ伸ばす（#2480）: 牌の幅 34pt は Apple 推奨の 44pt に届かず、隙間（3pt）も
+        // 反応しない。余白を足してから `contentShape` を取り、同じ量を負の余白で戻す（一覧の
+        // `handOverviewTile` と同じ手法）ので、見た目も行の幅・スクロールも変わらない。隣と重なる分は
+        // 後ろに並ぶ牌が手前になる。
+        .padding(.horizontal, Self.handTileHitPadding)
         .contentShape(Rectangle())
+        .padding(.horizontal, -Self.handTileHitPadding)
         .onTapGesture {
             // 下部をタップしたときは指の下でこの行が動くと邪魔なのでスクロールは追従させない。
             handleHandTap(tile, id: id, canDiscard: canDiscard, scrollsBottomHand: false)
