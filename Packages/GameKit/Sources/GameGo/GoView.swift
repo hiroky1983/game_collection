@@ -408,7 +408,7 @@ public struct GoView: View {
         GameStatusBar {
             switch model.phase {
             case .finished:
-                Label(resultText, systemImage: "flag.checkered")
+                Label(resultVerdict.title, systemImage: resultVerdict.bandSymbol)
                     .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .scoring:
@@ -436,7 +436,7 @@ public struct GoView: View {
             isHumanTurn: model.state.sideToMove == model.humanSide,
             capturedByHuman: model.capturedByHuman,
             capturedByCPU: model.capturedByCPU,
-            result: model.phase == .playing ? nil : model.endgame?.score.summary ?? resultText
+            result: model.phase == .playing ? nil : model.endgame?.score.summary ?? resultVerdict.title
         ))
     }
 
@@ -471,9 +471,9 @@ public struct GoView: View {
         .gameAnimation(BoardGameMotion.checkBanner, value: passBannerID)
     }
 
-    private var resultText: String {
-        guard let winner = model.winner else { return tr("引き分け") }
-        return winner == model.humanSide ? tr("あなたの勝ち！") : tr("CPUの勝ち")
+    private var resultVerdict: BoardGameResultCard.Verdict {
+        guard let winner = model.winner else { return .draw }
+        return winner == model.humanSide ? .win : .loss
     }
 
     private var gameControls: some View {

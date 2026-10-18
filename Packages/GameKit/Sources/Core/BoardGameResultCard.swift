@@ -10,12 +10,17 @@ public struct BoardGameResultCard: View {
     public enum Verdict: Equatable, Sendable {
         case win, loss, draw
 
-        var title: String {
+        public var title: String {
             switch self {
             case .win: return tr("あなたの勝ち！")
             case .loss: return tr("あなたの負け")
             case .draw: return tr("引き分け")
             }
+        }
+
+        /// 帯（`GameStatusBar`）の終局ラベルに使う SF Symbol。引き分けだけ別の 1 つに揃える（#2484）。
+        public var bandSymbol: String {
+            self == .draw ? "equal.circle.fill" : "flag.checkered"
         }
     }
 
