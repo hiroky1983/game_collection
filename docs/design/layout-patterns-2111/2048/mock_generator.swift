@@ -574,8 +574,10 @@ struct LayoutMock2439Tests {
                         m["board_bottom_to_banner_pt"] = ((at - bt - bh) * 100).rounded() / 100
                     }
                     if let slack = m["slack_pt"], let banner = m["banner_h_pt"] {
-                        // 余りをぜんぶバナーに回したときの枠の高さ（盤はこの枠までなら 1pt も縮まない）。
-                        m["max_banner_without_shrink_pt"] = ((banner + slack) * 100).rounded() / 100
+                        // 余りをバナーに回したときの枠の高さ（盤もスコアの札もこの枠までなら 1pt も縮まない）。
+                        // 今の組み方の余りは `Spacer()` で、その最小 8pt はバナーに回せないので差し引く（A は `Spacer(minLength: 0)` なので 0）。
+                        let spacerMin: Double = prefix.hasSuffix("_a") || prefix.hasSuffix("_a100") ? 0 : 8
+                        m["max_banner_without_shrink_pt"] = ((banner + max(0, slack - spacerMin)) * 100).rounded() / 100
                     }
                     all[prefix] = m
                 }
