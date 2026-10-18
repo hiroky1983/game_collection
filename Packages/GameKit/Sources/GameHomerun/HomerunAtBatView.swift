@@ -630,7 +630,7 @@ struct HomerunDirectionMeter: View {
             Text(verbatim: isFoul
                  ? tr("ファウル")
                  : "\(HomerunSector(direction: direction).label) \(Int(HomerunJudge.fence(atDirection: direction).rounded())) m")
-                .themeCaption(11, maxScale: 1)
+                .themeCaption(11, maxScale: 1.3)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(.white)

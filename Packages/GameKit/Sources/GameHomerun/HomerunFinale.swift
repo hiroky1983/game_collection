@@ -233,9 +233,9 @@ struct HomerunFinaleScene: View {
             .overlay(Circle().stroke(Color(red: 0.9, green: 0.2, blue: 0.2), lineWidth: 5).padding(5))
             .overlay(
                 VStack(spacing: -2) {
-                    Text(tr("自己")).font(.system(size: size * 0.16, weight: .black)).lineLimit(1).minimumScaleFactor(0.5) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                    Text(tr("ベスト")).font(.system(size: size * 0.18, weight: .black)).lineLimit(1).minimumScaleFactor(0.5) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                    Text(tr("更新")).font(.system(size: size * 0.16, weight: .black)).lineLimit(1).minimumScaleFactor(0.5) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                    Text(tr("自己")).scaledFont(size * 0.16, weight: .black, maxScale: 1.2).lineLimit(1).minimumScaleFactor(0.5)
+                    Text(tr("ベスト")).scaledFont(size * 0.18, weight: .black, maxScale: 1.2).lineLimit(1).minimumScaleFactor(0.5)
+                    Text(tr("更新")).scaledFont(size * 0.16, weight: .black, maxScale: 1.2).lineLimit(1).minimumScaleFactor(0.5)
                 }
                 .foregroundStyle(Color(red: 0.85, green: 0.15, blue: 0.15))
             )
