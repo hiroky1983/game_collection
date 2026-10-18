@@ -5,48 +5,48 @@
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 27
+        "slack_to_banner_pt" : 40
       },
       "a2" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 11
+        "slack_to_banner_pt" : 24
       },
       "a3" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 11
+        "slack_to_banner_pt" : 24
       },
       "current" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 26.5
+        "slack_to_banner_pt" : 39.5
       }
     },
     "se3" : {
       "a1" : {
-        "board_side_pt" : 263,
+        "board_side_pt" : 279,
         "board_width_limited" : false,
         "card_h_pt" : 44,
         "slack_to_banner_pt" : 0
       },
       "a2" : {
-        "board_side_pt" : 247,
+        "board_side_pt" : 263,
         "board_width_limited" : false,
         "card_h_pt" : 60,
         "slack_to_banner_pt" : 0
       },
       "a3" : {
-        "board_side_pt" : 247,
+        "board_side_pt" : 263,
         "board_width_limited" : false,
         "card_h_pt" : 60,
         "slack_to_banner_pt" : 0
       },
       "current" : {
-        "board_side_pt" : 262.5,
+        "board_side_pt" : 278.5,
         "board_width_limited" : false,
         "card_h_pt" : 44.5,
         "slack_to_banner_pt" : 0
@@ -89,48 +89,48 @@
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 25
+        "slack_to_banner_pt" : 86
       },
       "a2" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 9
+        "slack_to_banner_pt" : 70
       },
       "a3" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 9
+        "slack_to_banner_pt" : 70
       },
       "current" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 24.5
+        "slack_to_banner_pt" : 85.5
       }
     },
     "se3" : {
       "a1" : {
-        "board_side_pt" : 261,
+        "board_side_pt" : 325,
         "board_width_limited" : false,
         "card_h_pt" : 44,
         "slack_to_banner_pt" : 0
       },
       "a2" : {
-        "board_side_pt" : 245,
+        "board_side_pt" : 309,
         "board_width_limited" : false,
         "card_h_pt" : 60,
         "slack_to_banner_pt" : 0
       },
       "a3" : {
-        "board_side_pt" : 245,
+        "board_side_pt" : 309,
         "board_width_limited" : false,
         "card_h_pt" : 60,
         "slack_to_banner_pt" : 0
       },
       "current" : {
-        "board_side_pt" : 260.5,
+        "board_side_pt" : 324.5,
         "board_width_limited" : false,
         "card_h_pt" : 44.5,
         "slack_to_banner_pt" : 0
@@ -143,25 +143,25 @@
         "board_side_pt" : 386,
         "board_width_limited" : true,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 57
+        "slack_to_banner_pt" : 54
       },
       "a2" : {
         "board_side_pt" : 386,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 41
+        "slack_to_banner_pt" : 38
       },
       "a3" : {
         "board_side_pt" : 386,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 41
+        "slack_to_banner_pt" : 38
       },
       "current" : {
         "board_side_pt" : 386,
         "board_width_limited" : true,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 56.5
+        "slack_to_banner_pt" : 53.5
       }
     },
     "se3" : {
@@ -197,25 +197,25 @@
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 101
+        "slack_to_banner_pt" : 98
       },
       "a2" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 85
+        "slack_to_banner_pt" : 82
       },
       "a3" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 82,
-        "slack_to_banner_pt" : 63
+        "slack_to_banner_pt" : 60
       },
       "current" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 100.5
+        "slack_to_banner_pt" : 97.5
       }
     },
     "se3" : {
@@ -251,25 +251,25 @@
         "board_side_pt" : 402,
         "board_width_limited" : true,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 61
+        "slack_to_banner_pt" : 58
       },
       "a2" : {
         "board_side_pt" : 402,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 45
+        "slack_to_banner_pt" : 42
       },
       "a3" : {
         "board_side_pt" : 402,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 45
+        "slack_to_banner_pt" : 42
       },
       "current" : {
         "board_side_pt" : 402,
         "board_width_limited" : true,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 60.5
+        "slack_to_banner_pt" : 57.5
       }
     },
     "se3" : {
@@ -303,51 +303,51 @@
     "ip17" : {
       "a1" : {
         "board_width_limited" : true,
-        "card_art_side_pt" : 48,
+        "card_art_side_pt" : 44,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 10
+        "slack_to_banner_pt" : 20
       },
       "a2" : {
-        "board_width_limited" : false,
-        "card_art_side_pt" : 46.799999999999997,
+        "board_width_limited" : true,
+        "card_art_side_pt" : 44,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 0
+        "slack_to_banner_pt" : 4
       },
       "a3" : {
-        "board_width_limited" : false,
-        "card_art_side_pt" : 46.799999999999997,
+        "board_width_limited" : true,
+        "card_art_side_pt" : 44,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 0
+        "slack_to_banner_pt" : 4
       },
       "current" : {
         "board_width_limited" : true,
-        "card_art_side_pt" : 48,
+        "card_art_side_pt" : 44,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 9.5
+        "slack_to_banner_pt" : 19.5
       }
     },
     "se3" : {
       "a1" : {
         "board_width_limited" : false,
-        "card_art_side_pt" : 23.199999999999999,
+        "card_art_side_pt" : 21.800000000000001,
         "card_h_pt" : 44,
         "slack_to_banner_pt" : 0
       },
       "a2" : {
         "board_width_limited" : false,
-        "card_art_side_pt" : 20,
+        "card_art_side_pt" : 18.600000000000001,
         "card_h_pt" : 60,
         "slack_to_banner_pt" : 0
       },
       "a3" : {
         "board_width_limited" : false,
-        "card_art_side_pt" : 20,
+        "card_art_side_pt" : 18.600000000000001,
         "card_h_pt" : 60,
         "slack_to_banner_pt" : 0
       },
       "current" : {
         "board_width_limited" : false,
-        "card_art_side_pt" : 23.100000000000001,
+        "card_art_side_pt" : 21.699999999999999,
         "card_h_pt" : 44.5,
         "slack_to_banner_pt" : 0
       }
@@ -359,25 +359,25 @@
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44,
-        "slack_to_banner_pt" : 27
+        "slack_to_banner_pt" : 24
       },
       "a2" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 11
+        "slack_to_banner_pt" : 8
       },
       "a3" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 60,
-        "slack_to_banner_pt" : 11
+        "slack_to_banner_pt" : 8
       },
       "current" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 44.5,
-        "slack_to_banner_pt" : 26.5
+        "slack_to_banner_pt" : 23.5
       }
     },
     "se3" : {
@@ -413,25 +413,25 @@
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 52,
-        "slack_to_banner_pt" : 55
+        "slack_to_banner_pt" : 52
       },
       "a2" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 52,
-        "slack_to_banner_pt" : 55
+        "slack_to_banner_pt" : 52
       },
       "a3" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 74,
-        "slack_to_banner_pt" : 55
+        "slack_to_banner_pt" : 52
       },
       "current" : {
         "board_side_pt" : 370,
         "board_width_limited" : true,
         "card_h_pt" : 52,
-        "slack_to_banner_pt" : 55
+        "slack_to_banner_pt" : 52
       }
     },
     "se3" : {

@@ -68,7 +68,8 @@ struct Device {
     let statusHeight: CGFloat   // ステータスバー（セーフエリア上端）
     let bottomInset: CGFloat    // ホームインジケータ
     let corner: CGFloat
-    static let iPhone17 = Device(key: "ip17", name: "iPhone 17（402×874pt）", width: 402, height: 874, statusHeight: 59, bottomInset: 34, corner: 54)
+    // 上端のセーフエリアは Dynamic Island 機の 62pt とみなす（コード上の根拠は無い。#1690 のモックと同じ値。59pt なら余りが 3pt 増えるだけで盤の一辺は変わらない）。
+    static let iPhone17 = Device(key: "ip17", name: "iPhone 17（402×874pt）", width: 402, height: 874, statusHeight: 62, bottomInset: 34, corner: 54)
     static let se = Device(key: "se3", name: "iPhone SE 第3世代（375×667pt）", width: 375, height: 667, statusHeight: 20, bottomInset: 0, corner: 0)
 
     /// ナビバー（44pt）と `Theme.pad`（上下 16pt）を除いた、中身に使える高さ。
@@ -706,6 +707,9 @@ enum Game: String, CaseIterable {
         }
     }
 
+    /// 盤の上下に置く持ち駒・取った駒の帯の高さ（将棋 `HandAreaView` 48 + 2×2、チェス `CapturedAreaView` 40 + 2×2）。
+    var handRowHeight: CGFloat { self == .chess ? 44 : 52 }
+
     /// 盤の上下の並びの間隔（各 View の `VStack(spacing:)`）。
     var spacing: CGFloat {
         switch self {
@@ -746,8 +750,9 @@ struct Metrics {
         var maxW = W
         switch game {
         case .shogi, .chess:
-            // 帯 44・持ち駒 52×2・検討ナビ 38 + 4 + カード・Spacer・広告 50。7 要素 → 間隔 6 つ。
-            fixed = 44 + 52 * 2 + (38 + 4 + card) + 50 + 6 * s
+            // 帯 44・持ち駒の帯 ×2（将棋 `HandAreaView` は 48 + 2×2 = 52、チェス `CapturedAreaView` は 40 + 2×2 = 44）・
+            // 検討ナビ 38 + 4 + カード・Spacer・広告 50。7 要素 → 間隔 6 つ。
+            fixed = 44 + game.handRowHeight * 2 + (38 + 4 + card) + 50 + 6 * s
         case .othello:
             // 帯 44・Spacer・盤（左右の余白を削って画面幅いっぱい）・操作エリア（カード + 8 + レコメンド枠 56）・Spacer・広告 50。6 要素 → 間隔 5 つ。
             maxW = device.width
@@ -757,8 +762,10 @@ struct Metrics {
             maxW = W + T.pad
             fixed = 44 + 30 + (card + 8 + 56) + 50 + 5 * s
         case .go:
-            // 帯 44・石の行 30×2・盤・操作エリア・Spacer・広告 50。7 要素 → 間隔 6 つ。
-            fixed = 44 + 30 * 2 + (card + 8 + 56) + 50 + 6 * s
+            // 帯 44・石の行 30×2・盤・「もう一回」のカード・Spacer・広告 50。7 要素 → 間隔 6 つ。
+            // 囲碁は `GameControlArea` を使わず（`GoView.controlArea` は `ZStack` で切り替えるだけ）、レコメンドは盤の下端に重ねるので
+            // ひな形 56pt の予約が無い（会長指摘 2026-09-02「碁盤が小さい」で撤廃）。
+            fixed = 44 + 30 * 2 + card + 50 + 6 * s
         case .minesweeper:
             // 帯 44・盤・操作エリア・Spacer・広告 50。5 要素 → 間隔 4 つ。
             fixed = 44 + (card + 8 + 56) + 50 + 4 * s
@@ -766,11 +773,13 @@ struct Metrics {
             // 操作エリアは「数字パッド 94 + 8 + 「⋯」の行 52 = 154」のひな形と終局後の構成（カード + 8 + 56）の高い方。
             fixed = 44 + max(154, card + 8 + 56) + 50 + 4 * s
         case .shiritori:
-            // 帯 58（44 + 6 + 時間バー 8）・結果カード 89・札の盤・もう一回・Spacer・広告 50。6 要素 → 間隔 5 つ
-            // （`RecommendationSlot` はカードが無ければ何も置かず、間隔も増えない）。
-            // 札の絵（`ObjectCardArt`・`aspectRatio(1, .fit)`）が唯一の伸び縮みする要素で、幅に収まらなければ高さで縮む。
-            let avail = H - (58 + 89 + card + 50 + 5 * s)
-            let artByWidth = (W - 16 - 30) / 6 - 6
+            // 帯 64（44 + 6 + 時間バーの行 14。バーは 8pt だが同じ行の 12pt の文字で約 14pt）・結果カード 90（見出し 20 + 8 + 補足 14 + 8 +
+            // 記録 16 + 余白 24）・札の盤・もう一回・Spacer・広告 50。6 要素 → 間隔 5 つ（`RecommendationSlot` はカードが無ければ何も置かず、間隔も増えない）。
+            // 札の絵（`ObjectCardArt`・`aspectRatio(1, .fit)`）が唯一の伸び縮みする要素で、幅に収まらなければ高さで縮む**と仮定**している
+            // （`LazyVGrid` が提案された高さに合わせて札を縮めるかはコードからは確かめていない。縮まなければ画面全体が溢れる）。
+            let avail = H - (64 + 90 + card + 50 + 5 * s)
+            // 札の幅 = (内寸 − グリッドの左右 8×2 − 列間 6×5) / 6。絵 = 札の幅 − 札の左右余白 2×2 − 絵の余白 3×2。
+            let artByWidth = (W - 16 - 30) / 6 - 10
             let artByHeight = (avail - ShiritoriGrid.fixedHeight) / 5
             let art = min(artByWidth, artByHeight)
             return Metrics(cardHeight: card, boardSide: art, boardMaxWidth: artByWidth,
@@ -853,7 +862,7 @@ struct Screen: View {
             Spacer()
         }
         .padding(.horizontal, 12).padding(.vertical, 2)
-        .frame(minHeight: 52)
+        .frame(minHeight: game.handRowHeight)
         .popCard(corner: T.cornerSmall)
     }
 
@@ -877,7 +886,8 @@ struct Screen: View {
                     Circle().fill(hex(0xF0ECD8)).overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1)).frame(width: 13, height: 13)
                 }
             }
-            Spacer(minLength: 0)
+            // 余りは盤の上の `Spacer` と広告の上の `Spacer` に半分ずつ入る（盤が縦に中央寄せになる）。
+            GapMarker()
             OthelloBoard(side: m.boardSide)
                 .overlay { OthelloResultOverlay() }
                 .frame(maxWidth: .infinity)
@@ -938,8 +948,12 @@ struct Screen: View {
             }
             stoneRow(black: false, you: false, captured: 3)
             LineBoard(side: m.boardSide, n: 9, stones: goStones).frame(maxWidth: .infinity)
+                .overlay(alignment: .bottom) {
+                    // 囲碁のレコメンド・階段の枠は盤の下端に重ねる（ひな形の予約は無い）。
+                    RecommendationPlaceholder().padding(.horizontal, 8).padding(.bottom, 8).opacity(0.8)
+                }
             stoneRow(black: true, you: true, captured: 5)
-            controlArea
+            replay
             GapMarker()
             Banner()
         }
@@ -1043,8 +1057,9 @@ struct Screen: View {
                 HStack(spacing: 8) {
                     Image(systemName: "timer").font(.system(size: 12, weight: .bold)).foregroundStyle(T.inkSub)
                     Capsule().fill(T.inkSub.opacity(0.2)).frame(height: 8)
-                    Text("0:00").rounded(12, .bold).foregroundStyle(T.inkSub).frame(minWidth: 52, alignment: .trailing)
+                    Text("0びょう").rounded(12, .bold).foregroundStyle(T.ink).frame(minWidth: 52, alignment: .trailing)
                 }
+                .frame(height: 14)
                 .padding(.horizontal, 12)
             }
             VStack(spacing: 8) {
@@ -1053,8 +1068,9 @@ struct Screen: View {
                     Text("10枚そろえて勝ち！").rounded(16, .black).foregroundStyle(T.teal)
                     Spacer(minLength: 0)
                 }
-                Text("あなた 10枚 ／ CPU 7枚（10枚先取）").rounded(12).foregroundStyle(T.inkSub).frame(maxWidth: .infinity, alignment: .leading)
-                RecordText(text: "通算 4勝 2敗").frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 20)
+                Text("あなた 10枚 ／ CPU 7枚（10枚先取）").rounded(12).foregroundStyle(T.inkSub).frame(maxWidth: .infinity, alignment: .leading).frame(height: 14)
+                RecordText(text: "通算 4勝 2敗").frame(maxWidth: .infinity, alignment: .leading).frame(height: 16)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .popCard(corner: T.cornerSmall)
@@ -1096,13 +1112,13 @@ struct Sheet: View {
     var note: String {
         switch game {
         case .shogi, .chess:
-            "盤に重なる結果カード（『盤を見る』で閉じる）は閉じた状態で描いている。検討ナビ（◀ n/N手 ▶）の下に「もう一回」の段が付く 2 段構成。\(game == .chess ? "画面の組み方は将棋と同じ（`ReviewNavBar` を共用）。" : "")盤は幅で決まるか高さで決まるかが端末で変わる（SE は高さ）。"
+            "盤に重なる結果カード（『盤を見る』で閉じる）は閉じた状態で描いている。検討ナビ（◀ n/N手 ▶）の下に「もう一回」の段が付く 2 段構成。\(game == .chess ? "画面の組み方は将棋と同じ（`ReviewNavBar` を共用）だが、取った駒の帯は 44pt（将棋の持ち駒は 52pt）。" : "")盤は幅で決まるか高さで決まるかが端末で変わる（SE は高さ）。"
         case .othello:
-            "結果は盤に重なる暗幕のカード（閉じるボタン無し）。盤の下は `GameControlArea` が「もう一回 + 8 + レコメンド枠 56pt」の高さを常に確保する。盤は左右の余白を削って画面幅いっぱい。"
+            "結果は盤に重なる暗幕のカード（閉じるボタン無し）。盤の下は `GameControlArea` が「もう一回 + 8 + レコメンド枠 56pt」の高さを常に確保する。盤は左右の余白を削って画面幅いっぱい。余りは盤の上と広告の上に半分ずつ入る（欄の「余り」は合計）。"
         case .gomoku:
             "勝敗と記録は帯に同居（行を増やさない #148）。盤に重なる結果カードは閉じた状態。盤は左右の余白の半分まで広げている。"
         case .go:
-            "勝敗と記録は帯に同居。盤の上下に石の行（30pt）。盤に重なる結果カードは閉じた状態。"
+            "勝敗と記録は帯に同居。盤の上下に石の行（30pt）。囲碁は `GameControlArea` を使わず、レコメンド枠は盤の下端に重ねる（ひな形 56pt の予約が無い）ので、盤の下は「もう一回」のカードだけ。盤に重なる結果カードは閉じた状態。"
         case .minesweeper:
             "記録は「もう一回」の段の左端（`leading`）。盤の下の空きが大きいのは #2438（レイアウト C 候補）と同じ画面で、案2・案3 はその空きを 15.5／37.5pt 使う。初級（9×9）。"
         case .sudoku:
@@ -1110,7 +1126,7 @@ struct Sheet: View {
         case .concentration:
             "結果は暗幕の上のカードで、「もう一回」もその中。盤（札）の大きさは案で変わらず、カードが縦に伸びるだけ。SE では今でもカードの中の幅が足りず「もう一回」側が縮む。"
         case .shiritori:
-            "札の盤（30 枚）は札の絵（`aspectRatio(1)`）だけが伸び縮みし、幅に収まらないときは高さで縮む（SE は今でも高さで決まっている）。「もう一回」の段が伸びたぶん、SE では札の絵が縮む。時間切れのときはこの段の上に「広告を見て +30 秒」のボタンが 1 本増える。"
+            "札の盤（30 枚）は札の絵（`aspectRatio(1)`）だけが伸び縮みし、幅に収まらないときは高さで縮む「と仮定」して描いている（`LazyVGrid` がそう振る舞うかは未確認。縮まなければ画面全体が溢れる）。数値はコードからの推定でシミュレータの実測ではない。時間切れのときはこの段の上に「広告を見て +30 秒」のボタンが 1 本増える。"
         }
     }
 
