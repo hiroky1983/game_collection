@@ -51,6 +51,28 @@ check "apply-package-resolved.sh と docs" app "docs/a.md" "Scripts/apply-packag
 check "別の Scripts は回さない"   skip "Scripts/apply-package-resolved.sh.bak" "Scripts/ai-duty.sh"
 check "名前が似たファイル"        app ".github/workflows/ci.yml.bak" "project.yml"
 
+# GameKit 全テストを回すか（#2471）。引数: 説明 / 期待（run=回す, skip=飛ばす） / 変更ファイル
+check_gamekit() {
+  local desc="$1" want="$2" files got
+  shift 2
+  files="$(printf '%s\n' "$@")"
+  got="$(files="$files" bash -c "$SNIPPET"$'\n''[ -n "$gamekit" ] && echo run || echo skip')"
+  if [ "$got" = "$want" ]; then ok "$desc"; else ng "$desc (期待: $want / 実際: $got)"; fi
+}
+
+echo "== 3. GameKit 全テストはアプリのコードが変わるときだけ =="
+check_gamekit "版数更新 PR（project.yml のみ）" skip "project.yml"
+check_gamekit "docs のみ"                skip "docs/ai-devops.md"
+check_gamekit "Scripts と .github"       skip "Scripts/ai-duty.sh" ".github/workflows/x.yml"
+check_gamekit "Swift（Packages）"        run "Packages/GameKit/Sources/Core/Theme.swift"
+check_gamekit "Swift（App）"             run "App/HubView.swift"
+check_gamekit "画像（拡張子で判定しない）" run "App/Assets.xcassets/a/b.png"
+check_gamekit "訳（xcstrings）"          run "Packages/GameKit/Sources/Core/Resources/Localizable.xcstrings"
+check_gamekit "Package.resolved"         run "Config/Package.resolved"
+check_gamekit "ci.yml 自身"              run ".github/workflows/ci.yml"
+check_gamekit "版数更新と Swift の混在"  run "project.yml" "App/HubView.swift"
+check_gamekit "名前が似たディレクトリ"   skip "Appendix/a.txt" "Packages-old/a.swift"
+
 echo
 echo "結果: $PASS 件成功 / $FAIL 件失敗"
 [ "$FAIL" = 0 ]
