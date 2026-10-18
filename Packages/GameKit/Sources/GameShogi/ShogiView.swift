@@ -649,6 +649,8 @@ struct ShogiCell: View {
     let size: CGFloat
     let isSelected: Bool
     let isLastMove: Bool
+    /// 「色なしで区別」の設定。ON のとき、直前手・選択中に色以外の印を足す（#2486）。
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         // 盤の木地は盤全体に敷いたテクスチャ（#366）が担うため、マスは
@@ -659,6 +661,9 @@ struct ShogiCell: View {
             }
             if isSelected {
                 Rectangle().fill(Theme.yellow.opacity(0.6))
+            }
+            if differentiateWithoutColor {
+                BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
             }
         }
         .frame(width: size, height: size)
