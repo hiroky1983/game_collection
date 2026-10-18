@@ -297,6 +297,9 @@ public struct HanafudaView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!isCandidate(card))
+                    .accessibilityLabel(HanafudaSpeech.fieldLabel(
+                        for: card, isSelecting: model.selection != nil, isCandidate: isCandidate(card)
+                    ))
                 }
             }
         }

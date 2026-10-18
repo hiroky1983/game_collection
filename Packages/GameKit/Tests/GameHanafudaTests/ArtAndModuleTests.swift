@@ -183,6 +183,15 @@ struct HanafudaSpeechTests {
             .hasSuffix("場の2枚と合う"))
     }
 
+    @Test("場の札は選択待ちのときだけ、取れるかどうかまで読む")
+    func fieldLabelMentionsCandidateOnlyWhileSelecting() {
+        let card = HanafudaCard.named("松に鶴")
+        let base = HanafudaSpeech.label(for: card)
+        #expect(HanafudaSpeech.fieldLabel(for: card, isSelecting: false, isCandidate: false) == base)
+        #expect(HanafudaSpeech.fieldLabel(for: card, isSelecting: true, isCandidate: true).hasSuffix("取れます"))
+        #expect(HanafudaSpeech.fieldLabel(for: card, isSelecting: true, isCandidate: false).hasSuffix("合いません"))
+    }
+
     @Test("取り札は種別ごとの枚数で要約する")
     func capturedSummaryCountsByKind() {
         #expect(HanafudaSpeech.capturedSummary([]) == "取り札なし")
