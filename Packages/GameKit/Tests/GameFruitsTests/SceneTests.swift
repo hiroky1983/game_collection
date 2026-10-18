@@ -70,7 +70,7 @@ struct SceneTests {
         #expect(scene.isDeadlineWarning == false, "既定の白のままにしない（地と見分けが付かない）")
     }
 
-    @Test("盆栽は回転させず、鉢の底を円の下端に置く（#2361 案 B）")
+    @Test("盆栽は回転させず、絵を円の中心に置く（#2418）")
     func bonsaiDoesNotRotate() throws {
         let model = makeModel()
         model.moveCursor(to: 20)
@@ -93,9 +93,10 @@ struct SceneTests {
         for fruit in model.field.fruits {
             let node = try #require(scene.node(forFruit: fruit.id))
             #expect(node.zRotation == 0, "\(fruit.kind.name) が傾いている")
-            #expect(node.anchorPoint == CGPoint(x: 0.5, y: 0))
+            let anchor = BonsaiArt.anchor(for: fruit.kind)
+            #expect(abs(Double(node.anchorPoint.x) - anchor.x) < 1e-5 && abs(Double(node.anchorPoint.y) - anchor.y) < 1e-5)
             #expect(abs(Double(node.position.x) - fruit.x) < 1e-3, "SpriteKit は位置を単精度で持つ")
-            #expect(abs(Double(node.position.y) - (fruit.y - fruit.radius)) < 1e-3, "鉢の底が円の下端に無い")
+            #expect(abs(Double(node.position.y) - fruit.y) < 1e-3, "絵の中心が円の中心に無い")
             // 合体で生まれた直後の「膨らむ」演出（`setScale(0.7)` → 1）はビューに載せないと進まないので、倍率を割り戻して比べる。
             let expected = BonsaiArt.spriteSize(for: fruit.kind)
             #expect(abs(Double(node.size.width / node.xScale) - expected.width) < 1e-3)

@@ -67,7 +67,7 @@ public enum FruitKind: Int, Codable, CaseIterable, Sendable, Comparable {
     }
 
     /// 半径（盤の抽象単位。盤の幅は `FruitField.Metrics.width` = 100）。当たり判定の円の半径で、
-    /// 絵はこれより大きく描く（`BonsaiArt.canvasScale`）。
+    /// 絵の全体はこの円の内側に収めて描く（`BonsaiArt`・#2418）。
     ///
     /// いちばん大きい金の松の直径が盤の幅の 45% になるようにしてある。これより大きいと 2 個並べた
     /// 時点で盤が埋まり、小さいと合体の手応えが薄い。桜から金の松までを等比（約 1.21 倍）で

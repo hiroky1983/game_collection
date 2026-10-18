@@ -41,7 +41,7 @@ enum FruitsPalette {
 /// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の庭（盤）の描画とゲームループ。
 ///
 /// 盆栽は**回転させない**（会長決裁 2026-10-17。物理の円が転がっても鉢は傾けない）。絵の置き方は
-/// `BonsaiArt.spriteFrame`（鉢の底を円の下端に合わせ、木は上へはみ出す）。手に持っている盆栽は
+/// `BonsaiArt.spriteFrame`（絵の全体が当たり判定の円の内側に収まる）。手に持っている盆栽は
 /// ここでは描かず、縁側のおじさん（SwiftUI 側の `BonsaiOjisanLayer`）が持つ。
 ///
 /// **ここにゲームのルールは無い**。毎フレーム `FruitsModel.tick(dt:)` を呼び、結果として決まった
@@ -178,8 +178,8 @@ final class FruitsScene: SKScene {
                     node.run(.scale(to: 1, duration: 0.14))
                 }
             }
-            // 鉢の底（ノードの下端・anchorPoint の y = 0）を円の下端に置く。`fruit.angle` は使わない（回転させない）。
-            node.position = CGPoint(x: fruit.x, y: fruit.y - fruit.radius)
+            // 絵を囲む円の中心（anchorPoint）を当たり判定の円の中心に置く。`fruit.angle` は使わない（回転させない）。
+            node.position = CGPoint(x: fruit.x, y: fruit.y)
             // 小さい盆栽ほど前に重ねる（#2388。大きい盆栽の木の陰に小さい盆栽が隠れない）。
             node.zPosition = Self.zPosition(for: fruit.kind, bottomY: fruit.y - fruit.radius)
         }
@@ -252,14 +252,14 @@ final class FruitsScene: SKScene {
     private func makeFruitNode(_ kind: FruitKind) -> SKSpriteNode {
         let node = SKSpriteNode(texture: texture(for: kind))
         node.size = BonsaiArt.spriteSize(for: kind)
-        // 下端の中央を基準にする（鉢の底を円の下端に合わせる・`BonsaiArt.spriteFrame`）。
-        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        // 絵を囲む円の中心を基準にする（円の中心に置く・`BonsaiArt.spriteFrame`）。
+        node.anchorPoint = BonsaiArt.anchor(for: kind)
         return node
     }
 
-    /// 盆栽の重なり順（#2388）。**小さい段ほど前**に描く。絵は当たり判定の円より大きく（木が上へはみ出す）、
-    /// 大きい盆栽の上に小さい盆栽が載ると、鉢の底の高さで重ねていたときは小さいほうが大きい木の陰に隠れた。
-    /// 小さい盆栽が前なら、大きい盆栽は隠れても木の大半が見え、小さい盆栽は全部見える。
+    /// 盆栽の重なり順（#2388）。**小さい段ほど前**に描く。絵が当たり判定の円より大きかった（木が上へはみ出した）
+    /// ころ、大きい盆栽の上に小さい盆栽が載ると、鉢の底の高さで重ねていたときは小さいほうが大きい木の陰に隠れた。
+    /// 今は絵が円の内側に収まるが、円が少し重なったときに小さい盆栽が前なら小さい盆栽は全部見える。
     /// 同じ段どうしは鉢の底が低い（手前の）ものを前にする。2〜3 の範囲に収め、危険線（1）より前・合体の輪（4）より奥。
     static func zPosition(for kind: FruitKind, bottomY: Double) -> CGFloat {
         let tiers = Double(FruitKind.allCases.count - 1)
