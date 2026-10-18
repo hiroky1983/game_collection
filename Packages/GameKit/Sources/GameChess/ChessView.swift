@@ -436,7 +436,7 @@ public struct ChessView: View {
     private var statusBar: some View {
         GameStatusBar {
             if let result = model.resultText {
-                Label(result, systemImage: "flag.checkered")
+                Label(result, systemImage: model.endVerdict?.bandSymbol ?? "flag.checkered")
                     .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
