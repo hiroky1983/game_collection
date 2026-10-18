@@ -171,7 +171,9 @@ public struct MinesweeperView: View {
                 accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
                 accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
             ) { zoomMode.toggle() },
-            GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true) {
+            // 局が始まる前は諦める相手がいないので押せない表示にする（#2423）。
+            GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true,
+                                isEnabled: model.gameState == .playing) {
                 showGiveUpConfirm = true
             },
         ], actions: [hintAction], nudge: hintNudge)
@@ -288,14 +290,16 @@ public struct MinesweeperView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// プレイ中（諦める）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
+    /// 開始前・プレイ中（⋯・ヒント）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
     /// 中身が入れ替わるが、**高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
         GameControlArea(isFinished: model.gameOver && !showContinue, services: services, ladder: ladder) {
             resultControls
         } playing: {
             // コンティニューの提案中は何も出さない（提案そのものが別の層に出ている）。
-            if model.gameState == .playing {
+            // 最初のマスを開く前（.idle）も出す。出さないと初手前に拡大・旗モードが使えず、
+            // 初手で段が現れて盤が縮む（#2423）。
+            if model.gameState == .idle || model.gameState == .playing {
                 gameControls
             }
         }
