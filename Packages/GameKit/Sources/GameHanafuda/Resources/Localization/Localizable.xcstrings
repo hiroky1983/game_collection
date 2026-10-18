@@ -149,6 +149,28 @@
         }
       }
     },
+    "%@。取れます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Can be taken"
+          }
+        }
+      }
+    },
+    "%@。合いません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Does not match"
+          }
+        }
+      }
+    },
     "%@。合計%lld文" : {
       "extractionState" : "manual",
       "localizations" : {

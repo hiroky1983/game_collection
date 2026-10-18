@@ -22,6 +22,13 @@ public enum HanafudaSpeech {
         return tr("%1$@。場の%2$lld枚と合う", base, matches.count)
     }
 
+    /// 場の 1 枚（#2481）。手札を選んで取る札を選ぶ待ちのときだけ、取れる札かどうかまで読む。
+    public static func fieldLabel(for card: HanafudaCard, isSelecting: Bool, isCandidate: Bool) -> String {
+        let base = label(for: card)
+        guard isSelecting else { return base }
+        return isCandidate ? tr("%@。取れます", base) : tr("%@。合いません", base)
+    }
+
     /// 取り札の要約。役に効く枚数を種別ごとに読む。
     public static func capturedSummary(_ cards: [HanafudaCard]) -> String {
         guard !cards.isEmpty else { return tr("取り札なし") }
