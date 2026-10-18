@@ -600,7 +600,8 @@ C の組み方: 今の画面のまま、画面最下部のバナーの枠だけ�
 （初回だけ出る 1 行のミニガイド `HowToPlayHint` は描いていない）。
 
 局面は実物の `FifteenModel(services:seed:)` で配り、`FifteenHintSolver` の示す升を実物の `tap` で動かして作った「途中の局」
-（**種 1・37 手・正位置のタイル 6 枚（1 列目と 5・9・13）・ヒント未使用（あと 3 回）**。1 列目が揃い 2 列目に掛かったところで止めた）。
+（**種 2440・37 手・正位置のタイル 6 枚（5・8・9・12・13・15）・ヒント未使用（段のバッジは「あと 3 回」）**。盤の並びは
+`2 6 4 10 / 5 _ 14 8 / 9 11 3 12 / 13 1 15 7`。ソルバーの手順を正位置が 6 枚になるまで進めて止めたもので、列や行が揃った状態ではない）。
 
 C の組み方: 今の画面のまま、画面最下部のバナーの枠だけ大きくする（それ以外は何も動かさない。バナーは仮の枠で、広告の実装はしない）。
 大きさは会長決裁待ち（下の「未決のこと」）なので、AdMob の定型 2 つ **ラージバナー 320×100（枠 100pt）** と **ミディアムレクタングル 300×250
@@ -615,7 +616,7 @@ C の組み方: 今の画面のまま、画面最下部のバナーの枠だけ�
 | `fifteen/ip17_fifteen_mid_cur_vs_c250.png` | iPhone 17 | 左＝今、右＝C（MREC 250pt） |
 | `fifteen/ip17_fifteen_mid_cur_vs_a.png` | iPhone 17 | 左＝今、右＝A |
 | `fifteen/se3_fifteen_mid_*.png`（同じ 3 枚） | iPhone SE | 同上の SE 幅 |
-| `fifteen/measure_fifteen.json` | 両方 | 実測値 pt（`measure_spider.json` と同じ測り方。接尾辞 `_cur` が今・`_c100` が C〔100pt〕・`_c250` が C〔250pt〕・`_a` が A・`_a100` / `_a250` が「A の詰め方＋バナー 100pt / 250pt」〔計算用・画像なし〕。`board_*` が盤〔正方形・角丸〕、`tile_pt` が 1 タイルの一辺、`tile_gap_pt` がタイルの間隔、`status_h_pt` が手数のカード（今 72）／1 行の札（A 30）、`control_h_pt` がヒントの段〔44 ＋ 上下 4〕、`recommend_h_pt` がレコメンド枠の予約〔今だけ〕、`slack_pt` が予約（A は段）とバナーのあいだの `Spacer` の高さ〔今は `Spacer()` なので最小 8〕、`board_bottom_to_banner_pt` が盤の下端からバナーの上端まで、`limited_by` が頭打ちの向き〔0 = 幅・1 = 高さ〕、`width_use_ratio` が使える幅に対する盤の幅。`scene_mid` が局面〔種・手数・正位置の枚数・ヒントの残り〕） |
+| `fifteen/measure_fifteen.json` | 両方 | 実測値 pt（`measure_spider.json` と同じ測り方。接尾辞 `_cur` が今・`_c100` が C〔100pt〕・`_c250` が C〔250pt〕・`_a` が A・`_a100` / `_a250` が「A の詰め方＋バナー 100pt / 250pt」〔計算用・画像なし〕。`board_*` が盤〔正方形・角丸〕、`tile_pt` が 1 タイルの一辺、`tile_gap_pt` がタイルの間隔、`status_h_pt` が手数のカード（今 72）／1 行の札（A 30）、`control_h_pt` がヒントの段〔44 ＋ 上下 4〕、`recommend_h_pt` がレコメンド枠の予約〔今だけ〕、`slack_pt` が予約（A は段）とバナーのあいだの `Spacer` の高さ〔今は `Spacer()` なので最小 8〕、`board_bottom_to_banner_pt` が盤の下端からバナーの上端まで、`limited_by` が頭打ちの向き〔0 = 幅・1 = 高さ〕、`width_use_ratio` が使える幅に対する盤の幅。`scene_mid` が局面〔`seed` は `FifteenModel(seed:)` に渡した種・手数・正位置の枚数・`hints_remaining` は無料 3 ＋ 広告 5 の合計〔`BoardHintBudget.remaining`。段のバッジに出るのは無料の残り 3〕〕） |
 
 実測（pt。盤は正方形なので一辺、タイルも一辺）:
 

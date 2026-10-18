@@ -426,13 +426,15 @@ private func homeCount(_ tiles: [Int]) -> Int {
 }
 
 /// 局面。実物の `FifteenModel(services:seed:)` で種から配り、`FifteenHintSolver` の示す升を実物の `tap` で動かして
-/// 「途中の局」を作る（1 列目が揃い 2 列目に掛かったところ = 正位置のタイルが 6〜7 枚）。手数が 30〜70 に入る最初の種を使う。
+/// 「途中の局」を作る（正位置のタイルが 6〜7 枚になったところで止める。ソルバーは列や行の順には揃えないので、揃った列があるとは限らない）。
+/// 手数が 30〜70 に入る最初の種を使う（JSON の `seed` は `FifteenModel(seed:)` に渡した値そのもの）。
 @MainActor
 private func makeModel() -> (FifteenModel, GameServices, SceneInfo) {
-    for seed in UInt64(1)...UInt64(200) {
+    for n in UInt64(1)...UInt64(200) {
+        let seed = n &* 2440
         let store = MemorySnapshotStore()
         let services = GameServices(snapshots: store, ads: NoopAdService())
-        let model = FifteenModel(services: services, seed: seed &* 2440)
+        let model = FifteenModel(services: services, seed: seed)
         var steps = 0
         while !model.isSolved, steps < 400 {
             if homeCount(model.tiles) >= 6 { break }
