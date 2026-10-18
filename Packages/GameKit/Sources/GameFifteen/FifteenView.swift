@@ -151,9 +151,11 @@ public struct FifteenView: View {
                 Text(tr("%lld手で揃えました", model.moves))
                     .font(.subheadline).foregroundStyle(.white.opacity(0.85))
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
+                Button { withGameAnimation { model.newGame() } } label: {
+                    Text(tr("もう一度")).foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.Fill.coral)
             }
         }
     }

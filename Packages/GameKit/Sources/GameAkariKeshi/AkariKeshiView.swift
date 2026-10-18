@@ -137,9 +137,11 @@ public struct AkariKeshiView: View {
 
     /// 盤がまだ無いとき（開始シートを閉じた直後）に、盤の上から始め直せるようにする。
     private var idleOverlay: some View {
-        Button(tr("はじめる")) { showNewGame = true }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.Fill.coral)
+        Button { showNewGame = true } label: {
+            Text(tr("はじめる")).foregroundStyle(Theme.onAccent)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(Theme.Fill.coral)
     }
 
     // MARK: - 盤の下

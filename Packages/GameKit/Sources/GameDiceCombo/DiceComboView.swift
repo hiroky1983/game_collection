@@ -266,9 +266,12 @@ public struct DiceComboView: View {
                     .scaledFont(28, weight: .heavy, design: .rounded, maxScale: 1.2)
                     .foregroundStyle(.white)
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
+                Button { withGameAnimation { model.newGame() } } label: {
+                    Text(tr("もう一度")).foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Theme.Fill.coral)
             }
             .padding()
         }
