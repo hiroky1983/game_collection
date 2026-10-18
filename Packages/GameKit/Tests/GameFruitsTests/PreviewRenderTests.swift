@@ -40,13 +40,17 @@ struct PreviewRenderTests {
             ForEach(FruitKind.allCases, id: \.self) { kind in
                 let size = BonsaiArt.spriteSize(for: kind)
                 VStack(spacing: 6) {
-                    ZStack(alignment: .bottom) {
-                        Circle()
-                            .stroke(Color.red.opacity(0.5), lineWidth: 1.5)
-                            .frame(width: kind.radius * 2 * unit, height: kind.radius * 2 * unit)
+                    // 絵を囲む円の中心を、当たり判定の円の中心に重ねる（#2418）。
+                    let anchor = BonsaiArt.anchor(for: kind)
+                    ZStack {
                         BonsaiIcon(kind)
                             .frame(width: size.width * unit, height: size.height * unit)
+                            .offset(x: (0.5 - anchor.x) * size.width * unit, y: (anchor.y - 0.5) * size.height * unit)
+                        Circle()
+                            .stroke(Color.red.opacity(0.7), lineWidth: 1.5)
+                            .frame(width: kind.radius * 2 * unit, height: kind.radius * 2 * unit)
                     }
+                    .frame(width: kind.radius * 2 * unit, height: kind.radius * 2 * unit)
                     Text(verbatim: "\(kind.rawValue + 1) \(kind.name)")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.black)
