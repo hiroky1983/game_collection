@@ -211,7 +211,9 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
 - モデルが持つのは `elapsedSeconds` と「何を保存するか・いつ決着か」だけ。数える・止める・保存間隔（30 秒）の境目を
   跨いだと知らせる（`advance(from:)`）のは部品の仕事。ループのクロージャは `[weak self]` で渡し、止め忘れてもモデルを握らない。
 - 画面側の止め方・動かし方は `.gameTimerLifecycle(rescues:isHeld:pause:resume:)`（`Core/GameClockLabel.swift`）に 1 か所化:
-  画面を離れたら止める・背面に回ったら止める・広告のロード〜視聴中は止める・戻ったら再開する。時計の見た目は `GameClockLabel`。
+  画面を離れたら止める・背面に回ったら止める・広告のロード〜視聴中は止める・戻ったら再開する。
+  「遊び方（？）」のシートは `.howToPlay` が preference（`HowToPlayPresentedKey`）で伝えるので自動で止まり、
+  新規ゲーム／開始シートは開閉の `@State` を `isHeld` に渡す（開いたら止め・閉じたら再開・#2406）。時計の見た目は `GameClockLabel`。
 - 数独だけは盤の生成が非同期なので、離れている間（`pauseTimer()`〜`resumeTimerIfNeeded()`）に生成が終わった局は、
   保存・計時開始・`game_start` を戻ってきたときまで延ばす（戻らない旧モデルが新しい中断データを上書きしない・#1848）。
 
