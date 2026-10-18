@@ -577,7 +577,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 `python3 Scripts/check-untranslated-ja.py` が、App と GameKit の Swift ソースから **`tr("…")` を通していない日本語の
 文字列リテラル**を洗い出す（残りがあれば終了コード 1）。あわせて `tr` のキーと表の対応（上の 3. と同じ規則）も見る。
-`--summary` でファイルごとの件数。検査自体のテストは `bash Scripts/tests/test-check-untranslated-ja.sh`。
+`--summary` でファイルごとの件数。v1.1.13 から CI（`ci.yml` の `test` ジョブ）でも毎回回り、残りがあれば赤くなる（#2402）。検査自体のテストは `bash Scripts/tests/test-check-untranslated-ja.sh`。
 
 - 数えないもの: コメント、`tr` のキー、開発者にしか見えない文（`precondition`・`assert`・`fatalError`・`print`・
   `debugDescription:` の引数）、`#Preview` の中。
