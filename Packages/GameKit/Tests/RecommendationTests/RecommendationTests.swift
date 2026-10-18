@@ -46,9 +46,9 @@ import GameKitTestSupport
 // hanafuda は #668 で戻した。
 private let hubOrder = [
     "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
-    "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "mahjong", "hanafuda",
-    "go", "blocks", "concentration", "chess", "freecell", "fifteen", "homerun", "ojisanpuzzle",
-    "anzan", "colorrelay", "roulette", "fruits", "dicecombo",
+    "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
+    "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
+    "homerun", "colorrelay", "roulette", "fruits", "dicecombo",
 ]
 
 @MainActor
@@ -59,9 +59,9 @@ private func makeRegistry() -> GameRegistry {
         PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
         SudokuModule(), OthelloModule(), Game2048Module(), ShogiModule(), ShiritoriModule(),
         DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
-        MahjongSolitaireModule(), HanafudaModule(), GoModule(), BlocksModule(), ConcentrationModule(),
-        ChessModule(), FreeCellModule(), FifteenModule(), HomerunModule(), OjisanPuzzleModule(),
-        AnzanModule(), ColorRelayModule(), RouletteModule(), FruitsModule(), DiceComboModule(),
+        OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
+        BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
+        HomerunModule(), ColorRelayModule(), RouletteModule(), FruitsModule(), DiceComboModule(),
     ])
 }
 
