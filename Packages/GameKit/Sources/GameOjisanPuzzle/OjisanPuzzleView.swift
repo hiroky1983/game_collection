@@ -215,7 +215,7 @@ public struct OjisanPuzzleView: View {
         ZStack {
             Rectangle().fill(.black.opacity(0.6))
             VStack(spacing: 12) {
-                Text(tr("一時停止中")).font(.title3.bold()).foregroundStyle(.white)
+                Text(tr("一時停止")).font(.title3.bold()).foregroundStyle(.white)
                 GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
                     model.resumeFromUserPause()
                 }

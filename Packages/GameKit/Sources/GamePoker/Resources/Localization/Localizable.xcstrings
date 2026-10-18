@@ -339,7 +339,7 @@
         }
       }
     },
-    "もう一度はじめる (%lld枚)" : {
+    "最初からやり直す (%lld枚)" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

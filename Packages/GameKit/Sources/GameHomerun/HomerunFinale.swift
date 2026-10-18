@@ -212,7 +212,7 @@ struct HomerunFinaleScene: View {
 
     /// ニューレコードの帯（本数・距離の下・水平）。右から滑り込む。
     private func band(appear: Double, width: CGFloat) -> some View {
-        Text(tr("ニューレコード！"))
+        Text(tr("自己ベスト更新！"))
             .scaledFont(24, weight: .black, design: .rounded)
             .foregroundStyle(.white)
             .padding(.vertical, 8)
