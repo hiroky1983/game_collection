@@ -18,33 +18,38 @@ public struct DaifugoView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 8) {
-            statusBar
-            cpuRow
-            // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
-            //
-            // 縦の余りは `Spacer` ではなく**場 / リザルトのカード自身**に吸わせる（#193）。
-            // `Spacer` に吸わせると、その分がまるごと背景色の空白として残る（iPhone 17 Pro 実測で
-            // 場と手札の間に 131pt、リザルトの下に 174pt）。カード側を伸ばせば同じ余りが「広い場」
-            // 「大きなリザルト」になり、背景の空白は 0pt になる。
-            if model.phase == .result {
-                resultCard
-                    .transition(.opacity)
-            } else {
-                fieldArea
-                    .transition(.opacity)
-                handArea
-                    .transition(.opacity)
+        // 縦の狭い画面(iPhone SE)で固定 pt の中身が溢れないよう、使える高さで寸法を選ぶ(#2455)。
+        GeometryReader { geometry in
+            let metrics = DaifugoVerticalMetrics.metrics(forHeight: geometry.size.height)
+            VStack(spacing: metrics.spacing) {
+                statusBar
+                cpuRow(metrics)
+                // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
+                //
+                // 縦の余りは `Spacer` ではなく**場 / リザルトのカード自身**に吸わせる（#193）。
+                // `Spacer` に吸わせると、その分がまるごと背景色の空白として残る（iPhone 17 Pro 実測で
+                // 場と手札の間に 131pt、リザルトの下に 174pt）。カード側を伸ばせば同じ余りが「広い場」
+                // 「大きなリザルト」になり、背景の空白は 0pt になる。
+                if model.phase == .result {
+                    resultCard
+                        .transition(.opacity)
+                } else {
+                    fieldArea(metrics)
+                        .transition(.opacity)
+                    handArea(metrics)
+                        .transition(.opacity)
+                }
+                HowToPlayHint(.daifugo, playLog: services.playLog)
+                actionArea
+                RecommendationSlot(services: services, isFinished: model.phase == .result)
+                BannerSlot(ads: services.ads)
             }
-            HowToPlayHint(.daifugo, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
-            BannerSlot(ads: services.ads)
+            // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
+            // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
+            .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
+            .padding(metrics.pad)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
-        // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
-        .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
-        .padding(Theme.pad)
         .gameChrome(title: daifugoGameName(), review: services.review)
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)) { DaifugoRuleSheet() }
@@ -118,10 +123,10 @@ public struct DaifugoView: View {
 
     // MARK: - CPU
 
-    private var cpuRow: some View {
+    private func cpuRow(_ metrics: DaifugoVerticalMetrics) -> some View {
         HStack(spacing: 8) {
             ForEach(1..<DaifugoModel.playerCount, id: \.self) { index in
-                cpuCard(index)
+                cpuCard(index, metrics)
             }
         }
     }
@@ -130,7 +135,7 @@ public struct DaifugoView: View {
     /// 際限なく拡大すると席が押し合う。上限を超える分は `minimumScaleFactor` で縮めて 1 行に収める。
     private static let seatTextMaxScale: CGFloat = 1.6
 
-    private func cpuCard(_ index: Int) -> some View {
+    private func cpuCard(_ index: Int, _ metrics: DaifugoVerticalMetrics) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
@@ -154,13 +159,13 @@ public struct DaifugoView: View {
                 .background(Capsule().fill(model.lastActions[index].isEmpty ? Color.clear : Theme.Fill.purple))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10).padding(.horizontal, 6)
+        .padding(.vertical, metrics.seatVerticalPadding).padding(.horizontal, 6)
         .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 場
 
-    private var fieldArea: some View {
+    private func fieldArea(_ metrics: DaifugoVerticalMetrics) -> some View {
         VStack(spacing: 6) {
             fieldHeader
             HStack(spacing: 6) {
@@ -181,7 +186,7 @@ public struct DaifugoView: View {
         }
         // 縦の余りをここで吸い、場と手札の間に背景の空白を残さない（#193）。
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 22)
+        .padding(.vertical, metrics.fieldVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
         // 誰が出しても場は同じ経路（`field` の差し替え）で更新されるので、CPU の手も人間の手も
         // ここ1箇所で演出できる。見出しの「場は流れています」も同じ変化で切り替わる（#195）。
@@ -223,7 +228,7 @@ public struct DaifugoView: View {
 
     // MARK: - 手札
 
-    private var handArea: some View {
+    private func handArea(_ metrics: DaifugoVerticalMetrics) -> some View {
         // 1枚ごとに引くと合法手の探索が手札の枚数ぶん走るので、ここで1回だけ求める（#190）。
         let handHint = model.handHint
         return VStack(spacing: 6) {
@@ -275,7 +280,7 @@ public struct DaifugoView: View {
             .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
             hintLine(handHint)
         }
-        .padding(.horizontal, DaifugoHandLayout.horizontalPadding).padding(.vertical, 12)
+        .padding(.horizontal, DaifugoHandLayout.horizontalPadding).padding(.vertical, metrics.handVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -589,5 +594,42 @@ struct DaifugoRuleSheet: View {
 
     var body: some View {
         RuleListSheet(rules: rules)
+    }
+}
+
+/// 画面の中身に使える高さで変える縦の寸法（#2455）。`AdaptiveLayout`（#458）は幅しか持たないので、
+/// 縦の狭さはこの画面で持つ。iPhone SE（第 3 世代・使える高さ約 593pt）では固定 pt の中身が
+/// 初回ミニガイド・手札下の案内込みで約 670pt になり、溢れた分が上下に出てヘッダー下の帯がナビバーに潜る。
+enum DaifugoVerticalMetrics: Equatable {
+    case regular
+    case compact
+
+    /// 「縦が狭い」と見なす境目（pt）。通常寸法が要る高さ（ミニガイド・案内込みで約 670pt）より上に置く。
+    /// iPhone SE は約 593pt・13 mini は約 687pt で詰める側、iPhone 17 は約 724pt で通常の側。
+    static let compactHeightThreshold: CGFloat = 690
+
+    static func metrics(forHeight height: CGFloat) -> DaifugoVerticalMetrics {
+        height < compactHeightThreshold ? .compact : .regular
+    }
+
+    /// 要素どうしの縦の間隔。
+    var spacing: CGFloat { self == .regular ? 8 : 4 }
+    /// 画面の外周の余白。
+    var pad: CGFloat { self == .regular ? Theme.pad : 8 }
+    /// CPU の席の上下の余白。
+    var seatVerticalPadding: CGFloat { self == .regular ? 10 : 6 }
+    /// 場の上下の余白。
+    var fieldVerticalPadding: CGFloat { self == .regular ? 22 : 10 }
+    /// 手札の上下の余白。
+    var handVerticalPadding: CGFloat { self == .regular ? 12 : 8 }
+
+    /// 固定部分の高さの見積もり（ヘッダー下の帯 44 + 席 + 場の最小 + 手札 2 段 + 操作 60 + バナー 50 + ミニガイド 22 + 案内 14）。
+    /// 場の最小は見出し 14 + 札 78 + 上下の余白、席は 56 + 上下の余白、手札は 2 段 172 - 24 + 上下の余白。
+    /// 間隔は要素 8 つの 7 箇所。`DaifugoVerticalMetricsTests` が境目との整合を固定する。
+    var estimatedMinimumHeight: CGFloat {
+        let seat = 56 + seatVerticalPadding * 2
+        let field = 14 + 6 + 78 + fieldVerticalPadding * 2
+        let hand = 148 + handVerticalPadding * 2
+        return 44 + seat + field + hand + 60 + 50 + 22 + 14 + spacing * 7 + pad * 2
     }
 }
