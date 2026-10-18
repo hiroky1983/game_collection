@@ -16,7 +16,7 @@ public struct DiceComboView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             header
             scoreSheet
                 .layoutPriority(1)
@@ -103,15 +103,15 @@ public struct DiceComboView: View {
     /// 左に上段（1〜6 の目・小計・ボーナス）、右に下段（6 役）。
     private var scoreSheet: some View {
         HStack(alignment: .top, spacing: 8) {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ForEach(DiceComboCategory.upper, id: \.self) { row($0) }
                 bonusRow
             }
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ForEach(Self.lower, id: \.self) { row($0) }
             }
         }
-        .padding(8)
+        .padding(6)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -280,7 +280,8 @@ public struct DiceComboView: View {
 
 /// 得点表の 1 行。記入済みは濃く、入れられる役はいまの出目での点を差し色で出す。
 struct DiceComboScoreRow: View {
-    static let height: CGFloat = 40
+    /// 役を選ぶと取り消せないので、当たり判定は 44pt 以上（HIG）。
+    static let height: CGFloat = 44
 
     let name: String
     let rule: String
