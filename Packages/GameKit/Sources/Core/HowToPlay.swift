@@ -1562,6 +1562,16 @@ public extension EnvironmentValues {
     }
 }
 
+/// 「遊び方」シートを開いているか（#2406）。`.howToPlay` が上へ流し、`gameTimerLifecycle` が読んで
+/// 計時を止める。環境値ではなく preference なのは、`gameTimerLifecycle` が `.howToPlay` より外側に
+/// 付くため（環境は下にしか流れない）。ゲームごとの `onPresent` を増やさずに済む。
+struct HowToPlayPresentedKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
@@ -1571,6 +1581,7 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .preference(key: HowToPlayPresentedKey.self, value: isPresented)
             .environment(\.howToPlayTrigger, HowToPlayTrigger {
                 onPresent?()
                 isPresented = true

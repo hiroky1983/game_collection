@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import GameKitTestSupport
+@testable import Core
 
 /// 計時のあるゲームは、広告のロード〜視聴中に計時を止める（#1382）。
 ///
@@ -45,5 +46,41 @@ struct TimerPauseWiringTests {
     func lifecycleModifierPausesWhileWatching() throws {
         let text = try String(contentsOf: Self.sourcesRoot.appendingPathComponent("Core/GameClockLabel.swift"), encoding: .utf8)
         #expect(text.contains(".pausesTimerWhileWatching(rescues, pause: pause, resume: resume)"))
+    }
+
+    // MARK: - シート表示中の計時停止（#2406）
+
+    @Test("止める要因が 1 つでもあれば動かさない（シート・遊び方・広告）")
+    func holdPolicy() {
+        #expect(GameTimerHold.allowsRunning(isHeld: false, isHowToPlayOpen: false, rescueHoldsClock: false))
+        #expect(!GameTimerHold.allowsRunning(isHeld: true, isHowToPlayOpen: false, rescueHoldsClock: false))
+        #expect(!GameTimerHold.allowsRunning(isHeld: false, isHowToPlayOpen: true, rescueHoldsClock: false))
+        #expect(!GameTimerHold.allowsRunning(isHeld: false, isHowToPlayOpen: false, rescueHoldsClock: true))
+    }
+
+    @Test("gameTimerLifecycle は「遊び方」の表示を読み、isHeld の変化で止める・再開する")
+    func lifecycleObservesHowToPlayAndHeld() throws {
+        let life = try String(contentsOf: Self.sourcesRoot.appendingPathComponent("Core/GameClockLabel.swift"), encoding: .utf8)
+        #expect(life.contains(".onPreferenceChange(HowToPlayPresentedKey.self)"))
+        #expect(life.contains(".onChange(of: isHeld || isHowToPlayOpen)"))
+        let how = try String(contentsOf: Self.sourcesRoot.appendingPathComponent("Core/HowToPlay.swift"), encoding: .utf8)
+        #expect(how.contains(".preference(key: HowToPlayPresentedKey.self, value: isPresented)"))
+    }
+
+    /// タイムを競う 8 本。新規ゲーム・開始のシートを `@State` で開く画面は、その真偽値を `isHeld` に渡す。
+    @Test("タイムを競うゲームは、開いているシートを isHeld に渡している",
+          arguments: [
+            "GameSudoku/SudokuView.swift", "GameMinesweeper/MinesweeperView.swift",
+            "GameSolitaire/SolitaireView.swift", "GameSpider/SpiderView.swift",
+            "GameFreeCell/FreeCellView.swift", "GameHanoi/HanoiView.swift",
+            "GameMahjongSolitaire/MahjongSolitaireView.swift", "GameAkariKeshi/AkariKeshiView.swift",
+          ])
+    func timedGamesHoldWhileSheetIsOpen(path: String) throws {
+        let text = try String(contentsOf: Self.sourcesRoot.appendingPathComponent(path), encoding: .utf8)
+        let start = try #require(text.range(of: ".gameTimerLifecycle("), "\(path): gameTimerLifecycle が無い")
+        let call = String(text[start.upperBound...].prefix(while: { $0 != ")" || false }).prefix(400))
+        for flag in ["showNewGame", "showSetup"] where text.contains(".sheet(isPresented: $\(flag)") {
+            #expect(call.contains("isHeld:") && call.contains(flag), "\(path): \(flag) のシート表示中に計時を止めていない")
+        }
     }
 }

@@ -165,6 +165,7 @@ public struct SpiderView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [undoRescue, hintRescue],
+            isHeld: showSetup,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )

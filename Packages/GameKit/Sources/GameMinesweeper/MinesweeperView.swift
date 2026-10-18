@@ -102,6 +102,7 @@ public struct MinesweeperView: View {
         )
         .gameTimerLifecycle(
             rescues: [continueRescue, hintRescue],
+            isHeld: showNewGame,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
