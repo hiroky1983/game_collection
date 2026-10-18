@@ -94,7 +94,7 @@ public struct FruitField: Equatable, Sendable {
         /// 同じ種類が「触れた」とみなす隙間。ぴったり接するまで待つと、隣で止まったまま合体しない。
         public static let mergeSlack: Double = 0.3
         /// 危険線より上に居続けてよい秒数。超えたら終局。
-        public static let overLineLimit: Double = 1.0
+        public static let overLineLimit: Double = 3.0
         /// 盤に現れてから危険線の判定を始めるまでの猶予（秒）。落としたばかりの果物は線より上から
         /// 落ちてくるので、通り過ぎる時間ぶんは数えない。
         public static let overLineGrace: Double = 0.6
@@ -386,18 +386,21 @@ public struct FruitField: Equatable, Sendable {
     }
 
     /// 危険線の計時。`dt` は `step(dt:)` に渡された全体の時間。
+    /// 速さが `Metrics.sleepSpeed` 以上のあいだ（合体で跳ね上がった・転がり落ちる途中）は、
+    /// 線より上にいても計時を進めない。止まりかけて線より上に居座ったときだけ数える（#2463）。
     private mutating func updateOverLine(dt: Double) -> [FruitEvent] {
         var anyOver = false
         var over = false
         for index in fruits.indices {
             let fruit = fruits[index]
-            if fruit.top > Metrics.deadlineY, fruit.age > Metrics.overLineGrace {
-                anyOver = true
-                fruits[index].overLineTime += dt
-                if fruits[index].overLineTime >= Metrics.overLineLimit { over = true }
-            } else {
+            guard fruit.top > Metrics.deadlineY, fruit.age > Metrics.overLineGrace else {
                 fruits[index].overLineTime = 0
+                continue
             }
+            guard fruit.speed < Metrics.sleepSpeed else { continue }
+            anyOver = true
+            fruits[index].overLineTime += dt
+            if fruits[index].overLineTime >= Metrics.overLineLimit { over = true }
         }
         isOverLine = anyOver
         guard over else { return [] }

@@ -229,9 +229,14 @@ struct FieldTests {
         // 合体しにくいよう大きい種類を巡回して落とす。盤の面積は 100 × 96 で、真柏（半径 17.2）は
         // 10 個ほどで埋まる。
         let kinds: [FruitKind] = [.shinpaku, .kuromatsu, .momiji, .nanten]
+        // 危険線を越えたらそれ以上は積まず、計時が進むのを待つだけにする（#2463 で危険線の計時が
+        // 1 → 3 秒に伸びたので、積み続けるとジョストリングで計時が進まないままになる）。
+        // `isOverLine` は速さの gate 越しなので使わず、頭の高さだけで直接見る。
         while !field.isOver, drops < 40 {
-            field.moveCursor(to: 30 + Double(drops % 3) * 20, holding: kinds[drops % kinds.count])
-            field.drop(kinds[drops % kinds.count])
+            if !field.fruits.contains(where: { $0.top > M.deadlineY }) {
+                field.moveCursor(to: 30 + Double(drops % 3) * 20, holding: kinds[drops % kinds.count])
+                field.drop(kinds[drops % kinds.count])
+            }
             events += run(&field, seconds: 0.8)
             drops += 1
         }
@@ -258,8 +263,8 @@ struct FieldTests {
         #expect(field.fruits.allSatisfy { $0.overLineTime == 0 })
     }
 
-    @Test("危険線より上で止まった果物は猶予 + 1 秒で終局する")
-    func restingAboveTheLineEndsAfterOneSecond() {
+    @Test("止まって3秒居座ると終局する")
+    func restingAboveTheLineEndsAfterThreeSeconds() {
         var field = FruitField()
         // 左の壁に沿って大きい果物を柱にし、その上の果物の頭を危険線より上に出す。
         let kinmatsu = FruitKind.kinmatsu.radius
@@ -269,29 +274,64 @@ struct FieldTests {
         field.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
         field.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
         #expect(field.fruits[2].top > M.deadlineY, "柱の頭が危険線より上（\(field.fruits[2].top)）")
-        // 置いた直後は猶予を過ぎている（`placeFruitForTesting` は age を進めて置く）。
+        // 置いた直後は猶予を過ぎている（`placeFruitForTesting` は age を進めて置く）。柱は静止しているので
+        // 速さは常に `sleepSpeed` 未満（#2463 の speed gate に引っかからない）。
         var elapsed = 0.0
         var over = false
-        while elapsed < 3, !over {
+        while elapsed < M.overLineLimit + 2, !over {
             over = field.step(dt: frame).contains(.gameOver)
             elapsed += frame
         }
         #expect(over)
-        #expect(elapsed > M.overLineLimit - 0.05, "1 秒未満で終局した（\(elapsed)）")
-        #expect(elapsed < M.overLineLimit + 0.5, "1 秒を大きく超えて終局した（\(elapsed)）")
+        #expect(elapsed > M.overLineLimit - 0.05, "3 秒未満で終局した（\(elapsed)）")
+        #expect(elapsed < M.overLineLimit + 0.5, "3 秒を大きく超えて終局した（\(elapsed)）")
     }
 
-    @Test("危険線の下へ戻れば計時は 0 に戻る")
+    @Test("跳ね上がって1秒以内に線の下へ落ちる局面で終局しない")
+    func bouncingAboveTheLineBrieflyDoesNotEndGame() {
+        var field = FruitField()
+        // 危険線のすぐ上から、速い速度（`sleepSpeed` を大きく超える）で落ち始める果物を置く。
+        // 合体で跳ね上がった・転がり落ちる途中の果物を模している。
+        field.placeFruitForTesting(.ume, x: 50, y: M.deadlineY, vy: -50)
+        #expect(field.fruits[0].top > M.deadlineY, "置いた瞬間は線より上（\(field.fruits[0].top)）")
+        let events = run(&field, seconds: 1)
+        #expect(!events.contains(.gameOver))
+        #expect(!field.isOver)
+        #expect(field.fruits[0].top < M.deadlineY, "1 秒以内に線の下へ落ちている（\(field.fruits[0].top)）")
+        #expect(field.fruits[0].overLineTime == 0, "動いているあいだは計時が進まない（#2463）")
+    }
+
+    @Test("中断データから再開しても、線より上に居座っていた時間は 0 から数え直す（#2463 で 3 秒に緩めても仕様は変わらない）")
+    func restoredFruitStaysSafeUntilNewTimerElapses() {
+        var original = FruitField()
+        let kinmatsu = FruitKind.kinmatsu.radius
+        let kuromatsu = FruitKind.kuromatsu.radius
+        let shinpaku = FruitKind.shinpaku.radius
+        original.placeFruitForTesting(.kinmatsu, x: kinmatsu, y: kinmatsu)
+        original.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
+        original.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
+        // 保存前にすでに 2.9 秒（旧仕様の 1 秒はとうに超えている）計時していたことにする。
+        var saved = original.fruits
+        saved[2].overLineTime = 2.9
+        var restored = FruitField(fruits: saved, cursorX: original.cursorX)
+        #expect(restored.fruits[2].overLineTime == 0, "復元時に 0 へ戻す（既存仕様）")
+        // 0 から数え直すので、再開した次の 1 フレームで終局しない。
+        #expect(restored.step(dt: frame).isEmpty)
+        #expect(!restored.isOver)
+    }
+
+    @Test("危険線の上を自由落下しているあいだは、速さで計時が進まない（#2463）")
     func timerResetsBelowTheLine() {
         var field = FruitField()
         field.placeFruitForTesting(.tsubaki, x: 50, y: M.deadlineY + 10)
-        // 落ちている途中の数フレームは線より上（猶予は過ぎている）。
+        // 落ちている途中の数フレームは線より上（猶予は過ぎている）。重力でただちに
+        // `sleepSpeed` を超えるので、落ちているあいだは計時が進まない。
         var timers: [Double] = []
         for _ in 0..<60 {
-            field.step(dt: frame)
+            _ = field.step(dt: frame)
             timers.append(field.fruits[0].overLineTime)
         }
-        #expect(timers.first! > 0, "線より上にいるあいだは数える")
+        #expect(timers.allSatisfy { $0 == 0 }, "自由落下中は計時しない")
         #expect(timers.last! == 0, "床に着いたら 0")
         #expect(!field.isOver)
     }
@@ -323,7 +363,7 @@ struct FieldTests {
         field.placeFruitForTesting(.kinmatsu, x: kinmatsu, y: kinmatsu)
         field.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
         field.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
-        run(&field, seconds: 3)
+        run(&field, seconds: M.overLineLimit + 2)
         #expect(field.isOver)
         field.clearForContinue()
         #expect(field.count == 2, "線より上の真柏だけ消える")
