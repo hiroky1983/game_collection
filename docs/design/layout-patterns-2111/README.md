@@ -328,6 +328,8 @@ A の組み方: フェルトを画面全体に敷き（木枠なし）、ヘッ�
 v1.1.13 で同じ（違いはナビバーの＋の絵柄と色 #2370・#2377 だけで、ナビバーは自前で描いている）。
 局面は実物の `BlocksModel` を撮影用シナリオ（`-simulateBlocks playing` と同じ経路）で進めたもので、**開いた直後（1 面・発射前・
 「タップで発射」の札あり）**と**2 面に入った直後（市松 23 個・スコア 140・球が盤の中ほど）**の 2 つを描いた。
+**どちらも 2 回目以降のプレイの画面**（初回だけ盤の下に出る 1 行のミニガイド `HowToPlayHint`〔32pt〕は描いていない。初回は
+その分だけ盤に使える高さが減り、SE の「今」では盤が 306.5pt になる・`BlocksLayoutTests.devices`）。
 
 A の組み方: ヘッダー（戻る・ゲーム名・？・＋）はそのまま、今 2 行（スコア 28pt の数字・ステージ・残機。札の高さ 70pt）の札を
 **1 行の札（29pt）**にまとめ、左右の余白を 16pt → 8pt に詰める。盤は正方形なので、増えた幅 16pt がそのまま盤の一辺に乗る。
@@ -337,9 +339,9 @@ A の組み方: ヘッダー（戻る・ゲーム名・？・＋）はそのま�
 
 | ファイル | 端末 | 局面 | 内容 |
 |---|---|---|---|
-| `blocks/ip17_blocks_ready_cur_vs_a.png` | iPhone 17 | 開いた直後 | 左＝今、右＝A。1 面・発射前・「タップで発射」の札 |
+| `blocks/ip17_blocks_ready_cur_vs_a.png` | iPhone 17 | 開いた直後（2 回目以降） | 左＝今、右＝A。1 面・発射前・「タップで発射」の札。初回のミニガイドは無し |
 | `blocks/ip17_blocks_playing_cur_vs_a.png` | iPhone 17 | 2 面の途中 | 市松 23 個・スコア 140・残機 3・球が盤の中ほど |
-| `blocks/se3_blocks_ready_cur_vs_a.png` | iPhone SE | 開いた直後 | 同上の SE 幅 |
+| `blocks/se3_blocks_ready_cur_vs_a.png` | iPhone SE | 開いた直後（2 回目以降） | 同上の SE 幅 |
 | `blocks/se3_blocks_playing_cur_vs_a.png` | iPhone SE | 2 面の途中 | 同上の SE 幅 |
 | `blocks/measure_blocks.json` | 両方 | 両方 | 実測値 pt（`measure_spider.json` と同じ測り方。`board_*` が盤〔正方形・角丸〕、`block_*` / `paddle_*` / `ball_d_pt` が盤の上の部品〔抽象単位 × `pt_per_unit`〕、`header_h_pt` が今の 2 行の札、`status_h_pt` が A の 1 行の札、`control_h_pt` が一時停止とレコメンド枠の行、`touchpad_h_pt` が盤の下の操作面、`board_slot_h_pt` = 盤 ＋ 操作面〔盤に使える高さ〕、`limited_by` が頭打ちの向き〔0 = 幅・1 = 高さ〕、`width_use_ratio` が使える幅に対する盤の幅、`board_w_if_fullbleed_pt` が左右の余白を 0 にしたときに同じ枠に収まる盤の一辺） |
 
