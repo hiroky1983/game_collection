@@ -439,6 +439,9 @@ public struct BlocksView: View {
             }
             .padding(20)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(title)
     }
 
     /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。

@@ -158,6 +158,9 @@ public struct FifteenView: View {
                 .tint(Theme.Fill.coral)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance([tr("クリア！"), tr("%lld手で揃えました", model.moves)].joined(separator: tr("。")))
     }
 }
 

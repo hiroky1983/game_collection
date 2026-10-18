@@ -775,6 +775,9 @@ public struct OjisanPuzzleView: View {
         .padding(22)
         .popCard()
         .padding(12)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance([resultTitle, resultMessage].joined(separator: tr("。")))
     }
 
     /// 負けから 1 局 1 回だけ続ける（入院はゲージ半分、積み上がりは上から 4 段を片づける・#2013）。
