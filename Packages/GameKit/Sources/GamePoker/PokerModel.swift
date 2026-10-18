@@ -328,6 +328,9 @@ public final class PokerModel {
         // 決着待ちのダブルアップが残っていたら、賭け金を受け取ってこの局を閉じてから次へ進む
         // （持ち点が確定してからでないと `canStartRound` を正しく判定できない）。
         concludeRoundIfNeeded()
+        // 局の進行中は始め直さない。開始ボタンの連打で 2 回届くと、アンティが二重に引かれ
+        // 1 回目のぶんがポットから消え、`game_start` も二重に数えられる（#2416）。
+        guard phase == .idle || phase == .result else { return }
         guard canStartRound else { return }
         roundSerial += 1
         if let rules { self.rules = rules }

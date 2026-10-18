@@ -121,8 +121,12 @@ struct PokerRuleSetBakingTests {
         model.bet2Action(.check)
         model.startGame()
         #expect(model.rules == .bonus, "「次のゲーム」でルールが勝手に戻ってはいけない")
-        model.startGame(rules: .standard)
-        #expect(model.rules == .standard, "ルールが変わるのは開始時に明示したときだけ")
+
+        // 局の進行中は始め直せない（#2416）ので、決着した局からもう一度始める。
+        let another = makeModelBeforeShowdown(playerHand: hand(for: .onePair), rules: .bonus)
+        another.bet2Action(.check)
+        another.startGame(rules: .standard)
+        #expect(another.rules == .standard, "ルールが変わるのは開始時に明示したときだけ")
     }
 
     @Test("中断から復元した局は、保存されていたルールで再開する")
