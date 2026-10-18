@@ -8,6 +8,7 @@ public struct ShiritoriView: View {
     @State private var extendRescue = RewardedRescue()
     @State private var resultCardClosed = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.adaptiveLayout) private var layout
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -189,7 +190,7 @@ public struct ShiritoriView: View {
                     RoundedRectangle(cornerRadius: 10).fill(Theme.inkSub.opacity(0.15))
                 }
             }
-            .frame(width: 84, height: 96)
+            .frame(width: layout.scaled(84), height: layout.scaled(96))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(ShiritoriPresentation.currentLabel(card: model.currentCard, reading: model.currentReading))
 
@@ -393,6 +394,8 @@ enum ShiritoriBoardLayout {
 // MARK: - 札
 
 struct ShiritoriCardTile: View {
+    @Environment(\.adaptiveLayout) private var layout
+
     enum Style: Equatable {
         case current
         case board(owner: ShiritoriOwner?, selectable: Bool, isCPUCursor: Bool)
@@ -428,7 +431,7 @@ struct ShiritoriCardTile: View {
             // 常に描画して高さを確保する（グリッドの行の高さが札ごとにばらつかないように）。
             // 隠すときは不透明度だけ0にする（VoiceOver は `boardArea` 側の `accessibilityLabel` が別に持つ）。
             Text(reading)
-                .scaledFont(isCurrent ? 14 : 10, weight: .bold, design: .rounded)
+                .scaledFont(layout.scaled(isCurrent ? 14 : 10), weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .opacity(showsReading ? 1 : 0)
