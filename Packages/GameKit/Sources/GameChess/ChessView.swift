@@ -193,8 +193,15 @@ public struct ChessView: View {
                     Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
                         .foregroundStyle(Theme.inkSub)
+                        // 押せる範囲を 44pt にする（#2487）。増えた高さ（文字 1 行ぶん ≒ 26pt）は
+                        // 上の隙間と下の余白から半分ずつ引いて、札の外寸を変えない。
+                        // 上は VStack の中（隙間 18 pt 以内）に収まるので当たり判定は枠の外へ出ない。
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .padding(.top, -13)
                 }
-                .padding(24)
+                .padding([.top, .horizontal], 24)
+                .padding(.bottom, 11)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
                 .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
                 // 札を盤の後ろ扱いにせず、VoiceOver を札の中だけで動かす（#1641。FreeCell の暗幕パネルと同じ形）。
