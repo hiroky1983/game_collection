@@ -4,7 +4,7 @@
 #   ③project.yml に差分が無ければ merge しない／あれば --ff-only で取り込む ④ff できなければ非 0
 #   ⑤fastlane の終了コードがそのまま返る
 # 本物の git（一時リポジトリ + bare origin）を使い、bump-marketing-version.sh と bundle だけをスタブにする。
-# HOME を一時ディレクトリへ差し替えるので、ログ（~/Library/Logs/asobiba-ship）は実環境を汚さない。
+# HOME をケースごとの一時ディレクトリへ差し替えるので、ログ（~/Library/Logs/asobiba-ship）は実環境を汚さない。
 #
 # 使い方: bash Scripts/tests/test-ship-beta.sh
 set -uo pipefail
@@ -21,8 +21,7 @@ check() { if [ "$2" = "$3" ]; then ok "$1"; else ng "$1 (期待: [$2] / 実際: 
 
 ROOT=$(mktemp -d "${TMPDIR:-/tmp}/ship-beta-test.XXXXXX") || exit 1
 trap 'rm -r "$ROOT"' EXIT
-export HOME="$ROOT/home"
-mkdir -p "$HOME" "$ROOT/bin"
+mkdir -p "$ROOT/bin"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
@@ -39,7 +38,8 @@ export PATH="$ROOT/bin:$PATH"
 # ケースごとに新しい作業場を作る: $1=ブランチ名。$CASE/origin.git（bare）と $CASE/work（ship-beta.sh の複製入り）
 setup() {
   N=$((N + 1)); CASE="$ROOT/case$N"; CALLS="$CASE/calls"; export CALLS
-  mkdir -p "$CASE"; : >"$CALLS"
+  mkdir -p "$CASE/home"; : >"$CALLS"
+  export HOME="$CASE/home"   # ログの有無をケースごとに独立して見る
   git init -q --bare "$CASE/origin.git"
   git clone -q "$CASE/origin.git" "$CASE/work" 2>/dev/null
   (
