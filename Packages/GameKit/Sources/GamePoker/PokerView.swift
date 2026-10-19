@@ -251,10 +251,12 @@ public struct PokerView: View {
             // （英語の単数・複数は StringTable がその数字の文字列で選ぶ・#2168）。
             Label(tr("あなた: %@枚", RecordFormat.number(model.playerChips)), systemImage: "person.fill")
                 .themeBody(14)
+                .lineLimit(1).minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.ink)
             Spacer()
             Label(tr("CPU: %@枚", RecordFormat.number(model.cpuChips)), systemImage: "cpu")
                 .themeBody(14)
+                .lineLimit(1).minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.inkSub)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)

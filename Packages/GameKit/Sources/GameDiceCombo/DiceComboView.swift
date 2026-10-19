@@ -88,6 +88,7 @@ public struct DiceComboView: View {
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: "\(model.total)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }

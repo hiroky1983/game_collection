@@ -103,11 +103,13 @@ public struct BlackjackView: View {
         HStack {
             Label(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill")
                 .themeBody(14)
+                .lineLimit(1).minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.ink)
             Spacer()
             if model.bet > 0 {
                 Label(tr("ベット: %@枚", model.bet.formatted()), systemImage: "dollarsign.circle.fill")
                     .themeBody(14)
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.yellowText)
             }
         }
