@@ -36,4 +36,19 @@ struct GomokuResumableSnapshotTests {
         try store.save(snapshot(cells), for: "gomoku")
         #expect(GomokuModule().hasResumableSnapshot(in: store))
     }
+
+    @Test("人間が白のとき、CPU の初手だけでは続きではなく手つかず。自分が打つと続きになる（#2508）")
+    func whiteAfterCPUOpeningIsNotResumable() async {
+        let store = MemorySnapshotStore()
+        let module = GomokuModule()
+        let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        #expect(!model.isAITurn, "CPU が初手を打った（前提）")
+        #expect(!module.hasResumableSnapshot(in: store), "CPU の初手だけ")
+        #expect(module.hasUntouchedSnapshot(in: store), "CPU の初手だけは手つかず")
+        model.tap(row: 0, col: 0)
+        #expect(module.hasResumableSnapshot(in: store), "自分が打った盤（対照）")
+        #expect(!module.hasUntouchedSnapshot(in: store))
+    }
 }
