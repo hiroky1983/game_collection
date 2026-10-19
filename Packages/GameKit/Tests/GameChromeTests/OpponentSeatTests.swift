@@ -41,10 +41,17 @@ struct OpponentSeatTests {
     @Test("束の幅は札の幅 + ずれ × (見せる枚数 − 1)。6 枚以上は 5 枚で止まり、0 枚でも 1 枚ぶんの幅を残す")
     func fanWidth() {
         typealias Style = OpponentSeatStyle
-        #expect(Style.fanWidth(count: 1, cardWidth: 20) == 20)
-        #expect(Style.fanWidth(count: 3, cardWidth: 20) == 20 + 20 * 0.42 * 2)
-        #expect(Style.fanWidth(count: 5, cardWidth: 24) == Style.fanWidth(count: 13, cardWidth: 24))
-        #expect(Style.fanWidth(count: 0, cardWidth: 24) == 24)
+        // 式は #expect の外で組む（CI の swiftc が `20 + 20 * 0.42 * 2` の型推論に時間切れを起こした）。
+        let three: CGFloat = 20 + 20 * 0.42 * 2
+        let one = Style.fanWidth(count: 1, cardWidth: 20)
+        let threeShown = Style.fanWidth(count: 3, cardWidth: 20)
+        let five = Style.fanWidth(count: 5, cardWidth: 24)
+        let thirteen = Style.fanWidth(count: 13, cardWidth: 24)
+        let zero = Style.fanWidth(count: 0, cardWidth: 24)
+        #expect(one == 20)
+        #expect(abs(threeShown - three) < 0.001)
+        #expect(five == thirteen)
+        #expect(zero == 24)
     }
 
     @Test("席は 1 まとまりで読み上げ、手番は輪（黄色）で示す")
