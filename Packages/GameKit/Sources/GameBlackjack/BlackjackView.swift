@@ -28,37 +28,13 @@ public struct BlackjackView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
-            chipsBar
-            // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
-            // ベットを促す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
-            if isBeforeDeal {
-                Spacer(minLength: 0)
-                preDealTable
-                Spacer(minLength: 0)
-            } else {
-                // ディーラーとあなたの境目（= 卓の中央）に勝敗を重ねる（#1754）。画面全体の中央に
-                // 重ねるとあなたの手札を覆ってしまうので、この 2 つだけを囲んで中央を取る。
-                // 手ごとのバッジ（`outcomeBadge`）は残す——スプリットでは手ごとの勝敗が行に要るし、
-                // バナーが消えたあとも結果が読める。勝敗の読み上げ（#1574）もこの重ねが担う
-                // （出る瞬間に、理由と増減まで添えて読む）。
-                VStack(spacing: 10) {
-                    dealerArea
-                    Spacer(minLength: 4)
-                    playerArea
-                }
-                .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
-            }
-            HowToPlayHint(.blackjack, playLog: services.playLog)
-            if model.sessionOver {
-                sessionOverView
-            } else {
-                actionArea
-            }
-            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
-            BannerSlot(ads: services.ads)
+        // 縦の狭い画面(iPhone SE)のスプリット中だけ固定 pt の中身が溢れるので、使える高さで寸法を選ぶ(#2498)。
+        GeometryReader { geometry in
+            let metrics = BlackjackVerticalMetrics.metrics(forHeight: geometry.size.height,
+                                                           isSplit: model.hands.count > 1)
+            content(metrics)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        .padding(Theme.pad)
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
         .gameChrome(title: tr("ブラックジャック"), review: services.review)
@@ -97,9 +73,43 @@ public struct BlackjackView: View {
         )
     }
 
+    private func content(_ metrics: BlackjackVerticalMetrics) -> some View {
+        VStack(spacing: metrics.spacing) {
+            chipsBar(metrics)
+            // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
+            // ベットを促す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
+            if isBeforeDeal {
+                Spacer(minLength: 0)
+                preDealTable
+                Spacer(minLength: 0)
+            } else {
+                // ディーラーとあなたの境目（= 卓の中央）に勝敗を重ねる（#1754）。画面全体の中央に
+                // 重ねるとあなたの手札を覆ってしまうので、この 2 つだけを囲んで中央を取る。
+                // 手ごとのバッジ（`outcomeBadge`）は残す——スプリットでは手ごとの勝敗が行に要るし、
+                // バナーが消えたあとも結果が読める。勝敗の読み上げ（#1574）もこの重ねが担う
+                // （出る瞬間に、理由と増減まで添えて読む）。
+                VStack(spacing: metrics.tableSpacing) {
+                    dealerArea(metrics)
+                    Spacer(minLength: 4)
+                    playerArea(metrics)
+                }
+                .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
+            }
+            HowToPlayHint(.blackjack, playLog: services.playLog)
+            if model.sessionOver {
+                sessionOverView
+            } else {
+                actionArea
+            }
+            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
+            BannerSlot(ads: services.ads)
+        }
+        .padding(metrics.pad)
+    }
+
     // MARK: - Chips Bar
 
-    private var chipsBar: some View {
+    private func chipsBar(_ metrics: BlackjackVerticalMetrics) -> some View {
         HStack {
             Label(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill")
                 .themeBody(14)
@@ -113,7 +123,7 @@ public struct BlackjackView: View {
                     .foregroundStyle(Theme.yellowText)
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
+        .padding(.horizontal, 14).padding(.vertical, metrics.chipsVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -149,8 +159,8 @@ public struct BlackjackView: View {
 
     // MARK: - Dealer Area
 
-    private var dealerArea: some View {
-        VStack(spacing: 10) {
+    private func dealerArea(_ metrics: BlackjackVerticalMetrics) -> some View {
+        VStack(spacing: metrics.tableSpacing) {
             HStack {
                 Text(tr("ディーラー"))
                     .themeBody(13)
@@ -199,14 +209,14 @@ public struct BlackjackView: View {
             .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
                 .rowWidth(count: max(model.dealerHand.count, 2), spacing: 8))
         }
-        .padding(.horizontal, 14).padding(.vertical, 14)
+        .padding(.horizontal, 14).padding(.vertical, metrics.areaVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Player Area
 
-    private var playerArea: some View {
-        VStack(spacing: 10) {
+    private func playerArea(_ metrics: BlackjackVerticalMetrics) -> some View {
+        VStack(spacing: metrics.tableSpacing) {
             // スプリットしたラウンドは手が2つに割れ、それぞれ賭け金も勝敗も別（#439）。
             if model.hands.count > 1 {
                 ForEach(Array(model.hands.enumerated()), id: \.element.id) { idx, hand in
@@ -216,7 +226,7 @@ public struct BlackjackView: View {
                 singleHandArea
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 14)
+        .padding(.horizontal, 14).padding(.vertical, metrics.areaVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
