@@ -105,8 +105,14 @@ struct DaifugoLayoutTests {
         #expect(source.contains("OpponentCardFan("), "裏向きの束を自前で組んでいる")
         #expect(source.contains("PlayingCardBack(metrics: back)"), "束の札がトランプの裏でない")
         #expect(source.contains("DaifugoAccessibility.seatLabel("), "席の読み上げ文（#2495）を渡していない")
-        #expect(!source.contains(#"Image(systemName: "cpu")"#) || source.contains("fieldHeader"),
-                "席の手番をアイコンの色で示す古い組み方が残っている")
+        let seat = try #require(SourceScan.declaration(of: "private func cpuSeat", in: source))
+        #expect(!seat.contains(#"Image(systemName: "cpu")"#), "席の手番をアイコンの色で示す古い組み方が残っている")
+        #expect(!source.contains("cpuCard("), "古い席（cpuCard）が残っている")
+        // 席に名前を出さないので、出し手のバッジと手番の札にも席のアイコンを添える（どの席か分かる）。
+        let header = try #require(SourceScan.declaration(of: "private var fieldHeader", in: source))
+        #expect(header.contains("OpponentSeatIcon(index: owner"), "出し手のバッジに席のアイコンが無い")
+        let chip = try #require(SourceScan.declaration(of: "private var turnChip", in: source))
+        #expect(chip.contains("OpponentSeatIcon(index: model.currentPlayer"), "手番の札に席のアイコンが無い")
     }
 
     @Test("出せない札はフェルトの上なので白を重ねて沈める（不透明度を落とさない）")
@@ -122,7 +128,7 @@ struct DaifugoLayoutTests {
         let source = try Self.source
         let chips = try #require(SourceScan.declaration(of: "private var statusChips", in: source))
         #expect(chips.contains("ViewThatFits(in: .horizontal)"))
-        #expect(SourceScan.matchCount(of: "TurnBadge\\(turnLabel, kind: turnKind\\)", in: chips) == 2)
+        #expect(SourceScan.matchCount(of: "turnChip", in: chips) == 2)
         #expect(SourceScan.matchCount(of: "gameCountLabel", in: chips) == 1, "短い形にもゲーム数が残っている")
     }
 }

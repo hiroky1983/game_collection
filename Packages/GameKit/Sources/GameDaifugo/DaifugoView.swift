@@ -101,18 +101,28 @@ public struct DaifugoView: View {
             HStack(spacing: 8) {
                 gameCountLabel
                 revolutionBadge
-                TurnBadge(turnLabel, kind: turnKind)
+                turnChip
             }
             HStack(spacing: 8) {
                 revolutionBadge
-                TurnBadge(turnLabel, kind: turnKind)
+                turnChip
             }
         }
     }
 
     private var gameCountLabel: some View {
         Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
-            .themeBody(13)
+            .themeBody(13, maxScale: Self.seatTextMaxScale)
+    }
+
+    /// 手番の札。席に名前を出さない（アイコンで見分ける）ので、CPU の番ならその席のアイコンを添えてどの席か分かるようにする。
+    private var turnChip: some View {
+        HStack(spacing: 4) {
+            if model.phase == .playing, !model.isPlayerTurn {
+                OpponentSeatIcon(index: model.currentPlayer, diameter: layout.scaled(22))
+            }
+            TurnBadge(turnLabel, kind: turnKind)
+        }
     }
 
     @ViewBuilder private var revolutionBadge: some View {
@@ -218,8 +228,13 @@ public struct DaifugoView: View {
         if let ownerName = fieldOwnerName {
             let isHuman = model.fieldOwner == DaifugoModel.humanIndex
             HStack(spacing: 4) {
-                Image(systemName: isHuman ? "person.fill" : "cpu")
-                    .themeCaption(10, maxScale: Self.seatTextMaxScale)
+                // 席に名前を出さないので、出し手は席と同じアイコンで示す（どの相手を越えるべきか読める・#193）。
+                if isHuman {
+                    Image(systemName: "person.fill")
+                        .themeCaption(10, maxScale: Self.seatTextMaxScale)
+                } else if let owner = model.fieldOwner {
+                    OpponentSeatIcon(index: owner, diameter: layout.scaled(16))
+                }
                 Text(isHuman ? tr("あなたが出した") : tr("%@が出した", ownerName))
                     .themeCaption(11, maxScale: Self.seatTextMaxScale)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -247,7 +262,7 @@ public struct DaifugoView: View {
             CardTableInkReader { ink in
                 HStack {
                     Text(tr("あなた（残り%lld枚）", model.playerHand.count))
-                        .themeBody(13)
+                        .themeBody(13, maxScale: Self.seatTextMaxScale)
                         .foregroundStyle(ink.label)
                     Spacer()
                     if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
@@ -513,10 +528,11 @@ public struct DaifugoView: View {
 enum DaifugoLayoutA {
     /// 画面の左右の余白（全画面の枠の値）。
     static let sideInset: CGFloat = FullScreenGameLayoutMetrics.sideInset
-    /// 中身の上下の余白（ヘッダーの余白 4 / バナーの帯の余白 8 に足す分）。
-    static let verticalInset: CGFloat = 4
-    /// 段のあいだの間隔。
-    static let spacing: CGFloat = 8
+    /// 中身の上下の余白（ヘッダーの余白 4 / バナーの帯の余白 8 に足す分）。SE で初回のミニガイド・案内・出し手の
+    /// カプセルが同時に出ても収まるよう詰めてある（`estimatedMinimumHeight`）。
+    static let verticalInset: CGFloat = 2
+    /// 段のあいだの間隔。SE で出し手のカプセル・ミニガイド・案内が同時に出ても収まる値（8 だと 1.5pt 超える）。
+    static let spacing: CGFloat = 6
     /// 手札の列のあいだに残す隙間（札の幅 = 列幅 − これ）。
     static let handGap: CGFloat = 4
     /// 札の拡大率の上限（狭い画面の倍率。iPad ではさらに `elementScale` 倍）。iPhone 17 Pro Max（440pt）で約 1.33 なので届かない。
@@ -558,13 +574,13 @@ enum DaifugoLayoutA {
         )
     }
 
-    /// 初回のミニガイドと手札の下の案内が両方出ているときの、中身に要る高さの見積もり（配った直後・手札 14 枚 = 2 段）。
-    /// 席（アイコン + 束 + 枚数 + 吹き出し）+ 場（見出し 14 + 6 + 札）+ 手札（見出し 16 + 6 + 2 段 + 6 + 案内 14）+
+    /// 初回のミニガイドと手札の下の案内が両方出ているときの、中身に要る高さの見積もり（手札 14 枚 = 2 段・場に出し手のカプセル）。
+    /// 席（アイコン + 束 + 枚数の札 18 + 吹き出し 20）+ 場（出し手のカプセル 21 + 6 + 札）+ 手札（見出し 16 + 6 + 2 段 + 6 + 案内 14）+
     /// ミニガイド 22 + 操作の段 60 + 間隔 + 上下の余白。`DaifugoLayoutTests` が SE の使える高さと突き合わせる（#2455 の再発防止）。
     static func estimatedMinimumHeight(screenWidth: CGFloat) -> CGFloat {
         let m = metrics(screenWidth: screenWidth)
-        let seat = m.seatDiameter + OpponentSeatStyle.spacing * 3 + m.seatCardMetrics.height + 14 + 20
-        let field = 14 + 6 + m.fieldCard.height
+        let seat = m.seatDiameter + OpponentSeatStyle.spacing * 3 + m.seatCardMetrics.height + 18 + 20
+        let field = 21 + 6 + m.fieldCard.height
         let hand = 16 + 6 + m.handCard.height * 2 + DaifugoHandLayout.rowSpacing + 6 + 14
         let rows: [CGFloat] = [seat, field, hand, 22, 60]
         return rows.reduce(0, +) + spacing * CGFloat(rows.count - 1) + verticalInset * 2

@@ -61,7 +61,6 @@ struct NumericCornerRadiusScanTests {
         "GameBlackjack/BlackjackView.swift": 1,
         "GameChess/ChessView.swift": 7,
         "GameConcentration/ConcentrationView.swift": 4,
-        "GameDaifugo/DaifugoView.swift": 1,
         "GameFifteen/FifteenView.swift": 1,
         // 柵越えおじさんの 4 ファイルは、走査が `Resources/` で途中で止まっていた不具合（#2109 で修正）のせいで
         // 一度も数えられていなかった既存の箇所。新しく書いたものではないので、見つかった件数で載せる
