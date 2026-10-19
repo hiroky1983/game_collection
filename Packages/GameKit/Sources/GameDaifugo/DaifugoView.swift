@@ -168,7 +168,11 @@ public struct DaifugoView: View {
                 name: model.playerName(index), remaining: remaining, action: action, isTurn: isTurn)
         ) {
             OpponentCardFan(count: remaining, cardWidth: back.width, cardHeight: back.height) {
-                PlayingCardBack(metrics: back)
+                // トランプの裏（藍の面 + 白い内枠 + スート印）。外形と面は共通基盤（#397）。
+                ZStack {
+                    PlayingCardSurface(faceUp: false, cornerRadius: back.cornerRadius, shadowRadius: 1)
+                    PlayingCardBack(metrics: back)
+                }
             }
         }
     }
