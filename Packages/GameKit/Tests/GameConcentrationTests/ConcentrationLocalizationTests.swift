@@ -25,4 +25,10 @@ struct ConcentrationLocalizationTests {
         // 日本語では従来の読み上げ文のまま。
         #expect(ObjectCardKind.apple.displayName == "りんご")
     }
+
+    @Test("手番のチップの読み上げ値に英語の訳がある（#2495）")
+    func turnValues() {
+        #expect(GameConcentration.tr("あなたの番", language: .english) == "Your turn")
+        #expect(GameConcentration.tr("CPUの番", language: .english) == "CPU's turn")
+    }
 }

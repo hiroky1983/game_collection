@@ -139,6 +139,7 @@ public struct DaifugoView: View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
+                    .accessibilityHidden(true)
                     .themeCaption(12, maxScale: Self.seatTextMaxScale)
                     .foregroundStyle(model.currentPlayer == index && model.phase == .playing ? Theme.coralText : Theme.inkSub)
                 Text(model.playerName(index))
@@ -161,6 +162,13 @@ public struct DaifugoView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, metrics.seatVerticalPadding).padding(.horizontal, 6)
         .popCard(corner: Theme.cornerSmall)
+        // 手番はアイコンの色でしか示さないので、席を 1 まとまりにして「〜の番」まで読ませる（#2495）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(DaifugoAccessibility.seatLabel(
+            name: model.playerName(index),
+            remaining: model.hands[index].count,
+            action: model.lastActions[index].isEmpty ? "" : model.actionLabel(index),
+            isTurn: model.currentPlayer == index && model.phase == .playing))
     }
 
     // MARK: - 場
