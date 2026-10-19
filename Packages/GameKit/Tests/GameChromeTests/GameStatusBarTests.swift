@@ -7,9 +7,10 @@ import GameKitTestSupport
 /// 対戦ゲームのヘッダー下の行（#1419）が、共通の枠と手番表示を通っていること。
 @Suite("対戦ゲームのステータス行")
 struct GameStatusBarTests {
-    /// 対象の 9 本（ディレクトリ名）。
+    /// 対象の 8 本（ディレクトリ名）。大富豪はレイアウトパターン A（全画面・#2531）でヘッダー下の帯を持たず、
+    /// ゲーム数・手番の札はヘッダーの行に置く（下の `daifugoPutsTurnBadgeInHeader`）。
     private static let games = ["GameShogi", "GameChess", "GameGo", "GameOthello", "GameGomoku",
-                                "GameConcentration", "GameHanafuda", "GameDaifugo", "GameShiritori"]
+                                "GameConcentration", "GameHanafuda", "GameShiritori"]
 
     @Test("最小の高さは 44pt・余白は横 12 / 縦 6")
     func styleValues() {
@@ -43,6 +44,15 @@ struct GameStatusBarTests {
             #expect(source.contains("TurnBadge(") || game == "GameConcentration",
                     "\(game) が TurnBadge を使っていない")
         }
+    }
+
+    /// 大富豪（A・#2531）: 帯は無いが、手番の表示は共通の `TurnBadge` を全画面の枠のヘッダーの札として置く。
+    @Test("大富豪は全画面の枠のヘッダーに TurnBadge を置く（ヘッダー下の帯は持たない）")
+    func daifugoPutsTurnBadgeInHeader() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameDaifugo"))
+        #expect(!source.contains("GameStatusBar {"), "A ではヘッダー下の帯を置かない")
+        #expect(source.contains("TurnBadge("), "手番の表示が共通の TurnBadge でない")
+        #expect(source.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠を通っていない")
     }
 
     /// 一人用の 6 本（#1420）。2048・15 パズル・ブロック崩しは大きなスコア表示を残す例外。
