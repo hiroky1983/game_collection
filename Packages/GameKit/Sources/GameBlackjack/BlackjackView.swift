@@ -196,6 +196,8 @@ public struct BlackjackView: View {
                 }
             }
             .frame(minHeight: 90)
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+                .rowWidth(count: max(model.dealerHand.count, 2), spacing: 8))
         }
         .padding(.horizontal, 14).padding(.vertical, 14)
         .popCard(corner: Theme.cornerSmall)
@@ -261,6 +263,8 @@ public struct BlackjackView: View {
                 }
             }
             .frame(minHeight: 90)
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+                .rowWidth(count: max(model.playerHand.count, 2), spacing: 8))
         }
     }
 

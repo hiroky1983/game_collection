@@ -314,6 +314,8 @@ public struct PokerView: View {
                         .gameAnimation(PokerMotion.showdownFlip(index: index), value: cpuRevealed)
                 }
             }
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+                .rowWidth(count: model.cpuHand.count, spacing: 8))
             .padding(.vertical, 8)
         }
         .padding(.horizontal, 18).padding(.vertical, 20)
@@ -431,6 +433,8 @@ public struct PokerView: View {
                         .gameAnimation(PokerMotion.handSelection, value: isSelected)
                 }
             }
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+                .rowWidth(count: model.playerHand.count, spacing: 8))
             .padding(.vertical, 6)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
