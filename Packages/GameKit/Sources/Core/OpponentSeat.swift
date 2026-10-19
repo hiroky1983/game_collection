@@ -190,12 +190,13 @@ public struct OpponentSeat<Fan: View>: View {
     }
 
     /// 相手の残り枚数。残り 1 枚は黄色の札にして目立たせる。
+    /// 余白は枚数によらず同じにして、残り 1 枚になった瞬間に席の高さ（＝場の高さ）が変わらないようにする（#148 の趣旨）。
     private var countLabel: some View {
         Text(tr("残り%lld枚", cardCount))
             .scaledFont(11, weight: .black, design: .rounded)
             .foregroundStyle(cardCount == 1 ? Theme.onAccent : ink.labelSub)
-            .padding(.horizontal, cardCount == 1 ? 8 : 0)
-            .padding(.vertical, cardCount == 1 ? 2 : 0)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
             .background(Capsule().fill(cardCount == 1 ? Theme.Fill.yellow : Color.clear))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
