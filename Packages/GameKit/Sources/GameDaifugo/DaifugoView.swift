@@ -334,17 +334,14 @@ public struct DaifugoView: View {
                 // 投了は盤下の「⋯」メニューに入れる（#1418・会長決裁 #1011 D1）。ヘッダー右は
                 // 役・？・新規の並びに固定するため文字の「投了」は置けない。中断すると次回は必ず
                 // 「続きから」に戻るので、局面を降りる導線としてここに残す（#194）。
-                Menu {
-                    Button(tr("投了"), role: .destructive) { showResignConfirm = true }
-                        .disabled(!model.canResign)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .scaledFont(17, weight: .semibold)
-                        .frame(width: 44)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(tr("その他の操作"))
+                // 行の高さを増やさないよう、行ごと置く `GameOverflowBar` ではなく中身の `GameControlMenu`
+                // （丸 44×44pt・全ゲーム共通の見た目）を並びの中に置く（#2494・#2455 の SE の高さを保つ）。
+                GameControlMenu(items: [
+                    GameControlMenuItem(
+                        id: "resign", title: tr("投了"), systemImage: "flag.fill",
+                        isDestructive: true, isEnabled: model.canResign
+                    ) { showResignConfirm = true }
+                ])
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
