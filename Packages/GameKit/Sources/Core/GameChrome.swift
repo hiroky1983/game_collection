@@ -144,12 +144,16 @@ private struct GameChromeTitle: View {
 }
 
 /// 背景・評価リクエスト・ナビバーの構成。ツールバーの中身より前に当てる。
-private struct GameChromeBase: ViewModifier {
+///
+/// `paintsBackground` は全画面の枠（`FullScreenGameChrome.swift`・#2531）が false で渡す。あちらは面（フェルト）を
+/// 自分で画面全体に敷くので、ここで地の色を塗ると中身の範囲だけ地の色が面の上に乗ってしまう。
+struct GameChromeBase: ViewModifier {
     let review: ReviewRequestService?
+    var paintsBackground = true
 
     func body(content: Content) -> some View {
         content
-            .popBackground()
+            .background { if paintsBackground { Theme.background.ignoresSafeArea() } }
             .reviewRequestPrompt(review)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

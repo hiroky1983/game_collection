@@ -177,7 +177,7 @@ public struct ColorRelayView: View {
         let count = model.hands[index].count
         let action = model.lastActions[index]
         return VStack(spacing: 4) {
-            ColorRelayOpponentIcon(index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent)
+            OpponentSeatIcon(index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent)
                 .gameAnimation(.easeInOut(duration: 0.18), value: isCurrent)
             ColorRelayBackFan(count: count, cardWidth: metrics.opponentCardWidth)
             seatCount(count)
@@ -563,7 +563,7 @@ public struct ColorRelayView: View {
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         // 卓では名前を出さずアイコンで見分けているので、順位にも同じアイコンを添える（#2369）。
                         if player != ColorRelayModel.humanIndex {
-                            ColorRelayOpponentIcon(index: player, diameter: layout.scaled(28))
+                            OpponentSeatIcon(index: player, diameter: layout.scaled(28))
                         }
                         Text(model.playerName(player))
                             .scaledFont(17, weight: .bold, design: .rounded)
