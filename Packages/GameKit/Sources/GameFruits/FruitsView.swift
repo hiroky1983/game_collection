@@ -105,6 +105,7 @@ public struct FruitsView: View {
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: RecordFormat.number(model.score))
                     .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
