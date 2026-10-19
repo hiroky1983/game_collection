@@ -135,14 +135,14 @@ struct ColorRelayModuleTests {
     @Test("相手 3 人のアイコンは記号も丸の色も互いに違い、丸の色は札の 4 色と重ならない")
     func opponentIconsAreDistinct() {
         let seats = Array(1..<ColorRelayModel.playerCount)
-        #expect(Set(seats.map(ColorRelayOpponentStyle.symbol(for:))).count == seats.count)
-        let discs = seats.map { ColorRelayOpponentStyle.colors(for: $0).disc }
+        #expect(Set(seats.map(OpponentSeatStyle.symbol(for:))).count == seats.count)
+        let discs = seats.map { OpponentSeatStyle.colors(for: $0).disc }
         #expect(Set(discs).count == seats.count)
         let faces = Set(RelayColor.allCases.map(\.faceHex))
         for disc in discs { #expect(!faces.contains(disc)) }
         // 記号は丸の上で読める（非テキストの 3:1）。
         for seat in seats {
-            let c = ColorRelayOpponentStyle.colors(for: seat)
+            let c = OpponentSeatStyle.colors(for: seat)
             #expect(WCAG.contrast(c.mark, c.disc) >= 3, "CPU\(seat)")
         }
     }

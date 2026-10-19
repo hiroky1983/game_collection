@@ -1643,6 +1643,8 @@ public extension View {
 public struct HowToPlayHint: View {
     private let guide: HowToPlayGuide
     @State private var isVisible: Bool
+    /// 卓（フェルト）の上に置かれたときは白系で出す（全画面の枠 #2531）。地の上では従来の `Theme.inkSub` と同じ値。
+    @Environment(\.cardTableInk) private var ink
 
     public init(_ guide: HowToPlayGuide, playLog: PlayLog?) {
         self.guide = guide
@@ -1668,7 +1670,7 @@ public struct HowToPlayHint: View {
         if isVisible {
             Label(guide.hint, systemImage: guide.hintIcon)
                 .themeBody(14)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(ink.labelSub)
                 .allowsHitTesting(false)
         }
     }

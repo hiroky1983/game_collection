@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "残り%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%1$@%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
