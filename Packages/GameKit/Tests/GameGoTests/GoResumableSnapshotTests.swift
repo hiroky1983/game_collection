@@ -32,4 +32,21 @@ struct GoResumableSnapshotTests {
         if let point { model.tap(row: point.0, col: point.1) }
         #expect(module.hasResumableSnapshot(in: store), "自分が打った盤（対照）")
     }
+
+    @Test("人間が黒で置き石ありのとき、CPU（白）の初手だけでは続きではなく手つかず（#2508）")
+    func handicapBlackAfterCPUOpeningIsNotResumable() async {
+        let store = MemorySnapshotStore()
+        let module = GoModule()
+        let model = GoModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        model.newGame(humanSide: .black, handicap: 2)
+        await model.performAIMoveIfNeeded()
+        #expect(model.moveCount >= 1, "CPU が初手を打った（前提）")
+        #expect(!module.hasResumableSnapshot(in: store), "CPU の初手だけ")
+        #expect(module.hasUntouchedSnapshot(in: store), "CPU の初手だけは手つかず")
+        let point = (0..<9).lazy.flatMap { r in (0..<9).map { (r, $0) } }
+            .first { model.state.illegalReason(for: .play(row: $0.0, col: $0.1)) == nil }
+        if let point { model.tap(row: point.0, col: point.1) }
+        #expect(module.hasResumableSnapshot(in: store), "自分が打った盤（対照）")
+        #expect(!module.hasUntouchedSnapshot(in: store))
+    }
 }

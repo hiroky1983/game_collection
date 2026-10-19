@@ -16,15 +16,22 @@ public struct ChessModule: GameModule {
     }
 
     /// 将棋と同じく終局後の見返しも中断データに残る（`ChessGameModel.persist`）。検討に入った局には
-    /// 続きが無い（#809）。一手も指していない局も「続き」ではない（#1572・#1599）。
+    /// 続きが無い（#809）。人間が一手も指していない局も「続き」ではない（#1572・#1599）。
+    /// 人間が黒のときは CPU の初手が先に入るので、それだけでは数えない（#2508）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return false }
-        return snap.phase == .playing && !snap.moves.isEmpty
+        return snap.phase == .playing && humanHasMoved(snap)
     }
 
-    /// 対局中で一手も指していない局（#2161）。終局後の見返しは手つかずではない。
+    /// 対局中で人間が一手も指していない局（#2161）。終局後の見返しは手つかずではない。
     public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return false }
-        return snap.phase == .playing && snap.moves.isEmpty
+        return snap.phase == .playing && !humanHasMoved(snap)
+    }
+
+    private func humanHasMoved(_ snap: ChessSnapshot) -> Bool {
+        let blackFirst = CPUOpening.startsWithSecondPlayer(fen: snap.initialFen, secondPlayerToken: "b")
+        let cpuFirst = (blackFirst ? snap.black : snap.white) == .ai
+        return CPUOpening.humanHasMoved(totalMoves: snap.moves.count, cpuMovesFirst: cpuFirst)
     }
 }
