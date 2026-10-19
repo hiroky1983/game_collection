@@ -73,6 +73,42 @@ struct BlackjackMetricsTests {
         }
     }
 
+    // MARK: - 縦の寸法（#2498）
+
+    typealias Vertical = BlackjackVerticalMetrics
+
+    /// iPhone SE（第 3 世代）でナビバー下から画面下までの使える高さ。
+    private static let seContentHeight: CGFloat = 603
+
+    @Test("詰めるのは縦が狭いスプリット中だけ（iPhone SE は詰める・iPhone 17 と 1 手のときは通常）")
+    func choosesBySizeAndSplit() {
+        #expect(Vertical.metrics(forHeight: Self.seContentHeight, isSplit: true) == .compact)
+        #expect(Vertical.metrics(forHeight: Self.seContentHeight, isSplit: false) == .regular)
+        #expect(Vertical.metrics(forHeight: 687, isSplit: true) == .regular)
+        #expect(Vertical.metrics(forHeight: 724, isSplit: true) == .regular)
+        #expect(Vertical.metrics(forHeight: Vertical.compactHeightThreshold, isSplit: true) == .regular)
+        #expect(Vertical.metrics(forHeight: Vertical.compactHeightThreshold - 1, isSplit: true) == .compact)
+    }
+
+    @Test("詰めた寸法はミニガイド込みでも iPhone SE の使える高さに収まる")
+    func compactFitsSE() {
+        #expect(Vertical.compact.estimatedSplitMinimumHeight <= Self.seContentHeight)
+    }
+
+    @Test("通常の寸法が要る高さは境目より下（境目未満では詰める側に落ちる）")
+    func regularNeedIsBelowThreshold() {
+        #expect(Vertical.regular.estimatedSplitMinimumHeight <= Vertical.compactHeightThreshold)
+    }
+
+    @Test("通常の寸法は従来値のまま（iPhone 17 の見た目を変えない）")
+    func regularKeepsLegacyValues() {
+        #expect(Vertical.regular.spacing == 10)
+        #expect(Vertical.regular.tableSpacing == 10)
+        #expect(Vertical.regular.pad == 16)
+        #expect(Vertical.regular.chipsVerticalPadding == 8)
+        #expect(Vertical.regular.areaVerticalPadding == 14)
+    }
+
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
