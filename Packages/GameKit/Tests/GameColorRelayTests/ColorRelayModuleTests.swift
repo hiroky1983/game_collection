@@ -55,8 +55,10 @@ struct ColorRelayModuleTests {
         let source = try SourceScan.moduleSources("GameColorRelay")
         let code = SourceScan.strippingComments(source)
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
+        // レイアウトパターン A（#2531）: バナーは全画面の枠が最下部に置くので、ゲーム側には `BannerSlot` を書かない。
+        #expect(code.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠にバナーの取得元を渡していない")
+        #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
         #expect(code.contains("RecommendationSlot("))
-        #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.colorRelay"))
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口は引き札の免除 1 面だけ")
         #expect(code.contains("guardedBy: .checkedByGrant"))
@@ -123,13 +125,24 @@ struct ColorRelayModuleTests {
         #expect(ColorRelayHandLayout.field(size: CGSize(width: 1000, height: 1000), maxTopWidth: 96).topWidth == 96)
     }
 
-    @Test("卓はアプリ共通の卓（cardTable）に載せ、茶色の独自の卓やおじさんの顔を使わない")
+    @Test("卓はアプリ共通のフェルト（全画面の枠）に載せ、茶色の独自の卓やおじさんの顔を使わない")
     func tableUsesTheSharedSurface() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameColorRelay"))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: code) == 1)
+        // レイアウトパターン A（会長決裁 2026-10-19・#2531）: フェルトは `gameChrome(fullScreen: .felt)` が画面全体に敷く。
+        // 盤にもう一度 `.cardTable()` を付けると、フェルトの上に木枠付きの卓が二重に乗る。
+        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: code) == 0, "全画面のフェルトの上に卓を二重に敷いている")
+        #expect(code.contains("fullScreen: .felt"))
         #expect(!code.contains("CardTableSurface("), "卓の面を直接組み立てない")
         #expect(!code.contains("rimMiddle") && !code.contains("rimBottom"), "木枠の色で独自の茶色の卓を塗らない")
         #expect(!code.contains("OjisanPixel"), "相手のアイコンにおじさんの絵を使わない（会長決裁 2026-10-18）")
+    }
+
+    @Test("相手の席は共通部品（OpponentSeat）を使い、大富豪と同じ見た目にする（#2531）")
+    func seatsUseTheSharedPart() throws {
+        let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameColorRelay"))
+        #expect(code.contains("OpponentSeat("), "相手の席を自前で組んでいる")
+        #expect(code.contains("OpponentCardFan("), "裏向きの束を自前で組んでいる")
+        #expect(!code.contains("ColorRelayBackFan"), "いろリレー専用の束が残っている")
     }
 
     @Test("相手 3 人のアイコンは記号も丸の色も互いに違い、丸の色は札の 4 色と重ならない")
