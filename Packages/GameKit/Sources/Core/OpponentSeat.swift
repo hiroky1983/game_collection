@@ -79,6 +79,11 @@ public struct OpponentSeatIcon: View {
                 .strokeBorder(isCurrent ? Theme.Fill.yellow : Color.white.opacity(0.75),
                               lineWidth: isCurrent ? max(3, diameter * 0.08) : 2)
             if isCurrent {
+                // 丸が桃（CPU1）・生成り（CPU3）だと黄色い輪との差が小さいので、輪の内側に細い墨の線を引いて
+                // 丸の色によらず輪の縁が立つようにする（PR #2534 の CodeRabbit 指摘）。
+                Circle()
+                    .strokeBorder(Theme.Fixed.ink.opacity(0.4), lineWidth: 1)
+                    .padding(max(3, diameter * 0.08))
                 Circle()
                     .strokeBorder(Theme.Fill.yellow.opacity(0.45), lineWidth: max(3, diameter * 0.09))
                     .padding(-max(3, diameter * 0.09))
