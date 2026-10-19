@@ -36,20 +36,25 @@ public struct ColorRelayView: View {
             HowToPlayHint(.colorRelay, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
-            BannerSlot(ads: services.ads)
         }
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
-        .padding(Theme.pad)
+        // レイアウトパターン A（全画面・#2531）: 左右 8pt、上下はヘッダーの余白 4 とバナーの帯の余白 8 に 4 を足す。
+        .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+        .padding(.vertical, 4)
+        // レイアウトパターン A（会長決裁 2026-10-19・#2432）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・いろリレー・何ゲーム目と回る向き・？・＋）、バナーは画面最下部。卓の見出しだった札はヘッダーへ移る。
         // 右上の新規（#2370）。視聴中に配り直すと、見終えた免除が局ガードで弾かれて見損になる（#911 と同型）。
-        .gameChrome(title: tr("いろリレー"), review: services.review,
+        .gameChrome(title: tr("いろリレー"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.match, isDisabled: waiveRescue.isWatching) {
                         if model.hasProgressToLose {
                             showConfirmNewGame = true
                         } else {
                             startNewGame()
                         }
-                    })
+                    }) {
+            tableHeader
+        }
         .howToPlay(HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)) { ColorRelayRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
@@ -115,38 +120,37 @@ public struct ColorRelayView: View {
         ColorRelayHandLayout.metrics(screenWidth: layout.width, elementScale: layout.elementScale)
     }
 
-    /// 卓はアプリ共通の卓（緑のフェルト + 木枠・`cardTable`）に載せる。茶色の独自の卓は作らない（会長決裁 2026-10-18）。
+    /// 卓はアプリ共通の卓（緑のフェルト）に載せる。茶色の独自の卓は作らない（会長決裁 2026-10-18）。
+    /// フェルトは全画面の枠（`gameChrome(fullScreen: .felt)`・#2531）が画面全体に敷くので、ここでは敷かない
+    /// （卓の上の色 `cardTableInk` も枠が配る）。
     private var tableArea: some View {
         VStack(spacing: 0) {
-            // 見出しと相手の段は縦に縮めない（SE で引き札の 2 段ボタンが出ても文字が潰れないように）。
+            // 相手の段は縦に縮めない（SE で引き札の 2 段ボタンが出ても文字が潰れないように）。
             // 縦の余りと不足は中段の山札・場札が受け持つ。
-            tableHeader
-                .fixedSize(horizontal: false, vertical: true)
             seatsRow
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
             fieldArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .cardTable()
     }
 
-    /// 卓の見出し（何ゲーム目・回る向き）。
+    /// 卓の見出し（何ゲーム目・回る向き）。全画面の枠のヘッダーの行に札として置く（文字色は枠が配る）。
+    /// 幅が足りないとき（英語の iPhone SE: 「Game 1 ↻ Clockwise」）は向きの文字を落として矢印だけにする。
     private var tableHeader: some View {
-        CardTableInkReader { ink in
+        let turnIcon = Image(systemName: model.isClockwise ? "arrow.clockwise" : "arrow.counterclockwise")
+        return ViewThatFits(in: .horizontal) {
             HStack(spacing: 4) {
                 Text(tr("%lldゲーム目", max(model.gameNumber, 1)))
-                Spacer()
-                Image(systemName: model.isClockwise ? "arrow.clockwise" : "arrow.counterclockwise")
+                turnIcon
                 Text(model.isClockwise ? tr("順回り") : tr("逆回り"))
             }
-            .scaledFont(11, weight: .bold, design: .rounded)
-            .foregroundStyle(ink.labelSub)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .padding(.horizontal, 6)
+            HStack(spacing: 4) {
+                Text(tr("%lldゲーム目", max(model.gameNumber, 1)))
+                turnIcon
+            }
         }
+        .scaledFont(11, weight: .bold, design: .rounded)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ColorRelayAccessibility.tableHeaderLabel(
             gameNumber: max(model.gameNumber, 1), isClockwise: model.isClockwise, turn: turnLabel
@@ -172,44 +176,21 @@ public struct ColorRelayView: View {
         .gameAnimation(.easeInOut(duration: 0.18), value: model.isClockwise)
     }
 
+    /// 相手 1 人の席。アイコン・束・残り枚数・吹き出しの組み方は共通部品（`OpponentSeat`・#2531。大富豪と同じ見た目）。
     private func seat(_ index: Int) -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
         let count = model.hands[index].count
         let action = model.lastActions[index]
-        return VStack(spacing: 4) {
-            OpponentSeatIcon(index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent)
-                .gameAnimation(.easeInOut(duration: 0.18), value: isCurrent)
-            ColorRelayBackFan(count: count, cardWidth: metrics.opponentCardWidth)
-            seatCount(count)
-            // 吹き出しの高さは空でも取っておく（CPU が打つたびに場の札の大きさが揺れないように）。
-            Text(action.isEmpty ? " " : action)
-                .scaledFont(10, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.Fixed.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(Capsule().fill(Color.white))
-                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                .opacity(action.isEmpty ? 0 : 1)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(ColorRelayAccessibility.seatLabel(
-            name: model.playerName(index), cardCount: count, isCurrent: isCurrent, lastAction: action
-        ))
-    }
-
-    /// 相手の残り枚数。残り 1 枚は黄色の札にして目立たせる。
-    private func seatCount(_ count: Int) -> some View {
-        CardTableInkReader { ink in
-            Text(tr("残り%lld枚", count))
-                .scaledFont(11, weight: .black, design: .rounded)
-                .foregroundStyle(count == 1 ? Theme.onAccent : ink.labelSub)
-                .padding(.horizontal, count == 1 ? 8 : 0)
-                .padding(.vertical, count == 1 ? 2 : 0)
-                .background(Capsule().fill(count == 1 ? Theme.Fill.yellow : Color.clear))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        let cardWidth = metrics.opponentCardWidth
+        return OpponentSeat(
+            index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent, cardCount: count, lastAction: action,
+            accessibilityLabel: ColorRelayAccessibility.seatLabel(
+                name: model.playerName(index), cardCount: count, isCurrent: isCurrent, lastAction: action
+            )
+        ) {
+            OpponentCardFan(count: count, cardWidth: cardWidth, cardHeight: ColorRelayCardSize(width: cardWidth).height) {
+                ColorRelayCardBack(width: cardWidth)
+            }
         }
     }
 
@@ -360,8 +341,6 @@ public struct ColorRelayView: View {
             .scrollDisabled(total <= available)
         }
         .frame(height: cardHeight + ColorRelayHandLayout.lift)
-        // 手札の帯だけ画面の余白へ少しはみ出させる（SE で 8 枚を横スクロール無しで並べるため）。
-        .padding(.horizontal, -ColorRelayHandLayout.bleed)
     }
 
     private func handCard(_ card: RelayCard, hint: RelayCardHint, width: CGFloat) -> some View {
@@ -390,16 +369,19 @@ public struct ColorRelayView: View {
             return nil
         }()
         if let message {
-            HStack(spacing: 4) {
-                Image(systemName: "info.circle.fill")
-                    .scaledFont(11, weight: .bold)
-                Text(message)
-                    .scaledFont(11, weight: .bold, design: .rounded)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+            // フェルトの上なので赤系（`Theme.coralText`）ではなく卓の上の文字色（白系）で出す（#2531）。
+            CardTableInkReader { ink in
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle.fill")
+                        .scaledFont(11, weight: .bold)
+                    Text(message)
+                        .scaledFont(11, weight: .bold, design: .rounded)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .foregroundStyle(ink.label)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .foregroundStyle(Theme.coralText)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
     }
@@ -616,6 +598,9 @@ public struct ColorRelayView: View {
 /// 札の幅は画面の幅で 2 段に分ける: 390pt 以上（17 Pro など）は 72pt、それより狭い SE（375pt）は 50pt。
 /// SE だけ札を小さくするのは、44pt の見える幅を守ったまま**配られた 7 枚 + 1 枚引いた 8 枚**までを
 /// 横スクロール無しで並べるため（50 + 44 × 7 = 358 ≤ 359pt。56pt だと 8 枚目からスクロールになる）。
+///
+/// 画面はレイアウトパターン A（全画面・#2531）で、左右の余白は `FullScreenGameLayoutMetrics.sideInset`（8pt）。
+/// 以前は余白 16pt の内側から帯だけ 8pt ずつはみ出させていたが、A では余白が 8pt なのではみ出させない（帯の幅は同じ）。
 enum ColorRelayHandLayout {
     /// Apple HIG の最小タップ標的。
     static let minimumTapTarget: CGFloat = 44
@@ -623,8 +608,8 @@ enum ColorRelayHandLayout {
     static let compactBreakpoint: CGFloat = 390
     static let regularHandCardWidth: CGFloat = 72
     static let compactHandCardWidth: CGFloat = 50
-    /// 手札の帯を画面の余白（`Theme.pad`）へはみ出させる量（左右それぞれ）。
-    static let bleed: CGFloat = 8
+    /// 画面の左右の余白（全画面の枠の値）。
+    static let sideInset: CGFloat = FullScreenGameLayoutMetrics.sideInset
     /// 選んだ札を持ち上げる高さ（帯の上にこの分の余白を取る）。
     static let lift: CGFloat = 12
     /// 重ならないときの札どうしのすき間。
@@ -642,19 +627,25 @@ enum ColorRelayHandLayout {
     }
 
     /// 画面幅 `screenWidth` のときの寸法。幅が測れる前（0）は狭いほうに倒す。広い画面（iPad）は `elementScale` 倍。
+    /// 場札の幅の上限。全画面（A）で増えた卓の高さが場札の大きさに出るよう、卓を囲っていた頃の 96 / 76 から上げた
+    /// （#2432 のモックの読み取り「上限を外さないと全画面にした意味が画に出ない」。手札 72 / 50 に対して約 1.7〜1.8 倍。
+    /// 実際の大きさは卓の中段の高さと幅で決まり、SE ではこの上限まで届かないことがある）。
+    static let regularMaxTopCardWidth: CGFloat = 120
+    static let compactMaxTopCardWidth: CGFloat = 90
+
     static func metrics(screenWidth: CGFloat, elementScale: CGFloat = 1) -> Metrics {
         let compact = screenWidth < compactBreakpoint
         return Metrics(
             handCardWidth: (compact ? compactHandCardWidth : regularHandCardWidth) * elementScale,
-            seatDiameter: (compact ? 44 : 56) * elementScale,
-            opponentCardWidth: (compact ? 20 : 24) * elementScale,
-            maxTopCardWidth: (compact ? 76 : 96) * elementScale
+            seatDiameter: OpponentSeatStyle.iconDiameter(compact: compact) * elementScale,
+            opponentCardWidth: OpponentSeatStyle.cardWidth(compact: compact) * elementScale,
+            maxTopCardWidth: (compact ? compactMaxTopCardWidth : regularMaxTopCardWidth) * elementScale
         )
     }
 
-    /// 手札の帯の幅（画面の余白の内側 + 左右のはみ出し）。
+    /// 手札の帯の幅（画面の左右の余白の内側いっぱい）。
     static func stripWidth(screenWidth: CGFloat) -> CGFloat {
-        max(0, screenWidth - Theme.pad * 2 + bleed * 2)
+        max(0, screenWidth - sideInset * 2)
     }
 
     /// 1 枚あたりの見える幅。帯に収まるなら詰めすぎず、収まらなくても 44pt を割らない（その分は横スクロール）。

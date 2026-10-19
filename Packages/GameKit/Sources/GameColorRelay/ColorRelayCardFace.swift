@@ -99,7 +99,8 @@ struct ColorRelayCardView: View {
             RoundedRectangle(cornerRadius: s.corner, style: .continuous)
                 .strokeBorder(selected ? Theme.Fixed.ink : Color.black.opacity(0.28), lineWidth: selected ? 3 : 1)
         )
-        .opacity(isDimmed ? 0.5 : 1)
+        // 出せない札はフェルトの上なので、不透明度ではなく白を重ねて沈める（緑に濁らない・#2531）。
+        .tableDimmed(isDimmed, cornerRadius: s.corner)
         // 面の文字を外しても読み上げは落とさない（#2387）。手札・場は親が状態つきの文で上書きする。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ColorRelayAccessibility.cardName(card))
@@ -216,26 +217,5 @@ struct ColorRelayCardBack: View {
             RoundedRectangle(cornerRadius: s.corner, style: .continuous)
                 .strokeBorder(Color.black.opacity(0.28), lineWidth: 1)
         )
-    }
-}
-
-/// 裏向きの札を横に重ねた束（相手の手札）。枚数が多いときは `maxShown` 枚で止める（枚数は文字で出す）。
-struct ColorRelayBackFan: View {
-    let count: Int
-    let cardWidth: CGFloat
-    var maxShown: Int = 5
-
-    var body: some View {
-        let shown = max(1, min(count, maxShown))
-        let step = cardWidth * 0.42
-        let height = ColorRelayCardSize(width: cardWidth).height
-        ZStack(alignment: .leading) {
-            ForEach(0..<shown, id: \.self) { i in
-                ColorRelayCardBack(width: cardWidth)
-                    .offset(x: CGFloat(i) * step)
-            }
-        }
-        .frame(width: cardWidth + step * CGFloat(shown - 1), height: height, alignment: .leading)
-        .opacity(count == 0 ? 0 : 1)
     }
 }
