@@ -1,0 +1,49 @@
+name: CPU 計測ツールのビルド
+
+# Scripts/*-cpu-bench（将棋・チェス・囲碁・五目・オセロの CPU 計測ツール）が
+# ビルドできることを確かめる（Issue #2509）。
+#
+# なぜ要るか: bench は GameKit のエンジンのソースをコピーして単体バイナリにするため、エンジン側の変更で
+# コンパイルが壊れる。Scripts/tests/test-cpu-bench-build.sh は scripts-tests.yml でも回るが、そちらは
+# Scripts/** の変更でしか起動しない。エンジンを直す PR で壊れたことに気づけるよう、GameKit 側の
+# 関係するソースの変更でも起動する別ジョブにする（5 本で約 20 秒なのでここに分ける必要は薄いが、
+# scripts-tests の paths を GameKit まで広げると無関係な Scripts のテストまで毎回回る）。
+#
+# ブランチ保護の必須チェックには加えない（paths 条件付きのジョブを必須にすると、
+# 該当しない PR がマージ不能になるため）。ジョブ ID は scripts-tests.yml と同じく `check`。
+on:
+  pull_request:
+    paths:
+      - 'Packages/GameKit/Sources/CoreEngine/**'
+      - 'Packages/GameKit/Sources/GameChess/**'
+      - 'Packages/GameKit/Sources/GameGo/**'
+      - 'Packages/GameKit/Sources/GameGomoku/**'
+      - 'Packages/GameKit/Sources/GameOthello/**'
+      - 'Packages/GameKit/Sources/GameShogi/**'
+      - 'Packages/GameKit/Tests/GameChessTests/CPUBenchLadder.swift'
+      - 'Packages/GameKit/Tests/GameGoTests/CPUBenchLadder.swift'
+      - 'Packages/GameKit/Tests/GameGomokuTests/CPUBenchLadder.swift'
+      - 'Packages/GameKit/Tests/GameOthelloTests/CPUBenchLadder.swift'
+      - 'Packages/GameKit/Tests/GameShogiTests/CPUBenchLadder.swift'
+      - 'Scripts/*-cpu-bench/**'
+      - 'Scripts/tests/test-cpu-bench-build.sh'
+      - '.github/workflows/cpu-bench-build.yml'
+
+concurrency:
+  group: cpu-bench-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 5 本の bench をビルド
+        run: bash Scripts/tests/test-cpu-bench-build.sh
