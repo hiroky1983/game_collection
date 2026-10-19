@@ -56,4 +56,13 @@ public enum DaifugoAccessibility {
         guard let ownerName else { return cardsText }
         return tr("%1$@。%2$@が出しました", cardsText, ownerName)
     }
+
+    /// CPU の席 1 つの読み上げ文。手番かどうかは画面ではアイコンの色でしか示さないので、文字にして足す（#2495）。
+    /// 名前・残り枚数・直前の動き（空なら省く）を 1 まとまりに読ませる。
+    public static func seatLabel(name: String, remaining: Int, action: String, isTurn: Bool) -> String {
+        var parts = [name, tr("残り%lld枚", remaining)]
+        if !action.isEmpty { parts.append(action) }
+        if isTurn { parts.append(tr("%@の番", name)) }
+        return parts.joined(separator: tr("、"))
+    }
 }

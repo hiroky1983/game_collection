@@ -149,17 +149,19 @@ public struct ConcentrationView: View {
     private var statusBar: some View {
         GameStatusBar {
             scoreChip(label: tr("あなた"), score: model.playerScore,
-                      color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
+                      color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver,
+                      turnText: tr("あなたの番"))
         } trailing: {
             // 常に場所を取り、思考中の出入りで CPU のチップが左右に動かないようにする。
             ProgressView().controlSize(.small)
                 .opacity(model.isThinking ? 1 : 0)
             scoreChip(label: "CPU", score: model.cpuScore,
-                      color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver)
+                      color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver,
+                      turnText: tr("CPUの番"))
         }
     }
 
-    private func scoreChip(label: String, score: Int, color: Color, isActive: Bool) -> some View {
+    private func scoreChip(label: String, score: Int, color: Color, isActive: Bool, turnText: String) -> some View {
         HStack(spacing: 6) {
             Text(label)
                 .scaledFont(13, weight: .bold, design: .rounded)
@@ -173,6 +175,9 @@ public struct ConcentrationView: View {
         // 手番が移ったことを色の変化で見せる（#208）。文字色（白 ↔ inkSub）も同じ値で
         // 切り替わるため、この1つで chip 全体が一緒に馴染む。
         .gameAnimation(ConcentrationMotion.turnHighlight, value: isActive)
+        // 手番は面の色でしか示さないので、読み上げには値として足す（#2495）。
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isActive ? turnText : "")
     }
 
     // MARK: - Matta Controls
