@@ -4,7 +4,8 @@
 # API は呼ばない（--no-fetch）。手書きの TSV を食わせて、日次の集計・重複排除（同じ日付が複数の
 # インスタンスに入るので processingDate の新しい方だけを使う）・再実行で行が増えないこと・
 # スプレッドシートに出す各タブの中身（--sheets-dump で TSV に出す）・GA4 の応答 JSON からの保存と取り直しの上書き・
-# 取得失敗を週次まとめの先頭に出すこと・ASO（日次）の欠けの警告（3〜10 日前だけ）・ASC は GET 以外を使わないことを確かめる。
+# 取得失敗を週次まとめの先頭に出すこと・ASO（日次）の欠けの警告（3〜10 日前だけ）・ASC は GET 以外を使わないこと・
+# キーワード順位（#2533。順位・圏外・取得失敗の 3 通り、語の間の待ち、「順位（日次）」タブと週次の 1 行）を確かめる。
 #
 # 使い方: bash Scripts/tests/test-aso-daily.sh
 set -uo pipefail
@@ -334,8 +335,8 @@ check("行が増えると範囲が広がる（5→12 行）", req3["updateTable"
 req4 = m.table_requests(m.TAB_ADS, 999, header, 3, [{"tableId": m.TABLE_IDS[m.TAB_ADS]}])
 check("行が減ると範囲も縮む（12→3 行）", req4["updateTable"]["table"]["range"]["endRowIndex"] == 3)
 
-check("並べ替え・絞り込みの対象は日次 4 タブ（週次・メモは対象外）",
-      set(m.TABLE_IDS) == {m.TAB_ASO, m.TAB_GA4, m.TAB_GAMES, m.TAB_ADS})
+check("並べ替え・絞り込みの対象は日次 5 タブ（週次・メモは対象外）",
+      set(m.TABLE_IDS) == {m.TAB_ASO, m.TAB_GA4, m.TAB_GAMES, m.TAB_ADS, m.TAB_RANK})
 check("tableId はタブごとに別々（取り違えて二重に作らない）", len(set(m.TABLE_IDS.values())) == len(m.TABLE_IDS))
 
 print("小計: %d 件成功 / %d 件失敗" % (ok, ng))
@@ -481,6 +482,99 @@ grep -q '欠けた日 2026-10-12（DL 系のみ）・2026-10-13。' "$TMP/gaplog
 gap_csv 2026-10-10 2026-10-15
 gap_run
 grep -q '警告: ASO' "$TMP/gaplog" && ng "取得開始前の日を欠けと数えた" || ok "最初の日より前は欠けと数えない"
+
+echo "== 13. キーワード順位（#2533。偽の Search API 応答で 順位・圏外・失敗 の 3 通り） =="
+RK="$TMP/rank" RKAPI="$TMP/rankapi" RKD="$TMP/rankdump"
+mkdir -p "$RKAPI"
+printf '%s\n' '# コメントと空行は無視する' '' '麻雀' '囲碁' '将棋' '麻雀' >"$TMP/keywords.txt"
+# 麻雀: 3 番目に 6781719499 → 3 位 / 囲碁: 出てこない → 圏外 / 将棋: 応答ファイルが無い → 取得失敗
+echo '{"resultCount":3,"results":[{"trackId":1},{"trackId":2},{"trackId":6781719499}]}' >"$RKAPI/麻雀.json"
+echo '{"resultCount":2,"results":[{"trackId":1},{"trackId":2}]}' >"$RKAPI/囲碁.json"
+# rkrun <out-dir> [api-dir]（TODAY で日付を変える）
+rkrun() {
+  "$PY" "$TARGET" --out-dir "$1" --no-fetch --no-ga4 --admob-history "$NOADMOB" --keywords-file "$TMP/keywords.txt" \
+    --rank-api "file://${2:-$RKAPI}/{term}.json" --rank-interval 0 --today "${TODAY:-2026-10-20}" --sheets-dump "$RKD" >"$TMP/rklog" 2>&1
+}
+rkrun "$RK"
+expect_eq "1 語だけ失敗しても他の語は取れて終了コード 0" "$?" "0"
+expect_eq "rank/daily.csv の見出し" "$(head -1 "$RK/rank/daily.csv" | tr -d '\r')" "date,term,rank,count"
+expect_eq "順位は 1 始まり（3 番目 = 3 位）・結果件数も残す" "$(grep ',麻雀,' "$RK/rank/daily.csv" | tr -d '\r')" "2026-10-20,麻雀,3,3"
+expect_eq "検索結果に無ければ圏外" "$(grep ',囲碁,' "$RK/rank/daily.csv" | tr -d '\r')" "2026-10-20,囲碁,圏外,2"
+expect_eq "取得に失敗した語はその語だけ空欄" "$(grep ',将棋,' "$RK/rank/daily.csv" | tr -d '\r')" "2026-10-20,将棋,,"
+expect_eq "一覧の重複は 1 語に畳む（3 語 + 見出し）" "$(wc -l <"$RK/rank/daily.csv" | tr -d ' ')" "4"
+grep -q '警告: キーワード順位「将棋」を取得できませんでした' "$TMP/rklog" && ok "失敗した語をログに書く" || { ng "失敗した語がログに無い"; cat "$TMP/rklog"; }
+grep -q 'エラー: キーワード順位' "$TMP/rklog" && ng "1 語の失敗を取得失敗として扱った" || ok "1 語の失敗では取得失敗にしない"
+
+# 順位（日次）タブ: 行 = 日付、列 = 語。順位・圏外・空欄
+expect_eq "順位（日次）の見出し" "$(head -1 "$RKD/順位（日次）.tsv")" "日付${T}麻雀${T}囲碁${T}将棋"
+expect_eq "順位（日次）の行" "$(sed -n 2p "$RKD/順位（日次）.tsv")" "2026-10-20${T}3${T}圏外${T}"
+expect_eq "週次まとめの 2 行目に 10 位以内・30 位以内の語の数" "$(sed -n 2p "$RKD/週次まとめ.tsv")" \
+  "キーワード順位（2026-10-20・Search API の近似値）: 10 位以内 1 語／30 位以内 1 語（全 3 語・圏外 1 語・取得失敗 1 語）"
+expect_eq "週次まとめの表の位置（47 行目）は動かない" "$(sed -n 47p "$RKD/週次まとめ.tsv" | cut -f1)" "指標"
+
+# 翌日: 追記される。同じ日の再実行は行を増やさず、失敗で前の値を消さない
+echo '{"resultCount":1,"results":[{"trackId":6781719499}]}' >"$RKAPI/囲碁.json"
+TODAY=2026-10-21 rkrun "$RK"
+expect_eq "翌日は追記される（6 行 + 見出し）" "$(wc -l <"$RK/rank/daily.csv" | tr -d ' ')" "7"
+expect_eq "翌日の順位" "$(grep '2026-10-21,囲碁' "$RK/rank/daily.csv" | tr -d '\r')" "2026-10-21,囲碁,1,1"
+mv "$RKAPI/麻雀.json" "$RKAPI/麻雀.json.bak"
+TODAY=2026-10-21 rkrun "$RK"
+expect_eq "同じ日の再実行で行は増えない" "$(wc -l <"$RK/rank/daily.csv" | tr -d ' ')" "7"
+expect_eq "同じ日の再実行で失敗しても前に取れた値を消さない" "$(grep '2026-10-21,麻雀' "$RK/rank/daily.csv" | tr -d '\r')" "2026-10-21,麻雀,3,3"
+
+# 一覧から外した語の過去の順位は右端の列に残る
+printf '%s\n' '囲碁' >"$TMP/keywords.txt"
+TODAY=2026-10-22 rkrun "$RK"
+expect_eq "外した語は右端に残る" "$(head -1 "$RKD/順位（日次）.tsv")" "日付${T}囲碁${T}麻雀${T}将棋"
+
+# 全語が失敗したら取得失敗として週次まとめの先頭に出す（終了コード 1）
+printf '%s\n' '麻雀' '囲碁' >"$TMP/keywords.txt"
+mkdir -p "$TMP/rankapi-empty"
+rkrun "$TMP/rank-allfail" "$TMP/rankapi-empty"
+expect_eq "全語が失敗したら終了コード 1" "$?" "1"
+expect_eq "全語が失敗したら週次まとめの先頭に取得失敗を出す" "$(head -1 "$RKD/週次まとめ.tsv" | sed 's/: [0-9: -]*JST/: <時刻>/')" \
+  "取得失敗: <時刻>・キーワード順位 — 全 2 語の取得に失敗しました"
+# 語の一覧が読めない
+"$PY" "$TARGET" --out-dir "$TMP/rank-nokw" --no-fetch --no-ga4 --admob-history "$NOADMOB" --keywords-file "$TMP/nothing.txt" \
+  --rank-api "file://$RKAPI/{term}.json" --rank-interval 0 --today 2026-10-20 --sheets-dump "$RKD" >"$TMP/rklog" 2>&1
+expect_eq "語の一覧が読めなければ終了コード 1" "$?" "1"
+
+# --no-fetch だけなら API も origin/main も触らず、保存済みの数字から作り直す
+"$PY" "$TARGET" --out-dir "$TMP/rank-nofetch" --no-fetch --no-ga4 --admob-history "$NOADMOB" --sheets-dump "$RKD" >"$TMP/rklog" 2>&1
+expect_eq "--no-fetch では順位を取らない（rank/daily.csv を作らない）" "$([ -e "$TMP/rank-nofetch/rank/daily.csv" ] && echo あり || echo なし)" "なし"
+expect_eq "順位が無ければ週次まとめに順位の行を出さない" "$(sed -n 2p "$RKD/週次まとめ.tsv" | grep -c '^1 日平均（')" "1"
+
+# 語の間は 3 秒あける（既定）・URL は term / country=jp / entity=software / limit=200
+"$PY" - "$TARGET" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aso_daily", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+bad = []
+if m.RANK_INTERVAL_SEC < 3: bad.append("既定の間隔が 3 秒未満")
+for want in ("term={term}", "country=jp", "entity=software", "limit=200"):
+    if want not in m.RANK_API: bad.append("URL に %s が無い" % want)
+if m.APP_TRACK_ID != 6781719499: bad.append("trackId が違う")
+sleeps = []
+m.fetch_keyword_rank = lambda term, api=None: (1, 1)
+m.fetch_keyword_ranks(["a", "b", "c"], "2026-10-20", sleep=sleeps.append)
+if sleeps != [3, 3]: bad.append("語の間の待ちが違う: %r" % sleeps)
+print("; ".join(bad))
+sys.exit(1 if bad else 0)
+PY
+if [ "$?" -eq 0 ]; then ok "語の間を 3 秒あける・URL の条件が仕様どおり"; else ng "語の間隔または URL が仕様と違う"; fi
+
+# 順位（日次）は表にする（語の列は TEXT。日付は DATE）
+"$PY" - "$TARGET" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aso_daily", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+r = m.table_requests(m.TAB_RANK, 7, ["日付", "麻雀", "囲碁"], 3, [])["addTable"]["table"]
+types = [c["columnType"] for c in r["columnProperties"]]
+sys.exit(0 if types == ["DATE", "TEXT", "TEXT"] and r["tableId"] == "tbl_rank_daily" else 1)
+PY
+if [ "$?" -eq 0 ]; then ok "順位（日次）を表にする（日付 DATE・語 TEXT）"; else ng "順位（日次）の表の定義が違う"; fi
 
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"
