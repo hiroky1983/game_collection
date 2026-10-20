@@ -1102,7 +1102,9 @@ def tab_ga4(ga4_rows, admob_rows):
 
 def tab_games(ga4_rows):
     idx = _ga4_index(ga4_rows)
-    keys = sorted(set((r["date"], r["game_id"]) for r in ga4_rows if r.get("game_id")))
+    # 日付の昇順、同じ日の中はプレイ開始（game_start）の多い順（会長指示 2026-10-21）。同数は game_id 順。
+    keys = sorted(set((r["date"], r["game_id"]) for r in ga4_rows if r.get("game_id")),
+                  key=lambda k: (k[0], -_to_float(idx.get((k[0], "game_start_count", k[1], ""), 0)), k[1]))
     out = [["日付", "game_id", "ゲーム"] + [h for h, _ in GAME_DAILY_COLS]]
     for d, g in keys:
         out.append([d, "'" + g, GAME_NAMES.get(g, g)] + [_num(idx.get((d, m, g, ""), 0)) for _, m in GAME_DAILY_COLS])
