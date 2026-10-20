@@ -181,6 +181,32 @@ struct HubCategoryTests {
         #expect(source.contains(#"if isEvent { parts.append(tr("イベント開催中")) }"#), "読み上げに無い")
     }
 
+    @Test("柵越えおじさんのタイルは「残り n 回」の印を「イベント開催中」と両方出し、狭ければ 2 段・読み上げにも載せる（#2572）")
+    func homerunCountBadge() throws {
+        let source = try SourceScan.appSources()
+        // 柵越えおじさんだけに残り回数を渡す（ID の判定は `HubCountBadge`。ハブの本体に ID を直書きしない）。
+        #expect(source.contains("count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil"))
+        #expect(source.contains("@MainActor static func isShown(gameID: String) -> Bool { gameID == HomerunModel.gameID }"))
+        // 文字の印（イベント開催中・NEW・続きから）と回数の印は両方出す。横に並ばなければ 2 段。
+        let start = try #require(source.range(of: "private var badges: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badges = String(source[start.lowerBound..<end.upperBound])
+        #expect(badges.contains("ViewThatFits(in: .horizontal)"))
+        #expect(SourceScan.matchCount(of: "countBadge\\(count\\)", in: badges) == 2, "1 段・2 段の両方に回数の印")
+        #expect(SourceScan.matchCount(of: "\n\\s+badge\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
+        // 読み上げは「残り n 回」（`HomerunHubCount.labelText`）。
+        #expect(source.contains("if let count { parts.append(count.labelText()) }"), "読み上げに無い")
+        // 初期値のほか、ゲームから戻ったとき・前面に戻ったとき・0:00 を越えたときに読み直す（#2208）。
+        #expect(SourceScan.matchCount(of: "homerunTally = HomerunHubCount\\.tally\\(\\)", in: source) == 4)
+    }
+
+    @Test("柵越えおじさんは登録順の先頭（新着の固定の直後に並ぶ・#2572）")
+    func homerunIsRegisteredFirst() throws {
+        let source = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
+        #expect(try registeredModuleTypeNames(source).first == "HomerunModule")
+    }
+
     @Test("カテゴリーのチップは押せる範囲が 44pt 以上（HIG の最小値・#2184 の誤タップ対策）")
     func chipsHaveMinimumHitArea() throws {
         let source = try SourceScan.appSources()

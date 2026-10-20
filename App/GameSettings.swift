@@ -3,6 +3,7 @@ import Observation
 import Core
 import GameRunner
 import GameBlocks
+import GameHomerun
 
 @MainActor
 @Observable
@@ -73,6 +74,8 @@ final class GameSettings {
 
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
+    /// 柵越えおじさんを保存済みの並びの先頭へ一度だけ移したか（#2572）。
+    private static let homerunFrontKey = "gameOrderHomerunFront_v1"
     private static let haptics = FeedbackPreference(key: "hapticsEnabled_v1")
     private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
     // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
@@ -114,6 +117,20 @@ final class GameSettings {
         }
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled
+
+        // 柵越えおじさんは #2566 で通常のタイルになるまで、並びとは無関係に常に先頭の特別枠だった。
+        // 並べ替え・非表示をしたことのある端末は保存済みの並びの中で末尾近く（v1.1.9 で足されたとき
+        // の位置）にあり、通常のタイルになった版でそのまま末尾へ落ちた（#2572・会長 QA 2026-10-20）。
+        // 以前と同じ先頭へ一度だけ移す（ほかのゲームの相対順はそのまま。以後の並べ替えは利用者の自由）。
+        // 保存が無い端末は登録順（先頭が柵越えおじさん）なので動かない。
+        if !UserDefaults.standard.bool(forKey: Self.homerunFrontKey) {
+            let promoted = GameOrderMerge.promotingToFront(orderedIDs, id: HomerunModel.gameID)
+            if promoted != orderedIDs {
+                orderedIDs = promoted
+                save()
+            }
+            UserDefaults.standard.set(true, forKey: Self.homerunFrontKey)
+        }
     }
 
     /// 保存されている設定を読み直す。設定画面を開くたびに呼ぶ（保険。#631でゆっくり

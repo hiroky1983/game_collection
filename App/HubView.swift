@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import GameHomerun
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -34,6 +35,11 @@ struct HubView: View {
     @State private var showGameCenterSignInGuidance = false
     /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
     @State private var hiddenNotice: HiddenNotice?
+    /// 柵越えおじさんの今日の残り回数（タイルの印・#2208。通常のタイルになっても出す・#2572）。
+    /// 数え方は `HomerunHubCount`（打席前と同じ台帳）。ゲームから戻ったとき・前面に戻ったとき・
+    /// ハブを開いたまま 0:00 を越えたときに読み直す。
+    @State private var homerunTally = HomerunHubCount.tally()
+
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
     private struct HiddenNotice: Equatable {
@@ -298,9 +304,19 @@ struct HubView: View {
                         }
                 }
             }
+            // ハブを開いたまま 0:00 を越えたら、その場で残り回数を戻す（#2208。打席前のボタンと同じ境目）。
+            .task {
+                while !Task.isCancelled {
+                    let wait = HomerunHubCount.nextReset(after: Date()).timeIntervalSinceNow + 1
+                    do { try await Task.sleep(for: .seconds(max(1, wait))) } catch { return }
+                    homerunTally = HomerunHubCount.tally()
+                }
+            }
             // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
             // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
             .onChange(of: scenePhase) { _, phase in
+                // 日付をまたいで戻った回数を、前面に戻ったハブで出し直す（#2208）。
+                if phase == .active { homerunTally = HomerunHubCount.tally() }
                 guard let current = path.last else { return }
                 switch phase {
                 case .background: services.gameDidEnterBackground(gameID: current.gameID)
@@ -314,6 +330,8 @@ struct HubView: View {
                 // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
                 if !oldPath.isEmpty, newPath.isEmpty, let left = oldPath.last {
                     services.gameDidLeave(gameID: left.gameID)
+                    // ハブに戻ったら柵越えおじさんの残り回数を読み直す（遊んだ分・0:00 の補充・#2208）。
+                    homerunTally = HomerunHubCount.tally()
                 }
                 // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
                 // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
@@ -577,7 +595,9 @@ struct HubView: View {
                 module: module,
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
-                isEvent: HubEventBadge.isShown(gameID: module.id)
+                isEvent: HubEventBadge.isShown(gameID: module.id),
+                // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
+                count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
             )
         }
         // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
@@ -666,8 +686,12 @@ private struct GameCard: View {
     let hasResume: Bool
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
-    /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、印は左下に 1 つだけ。
+    /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
+    /// 今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
+    /// 「続きから」「NEW」「イベント開催中」と同じ部品（`badgeCapsule`）・同じ大きさで、文字の印と**両方**出す
+    /// （#2572。横に並ばない幅では 2 段）。読み上げは「残り n 回」。
+    var count: HomerunHubCount.Tally?
 
     @Environment(\.adaptiveLayout) private var layout
 
@@ -683,7 +707,7 @@ private struct GameCard: View {
             .aspectRatio(HubTileStyle.aspect, contentMode: .fit)
             .overlay { art }
             .overlay(alignment: .bottomLeading) {
-                badge.padding(layout.scaled(10))
+                badges.padding(layout.scaled(10))
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .background(
@@ -716,6 +740,27 @@ private struct GameCard: View {
         }
     }
 
+    /// 左下の印。文字の印（`badge`）と残り回数（`countBadge`）の両方があるときは、横に並ぶ幅なら 1 段
+    /// （文字が左・回数が右）、並ばない幅（iPhone の 2 列）なら 2 段（文字の上に回数）にする（#2572）。
+    @ViewBuilder
+    private var badges: some View {
+        if let count {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: layout.scaled(6)) {
+                    badge
+                    Spacer(minLength: 0)
+                    countBadge(count)
+                }
+                VStack(alignment: .leading, spacing: layout.scaled(6)) {
+                    countBadge(count)
+                    badge
+                }
+            }
+        } else {
+            badge
+        }
+    }
+
     @ViewBuilder
     private var badge: some View {
         if isNew {
@@ -725,6 +770,11 @@ private struct GameCard: View {
         } else if hasResume {
             badgeCapsule(tr("続きから"))
         }
+    }
+
+    /// 残り回数のボールの印（#2208・#2273）。
+    private func countBadge(_ count: HomerunHubCount.Tally) -> some View {
+        badgeCapsule(ballsText(count), fill: Self.ballBadgeFill)
     }
 
     /// モック 01 の `.badge`（白 92% の地に、そのゲームの下線と同じ色の太字）。
@@ -743,13 +793,39 @@ private struct GameCard: View {
             .fixedSize()
     }
 
+    /// 残り回数のボールの地。白いボールが絵の上でも見えるよう、ほかのラベルの白い地の代わりに暗い地にする。
+    private static let ballBadgeFill = Color.black.opacity(0.55)
+    /// 使った分のボール（灰色）。
+    private static let usedBall = Color(white: 0.45)
+
+    /// ボールを上限ぶん並べた 1 行の文字（SF Symbols を文字に埋めるので、ほかのラベルと同じ書体の大きさ・行の高さになる）。
+    /// 上限が多すぎて並ばないとき（6 以上）は、打席前のボタンと同じくボール 1 つ＋「×残り」。
+    private func ballsText(_ count: HomerunHubCount.Tally) -> Text {
+        func ball(_ lit: Bool) -> Text {
+            Text(Image(systemName: "baseball.fill")).foregroundStyle(lit ? Color.white : Self.usedBall)
+        }
+        guard let dots = count.dots else {
+            return ball(count.remaining > 0) + Text(verbatim: " ×\(max(0, count.remaining))")
+                .foregroundStyle(count.remaining > 0 ? Color.white : Self.usedBall)
+        }
+        return (0..<dots.total).reduce(Text(verbatim: "")) { text, i in
+            text + (i == 0 ? Text(verbatim: "") : Text(verbatim: " ")) + ball(i < dots.lit)
+        }
+    }
+
     private var accessibilityLabel: String {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
+        if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
     }
+}
+
+/// ハブのタイルの残り回数の印（#2208・#2572）。柵越えおじさんだけ（1 日の回数がある唯一のゲーム）。
+enum HubCountBadge {
+    @MainActor static func isShown(gameID: String) -> Bool { gameID == HomerunModel.gameID }
 }
 
 /// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、

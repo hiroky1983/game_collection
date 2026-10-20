@@ -37,6 +37,14 @@ struct GameOrderMergeTests {
         #expect(merged.filter { $0 == "c" }.count == 1)
     }
 
+    @Test("先頭へ移す: ほかの相対順は保ち、無い ID なら何もしない（#2572）")
+    func promotingToFront() {
+        #expect(GameOrderMerge.promotingToFront(["a", "b", "x", "c"], id: "x") == ["x", "a", "b", "c"])
+        #expect(GameOrderMerge.promotingToFront(["x", "a"], id: "x") == ["x", "a"])
+        #expect(GameOrderMerge.promotingToFront(["a", "b"], id: "x") == ["a", "b"])
+        #expect(GameOrderMerge.promotingToFront([], id: "x").isEmpty)
+    }
+
     @Test("非表示は登録済みのものだけ残る")
     func hiddenKeepsOnlyRegistered() {
         #expect(GameOrderMerge.mergedHidden(stored: ["a", "gone"], registered: ["a", "b"]) == ["a"])
