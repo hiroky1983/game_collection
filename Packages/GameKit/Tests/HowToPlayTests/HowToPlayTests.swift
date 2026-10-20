@@ -22,7 +22,6 @@ import GameRunner
 import GameHanafuda
 import GameShiritori
 import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -54,7 +53,6 @@ import GameSpider
 @testable import GameSudoku
 @testable import GameBlocks
 @testable import GameFifteen
-@testable import GameRoulette
 @testable import GameFruits
 @testable import GameColorRelay
 @testable import GameBackgammon
@@ -84,7 +82,6 @@ private let registeredModules: [GameModule] = [
     ShiritoriModule(),
     FifteenModule(),
     AkariKeshiModule(),
-    RouletteModule(),
     FruitsModule(),
     ColorRelayModule(),
     AnzanModule(),
@@ -548,7 +545,7 @@ struct PuzzleOtherHowToFiguresTests {
 
     @Test("ハブに並ぶ全ゲームの「？」が図入りになった（#2044 の完了条件）")
     func everyRegisteredGameIsIllustrated() {
-        // 除外は無い（倉庫のゲームも含む。ルーレット・盆栽・いろリレー・バックギャモン・スピードは #2386 で図を足した）。
+        // 除外は無い（倉庫のゲームも含む。盆栽・いろリレー・バックギャモン・スピードは #2386 で図を足した）。
         for guide in HowToPlayGuide.all {
             #expect(!guide.items.isEmpty, "\(guide.gameID) の遊び方が図入りでない")
         }
@@ -598,14 +595,13 @@ struct PuzzleOtherHowToFiguresTests {
     }
 }
 
-// MARK: - 図がなかった 5 本の図（#2386）
+// MARK: - 図がなかった本の図（#2386）
 
-@Suite("ルーレット・盆栽・いろリレー・バックギャモン・スピードの図入りの遊び方")
+@Suite("盆栽・いろリレー・バックギャモン・スピードの図入りの遊び方")
 @MainActor
 struct LateIllustratedHowToFiguresTests {
     private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
         [
-            ("roulette", .roulette, RouletteHowToFigures.items),
             ("fruits", .fruits, FruitsHowToFigures.items),
             ("colorRelay", .colorRelay, ColorRelayHowToFigures.items),
             ("backgammon", .backgammon, BackgammonHowToFigures.items),
@@ -628,7 +624,6 @@ struct LateIllustratedHowToFiguresTests {
     @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameRoulette/RouletteView.swift", "HowToPlayGuide.roulette.illustrated(RouletteHowToFigures.items)", "roulette"),
             ("GameFruits/FruitsView.swift", "HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items)", "fruits"),
             ("GameColorRelay/ColorRelayView.swift", "HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)", "colorRelay"),
             ("GameBackgammon/BackgammonView.swift", "HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items)", "backgammon"),

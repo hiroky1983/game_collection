@@ -32,7 +32,6 @@ let package = Package(
         .library(name: "GameFreeCell",     targets: ["GameFreeCell"]),
         .library(name: "GameSpider",       targets: ["GameSpider"]),
         .library(name: "GameFifteen",     targets: ["GameFifteen"]),
-        .library(name: "GameRoulette",     targets: ["GameRoulette"]),
         .library(name: "GameFruits",       targets: ["GameFruits"]),
         .library(name: "GameColorRelay",   targets: ["GameColorRelay"]),
         .library(name: "GameAnzan",        targets: ["GameAnzan"]),
@@ -122,10 +121,6 @@ let package = Package(
         .target(name: "GameShiritori",      dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameFifteen",        dependencies: ["Core"],
-                resources: [.copy("Resources/Localization")]),
-        // ルーレット（#1318・企画倉庫）。配当・当たり判定は純粋ロジックで、乱数は CoreEngine の
-        // `SplitMix64` を使うので CoreEngine への依存も明示する。
-        .target(name: "GameRoulette",       dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // おじさんの盆栽（#2361。もとは くっつきフルーツ #1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない
         // 純粋ロジックで、落とす盆栽の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
@@ -302,7 +297,6 @@ let package = Package(
         .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameRouletteTests",       dependencies: ["GameRoulette", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameColorRelayTests",     dependencies: ["GameColorRelay", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameAnzanTests",          dependencies: ["GameAnzan", "GameKitTestSupport", "CoreTestSupport"]),
@@ -339,7 +333,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameAnzan",
-            "GameColorRelay", "GameRoulette", "GameFruits", "GameDiceCombo", "GameKitTestSupport", "CoreTestSupport",
+            "GameColorRelay", "GameFruits", "GameDiceCombo", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -356,7 +350,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle",
             "GameOldMaid",
             "GameHearts",
@@ -371,7 +365,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
             "GameTsunagi", "GameAkariKeshi", "GameYonmoku",
         ]),
@@ -381,7 +375,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
             "GameTsunagi", "GameAkariKeshi", "GameYonmoku",
         ]),

@@ -24,6 +24,12 @@ struct GameOrderMergeTests {
         #expect(GameOrderMerge.mergedOrder(stored: ["gone", "b", "a"], registered: ["a", "b"]) == ["b", "a"])
     }
 
+    @Test("削除したゲーム（ルーレット #2545）の ID が並び・非表示に残っていても読み飛ばす")
+    func removedRouletteIDIsSkipped() {
+        #expect(GameOrderMerge.mergedOrder(stored: ["roulette", "b", "a"], registered: ["a", "b"]) == ["b", "a"])
+        #expect(GameOrderMerge.mergedHidden(stored: ["roulette", "a"], registered: ["a", "b"]) == ["a"])
+    }
+
     @Test("登録されたゲームはすべて含まれ、足し込みで重複しない")
     func noDuplicatesAndComplete() {
         let merged = GameOrderMerge.mergedOrder(stored: ["a", "a", "b"], registered: ["a", "b", "c"])

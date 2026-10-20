@@ -23,7 +23,6 @@ import GameHanafuda
 import GameSpider
 import GameShiritori
 import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -318,12 +317,11 @@ enum AppEnvironment {
         // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告）・
         // 解析・Game Center への送信まで入っている。
         HomerunModule(),
-        // いろリレー（#1320）・ルーレット（#1318）・おじさんの盆栽（#1319。もとは くっつきフルーツ）・
+        // いろリレー（#1320）・おじさんの盆栽（#1319。もとは くっつきフルーツ）・
         // サイコロ役づくり（#1752）。企画倉庫から v1.1.13 でハブに公開（#2384）。倉庫へ戻す判断が出たら、
         // その 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` のその行と、他のゲームの候補に入れた分）も戻すこと。
         ColorRelayModule(),
-        RouletteModule(),
         FruitsModule(),
         DiceComboModule(),
         // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
@@ -348,7 +346,7 @@ enum AppEnvironment {
         "yonmoku": .board, "backgammon": .board, "mancala": .board,
         "poker": .cards, "solitaire": .cards, "daifugo": .cards, "spider": .cards,
         "blackjack": .cards, "concentration": .cards, "freecell": .cards,
-        "speed": .cards, "oldmaid": .cards, "hearts": .cards, "roulette": .cards, "colorrelay": .cards,
+        "speed": .cards, "oldmaid": .cards, "hearts": .cards, "colorrelay": .cards,
         "mahjong4": .mahjongHanafuda, "mahjong": .mahjongHanafuda, "hanafuda": .mahjongHanafuda,
         "sudoku": .puzzleOther, "2048": .puzzleOther, "shiritori": .puzzleOther, "minesweeper": .puzzleOther,
         "blocks": .puzzleOther, "fifteen": .puzzleOther, "anzan": .puzzleOther,

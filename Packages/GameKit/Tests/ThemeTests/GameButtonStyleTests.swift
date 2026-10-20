@@ -73,7 +73,6 @@ struct NumericCornerRadiusScanTests {
         "GameMahjong/MahjongView+Hand.swift": 1,
         "GameOthello/OthelloView.swift": 1,
         "GamePoker/PokerSheets.swift": 2,
-        "GameRoulette/RouletteView.swift": 2,
         "GameRunner/RunnerScene+Dressing.swift": 1,
         "GameRunner/RunnerStoryView.swift": 2,
         "GameRunner/RunnerWorldMap.swift": 1,

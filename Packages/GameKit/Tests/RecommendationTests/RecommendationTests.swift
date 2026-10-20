@@ -25,7 +25,6 @@ import GameHomerun
 import GameOjisanPuzzle
 import GameAnzan
 import GameColorRelay
-import GameRoulette
 import GameFruits
 import GameDiceCombo
 import GameSpider
@@ -48,7 +47,7 @@ private let hubOrder = [
     "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
     "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
     "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
-    "homerun", "colorrelay", "roulette", "fruits", "dicecombo",
+    "homerun", "colorrelay", "fruits", "dicecombo",
 ]
 
 @MainActor
@@ -61,7 +60,7 @@ private func makeRegistry() -> GameRegistry {
         DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
         OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
         BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
-        HomerunModule(), ColorRelayModule(), RouletteModule(), FruitsModule(), DiceComboModule(),
+        HomerunModule(), ColorRelayModule(), FruitsModule(), DiceComboModule(),
     ])
 }
 
@@ -140,7 +139,7 @@ struct RecommendationTableTests {
         ("minesweeper",   ["sudoku", "2048", "fifteen"]),
         ("concentration", ["solitaire", "daifugo", "shiritori"]),
         ("poker",         ["blackjack", "daifugo", "dicecombo"]),
-        ("blackjack",     ["poker", "daifugo", "roulette"]),
+        ("blackjack",     ["poker", "daifugo", "concentration"]),
         ("daifugo",       ["poker", "blackjack", "colorrelay"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
@@ -157,7 +156,6 @@ struct RecommendationTableTests {
         ("ojisanpuzzle",  ["2048", "runner", "fruits"]),
         ("anzan",         ["sudoku", "fifteen", "minesweeper"]),
         ("colorrelay",    ["daifugo", "poker", "concentration"]),
-        ("roulette",      ["blackjack", "poker", "daifugo"]),
         ("fruits",        ["ojisanpuzzle", "2048", "blocks"]),
         ("dicecombo",     ["poker", "mahjong4", "blackjack"]),
     ]
@@ -662,7 +660,7 @@ struct PlayLogStorageTests {
         // 伸びる（1 本あたり約 8 バイト。プレイ回数では伸びない）。22 本で 297 バイト、柵越えおじさん（#1348）を
         // 足した 23 本で 305 バイトになったため、本数ぶんの余裕を見て 350 にした。おじさんの荷物運びパズル（#1904）を
         // 足した 24 本で 351 バイト（ID が 12 文字と長いぶん 1 本で大きく伸びた）になったため 400 にした。
-        // 倉庫から 4 本（いろリレー・ルーレット・おじさんの盆栽・サイコロ役づくり #2384）を足した 29 本で 409 バイトになったため
+        // 倉庫から 4 本（#2384）を足した 29 本で 409 バイトになったため
         // 450 にした。全体（下）は 24 本で 497 バイト・29 本で 555 バイトなので、同じ理由で 512 → 600 にした。
         #expect(storedValueSize(after1020) < 450,
                 "値の合計は450バイト未満（Issue #52 の 300 バイト + ゲームの本数ぶん）。実測 \(storedValueSize(after1020)) バイト")

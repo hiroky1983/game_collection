@@ -643,17 +643,6 @@
         }
       }
     },
-    "「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Press “Spin” to turn the wheel. The pocket the ball lands in is the result."
-          }
-        }
-      }
-    },
     "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1954,17 +1943,6 @@
         }
       }
     },
-    "チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a chip amount, then tap where to bet: numbers, red/black, odd/even, 1-18 / 19-36, or a group of 12. You can bet on several spots."
-          }
-        }
-      }
-    },
     "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2390,17 +2368,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Squirrel"
-          }
-        }
-      }
-    },
-    "ルーレットの遊び方" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How to Play Roulette"
           }
         }
       }
@@ -5034,17 +5001,6 @@
         }
       }
     },
-    "賭ける場所をタップしてスピン" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap where to bet, then spin"
-          }
-        }
-      }
-    },
     "途中の盤面は保存されません。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5096,17 +5052,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start by discarding every two cards of the same number (a pair) from your hand. The Joker never makes a pair."
-          }
-        }
-      }
-    },
-    "配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A single number pays 35 to 1, a group of 12 pays 2 to 1, and red/black and the like pay 1 to 1 (your bet comes back too). 0 is green, and all red/black-type bets lose on it."
           }
         }
       }
@@ -5316,50 +5261,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "There is a limit to how many times in a row you can Double-Up. If the numbers match, the card is redrawn."
-          }
-        }
-      }
-    },
-    "チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick a chip amount, then tap the spots you want to bet on. You can bet on several spots at once."
-          }
-        }
-      }
-    },
-    "配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Payouts: 35× for a single number, 2× for a dozen, and 1× for red/black and similar bets (your stake comes back too)."
-          }
-        }
-      }
-    },
-    "0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 is green. If 0 comes up, red/black, odd/even and similar bets all lose."
-          }
-        }
-      }
-    },
-    "「戻す」で、最後に置いた 1 口を外せます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap “Undo” to take back the last bet you placed."
           }
         }
       }
