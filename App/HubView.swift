@@ -1,6 +1,5 @@
 import SwiftUI
 import Core
-import GameHomerun
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -35,10 +34,6 @@ struct HubView: View {
     @State private var showGameCenterSignInGuidance = false
     /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
     @State private var hiddenNotice: HiddenNotice?
-    /// 柵越えおじさんの今日の残り回数（横長タイルの右下・#2208）。数え方は `HomerunHubCount`（打席前と同じ台帳）。
-    /// ゲームから戻ったとき・前面に戻ったとき・ハブを開いたまま 0:00 を越えたときに読み直す。
-    @State private var homerunTally = HomerunHubCount.tally()
-
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
     private struct HiddenNotice: Equatable {
@@ -81,16 +76,6 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    // MARK: 柵越えおじさん（#1761・#2175）
-
-    /// 柵越えおじさん。グリッドの先頭に、全列ぶちぬきの横長タイルで置く（#2184。様式はほかのタイルと同じ・新着はその次）。**登録されていて非表示にされていないときだけ**出す。
-    /// `game_open` の導線は以前の特別枠と同じ `.hero` のまま（解析の数え方を変えない）。
-    private static let heroGameID = "homerun"
-
-    private var showsHero: Bool {
-        settings.visibleModules(from: registry).contains { $0.id == Self.heroGameID }
-    }
-
     /// 表示するゲームの並び。この版の新着を先頭に固定し、そのあとに利用者の並びが続く（#2104）。
     /// 非表示にしたゲームは `visibleModules` の時点で除かれるので、新着でも出さない。
     private var pinnedVisibleModules: [GameModule] {
@@ -98,11 +83,6 @@ struct HubView: View {
         let order = NewGames.pinned(visibleIDs: visible.map(\.id))
         let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
         return order.compactMap { byID[$0] }
-    }
-
-    /// 柵越えおじさんを除いたゲーム。柵越えおじさんのすぐ次に新着が来る。
-    private var gridModules: [GameModule] {
-        pinnedVisibleModules.filter { $0.id != Self.heroGameID }
     }
 
     /// 実際に絞り込むカテゴリー。選んだカテゴリーのゲームが全部非表示になって消えたら「すべて」に戻す。
@@ -116,22 +96,17 @@ struct HubView: View {
         return populated.count > 1 ? [.all] + populated : []
     }
 
-    /// グリッドの 1 枚。柵越えおじさんは位置を持たない（以前の特別枠と同じ）。
+    /// グリッドの 1 枚。
     private struct GridEntry {
         let module: GameModule
-        /// `game_open` の `position`（1 始まり・柵越えおじさんを除いた絞る前の並びでの位置）。
-        let position: Int?
-        let source: GameOpenSource
+        /// `game_open` の `position`（1 始まり・絞る前の並びでの位置）。
+        let position: Int
     }
 
     /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置は絞る前の並びでの 1 始まり
     /// （絞り込みの有無で同じゲームの位置が変わらない）。
     private var shownGridEntries: [GridEntry] {
-        var entries: [GridEntry] = []
-        if showsHero, let hero = registry.module(id: Self.heroGameID) {
-            entries.append(GridEntry(module: hero, position: nil, source: .hero))
-        }
-        entries += gridModules.enumerated().map { GridEntry(module: $0.element, position: $0.offset + 1, source: .hub) }
+        let entries = pinnedVisibleModules.enumerated().map { GridEntry(module: $0.element, position: $0.offset + 1) }
         guard activeCategory != .all else { return entries }
         return entries.filter { registry.category(of: $0.module.id) == activeCategory }
     }
@@ -270,17 +245,9 @@ struct HubView: View {
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, 12)
                     }
-                    // 柵越えおじさんだけは横長のタイルで、グリッドの先頭の 1 行を全列ぶち抜く（#2184。iPhone は 2 列・iPad は全列）。
-                    // LazyVGrid は列をまたげないので、グリッドの上に同じ間隔で置く。新着はグリッドの先頭（= その次）に来る。
-                    let entries = shownGridEntries
-                    VStack(spacing: Self.gridSpacing) {
-                        if let hero = entries.first(where: { $0.module.id == Self.heroGameID }) {
-                            gridTile(hero, wide: true)
-                        }
-                        LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                            ForEach(entries.filter { $0.module.id != Self.heroGameID }, id: \.module.id) { entry in
-                                gridTile(entry, wide: false)
-                            }
+                    LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
+                        ForEach(shownGridEntries, id: \.module.id) { entry in
+                            gridTile(entry)
                         }
                     }
                     .padding(.horizontal, Theme.pad)
@@ -331,19 +298,9 @@ struct HubView: View {
                         }
                 }
             }
-            // ハブを開いたまま 0:00 を越えたら、その場で残り回数を戻す（#2208。打席前のボタンと同じ境目）。
-            .task {
-                while !Task.isCancelled {
-                    let wait = HomerunHubCount.nextReset(after: Date()).timeIntervalSinceNow + 1
-                    do { try await Task.sleep(for: .seconds(max(1, wait))) } catch { return }
-                    homerunTally = HomerunHubCount.tally()
-                }
-            }
             // ゲーム画面を出したままホームボタン・アプリ切替で離れる中断にも続きのお知らせを予約し、
             // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
             .onChange(of: scenePhase) { _, phase in
-                // 日付をまたいで戻った回数を、前面に戻ったハブで出し直す（#2208）。
-                if phase == .active { homerunTally = HomerunHubCount.tally() }
                 guard let current = path.last else { return }
                 switch phase {
                 case .background: services.gameDidEnterBackground(gameID: current.gameID)
@@ -357,8 +314,6 @@ struct HubView: View {
                 // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
                 if !oldPath.isEmpty, newPath.isEmpty, let left = oldPath.last {
                     services.gameDidLeave(gameID: left.gameID)
-                    // ハブに戻ったら柵越えおじさんの残り回数を読み直す（遊んだ分・0:00 の補充・#2208）。
-                    homerunTally = HomerunHubCount.tally()
                 }
                 // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
                 // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
@@ -610,21 +565,19 @@ struct HubView: View {
     ///
     /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
     /// いったん根まで戻し、次の runloop で積み直す。
-    /// グリッドの 1 枚（横長の柵越えおじさんも同じ結線を通す・#2184）。
-    private func gridTile(_ entry: GridEntry, wide: Bool) -> some View {
+    /// グリッドの 1 枚。
+    private func gridTile(_ entry: GridEntry) -> some View {
         let module = entry.module
         let hasResume = isResumable(module.id)
         // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
         return NavigationLink(value: HubRoute(
-            gameID: module.id, source: entry.source, position: entry.position, resume: hasResume
+            gameID: module.id, source: .hub, position: entry.position, resume: hasResume
         )) {
             GameCard(
                 module: module,
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
-                wide: wide,
-                // 柵越えおじさんの横長タイルだけ、右下に今日の残り回数（#2208。ボールの絵は #2273）。
-                count: module.id == Self.heroGameID ? homerunTally : nil
+                isEvent: HubEventBadge.isShown(gameID: module.id)
             )
         }
         // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
@@ -641,8 +594,7 @@ struct HubView: View {
             }
             // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
             // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
-            // 柵越えおじさんは常に先頭なので押せない（以前の特別枠と同じ）。
-            .disabled(module.id == Self.heroGameID || NewGames.isAlreadyAtTop(
+            .disabled(NewGames.isAlreadyAtTop(
                 id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
             Button {
                 hide(module)
@@ -714,11 +666,8 @@ private struct GameCard: View {
     let hasResume: Bool
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
-    /// グリッドの全列ぶちぬきの横長タイル（柵越えおじさんだけ・#2184）。画像は iPhone 用（2 列ぶん）と iPad 用（4 列ぶん）。
-    var wide = false
-    /// 右下に出す今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
-    /// 「続きから」「NEW」と同じ部品（`badgeCapsule`）・同じ大きさで出す。読み上げは「残り n 回」。
-    var count: HomerunHubCount.Tally?
+    /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、印は左下に 1 つだけ。
+    let isEvent: Bool
 
     @Environment(\.adaptiveLayout) private var layout
 
@@ -726,27 +675,15 @@ private struct GameCard: View {
     /// 見張られるので、設定で言語を変えた瞬間にタイルも描き直される。
     private var tileName: String {
         let language = AppLanguageStore.shared.language
-        return wide
-            ? HubTileStyle.wideTileName(for: module.id, pad: layout.isWide, language: language)
-            : HubTileStyle.tileName(for: module.id, language: language)
-    }
-
-    private var aspect: CGFloat {
-        wide ? HubTileStyle.wideAspect(pad: layout.isWide) : HubTileStyle.aspect
+        return HubTileStyle.tileName(for: module.id, language: language)
     }
 
     var body: some View {
         Color.clear
-            .aspectRatio(aspect, contentMode: .fit)
+            .aspectRatio(HubTileStyle.aspect, contentMode: .fit)
             .overlay { art }
-            // 柵越えおじさんの画像の「体験版」は会長指示で消した（#2184）ので、印はどのタイルも左下。
             .overlay(alignment: .bottomLeading) {
                 badge.padding(layout.scaled(10))
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if let count {
-                    badgeCapsule(ballsText(count), fill: Self.ballBadgeFill).padding(layout.scaled(10))
-                }
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .background(
@@ -783,13 +720,15 @@ private struct GameCard: View {
     private var badge: some View {
         if isNew {
             badgeCapsule("NEW")
+        } else if isEvent {
+            badgeCapsule(tr("イベント開催中"))
         } else if hasResume {
             badgeCapsule(tr("続きから"))
         }
     }
 
     /// モック 01 の `.badge`（白 92% の地に、そのゲームの下線と同じ色の太字）。
-    /// 文字は会長 QA（#2273）で 11pt → 14pt に上げた。「続きから」「NEW」「残り回数のボール」はすべてこの 1 つの部品で、
+    /// 文字は会長 QA（#2273）で 11pt → 14pt に上げた。「続きから」「NEW」「イベント開催中」はすべてこの 1 つの部品で、
     /// 同じ文字の大きさ・同じ余白なので高さもそろう。
     private func badgeCapsule(_ label: String) -> some View {
         badgeCapsule(Text(label).foregroundStyle(HubTileStyle.textAccent(for: module.id)), fill: Color.white.opacity(0.92))
@@ -804,31 +743,11 @@ private struct GameCard: View {
             .fixedSize()
     }
 
-    /// 残り回数のボールの地。白いボールが絵の上でも見えるよう、ほかのラベルの白い地の代わりに暗い地にする。
-    private static let ballBadgeFill = Color.black.opacity(0.55)
-    /// 使った分のボール（灰色）。
-    private static let usedBall = Color(white: 0.45)
-
-    /// ボールを上限ぶん並べた 1 行の文字（SF Symbols を文字に埋めるので、ほかのラベルと同じ書体の大きさ・行の高さになる）。
-    /// 上限が多すぎて並ばないとき（6 以上）は、打席前のボタンと同じくボール 1 つ＋「×残り」。
-    private func ballsText(_ count: HomerunHubCount.Tally) -> Text {
-        func ball(_ lit: Bool) -> Text {
-            Text(Image(systemName: "baseball.fill")).foregroundStyle(lit ? Color.white : Self.usedBall)
-        }
-        guard let dots = count.dots else {
-            return ball(count.remaining > 0) + Text(verbatim: " ×\(max(0, count.remaining))")
-                .foregroundStyle(count.remaining > 0 ? Color.white : Self.usedBall)
-        }
-        return (0..<dots.total).reduce(Text(verbatim: "")) { text, i in
-            text + (i == 0 ? Text(verbatim: "") : Text(verbatim: " ")) + ball(i < dots.lit)
-        }
-    }
-
     private var accessibilityLabel: String {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
-        if let count { parts.append(count.labelText()) }
+        if isEvent { parts.append(tr("イベント開催中")) }
         return parts.joined(separator: tr("、"))
     }
 }
@@ -836,6 +755,14 @@ private struct GameCard: View {
 /// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、
 /// 「続きから」「NEW」と「つづき・最近」の文字色に使う。値は `Scripts/generate-hub-tiles.py` の `GAMES` と同じ表
 /// （モック 01 の各タイルの `.ul` の色）。表に無いゲームは珊瑚色。
+/// ハブのタイルの「イベント開催中」の印（#2566）。柵越えおじさんは週間ランキング
+/// （`GameCenterLeaderboard.homerunWeekly`）が有効なあいだだけ。ID が nil なら出さない。
+enum HubEventBadge {
+    static func isShown(gameID: String, weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly) -> Bool {
+        gameID == "homerun" && weeklyLeaderboardID != nil
+    }
+}
+
 enum HubTileStyle {
     /// モックのタイルの寸法（179 × 215pt）の比率。画像もこの比率で書き出している。
     static let aspect: CGFloat = 179.0 / 215.0
@@ -846,16 +773,9 @@ enum HubTileStyle {
     }
     static func thumbName(for gameID: String) -> String { "hubthumb-\(gameID)" }
 
-    /// 横長タイル（#2184）の画像。寸法は iPhone が 2 列ぶん（179×2+12 × 215pt）、iPad が 4 列ぶん（179×4+12×3 × 215pt）で、
-    /// 高さはふつうのタイル 1 枚と同じ。iPad の列が 5〜6 列に増えても比率は保つ（そのぶん少し背が高くなる）。
-    static func wideTileName(for gameID: String, pad: Bool, language: AppLanguage = .japanese) -> String {
-        localized("hubtile-\(gameID)-wide" + (pad ? "-pad" : ""), language)
-    }
-
     private static func localized(_ name: String, _ language: AppLanguage) -> String {
         language == .japanese ? name : "\(name)-\(language.rawValue)"
     }
-    static func wideAspect(pad: Bool) -> CGFloat { pad ? (179.0 * 4 + 12 * 3) / 215.0 : (179.0 * 2 + 12) / 215.0 }
 
     private static let coral: UInt32 = 0xFF6F61, teal: UInt32 = 0x22C3BE, purple: UInt32 = 0x8C7BE0
     private static let yellow: UInt32 = 0xFFC24B, pink: UInt32 = 0xFF8FB1
