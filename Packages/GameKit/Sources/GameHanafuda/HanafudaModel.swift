@@ -387,7 +387,8 @@ public final class HanafudaModel: AITurnGuarded {
         case (.cpu, false):
             message = tr("CPUが%1$@で%2$lld枚取った", card.displayName, result.captured.count)
         }
-        services?.feedback.impact(result.captured.isEmpty ? .light : .rigid)
+        // CPU の着手では鳴らさない（指を触れていない間に端末が振動するのを避ける・FeedbackCPUSilentTests）。
+        if player == .human { services?.feedback.impact(result.captured.isEmpty ? .light : .rigid) }
         drawFromDeck(for: player)
     }
 
@@ -430,7 +431,7 @@ public final class HanafudaModel: AITurnGuarded {
         }
         if !result.captured.isEmpty {
             message = tr("めくり札「%1$@」で%2$lld枚取った", card.displayName, result.captured.count)
-            services?.feedback.impact(.rigid)
+            if player == .human { services?.feedback.impact(.rigid) }
         }
         drawnCard = nil
     }

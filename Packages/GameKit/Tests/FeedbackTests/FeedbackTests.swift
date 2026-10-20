@@ -690,6 +690,112 @@ struct FeedbackCPUSilentTests {
         await model.performAIMoveIfNeeded()
         #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
     }
+
+    @Test("チェス: CPU の着手では impact が増えない")
+    func chess() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ChessGameModel(services: services)
+        model.newGame(humanSide: .white, aiLevel: 1)
+        guard let move = model.legalMovesCache.first else { return }
+        model.apply(move)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("囲碁: CPU の着手では impact が増えない")
+    func go() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = GoModel(services: services)
+        model.newGame(humanSide: .black)
+        model.tap(row: 4, col: 4)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("花札こいこい: CPU の出し札・めくり札では impact が増えない")
+    func hanafuda() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 1))
+        var cpuSteps = 0
+        for _ in 0..<200 where model.phase == .playing {
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { break }
+                let before = spy.impacts.count
+                model.play(card)
+                #expect(spy.impacts.count > before, "人間の着手では鳴る")
+            } else {
+                let before = spy.impacts.count
+                model.stepCPU()
+                cpuSteps += 1
+                #expect(spy.impacts.count == before, "CPU の着手では鳴らない")
+            }
+        }
+        #expect(cpuSteps > 0, "CPU の手番が 1 度は回る")
+    }
+
+    @Test("神経衰弱: CPU の手番では impact が増えない")
+    func concentration() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ConcentrationModel(services: services)
+        model.newGame(pairCount: .medium, cpuLevel: .normal)
+        let first = 0
+        guard let second = model.cards.indices.first(where: {
+            $0 != first && model.cards[$0].symbol != model.cards[first].symbol
+        }) else { return }
+        model.tap(index: first)
+        model.tap(index: second)   // 不一致 → 手番が CPU に移る
+        #expect(spy.impacts.count > 0, "人間のめくりでは鳴る")
+        model.clearMismatch()
+        let afterHuman = spy.impacts.count
+        await model.performCPUMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU のめくりでは鳴らない")
+    }
+
+    @Test("しりとり: CPU の手番では impact が増えない")
+    func shiritori() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame()
+        guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { return }
+        model.select(move.slot)
+        #expect(spy.impacts.count > 0, "人間の選択では鳴る")
+        let afterHuman = spy.impacts.count
+        await model.runCPUTurnIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の選択では鳴らない")
+    }
+
+    @Test("大富豪: CPU の手番では impact が増えない")
+    func daifugo() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = DaifugoModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame()
+        var cpuRuns = 0
+        for _ in 0..<500 where model.phase == .playing {
+            let before = spy.impacts.count
+            await model.runCPUTurnsIfNeeded()
+            cpuRuns += 1
+            #expect(spy.impacts.count == before, "CPU の手番では鳴らない")
+            guard model.phase == .playing, model.isPlayerTurn else { continue }
+            if let play = DaifugoRules.greedyPlay(
+                hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+            ) {
+                for card in play { model.toggleSelection(card) }
+                model.playSelected()
+            } else {
+                model.pass()
+            }
+        }
+        #expect(cpuRuns > 0 && spy.impacts.count > 0, "CPU の手番が回り、人間の操作では鳴る")
+    }
+
+    // 麻雀（四人打ち）は対象外: CPU の立直は「相手が脅威を作った合図」として `impact(.rigid)` を意図的に残している（#714・#2539）。
 }
 
 // MARK: - オフ: どの契機でも 1 度も発火しない（受け入れ条件）
