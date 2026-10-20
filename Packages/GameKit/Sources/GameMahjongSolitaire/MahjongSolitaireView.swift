@@ -142,23 +142,26 @@ public struct MahjongSolitaireView: View {
         // 盤面に回せる高さを間隔から捻出している（#148）。
         VStack(spacing: 8) {
             statusBar
-            // 盤は卓の上に置く（#1501）。牌の大きさは卓の内側の幅から決まるので、山が卓からはみ出さない。
+            // レイアウトパターン A（全画面・#2531）: 卓のフェルトは全画面の枠が画面全体に敷くので、盤に `.cardTable()`
+            // （木枠付きの卓）は付けない。牌の大きさは盤の幅から決まるので、左右は画面の端から `boardSideInset`（4pt。
+            // ソリティア系と同じ）まで詰めて牌を大きくする。
             board
-                .cardTable()
-                // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白を卓の分（`boardSideInset` 4pt。
-                // ソリティア系 3 本と同じ）まで詰めて牌を大きくする。
-                .padding(.horizontal, -(Theme.pad - CardStackLayout.boardSideInset))
+                .padding(.horizontal, -(FullScreenGameLayoutMetrics.sideInset - CardStackLayout.boardSideInset))
                 .layoutPriority(1)
             controlArea
             HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            // 余りの高さは「⋯」の行とバナーの帯のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
         }
-        .padding(Theme.pad)
+        // 左右は全画面の枠の値（8pt）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+        .padding(.vertical, 4)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2427 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・麻雀ソリティア・？・＋）、バナーは画面最下部。残り枚数と時計はモックの A 案どおりヘッダーの下に
+        // 低い 1 行の札で残す（SE の 1 行のヘッダーには入らない）。
         // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
         // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
-        .gameChrome(title: tr("麻雀ソリティア"), review: services.review,
+        .gameChrome(title: tr("麻雀ソリティア"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.solo, isDisabled: isWatchingRewardAd) {
                         openSetup()
                     })
@@ -298,8 +301,10 @@ public struct MahjongSolitaireView: View {
     // MARK: - ステータスバー
 
     /// 帯には表示だけを置く（残り枚数・状態・時計）。全体表示⇄拡大などの操作は右下の「⋯」へ（#1468）。
+    /// 全画面（A・#2531）ではモックどおり 44pt の帯より低い 1 行の札にする（`GameStatusBarStyle.compactMinHeight`）。
     private var statusBar: some View {
-        GameStatusBar {
+        GameStatusBar(verticalPadding: GameStatusBarStyle.compactVerticalPadding,
+                      minHeight: GameStatusBarStyle.compactMinHeight) {
             Group {
                 if model.phase == .won {
                     // 取り切った後の表示は行を増やさずここに同居させる（#148）。
