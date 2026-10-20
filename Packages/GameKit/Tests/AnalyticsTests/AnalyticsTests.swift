@@ -632,8 +632,8 @@ struct AnalyticsDoubleFireTests {
         let snapshots = MemorySnapshotStore()
         let (first, spyFirst) = makeServices(snapshots: snapshots)
         let model = Game2048Model(services: first)
-        model.move(.left)
-        model.move(.up)
+        // 初期タイルの置き場によっては左・上が空振りするので、全方向を試して必ず一手は動かす。
+        for direction in Direction.allCases { model.move(direction) }
         #expect(spyFirst.starts(of: "2048") == 1, "初回の開始は1回")
         #expect(snapshots.exists(for: "2048"), "中断の保存がある")
 
@@ -650,8 +650,8 @@ struct AnalyticsDoubleFireTests {
         let (services, spy) = makeServices(snapshots: snapshots)
 
         let first = Game2048Model(services: services)
-        first.move(.left)
-        first.move(.up)
+        // 初期タイルの置き場によっては左・上が空振りするので、全方向を試して必ず一手は動かす。
+        for direction in Direction.allCases { first.move(direction) }
         #expect(spy.starts(of: "2048") == 1)
 
         // ハブへ戻る（`HubView` が path の変化で呼ぶ経路）。
@@ -1782,8 +1782,8 @@ struct UntouchedSnapshotReopenTests {
         let snapshots = MemorySnapshotStore()
         let (first, _) = makeHubServices(snapshots: snapshots, modules: [Game2048Module()])
         let model = Game2048Model(services: first)
-        model.move(.left)
-        model.move(.up)
+        // 初期タイルの置き場によっては左・上が空振りするので、全方向を試して必ず一手は動かす。
+        for direction in Direction.allCases { model.move(direction) }
         let module = Game2048Module()
         #expect(!module.hasUntouchedSnapshot(in: snapshots), "動かした盤は手つかずではない")
 
