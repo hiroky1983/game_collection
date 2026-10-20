@@ -21,4 +21,14 @@ public enum GameOrderMerge {
     public static func mergedHidden(stored: [String], registered: [String]) -> Set<String> {
         Set(stored.filter { registered.contains($0) })
     }
+
+    /// `id` を並びの先頭へ移す（ほかの相対順はそのまま・#2572）。並びに無ければ何もしない。
+    ///
+    /// 柵越えおじさんは #2566 で通常のタイルになるまで、並びとは無関係に常に先頭の特別枠だった。
+    /// 保存済みの並び（利用者が並べ替え・非表示をした端末）では末尾近くに置かれていたので、
+    /// 通常のタイルになった版で一度だけこれを通し、以前と同じ先頭へ戻す。
+    public static func promotingToFront(_ order: [String], id: String) -> [String] {
+        guard order.contains(id) else { return order }
+        return [id] + order.filter { $0 != id }
+    }
 }
