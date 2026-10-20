@@ -25,7 +25,7 @@ enum BlackjackMetrics {
 /// レイアウトパターン A（全画面・#2531）では、中身に使える高さは全画面の枠のヘッダー（52pt）の下からバナーの帯の上まで
 /// （iPhone SE で 537pt・iPhone 17 で 668pt。バナーは枠が置くので中身に含まない）。ディーラー・あなたの白い札と
 /// 操作欄の白い札は無くなったが、SE のスプリット中（ハンド 2 つ・スプリットの段あり・初回のミニガイド）は
-/// 通常の寸法で約 535pt になり SE の 537pt にほぼ等しいので、SE では引き続き詰める（#2498 の再発防止）。
+/// 通常の寸法で約 555pt になり SE の 537pt を超えるので、SE では引き続き詰める（#2498 の再発防止）。
 enum BlackjackVerticalMetrics: Equatable {
     case regular
     case compact
@@ -52,12 +52,13 @@ enum BlackjackVerticalMetrics: Equatable {
 
     /// スプリット中の固定部分の高さの見積もり（勝負の帯 17 + 余白・ディーラー 見出し 17 + 札 90 ・
     /// あなた 行 94 × 2 + 行間・間隔の最小 4・スプリットの段ありの操作欄 96（44 + 8 + 44）・ミニガイド 22）。
-    /// 間隔は外側 4 箇所（帯・テーブル・ミニガイド・操作欄のあいだ）と、テーブルの中 2 箇所。バナーは全画面の枠が持つので含めない。
+    /// 間隔は外側 4 箇所（帯・テーブル・ミニガイド・操作欄のあいだ）と、テーブルの `tableSpacing` 4 箇所
+    /// （ディーラーの中・あなたの中・ディーラーと Spacer・Spacer とあなた）。バナーは全画面の枠が持つので含めない。
     /// `BlackjackMetricsTests` が境目との整合を固定する。
     var estimatedSplitMinimumHeight: CGFloat {
         let chips = 17 + chipsVerticalPadding * 2
         let dealer = 17 + tableSpacing + 90 + areaVerticalPadding * 2
         let player = 94 * 2 + tableSpacing + areaVerticalPadding * 2
-        return chips + dealer + 4 + player + 96 + 22 + spacing * 4 + pad * 2
+        return chips + dealer + tableSpacing * 2 + 4 + player + 96 + 22 + spacing * 4 + pad * 2
     }
 }
