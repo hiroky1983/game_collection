@@ -4,7 +4,7 @@ import Core
 public struct BlackjackModule: GameModule {
     public let id = "blackjack"
     public var title: String { tr("ブラックジャック") }
-    public var description: String { tr("ディーラーと10回勝負。勝ち数で自己ベストを狙おう！") }
+    public var description: String { tr("ディーラーと10回勝負。勝ち点の合計で自己ベストを狙おう！") }
     public var icon: Image { Image(systemName: "suit.club.fill") }
 
     public init() {}

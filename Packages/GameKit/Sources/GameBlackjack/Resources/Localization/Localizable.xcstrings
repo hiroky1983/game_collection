@@ -452,13 +452,13 @@
         }
       }
     },
-    "ディーラーと10回勝負。勝ち数で自己ベストを狙おう！" : {
+    "ディーラーと10回勝負。勝ち点の合計で自己ベストを狙おう！" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "10 rounds against the dealer. Win as many as you can!"
+            "value" : "10 rounds against the dealer. Score as many points as you can!"
           }
         }
       }
