@@ -44,10 +44,10 @@ import GameKitTestSupport
 // blockpuzzle は含めない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が続いている）。
 // hanafuda は #668 で戻した。
 private let hubOrder = [
-    "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
+    "homerun", "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
     "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
     "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
-    "homerun", "colorrelay", "fruits", "dicecombo",
+    "colorrelay", "fruits", "dicecombo",
 ]
 
 @MainActor
@@ -55,12 +55,12 @@ private func makeRegistry() -> GameRegistry {
     // BlockPuzzleModule は含めない（#642 / #603。v1.1.5 の `AppEnvironment.registry` と
     // 構成を一致させるため）。HanafudaModule は #668 で戻した。
     GameRegistry([
-        PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
+        HomerunModule(), PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
         SudokuModule(), OthelloModule(), Game2048Module(), ShogiModule(), ShiritoriModule(),
         DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
         OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
         BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
-        HomerunModule(), ColorRelayModule(), FruitsModule(), DiceComboModule(),
+        ColorRelayModule(), FruitsModule(), DiceComboModule(),
     ])
 }
 
@@ -199,7 +199,7 @@ struct RecommendationTableTests {
         )
         let expected = hubOrder.first { !played.contains($0) }
         #expect(got?.gameID == expected)
-        #expect(got?.gameID == "poker", "ハブ順で最初の未プレイ")
+        #expect(got?.gameID == hubOrder[0], "ハブ順で最初の未プレイ（将棋の候補に先頭の柵越えおじさんは無い）")
     }
 
     /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。
@@ -326,7 +326,7 @@ struct RecommendationTableTests {
             lastPlayedAt: ["shogi": now],
             now: now
         )
-        #expect(noDate?.gameID == "poker", "日付の無いものはハブ順で先頭が出る")
+        #expect(noDate?.gameID == hubOrder[0], "日付の無いものはハブ順で先頭が出る")
         #expect(noDate?.reason == .revisit(days: nil))
     }
 
@@ -543,7 +543,7 @@ struct RecommendationServiceTests {
             // このテストが見たいのは「遊び尽くしたあと」なので、その1回を捨てて次の提示まで進める。
             advanceToNextSuggestion(service, gameID: "shogi") { clock = clock.addingTimeInterval($0) }
         }
-        #expect(service.suggestedGameID == "poker", "最終プレイが最も古いゲームが出る")
+        #expect(service.suggestedGameID == hubOrder[0], "最終プレイが最も古いゲーム（ハブ順の先頭から遊んだので先頭）が出る")
         if case .revisit(let days?) = service.suggestedReason {
             #expect(days >= hubOrder.count - 1, "\(hubOrder.count - 1)日以上ぶり（実際: \(days)日）")
         } else {
@@ -570,7 +570,7 @@ struct RecommendationServiceTests {
         } else {
             advanceToNextSuggestion(service, gameID: "shogi") { clock = clock.addingTimeInterval($0) }
         }
-        #expect(service.suggestedGameID == "poker", "日付が無ければハブ順で先頭（将棋以外）")
+        #expect(service.suggestedGameID == hubOrder[0], "日付が無ければハブ順で先頭（将棋以外）")
         #expect(service.suggestedReason == .revisit(days: nil))
     }
 

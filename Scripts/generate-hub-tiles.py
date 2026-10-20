@@ -13,6 +13,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   描き直す（#2552。審査で疑似ギャンブルと見られないよう、賭けを思わせる絵を出さない）。札・下地・配置はモックのまま。
 - 花札こいこいはモックの絵が旧仕様の札なので、ゲーム内の札の画像（#2188 の `Hanafuda_NN.png`）で描き直す（#2273）。
   左下・右下は「続きから」「NEW」が重なるので、文字や吹き出しは入れない。
+- 柵越えおじさんはモックの絵（おじさんの顔が上に切れる）ではなく、横長タイル（#2273・廃止 #2566）と同じ会長提供の
+  正方形の絵（main の `docs/design/homerun/hub-tile/source.png`・ロゴ無し）から、**顔がはっきり見える構図**で
+  切り抜く（#2572）。release ブランチには docs が無いので、main から取り出して `--hero` で渡す。
 
 使い方:
   git archive origin/main docs/design/hub-redesign-1831 | tar -x -C /tmp/mock
@@ -22,7 +25,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   hubthumb-<id>.imageset … 「つづき・最近」の小さいアイコン用（名前なしの絵を正方形に切り抜き・120×120）
   hubtile-<id>-en.imageset … 英語のゲーム名入り（#2181。アプリ内の言語設定で切り替える）
 一部だけ書き直すとき（ほかのアセットは消さない・モック不要）:
-  python3 Scripts/generate-hub-tiles.py --only homerun
+  python3 Scripts/generate-hub-tiles.py --only anzan
+柵越えおじさんだけ書き直すとき（元絵は main の docs から取り出して渡す。取り出し方は hub-tile/README.md）:
+  python3 Scripts/generate-hub-tiles.py --only homerun --hero /tmp/mock/docs/design/homerun/hub-tile/source.png
 英語版だけ書き直すとき（日本語版は消さない）:
   python3 Scripts/generate-hub-tiles.py --lang en --mock <上と同じ場所>
 """
@@ -355,6 +360,32 @@ def tile_html(gid, art_path, lang="ja"):
             f'<div class="{cls}">{name}</div><div class="ul" style="background:{color}"></div>{extra}</div>{fit}</body></html>')
 
 
+# 柵越えおじさんの通常タイルの絵（#2572）。元絵は会長提供の正方形（1254×1254・ChatGPT で作成。原画と出所は main の
+# docs/design/homerun/hub-tile/）。顔が主役になるよう、ヘルメットから胸までを幅いっぱいに切り抜く。
+# - 左上のゲーム名（上 16% まで・白い霞は 36% まで）の下にヘルメットの頭頂（元絵の y≈130）が来るよう、頭頂をタイルの
+#   高さの 20% に置く。元絵の上に空が足りない分（42px）は、上端の 60px を鏡写しで継ぎ足して補う（青空と雲なので継ぎ目は出ない）。
+# - 左下の「イベント開催中」と残り回数のボール（2 段で下 32%）に顔が重ならないよう、あご（y≈470）はタイルの 60% より上。
+# - 幅は顔の中心（x≈350）が真ん中に来る 716px（比率はタイルと同じ 179:215）。右にバットの握りと打球の光が少し入る。
+HERO_ART = os.path.join(ROOT, "docs/design/homerun/hub-tile/source.png")
+HOMERUN_TOP_PAD = 60
+HOMERUN_CROP = (0, 18, 716, 878)  # 継ぎ足した後の座標（元絵では y = -42 〜 818）
+# 「つづき・最近」のアイコン用。顔を中心にした正方形（元絵の座標）。
+HOMERUN_THUMB_CROP = (120, 60, 595, 535)
+
+
+def homerun_art(hero=HERO_ART):
+    assert os.path.exists(hero), f"柵越えおじさんの元絵が無い: {hero}（--hero で渡す。使い方は先頭の説明）"
+    src = Image.open(hero).convert("RGB")
+    assert src.size == (1254, 1254), src.size
+    padded = Image.new("RGB", (src.width, src.height + HOMERUN_TOP_PAD))
+    padded.paste(src.crop((0, 0, src.width, HOMERUN_TOP_PAD)).transpose(Image.FLIP_TOP_BOTTOM), (0, 0))
+    padded.paste(src, (0, HOMERUN_TOP_PAD))
+    crop = padded.crop(HOMERUN_CROP)
+    # 切り抜きの比率がタイルとずれていると object-fit:cover で意図しない所が切れるので確かめる。
+    assert abs(crop.width / crop.height - W / H) < 0.01, crop.size
+    return crop, src.crop(HOMERUN_THUMB_CROP)
+
+
 def render(html, png, tmp, size=(W, H)):
     p = os.path.join(tmp, os.path.basename(png) + ".html")
     with open(p, "w") as f:
@@ -390,6 +421,7 @@ def main():
     ap.add_argument("--mock", help="モックのタイル絵の場所（hub-redesign/assets/tiles）。描き直すゲームだけなら不要")
     ap.add_argument("--keep", help="途中の PNG（名前なしの絵）を残す場所")
     ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）")
+    ap.add_argument("--hero", default=HERO_ART, help="柵越えおじさんの元絵（既定は docs/design/homerun/hub-tile/source.png）")
     ap.add_argument("--lang", nargs="+", choices=["ja", "en"], default=["ja", "en"],
                     help="書き出す言語（既定は両方）。1 つだけ指定したときはほかの言語のアセットを消さない")
     args = ap.parse_args()
@@ -408,7 +440,11 @@ def main():
             if args.only and gid not in args.only:
                 continue
             art = os.path.join(tmp, f"art-{gid}.png")
-            if gid in REDRAWN:
+            thumb_art = None
+            if gid == "homerun":
+                crop, thumb_art = homerun_art(args.hero)
+                crop.save(art)
+            elif gid in REDRAWN:
                 render(art_html(gid), art, tmp)
             elif gid in CHIPLESS:
                 render(chipless_html(args.mock, gid), art, tmp)
@@ -424,8 +460,9 @@ def main():
             if "ja" not in args.lang:
                 print("tile", gid)
                 continue
-            # 「つづき・最近」のアイコン（名前なしなので言語で分けない）: モックの `object-fit:cover` と同じく中央を正方形に切る。
-            a = Image.open(art).convert("RGB")
+            # 「つづき・最近」のアイコン（名前なしなので言語で分けない）: モックの `object-fit:cover` と同じく中央を正方形に切る
+            # （柵越えおじさんは顔を中心にした正方形・#2572）。
+            a = thumb_art or Image.open(art).convert("RGB")
             side = min(a.size)
             left, top = (a.width - side) // 2, (a.height - side) // 2
             write_imageset(f"hubthumb-{gid}", a.crop((left, top, left + side, top + side)).resize((120, 120), Image.LANCZOS))
