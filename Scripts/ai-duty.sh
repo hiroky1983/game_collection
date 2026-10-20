@@ -1805,12 +1805,14 @@ else
 fi
 log "当番起動 (slot=$DUTY_SLOT/$DUTY_MAX_SLOTS, issue=${DUTY_ISSUE:-なし}, other_claims=[${OTHER_CLAIMS}], model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
-PATH="$GH_SHIM_DIR:$PATH" claude --model "$DUTY_MODEL" \
+# 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）。無い世代の worktree でも従来どおり動くようにする
+if [ -f "$RUN_DIR/Scripts/lib/run-claude.sh" ]; then . "$RUN_DIR/Scripts/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
+PATH="$GH_SHIM_DIR:$PATH" run_claude_billed claude --model "$DUTY_MODEL" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")
 
 （実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。シミュレータを起動したら UDID を \`${DUTY_SIM_RECORD}\`（環境変数 DUTY_SIM_RECORD）に1行ずつ追記すること。${DUTY_SLOT_NOTE}${DUTY_ISSUE_NOTE}${DUTY_MODEL_NOTE}${DUTY_SHIP_NOTE}
 
-（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
+（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}"
 RC=$?
 log "当番終了 (mode=$MODE, exit=$RC)"

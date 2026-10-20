@@ -259,8 +259,10 @@ fi
 # ---- claude: 画像を見て起票 ------------------------------------------------------------------
 # Edit/Write は渡さない（コードは触らない）。Sonnet 固定（週間リミット対策・監査当番と同じ）
 cd "$SCRATCH" || exit 0
+# 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）
+if [ -f "$SCRIPT_DIR/lib/run-claude.sh" ]; then . "$SCRIPT_DIR/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
 # 認証・ネットワーク待ちで止まっても全スロットを握り続けないよう、perl の alarm で上限を付ける（macOS に timeout(1) は無い）
-PATH="$GH_SHIM_DIR:$PATH" perl -e 'alarm shift; exec @ARGV' "${QA_CLAUDE_TIMEOUT:-1800}" claude --model "${QA_MODEL:-sonnet}" \
+PATH="$GH_SHIM_DIR:$PATH" run_claude_billed perl -e 'alarm shift; exec @ARGV' "${QA_CLAUDE_TIMEOUT:-1800}" claude --model "${QA_MODEL:-sonnet}" \
   --allowedTools "Bash,Read,Glob,Grep" \
   -p "$(cat "$QA_HOME_DIR/prompt.md")
 
@@ -270,5 +272,5 @@ PATH="$GH_SHIM_DIR:$PATH" perl -e 'alarm shift; exec @ARGV' "${QA_CLAUDE_TIMEOUT
 - 起動直後に消えていた撮影: ${DEAD:-なし}
 - この実行中に増えたクラッシュログ: ${NEW_CRASHES:-なし}
 - 撮影した枚数: ${TOTAL}
-- 起票のマイルストーン: ${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
+- 起票のマイルストーン: ${ISSUE_MILESTONE_NOTE}"
 log "自動QA終了 (exit=$?)"
