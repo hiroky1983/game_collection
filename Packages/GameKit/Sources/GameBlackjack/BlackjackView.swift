@@ -33,7 +33,10 @@ public struct BlackjackView: View {
         }
         .rewardOffer(retryRescue, for: .undo, isPresented: model.canRetryRound,
                      services: services, gameID: model.gameID)
-        .gameChrome(title: tr("ブラックジャック"), review: services.review)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2426 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・ブラックジャック・？）、バナーは画面最下部。ディーラー・あなたの白い札と操作欄の白い札はやめて
+        // フェルトに直に置く。勝負の帯（何回目・勝ち点・連勝）はモックの A 案どおりヘッダーの下に 1 行の札で残す。
+        .gameChrome(title: tr("ブラックジャック"), review: services.review, fullScreen: .felt, ads: services.ads)
         .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
         .onAppear {
             #if DEBUG
@@ -98,9 +101,10 @@ public struct BlackjackView: View {
             }
             // おすすめは 10 回の勝負を終えたときだけ出す（1 回ごとの結果は勝負の途中）。
             RecommendationSlot(services: services, isFinished: model.matchOver)
-            BannerSlot(ads: services.ads)
         }
-        .padding(metrics.pad)
+        // 左右は全画面の枠の値（8pt）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+        .padding(.vertical, metrics.pad)
     }
 
     // MARK: - Match Bar (#2552)
@@ -158,36 +162,37 @@ public struct BlackjackView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 18)
         .popCard(corner: Theme.cornerSmall)
+        // 白い札の上なので、空き枠の破線はフェルト用（白）ではなく地の上の色で描く。
+        .environment(\.cardTableInk, .plain)
     }
 
     // MARK: - Dealer Area
 
     private func dealerArea(_ metrics: BlackjackVerticalMetrics) -> some View {
         VStack(spacing: metrics.tableSpacing) {
-            HStack {
-                Text(tr("ディーラー"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
-                    .accessibilityHidden(model.phase == .result || model.phase == .dealerTurn)
-                Spacer()
-                if model.phase == .result || model.phase == .dealerTurn {
-                    Text("\(model.dealerValue)")
-                        .themeBody(14, weight: .black, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(model.dealerValue > 21 ? Theme.coralText : Theme.purple)
-                        .accessibilityLabel(BlackjackAccessibility.totalLabel(
-                            owner: tr("ディーラー"), value: model.dealerValue
-                        ))
-                } else if !model.dealerHand.isEmpty {
-                    Text("\(model.dealerVisibleValue) + ?")
-                        .themeBody(14, weight: .black, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
-                        .accessibilityLabel(BlackjackAccessibility.dealerPartialValueLabel(
-                            visibleValue: model.dealerVisibleValue
-                        ))
+            // フェルトの上の見出し・合計は卓の上の文字色（白系）。バストだけ赤い札にして目立たせる（色以外に札の形でも分かる）。
+            CardTableInkReader { ink in
+                HStack {
+                    Text(tr("ディーラー"))
+                        .themeBody(13)
+                        .foregroundStyle(ink.labelSub)
+                        .accessibilityHidden(model.phase == .result || model.phase == .dealerTurn)
+                    Spacer()
+                    if model.phase == .result || model.phase == .dealerTurn {
+                        totalText(model.dealerValue, ink: ink)
+                            .accessibilityLabel(BlackjackAccessibility.totalLabel(
+                                owner: tr("ディーラー"), value: model.dealerValue
+                            ))
+                    } else if !model.dealerHand.isEmpty {
+                        Text("\(model.dealerVisibleValue) + ?")
+                            .themeBody(14, weight: .black, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(ink.labelSub)
+                            .accessibilityLabel(BlackjackAccessibility.dealerPartialValueLabel(
+                                visibleValue: model.dealerVisibleValue
+                            ))
+                    }
                 }
             }
 
@@ -212,8 +217,7 @@ public struct BlackjackView: View {
             .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
                 .rowWidth(count: max(model.dealerHand.count, 2), spacing: 8))
         }
-        .padding(.horizontal, 14).padding(.vertical, metrics.areaVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.horizontal, 6).padding(.vertical, metrics.areaVerticalPadding)
     }
 
     // MARK: - Player Area
@@ -229,38 +233,47 @@ public struct BlackjackView: View {
                 singleHandArea
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, metrics.areaVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.horizontal, 6).padding(.vertical, metrics.areaVerticalPadding)
+    }
+
+    /// 合計の数字。フェルトの上なので白系で、バスト（22 以上）だけ赤い札に白い数字で出す。
+    private func totalText(_ value: Int, ink: CardTableInk) -> some View {
+        let busted = value > 21
+        return Text("\(value)")
+            .themeBody(14, weight: .black, maxScale: 1.5)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .foregroundStyle(busted ? Theme.onAccent : ink.label)
+            .padding(.horizontal, busted ? 8 : 0).padding(.vertical, busted ? 1 : 0)
+            .background(Capsule().fill(busted ? Theme.Fill.coral : Color.clear))
     }
 
     private var singleHandArea: some View {
         VStack(spacing: 10) {
-            HStack {
-                Text(tr("あなた"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityHidden(!model.playerHand.isEmpty)
-                Spacer()
-                if !model.playerHand.isEmpty {
-                    Text("\(model.playerValue)")
-                        .themeBody(14, weight: .black, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(model.playerValue > 21 ? Theme.coralText : Theme.tealText)
-                        .accessibilityLabel(BlackjackAccessibility.totalLabel(
-                            owner: tr("あなた"), value: model.playerValue
-                        ))
-                }
-                // 勝敗バッジはフェードで出す（#209）。`.gameAnimation` はこの ZStack にだけ置く
-                // （手札の値の入れ替えまで animate されると決着の瞬間に行が伸び縮みする）。
-                // 修飾子は1つのビューに1つだけ置くこと（入れ子にすると打ち消し合う・#199）。
-                ZStack {
-                    if let outcome = model.outcome {
-                        outcomeBadge(outcome)
-                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            CardTableInkReader { ink in
+                HStack {
+                    Text(tr("あなた"))
+                        .themeBody(13)
+                        .foregroundStyle(ink.label)
+                        .accessibilityHidden(!model.playerHand.isEmpty)
+                    Spacer()
+                    if !model.playerHand.isEmpty {
+                        totalText(model.playerValue, ink: ink)
+                            .accessibilityLabel(BlackjackAccessibility.totalLabel(
+                                owner: tr("あなた"), value: model.playerValue
+                            ))
                     }
+                    // 勝敗バッジはフェードで出す（#209）。`.gameAnimation` はこの ZStack にだけ置く
+                    // （手札の値の入れ替えまで animate されると決着の瞬間に行が伸び縮みする）。
+                    // 修飾子は1つのビューに1つだけ置くこと（入れ子にすると打ち消し合う・#199）。
+                    ZStack {
+                        if let outcome = model.outcome {
+                            outcomeBadge(outcome)
+                                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                        }
+                    }
+                    .gameAnimation(BlackjackMotion.outcomeBadge, value: model.outcome)
                 }
-                .gameAnimation(BlackjackMotion.outcomeBadge, value: model.outcome)
             }
 
             HStack(spacing: 8) {
@@ -287,32 +300,30 @@ public struct BlackjackView: View {
     private func splitHandRow(index: Int, hand: BlackjackHand) -> some View {
         let isActive = model.phase == .playerTurn && index == model.activeHandIndex
         return VStack(spacing: 6) {
-            HStack(spacing: 6) {
-                Text(tr("ハンド%lld", index + 1))
-                    .themeBody(13)
-                    .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
-                    .accessibilityHidden(true)
-                // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
-                if isActive {
-                    Text(tr("操作中"))
-                        .themeCaption(10, weight: .black, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.Fill.teal))
-                }
-                Spacer(minLength: 0)
-                Text("\(hand.value)")
-                    .themeBody(14, weight: .black, maxScale: 1.5)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .foregroundStyle(hand.isBusted ? Theme.coralText : Theme.tealText)
-                    .accessibilityLabel(BlackjackAccessibility.totalLabel(
-                        owner: tr("ハンド%lld", index + 1), value: hand.value
-                    ))
-                if let outcome = hand.outcome {
-                    outcomeBadge(outcome)
+            CardTableInkReader { ink in
+                HStack(spacing: 6) {
+                    Text(tr("ハンド%lld", index + 1))
+                        .themeBody(13)
+                        .foregroundStyle(isActive ? ink.label : ink.labelSub)
+                        .accessibilityHidden(true)
+                    // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
+                    if isActive {
+                        Text(tr("操作中"))
+                            .themeCaption(10, weight: .black, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.Fill.teal))
+                    }
+                    Spacer(minLength: 0)
+                    totalText(hand.value, ink: ink)
+                        .accessibilityLabel(BlackjackAccessibility.totalLabel(
+                            owner: tr("ハンド%lld", index + 1), value: hand.value
+                        ))
+                    if let outcome = hand.outcome {
+                        outcomeBadge(outcome)
+                    }
                 }
             }
             HStack(spacing: 6) {
@@ -328,7 +339,7 @@ public struct BlackjackView: View {
         .padding(.horizontal, 8).padding(.vertical, 6)
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(isActive ? Theme.teal : Color.clear, lineWidth: 2)
+                .strokeBorder(isActive ? Theme.Fill.yellow : Color.clear, lineWidth: 2)
         )
     }
 
@@ -401,8 +412,6 @@ public struct BlackjackView: View {
                 model.skipDealerDraws()
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     /// 1 回目を配る前（#2552）。押せばすぐ配られる。
@@ -412,8 +421,6 @@ public struct BlackjackView: View {
                 model.deal()
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var playerActionView: some View {
@@ -433,8 +440,6 @@ public struct BlackjackView: View {
                 }
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var resultView: some View {
@@ -458,8 +463,6 @@ public struct BlackjackView: View {
                 model.nextRound()
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Match Over (#2552)
@@ -622,6 +625,8 @@ struct BJCardView: View {
 /// 配牌前のカード置き場（`BJCardView` と同じ寸法で、配牌時に高さが動かないようにする）
 struct BJCardPlaceholder: View {
     @Environment(\.adaptiveLayout) private var layout
+    /// 破線の色。フェルトの上は白系、白い札の上（配牌前の説明）は地の上の色（#2531）。
+    @Environment(\.cardTableInk) private var ink
 
     private var metrics: PlayingCardMetrics {
         PlayingCardMetrics.standard.scaled(by: layout.elementScale)
@@ -629,7 +634,7 @@ struct BJCardPlaceholder: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
-            .strokeBorder(Theme.inkSub.opacity(0.3),
+            .strokeBorder(ink.slotStroke,
                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             .frame(width: metrics.width, height: metrics.height)
     }
