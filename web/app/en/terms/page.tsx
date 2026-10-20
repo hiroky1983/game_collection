@@ -21,7 +21,7 @@ export default function TermsPageEn() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Terms of Use</h1>
-        <p className="text-sm text-gray-400">Last updated: October 9, 2026</p>
+        <p className="text-sm text-gray-400">Last updated: October 20, 2026</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
@@ -44,10 +44,10 @@ export default function TermsPageEn() {
           <li>An Apple ID may be required to use the App.</li>
           <li>You can enjoy the games without an internet connection, but a connection may be required to display ads.</li>
           <li>
-            The points and chips used in some games (such as Poker and Blackjack) are virtual items that can be used
-            only within the games. They cannot be exchanged for cash or anything of monetary value, or redeemed in
-            any way. Chips cannot be purchased with real money.
-            If you run out of chips, they may be restored by watching a rewarded ad.
+            The App contains no money or wagering. In-game records such as scores and win counts are shown only
+            within the games. They cannot be exchanged for cash or anything of monetary value, redeemed in any way,
+            or purchased with real money.
+            In some games, watching a rewarded ad may let you use features such as a retry or a hint.
           </li>
           <li>
             If you are signed in to Apple&apos;s Game Center, you can use scores, achievements and leaderboards. Signing in
@@ -117,6 +117,7 @@ export default function TermsPageEn() {
 
       <Section title="9. Revision History">
         <ul className="list-disc pl-5 space-y-1">
+          <li>October 20, 2026: Removed the description of in-game chips and updated the description of scores, records and rewarded ads to match the current App</li>
           <li>October 9, 2026: Added the use of Game Center and leaderboards, changes to and discontinuation of leaderboards, and the prohibition on submitting illegitimate scores</li>
           <li>September 23, 2026: Updated the description of the included games and of in-game chips and rewarded ads</li>
         </ul>
