@@ -38,6 +38,7 @@ import GameTsunagi
 import GameDiceCombo
 import GameHanoi
 import GameYonmoku
+import GameCatPuzzle
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -339,12 +340,16 @@ enum AppEnvironment {
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリーのチップ（`"yonmoku": .board`）は #2385 で先に入れてある。
         // YonmokuModule(),
+        // おじさんの飼い猫パズル（企画倉庫・#2250・名前は仮）。遊べる試作の段階で、出荷する版が決まるまでハブには並べない。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // カテゴリーのチップ（`"catpuzzle": .ojisan`）は先に入れてある。
+        // CatPuzzleModule(),
     ], categories: [
         // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
         // 企画倉庫のゲーム（上の登録がコメントアウト中のものも含む）も、出荷前からここに行を用意しておく
         // （#2385。倉庫から出す版でこの表を直し忘れて「パズル・その他」に落ちた反省）。
         // `HubCategoryTests` が、ここに載っている ID とゲームモジュール全部（登録・倉庫問わず）の対応を確かめる。
-        "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan, "fruits": .ojisan,
+        "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan, "fruits": .ojisan, "catpuzzle": .ojisan,
         "shogi": .board, "chess": .board, "othello": .board, "gomoku": .board, "go": .board,
         "yonmoku": .board, "backgammon": .board, "mancala": .board,
         "poker": .cards, "solitaire": .cards, "daifugo": .cards, "spider": .cards,

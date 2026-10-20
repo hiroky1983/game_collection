@@ -57,6 +57,7 @@ let package = Package(
         .library(name: "GameHanoi",        targets: ["GameHanoi"]),
         // 四目並べ（#1738・企画倉庫）。
         .library(name: "GameYonmoku",      targets: ["GameYonmoku"]),
+        .library(name: "GameCatPuzzle",    targets: ["GameCatPuzzle"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -226,6 +227,12 @@ let package = Package(
         // 弱い段の外しの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は五目並べと同じ `AITurnGuarded` の定石。
         .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
+        // おじさんの飼い猫パズル（#2250・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・
+        // 矛盾の判定は純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。
+        .target(name: "GameCatPuzzle",      dependencies: ["Core", "CoreEngine"],
+                // 会長の猫（ハチワレ・赤い首輪に金の鈴）の絵 9 枚（出所は docs/design/cat-puzzle-2250/README.md）。
+                resources: [.copy("Resources/Localization"),
+                            .copy("Resources/Cats")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -315,6 +322,7 @@ let package = Package(
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanoiTests",          dependencies: ["GameHanoi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameYonmokuTests",        dependencies: ["GameYonmoku", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameCatPuzzleTests",      dependencies: ["GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -342,7 +350,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "CoreTestSupport",
-            "GameAnzan", "GameAkariKeshi", "GameTsunagi", "GameHanoi", "GameOjisanPuzzle", "GameSpeed", "GameKitTestSupport",
+            "GameAnzan", "GameAkariKeshi", "GameTsunagi", "GameHanoi", "GameOjisanPuzzle", "GameSpeed", "GameCatPuzzle", "GameKitTestSupport",
         ]),
         // 遊び方ガイド（#118）も全ゲーム横断（全ゲームぶんの文言と初回フラグの永続化を検証する）。
         .testTarget(name: "HowToPlayTests", dependencies: [
@@ -356,7 +364,7 @@ let package = Package(
             "GameHearts",
             "GameTsunagi", "GameAkariKeshi",
             "GameDiceCombo", "GameHanoi",
-            "GameYonmoku",
+            "GameYonmoku", "GameCatPuzzle",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。

@@ -62,6 +62,7 @@ import GameSpider
 @testable import GameTsunagi
 import GameHanoi
 import GameYonmoku
+@testable import GameCatPuzzle
 @testable import GameShiritori
 import GameChess
 import GameBlocks
@@ -109,6 +110,7 @@ private let registeredModules: [GameModule] = [
     TsunagiModule(),
     HanoiModule(),
     YonmokuModule(),
+    CatPuzzleModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
@@ -517,6 +519,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("anzan", .anzan, AnzanHowToFigures.items),
             ("akarikeshi", .akariKeshi, AkariKeshiHowToFigures.items),
             ("tsunagi", .tsunagi, TsunagiHowToFigures.items),
+            ("catpuzzle", .catPuzzle, CatPuzzleHowToFigures.items),
             ("dicecombo", .diceCombo, DiceComboHowToFigures.items),
             ("shiritori", .shiritori, ShiritoriHowToFigures.items),
             ("shiritoriEndless", .shiritoriEndless, ShiritoriHowToFigures.endlessItems),

@@ -1758,6 +1758,7 @@ struct UntouchedSnapshotReopenTests {
             "BlackjackModule.swift": "1 回目を配る前は保存しない（game_start は配った時点で数える・#2552）",
             "PokerModule.swift": "同上（局を持たない .idle の保存）",
             "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",
+            "CatPuzzleModule.swift": "同上（印の無い盤は保存しない・#2250）",
         ]
         let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
         let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))

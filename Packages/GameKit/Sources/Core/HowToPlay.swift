@@ -897,6 +897,28 @@ public extension HowToPlayGuide {
         ]
     ) }
 
+    /// おじさんの飼い猫パズル（#2250・企画倉庫）。図は `GameCatPuzzle` 側で `illustrated(_:)` を使って差し込む。
+    static var catPuzzle: HowToPlayGuide { HowToPlayGuide(
+        gameID: "catpuzzle",
+        title: tr("おじさんの飼い猫パズルの遊び方"),
+        lines: [
+            tr("おじさんの家の間取りに、飼い猫が隠れています。部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。"),
+            tr("猫どうしは、ななめも含めて隣り合いません。"),
+            tr("マスをタップすると ×（いない）→ 猫 → 空の順に変わります。全部の猫を見つけたらクリアです。"),
+        ],
+        hint: tr("部屋・行・列に猫を 1 匹ずつ。隣には置けない"),
+        hintIcon: "cat.fill",
+        items: [
+            HowToPlayItem(tr("部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。")),
+            HowToPlayItem(tr("猫どうしは、ななめも含めて隣り合いません。")),
+            HowToPlayItem(tr("マスをタップすると ×（いない）→ 猫 → 空の順に変わります。全部見つけたらクリアです。")),
+        ],
+        notes: [
+            tr("盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。"),
+            tr("ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。"),
+        ]
+    ) }
+
     static var homerun: HowToPlayGuide { HowToPlayGuide(
         gameID: "homerun",
         title: tr("柵越えおじさんの遊び方"),
@@ -988,6 +1010,7 @@ public extension HowToPlayGuide {
         .hearts,
         .tsunagi, .hanoi,
         .yonmoku,
+        .catPuzzle,
     ] }
 }
 
