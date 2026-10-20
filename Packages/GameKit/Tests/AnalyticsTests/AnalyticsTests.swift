@@ -20,7 +20,6 @@ import GameRunner
 import GameHanafuda
 @testable import GameShiritori
 @testable import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -76,7 +75,7 @@ private func makeHubGameIDs() -> Set<String> {
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
-        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
         MancalaModule(),
         AkariKeshiModule(),
         TsunagiModule(),
@@ -483,7 +482,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 34, "ハブに並ぶゲームは34本（企画倉庫の四目並べ #1738・線つなぎ #2235・明かり消しパズル #1883・マンカラ #1626 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 33, "ハブに並ぶゲームは33本（企画倉庫の四目並べ #1738・線つなぎ #2235・明かり消しパズル #1883・マンカラ #1626 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のくっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -1746,7 +1745,6 @@ struct UntouchedSnapshotReopenTests {
         let exempt: [String: String] = [
             "BlackjackModule.swift": "復活チップだけの保存は賭け待ちで、game_start は賭けた時点で数える",
             "PokerModule.swift": "同上（局を持たない .idle の保存）",
-            "RouletteModule.swift": "同上（口の無い賭け中の保存）",
             "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",
         ]
         let sources = SourceScan.packageRoot.appendingPathComponent("Sources")

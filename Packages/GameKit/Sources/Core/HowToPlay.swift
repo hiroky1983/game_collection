@@ -652,27 +652,6 @@ public extension HowToPlayGuide {
         ]
     ) }
 
-    static var roulette: HowToPlayGuide { HowToPlayGuide(
-        gameID: "roulette",
-        title: tr("ルーレットの遊び方"),
-        lines: [
-            tr("チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。"),
-            tr("「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。"),
-            tr("配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。"),
-        ],
-        hint: tr("賭ける場所をタップしてスピン"),
-        hintIcon: "circle.circle.fill",
-        items: [
-            HowToPlayItem(tr("チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。")),
-            HowToPlayItem(tr("「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。")),
-            HowToPlayItem(tr("配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。")),
-            HowToPlayItem(tr("0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。")),
-        ],
-        notes: [
-            tr("「戻す」で、最後に置いた 1 口を外せます。"),
-        ]
-    ) }
-
     static var fruits: HowToPlayGuide { HowToPlayGuide(
         gameID: "fruits",
         title: tr("おじさんの盆栽の遊び方"),
@@ -1024,7 +1003,7 @@ public extension HowToPlayGuide {
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .akariKeshi, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
+        .hanafuda, .spider, .shiritori, .fifteen, .akariKeshi, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .diceCombo,
         .mancala,
         .homerun, .ojisanPuzzleBackpain,

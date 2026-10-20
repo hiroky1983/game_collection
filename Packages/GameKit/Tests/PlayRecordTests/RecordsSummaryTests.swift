@@ -40,6 +40,16 @@ struct RecordsSummaryTests {
         #expect(summary.milestones.allSatisfy { !$0.isAchieved })
     }
 
+    @Test("削除したゲーム（ルーレット #2545）の記録が残っていても、きろく画面は登録済みのゲームだけを数える")
+    func removedRouletteRecordIsSkipped() {
+        let log = makeLog(suite: "removedRoulette")
+        finish(log, "roulette", .win, GameScore(metric: .points, points: 1200))
+        finish(log, "shogi", .win, GameScore(metric: .winLoss))
+        let summary = log.recordsSummary(games: Self.games)
+        #expect(summary.rows.map(\.gameID) == ["shogi", "minesweeper", "2048"])
+        #expect(summary.progressText == "全部あそぶ 1/3")
+    }
+
     @Test("遊んだゲームは記録の1行・回数・節目が出て、進捗が数えられる")
     func playedGamesShowRecordsAndProgress() {
         let log = makeLog(suite: "played")

@@ -73,9 +73,8 @@ GAMES = {
     "fifteen": ("15パズル", TEAL),
     "ojisanpuzzle": ("おじさんの荷物運びパズル", YELLOW),
     "anzan": ("ぱっと暗算", CORAL),
-    # 企画倉庫から v1.1.13 でハブに出した 4 本（#2384）。モックに絵が無いので `art_html` で描く。
+    # 企画倉庫から v1.1.13 でハブに出した 3 本（#2384）。モックに絵が無いので `art_html` で描く。
     "colorrelay": ("いろリレー", PURPLE),
-    "roulette": ("ルーレット", YELLOW),
     "fruits": ("おじさんの盆栽", TEAL),
     "dicecombo": ("サイコロ役づくり", PINK),
 }
@@ -109,7 +108,6 @@ GAMES_EN = {
     "ojisanpuzzle": "Ojisan's Box Puzzle",
     "anzan": "Quick Mental Math",
     "colorrelay": "Color Relay",
-    "roulette": "Roulette",
     "fruits": "Ojisan no Bonsai",
     "dicecombo": "Dice Combos",
 }
@@ -145,9 +143,9 @@ def asset_name(base, lang):
     return base if lang == "ja" else f"{base}-en"
 
 
-# モックの絵を使わず描き直すゲーム（上の docstring 参照）。倉庫から出した 4 本（#2384）はモックに絵が無いので、
-# ゲーム内の部品（いろリレーの札・ルーレットのホイール・盆栽の絵と縁側のおじさん・サイコロ）を同じ方式で組む。
-REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "roulette", "fruits", "dicecombo"}
+# モックの絵を使わず描き直すゲーム（上の docstring 参照）。倉庫から出した 3 本（#2384）はモックに絵が無いので、
+# ゲーム内の部品（いろリレーの札・盆栽の絵と縁側のおじさん・サイコロ）を同じ方式で組む。
+REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "fruits", "dicecombo"}
 FRUITS_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameFruits/Resources")
 
 # モックの tiles/tile_art.py と同じ下地の CSS（必要な部品だけ）。
@@ -220,33 +218,6 @@ def art_html(gid):
                   'grid-template-columns:1fr 1fr;gap:3px;padding:4px;border-radius:10px;background:#fff">'
                 + "".join(f'<div style="border-radius:4px;background:{c}"></div>' for c in ("#FF8A7E", "#22C3BE", "#FFC24B", "#B3A6F0"))
                 + '</div>')
-    elif gid == "roulette":
-        # ゲーム内のホイール（`RouletteWheelView`: 赤 = coral・黒 = fillStrong・0 = teal のポケット環と、くすんだ外枠）を
-        # 右下に大きく置き、玉は 12 時。左上にチップ（ブラックジャックのモックと同じ部品）。ポケットは図案として 18 に減らす。
-        n, cx, cy, ro, ri = 18, 100, 100, 92, 58
-        import math
-        wedges = ""
-        for i in range(n):
-            a0, a1 = math.radians(i * 360 / n - 90 - 10), math.radians((i + 1) * 360 / n - 90 - 10)
-            fill = "#22C3BE" if i == 0 else ("#FF6F61" if i % 2 else "#4A3B33")
-            pts = [(cx + ro * math.cos(a0), cy + ro * math.sin(a0)), (cx + ro * math.cos(a1), cy + ro * math.sin(a1)),
-                   (cx + ri * math.cos(a1), cy + ri * math.sin(a1)), (cx + ri * math.cos(a0), cy + ri * math.sin(a0))]
-            d = f"M{pts[0][0]:.1f},{pts[0][1]:.1f} A{ro},{ro} 0 0 1 {pts[1][0]:.1f},{pts[1][1]:.1f} L{pts[2][0]:.1f},{pts[2][1]:.1f} A{ri},{ri} 0 0 0 {pts[3][0]:.1f},{pts[3][1]:.1f} Z"
-            wedges += f'<path d="{d}" fill="{fill}" stroke="rgba(255,255,255,.7)" stroke-width="0.8"/>'
-            am = (a0 + a1) / 2
-            num = ("0", "32", "15", "19", "4", "21", "2", "25", "17", "34", "6", "27", "13", "36", "11", "30", "8", "23")[i]
-            tx, ty = cx + (ro + ri) / 2 * math.cos(am), cy + (ro + ri) / 2 * math.sin(am)
-            wedges += (f'<text x="{tx:.1f}" y="{ty:.1f}" transform="rotate({math.degrees(am) + 90:.1f} {tx:.1f} {ty:.1f})" '
-                       f'text-anchor="middle" dominant-baseline="central" font-family="SF Pro Rounded,Hiragino Sans,sans-serif" '
-                       f'font-weight="800" font-size="10" fill="#fff">{num}</text>')
-        wheel = (f'<svg class="o" style="left:36px;top:66px;width:200px;height:200px" viewBox="0 0 200 200">'
-                 f'<circle cx="{cx}" cy="{cy}" r="100" fill="#9A8A80"/>{wedges}'
-                 f'<circle cx="{cx}" cy="{cy}" r="{ri - 2}" fill="#E8DCC8"/><circle cx="{cx}" cy="{cy}" r="34" fill="#C9BEA8"/>'
-                 f'<circle cx="{cx}" cy="{cy}" r="10" fill="#4A3B33"/>'
-                 f'<circle cx="{cx}" cy="{cy - (ro + ri) / 2:.1f}" r="7" fill="#fff" stroke="rgba(0,0,0,.25)" stroke-width="1"/></svg>')
-        bg = "linear-gradient(160deg,#3FA97F 0%,#1E7A5A 50%,#145741 100%)"
-        body = wheel + "".join(f'<div class="chip" style="left:{x}px;top:{y}px;background:{c}"></div>'
-                               for x, y, c in [(8, 60, "#FFC24B"), (16, 48, "#FF6F61"), (24, 36, "#22C3BE")])
     elif gid == "fruits":
         # 縁側（`FruitsPalette.wood`）に立つおじさん（`BonsaiOjisan_hold`）と、庭（`FruitsPalette.box`）に落ちた盆栽
         # 3 鉢（ゲーム内の `Bonsai_*.png`）。ゲーム内と同じく上に危険線（白の点線）を引く。

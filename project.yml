@@ -90,8 +90,6 @@ targets:
       - package: GameKit
         product: GameFifteen
       - package: GameKit
-        product: GameRoulette
-      - package: GameKit
         product: GameFruits
       - package: GameKit
         product: GameColorRelay

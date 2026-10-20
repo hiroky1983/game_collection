@@ -39,7 +39,7 @@ public final class DiceComboModel {
 
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     /// `seed` を渡すと出目を種から決める（テスト用。省略時はシステム乱数）。
-    /// `rollInterval` はサイコロが転がる演出の長さ（ルーレットの `spinInterval` と同じ作法・#2365）。
+    /// `rollInterval` はサイコロが転がる演出の長さ（#2365）。
     public init(services: GameServices? = nil, seed: UInt64? = nil, rollInterval: Duration = .zero) {
         self.services = services
         self.rollInterval = rollInterval

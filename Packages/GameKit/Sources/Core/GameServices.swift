@@ -11,7 +11,7 @@
 ///
 /// 進めるのは `GameServices.gameDidLeave(gameID:)` の 1 か所だけ（ハブの `onChange(of: path)`
 /// が唯一の発火点）。照合は `RewardedRescue` と、広告を自分で抱えている Model
-/// （麻雀・ブラックジャック・ポーカー・ルーレット・将棋・チェス・五目並べのヒント・#1500）が行う。
+/// （麻雀・ブラックジャック・ポーカー・将棋・チェス・五目並べのヒント・#1500）が行う。
 @MainActor
 public final class GameScreenGeneration {
     public private(set) var current = 0
