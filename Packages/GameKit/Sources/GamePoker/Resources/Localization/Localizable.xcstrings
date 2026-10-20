@@ -1078,6 +1078,39 @@
           }
         }
       }
+    },
+    "連勝 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streak: %lld"
+          }
+        }
+      }
+    },
+    "この勝負の最高連勝 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best streak this match: %lld"
+          }
+        }
+      }
+    },
+    "%@、連勝%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, streak %lld"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

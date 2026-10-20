@@ -35,9 +35,11 @@ public enum PokerAccessibility {
 
     /// 上の帯の読み上げ文（例: "3回目 / 10、合計12点、CPU 8点"）。画面は回数と点が別の Text で、
     /// そのままだと別々の要素に分かれて読まれる（#2162 と同じ手当て）。
-    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int) -> String {
-        tr("%1$lld回目 / %2$lld、合計%3$lld点、CPU %4$lld点",
-           round, PokerModel.roundsPerSession, playerPoints, cpuPoints)
+    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int, streak: Int = 0) -> String {
+        let base = tr("%1$lld回目 / %2$lld、合計%3$lld点、CPU %4$lld点",
+                      round, PokerModel.roundsPerSession, playerPoints, cpuPoints)
+        guard streak > 0 else { return base }
+        return tr("%@、連勝%lld", base, streak)
     }
 
     /// 決着時の役名の行の読み上げ文（例: "あなた、スリーカード、勝ち！"）。画面は見出し・役名・勝敗の印が

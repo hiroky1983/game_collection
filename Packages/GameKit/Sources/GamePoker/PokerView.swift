@@ -210,6 +210,11 @@ public struct PokerView: View {
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(Theme.ink)
             Spacer()
+            Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
+                .themeBody(14)
+                .foregroundStyle(Theme.coralText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(tr("合計 %lld点", model.playerPoints))
                 .themeBody(16, weight: .black, maxScale: 1.5)
                 .lineLimit(1)
@@ -230,7 +235,8 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(PokerAccessibility.scoreboardLabel(
-            round: max(model.round, 1), playerPoints: model.playerPoints, cpuPoints: model.cpuPoints
+            round: max(model.round, 1), playerPoints: model.playerPoints, cpuPoints: model.cpuPoints,
+            streak: model.streak
         ))
     }
 
@@ -517,6 +523,11 @@ public struct PokerView: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(titleColor)
                     Text(tr("あなた %1$lld点・CPU %2$lld点", model.playerPoints, model.cpuPoints))
+                        .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(Theme.inkSub)
+                    Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
                         .themeCaption(12, weight: .semibold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
