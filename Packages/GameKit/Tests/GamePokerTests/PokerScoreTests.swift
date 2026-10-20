@@ -254,6 +254,21 @@ struct PokerScoreTests {
         #expect(tie.handResult?.kind == .draw)
     }
 
+    @Test("決着の幕の強調（#2593）: スリーカード以上の勝ちだけ。ワンペア以下の勝ち・強い役での負け・引き分けは強めない")
+    func handResultEmphasis() throws {
+        let pair = [pc(30, 12, .spades), pc(31, 12, .hearts), pc(32, 9, .diamonds), pc(33, 5, .clubs), pc(34, 3, .spades)]
+        func result(player: [PokerCard], cpu: [PokerCard]) throws -> HandResult {
+            let model = makePokerModel(pokerSnapshot(player: player, cpu: cpu))
+            model.showdown()
+            return try #require(model.handResult)
+        }
+        #expect(try result(player: PokerHands.fullHouse, cpu: PokerHands.straight).isEmphasized)
+        #expect(try result(player: PokerHands.flush, cpu: PokerHands.highCard).isEmphasized)
+        #expect(try !result(player: pair, cpu: PokerHands.highCard).isEmphasized, "ワンペアの勝ちは今のまま")
+        #expect(try !result(player: PokerHands.highCard, cpu: PokerHands.flush).isEmphasized, "CPU が強い役で勝っても強めない")
+        #expect(try !result(player: PokerHands.straight, cpu: PokerHands.sameStraight).isEmphasized)
+    }
+
     @Test("開始の連打は 1 回ぶん（#2416）・勝負の途中では始め直さない")
     func startingTwiceIsIgnored() {
         let spy = SpyAnalyticsService()

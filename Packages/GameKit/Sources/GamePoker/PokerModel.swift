@@ -191,6 +191,9 @@ public final class PokerModel {
 
     // MARK: - 決着の表示（#1754）
 
+    /// 決着の幕を強調する役の線引き（#2593）。評価リクエストの見せ場（`isReviewHighlight`）と同じ。
+    static let strongHandRank: PokerHandRank = .threeOfAKind
+
     /// 決着した回の、卓の中央に出す結果。`.result` でなければ nil。
     public var handResult: HandResult? {
         guard phase == .result, let winner else { return nil }
@@ -211,7 +214,8 @@ public final class PokerModel {
         case .cpu:
             reason = tr("%1$@ 対 %2$@・CPUに+%3$lld点", playerHandRank.description, cpuHandRank.description, roundPoints)
         }
-        return HandResult(kind: kind, headline: headline, reason: reason, chipDelta: nil, spokenResult: spoken)
+        return HandResult(kind: kind, headline: headline, reason: reason, chipDelta: nil, spokenResult: spoken,
+                          isEmphasized: winner == .player && playerHandRank >= Self.strongHandRank)
     }
 
     // MARK: - CPU の行動の表示（#2166）
