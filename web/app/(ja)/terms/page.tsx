@@ -19,7 +19,7 @@ export default function TermsPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">利用規約</h1>
-        <p className="text-sm text-gray-400">最終更新日：2026年10月9日</p>
+        <p className="text-sm text-gray-400">最終更新日：2026年10月20日</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
@@ -41,9 +41,9 @@ export default function TermsPage() {
           <li>本アプリのご利用にはApple IDが必要な場合があります。</li>
           <li>インターネット接続なしでもゲームをお楽しみいただけますが、広告の表示には接続が必要な場合があります。</li>
           <li>
-            一部のゲーム（ポーカー・ブラックジャック等）で使用するポイント・チップはゲーム内でのみ利用できる仮想的なものであり、
-            現金・金銭的価値との交換や換金は一切できません。また、チップの購入（課金）はできません。
-            チップがなくなった場合、リワード広告の視聴によりチップが回復することがあります。
+            本アプリに金銭や賭けの要素はありません。ゲーム内の得点・勝ち数などの記録はゲーム内でのみ表示されるもので、
+            現金・金銭的価値との交換や換金は一切できず、購入（課金）もできません。
+            一部のゲームでは、リワード広告を視聴するとやり直しやヒントなどを利用できる場合があります。
           </li>
           <li>
             Apple の Game Center にサインインしている場合、スコア・実績・ランキングを利用できます。サインインは任意で、
@@ -110,6 +110,7 @@ export default function TermsPage() {
 
       <Section title="9. 改定履歴">
         <ul className="list-disc pl-5 space-y-1">
+          <li>2026年10月20日：ゲーム内チップの記述を削除し、得点・記録とリワード広告の説明を現在の仕様に更新</li>
           <li>2026年10月9日：Game Center・ランキングの利用と、ランキングの変更・終了、不正なスコア送信の禁止を追記</li>
           <li>2026年9月23日：収録ゲームの説明、ゲーム内チップ・リワード広告の説明を更新</li>
         </ul>
