@@ -244,7 +244,7 @@ public struct CatPuzzleView: View {
 
     /// ヒントの 2 行目。無料ぶんを使い切ったら「0回 ▶ 広告を見て +1」の面にする。
     /// **試作では広告の差し込み口だけ**で、`RewardedRescue` は呼ばない（押せない）。本導入時に
-    /// ナンプレの `hintRescue.request(...)`（目的はヒント）と同じ経路をここへつなぐ。
+    /// ナンプレのヒントの救済（`hintRescue`・目的はヒント）と同じ経路をここへつなぐ。
     private var hintBadge: GameActionBadge {
         model.hintsRemaining > 0 ? .count(model.hintsRemaining) : .ad(gain: 1)
     }

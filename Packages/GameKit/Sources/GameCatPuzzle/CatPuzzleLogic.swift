@@ -226,10 +226,12 @@ public enum CatPuzzleLogic {
     static func maxRoomSize(side: Int) -> Int { side * 2 }
 
     /// 日替わり問題の種。同じ日（端末のカレンダーの日付）なら同じ値。
+    /// 日付の数字（20261021）をそのまま種にせず、`SplitMix64` で 1 回かき混ぜる（隣の日で似た問題にならないように）。
     public static func dailySeed(for date: Date, calendar: Calendar = .current) -> UInt64 {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         let day = UInt64((parts.year ?? 0) * 10_000 + (parts.month ?? 0) * 100 + (parts.day ?? 0))
-        return day &* 0x9E37_79B9_7F4A_7C15 &+ 2250
+        var mixer = SplitMix64(seed: day &+ 2250)
+        return mixer.next()
     }
 
     /// 答えを乱数で 1 つ置く（行ごとに列の候補をシャッフルして深さ優先）。
