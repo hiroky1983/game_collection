@@ -249,7 +249,7 @@ public final class BlackjackModel {
     /// Game Center へは送らない（#2552。以前の順位表 `blackjackChips` は勝ち点と意味が違うため、
     /// `GameCenterLeaderboard` の対応表からブラックジャックを外した）。
     private var currentScore: GameScore {
-        GameScore(metric: .points, points: points, variant: BlackjackModel.recordVariant)
+        GameScore(metric: .points, points: points, highestValue: bestStreak, variant: BlackjackModel.recordVariant)
     }
 
     public var playerValue: Int { handValue(playerHand) }

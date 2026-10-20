@@ -387,6 +387,8 @@ public final class PokerModel {
             score: GameScore(
                 metric: .points,
                 points: playerPoints,
+                // 歴代のいちばん強い役（#2591）。`PokerHandRank` の序数で、表示は `RecordFormat` が役名にする。
+                highestValue: (bestRank ?? .highCard).rawValue,
                 variant: Self.recordVariant,
                 variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: Self.recordVariant),
                 // Game Center の順位表（旧ルールの頃の表）へは送らない（#2551）。
