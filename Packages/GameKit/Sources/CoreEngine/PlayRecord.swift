@@ -382,10 +382,12 @@ public enum RecordFormat {
             if let base = played.first(where: { $0.variantLabel == nil }), let points = base.bestPoints {
                 // チャリンコおじさんの本編は「どこまで到達したか」が記録の主役（#931。秒数は廃止）。
                 if gameID == runnerGameID { return runnerStageLine(clearedStage: points, language: language) }
-                return tr("ベスト %@", number(points), language: language)
+                return bestLine(points, highlight: highlight(gameID: gameID, value: base.highestValue, language: language),
+                                language: language)
             }
             guard let best = played.compactMap(\.bestPoints).max() else { return nil }
-            return tr("ベスト %@", number(best), language: language)
+            return bestLine(best, highlight: highlight(gameID: gameID, value: played.compactMap(\.highestValue).max(),
+                                                       language: language), language: language)
         case .fewestMoves:
             guard let best = played.compactMap(\.fewestMoves).min() else { return nil }
             return tr("最少 %@手", number(best), language: language)
@@ -394,6 +396,40 @@ public enum RecordFormat {
             let base = winLossText(played, language: language)
             return streak >= 2 ? tr("%1$@・%2$lld連勝中", base, streak, language: language) : base
         }
+    }
+
+    /// ポーカー・ブラックジャックの ID（`PokerModel.gameID` / `BlackjackModel.gameID`）。Core からは参照できないので文字列で持つ。
+    static let pokerGameID = "poker"
+    static let blackjackGameID = "blackjack"
+
+    /// `PokerHandRank` の序数（`rawValue`・0 始まり）に対応する役名。食い違わないことは `GamePokerTests` が突き合わせる。
+    static func pokerRankName(_ rawValue: Int, language: AppLanguage?) -> String? {
+        let names = [tr("ハイカード", language: language), tr("ワンペア", language: language), tr("ツーペア", language: language),
+                     tr("スリーカード", language: language), tr("ストレート", language: language), tr("フラッシュ", language: language),
+                     tr("フルハウス", language: language), tr("フォーカード", language: language),
+                     tr("ストレートフラッシュ", language: language), tr("ロイヤルフラッシュ", language: language)]
+        return names.indices.contains(rawValue) ? names[rawValue] : nil
+    }
+
+    /// 記録の保存先のキー（`sudoku#normal` 形式）から、ゲーム ID を取り出す。キーが無ければ nil。
+    static func gameID(of record: PlayRecord) -> String? {
+        record.recordKey.map { String($0.prefix { $0 != "#" }) }
+    }
+
+    /// ポーカーの「いちばん強い役」・ブラックジャックの「最高連勝」を、`PlayRecord.highestValue` から読んだ短い表記（#2591）。
+    /// 対象外のゲーム・値が無い／連勝 0 のときは nil（見た目を変えない）。
+    static func highlight(gameID: String?, value: Int?, language: AppLanguage?) -> String? {
+        guard let value else { return nil }
+        switch gameID {
+        case pokerGameID: return pokerRankName(value, language: language)
+        case blackjackGameID: return value >= 1 ? tr("最高%lld連勝", value, language: language) : nil
+        default: return nil
+        }
+    }
+
+    private static func bestLine(_ points: Int, highlight: String?, language: AppLanguage?) -> String {
+        guard let highlight else { return tr("ベスト %@", number(points), language: language) }
+        return tr("ベスト %1$@・%2$@", number(points), highlight, language: language)
     }
 
     /// チャリンコおじさんの ID（`RunnerModel.gameID`）。Core からは GameRunner を参照できないので
@@ -446,6 +482,15 @@ public enum RecordFormat {
             return tr("最短タイム %1$@・%2$lld回クリア", time(best), record.wins, language: language)
         case .points:
             guard let best = record.bestPoints else { return nil }
+            // ポーカー・ブラックジャックの highestValue は「役」「連勝」で、数としての「最大」ではない。
+            // 出せない値（連勝 0）のときも「最大 0」には倒さない。
+            let id = gameID(of: record)
+            if id == pokerGameID || id == blackjackGameID {
+                guard let text = highlight(gameID: id, value: record.highestValue, language: language) else {
+                    return tr("自己ベスト %@", number(best), language: language)
+                }
+                return tr("自己ベスト %1$@（%2$@）", number(best), text, language: language)
+            }
             if let highest = record.highestValue {
                 return tr("自己ベスト %1$@（最大 %2$@）", number(best), number(highest), language: language)
             }

@@ -235,6 +235,34 @@ struct RecordFormatTests {
         #expect(RecordFormat.hubLine([PlayRecord()]) == nil)
     }
 
+    @Test("ブラックジャックの最高連勝は highestValue に残り、ハブとリザルトに「最高 n 連勝」で出る。0 連勝・他のゲームでは出さない（#2591）")
+    func blackjackBestStreakLines() {
+        var record = PlayRecord.applying(
+            outcome: .win, score: GameScore(metric: .points, points: 40, highestValue: 5, variant: "match10"), to: nil
+        ).record
+        record.recordKey = "blackjack#match10"
+        #expect(RecordFormat.resultLine(record, language: .japanese) == "自己ベスト 40（最高5連勝）")
+        #expect(RecordFormat.hubLine([record], gameID: "blackjack", language: .japanese) == "ベスト 40・最高5連勝")
+        #expect(RecordFormat.hubLine([record], gameID: "blackjack", language: .english) == "Best 40 · Best streak 5")
+
+        let none = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 10, highestValue: 0, variant: "match10"), to: nil
+        )
+        var zero = none.record
+        zero.recordKey = "blackjack#match10"
+        #expect(none.update.highestValue == false, "連勝 0 の初回は『更新』と言わない")
+        #expect(RecordFormat.resultLine(zero, language: .japanese) == "自己ベスト 10")
+        #expect(RecordFormat.hubLine([zero], gameID: "blackjack", language: .japanese) == "ベスト 10")
+
+        // 2048 の最大タイルなど、他のゲームの表記は変えない。
+        var other = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 900, highestValue: 128), to: nil
+        ).record
+        other.recordKey = "2048"
+        #expect(RecordFormat.resultLine(other, language: .japanese) == "自己ベスト 900（最大 128）")
+        #expect(RecordFormat.hubLine([other], gameID: "2048", language: .japanese) == "ベスト 900")
+    }
+
     @Test("ハブの1行: スコア・タイム・手数・勝敗")
     func hubLines() {
         let points = PlayRecord.applying(

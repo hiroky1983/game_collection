@@ -604,6 +604,28 @@
         }
       }
     },
+    "ストレート" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straight"
+          }
+        }
+      }
+    },
+    "ストレートフラッシュ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straight Flush"
+          }
+        }
+      }
+    },
     "スペード" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -615,6 +637,17 @@
         }
       }
     },
+    "スリーカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three of a Kind"
+          }
+        }
+      }
+    },
     "ダイヤ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -622,6 +655,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "diamonds"
+          }
+        }
+      }
+    },
+    "ツーペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two Pair"
+          }
+        }
+      }
+    },
+    "ハイカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High Card"
           }
         }
       }
@@ -659,6 +714,50 @@
         }
       }
     },
+    "フォーカード" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four of a Kind"
+          }
+        }
+      }
+    },
+    "フラッシュ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flush"
+          }
+        }
+      }
+    },
+    "フルハウス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full House"
+          }
+        }
+      }
+    },
+    "ベスト %1$@・%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best %1$@ · %2$@"
+          }
+        }
+      }
+    },
     "ベスト %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -677,6 +776,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bonus Rules"
+          }
+        }
+      }
+    },
+    "ロイヤルフラッシュ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Royal Flush"
+          }
+        }
+      }
+    },
+    "ワンペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One Pair"
           }
         }
       }
@@ -971,6 +1092,17 @@
         }
       }
     },
+    "最高%lld連勝" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best streak %lld"
+          }
+        }
+      }
+    },
     "次はこれで遊ぶ？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1011,6 +1143,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "I drop it"
+          }
+        }
+      }
+    },
+    "自己ベスト %1$@（%2$@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal best %1$@ (%2$@)"
           }
         }
       }
