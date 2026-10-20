@@ -690,6 +690,54 @@ struct FeedbackCPUSilentTests {
         await model.performAIMoveIfNeeded()
         #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
     }
+
+    @Test("チェス: CPU の着手では impact が増えない")
+    func chess() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ChessGameModel(services: services)
+        model.newGame(humanSide: .white, aiLevel: 1)
+        guard let move = model.legalMovesCache.first else { return }
+        model.apply(move)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("囲碁: CPU の着手では impact が増えない")
+    func go() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = GoModel(services: services)
+        model.newGame(humanSide: .black)
+        model.tap(row: 4, col: 4)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("花札こいこい: CPU の出し札・めくり札では impact が増えない")
+    func hanafuda() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 1))
+        var cpuSteps = 0
+        for _ in 0..<200 where model.phase == .playing {
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { break }
+                model.play(card)
+            } else {
+                let before = spy.impacts.count
+                model.stepCPU()
+                cpuSteps += 1
+                #expect(spy.impacts.count == before, "CPU の着手では鳴らない")
+            }
+        }
+        #expect(cpuSteps > 0, "CPU の手番が 1 度は回る")
+        #expect(spy.impacts.count > 0, "人間の着手では鳴る")
+    }
 }
 
 // MARK: - オフ: どの契機でも 1 度も発火しない（受け入れ条件）
