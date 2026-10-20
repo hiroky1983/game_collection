@@ -2,6 +2,7 @@ import Testing
 import CoreGraphics
 import Foundation
 import GameKitTestSupport
+import Core
 @testable import GameBlackjack
 
 /// ブラックジャックの操作ボタンのタップ標的と押下フィードバック（#709）。
@@ -70,6 +71,36 @@ struct BlackjackMetricsTests {
                 "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
             )
         }
+    }
+
+    // MARK: - レイアウトパターン A（#2531）
+
+    @Test("全画面の枠（フェルト・バナーは枠が下に置く）を通り、ゲーム側に BannerSlot を置かない")
+    func usesFullScreenChrome() throws {
+        let code = SourceScan.strippingComments(try Self.viewSource())
+        #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
+        #expect(code.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠にバナーの取得元を渡していない")
+        #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
+        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: code) == 0, "全画面のフェルトの上に卓を二重に敷いている")
+    }
+
+    /// iPhone SE / iPhone 17 の、ヘッダーの下からバナーの帯の上までの高さ（全画面の枠）。
+    private static let seContentHeight = FullScreenGameLayoutMetrics.contentHeight(
+        screenHeight: 667, safeAreaTop: 20, safeAreaBottom: 0)
+    private static let iPhone17ContentHeight = FullScreenGameLayoutMetrics.contentHeight(
+        screenHeight: 874, safeAreaTop: 62, safeAreaBottom: 34)
+
+    @Test("スプリット中の中身は SE でも詰めた寸法で収まり、iPhone 17 は通常の寸法で収まる（#2498 の再発防止）")
+    func splitFitsInFullScreenContent() {
+        typealias V = BlackjackVerticalMetrics
+        #expect(V.metrics(forHeight: Self.seContentHeight, isSplit: true) == .compact)
+        #expect(V.compact.estimatedSplitMinimumHeight <= Self.seContentHeight)
+        #expect(V.metrics(forHeight: Self.iPhone17ContentHeight, isSplit: true) == .regular)
+        #expect(V.regular.estimatedSplitMinimumHeight <= Self.iPhone17ContentHeight)
+        // 境目は通常の寸法が要る高さより上（境目ちょうどの端末でも通常の寸法で溢れない）。
+        #expect(V.regular.estimatedSplitMinimumHeight <= V.compactHeightThreshold)
+        // 1 手のときは詰めない。
+        #expect(V.metrics(forHeight: Self.seContentHeight, isSplit: false) == .regular)
     }
 
     // MARK: - ヘルパー
