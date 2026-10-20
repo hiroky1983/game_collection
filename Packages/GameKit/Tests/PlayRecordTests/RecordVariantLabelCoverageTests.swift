@@ -19,6 +19,7 @@ import GameAnzan
 import GameHanoi
 import GameOjisanPuzzle
 import GameSpeed
+import GameCatPuzzle
 
 /// 区分（`recordVariant`）を持つゲームが、全部 `RecordVariantLabels` の表に載っていること（#2240）。
 ///
@@ -64,6 +65,7 @@ struct RecordVariantLabelCoverageTests {
         for level in AkariKeshiDifficulty.allCases { add("akarikeshi", level.rawValue) }
         for size in TsunagiSize.allCases { add("tsunagi", size.recordVariant) }
         for disks in HanoiLogic.diskRange { add("hanoi", "\(disks)disks") }
+        for size in CatPuzzleSize.allCases { add("catpuzzle", size.rawValue) }
         return result
     }
 

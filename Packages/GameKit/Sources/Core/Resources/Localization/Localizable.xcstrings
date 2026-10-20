@@ -1987,6 +1987,105 @@
         }
       }
     },
+    "おじさんの飼い猫パズルの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Ojisan's Cat Puzzle"
+          }
+        }
+      }
+    },
+    "おじさんの家の間取りに、飼い猫が隠れています。部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cats are hiding in Ojisan's house. Each room, row, and column has exactly one cat."
+          }
+        }
+      }
+    },
+    "猫どうしは、ななめも含めて隣り合いません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No two cats are next to each other, not even diagonally."
+          }
+        }
+      }
+    },
+    "マスをタップすると ×（いない）→ 猫 → 空の順に変わります。全部の猫を見つけたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to cycle through × (no cat), cat, and empty. Find every cat to clear the puzzle."
+          }
+        }
+      }
+    },
+    "部屋・行・列に猫を 1 匹ずつ。隣には置けない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One cat per room, row, and column, never side by side"
+          }
+        }
+      }
+    },
+    "部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each room, row, and column has exactly one cat."
+          }
+        }
+      }
+    },
+    "マスをタップすると ×（いない）→ 猫 → 空の順に変わります。全部見つけたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to cycle through × (no cat), cat, and empty. Find them all to clear the puzzle."
+          }
+        }
+      }
+    },
+    "盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boards come in 6×6, 7×7, and 8×8, with a new puzzle every time (one unique answer)."
+          }
+        }
+      }
+    },
+    "ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to 3 hints per puzzle. Your record is the time to clear."
+          }
+        }
+      }
+    },
     "ハノイの塔の遊び方" : {
       "extractionState" : "manual",
       "localizations" : {

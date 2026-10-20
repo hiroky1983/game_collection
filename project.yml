@@ -120,6 +120,8 @@ targets:
       - package: GameKit
         product: GameYonmoku
       - package: GameKit
+        product: GameCatPuzzle
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

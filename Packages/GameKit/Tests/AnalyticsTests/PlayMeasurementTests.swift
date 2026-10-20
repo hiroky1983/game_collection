@@ -801,7 +801,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 37, "企画倉庫の四目並べ（#1738）・線つなぎ（#2235）・明かり消しパズル（#1883）・ハーツ（#1884）・ババ抜き（#1577）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のくっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
+        #expect(games.count == 38, "企画倉庫のおじさんの飼い猫パズル（#2250）・四目並べ（#1738）・線つなぎ（#2235）・明かり消しパズル（#1883）・ハーツ（#1884）・ババ抜き（#1577）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のくっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -820,6 +820,7 @@ struct PlayMeasurementCallSiteTests {
             "GameAnzan",         // 桁数・個数・速さの段の和を 4 段階へ丸める（#1321・企画倉庫）
             "GameBackgammon",    // CPU の強さ 4 段階（#1322・企画倉庫）
             "GameBlocks",        // 面番号 1〜12
+            "GameCatPuzzle",     // 盤の大きさ 6×6 / 7×7 / 8×8（#2250・企画倉庫）
             "GameChess",         // CPU の強さ 3 段階
             "GameConcentration", // CPU の強さ 3 段階
             "GameGo",            // CPU の強さ 3 段階
