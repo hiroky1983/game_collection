@@ -304,23 +304,31 @@ struct ReviewHighlightTests {
         #expect(CPUStrength.isReviewWorthy(level: CPUStrength.hard.rawValue))
     }
 
-    @Test("ブラックジャック: ブラックジャックで勝つと予定され、普通の勝ちでは予定されない")
+    @Test("ブラックジャック: ブラックジャックで勝った回を含む勝ち越しで予定され、普通の勝ち越しでは予定されない（#2552）")
     func blackjackNaturalOnly() throws {
-        func run(seed: UInt64, suite: String) -> (BlackjackModel, ReviewRequestService) {
+        func run(seed: UInt64, suite: String) -> (BlackjackModel, ReviewRequestService, hadNatural: Bool) {
             let (services, service) = makeServices(suite: suite)
             advanceWins(service, count: 4)
+            // 自己ベストの更新も見せ場になるので、届かない点を先に記録しておく（10 回で最大 20 点）。
+            service.log.recordResult(gameID: "blackjack", outcome: .loss,
+                                     score: GameScore(metric: .points, points: 20, variant: "match10"))
             let model = BlackjackModel(services: services, seed: seed)
-            model.placeBet(100)
-            if model.phase == .playerTurn { model.stand() }
-            return (model, service)
+            var hadNatural = false
+            model.deal()
+            for _ in 0..<20 where !model.matchOver {
+                while model.phase == .playerTurn { model.stand() }
+                if model.outcome == .playerBlackjack { hadNatural = true }
+                if !model.matchOver { model.nextRound() }
+            }
+            return (model, service, hadNatural)
         }
         var natural: (BlackjackModel, ReviewRequestService)?
         var plain: (BlackjackModel, ReviewRequestService)?
         for seed in 0..<3000 as Range<UInt64> where natural == nil || plain == nil {
-            let (model, service) = run(seed: seed, suite: "highlight-bj-\(seed)")
-            guard model.phase == .result else { continue }
-            if model.outcome == .playerBlackjack, natural == nil { natural = (model, service) }
-            if model.outcome == .win, plain == nil { plain = (model, service) }
+            let (model, service, hadNatural) = run(seed: seed, suite: "highlight-bj-\(seed)")
+            guard model.matchOutcome == .win else { continue }
+            if hadNatural, natural == nil { natural = (model, service) }
+            if !hadNatural, plain == nil { plain = (model, service) }
         }
         let n = try #require(natural)
         let p = try #require(plain)
@@ -666,16 +674,19 @@ struct GameOutcomeRoutingTests {
         #expect(service.pendingRequestID != nil, "評価リクエストが予定される")
     }
 
-    @Test("ブラックジャック: ラウンドの結果どおりに振り分ける")
+    @Test("ブラックジャック: 10 回勝負の結果どおりに振り分ける（#2552）")
     func blackjack() {
         let (services, service) = makeServices(suite: "route-blackjack")
         let model = BlackjackModel(services: services)
-        model.restartSession()
-        model.placeBet(100)
-        if model.phase == .playerTurn { model.stand() }
-        #expect(model.phase == .result)
+        model.restartMatch()
+        model.deal()
+        for _ in 0..<20 where !model.matchOver {
+            while model.phase == .playerTurn { model.stand() }
+            if !model.matchOver { model.nextRound() }
+        }
+        #expect(model.matchOver)
 
-        switch model.reviewOutcome {
+        switch model.matchOutcome {
         case .win:  #expect(service.log.totalWins == 1)
         default:    #expect(service.log.totalWins == 0)
         }

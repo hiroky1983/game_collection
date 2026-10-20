@@ -358,9 +358,8 @@ private func playSudoku(_ services: GameServices) async -> SudokuModel {
 @discardableResult
 private func playBlackjack(_ services: GameServices) -> BlackjackModel {
     let model = BlackjackModel(services: services, seed: 20260813)
-    model.restartSession()
-    model.placeBet(999_999)  // 拒否（チップ不足）
-    model.placeBet(100)      // 成立（配り）
+    model.restartMatch()
+    model.deal()             // 配り
     if model.phase == .playerTurn { model.hit() }
     if model.phase == .playerTurn { model.stand() }
     // stand → ディーラー進行 → 決着。hit でバストした場合もその時点で決着。
@@ -576,12 +575,11 @@ struct FeedbackEnabledTests {
         #expect(spy.notices(of: .success) > 0, "全ペア成立（勝ち）で発火する")
     }
 
-    @Test("ブラックジャック: 配り・チップ不足・決着で発火する")
+    @Test("ブラックジャック: 配り・決着で発火する")
     func blackjack() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playBlackjack(services)
         #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
-        #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
         // ポーカーと同じ理由で、件数ではなく最後の notify を結果と突き合わせる。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
         let expected: FeedbackNotice

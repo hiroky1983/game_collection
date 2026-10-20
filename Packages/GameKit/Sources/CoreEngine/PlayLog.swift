@@ -179,7 +179,7 @@ public final class PlayLog {
         } else {
             stored = [:]
         }
-        self.records = Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored))
+        self.records = Self.droppingRetiredRecords(Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored)))
         // 移し替えが起きた回だけ書き戻す。次の起動では旧キーが無いので何も起きない。
         if self.records != stored { persistRecords() }
     }
@@ -283,6 +283,18 @@ public final class PlayLog {
             result[key]?.variantLabel = rename.new
         }
         return result
+    }
+
+    /// 記録の単位が変わり、引き継げなくなった旧キー（#2552）。読み込み時に捨てる。
+    ///
+    /// ブラックジャックは 10 回勝負の勝ち点（`blackjack#match10`）に変えたため、以前の記録（区分なしの `blackjack`）は
+    /// 点の意味が違う。残すとハブの 1 行が旧記録を代表に選び、新しい自己ベストが永久に更新されない。
+    /// 新しい記録は別のキーに書くので、毎回捨てても新しい記録には触れない。
+    static let retiredRecordKeys: Set<String> = ["blackjack"]
+
+    /// `retiredRecordKeys` の記録を除いた結果を返す純粋関数（#2552）。
+    static func droppingRetiredRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        records.filter { !retiredRecordKeys.contains($0.key) }
     }
 
     /// 旧キーの記録を既定区分のキーへ移し替えた結果を返す純粋関数（#383）。
