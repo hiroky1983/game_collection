@@ -23,6 +23,17 @@
         }
       }
     },
+    "%@、引いた札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, drawn card"
+          }
+        }
+      }
+    },
     "%lld枚を交換" : {
       "extractionState" : "manual",
       "localizations" : {

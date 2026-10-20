@@ -46,6 +46,9 @@ enum PokerMotion {
     /// 役名（`showdownTotalDuration` だけ遅れて出る）と同じだけ遅らせ、公開 → 役名と点の順を守る。
     static let pointsSettle: Animation = pointsChange.delay(showdownTotalDuration)
 
+    /// CPU が替えた札の枠が現れる動き（#2594）。5 枚が返り終わってから薄く出す（役名と同じ時刻）。
+    static let exchangedMarkAppear: Animation = .easeIn(duration: pointsChangeDuration).delay(showdownTotalDuration)
+
     /// 役名が出る瞬間（5 枚が返り終わった瞬間）。Model が役名の手応えを返す時刻に使う（#667）。
     static var showdownRevealDelay: Duration {
         .milliseconds(Int((showdownTotalDuration * 1000).rounded()))
