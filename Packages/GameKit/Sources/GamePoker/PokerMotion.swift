@@ -4,7 +4,7 @@ import SwiftUI
 ///
 /// 将棋（`ShogiMotion`）・オセロ（`OthelloFlip`）と同じ方針で、長さは秒の定数として持ち
 /// `Animation` はそこから組む。`Animation` からは長さを読み出せないため、定数を経由しないと
-/// 「ポットの数値変化はショーダウンより短い」のような**長さの大小関係をテストで固定できない**。
+/// 「合計点の数値変化はショーダウンより短い」のような**長さの大小関係をテストで固定できない**。
 ///
 /// Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ。ON のときは補間が起きず、
 /// 反転の進捗は常に 1（= 表を向いた状態）になるだけで、公開そのものは従来どおり即時に反映される。
@@ -27,9 +27,9 @@ enum PokerMotion {
     /// 1 人分の手札の枚数（5 カードドロー）。段差の総量を求めるのに使う。
     static let cardsPerHand = 5
 
-    /// ポットのチップ枚数が入れ替わるときの長さ（秒）。
+    /// 合計点の数字が入れ替わるときの長さ（秒・#2551）。
     /// 数字が転がるのが見えれば十分なので、ショーダウン全体より短く取る。
-    static let potChangeDuration: TimeInterval = 0.24
+    static let pointsChangeDuration: TimeInterval = 0.24
 
     /// 交換するカードを選んだときの跳ね（既存の演出。トーンを揃える基準）。
     static let handSelectionResponse: TimeInterval = 0.25
@@ -37,14 +37,14 @@ enum PokerMotion {
     /// 交換するカードの選択。
     static let handSelection: Animation = .spring(response: handSelectionResponse)
 
-    /// ポットの数値の入れ替え。増減がどちらの向きかは `.contentTransition(.numericText(value:))` が持つ。
-    static let potChange: Animation = .easeInOut(duration: potChangeDuration)
+    /// 合計点の数値の入れ替え。増減がどちらの向きかは `.contentTransition(.numericText(value:))` が持つ。
+    static let pointsChange: Animation = .easeInOut(duration: pointsChangeDuration)
 
-    /// ショーダウンの決着でポットが勝者へ渡る動き（#667）。
+    /// ショーダウンの決着で合計点が増える動き（#667・#2551）。
     ///
-    /// 5 枚が返り終わる前にポットが 0 へ転がると、どちらが勝ったかを先に見せてしまう。
-    /// 役名（`showdownTotalDuration` だけ遅れて出る）と同じだけ遅らせ、公開 → 役名とポットの順を守る。
-    static let potSettle: Animation = potChange.delay(showdownTotalDuration)
+    /// 5 枚が返り終わる前に点が転がると、どちらが勝ったかを先に見せてしまう。
+    /// 役名（`showdownTotalDuration` だけ遅れて出る）と同じだけ遅らせ、公開 → 役名と点の順を守る。
+    static let pointsSettle: Animation = pointsChange.delay(showdownTotalDuration)
 
     /// 役名が出る瞬間（5 枚が返り終わった瞬間）。Model が役名の手応えを返す時刻に使う（#667）。
     static var showdownRevealDelay: Duration {

@@ -33,9 +33,10 @@ public enum PokerAccessibility {
         acceptsSelection(phase: phase) ? tr("ダブルタップで捨てる札の選択を切り替えます") : ""
     }
 
-    /// ポットの読み上げ文（例: "ポット30枚"）。画面は「ポット」と「30枚」が別の Text で、
-    /// そのままだと 2 要素に分かれて読まれる（#2162）。
-    public static func potLabel(pot: Int) -> String {
-        tr("ポット%@枚", RecordFormat.number(pot))
+    /// 上の帯の読み上げ文（例: "3回目 / 10、合計12点、CPU 8点"）。画面は回数と点が別の Text で、
+    /// そのままだと別々の要素に分かれて読まれる（#2162 と同じ手当て）。
+    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int) -> String {
+        tr("%1$lld回目 / %2$lld、合計%3$lld点、CPU %4$lld点",
+           round, PokerModel.roundsPerSession, playerPoints, cpuPoints)
     }
 }

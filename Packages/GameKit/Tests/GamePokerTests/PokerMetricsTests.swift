@@ -35,28 +35,20 @@ struct PokerMetricsTests {
         )
     }
 
-    /// 9 箇所すべての操作（チェック・ベット・フォールド・コール・交換・次のゲーム）が
-    /// 同じ `actionButton` を通ることを固定する。個別に組み直されると 44pt を外れるため。
+    /// 主な操作（交換・勝負する・次の勝負へ・もう一度）が同じ `actionButton` を通ることを固定する。
+    /// 個別に組み直されると 44pt を外れるため。
     @Test("主要な操作はすべて actionButton を経由している")
     func allActionsGoThroughActionButton() throws {
         let source = try Self.viewSource()
         let calls = SourceScan.matchCount(of: #"\bactionButton\("#, in: source)
-        // 定義 1 箇所 + 呼び出し 9 箇所。
-        #expect(calls >= 10, "actionButton の定義・呼び出しが想定より少ない（実測 \(calls) 箇所）")
-
-        // 件数だけでは足りない（PR #267 の CodeRabbit 指摘）。1 箇所が `actionButton` を
-        // 使わなくなっても、別の呼び出しが 1 つ増えれば件数は保たれてしまう
-        // （そのため `== 10` に締めても同じ穴は残る）。**どの操作**が経由しているかを
+        // 定義 1 箇所 + 呼び出し 4 箇所（交換・勝負する・次の勝負へ・もう一度）。
+        #expect(calls >= 5, "actionButton の定義・呼び出しが想定より少ない（実測 \(calls) 箇所）")
+        // 件数だけでは足りない（PR #267 の CodeRabbit 指摘）。**どの操作**が経由しているかを
         // ラベルで個別に見て、抜けた操作をそのまま名指しできるようにする。
-        // ラベルは呼び出しと同じ行に書かれているので、行内で突き合わせる。
         for label in [
-            "\"チェック\"",
-            // 表示は tr で引く（#2166）。キーは日本語の原文で、数は書式の引数で渡す。
-            "tr(\"ベット %lld枚\", 20)",
-            "\"フォールド\"",
-            "tr(\"コール %lld枚\", model.currentBet)",
             "tr(\"%lld枚を交換\", count)",
-            "\"次のゲーム\"",
+            "tr(\"勝負する\")",
+            "tr(\"もう一度 10回勝負\")",
         ] {
             let pattern = #"actionButton\([^\n]*"# + NSRegularExpression.escapedPattern(for: label)
             #expect(
@@ -64,6 +56,7 @@ struct PokerMetricsTests {
                 "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
             )
         }
+        #expect(source.contains("tr(\"次の勝負へ（%lld回目）\", model.round + 1)"))
     }
 
     // MARK: - ヘルパー
