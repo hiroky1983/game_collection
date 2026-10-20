@@ -90,7 +90,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.outcome == .lose)
         #expect(model.score == 0)
         #expect(model.roundsPlayed == 1)
-        #expect(model.recordResult != nil, "決着で記録が確定する")
+        #expect(model.recordResult == nil, "記録は勝負を締めるまで出ない（1 勝負 1 プレイ）")
         #expect(spy.notices == [.error], "勝敗の触覚は決着で 1 回だけ")
         #expect(spy.impacts.isEmpty, "ディーラー（CPU）の引きでは鳴らさない")
         #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands.isEmpty == true, "決着したら局は残さず、進み具合だけ残る")
