@@ -39,4 +39,20 @@ public enum PokerAccessibility {
         tr("%1$lld回目 / %2$lld、合計%3$lld点、CPU %4$lld点",
            round, PokerModel.roundsPerSession, playerPoints, cpuPoints)
     }
+
+    /// 決着時の役名の行の読み上げ文（例: "あなた、スリーカード、勝ち！"）。画面は見出し・役名・勝敗の印が
+    /// 別々の Text で、役名だけが順に読まれると誰の役か分からない（#2589）。
+    /// `winner` が nil（勝敗の印を出さない `.showdown`）のときは主体と役名だけにする。
+    public static func handRankLabel(subject: String, rank: PokerHandRank, side: PokerWinner, winner: PokerWinner?) -> String {
+        var label = tr("%@、%@", subject, rank.description)
+        guard let winner else { return label }
+        let verdict: String
+        switch winner {
+        case .tie: verdict = tr("引き分け")
+        case side: verdict = tr("勝ち！")
+        default: verdict = tr("負け")
+        }
+        label = tr("%@、%@", label, verdict)
+        return label
+    }
 }

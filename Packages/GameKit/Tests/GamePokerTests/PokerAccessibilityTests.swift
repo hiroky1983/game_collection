@@ -55,4 +55,28 @@ struct PokerAccessibilityTests {
         #expect(PokerAccessibility.scoreboardLabel(round: 3, playerPoints: 12, cpuPoints: 8)
                 == "3回目 / 10、合計12点、CPU 8点")
     }
+
+    @Test("決着時の役名は「主体、役名、勝敗」の 1 文で読む（#2589）")
+    func handRankLabelWithVerdict() {
+        #expect(
+            PokerAccessibility.handRankLabel(subject: "あなた", rank: .threeOfAKind, side: .player, winner: .player)
+                == "あなた、\(PokerHandRank.threeOfAKind.description)、勝ち！"
+        )
+        #expect(
+            PokerAccessibility.handRankLabel(subject: "CPU", rank: .twoPair, side: .cpu, winner: .player)
+                == "CPU、\(PokerHandRank.twoPair.description)、負け"
+        )
+        #expect(
+            PokerAccessibility.handRankLabel(subject: "CPU", rank: .twoPair, side: .cpu, winner: .tie)
+                == "CPU、\(PokerHandRank.twoPair.description)、引き分け"
+        )
+    }
+
+    @Test("勝敗の印を出さないショーダウンでは主体と役名だけを読む")
+    func handRankLabelWithoutVerdict() {
+        #expect(
+            PokerAccessibility.handRankLabel(subject: "あなた", rank: .flush, side: .player, winner: nil)
+                == "あなた、\(PokerHandRank.flush.description)"
+        )
+    }
 }
