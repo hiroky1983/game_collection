@@ -30,41 +30,31 @@ struct PokerEnglishTests {
     @Test("操作の用語")
     func actions() {
         #expect(GamePoker.tr("ポーカー", language: .english) == "Poker")
-        #expect(GamePoker.tr("チェック", language: .english) == "Check")
-        #expect(GamePoker.tr("フォールド", language: .english) == "Fold")
-        #expect(GamePoker.tr("コール %lld枚", 20, language: .english) == "Call 20")
-        #expect(GamePoker.tr("ベット %lld枚", 20, language: .english) == "Bet 20")
         #expect(GamePoker.tr("交換しない", language: .english) == "Stand Pat")
-        #expect(GamePoker.tr("ポット", language: .english) == "Pot")
-    }
-
-    @Test("チップの枚数は単数と複数で言い分ける")
-    func chipPlurals() {
-        // 枚数は桁区切り済みの文字列で渡す。単数・複数はその数字の文字列で選ばれる（表示は 1,000 のまま）。
-        #expect(GamePoker.tr("%@枚", "1", language: .english) == "1 chip")
-        #expect(GamePoker.tr("%@枚", "40", language: .english) == "40 chips")
-        #expect(GamePoker.tr("+%@枚", "1,000", language: .english) == "+1,000 chips")
-        #expect(GamePoker.tr("%@枚", "1,000") == "1,000枚")
-        #expect(GamePoker.tr("ポット%@枚", "1", language: .english) == "Pot: 1 chip")
-        #expect(GamePoker.tr("ポット%@枚", "30", language: .english) == "Pot: 30 chips")
-        #expect(GamePoker.tr("ポット%@枚", "30") == "ポット30枚")
+        #expect(GamePoker.tr("勝負する", language: .english) == "Showdown")
         #expect(GamePoker.tr("%lld枚を交換", 1, language: .english) == "Draw 1 Card")
         #expect(GamePoker.tr("%lld枚を交換", 3, language: .english) == "Draw 3 Cards")
     }
 
+    @Test("点は単数と複数で言い分ける（#2551）")
+    func pointPlurals() {
+        #expect(GamePoker.tr("合計 %lld点", 1, language: .english) == "Total 1 pt")
+        #expect(GamePoker.tr("合計 %lld点", 12, language: .english) == "Total 12 pts")
+        #expect(GamePoker.tr("+%lld点", 18, language: .english) == "+18 pts")
+        #expect(GamePoker.tr("%1$lld回目 / %2$lld", 3, 10, language: .english) == "Round 3 / 10")
+        #expect(GamePoker.tr("合計 %lld点", 12) == "合計 12点")
+    }
+
     @Test("CPU の行動は中断データに原文で残し、表示の境目で訳す")
     func cpuActionKeys() {
-        // `PokerModel.cpuAction` に入りうる原文（`cpuActionLabel` が訳す先）は、どれも英訳を持つ。
-        for key in ["チェック", "コール", "フォールド", "あなたがフォールド", "カード交換なし"] {
-            #expect(GamePoker.tr.hasTranslation(key, language: .english), "\(key) に英訳が無い")
-        }
-        #expect(GamePoker.tr("ベット %lld", 20, language: .english) == "Bet 20")
+        #expect(GamePoker.tr.hasTranslation("カード交換なし", language: .english))
         #expect(GamePoker.tr("%lld枚交換", 2, language: .english) == "Drew 2 cards")
     }
 
     @Test("決着の理由は語順を英語に合わせる")
     func resultReason() {
-        #expect(GamePoker.tr("%1$@ 対 %2$@", "Flush", "Two Pair", language: .english) == "Flush vs. Two Pair")
+        #expect(GamePoker.tr("%1$@ 対 %2$@・+%3$lld点", "Flush", "Two Pair", 12, language: .english)
+                == "Flush vs. Two Pair · +12 pts")
         #expect(GamePoker.tr("どちらも%@", "One Pair", language: .english) == "Both have One Pair")
     }
 }

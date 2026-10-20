@@ -249,21 +249,12 @@ private func playPoker(_ services: GameServices) -> PokerModel {
     let model = PokerModel(services: services)
     model.restartSession()
     model.startGame()                     // 成立（配り）
-    model.bet1Action(.bet(999_999))       // 拒否（チップ不足）
-    model.bet1Action(.check)
-    if model.phase == .exchange {
-        if let card = model.playerHand.first {
-            model.toggleCardSelection(card)  // 成立（交換札の選択）
-        }
-        model.confirmExchange()              // 成立（交換）
+    if let card = model.playerHand.first {
+        model.toggleCardSelection(card)   // 成立（交換札の選択）
     }
-    if model.phase == .betting2 {
-        model.bet2Action(.check)
-    }
-    if model.phase == .betting2, model.currentBet > 0 {
-        model.callCPUBet()
-    }
-    // ここまでで必ず .result（CPU フォールドまたはショーダウン）＝ 決着。
+    model.confirmExchange()               // 成立（交換）
+    model.showdown()                      // 決着（勝負する）
+    // ここまでで必ず .result（その回のショーダウン）＝ 決着。
     return model
 }
 
@@ -548,12 +539,12 @@ struct FeedbackEnabledTests {
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
 
-    @Test("ポーカー: 配り・チップ不足・決着で発火する")
+    @Test("ポーカー: 配り・交換札の選択・決着で発火する")
     func poker() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playPoker(services)
         #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
-        #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
+        #expect(spy.impacts.contains(.rigid), "交換札の選択で発火する")
         // 決着は「最後の notify が勝敗と一致するか」で見る（件数だけだと拒否の発火で常に真になる）。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
         let expected: FeedbackNotice

@@ -276,6 +276,22 @@ public final class PlayLog {
         "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),  // i18n-keep: 記録に保存済みの区分名の読み替え
     ]
 
+    /// ルールが変わって**記録の数値の意味が変わった**ため読み飛ばす記録のキー（#2551・#2552）。
+    ///
+    /// ポーカーはチップ制（持ち点の枚数）から 10 回勝負の点数制に変わった。旧記録は桁が違い、残すと
+    /// 自己ベストもハブの「ベスト」もいつまでも旧記録のままになる。新しい記録は `poker#round10` に書く。
+    ///
+    /// ブラックジャックも 10 回勝負の勝ち点（`blackjack#match10`）に変えたため、以前の記録（区分なしの
+    /// `blackjack`）は点の意味が違う。残すとハブの 1 行が旧記録を代表に選び、新しい自己ベストが永久に更新されない。
+    ///
+    /// 新しい記録は別のキーに書くので、毎回捨てても新しい記録には触れない。
+    static let retiredRecordKeys: Set<String> = ["blackjack", "poker", "poker#bonus"]
+
+    /// 読み飛ばす記録を除いた結果を返す純粋関数（#2551・#2552）。
+    static func droppingRetiredRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        records.filter { !retiredRecordKeys.contains($0.key) }
+    }
+
     /// 保存済みの旧表示名を新表示名へ直した結果を返す純粋関数（#2176）。旧名以外のラベルには触れない。
     static func renamingStaleVariantLabels(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
         var result = records
@@ -283,18 +299,6 @@ public final class PlayLog {
             result[key]?.variantLabel = rename.new
         }
         return result
-    }
-
-    /// 記録の単位が変わり、引き継げなくなった旧キー（#2552）。読み込み時に捨てる。
-    ///
-    /// ブラックジャックは 10 回勝負の勝ち点（`blackjack#match10`）に変えたため、以前の記録（区分なしの `blackjack`）は
-    /// 点の意味が違う。残すとハブの 1 行が旧記録を代表に選び、新しい自己ベストが永久に更新されない。
-    /// 新しい記録は別のキーに書くので、毎回捨てても新しい記録には触れない。
-    static let retiredRecordKeys: Set<String> = ["blackjack"]
-
-    /// `retiredRecordKeys` の記録を除いた結果を返す純粋関数（#2552）。
-    static func droppingRetiredRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
-        records.filter { !retiredRecordKeys.contains($0.key) }
     }
 
     /// 旧キーの記録を既定区分のキーへ移し替えた結果を返す純粋関数（#383）。

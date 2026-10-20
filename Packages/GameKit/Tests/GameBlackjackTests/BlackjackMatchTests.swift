@@ -223,13 +223,13 @@ struct BlackjackMatchTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let legacy: [String: PlayRecord] = [
             "blackjack": PlayRecord(metric: .points, plays: 40, wins: 20, losses: 20, bestPoints: 5200),
-            "poker": PlayRecord(metric: .points, plays: 3, bestPoints: 1200),
+            "2048": PlayRecord(metric: .points, plays: 3, bestPoints: 1200),
         ]
         defaults.set(try JSONEncoder().encode(legacy), forKey: PlayLog.recordsKey)
 
         let log = PlayLog(defaults: defaults)
         #expect(log.record(gameID: "blackjack") == nil, "以前の記録は残さない")
-        #expect(log.record(gameID: "poker")?.bestPoints == 1200, "他のゲームの記録には触れない")
+        #expect(log.record(gameID: "2048")?.bestPoints == 1200, "他のゲームの記録には触れない")
 
         let model = BlackjackModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: BlackjackStubAds(), playLog: log), seed: 11)
         playWholeMatch(model)

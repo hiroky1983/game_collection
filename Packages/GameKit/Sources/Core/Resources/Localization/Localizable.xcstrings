@@ -3372,28 +3372,6 @@
         }
       }
     },
-    "役の一覧は「くわしいルール」で見られます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "See “Detailed Rules” for the list of hands."
-          }
-        }
-      }
-    },
-    "役の強い側がポットのチップをもらえます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The stronger hand takes the chips in the pot."
-          }
-        }
-      }
-    },
     "役の早見表" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5198,61 +5176,6 @@
         }
       }
     },
-    "ポーカーの遊び方（ボーナスルール）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How to Play Poker (Bonus Rules)"
-          }
-        }
-      }
-    },
-    "勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Win to earn a bonus for your hand, then try the Double-Up."
-          }
-        }
-      }
-    },
-    "勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Win a showdown with two pair or better to earn a bonus on top of the pot."
-          }
-        }
-      }
-    },
-    "勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You can bet your winnings on the Double-Up: guess whether the next card is higher or lower than the shown card. Win and you double it; lose and it's gone."
-          }
-        }
-      }
-    },
-    "ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "There is a limit to how many times in a row you can Double-Up. If the numbers match, the card is redrawn."
-          }
-        }
-      }
-    },
     "チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5623,6 +5546,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Once per match, you can watch an ad to replay a round you lost."
+          }
+        }
+      }
+    },
+    "10 回勝負。勝った回は自分の役の点が入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds. Each round you win scores the points of your hand."
+          }
+        }
+      }
+    },
+    "CPU と手札を見せ合い、役の強い側がその回の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show hands with the CPU. The stronger hand wins the round."
+          }
+        }
+      }
+    },
+    "10 回勝負。勝った回は自分の役の点が入り、合計点の多い側が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds. Each round you win scores the points of your hand, and the higher total wins."
+          }
+        }
+      }
+    },
+    "役の一覧と点数は「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for the list of hands and their points."
+          }
+        }
+      }
+    },
+    "広告を見ると、10 回のうち 1 度だけもう 1 回カードを交換できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to draw cards one more time, once per 10 rounds."
           }
         }
       }
