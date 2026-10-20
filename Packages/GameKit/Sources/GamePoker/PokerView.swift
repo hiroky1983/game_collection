@@ -297,8 +297,7 @@ public struct PokerView: View {
             HStack(spacing: 8) {
                 // ショーダウンでは左から順に返す（#206）。index は段差の順番にだけ使う。
                 ForEach(Array(model.cpuHand.enumerated()), id: \.element.id) { index, card in
-                    FlipRevealCardView(card: card, progress: cpuRevealed ? 1 : 0)
-                        .gameAnimation(PokerMotion.showdownFlip(index: index), value: cpuRevealed)
+                    cpuCard(card, index: index)
                 }
             }
             .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
@@ -307,6 +306,27 @@ public struct PokerView: View {
         }
         .padding(.horizontal, 18).padding(.vertical, 20)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// CPU の札 1 枚。決着で替えた札には、プレイヤーの「捨てる札」と対になる枠を、返り終わってから薄く重ねる（#2594）。
+    /// 枠は返る札の外に置く（回転に巻き込まない）。Reduce Motion では補間が起きず、静止した枠だけが出る。
+    @ViewBuilder
+    private func cpuCard(_ card: PokerCard, index: Int) -> some View {
+        let exchanged = model.cpuExchangedIndices.contains(index)
+        let showsMark = exchanged && model.phase == .result
+        let metrics = PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+        ZStack {
+            FlipRevealCardView(card: card, progress: cpuRevealed ? 1 : 0)
+                .gameAnimation(PokerMotion.showdownFlip(index: index), value: cpuRevealed)
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .strokeBorder(Theme.purple, lineWidth: 2)
+                .frame(width: metrics.width, height: metrics.height)
+                .shadow(color: Theme.purple.opacity(0.6), radius: 6)
+                .opacity(showsMark && cpuRevealed ? 1 : 0)
+                .gameAnimation(PokerMotion.exchangedMarkAppear, value: cpuRevealed)
+                .allowsHitTesting(false)
+        }
+        .modifier(CPUCardAccessibility(isResult: model.phase == .result, card: card, exchanged: exchanged))
     }
 
     // MARK: - Hand Area（#2551）
@@ -604,5 +624,22 @@ struct FlipRevealCardView: View, Animatable {
                 .degrees(PokerMotion.flipDegrees(progress: progress)),
                 axis: (x: 0, y: 1, z: 0)
             )
+    }
+}
+
+/// 決着で表になった CPU の札の読み上げ（#2594）。決着前は伏せた札で読むものが無いので、何も足さない。
+private struct CPUCardAccessibility: ViewModifier {
+    let isResult: Bool
+    let card: PokerCard
+    let exchanged: Bool
+
+    func body(content: Content) -> some View {
+        if isResult {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(PokerAccessibility.cpuCardLabel(card: card, wasExchanged: exchanged))
+        } else {
+            content
+        }
     }
 }

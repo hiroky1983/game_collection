@@ -22,6 +22,12 @@ public enum PokerAccessibility {
         return tr("%@、捨てる札に選択中", name)
     }
 
+    /// 決着で表になった CPU の札 1 枚の読み上げ文（例: "ハートの7、引いた札"）。替えなかった札は名前だけ（#2594）。
+    public static func cpuCardLabel(card: PokerCard, wasExchanged: Bool) -> String {
+        let name = card.figure.spokenLabel
+        return wasExchanged ? tr("%@、引いた札", name) : name
+    }
+
     /// 役一覧の見本 5 枚の読み上げ文（例: "スペードのA、スペードのK、…"）。役名と説明は
     /// 隣の Text が読むので、ここは札の並びだけにする。
     public static func handGuideCardsLabel(cards: [PokerCard]) -> String {

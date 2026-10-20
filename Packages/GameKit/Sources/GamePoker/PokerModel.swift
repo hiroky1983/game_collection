@@ -55,6 +55,8 @@ struct PokerSnapshot: Codable {
     /// 連勝（#2590）。この項目を足す前の中断データには無いので optional（読めなくして続きを消さない）。
     var streak: Int? = nil
     var bestStreak: Int? = nil
+    /// CPU が替えた札の位置（#2594）。この項目を足す前の中断データには無いので optional（読めなくして続きを消さない）。
+    var cpuExchangedIndices: [Int]? = nil
 }
 
 // MARK: - Model
@@ -70,6 +72,8 @@ public final class PokerModel {
     public private(set) var cpuHandRank: PokerHandRank = .highCard
     public private(set) var selectedForExchange: Set<Int> = []
     public private(set) var cpuAction: String = ""
+    /// CPU が替えた札の `cpuHand` 上の位置（#2594）。決着で表になったとき、引いた札の枠に使う。
+    public private(set) var cpuExchangedIndices: Set<Int> = []
 
     // MARK: 10 回勝負（#2551）
 
@@ -163,6 +167,7 @@ public final class PokerModel {
             bestStreak = max(snap.bestStreak ?? 0, streak)
             extraExchangeUsed = snap.extraExchangeUsed
             cpuAction = snap.cpuAction
+            cpuExchangedIndices = Set((snap.cpuExchangedIndices ?? []).filter { (0..<snap.cpuHand.count).contains($0) })
             winner = snap.winner
             playerHandRank = snap.playerHandRank
             cpuHandRank = snap.cpuHandRank
@@ -184,7 +189,8 @@ public final class PokerModel {
             playerWins: playerWins, cpuWins: cpuWins, bestRank: bestRank,
             extraExchangeUsed: extraExchangeUsed, cpuAction: cpuAction,
             winner: winner, playerHandRank: playerHandRank, cpuHandRank: cpuHandRank,
-            roundPoints: roundPoints, streak: streak, bestStreak: bestStreak
+            roundPoints: roundPoints, streak: streak, bestStreak: bestStreak,
+            cpuExchangedIndices: cpuExchangedIndices.sorted()
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -263,6 +269,7 @@ public final class PokerModel {
         round += 1
         winner = nil
         cpuAction = ""
+        cpuExchangedIndices = []
         selectedForExchange = []
         playerHandRank = .highCard
         cpuHandRank = .highCard
@@ -322,13 +329,16 @@ public final class PokerModel {
         let discardCount = 5 - keepIdx.count
         cpuAction = discardCount == 0 ? "カード交換なし" : "\(discardCount)枚交換"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
         var newHand = cpuHand
+        var exchanged: Set<Int> = []
         for i in newHand.indices where !keepIdx.contains(i) {
             if let newCard = deck.first {
                 deck.removeFirst()
                 newHand[i] = newCard
+                exchanged.insert(i)
             }
         }
         cpuHand = newHand
+        cpuExchangedIndices = exchanged
     }
 
     // MARK: - Showdown
