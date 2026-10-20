@@ -243,7 +243,7 @@ public struct GameSetupChooser: View {
     }
 
     public var body: some View {
-        Button(action: action) {
+        Button(action: action) { // a11y-ok: 読み上げ名は titleText が持つ（Image は飾り）
             VStack(spacing: 4) {
                 if let icon {
                     Image(systemName: icon)
