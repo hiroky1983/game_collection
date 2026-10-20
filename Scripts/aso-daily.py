@@ -38,6 +38,7 @@ import csv
 import datetime
 import glob
 import gzip
+import http.client
 import json
 import os
 import subprocess
@@ -867,7 +868,7 @@ def fetch_keyword_rank(term, api=RANK_API):
         raise RankError("HTTP %d" % e.code)
     except urllib.error.URLError:
         raise RankError("接続できない")
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, http.client.HTTPException):  # 途中で切れた応答（IncompleteRead）も失敗の 1 語
         raise RankError("応答を読めない")
     count = r.get("resultCount")
     count = count if isinstance(count, int) else len(results)
