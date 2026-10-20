@@ -8,6 +8,9 @@
 #     ・ログにも出さない
 #   - 429 などの一時的なレート制限ではサブスクに切り替えない（その回は終えて次の回に任せる）
 #
+# 課金の経路（#2580）: 環境変数 CLAUDE_BILLING_ROUTE が `subscription` なら、キーがあってもサブスクで動かす
+#   （仕事の無い見回りに API のクレジットを使わない）。未設定・`api` なら従来どおり API 優先。
+#
 # 使い方: run_claude_billed [コマンド...] — 例 `PATH=… run_claude_billed claude --model sonnet -p "…"`。
 #   出力は ${LOG} に追記し、戻り値は最後に走らせたコマンドの終了コード。呼び出し元は `log` と `LOG` を定義しておく。
 
@@ -28,6 +31,8 @@ run_claude_billed() {
   out=$(mktemp "${TMPDIR:-/tmp}/run-claude.XXXXXX") || { "$@" >>"$LOG" 2>&1; return $?; }
   if [ ! -s "$CLAUDE_API_KEY_FILE" ]; then
     reason="キー未配置"
+  elif [ "${CLAUDE_BILLING_ROUTE:-api}" = "subscription" ]; then
+    reason="見回りのみ（CLAUDE_BILLING_ROUTE=subscription）"
   elif [ -e "$marker" ]; then
     reason="今月はクレジット切れ済み"
   else

@@ -70,4 +70,14 @@ check "429: rc は失敗のまま" 1 "$rc"
 check "429: サブスクで再実行しない" "key=sk-secret-123" "$(cat "$FAKE_SEEN")"
 [ ! -e "$CLAUDE_BILLING_STATE_DIR/api-exhausted-$M" ] && ok "429: 印なし" || ng "429: 印なし"
 
+# 見回りの回（CLAUDE_BILLING_ROUTE=subscription）→ キーがあってもサブスク。印は作らない（#2580）
+reset; CLAUDE_BILLING_ROUTE=subscription run_claude_billed "$T/fake"; rc=$?
+check "見回り: 成功" 0 "$rc"
+check "見回り: キーがあってもキーなしで起動" nokey "$(cat "$FAKE_SEEN")"
+grep -q '課金: subscription（見回りのみ' "$LOG" && ok "見回り: ログ" || ng "見回り: ログ"
+[ ! -e "$CLAUDE_BILLING_STATE_DIR/api-exhausted-$M" ] && ok "見回り: 印なし" || ng "見回り: 印なし"
+# 実装の回（CLAUDE_BILLING_ROUTE=api）→ 従来どおり API
+reset; CLAUDE_BILLING_ROUTE=api FAKE_API_RC=0 FAKE_API_OUT=fine run_claude_billed "$T/fake"
+check "実装: API で起動" "key=sk-secret-123" "$(cat "$FAKE_SEEN")"
+
 exit $FAIL

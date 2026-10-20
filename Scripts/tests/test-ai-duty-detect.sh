@@ -142,6 +142,7 @@ for entry in "企画議論=企画議論（経営企画室）: 回答します" \
              "着手見送り=着手見送り: 着手条件 xxx が未達" \
              "決裁スレッド=$RINGI_THREAD" \
              "決裁反映=決裁反映: 承認のため着手します" \
+             "復旧=復旧: 当番の異常終了により ai:in-progress が残留していたため解除しました（#2580）" \
              "自動ハンコ=自動ハンコ: 起票から 24 時間経過・自動ハンコ（OK 範囲: 不具合の修正）" \
              "自動ハンコの週次まとめ=自動ハンコ（週次まとめ）: この 1 週間に自動ハンコで着手対象にした Issue は 1 件です"; do
   label="${entry%%=*}"
@@ -530,12 +531,12 @@ check "v1.1.5 が空（ahead_by=0）なら次の v1.1.6 を対象にする" "1.1
 check "v1.1.5 が凍結済みなら次の v1.1.6 を対象にする" "1.1.6 0" \
   "$(run_ship_block "1.1.5=true" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
 
-# 合算判定は仕事13 のブロックの外にあるため走査で見る。コメント行は除き（言及にすり替わらないように）、
-# 「仕事なし」でログを出して終わる if の行そのものに絞る（別の箇所の SHIP_READY で空振りしないように）
+# 合算判定は duty_has_work（#2580 で関数に切り出し）にあり、仕事13 のブロックの外なので走査で見る。
+# 「仕事なし」でログを出して終わる if が関数経由の1行だけであることと、関数が SHIP_READY を含むことを確かめる
 NO_WORK_IF=$(grep -v '^[[:space:]]*#' "$TARGET" | grep -B1 'log "仕事なし' | grep '^if ')
 check "「仕事なし」の合算判定は1行だけ" "1" "$(printf '%s\n' "$NO_WORK_IF" | grep -c '^if ')"
 check "「仕事なし」の合算判定に SHIP_READY が入っている" "1" \
-  "$(printf '%s\n' "$NO_WORK_IF" | grep -cF '[ "${SHIP_READY:-0}" -eq 0 ]')"
+  "$(sed -n '/^duty_has_work()/,/^}/p' "$TARGET" | grep -cF '"${SHIP_READY:-0}"')"
 
 # #1075: 未承認の企画 Issue に社長セッションが付けた ai:in-progress で、仕事9 が30分ごとに空振り起動していた
 echo "== 21. 仕事9（孤児の集計）=="
@@ -635,6 +636,35 @@ check "仕事7 の呼び出し側が最新版だけを選ぶ sort -V | tail -1 �
   "$(grep -c 'matching-refs/heads/release/v".*sort -V | tail -1' "$TARGET")"
 check "仕事7 の呼び出し側が純粋関数を通している" "2" \
   "$(grep -cE '(release_candidate_versions|is_release_target) "' "$TARGET")"
+
+echo "== 12. 事前判定: 検知値がすべて 0 なら claude を起動しない（#2580）=="
+has_work() { ( APPROVED=0 THREADS=0 PENDING_REVIEW=0 CONFLICTS=0 RINGI_REPLIES=0 STALLED=0 RELEASED=0 SUBMISSION_UNFROZEN=0 \
+  PROPOSED_REPLIES=0 ORPHANS=0 ORPHAN_COMMITS=0 BLOCKED_UPDATES=0 RINGI_STAMPS=0 SHIP_READY=0; eval "$1"; duty_has_work && echo yes || echo no ); }
+check "すべて 0 → 起動しない" "no" "$(has_work ':')"
+for v in APPROVED THREADS PENDING_REVIEW CONFLICTS RINGI_REPLIES STALLED RELEASED SUBMISSION_UNFROZEN PROPOSED_REPLIES ORPHANS ORPHAN_COMMITS BLOCKED_UPDATES RINGI_STAMPS SHIP_READY; do
+  check "$v=1 だけで起動する" "yes" "$(has_work "$v=1")"
+done
+check "未設定の値は 0 として扱う" "no" "$( ( unset APPROVED THREADS; duty_has_work && echo yes || echo no ) )"
+check "呼び出し側が duty_has_work を通している" "1" "$(grep -c '^if ! duty_has_work; then' "$TARGET")"
+
+echo "== 13. 日次サマリ: ログから起動回数と課金経路を数える（#2580）=="
+SLOG=$(mktemp)
+cat >"$SLOG" <<'LOGEOF'
+[2026-10-19 10:00:00] [s1] 仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）
+[2026-10-19 10:03:00] [s1] 仕事なし・起動せず（企画・分析は Scripts/ai-management-duty.sh の担当）
+[2026-10-19 10:06:00] [s1] 当番起動 (slot=1/2, issue=なし)
+[2026-10-19 10:07:00] [s1] 課金: subscription（見回りのみ）
+[2026-10-19 10:09:00] [s1] 当番起動 (slot=1/2, issue=12)
+[2026-10-19 10:30:00] [s1] 課金: api
+[2026-10-19 10:31:00] [s2] 当番起動 (slot=2/2, issue=13)
+[2026-10-19 10:50:00] [s2] 課金: api→subscription（クレジット切れ）
+[2026-10-20 09:00:00] [s1] 当番起動 (slot=1/2, issue=なし)
+LOGEOF
+check "前日分だけ数える" "日次サマリ 2026-10-19: 当番起動 3 回 / 仕事なしで起動せず 2 回 / 課金経路 api 2・subscription 1" \
+  "$(duty_daily_summary_line "$SLOG" 2026-10-19)"
+check "ログが無い日は 0" "日次サマリ 2026-10-18: 当番起動 0 回 / 仕事なしで起動せず 0 回 / 課金経路 api 0・subscription 0" \
+  "$(duty_daily_summary_line "$SLOG" 2026-10-18)"
+rm -f "$SLOG"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
