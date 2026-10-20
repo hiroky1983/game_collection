@@ -28,7 +28,8 @@ private func makeModel(player: [Int], dealer: [Int], deck: [Int],
     let snapshot = BlackjackSnapshot(
         dealerHand: make(dealer), deck: make(deck),
         phase: .playerTurn, hands: restored, activeHandIndex: 0,
-        roundsPlayed: 0, score: 0, streak: 0, retryUsed: false
+        roundsPlayed: 0, score: 0, streak: 0, retryUsed: false,
+        winsInMatch: 0, lossesInMatch: 0, bestStreak: 0
     )
     try? store.save(snapshot, for: "blackjack")
     return BlackjackModel(services: GameServices(snapshots: store, ads: SilentAdService()))

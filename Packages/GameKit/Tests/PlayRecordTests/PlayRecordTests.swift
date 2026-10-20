@@ -854,7 +854,7 @@ struct GameRecordingTests {
         #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストにしない")
     }
 
-    @Test("ブラックジャック: 10 回勝負の合計点が、10 回目の決着で最高記録になる（#2552）")
+    @Test("ブラックジャック: 10 回勝負の合計点が、勝負を締めたとき最高記録になる（#2552）")
     func blackjackRecordsMatchScore() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
         defer { defaults.removePersistentDomain(forName: name) }
@@ -863,15 +863,13 @@ struct GameRecordingTests {
         for round in 1...BlackjackModel.roundsPerMatch {
             model.deal()
             while model.phase == .playerTurn { model.stand() }
-            let record = log.record(gameID: "blackjack", variant: "match10")
-            #expect(record?.plays == round)
-            // 点は 10 回目の決着までは自己ベストに入れない（勝つたびの「新記録」表示を避ける）。
-            if round < BlackjackModel.roundsPerMatch {
-                #expect(record?.bestPoints == nil)
-                model.nextRound()
-            }
+            // 記録は勝負を締めるまで出ない（1 勝負 = 1 プレイ）。
+            #expect(log.record(gameID: "blackjack", variant: "match10") == nil)
+            if round < BlackjackModel.roundsPerMatch { model.nextRound() }
         }
+        model.finishMatch()
         let record = log.record(gameID: "blackjack", variant: "match10")
+        #expect(record?.plays == 1)
         #expect(record?.metric == .points)
         #expect(record?.bestPoints == model.score)
         #expect(model.isMatchOver)

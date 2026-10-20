@@ -31,7 +31,8 @@ private func makeStandingModel(
         phase: .playerTurn,
         hands: [BlackjackHand(id: 0, cards: playerCards)],
         activeHandIndex: 0,
-        roundsPlayed: 0, score: 0, streak: 0, retryUsed: false
+        roundsPlayed: 0, score: 0, streak: 0, retryUsed: false,
+        winsInMatch: 0, lossesInMatch: 0, bestStreak: 0
     )
     try? store.save(snapshot, for: "blackjack")
     let spy = SpyFeedbackService()

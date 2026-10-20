@@ -1118,14 +1118,19 @@ struct AllGamesAnalyticsTests {
         expectOnePair(spy, gameID: "concentration")
     }
 
-    @Test("ブラックジャック: 配られた時点で開始・ラウンド決着で終局")
+    @Test("ブラックジャック: 1 回目を配った時点で開始・10 回を終えて締めたとき終局（1 勝負 1 組）")
     func blackjack() {
         let (services, spy) = makeServices()
-        let model = BlackjackModel(services: services)
-        #expect(spy.events.isEmpty, "配る前はラウンドが始まらない")
-        model.deal()
-        if model.phase == .playerTurn { model.stand() }
-        #expect(model.phase == .result)
+        let model = BlackjackModel(services: services, seed: 21)
+        #expect(spy.events.isEmpty, "配る前は勝負が始まらない")
+        for round in 1...BlackjackModel.roundsPerMatch {
+            model.deal()
+            while model.phase == .playerTurn { model.stand() }
+            #expect(spy.starts(of: "blackjack") == 1, "game_start は 1 回目を配ったときの 1 回だけ")
+            #expect(spy.ends(of: "blackjack") == 0, "締めるまで game_end は出ない（\(round) 回目）")
+            if round < BlackjackModel.roundsPerMatch { model.nextRound() }
+        }
+        model.finishMatch()
         expectOnePair(spy, gameID: "blackjack")
     }
 

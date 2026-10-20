@@ -298,17 +298,6 @@
         }
       }
     },
-    "次のゲーム" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next Hand"
-          }
-        }
-      }
-    },
     "結果まで進める" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -658,6 +647,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deal the cards to play"
+          }
+        }
+      }
+    },
+    "次の回へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Round"
+          }
+        }
+      }
+    },
+    "結果を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See Results"
           }
         }
       }

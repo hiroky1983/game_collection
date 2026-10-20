@@ -726,10 +726,14 @@ struct GameCenterPerGameTests {
         let spy = SpyGameCenterService()
 
         let model = BlackjackModel(services: makeServices(log: log, spy: spy))
-        model.deal()
-        while model.phase == .playerTurn { model.hit() }   // バーストするまで引く
+        for round in 1...BlackjackModel.roundsPerMatch {
+            model.deal()
+            while model.phase == .playerTurn { model.stand() }
+            if round < BlackjackModel.roundsPerMatch { model.nextRound() }
+        }
+        model.finishMatch()
 
-        #expect(model.phase == .result)
+        #expect(model.isMatchClosed)
         #expect(spy.scores.isEmpty)
     }
 

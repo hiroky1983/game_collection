@@ -304,30 +304,37 @@ struct ReviewHighlightTests {
         #expect(CPUStrength.isReviewWorthy(level: CPUStrength.hard.rawValue))
     }
 
-    @Test("ブラックジャック: ブラックジャックで勝つと予定され、普通の勝ちでは予定されない")
-    func blackjackNaturalOnly() throws {
-        func run(seed: UInt64, suite: String) -> (BlackjackModel, ReviewRequestService) {
-            let (services, service) = makeServices(suite: suite)
+    @Test("ブラックジャック: 勝ち越して自己ベストを更新した勝負で予定される")
+    func blackjackNewBest() throws {
+        var checked = false
+        for seed in 0..<400 as Range<UInt64> {
+            let (_, service) = makeServices(suite: "highlight-bj-\(seed)")
             advanceWins(service, count: 4)
+            // 自己ベストの更新を見せ場にするので、記録（PlayLog）を持つ構成で遊ぶ。
+            let services = GameServices(
+                snapshots: MemorySnapshotStore(), ads: NoopAdService(), review: service, playLog: service.log
+            )
             let model = BlackjackModel(services: services, seed: seed)
-            model.deal()
-            if model.phase == .playerTurn { model.stand() }
-            return (model, service)
+            playWholeBlackjackMatch(model)
+            guard model.winsInMatch > model.lossesInMatch, model.score > 0 else { continue }
+            #expect(service.log.totalWins == 5)
+            #expect(service.pendingRequestID != nil, "初めての合計点は自己ベストの更新＝見せ場")
+
+            checked = true
+            break
         }
-        var natural: (BlackjackModel, ReviewRequestService)?
-        var plain: (BlackjackModel, ReviewRequestService)?
-        for seed in 0..<3000 as Range<UInt64> where natural == nil || plain == nil {
-            let (model, service) = run(seed: seed, suite: "highlight-bj-\(seed)")
-            guard model.phase == .result else { continue }
-            if model.outcome == .playerBlackjack, natural == nil { natural = (model, service) }
-            if model.outcome == .win, plain == nil { plain = (model, service) }
-        }
-        let n = try #require(natural)
-        let p = try #require(plain)
-        #expect(n.1.pendingRequestID != nil, "ブラックジャックの勝ちは見せ場")
-        #expect(p.1.log.totalWins == 5)
-        #expect(p.1.pendingRequestID == nil, "普通の勝ちは見せ場でない")
+        #expect(checked, "勝ち越す勝負が 400 件の中に無かった")
     }
+}
+
+@MainActor
+func playWholeBlackjackMatch(_ model: BlackjackModel) {
+    for round in 1...BlackjackModel.roundsPerMatch {
+        model.deal()
+        while model.phase == .playerTurn { model.stand() }
+        if round < BlackjackModel.roundsPerMatch { model.nextRound() }
+    }
+    model.finishMatch()
 }
 
 // MARK: - 条件6（リザルトの1.0秒後・進行中には呼ばない）
@@ -671,14 +678,11 @@ struct GameOutcomeRoutingTests {
         let (services, service) = makeServices(suite: "route-blackjack")
         let model = BlackjackModel(services: services)
         model.restartSession()
-        model.deal()
-        if model.phase == .playerTurn { model.stand() }
-        #expect(model.phase == .result)
+        playWholeBlackjackMatch(model)
+        #expect(model.isMatchClosed)
 
-        switch model.reviewOutcome {
-        case .win:  #expect(service.log.totalWins == 1)
-        default:    #expect(service.log.totalWins == 0)
-        }
+        // 勝ち越した勝負だけが勝ち（引き分け・負け越しは勝ちに数えない）。
+        #expect(service.log.totalWins == (model.winsInMatch > model.lossesInMatch ? 1 : 0))
     }
 
     @Test("大富豪: 大富豪なら勝ち・大貧民なら負けに振り分ける")

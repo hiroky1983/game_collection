@@ -151,6 +151,11 @@ struct BlackjackSnapshot: Codable {
     let streak: Int
     /// 広告での「やり直し」をこの勝負で使ったか。中断を挟んでも 1 回までを守る。
     let retryUsed: Bool
+    /// 勝った回数・負けた回数（勝負の勝ち負けは勝ち越しで決める）。
+    let winsInMatch: Int
+    let lossesInMatch: Int
+    /// この勝負の最高連勝。
+    let bestStreak: Int
 }
 
 // MARK: - Model
@@ -194,13 +199,22 @@ public final class BlackjackModel {
     public private(set) var streak = 0
     /// この勝負で一番長かった連勝。
     public private(set) var bestStreakInMatch = 0
+    /// 勝った回数・負けた回数。勝負の勝ち負け（記録・評価リクエスト）は勝ち越しで決める。引き分けはどちらにも数えない。
+    public private(set) var winsInMatch = 0
+    public private(set) var lossesInMatch = 0
+    /// 勝負を締めたか（`finishMatch()`）。10 回を終えても、締めるまでは記録・`game_end` を出さない。
+    /// 負けた 10 回目をやり直せるようにするため（締めてからやり直すと記録と `game_end` が二重になる）。
+    public private(set) var isMatchClosed = false
+    /// `game_start` を数えたか。1 回目を配ったときに 1 回だけ数える。中断から戻った勝負は
+    /// 手の途中なら復元側（ハブから開いた `resume`）が数えるので true、配る前から戻った勝負は false。
+    private var startCounted = false
 
     /// 直前のラウンドが始まる前の連勝。広告で負けをやり直すときに戻す。
     private var streakBeforeRound = 0
     /// 広告で「負けた 1 回」をやり直すのは 1 回の勝負につき 1 回まで。
     private var retryUsed = false
 
-    /// 10 回を終えたか。決着の画のまま、次の勝負（`restartSession`）を待つ。
+    /// 10 回を終えたか。決着の画のまま、締める（`finishMatch`）のを待つ。
     public var isMatchOver: Bool { roundsPlayed >= BlackjackModel.roundsPerMatch }
 
     /// 画面に出す「第N回」。決着後は終えた回、それ以外は遊んでいる（これから遊ぶ）回。
@@ -211,7 +225,7 @@ public final class BlackjackModel {
     /// 直前の負けをリワード広告で取り消せる状態か。1 回の勝負につき 1 回まで。
     /// 10 回目の負けも対象（取り消すと 9 回目の終わりに戻る）。
     public var canRetryLoss: Bool {
-        phase == .result && !retryUsed && (outcome == .lose || outcome == .bust)
+        phase == .result && !isMatchClosed && !retryUsed && (outcome == .lose || outcome == .bust)
     }
 
     /// 広告のロード中に別の勝負へ入れ替わっていないかの照合用（#727 と同じ）。
@@ -253,15 +267,17 @@ public final class BlackjackModel {
         self.seed = seed
         self.dealerDrawInterval = dealerDrawInterval
         if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack"),
-           snap.roundsPlayed >= 0, snap.roundsPlayed < BlackjackModel.roundsPerMatch {
+           snap.roundsPlayed >= 0, snap.roundsPlayed <= BlackjackModel.roundsPerMatch {
             self.dealerHand = snap.dealerHand
             self.deck       = snap.deck
             self.phase      = snap.phase
             self.roundsPlayed = snap.roundsPlayed
             self.score      = max(0, snap.score)
             self.streak     = max(0, snap.streak)
-            self.bestStreakInMatch = self.streak
+            self.bestStreakInMatch = max(snap.bestStreak, self.streak)
             self.streakBeforeRound = self.streak
+            self.winsInMatch = max(0, snap.winsInMatch)
+            self.lossesInMatch = max(0, snap.lossesInMatch)
             self.retryUsed  = snap.retryUsed
             if !snap.hands.isEmpty {
                 self.hands = snap.hands
@@ -277,7 +293,18 @@ public final class BlackjackModel {
                 // （`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）。
                 // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
                 self.services?.gameDidRestoreFinished(gameID: gameID)
+            } else {
+                self.startCounted = true
             }
+            // 10 回目の結果で離れていた勝負は、開き直したところで締める（記録を取りこぼさない）。
+            if self.roundsPlayed >= BlackjackModel.roundsPerMatch {
+                self.phase = .result
+                self.services?.gameDidRestart(gameID: gameID)
+                self.finishMatch()
+            }
+        } else if services?.snapshots.exists(for: "blackjack") == true {
+            // チップ制だった頃の中断データ（#2552 より前の形式）は読めない。読み飛ばして消す。
+            services?.snapshots.clear(for: "blackjack")
         }
         // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。
         // 選び直させることはしない。
@@ -291,7 +318,7 @@ public final class BlackjackModel {
         // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
         guard phase == .playerTurn || phase == .dealerTurn else {
             // 勝負が終わったら続きは無いので捨てる。途中なら、配る前の形で進み具合だけ残す。
-            if isMatchOver {
+            if isMatchClosed {
                 services?.snapshots.clear(for: gameID)
             } else {
                 persistBetween()
@@ -311,7 +338,10 @@ public final class BlackjackModel {
             roundsPlayed: roundsPlayed,
             score: score,
             streak: streak,
-            retryUsed: retryUsed
+            retryUsed: retryUsed,
+            winsInMatch: winsInMatch,
+            lossesInMatch: lossesInMatch,
+            bestStreak: bestStreakInMatch
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -341,9 +371,13 @@ public final class BlackjackModel {
         activeHandIndex = 0
         dealerHand = [drawCard(), drawCard()]
         phase = .playerTurn
-        // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
-        // 決着が即決まるブラックジャックでも `game_start` が先に立つよう、判定より前に数える（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        // 1 回の勝負 = 1 プレイ。`game_start` は 1 回目を配ったときに数え、`game_end` は勝負を締めたとき
+        // （`finishMatch`）に 1 回だけ出す。決着が即決まるブラックジャックでも `game_start` が先に立つよう、
+        // 判定より前に数える（#158）。
+        if !startCounted {
+            services?.gameDidRestart(gameID: gameID)
+            startCounted = true
+        }
         // 配った時点で途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)
 
@@ -529,15 +563,17 @@ public final class BlackjackModel {
             outcome = .lose
         }
 
-        // 連勝は勝ちで伸び、負けで切れる。引き分けは続きも切れもしない。
+        // 連勝は勝ち点が入った回が続いた数。引き分け・負けで 0 に戻る。
         switch outcome {
         case .playerBlackjack, .win:
+            winsInMatch += 1
             streak += 1
             bestStreakInMatch = max(bestStreakInMatch, streak)
         case .lose, .bust:
+            lossesInMatch += 1
             streak = 0
         default:
-            break
+            streak = 0
         }
 
         phase = .result
@@ -546,20 +582,29 @@ public final class BlackjackModel {
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
-        // 評価リクエストの見せ場は、最初の 2 枚で 21 のブラックジャックで勝ったとき（#1471）。
-        // 合計点は 10 回目の決着のときだけ渡す。毎回渡すと、記録を更新中の勝負では勝つたびに
-        // 「自己ベスト更新」が出てしまう。連勝は毎回の勝敗から `PlayRecord` が数える。
+        // 記録・`game_end`・評価リクエストは勝負を締めたとき（`finishMatch`）に 1 回だけ。
+        // 途中なら進み具合だけ保存し、10 回目の結果は締めるまで中断データに残す（`persist()` の 1 か所で判断する）。
+        persist()
+    }
+
+    /// 勝負を締める（10 回目の結果から押す）。合計点を自己ベストに渡し、`game_end` を 1 回出す。
+    ///
+    /// 勝負の勝ち負けは勝ち越しで決める（勝った回 > 負けた回なら勝ち、同数は引き分け）。
+    /// 評価リクエストの見せ場は自己ベストの更新に任せる（`isReviewHighlight` は false）。
+    public func finishMatch() {
+        guard phase == .result, isMatchOver, !isMatchClosed else { return }
+        isMatchClosed = true
+        let result: GameOutcome = winsInMatch > lossesInMatch ? .win : (winsInMatch < lossesInMatch ? .loss : .draw)
         recordResult = services?.gameDidFinish(
             gameID: gameID,
-            outcome: reviewOutcome,
+            outcome: result,
             score: GameScore(
-                metric: .points, points: isMatchOver ? score : nil,
+                metric: .points, points: score,
                 variant: Self.recordVariant,
                 variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: Self.recordVariant)
             ),
-            isReviewHighlight: outcome == .playerBlackjack
+            isReviewHighlight: false
         )
-        // 終わった勝負は保存しない。途中なら進み具合だけ残す。判断は `persist()` の1か所に寄せる。
         persist()
     }
 
@@ -644,8 +689,8 @@ public final class BlackjackModel {
     ///
     /// - 負け（バストを含む）の直後だけ効く。**1 回の勝負につき 1 回まで**（中断を挟んでも戻らない。
     ///   `retryUsed` を中断データに持ち回る）。戻るのは新しい勝負（`restartSession`）だけ。
-    /// - 回数・連勝は負ける前に戻る（点は負けでは入らないので動かない）。記録に積んだ負けも `cancelLoss` で
-    ///   取り消す（広告を見るほど通算成績が増える抜け道にしない。2048 のコンティニューと同じ扱い）。
+    /// - 回数・連勝・負けた回数は負ける前に戻る（点は負けでは入らないので動かない）。記録・`game_end` は
+    ///   勝負を締めるまで出ないので、記録の取り消しは要らない。10 回目の負けも、締める前なら選べる。
     /// - 視聴中断・ロード失敗時は何も変更せず `.notEarned` を返す（呼び出し側でユーザーに通知する）。
     /// - 広告のあいだに別の勝負へ入れ替わっていたら適用しない（#727。`.unavailable`）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおりやり直させる。
@@ -660,7 +705,7 @@ public final class BlackjackModel {
         // 広告のロード〜視聴のあいだも画面は操作できる。別の勝負が始まっていたら、そこへ乗せない。
         guard sessionSerial == serialBeforeAd, roundsPlayed == roundBeforeAd, canRetryLoss else { return .unavailable }
         retryUsed = true
-        services?.playLog?.cancelLoss(gameID: gameID, variant: Self.recordVariant)
+        lossesInMatch -= 1
         roundsPlayed -= 1
         score -= roundPoints ?? 0
         streak = streakBeforeRound
@@ -688,6 +733,10 @@ public final class BlackjackModel {
         score = 0
         streak = 0
         bestStreakInMatch = 0
+        winsInMatch = 0
+        lossesInMatch = 0
+        isMatchClosed = false
+        startCounted = false
         streakBeforeRound = 0
         retryUsed = false
         outcome = nil

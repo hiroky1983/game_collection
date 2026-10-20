@@ -264,14 +264,16 @@ public final class PlayLog {
     /// 書き込み先が `gameID#variant` に変わるため、そのままでは旧記録がどこからも参照されず、
     /// 更新後の初回クリアが無条件に「新記録」になる（麻雀ソリティアが #239 で該当した）。
     /// 値は「区分が無かった頃に遊べた唯一の区分」= 既定区分を指す。
-    ///
-    /// `resetsBestPoints` は、区分を入れた理由が**指標の意味の変更**のとき（ブラックジャックのチップ残高 →
-    /// 10 回勝負の合計点・#2552）に true。旧記録の自己ベストは桁が違い、そのまま引き継ぐと新しい点が
-    /// 永久に更新されないので、通算成績だけを移して自己ベストは捨てる。
-    static let legacyRecordMigrations: [String: (variant: String, label: String, resetsBestPoints: Bool)] = [
-        "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle"), resetsBestPoints: false),
-        "blackjack": (variant: "match10", label: RecordVariantLabels.stored(gameID: "blackjack", variant: "match10"), resetsBestPoints: true),
+    static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
+        "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle")),
     ]
+
+    /// 指標の意味が変わって引き継げない旧記録のキー（読み込み時に捨てる）。
+    ///
+    /// ブラックジャックはチップ残高 → 10 回勝負の合計点（#2552）に変わり、桁が違う旧記録を残すと
+    /// 新しい点が永久に自己ベストを更新できない。新しい記録は別の区分キー（`blackjack#match10`）に書くので、
+    /// 区分なしの `blackjack` は以後書かれず、毎回捨てても新しい記録は消えない（冪等）。
+    static let retiredRecordKeys: Set<String> = ["blackjack"]
 
     /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
     ///
@@ -296,11 +298,10 @@ public final class PlayLog {
     /// 新旧のキーが並存するため、片方を捨てると自己ベストか通算成績のどちらかが失われる。
     /// 合成後は旧キーを消すので、ハブに同じゲームの行が2つ出ることもなくなる。
     static func migratingLegacyRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
-        var result = records
+        var result = records.filter { !retiredRecordKeys.contains($0.key) }
         for (gameID, destination) in legacyRecordMigrations {
             guard var legacy = result[gameID] else { continue }
             legacy.variantLabel = destination.label
-            if destination.resetsBestPoints { legacy.bestPoints = nil }
             let key = recordKey(gameID: gameID, variant: destination.variant)
             result[key] = result[key].map { legacy.merged(into: $0) } ?? legacy
             result[gameID] = nil

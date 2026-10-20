@@ -75,8 +75,9 @@ struct BlackjackRetryAdTests {
     func finalRoundLossCanBeRetried() async {
         let (model, _, store) = makeLostModel(roundsPlayed: 9, score: 4, streak: 0)
         #expect(model.isMatchOver)
+        #expect(!model.isMatchClosed, "締めるまでやり直しを選べる")
         #expect(model.canRetryLoss)
-        #expect(!store.exists(for: "blackjack"), "終わった勝負の中断データは無い")
+        #expect(store.exists(for: "blackjack"), "10 回目の結果は締めるまで残す")
 
         #expect(await model.retryLossAfterAd() == .granted)
 
@@ -84,6 +85,7 @@ struct BlackjackRetryAdTests {
         #expect(model.roundsPlayed == 9)
         #expect(model.phase == .ready)
         #expect(store.exists(for: "blackjack"), "配る前の進み具合を書き出す")
+        #expect(model.recordResult == nil, "締めていないので記録も出ていない")
     }
 
     @Test("視聴未完了・ロード失敗なら何も変わらず、もう一度試せる")
@@ -147,18 +149,27 @@ struct BlackjackRetryAdTests {
         }
     }
 
-    @Test("記録に積んだ負けは取り消す（広告を見るほど通算成績が増えない）")
-    func cancelsTheRecordedLoss() async {
+    @Test("記録・game_end は勝負を締めるまで出ないので、やり直しても通算成績が増えない")
+    func noRecordUntilMatchIsClosed() async {
         let defaults = UserDefaults(suiteName: "bj-retry-\(UUID().uuidString)")!
         let log = PlayLog(defaults: defaults)
-        let (model, _, _) = makeLostModel(playLog: log)
-        #expect(log.record(gameID: "blackjack", variant: "match10")?.losses == 1)
+        let (model, _, _) = makeLostModel(roundsPlayed: 9, playLog: log)
+        #expect(log.record(gameID: "blackjack", variant: "match10") == nil)
 
         #expect(await model.retryLossAfterAd() == .granted)
 
-        let record = log.record(gameID: "blackjack", variant: "match10")
-        #expect(record?.losses == 0)
-        #expect(record?.plays == 0)
+        #expect(log.record(gameID: "blackjack", variant: "match10") == nil)
+        #expect(model.lossesInMatch == 0, "負けた回数も戻る")
+    }
+
+    @Test("勝負を締めたあとは、やり直しは出ない")
+    func notAvailableAfterClosing() async {
+        let (model, ads, _) = makeLostModel(roundsPlayed: 9)
+        model.finishMatch()
+        #expect(model.isMatchClosed)
+        #expect(!model.canRetryLoss)
+        #expect(await model.retryLossAfterAd() == .unavailable)
+        #expect(ads.rewardedCount == 0)
     }
 
     /// 広告のロード中はハブへ戻れる。戻ると Model は捨てられ、次に開くと別の Model が動くが、

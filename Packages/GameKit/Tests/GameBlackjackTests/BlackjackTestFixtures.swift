@@ -43,6 +43,8 @@ func makeInjectedModel(
     score: Int = 0,
     streak: Int = 0,
     retryUsed: Bool = false,
+    winsInMatch: Int = 0,
+    lossesInMatch: Int = 0,
     store: MemorySnapshotStore = MemorySnapshotStore(),
     ads: StubAdService = StubAdService(),
     playLog: PlayLog? = nil,
@@ -56,9 +58,21 @@ func makeInjectedModel(
         phase: .playerTurn,
         hands: restored,
         activeHandIndex: activeHandIndex,
-        roundsPlayed: roundsPlayed, score: score, streak: streak, retryUsed: retryUsed
+        roundsPlayed: roundsPlayed, score: score, streak: streak, retryUsed: retryUsed,
+        winsInMatch: winsInMatch, lossesInMatch: lossesInMatch, bestStreak: streak
     )
     try? store.save(snapshot, for: "blackjack")
     let services = GameServices(snapshots: store, ads: ads, playLog: playLog, screenGeneration: screenGeneration)
     return (BlackjackModel(services: services, seed: seed), store, ads)
+}
+
+/// 10 回を最後まで（毎回スタンド）遊び、勝負を締める。
+@MainActor
+func playWholeMatch(_ model: BlackjackModel) {
+    for round in 1...BlackjackModel.roundsPerMatch {
+        model.deal()
+        while model.phase == .playerTurn { model.stand() }
+        if round < BlackjackModel.roundsPerMatch { model.nextRound() }
+    }
+    model.finishMatch()
 }

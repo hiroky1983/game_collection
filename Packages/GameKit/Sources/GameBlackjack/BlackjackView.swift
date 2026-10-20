@@ -46,12 +46,12 @@ public struct BlackjackView: View {
                 .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
             }
             HowToPlayHint(.blackjack, playLog: services.playLog)
-            if model.isMatchOver {
+            if model.isMatchClosed {
                 matchOverView
             } else {
                 actionArea
             }
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
+            RecommendationSlot(services: services, isFinished: model.isMatchClosed)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -429,8 +429,17 @@ public struct BlackjackView: View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
             if model.canRetryLoss { retryButton }
-            actionButton(tr("次のゲーム"), role: .primary) {
-                model.nextRound()
+            if model.isMatchOver {
+                // 10 回目のあと。締めるまで記録は出ない（負けた回のやり直しを選べるように）。
+                actionButton(tr("結果を見る"), role: .primary) {
+                    model.finishMatch()
+                }
+            } else {
+                // 次の回はそのまま配る（押す回数を増やさない）。
+                actionButton(tr("次の回へ"), role: .primary) {
+                    model.nextRound()
+                    model.deal()
+                }
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -456,7 +465,7 @@ public struct BlackjackView: View {
         .disabled(retryRescue.isWatching)
     }
 
-    /// 10 回を終えた画。決着の画（卓）は残したまま、操作欄を合計点と「もう一度」に差し替える。
+    /// 勝負を締めた画。決着の画（卓）は残したまま、操作欄を合計点と「もう一度」に差し替える。
     private var matchOverView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -480,10 +489,8 @@ public struct BlackjackView: View {
                 Spacer()
             }
 
-            // 最後の回は resultView ではなくこちらが出るため、記録行もここに置く。
+            // 締めたあとは resultView ではなくこちらが出るため、記録行もここに置く。
             RecordLabel(model.recordResult)
-
-            if model.canRetryLoss { retryButton }
 
             Button { model.restartSession() } label: {
                 Text(tr("もう一度%lld回勝負", BlackjackModel.roundsPerMatch)).themeBody(16)

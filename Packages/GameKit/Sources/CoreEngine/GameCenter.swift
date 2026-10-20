@@ -136,6 +136,9 @@ public enum GameCenterLeaderboard {
     // 高いほど良い（App Store Connect では「High to Low」で登録する）
     public static let game2048Score  = "asobiba.2048.score"
     public static let pokerChips     = "asobiba.poker.chips"
+    /// ブラックジャックは賭けをなくした（#2552）ので送らない。App Store Connect 側の登録と照らすための控えで、
+    /// 対応表と `allIDs` には入れない。
+    public static let blackjackChips = "asobiba.blackjack.chips"
     /// ブロック崩し（#463）。ステージ構成は全員共通で、同じ条件で比べられるため対象にする。
     public static let blocksScore    = "asobiba.blocks.score"
     /// チャリンコおじさん（#494）。送るのは**到達ステージ数**（High to Low）。

@@ -814,9 +814,13 @@ struct GameFinishCountingTests {
         let (services, service) = makeServices(suite: "count-blackjack")
         let model = BlackjackModel(services: services)
         model.restartSession()
-        model.deal()
-        if model.phase == .playerTurn { model.stand() }
-        #expect(model.phase == .result)
+        for round in 1...BlackjackModel.roundsPerMatch {
+            model.deal()
+            while model.phase == .playerTurn { model.stand() }
+            #expect(service.log.totalFinishes == 0, "締めるまで数えない")
+            if round < BlackjackModel.roundsPerMatch { model.nextRound() }
+        }
+        model.finishMatch()
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["blackjack"])
     }
