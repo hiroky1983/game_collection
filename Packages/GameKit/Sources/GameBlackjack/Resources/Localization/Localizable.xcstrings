@@ -540,6 +540,17 @@
         }
       }
     },
+    "10回の勝負につき1回だけ、広告を見るとこの回をやり直せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once per 10 rounds, watch an ad to replay this round."
+          }
+        }
+      }
+    },
     "広告を見てこの回をやり直す（1回まで）" : {
       "extractionState" : "manual",
       "localizations" : {

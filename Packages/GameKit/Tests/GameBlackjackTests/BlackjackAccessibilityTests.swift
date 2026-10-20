@@ -57,4 +57,13 @@ struct BlackjackAccessibilityTests {
         #expect(BlackjackAccessibility.totalLabel(owner: "ディーラー", value: 22) == "ディーラーの合計22、バスト")
         #expect(!BlackjackAccessibility.totalLabel(owner: "あなた", value: 21).contains("バスト"))
     }
+
+    @Test("ディーラーが引いたら合計を読む。配り直後の決着は読まない") func dealerDrawAnnouncement() {
+        #expect(BlackjackAccessibility.dealerDrawAnnouncement(oldCount: 2, newCount: 3, value: 22)
+                == "ディーラーの合計22、バスト")
+        #expect(BlackjackAccessibility.dealerDrawAnnouncement(oldCount: 3, newCount: 4, value: 19)
+                == "ディーラーの合計19")
+        #expect(BlackjackAccessibility.dealerDrawAnnouncement(oldCount: 0, newCount: 2, value: 21) == nil)
+        #expect(BlackjackAccessibility.dealerDrawAnnouncement(oldCount: 3, newCount: 0, value: 0) == nil)
+    }
 }
