@@ -250,6 +250,8 @@ public struct PokerView: View {
                 Text("CPU")
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
+                    // 役名の行が「CPU、…」と主体まで読むので、見出しは重ねて読まない（#2589）。
+                    .accessibilityHidden(model.phase == .result)
                 if !model.cpuAction.isEmpty {
                     Text(model.cpuActionLabel)
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
@@ -262,6 +264,10 @@ public struct PokerView: View {
                 Spacer()
                 if model.phase == .result {
                     Text(model.cpuHandRank.description)
+                        // 主体と勝敗の印を畳んだ 1 要素で読む（#2589）。見た目は変えない。
+                        .accessibilityLabel(PokerAccessibility.handRankLabel(
+                            subject: tr("CPU"), rank: model.cpuHandRank, side: .cpu,
+                            winner: model.winner))
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -337,6 +343,7 @@ public struct PokerView: View {
                 Text(tr("あなた"))
                     .themeBody(13)
                     .foregroundStyle(Theme.ink)
+                    .accessibilityHidden(model.phase == .result)
                 Spacer()
                 if model.phase == .exchange {
                     Text(tr("捨てるカードを選んでください"))
@@ -348,8 +355,12 @@ public struct PokerView: View {
                 if model.phase == .result {
                     if let w = model.winner {
                         resultBadge(w)
+                            .accessibilityHidden(true)  // 役名の行が勝敗まで読む（#2589）
                     }
                     Text(model.playerHandRank.description)
+                        .accessibilityLabel(PokerAccessibility.handRankLabel(
+                            subject: tr("あなた"), rank: model.playerHandRank, side: .player,
+                            winner: model.winner))
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
