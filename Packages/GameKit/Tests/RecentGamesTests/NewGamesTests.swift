@@ -181,7 +181,7 @@ struct NewGamesWiringTests {
         #expect(!source.contains("NewGames.notice("), "ハブに新着の1行が戻っている")
     }
 
-    @Test("新着は柵越えおじさんの次、グリッドの先頭へ固定する（#2104・#2175）")
+    @Test("新着はグリッドの先頭へ固定する（#2104。柵越えおじさんは #2566 から通常のタイルで、この固定に従う）")
     func gridPinsNewGames() throws {
         let source = try SourceScan.appSources()
         #expect(
@@ -189,7 +189,7 @@ struct NewGamesWiringTests {
             "ハブの並びが NewGames.pinned を通っていない"
         )
         #expect(
-            source.range(of: #"gridModules: \[GameModule\] \{\s*pinnedVisibleModules"#, options: .regularExpression) != nil,
+            source.range(of: #"let entries = pinnedVisibleModules\.enumerated\(\)"#, options: .regularExpression) != nil,
             "グリッドが固定済みの並びを使っていない"
         )
     }
