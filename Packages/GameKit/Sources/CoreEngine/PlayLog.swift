@@ -276,13 +276,18 @@ public final class PlayLog {
         "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),  // i18n-keep: 記録に保存済みの区分名の読み替え
     ]
 
-    /// ルールが変わって**記録の数値の意味が変わった**ため読み飛ばす記録のキー（#2551）。
+    /// ルールが変わって**記録の数値の意味が変わった**ため読み飛ばす記録のキー（#2551・#2552）。
     ///
     /// ポーカーはチップ制（持ち点の枚数）から 10 回勝負の点数制に変わった。旧記録は桁が違い、残すと
     /// 自己ベストもハブの「ベスト」もいつまでも旧記録のままになる。新しい記録は `poker#round10` に書く。
-    static let retiredRecordKeys: Set<String> = ["poker", "poker#bonus"]
+    ///
+    /// ブラックジャックも 10 回勝負の勝ち点（`blackjack#match10`）に変えたため、以前の記録（区分なしの
+    /// `blackjack`）は点の意味が違う。残すとハブの 1 行が旧記録を代表に選び、新しい自己ベストが永久に更新されない。
+    ///
+    /// 新しい記録は別のキーに書くので、毎回捨てても新しい記録には触れない。
+    static let retiredRecordKeys: Set<String> = ["blackjack", "poker", "poker#bonus"]
 
-    /// 読み飛ばす記録を除いた結果を返す純粋関数（#2551）。
+    /// 読み飛ばす記録を除いた結果を返す純粋関数（#2551・#2552）。
     static func droppingRetiredRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
         records.filter { !retiredRecordKeys.contains($0.key) }
     }

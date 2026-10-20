@@ -814,14 +814,20 @@ struct GameFinishCountingTests {
         #expect(service.log.playedGameIDs == ["sudoku"])
     }
 
-    @Test("ブラックジャック: ラウンドの決着で1回数える")
+    @Test("ブラックジャック: 10 回勝負の決着で1回数える（#2552）")
     func blackjack() {
         let (services, service) = makeServices(suite: "count-blackjack")
         let model = BlackjackModel(services: services)
-        model.restartSession()
-        model.placeBet(100)
-        if model.phase == .playerTurn { model.stand() }
+        model.restartMatch()
+        model.deal()
+        while model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
+        #expect(service.log.totalFinishes == 0, "1 回ごとには数えない")
+        for _ in 0..<20 where !model.matchOver {
+            model.nextRound()
+            while model.phase == .playerTurn { model.stand() }
+        }
+        #expect(model.matchOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["blackjack"])
     }

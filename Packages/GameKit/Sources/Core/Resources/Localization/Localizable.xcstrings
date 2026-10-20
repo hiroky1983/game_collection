@@ -146,17 +146,6 @@
         }
       }
     },
-    "10・J・Q・K は同じ 10 点なので、スプリットできます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "10, J, Q and K are all worth 10, so any two of them can be split."
-          }
-        }
-      }
-    },
     "12 の役をぜんぶ埋めたら終わり。1〜6 の目の小計が 63 点以上ならボーナス +35 点です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -638,17 +627,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“Hit” to draw another card, “Stand” to stop there."
-          }
-        }
-      }
-    },
-    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“Hit” to draw a card, “Stand” to stop there. On your first 2 cards you can also “Double Down” (double your bet and draw just one card) or “Split” two cards of the same value (10, J, Q and K are all worth 10) into two hands."
           }
         }
       }
@@ -1938,17 +1916,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose a chip amount, then tap where to bet: numbers, red/black, odd/even, 1-18 / 19-36, or a group of 12. You can bet on several spots."
-          }
-        }
-      }
-    },
-    "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose how many chips to bet, and the cards are dealt."
           }
         }
       }
@@ -3889,17 +3856,6 @@
         }
       }
     },
-    "最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」も選べます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On your first 2 cards you can also “Double Down”: double your bet and draw just one more card."
-          }
-        }
-      }
-    },
     "最初はクラブの 2 から。出された札と同じスートを、順に 1 枚ずつ出します。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5535,6 +5491,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+          }
+        }
+      }
+    },
+    "ディーラーと 10 回勝負します。勝てば 1 点、最初の 2 枚の 21（ブラックジャック）で勝てば 2 点。10 回の合計が自己ベストになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds against the dealer. A win scores 1 point, and winning with 21 on your first two cards (a blackjack) scores 2. Your 10-round total counts toward your personal best."
+          }
+        }
+      }
+    },
+    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚が同じ点数（10・J・Q・K は同じ 10 点）なら、2 手に分ける「スプリット」も選べます。分けた手はそれぞれ勝てば 1 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Hit to draw another card, or Stand to stop. If your first two cards have the same value (10, J, Q and K all count as 10), you can Split them into two hands. Each split hand scores 1 point if it wins."
+          }
+        }
+      }
+    },
+    "ディーラーと 10 回勝負。勝てば 1 点、ブラックジャックで勝てば 2 点で、10 回の合計が自己ベストになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 rounds against the dealer. A win scores 1 point, a blackjack win scores 2, and your 10-round total counts toward your personal best."
+          }
+        }
+      }
+    },
+    "10・J・Q・K は同じ 10 点なので、スプリットできます。分けた手はそれぞれ勝てば 1 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10, J, Q and K all count as 10, so you can split them. Each split hand scores 1 point if it wins."
+          }
+        }
+      }
+    },
+    "負けた回は、広告を見て 1 回だけやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once per match, you can watch an ad to replay a round you lost."
           }
         }
       }

@@ -1123,14 +1123,21 @@ struct AllGamesAnalyticsTests {
         expectOnePair(spy, gameID: "concentration")
     }
 
-    @Test("ブラックジャック: 配られた時点で開始・ラウンド決着で終局")
+    @Test("ブラックジャック: 1 回目を配った時点で開始・10 回の合計で 1 回だけ終局（#2552）")
     func blackjack() {
         let (services, spy) = makeServices()
-        let model = BlackjackModel(services: services)
-        #expect(spy.events.isEmpty, "ベット前はラウンドが始まらない")
-        model.placeBet(100)
-        if model.phase == .playerTurn { model.stand() }
+        let model = BlackjackModel(services: services, seed: 2552)
+        #expect(spy.events.isEmpty, "配る前は勝負が始まらない")
+        model.deal()
+        while model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
+        #expect(spy.starts(of: "blackjack") == 1)
+        #expect(spy.ends(of: "blackjack") == 0, "1 回ごとには終局しない")
+        for _ in 0..<20 where !model.matchOver {
+            model.nextRound()
+            while model.phase == .playerTurn { model.stand() }
+        }
+        #expect(model.matchOver)
         expectOnePair(spy, gameID: "blackjack")
     }
 
@@ -1749,7 +1756,7 @@ struct UntouchedSnapshotReopenTests {
     @Test("hasResumableSnapshot を実装する Module は hasUntouchedSnapshot も実装している")
     func resumableImpliesUntouched() throws {
         let exempt: [String: String] = [
-            "BlackjackModule.swift": "復活チップだけの保存は賭け待ちで、game_start は賭けた時点で数える",
+            "BlackjackModule.swift": "1 回目を配る前は保存しない（game_start は配った時点で数える・#2552）",
             "PokerModule.swift": "同上（局を持たない .idle の保存）",
             "RouletteModule.swift": "同上（口の無い賭け中の保存）",
             "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",

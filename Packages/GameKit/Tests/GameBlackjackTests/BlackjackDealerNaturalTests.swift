@@ -7,13 +7,13 @@ import Core
 /// 配りは乱数なので、シードを走査して「ディーラーだけが 2 枚 21」の局と「両者ナチュラル」の局を見つける。
 @MainActor
 struct BlackjackDealerNaturalTests {
-    private func dealt(seed: UInt64, bet: Int = 100) -> BlackjackModel {
+    private func dealt(seed: UInt64) -> BlackjackModel {
         let model = BlackjackModel(seed: seed)
-        model.placeBet(bet)
+        model.deal()
         return model
     }
 
-    @Test("ディーラーだけがナチュラルなら配った時点で精算し、賭け金だけ負ける")
+    @Test("ディーラーだけがナチュラルなら配った時点で決着し、0 点の負け")
     func dealerOnlyNaturalSettlesAtDeal() throws {
         let found = (0..<5000).lazy.map { self.dealt(seed: $0) }.first {
             isBlackjack($0.dealerHand) && !isBlackjack($0.playerHand)
@@ -21,10 +21,11 @@ struct BlackjackDealerNaturalTests {
         let model = try #require(found)
         #expect(model.phase == .result)
         #expect(model.outcome == .lose)
-        #expect(model.chips == 1000 - 100)
+        #expect(model.points == 0)
+        #expect(model.completedRounds == 1)
     }
 
-    @Test("両者ナチュラルならプッシュで賭け金は動かない")
+    @Test("両者ナチュラルならプッシュで 0 点")
     func bothNaturalPushes() throws {
         let found = (0..<200_000).lazy.map { self.dealt(seed: $0) }.first {
             isBlackjack($0.dealerHand) && isBlackjack($0.playerHand)
@@ -32,7 +33,7 @@ struct BlackjackDealerNaturalTests {
         let model = try #require(found)
         #expect(model.phase == .result)
         #expect(model.outcome == .push)
-        #expect(model.chips == 1000)
+        #expect(model.points == 0)
     }
 
     @Test("ディーラーがナチュラルでなければ従来どおりプレイヤーの手番になる")
