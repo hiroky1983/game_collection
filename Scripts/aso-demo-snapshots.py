@@ -314,12 +314,21 @@ def snapshot_blackjack():
     ]
     ids = [c["id"] for c in player + dealer + deck]
     assert len(ids) == len(set(ids)) == 52, "カード id が重複または不足している"
+    # 10 回勝負（#2552）の中断データ形式。3 回終えて 2 点・2 連勝の 4 回目、プレイヤーの手番。
     return {
-        "playerHand": player,
+        "completedRounds": 3,
+        "points": 2,
+        "streak": 2,
+        "bestStreak": 2,
+        "hasUsedRetry": False,
+        "streakBeforeRound": 2,
+        "handsWon": 2,
+        "handsLost": 1,
+        "naturalWins": 0,
+        "hands": [{"id": 0, "cards": player, "isFromSplit": False, "isDone": False}],
+        "activeHandIndex": 0,
         "dealerHand": dealer,
         "deck": deck,
-        "chips": 950,
-        "bet": 50,
         "phase": "playerTurn",
     }
 
