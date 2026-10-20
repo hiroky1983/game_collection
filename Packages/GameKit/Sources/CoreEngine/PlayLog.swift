@@ -179,7 +179,7 @@ public final class PlayLog {
         } else {
             stored = [:]
         }
-        self.records = Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored))
+        self.records = Self.droppingRetiredRecords(Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored)))
         // 移し替えが起きた回だけ書き戻す。次の起動では旧キーが無いので何も起きない。
         if self.records != stored { persistRecords() }
     }
@@ -268,13 +268,6 @@ public final class PlayLog {
         "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle")),
     ]
 
-    /// 指標の意味が変わって引き継げない旧記録のキー（読み込み時に捨てる）。
-    ///
-    /// ブラックジャックはチップ残高 → 10 回勝負の合計点（#2552）に変わり、桁が違う旧記録を残すと
-    /// 新しい点が永久に自己ベストを更新できない。新しい記録は別の区分キー（`blackjack#match10`）に書くので、
-    /// 区分なしの `blackjack` は以後書かれず、毎回捨てても新しい記録は消えない（冪等）。
-    static let retiredRecordKeys: Set<String> = ["blackjack"]
-
     /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
     ///
     /// `variantLabel` は保存した時点の文字列で、次に遊んで記録を更新するまで書き換わらない。改名後も
@@ -282,6 +275,20 @@ public final class PlayLog {
     static let renamedVariantLabels: [String: (old: String, new: String)] = [
         "ojisanpuzzle#backpain": (old: "腰痛モード", new: "荷運びモード"),  // i18n-keep: 記録に保存済みの区分名の読み替え
     ]
+
+    /// ルールが変わって**記録の数値の意味が変わった**ため読み飛ばす記録のキー（#2551）。
+    ///
+    /// ポーカーはチップ制（持ち点の枚数）から 10 回勝負の点数制に変わった。旧記録は桁が違い、残すと
+    /// 自己ベストもハブの「ベスト」もいつまでも旧記録のままになる。新しい記録は `poker#round10` に書く。
+    ///
+    /// ブラックジャックもチップ残高 → 10 回勝負の合計点（#2552）に変わった。新しい記録は区分キー
+    /// `blackjack#match10` に書くので、区分なしの `blackjack` は以後書かれず、毎回捨てても新しい記録は消えない（冪等）。
+    static let retiredRecordKeys: Set<String> = ["poker", "poker#bonus", "blackjack"]
+
+    /// 読み飛ばす記録を除いた結果を返す純粋関数（#2551）。
+    static func droppingRetiredRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        records.filter { !retiredRecordKeys.contains($0.key) }
+    }
 
     /// 保存済みの旧表示名を新表示名へ直した結果を返す純粋関数（#2176）。旧名以外のラベルには触れない。
     static func renamingStaleVariantLabels(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
@@ -298,7 +305,7 @@ public final class PlayLog {
     /// 新旧のキーが並存するため、片方を捨てると自己ベストか通算成績のどちらかが失われる。
     /// 合成後は旧キーを消すので、ハブに同じゲームの行が2つ出ることもなくなる。
     static func migratingLegacyRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
-        var result = records.filter { !retiredRecordKeys.contains($0.key) }
+        var result = records
         for (gameID, destination) in legacyRecordMigrations {
             guard var legacy = result[gameID] else { continue }
             legacy.variantLabel = destination.label

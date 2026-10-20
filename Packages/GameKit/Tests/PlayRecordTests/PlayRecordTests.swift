@@ -1130,23 +1130,27 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "concentration") == "1勝0敗")
     }
 
-    @Test("ポーカー: ラウンド終了時のチップが記録される")
-    func pokerRecordsChips() {
+    @Test("ポーカー: 10 回勝負の合計点が記録される（#2551）")
+    func pokerRecordsPoints() {
         let (log, defaults, name) = makeLog(suite: "poker")
         defer { defaults.removePersistentDomain(forName: name) }
 
         let model = PokerModel(services: makeServices(log: log))
         model.restartSession()
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
+        for _ in 0..<100 where !model.sessionOver {
+            switch model.phase {
+            case .exchange: model.confirmExchange()
+            case .drawn:    model.showdown()
+            case .result:   model.nextRound()
+            case .idle:     break
+            }
+        }
 
-        #expect(model.phase == .result)
-        let record = log.record(gameID: "poker")
+        #expect(model.sessionOver)
+        let record = log.record(gameID: "poker", variant: PokerModel.recordVariant)
         #expect(record?.metric == .points)
-        #expect(record?.bestPoints == model.playerChips)
+        #expect(record?.bestPoints == model.playerPoints)
         #expect(model.recordResult != nil)
     }
 

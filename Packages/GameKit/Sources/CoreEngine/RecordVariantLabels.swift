@@ -60,7 +60,12 @@ public enum RecordVariantLabels {
             // 10 回勝負の合計点（#2552）。チップ制だった頃の記録（区分なし）と分けるための区分。
             return variant == "match10" ? tr("10回勝負", language: language) : nil
         case "poker":
-            return variant == "bonus" ? tr("ボーナスルール", language: language) : nil
+            // `round10` は 10 回勝負（#2551）。`bonus` はチップ制の頃の区分で、記録は `PlayLog` が読み飛ばす。
+            switch variant {
+            case "round10": return tr("10回勝負", language: language)
+            case "bonus":   return tr("ボーナスルール", language: language)
+            default:        return nil
+            }
         case "runner":
             return variant == "endless" ? tr("エンドレス", language: language) : nil
         case "hanafuda":

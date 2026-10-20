@@ -27,7 +27,7 @@ struct PokerAccessibilityTests {
     }
 
     @Test("交換フェーズ以外では選択の状態を読まない", arguments: [
-        PokerPhase.idle, .dealing, .betting1, .cpuExchange, .betting2, .showdown, .result,
+        PokerPhase.idle, .drawn, .result,
     ])
     func selectionIsNotReadOutsideExchange(phase: PokerPhase) {
         #expect(
@@ -43,7 +43,7 @@ struct PokerAccessibilityTests {
     }
 
     @Test("選択のヒントは交換フェーズでだけ出す", arguments: [
-        PokerPhase.idle, .dealing, .betting1, .exchange, .cpuExchange, .betting2, .showdown, .result,
+        PokerPhase.idle, .exchange, .drawn, .result,
     ])
     func hintOnlyInExchange(phase: PokerPhase) {
         let hint = PokerAccessibility.handCardHint(phase: phase)
@@ -51,8 +51,8 @@ struct PokerAccessibilityTests {
         #expect(hint.isEmpty == (phase != .exchange))
     }
 
-    @Test("ポットは「ポット」と枚数を 1 文で読む") func potLabel() {
-        #expect(PokerAccessibility.potLabel(pot: 30) == "ポット30枚")
-        #expect(PokerAccessibility.potLabel(pot: 0) == "ポット0枚")
+    @Test("上の帯は回数と点を 1 文で読む（#2551）") func scoreboardLabel() {
+        #expect(PokerAccessibility.scoreboardLabel(round: 3, playerPoints: 12, cpuPoints: 8)
+                == "3回目 / 10、合計12点、CPU 8点")
     }
 }

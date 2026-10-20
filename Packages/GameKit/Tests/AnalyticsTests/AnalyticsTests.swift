@@ -1087,17 +1087,22 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.result == .loss)
     }
 
-    @Test("ポーカー: 配られた時点で開始・ラウンド決着で終局")
+    @Test("ポーカー: 10 回勝負の始めで開始・10 回目の決着で終局（#2551）")
     func poker() {
         let (services, spy) = makeServices()
         let model = PokerModel(services: services)
         #expect(spy.events.isEmpty, "画面を開いただけではラウンドが始まらない")
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
-        #expect(model.phase == .result)
+        // 10 回で 1 プレイ（#2551）。
+        for _ in 0..<100 where !model.sessionOver {
+            switch model.phase {
+            case .exchange: model.confirmExchange()
+            case .drawn:    model.showdown()
+            case .result:   model.nextRound()
+            case .idle:     break
+            }
+        }
+        #expect(model.sessionOver)
         expectOnePair(spy, gameID: "poker")
     }
 
