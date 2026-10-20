@@ -91,6 +91,17 @@
         }
       }
     },
+    "CPU" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU"
+          }
+        }
+      }
+    },
     "あなた" : {
       "extractionState" : "manual",
       "localizations" : {
