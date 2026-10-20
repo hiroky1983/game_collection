@@ -47,8 +47,8 @@ public final class CatPuzzleModel {
 
     private let services: GameServices?
     private var generator: SplitMix64?
-    /// 「戻す」用の印の履歴（保存しない）。
-    private var history: [[Mark]] = []
+    /// 「戻す」用の履歴（印と、出していたヒント。保存しない）。
+    private var history: [(marks: [Mark], hintCell: Int?)] = []
     private let stopwatch = GameStopwatch(persistInterval: CatPuzzleModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
     var clockNow: ElapsedClock.Now {
@@ -127,7 +127,7 @@ public final class CatPuzzleModel {
     /// マスをタップする。×（いない）→ 猫 → 空 の順に変わる。
     public func tap(cell: Int) {
         guard !isSolved, marks.indices.contains(cell) else { return }
-        history.append(marks)
+        history.append((marks, hintCell))
         let next: Mark
         switch marks[cell] {
         case .empty: next = .cross
@@ -158,10 +158,11 @@ public final class CatPuzzleModel {
         }
     }
 
-    /// 直前のタップを取り消す。
+    /// 直前のタップを取り消す（ヒントのマスに置いた猫を戻せば、ヒントの枠も戻る）。
     public func undo() {
         guard canUndo, let previous = history.popLast() else { return }
-        marks = previous
+        marks = previous.marks
+        hintCell = previous.hintCell
         moves += 1
         refreshViolations()
         services?.feedback.impact(.light)

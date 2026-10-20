@@ -28,10 +28,4 @@ public enum CatPuzzleAccessibility {
         if violations.kinds.contains(.adjacent) { words.append(tr("猫どうしが隣")) }
         return words.joined(separator: tr("・"))
     }
-
-    /// 上の帯の読み上げ（残りの猫・ミス・難易度）。
-    public static func statusLabel(remaining: Int, mistakes: Int, difficulty: String, isSolved: Bool) -> String {
-        let head = isSolved ? tr("全員みつけた！") : tr("残り %lld匹", remaining)
-        return [head, tr("ミス %lld", mistakes), difficulty].joined(separator: tr("、"))
-    }
 }

@@ -144,6 +144,19 @@ struct CatPuzzleModelTests {
         #expect(spy.events.filter { if case .rewardOffer = $0 { return true } else { return false } }.isEmpty, "広告は呼ばない")
     }
 
+    @Test("ヒントのマスに置いた猫を戻すと、ヒントの枠も戻る（回数は減らない）")
+    func undoRestoresHint() {
+        let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
+        model.useHint()
+        let target = model.hintCell!
+        placeCat(model, at: target)
+        #expect(model.hintCell == nil)
+        model.undo()
+        #expect(model.hintCell == target)
+        #expect(model.hintsUsed == 1)
+        #expect(!model.canHint, "出しているあいだは次のヒントを出さない")
+    }
+
     @Test("ヒントは空きの少ない部屋から出す")
     func hintPrefersNarrowRoom() {
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)

@@ -137,7 +137,5 @@ struct CatPuzzleLocalizationTests {
         #expect(CatPuzzleAccessibility.message(for: CatPuzzleViolations(cells: [0, 1], kinds: [.room, .adjacent]))
                 == "同じ部屋に2匹・猫どうしが隣")
         #expect(CatPuzzleAccessibility.message(for: CatPuzzleViolations()) == nil)
-        #expect(CatPuzzleAccessibility.statusLabel(remaining: 3, mistakes: 1, difficulty: "ふつう", isSolved: false)
-                == "残り 3匹、ミス 1、ふつう")
     }
 }
