@@ -12,8 +12,9 @@ struct BlackjackLocalizationTests {
         #expect(GameBlackjack.tr("スタンド", language: .english) == "Stand")
         #expect(GameBlackjack.tr("引き分け", language: .english) == "Push")
         #expect(GameBlackjack.tr("あなた%1$lld 対 ディーラー%2$lld", 19, 17, language: .english) == "You 19 vs. dealer 17")
-        #expect(GameBlackjack.tr("%lld枚", 1, language: .english) == "1 chip")
-        #expect(GameBlackjack.tr("%lld枚", 100, language: .english) == "100 chips")
+        #expect(GameBlackjack.tr("%lld点", 1, language: .english) == "1 pt")
+        #expect(GameBlackjack.tr("%lld点", 7, language: .english) == "7 pts")
+        #expect(GameBlackjack.tr("第%1$lld回 / %2$lld回", 3, 10, language: .english) == "Round 3 of 10")
     }
 
     @Test("日本語ではキーがそのまま出る")

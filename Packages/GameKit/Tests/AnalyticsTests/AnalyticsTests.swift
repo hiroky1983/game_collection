@@ -193,11 +193,11 @@ struct AnalyticsEventShapeTests {
 
     @Test("reward_offer は game_id / purpose / result の3鍵だけを持つ（#780）")
     func rewardOfferShape() {
-        let offer = AnalyticsEvent.rewardOffer(gameID: "blackjack", purpose: .revival, result: .notReady)
+        let offer = AnalyticsEvent.rewardOffer(gameID: "blackjack", purpose: .undo, result: .notReady)
         #expect(offer.name == "reward_offer")
         #expect(offer.parameters == [
             "game_id": .string("blackjack"),
-            "purpose": .string("revival"),
+            "purpose": .string("undo"),
             "result": .string("not_ready"),
         ])
     }
@@ -1122,8 +1122,8 @@ struct AllGamesAnalyticsTests {
     func blackjack() {
         let (services, spy) = makeServices()
         let model = BlackjackModel(services: services)
-        #expect(spy.events.isEmpty, "ベット前はラウンドが始まらない")
-        model.placeBet(100)
+        #expect(spy.events.isEmpty, "配る前はラウンドが始まらない")
+        model.deal()
         if model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
         expectOnePair(spy, gameID: "blackjack")
@@ -1744,7 +1744,7 @@ struct UntouchedSnapshotReopenTests {
     @Test("hasResumableSnapshot を実装する Module は hasUntouchedSnapshot も実装している")
     func resumableImpliesUntouched() throws {
         let exempt: [String: String] = [
-            "BlackjackModule.swift": "復活チップだけの保存は賭け待ちで、game_start は賭けた時点で数える",
+            "BlackjackModule.swift": "ラウンドの合間の保存は配る前で、game_start は配った時点で数える",
             "PokerModule.swift": "同上（局を持たない .idle の保存）",
             "RouletteModule.swift": "同上（口の無い賭け中の保存）",
             "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",

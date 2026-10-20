@@ -32,6 +32,13 @@ public enum BlackjackAccessibility {
         return value > 21 ? tr("%@、バスト", base) : base
     }
 
+    /// 10 回勝負の進み具合の読み上げ文（例: "第3回、10回中。合計2点、2連勝"）。
+    /// 画面の「第3回 / 10回」と点・連勝は別々の見た目なので、1 つの文にまとめて読ませる。
+    public static func statusLabel(round: Int, rounds: Int, score: Int, streak: Int) -> String {
+        let base = tr("第%1$lld回、%2$lld回中。合計%3$lld点", round, rounds, score)
+        return streak >= 2 ? tr("%1$@、%2$lld連勝", base, streak) : base
+    }
+
     /// 勝敗が決まったときの読み上げ文（#1574）。画面の勝敗バッジと同じ言葉で読ませる。
     ///
     /// - Parameter isSplit: スプリットしたラウンドか。手ごとに勝敗が割れうるので、

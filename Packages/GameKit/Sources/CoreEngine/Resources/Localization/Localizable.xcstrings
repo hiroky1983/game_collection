@@ -1146,6 +1146,17 @@
           }
         }
       }
+    },
+    "10回勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 rounds"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

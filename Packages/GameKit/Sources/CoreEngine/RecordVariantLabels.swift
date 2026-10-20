@@ -56,6 +56,9 @@ public enum RecordVariantLabels {
             return difficultyWord(variant, language: language)
         case "mahjong4":
             return variant == "singleHand" ? tr("一局戦", language: language) : nil
+        case "blackjack":
+            // 10 回勝負の合計点（#2552）。チップ制だった頃の記録（区分なし）と分けるための区分。
+            return variant == "match10" ? tr("10回勝負", language: language) : nil
         case "poker":
             return variant == "bonus" ? tr("ボーナスルール", language: language) : nil
         case "runner":

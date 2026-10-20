@@ -264,8 +264,13 @@ public final class PlayLog {
     /// 書き込み先が `gameID#variant` に変わるため、そのままでは旧記録がどこからも参照されず、
     /// 更新後の初回クリアが無条件に「新記録」になる（麻雀ソリティアが #239 で該当した）。
     /// 値は「区分が無かった頃に遊べた唯一の区分」= 既定区分を指す。
-    static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
-        "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle")),
+    ///
+    /// `resetsBestPoints` は、区分を入れた理由が**指標の意味の変更**のとき（ブラックジャックのチップ残高 →
+    /// 10 回勝負の合計点・#2552）に true。旧記録の自己ベストは桁が違い、そのまま引き継ぐと新しい点が
+    /// 永久に更新されないので、通算成績だけを移して自己ベストは捨てる。
+    static let legacyRecordMigrations: [String: (variant: String, label: String, resetsBestPoints: Bool)] = [
+        "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle"), resetsBestPoints: false),
+        "blackjack": (variant: "match10", label: RecordVariantLabels.stored(gameID: "blackjack", variant: "match10"), resetsBestPoints: true),
     ]
 
     /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
@@ -295,6 +300,7 @@ public final class PlayLog {
         for (gameID, destination) in legacyRecordMigrations {
             guard var legacy = result[gameID] else { continue }
             legacy.variantLabel = destination.label
+            if destination.resetsBestPoints { legacy.bestPoints = nil }
             let key = recordKey(gameID: gameID, variant: destination.variant)
             result[key] = result[key].map { legacy.merged(into: $0) } ?? legacy
             result[gameID] = nil

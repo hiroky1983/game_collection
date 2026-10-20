@@ -359,8 +359,7 @@ private func playSudoku(_ services: GameServices) async -> SudokuModel {
 private func playBlackjack(_ services: GameServices) -> BlackjackModel {
     let model = BlackjackModel(services: services, seed: 20260813)
     model.restartSession()
-    model.placeBet(999_999)  // 拒否（チップ不足）
-    model.placeBet(100)      // 成立（配り）
+    model.deal()
     if model.phase == .playerTurn { model.hit() }
     if model.phase == .playerTurn { model.stand() }
     // stand → ディーラー進行 → 決着。hit でバストした場合もその時点で決着。

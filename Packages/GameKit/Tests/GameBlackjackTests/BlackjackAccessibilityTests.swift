@@ -57,4 +57,13 @@ struct BlackjackAccessibilityTests {
         #expect(BlackjackAccessibility.totalLabel(owner: "ディーラー", value: 22) == "ディーラーの合計22、バスト")
         #expect(!BlackjackAccessibility.totalLabel(owner: "あなた", value: 21).contains("バスト"))
     }
+
+    @Test("10 回勝負の進み具合は回・点・連勝を 1 文で読む（連勝は 2 以上のときだけ）") func statusLabel() {
+        #expect(BlackjackAccessibility.statusLabel(round: 3, rounds: 10, score: 2, streak: 0)
+                == "第3回、10回中。合計2点")
+        #expect(BlackjackAccessibility.statusLabel(round: 3, rounds: 10, score: 2, streak: 1)
+                == "第3回、10回中。合計2点")
+        #expect(BlackjackAccessibility.statusLabel(round: 3, rounds: 10, score: 4, streak: 3)
+                == "第3回、10回中。合計4点、3連勝")
+    }
 }

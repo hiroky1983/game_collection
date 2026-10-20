@@ -6,12 +6,8 @@ public struct BlackjackView: View {
     private let services: GameServices
     /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
-    /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
-    @State private var reviveRescue = RewardedRescue()
-
-    // ベット選択肢。先頭は破産判定の境目（`BlackjackModel.minimumBet`）と必ず同じ額にする
-    // ——ここだけ動かすと「全ボタンが無効なのに破産にならない」残高が生まれる（#656）。
-    private let betOptions = [BlackjackModel.minimumBet, 100, 200, 500]
+    /// 負けた 1 回をやり直すリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var retryRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -29,9 +25,9 @@ public struct BlackjackView: View {
 
     public var body: some View {
         VStack(spacing: 10) {
-            chipsBar
+            statusBar
             // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
-            // ベットを促す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
+            // 配るのを促す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
             if isBeforeDeal {
                 Spacer(minLength: 0)
                 preDealTable
@@ -50,35 +46,34 @@ public struct BlackjackView: View {
                 .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
             }
             HowToPlayHint(.blackjack, playLog: services.playLog)
-            if model.sessionOver {
-                sessionOverView
+            if model.isMatchOver {
+                matchOverView
             } else {
                 actionArea
             }
-            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
+            RecommendationSlot(services: services, isFinished: model.phase == .result)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
+        .rewardOffer(retryRescue, for: .undo, isPresented: model.canRetryLoss,
                      services: services, gameID: model.gameID)
         .gameChrome(title: tr("ブラックジャック"), review: services.review)
         .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
         .onAppear {
             #if DEBUG
-            // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。
+            // 撮影・動作確認用: `-simulateBlackjackAction <split|hit|stand>` でその操作を1回行う（#439）。
             // 配りが乱数なので中断スナップショットを注入して手札を決め打ちしたうえで、
             // タップ起点の操作をここから起こす（#437 の `-simulateChord`・#438 の
             // `-simulate2048Move` と同型。撮った画がコードの実行結果であることを担保する）。
             let args = ProcessInfo.processInfo.arguments
-            // 撮影用（#1754）: 100枚を賭けて、そのままスタンドして決着の画を出す。配りは乱数なので
+            // 撮影用（#1754）: 配って、そのままスタンドして決着の画を出す。配りは乱数なので
             // 勝敗は撮るたびに変わる（実際のモデルの経路を通る）。
-            if args.contains("-blackjackAutoPlay"), model.phase == .betting {
-                model.placeBet(100)
+            if args.contains("-blackjackAutoPlay"), model.phase == .ready {
+                model.deal()
                 if model.phase == .playerTurn { model.stand() }
             }
             if let i = args.firstIndex(of: "-simulateBlackjackAction"), i + 1 < args.count {
                 switch args[i + 1] {
-                case "double": model.doubleDown()
                 case "split":  model.split()
                 case "hit":    model.hit()
                 case "stand":  model.stand()
@@ -88,38 +83,49 @@ public struct BlackjackView: View {
             #endif
         }
         .rewardedRescueAlerts(
-            reviveRescue,
-            notEarned: tr("チップは回復しませんでした"),
+            retryRescue,
+            notEarned: tr("やり直せませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: tr("チップは回復しませんでした"),
-                message: tr("広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。")
+                title: tr("やり直せませんでした"),
+                message: tr("広告を見ているあいだに勝負が変わったため、やり直しは適用していません。やり直しの権利は使っていません。")
             )
         )
     }
 
-    // MARK: - Chips Bar
+    // MARK: - Status Bar
 
-    private var chipsBar: some View {
+    /// 何回目か・合計点・連勝。10 回勝負の進み具合を常に見せる。
+    private var statusBar: some View {
         HStack {
-            Label(tr("チップ: %@枚", model.chips.formatted()), systemImage: "circle.hexagongrid.fill")
+            Label(tr("第%1$lld回 / %2$lld回", model.roundNumber, BlackjackModel.roundsPerMatch),
+                  systemImage: "flag.checkered")
                 .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
-            if model.bet > 0 {
-                Label(tr("ベット: %@枚", model.bet.formatted()), systemImage: "dollarsign.circle.fill")
-                    .themeBody(14)
+            if model.streak >= 2 {
+                Text(tr("%lld連勝", model.streak))
+                    .themeCaption(12, weight: .black, maxScale: 1.5)
                     .foregroundStyle(Theme.yellowText)
+                    .padding(.trailing, 8)
             }
+            Label(tr("%lld点", model.score), systemImage: "star.fill")
+                .themeBody(14)
+                .foregroundStyle(Theme.yellowText)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(BlackjackAccessibility.statusLabel(
+            round: model.roundNumber, rounds: BlackjackModel.roundsPerMatch,
+            score: model.score, streak: model.streak
+        ))
     }
 
     // MARK: - Pre-deal Table
 
-    /// 手札が両者とも空で、これからベットする局面か
+    /// 手札が両者とも空で、これから配る局面か
     private var isBeforeDeal: Bool {
-        model.phase == .betting && model.dealerHand.isEmpty && model.playerHand.isEmpty
+        model.phase == .ready && model.dealerHand.isEmpty && model.playerHand.isEmpty
     }
 
     private var preDealTable: some View {
@@ -129,7 +135,7 @@ public struct BlackjackView: View {
                 BJCardPlaceholder()
             }
             VStack(spacing: 6) {
-                Text(tr("ベットするとカードが配られます"))
+                Text(tr("カードを配って勝負しましょう"))
                     .themeBody(15, weight: .bold, maxScale: 1.5)
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
@@ -203,7 +209,7 @@ public struct BlackjackView: View {
 
     private var playerArea: some View {
         VStack(spacing: 10) {
-            // スプリットしたラウンドは手が2つに割れ、それぞれ賭け金も勝敗も別（#439）。
+            // スプリットしたラウンドは手が2つに割れ、勝敗がそれぞれ別（#439）。
             if model.hands.count > 1 {
                 ForEach(Array(model.hands.enumerated()), id: \.element.id) { idx, hand in
                     splitHandRow(index: idx, hand: hand)
@@ -273,11 +279,6 @@ public struct BlackjackView: View {
                     .themeBody(13)
                     .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
                     .accessibilityHidden(true)
-                Text(hand.isDoubled ? tr("%@枚（ダブル）", hand.bet.formatted()) : tr("%@枚", hand.bet.formatted()))
-                    .themeCaption(11, weight: .bold, maxScale: 1.5)
-                    .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
                 // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
                 if isActive {
                     Text(tr("操作中"))
@@ -369,8 +370,8 @@ public struct BlackjackView: View {
     @ViewBuilder
     private var actionArea: some View {
         switch model.phase {
-        case .betting:
-            bettingView
+        case .ready:
+            dealView
         case .playerTurn:
             playerActionView
         case .result:
@@ -393,23 +394,10 @@ public struct BlackjackView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private var bettingView: some View {
+    private var dealView: some View {
         VStack(spacing: 8) {
-            Text(tr("ベット額を選んでください"))
-                .themeCaption(13, weight: .semibold, maxScale: 1.5)
-                .lineLimit(2)
-                .minimumScaleFactor(0.6)
-                .foregroundStyle(Theme.inkSub)
-            HStack(spacing: 10) {
-                ForEach(betOptions, id: \.self) { amount in
-                    actionButton(
-                        tr("%lld枚", amount),
-                        role: .primary,
-                        disabled: model.chips < amount
-                    ) {
-                        model.placeBet(amount)
-                    }
-                }
+            actionButton(tr("カードを配る"), role: .primary) {
+                model.deal()
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -426,22 +414,10 @@ public struct BlackjackView: View {
                     model.hit()
                 }
             }
-            // ダブルダウン・スプリットは最初の2枚のときだけの選択肢（#439）。
-            // 手の形が合っているあいだだけ並べ、チップが足りないときは押せなくする。
-            if model.isDoubleDownApplicable || model.isSplitApplicable {
-                HStack(spacing: 12) {
-                    if model.isDoubleDownApplicable {
-                        actionButton(tr("ダブルダウン"), role: .declaration,
-                                     disabled: !model.canDoubleDown) {
-                            model.doubleDown()
-                        }
-                    }
-                    if model.isSplitApplicable {
-                        actionButton(tr("スプリット"), role: .declaration,
-                                     disabled: !model.canSplit) {
-                            model.split()
-                        }
-                    }
+            // スプリットは最初の2枚が同じ点数のときだけの選択肢（#439）。
+            if model.isSplitApplicable {
+                actionButton(tr("スプリット"), role: .declaration) {
+                    model.split()
                 }
             }
         }
@@ -452,6 +428,7 @@ public struct BlackjackView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
+            if model.canRetryLoss { retryButton }
             actionButton(tr("次のゲーム"), role: .primary) {
                 model.nextRound()
             }
@@ -460,88 +437,61 @@ public struct BlackjackView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    // MARK: - Session Over
+    // MARK: - Match Over
 
-    /// チップ切れの見出し下の説明。復活を使い切ったら選べる手を書き換える（#499）。
-    /// 数値は `Text` 補間の桁区切り（#484）を避けて文字列を先に組む。
-    ///
-    /// 復活できるあいだは、もらえる枚数と**順位表に載らないこと**を並べて書く（#523）。
-    /// 復活のほうがチップは多いので、失うものも選ぶ前に読めるようにする。SE は縦に余裕が無く、
-    /// 3 行にすると画面の上端がナビゲーションバーに潜るため、SE の幅で 1 行に収まる長さにしている。
-    private var sessionOverSubtitle: String {
-        model.canReviveAfterBust
-            ? tr("%lld枚で復活すると順位表に載りません", BlackjackModel.reviveChips)
-            : tr("復活はこのセッションで%lld回使いました。最初からやり直せます", BlackjackModel.maxRevivesPerSession)
+    /// 負けた 1 回をやり直す広告導線。1 回の勝負につき 1 回まで（残っているあいだだけ出す）。
+    private var retryButton: some View {
+        Button {
+            // 連打ガードと失敗アラートは共通側が持つ（#526）。広告とやり直しは
+            // `retryLossAfterAd()` が 1 本で受け持つ。見終えたのに適用できなかったときは
+            // 「視聴しなかった」ではなく適用できない旨を出す（#727）。
+            retryRescue.requestHandledByModel(withOutcome: { await model.retryLossAfterAd() })
+        } label: {
+            Label(tr("広告を見て負けた1回をやり直す"), systemImage: "play.rectangle.fill")
+                .themeBody(16).frame(maxWidth: .infinity)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+        }
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
+        .disabled(retryRescue.isWatching)
     }
 
-    /// 復活導線の文言。回数制限を見た目にも出す（#499）。
-    private var reviveButtonTitle: String {
-        model.revivesRemaining == 1
-            ? tr("広告を見て%lld枚で復活（最後の1回）", BlackjackModel.reviveChips)
-            : tr("広告を見て%1$lld枚で復活（あと%2$lld回）", BlackjackModel.reviveChips, model.revivesRemaining)
-    }
-
-    private var restartButtonTitle: String {
-        tr("最初からやり直す (%lld枚)", BlackjackModel.initialChips)
-    }
-
-    private var sessionOverView: some View {
+    /// 10 回を終えた画。決着の画（卓）は残したまま、操作欄を合計点と「もう一度」に差し替える。
+    private var matchOverView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "xmark.octagon.fill")
+                Image(systemName: "flag.checkered")
                     .scaledFont(24)
-                    .foregroundStyle(Theme.coralText)
+                    .foregroundStyle(Theme.yellowText)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
-                    // 「なくなりました」ではなく「足りません」と言う。
-                    Text(tr("チップが足りなくなりました"))
+                    Text(tr("%lld回勝負が終わりました", BlackjackModel.roundsPerMatch))
                         .themeBody(16, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.coralText)
-                    Text(sessionOverSubtitle)
+                        .foregroundStyle(Theme.ink)
+                    Text(tr("合計%1$lld点・最高%2$lld連勝", model.score, model.bestStreakInMatch))
                         .themeCaption(12, weight: .medium, maxScale: 1.5)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
-                        // SE では縦が詰まり、2 行の文言が 1 行目の途中で切られていた（#523 の撮影で発覚）。
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
             }
 
-            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
+            // 最後の回は resultView ではなくこちらが出るため、記録行もここに置く。
             RecordLabel(model.recordResult)
 
-            // チップ切れ復活（#499）。麻雀のトビ復活（#338）と同じ形
-            // （リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
-            // 使い切ったセッションではボタンごと消す。
-            if model.canReviveAfterBust {
-                Button {
-                    // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
-                    // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。見終えたのに
-                    // 適用できなかったときは「視聴しなかった」ではなく適用できない旨を出す（#727）。
-                    reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
-                } label: {
-                    // 残り回数（1セッションに3回まで・#2012）は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
-                    Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
-                        .themeBody(16).frame(maxWidth: .infinity)
-                        // 0.8 では SE で 2000 枚の文言が末尾で切れる（#523 の撮影で実測）。
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                }
-                .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
-                .disabled(reviveRescue.isWatching)
-            }
+            if model.canRetryLoss { retryButton }
 
             Button { model.restartSession() } label: {
-                Text(restartButtonTitle).themeBody(16)
+                Text(tr("もう一度%lld回勝負", BlackjackModel.roundsPerMatch)).themeBody(16)
             }
             .buttonStyle(GameButtonStyle(role: .primary, shape: .block))
-            // 広告のロード〜視聴中にやり直すと、見終えた復活が新しいセッションへ乗りかける（#727）。
+            // 広告のロード〜視聴中にやり直すと、見終えたやり直しが新しい勝負へ乗りかける（#727）。
             // モデル側でも照合しているが、押せる窓そのものを塞ぐ。
-            .disabled(reviveRescue.isWatching)
+            .disabled(retryRescue.isWatching)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)

@@ -165,16 +165,17 @@ struct GameCenterLeaderboardTests {
         )
         #expect(poker?.leaderboardID == GameCenterLeaderboard.pokerChips)
 
+        // ブラックジャックは賭けをなくした（#2552）ので順位表を持たない。
         let blackjack = GameCenterLeaderboard.score(
-            gameID: "blackjack", outcome: .draw, score: GameScore(metric: .points, points: 900)
+            gameID: "blackjack", outcome: .win, score: GameScore(metric: .points, points: 12)
         )
-        #expect(blackjack?.leaderboardID == GameCenterLeaderboard.blackjackChips)
+        #expect(blackjack == nil)
     }
 
     @Test("チップが 0 でも送る（0 は正当な記録）。points が無いときだけ送らない")
     func pointsBoundary() {
         let zero = GameCenterLeaderboard.score(
-            gameID: "blackjack", outcome: .loss, score: GameScore(metric: .points, points: 0)
+            gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 0)
         )
         #expect(zero?.value == 0)
 
@@ -297,7 +298,6 @@ struct GameCenterLeaderboardTests {
         let cases: [(String, GameScore)] = [
             ("2048", GameScore(metric: .points, points: 1)),
             ("poker", GameScore(metric: .points, points: 1)),
-            ("blackjack", GameScore(metric: .points, points: 1)),
             ("blocks", GameScore(metric: .points, points: 1)),
             // 区分キーは `MinesweeperDifficulty` のプリセット（#444 で 12×12/25・15×15/40 から変更）。
             ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "9x9-10")),
@@ -719,19 +719,18 @@ struct GameCenterPerGameTests {
         #expect(leaderboardID(for: "spider", in: log) == GameCenterLeaderboard.spiderTimeOneSuit)
     }
 
-    @Test("ブラックジャック: 精算後のチップが送られる")
+    @Test("ブラックジャック: 賭けをなくしたので、決着しても順位表には何も送らない（#2552）")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
         defer { defaults.removePersistentDomain(forName: name) }
         let spy = SpyGameCenterService()
 
         let model = BlackjackModel(services: makeServices(log: log, spy: spy))
-        model.placeBet(100)
+        model.deal()
         while model.phase == .playerTurn { model.hit() }   // バーストするまで引く
 
-        #expect(spy.scores.count == 1)
-        #expect(spy.scores.first?.leaderboardID == GameCenterLeaderboard.blackjackChips)
-        #expect(spy.scores.first?.value == model.chips)
+        #expect(model.phase == .result)
+        #expect(spy.scores.isEmpty)
     }
 
     @Test("オセロ: 投了しても順位表には何も送らない")

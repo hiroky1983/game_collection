@@ -310,7 +310,7 @@ struct ReviewHighlightTests {
             let (services, service) = makeServices(suite: suite)
             advanceWins(service, count: 4)
             let model = BlackjackModel(services: services, seed: seed)
-            model.placeBet(100)
+            model.deal()
             if model.phase == .playerTurn { model.stand() }
             return (model, service)
         }
@@ -671,7 +671,7 @@ struct GameOutcomeRoutingTests {
         let (services, service) = makeServices(suite: "route-blackjack")
         let model = BlackjackModel(services: services)
         model.restartSession()
-        model.placeBet(100)
+        model.deal()
         if model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
 

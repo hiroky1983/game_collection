@@ -854,19 +854,27 @@ struct GameRecordingTests {
         #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストにしない")
     }
 
-    @Test("ブラックジャック: 精算後のチップが最高記録になる")
-    func blackjackRecordsChips() {
+    @Test("ブラックジャック: 10 回勝負の合計点が、10 回目の決着で最高記録になる（#2552）")
+    func blackjackRecordsMatchScore() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
         defer { defaults.removePersistentDomain(forName: name) }
 
-        let model = BlackjackModel(services: makeServices(log: log))
-        model.placeBet(100)
-        while model.phase == .playerTurn { model.hit() }   // バーストするまで引く
-
-        let record = log.record(gameID: "blackjack")
+        let model = BlackjackModel(services: makeServices(log: log), seed: 7)
+        for round in 1...BlackjackModel.roundsPerMatch {
+            model.deal()
+            while model.phase == .playerTurn { model.stand() }
+            let record = log.record(gameID: "blackjack", variant: "match10")
+            #expect(record?.plays == round)
+            // 点は 10 回目の決着までは自己ベストに入れない（勝つたびの「新記録」表示を避ける）。
+            if round < BlackjackModel.roundsPerMatch {
+                #expect(record?.bestPoints == nil)
+                model.nextRound()
+            }
+        }
+        let record = log.record(gameID: "blackjack", variant: "match10")
         #expect(record?.metric == .points)
-        #expect(record?.bestPoints == model.chips)
-        #expect(record?.plays == 1)
+        #expect(record?.bestPoints == model.score)
+        #expect(model.isMatchOver)
     }
 
     @Test("オセロ: 投了で敗北が記録され、連勝は0に戻る")

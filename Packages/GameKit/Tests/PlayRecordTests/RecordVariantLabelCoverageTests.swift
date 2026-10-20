@@ -19,6 +19,7 @@ import GameAnzan
 import GameHanoi
 import GameOjisanPuzzle
 import GameSpeed
+@testable import GameBlackjack
 
 /// 区分（`recordVariant`）を持つゲームが、全部 `RecordVariantLabels` の表に載っていること（#2240）。
 ///
@@ -52,6 +53,7 @@ struct RecordVariantLabelCoverageTests {
         for preset in ["9x9-10", "16x16-40", "20x20-82"] { add("minesweeper", preset) }
         for mode in ShiritoriMode.allCases { add("shiritori", mode.scoreVariant?.key) }
         for layout in MahjongSolitaireLayout.all { add("mahjong", layout.id) }
+        add("blackjack", BlackjackModel.recordVariant)
         for level in SpeedLevel.allCases { add("speed", level.rawValue) }
         for mode in OjisanPuzzleMode.allCases { add("ojisanpuzzle", mode.recordVariant) }
         for digits in AnzanDigits.allCases {

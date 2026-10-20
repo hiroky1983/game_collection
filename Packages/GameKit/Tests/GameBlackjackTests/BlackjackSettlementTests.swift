@@ -15,10 +15,9 @@ struct BlackjackSettlementTests {
         ranks.enumerated().map { BlackjackCard(id: $0.offset, suit: .spades, rank: $0.element) }
     }
 
-    private let bet = 100
-
-    private func settle(player: [Int], dealer: [Int]) -> (outcome: BlackjackOutcome, chipDelta: Int) {
-        blackjackSettlement(player: hand(player), dealer: hand(dealer), bet: bet)
+    private func settle(player: [Int], dealer: [Int]) -> (outcome: BlackjackOutcome, points: Int) {
+        let outcome = blackjackSettlement(player: hand(player), dealer: hand(dealer))
+        return (outcome, outcome.points)
     }
 
     // MARK: - 受け入れ条件1: ディーラーのみナチュラル
@@ -27,21 +26,21 @@ struct BlackjackSettlementTests {
     func dealerNaturalBeatsThreeCardTwentyOne() {
         let result = settle(player: [7, 7, 7], dealer: [1, 13])
         #expect(result.outcome == .lose)
-        #expect(result.chipDelta == -bet)
+        #expect(result.points == 0)
     }
 
     @Test("ディーラーのみナチュラル × プレイヤーの4枚21 もディーラーの勝ち")
     func dealerNaturalBeatsFourCardTwentyOne() {
         let result = settle(player: [5, 6, 4, 6], dealer: [11, 1])
         #expect(result.outcome == .lose)
-        #expect(result.chipDelta == -bet)
+        #expect(result.points == 0)
     }
 
     @Test("ディーラーのみナチュラル × プレイヤー20 は従来どおり敗北")
     func dealerNaturalBeatsTwenty() {
         let result = settle(player: [10, 10], dealer: [1, 12])
         #expect(result.outcome == .lose)
-        #expect(result.chipDelta == -bet)
+        #expect(result.points == 0)
     }
 
     // MARK: - 受け入れ条件2: 既存の正しい挙動が変わらない
@@ -50,21 +49,21 @@ struct BlackjackSettlementTests {
     func bothNaturalIsPush() {
         let result = settle(player: [1, 10], dealer: [13, 1])
         #expect(result.outcome == .push)
-        #expect(result.chipDelta == 0)
+        #expect(result.points == 0)
     }
 
-    @Test("プレイヤーのみナチュラルは 1.5 倍払い")
-    func playerNaturalPaysOneAndAHalf() {
+    @Test("プレイヤーのみナチュラルは 2 点")
+    func playerNaturalScoresTwo() {
         let result = settle(player: [1, 11], dealer: [7, 7, 7])
         #expect(result.outcome == .playerBlackjack)
-        #expect(result.chipDelta == 150)
+        #expect(result.points == 2)
     }
 
     @Test("ディーラーがバストしたらプレイヤーの勝ち")
     func dealerBustIsWin() {
         let result = settle(player: [5, 6], dealer: [10, 9, 5])
         #expect(result.outcome == .win)
-        #expect(result.chipDelta == bet)
+        #expect(result.points == 1)
     }
 
     @Test("バストしていない同士は数字の大きい方が勝つ")
@@ -84,7 +83,23 @@ struct BlackjackSettlementTests {
     func dealerThreeCardTwentyOneBeatsTwenty() {
         let result = settle(player: [10, 10], dealer: [7, 7, 7])
         #expect(result.outcome == .lose)
-        #expect(result.chipDelta == -bet)
+        #expect(result.points == 0)
+    }
+
+    @Test("点は 勝ち 1・ブラックジャック 2・それ以外 0（#2552）")
+    func pointsPerOutcome() {
+        #expect(BlackjackOutcome.win.points == 1)
+        #expect(BlackjackOutcome.playerBlackjack.points == 2)
+        #expect(BlackjackOutcome.push.points == 0)
+        #expect(BlackjackOutcome.lose.points == 0)
+        #expect(BlackjackOutcome.bust.points == 0)
+    }
+
+    @Test("スプリットで作った 2 枚 21 はナチュラルにならず、ふつうの勝ち（1 点）")
+    func splitTwentyOneIsNotNatural() {
+        let outcome = blackjackSettlement(player: hand([1, 13]), dealer: hand([10, 7]), allowsPlayerNatural: false)
+        #expect(outcome == .win)
+        #expect(outcome.points == 1)
     }
 
     // MARK: - 判定の土台（A の柔軟評価とナチュラルの定義）

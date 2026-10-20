@@ -814,7 +814,7 @@ struct GameFinishCountingTests {
         let (services, service) = makeServices(suite: "count-blackjack")
         let model = BlackjackModel(services: services)
         model.restartSession()
-        model.placeBet(100)
+        model.deal()
         if model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
         #expect(service.log.totalFinishes == 1)

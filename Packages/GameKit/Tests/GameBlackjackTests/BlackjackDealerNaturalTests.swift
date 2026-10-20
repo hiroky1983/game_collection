@@ -7,9 +7,9 @@ import Core
 /// 配りは乱数なので、シードを走査して「ディーラーだけが 2 枚 21」の局と「両者ナチュラル」の局を見つける。
 @MainActor
 struct BlackjackDealerNaturalTests {
-    private func dealt(seed: UInt64, bet: Int = 100) -> BlackjackModel {
+    private func dealt(seed: UInt64) -> BlackjackModel {
         let model = BlackjackModel(seed: seed)
-        model.placeBet(bet)
+        model.deal()
         return model
     }
 
@@ -21,10 +21,11 @@ struct BlackjackDealerNaturalTests {
         let model = try #require(found)
         #expect(model.phase == .result)
         #expect(model.outcome == .lose)
-        #expect(model.chips == 1000 - 100)
+        #expect(model.score == 0)
+        #expect(model.roundsPlayed == 1)
     }
 
-    @Test("両者ナチュラルならプッシュで賭け金は動かない")
+    @Test("両者ナチュラルならプッシュで点は動かない")
     func bothNaturalPushes() throws {
         let found = (0..<200_000).lazy.map { self.dealt(seed: $0) }.first {
             isBlackjack($0.dealerHand) && isBlackjack($0.playerHand)
@@ -32,7 +33,7 @@ struct BlackjackDealerNaturalTests {
         let model = try #require(found)
         #expect(model.phase == .result)
         #expect(model.outcome == .push)
-        #expect(model.chips == 1000)
+        #expect(model.score == 0)
     }
 
     @Test("ディーラーがナチュラルでなければ従来どおりプレイヤーの手番になる")
