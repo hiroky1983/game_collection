@@ -179,7 +179,7 @@ public final class PlayLog {
         } else {
             stored = [:]
         }
-        self.records = Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(stored))
+        self.records = Self.renamingStaleVariantLabels(Self.migratingLegacyRecords(Self.droppingRetiredRecords(stored)))
         // 移し替えが起きた回だけ書き戻す。次の起動では旧キーが無いので何も起きない。
         if self.records != stored { persistRecords() }
     }
@@ -267,6 +267,18 @@ public final class PlayLog {
     static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
         "mahjong": (variant: "turtle", label: RecordVariantLabels.stored(gameID: "mahjong", variant: "turtle")),
     ]
+
+    /// 単位が変わって引き継げない旧記録の保存先（#2551）。読み込み時に捨てる。
+    ///
+    /// ポーカーはチップ制（`poker` / `poker#bonus`・自己ベストはチップ枚数）から、10 回勝負の点数制
+    /// （`poker#round10`）に変わった。単位が違う数字を同じ「ベスト」に並べると、新しい記録が
+    /// 旧チップの最高値に永久に勝てなくなる。
+    static let retiredRecordKeys: Set<String> = ["poker", "poker#bonus"]
+
+    /// 引き継げない旧記録を除いた結果を返す純粋関数（#2551）。
+    static func droppingRetiredRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        records.filter { !retiredRecordKeys.contains($0.key) }
+    }
 
     /// 区分の表示名を改名したゲームの、保存済みの旧表示名（#2176）。キーは `recordKey`、値は (旧名, 新名)。
     ///

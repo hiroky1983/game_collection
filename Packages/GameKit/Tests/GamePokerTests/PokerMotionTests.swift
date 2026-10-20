@@ -60,7 +60,7 @@ struct PokerMotionTests {
         #expect(Motion.showdownFlipDuration < Motion.showdownTotalDuration)
     }
 
-    @Test("View がショーダウンの反転とポットの数値遷移に結線されている")
+    @Test("View がショーダウンの反転と合計点の数値遷移に結線されている")
     func viewIsWiredToTheMotion() throws {
         let source = try Self.viewSource()
 
@@ -80,19 +80,19 @@ struct PokerMotionTests {
             "CPU の手札が素の CardView に戻っている"
         )
 
-        // ポットの数値遷移。
+        // 合計点の数値遷移。
         #expect(
             SourceScan.matchCount(of: #"\.contentTransition\(\.numericText\(value:"#, in: source) == 1,
-            "ポットの枚数に数値トランジションが掛かっていない"
+            "合計点に数値トランジションが掛かっていない"
         )
         #expect(
             SourceScan.matchCount(of: #"PokerMotion\.potChange"#, in: source) >= 1,
-            "ポットの枚数変化が PokerMotion.potChange で animate されていない"
+            "合計点の変化が PokerMotion.potChange で animate されていない"
         )
-        // 位置まで animate されると、画面が動く場面で数字だけがポットの枠の外へ滑る（実測）。
+        // 位置まで animate されると、画面が動く場面で数字だけが枠の外へ滑る（実測）。
         #expect(
             SourceScan.matchCount(of: #"\.geometryGroup\(\)"#, in: source) == 1,
-            "ポットの枚数に .geometryGroup() が付いていない（数字が枠外へ滑る）"
+            "合計点に .geometryGroup() が付いていない（数字が枠外へ滑る）"
         )
 
         // Reduce Motion に追従しない素の `.animation(` が紛れ込んでいないこと（#210）。

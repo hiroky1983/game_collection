@@ -279,7 +279,6 @@ struct CardGameHowToFiguresTests {
     private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
         [
             ("poker", .poker, PokerHowToFigures.items),
-            ("pokerBonus", .pokerBonus, PokerHowToFigures.bonusItems),
             ("concentration", .concentration, ConcentrationHowToFigures.items),
             ("blackjack", .blackjack, BlackjackHowToFigures.items),
             ("daifugo", .daifugo, DaifugoHowToFigures.items),
@@ -301,24 +300,23 @@ struct CardGameHowToFiguresTests {
         }
     }
 
-    @Test("ポーカーのボーナスルールは gameID が同じで all に入らず、スタンダードの項目に役ボーナスとダブルアップが加わる（#2268）")
-    func pokerBonusVariant() throws {
-        let standard = HowToPlayGuide.poker
-        let bonus = HowToPlayGuide.pokerBonus
-        #expect(bonus.gameID == standard.gameID)
-        #expect(!HowToPlayGuide.all.contains(bonus))
-        #expect(Array(bonus.items.prefix(standard.items.count)) == standard.items)
-        #expect(bonus.items.count == standard.items.count + 2)
-        #expect(PokerHowToFigures.guide(for: .standard).items.count == standard.items.count)
-        #expect(PokerHowToFigures.guide(for: .bonus).items.count == bonus.items.count)
+    @Test("ポーカーの遊び方に賭けの語は出ない・点数制の説明が入る（#2551）")
+    func pokerGuideHasNoGamblingWords() throws {
+        let guide = HowToPlayGuide.poker
+        let text = (guide.lines + guide.items.map(\.text) + guide.notes + [guide.title, guide.hint]).joined()
+        for word in ["チップ", "ベット", "ポット", "賭", "稼"] {
+            #expect(!text.contains(word), "\(word) が遊び方に残っている")
+        }
+        #expect(text.contains("10 回"))
+        #expect(PokerHowToFigures.guide.items.count == guide.items.count)
         let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GamePoker/PokerSheets.swift"))
-        #expect(code.contains("PokerHowToFigures.guide(for: rules)"), "開始シートに要点が埋まっていない")
+        #expect(code.contains("PokerHowToFigures.guide"), "開始シートに要点が埋まっていない")
     }
 
     @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GamePoker/PokerView.swift", "PokerHowToFigures.guide(for: model.rules)", "poker"),
+            ("GamePoker/PokerView.swift", "PokerHowToFigures.guide", "poker"),
             ("GameConcentration/ConcentrationView.swift", "HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items)", "concentration"),
             ("GameBlackjack/BlackjackView.swift", "HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items)", "blackjack"),
             ("GameDaifugo/DaifugoView.swift", "HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)", "daifugo"),

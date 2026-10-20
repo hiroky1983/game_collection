@@ -5,11 +5,14 @@ import Core
 // MARK: - Game Phase
 
 public enum PokerPhase: String, Equatable, Sendable, Codable {
-    case idle, dealing, betting1, exchange, cpuExchange, betting2, showdown, result
-}
-
-public enum PokerBetAction: Sendable {
-    case check, bet(Int), fold
+    /// 勝負の前（開始シート）。局を持たない。
+    case idle
+    /// 捨てる札を選んでいる。
+    case exchange
+    /// 1 回めの交換を終えて、勝負に進むか、広告でもう 1 回交換するかを選んでいる（その勝負でまだ使っていないときだけ）。
+    case exchanged
+    /// 1 回ぶんの決着。次の回へ進むか、10 回目なら勝負の終わり。
+    case result
 }
 
 public enum PokerWinner: String, Sendable, Codable {
@@ -18,33 +21,28 @@ public enum PokerWinner: String, Sendable, Codable {
 
 // MARK: - Snapshot
 
+/// 中断データ。**非 optional の鍵（`round` など）を持つ**ので、チップ制だった頃の旧データは
+/// デコードに失敗し、`FileSnapshotStore` が読み飛ばして消す（#2551）。
 struct PokerSnapshot: Codable {
     let playerHand: [PokerCard]
     let cpuHand: [PokerCard]
     let deck: [PokerCard]
-    let playerChips: Int
-    let cpuChips: Int
-    let pot: Int
     let phase: PokerPhase
-    let currentBet: Int
-    let playerBetInRound: Int
-    let cpuBetInRound: Int
-    let cpuFolded: Bool
+    /// 今が何回目か（1〜10）。
+    let round: Int
+    let totalPoints: Int
+    let playerWins: Int
+    let cpuWins: Int
+    let draws: Int
+    /// 作った一番強い役（`PokerHandRank.rawValue`）。まだ決着が無ければ nil。
+    let bestRank: Int?
+    /// この勝負で「もう 1 回交換」を使ったか。
+    let extraExchangeUsed: Bool
+    /// この回で交換を終えた回数（0〜2）。
+    let exchangesDone: Int
     let cpuAction: String
-    /// その局に焼き込まれたルール（#496）。**旧データには鍵が無い**ので optional のまま置く
-    /// （非 optional にすると旧データのデコードが丸ごと失敗し、中断が黙って消える）。
-    /// 復元時に nil ならスタンダードとして扱う。既定値があるので既存の呼び出しは変わらない。
-    var rules: PokerRuleSet? = nil
-    /// チップ切れ復活（#499）をこのセッションで使い切ったか。中断を挟んでも
-    /// 「1 セッション 1 回まで」を守るために持ち回る（麻雀のトビ復活 #338 と同じ方式）。
-    /// `rules` と同じく**旧データには鍵が無い**ので optional のまま置き、nil は「まだ使っていない」に倒す。
-    var hasRevivedThisSession: Bool? = nil
-    /// この局を始める前（アンティを引く前）の持ち点。決着の「±チップ」表示（#1754）に使う。
-    /// **旧データには鍵が無い**ので optional のまま置き、nil は「増減は出さない」に倒す。
-    var handStartChips: Int? = nil
-    /// 復活を使った回数（#2012 で 1 回 → 3 回に拡げた）。**旧データには鍵が無い**ので optional のまま置き、
-    /// nil のときは `hasRevivedThisSession` から 1 回（使用済み）か 0 回（未使用）に倒す。
-    var reviveCount: Int? = nil
+    /// 直近の決着でもらった点。`.result` を復元したときに出す。
+    let lastRoundPoints: Int
 }
 
 // MARK: - Model
@@ -54,106 +52,49 @@ struct PokerSnapshot: Codable {
 public final class PokerModel {
     public private(set) var playerHand: [PokerCard] = []
     public private(set) var cpuHand: [PokerCard] = []
-    public private(set) var playerChips: Int
-    public private(set) var cpuChips: Int
-    public private(set) var pot: Int = 0
     public private(set) var phase: PokerPhase = .idle
     public private(set) var winner: PokerWinner? = nil
     public private(set) var playerHandRank: PokerHandRank = .highCard
     public private(set) var cpuHandRank: PokerHandRank = .highCard
     public private(set) var selectedForExchange: Set<Int> = []
-    public private(set) var currentBet: Int = 0       // bet level this round
-    public private(set) var playerBetInRound: Int = 0
-    public private(set) var cpuBetInRound: Int = 0
-    public private(set) var cpuFolded: Bool = false
     public private(set) var cpuAction: String = ""
-    public private(set) var sessionOver: Bool = false   // チップ0で全体終了
-    public private(set) var sessionWinner: PokerWinner? = nil
-    /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
+    /// 直近のラウンドで確定した自己ベスト（#115）。勝負が終わったときに 1 行出す。
     public private(set) var recordResult: RecordResult?
-    /// 直近の局を始める前の持ち点（アンティ前）。中断データに載せて、復元した局でも増減を出せるようにする（#1754）。
-    private var handStartChips: Int?
-    /// 直近の局で決着した時点の自分の増減（役ボーナス込み・ダブルアップ前）。次の局が始まるまで残る。
-    public private(set) var handNetChips: Int?
-    /// 直近の局をプレイヤーのフォールドで終えたか。決着の理由（#1754）を「降りた」と「手で負けた」に分ける。
-    public private(set) var playerFolded = false
 
-    // MARK: ルール分岐（#496）
+    /// 今が何回目か（1〜`PokerMatch.roundsPerMatch`）。勝負の前は 0。
+    public private(set) var round = 0
+    /// これまでの合計点。
+    public private(set) var totalPoints = 0
+    public private(set) var playerWins = 0
+    public private(set) var cpuWins = 0
+    public private(set) var draws = 0
+    /// 作った一番強い役。まだ決着が無ければ nil。
+    public private(set) var bestRank: PokerHandRank?
+    /// 直近の決着でもらった点（負け・引き分けは 0）。
+    public private(set) var lastRoundPoints = 0
+    /// この勝負で「もう 1 回交換」を使ったか。1 回の勝負につき 1 回まで。
+    public private(set) var extraExchangeUsed = false
+    /// この回で交換を終えた回数。2 回めの交換のあとは CPU を待たずに決着する。
+    private var exchangesDone = 0
 
-    /// **その局に焼き込まれた**ルール。`startGame(rules:)` でだけ変わり、局中は動かない。
-    public private(set) var rules: PokerRuleSet = .standard
-    /// 直近の勝負でプレイヤーに配当された役ボーナス（0 なら無し）。リザルトに1行出す。
-    public private(set) var playerBonus: Int = 0
-    /// 直近の勝負で CPU に配当された役ボーナス。
-    public private(set) var cpuBonus: Int = 0
-    /// ダブルアップに賭けられるチップ（この局でプレイヤーが勝ち取った額）。
-    public private(set) var pendingWinnings: Int = 0
-    /// ダブルアップの進行状態。挑戦していなければ nil。
-    public private(set) var doubleUp: PokerDoubleUp?
-    /// ダブルアップの決着待ちで、まだこの局の記録を確定していない。
-    public private(set) var awaitsDoubleUp: Bool = false
-
-    /// ダブルアップの連続上限。ここに達したら自動的に受け取って打ち止めにする。
-    public static let maxDoubleUpStreak = 5
-
-    /// ダブルアップに挑戦できるか。
-    ///
-    /// 山札を 2 枚（見せ札 + めくり札）使うので、残りが足りない局では出さない。
-    public var canStartDoubleUp: Bool {
-        awaitsDoubleUp && doubleUp == nil && pendingWinnings > 0 && deck.count >= 2
+    /// 最後の回の決着まで済んだ（勝負の終わり）。
+    public var isMatchOver: Bool {
+        phase == .result && round >= PokerMatch.roundsPerMatch
     }
 
-    public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
-
-    // MARK: チップ切れ復活（#499）
-
-    /// 復活で戻るプレイヤーのチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
-    ///
-    /// **無料の「もう一度はじめる」（`initialChips`）より必ず多くする**（#523 会長決裁 C 案）。以前は半分の
-    /// 50 枚で、復活は順位表にも載らないため無料のやり直しの完全な下位互換になり、`revival` が 0 件だった。
-    /// CPU との 1 対 1 ではチップの多さがそのまま勝ちやすさになるので、ブラックジャック（倍）より控えめの
-    /// 1.5 倍にしている。CPU 側は復活でも `initialChips` のまま。
-    public static let reviveChips = 150
-
-    /// 1 セッションで広告復活できる上限回数（#2012。当初は 1 回・#499）。
-    public static let maxRevivesPerSession = 3
-
-    /// このセッションで復活を使った回数。上限（`maxRevivesPerSession`）までの制限に使う。
-    private var reviveCount = 0
-
-    /// このセッションで復活を 1 回でも使ったか。順位表の資格に使う（回数に関わらず外れる）。
-    private var hasRevivedThisSession: Bool { reviveCount > 0 }
-
-    /// あと何回復活できるか（画面の文言用）。
-    public var revivesRemaining: Int { max(0, PokerModel.maxRevivesPerSession - reviveCount) }
-
-    /// セッションの通し番号。`restartSession()` で進む。広告のあいだに同じ画面の中で
-    /// セッションが入れ替わったかを照合する（#728。画面の世代は同じ画面の中では進まない）。
-    private var sessionSerial = 0
-
-    /// チップ切れをリワード広告で取り消せる状態か（#499）。
-    ///
-    /// **自分のチップが尽きて終わった**ときにだけ立てる。CPU が尽きた（＝こちらの勝ち）・
-    /// 相打ちの回に出しても続ける動機が無く、麻雀のトビ復活（#338）が「自分がトビたときだけ」に
-    /// 絞っているのと同じ判断。1 セッション 3 回まで（#2012）。
-    public var canReviveAfterBust: Bool {
-        sessionOver && sessionWinner == .cpu && revivesRemaining > 0
-    }
-
-    /// ラウンドの決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    /// 勝負全体の結果。評価リクエスト（#53）の判定にも使う。勝った回が多いほうが勝ち。
     public var reviewOutcome: GameOutcome {
-        switch winner {
-        case .player: return .win
-        case .tie:    return .draw
-        default:      return .loss
-        }
+        if playerWins > cpuWins { return .win }
+        if playerWins < cpuWins { return .loss }
+        return .draw
+    }
+
+    /// 「もう 1 回交換」（リワード広告）を出してよいか。その勝負で未使用の、1 回めの交換のあとだけ。
+    public var canUseExtraExchange: Bool {
+        phase == .exchanged && !extraExchangeUsed
     }
 
     private var deck: [PokerCard] = []
-    /// セッション開始時の持ちチップ（プレイヤー・CPU 共通）。
-    static let initialChips = 100
-    private let anteAmount = 10
-    private let betAmount = 20
     private let services: GameServices?
 
     let gameID = "poker"
@@ -161,7 +102,7 @@ public final class PokerModel {
     /// ショーダウンで CPU の 5 枚が返り終わり、役名が出るまでの時間（#667）。勝敗の触覚をここまで遅らせる。
     /// `.zero` なら従来どおり決着の瞬間に鳴らす。
     private let showdownRevealDelay: Duration
-    /// 局の通し番号。遅らせた勝敗の触覚が、次の局に入ってから鳴らないように照合する（#667）。
+    /// 回の通し番号。遅らせた勝敗の触覚や広告の視聴が、次の回に入ってから効かないように照合する（#667）。
     private var roundSerial = 0
     /// 遅らせた勝敗の触覚を待っている `Task`（#667）。
     private(set) var outcomeNoticeTask: Task<Void, Never>?
@@ -172,101 +113,49 @@ public final class PokerModel {
         self.services = services
         self.showdownRevealDelay = showdownRevealDelay
         if let snap = services?.snapshots.load(PokerSnapshot.self, for: "poker") {
-            self.playerHand      = snap.playerHand
-            self.cpuHand         = snap.cpuHand
-            self.deck            = snap.deck
-            self.playerChips     = snap.playerChips
-            self.cpuChips        = snap.cpuChips
-            self.pot             = snap.pot
-            self.phase           = snap.phase
-            self.currentBet      = snap.currentBet
-            self.playerBetInRound = snap.playerBetInRound
-            self.cpuBetInRound   = snap.cpuBetInRound
-            self.cpuFolded       = snap.cpuFolded
-            self.cpuAction       = snap.cpuAction
-            // 旧データには鍵が無い。中断前の局はスタンダードしか存在しなかったのでそれに倒す。
-            self.rules           = snap.rules ?? .standard
-            // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
-            self.reviveCount = max(snap.reviveCount ?? 0, snap.hasRevivedThisSession == true ? 1 : 0)
-            self.handStartChips = snap.handStartChips
-            // `.idle` を書くのは `persistRoundWaiting` だけ（局を持たない中断データ・#1104）。
-            // 戻った先は次の局の開始シートで「続き」ではないので、中断のお知らせ（#663）の対象から
-            // 外す（#1145）。保存時の `notifyRoundWaitingSnapshot` は**保存したプロセスの中**でしか
-            // 効かない（`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）ため、
-            // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
-            if snap.phase == .idle {
-                self.services?.gameDidRestoreFinished(gameID: gameID)
+            self.playerHand = snap.playerHand
+            self.cpuHand = snap.cpuHand
+            self.deck = snap.deck
+            self.phase = snap.phase
+            self.round = snap.round
+            self.totalPoints = snap.totalPoints
+            self.playerWins = snap.playerWins
+            self.cpuWins = snap.cpuWins
+            self.draws = snap.draws
+            self.bestRank = snap.bestRank.flatMap(PokerHandRank.init(rawValue:))
+            self.extraExchangeUsed = snap.extraExchangeUsed
+            self.exchangesDone = snap.exchangesDone
+            self.cpuAction = snap.cpuAction
+            self.lastRoundPoints = snap.lastRoundPoints
+            if snap.phase == .result {
+                // 決着の画は中断データに持っていないので、手札から数え直す。
+                playerHandRank = HandEvaluator.evaluate(playerHand).rank
+                cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
+                let cmp = HandEvaluator.compare(playerHand, cpuHand)
+                winner = cmp > 0 ? .player : cmp < 0 ? .cpu : .tie
             }
-        } else {
-            self.playerChips = PokerModel.initialChips
-            self.cpuChips    = PokerModel.initialChips
         }
     }
 
     private func persist() {
-        let savablePhases: [PokerPhase] = [.betting1, .exchange, .cpuExchange, .betting2]
-        guard savablePhases.contains(phase) else {
-            // 局は進んでいないが、残高と復活（#499）の「使い切った」印だけは残す（#1104・#1714）。
-            // 捨てると、広告を見た直後に次の局を始める前で離れた人が報酬を丸ごと失い（#523 で
-            // 復活の枚数を初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
-            // 復活していない通常のセッションも同じで、決着直後に離れると勝ち負けが初期額へ戻ってしまう。
-            // 破産（`sessionOver`）後は残高に続きが無いので、従来どおり捨てる。
-            if !sessionOver {
-                persistRoundWaiting()
-                return
-            }
+        guard phase != .idle, !isMatchOver else {
             services?.snapshots.clear(for: gameID)
             return
         }
         let snap = PokerSnapshot(
             playerHand: playerHand, cpuHand: cpuHand, deck: deck,
-            playerChips: playerChips, cpuChips: cpuChips, pot: pot,
-            phase: phase, currentBet: currentBet,
-            playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
-            cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules,
-            hasRevivedThisSession: hasRevivedThisSession,
-            handStartChips: handStartChips,
-            reviveCount: reviveCount
+            phase: phase, round: round, totalPoints: totalPoints,
+            playerWins: playerWins, cpuWins: cpuWins, draws: draws,
+            bestRank: bestRank?.rawValue,
+            extraExchangeUsed: extraExchangeUsed, exchangesDone: exchangesDone,
+            cpuAction: cpuAction, lastRoundPoints: lastRoundPoints
         )
         try? services?.snapshots.save(snap, for: gameID)
-    }
-
-    /// 局を持たない「次の局待ち」の中断データ（#1104・#1714）。セッションの両者の残高と
-    /// 「復活を使い切った」印だけを持ち回る。
-    ///
-    /// 決着の画（`winner` と役は中断データに持っていない）を復元しても読めないので、局は書かずに
-    /// `.idle` で戻す。画面側は復元した局面が `.idle` なら開始シートを出す（`PokerView.init`）。
-    private func persistRoundWaiting() {
-        let snap = PokerSnapshot(
-            playerHand: [], cpuHand: [], deck: [],
-            playerChips: playerChips, cpuChips: cpuChips, pot: 0,
-            phase: .idle, currentBet: 0,
-            playerBetInRound: 0, cpuBetInRound: 0,
-            cpuFolded: false, cpuAction: "", rules: rules,
-            hasRevivedThisSession: hasRevivedThisSession,
-            reviveCount: reviveCount
-        )
-        try? services?.snapshots.save(snap, for: gameID)
-        notifyRoundWaitingSnapshot()
-    }
-
-    /// 局を持たない中断データを書いたことを、解析とお知らせへ伝える（#1104。CodeRabbit の指摘）。
-    ///
-    /// `GameServices.gameDidLeave` は**中断データの有無だけ**で「続きから戻れる」と判定するので、
-    /// 伝えないと (1) 離脱が休憩として数えられ `game_end` の `duration_sec` にハブ滞在が混ざる
-    /// （ダブルアップの決着待ちで離れた場合。局が閉じていれば既に `gameDidFinish` 済みで影響しない）
-    /// (2)「途中のままです」のお知らせが、続きの無い局に予約される。
-    /// どちらも次の局を始めた時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
-    private func notifyRoundWaitingSnapshot() {
-        services?.gameWillNotResume(gameID: gameID)
-        services?.gameDidRestoreFinished(gameID: gameID)
     }
 
     // MARK: - 決着の表示（#1754）
 
-    /// 決着した局の、卓の中央に出す結果。`.result` でなければ nil。
-    ///
-    /// ボーナスルールの増減は役ボーナスを含み、ダブルアップの結果は含まない（局の決着はそこまで）。
+    /// 決着した回の、卓の中央に出す結果。`.result` でなければ nil。
     public var handResult: HandResult? {
         guard phase == .result, let winner else { return nil }
         let kind: HandResult.Kind
@@ -277,41 +166,22 @@ public final class PokerModel {
         case .cpu:    (kind, headline, spoken) = (.lose, tr("負け"), tr("負けです"))
         case .tie:    (kind, headline, spoken) = (.draw, tr("引き分け"), tr("引き分けです"))
         }
-        let reason: String
-        if cpuFolded {
-            reason = tr("CPUがフォールド")
-        } else if playerFolded {
-            reason = tr("あなたがフォールド")
-        } else if winner == .tie {
-            reason = tr("どちらも%@", playerHandRank.description)
-        } else {
-            reason = tr("%1$@ 対 %2$@", playerHandRank.description, cpuHandRank.description)
-        }
-        var note = reason
-        if winner == .player, playerBonus > 0 { note += tr("（役ボーナス+%lld枚込み）", playerBonus) }
-        if winner == .cpu, cpuBonus > 0 { note += tr("（CPUに役ボーナス+%lld枚）", cpuBonus) }
-        return HandResult(kind: kind, headline: headline, reason: note,
-                          chipDelta: handNetChips, spokenResult: spoken)
+        var reason = winner == .tie
+            ? tr("どちらも%@", playerHandRank.description)
+            : tr("%1$@ 対 %2$@", playerHandRank.description, cpuHandRank.description)
+        if lastRoundPoints > 0 { reason += tr("（+%lld点）", lastRoundPoints) }
+        return HandResult(kind: kind, headline: headline, reason: reason,
+                          chipDelta: nil, spokenResult: spoken)
     }
 
     // MARK: - CPU の行動の表示（#2166）
 
     /// CPU の行動のバッジに出す文言。
     ///
-    /// `cpuAction` は中断データ（`PokerSnapshot.cpuAction`）に載る値なので、これまでどおり日本語の原文で持ち、
-    /// 訳は表示の境目のここで引く（保存した時点の言語に固まらない・旧データもそのまま読める）。
+    /// `cpuAction` は中断データ（`PokerSnapshot.cpuAction`）に載る値なので、日本語の原文で持ち、
+    /// 訳は表示の境目のここで引く（保存した時点の言語に固まらない）。
     public var cpuActionLabel: String {
-        switch cpuAction {
-        case "チェック":          return tr("チェック")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-        case "コール":            return tr("コール")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-        case "フォールド":        return tr("フォールド")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-        case "あなたがフォールド": return tr("あなたがフォールド")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-        case "カード交換なし":    return tr("カード交換なし")  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-        default: break
-        }
-        if cpuAction.hasPrefix("ベット "), let amount = Int(cpuAction.dropFirst(4)) {  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-            return tr("ベット %lld", amount)
-        }
+        if cpuAction == "カード交換なし" { return tr("カード交換なし") }  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
         if cpuAction.hasSuffix("枚交換"), let count = Int(cpuAction.dropLast(3)) {  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
             return tr("%lld枚交換", count)
         }
@@ -320,84 +190,139 @@ public final class PokerModel {
 
     // MARK: - Start
 
-    /// 1 局を始める。
+    /// 新しい勝負（10 回）を始めて、1 回めを配る。
     ///
-    /// - Parameter rules: この局に**焼き込む**ルール。nil なら直前の局と同じものを使い続ける
-    ///   （リザルトの「次のゲーム」は開始シートを出さないため）。ここでしかルールは変わらない。
-    public func startGame(rules: PokerRuleSet? = nil) {
-        // 決着待ちのダブルアップが残っていたら、賭け金を受け取ってこの局を閉じてから次へ進む
-        // （持ち点が確定してからでないと `canStartRound` を正しく判定できない）。
-        concludeRoundIfNeeded()
-        // 局の進行中は始め直さない。開始ボタンの連打で 2 回届くと、アンティが二重に引かれ
-        // 1 回目のぶんがポットから消え、`game_start` も二重に数えられる（#2416）。
-        guard phase == .idle || phase == .result else { return }
-        guard canStartRound else { return }
+    /// 勝負の前（`.idle`）か、前の勝負が終わったあとだけ受け付ける。進行中に開始ボタンが連打されても
+    /// 二重に始めない（`game_start` の二重計上を避ける・#2416）。
+    public func startGame() {
+        guard phase == .idle || isMatchOver else { return }
+        round = 0
+        totalPoints = 0
+        playerWins = 0
+        cpuWins = 0
+        draws = 0
+        bestRank = nil
+        extraExchangeUsed = false
+        recordResult = nil
+        dealRound()
+        // 1 勝負 = 1 プレイ（`gameDidFinish` も勝負ごとに呼んでいる）。
+        // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
+        services?.gameDidRestart(gameID: gameID)
+        // 配った時点から、捨てれば途中離脱として数える（#500）。
+        services?.gameDidProgress(gameID: gameID)
+    }
+
+    /// 次の回を配る。決着のあと、10 回目でなければ受け付ける。
+    public func nextRound() {
+        guard phase == .result, !isMatchOver else { return }
+        dealRound()
+    }
+
+    private func dealRound() {
         roundSerial += 1
-        if let rules { self.rules = rules }
-        playerBonus = 0
-        cpuBonus = 0
-        pendingWinnings = 0
-        doubleUp = nil
-        awaitsDoubleUp = false
-        cpuFolded = false
+        round += 1
         winner = nil
         cpuAction = ""
         selectedForExchange = []
-        currentBet = 0
-        playerBetInRound = 0
-        cpuBetInRound = 0
+        exchangesDone = 0
+        lastRoundPoints = 0
         playerHandRank = .highCard
         cpuHandRank = .highCard
-        sessionOver = false
-        sessionWinner = nil
-
-        handStartChips = playerChips
-        handNetChips = nil
-        playerFolded = false
-        // アンティ
-        let playerAnte = min(anteAmount, playerChips)
-        let cpuAnte    = min(anteAmount, cpuChips)
-        playerChips -= playerAnte
-        cpuChips    -= cpuAnte
-        pot = playerAnte + cpuAnte
 
         deck = makeDeck().shuffled()
         playerHand = Array(deck.prefix(5))
         cpuHand = Array(deck.dropFirst(5).prefix(5))
         deck = Array(deck.dropFirst(10))
 
-        phase = .betting1
+        phase = .exchange
         services?.feedback.impact(.medium) // カードを配る
         persist()
-        // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
-        // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
-        services?.gameDidRestart(gameID: gameID)
-        // 配った時点でアンティは徴収済み。ここから捨てれば途中離脱として数える（#500）。
-        services?.gameDidProgress(gameID: gameID)
     }
 
-    /// ラウンドの決着。触覚で伝え、ダブルアップの決着待ちでなければその場で記録を確定する。
-    ///
-    /// ボーナスルールでプレイヤーが勝ち取ったチップはダブルアップで増減しうるので、
-    /// **記録（自己ベスト・GC 送信）はダブルアップが終わってから**確定させる（`concludeRound`）。
-    /// 触覚だけは勝敗が決まった瞬間に返す。
-    ///
-    /// - Parameter noticeDelay: 勝敗の触覚を遅らせる時間。ショーダウンでは CPU の手札が返り終わるまで待つ（#667）。
-    private func settleRound(noticeDelay: Duration = .zero) {
-        handNetChips = handStartChips.map { playerChips - $0 }
-        notifyOutcome(after: noticeDelay)
-        if rules == .bonus, winner == .player, pendingWinnings > 0, deck.count >= 2 {
-            awaitsDoubleUp = true
-            // 記録（`gameDidFinish`）はダブルアップが終わるまで先送りだが、解析の `game_end` はここで
-            // 確定させる（#2237）。後回しにすると、提示中にハブへ戻った時点で `gameDidLeave` が先に走り、
-            // 勝った局が `quit` で送られる（しりとり・麻雀と同じ作法）。あとの `gameDidFinish` は二重に送らない。
-            services?.gameDidDecide(gameID: gameID, outcome: reviewOutcome)
-            return
+    // MARK: - Exchange
+
+    public func toggleCardSelection(_ card: PokerCard) {
+        guard phase == .exchange else { return }
+        if selectedForExchange.contains(card.id) {
+            selectedForExchange.remove(card.id)
+        } else {
+            selectedForExchange.insert(card.id)
         }
-        concludeRound()
+        services?.feedback.impact(.rigid)
     }
 
-    /// 勝敗の触覚を鳴らす。`delay` があれば、その間に次の局へ進んでいないことを確かめてから鳴らす（#667）。
+    /// 選んだ札を引き直す。1 回めの交換のあとは CPU も交換し、その勝負で「もう 1 回交換」を使えるなら
+    /// 勝負に進むか選ばせる。使えないなら、そのまま決着する。
+    public func confirmExchange() {
+        guard phase == .exchange else { return }
+        for i in playerHand.indices where selectedForExchange.contains(playerHand[i].id) {
+            if let newCard = deck.first {
+                deck.removeFirst()
+                playerHand[i] = newCard
+            }
+        }
+        selectedForExchange = []
+        exchangesDone += 1
+        services?.feedback.impact(.medium) // 交換成立
+        if exchangesDone == 1 {
+            performCPUExchange()
+            if extraExchangeUsed {
+                resolveShowdown()
+            } else {
+                phase = .exchanged
+            }
+        } else {
+            resolveShowdown()
+        }
+        persist()
+    }
+
+    private func performCPUExchange() {
+        let keepIdx = HandEvaluator.cpuKeepIndices(from: cpuHand)
+        let discardCount = 5 - keepIdx.count
+        cpuAction = discardCount == 0 ? "カード交換なし" : "\(discardCount)枚交換"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
+        var newHand = cpuHand
+        for i in newHand.indices where !keepIdx.contains(i) {
+            if let newCard = deck.first {
+                deck.removeFirst()
+                newHand[i] = newCard
+            }
+        }
+        cpuHand = newHand
+    }
+
+    /// 交換を終えて勝負する（「もう 1 回交換」を使わない）。
+    public func finishExchange() {
+        guard phase == .exchanged else { return }
+        resolveShowdown()
+        persist()
+    }
+
+    // MARK: - Showdown
+
+    private func resolveShowdown() {
+        playerHandRank = HandEvaluator.evaluate(playerHand).rank
+        cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
+        let cmp = HandEvaluator.compare(playerHand, cpuHand)
+        if cmp > 0 {
+            winner = .player
+            playerWins += 1
+            lastRoundPoints = PokerPointTable.points(for: playerHandRank)
+            totalPoints += lastRoundPoints
+        } else if cmp < 0 {
+            winner = .cpu
+            cpuWins += 1
+        } else {
+            winner = .tie
+            draws += 1
+        }
+        if bestRank.map({ playerHandRank > $0 }) ?? true { bestRank = playerHandRank }
+        phase = .result
+        notifyOutcome(after: showdownRevealDelay)
+        if isMatchOver { concludeMatch() }
+    }
+
+    /// 勝敗の触覚を鳴らす。`delay` があれば、その間に次の回へ進んでいないことを確かめてから鳴らす（#667）。
     ///
     /// ショーダウンで決着の瞬間に鳴らすと、CPU の手札が裏向きのうちに勝敗が指へ伝わる。
     /// 役名が出る瞬間まで遅らせ、公開 → 役名と勝敗の手応え、の順にする。記録の確定は遅らせない。
@@ -420,498 +345,47 @@ public final class PokerModel {
         }
     }
 
-    /// この局の記録を確定する（1 局につき 1 回だけ呼ばれる）。
-    private func concludeRound() {
-        awaitsDoubleUp = false
-        // チップは pot・ボーナス・ダブルアップの精算後なので、この時点の残高が局終了時の持ち点。
+    /// 10 回目の決着で、勝負の記録を確定する（1 勝負につき 1 回だけ呼ばれる）。
+    ///
+    /// 順位表（Game Center）には送らない。チップ制の頃の表（`asobiba.poker.chips`）とは単位が違うため。
+    private func concludeMatch() {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: reviewOutcome,
             score: GameScore(
                 metric: .points,
-                points: playerChips,
-                variant: rules.recordVariant,
-                variantLabel: rules.recordVariantLabel,
-                // 復活（#499）を使ったセッションは順位表へ送らない（ソリティアのジョーカー #406 と
-                // 同じ思想。送ると「広告を何回見たか」の表になる）。ローカルの自己ベストには残す。
-                isLeaderboardEligible: rules.isLeaderboardEligible && !hasRevivedThisSession
+                points: totalPoints,
+                variant: PokerMatch.recordVariant,
+                variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: PokerMatch.recordVariant),
+                isLeaderboardEligible: false
             ),
-            // 評価リクエストの見せ場は、スリーカード以上の役で勝ったとき（#1471）。フォールド勝ちでは
-            // 役を判定していない場合があるので、いまの手札から数え直す。
-            isReviewHighlight: HandEvaluator.evaluate(playerHand).rank >= .threeOfAKind
+            // 評価リクエストの見せ場は、スリーカード以上の役を作って勝ち越したとき（#1471）。
+            isReviewHighlight: reviewOutcome == .win && (bestRank ?? .highCard) >= .threeOfAKind
         )
-        checkSessionOver()
-        // ダブルアップの精算はここまでで終わっている。復活したセッション（#1104）は、
-        // この残高で中断データを書き直す（ダブルアップの各操作は `persist()` を呼ばないため、
-        // 書き直さないとショーダウン直後の古い残高が残る）。
         persist()
     }
 
-    /// ダブルアップの決着待ちなら、賭け金を受け取って局を閉じる。待っていなければ何もしない。
-    private func concludeRoundIfNeeded() {
-        guard awaitsDoubleUp else { return }
-        if doubleUp != nil { collectDoubleUpStake() }
-        concludeRound()
-    }
+    // MARK: - Reward Ad（もう 1 回交換）
 
-    // MARK: - Betting Round 1 (before exchange)
-
-    public func bet1Action(_ action: PokerBetAction) {
-        guard phase == .betting1 else { return }
-        switch action {
-        case .check:
-            playerBetInRound = 0
-            cpuBet1Response(playerBet: 0)
-        case .bet(let amount):
-            guard playerChips >= amount else {
-                services?.feedback.notify(.warning) // チップ不足でベットできない
-                return
-            }
-            playerChips -= amount
-            pot += amount
-            playerBetInRound = amount
-            services?.feedback.impact(.medium)
-            cpuBet1Response(playerBet: amount)
-        case .fold:
-            break // 交換前はフォールドできない
-        }
-    }
-
-    private func cpuBet1Response(playerBet: Int) {
-        let (cpuRank, _) = HandEvaluator.evaluate(cpuHand)
-        if playerBet == 0 {
-            cpuAction = "チェック"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-            cpuBetInRound = 0
-            phase = .exchange
-        } else {
-            if cpuRank >= .twoPair {
-                let callAmount = min(playerBet, cpuChips)
-                cpuChips -= callAmount
-                pot += callAmount
-                cpuBetInRound = callAmount
-                refundPlayerExcess(bet: playerBet, called: callAmount)
-                cpuAction = "コール"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-                phase = .exchange
-            } else {
-                cpuFolded = true
-                cpuAction = "フォールド"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-                endRound()
-            }
-        }
-        persist()
-    }
-
-    // MARK: - Exchange
-
-    public func toggleCardSelection(_ card: PokerCard) {
-        guard phase == .exchange else { return }
-        if selectedForExchange.contains(card.id) {
-            selectedForExchange.remove(card.id)
-        } else {
-            selectedForExchange.insert(card.id)
-        }
-        services?.feedback.impact(.rigid)
-    }
-
-    public func confirmExchange() {
-        guard phase == .exchange else { return }
-        // プレイヤー交換
-        for i in playerHand.indices where selectedForExchange.contains(playerHand[i].id) {
-            if let newCard = deck.first {
-                deck.removeFirst()
-                playerHand[i] = newCard
-            }
-        }
-        selectedForExchange = []
-        phase = .cpuExchange
-        services?.feedback.impact(.medium) // 交換成立
-        performCPUExchange()
-        persist()
-    }
-
-    private func performCPUExchange() {
-        let keepIdx = HandEvaluator.cpuKeepIndices(from: cpuHand)
-        let discardCount = 5 - keepIdx.count
-        cpuAction = discardCount == 0 ? "カード交換なし" : "\(discardCount)枚交換"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-        var newHand = cpuHand
-        for i in newHand.indices where !keepIdx.contains(i) {
-            if let newCard = deck.first {
-                deck.removeFirst()
-                newHand[i] = newCard
-            }
-        }
-        cpuHand = newHand
-
-        currentBet = 0
-        playerBetInRound = 0
-        cpuBetInRound = 0
-        phase = .betting2
-        persist()
-    }
-
-    // MARK: - Betting Round 2 (after exchange)
-
-    public func bet2Action(_ action: PokerBetAction) {
-        guard phase == .betting2 else { return }
-        switch action {
-        case .check:
-            playerBetInRound = 0
-            cpuBet2Response(playerBet: 0)
-        case .bet(let amount):
-            guard playerChips >= amount else {
-                services?.feedback.notify(.warning) // チップ不足でベットできない
-                return
-            }
-            playerChips -= amount
-            pot += amount
-            playerBetInRound = amount
-            services?.feedback.impact(.medium)
-            cpuBet2Response(playerBet: amount)
-        case .fold:
-            cpuFolded = false
-            playerFolded = true
-            playerHandRank = HandEvaluator.evaluate(playerHand).rank
-            cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
-            cpuChips += pot
-            pot = 0
-            winner = .cpu
-            cpuAction = "あなたがフォールド"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-            phase = .result
-            settleRound()
-            persist()
-        }
-    }
-
-    private func cpuBet2Response(playerBet: Int) {
-        let (cpuRank, _) = HandEvaluator.evaluate(cpuHand)
-        if playerBet == 0 {
-            if cpuRank >= .twoPair && cpuChips >= betAmount {
-                let amount = min(betAmount, cpuChips)
-                cpuChips -= amount
-                pot += amount
-                cpuBetInRound = amount
-                cpuAction = "ベット \(amount)"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-                phase = .betting2
-                currentBet = amount
-            } else {
-                cpuAction = "チェック"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-                phase = .showdown
-                resolveShowdown()
-            }
-        } else {
-            if cpuRank >= .onePair {
-                let callAmount = min(playerBet, cpuChips)
-                cpuChips -= callAmount
-                pot += callAmount
-                cpuBetInRound = callAmount
-                refundPlayerExcess(bet: playerBet, called: callAmount)
-                cpuAction = "コール"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-                phase = .showdown
-                resolveShowdown()
-            } else {
-                cpuFolded = true
-                cpuAction = "フォールド"  // i18n-keep: 中断データに保存する CPU の行動（表示は cpuActionLabel で訳す）
-                endRound()
-            }
-        }
-        persist()
-    }
-
-    /// CPU のベットにコールできるか。手持ちが足りなくても（0 枚でも）不足額でコールできる（超過分は返る）。
-    public var canCallCPUBet: Bool {
-        phase == .betting2 && currentBet > 0
-    }
-
-    public func callCPUBet() {
-        guard phase == .betting2, currentBet > 0 else { return }
-        let amount = min(currentBet, playerChips)
-        playerChips -= amount
-        pot += amount
-        playerBetInRound += amount
-        refundCPUExcess(bet: currentBet, called: amount)
-        currentBet = 0
-        phase = .showdown
-        resolveShowdown()
-        persist()
-    }
-
-    /// ショートコール（相手のチップが足りずベット全額に届かない）のとき、ベット側へ超過分を戻す。
-    /// 戻さないと超過分がポットに残り、勝者が総取りしてしまう。
-    private func refundPlayerExcess(bet: Int, called: Int) {
-        let excess = bet - called
-        guard excess > 0 else { return }
-        playerChips += excess
-        pot -= excess
-        playerBetInRound -= excess
-    }
-
-    private func refundCPUExcess(bet: Int, called: Int) {
-        let excess = bet - called
-        guard excess > 0 else { return }
-        cpuChips += excess
-        pot -= excess
-        cpuBetInRound -= excess
-    }
-
-    public func foldToCPUBet() {
-        guard phase == .betting2, currentBet > 0 else { return }
-        playerFolded = true
-        playerHandRank = HandEvaluator.evaluate(playerHand).rank
-        cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
-        cpuChips += pot
-        pot = 0
-        winner = .cpu
-        currentBet = 0
-        phase = .result
-        settleRound()
-        persist()
-    }
-
-    // MARK: - Showdown
-
-    private func resolveShowdown() {
-        playerHandRank = HandEvaluator.evaluate(playerHand).rank
-        cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
-        let cmp = HandEvaluator.compare(playerHand, cpuHand)
-        if cmp > 0 {
-            winner = .player
-            playerChips += pot
-            pendingWinnings = pot
-        } else if cmp < 0 {
-            winner = .cpu
-            cpuChips += pot
-        } else {
-            winner = .tie
-            playerChips += pot / 2
-            cpuChips += pot / 2
-        }
-        pot = 0
-        // 役ボーナスは**手を見せ合って勝ったときだけ**（ショーダウン限定）。フォールド勝ちは
-        // 相手の手が伏せられたままなので、役を作った見返りという建て付けが成り立たない。
-        // 勝った側に等しく払う（プレイヤー側だけに払うと持ち点の増え方が非対称になり、
-        // セッションの難易度がルール選択で変わってしまう）。
-        if rules == .bonus {
-            switch winner {
-            case .player:
-                playerBonus = PokerBonusTable.chips(for: playerHandRank)
-                playerChips += playerBonus
-                pendingWinnings += playerBonus
-            case .cpu:
-                cpuBonus = PokerBonusTable.chips(for: cpuHandRank)
-                cpuChips += cpuBonus
-            default:
-                break
-            }
-        }
-        phase = .result
-        settleRound(noticeDelay: showdownRevealDelay)
-    }
-
-    // MARK: - End Round (fold by CPU or player)
-
-    private func endRound() {
-        playerHandRank = HandEvaluator.evaluate(playerHand).rank
-        cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
-        if cpuFolded {
-            winner = .player
-            playerChips += pot
-            // フォールド勝ちは役ボーナスもダブルアップも付かない（上記 `resolveShowdown` の理由）。
-        }
-        pot = 0
-        phase = .result
-        settleRound()
-    }
-
-    // MARK: - ダブルアップ（#496・ボーナスルールのみ）
-
-    /// 勝ち取ったチップを賭けてダブルアップに挑戦する。
+    /// リワード広告を表示し、**視聴完了したときだけ**もう 1 回交換できるようにする。
     ///
-    /// 賭け金はいったん手持ちから引く（外したときにその場で消えるのが自然に見えるため）。
-    /// 受け取り・上限到達で戻し、外したら戻さない。
-    public func startDoubleUp() {
-        guard canStartDoubleUp, let base = deck.first else { return }
-        deck.removeFirst()
-        playerChips -= pendingWinnings
-        doubleUp = PokerDoubleUp(
-            stake: pendingWinnings, baseCard: base, drawnCard: nil, streak: 0, result: nil
-        )
-        services?.feedback.impact(.medium)
-    }
-
-    /// 見せ札より上か下かを予想して 1 枚めくる。
-    ///
-    /// 同じ数字は引き分け。賭け金も挑戦回数もそのままで引き直す（`continueDoubleUp`）。
-    public func guessDoubleUp(_ guess: PokerHighLow) {
-        guard var state = doubleUp, state.isAwaitingGuess, let drawn = deck.first else { return }
-        deck.removeFirst()
-        state.drawnCard = drawn
-
-        if drawn.rank == state.baseCard.rank {
-            state.result = .push
-            doubleUp = state
-            services?.feedback.notify(.warning)
-            return
-        }
-
-        let isHigher = drawn.rank > state.baseCard.rank
-        if isHigher == (guess == .high) {
-            state.stake *= 2
-            state.streak += 1
-            state.result = .success
-            doubleUp = state
-            services?.feedback.notify(.success)
-            // 上限まで当てたら打ち止め。賭け金は自動で受け取る。
-            if state.streak >= Self.maxDoubleUpStreak { takeDoubleUpWinnings() }
-        } else {
-            state.stake = 0
-            state.result = .failure
-            state.isSettled = true
-            state.payout = 0
-            doubleUp = state
-            services?.feedback.notify(.error)
-            concludeRound()
-        }
-    }
-
-    /// 当たり（または引き分け）のあと、めくった札を新しい見せ札にして続ける。
-    public func continueDoubleUp() {
-        guard var state = doubleUp, let drawn = state.drawnCard,
-              state.result == .success || state.result == .push,
-              state.streak < Self.maxDoubleUpStreak, !deck.isEmpty
-        else { return }
-        state.baseCard = drawn
-        state.drawnCard = nil
-        state.result = nil
-        doubleUp = state
-        services?.feedback.impact(.rigid)
-    }
-
-    /// 賭け金を受け取ってダブルアップを終える。
-    public func takeDoubleUpWinnings() {
-        guard let state = doubleUp, !state.isSettled else { return }
-        collectDoubleUpStake()
-        services?.feedback.impact(.medium)
-        concludeRound()
-    }
-
-    /// 挑戦せずに（または挑戦を終えて）この局を閉じる。
-    public func declineDoubleUp() {
-        guard awaitsDoubleUp else { return }
-        concludeRoundIfNeeded()
-    }
-
-    /// 賭け金を手持ちへ戻す。挑戦の経過は表示のために残す。
-    private func collectDoubleUpStake() {
-        guard var state = doubleUp, !state.isSettled else { return }
-        playerChips += state.stake
-        state.payout = state.stake
-        state.stake = 0
-        state.isSettled = true
-        doubleUp = state
-    }
-
-    #if DEBUG
-    /// 撮影用（#496）: ボーナスルールでツーペアの勝ちを作り、ダブルアップの提示まで進める。
-    ///
-    /// 盤面を直接書き換えるのは配りだけで、決着は通常の `bet2Action` 経路に通す
-    /// （撮れた画面が実際の進行と食い違わないようにするため）。`.result` は中断データに
-    /// 載らない状態なので、起動引数以外にこの画面へ到達する手立てが無い。
-    func debugPresentDoubleUp() {
-        rules = .bonus
-        playerHand = [
-            PokerCard(id: 11, suit: .spades, rank: 13), PokerCard(id: 24, suit: .hearts, rank: 13),
-            PokerCard(id: 33, suit: .diamonds, rank: 9), PokerCard(id: 46, suit: .clubs, rank: 9),
-            PokerCard(id: 3, suit: .spades, rank: 5),
-        ]
-        cpuHand = [
-            PokerCard(id: 27, suit: .diamonds, rank: 3), PokerCard(id: 15, suit: .hearts, rank: 4),
-            PokerCard(id: 4, suit: .spades, rank: 6), PokerCard(id: 34, suit: .diamonds, rank: 10),
-            PokerCard(id: 22, suit: .hearts, rank: 11),
-        ]
-        deck = [
-            PokerCard(id: 5, suit: .spades, rank: 7), PokerCard(id: 18, suit: .hearts, rank: 7),
-            PokerCard(id: 44, suit: .clubs, rank: 7),
-        ]
-        playerChips = 100
-        cpuChips = 100
-        pot = 40
-        currentBet = 0
-        cpuFolded = false
-        winner = nil
-        phase = .betting2
-        bet2Action(.check)
-    }
-    #endif
-
-    private func checkSessionOver() {
-        if playerChips < anteAmount {
-            sessionOver = true
-            sessionWinner = .cpu
-            services?.snapshots.clear(for: gameID)
-        } else if cpuChips < anteAmount {
-            sessionOver = true
-            sessionWinner = .player
-            services?.snapshots.clear(for: gameID)
-        }
-    }
-
-    // MARK: - Reward Ad / Session Reset
-
-    /// リワード広告を表示し、**視聴完了したときだけ**チップ切れから復活する（#499）。
-    ///
-    /// - **自分のチップが尽きて終わったときだけ**効く（`canReviveAfterBust`）。
-    ///   まだ遊べる残高で呼んでも広告は出さない（プレイヤーが明示的に選んだ救済であって、
-    ///   いつでも押せる増量ボタンではない）。
-    /// - **1 セッション 3 回まで**（`maxRevivesPerSession`）。中断を挟んでも回数は戻らない
-    ///   （`reviveCount` をスナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
-    /// - プレイヤーは `reviveChips`（初期チップより多い）、CPU は初期チップに戻す（#523）。
-    ///   CPU の持ち点は勝ち取った資産ではなく卓の設定値なので、そのまま（勝ち越したぶん）残すと
-    ///   150 対 250 の卓になって復活の意味が消える。初期より多い手持ちで卓に戻る、が復活の価値。
-    /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
-    /// - 広告のあいだに「もう一度はじめる」でセッションが入れ替わっていたら適用しない（#728）。
-    /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
-    @discardableResult
-    public func recoverChipsAfterAd() async -> Bool {
-        await reviveAfterAd() == .granted
-    }
-
-    /// `recoverChipsAfterAd()` の本体。見終えたのに適用できなかったこと（`.unavailable`）を
-    /// 視聴しなかったこと（`.notEarned`）と分けて返す（#728。画面のアラートを出し分けるため）。
-    public func reviveAfterAd() async -> RewardedModelOutcome {
-        guard canReviveAfterBust else { return .unavailable }
-        let serialBeforeAd = sessionSerial
+    /// - 1 回の勝負につき 1 回まで（`extraExchangeUsed`）。1 回めの交換のあと（`.exchanged`）だけ効く。
+    /// - 広告のあいだに次の回・新しい勝負へ進んでいたら適用しない（`roundSerial` の照合・#728）。
+    /// - 視聴中断・ロード失敗時は何も変更せず `.notEarned` を返す。
+    /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため、そのまま適用する。
+    public func extraExchangeAfterAd() async -> RewardedModelOutcome {
+        guard canUseExtraExchange else { return .unavailable }
+        let serialBeforeAd = roundSerial
         // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
         let generationBeforeAd = services?.screenGeneration.current
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .undo) ?? true else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
-        // 広告のロード〜視聴のあいだも画面は操作できる。「もう一度はじめる」で新しいセッションが
-        // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#728）。
-        // ブラックジャック（#727）と同じく、通し番号と救済できる状態を見直す。
-        guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
-        reviveCount += 1
-        playerChips = PokerModel.reviveChips
-        cpuChips    = PokerModel.initialChips
-        sessionOver = false
-        sessionWinner = nil
-        // 次の局を始める前にハブへ戻られても報酬が消えないように、この時点で書き出す（#1104）。
+        guard roundSerial == serialBeforeAd, canUseExtraExchange else { return .unavailable }
+        extraExchangeUsed = true
+        selectedForExchange = []
+        phase = .exchange
         persist()
         return .granted
-    }
-
-    public func restartSession() {
-        // 前の局の勝敗の触覚を待っていたら止める（#667。チップが尽きた直後にやり直すと新しいセッションで鳴る）。
-        outcomeNoticeTask?.cancel()
-        outcomeNoticeTask = nil
-        recordResult  = nil
-        sessionSerial += 1
-        playerChips   = PokerModel.initialChips
-        cpuChips      = PokerModel.initialChips
-        // 新しいセッションなので復活の回数も戻る（#499）。
-        reviveCount = 0
-        sessionOver   = false
-        sessionWinner = nil
-        phase         = .idle
-        services?.snapshots.clear(for: gameID)
     }
 
     // MARK: - Deck

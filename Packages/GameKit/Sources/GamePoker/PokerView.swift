@@ -5,15 +5,11 @@ public struct PokerView: View {
     @State private var model: PokerModel
     private let services: GameServices
     @State private var showStartSheet = true
-    @State private var hasPlayedOnce = false
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.scenePhase) private var scenePhase
     @State private var revealCPU = false
-    /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
-    @State private var reviveRescue = RewardedRescue()
-    /// 開始シートでの選択。**次の局に使う設定**であって、進行中の局はこれを見ない（#496）。
-    @State private var selectedRules: PokerRuleSet
-    @State private var showBonusTable = false
+    /// 「もう 1 回交換」のリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var extraExchangeRescue = RewardedRescue()
+    @State private var showPointTable = false
     /// 初回だけ出す遊び方ヒントを出すか（#118）。**この画面では判定を自前で持つ**（#650）。
     /// 下の `body` は `ViewThatFits` で同じ列を2回組み立てるため、init で「見せた」を消費する
     /// `HowToPlayHint(_:playLog:)` を使うと 2 つめが false を受け取り、あとから選ばれた枝で
@@ -30,28 +26,21 @@ public struct PokerView: View {
             showdownRevealDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay
         )
         _model = State(initialValue: restored)
-        let hasSnapshot = services.snapshots.exists(for: "poker")
-        // 復活したのに次の局を始める前で離れた中断データ（#1104）は局を持たない（`.idle`）。
-        // そのまま開くと操作欄が空のまま固まるので、開始シートから次の局に入ってもらう。
-        let waitsForNextRound = restored.phase == .idle
-        _showStartSheet = State(initialValue: !hasSnapshot || waitsForNextRound)
-        _hasPlayedOnce  = State(initialValue: hasSnapshot)
-        // 中断から戻ったときは、その局に焼き込まれていたルールを選択の初期値にする。
-        _selectedRules  = State(initialValue: restored.rules)
+        // 中断データがあれば開始シートは出さず、その続きから遊ぶ。
+        _showStartSheet = State(initialValue: restored.phase == .idle)
+        // 中断した回が決着済み（`.result`）なら、CPU の手札は表のまま戻す。
+        _revealCPU = State(initialValue: restored.phase == .result)
         _showsHowToPlayHint = State(
             initialValue: services.playLog?.markGuideShown(for: "poker") ?? false
         )
     }
 
     public var body: some View {
-        // 背の高い局面（ダブルアップ・チップ切れのセッション終了）は縦が足りず、`VStack` 1 枚では
-        // 溢れたぶんが上下に切り落とされていた（#650。チップ帯がナビゲーションバーの裏へ隠れ、
-        // いちばん下のボタンが画面の下端で切れる）。
+        // 背の高い局面は縦が足りず、`VStack` 1 枚では溢れたぶんが上下に切り落とされていた（#650）。
         //
         // **収まるあいだは今までの縦並びをそのまま使い、収まらないときだけスクロールに落とす**。
         // `ViewThatFits` は選んだ側しか画面に置かないので、収まる局面の描画は従来と一致し、
-        // #485 / #640 で決めた位置が 1pt も動かない（iPhone 17 Pro Max・iPad Pro の
-        // 通常の対局でピクセル一致を実測）。
+        // #485 / #640 で決めた位置が 1pt も動かない。
         //
         // 常にスクロールに載せる形は採らない。`ScrollView` を置くと iOS 26 のナビゲーションバーが
         // 確保する安全域が 49pt → 64pt に広がり（プローブビルドで実測）、収まっている端末まで
@@ -72,23 +61,18 @@ public struct PokerView: View {
             }
         }
         .padding(Theme.pad)
-        .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
-                     services: services, gameID: model.gameID)
-        // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
+        // 点数表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
         .gameChrome(title: tr("ポーカー"), review: services.review,
-                    reference: model.rules == .bonus
-                        ? GameChromeReference(tr("役ボーナス配当表")) { showBonusTable = true }
-                        : nil)
+                    reference: GameChromeReference(tr("役の点数表")) { showPointTable = true })
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
-        .howToPlay(PokerHowToFigures.guide(for: model.rules)) { HandGuideSheet() }
+        .howToPlay(PokerHowToFigures.guide) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {
-            PokerStartSheet(rules: $selectedRules) {
+            PokerStartSheet {
                 showStartSheet = false
-                hasPlayedOnce = true
                 revealCPU = false
-                model.startGame(rules: selectedRules)
+                model.startGame()
             } onCancel: {
-                // 「覗いてみたけど今はやめる」の退路（#1371）。局は始まっていないので記録・解析の
+                // 「覗いてみたけど今はやめる」の退路（#1371）。勝負は始まっていないので記録・解析の
                 // イベントは何も発生しない（それらは `startGame()` だけが送る）。
                 showStartSheet = false
                 dismiss()
@@ -97,12 +81,12 @@ public struct PokerView: View {
             // 閉じる操作はキャンセル（ハブへ戻る）に一本化する。
             .interactiveDismissDisabled(true)
         }
-        .sheet(isPresented: $showBonusTable) {
+        .sheet(isPresented: $showPointTable) {
             NavigationStack {
-                BonusTableSheet()
+                PointTableSheet()
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button(tr("閉じる")) { showBonusTable = false }.fontWeight(.semibold)
+                            Button(tr("閉じる")) { showPointTable = false }.fontWeight(.semibold)
                         }
                     }
             }
@@ -110,68 +94,41 @@ public struct PokerView: View {
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
         }
-        // ダブルアップの決着待ち（`.result` は中断データに載らない）のまま離れると、勝った局が
-        // 記録されずチップも初期値に戻る（#1383）。離れる前に賭け金を受け取って局を閉じる。
-        .onDisappear { model.declineDoubleUp() }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background { model.declineDoubleUp() }
-        }
         .task {
             #if DEBUG
-            // 撮影用（#366）: 開始シートを飛ばして1ラウンド配る。手札5枚 + CPU の裏札が写る。
+            // 撮影用（#366）: 開始シートを飛ばして1回めを配る。手札5枚 + CPU の裏札が写る。
             if ProcessInfo.processInfo.arguments.contains("-pokerAutoStart") {
                 showStartSheet = false
-                hasPlayedOnce = true
                 if model.phase == .idle { model.startGame() }
             }
-            // 撮影用（#1754）: 開始シートを飛ばし、チェック・交換なしで最後までコールして決着の画を出す。
+            // 撮影用（#1754）: 開始シートを飛ばし、交換なしで 1 回めの決着の画を出す。
             // 配りは乱数なので勝敗は撮るたびに変わる（実際のモデルの経路を通る）。
             if ProcessInfo.processInfo.arguments.contains("-pokerAutoPlay") {
                 showStartSheet = false
-                hasPlayedOnce = true
                 if model.phase == .idle { model.startGame() }
-                model.bet1Action(.check)
                 model.confirmExchange()
-                model.bet2Action(.check)
-                if model.phase == .betting2 { model.callCPUBet() }
+                if model.phase == .exchanged { model.finishExchange() }
             }
-            // 撮影用（#496）: 開始シートをボーナスルールを選んだ状態で出す。
-            if ProcessInfo.processInfo.arguments.contains("-pokerBonusPreview") {
-                selectedRules = .bonus
-                showStartSheet = true
+            // 撮影用（#2551）: 1 回めの交換のあと、勝負に進むか広告でもう 1 回交換するかを選ぶ画面を出す。
+            if ProcessInfo.processInfo.arguments.contains("-pokerExchangedPreview") {
+                showStartSheet = false
+                if model.phase == .idle { model.startGame() }
+                model.confirmExchange()
             }
-            // 撮影用（#496）: 配当表だけを出す。開始シートと同時には出せない
+            // 撮影用（#2551）: 点数表だけを出す。開始シートと同時には出せない
             // （同じビューから2枚のシートは presented にならない）ので排他にする。
-            if ProcessInfo.processInfo.arguments.contains("-pokerBonusTable") {
+            if ProcessInfo.processInfo.arguments.contains("-pokerPointTable") {
                 showStartSheet = false
-                showBonusTable = true
-            }
-            // 撮影・動作確認用（#499）: チップ切れのセッション終了画面を出す。
-            // 中断データで「手持ち0・2巡目」を注入したうえで、タップ起点のフォールドを
-            // ここから起こす（`-simulateBlackjackAction` と同型。撮った画が実行結果であることを担保する）。
-            if ProcessInfo.processInfo.arguments.contains("-pokerSessionOverPreview") {
-                revealCPU = true
-                model.bet2Action(.fold)
-            }
-            // 撮影用（#496）: ダブルアップの提示まで進めた局面を出す。
-            if ProcessInfo.processInfo.arguments.contains("-pokerDoubleUpPreview") {
-                showStartSheet = false
-                hasPlayedOnce = true
-                revealCPU = true
-                model.debugPresentDoubleUp()
-                // さらに挑戦を始めた状態（ハイ・ローを選ぶ画面）。
-                if ProcessInfo.processInfo.arguments.contains("-pokerDoubleUpPlaying") {
-                    model.startDoubleUp()
-                }
+                showPointTable = true
             }
             #endif
         }
         .rewardedRescueAlerts(
-            reviveRescue,
-            notEarned: tr("チップは回復しませんでした"),
+            extraExchangeRescue,
+            notEarned: tr("交換できませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: tr("チップは回復しませんでした"),
-                message: tr("広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。")
+                title: tr("交換できませんでした"),
+                message: tr("広告を見ているあいだに回が進んだため、交換は適用していません。交換の回数は減っていません。")
             )
         )
     }
@@ -180,19 +137,18 @@ public struct PokerView: View {
     /// 並びは変えていない。
     private var mainColumn: some View {
         VStack(spacing: 10) {
-            chipsBar
+            statusBar
             verticalSlack
             cpuArea
             verticalSlack
-            // 1 局の勝敗を卓の中央（ポット = CPU とあなたの境目）に大きく出す（#1754）。画面全体の中央に
-            // 重ねるとあなたの手札を覆ってしまうので、ポットの位置に重ねる。13pt のバッジ（`resultBadge`）は残す
+            // 1 回の勝敗を卓の中央（CPU とあなたの境目）に大きく出す（#1754）。画面全体の中央に
+            // 重ねるとあなたの手札を覆ってしまうので、この帯の位置に重ねる。13pt のバッジ（`resultBadge`）は残す
             // ——バナーは数秒で消えるので、消えたあとも手札の横で勝敗が読める。
             // CPU の 5 枚を返す決着は、返り終わってから出す（先に出すと勝敗の答えを見せてから返すことになる・#667）。
-            potArea
+            scoreArea
                 .handResultOverlay(
                     model.handResult,
-                    appearDelay: model.cpuFolded || model.playerFolded || Motion.isReduceMotionEnabled
-                        ? .zero : PokerMotion.showdownRevealDelay
+                    appearDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay
                 )
                 // 後ろに並ぶ手札の枠より手前に描く（兄弟は並び順に重なるため、無いとバナーの下半分が隠れる）。
                 .zIndex(1)
@@ -202,12 +158,8 @@ public struct PokerView: View {
             actionSlack
             // 出すかどうかは `showsHowToPlayHint` が1回だけ決める（上の `body` のコメント）。
             HowToPlayHint(.poker, isVisible: showsHowToPlayHint)
-            if model.sessionOver {
-                sessionOverView
-            } else {
-                actionArea
-            }
-            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
+            actionArea
+            RecommendationSlot(services: services, isFinished: model.isMatchOver)
             // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
             // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
             if layout.isWide {
@@ -226,7 +178,7 @@ public struct PokerView: View {
         if layout.isWide { Spacer(minLength: 0) }
     }
 
-    /// 操作の節（遊び方ヒント + チェック/ベット）の上に置く可変余白（#640）。
+    /// 操作の節（遊び方ヒント + 交換）の上に置く可変余白（#640）。
     ///
     /// iPhone では余りが下端の `Spacer` に全部たまり、操作の列が画面の中ほどに浮いて
     /// 下だけが大きく空いていた。ここに同じ可変余白をもう 1 つ置くと余りが上下で等分され、
@@ -243,19 +195,23 @@ public struct PokerView: View {
         if !layout.isWide { Spacer(minLength: 0) }
     }
 
-    // MARK: - Chips Bar
 
-    private var chipsBar: some View {
+    // MARK: - Status Bar
+
+    private var statusBar: some View {
         HStack {
-            // チップ数は従来どおり桁区切り（1,000枚）で出すため整形済みの文字列を %@ で渡す
-            // （英語の単数・複数は StringTable がその数字の文字列で選ぶ・#2168）。
-            Label(tr("あなた: %@枚", RecordFormat.number(model.playerChips)), systemImage: "person.fill")
+            Label(tr("%1$lld / %2$lld 回目", max(model.round, 1), PokerMatch.roundsPerMatch), systemImage: "suit.spade.fill")
                 .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
-            Label(tr("CPU: %@枚", RecordFormat.number(model.cpuChips)), systemImage: "cpu")
+            Label(tr("合計 %@点", RecordFormat.number(model.totalPoints)), systemImage: "star.fill")
                 .themeBody(14)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.ink)
+                .contentTransition(.numericText(value: Double(model.totalPoints)))
+                .gameAnimation(PokerMotion.potChange, value: model.totalPoints)
+                // 点が変わるのと同時に画面全体のレイアウトが動く場面では、この Label だけが古い位置から
+                // 滑ってきて枠の外に文字が出る。位置は親と一体で決まるようにして、数字の入れ替えだけを演出に残す。
+                .geometryGroup()
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -288,7 +244,7 @@ public struct PokerView: View {
                         .background(Capsule().fill(Theme.Fill.purple))
                 }
                 Spacer()
-                if model.phase == .result && !model.cpuFolded {
+                if model.phase == .result {
                     Text(model.cpuHandRank.description)
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
@@ -318,62 +274,32 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    // MARK: - Pot Area
+    // MARK: - Score Area
 
-    /// ポットの数値の入れ替え方。CPU の 5 枚を返す決着（ショーダウン・プレイヤーのフォールド）では、
-    /// 返り終わるまで動かさない（#667）。先に 0 へ転がると、めくる前に勝敗が分かってしまう。
-    /// CPU のフォールドは相手が降りた時点で勝ちが見えているので従来どおりすぐ動かす。
-    private var potAnimation: Animation {
-        model.phase == .result && !model.cpuFolded ? PokerMotion.potSettle : PokerMotion.potChange
-    }
-
-    private var potArea: some View {
-        HStack {
+    /// 卓の中央の帯。ここにその回の勝敗バナーを重ねる。これまでの勝敗と、その回の点を出す。
+    private var scoreArea: some View {
+        HStack(spacing: 14) {
             Spacer()
-            HStack(spacing: 10) {
-                ZStack {
-                    ForEach(0..<3, id: \.self) { i in
-                        Circle()
-                            .fill(Color(hex: 0xF5C842).gradient)
-                            .frame(width: 22, height: 22)
-                            .overlay(Circle().stroke(Color(hex: 0xC8980A), lineWidth: 1))
-                            .offset(y: CGFloat(i) * -4)
-                    }
-                }
-                .frame(width: 22, height: 30)
-
-                VStack(spacing: 2) {
-                    Text(tr("ポット"))
-                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
-                    Text(tr("%@枚", RecordFormat.number(model.pot)))
-                        .themeBody(20, weight: .black, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.yellowText)
-                        // ベット・コールで増え、決着で勝者に渡って 0 に戻る。数字が瞬時に
-                        // 入れ替わると増減の向きが分からないので、転がして見せる（#206）。
-                        .contentTransition(.numericText(value: Double(model.pot)))
-                        // ショーダウンの決着だけは 5 枚が返り終わってから転がす（#667）。
-                        .gameAnimation(potAnimation, value: model.pot)
-                        // 枚数が変わるのと同時に画面全体のレイアウトが動く場面（ゲーム画面へ
-                        // 入りながらアンティが積まれるなど）では、この Text だけが古い位置から
-                        // 滑ってきてポットの枠の外に文字が出る。実測で確認したため、
-                        // 位置は親と一体で決まるようにして数字の入れ替えだけを演出に残す。
-                        .geometryGroup()
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(PokerAccessibility.potLabel(pot: model.pot))
+            Text(tr("%1$lld勝 %2$lld敗 %3$lld分", model.playerWins, model.cpuWins, model.draws))
+                .themeBody(15, weight: .bold, maxScale: 1.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .foregroundStyle(Theme.ink)
+            if model.phase == .result {
+                Text(tr("+%lld点", model.lastRoundPoints))
+                    .themeBody(20, weight: .black, maxScale: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(model.lastRoundPoints > 0 ? Theme.yellowText : Theme.inkSub)
             }
             Spacer()
         }
         .padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(PokerAccessibility.scoreLabel(
+            wins: model.playerWins, losses: model.cpuWins, draws: model.draws, points: model.totalPoints))
     }
-
-    // MARK: - Pot Area
 
     // MARK: - Player Area
 
@@ -396,7 +322,7 @@ public struct PokerView: View {
                         resultBadge(w)
                     }
                 }
-                if model.phase == .result || model.phase == .showdown {
+                if model.phase == .result {
                     Text(model.playerHandRank.description)
                         .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
@@ -472,102 +398,62 @@ public struct PokerView: View {
         switch model.phase {
         case .idle:
             EmptyView()
-        case .dealing:
-            EmptyView()
-        case .betting1:
-            betting1View
-        case .exchange, .cpuExchange:
+        case .exchange:
             exchangeView
-        case .betting2:
-            betting2View
-        case .showdown:
-            EmptyView()
+        case .exchanged:
+            exchangedView
         case .result:
             resultView
         }
     }
 
-    // ベットラウンド1
-    private var betting1View: some View {
-        HStack(spacing: 12) {
-            actionButton(tr("チェック"), role: .primary) {
-                model.bet1Action(.check)
-            }
-            actionButton(tr("ベット %lld枚", 20), role: .primary, disabled: model.playerChips < 20) {
-                model.bet1Action(.bet(20))
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
     // カード交換
     private var exchangeView: some View {
         HStack(spacing: 12) {
-            if model.phase == .cpuExchange {
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text(tr("CPUが交換中…")).themeBody(14).foregroundStyle(Theme.inkSub)
-                }
-                .frame(maxWidth: .infinity)
-            } else {
-                let count = model.selectedForExchange.count
-                actionButton(count == 0 ? tr("交換しない") : tr("%lld枚を交換", count), role: .primary) {
-                    model.confirmExchange()
-                }
+            let count = model.selectedForExchange.count
+            actionButton(count == 0 ? tr("交換しない") : tr("%lld枚を交換", count), role: .primary) {
+                model.confirmExchange()
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
-    // ベットラウンド2
-    private var betting2View: some View {
-        Group {
-            if model.currentBet > 0 {
-                // CPUがベット済み → コールかフォールド
-                HStack(spacing: 12) {
-                    actionButton(tr("フォールド"), role: .skip) {
-                        model.foldToCPUBet()
-                    }
-                    actionButton(tr("コール %lld枚", model.currentBet), role: .primary,
-                                 disabled: !model.canCallCPUBet) {
-                        model.callCPUBet()
-                    }
+    // 1 回めの交換のあと。勝負に進むか、広告を見てもう 1 回交換するか。
+    private var exchangedView: some View {
+        VStack(spacing: 8) {
+            actionButton(tr("勝負！"), role: .primary) {
+                model.finishExchange()
+            }
+            if model.canUseExtraExchange {
+                Button {
+                    // 連打ガードと失敗アラートは共通側が持つ（#526）。見終えたのに適用できなかったとき（#728）は
+                    // 「視聴しなかった」と別のアラートを出す。
+                    extraExchangeRescue.requestHandledByModel(withOutcome: { await model.extraExchangeAfterAd() })
+                } label: {
+                    Label(tr("広告を見てもう1回交換（1勝負に1回）"), systemImage: "play.rectangle.fill")
+                        .themeBody(14).frame(maxWidth: .infinity)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
-            } else {
-                HStack(spacing: 12) {
-                    actionButton(tr("フォールド"), role: .skip) {
-                        model.bet2Action(.fold)
-                    }
-                    actionButton(tr("チェック"), role: .primary) {
-                        model.bet2Action(.check)
-                    }
-                    actionButton(tr("ベット %lld枚", 20), role: .primary, disabled: model.playerChips < 20) {
-                        model.bet2Action(.bet(20))
-                    }
-                }
+                .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
+                .disabled(extraExchangeRescue.isWatching)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
-    // リザルト（ラウンド終了）
+    // 1 回ぶんの決着。10 回目なら勝負の結果を出す。
     private var resultView: some View {
         VStack(spacing: 8) {
-            if model.playerBonus > 0 || model.cpuBonus > 0 { bonusLine }
-            if model.awaitsDoubleUp || model.doubleUp != nil { doubleUpArea }
-            // ダブルアップの決着待ちの間は記録がまだ確定していない（#496）。確定してから出す。
-            if !model.awaitsDoubleUp {
-                RecordLabel(model.recordResult)
-                actionButton(tr("次のゲーム"), role: .primary) {
-                    revealCPU = false
-                    if hasPlayedOnce {
-                        model.startGame()
-                    } else {
-                        showStartSheet = true
-                    }
+            if model.isMatchOver { matchSummary }
+            actionButton(model.isMatchOver ? tr("もう一度（10回勝負）") : tr("次の回へ"), role: .primary) {
+                revealCPU = false
+                if model.isMatchOver {
+                    model.startGame()
+                } else {
+                    model.nextRound()
                 }
             }
         }
@@ -575,166 +461,21 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// 役ボーナスの配当を1行で伝える。
-    private var bonusLine: some View {
-        let isPlayer = model.playerBonus > 0
-        let chips = isPlayer ? model.playerBonus : model.cpuBonus
-        return HStack(spacing: 6) {
-            Image(systemName: "star.circle.fill")
-                .foregroundStyle(Theme.yellowText)
-                .accessibilityHidden(true)
-            Text(isPlayer ? tr("役ボーナス あなた +%@枚", RecordFormat.number(chips)) : tr("役ボーナス CPU +%@枚", RecordFormat.number(chips)))
-                .themeCaption(13, weight: .bold, maxScale: 1.5)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .foregroundStyle(isPlayer ? Theme.tealText : Theme.inkSub)
-            Spacer()
-        }
-    }
-
-    // MARK: - ダブルアップ
-
-    @ViewBuilder
-    private var doubleUpArea: some View {
-        if let state = model.doubleUp {
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    Text(state.isSettled ? tr("ダブルアップ終了") : tr("ダブルアップ %1$lld/%2$lld", state.streak, PokerModel.maxDoubleUpStreak))
-                        .themeCaption(12, weight: .bold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
-                    Spacer()
-                    Text(state.isSettled ? tr("獲得 %@枚", RecordFormat.number(state.payout)) : tr("賭け金 %@枚", RecordFormat.number(state.stake)))
-                        .themeBody(14, weight: .black, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(state.isSettled && state.payout == 0 ? Theme.coralText : Theme.yellowText)
-                }
-                HStack(spacing: 12) {
-                    CardView(card: state.baseCard, faceUp: true)
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(Theme.inkSub)
-                        .accessibilityHidden(true)
-                    if let drawn = state.drawnCard {
-                        CardView(card: drawn, faceUp: true)
-                    } else {
-                        CardView(card: state.baseCard, faceUp: false)
-                    }
-                    Spacer()
-                    if let result = state.result { doubleUpResultBadge(result) }
-                }
-                doubleUpButtons(state)
-            }
-        } else {
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.right.circle.fill")
-                        .foregroundStyle(Theme.yellowText)
-                        .accessibilityHidden(true)
-                    Text(tr("獲得 %@枚 をダブルアップに賭けますか？", RecordFormat.number(model.pendingWinnings)))
-                        .themeCaption(13, weight: .bold, maxScale: 1.5)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.ink)
-                    Spacer()
-                }
-                HStack(spacing: 12) {
-                    actionButton(tr("受け取る"), role: .primary) { model.declineDoubleUp() }
-                    actionButton(tr("ダブルアップ"), role: .declaration,
-                                 disabled: !model.canStartDoubleUp) {
-                        model.startDoubleUp()
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func doubleUpButtons(_ state: PokerDoubleUp) -> some View {
-        if state.isSettled {
-            EmptyView()
-        } else if state.isAwaitingGuess {
-            HStack(spacing: 12) {
-                actionButton(tr("ロー ↓"), role: .declaration) { model.guessDoubleUp(.low) }
-                actionButton(tr("ハイ ↑"), role: .primary) { model.guessDoubleUp(.high) }
-            }
-        } else {
-            HStack(spacing: 12) {
-                actionButton(tr("受け取る %lld枚", state.stake), role: .primary) {
-                    model.takeDoubleUpWinnings()
-                }
-                actionButton(state.result == .push ? tr("引き直す") : tr("続ける"), role: .primary) {
-                    model.continueDoubleUp()
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func doubleUpResultBadge(_ result: PokerDoubleUpResult) -> some View {
-        let (text, fill): (String, Color) = switch result {
-        case .success: (tr("当たり！"), Theme.Fill.teal)
-        case .failure: (tr("はずれ"), Theme.Fill.coral)
-        case .push:    (tr("引き分け"), Theme.fillMuted)
-        }
-        Text(text)
-            .themeCaption(13, weight: .black, maxScale: 1.5)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .foregroundStyle(result == .push ? .white : Theme.onAccent)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Capsule().fill(fill))
-    }
-
-    /// 復活導線の文言。回数制限を見た目にも出す（#499）。
-    private var reviveButtonTitle: String {
-        model.revivesRemaining == 1
-            ? tr("広告を見て%lld枚で復活（最後の1回）", PokerModel.reviveChips)
-            : tr("広告を見て%1$lld枚で復活（あと%2$lld回）", PokerModel.reviveChips, model.revivesRemaining)
-    }
-
-    /// やり直しの文言。復活の枚数と並べて読めるように、こちらにも枚数を出す（#523・ブラックジャックと揃える）。
-    private var restartButtonTitle: String {
-        tr("もう一度はじめる (%lld枚)", PokerModel.initialChips)
-    }
-
-    /// セッション終了の見出し下の説明。**自分が負けた回だけ**、復活を使い切ったことを書き添える
-    /// （#499・ブラックジャックの `sessionOverSubtitle` と揃える）。書かないとボタンが消えるだけになり、
-    /// なぜ選べないのかが画面から読み取れない。
-    private var sessionOverSubtitle: String {
-        switch model.sessionWinner {
-        case .player: return tr("CPUのチップが尽きました")
-        case .tie:    return tr("お互いのチップが尽きました")
-        default:
-            // 復活のほうがチップは多い（#523）ぶん、順位表に載らないことも選ぶ前に読める場所へ書く。
-            return model.canReviveAfterBust
-                ? tr("あなたのチップが尽きました。%lld枚で復活すると順位表に載りません", PokerModel.reviveChips)
-                : tr("あなたのチップが尽きました。復活はこのセッションで%lld回使いました", PokerModel.maxRevivesPerSession)
-        }
-    }
-
-    // セッション終了（チップ0）
-    private var sessionOverView: some View {
-        VStack(spacing: 8) {
+    /// 10 回が終わったときの勝負の結果。合計点・勝敗・作った一番強い役。
+    private var matchSummary: some View {
+        VStack(spacing: 6) {
             HStack(spacing: 10) {
-                let winner = model.sessionWinner
-                let icon = winner == .player ? "trophy.fill" : winner == .tie ? "equal.circle.fill" : "xmark.octagon.fill"
-                let iconColor = winner == .player ? Theme.yellowText : winner == .tie ? Theme.tealText : Theme.coralText
-                let title = winner == .player ? tr("セッション勝利！") : winner == .tie ? tr("引き分け") : tr("セッション敗北")
-                let titleColor = winner == .player ? Theme.tealText : winner == .tie ? Theme.tealText : Theme.coralText
-                let subtitle = sessionOverSubtitle
-                Image(systemName: icon)
+                Image(systemName: "trophy.fill")
                     .scaledFont(24)
-                    .foregroundStyle(iconColor)
+                    .foregroundStyle(Theme.yellowText)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .themeBody(16, weight: .bold, maxScale: 1.5)
+                    Text(tr("合計 %@点", RecordFormat.number(model.totalPoints)))
+                        .themeBody(18, weight: .black, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(titleColor)
-                    Text(subtitle)
+                        .foregroundStyle(Theme.ink)
+                    Text(matchSummaryDetail)
                         .themeCaption(12, weight: .semibold, maxScale: 1.5)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)
@@ -742,47 +483,14 @@ public struct PokerView: View {
                 }
                 Spacer()
             }
-
-            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
             RecordLabel(model.recordResult)
-
-            // チップ切れ復活（#499）。麻雀のトビ復活（#338）と同じ形
-            // （リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
-            // 使い切ったセッションではボタンごと消す。
-            if model.canReviveAfterBust {
-                Button {
-                    // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
-                    // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。見終えたのに
-                    // 適用できなかったとき（#728）は「視聴しなかった」と別のアラートを出す。
-                    reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
-                } label: {
-                    // 残り回数（1セッションに3回まで・#2012）は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
-                    // 書かないと2回目を期待して押す人が出る）。数値は `Text` 補間の桁区切りを避けて
-                    // 文字列を先に組む（#484）。
-                    Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
-                        .themeBody(16).frame(maxWidth: .infinity)
-                        // 0.8 では SE で末尾が切れる（#523。ブラックジャックの撮影で実測）。
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                }
-                .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
-                .disabled(reviveRescue.isWatching)
-            }
-
-            Button {
-                revealCPU = false
-                hasPlayedOnce = false
-                model.restartSession()
-                showStartSheet = true
-            } label: {
-                Text(restartButtonTitle).themeBody(16)
-            }
-            .buttonStyle(GameButtonStyle(role: .primary, shape: .block))
-            // 復活広告のロード〜視聴中にやり直すと、見終えた広告が新しいセッションに乗る（#728）。
-            .disabled(reviveRescue.isWatching)
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var matchSummaryDetail: String {
+        let record = tr("%1$lld勝 %2$lld敗 %3$lld分", model.playerWins, model.cpuWins, model.draws)
+        guard let best = model.bestRank else { return record }
+        return tr("%1$@・一番強い役 %2$@", record, best.description)
     }
 
     /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。

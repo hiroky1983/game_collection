@@ -160,10 +160,11 @@ struct GameCenterLeaderboardTests {
         )
         #expect(g2048 == GameCenterScore(leaderboardID: GameCenterLeaderboard.game2048Score, value: 12_340))
 
+        // ポーカーはチップ制をやめて点数制になった（#2551）。順位表（チップ）には送らない。
         let poker = GameCenterLeaderboard.score(
             gameID: "poker", outcome: .win, score: GameScore(metric: .points, points: 250)
         )
-        #expect(poker?.leaderboardID == GameCenterLeaderboard.pokerChips)
+        #expect(poker == nil)
 
         let blackjack = GameCenterLeaderboard.score(
             gameID: "blackjack", outcome: .draw, score: GameScore(metric: .points, points: 900)
@@ -296,7 +297,6 @@ struct GameCenterLeaderboardTests {
     func everyMappedIDIsRegistered() {
         let cases: [(String, GameScore)] = [
             ("2048", GameScore(metric: .points, points: 1)),
-            ("poker", GameScore(metric: .points, points: 1)),
             ("blackjack", GameScore(metric: .points, points: 1)),
             ("blocks", GameScore(metric: .points, points: 1)),
             // 区分キーは `MinesweeperDifficulty` のプリセット（#444 で 12×12/25・15×15/40 から変更）。

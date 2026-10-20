@@ -761,17 +761,18 @@ struct GameFinishCountingTests {
         #expect(service.log.playedGameIDs == ["othello"])
     }
 
-    @Test("ポーカー: ラウンドの決着で1回数える")
+    @Test("ポーカー: 10 回勝負の決着で1回数える")
     func poker() {
         let (services, service) = makeServices(suite: "count-poker")
         let model = PokerModel(services: services)
-        model.restartSession()
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
-        #expect(model.phase == .result)
+        while true {
+            model.confirmExchange()
+            if model.phase == .exchanged { model.finishExchange() }
+            if model.isMatchOver { break }
+            model.nextRound()
+        }
+        #expect(model.isMatchOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["poker"])
     }

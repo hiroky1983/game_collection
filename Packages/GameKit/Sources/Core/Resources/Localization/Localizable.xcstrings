@@ -3416,17 +3416,6 @@
         }
       }
     },
-    "役の強い側がポットのチップをもらえます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The stronger hand takes the chips in the pot."
-          }
-        }
-      }
-    },
     "役の早見表" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5242,61 +5231,6 @@
         }
       }
     },
-    "ポーカーの遊び方（ボーナスルール）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How to Play Poker (Bonus Rules)"
-          }
-        }
-      }
-    },
-    "勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Win to earn a bonus for your hand, then try the Double-Up."
-          }
-        }
-      }
-    },
-    "勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Win a showdown with two pair or better to earn a bonus on top of the pot."
-          }
-        }
-      }
-    },
-    "勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You can bet your winnings on the Double-Up: guess whether the next card is higher or lower than the shown card. Win and you double it; lose and it's gone."
-          }
-        }
-      }
-    },
-    "ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "There is a limit to how many times in a row you can Double-Up. If the numbers match, the card is redrawn."
-          }
-        }
-      }
-    },
     "チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5612,6 +5546,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+          }
+        }
+      }
+    },
+    "役の強い側がその回の勝ち。勝つと役の点が入り、10 回の合計点で競います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The stronger hand wins the round. Winning scores points for your hand; your 10-round total is your score."
+          }
+        }
+      }
+    },
+    "役の強い側がその回の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The stronger hand wins the round."
+          }
+        }
+      }
+    },
+    "勝つと役に応じた点が入ります。10 回の合計点で競います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning scores points based on your hand. Your 10-round total is your score."
+          }
+        }
+      }
+    },
+    "役の一覧と点数は「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hands and their points are listed under “Detailed Rules”."
+          }
+        }
+      }
+    },
+    "広告を見ると、1 回の勝負につき 1 回だけ、もう 1 回交換できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to draw one more time — once per match."
           }
         }
       }

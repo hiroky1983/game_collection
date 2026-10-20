@@ -4,7 +4,7 @@ import Core
 public struct PokerModule: GameModule {
     public let id = "poker"
     public var title: String { tr("ポーカー") }
-    public var description: String { tr("5カードドロー。チップを稼ごう！") }
+    public var description: String { tr("5カードドロー。10回勝負で役の点を競おう！") }
     public var icon: Image { Image(systemName: "suit.spade.fill") }
 
     public init() {}
@@ -13,8 +13,7 @@ public struct PokerModule: GameModule {
         AnyView(PokerView(services: services))
     }
 
-    /// 復活（#499）のチップだけを持ち回る中断データ（#1104）は局を持たない（`.idle`）。
-    /// 戻った先は次の局の開始シートで「続き」ではないので、ハブの表示にも `game_open` の
+    /// 局を持たない中断データ（`.idle`）は「続き」ではないので、ハブの表示にも `game_open` の
     /// `resume` にも数えない（将棋・チェスの見返しと同じ扱い・#809）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(PokerSnapshot.self, for: id) else { return false }

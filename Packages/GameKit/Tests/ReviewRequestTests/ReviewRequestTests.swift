@@ -767,17 +767,18 @@ struct GameOutcomeRoutingTests {
         #expect(service2.log.totalWins == 0, "諦めた回は勝ちに数えない")
     }
 
-    @Test("ポーカー: ラウンドの結果どおりに振り分ける")
+    @Test("ポーカー: 10 回勝負の結果どおりに振り分ける")
     func poker() {
         let (services, service) = makeServices(suite: "route-poker")
         let model = PokerModel(services: services)
-        model.restartSession()
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
-        #expect(model.phase == .result)
+        while true {
+            model.confirmExchange()
+            if model.phase == .exchanged { model.finishExchange() }
+            if model.isMatchOver { break }
+            model.nextRound()
+        }
+        #expect(model.isMatchOver)
 
         switch model.reviewOutcome {
         case .win:  #expect(service.log.totalWins == 1)

@@ -659,17 +659,6 @@
         }
       }
     },
-    "ボーナスルール" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bonus Rules"
-          }
-        }
-      }
-    },
     "・" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1143,6 +1132,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rook handicap"
+          }
+        }
+      }
+    },
+    "10回勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 Rounds"
           }
         }
       }

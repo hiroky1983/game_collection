@@ -1087,17 +1087,19 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.result == .loss)
     }
 
-    @Test("ポーカー: 配られた時点で開始・ラウンド決着で終局")
+    @Test("ポーカー: 配られた時点で開始・10 回勝負の決着で終局")
     func poker() {
         let (services, spy) = makeServices()
         let model = PokerModel(services: services)
-        #expect(spy.events.isEmpty, "画面を開いただけではラウンドが始まらない")
+        #expect(spy.events.isEmpty, "画面を開いただけでは勝負が始まらない")
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
-        #expect(model.phase == .result)
+        while true {
+            model.confirmExchange()
+            if model.phase == .exchanged { model.finishExchange() }
+            if model.isMatchOver { break }
+            model.nextRound()
+        }
+        #expect(model.isMatchOver)
         expectOnePair(spy, gameID: "poker")
     }
 

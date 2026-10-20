@@ -57,7 +57,7 @@ public enum RecordVariantLabels {
         case "mahjong4":
             return variant == "singleHand" ? tr("一局戦", language: language) : nil
         case "poker":
-            return variant == "bonus" ? tr("ボーナスルール", language: language) : nil
+            return variant == "round10" ? tr("10回勝負", language: language) : nil
         case "runner":
             return variant == "endless" ? tr("エンドレス", language: language) : nil
         case "hanafuda":

@@ -183,7 +183,7 @@ struct RecordFormatLocalizationTests {
         ("anzan#d1-n5-fast", .points, "1桁・5個・はやい", "1 digit · 5 numbers · Fast"),
         ("anzan#d2-n10-normal", .points, "2桁・10個・ふつう", "2 digits · 10 numbers · Normal"),
         ("mahjong4#singleHand", .winLoss, "一局戦", "Single Hand"),
-        ("poker#bonus", .points, "ボーナスルール", "Bonus Rules"),
+        ("poker#round10", .points, "10回勝負", "10 Rounds"),
         ("runner#endless", .points, "エンドレス", "Endless"),
         ("hanafuda#r12-nosake-hard", .winLoss, "12局・酒の役なし・CPUむずかしい", "12 rounds, No sake yaku, CPU Hard"),
     ]
