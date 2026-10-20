@@ -25,4 +25,15 @@ struct HandResultTests {
         #expect(result(delta: 0).spokenText.hasSuffix("チップの増減はありません"))
         #expect(result(delta: nil).spokenText == "勝ちです。ツーペア 対 ワンペア")
     }
+
+    @Test("強調は勝ちのときだけ有効（#2593）")
+    func emphasisOnlyForWin() {
+        func make(_ kind: HandResult.Kind) -> HandResult {
+            HandResult(kind: kind, headline: "", reason: "", chipDelta: nil, spokenResult: "", isEmphasized: true)
+        }
+        #expect(make(.win).isEmphasized)
+        #expect(!make(.lose).isEmphasized)
+        #expect(!make(.draw).isEmphasized)
+        #expect(!result(delta: 1).isEmphasized, "既定は強調しない")
+    }
 }

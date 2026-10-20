@@ -16,13 +16,17 @@ public struct HandResult: Equatable, Sendable {
     public let chipDelta: Int?
     /// VoiceOver で勝敗として読む文。見出しと違い「勝ちです」のように文にする。
     public let spokenResult: String
+    /// 強い役で勝ったときの強調（#2593）。拡大・きらめきと役名（`reason`）の強調に使う。既定は無し。
+    public let isEmphasized: Bool
 
-    public init(kind: Kind, headline: String, reason: String, chipDelta: Int?, spokenResult: String) {
+    public init(kind: Kind, headline: String, reason: String, chipDelta: Int?, spokenResult: String,
+                isEmphasized: Bool = false) {
         self.kind = kind
         self.headline = headline
         self.reason = reason
         self.chipDelta = chipDelta
         self.spokenResult = spokenResult
+        self.isEmphasized = isEmphasized && kind == .win
     }
 
     /// 増減の表示（例: "+40枚" / "−20枚" / "±0枚"）。数値の桁区切りを避けるため文字列で組む。
@@ -49,12 +53,16 @@ public struct HandResult: Equatable, Sendable {
 /// 卓の中央に出す大きな勝敗表示。操作は受けない（`allowsHitTesting(false)`）。
 public struct HandResultBanner: View {
     private let result: HandResult
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsed = false
 
     public init(_ result: HandResult) {
         self.result = result
     }
 
     private var fill: Color {
+        // 強い役の勝ちは色でも分かるように黄に替える。Reduce Motion ではこの色と枠の太さだけが強調になる。
+        if result.isEmphasized { return Theme.Fill.yellow }
         switch result.kind {
         case .win:  return Theme.Fill.teal
         case .lose: return Theme.Fill.coral
@@ -81,6 +89,30 @@ public struct HandResultBanner: View {
         }
     }
 
+    /// 四隅のきらめき。動くのは強調された勝ち、かつ Reduce Motion オフのときだけ。
+    @ViewBuilder
+    private var sparkles: some View {
+        if result.isEmphasized && !reduceMotion {
+            GeometryReader { geo in
+                ForEach(Array(Self.sparkleSpots.enumerated()), id: \.offset) { index, spot in
+                    Image(systemName: "sparkle")
+                        .font(.system(size: spot.size, weight: .black)) // fixed-size: 装飾のきらめき（文字ではない）
+                        .foregroundStyle(Theme.ink)
+                        .opacity(pulsed ? 1 : 0.15)
+                        .scaleEffect(pulsed ? 1 : 0.4)
+                        .animation(.easeInOut(duration: 0.45).repeatCount(4, autoreverses: true)
+                            .delay(Double(index) * 0.12), value: pulsed)
+                        .position(x: geo.size.width * spot.x, y: geo.size.height * spot.y)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    private static let sparkleSpots: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [
+        (0.04, 0.0, 16), (0.96, 0.05, 20), (0.1, 1.0, 18), (0.93, 0.98, 14),
+    ]
+
     public var body: some View {
         VStack(spacing: 2) {
             // 見出しと増減は 1 行に並べて高さを抑える（卓の中央に重ねるので、手札を覆う面積を減らしたい）。
@@ -91,7 +123,7 @@ public struct HandResultBanner: View {
             }
             if !result.reason.isEmpty {
                 Text(result.reason)
-                    .themeCaption(13, weight: .bold, maxScale: 1.5)
+                    .themeCaption(result.isEmphasized ? 15 : 13, weight: result.isEmphasized ? .black : .bold, maxScale: 1.5)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.center)
@@ -103,8 +135,14 @@ public struct HandResultBanner: View {
         .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(fill))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 2)
+                .strokeBorder(Theme.ink.opacity(0.85), lineWidth: result.isEmphasized ? 3 : 2)
         )
+        .overlay { sparkles }
+        .scaleEffect(result.isEmphasized && !reduceMotion && pulsed ? 1.06 : 1)
+        .onAppear {
+            guard result.isEmphasized, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.5).repeatCount(3, autoreverses: true)) { pulsed = true }
+        }
         .shadow(color: Theme.cardShadow, radius: 10, y: 4)
         .padding(.horizontal, 24)
         .accessibilityElement(children: .ignore)
