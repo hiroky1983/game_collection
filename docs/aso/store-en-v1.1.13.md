@@ -76,7 +76,7 @@ No full-screen ad will ever pop up in the middle of your game.
 - Osero: sandwich your opponent's discs to flip them to your color, and fight the CPU for the corners.
 - Gomoku: five in a row on a 15x15 board, with or without forbidden moves.
 - Hanafuda Koi-Koi: match cards by month and build scoring sets. Call "koi-koi" to double your points, if you dare.
-- Poker: five-card draw against the CPU, with optional hand bonuses and a double-up round.
+- Poker: five-card draw against the CPU. Play a 10-round match and score points for the hands you make.
 - Blackjack: beat the dealer without going over 21.
 - Daifugo: a Japanese climbing card game with revolutions and card swaps.
 - Memory Match: find the pairs before the CPU does.
@@ -104,7 +104,8 @@ No full-screen ad will ever pop up in the middle of your game.
 - When you feel like a game of shogi or mahjong
 ```
 
-v1.1.12 からの変更: 冒頭と [WHY ASOBIBA] の本数（25 → 28）、CPU 3人の対戦に Color Relay を追加、[THE GAMES] の末尾に 3 本を追加。
+v1.1.12 からの変更: 冒頭と [WHY ASOBIBA] の本数（25 → 28）、CPU 3人の対戦に Color Relay を追加、[THE GAMES] の末尾に 3 本を追加、
+Poker の紹介を 10-round match・役の点数の言い方に変更（チップ・ダブルアップの語を削除。ポーカーのチップ・賭け廃止 #2551・2026-10-20 決裁を受けて）。
 
 ## 6. このバージョンの新機能
 
