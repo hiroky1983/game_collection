@@ -117,6 +117,7 @@ public struct BlackjackView: View {
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            if isFinalRound { FinalRoundBadge() }
             Spacer(minLength: 0)
             Label(tr("勝ち %lld点", model.points), systemImage: "star.fill")
                 .themeBody(14)
@@ -131,8 +132,12 @@ public struct BlackjackView: View {
         }
         .padding(.horizontal, 14).padding(.vertical, metrics.chipsVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
+        .finalRoundBar(isFinalRound)
         .accessibilityElement(children: .combine)
     }
+
+    /// 10 回目の勝負か。配り〜決着後の結果画面まで続く（#2592）。
+    private var isFinalRound: Bool { model.currentRound >= BlackjackModel.roundsPerMatch }
 
     // MARK: - Pre-deal Table
 

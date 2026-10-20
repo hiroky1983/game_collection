@@ -1,6 +1,39 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "ラスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final"
+          }
+        }
+      }
+    },
+    "最後の勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final round"
+          }
+        }
+      }
+    },
+    "最後の勝負、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final round, %@"
+          }
+        }
+      }
+    },
     "残り%lld枚" : {
       "extractionState" : "manual",
       "localizations" : {
