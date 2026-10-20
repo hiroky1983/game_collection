@@ -3,7 +3,7 @@ import Foundation
 import GameKitTestSupport
 @testable import GamePoker
 
-/// ショーダウン（CPU 手札の公開）とポット表示の演出（#206）。
+/// ショーダウン（CPU 手札の公開）と合計点の表示の演出（#206・#2551）。
 ///
 /// 見た目そのものはシミュレータでしか確認できないので、**進捗 → 見え方の翻訳**と
 /// **長さの大小関係**をここで固定する。定数だけでは View 側の外し忘れを素通しするため、
@@ -51,16 +51,16 @@ struct PokerMotionTests {
         #expect(Motion.showdownTotalDuration <= 0.8)
     }
 
-    @Test("演出のトーンはポット ≦ 手札の選択 < 反転1枚 < ショーダウン全体の順")
+    @Test("演出のトーンは合計点 ≦ 手札の選択 < 反転1枚 < ショーダウン全体の順")
     func showdownIsTheHeaviestEffect() {
         // 山場（ショーダウン）が最も濃く、日常操作（数値の入れ替え・カードの選択）は軽い、
         // という濃淡を固定する（#206 の受け入れ条件3。もとは逆転していた）。
-        #expect(Motion.potChangeDuration <= Motion.handSelectionResponse)
+        #expect(Motion.pointsChangeDuration <= Motion.handSelectionResponse)
         #expect(Motion.handSelectionResponse <= Motion.showdownFlipDuration)
         #expect(Motion.showdownFlipDuration < Motion.showdownTotalDuration)
     }
 
-    @Test("View がショーダウンの反転とポットの数値遷移に結線されている")
+    @Test("View がショーダウンの反転と合計点の数値遷移に結線されている")
     func viewIsWiredToTheMotion() throws {
         let source = try Self.viewSource()
 
@@ -80,19 +80,19 @@ struct PokerMotionTests {
             "CPU の手札が素の CardView に戻っている"
         )
 
-        // ポットの数値遷移。
+        // 合計点の数値遷移。
         #expect(
             SourceScan.matchCount(of: #"\.contentTransition\(\.numericText\(value:"#, in: source) == 1,
-            "ポットの枚数に数値トランジションが掛かっていない"
+            "合計点に数値トランジションが掛かっていない"
         )
         #expect(
-            SourceScan.matchCount(of: #"PokerMotion\.potChange"#, in: source) >= 1,
-            "ポットの枚数変化が PokerMotion.potChange で animate されていない"
+            SourceScan.matchCount(of: #"PokerMotion\.pointsChange"#, in: source) >= 1,
+            "合計点の変化が PokerMotion.pointsChange で animate されていない"
         )
-        // 位置まで animate されると、画面が動く場面で数字だけがポットの枠の外へ滑る（実測）。
+        // 位置まで animate されると、画面が動く場面で数字だけが帯の外へ滑る（実測）。
         #expect(
             SourceScan.matchCount(of: #"\.geometryGroup\(\)"#, in: source) == 1,
-            "ポットの枚数に .geometryGroup() が付いていない（数字が枠外へ滑る）"
+            "合計点に .geometryGroup() が付いていない（数字が枠外へ滑る）"
         )
 
         // Reduce Motion に追従しない素の `.animation(` が紛れ込んでいないこと（#210）。
@@ -124,6 +124,24 @@ struct PokerMotionTests {
             SourceScan.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 1,
             "役名のフェードから、カードが返り終わるまでの遅延が外れている"
         )
+    }
+
+    @Test("役名が出る時刻は 5 枚の反転が終わる時刻と一致する（#667）")
+    func revealDelayMatchesTheFlip() {
+        #expect(Motion.showdownRevealDelay
+            == .milliseconds(Int((Motion.showdownTotalDuration * 1000).rounded())))
+    }
+
+    @Test("ショーダウンの合計点は反転が終わるまで動かず、画面が遅れを Model へ渡している（#667）")
+    func pointsWaitForTheReveal() throws {
+        let motion = try SourceScan.packageSource("Sources/GamePoker/PokerMotion.swift")
+        #expect(motion.contains("static let pointsSettle: Animation = pointsChange.delay(showdownTotalDuration)"))
+        let view = try SourceScan.moduleSources("GamePoker")
+        #expect(view.contains(".gameAnimation(pointsAnimation, value: model.playerPoints)"))
+        #expect(view.contains("model.phase == .result ? PokerMotion.pointsSettle : PokerMotion.pointsChange"))
+        #expect(view.contains(
+            "showdownRevealDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay"
+        ))
     }
 
     // MARK: - ヘルパー

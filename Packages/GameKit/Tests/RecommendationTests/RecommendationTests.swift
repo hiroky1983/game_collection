@@ -662,6 +662,7 @@ struct PlayLogStorageTests {
         // 足した 24 本で 351 バイト（ID が 12 文字と長いぶん 1 本で大きく伸びた）になったため 400 にした。
         // 倉庫から 4 本（#2384）を足した 29 本で 409 バイトになったため
         // 450 にした。全体（下）は 24 本で 497 バイト・29 本で 555 バイトなので、同じ理由で 512 → 600 にした。
+        // その後ルーレットを倉庫へ戻して 28 本になった（v1.1.13 審査の却下・2026-10-19）。上限は据え置き。
         #expect(storedValueSize(after1020) < 450,
                 "値の合計は450バイト未満（Issue #52 の 300 バイト + ゲームの本数ぶん）。実測 \(storedValueSize(after1020)) バイト")
         #expect(storedSize(after1020) <= 600, "キー名と plist の枠を含めても 600 バイト以内。実測 \(storedSize(after1020)) バイト")
@@ -760,17 +761,22 @@ struct GameFinishCountingTests {
         #expect(service.log.playedGameIDs == ["othello"])
     }
 
-    @Test("ポーカー: ラウンドの決着で1回数える")
+    @Test("ポーカー: 10 回勝負の決着で1回数える")
     func poker() {
         let (services, service) = makeServices(suite: "count-poker")
         let model = PokerModel(services: services)
         model.restartSession()
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
-        #expect(model.phase == .result)
+        // 10 回で 1 プレイ（#2551）。
+        for _ in 0..<100 where !model.sessionOver {
+            switch model.phase {
+            case .exchange: model.confirmExchange()
+            case .drawn:    model.showdown()
+            case .result:   model.nextRound()
+            case .idle:     break
+            }
+        }
+        #expect(model.sessionOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["poker"])
     }
@@ -808,14 +814,20 @@ struct GameFinishCountingTests {
         #expect(service.log.playedGameIDs == ["sudoku"])
     }
 
-    @Test("ブラックジャック: ラウンドの決着で1回数える")
+    @Test("ブラックジャック: 10 回勝負の決着で1回数える（#2552）")
     func blackjack() {
         let (services, service) = makeServices(suite: "count-blackjack")
         let model = BlackjackModel(services: services)
-        model.restartSession()
-        model.placeBet(100)
-        if model.phase == .playerTurn { model.stand() }
+        model.restartMatch()
+        model.deal()
+        while model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
+        #expect(service.log.totalFinishes == 0, "1 回ごとには数えない")
+        for _ in 0..<20 where !model.matchOver {
+            model.nextRound()
+            while model.phase == .playerTurn { model.stand() }
+        }
+        #expect(model.matchOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["blackjack"])
     }

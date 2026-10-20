@@ -23,73 +23,6 @@
         }
       }
     },
-    "%@枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ chips"
-          }
-        }
-      }
-    },
-    "%@枚（ダブル）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ chips (doubled)"
-          }
-        }
-      }
-    },
-    "%lld枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld chip"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld chips"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld枚で復活すると順位表に載りません" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reviving with %lld chips takes you off the leaderboard"
-          }
-        }
-      }
-    },
-    "21 に近いほうが勝ち。ディーラーは 17 以上で止まります。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Closest to 21 wins. The dealer stands on 17 or more."
-          }
-        }
-      }
-    },
     "あなた" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -134,50 +67,6 @@
         }
       }
     },
-    "ダブルダウン" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double Down"
-          }
-        }
-      }
-    },
-    "チップ: %@枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chips: %@"
-          }
-        }
-      }
-    },
-    "チップが足りなくなりました" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not enough chips"
-          }
-        }
-      }
-    },
-    "チップは回復しませんでした" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chips Weren't Restored"
-          }
-        }
-      }
-    },
     "ディーラー" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -207,17 +96,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dealer has blackjack"
-          }
-        }
-      }
-    },
-    "ディーラーに勝てるか。チップを稼ごう！" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Can you beat the dealer? Stack up your chips!"
           }
         }
       }
@@ -321,39 +199,6 @@
         }
       }
     },
-    "ベット: %@枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bet: %@"
-          }
-        }
-      }
-    },
-    "ベットするとカードが配られます" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Place a bet to deal the cards"
-          }
-        }
-      }
-    },
-    "ベット額を選んでください" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose your bet"
-          }
-        }
-      }
-    },
     "伏せたカード" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -409,39 +254,6 @@
         }
       }
     },
-    "広告を見て%1$lld枚で復活（あと%2$lld回）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watch an ad: revive with %1$lld chips (%2$lld left)"
-          }
-        }
-      }
-    },
-    "広告を見て%lld枚で復活（最後の1回）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watch an ad: revive with %lld chips (last one)"
-          }
-        }
-      }
-    },
-    "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The session changed while the ad was playing, so the revive wasn't applied. It didn't use up a revive."
-          }
-        }
-      }
-    },
     "引き分け" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -464,29 +276,6 @@
         }
       }
     },
-    "復活はこのセッションで%lld回使いました。最初からやり直せます" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You've used %lld revive this session. You can start over."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You've used all %lld revives this session. You can start over."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "操作中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -494,28 +283,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Active"
-          }
-        }
-      }
-    },
-    "最初からやり直す (%lld枚)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start Over (%lld chips)"
-          }
-        }
-      }
-    },
-    "最初の2枚で21（1.5倍）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "21 on the first two cards (pays 3:2)"
           }
         }
       }
@@ -692,6 +459,193 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Split into 2 hands"
+          }
+        }
+      }
+    },
+    "ディーラーと10回勝負。勝ち点の合計で自己ベストを狙おう！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 rounds against the dealer. Score as many points as you can!"
+          }
+        }
+      }
+    },
+    "%1$lld回目 / %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "勝ち %lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points: %lld"
+          }
+        }
+      }
+    },
+    "連勝 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streak: %lld"
+          }
+        }
+      }
+    },
+    "ディーラーと%lld回勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld rounds against the dealer"
+          }
+        }
+      }
+    },
+    "21 に近いほうが勝ち。勝てば 1 点、ブラックジャックで勝てば 2 点。ディーラーは 17 以上で止まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closest to 21 wins. A win scores 1 point, a blackjack win scores 2. The dealer stands on 17 or more."
+          }
+        }
+      }
+    },
+    "配る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deal"
+          }
+        }
+      }
+    },
+    "広告を見てこの回をやり直す（1回まで）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad to Replay This Round (Once)"
+          }
+        }
+      }
+    },
+    "結果を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See Results"
+          }
+        }
+      }
+    },
+    "次の回へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Round"
+          }
+        }
+      }
+    },
+    "%1$lld回勝負の結果：勝ち %2$lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld-round result: %2$lld points"
+          }
+        }
+      }
+    },
+    "この勝負の最高連勝 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best streak this match: %lld"
+          }
+        }
+      }
+    },
+    "もう一度%lld回勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play %lld Rounds Again"
+          }
+        }
+      }
+    },
+    "この回はやり直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Replay This Round"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに次の回へ進んだため、やり直しは使っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You moved on while the ad was playing, so the replay wasn't used."
+          }
+        }
+      }
+    },
+    "%1$@（+%2$lld点）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (+%2$lld pts)"
+          }
+        }
+      }
+    },
+    "最初の2枚で21" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "21 with your first two cards"
           }
         }
       }

@@ -44,7 +44,7 @@ public struct PokerCard: Identifiable, Codable, Sendable, Equatable {
 
 // MARK: - Hand Rank
 
-public enum PokerHandRank: Int, Comparable, CustomStringConvertible, Sendable {
+public enum PokerHandRank: Int, Comparable, CustomStringConvertible, Sendable, Codable {
     case highCard = 0, onePair, twoPair, threeOfAKind,
          straight, flush, fullHouse, fourOfAKind, straightFlush, royalFlush
 

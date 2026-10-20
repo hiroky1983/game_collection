@@ -9,6 +9,8 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   `docs/design/hub-redesign-1831/hub-redesign/assets/tiles`）。
 - 荷物運びパズルはモックの絵が旧仕様の荷物なので、現行のゲーム内の荷物（`OjisanLuggage_*`）とおじさんの顔
   （`OjisanFace_cheer`）でモックと同じ作り（tiles/tile_art.py の方式）で描き直す。ぱっと暗算はモックに絵が無いので同じ方式で描く。
+- ブラックジャック・ポーカーは、モックの HTML（タイル絵と同じ場所の `<id>.html`）から**カジノチップ（`.chip`）を外して**
+  描き直す（#2552。審査で疑似ギャンブルと見られないよう、賭けを思わせる絵を出さない）。札・下地・配置はモックのまま。
 - 花札こいこいはモックの絵が旧仕様の札なので、ゲーム内の札の画像（#2188 の `Hanafuda_NN.png`）で描き直す（#2273）。
   左下・右下は「続きから」「NEW」が重なるので、文字や吹き出しは入れない。
 
@@ -27,6 +29,7 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -143,6 +146,19 @@ def asset_name(base, lang):
 # ゲーム内の部品（いろリレーの札・盆栽の絵と縁側のおじさん・サイコロ）を同じ方式で組む。
 REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "fruits", "dicecombo"}
 FRUITS_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameFruits/Resources")
+
+# モックの HTML からカジノチップを外して描くゲーム（#2552）。モックの PNG ではなく、隣の `<id>.html` を描く。
+CHIPLESS = {"blackjack", "poker"}
+CHIP_DIV = re.compile(r'<div class="chip"[^>]*></div>')
+
+
+def chipless_html(mock_dir, gid):
+    """モックのタイル絵の HTML から `.chip` の要素を取り除いたもの。チップが 1 枚も無ければ止める（モックが変わった合図）。"""
+    with open(os.path.join(mock_dir, f"{gid}.html"), encoding="utf-8") as f:
+        html = f.read()
+    stripped, count = CHIP_DIV.subn("", html)
+    assert count > 0, f"{gid}.html にチップの要素が見つからない"
+    return stripped
 
 # モックの tiles/tile_art.py と同じ下地の CSS（必要な部品だけ）。
 ART_CSS = """
@@ -365,6 +381,8 @@ def main():
             art = os.path.join(tmp, f"art-{gid}.png")
             if gid in REDRAWN:
                 render(art_html(gid), art, tmp)
+            elif gid in CHIPLESS:
+                render(chipless_html(args.mock, gid), art, tmp)
             else:
                 shutil.copy(os.path.join(args.mock, f"{gid}.png"), art)
             if args.keep:

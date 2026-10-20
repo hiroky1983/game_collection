@@ -17,25 +17,7 @@ private func makeStandingModel(
     store: MemorySnapshotStore = MemorySnapshotStore(),
     dealerDrawInterval: Duration
 ) -> (BlackjackModel, SpyFeedbackService, MemorySnapshotStore) {
-    var nextID = 0
-    func make(_ ranks: [Int]) -> [BlackjackCard] {
-        ranks.map { rank in
-            defer { nextID += 1 }
-            return BlackjackCard(id: nextID, suit: BlackjackSuit.allCases[nextID % 4], rank: rank)
-        }
-    }
-    let playerCards = make([10, 8])
-    let snapshot = BlackjackSnapshot(
-        playerHand: playerCards,
-        dealerHand: make([10, 2]),
-        deck: make([2, 2, 3, 10]),
-        chips: 1000,
-        bet: 100,
-        phase: .playerTurn,
-        hands: [BlackjackHand(id: 0, cards: playerCards, bet: 100)],
-        activeHandIndex: 0,
-        hasRevivedThisSession: false
-    )
+    let snapshot = blackjackSnapshot(player: [10, 8], dealer: [10, 2], deck: [2, 2, 3, 10], completedRounds: 1, points: 1)
     try? store.save(snapshot, for: "blackjack")
     let spy = SpyFeedbackService()
     let model = BlackjackModel(
@@ -57,7 +39,7 @@ private let expectedDealerRanks = [10, 2, 2, 2, 3]
 @MainActor
 struct BlackjackDealerPacingTests {
 
-    @Test("間が 0 なら従来どおりスタンドした瞬間に引き切って精算する")
+    @Test("間が 0 なら従来どおりスタンドした瞬間に引き切って決着する")
     func zeroIntervalResolvesImmediately() {
         let (model, spy, store) = makeStandingModel(dealerDrawInterval: .zero)
 
@@ -68,7 +50,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.outcome == .lose)
         #expect(model.dealerTask == nil)
         #expect(spy.notices == [.error])
-        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.phase == .result, "勝負の途中なので、決着した回の結果ごと残す（#2552）")
     }
 
     @Test("間があればスタンド直後はディーラーの番に留まり、記録も勝敗の触覚もまだ出ない")
@@ -79,7 +61,7 @@ struct BlackjackDealerPacingTests {
 
         #expect(model.phase == .dealerTurn)
         #expect(model.dealerHand.count == 2, "1 枚目を引く前に間がある")
-        #expect(model.recordResult == nil, "引き終わる前に記録を確定していない")
+        #expect(model.completedRounds == 1, "引き終わる前に回を数えていない")
         #expect(spy.notices.isEmpty, "引き終わる前に勝敗が伝わっていない")
         #expect(store.exists(for: "blackjack"), "引いている途中も中断データが残る")
 
@@ -90,11 +72,11 @@ struct BlackjackDealerPacingTests {
         #expect(model.phase == .result)
         #expect(model.dealerHand.map(\.rank) == expectedDealerRanks, "待っても引く札は変わらない")
         #expect(model.outcome == .lose)
-        #expect(model.chips == 900)
-        #expect(model.recordResult != nil, "精算で記録が確定する")
+        #expect(model.points == 1, "負けたので点は増えない")
+        #expect(model.completedRounds == 2, "決着で回が進む")
         #expect(spy.notices == [.error], "勝敗の触覚は精算で 1 回だけ")
         #expect(spy.impacts.isEmpty, "ディーラー（CPU）の引きでは鳴らさない")
-        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.phase == .result, "勝負の途中なので、決着した回の結果ごと残す（#2552）")
         #expect(model.dealerTask == nil)
     }
 
@@ -109,14 +91,14 @@ struct BlackjackDealerPacingTests {
 
         #expect(model.phase == .result)
         #expect(model.dealerHand.map(\.rank) == expectedDealerRanks, "飛ばしても結果は変わらない")
-        #expect(model.chips == 900)
+        #expect(model.completedRounds == 2)
         #expect(spy.notices == [.error])
-        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.phase == .result, "勝負の途中なので、決着した回の結果ごと残す（#2552）")
 
         // 1 時間の待ちは取り消しで即座に終わる。終わったあとに札も精算も増えていない。
         await task?.value
         #expect(model.dealerHand.map(\.rank) == expectedDealerRanks)
-        #expect(model.chips == 900, "二重に精算していない")
+        #expect(model.completedRounds == 2, "二重に決着していない")
         #expect(spy.notices == [.error])
     }
 
@@ -131,7 +113,7 @@ struct BlackjackDealerPacingTests {
         #expect(spy.notices.isEmpty)
     }
 
-    @Test("引いている途中で中断したら、スタンド前へ戻さず続きから引いて精算する")
+    @Test("引いている途中で中断したら、スタンド前へ戻さず続きから引いて決着する")
     func restoringMidDrawFinishesTheDealerTurn() async {
         let store = MemorySnapshotStore()
         let (interrupted, _, _) = makeStandingModel(store: store, dealerDrawInterval: .seconds(3600))
@@ -148,26 +130,26 @@ struct BlackjackDealerPacingTests {
 
         #expect(reopened.phase == .result)
         #expect(reopened.dealerHand.map(\.rank) == expectedDealerRanks)
-        #expect(reopened.chips == 900)
-        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.hands?.isEmpty == true, "決着したら局は残さず、賭け待ちの残高だけ残る（#1623）")
+        #expect(reopened.completedRounds == 2)
+        #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.phase == .result, "勝負の途中なので、決着した回の結果ごと残す（#2552）")
 
         let task = interrupted.dealerTask
         task?.cancel()
         await task?.value
     }
 
-    @Test("引いている途中でやり直したら、新しいセッションの卓に前の局の札が足されない")
+    @Test("引いている途中で勝負をやり直したら、新しい勝負の卓に前の回の札が足されない")
     func restartCancelsTheDraws() async {
         let (model, spy, _) = makeStandingModel(dealerDrawInterval: .milliseconds(1))
         model.stand()
         let task = model.dealerTask
 
-        model.restartSession()
+        model.restartMatch()
         await task?.value
 
-        #expect(model.phase == .betting)
+        #expect(model.phase == .ready)
         #expect(model.dealerHand.isEmpty)
-        #expect(model.chips == BlackjackModel.initialChips)
+        #expect(model.points == 0)
         #expect(model.recordResult == nil)
         #expect(spy.notices.isEmpty)
     }
@@ -178,7 +160,7 @@ struct BlackjackDealerPacingTests {
     func drawIntervalOutlastsTheHoleCardFlip() {
         #expect(BlackjackMotion.dealerDrawDelay > BlackjackMotion.holeCardFlipDuration)
         #expect(BlackjackMotion.dealerDrawInterval == .milliseconds(350))
-        // 1 枚ごとに待たせすぎると、毎ラウンドの結果待ちが重くなる。
+        // 1 枚ごとに待たせすぎると、毎回の結果待ちが重くなる。
         #expect(BlackjackMotion.dealerDrawDelay <= 0.5)
     }
 

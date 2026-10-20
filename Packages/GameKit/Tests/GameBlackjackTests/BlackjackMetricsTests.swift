@@ -49,7 +49,7 @@ struct BlackjackMetricsTests {
         )
     }
 
-    /// ベット・ヒット・スタンド・ダブルダウン・スプリット・次のゲーム・結果まで進めるが
+    /// 配る・ヒット・スタンド・スプリット・次の回へ（結果を見る）・結果まで進めるが
     /// 同じ `actionButton` を通ることを固定する。個別に組み直されると 44pt を外れるため。
     @Test("主要な操作はすべて actionButton を経由している")
     func allActionsGoThroughActionButton() throws {
@@ -57,12 +57,11 @@ struct BlackjackMetricsTests {
         // 件数だけだと、1 箇所が外れても別の呼び出しが増えれば保たれてしまう（PR #267 の指摘）。
         // どの操作が経由しているかをラベルで個別に見る。ラベルは呼び出しと同じ行に書かれている。
         for label in [
-            "tr(\"%lld枚\", amount)",
+            "tr(\"配る\")",
             "tr(\"スタンド\")",
             "tr(\"ヒット\")",
-            "tr(\"ダブルダウン\")",
             "tr(\"スプリット\")",
-            "tr(\"もう一回\")",
+            "model.isFinalRoundResult ? tr(\"結果を見る\") : tr(\"次の回へ\")",
             "tr(\"結果まで進める\")",
         ] {
             let pattern = #"actionButton\(\s*"# + NSRegularExpression.escapedPattern(for: label)
@@ -71,42 +70,6 @@ struct BlackjackMetricsTests {
                 "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
             )
         }
-    }
-
-    // MARK: - 縦の寸法（#2498）
-
-    typealias Vertical = BlackjackVerticalMetrics
-
-    /// iPhone SE（第 3 世代）でナビバー下から画面下までの使える高さ。
-    private static let seContentHeight: CGFloat = 603
-
-    @Test("詰めるのは縦が狭いスプリット中だけ（iPhone SE は詰める・iPhone 17 と 1 手のときは通常）")
-    func choosesBySizeAndSplit() {
-        #expect(Vertical.metrics(forHeight: Self.seContentHeight, isSplit: true) == .compact)
-        #expect(Vertical.metrics(forHeight: Self.seContentHeight, isSplit: false) == .regular)
-        #expect(Vertical.metrics(forHeight: 687, isSplit: true) == .regular)
-        #expect(Vertical.metrics(forHeight: 724, isSplit: true) == .regular)
-        #expect(Vertical.metrics(forHeight: Vertical.compactHeightThreshold, isSplit: true) == .regular)
-        #expect(Vertical.metrics(forHeight: Vertical.compactHeightThreshold - 1, isSplit: true) == .compact)
-    }
-
-    @Test("詰めた寸法はミニガイド込みでも iPhone SE の使える高さに収まる")
-    func compactFitsSE() {
-        #expect(Vertical.compact.estimatedSplitMinimumHeight <= Self.seContentHeight)
-    }
-
-    @Test("通常の寸法が要る高さは境目より下（境目未満では詰める側に落ちる）")
-    func regularNeedIsBelowThreshold() {
-        #expect(Vertical.regular.estimatedSplitMinimumHeight <= Vertical.compactHeightThreshold)
-    }
-
-    @Test("通常の寸法は従来値のまま（iPhone 17 の見た目を変えない）")
-    func regularKeepsLegacyValues() {
-        #expect(Vertical.regular.spacing == 10)
-        #expect(Vertical.regular.tableSpacing == 10)
-        #expect(Vertical.regular.pad == 16)
-        #expect(Vertical.regular.chipsVerticalPadding == 8)
-        #expect(Vertical.regular.areaVerticalPadding == 14)
     }
 
     // MARK: - ヘルパー
