@@ -23,6 +23,9 @@
      取れない日は円を空欄にしてログに警告する
   6. ASO（日次）に 3〜10 日前の欠けがあれば、週次まとめの最終更新の行とログに「警告: ASO（日次）に欠けた日 …」を出す
      （10 日より前は API に残らないので対象外・補完もしない）
+  7. キーワード順位（#2533）: docs/aso/keywords-current.txt の語ごとに公開の iTunes Search API を叩き、「あそびば」が
+     何位に出るか（無ければ圏外）を ~/asobiba-kpi/aso/rank/daily.csv に保存し、「順位（日次）」タブと週次まとめの先頭の
+     1 行（10 位以内・30 位以内の語の数）に出す。1 語の失敗はその語だけ空欄にして続ける
 
 ASC の API は GET だけを使う（GA4 の runReport は読み取りの POST）。リクエストが無い・止まっている場合は作り直さずにエラー終了する
 （作成は会長の判断を経て手で行う）。鍵・トークン・署名付き URL はログにも CSV にも出さない。
@@ -35,6 +38,7 @@ import csv
 import datetime
 import glob
 import gzip
+import http.client
 import json
 import os
 import subprocess
@@ -798,6 +802,160 @@ def daily_ad_total_jpy(ga4_rows, admob_rows, rates):
     return out
 
 
+# ---------------------------------------------------------------- キーワード順位（#2533）
+#
+# 公開の iTunes Search API（認証不要・書き込みなし）で、語ごとの検索結果の何位に「あそびば」が出るかを測る。
+# 語の一覧は docs/aso/keywords-current.txt（1 行 1 語・# から始まる行と空行は無視）を正とし、入稿記録を直すときに一緒に直す。
+# aso-daily.py は origin/main から単体で取り出して動くため、一覧も同じ当番クローンの origin/main から git show で読む。
+# 順位は Search API の並びで、App Store アプリの検索結果とは完全には一致しない近似値。
+# 保存: <out-dir>/rank/daily.csv（date, term, rank, count）。rank は 1 始まりの順位、検索結果に無ければ「圏外」、
+# 取得に失敗した語は空欄（count = 返ってきた結果件数）。
+
+APP_TRACK_ID = 6781719499
+RANK_API = "https://itunes.apple.com/search?term={term}&country=jp&entity=software&limit=200"
+RANK_INTERVAL_SEC = 3  # Search API の実質的な上限は約 20 回/分。語ごとにあける
+RANK_OUT = "圏外"
+RANK_FIELDNAMES = ["date", "term", "rank", "count"]
+KEYWORDS_REPO = os.path.expanduser("~/.asobiba-duty/game_collection")
+KEYWORDS_REL_PATH = "docs/aso/keywords-current.txt"
+
+
+class RankError(Exception):
+    pass
+
+
+def parse_keywords(text):
+    """keywords-current.txt の中身 → 語のリスト（空行・# 始まりの行は無視、重複は最初の 1 つだけ、順序は保つ）。"""
+    out = []
+    for ln in text.splitlines():
+        t = ln.strip()
+        if t and not t.startswith("#") and t not in out:
+            out.append(t)
+    return out
+
+
+def load_keywords(path=None):
+    """path があればそのファイル、無ければ当番クローンの origin/main の docs/aso/keywords-current.txt を読む。"""
+    try:
+        if path:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        else:
+            p = subprocess.run(["git", "-C", KEYWORDS_REPO, "show", "origin/main:" + KEYWORDS_REL_PATH],
+                               capture_output=True, timeout=30)
+            if p.returncode != 0:
+                raise RankError("origin/main から %s を取り出せません" % KEYWORDS_REL_PATH)
+            text = p.stdout.decode("utf-8")
+    except (OSError, UnicodeDecodeError, subprocess.SubprocessError):
+        raise RankError("キーワードの一覧を読めません（%s）" % (path or KEYWORDS_REL_PATH))
+    terms = parse_keywords(text)
+    if not terms:
+        raise RankError("キーワードの一覧が空です（%s）" % (path or KEYWORDS_REL_PATH))
+    return terms
+
+
+def fetch_keyword_rank(term, api=RANK_API):
+    """(順位 or None（圏外）, 結果件数)。取れなければ RankError。"""
+    url = api.replace("{term}", urllib.parse.quote(term, safe=""))
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "asobiba-aso-daily/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            r = json.loads(resp.read())
+        results = r["results"]
+        if not isinstance(results, list):
+            raise ValueError
+    except urllib.error.HTTPError as e:
+        raise RankError("HTTP %d" % e.code)
+    except urllib.error.URLError:
+        raise RankError("接続できない")
+    except (OSError, ValueError, KeyError, TypeError, http.client.HTTPException):  # 途中で切れた応答（IncompleteRead）も失敗の 1 語
+        raise RankError("応答を読めない")
+    count = r.get("resultCount")
+    count = count if isinstance(count, int) else len(results)
+    for i, item in enumerate(results):
+        if isinstance(item, dict) and item.get("trackId") == APP_TRACK_ID:
+            return i + 1, count
+    return None, count
+
+
+def fetch_keyword_ranks(terms, date, api=RANK_API, interval=RANK_INTERVAL_SEC, sleep=time.sleep):
+    """語ごとに順位を測る。戻り値: [{date, term, rank, count}]（rank = 数字・「圏外」・失敗は空欄）。
+    1 語の失敗はその語だけ空欄にしてログに書き、他の語は続ける。語の間は interval 秒あける。"""
+    out = []
+    for i, term in enumerate(terms):
+        if i:
+            sleep(interval)
+        try:
+            rank, count = fetch_keyword_rank(term, api)
+            out.append({"date": date, "term": term, "rank": rank if rank is not None else RANK_OUT, "count": count})
+        except RankError as e:
+            log("警告: キーワード順位「%s」を取得できませんでした（%s）。その語は空欄" % (term, e))
+            out.append({"date": date, "term": term, "rank": "", "count": ""})
+    return out
+
+
+def read_rank_daily(path):
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8", newline="") as f:
+        return [r for r in csv.DictReader(f) if r.get("date") and r.get("term")]
+
+
+def merge_rank(existing, new):
+    """(date, term) をキーに new で置き換える。ただし new が失敗（空欄）で既存に値があれば既存を残す（同じ日の再実行で消さない）。"""
+    keyed = {(r["date"], r["term"]): {k: r.get(k, "") for k in RANK_FIELDNAMES} for r in existing}
+    for r in new:
+        k = (r["date"], r["term"])
+        if r["rank"] == "" and keyed.get(k, {}).get("rank", "") != "":
+            continue
+        keyed[k] = {k2: r.get(k2, "") for k2 in RANK_FIELDNAMES}
+    return sorted(keyed.values(), key=lambda r: r["date"])  # 日付順（同じ日の中は語の並びのまま）
+
+
+def write_rank_daily(path, rows):
+    def w(f):
+        cw = csv.DictWriter(f, fieldnames=RANK_FIELDNAMES)
+        cw.writeheader()
+        cw.writerows(rows)
+    write_atomic(path, w)
+
+
+def rank_terms(rank_rows, keywords):
+    """「順位（日次）」の列の順。今の一覧の語が先、過去にだけある語（一覧から外した語）はその後ろに最初に出た順。"""
+    terms = list(keywords or [])
+    for r in rank_rows:
+        if r["term"] not in terms:
+            terms.append(r["term"])
+    return terms
+
+
+def rank_value(v):
+    v = str(v if v is not None else "").strip()
+    return int(v) if v.isdigit() else v
+
+
+def tab_rank(rank_rows, keywords):
+    """順位（日次）: 行 = 日付、列 = 語。値は順位・「圏外」・取得失敗は空欄。"""
+    terms = rank_terms(rank_rows, keywords)
+    by = {(r["date"], r["term"]): r.get("rank", "") for r in rank_rows}
+    dates = sorted(set(r["date"] for r in rank_rows))
+    return [["日付"] + terms] + [[d] + [rank_value(by.get((d, t), "")) for t in terms] for d in dates]
+
+
+def rank_summary_line(rank_rows):
+    """週次まとめの先頭に出す 1 行（最新の日付の分）。データが無ければ ""。"""
+    if not rank_rows:
+        return ""
+    last = max(r["date"] for r in rank_rows)
+    cur = [r for r in rank_rows if r["date"] == last]
+    ranks = [int(r["rank"]) for r in cur if str(r["rank"]).isdigit()]
+    out = sum(1 for r in cur if r["rank"] == RANK_OUT)
+    failed = sum(1 for r in cur if r["rank"] == "")
+    return ("キーワード順位（%s・Search API の近似値）: 10 位以内 %d 語／30 位以内 %d 語"
+            "（全 %d 語・圏外 %d 語・取得失敗 %d 語）" % (
+                last, sum(1 for x in ranks if x <= 10), sum(1 for x in ranks if x <= 30), len(cur), out, failed))
+
+
 # ---------------------------------------------------------------- Google スプレッドシート（#2238）
 #
 # 毎回 daily.csv（ASO・GA4）・AdMob の画面取得 CSV から各タブの中身を作り直して丸ごと書き込む
@@ -807,7 +965,8 @@ def daily_ad_total_jpy(ga4_rows, admob_rows, rates):
 SHEET_ID = "1FSwmBy81utUvmt8z2b0eo6kGQ8jgXFhZgDoj_rhuVU4"  # 「あそびば KPI（毎日の数字）」
 SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets/" + SHEET_ID
 TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS = "週次まとめ", "ASO（日次）", "GA4（日次）", "ゲーム別（日次）", "広告（日次）"
-TABS = [TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS]
+TAB_RANK = "順位（日次）"
+TABS = [TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS, TAB_RANK]
 DEFAULT_SHEET_TITLES = ("シート1", "Sheet1")
 WEEKLY_TABLE_ROW = 47  # 週次の表の見出し行（1 始まり）。上は状態の行とグラフ 4 本の置き場
 CHART_ROWS = 5000  # グラフが参照する行数（日次の行が増えても描かれるよう広めに取る）
@@ -1102,7 +1261,7 @@ def _r(v):
     return round(v, 2) if isinstance(v, float) else ("" if v is None else v)
 
 
-def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status, rates=None):
+def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status, rates=None, rank_line=""):
     """週次まとめ: 先頭に状態とグラフ、WEEKLY_TABLE_ROW 行目から表（行 = 指標、列 = 基準・目安・週。新しい週が左）。
     各週は「1 日平均・前週比・基準比」の 3 列。基準は v1.1.11 公開前の 10/3〜10/11。
     表示回数・クリックは同じ日に AdMob 画面と GA4 の両方があれば AdMob 画面を優先し、GA4 だけの日は
@@ -1140,7 +1299,7 @@ def tab_weekly(aso_rows, ga4_rows, admob_rows, today, status, rates=None):
     note = ["1 日平均（データの無い日は除く。割合は期間合計の比）。前週比・基準比は件数は増減率、割合は差（ポイント）。"
             "基準は v1.1.11（10/12 公開）前の 10/3〜10/11。広告は表示回数 0 の日（AdMob の GA4 リンク前）を除く。"
             "ASO は App Store Connect、それ以外は GA4。表は新しい週が左。由来と取れない項目は「%s」タブ" % TAB_MEMO]
-    top = [[s] for s in status] + [note]
+    top = [[s] for s in status] + ([[rank_line]] if rank_line else []) + [note]
     return top + [[] for _ in range(WEEKLY_TABLE_ROW - 1 - len(top))] + table
 
 
@@ -1191,13 +1350,17 @@ def status_lines(now, errors, warning=""):
         "最終更新: %s（失敗した取得は前回までの数字のまま）%s" % (stamp, tail)]
 
 
-def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None, warning=""):
+def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None, warning="", rank_rows=None,
+               keywords=None):
+    rank_rows = rank_rows or []
     return {
-        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors, warning), rates),
+        TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors, warning), rates,
+                               rank_summary_line(rank_rows)),
         TAB_ASO: tab_aso(aso_rows),
         TAB_GA4: tab_ga4(ga4_rows, admob_rows),
         TAB_GAMES: tab_games(ga4_rows),
         TAB_ADS: tab_ads(ga4_rows, admob_rows, rates),
+        TAB_RANK: tab_rank(rank_rows, keywords),
     }
 
 
@@ -1237,12 +1400,14 @@ def chart_requests(ids):
 # 週次まとめ・メモ・基準値は対象外（今のまま）。tableId は固定し、無ければ addTable、あれば範囲だけ
 # updateTable で行の増減に追従させる（= 二重に作らない・毎日壊れない）。列の型（日付・数値）は新規作成時だけ付ける
 # （既存の表に付け直しても実害は無いが、ヘッダ文字列は書き込んだ値から毎回そのまま拾われるので触らない）。
-TABLE_IDS = {TAB_ASO: "tbl_aso_daily", TAB_GA4: "tbl_ga4_daily", TAB_GAMES: "tbl_games_daily", TAB_ADS: "tbl_ads_daily"}
+TABLE_IDS = {TAB_ASO: "tbl_aso_daily", TAB_GA4: "tbl_ga4_daily", TAB_GAMES: "tbl_games_daily", TAB_ADS: "tbl_ads_daily",
+             TAB_RANK: "tbl_rank_daily"}
 TABLE_COL_SPECS = {
     TAB_ASO: {"date_idx": 0, "text_idxs": {FIELDNAMES.index(c) for c in META_COLS}},
     TAB_GA4: {"date_idx": 0, "text_idxs": set()},
     TAB_GAMES: {"date_idx": 0, "text_idxs": {1, 2}},  # game_id・ゲーム名
     TAB_ADS: {"date_idx": 0, "text_idxs": {1, 2}},  # 取得元・広告フォーマット/ユニット
+    TAB_RANK: {"date_idx": 0, "text_idxs": set(), "all_text": True},  # 語の列は順位と「圏外」が混ざるので TEXT
 }
 
 
@@ -1255,7 +1420,7 @@ def table_requests(tab, sheet_id, header, n_rows, existing_tables):
            "startColumnIndex": 0, "endColumnIndex": len(header)}
     cols = []
     for i, name in enumerate(header):
-        ct = "DATE" if i == spec["date_idx"] else ("TEXT" if i in spec["text_idxs"] else "DOUBLE")
+        ct = "DATE" if i == spec["date_idx"] else ("TEXT" if spec.get("all_text") or i in spec["text_idxs"] else "DOUBLE")
         cols.append({"columnIndex": i, "columnName": str(name), "columnType": ct})
     existing = next((t for t in existing_tables or [] if t.get("tableId") == table_id), None)
     if existing is not None:
@@ -1376,6 +1541,13 @@ def main(argv=None):
                     help="スプレッドシートに書く代わりに各タブの中身を DIR/<タブ名>.tsv に出す（API は呼ばない）")
     ap.add_argument("--admob-history", default=ADMOB_HISTORY_PATH,
                     help="AdMob の画面取得（過去分）CSV（既定: %s）。テスト用に差し替え可" % ADMOB_HISTORY_PATH)
+    ap.add_argument("--keywords-file", metavar="FILE",
+                    help="順位を測る語の一覧（既定: 当番クローンの origin/main の %s）。テスト用に差し替え可" % KEYWORDS_REL_PATH)
+    ap.add_argument("--rank-api", metavar="URL",
+                    help="キーワード順位の取得先（{term} を語に置き換える。既定: %s）。テスト用に file:// へ差し替える。"
+                         "指定すると --no-fetch でも取る" % RANK_API)
+    ap.add_argument("--rank-interval", type=float, default=RANK_INTERVAL_SEC,
+                    help="順位を測る語の間にあける秒数（既定 %d。API の上限 約 20 回/分のため 3 秒未満にしない。テスト用）" % RANK_INTERVAL_SEC)
     ap.add_argument("--fx-api", metavar="URL",
                     help="USD/JPY レートの取得先（{date} を日付に置き換える。既定: %s）。テスト用に file:// へ差し替える。"
                          "指定すると --no-fetch でも取る" % FX_API)
@@ -1444,6 +1616,32 @@ def main(argv=None):
     if warning:
         log(warning)
 
+    # キーワード順位（#2533）。語の一覧が読めない・全語が失敗したときだけ取得失敗として出し、1 語の失敗はログだけ
+    rank_path = os.path.join(a.out_dir, "rank", "daily.csv")
+    rank_rows = read_rank_daily(rank_path)
+    keywords = []
+    do_rank = bool(a.rank_api) or not a.no_fetch
+    if do_rank or a.keywords_file:  # --no-fetch だけのときは本物の origin/main を読まない（列は保存済みの語から作る）
+        try:
+            keywords = load_keywords(a.keywords_file)
+        except RankError as e:
+            if do_rank:
+                errors.append(("キーワード順位", str(e)))
+                log("エラー: キーワード順位: %s" % e)
+    if keywords and do_rank:
+        try:
+            new = fetch_keyword_ranks(keywords, today.isoformat(), a.rank_api or RANK_API, a.rank_interval)
+            ok_n = sum(1 for r in new if r["rank"] != "")
+            if not ok_n:
+                errors.append(("キーワード順位", "全 %d 語の取得に失敗しました" % len(new)))
+                log("エラー: キーワード順位: 全 %d 語の取得に失敗しました" % len(new))
+            rank_rows = merge_rank(rank_rows, new)
+            write_rank_daily(rank_path, rank_rows)
+            log("キーワード順位: %d 語中 %d 語を取得（rank/daily.csv %d 行）" % (len(new), ok_n, len(rank_rows)))
+        except Exception as e:  # 想定外でも他の取得・シートの書き込みは続ける
+            errors.append(("キーワード順位", "取得・保存に失敗しました（%s）" % type(e).__name__))
+            log("エラー: キーワード順位の取得・保存に失敗しました（%s）" % type(e).__name__)
+
     admob_rows = read_admob_history(a.admob_history)
     if admob_rows:
         log("AdMob 画面取得（過去分）: %d 日分（%s〜%s）" % (
@@ -1463,7 +1661,8 @@ def main(argv=None):
     rates = fx_rates(fx)
 
     if a.sheets_dump or not a.no_sheets:
-        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors, rates, warning)
+        tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors, rates, warning,
+                          rank_rows, keywords)
         try:
             if a.sheets_dump:
                 dump_tabs(tabs, a.sheets_dump)
