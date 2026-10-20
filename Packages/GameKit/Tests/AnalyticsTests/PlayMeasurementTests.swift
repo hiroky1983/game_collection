@@ -690,13 +690,12 @@ struct GameOpenWiringTests {
         #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
                 "導線を持たない遷移がある（game_open の source が分からない）")
         // 導線ごとに正しい source を載せている。
-        // グリッド（#2175 から柵越えおじさんも同じグリッドのタイル。導線は以前の特別枠と同じ `.hero`・位置なし）。
-        #expect(source.range(of: #"gameID: module\.id, source: entry\.source, position: entry\.position"#,
+        // グリッド（#2566 から柵越えおじさんも通常のタイルで、ほかと同じ `.hub`・位置あり。`.hero` の発火点は無い）。
+        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: entry\.position"#,
                              options: .regularExpression) != nil, "グリッド")
-        #expect(source.range(of: #"GridEntry\(module: \$0\.element, position: \$0\.offset \+ 1, source: \.hub\)"#,
+        #expect(source.range(of: #"GridEntry\(module: \$0\.element, position: \$0\.offset \+ 1\)"#,
                              options: .regularExpression) != nil, "グリッド（.hub と位置）")
-        #expect(source.range(of: #"GridEntry\(module: hero, position: nil, source: \.hero\)"#,
-                             options: .regularExpression) != nil, "柵越えおじさん（.hero）")
+        #expect(!source.contains("source: .hero"), "柵越えおじさんの特別枠（.hero）は廃止した")
         #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
                              options: .regularExpression) != nil, "つづき・最近")
         #expect(source.range(of: #"gameID: id, source: \.recommendation, position: nil"#,
