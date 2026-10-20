@@ -140,7 +140,7 @@ struct CardTableSurfaceTests {
     // MARK: - 受け入れ条件: 4 本が同じ卓に乗っている
 
     /// レイアウトパターン A（全画面・#2531）に載せ替えたもの。共通の卓のフェルトを全画面の枠から受け取る。
-    static let fullScreenModules: Set<String> = ["GameMahjongSolitaire"]
+    static let fullScreenModules: Set<String> = ["GameMahjongSolitaire", "GameFreeCell"]
 
     @Test("4 本が共通の卓（cardTable）を使い、ゲームごとの卓を作っていない", arguments: [
         "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
@@ -197,7 +197,12 @@ struct CardTableSurfaceTests {
     ])
     func cardGamesShareTheTableTopInset(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(topInset: CardTableStyle\\.cardTopInset\\)", in: source) == 1,
+        let module = String(path.prefix(while: { $0 != "/" }))
+        // レイアウトパターン A（#2531）では卓を付けず、盤の上に同じ値の余白を取る。
+        let pattern = Self.fullScreenModules.contains(module)
+            ? "\\.padding\\(\\.top, CardTableStyle\\.cardTopInset\\)"
+            : "\\.cardTable\\(topInset: CardTableStyle\\.cardTopInset\\)"
+        #expect(SourceScan.matchCount(of: pattern, in: source) == 1,
                 "\(path) が卓の中の共通の上の余白を使っていない")
         #expect(CardTableStyle.cardTopInset > 0)
     }
