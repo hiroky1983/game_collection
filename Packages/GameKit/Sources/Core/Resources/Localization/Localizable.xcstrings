@@ -169,17 +169,6 @@
         }
       }
     },
-    "10・J・Q・K は同じ 10 点なので、スプリットできます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "10, J, Q and K are all worth 10, so any two of them can be split."
-          }
-        }
-      }
-    },
     "12 の役をぜんぶ埋めたら終わり。1〜6 の目の小計が 63 点以上ならボーナス +35 点です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -650,17 +639,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“Hit” to draw another card, “Stand” to stop there."
-          }
-        }
-      }
-    },
-    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“Hit” to draw a card, “Stand” to stop there. On your first 2 cards you can also “Double Down” (double your bet and draw just one card) or “Split” two cards of the same value (10, J, Q and K are all worth 10) into two hands."
           }
         }
       }
@@ -1939,17 +1917,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your chips didn't change"
-          }
-        }
-      }
-    },
-    "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose how many chips to bet, and the cards are dealt."
           }
         }
       }
@@ -3395,28 +3362,6 @@
         }
       }
     },
-    "役の一覧は「くわしいルール」で見られます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "See “Detailed Rules” for the list of hands."
-          }
-        }
-      }
-    },
-    "役の強い側がポットのチップをもらえます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The stronger hand takes the chips in the pot."
-          }
-        }
-      }
-    },
     "役の早見表" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3897,17 +3842,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If your first 2 cards have the same value, you can “Split” them into two hands."
-          }
-        }
-      }
-    },
-    "最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」も選べます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On your first 2 cards you can also “Double Down”: double your bet and draw just one more card."
           }
         }
       }
@@ -5210,61 +5144,6 @@
         }
       }
     },
-    "ポーカーの遊び方（ボーナスルール）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How to Play Poker (Bonus Rules)"
-          }
-        }
-      }
-    },
-    "勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Win to earn a bonus for your hand, then try the Double-Up."
-          }
-        }
-      }
-    },
-    "勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Win a showdown with two pair or better to earn a bonus on top of the pot."
-          }
-        }
-      }
-    },
-    "勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You can bet your winnings on the Double-Up: guess whether the next card is higher or lower than the shown card. Win and you double it; lose and it's gone."
-          }
-        }
-      }
-    },
-    "ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "There is a limit to how many times in a row you can Double-Up. If the numbers match, the card is redrawn."
-          }
-        }
-      }
-    },
     "指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5536,6 +5415,116 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+          }
+        }
+      }
+    },
+    "ディーラーと 10 回勝負します。勝てば 1 点、最初の 2 枚の 21（ブラックジャック）で勝てば 2 点。10 回の合計が自己ベストになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds against the dealer. A win scores 1 point, and winning with 21 on your first two cards (a blackjack) scores 2. Your 10-round total counts toward your personal best."
+          }
+        }
+      }
+    },
+    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚が同じ点数（10・J・Q・K は同じ 10 点）なら、2 手に分ける「スプリット」も選べます。分けた手はそれぞれ勝てば 1 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Hit to draw another card, or Stand to stop. If your first two cards have the same value (10, J, Q and K all count as 10), you can Split them into two hands. Each split hand scores 1 point if it wins."
+          }
+        }
+      }
+    },
+    "ディーラーと 10 回勝負。勝てば 1 点、ブラックジャックで勝てば 2 点で、10 回の合計が自己ベストになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 rounds against the dealer. A win scores 1 point, a blackjack win scores 2, and your 10-round total counts toward your personal best."
+          }
+        }
+      }
+    },
+    "10・J・Q・K は同じ 10 点なので、スプリットできます。分けた手はそれぞれ勝てば 1 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10, J, Q and K all count as 10, so you can split them. Each split hand scores 1 point if it wins."
+          }
+        }
+      }
+    },
+    "負けた回は、広告を見て 1 回だけやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once per match, you can watch an ad to replay a round you lost."
+          }
+        }
+      }
+    },
+    "10 回勝負。勝った回は自分の役の点が入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds. Each round you win scores the points of your hand."
+          }
+        }
+      }
+    },
+    "CPU と手札を見せ合い、役の強い側がその回の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show hands with the CPU. The stronger hand wins the round."
+          }
+        }
+      }
+    },
+    "10 回勝負。勝った回は自分の役の点が入り、合計点の多い側が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds. Each round you win scores the points of your hand, and the higher total wins."
+          }
+        }
+      }
+    },
+    "役の一覧と点数は「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for the list of hands and their points."
+          }
+        }
+      }
+    },
+    "広告を見ると、10 回のうち 1 度だけもう 1 回カードを交換できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to draw cards one more time, once per 10 rounds."
           }
         }
       }

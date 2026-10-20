@@ -67,7 +67,7 @@ func isBlackjack(_ hand: [BlackjackCard]) -> Bool {
 
 // MARK: - Settlement
 
-/// 勝敗とチップの増減を決める判定表（#413）。`resolveResult` から切り出した純関数。
+/// 手 1 つの勝敗を決める判定表（#413）。`resolveAll` から切り出した純関数。
 ///
 /// ナチュラル（2枚21）は両者について対称に扱う。**ディーラーのみナチュラルなら、
 /// プレイヤーが3枚以上で21に届いていてもディーラーの勝ち**（標準ルール。以前は
@@ -79,26 +79,36 @@ func isBlackjack(_ hand: [BlackjackCard]) -> Bool {
 func blackjackSettlement(
     player: [BlackjackCard],
     dealer: [BlackjackCard],
-    bet: Int,
     allowsPlayerNatural: Bool = true
-) -> (outcome: BlackjackOutcome, chipDelta: Int) {
+) -> BlackjackOutcome {
     let pVal = handValue(player)
     let dVal = handValue(dealer)
     let playerNatural = allowsPlayerNatural && isBlackjack(player)
     let dealerNatural = isBlackjack(dealer)
 
-    if playerNatural && dealerNatural { return (.push, 0) }
-    if playerNatural { return (.playerBlackjack, Int(Double(bet) * 1.5)) }  // 1.5倍払い
-    if dealerNatural { return (.lose, -bet) }
-    if dVal > 21 || pVal > dVal { return (.win, bet) }
-    if pVal == dVal { return (.push, 0) }
-    return (.lose, -bet)
+    if playerNatural && dealerNatural { return .push }
+    if playerNatural { return .playerBlackjack }
+    if dealerNatural { return .lose }
+    if dVal > 21 || pVal > dVal { return .win }
+    if pVal == dVal { return .push }
+    return .lose
+}
+
+/// 手 1 つの勝ち点（#2552）。勝てば 1 点、最初の 2 枚の 21（ブラックジャック）で勝てば 2 点。
+/// 引き分け・負け・バストは 0 点。スプリットした手はそれぞれ別に数える（分けた手の 21 はナチュラルにならないので最大 1 点）。
+func blackjackPoints(for outcome: BlackjackOutcome) -> Int {
+    switch outcome {
+    case .playerBlackjack:    return 2
+    case .win:                return 1
+    case .push, .lose, .bust: return 0
+    }
 }
 
 // MARK: - Game Phase
 
+/// 1 回ぶんの進み（#2552 で配る前の選択の段を外した）。`ready` は 1 回目を配る前だけ。2 回目以降は「次の回へ」でそのまま配る。
 public enum BlackjackPhase: String, Equatable, Sendable, Codable {
-    case idle, betting, playerTurn, dealerTurn, result
+    case ready, playerTurn, dealerTurn, result
 }
 
 public enum BlackjackOutcome: String, Sendable, Codable {
@@ -107,19 +117,15 @@ public enum BlackjackOutcome: String, Sendable, Codable {
 
 // MARK: - Player Hand
 
-/// プレイヤーの1手（#439）。スプリットすると2つに増え、それぞれ独立にベット・精算する。
+/// プレイヤーの1手（#439）。スプリットすると2つに増え、それぞれ独立に勝敗と勝ち点を出す。
 struct BlackjackHand: Identifiable, Codable, Sendable, Equatable {
     let id: Int
     var cards: [BlackjackCard]
-    /// この手に賭けている額。ダブルダウンで倍になる。
-    var bet: Int
     /// スプリットで生まれた手か。**この手の2枚21はナチュラル扱いしない**（標準ルール）。
     var isFromSplit: Bool = false
-    /// ダブルダウン済みか（1枚だけ引いて強制スタンド）。
-    var isDoubled: Bool = false
-    /// プレイヤーの操作が終わった手か（スタンド・ダブル・バスト・スプリットしたA）。
+    /// プレイヤーの操作が終わった手か（スタンド・バスト・スプリットしたA）。
     var isDone: Bool = false
-    /// 精算結果。`resolveAll()` で入る。
+    /// 勝敗。`resolveAll()` で入る。
     var outcome: BlackjackOutcome? = nil
 
     var value: Int { handValue(cards) }
@@ -128,28 +134,34 @@ struct BlackjackHand: Identifiable, Codable, Sendable, Equatable {
 
 // MARK: - Snapshot
 
+/// 10 回勝負（#2552）の中断データ。
+///
+/// **以前の形式（#2552 より前）の中断データは読まない**。`completedRounds` などを非 optional にしてあるので、
+/// 旧形式は decode に失敗して nil になる（`FileSnapshotStore` はその場で消す）。旧形式の局を勝ち点に
+/// 読み替えると点の意味が変わるので、続きは捨てて 1 回目から始める。
 struct BlackjackSnapshot: Codable {
-    /// 旧形式（#439 以前）との互換のために残している「今操作している手」の手札。
-    let playerHand: [BlackjackCard]
+    /// 決着した回数（0〜10）。結果を出している回も含む。
+    let completedRounds: Int
+    /// ここまでの勝ち点。
+    let points: Int
+    /// いまの連勝（勝ち点が入った回が続いた数）。
+    let streak: Int
+    /// この勝負の最高連勝。
+    let bestStreak: Int
+    /// 負けた回のやり直し（リワード広告）をこの勝負で使ったか。中断を挟んでも 1 回までを守る。
+    let hasUsedRetry: Bool
+    /// 結果を出している回より前の連勝。やり直しで連勝を元に戻すのに使う。
+    let streakBeforeRound: Int
+    /// 勝った手・負けた手の数（勝負全体の勝ち越し判定に使う）。
+    let handsWon: Int
+    let handsLost: Int
+    /// ブラックジャック（最初の 2 枚の 21）で勝った回数。評価リクエストの見せ場の判定に使う。
+    let naturalWins: Int
+    let hands: [BlackjackHand]
+    let activeHandIndex: Int
     let dealerHand: [BlackjackCard]
     let deck: [BlackjackCard]
-    let chips: Int
-    let bet: Int
     let phase: BlackjackPhase
-    /// #439 で追加。旧形式のスナップショットには無いので optional にし、
-    /// 欠けているときは `playerHand` + `bet` から手を1つ組み立てて読む
-    /// （更新前に中断した1局が、復帰時に黙って消えないようにする）。
-    let hands: [BlackjackHand]?
-    let activeHandIndex: Int?
-    /// チップ切れ復活（#499）をこのセッションで使い切ったか。中断を挟んでも
-    /// 「1 セッション 1 回まで」を守るために持ち回る（麻雀のトビ復活 #338 と同じ方式）。
-    /// **旧データには鍵が無い**ので optional にする（非 optional にすると旧データの
-    /// デコードが丸ごと失敗し、中断が黙って消える）。nil は「まだ使っていない」に倒す。
-    var hasRevivedThisSession: Bool? = nil
-    /// 復活を使った回数（#2012 で 1 回 → 3 回に拡げた）。**旧データには鍵が無い**ので optional のまま置き、
-    /// nil のときは `hasRevivedThisSession` から 1 回（使用済み）か 0 回（未使用）に倒す。
-    /// 旧版へ戻しても `hasRevivedThisSession` が残るので、使い切り扱いで安全側に倒れる。
-    var reviveCount: Int? = nil
 }
 
 // MARK: - Model
@@ -157,6 +169,12 @@ struct BlackjackSnapshot: Codable {
 @MainActor
 @Observable
 public final class BlackjackModel {
+    /// 1 回の勝負の回数（#2552。数値は仮置き・QA で調整）。
+    public static let roundsPerMatch = 10
+    /// 記録の区分キー（#2552）。以前の記録（区分なしのキー）と混ざらないよう、勝ち点は別のキーへ書く。
+    /// 旧キーの記録は `PlayLog` が読み込み時に捨てる（`PlayLog.retiredRecordKeys`）。
+    static let recordVariant = "match10"
+
     /// プレイヤーの手。通常は1つで、スプリットしたときだけ2つになる（#439）。
     private(set) var hands: [BlackjackHand] = []
     /// いま操作している手の位置。スプリット時は 0 → 1 の順に進む。
@@ -167,75 +185,71 @@ public final class BlackjackModel {
         hands.indices.contains(activeHandIndex) ? hands[activeHandIndex].cards : []
     }
     public private(set) var dealerHand: [BlackjackCard] = []
-    public private(set) var chips: Int = BlackjackModel.initialChips
-    /// いま場に出ている総ベット額（スプリット・ダブルダウンで増える）。決着すると 0 に戻る。
-    public private(set) var bet: Int = 0
-    public private(set) var phase: BlackjackPhase = .betting
+    public private(set) var phase: BlackjackPhase = .ready
+    /// 直近の回の勝敗（手が 2 つなら全体のまとめ）。
     public private(set) var outcome: BlackjackOutcome? = nil
-    /// 直近のラウンドの収支（全手の合計）。決着の「±チップ」表示（#1754）に使う。`chips` に足したのと同じ値。
-    public private(set) var roundDelta: Int?
-    public private(set) var sessionOver: Bool = false
-    /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
+
+    // MARK: 10 回勝負（#2552）
+
+    /// 決着した回数。結果を出している回も含む。
+    public private(set) var completedRounds = 0
+    /// ここまでの勝ち点。10 回の合計が自己ベストの対象。
+    public private(set) var points = 0
+    /// いまの連勝（勝ち点が入った回が続いた数）。引き分け・負けで 0 に戻る。
+    public private(set) var streak = 0
+    /// この勝負の最高連勝。
+    public private(set) var bestStreak = 0
+    /// 10 回を終えて記録をつけたか。
+    public private(set) var matchOver = false
+    /// 負けた回のやり直し（リワード広告）をこの勝負で使ったか。1 回の勝負につき 1 回。
+    public private(set) var hasUsedRetry = false
+    /// 勝負全体の勝敗（勝った手と負けた手の数で決める）。`matchOver` のときだけ値がある。
+    public private(set) var matchOutcome: GameOutcome?
+    /// 勝負を終えて確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
 
-    // MARK: チップ切れ復活（#499）
+    private var streakBeforeRound = 0
+    private var handsWon = 0
+    private var handsLost = 0
+    private var naturalWins = 0
 
-    /// セッション開始時の持ちチップ。無料の「最初からやり直す」もこの額に戻す。
-    static let initialChips = 1000
-    /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
-    ///
-    /// **無料のやり直し（`initialChips`）より必ず多くする**（#523 会長決裁 C 案）。以前は半分の 500 枚で、
-    /// 復活は順位表にも載らないため無料のやり直しの完全な下位互換になり、`revival` が 0 件だった。
-    /// 広告を見る理由を「チップが増える」で作り、順位表の扱い（復活したセッションは送らない）は変えない。
-    /// ディーラー相手でチップの多さが勝敗を左右しないので、倍の 2000 枚にしている。
-    public static let reviveChips = 2000
+    /// 勝負の通し番号。`restartMatch()` で進む（#727）。広告のあいだに勝負が入れ替わったら、やり直しを乗せない。
+    private var matchSerial = 0
 
-    /// いちばん安いベット額。**ベットボタンの並びと破産判定の両方がここを見る**（#656）。
-    /// 残高がこれに届かなければ、たとえ 0 枚でなくても打つ手が一つも無い＝そのセッションは
-    /// 終わりなので、`checkSessionOver()` はこの値を境にする。
-    ///
-    /// 50 枚ベットでブラックジャックを引いたときだけ 1.5 倍払いで 25 の端数が生まれるため、
-    /// 「0 枚になるまで遊べる」という前提は成り立たない（25 枚だと全ボタンが無効になり、
-    /// 破産カードも出ないのでハブに戻る以外の脱出手段が無くなっていた）。
-    public static let minimumBet = 50
-
-    /// 1 セッションで広告復活できる上限回数（#2012。当初は 1 回・#499）。
-    public static let maxRevivesPerSession = 3
-
-    /// このセッションで復活を使った回数。上限（`maxRevivesPerSession`）までの制限に使う。
-    private var reviveCount = 0
-
-    /// このセッションで復活を 1 回でも使ったか。順位表の資格に使う（回数に関わらず外れる）。
-    private var hasRevivedThisSession: Bool { reviveCount > 0 }
-
-    /// あと何回復活できるか（画面の文言用）。
-    public var revivesRemaining: Int { max(0, BlackjackModel.maxRevivesPerSession - reviveCount) }
-
-    /// セッションの通し番号。`restartSession()` で進む（#727）。
-    /// 広告のロード中に「最初からやり直す」を押されると、同じ画面の中でセッションが入れ替わる。
-    /// 画面の世代（#653）はハブへ戻ったときしか進まないので、こちらで照合する。
-    private var sessionSerial = 0
-
-    /// チップ切れをリワード広告で取り消せる状態か（#499）。1 セッション 3 回まで（#2012）。
-    public var canReviveAfterBust: Bool { sessionOver && revivesRemaining > 0 }
-
-    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
-    /// プッシュは引き分け、バストは敗北として扱う。
-    public var reviewOutcome: GameOutcome {
-        switch outcome {
-        case .playerBlackjack, .win: return .win
-        case .push:                  return .draw
-        default:                     return .loss
-        }
+    /// 画面に出す「n 回目」。結果を出しているあいだはその回、それ以外はこれから・いま遊んでいる回。
+    public var currentRound: Int {
+        let round = (phase == .result || matchOver) ? completedRounds : completedRounds + 1
+        return min(max(round, 1), BlackjackModel.roundsPerMatch)
     }
 
-    /// 今のラウンドの成績。チップは精算後の残高で、これが「最高チップ数」の自己ベストになる。
+    /// 直近の回で入った勝ち点（手ごとの点の合計）。結果を出していなければ nil。
+    public var roundPoints: Int? {
+        guard phase == .result, !hands.isEmpty, hands.allSatisfy({ $0.outcome != nil }) else { return nil }
+        return hands.reduce(0) { $0 + ($1.outcome.map(blackjackPoints) ?? 0) }
+    }
+
+    /// 直近の回が「負けた回」か。勝ち点が 0 で、負け（バストを含む）の手が 1 つでもある回。引き分けだけの回は含めない。
+    private var isRoundLost: Bool {
+        guard roundPoints == 0 else { return false }
+        return hands.contains { $0.outcome == .lose || $0.outcome == .bust }
+    }
+
+    /// 結果を出している回が最後の回で、まだ勝負を締めていないか（次の操作が「結果を見る」になる）。
+    public var isFinalRoundResult: Bool {
+        phase == .result && !matchOver && completedRounds >= BlackjackModel.roundsPerMatch
+    }
+
+    /// 負けた回を、リワード広告と引き換えにやり直せるか（#2552）。1 回の勝負につき 1 回。
+    public var canRetryRound: Bool {
+        phase == .result && !matchOver && !hasUsedRetry && isRoundLost
+    }
+
+    /// 勝負の成績。勝ち点の合計が自己ベストになる。
     ///
-    /// 復活（#499）を使ったセッションは順位表へ送らない（ソリティアのジョーカー #406 と同じ思想。
-    /// 送ると「広告を何回見たか」の表になる）。**ローカルの自己ベストには残す**ので、
-    /// 分けるのは `variant` ではなく `isLeaderboardEligible` のほう。
+    /// Game Center へは送らない（#2552。以前の順位表 `blackjackChips` は勝ち点と意味が違うため、
+    /// `GameCenterLeaderboard` の対応表からブラックジャックを外した）。
     private var currentScore: GameScore {
-        GameScore(metric: .points, points: chips, isLeaderboardEligible: !hasRevivedThisSession)
+        GameScore(metric: .points, points: points, variant: BlackjackModel.recordVariant)
     }
 
     public var playerValue: Int { handValue(playerHand) }
@@ -252,7 +266,7 @@ public final class BlackjackModel {
 
     /// ディーラーが1枚引くごとの間（#667）。`.zero` なら従来どおりその場で引き切る。
     private let dealerDrawInterval: Duration
-    /// 1枚ずつ引いている最中の `Task`。「結果まで進める」とセッションのやり直しで止める。
+    /// 1枚ずつ引いている最中の `Task`。「結果まで進める」とやり直しで止める。
     private(set) var dealerTask: Task<Void, Never>?
 
     /// - Parameters:
@@ -263,138 +277,99 @@ public final class BlackjackModel {
         self.services = services
         self.seed = seed
         self.dealerDrawInterval = dealerDrawInterval
-        if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack") {
-            self.dealerHand = snap.dealerHand
-            self.deck       = snap.deck
-            self.chips      = snap.chips
-            self.bet        = snap.bet
-            self.phase      = snap.phase
-            if let saved = snap.hands, !saved.isEmpty {
-                self.hands = saved
-                self.activeHandIndex = min(max(snap.activeHandIndex ?? 0, 0), saved.count - 1)
-            } else if !snap.playerHand.isEmpty {
-                // 旧形式（#439 以前）。手は必ず1つで、総ベット額がその手のベット額だった。
-                self.hands = [BlackjackHand(id: 0, cards: snap.playerHand, bet: snap.bet)]
-                self.activeHandIndex = 0
-            }
-            // 旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
-            self.reviveCount = max(snap.reviveCount ?? 0, snap.hasRevivedThisSession == true ? 1 : 0)
-            // 手を復元できなければ操作のしようがないので、賭ける前に戻す。
-            if self.hands.isEmpty {
-                self.phase = .betting
-                self.bet = 0
-                // 賭けに戻したのに賭けられない残高なら、その場で終わりにする（#656）。
-                // 判定を精算のときだけに置くと、賭ける前に戻った局面が
-                // 「ボタンが全部無効・破産カードも出ない」で詰む。
-                self.checkSessionOver()
-                // 戻った先は賭け待ちで「続き」ではないので、中断のお知らせ（#663）の対象から外す（#1145）。
-                // `persistBetWaiting` の通知は**保存したプロセスの中**でしか効かない
-                // （`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）。
-                // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
-                // 将棋・チェスが `init` で同じことをしている（`ChessGameModel.init`）。
-                self.services?.gameDidRestoreFinished(gameID: gameID)
-            }
+        if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: gameID) {
+            restore(snap)
+        } else if services?.snapshots.exists(for: gameID) == true {
+            // 読めない中断データ（#2552 より前の形式など）は続きにならない。残すと「続きから」に数えられるので消す。
+            services?.snapshots.clear(for: gameID)
         }
         // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。
-        // 賭けは確定済みなので、スタンドの前へ戻して選び直させることはしない。
         if phase == .dealerTurn {
             runDealer()
         }
     }
 
-    private func persist() {
-        // ディーラーが1枚ずつ引いているあいだ（#667）も保存する。保存しないと、途中で落ちたとき
-        // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
-        guard phase == .playerTurn || phase == .dealerTurn else {
-            // 局は進んでいないが、残高と復活（#499）の「使い切った」印だけは残す（#1104・#1623）。
-            // 捨てると、広告を見た直後に賭ける前で離れた人が報酬を丸ごと失い（#523 で復活の枚数を
-            // 初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。復活していない
-            // 通常のセッションも同じで、勝って決着した直後に離れると勝ち分が初期額へ戻ってしまう。
-            // 破産（`sessionOver`）後は残高に続きが無いので、従来どおり捨てる。
-            if !sessionOver {
-                persistBetWaiting()
-                return
+    private func restore(_ snap: BlackjackSnapshot) {
+        let valid = !snap.hands.isEmpty
+            && snap.phase != .ready
+            && (0...BlackjackModel.roundsPerMatch).contains(snap.completedRounds)
+            && snap.points >= 0
+        guard valid else {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
+        completedRounds = snap.completedRounds
+        points = snap.points
+        streak = max(0, snap.streak)
+        bestStreak = max(snap.bestStreak, streak)
+        hasUsedRetry = snap.hasUsedRetry
+        streakBeforeRound = max(0, snap.streakBeforeRound)
+        handsWon = max(0, snap.handsWon)
+        handsLost = max(0, snap.handsLost)
+        naturalWins = max(0, snap.naturalWins)
+        hands = snap.hands
+        activeHandIndex = min(max(snap.activeHandIndex, 0), snap.hands.count - 1)
+        dealerHand = snap.dealerHand
+        deck = snap.deck
+        phase = snap.phase
+        if phase == .result {
+            outcome = summaryOutcome()
+            // 最後の回の結果で止まっていて、やり直しも選べないなら、その場で勝負を締める。
+            if completedRounds >= BlackjackModel.roundsPerMatch && !canRetryRound {
+                finishMatch()
             }
+        }
+    }
+
+    private func persist() {
+        // 1 回目を配る前・勝負を締めたあとは続きが無い。
+        guard !matchOver, phase != .ready else {
             services?.snapshots.clear(for: gameID)
             return
         }
         let snap = BlackjackSnapshot(
-            playerHand: playerHand,
-            dealerHand: dealerHand,
-            deck: deck,
-            chips: chips,
-            bet: bet,
-            phase: phase,
+            completedRounds: completedRounds,
+            points: points,
+            streak: streak,
+            bestStreak: bestStreak,
+            hasUsedRetry: hasUsedRetry,
+            streakBeforeRound: streakBeforeRound,
+            handsWon: handsWon,
+            handsLost: handsLost,
+            naturalWins: naturalWins,
             hands: hands,
             activeHandIndex: activeHandIndex,
-            hasRevivedThisSession: hasRevivedThisSession,
-            reviveCount: reviveCount
+            dealerHand: dealerHand,
+            deck: deck,
+            phase: phase
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
-
-    /// 局を持たない「賭け待ち」の中断データ（#1104・#1623）。セッションの残高と
-    /// 「復活を使い切った」印だけを持ち回る。
-    ///
-    /// 決着の画（`outcome` は中断データに持っていない）を復元しても読めないので、局は書かずに
-    /// 賭ける前へ戻す。復元側は「手が無ければ賭け待ちに戻す」既存の経路（`init`）がそのまま使える。
-    private func persistBetWaiting() {
-        let snap = BlackjackSnapshot(
-            playerHand: [],
-            dealerHand: [],
-            deck: [],
-            chips: chips,
-            bet: 0,
-            phase: .betting,
-            hands: [],
-            activeHandIndex: 0,
-            hasRevivedThisSession: hasRevivedThisSession,
-            reviveCount: reviveCount
-        )
-        try? services?.snapshots.save(snap, for: gameID)
-        // 局を持たない中断データは「続きから戻れる」ではない（#1104。CodeRabbit の指摘）。
-        // `GameServices.gameDidLeave` は中断データの有無だけで判定するため、伝えないと
-        // 離脱が休憩として数えられ、続きの無い局に「途中のままです」のお知らせが予約される。
-        // どちらも次のラウンドを配った時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
-        services?.gameWillNotResume(gameID: gameID)
-        services?.gameDidRestoreFinished(gameID: gameID)
-    }
-
-    // MARK: - Betting
-
-    public func placeBet(_ amount: Int) {
-        // 終わったセッションでは賭けられない。最小ベット未満も受け付けない（#656）。
-        // 画面側は `sessionOver` のときベット欄ごと出さないが、境目をモデルにも持たせて
-        // おかないと「賭けられない残高で終わりにする」という判定の意味が保てない。
-        guard phase == .betting, !sessionOver, amount >= BlackjackModel.minimumBet else { return }
-        guard chips >= amount else {
-            services?.feedback.notify(.warning) // チップ不足でベットできない
-            return
-        }
-        deal(bet: amount)
-    }
-
-    /// 追加で賭けられる額。`chips` は精算までベットぶんを引かないので、
-    /// ダブルダウン・スプリットの可否は「残高 − 場に出ている総額」で見る（#439）。
-    private var availableChips: Int { chips - bet }
 
     // MARK: - Deal
 
-    private func deal(bet amount: Int) {
+    /// 1 回目を配る。2 回目以降は `nextRound()` が配る。
+    public func deal() {
+        guard phase == .ready, !matchOver, completedRounds < BlackjackModel.roundsPerMatch else { return }
+        // 10 回で 1 プレイ（`gameDidFinish` は 10 回目のあとに 1 回だけ呼ぶ）。
+        // 1 回目でいきなりブラックジャックの決着になっても `game_start` が先に立つよう、判定より前に数える（#158）。
+        if completedRounds == 0 {
+            services?.gameDidRestart(gameID: gameID)
+        }
+        dealRound()
+    }
+
+    private func dealRound() {
         deck = shuffledDeck()
-        hands = [BlackjackHand(id: 0, cards: [drawCard(), drawCard()], bet: amount)]
+        hands = [BlackjackHand(id: 0, cards: [drawCard(), drawCard()])]
         activeHandIndex = 0
         dealerHand = [drawCard(), drawCard()]
-        bet = amount
+        outcome = nil
         phase = .playerTurn
-        // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
-        // 決着が即決まるブラックジャックでも `game_start` が先に立つよう、判定より前に数える（#158）。
-        services?.gameDidRestart(gameID: gameID)
-        // 配った時点でベットは確定済み。ここから捨てれば途中離脱として数える（#500）。
+        // 配った時点で勝負は動いている。ここから捨てれば途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)
 
-        // ディーラーのナチュラルも配った時点で見る（標準ルール）。見ないまま続行させると、
-        // ダブルダウン・スプリットで増やした賭け金まで精算で失う（元の賭け金だけ負けるのが標準）。
+        // ディーラーのナチュラルも配った時点で見る（標準ルール）。
         // プレイヤーもナチュラルならプッシュ（`blackjackSettlement`）。
         if isBlackjack(playerHand) || isBlackjack(dealerHand) {
             resolveAll()
@@ -416,7 +391,7 @@ public final class BlackjackModel {
         }
         hands[activeHandIndex].isDone = true
         // スプリットで次の手が残っているなら、この手だけが飛んだことを伝える
-        // （ラウンド全体の決着音は `resolveAll()` が鳴らすので二重に鳴らさない）。
+        // （回全体の決着音は `resolveAll()` が鳴らすので二重に鳴らさない）。
         if hasPendingHand { services?.feedback.notify(.error) }
         advanceHand()
     }
@@ -427,69 +402,34 @@ public final class BlackjackModel {
         advanceHand()
     }
 
-    // MARK: - Double Down / Split (#439)
+    // MARK: - Split (#439)
 
-    /// 手の形としてダブルダウンできるか（最初の2枚のときだけ）。チップ不足でも true を返すので、
-    /// ボタンは出したうえで `canDoubleDown` で `disabled` にする。
-    public var isDoubleDownApplicable: Bool {
-        guard phase == .playerTurn, let hand = activeHand else { return false }
-        return hand.cards.count == 2 && !hand.isDone
-    }
-
-    /// 実際にダブルダウンできるか（形が合っていて、かつ同額を追加で賭けられる）。
-    public var canDoubleDown: Bool {
-        guard isDoubleDownApplicable, let hand = activeHand else { return false }
-        return availableChips >= hand.bet
-    }
-
-    /// 手の形としてスプリットできるか（同じ点数の2枚。**再スプリットは不可**）。
+    /// スプリットできるか（同じ点数の2枚。**再スプリットは不可**）。
     ///
     /// 判定はランクではなく**点数**で行う（#497）。10・J・Q・K はどれも 10 点なので、
-    /// 10 と K のような組み合わせも割れる（標準カジノルール）。A は 11 点で他と重ならないため、
+    /// 10 と K のような組み合わせも割れる。A は 11 点で他と重ならないため、
     /// この判定でも「A のペア」だけが A のスプリットになる。
-    public var isSplitApplicable: Bool {
+    public var canSplit: Bool {
         guard phase == .playerTurn, hands.count == 1, let hand = activeHand else { return false }
         return hand.cards.count == 2 && !hand.isDone && hand.cards[0].value == hand.cards[1].value
     }
 
-    /// 実際にスプリットできるか（形が合っていて、かつ同額を追加で賭けられる）。
-    public var canSplit: Bool {
-        guard isSplitApplicable, let hand = activeHand else { return false }
-        return availableChips >= hand.bet
-    }
-
-    /// ベット額を倍にして1枚だけ引き、強制スタンドする。
-    public func doubleDown() {
-        guard canDoubleDown else { return }
-        hands[activeHandIndex].bet *= 2
-        hands[activeHandIndex].isDoubled = true
-        hands[activeHandIndex].cards.append(drawCard())
-        hands[activeHandIndex].isDone = true
-        bet = totalBet
-        services?.feedback.impact(.medium)
-        advanceHand()
-    }
-
-    /// 同じ点数の2枚を2つの手に分け、それぞれに同額を賭けて1枚ずつ配る。
+    /// 同じ点数の2枚を2つの手に分け、1枚ずつ配る。分けた手はそれぞれ勝てば 1 点（#2552）。
     ///
     /// 標準的な簡略化として **スプリットしたAは1枚だけで強制スタンド**（引き直せない）、
-    /// **再スプリット不可**（`isSplitApplicable` が `hands.count == 1` を要求する）とする。
-    /// 分けた手で作った21はナチュラルにならない（精算は `settleHand` が担う）。
+    /// **再スプリット不可**（`canSplit` が `hands.count == 1` を要求する）とする。
+    /// 分けた手で作った21はナチュラルにならない（判定は `settleHand` が担う）。
     public func split() {
         guard canSplit, let source = activeHand else { return }
-        let stake = source.bet
         let splittingAces = source.cards[0].rank == 1
-        var first = BlackjackHand(id: 0, cards: [source.cards[0], drawCard()],
-                                  bet: stake, isFromSplit: true)
-        var second = BlackjackHand(id: 1, cards: [source.cards[1], drawCard()],
-                                   bet: stake, isFromSplit: true)
+        var first = BlackjackHand(id: 0, cards: [source.cards[0], drawCard()], isFromSplit: true)
+        var second = BlackjackHand(id: 1, cards: [source.cards[1], drawCard()], isFromSplit: true)
         if splittingAces {
             first.isDone = true
             second.isDone = true
         }
         hands = [first, second]
         activeHandIndex = 0
-        bet = totalBet
         services?.feedback.impact(.medium)
         if hands[0].isDone {
             advanceHand()
@@ -504,14 +444,12 @@ public final class BlackjackModel {
         hands.indices.contains(activeHandIndex) ? hands[activeHandIndex] : nil
     }
 
-    private var totalBet: Int { hands.reduce(0) { $0 + $1.bet } }
-
     /// いまの手より後ろに、まだ操作していない手が残っているか。
     private var hasPendingHand: Bool {
         hands.indices.contains { $0 > activeHandIndex && !hands[$0].isDone }
     }
 
-    /// 次の手へ進む。全部終わっていればディーラーの番（全滅していれば即精算）へ移る。
+    /// 次の手へ進む。全部終わっていればディーラーの番（全滅していれば即決着）へ移る。
     private func advanceHand() {
         if let next = hands.indices.first(where: { $0 > activeHandIndex && !hands[$0].isDone }) {
             activeHandIndex = next
@@ -541,8 +479,8 @@ public final class BlackjackModel {
 
     /// ディーラーを1枚ずつ引かせる（#667）。一気に引き切ると結果だけが瞬間的に出て、勝った実感が残らない。
     ///
-    /// 伏せカードの公開 → 間 → 1枚 → 間 → … → 間 → 精算、の順に進む。17 以上で最初から止まる手でも
-    /// 1回ぶん間を置き、公開の直後に勝敗が出ないようにする。精算（記録・順位表の送信）は従来どおり
+    /// 伏せカードの公開 → 間 → 1枚 → 間 → … → 間 → 決着、の順に進む。17 以上で最初から止まる手でも
+    /// 1回ぶん間を置き、公開の直後に勝敗が出ないようにする。決着（勝ち点・記録）は従来どおり
     /// `resolveAll()` の1か所だけで、引き終わってから1回だけ走る。
     ///
     /// ディーラーの引きは CPU の手番なので触覚は鳴らさない（指が触れていない間の振動を避ける規約。
@@ -565,7 +503,7 @@ public final class BlackjackModel {
         }
     }
 
-    /// 「結果まで進める」（#667）。ディーラーの残りを待たずに引き切って精算する。
+    /// 「結果まで進める」（#667）。ディーラーの残りを待たずに引き切って決着させる。
     /// 引く札は待った場合と同じ（山札の順に引くだけ）なので、飛ばしても結果は変わらない。
     public func skipDealerDraws() {
         guard phase == .dealerTurn else { return }
@@ -583,64 +521,77 @@ public final class BlackjackModel {
 
     // MARK: - Result
 
-    /// 手1つぶんの精算。バストは相手を見るまでもなく賭け金を失う。
-    private func settleHand(_ hand: BlackjackHand) -> (outcome: BlackjackOutcome, chipDelta: Int) {
-        if hand.isBusted { return (.bust, -hand.bet) }
-        return blackjackSettlement(player: hand.cards, dealer: dealerHand, bet: hand.bet,
-                                   allowsPlayerNatural: !hand.isFromSplit)
+    /// 手1つぶんの勝敗。バストは相手を見るまでもなく負け。
+    private func settleHand(_ hand: BlackjackHand) -> BlackjackOutcome {
+        if hand.isBusted { return .bust }
+        return blackjackSettlement(player: hand.cards, dealer: dealerHand, allowsPlayerNatural: !hand.isFromSplit)
+    }
+
+    /// 回全体のまとめ。手が1つならその結果。スプリットした回は、勝ち点が入れば勝ち・負けた手があれば負け・それ以外は引き分け。
+    private func summaryOutcome() -> BlackjackOutcome? {
+        guard !hands.isEmpty, hands.allSatisfy({ $0.outcome != nil }) else { return nil }
+        if hands.count == 1 { return hands[0].outcome }
+        if (roundPoints ?? 0) > 0 { return .win }
+        return hands.contains { $0.outcome == .lose || $0.outcome == .bust } ? .lose : .push
     }
 
     private func resolveAll() {
-        var totalDelta = 0
         for index in hands.indices {
-            let settlement = settleHand(hands[index])
-            hands[index].outcome = settlement.outcome
-            totalDelta += settlement.chipDelta
+            hands[index].outcome = settleHand(hands[index])
         }
-        chips += totalDelta
-        roundDelta = totalDelta
-        // 手が1つなら従来どおりその結果をそのまま出す。スプリットしたラウンドは
-        // 手ごとに勝敗が割れるので、まとめの表示・評価判定は収支で決める。
-        outcome = hands.count == 1
-            ? hands.first?.outcome
-            : (totalDelta > 0 ? .win : (totalDelta < 0 ? .lose : .push))
-
-        bet = 0
         phase = .result
+        let gained = roundPoints ?? 0
+        streakBeforeRound = streak
+        points += gained
+        completedRounds += 1
+        handsWon += hands.filter { $0.outcome == .win || $0.outcome == .playerBlackjack }.count
+        handsLost += hands.filter { $0.outcome == .lose || $0.outcome == .bust }.count
+        naturalWins += hands.filter { $0.outcome == .playerBlackjack }.count
+        if gained > 0 {
+            streak += 1
+            bestStreak = max(bestStreak, streak)
+        } else {
+            streak = 0
+        }
+        outcome = summaryOutcome()
+
         switch outcome {
         case .playerBlackjack, .win: services?.feedback.notify(.success)
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
-        // 評価リクエストの見せ場は、最初の 2 枚で 21 のブラックジャックで勝ったとき（#1471）。
-        recordResult = services?.gameDidFinish(
-            gameID: gameID,
-            outcome: reviewOutcome,
-            score: currentScore,
-            isReviewHighlight: outcome == .playerBlackjack
-        )
-        checkSessionOver()
-        // 決着した局は保存しない。ただし復活（#499）を使ったセッションは、残高と「使い切った」印を
-        // 賭け待ちの形で残す（#1104）。`persist()` に寄せて、捨てる／残すの判断を1か所に置く。
+        // 10 回目を終えたら勝負を締める。負けた 10 回目でやり直しが残っていれば、選んでもらうまで締めない
+        // （締めてからやり直すと、記録と `game_end` が二重になる）。
+        if completedRounds >= BlackjackModel.roundsPerMatch && !canRetryRound {
+            finishMatch()
+            return
+        }
         persist()
     }
 
-    private func checkSessionOver() {
-        // 0 枚ではなく「いちばん安いベットに届かない」で終わりにする（#656）。
-        // 残高は端数（25 枚）で止まりうるので、`chips = 0` に丸めずそのまま見せる
-        // ——チップバーの表示と食い違わせない。
-        if chips < BlackjackModel.minimumBet {
-            chips = max(0, chips)
-            sessionOver = true
-        }
+    /// 10 回の合計で 1 回の決着をつける（#2552）。記録・解析（`game_end`）・評価リクエストはここで 1 回だけ。
+    private func finishMatch() {
+        guard !matchOver else { return }
+        matchOver = true
+        let result: GameOutcome = handsWon > handsLost ? .win : (handsWon < handsLost ? .loss : .draw)
+        matchOutcome = result
+        // 評価リクエストの見せ場は、ブラックジャックで勝った回を含む勝負に勝ち越したとき（#1471 の「ブラックジャックで勝った」を
+        // 10 回勝負へ移したもの。普通に勝ち越しただけでは絞る）。
+        recordResult = services?.gameDidFinish(
+            gameID: gameID,
+            outcome: result,
+            score: currentScore,
+            isReviewHighlight: result == .win && naturalWins > 0
+        )
+        persist()
     }
 
     // MARK: - 決着の表示（#1754）
 
-    /// 決着したラウンドの、卓の中央に出す結果。`.result` でなければ nil。
+    /// 決着した回の、卓の中央に出す結果。`.result` でなければ nil。
     ///
-    /// 見出しと ±チップは `outcome` / `roundDelta`（どちらも `resolveAll` が同じ精算から出した値）だけで決めるので、
-    /// スプリットで手ごとに勝敗が割れても、表示と実際の収支は食い違わない。理由の行に手ごとの内訳を出す。
+    /// 見出しは `outcome`（`resolveAll` が手ごとの勝敗から出したまとめ）で決め、入った勝ち点を理由の行に添える。
+    /// スプリットで手ごとに勝敗が割れても、表示と実際の点は食い違わない。
     public var handResult: HandResult? {
         guard phase == .result, let outcome else { return nil }
         let kind: HandResult.Kind
@@ -651,7 +602,7 @@ public final class BlackjackModel {
         case .push:            (kind, headline) = (.draw, tr("引き分け"))
         case .lose, .bust:     (kind, headline) = (.lose, tr("負け"))
         }
-        let reason: String
+        var reason: String
         if hands.count > 1 {
             reason = hands.enumerated().map { index, hand in
                 tr("ハンド%lld %@", index + 1, hand.outcome.map(Self.shortLabel) ?? "")
@@ -659,8 +610,11 @@ public final class BlackjackModel {
         } else {
             reason = singleHandReason(outcome)
         }
+        if let gained = roundPoints, gained > 0 {
+            reason = tr("%1$@（+%2$lld点）", reason, gained)
+        }
         return HandResult(
-            kind: kind, headline: headline, reason: reason, chipDelta: roundDelta,
+            kind: kind, headline: headline, reason: reason, chipDelta: nil,
             spokenResult: BlackjackAccessibility.outcomeAnnouncement(outcome: outcome, isSplit: hands.count > 1)
         )
     }
@@ -681,7 +635,7 @@ public final class BlackjackModel {
         case .bust:
             return tr("バスト（%lld）", playerValue)
         case .playerBlackjack:
-            return tr("最初の2枚で21（1.5倍）")
+            return tr("最初の2枚で21")
         case .win where dealerValue > 21:
             return tr("ディーラーがバスト（%lld）", dealerValue)
         case .lose where isBlackjack(dealerHand):
@@ -693,81 +647,70 @@ public final class BlackjackModel {
 
     // MARK: - Next Round
 
+    /// 次の回を配る。最後の回の結果からは、勝負を締めて記録をつける（「結果を見る」）。
     public func nextRound() {
-        guard !sessionOver else { return }
-        outcome = nil
-        roundDelta = nil
-        clearHands()
-        dealerHand = []
-        phase = .betting
+        guard phase == .result, !matchOver else { return }
+        if completedRounds >= BlackjackModel.roundsPerMatch {
+            finishMatch()
+            return
+        }
+        dealRound()
     }
 
-    /// 手・操作位置・総ベット額をラウンド開始前の状態へ戻す。
-    private func clearHands() {
-        hands = []
-        activeHandIndex = 0
-        bet = 0
-    }
+    // MARK: - Reward Ad Retry (#2552)
 
-    // MARK: - Reward Ad Recovery
-
-    /// リワード広告を表示し、**視聴完了したときだけ**チップ切れから復活する（#499）。
+    /// リワード広告を表示し、**視聴完了したときだけ**負けた回をやり直す（#2552）。
     ///
-    /// - **チップが尽きたときだけ**効く。まだ遊べる残高で呼んでも広告は出さない
-    ///   （プレイヤーが明示的に選んだ救済であって、いつでも押せる増量ボタンではない）。
-    /// - **1 セッション 3 回まで**（`maxRevivesPerSession`）。中断を挟んでも回数は戻らない
-    ///   （`reviveCount` をスナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
-    /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
-    /// - 広告のあいだに「最初からやり直す」でセッションが入れ替わっていたら適用しない（#727）。
-    /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
-    @discardableResult
-    public func recoverChipsAfterAd() async -> Bool {
-        await reviveAfterAd() == .granted
-    }
-
-    /// `recoverChipsAfterAd()` の本体。見終えたのに適用できなかったこと（`.unavailable`）を
-    /// 視聴しなかったこと（`.notEarned`）と分けて返す（#727。画面のアラートを出し分けるため）。
-    public func reviveAfterAd() async -> RewardedModelOutcome {
-        guard canReviveAfterBust else { return .unavailable }
-        let serialBeforeAd = sessionSerial
+    /// - **負けた回の結果を出しているときだけ**効く（勝ち点が 0 で、負けの手がある回）。引き分けだけの回は対象外。
+    /// - **1 回の勝負につき 1 回**（`hasUsedRetry`）。中断を挟んでも戻らない（中断データに持ち回る）。
+    /// - やり直すと、その回は無かったことになる（回数・連勝・勝ち越しの数を戻し、新しく配り直す）。
+    ///   負けた回は勝ち点が 0 なので、合計点は動かない。
+    /// - 視聴しなかった・読み込めなかったときは何も変えず `.notEarned`。
+    /// - 広告のあいだに勝負が入れ替わった・次の回へ進んだなど、やり直せる状態でなくなっていたら `.unavailable`（#727）。
+    /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため、そのままやり直す。
+    public func retryRoundAfterAd() async -> RewardedModelOutcome {
+        guard canRetryRound else { return .unavailable }
+        let serialBeforeAd = matchSerial
+        let roundBeforeAd = completedRounds
         // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
         let generationBeforeAd = services?.screenGeneration.current
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .undo) ?? true else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
-        // 広告のロード〜視聴のあいだも画面は操作できる。「最初からやり直す」で新しいセッションが
-        // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#727）。
-        // 麻雀のトビ復活（`MahjongModel.reviveAfterAd`）と同じく、通し番号と救済できる状態を見直す。
-        guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
-        reviveCount += 1
-        chips = BlackjackModel.reviveChips
-        sessionOver = false
-        outcome = nil
-        roundDelta = nil
-        clearHands()
-        dealerHand = []
-        phase = .betting
-        // 賭ける前にハブへ戻られても報酬が消えないように、この時点で書き出す（#1104）。
-        persist()
+        guard matchSerial == serialBeforeAd, completedRounds == roundBeforeAd, canRetryRound else { return .unavailable }
+        handsWon -= hands.filter { $0.outcome == .win || $0.outcome == .playerBlackjack }.count
+        handsLost -= hands.filter { $0.outcome == .lose || $0.outcome == .bust }.count
+        completedRounds -= 1
+        streak = streakBeforeRound
+        hasUsedRetry = true
+        dealRound()
         return .granted
     }
 
     // MARK: - Restart
 
-    public func restartSession() {
-        // ディーラーが引いている途中なら止める（#667。新しいセッションの卓に前の局の札が足されない）。
+    /// 新しい 10 回勝負に戻す（1 回目を配る前）。
+    public func restartMatch() {
+        // ディーラーが引いている途中なら止める（#667。新しい勝負の卓に前の回の札が足されない）。
         dealerTask?.cancel()
         dealerTask = nil
         recordResult = nil
-        sessionSerial += 1
-        chips = BlackjackModel.initialChips
-        // 新しいセッションなので復活の回数も戻る（#499）。
-        reviveCount = 0
-        sessionOver = false
+        matchSerial += 1
+        completedRounds = 0
+        points = 0
+        streak = 0
+        bestStreak = 0
+        streakBeforeRound = 0
+        handsWon = 0
+        handsLost = 0
+        naturalWins = 0
+        hasUsedRetry = false
+        matchOver = false
+        matchOutcome = nil
         outcome = nil
-        roundDelta = nil
-        clearHands()
+        hands = []
+        activeHandIndex = 0
         dealerHand = []
-        phase = .betting
+        phase = .ready
         services?.snapshots.clear(for: gameID)
     }
 
