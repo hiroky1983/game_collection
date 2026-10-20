@@ -280,11 +280,13 @@ else
 fi
 log "経営当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR)"
 cd "$RUN_DIR" || exit 0
+# 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）。無い世代の worktree でも従来どおり動くようにする
+if [ -f "$RUN_DIR/Scripts/lib/run-claude.sh" ]; then . "$RUN_DIR/Scripts/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
 # 会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
-PATH="$GH_SHIM_DIR:$PATH" claude --model sonnet \
+PATH="$GH_SHIM_DIR:$PATH" run_claude_billed claude --model sonnet \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-management-prompt.md")
 
-（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
+（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}"
 RC=$?
 log "経営当番終了 (exit=$RC)"

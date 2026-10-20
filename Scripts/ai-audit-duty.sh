@@ -317,18 +317,20 @@ else
 fi
 log "監査当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, since=$SINCE, prs=$PR_COUNT)"
 cd "$RUN_DIR" || exit 0
+# 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）。無い世代の worktree でも従来どおり動くようにする
+if [ -f "$RUN_DIR/Scripts/lib/run-claude.sh" ]; then . "$RUN_DIR/Scripts/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
 # Sonnet で起動する（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
 # 2026-09-14 の「複雑なタスクは Fable で」は撤回）。
 # Edit/Write は docs の更新漏れを自分で直すため（2026-10-07 会長決定・プロンプト 2-c）。コミットできるのは
 # 上の pre-commit フックで docs/ 配下だけに限られる。
-PATH="$GH_SHIM_DIR:$PATH" claude --model "${AUDIT_MODEL:-sonnet}" \
+PATH="$GH_SHIM_DIR:$PATH" run_claude_billed claude --model "${AUDIT_MODEL:-sonnet}" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-audit-prompt.md")
 
 （今回の監査対象）${SINCE} 〜 ${NOW}（UTC）にマージされた PR ${PR_COUNT} 本:
 $MERGED_PRS
 
-（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}" >>"$LOG" 2>&1
+（自動起票のマイルストーン）${ISSUE_MILESTONE_NOTE}"
 RC=$?
 # 正常終了したときだけ窓を進める（異常終了した回の PR は次回もう一度対象にする）
 if [ "$RC" -eq 0 ]; then mkdir -p "$STATE_DIR" && echo "$NOW" >"$LAST_RUN_FILE"; fi

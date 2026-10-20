@@ -343,6 +343,14 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 2. **ローカル当番の巡回**: `Scripts/ai-duty.sh`（launchd・3分ごと）が未解決の CodeRabbit スレッドを
    検知すると当番エージェントを起動し、下記トリアージを実行する。
    ※当初はクラウド webhook 方式だったが、イベント配信が確認できなかったため廃止（2026-08-10）。
+   **課金の経路**（会長決裁 2026-10-20・#2562）: `claude -p` を起動する定期スクリプト（`ai-duty.sh` / `ai-audit-duty.sh` /
+   `ai-management-duty.sh` / `ai-qa-duty.sh` / `ai-weekly-meeting.sh`）はすべて `Scripts/lib/run-claude.sh` の
+   `run_claude_billed` 経由で起動する。`~/asobiba-secrets/anthropic-api-key`（600）があれば**まず API キーで**起動し、
+   失敗終了の出力にクレジット切れ・利用上限（"Credit balance is too low" 等）があれば、同じ仕事をキーなし（サブスク）で
+   もう一度起動して `~/.asobiba-duty/api-exhausted-YYYYMM` を作る（その月は最初からサブスク。翌月は印が無いので API に戻る）。
+   429 などの一時的なレート制限では切り替えず、その回は終える。キーが無ければ従来どおりサブスク。ログに
+   「課金: api / subscription / api→subscription」を残す。キーは子プロセスの環境変数にだけ渡し、シェルの設定には書かない。
+   検証は `bash Scripts/tests/test-run-claude.sh`
 3. **レビュー未着 PR の検知**（Issue #41・2026-08-11 追加）: 1. と 2. はどちらも「スレッドが存在すること」を
    前提にしているため、**レビュー自体が走らなかった PR**（レート制限 / デフォルト以外の base で
    auto review がスキップされる = release ブランチ向け PR が該当）はどちらの網にもかからない。

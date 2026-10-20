@@ -164,12 +164,14 @@ git -C "$WEEKLY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 
 
 log "週次経営会議起動 (workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
+# 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）
+if [ -f "$RUN_DIR/Scripts/lib/run-claude.sh" ]; then . "$RUN_DIR/Scripts/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
 # 裸の Bash は Edit/Write を渡さなくても実質無制限（`cat > file` 等でファイル変更も
 # `gh` 以外のコマンドも通ってしまう。CodeRabbit指摘・Major）。必要なのは gh CLI の
 # 読み取り・Issue作成だけなので、そこにスコープしたパターンで渡す。iTunes Lookup API は
 # 単純な GET なので WebFetch で足り、curl は渡さない。
-claude --model sonnet \
+run_claude_billed claude --model sonnet \
   --allowedTools "Bash(gh *),Read,Glob,Grep,WebFetch,WebSearch" \
-  -p "$(cat "$RUN_DIR/Scripts/ai-weekly-meeting-prompt.md")" >>"$LOG" 2>&1
+  -p "$(cat "$RUN_DIR/Scripts/ai-weekly-meeting-prompt.md")"
 RC=$?
 log "週次経営会議終了 (exit=$RC)"
