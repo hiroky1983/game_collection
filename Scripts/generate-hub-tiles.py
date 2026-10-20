@@ -18,13 +18,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
 出力: App/Assets.xcassets/HubTiles/
   hubtile-<id>.imageset  … 名前・下線入りのタイル（537×645）
   hubthumb-<id>.imageset … 「つづき・最近」の小さいアイコン用（名前なしの絵を正方形に切り抜き・120×120）
-  hubtile-homerun-wide(-pad).imageset … 柵越えおじさんだけの横長タイル（#2184。iPhone 2 列ぶん／iPad 4 列ぶん）
-  hubtile-<id>-en / hubtile-homerun-wide(-pad)-en.imageset … 英語のゲーム名入り（#2181。アプリ内の言語設定で切り替える）
+  hubtile-<id>-en.imageset … 英語のゲーム名入り（#2181。アプリ内の言語設定で切り替える）
 一部だけ書き直すとき（ほかのアセットは消さない・モック不要）:
-  python3 Scripts/generate-hub-tiles.py --only homerun-wide
-柵越えおじさんの横長タイルの元絵は main の docs にある（release ブランチには docs が無いので取り出して --hero で渡す）:
-  git archive origin/main docs/design/homerun/hub-tile | tar -x -C /tmp/mock
-  python3 Scripts/generate-hub-tiles.py --only homerun-wide --hero /tmp/mock/docs/design/homerun/hub-tile/source.png
+  python3 Scripts/generate-hub-tiles.py --only homerun
 英語版だけ書き直すとき（日本語版は消さない）:
   python3 Scripts/generate-hub-tiles.py --lang en --mock <上と同じ場所>
 """
@@ -314,64 +310,6 @@ def tile_html(gid, art_path, lang="ja"):
             f'<div class="{cls}">{name}</div><div class="ul" style="background:{color}"></div>{extra}</div>{fit}</body></html>')
 
 
-# 柵越えおじさんだけの横長タイル（#2184）。iPhone はグリッドの 2 列ぶん、iPad は 4 列ぶんの幅で、高さはふつうの
-# タイルと同じ 215pt。絵は会長が用意したロゴ（文字）無しの正方形の絵（1254×1254・ChatGPT で作成。原画と出所は main の
-# docs/design/homerun/hub-tile/）を切り抜いて使う（#2273。以前はロゴ入りの HomerunHubHeroArtLogo.jpg を切っていた）。
-# 切り抜きは元画像の座標で、比率はタイルと同じ。「体験版」のバッジは出さない（会長指示・#2184）。
-# 左上のゲーム名と右下の残り回数のボールに、おじさんの顔・ボールが重ならない位置で切る。
-# iPhone 用は幅いっぱい・上端から（ヘルメットの頭頂が名前の下線の高さ。顔・バット・ボールがまるごと入り、右下は観客席）。
-# iPad 用は横長すぎて正方形の絵の幅では背が足りず、名前がヘルメットに重なるので、絵の左端（ヘルメットより左の
-# 150px・青空と照明塔）を鏡写しで 2 回継ぎ足して左へ 300px 広げ、名前をその上に置く。切り抜きは継ぎ足した後の座標（ボールは上が少し切れる）。
-HERO_ART = os.path.join(ROOT, "docs/design/homerun/hub-tile/source.png")
-WIDE_TILES = [
-    # (アセット名, タイルの寸法 pt, 左に継ぎ足す幅 px, 切り抜き (left, top, right, bottom))
-    ("hubtile-homerun-wide", (179 * 2 + 12, 215), 0, (0, 0, 1254, 729)),
-    ("hubtile-homerun-wide-pad", (179 * 4 + 12 * 3, 215), 300, (0, 85, 1554, 529)),
-]
-
-
-def extend_left(src, pad):
-    """絵の左端 150px（おじさんより左）を鏡写し・そのまま…と交互に `pad` px ぶん左へ継ぎ足す（継ぎ目が連続する）。"""
-    strip = 150
-    assert pad % strip == 0, pad
-    out = Image.new("RGB", (src.width + pad, src.height))
-    out.paste(src, (pad, 0))
-    edge = src.crop((0, 0, strip, src.height))
-    for i in range(pad // strip):
-        piece = edge.transpose(Image.FLIP_LEFT_RIGHT) if i % 2 == 0 else edge
-        out.paste(piece, (pad - strip * (i + 1), 0))
-    return out
-
-
-def wide_tile_html(art_path, size, lang="ja"):
-    w, h = size
-    name, color = GAMES["homerun"]
-    if lang == "en":
-        name = GAMES_EN["homerun"]
-    css = TILE_CSS.replace("width:179px;height:215px", f"width:{w}px;height:{h}px")
-    haze = ('<div style="position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.88),'
-            'rgba(255,255,255,.55) 22%,rgba(255,255,255,0) 36%)"></div>')
-    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
-            f'<div class="tile"><img src="file://{art_path}">{haze}'
-            f'<div class="name">{name}</div><div class="ul" style="background:{color}"></div></div></body></html>')
-
-
-def write_wide_tiles(tmp, langs, hero=HERO_ART):
-    assert os.path.exists(hero), f"柵越えおじさんの元絵が無い: {hero}（--hero で渡す。使い方は先頭の説明）"
-    src = Image.open(hero).convert("RGB")
-    for (base, size, pad, box), lang in ((t, l) for t in WIDE_TILES for l in langs):
-        asset = asset_name(base, lang)
-        art = os.path.join(tmp, f"art-{asset}.png")
-        crop = extend_left(src, pad).crop(box)
-        # 切り抜きの比率がタイルとずれていると object-fit:cover で意図しない所が切れるので確かめる。
-        assert abs(crop.width / crop.height - size[0] / size[1]) < 0.03, (asset, crop.size, size)
-        crop.save(art)
-        tile = os.path.join(tmp, f"tile-{asset}.png")
-        render(wide_tile_html(art, size, lang), tile, tmp, size)
-        write_imageset(asset, Image.open(tile))
-        print("wide", asset)
-
-
 def render(html, png, tmp, size=(W, H)):
     p = os.path.join(tmp, os.path.basename(png) + ".html")
     with open(p, "w") as f:
@@ -404,11 +342,9 @@ def write_imageset(name, image):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mock", help="モックのタイル絵の場所（hub-redesign/assets/tiles）。描き直すゲーム・横長タイルだけなら不要")
-    ap.add_argument("--hero", default=HERO_ART, help="柵越えおじさんの横長タイルの元絵（既定は docs/design/homerun/hub-tile/source.png）")
+    ap.add_argument("--mock", help="モックのタイル絵の場所（hub-redesign/assets/tiles）。描き直すゲームだけなら不要")
     ap.add_argument("--keep", help="途中の PNG（名前なしの絵）を残す場所")
-    ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）。"
-                    "homerun-wide で柵越えおじさんの横長タイルだけ")
+    ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）")
     ap.add_argument("--lang", nargs="+", choices=["ja", "en"], default=["ja", "en"],
                     help="書き出す言語（既定は両方）。1 つだけ指定したときはほかの言語のアセットを消さない")
     args = ap.parse_args()
@@ -423,8 +359,6 @@ def main():
             f.write("\n")
 
     with tempfile.TemporaryDirectory() as tmp:
-        if not args.only or "homerun-wide" in args.only:
-            write_wide_tiles(tmp, args.lang, args.hero)
         for gid in GAMES:
             if args.only and gid not in args.only:
                 continue

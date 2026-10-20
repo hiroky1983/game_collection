@@ -143,26 +143,42 @@ struct HubCategoryTests {
         let body = String(source[hub.lowerBound..<end.lowerBound])
         #expect(body.contains("registry.category(of:"))
         #expect(body.contains("registry.populatedCategories("))
-        // 特別枠の `heroGameID` 以外に、ゲーム ID の文字列リテラルを持たない。
-        let literals = SourceScan.matchCount(of: #"(?m)^(?!.*heroGameID).*"(homerun|ojisanpuzzle|runner|shogi|poker)""#, in: body)
+        // ゲーム ID の文字列リテラルを持たない（イベントの印の判定は `HubEventBadge` に置く）。
+        let literals = SourceScan.matchCount(of: #""(homerun|ojisanpuzzle|runner|shogi|poker)""#, in: body)
         #expect(literals == 0)
     }
 
-    @Test("柵越えおじさんだけ横長のタイルでグリッドの上に置き、iPhone 用・iPad 用の画像を同梱している（#2184）")
-    func homerunIsWideTileAboveGrid() throws {
-        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad", "hubtile-homerun-wide-en", "hubtile-homerun-wide-pad-en"] {
+    @Test("柵越えおじさんは通常のタイルでグリッドに入り、横長タイルの画像・コードを持たない（#2566）")
+    func homerunIsNormalTile() throws {
+        for name in ["hubtile-homerun", "hubtile-homerun-en"] {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/\(name).imageset/\(name).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(name).png が無い")
         }
+        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad", "hubtile-homerun-wide-en", "hubtile-homerun-wide-pad-en"] {
+            let dir = SourceScan.repositoryRoot.appendingPathComponent("App/Assets.xcassets/HubTiles/\(name).imageset")
+            #expect(!FileManager.default.fileExists(atPath: dir.path), "\(name) は削除済みのはず")
+        }
         let source = try SourceScan.appSources()
-        let hub = try #require(source.range(of: "struct HubView: View {"))
-        let end = try #require(source.range(of: "private struct GameCard", range: hub.upperBound..<source.endIndex))
-        let body = String(source[hub.lowerBound..<end.lowerBound])
-        let wide = try #require(body.range(of: "gridTile(hero, wide: true)"), "横長タイルが置かれていない")
-        let grid = try #require(body.range(of: "LazyVGrid(", range: wide.upperBound..<body.endIndex), "横長タイルがグリッドの上に無い")
-        // グリッドからは柵越えおじさんを除く（2 回出さない）。
-        #expect(body[grid.lowerBound...].contains("ForEach(entries.filter { $0.module.id != Self.heroGameID }"))
+        for gone in ["heroGameID", "wideTileName", "wideAspect", "gridTile(hero", "wide: Bool"] {
+            #expect(!source.contains(gone), "横長タイルの名残: \(gone)")
+        }
+        #expect(source.contains("ForEach(shownGridEntries, id: \\.module.id)"))
+    }
+
+    @Test("「イベント開催中」の印は週間ランキングが有効なあいだだけ柵越えおじさんに出し、NEW を優先する（#2566）")
+    func eventBadge() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains(#"gameID == "homerun" && weeklyLeaderboardID != nil"#))
+        #expect(source.contains("weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly"))
+        let start = try #require(source.range(of: "private var badge: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badge = String(source[start.lowerBound..<end.upperBound])
+        let new = try #require(badge.range(of: #"badgeCapsule("NEW")"#))
+        let event = try #require(badge.range(of: #"badgeCapsule(tr("イベント開催中"))"#))
+        let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
+        #expect(new.lowerBound < event.lowerBound && event.lowerBound < resume.lowerBound)
+        #expect(source.contains(#"if isEvent { parts.append(tr("イベント開催中")) }"#), "読み上げに無い")
     }
 
     @Test("カテゴリーのチップは押せる範囲が 44pt 以上（HIG の最小値・#2184 の誤タップ対策）")
@@ -184,7 +200,6 @@ struct HubCategoryTests {
         let card = String(source[start.lowerBound..<end.lowerBound])
         #expect(card.contains("let language = AppLanguageStore.shared.language"))
         #expect(card.contains("HubTileStyle.tileName(for: module.id, language: language)"))
-        #expect(card.contains("HubTileStyle.wideTileName(for: module.id, pad: layout.isWide, language: language)"))
     }
 
     @Test("見出しの「きろく」「設定」ボタンは押せる範囲が 44pt 以上で、間隔を空けている（#2201）")
