@@ -140,7 +140,7 @@ struct CardTableSurfaceTests {
     // MARK: - 受け入れ条件: 4 本が同じ卓に乗っている
 
     /// レイアウトパターン A（全画面・#2531）に載せ替えたもの。共通の卓のフェルトを全画面の枠から受け取る。
-    static let fullScreenModules: Set<String> = ["GameMahjongSolitaire", "GameFreeCell"]
+    static let fullScreenModules: Set<String> = ["GameMahjongSolitaire", "GameFreeCell", "GameSolitaire"]
 
     @Test("4 本が共通の卓（cardTable）を使い、ゲームごとの卓を作っていない", arguments: [
         "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
