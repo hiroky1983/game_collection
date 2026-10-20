@@ -350,7 +350,13 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
    もう一度起動して `~/.asobiba-duty/api-exhausted-YYYYMM` を作る（その月は最初からサブスク。翌月は印が無いので API に戻る）。
    429 などの一時的なレート制限では切り替えず、その回は終える。キーが無ければ従来どおりサブスク。ログに
    「課金: api / subscription / api→subscription」を残す。キーは子プロセスの環境変数にだけ渡し、シェルの設定には書かない。
-   検証は `bash Scripts/tests/test-run-claude.sh`
+   検証は `bash Scripts/tests/test-run-claude.sh`。
+   **当番（`ai-duty.sh`）の空起動対策**（#2580・会長指示 2026-10-20）: 検知値（approved・cr_threads…ship_ready）が
+   すべて 0 なら claude を起動せず「仕事なし・起動せず」をログに残して終える（判定は `duty_has_work`）。
+   最後のコメントが当番自身の記録（`復旧:` を含む `is_duty_reply` の集合）なのに会長の返信と誤認すると、
+   この判定が恒久的に 1 になり 3 分おきに空起動する（`復旧:` の取りこぼしで 10/9 から約 11 日発生）。
+   起動する回の課金経路は `CLAUDE_BILLING_ROUTE`: Issue 実装・出荷準備の回は `api`、それ以外の見回り（PR・決裁など）は
+   `subscription`。前日の起動回数と課金経路の内訳は、その日最初の実行で「日次サマリ」としてログに残る。
 3. **レビュー未着 PR の検知**（Issue #41・2026-08-11 追加）: 1. と 2. はどちらも「スレッドが存在すること」を
    前提にしているため、**レビュー自体が走らなかった PR**（レート制限 / デフォルト以外の base で
    auto review がスキップされる = release ブランチ向け PR が該当）はどちらの網にもかからない。

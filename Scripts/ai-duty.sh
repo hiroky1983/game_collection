@@ -463,6 +463,40 @@ self_update() {
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
 }
+# 仕事の検知値がひとつでも 1 以上なら 0（= claude を起動してよい）。すべて 0 なら 1（起動しない）。
+# 空の見回りで 1 回約 7 万字のプロンプトを読ませない（#2580・会長指示 2026-10-20）ため、判定を関数に切り出してテストする
+duty_has_work() {
+  local v
+  for v in "${APPROVED:-0}" "${THREADS:-0}" "${PENDING_REVIEW:-0}" "${CONFLICTS:-0}" "${RINGI_REPLIES:-0}" \
+    "${STALLED:-0}" "${RELEASED:-0}" "${SUBMISSION_UNFROZEN:-0}" "${PROPOSED_REPLIES:-0}" "${ORPHANS:-0}" \
+    "${ORPHAN_COMMITS:-0}" "${BLOCKED_UPDATES:-0}" "${RINGI_STAMPS:-0}" "${SHIP_READY:-0}"; do
+    [ "$v" -ne 0 ] 2>/dev/null && return 0
+  done
+  return 1
+}
+
+# 指定した日（YYYY-MM-DD）の起動回数と課金経路の内訳をログから数えて 1 行で返す（#2580）。
+# 「仕事なし（…」は経路変更前の旧表記。数えるのは全スロット分（ログは共有）
+duty_daily_summary_line() {
+  local logfile="$1" day="$2" launched idle api sub
+  launched=$(grep -c "^\[$day [0-9:]*\] .*当番起動 " "$logfile" 2>/dev/null)
+  idle=$(grep -cE "^\[$day [0-9:]*\] .*仕事なし(・起動せず|（)" "$logfile" 2>/dev/null)
+  api=$(grep -cE "^\[$day [0-9:]*\] .*課金: (api|api→subscription)" "$logfile" 2>/dev/null)
+  sub=$(grep -cE "^\[$day [0-9:]*\] .*課金: subscription" "$logfile" 2>/dev/null)
+  echo "日次サマリ $day: 当番起動 ${launched:-0} 回 / 仕事なしで起動せず ${idle:-0} 回 / 課金経路 api ${api:-0}・subscription ${sub:-0}"
+}
+
+# その日最初の実行で、前日の日次サマリをログに残す（状態は日付 1 行のファイル）
+duty_log_daily_summary() {
+  local state="${DUTY_SUMMARY_STATE:-$HOME/.asobiba-duty/last-daily-summary}" today yday
+  today=$(date +%F)
+  [ "$(cat "$state" 2>/dev/null)" = "$today" ] && return 0
+  yday=$(date -v-1d +%F 2>/dev/null || date -d yesterday +%F 2>/dev/null) || return 0
+  log "$(duty_daily_summary_line "$LOG" "$yday")"
+  echo "$today" >"$state" 2>/dev/null
+  return 0
+}
+
 # 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8・仕事11 が使う）。
 # 当番(AI)・経営企画室・会長はすべて同じ `hiroky1983` トークンで投稿するため author では区別できず、
 # 「自社が書いたコメント」を本文のマーカーで除外して最後の会長コメントを取り出す。
@@ -478,6 +512,8 @@ self_update() {
 #     競合しうる以上、どちらを選んでも止まるよう集合を揃えるほかない）。
 #     仕事13 の停止マーカー `出荷準備:` も同じ集合に入れる（#483。会長操作依頼の Issue に blocked や
 #     ai:proposed が付いていても、依頼コメントを置いた瞬間に仕事5・8・11 が鳴らないようにするため）。
+#     2-c の孤児回収の記録 `復旧: …` も同じ集合に入れる（#2580。決裁待ちの Issue で `ai:in-progress` の残留を
+#     外した記録が最後のコメントになると、会長の返信と誤認して 10/9 から約 11 日、3 分おきに空起動し続けた）。
 #     仕事14 の `自動ハンコ: …`（付け替えの記録）と `自動ハンコ（週次まとめ）: …` も同じ集合に入れる
 #     （会長が後から ai:approved を外して ai:proposed に戻した Issue や、決裁待ちの週次レポートで鳴らないため）。
 #     `last_owner_body` 側の除外には**入れない**。あちらは「経営企画室のコメントを飛ばして
@@ -502,6 +538,7 @@ def is_duty_reply($b):
   or ($b | startswith("## 【要決裁】"))
   or ($b | startswith("決裁反映:"))
   or ($b | startswith("出荷準備:"))
+  or ($b | startswith("復旧:"))
   or ($b | startswith("自動ハンコ"));
 
 def is_ringi_reply($actors):
@@ -1611,8 +1648,9 @@ fi
 # （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${SUBMISSION_UNFROZEN:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ] && [ "${RINGI_STAMPS:-0}" -eq 0 ] && [ "${SHIP_READY:-0}" -eq 0 ]; then
-  log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
+duty_log_daily_summary
+if ! duty_has_work; then
+  log "仕事なし・起動せず（企画・分析は Scripts/ai-management-duty.sh の担当）"
   exit 0
 fi
 
@@ -1807,6 +1845,10 @@ log "当番起動 (slot=$DUTY_SLOT/$DUTY_MAX_SLOTS, issue=${DUTY_ISSUE:-なし},
 cd "$RUN_DIR" || exit 0
 # 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）。無い世代の worktree でも従来どおり動くようにする
 if [ -f "$RUN_DIR/Scripts/lib/run-claude.sh" ]; then . "$RUN_DIR/Scripts/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
+# 課金の経路: Issue を実装する回・出荷準備の回は API、PR/決裁などの見回りだけの回はサブスク（#2580）
+CLAUDE_BILLING_ROUTE=subscription
+{ [ -n "$DUTY_ISSUE" ] || [ "$SHIP_READY" -eq 1 ]; } && CLAUDE_BILLING_ROUTE=api
+export CLAUDE_BILLING_ROUTE
 PATH="$GH_SHIM_DIR:$PATH" run_claude_billed claude --model "$DUTY_MODEL" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")
