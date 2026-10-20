@@ -209,6 +209,7 @@ public struct PokerView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(Theme.ink)
+            if model.isFinalRound { FinalRoundBadge() }
             Spacer()
             Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
                 .themeBody(14)
@@ -233,10 +234,14 @@ public struct PokerView: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+        .finalRoundBar(model.isFinalRound)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(PokerAccessibility.scoreboardLabel(
-            round: max(model.round, 1), playerPoints: model.playerPoints, cpuPoints: model.cpuPoints,
-            streak: model.streak
+        .accessibilityLabel(FinalRoundBar.accessibilityLabel(
+            PokerAccessibility.scoreboardLabel(
+                round: max(model.round, 1), playerPoints: model.playerPoints, cpuPoints: model.cpuPoints,
+                streak: model.streak
+            ),
+            isFinal: model.isFinalRound
         ))
     }
 
