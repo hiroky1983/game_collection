@@ -139,13 +139,23 @@ struct CardTableSurfaceTests {
 
     // MARK: - 受け入れ条件: 4 本が同じ卓に乗っている
 
+    /// レイアウトパターン A（全画面・#2531）に載せ替えたもの。共通の卓のフェルトを全画面の枠から受け取る。
+    static let fullScreenModules: Set<String> = ["GameMahjongSolitaire"]
+
     @Test("4 本が共通の卓（cardTable）を使い、ゲームごとの卓を作っていない", arguments: [
         "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
     ])
     func everyGameSitsOnTheSharedTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 1,
-                "\(module) が卓を 1 か所で付けていない（0 = 卓が無い / 2 以上 = 二重）")
+        if Self.fullScreenModules.contains(module) {
+            // レイアウトパターン A（#2531）: フェルトは全画面の枠が画面全体に敷く。盤に卓を重ねると二重になる。
+            #expect(source.contains("fullScreen: .felt"), "\(module) が全画面の枠（フェルト）を通っていない")
+            #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 0,
+                    "\(module) が全画面のフェルトの上に卓を二重に敷いている")
+        } else {
+            #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 1,
+                    "\(module) が卓を 1 か所で付けていない（0 = 卓が無い / 2 以上 = 二重）")
+        }
         #expect(!source.contains("CardTableSurface("), "\(module) が卓の面を直接組み立てている")
         #expect(!source.contains("EllipticalGradient"), "\(module) にフェルトの描画が直書きされている")
     }

@@ -104,6 +104,21 @@ public enum FullScreenGameSurface: Sendable, Equatable {
         innerShadow: nil, aspectRatio: nil, cornerRadius: 0, dropShadow: false)
 }
 
+// MARK: - フェルトの上か
+
+private struct OnTableFeltKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+public extension EnvironmentValues {
+    /// 全画面のフェルト（`gameChrome(fullScreen: .felt)`）の上か。淡い塗りの部品（広告で補充するカプセル #1897）が
+    /// 緑に沈まないよう、地の面を下に敷くかを決めるのに読む（#2531）。
+    var isOnTableFelt: Bool {
+        get { self[OnTableFeltKey.self] }
+        set { self[OnTableFeltKey.self] = newValue }
+    }
+}
+
 // MARK: - 枠
 
 public extension View {
@@ -168,6 +183,7 @@ private struct FullScreenGameChromeModifier<Status: View>: ViewModifier {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(surfaceBackground)
         .environment(\.cardTableInk, surface.tableInk)
+        .environment(\.isOnTableFelt, surface == .felt)
         // 画面最下部のバナー（会長の方針: A のバナーは下）。地の色の帯に置き、下の安全域まで帯で埋める。
         .safeAreaInset(edge: .bottom, spacing: 0) {
             BannerSlot(ads: ads)

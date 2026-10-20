@@ -176,6 +176,7 @@ struct GameActionCapsuleStyle: ButtonStyle {
     static let adBorderWidth: CGFloat = 2
 
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.isOnTableFelt) private var isOnTableFelt
     let role: GameButtonRole
     var needsAd = false
 
@@ -199,6 +200,8 @@ struct GameActionCapsuleStyle: ButtonStyle {
     @ViewBuilder private var face: some View {
         if showsAdFace {
             Capsule().fill(role.fill.opacity(Self.adFillOpacity))
+                // 全画面のフェルトの上（#2531）では、淡い塗りが緑に沈んで墨の文字が読めなくなるので、地の面を下に敷く。
+                .background(Capsule().fill(isOnTableFelt ? Theme.surface : Color.clear))
                 .overlay(Capsule().strokeBorder(role.fill, lineWidth: Self.adBorderWidth))
         } else {
             Capsule().fill(isEnabled ? role.fill : Theme.fillMuted)

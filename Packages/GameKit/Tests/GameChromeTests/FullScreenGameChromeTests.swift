@@ -129,6 +129,34 @@ struct FullScreenGameChromeTests {
         #expect(source.contains("fullScreen surface: FullScreenGameSurface"))
     }
 
+    /// 広告で補充するカプセル（#1897）の淡い塗りは、フェルトの上では緑に沈んで墨の文字が読めない。
+    /// 枠が「フェルトの上か」を配り、カプセルがそれを読んで地の面を下に敷く。
+    @Test("フェルトの上かを配り、広告のカプセルが地の面を敷く")
+    func feltFlagReachesAdCapsule() throws {
+        #expect(try Self.source.contains(".environment(\\.isOnTableFelt, surface == .felt)"))
+        let capsule = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameActionRow.swift"))
+        #expect(capsule.contains("@Environment(\\.isOnTableFelt)"))
+        #expect(capsule.contains("isOnTableFelt ? Theme.surface"))
+    }
+
+    /// レイアウトパターン A に載せ替えたゲーム（#2531）。バナーは枠が最下部に置くので、ゲーム側に
+    /// `BannerSlot` を書くと二重になる。いろリレー・大富豪はそれぞれのテストで見ている。
+    @Test("A のゲームは全画面の枠にバナーの取得元を渡し、ゲーム側に BannerSlot を置かない", arguments: [
+        "GameMahjongSolitaire",
+    ])
+    func fullScreenGamesLeaveBannerToChrome(module: String) throws {
+        let code = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+        #expect(code.contains("fullScreen: .felt, ads: services.ads"), "\(module) が全画面の枠にバナーの取得元を渡していない")
+        #expect(!code.contains("BannerSlot("), "\(module) がバナーを枠と二重に置いている")
+    }
+
+    @Test("ヘッダー下の低い札（A の一人用）は 44pt の帯より低く、下限は残す")
+    func compactStatusBar() {
+        #expect(GameStatusBarStyle.compactMinHeight > 0)
+        #expect(GameStatusBarStyle.compactMinHeight < GameStatusBarStyle.minHeight)
+        #expect(GameStatusBarStyle.compactVerticalPadding <= GameStatusBarStyle.verticalPadding)
+    }
+
     @Test("枠は MainActor の環境で組める（ヘッダー付きの中身が描ける）")
     @MainActor
     func renders() throws {
