@@ -1181,7 +1181,7 @@ v1.1.4 までの公開版は3種）。
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
-| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records\|deeplink) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
+| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records\|deeplink) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）だったが、v1.1.14（#2566）で通常のタイル（`hub`・位置あり）になり発火点は無い（GA4 の既存値のため語彙には残す）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の8値） / `result`(accepted\|declined\|not_ready) |
 | `share_tap` | 自己ベストを更新したリザルトの**共有ボタンを押した**（`RecordLabel` の共有ボタン。共有シートで実際に送ったかは問わない） | `game_id` のみ |
 
