@@ -3,13 +3,13 @@
 #
 # 方針: Claude の API クレジットが毎月付与されるので、まず API キーで動かし、クレジット切れ・利用上限なら
 #       同じ仕事をサブスクの枠でもう一度起動する。切り替えた月は印のファイルを作り、その月は最初からサブスク。
-#   - キーは $CLAUDE_API_KEY_FILE（既定 ~/asobiba-secrets/anthropic-api-key）から読む。無ければ今までどおりサブスク。
+#   - キーは ${CLAUDE_API_KEY_FILE}（既定 ~/asobiba-secrets/anthropic-api-key）から読む。無ければ今までどおりサブスク。
 #     キーはこの関数が起動する子プロセスの環境変数にだけ渡す。シェルの設定ファイルには書かない（会長の対話 Claude Code に影響させない）
 #     ・ログにも出さない
 #   - 429 などの一時的なレート制限ではサブスクに切り替えない（その回は終えて次の回に任せる）
 #
 # 使い方: run_claude_billed [コマンド...] — 例 `PATH=… run_claude_billed claude --model sonnet -p "…"`。
-#   出力は $LOG に追記し、戻り値は最後に走らせたコマンドの終了コード。呼び出し元は `log` と `LOG` を定義しておく。
+#   出力は ${LOG} に追記し、戻り値は最後に走らせたコマンドの終了コード。呼び出し元は `log` と `LOG` を定義しておく。
 
 CLAUDE_API_KEY_FILE="${CLAUDE_API_KEY_FILE:-$HOME/asobiba-secrets/anthropic-api-key}"
 CLAUDE_BILLING_STATE_DIR="${CLAUDE_BILLING_STATE_DIR:-$HOME/.asobiba-duty}"
