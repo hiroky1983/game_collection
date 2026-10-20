@@ -54,6 +54,8 @@ struct PokerAccessibilityTests {
     @Test("上の帯は回数と点を 1 文で読む（#2551）") func scoreboardLabel() {
         #expect(PokerAccessibility.scoreboardLabel(round: 3, playerPoints: 12, cpuPoints: 8)
                 == "3回目 / 10、合計12点、CPU 8点")
+        #expect(PokerAccessibility.scoreboardLabel(round: 3, playerPoints: 12, cpuPoints: 8, streak: 2)
+                == "3回目 / 10、合計12点、CPU 8点、連勝2")
     }
 
     @Test("決着時の役名は「主体、役名、勝敗」の 1 文で読む（#2589）")

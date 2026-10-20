@@ -52,6 +52,9 @@ struct PokerSnapshot: Codable {
     let playerHandRank: PokerHandRank
     let cpuHandRank: PokerHandRank
     let roundPoints: Int
+    /// 連勝（#2590）。この項目を足す前の中断データには無いので optional（読めなくして続きを消さない）。
+    var streak: Int? = nil
+    var bestStreak: Int? = nil
 }
 
 // MARK: - Model
@@ -91,6 +94,10 @@ public final class PokerModel {
     public private(set) var cpuWins = 0
     /// この勝負で作った一番強い役（勝ち負けに関わらず、勝負した手で数える）。
     public private(set) var bestRank: PokerHandRank?
+    /// 今の連勝（勝った回で +1、負け・引き分けで 0）。ブラックジャックと同じ定義（#2590）。
+    public private(set) var streak = 0
+    /// この勝負での最高連勝。
+    public private(set) var bestStreak = 0
     /// 直近の回に勝った側へ入った点（引き分けは 0）。
     public private(set) var roundPoints = 0
     /// 広告の「もう 1 回交換」をこの勝負で使ったか（1 回の勝負につき 1 回まで）。
@@ -152,6 +159,8 @@ public final class PokerModel {
             playerWins = snap.playerWins
             cpuWins = snap.cpuWins
             bestRank = snap.bestRank
+            streak = max(0, snap.streak ?? 0)
+            bestStreak = max(snap.bestStreak ?? 0, streak)
             extraExchangeUsed = snap.extraExchangeUsed
             cpuAction = snap.cpuAction
             winner = snap.winner
@@ -175,7 +184,7 @@ public final class PokerModel {
             playerWins: playerWins, cpuWins: cpuWins, bestRank: bestRank,
             extraExchangeUsed: extraExchangeUsed, cpuAction: cpuAction,
             winner: winner, playerHandRank: playerHandRank, cpuHandRank: cpuHandRank,
-            roundPoints: roundPoints
+            roundPoints: roundPoints, streak: streak, bestStreak: bestStreak
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -231,6 +240,8 @@ public final class PokerModel {
         playerWins = 0
         cpuWins = 0
         bestRank = nil
+        streak = 0
+        bestStreak = 0
         extraExchangeUsed = false
         sessionOver = false
         sessionWinner = nil
@@ -333,14 +344,18 @@ public final class PokerModel {
             roundPoints = PokerScoreTable.points(for: playerHandRank)
             playerPoints += roundPoints
             playerWins += 1
+            streak += 1
+            bestStreak = max(bestStreak, streak)
         } else if cmp < 0 {
             winner = .cpu
             roundPoints = PokerScoreTable.points(for: cpuHandRank)
             cpuPoints += roundPoints
             cpuWins += 1
+            streak = 0
         } else {
             winner = .tie
             roundPoints = 0
+            streak = 0
         }
         phase = .result
         notifyOutcome(after: showdownRevealDelay)
@@ -434,6 +449,8 @@ public final class PokerModel {
         playerWins = 0
         cpuWins = 0
         bestRank = nil
+        streak = 0
+        bestStreak = 0
         extraExchangeUsed = false
         sessionOver = false
         sessionWinner = nil

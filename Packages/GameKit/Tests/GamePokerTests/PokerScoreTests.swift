@@ -148,6 +148,56 @@ struct PokerScoreTests {
         #expect(!spy.scores.contains { $0.leaderboardID == GameCenterLeaderboard.pokerChips })
     }
 
+    @Test("連勝: 勝つたびに +1、負け・引き分けで 0 に戻り、最高連勝は残る（#2590）")
+    func streakCountsWinsAndResets() {
+        let win = makePokerModel(pokerSnapshot(player: PokerHands.fullHouse, cpu: PokerHands.straight, streak: 2, bestStreak: 2))
+        win.showdown()
+        #expect(win.streak == 3)
+        #expect(win.bestStreak == 3)
+
+        let lose = makePokerModel(pokerSnapshot(player: PokerHands.highCard, cpu: PokerHands.flush, streak: 2, bestStreak: 2))
+        lose.showdown()
+        #expect(lose.streak == 0)
+        #expect(lose.bestStreak == 2)
+
+        let tie = makePokerModel(pokerSnapshot(player: PokerHands.straight, cpu: PokerHands.sameStraight, streak: 2, bestStreak: 2))
+        tie.showdown()
+        #expect(tie.streak == 0)
+        #expect(tie.bestStreak == 2)
+    }
+
+    @Test("連勝は中断→再開で保たれ、連勝の項目が無い旧い中断データでも続きが消えない（#2590）")
+    func streakSurvivesResume() {
+        let store = MemorySnapshotStore()
+        let model = makePokerModel(
+            pokerSnapshot(round: 3, player: PokerHands.fullHouse, cpu: PokerHands.straight, streak: 1, bestStreak: 4),
+            store: store
+        )
+        model.showdown()
+        let reopened = PokerModel(services: GameServices(snapshots: store, ads: PokerStubAdService()))
+        #expect(reopened.streak == 2)
+        #expect(reopened.bestStreak == 4)
+
+        let legacy = MemorySnapshotStore()
+        try? legacy.save(pokerSnapshot(round: 3, player: PokerHands.fullHouse, cpu: PokerHands.straight), for: "poker")
+        let old = PokerModel(services: GameServices(snapshots: legacy, ads: PokerStubAdService()))
+        #expect(old.round == 3)
+        #expect(old.streak == 0)
+    }
+
+    @Test("新しい勝負を始めると連勝は 0 から数え直す（#2590）")
+    func newSessionResetsStreak() {
+        let model = makePokerModel(
+            pokerSnapshot(round: 10, player: PokerHands.fullHouse, cpu: PokerHands.straight, streak: 3, bestStreak: 3)
+        )
+        model.showdown()
+        #expect(model.sessionOver)
+        #expect(model.bestStreak == 4)
+        model.startGame()
+        #expect(model.streak == 0)
+        #expect(model.bestStreak == 0)
+    }
+
     @Test("途中の回の決着は中断データに残り、開き直すと同じ回の結果から続く")
     func resultBetweenRoundsIsResumable() {
         let store = MemorySnapshotStore()
