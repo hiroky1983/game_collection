@@ -398,6 +398,9 @@ def main():
     args = ap.parse_args()
     check_english_names()
 
+    # 元絵の検証は出力先を消す前に済ませる（無い・サイズ違いのまま HubTiles を消して止まらないように。#2577）。検証済みの crop / thumb は後続で使い回す。
+    homerun = homerun_art(args.hero) if not args.only or "homerun" in args.only else None
+
     if not args.only and len(args.lang) == 2:
         if os.path.isdir(OUT):
             shutil.rmtree(OUT)
@@ -413,7 +416,7 @@ def main():
             art = os.path.join(tmp, f"art-{gid}.png")
             thumb_art = None
             if gid == "homerun":
-                crop, thumb_art = homerun_art(args.hero)
+                crop, thumb_art = homerun
                 crop.save(art)
             elif gid in REDRAWN:
                 render(art_html(gid), art, tmp)
