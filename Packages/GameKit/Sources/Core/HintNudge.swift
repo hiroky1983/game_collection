@@ -14,6 +14,12 @@ public enum HintNudgePolicy {
     /// まだ出してよいか。
     public static func canShow(shownCount: Int) -> Bool { shownCount < maxPerGame }
 
+    /// 操作行に渡す `isEligible` の組み立て。広告の視聴中と、救済・行き止まりのパネルを出している間は数えない
+    /// （パネルは暗幕の下で促しが誰にも見えず、1 局の回数だけが減るため）。
+    public static func isEligible(canUseHint: Bool, isWatchingAd: Bool, showsBlockingPanel: Bool) -> Bool {
+        canUseHint && !isWatchingAd && !showsBlockingPanel
+    }
+
     /// 待ち時間を数え始めてよいか。「⋯」メニューを開いているあいだは数えず、出ている表示も隠す（#1485）。
     /// 閉じると条件が変わるので、そこから改めて `idleDelay` を待つ（閉じた直後にすぐは出さない）。
     public static func canSchedule(isEligible: Bool, isActive: Bool, isMenuOpen: Bool, shownCount: Int) -> Bool {
