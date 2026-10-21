@@ -78,6 +78,17 @@
         }
       }
     },
+    "%1$@・最速%2$lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Fastest: %2$lld s"
+          }
+        }
+      }
+    },
     "%1$@・最高%2$lld連勝" : {
       "extractionState" : "manual",
       "localizations" : {

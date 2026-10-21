@@ -28,7 +28,8 @@ struct RecordFormatLocalizationTests {
                                 wins: wins, losses: plays / 3, draws: plays % 4 == 0 ? 0 : plays % 4,
                                 currentStreak: wins % 4, bestStreak: wins,
                                 bestPoints: value, highestValue: value.map { $0 * 2 },
-                                bestSeconds: value, fewestMoves: value
+                                // 勝敗型の最速秒数（#2609）は #2168 の後に足した表記なので、凍結した旧表記との比較には載せない。
+                                bestSeconds: metric == .winLoss ? nil : value, fewestMoves: value
                             ))
                         }
                     }

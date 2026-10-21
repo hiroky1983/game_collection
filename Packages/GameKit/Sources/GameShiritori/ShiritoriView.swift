@@ -350,7 +350,8 @@ public struct ShiritoriView: View {
             verdict: model.didPlayerWin ? .win : .loss,
             reason: ShiritoriPresentation.resultReason(ending: ending),
             details: [ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount,
-                                                         quota: model.quota, ending: ending, mode: model.mode)],
+                                                         quota: model.quota, ending: ending, mode: model.mode,
+                                                         clearSeconds: model.quotaClearSeconds)],
             record: model.recordResult
         ) { resultCardClosed = true }
     }
@@ -369,7 +370,8 @@ public struct ShiritoriView: View {
                 Spacer(minLength: 0)
             }
             Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
-                                                          ending: model.ending ?? .timeUp, mode: model.mode))
+                                                          ending: model.ending ?? .timeUp, mode: model.mode,
+                                                          clearSeconds: model.quotaClearSeconds))
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)

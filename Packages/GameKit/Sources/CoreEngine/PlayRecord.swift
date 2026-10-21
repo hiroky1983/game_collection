@@ -427,7 +427,8 @@ public enum RecordFormat {
             return tr("最少 %@手", number(best), language: language)
         case .winLoss:
             let streak = played.map(\.currentStreak).max() ?? 0
-            let base = withAveragePlace(winLossText(played, language: language), played, language: language)
+            let base = withBestSeconds(withAveragePlace(winLossText(played, language: language), played, language: language),
+                                       played.compactMap(\.bestSeconds).min(), language: language)
             return streak >= 2 ? tr("%1$@・%2$lld連勝中", base, streak, language: language) : base
         }
     }
@@ -520,6 +521,12 @@ public enum RecordFormat {
         return tr("%1$@・平均%2$@位", line, average, language: language)
     }
 
+    /// ノルマ到達までの最速秒数を記録しているゲーム（カードしりとり・#2609）だけ、勝敗の後ろに「最速42秒」を添える。無ければそのまま。
+    private static func withBestSeconds(_ line: String, _ seconds: Int?, language: AppLanguage?) -> String {
+        guard let seconds else { return line }
+        return tr("%1$@・最速%2$lld秒", line, seconds, language: language)
+    }
+
     /// リザルトに出す 1 行（そのゲームの自己ベスト）。記録が無ければ nil。
     public static func resultLine(_ record: PlayRecord, language: AppLanguage? = nil) -> String? {
         guard record.hasAnyRecord else { return nil }
@@ -554,7 +561,9 @@ public enum RecordFormat {
             guard let best = record.fewestMoves else { return nil }
             return tr("最少手数 %@手", number(best), language: language)
         case .winLoss:
-            let base = tr("通算 %@", withAveragePlace(winLossText([record], language: language), [record], language: language),
+            let base = tr("通算 %@", withBestSeconds(withAveragePlace(winLossText([record], language: language), [record],
+                                                                     language: language),
+                                                    record.bestSeconds, language: language),
                           language: language)
             return record.bestStreak >= 2 ? tr("%1$@・最高%2$lld連勝", base, record.bestStreak, language: language) : base
         }
