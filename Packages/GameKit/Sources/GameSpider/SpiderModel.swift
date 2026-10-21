@@ -355,13 +355,25 @@ public final class SpiderModel {
     /// **1 手でも指した盤面を捨てたときは敗北として記録する**（判定の境目は `canUndo`。#397 と同じ）。
     /// - Parameter rules: 次の局に焼き込むルール。省略すると**今の局と同じルール**で配り直す。
     public func newGame(rules: SpiderRuleSet? = nil) {
+        deal(rules: rules, sameDeal: false)
+    }
+
+    /// 今と同じ配札（同じ種・同じルール）を最初から配り直す（#2603）。
+    /// 計時・手数・戻す／ヒントの回数は新しい局の初期値になる。1 手でも指していれば敗北として記録するのは `newGame` と同じ。
+    public func restartSameDeal() {
+        deal(rules: nil, sameDeal: true)
+    }
+
+    private func deal(rules: SpiderRuleSet?, sameDeal: Bool) {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         self.rules = rules ?? self.rules
         // 直前の配札は除く（#914）。スート数を変えたときも番号の見た目が同じにならないよう一律に除く。
-        dealNumber = Self.pickSeed(for: self.rules.suitCount, excluding: dealNumber)
+        if !sameDeal {
+            dealNumber = Self.pickSeed(for: self.rules.suitCount, excluding: dealNumber)
+        }
         moves = []
         undosRemaining = SpiderUndoBudget.free
         hints.reset()

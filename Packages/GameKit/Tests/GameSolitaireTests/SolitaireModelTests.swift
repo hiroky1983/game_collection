@@ -78,6 +78,21 @@ struct SolitaireModelTests {
         #expect(!model.canUndo)
     }
 
+    @Test("restartSameDeal は同じ配札を最初から配り直し、手数・戻す回数を初期化する（#2603）")
+    func restartSameDealReplaysFromStart() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        let initial = model.board
+        model.tapStock()
+        #expect(model.canUndo)
+        model.restartSameDeal()
+        #expect(model.board == initial)
+        #expect(model.moveCount == 0)
+        #expect(!model.canUndo)
+        #expect(model.undosRemaining == SolitaireUndoBudget.free)
+        #expect(model.phase == .playing)
+    }
+
     @Test("札をタップして選び、置き先をタップすると動く")
     func selectThenPlace() {
         let (services, _) = makeServices()

@@ -602,11 +602,22 @@ public final class SolitaireModel {
     ///   ルールを変えられるのは開始シートを通したときだけで、**進行中の局には効かない**
     ///   （1 局 = 1 RuleSet。ここで焼き直した瞬間に手順がリセットされるので前後で混ざらない）。
     public func newGame(rules: SolitaireRuleSet? = nil) {
+        deal(rules: rules, sameDeal: false)
+    }
+
+    /// 今と同じ配札（同じ種・同じルール）を最初から配り直す（#2603）。記録の扱いは `newGame` と同じ。
+    public func restartSameDeal() {
+        deal(rules: nil, sameDeal: true)
+    }
+
+    private func deal(rules: SolitaireRuleSet?, sameDeal: Bool) {
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         self.rules = rules ?? self.rules
-        seed = Self.pickSeed(for: self.rules.drawMode)
+        if !sameDeal {
+            seed = Self.pickSeed(for: self.rules.drawMode)
+        }
         moves = []
         jokerGrants = Self.initialJokerGrants
         undosRemaining = SolitaireUndoBudget.free

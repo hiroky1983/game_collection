@@ -427,12 +427,23 @@ public final class FreeCellModel {
     /// 判定の境目は「新規ゲームの確認ダイアログを出すか」と同じ `canUndo` に揃えてある
     /// （＝ユーザーが「今の盤面が失われます」と読んだ操作だけが記録に乗る）。ソリティア #397 と同じ。
     public func newGame() {
+        deal(sameDeal: false)
+    }
+
+    /// 今と同じ配札を最初から配り直す（#2603）。記録の扱いは `newGame` と同じ。
+    public func restartSameDeal() {
+        deal(sameDeal: true)
+    }
+
+    private func deal(sameDeal: Bool) {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         // 直前の配札は除く（#914）。
-        dealNumber = Self.pickSeed(excluding: dealNumber)
+        if !sameDeal {
+            dealNumber = Self.pickSeed(excluding: dealNumber)
+        }
         moves = []
         undosRemaining = FreeCellUndoBudget.free
         hints.reset()

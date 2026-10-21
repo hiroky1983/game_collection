@@ -576,6 +576,11 @@ public struct SpiderView: View {
 
             Spacer(minLength: 8)
 
+            Button { model.restartSameDeal() } label: {
+                Text(tr("同じ配札で"))
+            }
+            .buttonStyle(.game(.skip))
+
             Button { model.newGame() } label: {
                 Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
@@ -695,6 +700,10 @@ public struct SpiderView: View {
             // ソリティア・フリーセルと同じく今のスート数のまま即配り直す。変えたいときはナビバーの「新規ゲーム」から（#2600）。
             GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: undoRescue.isWatching) {
                 model.newGame()
+            }
+
+            GameDeadEndDismissButton(tr("同じ配札でやり直す"), isDisabled: undoRescue.isWatching) {
+                model.restartSameDeal()
             }
 
             GameDeadEndDismissButton(tr("盤面を見る"), isDisabled: undoRescue.isWatching) {
