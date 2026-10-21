@@ -132,6 +132,22 @@ struct CatPuzzleRenderTests {
         let boardImage = try #require(board.cgImage)
         try Self.write(boardImage, to: URL(fileURLWithPath: dir).appendingPathComponent("5-clear-board.png"))
 
+        // 違う種の解き終えた盤を 3 つ並べる（部屋と答えの行の対応が種ごとに変わることを目で見る・#2250）。
+        let seeds = HStack(spacing: 12) {
+            ForEach([1, 2, 3], id: \.self) { seed in
+                let model = CatPuzzleModel(services: Self.services(), size: .normal, seed: UInt64(seed))
+                CatPuzzleBoardCanvas(
+                    puzzle: model.puzzle, marks: model.puzzle.solutionCells.reduce(into: model.marks) { $0[$1] = .cat },
+                    conflicts: [], isSolved: false, cellSide: 40
+                )
+            }
+        }
+        .padding(8)
+        .background(Theme.surface)
+        let seedsRenderer = ImageRenderer(content: seeds)
+        seedsRenderer.scale = 2
+        try Self.write(try #require(seedsRenderer.cgImage), to: URL(fileURLWithPath: dir).appendingPathComponent("7-three-seeds.png"))
+
         // 猫を置いた瞬間のコマ（出入りの transition と同じ `CatPopModifier` を途中の値で描く）。
         let frames: [(CGFloat, Double, Double)] = [(0.25, -18, 0), (0.55, -12, 0.55), (0.9, -4, 1), (1.08, 2, 1), (1, 0, 1)]
         let room = CatPuzzleHouse.room(0)

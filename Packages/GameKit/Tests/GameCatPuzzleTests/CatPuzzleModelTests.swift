@@ -223,9 +223,17 @@ struct CatPuzzleModelTests {
         let store = MemorySnapshotStore()
         let first = CatPuzzleModel(services: makeServices(store: store), size: .normal, seed: 9)
         #expect(!store.exists(for: CatPuzzleModel.gameID), "手つかずの盤は保存しない")
-        first.tap(cell: 0)
-        placeCat(first, at: first.puzzle.solutionCells[0])
-        placeCat(first, at: first.puzzle.solutionCells[0] + 1)
+        // 答えの猫と、その隣で別の部屋にある間違いの猫（隣り合うのでミス 1）。× は関係ないマスに付ける。
+        // 間違いの猫を別の部屋に置くのは、ヒントがその部屋の答えを置く（`hintCells` が空にならない）ため。
+        let puzzle = first.puzzle
+        let answer = puzzle.solutionCells[0]
+        let wrong = (0..<puzzle.cellCount).first {
+            CatPuzzleLogic.isAdjacent($0, answer, side: puzzle.side) && puzzle.rooms[$0] != puzzle.rooms[answer]
+        }!
+        let cross = (0..<puzzle.cellCount).first { ![answer, wrong].contains($0) }!
+        first.tap(cell: cross)
+        placeCat(first, at: answer)
+        placeCat(first, at: wrong)
         first.useHint()
         #expect(store.exists(for: CatPuzzleModel.gameID))
 
