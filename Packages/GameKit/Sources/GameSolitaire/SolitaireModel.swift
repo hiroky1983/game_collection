@@ -103,6 +103,10 @@ public final class SolitaireModel {
         get { stopwatch.now }
         set { stopwatch.now = newValue }
     }
+    /// 直前にタップした札と時刻（ダブルタップの判定用・#2598）。
+    private var lastCardTap: (selection: SolitaireSelection, at: ContinuousClock.Instant)?
+    /// この間隔に同じ札を 2 回タップしたらダブルタップ（組札へ直接送る）。仮置きの値で、会長 QA で調整する。
+    static let doubleTapInterval: Duration = .milliseconds(350)
     /// この局でもらったジョーカーの累計枚数（`SolitaireSnapshot.jokerGrants`）。
     private var jokerGrants: Int
     /// 敗北確定の探索。盤面が動くたびに作り直す。
@@ -310,6 +314,7 @@ public final class SolitaireModel {
     public func tapWaste() {
         guard phase == .playing else { return }
         if isPlacingJoker { return cancelPlacingJoker() }
+        if registerCardTap(.waste), sendToFoundation(.waste) { return }
         if selection == .waste { return deselect() }
         guard board.waste.last != nil else { return reject() }
         selection = .waste
@@ -353,6 +358,8 @@ public final class SolitaireModel {
 
         let index = cardIndex ?? (board.tableau[pile].faceUp.count - 1)
         guard board.tableau[pile].faceUp.indices.contains(index) else { return reject() }
+        if registerCardTap(.tableau(pile: pile, cardIndex: index)),
+           sendToFoundation(.tableau(pile: pile, cardIndex: index)) { return }
         if selection == .tableau(pile: pile, cardIndex: index) { return deselect() }
         // 途中で切れている並び（降順・交互色でない）は動かせないので持ち上げさせない。
         guard board.isMovableRun(pile: pile, from: index) else { return reject() }
@@ -423,6 +430,8 @@ public final class SolitaireModel {
 
     public func deselect() {
         selection = nil
+        // ドラッグの落とし先は deselect → 合成タップで処理される。ダブルタップと取り違えない（#2598）。
+        lastCardTap = nil
         services?.feedback.impact(.rigid)
     }
 
@@ -666,6 +675,24 @@ public final class SolitaireModel {
         }
     }
 
+    /// 札のタップを控え、直前に同じ札をタップしてから `doubleTapInterval` 以内ならダブルタップとして true を返す。
+    ///
+    /// 1 回目のタップは今までどおり選択に使うので、シングルタップの反応は遅らせない。
+    private func registerCardTap(_ target: SolitaireSelection) -> Bool {
+        let now = clockNow()
+        defer { lastCardTap = (target, now) }
+        guard let last = lastCardTap, last.selection == target else { return false }
+        return now - last.at <= Self.doubleTapInterval
+    }
+
+    /// 札を選択なしで組札へ送る。送れなければ何もせず false（拒否の演出も出さない）。
+    private func sendToFoundation(_ target: SolitaireSelection) -> Bool {
+        guard let move = foundationMove(from: target), board.isLegal(move) else { return false }
+        lastCardTap = nil
+        perform(move)
+        return true
+    }
+
     private func foundationMove(from selection: SolitaireSelection) -> SolitaireMove? {
         switch selection {
         case .waste:
@@ -688,6 +715,7 @@ public final class SolitaireModel {
     }
 
     private func perform(_ move: SolitaireMove) {
+        lastCardTap = nil
         let before = board
         guard board.apply(move) else { return reject() }
         noteFlips(from: before, move: move)
