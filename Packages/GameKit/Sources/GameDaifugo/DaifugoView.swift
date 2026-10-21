@@ -53,6 +53,8 @@ public struct DaifugoView: View {
             .padding(.horizontal, DaifugoLayoutA.sideInset)
             .padding(.vertical, DaifugoLayoutA.verticalInset)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            // 交換の帯は盤の高さを変えないよう重ねで出す（#2607・#2493 の再発防止）。
+            .overlay { exchangeBanner }
         }
         // ゲーム数・革命中・手番は、ヘッダー下の帯（`GameStatusBar`）ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
         .gameChrome(title: daifugoGameName(), review: services.review, fullScreen: .felt, ads: services.ads,
@@ -101,6 +103,47 @@ public struct DaifugoView: View {
             await model.runCPUTurnsIfNeeded()
         }
         .onDisappear { cpuTask?.cancel() }
+    }
+
+    /// 配った直後の交換の帯（#2607）。数秒で消える・タップで閉じる。VoiceOver には出た時点で読み上げる。
+    @ViewBuilder
+    private var exchangeBanner: some View {
+        Group {
+            if let notice = model.exchangeNotice {
+                let lines = DaifugoAccessibility.exchangeLines(
+                    notice, partnerName: model.playerName(notice.partner), spoken: false)
+                Button { model.dismissExchangeNotice() } label: {
+                    VStack(spacing: 2) {
+                        ForEach(lines, id: \.self) { line in
+                            Text(verbatim: line)
+                                .themeCaption(13, weight: .bold, maxScale: 1.5)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
+                        }
+                    }
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                    .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(Theme.Fill.teal))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                        .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 2))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+                .accessibilityLabel(DaifugoAccessibility.exchangeLines(
+                    notice, partnerName: model.playerName(notice.partner), spoken: true).joined(separator: tr("。")))
+                .accessibilityHint(tr("タップで閉じます"))
+                .transition(.opacity)
+            }
+        }
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.exchangeNotice)
+        .task(id: model.exchangeNoticeRun) {
+            guard let notice = model.exchangeNotice else { return }
+            AccessibilityNotification.Announcement(DaifugoAccessibility.exchangeLines(
+                notice, partnerName: model.playerName(notice.partner), spoken: true).joined(separator: tr("。"))).post()
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled { model.dismissExchangeNotice() }
+        }
     }
 
     private func runCPU() {

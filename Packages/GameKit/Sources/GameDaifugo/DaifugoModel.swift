@@ -109,6 +109,13 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var lastRanking: [Int] = []
     /// 直前に行ったカード交換の内訳（リザルト直後の説明に使う）。
     public private(set) var lastTransfers: [DaifugoTransfer] = []
+    /// 配った直後に卓へ出す交換の帯の中身（#2607）。**中断データには載せない**ので、再開した直後は出し直さない。
+    public private(set) var exchangeNotice: DaifugoExchangeNotice?
+    /// 帯を出すたびに進める番号。表示側の `.task(id:)` で数秒後に閉じる・読み上げるのに使う。
+    public private(set) var exchangeNoticeRun = 0
+
+    /// 交換の帯を閉じる（タップ・時間切れ）。
+    public func dismissExchangeNotice() { exchangeNotice = nil }
     /// 次のゲームの大富豪⇔大貧民の交換を、広告で免除済みか（#1048）。
     ///
     /// 順位（`lastRanking`）と一緒に `DaifugoCarryOver` へ書き、画面を離れて開き直しても
@@ -376,12 +383,17 @@ public final class DaifugoModel: AITurnGuarded {
         dealt = dealt.map { $0.sorted { $0.sortKey < $1.sortKey } }
 
         lastTransfers = []
+        exchangeNotice = nil
         if lastRanking.count == Self.playerCount {
             let exchanged = DaifugoRules.applyExchange(
                 hands: dealt, ranking: lastRanking, waivingTopPair: isExchangeWaived
             )
             dealt = exchanged.hands
             lastTransfers = exchanged.transfers
+            if let notice = DaifugoExchangeNotice(transfers: exchanged.transfers, human: Self.humanIndex) {
+                exchangeNotice = notice
+                exchangeNoticeRun += 1
+            }
         }
         // 持ち越し（順位・免除）は配った時点では**一切触らない**（#1103・#1146）。消えるのは
         // この局の1手目が保存されたとき（`persist()`）と決着したとき（`concludeGame()`）の2か所だけ。
