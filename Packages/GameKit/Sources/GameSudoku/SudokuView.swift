@@ -18,7 +18,8 @@ public struct SudokuView: View {
     /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
     @State private var showUndoRefillPrompt = false
     @State private var undoRescue = RewardedRescue()
-    @State private var zoomMode = false
+    /// 拡大モードの ON/OFF。ゲームごとに覚え、新規ゲーム・階段・もう一回・再起動の後も保つ（#2616）。
+    @AppStorage("sudokuZoomMode") private var zoomMode = false
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
@@ -89,7 +90,6 @@ public struct SudokuView: View {
         .sheet(isPresented: $showNewGame) {
             SudokuNewGameSheet(playLog: services.playLog) { difficulty in
                 showNewGame = false
-                zoomMode = false
                 Task { await model.newGame(difficulty: difficulty) }
             } onCancel: {
                 showNewGame = false
@@ -764,7 +764,6 @@ public struct SudokuView: View {
         let levels = SudokuDifficulty.allCases
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.difficulty),
                                       levelLabels: levels.map(\.label)) { level in
-            zoomMode = false
             Task { await model.newGame(difficulty: levels[level]) }
         }
     }
@@ -777,7 +776,6 @@ public struct SudokuView: View {
             contentMinHeight: SudokuMetrics.padButtonMinSide,
             verticalPadding: 4,
             onReplay: {
-                zoomMode = false
                 Task { await model.newGame(difficulty: model.difficulty) }
             },
             onChangeSettings: { showNewGame = true }
