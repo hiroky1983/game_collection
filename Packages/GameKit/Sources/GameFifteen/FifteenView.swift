@@ -66,7 +66,15 @@ public struct FifteenView: View {
                     .contentTransition(.numericText())
             }
             Spacer()
+            if let best = model.savedBestMoves {
+                HeaderBestStat(title: tr("自己ベスト"), value: tr("%@手", RecordFormat.number(best)))
+            }
         }
+        // VoiceOver では「手数 n、自己ベスト n手」の 1 要素で読む（#2615）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.savedBestMoves.map {
+            tr("手数 %1$lld、自己ベスト %2$@手", model.moves, RecordFormat.number($0))
+        } ?? tr("手数") + " " + RecordFormat.number(model.moves))
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
     }

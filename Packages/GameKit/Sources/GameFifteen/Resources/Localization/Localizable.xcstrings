@@ -299,6 +299,39 @@
           }
         }
       }
+    },
+    "自己ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
+          }
+        }
+      }
+    },
+    "%@手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ moves"
+          }
+        }
+      }
+    },
+    "手数 %1$lld、自己ベスト %2$@手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves %1$lld, best %2$@ moves"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

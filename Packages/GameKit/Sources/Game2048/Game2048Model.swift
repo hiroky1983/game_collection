@@ -73,6 +73,13 @@ public final class Game2048Model {
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
     let gameID = "2048"
 
+    /// ヘッダーに常時出す「ベスト」（#2615）。保存済みの自己ベストと今のスコアの大きい方。
+    /// 記録は決着時にしか書かれないので、今のスコアが超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: gameID)?.bestPoints ?? 0, score)
+        return best > 0 ? best : nil
+    }
+
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     public init(services: GameServices? = nil) {
         self.services = services

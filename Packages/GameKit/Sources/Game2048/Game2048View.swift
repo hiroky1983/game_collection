@@ -175,7 +175,15 @@ public struct Game2048View: View {
                     .contentTransition(.numericText())
             }
             Spacer()
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
         }
+        // VoiceOver では「スコア n、ベスト n」の 1 要素で読む（#2615）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.liveBestScore.map {
+            tr("スコア %1$@、ベスト %2$@", RecordFormat.number(model.score), RecordFormat.number($0))
+        } ?? tr("スコア") + " " + RecordFormat.number(model.score))
         // 縦の余白は 10。スコアの文字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
