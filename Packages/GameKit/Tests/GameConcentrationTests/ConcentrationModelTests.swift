@@ -795,3 +795,28 @@ struct ConcentrationCancellationTests {
         #expect(resumed.turnID != 0, "CPU の手番を task(id:) が拾い直せる")
     }
 }
+
+@Suite("神経衰弱: 記録の区分（#2608）")
+@MainActor
+struct ConcentrationRecordVariantTests {
+    @Test("CPU の強さごとに別の区分で記録し、「ふつう」だけ区分なし")
+    func variantFollowsCPULevel() {
+        let model = ConcentrationModel(services: makeServices(MemorySnapshotStore()))
+        model.newGame(pairCount: .small, cpuLevel: .weak)
+        #expect(model.recordScore.variant == "cpu-weak")
+        model.newGame(pairCount: .small, cpuLevel: .normal)
+        #expect(model.recordScore.variant == nil)
+        model.newGame(pairCount: .large, cpuLevel: .strong)
+        #expect(model.recordScore.variant == "cpu-strong")
+        #expect(model.recordScore.variantLabel == "CPUむずかしい")
+    }
+
+    @Test("枚数を変えても区分は変わらない")
+    func pairCountDoesNotSplit() {
+        let model = ConcentrationModel(services: makeServices(MemorySnapshotStore()))
+        model.newGame(pairCount: .small, cpuLevel: .strong)
+        let a = model.recordScore.variant
+        model.newGame(pairCount: .large, cpuLevel: .strong)
+        #expect(a == model.recordScore.variant)
+    }
+}

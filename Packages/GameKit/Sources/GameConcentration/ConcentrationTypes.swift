@@ -35,6 +35,15 @@ public enum ConcentrationCPULevel: Int, CaseIterable {
         }
     }
 
+    /// 成績を分ける区分のキー。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ・#2608）。
+    var recordVariantKey: String? {
+        switch self {
+        case .weak:   return "cpu-weak"
+        case .normal: return nil
+        case .strong: return "cpu-strong"
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .weak:   return tr("記憶30%")

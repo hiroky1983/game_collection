@@ -353,11 +353,11 @@ public final class ShiritoriModel: AITurnGuarded {
     }
 
     private func recordFinish() {
-        // 従来のモードの記録は variant nil のまま（保存先を変えない）。とことんは別枠で、順位表へは送らない。
-        let variant = mode.scoreVariant
+        // 「ふつう」のノルマの記録は variant nil のまま（保存先を変えない）。難易度違いととことんは別枠。順位表へ送るのはノルマだけ。
+        let variant = mode.scoreVariant(quota: quota)
         recordResult = services?.gameDidFinish(
             gameID: gameID, outcome: reviewOutcome,
-            score: GameScore(variant: variant?.key, variantLabel: variant?.label, isLeaderboardEligible: variant == nil)
+            score: GameScore(variant: variant?.key, variantLabel: variant?.label, isLeaderboardEligible: mode == .quota)
         )
     }
 

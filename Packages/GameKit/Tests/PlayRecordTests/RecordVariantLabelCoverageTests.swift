@@ -12,6 +12,7 @@ import GameRunner
 import GameHanafuda
 import GameSpider
 @testable import GameShiritori
+@testable import GameConcentration
 @testable import GameMahjongSolitaire
 import GameAnzan
 @testable import GameAkariKeshi
@@ -51,7 +52,8 @@ struct RecordVariantLabelCoverageTests {
             }
         }
         for preset in ["9x9-10", "16x16-40", "20x20-82"] { add("minesweeper", preset) }
-        for mode in ShiritoriMode.allCases { add("shiritori", mode.scoreVariant?.key) }
+        for mode in ShiritoriMode.allCases { for quota in ShiritoriQuota.allCases { add("shiritori", mode.scoreVariant(quota: quota)?.key) } }
+        for level in ConcentrationCPULevel.allCases { add("concentration", level.recordVariantKey) }
         for layout in MahjongSolitaireLayout.all { add("mahjong", layout.id) }
         for level in SpeedLevel.allCases { add("speed", level.rawValue) }
         for mode in OjisanPuzzleMode.allCases { add("ojisanpuzzle", mode.recordVariant) }
