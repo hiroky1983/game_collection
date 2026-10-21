@@ -53,9 +53,12 @@ struct DaifugoCarryOver: Codable {
     /// 大富豪⇔大貧民の交換を広告で免除済みか（#1048）。
     /// 順位だけ持ち越して免除が消えると、広告を見た人だけが損をするので一緒に残す。
     let isExchangeWaived: Bool
-    /// 直前のゲームで選んでいた CPU の強さ（#2604）。画面を離れて開き直しても次ゲームに引き継ぐ。
-    /// 旧バージョンの記録には無いので optional。
-    var aiLevel: Int? = nil
+}
+
+/// 次のゲームにも引き継ぐ CPU の強さ（#2604）。中断データ・持ち越しは「配りが確定したとき」にしか書かれない
+/// （#1103）ので、シートで選んだ直後に閉じても残るよう、専用のキーに選んだ時点で書く。
+struct DaifugoPreferences: Codable {
+    let aiLevel: Int
 }
 
 // MARK: - Model
@@ -115,6 +118,8 @@ public final class DaifugoModel: AITurnGuarded {
     let gameID = "daifugo"
     /// 次のゲームへの持ち越し（#1066）の置き場。中断データ（`gameID`）とは別のキーにする。
     private var carryOverID: String { "\(gameID)-carryover" }
+    /// 引き継ぐ強さの置き場。中断データ・持ち越しとは別のキーにする（#2604）。
+    private var preferencesID: String { "\(gameID)-prefs" }
     private let cpuDelay: Duration
     private var seed: UInt64?
     /// CPU の強さによる「ぶれ」（かんたんの次善手・入門のでたらめ）用の乱数。配りの種とは別に持つ。
@@ -146,6 +151,9 @@ public final class DaifugoModel: AITurnGuarded {
         self.seed = seed
         self.hints = hints
         cpuRNG = SplitMix64(seed: seed.map { $0 ^ 0x5DEECE66D } ?? UInt64.random(in: 0...UInt64.max))
+        if let prefs = services?.snapshots.load(DaifugoPreferences.self, for: preferencesID) {
+            aiLevel = CPUStrength.strength(for: prefs.aiLevel).rawValue
+        }
         var loaded = services?.snapshots.load(DaifugoSnapshot.self, for: gameID)
         // 人数・添字が合わない中断データは、`playerHand` などの配列参照で開くたびに落ちる（#1913。
         // #1384 と同じ作法）。消して新規開始に倒す。
@@ -176,7 +184,6 @@ public final class DaifugoModel: AITurnGuarded {
             // 自分で持っているので、そちらが在るならそちらが正しい。
             lastRanking      = carry.lastRanking
             isExchangeWaived = carry.isExchangeWaived
-            aiLevel          = CPUStrength.strength(for: carry.aiLevel ?? CPUStrength.standard.rawValue).rawValue
         }
     }
 
@@ -326,7 +333,11 @@ public final class DaifugoModel: AITurnGuarded {
     /// 新しい1ゲームを始める。2ゲーム目以降は前ゲームの階級に応じてカード交換を行う。
     /// `aiLevel` を渡すとその強さで配る（開始シート・難易度の階段）。渡さなければ前のゲームの強さのまま。
     public func startGame(aiLevel newLevel: Int? = nil) {
-        if let newLevel { aiLevel = CPUStrength.strength(for: newLevel).rawValue }
+        if let newLevel {
+            aiLevel = CPUStrength.strength(for: newLevel).rawValue
+            // 配った直後に閉じても選んだ強さが残るよう、持ち越しとは別に書く。
+            try? services?.snapshots.save(DaifugoPreferences(aiLevel: aiLevel), for: preferencesID)
+        }
         var deck = DaifugoCard.makeDeck()
         if var generator = makeGenerator() {
             deck.shuffle(using: &generator)
@@ -772,7 +783,7 @@ public final class DaifugoModel: AITurnGuarded {
             services?.snapshots.clear(for: carryOverID)
             return
         }
-        let carry = DaifugoCarryOver(lastRanking: lastRanking, isExchangeWaived: isExchangeWaived, aiLevel: aiLevel)
+        let carry = DaifugoCarryOver(lastRanking: lastRanking, isExchangeWaived: isExchangeWaived)
         try? services?.snapshots.save(carry, for: carryOverID)
     }
 }

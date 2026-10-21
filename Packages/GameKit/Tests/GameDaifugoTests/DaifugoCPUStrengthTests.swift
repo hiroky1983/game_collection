@@ -155,6 +155,28 @@ struct DaifugoCPUStrengthModelTests {
         #expect(reopened.aiLevel == CPUStrength.hard.rawValue)
     }
 
+    @Test("強さを選んで配った直後に1手も出さず閉じても、選んだ強さが残る")
+    func levelSurvivesBeforeFirstMove() {
+        let (model, services) = makeModel()
+        model.startGame(aiLevel: CPUStrength.hard.rawValue)
+        let reopened = DaifugoModel(services: services, cpuDelay: .zero)
+        #expect(reopened.phase == .idle, "配ったばかりの局は中断データを持たない")
+        #expect(reopened.aiLevel == CPUStrength.hard.rawValue)
+    }
+
+    @Test("決着後に強さを変えて閉じても、古い持ち越しではなく新しい強さが残る")
+    func newerLevelWinsOverResultTimeLevel() async {
+        let (model, services) = makeModel()
+        model.startGame(aiLevel: CPUStrength.hard.rawValue)
+        model.configureForTesting(hands: [[card(3)], [card(13), card(4)], [card(12), card(5)], [card(11), card(6)]],
+                                  field: [], currentPlayer: 0)
+        model.resign()
+        #expect(model.phase == .result)
+        model.startGame(aiLevel: CPUStrength.easy.rawValue)
+        let reopened = DaifugoModel(services: services, cpuDelay: .zero)
+        #expect(reopened.aiLevel == CPUStrength.easy.rawValue)
+    }
+
     @Test("強さの無い旧バージョンの中断データは「ふつう」で再開する")
     func legacySnapshotResumesAsNormal() throws {
         let store = MemorySnapshotStore()

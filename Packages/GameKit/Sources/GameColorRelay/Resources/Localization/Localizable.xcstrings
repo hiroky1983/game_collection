@@ -1040,17 +1040,6 @@
         }
       }
     },
-    "ときどきでたらめに出し、攻撃しない" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sometimes plays at random and never attacks"
-          }
-        }
-      }
-    },
     "相手の手札が2枚以下で攻撃する" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1069,6 +1058,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Attacks when the next player has 3 cards or fewer"
+          }
+        }
+      }
+    },
+    "ときどきでたらめに出し、攻撃を急がない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sometimes plays at random and doesn't rush to attack"
           }
         }
       }

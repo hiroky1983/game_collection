@@ -735,7 +735,7 @@ struct ColorRelayNewGameSheet: View {
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `ColorRelayRules.cpuPlay` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [
-                    tr("出せる札からでたらめに選ぶ"), tr("ときどきでたらめに出し、攻撃しない"),
+                    tr("出せる札からでたらめに選ぶ"), tr("ときどきでたらめに出し、攻撃を急がない"),
                     tr("相手の手札が2枚以下で攻撃する"), tr("相手の手札が3枚以下で攻撃する"),
                 ])
             }
