@@ -6,18 +6,22 @@ import Core
 /// 部屋の番号（`CatPuzzle.rooms` の値）に、名前・床の柄・色・クリアで猫がくつろぐ姿を当てる。
 /// 家の見た目は会長がこだわる所なので、**色・柄・名前・姿はこの 1 か所で変えられる**ようにしてある
 /// （盤の描画は `CatPuzzleBoardCanvas` がこの表を読むだけ）。
+///
+/// 線の強さの順は **壁（部屋の境目）＞マスの区切り（タップの単位）＞床の柄** に固定する
+/// （会長 QA 2026-10-21: 床の柄がマスを細かく区切って「タイルが個別に押せる」ように見えた）。
 enum CatPuzzleHouse {
-    /// 床の柄。描き方は `CatPuzzleFloorPainter`。
+    /// 床の柄。描き方は `CatPuzzleFloorPainter`。どの柄も **1 マス＝柄の 1 単位** に揃え、
+    /// マスの中を細かく区切る線は引かない。
     enum Floor: CaseIterable, Sendable {
         /// 畳（横の細い筋）。
         case tatami
-        /// フローリング（縦の板と、互い違いの継ぎ目）。
+        /// フローリング（縦の板の継ぎ目と、互い違いの木口）。
         case planks
-        /// タイル（1 マスを 2×2 に割る目地）。
+        /// タイル（1 マスに 1 枚。目地はマスの区切りと一致する）。
         case tile
         /// カーペット（点の織り目）。
         case carpet
-        /// 土間・石（1 マスずつ角を丸めた石）。
+        /// 土間・石（1 マスに 1 つの丸い石）。
         case stone
     }
 
@@ -35,24 +39,27 @@ enum CatPuzzleHouse {
 
     /// 部屋の並び。盤の大きさが 6 なら先頭 6 部屋、8 なら 8 部屋全部を使う。
     /// 名前は表示のたびに引く（言語切り替えに追従）。
+    ///
+    /// 色は「部屋ごとにはっきり違う・楽しい」色味にしつつ、ライトは明るめ（L≈80〜88%）・ダークは
+    /// 暗め（L≈30〜38%）に揃え、グレーと白の猫・×の印が埋もれない明度差を保つ。
     static var rooms: [Room] {
         [
             Room(name: tr("居間"), floor: .tatami,
-                 tint: Color(light: 0xF2E6BC, dark: 0x4B4529), patternStrength: 0.9, clearPose: .sleep),
+                 tint: Color(light: 0xDDE49C, dark: 0x4C5A2E), patternStrength: 1.0, clearPose: .sleep),
             Room(name: tr("押し入れ"), floor: .planks,
-                 tint: Color(light: 0xF1ECE2, dark: 0x3E3A35), patternStrength: 0.8, clearPose: .sitUp),
+                 tint: Color(light: 0xF1D9AE, dark: 0x5B4830), patternStrength: 0.9, clearPose: .sitUp),
             Room(name: tr("寝室"), floor: .carpet,
-                 tint: Color(light: 0xF8DEDD, dark: 0x4D3639), patternStrength: 1.0, clearPose: .belly),
+                 tint: Color(light: 0xFFC4CE, dark: 0x6A3946), patternStrength: 1.0, clearPose: .belly),
             Room(name: tr("書斎"), floor: .planks,
-                 tint: Color(light: 0xDED6F4, dark: 0x3C3553), patternStrength: 0.9, clearPose: .sitSide),
+                 tint: Color(light: 0xC9BFF4, dark: 0x453B6E), patternStrength: 1.0, clearPose: .sitSide),
             Room(name: tr("お風呂"), floor: .tile,
-                 tint: Color(light: 0xD7F0F4, dark: 0x2E474C), patternStrength: 1.0, clearPose: .faceWow),
+                 tint: Color(light: 0xA9E2EE, dark: 0x2B5B68), patternStrength: 1.0, clearPose: .faceWow),
             Room(name: tr("台所"), floor: .tile,
-                 tint: Color(light: 0xFBE4CA, dark: 0x4E3D2B), patternStrength: 0.9, clearPose: .pounce),
+                 tint: Color(light: 0xFFCF8A, dark: 0x6C4A1F), patternStrength: 1.0, clearPose: .pounce),
             Room(name: tr("玄関"), floor: .stone,
-                 tint: Color(light: 0xE3DED6, dark: 0x3A3734), patternStrength: 1.0, clearPose: .stretch),
+                 tint: Color(light: 0xD5CBBB, dark: 0x4E463B), patternStrength: 1.0, clearPose: .stretch),
             Room(name: tr("縁側"), floor: .planks,
-                 tint: Color(light: 0xEBD0A6, dark: 0x4B3B27), patternStrength: 1.0, clearPose: .sitFront),
+                 tint: Color(light: 0xE6B274, dark: 0x60431F), patternStrength: 1.0, clearPose: .sitFront),
         ]
     }
 
@@ -63,31 +70,42 @@ enum CatPuzzleHouse {
     }
 
     /// 壁の線の太さ（部屋どうしの境目）。外周はこの 1.5 倍。
-    static let wallWidth: CGFloat = 3
-    /// 部屋の中のマス目の線の太さ。
-    static let gridWidth: CGFloat = 0.6
+    static let wallWidth: CGFloat = 3.5
+    /// マスの区切り（タップの単位）の線の太さ。壁より細く、床の柄よりはっきり濃く引く。
+    static let gridWidth: CGFloat = 1
+    /// マスの区切りの線の濃さ（`Theme.ink` の不透明度）。
+    static let gridOpacity: Double = 0.30
+    /// 床の柄の線の濃さの上限（`Theme.ink` の不透明度）。マスの区切りの 1/3 以下に抑える。
+    static let patternMaxOpacity: Double = 0.09
+
+    /// ×（いない印）の色。床の上で読めるよう `Theme.ink`（こげ茶 / 生成り）で描き、
+    /// 下に `Theme.surface`（白 / 暗色）の縁取りを敷く。色だけに頼らず太い × の形でも分かる。
+    static let crossColor: Color = Theme.ink
+    static let crossHalo: Color = Theme.surface
 }
 
 /// 床の柄の描き方。1 マスずつ描いても隣のマスとつながって見えるよう、マスの格子に揃えた柄にする。
+/// どの柄もマスの区切りの線（`CatPuzzleHouse.gridOpacity`）より明らかに薄く・細く描く。
 enum CatPuzzleFloorPainter {
     static func draw(_ floor: CatPuzzleHouse.Floor, in rect: CGRect, strength: Double, context: inout GraphicsContext, ink: Color) {
         let s = rect.width
+        let cap = CatPuzzleHouse.patternMaxOpacity
         var path = Path()
-        var width: CGFloat = 1
-        var alpha = 0.10 * strength
+        var width: CGFloat = 0.8
+        var alpha = cap * 0.7 * strength
         switch floor {
         case .tatami:
-            // 横の細い筋（畳の目）。
-            let step = s / 6
+            // 横の細い筋（畳の目）。縦には区切らない。
+            let step = s / 5
             var y = rect.minY + step
             while y < rect.maxY - step / 2 {
                 path.move(to: CGPoint(x: rect.minX, y: y))
                 path.addLine(to: CGPoint(x: rect.maxX, y: y))
                 y += step
             }
-            alpha = 0.09 * strength
+            alpha = cap * 0.8 * strength
         case .planks:
-            // 縦の板 3 枚と、互い違いの継ぎ目。
+            // 縦の板の継ぎ目 2 本と、互い違いの短い木口。
             for i in 1..<3 {
                 let x = rect.minX + s * CGFloat(i) / 3
                 path.move(to: CGPoint(x: x, y: rect.minY))
@@ -100,33 +118,32 @@ enum CatPuzzleFloorPainter {
                 path.move(to: CGPoint(x: x0, y: y))
                 path.addLine(to: CGPoint(x: x0 + s / 3, y: y))
             }
-            alpha = 0.13 * strength
+            alpha = cap * strength
         case .tile:
-            // 2×2 の目地。
-            path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-            width = 1.2
-            alpha = 0.14 * strength
+            // 1 マスに 1 枚のタイル。面を少し明るくして、マスの区切りが目地に見えるようにする
+            // （2×2 の目地はマスを細かく割って見えたので廃止）。
+            let inset = s * 0.07
+            let face = Path(roundedRect: rect.insetBy(dx: inset, dy: inset), cornerRadius: s * 0.04)
+            context.fill(face, with: .color(Color(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.30 * strength, darkAlpha: 0.10 * strength)))
+            return
         case .carpet:
             // 点の織り目。
             let step = s / 4
-            let r = max(0.8, s * 0.025)
+            let r = max(0.7, s * 0.02)
             for i in 0..<4 {
                 for j in 0..<4 {
                     let c = CGPoint(x: rect.minX + step * (CGFloat(i) + 0.5), y: rect.minY + step * (CGFloat(j) + 0.5))
                     path.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
                 }
             }
-            context.fill(path, with: .color(ink.opacity(0.12 * strength)))
+            context.fill(path, with: .color(ink.opacity(cap * strength)))
             return
         case .stone:
-            // 角を丸めた石を 1 マスに 1 つ。
-            let inset = s * 0.09
-            path.addRoundedRect(in: rect.insetBy(dx: inset, dy: inset), cornerSize: CGSize(width: s * 0.18, height: s * 0.18))
-            width = 1.2
-            alpha = 0.12 * strength
+            // 1 マスに 1 つの丸い石（面で描く。線で囲まない）。
+            let inset = s * 0.1
+            path.addRoundedRect(in: rect.insetBy(dx: inset, dy: inset), cornerSize: CGSize(width: s * 0.3, height: s * 0.3))
+            context.fill(path, with: .color(ink.opacity(cap * 0.8 * strength)))
+            return
         }
         context.stroke(path, with: .color(ink.opacity(alpha)), lineWidth: width)
     }

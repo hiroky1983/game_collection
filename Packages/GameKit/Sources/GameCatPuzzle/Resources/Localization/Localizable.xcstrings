@@ -222,13 +222,35 @@
         }
       }
     },
-    "ヒント: %@にいるよ" : {
+    "ヒント: %@の猫はここ！" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hint: one is in the %@"
+            "value" : "Hint: the %@ cat is right here!"
+          }
+        }
+      }
+    },
+    "ヒント: %@の猫は違う場所だったよ。ここ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: the %@ cat was in the wrong spot. It's here!"
+          }
+        }
+      }
+    },
+    "ヒント: %@の違う猫を × にしたよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: the extra cat in the %@ was wrong, so it's now an ×"
           }
         }
       }
@@ -240,6 +262,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hint, %lld left"
+          }
+        }
+      }
+    },
+    "ヒントで置いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "placed by a hint"
+          }
+        }
+      }
+    },
+    "ヒントで置いた猫は消せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cats placed by a hint can't be removed"
           }
         }
       }
@@ -520,13 +564,13 @@
         }
       }
     },
-    "答えの猫がいるマスを1つ示します" : {
+    "答えの猫を1匹置きます。違う場所の猫があれば先に×にします" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shows one square where a cat is"
+            "value" : "Places one correct cat. A cat in the wrong spot is turned into an × first"
           }
         }
       }

@@ -2,7 +2,7 @@ import Core
 
 /// おじさんの飼い猫パズルの読み上げ文（#2250）。部屋は色ではなく名前で読み、矛盾は「ちがう」の言葉で伝える。
 public enum CatPuzzleAccessibility {
-    /// マス 1 つの読み上げ文（例: 「2行3列、居間、猫」「1行1列、台所、×」「4行5列、寝室、空き、ヒント」）。
+    /// マス 1 つの読み上げ文（例: 「2行3列、居間、猫」「1行1列、台所、×」「4行5列、寝室、猫、ヒントで置いた」）。
     public static func cellLabel(
         row: Int, col: Int, roomName: String, mark: CatPuzzleModel.Mark,
         isConflict: Bool = false, isHint: Bool = false
@@ -14,7 +14,7 @@ public enum CatPuzzleAccessibility {
         case .cat: parts.append(tr("猫"))
         }
         if isConflict { parts.append(tr("ちがう")) }
-        if isHint { parts.append(tr("ヒント")) }
+        if isHint { parts.append(tr("ヒントで置いた")) }
         return parts.joined(separator: tr("、"))
     }
 
@@ -27,5 +27,14 @@ public enum CatPuzzleAccessibility {
         if violations.kinds.contains(.column) { words.append(tr("同じ列に2匹")) }
         if violations.kinds.contains(.adjacent) { words.append(tr("猫どうしが隣")) }
         return words.joined(separator: tr("・"))
+    }
+
+    /// ヒントの一言（画面に出す）。「書斎の猫はここ！」と言い切り、違う猫を × にしたときはそれも言う。
+    public static func message(for hint: CatPuzzleHint, roomName: String) -> String {
+        switch (hint.placed, hint.removed.isEmpty) {
+        case (.some, true): tr("ヒント: %@の猫はここ！", roomName)
+        case (.some, false): tr("ヒント: %@の猫は違う場所だったよ。ここ！", roomName)
+        case (.none, _): tr("ヒント: %@の違う猫を × にしたよ", roomName)
+        }
     }
 }
