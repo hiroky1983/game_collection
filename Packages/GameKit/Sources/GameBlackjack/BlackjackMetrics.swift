@@ -57,8 +57,21 @@ enum BlackjackVerticalMetrics: Equatable {
     /// `BlackjackMetricsTests` が境目との整合を固定する。
     var estimatedSplitMinimumHeight: CGFloat {
         let chips = 17 + chipsVerticalPadding * 2
+        return chips + estimatedSplitTableHeight + actionAreaMinHeight + 22 + spacing * 4 + pad * 2
+    }
+
+    /// スプリット中の卓（ディーラーの段・間隔の最小 4・ハンド 2 つの段）の高さの見積もり。
+    ///
+    /// 卓の高さの上限にも使う（会長 QA 2026-10-22・#2531）。全画面にしてディーラーとあなたの間が大きく空いたので、
+    /// 卓をこの高さまでに抑え、卓と操作欄のまとまりを上下の余白の真ん中に置く。上限をスプリット中の高さにしておけば、
+    /// 1 手 → スプリットで卓の高さが変わらず、ディーラーの札も操作欄も動かない（1 手のときはその差の分だけ間が空く）。
+    var estimatedSplitTableHeight: CGFloat {
         let dealer = 17 + tableSpacing + 90 + areaVerticalPadding * 2
         let player = 94 * 2 + tableSpacing + areaVerticalPadding * 2
-        return chips + dealer + tableSpacing * 2 + 4 + player + 96 + 22 + spacing * 4 + pad * 2
+        return dealer + tableSpacing * 2 + 4 + player
     }
+
+    /// 操作欄に取っておく高さ（ボタン 2 段 = 44 + 8 + 44）。スプリットのボタンが出る・消える、結果にやり直しの
+    /// 広告ボタンが付く、で操作欄の背が変わっても、真ん中に置いた卓が上下に動かないようにする（#1485）。
+    var actionAreaMinHeight: CGFloat { BlackjackMetrics.actionButtonMinHeight * 2 + 8 }
 }

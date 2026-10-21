@@ -73,6 +73,19 @@ struct DaifugoLayoutTests {
                 <= FullScreenGameLayoutMetrics.contentHeight(screenHeight: 874, safeAreaTop: 62, safeAreaBottom: 34))
     }
 
+    @Test("手札・操作欄の持ち上げは控えめ（上限 24pt）で、SE でも最低限の高さを削らない（会長 QA 2026-10-22）")
+    func bottomLiftIsSmallAndFits() {
+        let ip17Height = FullScreenGameLayoutMetrics.contentHeight(screenHeight: 874, safeAreaTop: 62, safeAreaBottom: 34)
+        let ip17 = Layout.bottomLift(contentHeight: ip17Height, screenWidth: 402)
+        let se = Layout.bottomLift(contentHeight: Self.seContentHeight, screenWidth: 375)
+        #expect(ip17 == Layout.maxBottomLift && Layout.maxBottomLift == 24)
+        #expect(se > 0 && se <= Layout.maxBottomLift, "SE でも少し上へ寄る（\(se)）")
+        #expect(Layout.estimatedMinimumHeight(screenWidth: 375) + se <= Self.seContentHeight)
+        #expect(Layout.bottomLift(contentHeight: 300, screenWidth: 375) == 0, "足りないときは持ち上げない")
+        let source = (try? SourceScan.strippingComments(SourceScan.moduleSources("GameDaifugo"))) ?? ""
+        #expect(source.contains(".padding(.bottom, DaifugoLayoutA.bottomLift("), "画面が持ち上げの量を使っていない")
+    }
+
     @Test("寸法の前提（7列・列間 0・左右 8pt）が変わったら気付けるようにする")
     func layoutConstants() {
         #expect(DaifugoHandLayout.columns == 7)
