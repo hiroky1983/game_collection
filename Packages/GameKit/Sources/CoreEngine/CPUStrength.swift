@@ -39,6 +39,17 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// 記録の区分キー（`GameScore.variant`・#2604）。キーと表示名の対応は `RecordVariantLabels`。
+    /// 「ふつう」を区分なしにするかは、これまでの記録を持つゲームの側が決める。
+    public var recordVariantKey: String {
+        switch self {
+        case .novice: return "novice"
+        case .easy:   return "easy"
+        case .normal: return "normal"
+        case .hard:   return "hard"
+        }
+    }
+
     /// 解析に載せる段階。既存 3 段階の値（`beginner`/`normal`/`hard`）は動かさないので、
     /// GA4 に貯まっている数字はそのまま続けて読める（#1174）。
     public var analyticsLevel: AnalyticsLevel {

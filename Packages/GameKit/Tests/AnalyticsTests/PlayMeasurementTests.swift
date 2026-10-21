@@ -822,7 +822,9 @@ struct PlayMeasurementCallSiteTests {
             "GameBlocks",        // 面番号 1〜12
             "GameCatPuzzle",     // 盤の大きさ 6×6 / 7×7 / 8×8（#2250・企画倉庫）
             "GameChess",         // CPU の強さ 3 段階
+            "GameColorRelay",    // CPU の強さ 4 段階（#2604）
             "GameConcentration", // CPU の強さ 3 段階
+            "GameDaifugo",       // CPU の強さ 4 段階（#2604）
             "GameGo",            // CPU の強さ 3 段階
             "GameGomoku",        // CPU の強さ 3 段階
             "GameHanafuda",      // CPU の強さ 3 段階

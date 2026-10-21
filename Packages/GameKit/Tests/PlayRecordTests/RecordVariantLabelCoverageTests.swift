@@ -66,6 +66,11 @@ struct RecordVariantLabelCoverageTests {
         for size in TsunagiSize.allCases { add("tsunagi", size.recordVariant) }
         for disks in HanoiLogic.diskRange { add("hanoi", "\(disks)disks") }
         for size in CatPuzzleSize.allCases { add("catpuzzle", size.rawValue) }
+        // 大富豪・いろリレーは CPU の強さ別（#2604）。「ふつう」は区分なし（従来の保存先）。
+        for strength in CPUStrength.allCases where strength != .standard {
+            add("daifugo", strength.recordVariantKey)
+            add("colorrelay", strength.recordVariantKey)
+        }
         return result
     }
 
