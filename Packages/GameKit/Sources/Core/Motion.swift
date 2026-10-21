@@ -67,6 +67,16 @@ public extension View {
     }
 }
 
+public extension AnyTransition {
+    /// `AnyTransition.animation(_:)` の Reduce Motion 追従版。
+    ///
+    /// トランジションは環境を読めないので、呼び出し側が `@Environment(\.accessibilityReduceMotion)` の値を渡す。
+    /// ON のときは `nil`（＝周囲のトランザクションに従う。`withGameAnimation` 経由なら即時反映）に落とす。
+    func gameAnimation(_ animation: Animation?, reduceMotion: Bool) -> AnyTransition {
+        self.animation(Motion.resolve(animation, reduceMotion: reduceMotion))
+    }
+}
+
 /// `View.gameAnimation(_:value:)` の実体。
 private struct GameAnimation<V: Equatable>: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

@@ -297,8 +297,10 @@ enum CatPuzzleMotion {
         guard !reduceMotion else { return .opacity }
         let rest = CatPopModifier(scale: 1, degrees: 0, opacity: 1)
         return .asymmetric(
-            insertion: .modifier(active: CatPopModifier(scale: 0.25, degrees: -18, opacity: 0), identity: rest).animation(appear),
-            removal: .modifier(active: CatPopModifier(scale: 0.6, degrees: 0, opacity: 0), identity: rest).animation(vanish)
+            insertion: AnyTransition.modifier(active: CatPopModifier(scale: 0.25, degrees: -18, opacity: 0), identity: rest)
+                .gameAnimation(appear, reduceMotion: reduceMotion),
+            removal: AnyTransition.modifier(active: CatPopModifier(scale: 0.6, degrees: 0, opacity: 0), identity: rest)
+                .gameAnimation(vanish, reduceMotion: reduceMotion)
         )
     }
 }
