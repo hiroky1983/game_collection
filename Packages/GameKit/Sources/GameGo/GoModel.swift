@@ -123,6 +123,13 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         var ruleset = GoRuleset(size: GoBoardSize.nine.rawValue, handicap: 0)
         var humanSide = GoStone.black
         var aiLevel = GoLevel.normal
+        // 中断データが無いときの初期値は最後に選んだ条件（#2611）。中断データがあれば下で上書きされる。
+        if let last = services?.playLog?.lastStart(GoStartChoice.self, gameID: "go") {
+            humanSide = GoStone(rawValue: last.humanSide) ?? .black
+            aiLevel = GoLevel(rawValue: last.level) ?? .normal
+            let handicap = humanSide == .black && GoRuleset.handicapChoices.contains(last.handicap) ? last.handicap : 0
+            ruleset = GoRuleset(size: GoBoardSize.nine.rawValue, handicap: handicap)
+        }
         var moves: [GoMove] = []
         var startedAt = Date()
         var undoUsed = false
@@ -424,6 +431,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         self.ruleset = ruleset
         self.humanSide = humanSide
         self.aiLevel = level
+        services?.playLog?.saveLastStart(GoStartChoice(humanSide: humanSide.rawValue, level: level.rawValue, handicap: ruleset.handicap), gameID: gameID)
         self.moves = []
         self.state = GoState.initial(ruleset: ruleset)
         self.phase = .playing
@@ -623,4 +631,11 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         await evaluateEndgameIfNeeded()
     }
     #endif
+}
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct GoStartChoice: Codable {
+    var humanSide: Int
+    var level: Int
+    var handicap: Int
 }

@@ -142,11 +142,12 @@ public final class SpiderModel {
     /// - Parameters:
     ///   - seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
     ///   - rules: 開始時に焼き込むルール。中断データがあればそちらが優先される。
-    public init(services: GameServices? = nil, seed: UInt64? = nil, rules: SpiderRuleSet = .standard) {
+    public init(services: GameServices? = nil, seed: UInt64? = nil, rules: SpiderRuleSet? = nil) {
         self.services = services
 
-        var startRules = rules
-        var startSeed = seed ?? Self.pickSeed(for: rules.suitCount)
+        // nil なら最後に選んだルール（#2611）、記録が無ければ 1 スート。
+        var startRules = rules ?? services?.playLog?.lastStart(SpiderRuleSet.self, gameID: "spider") ?? .standard
+        var startSeed = seed ?? Self.pickSeed(for: startRules.suitCount)
         var startMoves: [SpiderMove] = []
         var startElapsed = 0
         var startUndos = SpiderUndoBudget.free
@@ -181,7 +182,7 @@ public final class SpiderModel {
         if board.isWon { phase = .won }
 
         if isFreshStart {
-            services?.gameDidStart(gameID: gameID, level: rules.suitCount.analyticsLevel)
+            services?.gameDidStart(gameID: gameID, level: self.rules.suitCount.analyticsLevel)
         }
     }
 
@@ -370,6 +371,7 @@ public final class SpiderModel {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         self.rules = rules ?? self.rules
+        services?.playLog?.saveLastStart(self.rules, gameID: "spider")
         // 直前の配札は除く（#914）。スート数を変えたときも番号の見た目が同じにならないよう一律に除く。
         if !sameDeal {
             dealNumber = Self.pickSeed(for: self.rules.suitCount, excluding: dealNumber)

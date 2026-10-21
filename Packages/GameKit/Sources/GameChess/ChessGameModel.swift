@@ -74,9 +74,12 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 添字（`moves[ply - 1]`）が範囲外にならないようにする（#520）。
         self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=白 / CPU=黒）。
-        self.white = snap?.white ?? .human
-        self.black = snap?.black ?? .ai
-        self.aiLevel = snap?.aiLevel ?? 1
+        // 中断データが無いときの初期値は最後に選んだ条件（#2611）。初回は人間=白・入門。
+        let last = services?.playLog?.lastStart(ChessStartChoice.self, gameID: "chess")
+        let lastHuman = last?.humanSide ?? .white
+        self.white = snap?.white ?? (lastHuman == .white ? .human : .ai)
+        self.black = snap?.black ?? (lastHuman == .white ? .ai : .human)
+        self.aiLevel = snap?.aiLevel ?? last?.aiLevel ?? 1
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
@@ -409,6 +412,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.white = humanSide == .white ? .human : .ai
         self.black = humanSide == .white ? .ai : .human
         self.aiLevel = aiLevel
+        services?.playLog?.saveLastStart(ChessStartChoice(humanSide: humanSide, aiLevel: aiLevel), gameID: gameID)
         startedAt = startedAtFallback()
         gameSerial += 1
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（将棋 #145）。
@@ -666,4 +670,10 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
+}
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct ChessStartChoice: Codable {
+    var humanSide: ChessColor
+    var aiLevel: Int
 }

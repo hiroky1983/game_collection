@@ -45,7 +45,7 @@ public struct SpiderView: View {
             return
         }
         #endif
-        var rules = SpiderRuleSet.standard
+        var rules: SpiderRuleSet?
         #if DEBUG
         // 撮影用: `-spiderSuits 2` のように起動引数でスート数を指定できる（中断データが無いときだけ効く）。
         if let suits = SpiderSuitCount(rawValue: UserDefaults.standard.integer(forKey: "spiderSuits")) {

@@ -87,7 +87,7 @@ public struct SudokuView: View {
                     })
         .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
-            SudokuNewGameSheet { difficulty in
+            SudokuNewGameSheet(playLog: services.playLog) { difficulty in
                 showNewGame = false
                 zoomMode = false
                 Task { await model.newGame(difficulty: difficulty) }
@@ -814,12 +814,25 @@ private struct SudokuShake: GeometryEffect {
 struct SudokuNewGameSheet: View {
     let onStart: (SudokuDifficulty) -> Void
     let onCancel: () -> Void
-    @State private var difficulty: SudokuDifficulty = .normal
+    @State private var difficulty: SudokuDifficulty
+
+    /// 開始条件の記憶（#2611）。初期選択は前回選んだ難易度、記録が無ければ「ふつう」。
+    private let playLog: PlayLog?
+
+    init(playLog: PlayLog?, onStart: @escaping (SudokuDifficulty) -> Void, onCancel: @escaping () -> Void) {
+        self.playLog = playLog
+        self.onStart = onStart
+        self.onCancel = onCancel
+        _difficulty = State(initialValue: playLog?.lastStart(SudokuDifficulty.self, gameID: "sudoku") ?? .normal)
+    }
 
     var body: some View {
         GameSetupSheet(
             kind: .solo,
-            onStart: { onStart(difficulty) }, onCancel: onCancel
+            onStart: {
+                playLog?.saveLastStart(difficulty, gameID: "sudoku")
+                onStart(difficulty)
+            }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
                 HStack(spacing: 6) {

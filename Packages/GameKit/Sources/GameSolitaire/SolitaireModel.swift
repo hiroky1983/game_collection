@@ -203,16 +203,16 @@ public final class SolitaireModel {
     /// - Parameters:
     ///   - seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
     ///   - rules: 開始時に焼き込むルール（#498）。中断データがあればそちらが優先される
-    ///     （進行中の局のルールを外から差し替えない）。
+    ///     （進行中の局のルールを外から差し替えない）。nil なら最後に選んだルール（#2611）、記録が無ければ 1 枚めくり。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
-        rules: SolitaireRuleSet = .standard
+        rules: SolitaireRuleSet? = nil
     ) {
         self.services = services
 
-        var startRules = rules
-        var startSeed = seed ?? Self.pickSeed(for: rules.drawMode)
+        var startRules = rules ?? services?.playLog?.lastStart(SolitaireRuleSet.self, gameID: "solitaire") ?? .standard
+        var startSeed = seed ?? Self.pickSeed(for: startRules.drawMode)
         var startMoves: [SolitaireMove] = []
         var startElapsed = 0
         var startGrants = Self.initialJokerGrants
@@ -615,6 +615,7 @@ public final class SolitaireModel {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         self.rules = rules ?? self.rules
+        services?.playLog?.saveLastStart(self.rules, gameID: "solitaire")
         if !sameDeal {
             seed = Self.pickSeed(for: self.rules.drawMode)
         }

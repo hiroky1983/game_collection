@@ -123,6 +123,11 @@ public final class ShiritoriModel: AITurnGuarded {
         self.cpuCursorDelay = cpuCursorDelay
         self.cpuCursorStepDelay = cpuCursorStepDelay
         self.seed = seed
+        // 開始シートの初期選択は最後に選んだ条件（#2611）。記録が無ければ既定のまま。
+        if let last = services?.playLog?.lastStart(ShiritoriStartChoice.self, gameID: "shiritori") {
+            self.quota = last.quota
+            self.mode = last.mode
+        }
     }
 
     // MARK: - 公開状態
@@ -154,6 +159,7 @@ public final class ShiritoriModel: AITurnGuarded {
         commitTimeUpLoss()   // 保留中の負けは、始め直す前に記録する（前の局の記録を落とさない）
         if let quota { self.quota = quota }
         if let mode { self.mode = mode }
+        services?.playLog?.saveLastStart(ShiritoriStartChoice(quota: self.quota, mode: self.mode), gameID: gameID)
         let deal: ShiritoriDeal
         if var generator = makeGenerator() {
             deal = ShiritoriRules.deal(deck: deck, mode: self.mode, quota: self.quota, using: &generator)
@@ -461,3 +467,9 @@ extension ShiritoriModel {
     }
 }
 #endif
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct ShiritoriStartChoice: Codable {
+    var quota: ShiritoriQuota
+    var mode: ShiritoriMode
+}

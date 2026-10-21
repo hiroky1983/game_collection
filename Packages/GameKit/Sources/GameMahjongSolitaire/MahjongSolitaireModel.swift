@@ -143,20 +143,23 @@ public final class MahjongSolitaireModel {
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
     ///   - faces: テスト用に盤面を直接与える経路（本番では使わない）。
-    ///   - layout: 配る盤面のかたち。中断データがあればそちらのレイアウトが優先される。
+    ///   - layout: 配る盤面のかたち。中断データがあればそちらのレイアウトが優先される。nil なら最後に選んだかたち（#2611）、記録が無ければ亀甲。
     ///   - defersInitialStart: 画面が開始シートを出すとき true。新しく配った盤面の `game_start` を
     ///     `startPlayIfPending()` まで保留する。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
         faces: [MahjongFace?]? = nil,
-        layout: MahjongSolitaireLayout = .turtle,
+        layout: MahjongSolitaireLayout? = nil,
         defersInitialStart: Bool = false
     ) {
         self.services = services
         self.seed = seed
         // 盤面を新しく用意したか（= 新しいプレイの開始か）。復元のときだけ false。
         var isFreshBoard = true
+        let layout = layout
+            ?? services?.playLog?.lastStart(String.self, gameID: Self.snapshotID).map(MahjongSolitaireLayout.named)
+            ?? .turtle
 
         let snapshot = services?.snapshots.load(MahjongSolitaireSnapshot.self, for: gameID)
         // レイアウト識別子を持たない古いスナップショットは亀甲として読む（`named` が nil を倒す）。
@@ -356,6 +359,7 @@ public final class MahjongSolitaireModel {
     /// - Parameter layout: 配る盤面のかたち。**nil なら今と同じかたちのまま配り直す**（#239）。
     public func newGame(layout newLayout: MahjongSolitaireLayout? = nil) {
         if let newLayout { layout = newLayout }
+        services?.playLog?.saveLastStart(layout.id, gameID: gameID)
         dealSerial += 1
         let dealt = MahjongSolitaireModel.makeBoard(seed: seed, layout: layout)
         seed = dealt.nextSeed
