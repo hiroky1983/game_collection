@@ -603,6 +603,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | 距離 | `1,234 m` | 同じ（数と m の間に空白） | 数は `RecordFormat.number` |
 | 回数・手数 | `3回` `24手` | `3 plays` `24 moves`（単数は `1 play`） | 表の複数形 |
 | 勝敗 | `3勝5敗1分` | `3W 5L 1D` | `RecordFormat.hubLine` / `resultLine` |
+| 平均順位（大富豪・いろリレー・v1.1.14〜） | `3勝5敗1分・平均2.1位` | `3W 5L 1D · Avg. place 2.1` | `GameScore.place` を `PlayRecord.placeTotal/placeCount` に累計（順位の無い旧データは分母に入れない）。#2606 |
 
 - **桁区切りの数は `%lld` にしない**（日本語の表示が変わるため `RecordFormat.number` で整形して `%@`）。
   英語の単数・複数は、表の `en` を複数形にすれば整形済みの「1,234」でも選ばれる（`StringTable` が整数の引数が
