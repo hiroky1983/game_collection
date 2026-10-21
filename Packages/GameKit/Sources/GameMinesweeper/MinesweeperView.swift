@@ -5,7 +5,11 @@ public struct MinesweeperView: View {
     @State private var model: MinesweeperModel
     private let services: GameServices
     @State private var showNewGame = true
-    @State private var zoomMode = false
+    /// 拡大モードの ON/OFF。ゲームごとに覚え、新規ゲーム・階段・もう一回・再起動の後も保つ（#2616）。
+    @AppStorage("minesweeperZoomMode") private var zoomPreference = false
+    /// 盤を拡大して表示するか。コンティニューの提案は盤だけに重ねるパネルなので、出ている間は等倍にする（#1486）。
+    /// 覚えている設定は書き換えない（提案を閉じれば拡大に戻る）。
+    private var zoomMode: Bool { zoomPreference && !showContinue }
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
@@ -59,7 +63,6 @@ public struct MinesweeperView: View {
             MinesweeperNewGameSheet(playLog: services.playLog) { rows, cols, mines in
                 // 旗モードは `newGame` がオフに戻す（#761）。
                 model.newGame(rows: rows, cols: cols, mines: mines)
-                zoomMode = false
                 showContinue = false
                 showNewGame = false
             } onCancel: {
@@ -149,8 +152,6 @@ public struct MinesweeperView: View {
         .onChange(of: model.gameState) { _, state in
             // 使用済みの局では提案を出さず、そのまま終局後の表示にする（1局1回・#657）。
             if state == .lost && model.canContinue {
-                // 盤だけに重ねるパネルなので、拡大表示中は先に等倍へ戻す（#1486）。
-                zoomMode = false
                 showContinue = true
             }
         }
@@ -170,7 +171,7 @@ public struct MinesweeperView: View {
                 id: "zoom", title: tr("拡大"), systemImage: "plus.magnifyingglass", isChecked: zoomMode,
                 accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
                 accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
-            ) { zoomMode.toggle() },
+            ) { zoomPreference.toggle() },
             // 局が始まる前は諦める相手がいないので押せない表示にする（#2423）。
             GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true,
                                 isEnabled: model.gameState == .playing) {
@@ -316,7 +317,6 @@ public struct MinesweeperView: View {
                                       levelLabels: levels.map(\.label)) { level in
             let next = levels[level]
             model.newGame(rows: next.rows, cols: next.cols, mines: next.mines)
-            zoomMode = false
             showContinue = false
         }
     }
@@ -331,7 +331,6 @@ public struct MinesweeperView: View {
             onReplay: {
                 // 同じ難易度（盤の大きさと地雷数）で始め直す。後始末は新規ゲームシートと同じ。
                 model.newGame(rows: model.rows, cols: model.cols, mines: model.totalMines)
-                zoomMode = false
                 showContinue = false
             },
             onChangeSettings: { showNewGame = true }
