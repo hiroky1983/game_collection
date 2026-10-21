@@ -21,7 +21,7 @@ public enum MinesweeperState: Equatable, Sendable {
 /// | 初級 | 9×9 / 10 | 12.3% | 9×9 / 10 | 12.3%（完全一致）|
 /// | 中級 | 16×16 / 40 | 15.6% | 16×16 / 40 | 15.6%（本家が正方形なので完全一致）|
 /// | 上級 | 20×20 / 82 | 20.5% | 30×16 / 99 | 20.6% |
-public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
+public enum MinesweeperDifficulty: String, CaseIterable, Codable, Sendable {
     case beginner, intermediate, advanced
 
     /// 画面に出す名前（表示言語に従う）。記録の区分名には `recordLabel` を使う。

@@ -130,7 +130,7 @@ public struct MahjongSolitaireView: View {
         let showsInitialSetup = launchLayout == nil && !hasSnapshot
         _model = State(initialValue: MahjongSolitaireModel(
             services: services,
-            layout: launchLayout ?? .turtle,
+            layout: launchLayout,
             // シートを出すときは `game_start` をシートを閉じるまで保留する（二重計上の防止・囲碁 #1372 と同じ）。
             defersInitialStart: showsInitialSetup
         ))

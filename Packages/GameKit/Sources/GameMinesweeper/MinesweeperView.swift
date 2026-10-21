@@ -56,7 +56,7 @@ public struct MinesweeperView: View {
                     })
         .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
-            MinesweeperNewGameSheet { rows, cols, mines in
+            MinesweeperNewGameSheet(playLog: services.playLog) { rows, cols, mines in
                 // 旗モードは `newGame` がオフに戻す（#761）。
                 model.newGame(rows: rows, cols: cols, mines: mines)
                 zoomMode = false
@@ -619,12 +619,25 @@ struct MinesweeperNewGameSheet: View {
     let onCancel: () -> Void
     /// 盤の寸法・地雷数・表示名は `MinesweeperDifficulty` が唯一の出どころ（#444）。
     /// ここに数値を直書きすると記録区分のラベルと二重管理になる。
-    @State private var level: MinesweeperDifficulty = .beginner
+    @State private var level: MinesweeperDifficulty
+
+    /// 開始条件の記憶（#2611）。初期選択は前回選んだ難易度、記録が無ければ初級。
+    private let playLog: PlayLog?
+
+    init(playLog: PlayLog?, onStart: @escaping (Int, Int, Int) -> Void, onCancel: @escaping () -> Void) {
+        self.playLog = playLog
+        self.onStart = onStart
+        self.onCancel = onCancel
+        _level = State(initialValue: playLog?.lastStart(MinesweeperDifficulty.self, gameID: "minesweeper") ?? .beginner)
+    }
 
     var body: some View {
         GameSetupSheet(
             kind: .solo,
-            onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
+            onStart: {
+                playLog?.saveLastStart(level, gameID: "minesweeper")
+                onStart(level.rows, level.cols, level.mines)
+            }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
                 HStack(spacing: 6) {

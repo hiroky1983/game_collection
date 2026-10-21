@@ -188,7 +188,10 @@ public final class ConcentrationModel {
             // なので数える（数えないと、続く終局が「開始していない」として捨てられる。#212）。
             isFreshStart = !restoreFrom(snap)
         } else {
-            setupGame(pairCount: .medium, cpuLevel: .normal)
+            // 中断データが無いときの初期値は最後に選んだ条件（#2611）。初回は 12 ペア・ふつう。
+            let last = services?.playLog?.lastStart(ConcentrationStartChoice.self, gameID: "concentration")
+            setupGame(pairCount: last.flatMap { ConcentrationPairCount(rawValue: $0.pairCount) } ?? .medium,
+                      cpuLevel: last.flatMap { ConcentrationCPULevel(rawValue: $0.cpuLevel) } ?? .normal)
             isFreshStart = true
         }
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
@@ -254,6 +257,7 @@ public final class ConcentrationModel {
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         setupGame(pairCount: pairCount, cpuLevel: cpuLevel)
+        services?.playLog?.saveLastStart(ConcentrationStartChoice(pairCount: pairCount.rawValue, cpuLevel: cpuLevel.rawValue), gameID: gameID)
         services?.gameDidRestart(gameID: gameID, level: .aiStrength(cpuLevel.rawValue))
     }
 
@@ -551,4 +555,10 @@ public final class ConcentrationModel {
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
+}
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct ConcentrationStartChoice: Codable {
+    var pairCount: Int
+    var cpuLevel: Int
 }
