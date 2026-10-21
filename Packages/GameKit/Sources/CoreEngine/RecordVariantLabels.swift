@@ -96,6 +96,16 @@ public enum RecordVariantLabels {
             return cpuStrengthLabel(variant, language: language)
         case "colorrelay":
             return cpuStrengthLabel(variant, language: language)
+        // チェス・囲碁・五目並べ・オセロも CPU の強さ別（#2617）。「ふつう」は区分なし（これまでの記録）。
+        // 走査テストが `case "<ゲームID>":` の 1 行 1 ゲームで表を読むので、まとめずに並べる。
+        case "chess":
+            return cpuStrengthLabel(variant, language: language)
+        case "go":
+            return cpuStrengthLabel(variant, language: language)
+        case "gomoku":
+            return cpuStrengthLabel(variant, language: language)
+        case "othello":
+            return cpuStrengthLabel(variant, language: language)
         default:
             return nil
         }

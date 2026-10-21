@@ -1236,11 +1236,15 @@ struct GameRecordingTests {
         model.newGame(humanSide: .black, level: .easy)
         model.resign()
         #expect(model.recordResult != nil)
-        #expect(log.record(gameID: "go")?.losses == 1)
-        #expect(log.summaryLine(gameID: "go") == "0勝1敗")
+        // 強さ別の記録（#2617）。「かんたん」は区分に分かれ、区分なし（ふつう）の行には混ざらない。
+        #expect(log.record(gameID: "go", variant: "easy")?.losses == 1)
+        #expect(log.record(gameID: "go") == nil)
 
-        model.newGame(humanSide: .black, level: .easy)
+        model.newGame(humanSide: .black, level: .normal)
         #expect(model.recordResult == nil)
+        model.resign()
+        #expect(log.record(gameID: "go")?.losses == 1)
+        #expect(log.summaryLine(gameID: "go") == "0勝2敗", "ゲーム行は強さをまたいで合算する")
     }
 
     @Test("神経衰弱: 対戦ものなので手数ではなく勝敗を記録する")

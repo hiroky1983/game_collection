@@ -317,7 +317,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: mover == humanSide ? .win : .loss,
-                score: hints.winLossScore,
+                score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel),
                 // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
                 isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
             )
@@ -325,7 +325,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             isDraw = true
             services?.feedback.notify(.warning)
             startPlayIfPending()
-            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .draw, score: hints.winLossScore)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .draw, score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel))
         } else {
             currentStone = currentStone.opponent
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
@@ -523,7 +523,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         winner = humanSide.opponent
         services?.feedback.notify(.error)
         startPlayIfPending()
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel))
         persist()
     }
 

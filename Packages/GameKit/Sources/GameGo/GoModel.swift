@@ -377,7 +377,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: outcome,
-            score: hints.winLossScore,
+            score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel.rawValue),
             // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel.rawValue)
         )

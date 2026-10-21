@@ -244,7 +244,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         winner = humanSide.opponent
         hintPoint = nil
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel))
         persist()
     }
 
@@ -477,7 +477,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: reviewOutcome,
-            score: hints.winLossScore,
+            score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel),
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
         )
         return true
