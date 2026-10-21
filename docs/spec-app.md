@@ -24,7 +24,7 @@ Packages/GameKit/
     MahjongTiles/       ← 麻雀牌の絵柄と描画（`MahjongTile`・牌ビュー・ギャラリー。麻雀ソリティアと四人打ち麻雀で共有し、各ゲームで描き直さない）
     Game2048/           ← 2048
     GameShogi/          ← 将棋
-    GameMahjong/        ← 麻雀（4人打ち）
+    GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録。※ release/v1.1.14 で実装・main へは未取り込み）
     GameSudoku/         ← ナンプレ
     GameOthello/        ← オセロ
     GameGo/             ← 囲碁
@@ -500,8 +500,13 @@ A に載せる対戦ゲームの**相手（CPU）の席**は共通部品 `Oppone
   （次は更に 3 連勝したとき）。×で閉じた提案はその決着のあいだだけ隠れる（決着は `PlayRecord.plays` で見分ける）
 - **カード**: 「N連勝中！ つぎは「◯◯」にしてみる？」＋「あそぶ」。押すと一段上の難易度で新しい局を始め、
   `gameDidRestart` を通すので `game_start` の `level` はその段で送られる
-- **採用ゲーム**（`DifficultyLadderPrompt` を作る View・9 本）: 将棋・チェス・囲碁・オセロ・五目並べ・神経衰弱・花札こいこい
-  （CPU の強さ）、ナンプレ（難易度）、マインスイーパー（盤のプリセット）
+- **連敗で一段やさしい段を勧める**（#2614。`release/v1.1.14` から）: 連勝と同じ `streakThreshold`（3）の倍数の**連敗**（`PlayRecord.currentLossStreak`。
+  負けで +1・勝ちか引き分けで 0。旧データには鍵が無いので Optional で、nil は 0 連敗）のとき、一段下を勧める
+  （`DifficultyLadderOffer.direction == .down`・見出し「N連敗中…」・矢印は下向き）。連勝と連敗は同時に成り立たないので排他。
+  最下段では勧めない。広告コンティニューで取り消した負けは連敗にも数えない
+- **採用ゲーム**（`DifficultyLadderPrompt` を作る View）: 将棋・チェス・囲碁・オセロ・五目並べ・神経衰弱・花札こいこい
+  （CPU の強さ）、ナンプレ（難易度）、マインスイーパー（盤のプリセット）。`release/v1.1.14` でソリティア・スパイダー・
+  カードしりとり・ぱっと暗算にも配線した（#2599。実際の採用は `DifficultyLadderPrompt` を使う View が正）
 - **連勝の単位**は記録の区分（`PlayLog.recordKey(gameID:variant:)`）と同じ。`GameScore.variant` で区分を持つゲームは区分ごとに数える:
   ナンプレは難易度ごと、マインスイーパーは盤の大きさと地雷数ごと、花札こいこいは既定と違うルールの組み合わせごと
   （局数・酒の役・CPU の強さ）。この 3 本は一段上がると別の区分になり、連勝は 0 から数え直す。残りの 6 本は難易度を問わずゲーム単位
@@ -633,6 +638,12 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   （`sudoku#normal`。`PlayRecord.recordKey`・保存しない）から表示のたびに引き直す（`CoreEngine/RecordVariantLabels.swift`・#2199）。
   新しい区分を足すときはこの表にキーと訳を足す。ゲームが保存する区分名（日本語）も `RecordVariantLabels.stored` で同じ表から作る。
   引けないキーだけ、保存済みの `variantLabel` にフォールバックする。
+- **CPU の強さ・難易度で記録を分けるゲーム**（`release/v1.1.14`。どれも「ふつう」は区分なしで、それまでの記録を引き継ぐ）:
+  - チェス・囲碁・五目並べ・オセロ（#2617）: `BoardHintBudget.winLossScore(gameID:aiLevel:)` が `CPUStrength.recordVariantKey` を区分にする。
+    人間同士の対局（チェス）は「ふつう」＝区分なしに寄せる。ゲームの行（`summaryLine`）は強さをまたいで合算する
+  - 神経衰弱（#2608）: CPU の強さ別（`cpu-weak` / `cpu-strong`。枚数では分けない）
+  - カードしりとり（#2608）: ノルマの難易度別（`quota-easy` / `quota-hard`。「ふつう」は区分なし。`endless` は従来どおり別枠）。順位表は持たない
+  - 区分を足すときは `RecordVariantLabels` の表にキーと訳を足す（走査テスト `RecordVariantLabelCoverageTests` が漏れを赤くする）
 
 **訳さないもの**: 解析イベント名とパラメータ（`game_start` 等・`game_id`）、`UserDefaults` の保存キー、中断データの鍵、
 Game Center の ID。英語の訳文には他社の商標名を入れない（既存の日本語の文に入っている場合も英語では言い換える）。
