@@ -432,6 +432,8 @@ public final class PlayLog {
         guard var record = records[key], record.plays > 0, record.losses > 0 else { return }
         record.plays -= 1
         record.losses -= 1
+        // 取り消した負けは連敗にも数えない（コンティニューで続きを遊ぶので、負けは確定していない）。
+        record.currentLossStreak = record.lossStreak > 1 ? record.lossStreak - 1 : nil
         records[key] = record
         persistRecords()
     }

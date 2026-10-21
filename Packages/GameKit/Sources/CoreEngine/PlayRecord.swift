@@ -90,6 +90,11 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     public var currentStreak: Int
     /// 過去最高の連勝数。
     public var bestStreak: Int
+    /// 現在の連敗数（#2614）。負けで +1、勝ち・引き分けで 0 に戻る。難易度の「階段」が一段やさしい段を勧める材料。
+    ///
+    /// **必ず Optional にする**（`lastPlayedAt` と同じ理由。旧データには鍵が無い）。nil は 0 連敗と同じ意味で、
+    /// 連敗していない記録には鍵ごと書かない。読むときは `lossStreak` を使う。
+    public var currentLossStreak: Int?
     /// 自己ベストのスコア・チップ。
     public var bestPoints: Int?
     /// 到達した最大値（2048 の最大タイル）。
@@ -115,7 +120,7 @@ public struct PlayRecord: Codable, Equatable, Sendable {
 
     /// `recordKey` は保存しない（`PlayLog` の保存形式は変えない）。
     private enum CodingKeys: String, CodingKey {
-        case metric, variantLabel, plays, wins, losses, draws, currentStreak, bestStreak
+        case metric, variantLabel, plays, wins, losses, draws, currentStreak, bestStreak, currentLossStreak
         case bestPoints, highestValue, bestSeconds, fewestMoves, placeTotal, placeCount, lastPlayedAt
     }
 
@@ -129,6 +134,7 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         draws: Int = 0,
         currentStreak: Int = 0,
         bestStreak: Int = 0,
+        currentLossStreak: Int? = nil,
         bestPoints: Int? = nil,
         highestValue: Int? = nil,
         bestSeconds: Int? = nil,
@@ -146,6 +152,7 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         self.draws = draws
         self.currentStreak = currentStreak
         self.bestStreak = bestStreak
+        self.currentLossStreak = currentLossStreak
         self.bestPoints = bestPoints
         self.highestValue = highestValue
         self.bestSeconds = bestSeconds
@@ -154,6 +161,9 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         self.placeCount = placeCount
         self.lastPlayedAt = lastPlayedAt
     }
+
+    /// 現在の連敗数（記録が無ければ 0）。
+    public var lossStreak: Int { currentLossStreak ?? 0 }
 
     /// 平均順位（1 始まり）。順位を記録した決着が 1 回も無ければ nil。
     public var averagePlace: Double? {
@@ -274,6 +284,7 @@ public extension PlayRecord {
         case .win:
             record.wins += 1
             record.currentStreak += 1
+            record.currentLossStreak = nil
             if record.currentStreak > record.bestStreak {
                 record.bestStreak = record.currentStreak
                 // 初勝利（1 連勝）も「更新」ではあるが、演出としては煩いので 2 連勝以上に絞る。
@@ -282,10 +293,12 @@ public extension PlayRecord {
         case .loss:
             record.losses += 1
             record.currentStreak = 0
+            record.currentLossStreak = record.lossStreak + 1
         case .draw:
             record.draws += 1
             // 引き分けは「連勝」ではないため連勝は途切れる。
             record.currentStreak = 0
+            record.currentLossStreak = nil
         }
 
         // 順位は勝敗とは別に累計する（1 位未満は不正値として取り込まない）。
