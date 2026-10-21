@@ -165,6 +165,12 @@ public final class AnzanModel {
         displayRun += 1
     }
 
+    /// 画面が前面に戻った・シートが閉じたときに `resumeDisplay()` を呼んでよいか。
+    /// 遊び方・難易度のどちらかが開いたままなら再開しない（開いていた時間を回答時間に乗せない）。
+    public static func canResumeDisplay(isActive: Bool, showHowToPlay: Bool, showSetup: Bool) -> Bool {
+        isActive && !showHowToPlay && !showSetup
+    }
+
     // MARK: - 入力
 
     public func tapDigit(_ digit: Int) {

@@ -19,13 +19,14 @@ public enum RelayColor: Int, CaseIterable, Codable, Sendable, Hashable {
         }
     }
 
-    /// 色名の頭文字。札の四隅に添えて、色が見分けにくい人にも札の色が伝わるようにする（#2007）。
-    public var initial: String {
+    /// 色ごとの形の印（SF Symbols）。札の隅に添えて、色が見分けにくい人にも札の色が伝わるようにする
+    /// （#2007 の頭文字を #2387 で文字なしの形に置き換えた）。相手のアイコン（星・月・雲）とは重ならない形にする。
+    public var shapeSymbol: String {
         switch self {
-        case .red:    return tr("あ")
-        case .green:  return tr("み")
-        case .purple: return tr("む")
-        case .yellow: return tr("き")
+        case .red:    return "circle.fill"
+        case .green:  return "triangle.fill"
+        case .purple: return "diamond.fill"
+        case .yellow: return "square.fill"
         }
     }
 
@@ -38,6 +39,20 @@ public enum RelayColor: Int, CaseIterable, Codable, Sendable, Hashable {
         case .yellow: return Theme.Hex.Fill.yellow
         }
     }
+
+    /// 札の窓（白）に描く大きな数字・記号の色（`0xRRGGBB`・#2369）。地の色の系統のまま、白の上で
+    /// 大きな文字の基準（3:1）に届く濃さにする（`ColorRelayContrastTests`）。札の面はモードで変えないのでライトの値。
+    public var glyphHex: UInt32 {
+        switch self {
+        case .red:    return Theme.Hex.coralText.light
+        case .green:  return Theme.Hex.tealText.light
+        case .purple: return Theme.Hex.purple
+        case .yellow: return Theme.Hex.yellowText.light
+        }
+    }
+
+    /// 窓の数字・記号の色。
+    public var glyphColor: Color { Color(hex: glyphHex) }
 
     /// 札の面の色。
     public var color: Color {

@@ -81,6 +81,17 @@ struct GameChromeSourceTests {
         }
     }
 
+    /// 新規ボタンの絵柄は種類（対局・一人用・アクション）によらず ＋ の 1 つ（#2370）。
+    /// 種類ごとに分けると、ゲームによって ＋ と ⟳ が混ざる。
+    @Test("新規ボタンの絵柄は種類によらず plus.circle.fill の 1 つ")
+    func newGameIconIsSingle() throws {
+        let core = try SourceScan.packageSource("Sources/Core/GameChrome.swift")
+        let newGame = try #require(core.components(separatedBy: "public struct GameChromeNewGame").dropFirst().first)
+        let body = newGame.components(separatedBy: "public extension View").first ?? ""
+        #expect(body.contains(#"var systemImage: String { "plus.circle.fill" }"#), "新規ボタンの絵柄が 1 つに固定されていない")
+        #expect(!body.contains("arrow.clockwise"), "新規ボタンに ⟳ の絵柄が残っている")
+    }
+
     /// 盤の下の操作エリアは、ひな形と実物を同じ組み方に通すのが要点（#148）。
     /// 各ゲームが `ZStack` + 隠しひな形を書き写す形に戻っていないことを見る。
     @Test("操作エリアの高さのひな形はゲーム側に書き写されていない")

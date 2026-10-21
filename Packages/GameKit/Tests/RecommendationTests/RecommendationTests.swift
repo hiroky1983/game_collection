@@ -24,6 +24,9 @@ import GameFifteen
 import GameHomerun
 import GameOjisanPuzzle
 import GameAnzan
+import GameColorRelay
+import GameFruits
+import GameDiceCombo
 import GameSpider
 import GameChess
 import GameBlocks
@@ -41,10 +44,10 @@ import GameKitTestSupport
 // blockpuzzle は含めない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が続いている）。
 // hanafuda は #668 で戻した。
 private let hubOrder = [
-    "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
-    "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "mahjong", "hanafuda",
-    "go", "blocks", "concentration", "chess", "freecell", "fifteen", "homerun", "ojisanpuzzle",
-    "anzan",
+    "homerun", "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
+    "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
+    "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
+    "colorrelay", "fruits", "dicecombo",
 ]
 
 @MainActor
@@ -52,12 +55,12 @@ private func makeRegistry() -> GameRegistry {
     // BlockPuzzleModule は含めない（#642 / #603。v1.1.5 の `AppEnvironment.registry` と
     // 構成を一致させるため）。HanafudaModule は #668 で戻した。
     GameRegistry([
-        PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
+        HomerunModule(), PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
         SudokuModule(), OthelloModule(), Game2048Module(), ShogiModule(), ShiritoriModule(),
         DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
-        MahjongSolitaireModule(), HanafudaModule(), GoModule(), BlocksModule(), ConcentrationModule(),
-        ChessModule(), FreeCellModule(), FifteenModule(), HomerunModule(), OjisanPuzzleModule(),
-        AnzanModule(),
+        OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
+        BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
+        ColorRelayModule(), FruitsModule(), DiceComboModule(),
     ])
 }
 
@@ -135,9 +138,9 @@ struct RecommendationTableTests {
         ("blocks",        ["runner", "2048", "minesweeper"]),
         ("minesweeper",   ["sudoku", "2048", "fifteen"]),
         ("concentration", ["solitaire", "daifugo", "shiritori"]),
-        ("poker",         ["blackjack", "daifugo", "concentration"]),
+        ("poker",         ["blackjack", "daifugo", "dicecombo"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
-        ("daifugo",       ["poker", "blackjack", "hanafuda"]),
+        ("daifugo",       ["poker", "blackjack", "colorrelay"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
@@ -150,8 +153,11 @@ struct RecommendationTableTests {
         ("shiritori",     ["concentration", "hanafuda", "daifugo"]),
         ("fifteen",       ["sudoku", "2048", "anzan"]),
         ("homerun",       ["runner", "blocks", "ojisanpuzzle"]),
-        ("ojisanpuzzle",  ["2048", "runner", "homerun"]),
+        ("ojisanpuzzle",  ["2048", "runner", "fruits"]),
         ("anzan",         ["sudoku", "fifteen", "minesweeper"]),
+        ("colorrelay",    ["daifugo", "poker", "concentration"]),
+        ("fruits",        ["ojisanpuzzle", "2048", "blocks"]),
+        ("dicecombo",     ["poker", "mahjong4", "blackjack"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
@@ -193,7 +199,7 @@ struct RecommendationTableTests {
         )
         let expected = hubOrder.first { !played.contains($0) }
         #expect(got?.gameID == expected)
-        #expect(got?.gameID == "poker", "ハブ順で最初の未プレイ")
+        #expect(got?.gameID == hubOrder[0], "ハブ順で最初の未プレイ（将棋の候補に先頭の柵越えおじさんは無い）")
     }
 
     /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。
@@ -320,7 +326,7 @@ struct RecommendationTableTests {
             lastPlayedAt: ["shogi": now],
             now: now
         )
-        #expect(noDate?.gameID == "poker", "日付の無いものはハブ順で先頭が出る")
+        #expect(noDate?.gameID == hubOrder[0], "日付の無いものはハブ順で先頭が出る")
         #expect(noDate?.reason == .revisit(days: nil))
     }
 
@@ -537,7 +543,7 @@ struct RecommendationServiceTests {
             // このテストが見たいのは「遊び尽くしたあと」なので、その1回を捨てて次の提示まで進める。
             advanceToNextSuggestion(service, gameID: "shogi") { clock = clock.addingTimeInterval($0) }
         }
-        #expect(service.suggestedGameID == "poker", "最終プレイが最も古いゲームが出る")
+        #expect(service.suggestedGameID == hubOrder[0], "最終プレイが最も古いゲーム（ハブ順の先頭から遊んだので先頭）が出る")
         if case .revisit(let days?) = service.suggestedReason {
             #expect(days >= hubOrder.count - 1, "\(hubOrder.count - 1)日以上ぶり（実際: \(days)日）")
         } else {
@@ -564,7 +570,7 @@ struct RecommendationServiceTests {
         } else {
             advanceToNextSuggestion(service, gameID: "shogi") { clock = clock.addingTimeInterval($0) }
         }
-        #expect(service.suggestedGameID == "poker", "日付が無ければハブ順で先頭（将棋以外）")
+        #expect(service.suggestedGameID == hubOrder[0], "日付が無ければハブ順で先頭（将棋以外）")
         #expect(service.suggestedReason == .revisit(days: nil))
     }
 
@@ -654,9 +660,12 @@ struct PlayLogStorageTests {
         // 伸びる（1 本あたり約 8 バイト。プレイ回数では伸びない）。22 本で 297 バイト、柵越えおじさん（#1348）を
         // 足した 23 本で 305 バイトになったため、本数ぶんの余裕を見て 350 にした。おじさんの荷物運びパズル（#1904）を
         // 足した 24 本で 351 バイト（ID が 12 文字と長いぶん 1 本で大きく伸びた）になったため 400 にした。
-        // 上限の本命は下の 512 バイト（24 本で 497 バイト）。
-        #expect(storedValueSize(after1020) < 400, "値の合計は400バイト未満（Issue #52 の 300 バイト + ゲームの本数ぶん）")
-        #expect(storedSize(after1020) <= 512, "キー名と plist の枠を含めても 512 バイト以内")
+        // 倉庫から 4 本（いろリレー・ルーレット・おじさんの盆栽・サイコロ役づくり #2384）を足した 29 本で 409 バイトになったため
+        // 450 にした。全体（下）は 24 本で 497 バイト・29 本で 555 バイトなので、同じ理由で 512 → 600 にした。
+        // その後ルーレットを倉庫へ戻して 28 本になった（v1.1.13 審査の却下・2026-10-19）。上限は据え置き。
+        #expect(storedValueSize(after1020) < 450,
+                "値の合計は450バイト未満（Issue #52 の 300 バイト + ゲームの本数ぶん）。実測 \(storedValueSize(after1020)) バイト")
+        #expect(storedSize(after1020) <= 600, "キー名と plist の枠を含めても 600 バイト以内。実測 \(storedSize(after1020)) バイト")
 
         defaults.removePersistentDomain(forName: name)
     }
@@ -752,17 +761,22 @@ struct GameFinishCountingTests {
         #expect(service.log.playedGameIDs == ["othello"])
     }
 
-    @Test("ポーカー: ラウンドの決着で1回数える")
+    @Test("ポーカー: 10 回勝負の決着で1回数える")
     func poker() {
         let (services, service) = makeServices(suite: "count-poker")
         let model = PokerModel(services: services)
         model.restartSession()
         model.startGame()
-        model.bet1Action(.check)
-        if model.phase == .exchange { model.confirmExchange() }
-        if model.phase == .betting2 { model.bet2Action(.check) }
-        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
-        #expect(model.phase == .result)
+        // 10 回で 1 プレイ（#2551）。
+        for _ in 0..<100 where !model.sessionOver {
+            switch model.phase {
+            case .exchange: model.confirmExchange()
+            case .drawn:    model.showdown()
+            case .result:   model.nextRound()
+            case .idle:     break
+            }
+        }
+        #expect(model.sessionOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["poker"])
     }
@@ -800,14 +814,20 @@ struct GameFinishCountingTests {
         #expect(service.log.playedGameIDs == ["sudoku"])
     }
 
-    @Test("ブラックジャック: ラウンドの決着で1回数える")
+    @Test("ブラックジャック: 10 回勝負の決着で1回数える（#2552）")
     func blackjack() {
         let (services, service) = makeServices(suite: "count-blackjack")
         let model = BlackjackModel(services: services)
-        model.restartSession()
-        model.placeBet(100)
-        if model.phase == .playerTurn { model.stand() }
+        model.restartMatch()
+        model.deal()
+        while model.phase == .playerTurn { model.stand() }
         #expect(model.phase == .result)
+        #expect(service.log.totalFinishes == 0, "1 回ごとには数えない")
+        for _ in 0..<20 where !model.matchOver {
+            model.nextRound()
+            while model.phase == .playerTurn { model.stand() }
+        }
+        #expect(model.matchOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["blackjack"])
     }

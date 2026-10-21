@@ -16,7 +16,7 @@ public struct FruitsEffect: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         /// 合体して `FruitKind` ができた。
         case merge(FruitKind)
-        /// メロンどうしが消えた。
+        /// 金の松どうしが消えた。
         case vanish
     }
 
@@ -26,7 +26,7 @@ public struct FruitsEffect: Equatable, Sendable {
     public let y: Double
 }
 
-/// くっつきフルーツの進行（#1319）。
+/// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の進行。
 ///
 /// 盤面そのもの（果物・落下・合体）は `FruitField` が持ち、ここは
 /// **得点・落とす果物の抽選・終局・コンティニュー・中断復元・横断サービスへの通知**だけを担う。
@@ -60,8 +60,8 @@ public final class FruitsModel {
     public private(set) var continueUsed: Bool
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
-    /// このプレイでメロンを作ったか。終局の勝敗（評価リクエスト・記録の勝ち数）に使う。
-    public private(set) var hasMadeMelon: Bool
+    /// このプレイで金の松を作ったか。終局の勝敗（評価リクエスト・記録の勝ち数）に使う。
+    public private(set) var hasMadeKinmatsu: Bool
     /// このプレイで落とした数。
     public private(set) var dropCount: Int
     /// 危険線より上に果物があるか（描画の警告に使う）。
@@ -69,6 +69,8 @@ public final class FruitsModel {
     /// `field` は毎フレーム変わるため、画面が `field.isOverLine` を直接読むと**毎フレーム再評価される**。
     /// ここで鏡を持ち、変わったときだけ代入する（ブロック崩しの `isPaddleWide` と同じ理由）。
     public private(set) var isOverLine = false
+    /// 危険線に近い盆栽があるか（縁側のおじさんをしかめ面にする合図・#2361）。`isOverLine` と同じ理由の鏡。
+    public private(set) var isNearLine = false
     /// 盤の果物の数。`isOverLine` と同じ理由の鏡（VoiceOver の読み上げが body から読む）。
     public private(set) var fruitCount = 0
     /// プレイの通し番号。「はじめから」とコンティニューの照合に使う（#729）。
@@ -122,7 +124,7 @@ public final class FruitsModel {
             score = snap.score
             phase = .playing
             continueUsed = snap.continueUsed
-            hasMadeMelon = snap.hasMadeMelon
+            hasMadeKinmatsu = snap.hasMadeKinmatsu
             dropCount = snap.dropCount
             self.seed = snap.seed
             self.drawCount = drawCount
@@ -130,6 +132,7 @@ public final class FruitsModel {
             heldKind = held
             nextKind = next
             isOverLine = field.isOverLine
+            isNearLine = field.isNearLine
             fruitCount = field.count
             // 復元は新しいプレイではないので `game_start` は送らない。
         } else {
@@ -142,7 +145,7 @@ public final class FruitsModel {
             score = 0
             phase = .playing
             continueUsed = false
-            hasMadeMelon = false
+            hasMadeKinmatsu = false
             dropCount = 0
             self.seed = seed
             self.drawCount = drawCount
@@ -201,6 +204,7 @@ public final class FruitsModel {
             handle(event)
         }
         if isOverLine != field.isOverLine { isOverLine = field.isOverLine }
+        if isNearLine != field.isNearLine { isNearLine = field.isNearLine }
         if fruitCount != field.count { fruitCount = field.count }
         settledTime = field.isSettled ? settledTime + step : 0
         if needsCheckpoint, phase == .playing, cooldown == 0, settledTime >= Self.settleConfirmation {
@@ -219,7 +223,7 @@ public final class FruitsModel {
         score = 0
         phase = .playing
         continueUsed = false
-        hasMadeMelon = false
+        hasMadeKinmatsu = false
         dropCount = 0
         recordResult = nil
         effects = []
@@ -227,6 +231,7 @@ public final class FruitsModel {
         needsCheckpoint = false
         settledTime = 0
         isOverLine = false
+        isNearLine = false
         fruitCount = 0
         seed = UInt64.random(in: 0...UInt64.max)
         generator = SplitMix64(seed: seed)
@@ -245,8 +250,8 @@ public final class FruitsModel {
     public func continueAfterAd(forGame serial: Int) -> Bool {
         guard phase == .gameOver, !continueUsed, serial == gameSerial else { return false }
         // 同じ 1 プレイの続きなので、直前に記録した結果は無かったことにする（再び終局したときに数え直す）。
-        // メロンを作っていた回は勝ち、作れなかった回は負けとして記録されている（#1359）。
-        if hasMadeMelon {
+        // 金の松を作っていた回は勝ち、作れなかった回は負けとして記録されている（#1359）。
+        if hasMadeKinmatsu {
             services?.playLog?.cancelWin(gameID: Self.gameID)
         } else {
             services?.playLog?.cancelLoss(gameID: Self.gameID)
@@ -257,6 +262,7 @@ public final class FruitsModel {
         fruitCount = field.count
         phase = .playing
         isOverLine = false
+        isNearLine = field.isNearLine
         cooldown = 0
         if heldKind == nil {
             heldKind = nextKind
@@ -290,14 +296,14 @@ public final class FruitsModel {
             score += into.points
             needsCheckpoint = true
             appendEffect(.merge(into), x: x, y: y)
-            if into == .melon {
-                hasMadeMelon = true
+            if into == .kinmatsu {
+                hasMadeKinmatsu = true
                 services?.feedback.notify(.success)
             } else {
-                services?.feedback.impact(into >= .kiwi ? .medium : .light)
+                services?.feedback.impact(into >= .icho ? .medium : .light)
             }
         case let .vanished(x, y):
-            score += FruitKind.melonVanishPoints
+            score += FruitKind.kinmatsuVanishPoints
             needsCheckpoint = true
             appendEffect(.vanish, x: x, y: y)
             services?.feedback.notify(.milestone)
@@ -328,8 +334,8 @@ public final class FruitsModel {
         services?.feedback.notify(.error)
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
-            // メロンを作れたプレイは勝ち（評価リクエストの入口・記録の勝ち数）。作れずに埋まったら負け。
-            outcome: hasMadeMelon ? .win : .loss,
+            // 金の松を作れたプレイは勝ち（評価リクエストの入口・記録の勝ち数）。作れずに埋まったら負け。
+            outcome: hasMadeKinmatsu ? .win : .loss,
             score: finishingScore
         )
         services?.snapshots.clear(for: Self.gameID)
@@ -348,7 +354,7 @@ public final class FruitsModel {
             seed: seed,
             drawCount: drawCount,
             dropCount: dropCount,
-            hasMadeMelon: hasMadeMelon
+            hasMadeKinmatsu: hasMadeKinmatsu
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }
@@ -356,7 +362,7 @@ public final class FruitsModel {
     #if DEBUG
     /// 撮影・動作確認用に狙った画面まで進める（起動引数 `-simulateFruits <名前>`）。
     ///
-    /// 積み上がった盤・終局・メロンの画は、実機では**指で遊ばないと**出せない。シミュレータには
+    /// 積み上がった盤・終局・金の松の画は、実機では**指で遊ばないと**出せない。シミュレータには
     /// 自動タップの手段が無いため、ブロック崩しの `-simulateBlocks` と同じ形で起動引数から状態を作る。
     /// DEBUG ビルド限定で、製品には入らない。
     public func applyDebugScenario(_ name: String) {
@@ -364,22 +370,26 @@ public final class FruitsModel {
         case "stack":
             // 12 個ほど落として落ち着いた盤。合体も数回起きる。
             dropSequenceForDebug(count: 14)
-        case "melon":
-            // メロンを含む大きい果物の塊。
-            for (kind, x) in [(FruitKind.melon, 24.0), (.pineapple, 66), (.apple, 86), (.peach, 50)] {
+        case "kinmatsu":
+            // 金の松を含む大きい果物の塊。
+            for (kind, x) in [(FruitKind.kinmatsu, 24.0), (.kuromatsu, 66), (.momiji, 86), (.nanten, 50)] {
                 field.placeFruitForTesting(kind, x: x, y: kind.radius + 40)
             }
-            hasMadeMelon = true
+            hasMadeKinmatsu = true
             score = 480
             settleForDebug(seconds: 3)
         case "gameover":
-            var guardCount = 0
-            while phase == .playing, guardCount < 80 {
-                guardCount += 1
-                let kind: FruitKind = [.grape, .pineapple, .apple, .peach][guardCount % 4]
-                field.placeFruitForTesting(kind, x: 30 + Double(guardCount % 3) * 20, y: FruitField.Metrics.spawnY)
-                settleForDebug(seconds: 0.8)
-            }
+            // 左の壁沿いに真柏が危険線を越える柱を直接置く（`FieldTests` の
+            // 「止まって3秒居座ると終局する」と同じ、安定して倒れない柱）。乱数で積んで待つ旧実装は
+            // #2463 で危険線の計時が 1 → 3 秒に伸びたあと、積み方によって頭の果物が揺れ続けて
+            // `sleepSpeed` を切らず、いつまでも終局しないことがあった。
+            let kinmatsu = FruitKind.kinmatsu.radius
+            let kuromatsu = FruitKind.kuromatsu.radius
+            let shinpaku = FruitKind.shinpaku.radius
+            field.placeFruitForTesting(.kinmatsu, x: kinmatsu, y: kinmatsu)
+            field.placeFruitForTesting(.kuromatsu, x: kuromatsu, y: kinmatsu * 2 + kuromatsu)
+            field.placeFruitForTesting(.shinpaku, x: shinpaku, y: kinmatsu * 2 + kuromatsu * 2 + shinpaku)
+            settleForDebug(seconds: FruitField.Metrics.overLineLimit + 1)
         default:
             break
         }

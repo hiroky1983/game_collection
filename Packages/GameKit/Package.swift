@@ -56,6 +56,8 @@ let package = Package(
         .library(name: "GameTsunagi",      targets: ["GameTsunagi"]),
         // ハノイの塔（#2003・企画倉庫）。
         .library(name: "GameHanoi",        targets: ["GameHanoi"]),
+        // 四目並べ（#1738・企画倉庫）。
+        .library(name: "GameYonmoku",      targets: ["GameYonmoku"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -125,10 +127,14 @@ let package = Package(
         // `SplitMix64` を使うので CoreEngine への依存も明示する。
         .target(name: "GameRoulette",       dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
-        // くっつきフルーツ（#1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない純粋ロジックで、
-        // 落とす果物の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
+        // おじさんの盆栽（#2361。もとは くっつきフルーツ #1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない
+        // 純粋ロジックで、落とす盆栽の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
         .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine"],
-                resources: [.copy("Resources/Localization")]),
+                resources: [.copy("Resources/Localization"),
+                            // 盆栽 11 段の絵（会長提供・ChatGPT 生成。出どころは docs/design/bonsai/assets-license.md）。
+                            .copy("Resources/Bonsai"),
+                            // 縁側のおじさん（専用ドット絵ができるまでの代用。作業服おじさんから箱を消したコマ）。
+                            .copy("Resources/BonsaiOjisan_hold.png")]),
         // いろリレー（#1320・企画倉庫）。色合わせのカードゲーム。出せるかの判定・CPU は純粋ロジックで、
         // 配りの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
         .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine"],
@@ -221,6 +227,10 @@ let package = Package(
         // ハノイの塔（#2003・企画倉庫）。移動の可否・最少手順は純粋ロジックで、乱数は使わない。円盤はコード描画。
         .target(name: "GameHanoi",          dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
+        // 四目並べ（#1738・企画倉庫）。落下・勝ちの判定と CPU の αβ 探索（ビットボード）は純粋ロジックで、
+        // 弱い段の外しの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は五目並べと同じ `AITurnGuarded` の定石。
+        .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -310,6 +320,7 @@ let package = Package(
         .testTarget(name: "GameHeartsTests",         dependencies: ["GameHearts", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanoiTests",          dependencies: ["GameHanoi", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameYonmokuTests",        dependencies: ["GameYonmoku", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
@@ -327,7 +338,8 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameAnzan", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameAnzan",
+            "GameColorRelay", "GameRoulette", "GameFruits", "GameDiceCombo", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -350,6 +362,7 @@ let package = Package(
             "GameHearts",
             "GameTsunagi", "GameAkariKeshi",
             "GameDiceCombo", "GameHanoi",
+            "GameYonmoku",
             "GameKitTestSupport",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
@@ -360,7 +373,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
-            "GameTsunagi", "GameAkariKeshi",
+            "GameTsunagi", "GameAkariKeshi", "GameYonmoku",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -370,7 +383,7 @@ let package = Package(
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner", "GameRunnerTestSupport",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits", "GameColorRelay",
             "GameAnzan", "GameBackgammon", "GameMancala", "GameSpeed", "GameHomerun", "GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport",
-            "GameTsunagi", "GameAkariKeshi",
+            "GameTsunagi", "GameAkariKeshi", "GameYonmoku",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。

@@ -12,6 +12,8 @@ struct ConcentrationLocalizationTests {
         #expect(GameConcentration.tr("8ペア", language: .english) == "8 Pairs")
         #expect(GameConcentration.tr("ヒント（残り%lld回）", 2, language: .english) == "Hint (2 left)")
         #expect(GameConcentration.tr("%@（獲得済み）", "Apple", language: .english) == "Apple (taken)")
+        // 不一致は枠の色だけだったので読み上げにも出す（#2322）。
+        #expect(GameConcentration.tr("%@（一致しませんでした）", "Apple", language: .english) == "Apple (no match)")
     }
 
     /// 絵柄の名前（`ObjectCardKind.displayName`）は Core の表で引く。しりとりの読みとは別物なので英語にしてよい。

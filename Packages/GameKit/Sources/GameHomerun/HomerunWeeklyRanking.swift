@@ -140,9 +140,10 @@ enum HomerunRankingText {
 
     static func group(_ n: Int) -> String { grouping.string(from: NSNumber(value: n)) ?? "\(n)" }
 
-    /// 距離の表示。100 万 m（= 1,000 km）以上は km（切り捨て・桁区切り）、それ未満は m（桁区切り）。
+    /// 距離の表示。100 万 m（= 1,000 km）以上は「km + 端数の m」（月を含む値で、月以外の打球の分まで見せる）、
+    /// それ未満は m（桁区切り）。
     static func distance(_ meters: Int) -> String {
-        meters >= 1_000_000 ? "\(group(meters / 1000)) km" : "\(group(meters)) m"
+        meters >= 1_000_000 ? "\(group(meters / 1000)) km + \(group(meters % 1000)) m" : "\(group(meters)) m"
     }
 
     /// 月まで飛んだ行の補足（飛んでいなければ nil）。

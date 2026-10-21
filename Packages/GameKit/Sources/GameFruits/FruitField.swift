@@ -46,13 +46,13 @@ public enum FruitEvent: Equatable, Sendable {
     case touched(id: Int)
     /// 同じ種類が触れて 1 つ上の種類になった。`x` / `y` は新しい果物の位置。
     case merged(from: FruitKind, into: FruitKind, x: Double, y: Double, id: Int)
-    /// いちばん大きい種類（メロン）が 2 つ触れて消えた。
+    /// いちばん大きい種類（金の松）が 2 つ触れて消えた。
     case vanished(x: Double, y: Double)
     /// 危険線より上に果物が居続けた（終局）。
     case gameOver
 }
 
-/// くっつきフルーツの盤面そのもの（#1319）。
+/// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の盤面そのもの。型と変数の名前は果物のまま引き継いでいる。
 ///
 /// **SpriteKit にも SwiftUI にも依存しない値型**で、`step(dt:)` を呼ぶと果物が落ちて転がる。
 /// 得点・次に落とす果物・中断復元は持たない（それは `FruitsModel` の仕事）。
@@ -94,13 +94,16 @@ public struct FruitField: Equatable, Sendable {
         /// 同じ種類が「触れた」とみなす隙間。ぴったり接するまで待つと、隣で止まったまま合体しない。
         public static let mergeSlack: Double = 0.3
         /// 危険線より上に居続けてよい秒数。超えたら終局。
-        public static let overLineLimit: Double = 1.0
+        public static let overLineLimit: Double = 3.0
         /// 盤に現れてから危険線の判定を始めるまでの猶予（秒）。落としたばかりの果物は線より上から
         /// 落ちてくるので、通り過ぎる時間ぶんは数えない。
         public static let overLineGrace: Double = 0.6
         /// これより遅ければ「止まっている」とみなす（単位/秒）。中断データの書き出しに使う。
         public static let sleepSpeed: Double = 2.0
-        /// 広告コンティニューで取り除く小さい種類の数（ブルーベリー〜ライムの 4 種）。
+        /// 「危険線に近い」とみなす幅。線の下でも上端がこの幅より線に近い盆栽があれば、縁側のおじさんを
+        /// しかめ面にする（#2361）。見た目だけの合図で、終局の判定には使わない。
+        public static let nearLineMargin: Double = 12
+        /// 広告コンティニューで取り除く小さい種類の数（桜〜梅の 4 種）。
         public static let continueRemovedKinds = 4
 
         /// 盤の縦横比（幅 / 高さ）。View はこの比で枠を作る。
@@ -165,6 +168,12 @@ public struct FruitField: Equatable, Sendable {
 
     /// 果物がすべて止まっているか。
     public var isSettled: Bool { fruits.allSatisfy { $0.speed < Metrics.sleepSpeed } }
+
+    /// 危険線に近い（または越えた）果物があるか（`Metrics.nearLineMargin`）。落としたばかりで猶予
+    /// （`Metrics.overLineGrace`）の内にある果物は数えない（手から落ちる途中で毎回しかめ面にならないように）。
+    public var isNearLine: Bool {
+        fruits.contains { $0.age > Metrics.overLineGrace && $0.top > Metrics.deadlineY - Metrics.nearLineMargin }
+    }
 
     /// いちばん高い果物の上端。何も無ければ 0。
     public var highestTop: Double { fruits.map(\.top).max() ?? 0 }
@@ -343,7 +352,7 @@ public struct FruitField: Equatable, Sendable {
         }
     }
 
-    /// 同じ種類の組を 1 つ上の種類に置き換える。メロンどうしは消す。
+    /// 同じ種類の組を 1 つ上の種類に置き換える。金の松どうしは消す。
     private mutating func applyMerges(_ merges: [(Int, Int)]) -> [FruitEvent] {
         var events: [FruitEvent] = []
         var removed = Set<Int>()
@@ -377,18 +386,21 @@ public struct FruitField: Equatable, Sendable {
     }
 
     /// 危険線の計時。`dt` は `step(dt:)` に渡された全体の時間。
+    /// 速さが `Metrics.sleepSpeed` 以上のあいだ（合体で跳ね上がった・転がり落ちる途中）は、
+    /// 線より上にいても計時を進めない。止まりかけて線より上に居座ったときだけ数える（#2463）。
     private mutating func updateOverLine(dt: Double) -> [FruitEvent] {
         var anyOver = false
         var over = false
         for index in fruits.indices {
             let fruit = fruits[index]
-            if fruit.top > Metrics.deadlineY, fruit.age > Metrics.overLineGrace {
-                anyOver = true
-                fruits[index].overLineTime += dt
-                if fruits[index].overLineTime >= Metrics.overLineLimit { over = true }
-            } else {
+            guard fruit.top > Metrics.deadlineY, fruit.age > Metrics.overLineGrace else {
                 fruits[index].overLineTime = 0
+                continue
             }
+            guard fruit.speed < Metrics.sleepSpeed else { continue }
+            anyOver = true
+            fruits[index].overLineTime += dt
+            if fruits[index].overLineTime >= Metrics.overLineLimit { over = true }
         }
         isOverLine = anyOver
         guard over else { return [] }

@@ -146,7 +146,7 @@ public enum RuleBoardMark {
         Circle().strokeBorder(color, style: StrokeStyle(lineWidth: 2, dash: [3, 2])).frame(width: size, height: size)
     }
 
-    public static func cross(_ color: Color = Theme.coral) -> some View {
+    public static func cross(_ color: Color = Theme.coralText) -> some View {
         Image(systemName: "xmark")
             .font(.system(size: 13, weight: .black)) // fixed-size: 図の目印（盤の寸法に従う）
             .foregroundStyle(color)

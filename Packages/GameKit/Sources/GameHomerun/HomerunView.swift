@@ -184,7 +184,7 @@ struct HomerunLobbyView: View {
             Toggle(isOn: Bindable(model).showsDirectionMeter) {
                 Text(tr("方向メーターを表示")).themeBody(14).foregroundStyle(Theme.ink)
             }
-            .tint(Theme.coral)
+            .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
             .accessibilityHint(tr("打席の左上に出る方向メーターの表示を切り替えます。消しても判定は変わりません"))
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.homerun, playLog: services.playLog)
@@ -243,7 +243,7 @@ struct HomerunCountMeter: View {
     let allowance: Int
     let remaining: Int
     /// 残りのボールの色と、使ったボールの色（「打席に立つ」の中では白と薄い色）。
-    var lit: Color = Theme.coral
+    var lit: Color = Theme.coralText
     var unlit: Color = Theme.inkSub.opacity(0.35)
 
     var body: some View {
@@ -475,7 +475,7 @@ struct HomerunResultView: View {
         } label: {
             Text(tr("打席前へ")).themeBody(16).frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
+        .buttonStyle(.bordered).controlSize(.large).tint(Theme.coralText)
     }
 }
 
@@ -613,9 +613,9 @@ struct HomerunBallTile: View {
 
     private var iconColor: Color {
         switch ball.kind {
-        case .homer: Theme.yellow
-        case .fenceHit: Theme.coral
-        case .inPlay: Theme.teal
+        case .homer: Theme.yellowText
+        case .fenceHit: Theme.coralText
+        case .inPlay: Theme.tealText
         case .foul, .miss: Theme.inkSub
         }
     }
@@ -727,7 +727,7 @@ struct HomerunReturnReminderToggle: View {
             Toggle(isOn: Binding(get: { notifiesOnReturn }, set: { setReminder($0, service) })) {
                 Text(tr("戻ったら知らせる")).themeBody(14).foregroundStyle(Theme.ink)
             }
-            .tint(Theme.coral)
+            .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
             .disabled(!service.isNotificationsEnabled)
             if let note = service.isNotificationsEnabled ? reminderNote : tr("設定の「通知」をオンにすると使えます。") {
                 Text(note).themeCaption(12).foregroundStyle(Theme.inkSub)

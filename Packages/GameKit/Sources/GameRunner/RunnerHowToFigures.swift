@@ -100,7 +100,7 @@ enum RunnerHowToFigures {
                     .frame(width: 220)
                     .padding(.bottom, 12)
                 }
-                RuleFigureLabel(tr("ゴールでステージクリア"), color: Theme.coral)
+                RuleFigureLabel(tr("ゴールでステージクリア"), color: Theme.coralText)
             }
         }
     }
@@ -127,7 +127,7 @@ enum RunnerHowToFigures {
                     .frame(width: 220, alignment: .leading)
                     .padding(.bottom, 12)
                 }
-                RuleFigureLabel(tr("走った距離が記録"), color: Theme.coral)
+                RuleFigureLabel(tr("走った距離が記録"), color: Theme.coralText)
             }
         }
     }
@@ -180,7 +180,7 @@ enum RunnerHowToFigures {
                     RunnerHowToFigures.rider(.jump, height: 30)
                         .padding(.bottom, 14 + rise)
                 }
-                RuleFigureLabel(label, color: rise > 20 ? Theme.coral : Theme.inkSub)
+                RuleFigureLabel(label, color: rise > 20 ? Theme.coralText : Theme.inkSub)
             }
         }
     }
@@ -207,7 +207,7 @@ enum RunnerHowToFigures {
                         .padding(.leading, 90).padding(.bottom, 14 + 22 + 26)
                 }
                 .frame(width: 220, height: 104, alignment: .bottomLeading)
-                RuleFigureLabel(tr("空中でもう一度タップ"), color: Theme.coral)
+                RuleFigureLabel(tr("空中でもう一度タップ"), color: Theme.coralText)
             }
         }
     }
@@ -231,7 +231,7 @@ enum RunnerHowToFigures {
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 12)
-                RuleFigureLabel(isEndless ? tr("穴に落ちたらおしまい") : tr("穴に落ちたらミス"), color: Theme.coral)
+                RuleFigureLabel(isEndless ? tr("穴に落ちたらおしまい") : tr("穴に落ちたらミス"), color: Theme.coralText)
             }
         }
     }

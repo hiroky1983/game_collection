@@ -42,11 +42,11 @@ struct RuleDetailScrollAndCardSourceTests {
         }
     }
 
-    @Test("役の早見表（*YakuSheet・*BonusTableSheet）は YakuTableSheet で始まる（#1414）")
+    @Test("役の早見表（*YakuSheet・*PointsTableSheet）は YakuTableSheet で始まる（#1414）")
     func yakuTablesUseSharedFrame() throws {
         var allSource = ""
         var typeNames: Set<String> = []
-        let regex = try NSRegularExpression(pattern: #"struct\s+(\w*(?:Yaku|BonusTable)Sheet)\s*:\s*View"#)
+        let regex = try NSRegularExpression(pattern: #"struct\s+(\w*(?:Yaku|PointsTable)Sheet)\s*:\s*View"#)
         for file in try Self.swiftFiles() {
             let text = try String(contentsOf: Self.sourcesDirectory.appendingPathComponent(file), encoding: .utf8)
             allSource += text + "\n"

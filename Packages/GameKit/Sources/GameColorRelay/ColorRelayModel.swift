@@ -145,6 +145,9 @@ public final class ColorRelayModel: AITurnGuarded {
     /// 広告を見て引き札を免除できるか（#1320）。自分の番で引き札を課されていて、このゲームでまだ使っていないとき。
     public var canWaivePenalty: Bool { isPlayerPenalized && !isPenaltyWaived }
 
+    /// 「新規対局」で失われる進行があるか（1 枚でも札が動いた未決着のゲーム。#2370）。
+    public var hasProgressToLose: Bool { phase == .playing && !isUntouchedDeal }
+
     /// 人間がいま出せる札の ID。引いた直後は引いた札だけ。
     public var playableCardIDs: Set<Int> {
         guard isPlayerTurn, pendingDraw == 0, let top = topCard else { return [] }

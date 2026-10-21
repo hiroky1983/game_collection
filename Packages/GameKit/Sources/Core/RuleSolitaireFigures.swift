@@ -72,7 +72,7 @@ public struct RuleSelectPlaceFigure: View {
                     HStack(spacing: 18) {
                         VStack(spacing: 4) {
                             moving.view(highlighted: true)
-                            RuleFigureLabel(tr("① 選ぶ"), color: Theme.coral)
+                            RuleFigureLabel(tr("① 選ぶ"), color: Theme.coralText)
                         }
                         VStack(spacing: 4) {
                             target.view()

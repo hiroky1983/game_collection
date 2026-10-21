@@ -222,3 +222,33 @@ struct MahjongSolitaireHintAdContractTests {
         )
     }
 }
+
+// MARK: - ヒントの計測（#2325）
+
+@Suite("麻雀ソリティアのヒントは game_end の hints_used に載る（#2325）")
+@MainActor
+struct MahjongSolitaireHintAnalyticsTests {
+
+    private func makeModel() -> (MahjongSolitaireModel, SpyAnalyticsService) {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: [MahjongSolitaireModel.snapshotID])
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        return (MahjongSolitaireModel(services: services, seed: 2026), spy)
+    }
+
+    private func endParameters(_ spy: SpyAnalyticsService) -> [[String: AnalyticsValue]] {
+        spy.events.compactMap { if case .gameEnd = $0 { return $0.parameters } else { return nil } }
+    }
+
+    @Test("ヒントを 1 回使ってクリアすると hints_used が 1")
+    func clearCarriesHintsUsed() {
+        let (model, spy) = makeModel()
+        #expect(model.showHint())
+        for pair in model.solution {
+            model.tap(pair[0])
+            model.tap(pair[1])
+        }
+        #expect(model.phase == .won)
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+}

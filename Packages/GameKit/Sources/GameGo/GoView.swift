@@ -387,7 +387,7 @@ public struct GoView: View {
                 .frame(width: 18, height: 18)
             Text(isYou ? tr("あなた") : "CPU")
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
             Text(stone == .black ? tr("黒・先番") : tr("白・後番"))
                 .scaledFont(13, design: .rounded)
                 .foregroundStyle(Theme.inkSub)

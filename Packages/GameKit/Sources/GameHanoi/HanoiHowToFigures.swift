@@ -45,7 +45,7 @@ enum HanoiHowToFigures {
                     MiniBoard(pegs: index == 0 ? [[3, 2, 1], [], []] : [[3, 2], [], [1]],
                               lifted: index == 0 ? 0 : nil)
                 }
-                RuleFigureLabel(tr("取って、別の柱に置く"), color: Theme.coral)
+                RuleFigureLabel(tr("取って、別の柱に置く"), color: Theme.coralText)
             }
         }
     }
@@ -61,7 +61,7 @@ enum HanoiHowToFigures {
                         .foregroundStyle(Theme.coralText)
                         .accessibilityHidden(true)
                 }
-                RuleFigureLabel(tr("2 は 1 の上に置けない"), color: Theme.coral)
+                RuleFigureLabel(tr("2 は 1 の上に置けない"), color: Theme.coralText)
             }
         }
     }
@@ -73,7 +73,7 @@ enum HanoiHowToFigures {
                 RuleFrames(count: 2, spacing: 6) { index in
                     MiniBoard(pegs: index == 0 ? [[3, 2, 1], [], []] : [[], [], [3, 2, 1]])
                 }
-                RuleFigureLabel(tr("3 枚なら最少 7 手"), color: Theme.teal)
+                RuleFigureLabel(tr("3 枚なら最少 7 手"), color: Theme.tealText)
             }
         }
     }

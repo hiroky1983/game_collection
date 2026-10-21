@@ -102,6 +102,7 @@ public struct MinesweeperView: View {
         )
         .gameTimerLifecycle(
             rescues: [continueRescue, hintRescue],
+            isHeld: showNewGame,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -170,7 +171,9 @@ public struct MinesweeperView: View {
                 accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
                 accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
             ) { zoomMode.toggle() },
-            GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true) {
+            // 局が始まる前は諦める相手がいないので押せない表示にする（#2423）。
+            GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true,
+                                isEnabled: model.gameState == .playing) {
                 showGiveUpConfirm = true
             },
         ], actions: [hintAction], nudge: hintNudge)
@@ -287,14 +290,16 @@ public struct MinesweeperView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// プレイ中（諦める）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
+    /// 開始前・プレイ中（⋯・ヒント）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
     /// 中身が入れ替わるが、**高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
         GameControlArea(isFinished: model.gameOver && !showContinue, services: services, ladder: ladder) {
             resultControls
         } playing: {
             // コンティニューの提案中は何も出さない（提案そのものが別の層に出ている）。
-            if model.gameState == .playing {
+            // 最初のマスを開く前（.idle）も出す。出さないと初手前に拡大・旗モードが使えず、
+            // 初手で段が現れて盤が縮む（#2423）。
+            if model.gameState == .idle || model.gameState == .playing {
                 gameControls
             }
         }
@@ -354,7 +359,7 @@ public struct MinesweeperView: View {
                         // 右のタイマー・旗・ズームを押し出すため、ここだけは縮めて収める（#189）。
                         // 残り地雷数（下の分岐）は等幅で幅を固定したいので `fixedSize` を残す。
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(won ? Theme.teal : Theme.coral)
+                        .foregroundStyle(won ? Theme.tealText : Theme.coralText)
                 } else {
                     Label(String(format: "%02d", max(0, model.remainingMines)),
                           systemImage: "flag.fill")
@@ -572,7 +577,7 @@ public struct MinesweeperView: View {
                 Image(systemName: "flag.fill")
                     .resizable().scaledToFit()
                     .frame(width: iconSize, height: iconSize)
-                    .foregroundStyle(gameIsOver && cell.isMine ? Theme.teal : Theme.coral)
+                    .foregroundStyle(gameIsOver && cell.isMine ? Theme.tealText : Theme.coralText)
             }
         } else if !cell.isRevealed && cell.mark == .question {
             // 「たぶん地雷」の保留マーク（#444）。面（0xBDBDBD）はモードによらず固定なので
@@ -597,7 +602,7 @@ public struct MinesweeperView: View {
         switch n {
         case 1: return Color(hex: 0x1565C0)
         case 2: return Color(hex: 0x2E7D32)
-        case 3: return Theme.coral
+        case 3: return Theme.coralText
         case 4: return Color(hex: 0x0D47A1)
         case 5: return Color(hex: 0xB71C1C)
         case 6: return Color(hex: 0x006064)

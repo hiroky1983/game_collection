@@ -328,10 +328,10 @@ public struct ConcentrationView: View {
                     let isWin = winner == .human
                     Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                         .scaledFont(52, maxScale: 1.2)
-                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                        .foregroundStyle(isWin ? Theme.yellowText : Theme.coralText)
                     Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                         .scaledFont(26, weight: .black, design: .rounded)
-                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                        .foregroundStyle(isWin ? Theme.tealText : Theme.coralText)
                 } else {
                     Image(systemName: "equal.circle.fill")
                         .scaledFont(52, maxScale: 1.2)
@@ -414,7 +414,9 @@ private struct CardView: View {
     private var accessibilityText: String {
         if isHint { return tr("裏向きの札、ヒント（1枚目の相方）") }
         guard isFaceUp, let name = card.figure?.displayName else { return tr("裏向きの札") }
-        return card.isMatched ? tr("%@（獲得済み）", name) : name
+        if card.isMatched { return tr("%@（獲得済み）", name) }
+        // 不一致は coral の枠だけで示していたので、読み上げにも出す（#2322）。
+        return isMismatched ? tr("%@（一致しませんでした）", name) : name
     }
 
     @ViewBuilder

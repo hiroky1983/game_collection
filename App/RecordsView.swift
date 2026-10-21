@@ -85,7 +85,7 @@ struct RecordsView: View {
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
                 ProgressView(value: Double(summary.playedCount), total: Double(max(summary.gameCount, 1)))
-                    .tint(Theme.coral)
+                    .tint(Theme.coral) // accent-text-ok: 進捗バーの塗り（面）
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(summary.progressText)
@@ -129,14 +129,14 @@ struct RecordsView: View {
         HStack(spacing: 12) {
             Image(systemName: milestone.isAchieved ? "checkmark.seal.fill" : "seal")
                 .scaledFont(20, weight: .semibold)
-                .foregroundStyle(milestone.isAchieved ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSub)
             Text(milestone.title)
                 .themeBody(16)
                 .foregroundStyle(Theme.ink)
             Spacer(minLength: 8)
             Text(verbatim: milestone.isAchieved ? tr("達成") : milestone.progressText)
                 .themeCaption(13)
-                .foregroundStyle(milestone.isAchieved ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSub)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(milestone.accessibilityLabel)

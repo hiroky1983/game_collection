@@ -115,7 +115,7 @@ struct HomerunHeroCountDots: View {
     let allowance: Int
     let remaining: Int
     var size: CGFloat = 14
-    var lit: Color = Theme.coral
+    var lit: Color = Theme.coralText
     var dim: Color = Theme.inkSub.opacity(0.35)
 
     var body: some View {

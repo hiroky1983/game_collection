@@ -30,7 +30,7 @@ enum ChessHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -73,7 +73,7 @@ enum ChessHowToFigures {
                         if row == 1, col == 2 || col == 3 { piece(.pawn, .black, size: 30) }
                     }
                 }
-                RuleFigureLabel(tr("ルークで王手！ 逃げ場がない"), color: Theme.coral)
+                RuleFigureLabel(tr("ルークで王手！ 逃げ場がない"), color: Theme.coralText)
             }
         }
     }

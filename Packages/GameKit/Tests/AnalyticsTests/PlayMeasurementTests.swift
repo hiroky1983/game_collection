@@ -690,13 +690,12 @@ struct GameOpenWiringTests {
         #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
                 "導線を持たない遷移がある（game_open の source が分からない）")
         // 導線ごとに正しい source を載せている。
-        // グリッド（#2175 から柵越えおじさんも同じグリッドのタイル。導線は以前の特別枠と同じ `.hero`・位置なし）。
-        #expect(source.range(of: #"gameID: module\.id, source: entry\.source, position: entry\.position"#,
+        // グリッド（#2566 から柵越えおじさんも通常のタイルで、ほかと同じ `.hub`・位置あり。`.hero` の発火点は無い）。
+        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: entry\.position"#,
                              options: .regularExpression) != nil, "グリッド")
-        #expect(source.range(of: #"GridEntry\(module: \$0\.element, position: \$0\.offset \+ 1, source: \.hub\)"#,
+        #expect(source.range(of: #"GridEntry\(module: \$0\.element, position: \$0\.offset \+ 1\)"#,
                              options: .regularExpression) != nil, "グリッド（.hub と位置）")
-        #expect(source.range(of: #"GridEntry\(module: hero, position: nil, source: \.hero\)"#,
-                             options: .regularExpression) != nil, "柵越えおじさん（.hero）")
+        #expect(!source.contains("source: .hero"), "柵越えおじさんの特別枠（.hero）は廃止した")
         #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
                              options: .regularExpression) != nil, "つづき・最近")
         #expect(source.range(of: #"gameID: id, source: \.recommendation, position: nil"#,
@@ -763,7 +762,8 @@ struct RewardAdCallSiteTests {
         // 将棋・チェス・五目並べのヒント（無料枠を使い切った後の広告・#1500）で3か所増えて25。しりとりの時間切れ延長（#1717）で 26。
         // 麻雀ソリティア・ナンプレの「戻す」の補充（#1855）で2か所増えて28。オセロのヒント（#2011）で29。2048 の「戻す」の補充（#2023）で30。マインスイーパーのヒント（#2024）で31。15パズルのヒント（#1975）で32。神経衰弱のヒント（#2026）で33。囲碁のヒント（#2027）で34。フリーセルのヒント（#2025）で35。スパイダーのヒント（#2025）で36。ソリティアのヒント（#2025）で37。バックギャモンのヒント（#2302）で1か所増える（現在値は下の期待値）。
         // フリーセル・スパイダー・ソリティアのヒントの広告は Core の `BoardHintReader` に寄せた（#2125）ので 3 か所減って34。
-        #expect(counts.values.reduce(0, +) == 35, "リワード広告の面は35箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
+        // おじさんの荷物運びパズルの負けから続ける救済（#2013）で 1 か所増えて 36（現在値は下の期待値）。
+        #expect(counts.values.reduce(0, +) == 36, "リワード広告の面は36箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
     }
 }
 
@@ -801,7 +801,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 37, "企画倉庫の線つなぎ（#2235）・明かり消しパズル（#1883）・ハーツ（#1884）・ババ抜き（#1577）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
+        #expect(games.count == 38, "企画倉庫の四目並べ（#1738）・線つなぎ（#2235）・明かり消しパズル（#1883）・ハーツ（#1884）・ババ抜き（#1577）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -838,6 +838,7 @@ struct PlayMeasurementCallSiteTests {
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
             "GameTsunagi",       // 盤の大きさ 5×5 / 7×7（#2235・企画倉庫）
+            "GameYonmoku",       // CPU の強さ 4 段階（#1738・企画倉庫）
         ])
     }
 }

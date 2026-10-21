@@ -19,12 +19,11 @@ struct HubCardMenuWiringTests {
     @Test("グリッドのカードは .pop のあとに長押しメニューを持ち、先頭へ移動と非表示の2項目を呼ぶ")
     func gridCardHasContextMenu() throws {
         let source = try SourceScan.appSources()
-        // 柵越えおじさん（#2175 でグリッドの先頭のタイルになった）は常に先頭なので「いちばん上に置く」を押せなくしてよい。
         // カード → `.pop` → メニューの**結線**まで見る。メニューの項目名だけを contains で見ると、
         // 別の場所に同じ文言があっても緑になる。
         #expect(
             source.range(
-                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\(tr\("いちばん上に置く"\)[^\n]*\n\s*\}\s*\.disabled\((module\.id == Self\.heroGameID \|\| )?NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs\)\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\(tr\("非表示にする"\)"#,
+                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\(tr\("いちばん上に置く"\)[^\n]*\n\s*\}\s*\.disabled\(NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs\)\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\(tr\("非表示にする"\)"#,
                 options: .regularExpression
             ) != nil,
             "グリッドのカードに「いちばん上に置く」「非表示にする」のメニューが結線されていない"
@@ -62,7 +61,7 @@ struct HubCardMenuWiringTests {
         )
         #expect(
             source.range(
-                of: #"\.task\(id: hiddenNotice\) \{\s*guard hiddenNotice != nil else \{ return \}\s*try\? await Task\.sleep"#,
+                of: #"\.task\(id: hiddenNotice\) \{\s*guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else \{ return \}\s*try\? await Task\.sleep"#,
                 options: .regularExpression
             ) != nil,
             "案内を消す時間が hiddenNotice ごとに数えられていない"
@@ -88,5 +87,15 @@ struct HubCardMenuWiringTests {
         #expect(source.contains("HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }"), "案内に元に戻すが結線されていない")
         #expect(source.contains(".frame(minHeight: 44)"), "元に戻すボタンが 44pt に満たない")
         #expect(source.contains("Task.sleep(for: .seconds(5))"), "案内が押せる長さ（5 秒）で出ていない")
+    }
+
+    @Test("VoiceOver・スイッチコントロール中は非表示の案内を自動で消さず、二本指スクラブで閉じられる（#2330）")
+    func noticeStaysWhileAssistiveTechIsOn() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("@Environment(\\.accessibilityVoiceOverEnabled)"), "VoiceOver の状態を読んでいない")
+        #expect(source.contains("@Environment(\\.accessibilitySwitchControlEnabled)"), "スイッチコントロールの状態を読んでいない")
+        #expect(source.contains("guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else { return }"),
+                "支援技術中も 5 秒で案内が消える")
+        #expect(source.contains(".accessibilityAction(.escape, onDismiss)"), "支援技術中に案内を閉じる手段が無い")
     }
 }

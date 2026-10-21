@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%1$@、残り%2$lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, %2$lld card left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, %2$lld cards left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%1$@の%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -166,17 +189,6 @@
         }
       }
     },
-    "あ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "R"
-          }
-        }
-      }
-    },
     "あか" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -251,6 +263,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "いまの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Their turn"
           }
         }
       }
@@ -332,17 +355,6 @@
         }
       }
     },
-    "き" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Y"
-          }
-        }
-      }
-    },
     "きいろ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -387,17 +399,6 @@
         }
       }
     },
-    "み" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "G"
-          }
-        }
-      }
-    },
     "みどり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -405,17 +406,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Green"
-          }
-        }
-      }
-    },
-    "む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "P"
           }
         }
       }
@@ -797,6 +787,17 @@
         }
       }
     },
+    "直前の手、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last move: %@"
+          }
+        }
+      }
+    },
     "色か数字をつないで手札を出し切ろう。CPU3人と対戦" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -870,6 +871,149 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "!"
+          }
+        }
+      }
+    },
+    "新規対局しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a new game?"
+          }
+        }
+      }
+    },
+    "終了して新規対局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End and start a new game"
+          }
+        }
+      }
+    },
+    "途中で終了すると対局データが失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, this game will be lost."
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "場の札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pile card"
+          }
+        }
+      }
+    },
+    "同じ色か同じ数字" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same color or number"
+          }
+        }
+      }
+    },
+    "山から1枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 from the deck"
+          }
+        }
+      }
+    },
+    "出せるならそのまま" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play it if you can"
+          }
+        }
+      }
+    },
+    "次の人の番を飛ばす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skips the next turn"
+          }
+        }
+      }
+    },
+    "向きが逆になる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverses direction"
+          }
+        }
+      }
+    },
+    "+2を出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play +2"
+          }
+        }
+      }
+    },
+    "次の人が2枚引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next player draws 2"
+          }
+        }
+      }
+    },
+    "手札0枚でゴール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 cards = win"
           }
         }
       }

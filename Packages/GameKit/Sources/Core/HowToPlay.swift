@@ -229,42 +229,18 @@ public extension HowToPlayGuide {
         lines: [
             tr("手札は 5 枚。残したいカードをタップで選びます。"),
             tr("選ばなかったカードは 1 回だけ引き直せます。"),
-            tr("役の強い側がポットのチップをもらえます。"),
+            tr("10 回勝負。勝った回は自分の役の点が入ります。"),
         ],
         hint: tr("残すカードをタップしよう"),
         items: [
             HowToPlayItem(tr("手札は 5 枚。残したいカードをタップで選びます。")),
             HowToPlayItem(tr("選ばなかったカードは 1 回だけ引き直せます。")),
-            HowToPlayItem(tr("役の強い側がポットのチップをもらえます。")),
+            HowToPlayItem(tr("CPU と手札を見せ合い、役の強い側がその回の勝ちです。")),
+            HowToPlayItem(tr("10 回勝負。勝った回は自分の役の点が入り、合計点の多い側が勝ちです。")),
         ],
         notes: [
-            tr("役の一覧は「くわしいルール」で見られます。"),
-        ]
-    ) }
-
-    /// 「ボーナスルール」で対局しているときのポーカー（#2268）。役ボーナスとダブルアップの項目が増える。
-    ///
-    /// `gameID` は `.poker` と同じ（同じゲームの表示違いなので、ミニガイドの「一度見たら出さない」
-    /// フラグも共有する）。そのため **`all` には入れない**＝登録漏れ検査は `.poker` のほうで担保される。
-    static var pokerBonus: HowToPlayGuide { HowToPlayGuide(
-        gameID: "poker",
-        title: tr("ポーカーの遊び方（ボーナスルール）"),
-        lines: [
-            tr("手札は 5 枚。残したいカードをタップで選びます。"),
-            tr("選ばなかったカードは 1 回だけ引き直せます。"),
-            tr("勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。"),
-        ],
-        hint: tr("残すカードをタップしよう"),
-        items: [
-            HowToPlayItem(tr("手札は 5 枚。残したいカードをタップで選びます。")),
-            HowToPlayItem(tr("選ばなかったカードは 1 回だけ引き直せます。")),
-            HowToPlayItem(tr("役の強い側がポットのチップをもらえます。")),
-            HowToPlayItem(tr("勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。")),
-            HowToPlayItem(tr("勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。")),
-        ],
-        notes: [
-            tr("役の一覧は「くわしいルール」で見られます。"),
-            tr("ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。"),
+            tr("役の一覧と点数は「くわしいルール」で見られます。"),
+            tr("広告を見ると、10 回のうち 1 度だけもう 1 回カードを交換できます。"),
         ]
     ) }
 
@@ -289,9 +265,9 @@ public extension HowToPlayGuide {
         gameID: "blackjack",
         title: tr("ブラックジャックの遊び方"),
         lines: [
-            tr("チップを賭ける枚数（ベット）を選ぶと、カードが配られます。"),
+            tr("ディーラーと 10 回勝負します。勝てば 1 点、最初の 2 枚の 21（ブラックジャック）で勝てば 2 点。10 回の合計が自己ベストになります。"),
             tr("カードの合計を 21 に近づけたほうが勝ち。21 を超えると負けです。"),
-            tr("「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。"),
+            tr("「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚が同じ点数（10・J・Q・K は同じ 10 点）なら、2 手に分ける「スプリット」も選べます。分けた手はそれぞれ勝てば 1 点です。"),
         ],
         hint: tr("21 に近づけたほうが勝ち"),
         hintIcon: "suit.spade.fill",
@@ -302,8 +278,9 @@ public extension HowToPlayGuide {
             HowToPlayItem(tr("最初の 2 枚が同じ点数なら、2 手に分ける「スプリット」もできます。")),
         ],
         notes: [
-            tr("最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」も選べます。"),
-            tr("10・J・Q・K は同じ 10 点なので、スプリットできます。"),
+            tr("ディーラーと 10 回勝負。勝てば 1 点、ブラックジャックで勝てば 2 点で、10 回の合計が自己ベストになります。"),
+            tr("10・J・Q・K は同じ 10 点なので、スプリットできます。分けた手はそれぞれ勝てば 1 点です。"),
+            tr("負けた回は、広告を見て 1 回だけやり直せます。"),
         ]
     ) }
 
@@ -661,19 +638,38 @@ public extension HowToPlayGuide {
             tr("配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。"),
         ],
         hint: tr("賭ける場所をタップしてスピン"),
-        hintIcon: "circle.circle.fill"
+        hintIcon: "circle.circle.fill",
+        items: [
+            HowToPlayItem(tr("チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。")),
+            HowToPlayItem(tr("「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。")),
+            HowToPlayItem(tr("配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。")),
+            HowToPlayItem(tr("0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。")),
+        ],
+        notes: [
+            tr("「戻す」で、最後に置いた 1 口を外せます。"),
+        ]
     ) }
 
     static var fruits: HowToPlayGuide { HowToPlayGuide(
         gameID: "fruits",
-        title: tr("くっつきフルーツの遊び方"),
+        title: tr("おじさんの盆栽の遊び方"),
         lines: [
-            tr("箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。"),
-            tr("同じ果物どうしが触れるとくっついて、1 つ大きい果物になります。いちばん大きいのはメロンです。"),
-            tr("上の点線より上に果物がとどまるとゲームオーバー。大きく育てて高得点を狙いましょう。"),
+            tr("指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。離すとその真下の庭へ落とします。"),
+            tr("同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。いちばん立派なのは金の松です。"),
+            tr("上の点線より上に盆栽がとどまるとゲームオーバー。立派に育てて高得点を狙いましょう。"),
         ],
         hint: tr("左右に動かして、離すと落ちる"),
-        hintIcon: "hand.draw.fill"
+        hintIcon: "hand.draw.fill",
+        items: [
+            HowToPlayItem(tr("指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。")),
+            HowToPlayItem(tr("指を離すと、その真下の庭へ盆栽が落ちます。")),
+            HowToPlayItem(tr("同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。")),
+            HowToPlayItem(tr("盆栽は 11 種類。いちばん立派なのは金の松です。")),
+            HowToPlayItem(tr("上の点線より上に盆栽がとどまると、ゲームオーバーです。")),
+        ],
+        notes: [
+            tr("立派に育てるほど高得点です。"),
+        ]
     ) }
 
     static var colorRelay: HowToPlayGuide { HowToPlayGuide(
@@ -685,7 +681,15 @@ public extension HowToPlayGuide {
             tr("とばし・ぎゃく・+2・いろがえ・いろがえ+4 の特殊札で流れを変えましょう。"),
         ],
         hint: tr("同じ色か同じ数字の札を出そう"),
-        hintIcon: "rectangle.on.rectangle.angled"
+        hintIcon: "rectangle.on.rectangle.angled",
+        items: [
+            HowToPlayItem(tr("場の札と同じ色か、同じ数字・記号の札を出せます。")),
+            HowToPlayItem(tr("出せる札がなければ、山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。")),
+            HowToPlayItem(tr("とばしは次の人の番を飛ばし、ぎゃくは回る向きを逆にします。")),
+            HowToPlayItem(tr("+2 は、次の人が 2 枚引いて番を飛ばされます。")),
+            HowToPlayItem(tr("いろがえはどの札の上にも出せて、次の色を選べます。いろがえ+4 は次の人が 4 枚引きます。")),
+            HowToPlayItem(tr("手札を先になくした人が勝ちです。")),
+        ]
     ) }
 
     static var anzan: HowToPlayGuide { HowToPlayGuide(
@@ -718,7 +722,18 @@ public extension HowToPlayGuide {
             tr("15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。先に全部あげたほうの勝ちです。"),
         ],
         hint: tr("動かす駒 → 行き先の順にタップ"),
-        hintIcon: "dice.fill"
+        hintIcon: "dice.fill",
+        items: [
+            HowToPlayItem(tr("あなたは白。サイコロの目のぶん、駒を右下の自陣へ向けて進めます。")),
+            HowToPlayItem(tr("動かす駒 → 行き先の順にタップします。")),
+            HowToPlayItem(tr("相手の駒が 2 個以上あるポイントには止まれません。")),
+            HowToPlayItem(tr("相手の駒が 1 個だけなら、叩いてバー（中央）へ送れます。")),
+            HowToPlayItem(tr("15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。")),
+        ],
+        notes: [
+            tr("バーに自分の駒があるときは、先にその駒を盤へ戻さないと、他の駒を動かせません。"),
+            tr("先に 15 個すべてをあげたほうの勝ちです。"),
+        ]
     ) }
 
     /// マンカラ（#1626・企画倉庫）。図は `GameMancala` 側で `illustrated(_:)` を使って差し込む。
@@ -740,6 +755,26 @@ public extension HowToPlayGuide {
         notes: [
             tr("種は反時計回りにまき、相手のストアは飛ばします。"),
             tr("終わったとき穴に残った種は、その側のストアに入ります。"),
+        ]
+    ) }
+
+    /// 四目並べ（#1738・企画倉庫）。図は `GameYonmoku` 側で `illustrated(_:)` を使って差し込む。
+    static var yonmoku: HowToPlayGuide { HowToPlayGuide(
+        gameID: "yonmoku",
+        title: tr("四目並べの遊び方"),
+        lines: [
+            tr("列をタップすると、石が上から落ちて、その列の一番下の空きに入ります。"),
+            tr("たて・よこ・ななめのどれかで先に 4 つ並べたら勝ちです。"),
+            tr("相手が 3 つ並べたら、4 つ目の場所を先にふさぎましょう。"),
+        ],
+        hint: tr("列をタップして石を落とそう"),
+        items: [
+            HowToPlayItem(tr("列をタップすると、石が上から落ちて、その列の一番下の空きに入ります。")),
+            HowToPlayItem(tr("たて・よこ・ななめのどれかで先に 4 つ並べたら勝ちです。")),
+            HowToPlayItem(tr("相手が 3 つ並べたら、4 つ目の場所を先にふさぎましょう。")),
+        ],
+        notes: [
+            tr("黒が先手です。盤が全部埋まったら引き分けです。"),
         ]
     ) }
 
@@ -776,7 +811,17 @@ public extension HowToPlayGuide {
             tr("どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。"),
         ],
         hint: tr("台札と1つ違いの札を重ねよう"),
-        hintIcon: "hare.fill"
+        hintIcon: "hare.fill",
+        items: [
+            HowToPlayItem(tr("台札は真ん中の 2 山。数字が 1 つ違いの札を、どちらかの台札に重ねます。")),
+            HowToPlayItem(tr("A と K もつながります。マークは関係ありません。")),
+            HowToPlayItem(tr("順番はなく、CPU も同時に出してきます。出したぶん、山札から手札に補充されます。")),
+            HowToPlayItem(tr("どちらも出せなくなったら「めくる」。両方の山札から 1 枚ずつ台札に置きます。")),
+            HowToPlayItem(tr("手札も山札も先に出し切ったほうの勝ちです。")),
+        ],
+        notes: [
+            tr("CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。"),
+        ]
     ) }
 
     /// ババ抜き（#1577・企画倉庫）。図は `GameOldMaid` 側で `illustrated(_:)` を使って差し込む。
@@ -963,6 +1008,7 @@ public extension HowToPlayGuide {
         .oldMaid,
         .hearts,
         .tsunagi, .hanoi,
+        .yonmoku,
     ] }
 }
 
@@ -1493,6 +1539,16 @@ public extension EnvironmentValues {
     }
 }
 
+/// 「遊び方」シートを開いているか（#2406）。`.howToPlay` が上へ流し、`gameTimerLifecycle` が読んで
+/// 計時を止める。環境値ではなく preference なのは、`gameTimerLifecycle` が `.howToPlay` より外側に
+/// 付くため（環境は下にしか流れない）。ゲームごとの `onPresent` を増やさずに済む。
+struct HowToPlayPresentedKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
@@ -1502,6 +1558,7 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .preference(key: HowToPlayPresentedKey.self, value: isPresented)
             .environment(\.howToPlayTrigger, HowToPlayTrigger {
                 onPresent?()
                 isPresented = true

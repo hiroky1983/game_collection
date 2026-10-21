@@ -15,5 +15,10 @@ struct FifteenLocalizationTests {
         // 日本語では従来の読み上げ文のまま。
         #expect(FifteenAccessibility.cellLabel(index: 6, value: 7) == "2行3列、7")
         #expect(FifteenAccessibility.cellLabel(index: 15, value: 0) == "4行4列、空き")
+        // 正位置は色だけでなく読み上げにも出す（#2322）。空きマスには付けない。
+        #expect(GameFifteen.tr("、正しい位置", language: .english) == ", in the right place")
+        #expect(FifteenAccessibility.cellLabel(index: 6, value: 7, isHome: true) == "2行3列、7、正しい位置")
+        #expect(FifteenAccessibility.cellLabel(index: 6, value: 7, isHint: true, isHome: true).hasPrefix("2行3列、7、正しい位置、ヒント"))
+        #expect(FifteenAccessibility.cellLabel(index: 15, value: 0, isHome: true) == "4行4列、空き")
     }
 }

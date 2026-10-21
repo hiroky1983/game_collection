@@ -36,7 +36,7 @@ struct RecordVariantLabelCoverageTests {
                 add("shogi", ShogiMatchSetting(handicap: handicap, dropper: dropper).recordVariant)
             }
         }
-        for rule in PokerRuleSet.allCases { add("poker", rule.recordVariant) }
+        add("poker", PokerModel.recordVariant)
         for length in MahjongGameLength.allCases { add("mahjong4", length.recordVariant) }
         for mode in RunnerMode.allCases { add("runner", mode.recordVariant) }
         for mode in SolitaireDrawMode.allCases { add("solitaire", mode.recordVariant) }

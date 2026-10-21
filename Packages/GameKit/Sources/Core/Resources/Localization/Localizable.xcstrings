@@ -146,17 +146,6 @@
         }
       }
     },
-    "10・J・Q・K は同じ 10 点なので、スプリットできます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "10, J, Q and K are all worth 10, so any two of them can be split."
-          }
-        }
-      }
-    },
     "12 の役をぜんぶ埋めたら終わり。1〜6 の目の小計が 63 点以上ならボーナス +35 点です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -642,17 +631,6 @@
         }
       }
     },
-    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“Hit” to draw a card, “Stand” to stop there. On your first 2 cards you can also “Double Down” (double your bet and draw just one card) or “Split” two cards of the same value (10, J, Q and K are all worth 10) into two hands."
-          }
-        }
-      }
-    },
     "「振る」でサイコロ 5 個を振ります。1 ターンに 3 回まで振れます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -895,13 +873,13 @@
         }
       }
     },
-    "くっつきフルーツの遊び方" : {
+    "おじさんの盆栽の遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "How to Play Fruit Merge"
+            "value" : "How to Play Ojisan no Bonsai"
           }
         }
       }
@@ -1133,6 +1111,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Each column, row, and bold 3×3 box can hold each number only once."
+          }
+        }
+      }
+    },
+    "たて・よこ・ななめのどれかで先に 4 つ並べたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line up 4 first (down, across, or diagonally) to win."
           }
         }
       }
@@ -1931,17 +1920,6 @@
         }
       }
     },
-    "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose how many chips to bet, and the cards are dealt."
-          }
-        }
-      }
-    },
     "チャリンコおじさんの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2393,13 +2371,13 @@
         }
       }
     },
-    "上の点線より上に果物がとどまるとゲームオーバー。大きく育てて高得点を狙いましょう。" : {
+    "上の点線より上に盆栽がとどまるとゲームオーバー。立派に育てて高得点を狙いましょう。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If fruit stays above the dotted line at the top, it's game over. Grow big fruit for a high score."
+            "value" : "If a bonsai stays above the dotted line at the top, it's game over. Grow them grand for a high score."
           }
         }
       }
@@ -2554,6 +2532,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap a tile to discard"
+          }
+        }
+      }
+    },
+    "列をタップして石を落とそう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a column to drop a stone"
+          }
+        }
+      }
+    },
+    "列をタップすると、石が上から落ちて、その列の一番下の空きに入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a column and your stone drops from the top into the lowest empty space."
           }
         }
       }
@@ -2899,13 +2899,13 @@
         }
       }
     },
-    "同じ果物どうしが触れるとくっついて、1 つ大きい果物になります。いちばん大きいのはメロンです。" : {
+    "同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。いちばん立派なのは金の松です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When two of the same fruit touch, they merge into the next bigger fruit. The biggest is the melon."
+            "value" : "When two of the same bonsai touch, they merge into the next, grander bonsai. The grandest is the Golden Pine."
           }
         }
       }
@@ -2983,6 +2983,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A winning shape still needs at least one yaku to win. Declare Riichi when you're in Tenpai to get one."
+          }
+        }
+      }
+    },
+    "四目並べの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Yonmoku Narabe"
           }
         }
       }
@@ -3357,28 +3368,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "See “Hand reference” at the top of the screen and “Detailed Rules” for the list of yaku."
-          }
-        }
-      }
-    },
-    "役の一覧は「くわしいルール」で見られます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "See “Detailed Rules” for the list of hands."
-          }
-        }
-      }
-    },
-    "役の強い側がポットのチップをもらえます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The stronger hand takes the chips in the pot."
           }
         }
       }
@@ -3867,17 +3856,6 @@
         }
       }
     },
-    "最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」も選べます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On your first 2 cards you can also “Double Down”: double your bet and draw just one more card."
-          }
-        }
-      }
-    },
     "最初はクラブの 2 から。出された札と同じスートを、順に 1 枚ずつ出します。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4318,6 +4296,17 @@
         }
       }
     },
+    "相手が 3 つ並べたら、4 つ目の場所を先にふさぎましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When your opponent has 3 in a row, block the fourth spot first."
+          }
+        }
+      }
+    },
     "相手が 4 つ並べたら、次の一手で止めましょう。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4571,13 +4560,13 @@
         }
       }
     },
-    "箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。" : {
+    "指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。離すとその真下の庭へ落とします。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slide your finger left or right above the box to aim, then let go to drop the fruit."
+            "value" : "Slide your finger left or right and Ojisan follows along the veranda with the bonsai. Let go to drop it into the garden below."
           }
         }
       }
@@ -5154,6 +5143,17 @@
         }
       }
     },
+    "黒が先手です。盤が全部埋まったら引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black moves first. If the board fills up, it's a draw."
+          }
+        }
+      }
+    },
     "黒は三三・四四・長連が打てない" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5176,57 +5176,431 @@
         }
       }
     },
-    "ポーカーの遊び方（ボーナスルール）" : {
+    "チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "How to Play Poker (Bonus Rules)"
+            "value" : "Pick a chip amount, then tap the spots you want to bet on. You can bet on several spots at once."
           }
         }
       }
     },
-    "勝つと役ごとのボーナス。さらにダブルアップに挑戦できます。" : {
+    "配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Win to earn a bonus for your hand, then try the Double-Up."
+            "value" : "Payouts: 35× for a single number, 2× for a dozen, and 1× for red/black and similar bets (your stake comes back too)."
           }
         }
       }
     },
-    "勝負に勝つと、ツーペア以上の役にポットとは別のボーナスがつきます。" : {
+    "0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Win a showdown with two pair or better to earn a bonus on top of the pot."
+            "value" : "0 is green. If 0 comes up, red/black, odd/even and similar bets all lose."
           }
         }
       }
     },
-    "勝って得たチップは、見せ札より次の札が上か下かを当てるダブルアップに賭けられます。当たれば倍、外れると失います。" : {
+    "「戻す」で、最後に置いた 1 口を外せます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You can bet your winnings on the Double-Up: guess whether the next card is higher or lower than the shown card. Win and you double it; lose and it's gone."
+            "value" : "Tap “Undo” to take back the last bet you placed."
           }
         }
       }
     },
-    "ダブルアップは続けて挑める回数に上限があり、同じ数字のときは引き直しです。" : {
+    "指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "There is a limit to how many times in a row you can Double-Up. If the numbers match, the card is redrawn."
+            "value" : "Slide your finger left and right, and Ojisan on the veranda follows, holding a bonsai."
+          }
+        }
+      }
+    },
+    "指を離すと、その真下の庭へ盆栽が落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lift your finger and the bonsai drops into the garden right below."
+          }
+        }
+      }
+    },
+    "同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two matching bonsai touch, they merge into one grander bonsai."
+          }
+        }
+      }
+    },
+    "盆栽は 11 種類。いちばん立派なのは金の松です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 11 kinds of bonsai. The grandest is the Golden Pine."
+          }
+        }
+      }
+    },
+    "上の点線より上に盆栽がとどまると、ゲームオーバーです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a bonsai stays above the dotted line at the top, the game is over."
+          }
+        }
+      }
+    },
+    "立派に育てるほど高得点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The grander they grow, the higher your score."
+          }
+        }
+      }
+    },
+    "場の札と同じ色か、同じ数字・記号の札を出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play a card of the same color, or the same number or symbol, as the top card of the pile."
+          }
+        }
+      }
+    },
+    "出せる札がなければ、山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have no card to play, draw one from the deck. If the drawn card can be played, you can play it right away."
+          }
+        }
+      }
+    },
+    "とばしは次の人の番を飛ばし、ぎゃくは回る向きを逆にします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip skips the next player's turn, and Reverse flips the direction of play."
+          }
+        }
+      }
+    },
+    "+2 は、次の人が 2 枚引いて番を飛ばされます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With +2, the next player draws 2 cards and loses their turn."
+          }
+        }
+      }
+    },
+    "いろがえはどの札の上にも出せて、次の色を選べます。いろがえ+4 は次の人が 4 枚引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Change can go on any card and lets you pick the next color. With Color Change +4, the next player draws 4 cards."
+          }
+        }
+      }
+    },
+    "手札を先になくした人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first player to get rid of all their cards wins."
+          }
+        }
+      }
+    },
+    "あなたは白。サイコロの目のぶん、駒を右下の自陣へ向けて進めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play White. Move your checkers by the numbers rolled, toward your home board at the bottom right."
+          }
+        }
+      }
+    },
+    "動かす駒 → 行き先の順にタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the checker to move, then where it goes."
+          }
+        }
+      }
+    },
+    "相手の駒が 2 個以上あるポイントには止まれません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't land on a point with 2 or more opposing checkers."
+          }
+        }
+      }
+    },
+    "相手の駒が 1 個だけなら、叩いてバー（中央）へ送れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If there's only 1 opposing checker, you can hit it and send it to the bar (center)."
+          }
+        }
+      }
+    },
+    "15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once all 15 checkers are in your home board (points 1-6), bear them off to the tray on the right."
+          }
+        }
+      }
+    },
+    "バーに自分の駒があるときは、先にその駒を盤へ戻さないと、他の駒を動かせません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While you have a checker on the bar, you must bring it back onto the board before moving any other checker."
+          }
+        }
+      }
+    },
+    "先に 15 個すべてをあげたほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first to bear off all 15 checkers wins."
+          }
+        }
+      }
+    },
+    "台札は真ん中の 2 山。数字が 1 つ違いの札を、どちらかの台札に重ねます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two piles in the middle are the target piles. Play a card whose number is one higher or lower onto either pile."
+          }
+        }
+      }
+    },
+    "A と K もつながります。マークは関係ありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A and K connect, too. Suits don't matter."
+          }
+        }
+      }
+    },
+    "順番はなく、CPU も同時に出してきます。出したぶん、山札から手札に補充されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no turns — the CPU plays at the same time. Cards you play are replaced from your stock."
+          }
+        }
+      }
+    },
+    "どちらも出せなくなったら「めくる」。両方の山札から 1 枚ずつ台札に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles."
+          }
+        }
+      }
+    },
+    "手札も山札も先に出し切ったほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first to play out both hand and stock wins."
+          }
+        }
+      }
+    },
+    "CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+          }
+        }
+      }
+    },
+    "ディーラーと 10 回勝負します。勝てば 1 点、最初の 2 枚の 21（ブラックジャック）で勝てば 2 点。10 回の合計が自己ベストになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds against the dealer. A win scores 1 point, and winning with 21 on your first two cards (a blackjack) scores 2. Your 10-round total counts toward your personal best."
+          }
+        }
+      }
+    },
+    "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚が同じ点数（10・J・Q・K は同じ 10 点）なら、2 手に分ける「スプリット」も選べます。分けた手はそれぞれ勝てば 1 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Hit to draw another card, or Stand to stop. If your first two cards have the same value (10, J, Q and K all count as 10), you can Split them into two hands. Each split hand scores 1 point if it wins."
+          }
+        }
+      }
+    },
+    "ディーラーと 10 回勝負。勝てば 1 点、ブラックジャックで勝てば 2 点で、10 回の合計が自己ベストになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 rounds against the dealer. A win scores 1 point, a blackjack win scores 2, and your 10-round total counts toward your personal best."
+          }
+        }
+      }
+    },
+    "10・J・Q・K は同じ 10 点なので、スプリットできます。分けた手はそれぞれ勝てば 1 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10, J, Q and K all count as 10, so you can split them. Each split hand scores 1 point if it wins."
+          }
+        }
+      }
+    },
+    "負けた回は、広告を見て 1 回だけやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once per match, you can watch an ad to replay a round you lost."
+          }
+        }
+      }
+    },
+    "10 回勝負。勝った回は自分の役の点が入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds. Each round you win scores the points of your hand."
+          }
+        }
+      }
+    },
+    "CPU と手札を見せ合い、役の強い側がその回の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show hands with the CPU. The stronger hand wins the round."
+          }
+        }
+      }
+    },
+    "10 回勝負。勝った回は自分の役の点が入り、合計点の多い側が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 10 rounds. Each round you win scores the points of your hand, and the higher total wins."
+          }
+        }
+      }
+    },
+    "役の一覧と点数は「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See “Detailed Rules” for the list of hands and their points."
+          }
+        }
+      }
+    },
+    "広告を見ると、10 回のうち 1 度だけもう 1 回カードを交換できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to draw cards one more time, once per 10 rounds."
           }
         }
       }

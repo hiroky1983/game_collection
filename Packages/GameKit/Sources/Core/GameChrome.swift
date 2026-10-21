@@ -28,7 +28,8 @@ public struct GameChromeReference {
     }
 }
 
-/// ヘッダー右の「新規」ボタン（#1418）。種類ごとに絵柄と読み上げ名が決まる（会長決裁 #1011）。
+/// ヘッダー右の「新規」ボタン（#1418）。種類ごとに読み上げ名が決まる（会長決裁 #1011）。
+/// 絵柄は種類によらず `plus.circle.fill` の 1 つにそろえる（#2370。アクションだけ `arrow.clockwise` で＋と⟳が混ざっていた）。
 public struct GameChromeNewGame {
     public enum Kind {
         /// 対戦ゲーム（CPU 戦）＝「新規対局」。
@@ -46,12 +47,8 @@ public struct GameChromeNewGame {
             }
         }
 
-        var systemImage: String {
-            switch self {
-            case .match, .solo: "plus.circle.fill"
-            case .restart: "arrow.clockwise"
-            }
-        }
+        /// 全種類で同じ絵柄（#2370）。種類の違いは読み上げ名だけで表す。
+        var systemImage: String { "plus.circle.fill" }
     }
 
     let kind: Kind
@@ -84,8 +81,8 @@ public extension View {
     /// ゲーム側からは変えられない（#1418。並びが各ゲームの書き方しだいだった）。
     ///
     /// ナビバーの背景は全ゲームで画面の背景色（`Theme.background`）に揃え、ツールバーのボタンは
-    /// `Theme.coral` に固定する（#1412・会長決裁 2026-09-25。既定の白い帯がクリーム色の画面と
-    /// 食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
+    /// `Theme.coralText`（文字用の濃い赤・#2377）に固定する（#1412・会長決裁 2026-09-25。既定の白い帯が
+    /// クリーム色の画面と食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
     func gameChrome<Actions: ToolbarContent>(
         title: String,
         review: ReviewRequestService?,
@@ -159,7 +156,7 @@ private struct GameChromeBase: ViewModifier {
             .navigationBarBackButtonHidden(true)
             .modifier(NavigationBarBackgroundMatch())
             #endif
-            .tint(Theme.coral)
+            .tint(Theme.coralText)
     }
 }
 

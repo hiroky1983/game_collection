@@ -38,7 +38,7 @@ enum TsunagiHowToFigures {
                 RuleFrames(count: 2, spacing: 10) { index in
                     Board(paths: index == 0 ? [[], []] : [TsunagiHowToFigures.sample.solution[0], []])
                 }
-                RuleFigureLabel(tr("点からなぞる"), color: Theme.coral)
+                RuleFigureLabel(tr("点からなぞる"), color: Theme.coralText)
             }
         }
     }
@@ -50,7 +50,7 @@ enum TsunagiHowToFigures {
                 RuleFrames(count: 2, spacing: 10) { index in
                     Board(paths: index == 0 ? [[0, 1, 2, 5], []] : [[0, 1, 2], [8, 5]])
                 }
-                RuleFigureLabel(tr("触れた線は切れる"), color: Theme.coral)
+                RuleFigureLabel(tr("触れた線は切れる"), color: Theme.coralText)
             }
         }
     }
@@ -60,7 +60,7 @@ enum TsunagiHowToFigures {
         var body: some View {
             VStack(spacing: 4) {
                 Board(paths: TsunagiHowToFigures.sample.solution)
-                RuleFigureLabel(tr("全マスを埋めたらクリア"), color: Theme.coral)
+                RuleFigureLabel(tr("全マスを埋めたらクリア"), color: Theme.coralText)
             }
         }
     }

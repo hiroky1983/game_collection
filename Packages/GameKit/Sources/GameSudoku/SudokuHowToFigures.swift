@@ -90,7 +90,7 @@ enum SudokuHowToFigures {
                                 .fill(n == 5 ? Theme.Fill.coral : Theme.inkSub.opacity(0.15)))
                     }
                 }
-                RuleFigureLabel(tr("マスを選んで数字をタップ"), color: Theme.coral)
+                RuleFigureLabel(tr("マスを選んで数字をタップ"), color: Theme.coralText)
             }
         }
     }

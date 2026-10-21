@@ -41,7 +41,7 @@ enum DiceComboHowToFigures {
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Capsule().fill(Theme.Fill.coral))
-                    RuleFigureLabel(tr("3回まで"), color: Theme.coral)
+                    RuleFigureLabel(tr("3回まで"), color: Theme.coralText)
                 }
             }
         }
@@ -55,7 +55,7 @@ enum DiceComboHowToFigures {
                     Dice(values: index == 0 ? [3, 6, 2, 6, 5] : [6, 6, 1, 6, 4],
                          held: index == 0 ? [1, 3] : [], side: 22)
                 }
-                RuleFigureLabel(tr("キープした目は残る"), color: Theme.coral)
+                RuleFigureLabel(tr("キープした目は残る"), color: Theme.coralText)
             }
         }
     }
@@ -89,7 +89,7 @@ enum DiceComboHowToFigures {
                 Text(verbatim: "→")
                     .scaledFont(14, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(Theme.inkSub)
-                RuleFigureLabel(tr("%1$@ %2$lld点", name, points), color: Theme.coral)
+                RuleFigureLabel(tr("%1$@ %2$lld点", name, points), color: Theme.coralText)
             }
         }
     }

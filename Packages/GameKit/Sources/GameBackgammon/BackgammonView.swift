@@ -44,7 +44,7 @@ public struct BackgammonView: View {
                     newGame: GameChromeNewGame(.match) {
                         showNewGame = true
                     })
-        .howToPlay(.backgammon)
+        .howToPlay(HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             BackgammonNewGameSheet(aiLevel: model.aiLevel) { level in
                 model.newGame(aiLevel: level)
@@ -266,10 +266,10 @@ public struct BackgammonView: View {
                     let isWin = model.winner == model.humanSide
                     Image(systemName: isWin ? "trophy.fill" : "flag.fill")
                         .scaledFont(40, maxScale: 1.2)
-                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                        .foregroundStyle(isWin ? Theme.yellowText : Theme.coralText)
                     Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
                         .scaledFont(24, weight: .bold, design: .rounded)
-                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                        .foregroundStyle(isWin ? Theme.tealText : Theme.coralText)
                     if let kind = model.winKind, kind != .single {
                         Text(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
                             .scaledFont(15, weight: .bold, design: .rounded)

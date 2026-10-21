@@ -136,6 +136,8 @@ public enum GameCenterLeaderboard {
     // 高いほど良い（App Store Connect では「High to Low」で登録する）
     public static let game2048Score  = "asobiba.2048.score"
     public static let pokerChips     = "asobiba.poker.chips"
+    /// ブラックジャックの以前の順位表（#2552 で送信をやめた）。10 回勝負の勝ち点とは意味が違うので、対応表にも `allIDs` にも入れない。
+    /// App Store Connect に登録済みの ID を控えとして残している。
     public static let blackjackChips = "asobiba.blackjack.chips"
     /// ブロック崩し（#463）。ステージ構成は全員共通で、同じ条件で比べられるため対象にする。
     public static let blocksScore    = "asobiba.blocks.score"
@@ -190,7 +192,7 @@ public enum GameCenterLeaderboard {
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
-        game2048Score, pokerChips, blackjackChips, blocksScore, runnerStage,
+        game2048Score, pokerChips, blocksScore, runnerStage,
         runnerDistance, hanafudaPoints, rouletteChips, fruitsScore,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
@@ -238,7 +240,6 @@ public enum GameCenterLeaderboard {
         switch gameID {
         case "2048":      return game2048Score
         case "poker":     return pokerChips
-        case "blackjack": return blackjackChips
         // ブロック崩し（#463）。コンティニュー（リワード広告）を使った回は
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
         case "blocks":    return blocksScore

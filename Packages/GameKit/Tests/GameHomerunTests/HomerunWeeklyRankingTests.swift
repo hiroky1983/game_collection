@@ -101,11 +101,15 @@ struct HomerunWeeklyRankingTests {
 
     // MARK: 文言
 
-    @Test("距離は 100 万 m 未満は m、以上は km（切り捨て・桁区切り）")
+    @Test("距離は 100 万 m 未満は m、以上は km + 端数の m（桁区切り）")
     func distanceText() {
         #expect(HomerunRankingText.distance(1_206) == "1,206 m")
         #expect(HomerunRankingText.distance(999_999) == "999,999 m")
-        #expect(HomerunRankingText.distance(384_401_440) == "384,401 km")
+        #expect(HomerunRankingText.distance(384_401_440) == "384,401 km + 440 m")
+        #expect(HomerunRankingText.distance(384_400_812) == "384,400 km + 812 m")
+        #expect(HomerunRankingText.distance(384_400_000) == "384,400 km + 0 m")
+        #expect(HomerunRankingText.distance(384_400_999) == "384,400 km + 999 m")
+        #expect(HomerunRankingText.distance(768_800_530) == "768,800 km + 530 m")
     }
 
     @Test("月の補足は 0 回なし・1 回「月まで飛んだ」・2 回「月を割った」")

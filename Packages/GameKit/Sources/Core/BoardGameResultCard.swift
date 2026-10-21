@@ -53,16 +53,16 @@ public struct BoardGameResultCard: View {
 
     private var accent: Color {
         switch verdict {
-        case .win: return Theme.teal
-        case .loss: return Theme.coral
+        case .win: return Theme.tealText
+        case .loss: return Theme.coralText
         case .draw: return Theme.inkSub
         }
     }
 
     private var symbol: (name: String, color: Color) {
         switch verdict {
-        case .win: return ("trophy.fill", Theme.yellow)
-        case .loss: return ("flag.fill", Theme.coral)
+        case .win: return ("trophy.fill", Theme.yellowText)
+        case .loss: return ("flag.fill", Theme.coralText)
         case .draw: return ("equal.circle.fill", Theme.inkSub)
         }
     }

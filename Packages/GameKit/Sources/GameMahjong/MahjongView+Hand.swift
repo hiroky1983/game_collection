@@ -283,7 +283,7 @@ extension MahjongView {
                     .scaledFont(11, weight: .bold, design: .rounded)
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
-            .foregroundStyle(model.isPlayerFuriten ? Theme.inkSub : Theme.coral)
+            .foregroundStyle(model.isPlayerFuriten ? Theme.inkSub : Theme.coralText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }

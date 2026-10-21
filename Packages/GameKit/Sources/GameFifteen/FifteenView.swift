@@ -129,7 +129,7 @@ public struct FifteenView: View {
                             )
                             .onTapGesture { model.tap(at: index) }
                             .accessibilityElement()
-                            .accessibilityLabel(FifteenAccessibility.cellLabel(index: index, value: value, isHint: index == model.hintIndex))
+                            .accessibilityLabel(FifteenAccessibility.cellLabel(index: index, value: value, isHint: index == model.hintIndex, isHome: index == value - 1))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { withGameAnimation { model.tap(at: index) } }
                     }
@@ -177,6 +177,16 @@ struct FifteenTile: View {
                     .font(.system(size: side * 0.42, weight: .heavy, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(Theme.onAccent)
+            }
+            .overlay(alignment: .topTrailing) {
+                // 正位置は色だけでなくチェック印でも示す（色覚特性・#2322）。
+                if isHome {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: side * 0.18, weight: .black)) // fixed-size: タイルの寸法に比例させる印
+                        .foregroundStyle(Theme.onAccent.opacity(0.8))
+                        .padding(side * 0.08)
+                        .accessibilityHidden(true)
+                }
             }
             .overlay {
                 if isHint {
