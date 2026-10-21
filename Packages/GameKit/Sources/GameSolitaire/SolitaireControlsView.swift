@@ -87,7 +87,8 @@ struct SolitaireControlsView: View {
 
     private var hintNudge: HintNudge {
         HintNudge(
-            isEligible: model.canUseHint && !isWatchingHintAd && !model.showsRescuePrompt,
+            isEligible: HintNudgePolicy.isEligible(
+                canUseHint: model.canUseHint, isWatchingAd: isWatchingHintAd, showsBlockingPanel: model.showsRescuePrompt),
             game: model.dealSerial,
             activity: [model.moveCount, model.hints.used]
         )

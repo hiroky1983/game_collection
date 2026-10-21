@@ -27,6 +27,23 @@ struct HintNudgeTests {
                                              shownCount: HintNudgePolicy.maxPerGame))
     }
 
+    @Test("救済・行き止まりのパネルを出している間は促しの待ち時間を数えない（#2601）")
+    func blockingPanelSuppressesTheNudge() throws {
+        #expect(HintNudgePolicy.isEligible(canUseHint: true, isWatchingAd: false, showsBlockingPanel: false))
+        #expect(!HintNudgePolicy.isEligible(canUseHint: true, isWatchingAd: false, showsBlockingPanel: true))
+        #expect(!HintNudgePolicy.isEligible(canUseHint: true, isWatchingAd: true, showsBlockingPanel: false))
+        #expect(!HintNudgePolicy.isEligible(canUseHint: false, isWatchingAd: false, showsBlockingPanel: false))
+        let panelShown = HintNudgePolicy.isEligible(canUseHint: true, isWatchingAd: false, showsBlockingPanel: true)
+        #expect(!HintNudgePolicy.canSchedule(isEligible: panelShown, isActive: true, isMenuOpen: false, shownCount: 0))
+        // 3 ゲームとも共通の組み立てを通し、パネルの表示状態を渡している。
+        for (path, panel) in [("GameSpider/SpiderView.swift", "showsDeadEndPrompt"),
+                              ("GameFreeCell/FreeCellView.swift", "showsDeadEndPrompt"),
+                              ("GameSolitaire/SolitaireControlsView.swift", "showsRescuePrompt")] {
+            let src = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
+            #expect(src.contains("showsBlockingPanel: model.\(panel)"), "\(path) が促しにパネルの表示を渡していない")
+        }
+    }
+
     @Test("「⋯」の行はメニューの開閉を吹き出しに渡し、開閉で待ち時間を数え直す")
     func overflowBarWiresMenuState() throws {
         let bar = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameOverflowBar.swift"))

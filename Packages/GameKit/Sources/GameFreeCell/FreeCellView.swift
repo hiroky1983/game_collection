@@ -688,7 +688,8 @@ public struct FreeCellView: View {
 
     private var hintNudge: HintNudge {
         HintNudge(
-            isEligible: model.canUseHint && !hintRescue.isWatching,
+            isEligible: HintNudgePolicy.isEligible(
+                canUseHint: model.canUseHint, isWatchingAd: hintRescue.isWatching, showsBlockingPanel: model.showsDeadEndPrompt),
             game: model.dealSerial,
             activity: [model.moveCount, model.hints.used]
         )
