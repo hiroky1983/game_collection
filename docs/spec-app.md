@@ -24,7 +24,7 @@ Packages/GameKit/
     MahjongTiles/       ← 麻雀牌の絵柄と描画（`MahjongTile`・牌ビュー・ギャラリー。麻雀ソリティアと四人打ち麻雀で共有し、各ゲームで描き直さない）
     Game2048/           ← 2048
     GameShogi/          ← 将棋
-    GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録）
+    GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録。※ release/v1.1.14 で実装・main へは未取り込み）
     GameSudoku/         ← ナンプレ
     GameOthello/        ← オセロ
     GameGo/             ← 囲碁
