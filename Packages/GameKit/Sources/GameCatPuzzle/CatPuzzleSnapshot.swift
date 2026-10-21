@@ -12,9 +12,11 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
     public var hintsUsed: Int
     /// ヒントで置いた猫のマス（印付き・消せない）。鍵は optional で足してある（鍵の無い旧データも読める）。
     public var hintCells: [Int]?
+    /// ヒントで置いた × のマス（印付き・消せない）。同じく optional。
+    public var hintCrosses: [Int]?
 
     public init(size: String, puzzle: CatPuzzle, marks: [Int], elapsedSeconds: Int,
-                mistakes: Int, hintsUsed: Int, hintCells: [Int]? = nil) {
+                mistakes: Int, hintsUsed: Int, hintCells: [Int]? = nil, hintCrosses: [Int]? = nil) {
         self.size = size
         self.puzzle = puzzle
         self.marks = marks
@@ -22,6 +24,7 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         self.mistakes = mistakes
         self.hintsUsed = hintsUsed
         self.hintCells = hintCells
+        self.hintCrosses = hintCrosses
     }
 
     /// 続きから再開できる中断データか（正しい問題・印が 1 つ以上・まだ解けていない）。
@@ -43,6 +46,10 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         // ヒントで置いた猫は盤の中にあり、そのマスの印は猫。
         for cell in snap.hintCells ?? [] {
             guard (0..<snap.puzzle.cellCount).contains(cell), snap.marks[cell] == CatPuzzleModel.Mark.cat.rawValue else { return false }
+        }
+        // ヒントで置いた × も盤の中にあり、そのマスの印は ×。
+        for cell in snap.hintCrosses ?? [] {
+            guard (0..<snap.puzzle.cellCount).contains(cell), snap.marks[cell] == CatPuzzleModel.Mark.cross.rawValue else { return false }
         }
         return true
     }

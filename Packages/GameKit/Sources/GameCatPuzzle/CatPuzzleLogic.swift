@@ -44,6 +44,8 @@ public struct CatPuzzle: Codable, Equatable, Sendable {
 }
 
 /// 置いた猫どうしの矛盾（#2250 の受け入れ条件「色だけでなく印でも示す」の元になる情報）。
+/// 違反している行・列・部屋をまるごと帯で示せるよう、関わる猫のマスだけでなく、
+/// 2 匹いる行・列・部屋の番号と、隣り合っている猫の組も持つ（会長 QA 2026-10-21・build 41）。
 public struct CatPuzzleViolations: Equatable, Sendable {
     public enum Kind: Hashable, Sendable, CaseIterable {
         /// 同じ行に 2 匹。
@@ -56,32 +58,39 @@ public struct CatPuzzleViolations: Equatable, Sendable {
         case adjacent
     }
 
+    /// 隣り合っている猫の組（`a` < `b`）。
+    public struct Pair: Hashable, Sendable {
+        public let a: Int
+        public let b: Int
+        public init(_ x: Int, _ y: Int) {
+            a = min(x, y)
+            b = max(x, y)
+        }
+    }
+
     /// 矛盾に関わっている猫のマス（両方の猫）。
     public var cells: Set<Int> = []
     public var kinds: Set<Kind> = []
+    /// 2 匹以上いる行の番号。
+    public var rows: Set<Int> = []
+    /// 2 匹以上いる列の番号。
+    public var columns: Set<Int> = []
+    /// 2 匹以上いる部屋の番号。
+    public var rooms: Set<Int> = []
+    /// 隣り合っている猫の組。
+    public var adjacentPairs: Set<Pair> = []
 
-    public init(cells: Set<Int> = [], kinds: Set<Kind> = []) {
+    public init(cells: Set<Int> = [], kinds: Set<Kind> = [],
+                rows: Set<Int> = [], columns: Set<Int> = [], rooms: Set<Int> = [], adjacentPairs: Set<Pair> = []) {
         self.cells = cells
         self.kinds = kinds
+        self.rows = rows
+        self.columns = columns
+        self.rooms = rooms
+        self.adjacentPairs = adjacentPairs
     }
 
     public var isEmpty: Bool { cells.isEmpty }
-}
-
-/// ヒント 1 回ぶんの中身（`CatPuzzleLogic.hint`）。`placed` に猫を置き、`removed` の猫を × に変える。
-public struct CatPuzzleHint: Equatable, Sendable {
-    /// 対象の部屋（`CatPuzzle.rooms` の値）。
-    public let room: Int
-    /// 猫を置くマス。部屋の答えの猫がすでにあれば nil。
-    public let placed: Int?
-    /// × に変える、答えでない位置の猫のマス（昇順）。
-    public let removed: [Int]
-
-    public init(room: Int, placed: Int?, removed: [Int]) {
-        self.room = room
-        self.placed = placed
-        self.removed = removed
-    }
 }
 
 /// おじさんの飼い猫パズルの純粋ロジック（#2250）。生成・解の数え上げ・矛盾の判定・ヒント。
@@ -154,10 +163,10 @@ public enum CatPuzzleLogic {
             for j in (i + 1)..<cats.count {
                 let a = cats[i], b = cats[j]
                 var hit = false
-                if a / n == b / n { result.kinds.insert(.row); hit = true }
-                if a % n == b % n { result.kinds.insert(.column); hit = true }
-                if puzzle.rooms[a] == puzzle.rooms[b] { result.kinds.insert(.room); hit = true }
-                if isAdjacent(a, b, side: n) { result.kinds.insert(.adjacent); hit = true }
+                if a / n == b / n { result.kinds.insert(.row); result.rows.insert(a / n); hit = true }
+                if a % n == b % n { result.kinds.insert(.column); result.columns.insert(a % n); hit = true }
+                if puzzle.rooms[a] == puzzle.rooms[b] { result.kinds.insert(.room); result.rooms.insert(puzzle.rooms[a]); hit = true }
+                if isAdjacent(a, b, side: n) { result.kinds.insert(.adjacent); result.adjacentPairs.insert(.init(a, b)); hit = true }
                 if hit {
                     result.cells.insert(a)
                     result.cells.insert(b)
@@ -171,57 +180,6 @@ public enum CatPuzzleLogic {
     /// 鳩の巣原理でどの行・列・部屋にもちょうど 1 匹になる。
     public static func isSolved(puzzle: CatPuzzle, cats: [Int]) -> Bool {
         cats.count == puzzle.side && violations(puzzle: puzzle, cats: cats).isEmpty
-    }
-
-    // MARK: - ヒント
-
-    /// 次のヒントの中身（会長の決まり・2026-10-21、#2250）。ヒントは「マスを示す」のではなく
-    /// **盤を 1 歩進める**: 猫を実際に置き、間違った猫があれば × に変える。
-    ///
-    /// 1. すでに正しい位置に猫がある部屋（＝その行・列）は対象にしない。
-    /// 2. 答えでない位置に猫がある部屋があれば、まずそれを正す（違う猫を × にし、その部屋の答えの
-    ///    マスに猫を置く。答えの猫がすでにあって余分な猫だけなら × にするだけ）。
-    /// 3. それ以外は、まだ猫のいない部屋のうち、いま推理で決めやすい（候補マスが最も少ない）部屋の答えに置く。
-    /// 4. 置いた猫は `CatPuzzleModel.hintCells` で印付き・消せない扱いにする。
-    /// 5. 盤が解けていれば nil（ヒントは押せない）。
-    /// 6. 返す値は必ず盤を変える（`placed` か `removed` のどちらかが空でない）。
-    public static func hint(puzzle: CatPuzzle, marks: [CatPuzzleModel.Mark]) -> CatPuzzleHint? {
-        let n = puzzle.side
-        let solution = Set(puzzle.solutionCells)
-        let cats = marks.indices.filter { marks[$0] == .cat }
-        /// 部屋ごとの答えのマス（`isWellFormed` により部屋 1 つに 1 マス）。
-        func answer(ofRoom room: Int) -> Int? { puzzle.solutionCells.first { puzzle.rooms[$0] == room } }
-
-        // 2. 答えでない位置の猫を正す。答えの猫がまだ無い部屋を優先し、同じなら部屋の番号の若い順。
-        let wrong = cats.filter { !solution.contains($0) }
-        if !wrong.isEmpty {
-            let rooms = Set(wrong.map { puzzle.rooms[$0] })
-            let room = rooms.min { a, b in
-                let aMissing = answer(ofRoom: a).map { marks[$0] != .cat } ?? false
-                let bMissing = answer(ofRoom: b).map { marks[$0] != .cat } ?? false
-                return aMissing != bMissing ? aMissing : a < b
-            }!
-            let removed = wrong.filter { puzzle.rooms[$0] == room }.sorted()
-            let placed = answer(ofRoom: room).flatMap { marks[$0] == .cat ? nil : $0 }
-            return CatPuzzleHint(room: room, placed: placed, removed: removed)
-        }
-
-        // 3. 置いてある猫は全部正しい。まだ猫のいない部屋のうち、候補のマスが最も少ない部屋の答えに置く。
-        //    候補 = その部屋で × でなく、置いた猫と同じ行・列になく、隣り合わないマス（答えのマスは常に候補）。
-        var best: (room: Int, cell: Int, candidates: Int)?
-        for cell in puzzle.solutionCells where marks[cell] != .cat {
-            let room = puzzle.rooms[cell]
-            let candidates = puzzle.cells(inRoom: room).filter { candidate in
-                marks[candidate] != .cross && !cats.contains { cat in
-                    cat / n == candidate / n || cat % n == candidate % n || isAdjacent(cat, candidate, side: n)
-                }
-            }.count
-            if best == nil || candidates < best!.candidates || (candidates == best!.candidates && room < best!.room) {
-                best = (room, cell, candidates)
-            }
-        }
-        guard let best else { return nil }
-        return CatPuzzleHint(room: best.room, placed: best.cell, removed: [])
     }
 
     // MARK: - 解の数え上げ

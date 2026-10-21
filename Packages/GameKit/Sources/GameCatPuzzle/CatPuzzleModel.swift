@@ -37,7 +37,9 @@ public final class CatPuzzleModel {
     public private(set) var hintsUsed = 0
     /// ヒントで置いた猫のマス（印付き・タップでも「戻す」「やり直し」でも消えない。会長の決まり 2026-10-21）。
     public private(set) var hintCells: Set<Int> = []
-    /// 直近のヒントの中身（盤の下の一言と、置いた・× にしたマスの枠に使う）。次の操作で消える。保存しない。
+    /// ヒントで置いた × のマス（印付き・猫と同じく消えない。推理の 1 歩で確定した「いない」マス）。
+    public private(set) var hintCrosses: Set<Int> = []
+    /// 直近のヒントの中身（盤の下の理由の文と、光らせる行・列・部屋、置いた・× にしたマスの枠に使う）。次の操作で消える。保存しない。
     public private(set) var lastHint: CatPuzzleHint?
     /// 最初の 1 手からの経過秒。開いて眺めているだけの時間は数えない。
     public private(set) var elapsedSeconds = 0
@@ -72,6 +74,7 @@ public final class CatPuzzleModel {
             mistakes = snap.mistakes
             hintsUsed = snap.hintsUsed
             hintCells = Set(snap.hintCells ?? [])
+            hintCrosses = Set(snap.hintCrosses ?? [])
             violations = CatPuzzleLogic.violations(puzzle: snap.puzzle, cats: Self.cats(in: marks))
         } else {
             self.size = size
@@ -107,7 +110,7 @@ public final class CatPuzzleModel {
     /// いま使えるヒントの回数（無料ぶんの残り）。
     public var hintsRemaining: Int { max(0, Self.freeHints - hintsUsed) }
 
-    /// 次のヒントの中身（選び方は `CatPuzzleLogic.hint`）。解けていれば nil。
+    /// 次のヒントの中身（推理の 1 歩。選び方は `CatPuzzleLogic.hint`）。解けていれば nil。
     public var nextHint: CatPuzzleHint? { CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) }
 
     /// ヒントを押せるか。解けている・無料ぶんを使い切った・盤を進める手が無いときは押せない（回数は減らない）。
@@ -119,9 +122,9 @@ public final class CatPuzzleModel {
 
     // MARK: - 操作
 
-    /// マスをタップする。×（いない）→ 猫 → 空 の順に変わる。ヒントで置いた猫のマスは変わらない。
+    /// マスをタップする。×（いない）→ 猫 → 空 の順に変わる。ヒントで置いた猫・× のマスは変わらない。
     public func tap(cell: Int) {
-        guard !isSolved, marks.indices.contains(cell), !hintCells.contains(cell) else { return }
+        guard !isSolved, marks.indices.contains(cell), !hintCells.contains(cell), !hintCrosses.contains(cell) else { return }
         history.append(marks)
         lastHint = nil
         let next: Mark
@@ -153,11 +156,11 @@ public final class CatPuzzleModel {
         }
     }
 
-    /// 直前のタップを取り消す。ヒントで置いた猫は戻しても残る。
+    /// 直前のタップを取り消す。ヒントで置いた猫・× は戻しても残る。
     public func undo() {
         guard canUndo, let previous = history.popLast() else { return }
         marks = previous
-        keepHintCats()
+        keepHintMarks()
         lastHint = nil
         moves += 1
         refreshViolations()
@@ -165,25 +168,28 @@ public final class CatPuzzleModel {
         persist()
     }
 
-    /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫も残る。
+    /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫・× も残る。
     public func reset() {
         guard !isSolved else { return }
         history.removeAll()
         marks = Array(repeating: .empty, count: puzzle.cellCount)
-        keepHintCats()
+        keepHintMarks()
         lastHint = nil
         refreshViolations()
         services?.feedback.impact(.light)
-        // 印の無い盤は保存しない（開いただけの盤を「続き」にしない）。ヒントの猫があれば保存する。
+        // 印の無い盤は保存しない（開いただけの盤を「続き」にしない）。ヒントの印があれば保存する。
         persist()
     }
 
-    /// ヒントを 1 回使う。答えの猫を 1 匹置き（置いた猫は印付き・消せない）、答えでない位置の猫があれば
-    /// 先にそれを × に変える（`CatPuzzleLogic.hint`）。回数は必ず 1 だけ減り、盤は必ず 1 歩進む。
-    /// 置いた結果で盤が完成すればそのままクリア。
+    /// ヒントを 1 回使う。推理の 1 歩（`CatPuzzleLogic.hint`）を盤に反映する: 確定した × を置き、猫が確定する
+    /// ときだけ猫を置く。答えでない位置の猫があれば先にそれを × に変える。ヒントで置いた猫・× は印付きで消せない。
+    /// 回数は必ず 1 だけ減り、盤は必ず 1 歩進む。置いた結果で盤が完成すればそのままクリア。
     public func useHint() {
         guard canHint, let hint = nextHint else { return }
-        for cell in hint.removed { marks[cell] = .cross }
+        for cell in hint.removed + hint.crossed {
+            marks[cell] = .cross
+            hintCrosses.insert(cell)
+        }
         if let placed = hint.placed {
             marks[placed] = .cat
             hintCells.insert(placed)
@@ -203,9 +209,10 @@ public final class CatPuzzleModel {
         }
     }
 
-    /// ヒントで置いた猫を盤に戻す（「戻す」「やり直し」で消えないように）。
-    private func keepHintCats() {
+    /// ヒントで置いた猫・× を盤に戻す（「戻す」「やり直し」で消えないように）。
+    private func keepHintMarks() {
         for cell in hintCells where marks.indices.contains(cell) { marks[cell] = .cat }
+        for cell in hintCrosses where marks.indices.contains(cell) { marks[cell] = .cross }
     }
 
     /// 新規ゲーム。`size` を渡すと盤の大きさを変える。
@@ -219,6 +226,7 @@ public final class CatPuzzleModel {
         mistakes = 0
         hintsUsed = 0
         hintCells = []
+        hintCrosses = []
         lastHint = nil
         elapsedSeconds = 0
         moves = 0
@@ -288,7 +296,8 @@ public final class CatPuzzleModel {
         }
         let snapshot = CatPuzzleSnapshot(
             size: size.rawValue, puzzle: puzzle, marks: marks.map(\.rawValue),
-            elapsedSeconds: elapsedSeconds, mistakes: mistakes, hintsUsed: hintsUsed, hintCells: hintCells.sorted()
+            elapsedSeconds: elapsedSeconds, mistakes: mistakes, hintsUsed: hintsUsed, hintCells: hintCells.sorted(),
+            hintCrosses: hintCrosses.sorted()
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }

@@ -33,23 +33,57 @@ struct CatPuzzleRenderTests {
         return model
     }
 
-    /// ヒントを使った直後（違う場所に置いた猫を × にして、正しいマスに猫を置いた場面）。
-    private static func hintModel() -> CatPuzzleModel {
-        let model = playingModel()
-        let answers = model.puzzle.solutionCells
-        let room = model.puzzle.rooms[answers[4]]
-        if let wrong = model.puzzle.cells(inRoom: room).first(where: { $0 != answers[4] && model.marks[$0] == .empty }) {
-            model.tap(cell: wrong); model.tap(cell: wrong)
+    /// ヒントを使った直後。`wanted` に合う推理が次のヒントになるまで、手前のヒントの中身をプレイヤーの操作（タップ）で
+    /// 盤に写してから 1 回だけヒントを使う（ヒントの印と理由の文が狙った種類になる）。種 1 から順に探す。
+    private static func hintModel(_ name: String, wanted: (CatPuzzleHint) -> Bool) -> CatPuzzleModel {
+        for seed in 1...40 {
+            let model = CatPuzzleModel(services: services(), size: .normal, seed: UInt64(seed))
+            var steps = 0
+            while let hint = model.nextHint, steps < 60 {
+                if wanted(hint) {
+                    model.useHint()
+                    return model
+                }
+                steps += 1
+                for cell in hint.crossed where model.marks[cell] == .empty { model.tap(cell: cell) }
+                if let placed = hint.placed { model.tap(cell: placed); model.tap(cell: placed) }
+            }
         }
-        model.useHint()
-        return model
+        Issue.record("\(name): 狙った種類のヒントになる局面が見つからない")
+        return CatPuzzleModel(services: services(), size: .normal, seed: 1)
     }
 
-    /// 間違い（同じ行と隣に猫）。
+    /// 行・列への × （部屋が 1 行／1 列に収まる、など）。
+    private static func hintLineModel() -> CatPuzzleModel {
+        hintModel("hint-line") { hint in
+            if case .confined(_, let targets) = hint.reason, hint.crossed.count >= 2,
+               targets.allSatisfy({ if case .room = $0 { false } else { true } }) { return true }
+            return false
+        }
+    }
+
+    /// 部屋への ×（行／列の猫が 1 部屋の中だけ、など）。
+    private static func hintRoomModel() -> CatPuzzleModel {
+        hintModel("hint-room") { hint in
+            if case .confined(_, let targets) = hint.reason, targets.contains(where: { if case .room = $0 { true } else { false } }) { return true }
+            return false
+        }
+    }
+
+    /// 猫の確定（入れるマスが 1 つだけ）。
+    private static func hintCatModel() -> CatPuzzleModel {
+        hintModel("hint-cat") { hint in
+            if case .onlyCell = hint.reason { return true }
+            return false
+        }
+    }
+
+    /// 間違い（同じ行に 2 匹・ななめ隣・同じ部屋に 2 匹）。違反の帯・縁取り・「！」を見る。
     private static func mistakeModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
-        let answers = model.puzzle.solutionCells
-        let n = model.puzzle.side
+        let puzzle = model.puzzle
+        let answers = puzzle.solutionCells
+        let n = puzzle.side
         let first = answers[0]
         model.tap(cell: first); model.tap(cell: first)
         let sameRow = first % n < n - 2 ? first + 2 : first - 2
@@ -58,6 +92,24 @@ struct CatPuzzleRenderTests {
         if model.marks.indices.contains(diagonal) {
             model.tap(cell: answers[3]); model.tap(cell: answers[3])
             model.tap(cell: diagonal); model.tap(cell: diagonal)
+        }
+        // 同じ部屋に 2 匹（隣り合わず、同じ行・列でもないマスがあれば）。
+        let placed = model.catCells
+        if let (a, b) = (0..<n).lazy.compactMap({ room -> (Int, Int)? in
+            let cells = puzzle.cells(inRoom: room).filter { cell in
+                model.marks[cell] == .empty && !placed.contains { other in
+                    other / n == cell / n || other % n == cell % n || CatPuzzleLogic.isAdjacent(other, cell, side: n)
+                }
+            }
+            for a in cells {
+                for b in cells where b > a && a / n != b / n && a % n != b % n && !CatPuzzleLogic.isAdjacent(a, b, side: n) {
+                    return (a, b)
+                }
+            }
+            return nil
+        }).first {
+            model.tap(cell: a); model.tap(cell: a)
+            model.tap(cell: b); model.tap(cell: b)
         }
         return model
     }
@@ -94,8 +146,8 @@ struct CatPuzzleRenderTests {
     func boardRenders() {
         let model = Self.playingModel()
         let renderer = ImageRenderer(content: CatPuzzleBoardCanvas(
-            puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells,
-            hintCells: model.hintCells, lastHint: model.lastHint, cellSide: 40
+            puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells, violations: model.violations,
+            hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint, cellSide: 40
         ))
         renderer.scale = 1
         let image = renderer.cgImage
@@ -160,7 +212,9 @@ struct CatPuzzleRenderTests {
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
             ("1-playing", Self.playingModel),
             ("2-mistake", Self.mistakeModel),
-            ("3-hint", Self.hintModel),
+            ("3a-hint-line", Self.hintLineModel),
+            ("3b-hint-room", Self.hintRoomModel),
+            ("3c-hint-cat", Self.hintCatModel),
             ("4-clear", Self.clearModel),
         ]
         let schemes: [(name: String, scheme: ColorScheme)] = [("light", .light), ("dark", .dark)]
@@ -212,8 +266,8 @@ struct CatPuzzleRenderTests {
             ForEach([1, 2, 3], id: \.self) { seed in
                 let model = Self.playingSeedModel(seed: UInt64(seed))
                 CatPuzzleBoardCanvas(
-                    puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells,
-                    hintCells: model.hintCells, lastHint: model.lastHint, cellSide: 40
+                    puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells, violations: model.violations,
+                    hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint, cellSide: 40
                 )
             }
         }
