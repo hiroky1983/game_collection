@@ -61,9 +61,10 @@ public struct SudokuView: View {
                     if model.state == .failed { failedOverlay }
                 }
                 // クリアは盤に重ねる共通のカードで示す（#1755）。答えを見た終局は出さない。
+                // ヒントは 0 回でも省かず出す（ヒントを使った局は順位表に送らない = 使わなかった事実に意味がある・#2613）。
                 .gameClearCard(isPresented: model.state == .cleared,
-                               details: [tr("%1$@ / ミス%2$lld回 / タイム %3$@", model.difficulty.label, model.mistakes,
-                                            RecordFormat.time(model.elapsedSeconds))])
+                               details: [tr("%1$@ / ミス%2$lld回 / ヒント%3$lld回 / タイム %4$@", model.difficulty.label, model.mistakes,
+                                            model.hintsUsed, RecordFormat.time(model.elapsedSeconds))])
                 // 広告のロード〜視聴中は盤に触れない。ここが開いていると、
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
