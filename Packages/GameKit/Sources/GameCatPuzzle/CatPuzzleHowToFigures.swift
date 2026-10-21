@@ -36,7 +36,7 @@ enum CatPuzzleHowToFigures {
             for cell in crosses { marks[cell] = .cross }
             for cell in cats { marks[cell] = .cat }
             let violations = CatPuzzleLogic.violations(puzzle: sample, cats: cats)
-            return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells, violations: violations,
+            return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells,
                                         isSolved: solved, cellSide: CatPuzzleHowToFigures.cellSide)
                 .padding(3)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous).fill(Theme.surface))

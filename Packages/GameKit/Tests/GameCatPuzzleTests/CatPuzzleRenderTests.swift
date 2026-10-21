@@ -78,44 +78,21 @@ struct CatPuzzleRenderTests {
         }
     }
 
-    /// 間違い（同じ行に 2 匹・ななめ隣・同じ部屋に 2 匹）。違反の帯・縁取り・「！」を見る。
-    private static func mistakeModel() -> CatPuzzleModel {
+    /// 答えでないマスに猫を置こうとした直後。前に付いた赤い × 1 つと、いま付いた赤い ×（赤枠）1 つ。
+    private static func wrongCrossModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
         let puzzle = model.puzzle
         let answers = puzzle.solutionCells
         let n = puzzle.side
-        let first = answers[0]
-        model.tap(cell: first); model.tap(cell: first)
-        let sameRow = first % n < n - 2 ? first + 2 : first - 2
-        model.tap(cell: sameRow); model.tap(cell: sameRow)
-        let diagonal = answers[3] + n + 1
-        if model.marks.indices.contains(diagonal) {
-            model.tap(cell: answers[3]); model.tap(cell: answers[3])
-            model.tap(cell: diagonal); model.tap(cell: diagonal)
-        }
-        // 同じ部屋に 2 匹（隣り合わず、同じ行・列でもないマスがあれば）。
-        let placed = model.catCells
-        if let (a, b) = (0..<n).lazy.compactMap({ room -> (Int, Int)? in
-            let cells = puzzle.cells(inRoom: room).filter { cell in
-                model.marks[cell] == .empty && !placed.contains { other in
-                    other / n == cell / n || other % n == cell % n || CatPuzzleLogic.isAdjacent(other, cell, side: n)
-                }
-            }
-            for a in cells {
-                for b in cells where b > a && a / n != b / n && a % n != b % n && !CatPuzzleLogic.isAdjacent(a, b, side: n) {
-                    return (a, b)
-                }
-            }
-            return nil
-        }).first {
-            model.tap(cell: a); model.tap(cell: a)
-            model.tap(cell: b); model.tap(cell: b)
-        }
+        for cell in answers.prefix(2) { model.tap(cell: cell); model.tap(cell: cell) }
+        // 答えでないマスを 2 つ（前のミスと、いまのミス）。
+        let wrongs = (0..<puzzle.cellCount).filter { !answers.contains($0) && model.marks[$0] == .empty && $0 / n >= 3 }
+        for cell in [wrongs[2], wrongs[9]] { model.tap(cell: cell); model.tap(cell: cell) }
         return model
     }
 
     /// 種ごとの遊んでいる途中。答えの猫 3 匹、各部屋の左上から見て最初の「答えでないマス」に ×、ヒント 1 回。
-    /// 種 2 だけ、まだ猫のいない部屋の左上寄りの空きマスに間違いの猫を置く。
+    /// 種 2 だけ、まだ猫のいない部屋の左上寄りの空きマスに猫を置こうとする（答えでないので赤い ×）。
     private static func playingSeedModel(seed: UInt64) -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: seed)
         let puzzle = model.puzzle
@@ -135,10 +112,21 @@ struct CatPuzzleRenderTests {
         return model
     }
 
-    /// クリア。
-    private static func clearModel() -> CatPuzzleModel {
+    /// 最後の猫を置いた瞬間（クリアのダイアログはまだ出ていない。ダイアログを「盤を見る」で閉じた後もこの見た目）。
+    private static func lastCatModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
         for cell in model.puzzle.solutionCells { model.tap(cell: cell); model.tap(cell: cell) }
+        return model
+    }
+
+    /// クリアから 1 拍おいてダイアログが出たところ。
+    private static func clearModel() -> CatPuzzleModel {
+        let clock = ManualClock()
+        let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
+        model.clockNow = clock.now
+        for cell in model.puzzle.solutionCells { model.tap(cell: cell); model.tap(cell: cell) }
+        clock.advance(by: CatPuzzleModel.clearCardDelay)
+        model.revealClearCardIfDue()
         return model
     }
 
@@ -146,7 +134,7 @@ struct CatPuzzleRenderTests {
     func boardRenders() {
         let model = Self.playingModel()
         let renderer = ImageRenderer(content: CatPuzzleBoardCanvas(
-            puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells, violations: model.violations,
+            puzzle: model.puzzle, marks: model.marks, wrongCrosses: model.wrongCrosses,
             hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint, cellSide: 40
         ))
         renderer.scale = 1
@@ -211,11 +199,12 @@ struct CatPuzzleRenderTests {
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
             ("1-playing", Self.playingModel),
-            ("2-mistake", Self.mistakeModel),
+            ("2-wrong-cross", Self.wrongCrossModel),
             ("3a-hint-line", Self.hintLineModel),
             ("3b-hint-room", Self.hintRoomModel),
             ("3c-hint-cat", Self.hintCatModel),
-            ("4-clear", Self.clearModel),
+            ("4a-last-cat", Self.lastCatModel),
+            ("4b-clear-dialog", Self.clearModel),
         ]
         let schemes: [(name: String, scheme: ColorScheme)] = [("light", .light), ("dark", .dark)]
         for device in Self.devices {
@@ -238,7 +227,7 @@ struct CatPuzzleRenderTests {
         // クリアの盤だけ（カードに隠れない、猫がくつろぐ絵）。
         let solved = Self.clearModel()
         let board = ImageRenderer(content: CatPuzzleBoardCanvas(
-            puzzle: solved.puzzle, marks: solved.marks, conflicts: [], isSolved: true, cellSide: 50
+            puzzle: solved.puzzle, marks: solved.marks, isSolved: true, cellSide: 50
         ).padding(8).background(Theme.surface))
         board.scale = 3
         let boardImage = try #require(board.cgImage)
@@ -250,7 +239,7 @@ struct CatPuzzleRenderTests {
                 let model = CatPuzzleModel(services: Self.services(), size: .normal, seed: UInt64(seed))
                 CatPuzzleBoardCanvas(
                     puzzle: model.puzzle, marks: model.puzzle.solutionCells.reduce(into: model.marks) { $0[$1] = .cat },
-                    conflicts: [], isSolved: false, cellSide: 40
+                    isSolved: false, cellSide: 40
                 )
             }
         }
@@ -266,7 +255,7 @@ struct CatPuzzleRenderTests {
             ForEach([1, 2, 3], id: \.self) { seed in
                 let model = Self.playingSeedModel(seed: UInt64(seed))
                 CatPuzzleBoardCanvas(
-                    puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells, violations: model.violations,
+                    puzzle: model.puzzle, marks: model.marks, wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
                     hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint, cellSide: 40
                 )
             }
@@ -282,7 +271,7 @@ struct CatPuzzleRenderTests {
                 let model = CatPuzzleModel(services: Self.services(), size: .normal, seed: UInt64(seed))
                 CatPuzzleBoardCanvas(
                     puzzle: model.puzzle, marks: model.puzzle.solutionCells.reduce(into: model.marks) { $0[$1] = .cat },
-                    conflicts: [], isSolved: true, cellSide: 40
+                    isSolved: true, cellSide: 40
                 )
             }
         }
