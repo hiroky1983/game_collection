@@ -4,8 +4,8 @@ import Core
 /// 盤の絵（家の間取り・印・猫）。本番と遊び方の図で同じものを使う（#2250）。
 ///
 /// 1 マスずつ床の色と柄を塗り、マスの区切り（タップの単位）をはっきりした線で引き、部屋の境目に
-/// 太い壁を引き、部屋の左上に名前の札を置く。線の強さは **壁＞マスの区切り＞床の柄** の順
-/// （`CatPuzzleHouse`）。
+/// 太い壁を引き、部屋の左上寄りの「答えでないマス」に名前の札を置く（`labelPlacement`）。線の強さは
+/// **壁＞マスの区切り＞床の柄** の順（`CatPuzzleHouse`）。
 /// 猫は `Canvas` ではなく `CatPuzzleCatLayer` の SwiftUI ビューで重ねる（置いた瞬間に弾む・消すときは
 /// 短く縮む・クリアで順に跳ねる演出のため。会長 QA 2026-10-21）。読み上げと操作は
 /// `CatPuzzleView` の透明なマスが担う（この絵は `accessibilityHidden`）。
@@ -28,19 +28,21 @@ struct CatPuzzleBoardCanvas: View {
         let boardSide = cellSide * CGFloat(n)
         let rooms = (0..<n).map { CatPuzzleHouse.room($0) }
         ZStack(alignment: .topLeading) {
-            // 下の層: 床・マスの区切り・×・矛盾の赤い面・壁。
+            // 下の層: 床・マスの区切り・矛盾の赤い面・壁・部屋の札・×。
+            // 札は猫より下に敷く（間違えて札のマスに猫を置いても、猫の顔が札に隠れない）。
+            // 札のマスの × は札の下の余白に寄せて描き、札の文字と × が重ならないようにする。
             Canvas { context, _ in
                 drawFloors(&context, rooms: rooms)
                 drawGrid(&context)
-                drawCrosses(&context)
                 drawConflictFills(&context)
                 drawWalls(&context)
+                let labelBottoms = drawLabels(&context, rooms: rooms)
+                drawCrosses(&context, labelBottoms: labelBottoms)
             }
             // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
             CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
-            // 上の層: 部屋の札・矛盾の「！」・ヒントの印と枠（猫より前に出す）。
+            // 上の層: 矛盾の「！」・ヒントの印と枠（猫より前に出す）。
             Canvas { context, _ in
-                drawLabels(&context, rooms: rooms)
                 drawConflictBadges(&context)
                 drawHintBadges(&context)
                 drawLastHint(&context)
@@ -121,16 +123,18 @@ struct CatPuzzleBoardCanvas: View {
     }
 
     /// ×（いない印）。こげ茶（ダークは生成り）の太い × に、面の色の縁取りを敷いて床の上で読めるようにする。
-    private func drawCrosses(_ context: inout GraphicsContext) {
+    /// 札のあるマス（`labelBottoms` = マス → 札の下端の y）では、札より下の余白の真ん中に寄せる。
+    private func drawCrosses(_ context: inout GraphicsContext, labelBottoms: [Int: CGFloat] = [:]) {
         guard !isSolved else { return }
         var cross = Path()
         for cell in 0..<puzzle.cellCount where marks[cell] == .cross {
             let r = rect(of: cell)
             let arm = cellSide * 0.17
-            cross.move(to: CGPoint(x: r.midX - arm, y: r.midY - arm))
-            cross.addLine(to: CGPoint(x: r.midX + arm, y: r.midY + arm))
-            cross.move(to: CGPoint(x: r.midX + arm, y: r.midY - arm))
-            cross.addLine(to: CGPoint(x: r.midX - arm, y: r.midY + arm))
+            let midY = labelBottoms[cell].map { max(r.midY, ($0 + r.maxY) / 2) } ?? r.midY
+            cross.move(to: CGPoint(x: r.midX - arm, y: midY - arm))
+            cross.addLine(to: CGPoint(x: r.midX + arm, y: midY + arm))
+            cross.move(to: CGPoint(x: r.midX + arm, y: midY - arm))
+            cross.addLine(to: CGPoint(x: r.midX - arm, y: midY + arm))
         }
         guard !cross.isEmpty else { return }
         let width = max(2.5, cellSide * 0.085)
@@ -150,26 +154,59 @@ struct CatPuzzleBoardCanvas: View {
 
     // MARK: - 上の層
 
-    /// 部屋の名前の札。部屋のいちばん上・左のマスの左上に置く。
-    private func drawLabels(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
+    /// 部屋の札を置くマス。部屋のマスを左上から（行優先で）見て、**答えのマスでない最初のマス**。
+    /// 答えのマスには最後に必ず猫が座るので、そこを避けて最初から決めておく（猫を置いても札が動かずちらつかない）。
+    /// `wide`（札が 1 マスに収まらない）ときは、右隣も同じ部屋の答えでないマスになっているところを優先し、
+    /// 札を 2 マスにまたがせる（`spansRight`）。無ければ最初の答えでないマスに置き、文字を縮めて 1 マスに収める。
+    /// 1 マスだけの部屋は答えのマスしか無いので、そのマス（札は猫の下に敷かれ、猫の顔は隠れない）。
+    static func labelPlacement(room: Int, in puzzle: CatPuzzle, wide: Bool) -> (cell: Int, spansRight: Bool)? {
+        let cells = puzzle.cells(inRoom: room)
+        guard let first = cells.first else { return nil }
         let n = puzzle.side
-        let fontSize = max(8, cellSide * 0.22)
-        for room in 0..<n {
-            guard let first = puzzle.rooms.firstIndex(of: room) else { continue }
-            let name = rooms[room % rooms.count].name
-            let text = context.resolve(
+        let answers = Set(puzzle.solutionCells)
+        let free = cells.filter { !answers.contains($0) }
+        if wide, let cell = free.first(where: { $0 % n < n - 1 && puzzle.rooms[$0 + 1] == room && !answers.contains($0 + 1) }) {
+            return (cell, true)
+        }
+        return (free.first ?? first, false)
+    }
+
+    /// 部屋の名前の札。`labelPlacement` のマスの左上に置き、隣の部屋のマスにははみ出さない。
+    /// 返り値は札がかかるマス → 札の下端の y（× を札の下に寄せるため）。
+    private func drawLabels(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) -> [Int: CGFloat] {
+        var bottoms: [Int: CGFloat] = [:]
+        let n = puzzle.side
+        let baseFont = max(8, cellSide * 0.22)
+        let margin = max(cellSide * 0.06, CatPuzzleHouse.wallWidth / 2 + 1)
+        let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
+        func resolved(_ name: String, size: CGFloat) -> GraphicsContext.ResolvedText {
+            context.resolve(
                 Text(name)
-                    .font(.system(size: fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
+                    .font(.system(size: size, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
                     .foregroundColor(Theme.Fixed.ink)
             )
-            let measured = text.measure(in: CGSize(width: cellSide * 2.4, height: cellSide))
-            let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
-            let origin = rect(of: first).origin.applying(.init(translationX: cellSide * 0.06, y: cellSide * 0.06))
+        }
+        for room in 0..<n {
+            let name = rooms[room % rooms.count].name
+            var text = resolved(name, size: baseFont)
+            var measured = text.measure(in: CGSize(width: cellSide * 4, height: cellSide))
+            let wide = measured.width + padding.width * 2 > cellSide - margin * 2
+            guard let placement = Self.labelPlacement(room: room, in: puzzle, wide: wide) else { continue }
+            let available = (placement.spansRight ? cellSide * 2 : cellSide) - margin * 2
+            if measured.width + padding.width * 2 > available {
+                let size = max(6, baseFont * (available - padding.width * 2) / measured.width)
+                text = resolved(name, size: size)
+                measured = text.measure(in: CGSize(width: available, height: cellSide))
+            }
+            let origin = rect(of: placement.cell).origin.applying(.init(translationX: margin, y: margin))
             let chip = CGRect(x: origin.x, y: origin.y,
                               width: measured.width + padding.width * 2, height: measured.height + padding.height * 2)
             context.fill(Path(roundedRect: chip, cornerRadius: chip.height / 2), with: .color(.white.opacity(0.9)))
             context.draw(text, at: CGPoint(x: chip.minX + padding.width, y: chip.minY + padding.height), anchor: .topLeading)
+            bottoms[placement.cell] = chip.maxY
+            if placement.spansRight, chip.maxX > rect(of: placement.cell).maxX { bottoms[placement.cell + 1] = chip.maxY }
         }
+        return bottoms
     }
 
     /// 矛盾の「！」の丸（赤い面と合わせ、色と印の両方で示す）。

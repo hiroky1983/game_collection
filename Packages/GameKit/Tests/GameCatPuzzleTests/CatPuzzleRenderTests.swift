@@ -62,6 +62,27 @@ struct CatPuzzleRenderTests {
         return model
     }
 
+    /// 種ごとの遊んでいる途中。答えの猫 3 匹、各部屋の左上から見て最初の「答えでないマス」に ×、ヒント 1 回。
+    /// 種 2 だけ、まだ猫のいない部屋の左上寄りの空きマスに間違いの猫を置く。
+    private static func playingSeedModel(seed: UInt64) -> CatPuzzleModel {
+        let model = CatPuzzleModel(services: services(), size: .normal, seed: seed)
+        let puzzle = model.puzzle
+        let answers = puzzle.solutionCells
+        for cell in answers.prefix(3) { model.tap(cell: cell); model.tap(cell: cell) }
+        for room in 0..<puzzle.side {
+            if let cell = puzzle.cells(inRoom: room).first(where: { !answers.contains($0) }), model.marks[cell] == .empty {
+                model.tap(cell: cell)
+            }
+        }
+        model.useHint()
+        if seed == 2,
+           let room = answers.map({ puzzle.rooms[$0] }).first(where: { room in !puzzle.cells(inRoom: room).contains { model.marks[$0] == .cat } }),
+           let wrong = puzzle.cells(inRoom: room).first(where: { !answers.contains($0) }) {
+            for _ in 0..<3 where model.marks[wrong] != .cat { model.tap(cell: wrong) }
+        }
+        return model
+    }
+
     /// クリア。
     private static func clearModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
@@ -93,6 +114,43 @@ struct CatPuzzleRenderTests {
             #expect(solved.width > side || solved.height > side)
             #expect(CGRect(x: 0, y: 0, width: side * CGFloat(n), height: side * CGFloat(n)).insetBy(dx: -0.01, dy: -0.01).contains(solved))
         }
+    }
+
+    @Test("部屋の札は答えのマス（最後に猫が座るマス）を避けて、部屋の中の左上寄りに置く")
+    func labelAvoidsAnswerCells() {
+        var checkedRooms = 0
+        // 問題作りはデバッグビルドだと 1 問 1 秒ほどかかるので、大きい盤は種を絞る。
+        for (size, seeds) in [(CatPuzzleSize.easy, UInt64(1)...30), (.normal, 1...30), (.hard, 1...6)] {
+            for seed in seeds {
+                let puzzle = CatPuzzleModel(services: Self.services(), size: size, seed: seed).puzzle
+                let n = puzzle.side
+                let answers = Set(puzzle.solutionCells)
+                for room in 0..<n {
+                    let cells = puzzle.cells(inRoom: room)
+                    for wide in [false, true] {
+                        guard let placement = CatPuzzleBoardCanvas.labelPlacement(room: room, in: puzzle, wide: wide) else {
+                            Issue.record("種 \(seed) の部屋 \(room) に札が置けない"); continue
+                        }
+                        #expect(puzzle.rooms[placement.cell] == room)
+                        if cells.count > 1 {
+                            #expect(!answers.contains(placement.cell), "種 \(seed) の部屋 \(room) の札が答えのマスに重なる")
+                        } else {
+                            #expect(placement.cell == cells[0] && !placement.spansRight)
+                        }
+                        if placement.spansRight {
+                            #expect(wide && placement.cell % n < n - 1)
+                            #expect(puzzle.rooms[placement.cell + 1] == room && !answers.contains(placement.cell + 1))
+                        }
+                        if !wide {
+                            // 左上から順に見て最初の空き（答えでない）マス。
+                            #expect(placement.cell == (cells.first { !answers.contains($0) } ?? cells[0]))
+                        }
+                    }
+                    checkedRooms += 1
+                }
+            }
+        }
+        #expect(checkedRooms == 30 * 6 + 30 * 7 + 6 * 8)
     }
 
     @Test("静止画を書き出す（CAT_PUZZLE_RENDER_DIR があるときだけ）")
@@ -147,6 +205,38 @@ struct CatPuzzleRenderTests {
         let seedsRenderer = ImageRenderer(content: seeds)
         seedsRenderer.scale = 2
         try Self.write(try #require(seedsRenderer.cgImage), to: URL(fileURLWithPath: dir).appendingPathComponent("7-three-seeds.png"))
+
+        // 同じ 3 つの種の遊んでいる途中（猫 3 匹・各部屋の左上寄りの空きマスに ×・ヒント 1 回・種 2 は間違いの猫つき）と
+        // クリアの盤。部屋の札が猫の顔・×・ヒントの印に重ならないことを目で見る（#2250）。
+        let playingSeeds = HStack(spacing: 12) {
+            ForEach([1, 2, 3], id: \.self) { seed in
+                let model = Self.playingSeedModel(seed: UInt64(seed))
+                CatPuzzleBoardCanvas(
+                    puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells,
+                    hintCells: model.hintCells, lastHint: model.lastHint, cellSide: 40
+                )
+            }
+        }
+        .padding(8)
+        .background(Theme.surface)
+        let playingSeedsRenderer = ImageRenderer(content: playingSeeds)
+        playingSeedsRenderer.scale = 2
+        try Self.write(try #require(playingSeedsRenderer.cgImage), to: URL(fileURLWithPath: dir).appendingPathComponent("8-three-seeds-playing.png"))
+
+        let clearSeeds = HStack(spacing: 12) {
+            ForEach([1, 2, 3], id: \.self) { seed in
+                let model = CatPuzzleModel(services: Self.services(), size: .normal, seed: UInt64(seed))
+                CatPuzzleBoardCanvas(
+                    puzzle: model.puzzle, marks: model.puzzle.solutionCells.reduce(into: model.marks) { $0[$1] = .cat },
+                    conflicts: [], isSolved: true, cellSide: 40
+                )
+            }
+        }
+        .padding(8)
+        .background(Theme.surface)
+        let clearSeedsRenderer = ImageRenderer(content: clearSeeds)
+        clearSeedsRenderer.scale = 2
+        try Self.write(try #require(clearSeedsRenderer.cgImage), to: URL(fileURLWithPath: dir).appendingPathComponent("9-three-seeds-clear.png"))
 
         // 猫を置いた瞬間のコマ（出入りの transition と同じ `CatPopModifier` を途中の値で描く）。
         let frames: [(CGFloat, Double, Double)] = [(0.25, -18, 0), (0.55, -12, 0.55), (0.9, -4, 1), (1.08, 2, 1), (1, 0, 1)]
