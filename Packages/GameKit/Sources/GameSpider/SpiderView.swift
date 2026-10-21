@@ -691,8 +691,9 @@ public struct SpiderView: View {
                     canUndo: model.canUndo, remaining: model.undosRemaining))
             }
 
+            // ソリティア・フリーセルと同じく今のスート数のまま即配り直す。変えたいときはナビバーの「新規ゲーム」から（#2600）。
             GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: undoRescue.isWatching) {
-                openSetup()
+                model.newGame()
             }
 
             GameDeadEndDismissButton(tr("盤面を見る"), isDisabled: undoRescue.isWatching) {

@@ -331,6 +331,23 @@ struct SpiderModelTests {
         #expect(!model.showsDeadEndPrompt)
     }
 
+    @Test("行き止まりの「新しい配札にする」は引数なしの newGame()：スート数を保ったまま即配り直す（#2600）")
+    func deadEndNewDealKeepsSuitCount() {
+        let model = SpiderModel(
+            services: makeServices(), seed: firstSeed(.two), rules: SpiderRuleSet(suitCount: .two))
+        _ = playFirstLegalMove(model)
+        let kings = (0..<10).map { SpiderPile(cards: [card(.spade, 13, id: $0)]) }
+        model.replaceBoardForTesting(SpiderBoard(piles: kings))
+        #expect(model.showsDeadEndPrompt)
+
+        model.newGame()
+        #expect(model.rules.suitCount == .two)
+        #expect(model.phase == .playing)
+        #expect(!model.showsDeadEndPrompt)
+        #expect(model.moveCount == 0)
+        #expect(Set(model.board.piles.flatMap(\.cards).map(\.suit)).count == 2)
+    }
+
     // MARK: - 計時
 
     @Test("計時は 30 秒ごとに中断データを保存し直す")
