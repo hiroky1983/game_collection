@@ -1,6 +1,6 @@
 import Foundation
 
-/// くっつきフルーツの中断データ（#1319）。
+/// おじさんの盆栽（#2361。もとは くっつきフルーツ #1319）の中断データ。
 ///
 /// アクション枠の基盤規約は「フレーム単位で保存しない」と決めている（ブロック崩し #463）。ここも同じで、
 /// 書き出すのは**果物を落とした瞬間**と、**塊が止まった直後**の 2 種類の区切りだけ（`FruitsModel.persist`）。
@@ -18,5 +18,12 @@ struct FruitsSnapshot: Codable {
     var seed: UInt64
     var drawCount: Int
     var dropCount: Int
-    var hasMadeMelon: Bool
+    var hasMadeKinmatsu: Bool
+
+    /// 保存の鍵は くっつきフルーツ時代のまま（`hasMadeMelon`）。名前を変えると、盆栽化（#2361）より前の
+    /// 中断データが読めずに新規開始へ倒れる。
+    private enum CodingKeys: String, CodingKey {
+        case fruits, cursorX, score, heldKind, nextKind, continueUsed, seed, drawCount, dropCount
+        case hasMadeKinmatsu = "hasMadeMelon"
+    }
 }

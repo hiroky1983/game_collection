@@ -24,14 +24,14 @@ struct HanafudaCardImageTests {
         }
     }
 
-    /// 上端 15% は「月と種別の帯」が重なる（`HanafudaCardFace.bandRatio`）。ここに主役があると帯に食われるので、
+    /// 上端 20% は「月と種別の帯」が重なる（`HanafudaCardFace.bandRatio`）。ここに主役があると帯に食われるので、
     /// 帯の下の行はほぼ和紙色（地）であることを固定する。幕・雨の線のような一様な背景は許す（9 割で判定）。
-    @Test("帯が重なる上端 15% には図案が無い")
+    @Test("帯が重なる上端 20% には図案が無い")
     func topBandIsBlank() throws {
         for card in HanafudaCard.fullDeck {
             guard let image = HanafudaCardImages.image(for: card) else { continue }
             let share = try paperShare(ofTop: HanafudaCardFace.bandRatio, in: image)
-            #expect(share >= 0.9, "\(card.name) の上端 15% の和紙色の割合が \(Int(share * 100))%")
+            #expect(share >= 0.9, "\(card.name) の上端 20% の和紙色の割合が \(Int(share * 100))%")
         }
     }
 

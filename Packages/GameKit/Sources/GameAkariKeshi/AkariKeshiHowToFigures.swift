@@ -43,7 +43,7 @@ enum AkariKeshiHowToFigures {
                         MiniBoard(lit: [0, 1, 3, 5, 7])
                     }
                 }
-                RuleFigureLabel(tr("押したマスと上下左右"), color: Theme.coral)
+                RuleFigureLabel(tr("押したマスと上下左右"), color: Theme.coralText)
             }
         }
     }
@@ -59,7 +59,7 @@ enum AkariKeshiHowToFigures {
                         MiniBoard(lit: [0, 1, 3])
                     }
                 }
-                RuleFigureLabel(tr("角は 3 マスだけ"), color: Theme.coral)
+                RuleFigureLabel(tr("角は 3 マスだけ"), color: Theme.coralText)
             }
         }
     }
@@ -75,7 +75,7 @@ enum AkariKeshiHowToFigures {
                         MiniBoard(lit: [])
                     }
                 }
-                RuleFigureLabel(tr("全部消せばクリア"), color: Theme.teal)
+                RuleFigureLabel(tr("全部消せばクリア"), color: Theme.tealText)
             }
         }
     }

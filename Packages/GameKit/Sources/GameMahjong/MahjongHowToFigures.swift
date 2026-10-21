@@ -64,7 +64,7 @@ enum MahjongHowToFigures {
                     }
                     .padding(.top, 5)
                     RuleFigureLabel(index == 0 ? tr("1 枚引く") : tr("タップで切る"),
-                                    color: index == 1 ? Theme.coral : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -90,13 +90,13 @@ enum MahjongHowToFigures {
                                     MahjongHowToFigures.tile(t)
                                 }
                             }
-                            RuleFigureLabel(group.label, color: group.tiles.count == 2 ? Theme.coral : Theme.inkSub)
+                            RuleFigureLabel(group.label, color: group.tiles.count == 2 ? Theme.coralText : Theme.inkSub)
                                 .lineLimit(1).minimumScaleFactor(0.7)
                                 .frame(width: MahjongHowToFigures.tileWidth * CGFloat(group.tiles.count) + 4)
                         }
                     }
                 }
-                RuleFigureLabel(tr("4 組 ＋ 1 組 ＝ 和了"), color: Theme.coral)
+                RuleFigureLabel(tr("4 組 ＋ 1 組 ＝ 和了"), color: Theme.coralText)
             }
         }
     }
@@ -132,7 +132,7 @@ enum MahjongHowToFigures {
                     Image(systemName: "arrow.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
                         .foregroundStyle(Theme.inkSub)
-                    RuleFigureLabel(tr("役が付く"), color: Theme.coral)
+                    RuleFigureLabel(tr("役が付く"), color: Theme.coralText)
                 }
             }
         }
@@ -164,7 +164,7 @@ enum MahjongHowToFigures {
                                 MahjongHowToFigures.tile(.circles(5), hinted: true)
                                 MahjongHowToFigures.tile(.circles(5))
                             }
-                            RuleFigureLabel(tr("ポン"), color: Theme.coral)
+                            RuleFigureLabel(tr("ポン"), color: Theme.coralText)
                         }
                     }
                 }

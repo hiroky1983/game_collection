@@ -96,7 +96,7 @@ enum MancalaHowToFigures {
                 VStack(spacing: 4) {
                     if index == 0 {
                         HumanRow(pits: [3, 1, 1, 2], tones: [.picked, .plain, .plain, .plain], store: 0)
-                        RuleFigureLabel(tr("3 個の穴をタップ"), color: Theme.coral)
+                        RuleFigureLabel(tr("3 個の穴をタップ"), color: Theme.coralText)
                     } else {
                         HumanRow(pits: [0, 2, 2, 3], tones: [.plain, .gained, .gained, .gained], store: 0)
                         RuleFigureLabel(tr("右へ 1 個ずつ"))
@@ -113,10 +113,10 @@ enum MancalaHowToFigures {
                 VStack(spacing: 4) {
                     if index == 0 {
                         HumanRow(pits: [0, 1, 2, 2], tones: [.plain, .plain, .picked, .plain], store: 5)
-                        RuleFigureLabel(tr("2 個をまくと…"), color: Theme.coral)
+                        RuleFigureLabel(tr("2 個をまくと…"), color: Theme.coralText)
                     } else {
                         HumanRow(pits: [0, 1, 0, 3], tones: [.plain, .plain, .plain, .gained], store: 6, storeGained: true)
-                        RuleFigureLabel(tr("ストアに入って もう一度！"), color: Theme.coral)
+                        RuleFigureLabel(tr("ストアに入って もう一度！"), color: Theme.coralText)
                     }
                 }
             }
@@ -144,7 +144,7 @@ enum MancalaHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("空の穴へ 1 個") : tr("向かいの 5 個と合わせて 6 個"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -162,8 +162,8 @@ enum MancalaHowToFigures {
         private func tally(_ who: String, _ seeds: Int, isWinner: Bool) -> some View {
             VStack(spacing: 4) {
                 Plate { MiniStore(seeds: seeds, gained: isWinner) }
-                RuleFigureLabel(who, color: isWinner ? Theme.coral : Theme.inkSub)
-                if isWinner { RuleFigureLabel(tr("多いほうの勝ち"), color: Theme.coral) }
+                RuleFigureLabel(who, color: isWinner ? Theme.coralText : Theme.inkSub)
+                if isWinner { RuleFigureLabel(tr("多いほうの勝ち"), color: Theme.coralText) }
             }
         }
     }

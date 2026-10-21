@@ -5,7 +5,7 @@ import CoreEngine
 import CoreTestSupport
 import GameKitTestSupport
 
-@Suite("くっつきフルーツのモジュール")
+@Suite("おじさんの盆栽のモジュール")
 @MainActor
 struct ModuleTests {
     @Test("登録口の ID と Model の gameID は同じ")
@@ -25,10 +25,12 @@ struct ModuleTests {
     @Test("表示名・説明・アイコンがある")
     func hasMetadata() {
         let module = FruitsModule()
-        #expect(module.title == "くっつきフルーツ")
+        #expect(module.title == "おじさんの盆栽")
+        // game_id は くっつきフルーツ時代のまま（記録・中断データ・解析・リーダーボードとの互換。#2361）。
+        #expect(module.id == "fruits")
         #expect(!module.description.isEmpty)
         // 商標登録済みの名称（Issue #1319 の権利面の注意）を表示名にも説明にも含めない。
-        for banned in ["スイカゲーム", "Suika"] {
+        for banned in ["スイカゲーム", "Suika", "くっつきフルーツ"] {
             #expect(!module.title.contains(banned))
             #expect(!module.description.contains(banned))
             #expect(!HowToPlayGuide.fruits.lines.joined().contains(banned))

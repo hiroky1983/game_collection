@@ -26,14 +26,23 @@ public final class DiceComboModel {
     public private(set) var recordResult: RecordResult?
     /// 振るたびに増える番号。View はサイコロの転がる動きの鍵にする。
     public private(set) var rollSerial = 0
+    /// サイコロが転がっている演出の最中か（#2365）。出目は振った瞬間に `dice` へ確定済みで、
+    /// これは「まだ見せていない」だけの印。永続化しない（中断から戻ったら止まった目を出す）。
+    public private(set) var isRolling = false
 
     private let services: GameServices?
     private var generator: SplitMix64?
+    /// 振ってから止まるまでの間。画面は `DiceComboMotion.rollInterval` を渡す。`.zero` なら即座に止まる。
+    private let rollInterval: Duration
+    /// 止まるのを待っている `Task`。新しいゲームで止める。
+    private(set) var rollTask: Task<Void, Never>?
 
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     /// `seed` を渡すと出目を種から決める（テスト用。省略時はシステム乱数）。
-    public init(services: GameServices? = nil, seed: UInt64? = nil) {
+    /// `rollInterval` はサイコロが転がる演出の長さ（ルーレットの `spinInterval` と同じ作法・#2365）。
+    public init(services: GameServices? = nil, seed: UInt64? = nil, rollInterval: Duration = .zero) {
         self.services = services
+        self.rollInterval = rollInterval
         generator = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(DiceComboSnapshot.self, for: Self.gameID),
            let restored = Self.restore(snap) {
@@ -56,14 +65,15 @@ public final class DiceComboModel {
     /// このターンにあと何回振れるか。
     public var rollsRemaining: Int { DiceComboLogic.maxRolls - rollsUsed }
 
-    public var canRoll: Bool { !isFinished && rollsUsed < DiceComboLogic.maxRolls }
+    /// 振れるか。転がっている最中は振れない（連打で二重に振らない・#2365）。
+    public var canRoll: Bool { !isFinished && !isRolling && rollsUsed < DiceComboLogic.maxRolls }
 
-    /// キープを切り替えられるか（振ったあとで、まだ振り直せるとき）。
-    public var canHold: Bool { !isFinished && rollsUsed > 0 && rollsUsed < DiceComboLogic.maxRolls }
+    /// キープを切り替えられるか（振ったあとで止まっていて、まだ振り直せるとき）。
+    public var canHold: Bool { !isFinished && !isRolling && rollsUsed > 0 && rollsUsed < DiceComboLogic.maxRolls }
 
-    /// その役にいま点を入れられるか。
+    /// その役にいま点を入れられるか。転がっている最中は止まった目をまだ見せていないので選べない。
     public func canChoose(_ category: DiceComboCategory) -> Bool {
-        !isFinished && rollsUsed > 0 && scores[category] == nil
+        !isFinished && !isRolling && rollsUsed > 0 && scores[category] == nil
     }
 
     /// いまの出目をその役に入れたときの点（入れられないときは nil）。
@@ -82,7 +92,11 @@ public final class DiceComboModel {
     // MARK: - 操作
 
     /// キープしていないサイコロを振る。1 ターン 3 回まで。
+    ///
+    /// 出目はここで確定して保存する。`rollInterval` があれば `isRolling` を立て、その間だけ画面が転がる演出を出す。
     public func roll() {
+        // 転がっている最中の連打は黙って捨てる（警告の触覚を鳴らすと、押した手応えと紛らわしい）。
+        guard !isRolling else { return }
         guard canRoll else {
             services?.feedback.notify(.warning)
             return
@@ -96,6 +110,30 @@ public final class DiceComboModel {
         services?.gameDidProgress(gameID: Self.gameID)
         services?.feedback.impact(.medium)
         persist()
+        runRoll()
+    }
+
+    private func runRoll() {
+        guard rollInterval > .zero else { return }
+        isRolling = true
+        let interval = rollInterval
+        rollTask = Task { [weak self] in
+            try? await Task.sleep(for: interval)
+            // 新しいゲームで止められたか、画面ごと捨てられた。
+            guard !Task.isCancelled, let self, self.isRolling else { return }
+            self.rollTask = nil
+            self.settleRoll()
+        }
+    }
+
+    /// サイコロが止まった。止まった瞬間の手応えを返す。出目は振った時点で決まっているので変えない。
+    /// 待ちを飛ばしたいテストからも呼ぶ。
+    func settleRoll() {
+        guard isRolling else { return }
+        rollTask?.cancel()
+        rollTask = nil
+        isRolling = false
+        services?.feedback.impact(.light)
     }
 
     /// `index` のサイコロのキープを切り替える。
@@ -127,6 +165,9 @@ public final class DiceComboModel {
 
     /// 新しいゲーム。
     public func newGame() {
+        rollTask?.cancel()
+        rollTask = nil
+        isRolling = false
         dice = []
         held = []
         rollsUsed = 0

@@ -86,7 +86,7 @@ public struct HeartsView: View {
             Spacer()
             Text(turnLabel)
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(model.isPlayerTurn || model.phase == .passing ? Theme.teal : Theme.inkSub)
+                .foregroundStyle(model.isPlayerTurn || model.phase == .passing ? Theme.tealText : Theme.inkSub)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -122,7 +122,7 @@ public struct HeartsView: View {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
                     .scaledFont(12, weight: .bold)
-                    .foregroundStyle(isCurrent ? Theme.coral : Theme.inkSub)
+                    .foregroundStyle(isCurrent ? Theme.coralText : Theme.inkSub)
                 Text(model.playerName(index))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
@@ -132,7 +132,7 @@ public struct HeartsView: View {
             }
             Text(tr("この手 %lld点", model.takenPoints[index]))
                 .scaledFont(11, weight: .bold, design: .rounded)
-                .foregroundStyle(model.takenPoints[index] > 0 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(model.takenPoints[index] > 0 ? Theme.coralText : Theme.inkSub)
             Text(tr("合計 %lld点", model.totals[index]))
                 .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.ink)
@@ -224,7 +224,7 @@ public struct HeartsView: View {
                     .foregroundStyle(Theme.ink)
                 Text(tr("この手 %lld点", model.takenPoints[HeartsModel.humanIndex]))
                     .scaledFont(11, weight: .bold, design: .rounded)
-                    .foregroundStyle(model.takenPoints[HeartsModel.humanIndex] > 0 ? Theme.coral : Theme.inkSub)
+                    .foregroundStyle(model.takenPoints[HeartsModel.humanIndex] > 0 ? Theme.coralText : Theme.inkSub)
                 Spacer()
                 Text(tr("合計 %lld点", model.totals[HeartsModel.humanIndex]))
                     .scaledFont(11, weight: .semibold, design: .rounded)
@@ -368,10 +368,10 @@ public struct HeartsView: View {
             HStack(spacing: 8) {
                 Image(systemName: isFinal ? (model.playerPlace == 0 ? "crown.fill" : "flag.checkered") : "suit.heart.fill")
                     .scaledFont(20)
-                    .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.yellow : PlayingCardInk.red)
+                    .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.yellowText : PlayingCardInk.red)
                 Text(scoreHeadline)
                     .scaledFont(17, weight: .black, design: .rounded)
-                    .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.teal : Theme.ink)
+                    .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.tealText : Theme.ink)
                 Spacer()
             }
             HStack {
@@ -420,11 +420,11 @@ public struct HeartsView: View {
             }
             Text(model.playerName(player))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(player == HeartsModel.humanIndex ? Theme.coral : Theme.ink)
+                .foregroundStyle(player == HeartsModel.humanIndex ? Theme.coralText : Theme.ink)
             Spacer()
             Text(tr("%lld点", model.takenPoints[player]))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(model.takenPoints[player] > 0 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(model.takenPoints[player] > 0 ? Theme.coralText : Theme.inkSub)
                 .frame(width: 64, alignment: .trailing)
             Text(tr("%lld点", model.totals[player]))
                 .scaledFont(13, weight: .black, design: .rounded)

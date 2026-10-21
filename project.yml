@@ -120,6 +120,8 @@ targets:
       - package: GameKit
         product: GameHanoi
       - package: GameKit
+        product: GameYonmoku
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds
@@ -255,8 +257,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
-        MARKETING_VERSION: "1.1.12"
-        CURRENT_PROJECT_VERSION: "28"
+        MARKETING_VERSION: "1.1.13"
+        CURRENT_PROJECT_VERSION: "38"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         # 1 = iPhone / 2 = iPad（#458）。調べた競合 30 本すべてが iPad 対応で、

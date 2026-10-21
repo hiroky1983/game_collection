@@ -11,6 +11,8 @@ public struct SudokuView: View {
     @State private var showGiveUpConfirm = false
     /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var hintRescue = RewardedRescue()
+    /// 「色なしで区別」の設定。ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405）。
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
@@ -145,6 +147,7 @@ public struct SudokuView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [hintRescue, continueRescue, undoRescue],
+            isHeld: showNewGame,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -253,7 +256,7 @@ public struct SudokuView: View {
                         .themeBody(15)
                         // 文字を拡大しても右のタイマー・トグルを押し出さないよう縮めて収める（#189）。
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(cleared ? Theme.teal : Theme.coral)
+                        .foregroundStyle(cleared ? Theme.tealText : Theme.coralText)
                 } else if model.hasPuzzle {
                     Label(tr("残り%lld", model.remainingCount), systemImage: "square.grid.3x3")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
@@ -263,7 +266,7 @@ public struct SudokuView: View {
                     Label(tr("ミス %1$lld/%2$lld", model.mistakes, SudokuModel.maxMistakes), systemImage: "xmark.circle")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
+                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coralText : Theme.inkSub)
                 } else {
                     // まだ出題が無い（#354）。存在しない問題の「残り81」「ミス 0/3」を出さない。
                     Text(tr("難易度を選んでください"))
@@ -420,6 +423,9 @@ public struct SudokuView: View {
             } else if !noteDigits.isEmpty {
                 noteGrid(noteDigits: noteDigits, side: side)
             }
+            if isError && differentiateWithoutColor {
+                errorMark(side: side)
+            }
         }
         // 誤答を入れたマスの中身だけを短く横に揺らす（#666。五目並べの無効タップ #202 と同じ型）。
         .modifier(SudokuShake(animatableData: CGFloat(shakes)))
@@ -445,6 +451,20 @@ public struct SudokuView: View {
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.select(index: index) }
+    }
+
+    /// 間違いのマスの色以外の印（#2405）: 内枠と右上の×。数字は隠さない。
+    private func errorMark(side: CGFloat) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Rectangle()
+                .strokeBorder(Theme.coralText, lineWidth: max(2, side * 0.06))
+            Image(systemName: "xmark")
+                .font(.system(size: side * 0.2, weight: .heavy)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
+                .foregroundStyle(Theme.coralText)
+                .padding(side * 0.08)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func noteGrid(noteDigits: [Int], side: CGFloat) -> some View {
@@ -474,13 +494,13 @@ public struct SudokuView: View {
     }
 
     private func digitColor(isGiven: Bool, isError: Bool, isHinted: Bool) -> Color {
-        if isError { return Theme.coral }
+        if isError { return Theme.coralText }
         if isGiven { return Theme.ink }
         // 諦めて表示した答えは自力で入れた数字と同じ色にしない
         // （同じ teal だと「自分で解いた盤」と見分けが付かない）。
         if model.state == .givenUp { return Theme.inkSub }
         if isHinted { return Theme.purple }
-        return Theme.teal
+        return Theme.tealText
     }
 
     // MARK: - 盤の下の操作エリア

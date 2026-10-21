@@ -101,7 +101,7 @@ public struct OldMaidView: View {
             Spacer()
             Text(turnLabel)
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
+                .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSub)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -136,7 +136,7 @@ public struct OldMaidView: View {
                 .frame(width: layout.scaled(34), height: layout.scaled(34))
             Text(model.playerName(index))
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(isCurrent ? Theme.coral : Theme.ink)
+                .foregroundStyle(isCurrent ? Theme.coralText : Theme.ink)
             Text(cpuStatus(index, count: count))
                 .scaledFont(11, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSub)
@@ -219,7 +219,7 @@ public struct OldMaidView: View {
                         .lineLimit(1).minimumScaleFactor(0.6)
                     Text(faceCaption(face))
                         .scaledFont(12, weight: .bold, design: .rounded)
-                        .foregroundStyle(face == .neutral ? Theme.inkSub : Theme.coral)
+                        .foregroundStyle(face == .neutral ? Theme.inkSub : Theme.coralText)
                         .lineLimit(1).minimumScaleFactor(0.6)
                 }
                 Spacer(minLength: 0)
@@ -325,7 +325,7 @@ public struct OldMaidView: View {
                         .frame(minHeight: OldMaidHandLayout.minimumTapTarget)
                 }
                 .buttonStyle(.pop)
-                .foregroundStyle(model.isJokerWatched ? Theme.coral : Theme.teal)
+                .foregroundStyle(model.isJokerWatched ? Theme.coralText : Theme.tealText)
                 .disabled(!model.canShuffle)
                 .accessibilityHint(tr("手札の並びを混ぜます。ジョーカーの場所を覚えられなくなります"))
             }
@@ -408,10 +408,10 @@ public struct OldMaidView: View {
             HStack(spacing: 8) {
                 Image(systemName: won ? "crown.fill" : "theatermasks.fill")
                     .scaledFont(20)
-                    .foregroundStyle(won ? Theme.yellow : Theme.purple)
+                    .foregroundStyle(won ? Theme.yellowText : Theme.purple)
                 Text(won ? tr("あなたの勝ち！") : tr("ジョーカーが残った…あなたの負け"))
                     .scaledFont(17, weight: .black, design: .rounded)
-                    .foregroundStyle(won ? Theme.teal : Theme.ink)
+                    .foregroundStyle(won ? Theme.tealText : Theme.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
             }
@@ -429,7 +429,7 @@ public struct OldMaidView: View {
                                                        : (isLoser ? Theme.Fill.purple : Theme.fillMuted)))
                         Text(model.playerName(player))
                             .scaledFont(13, weight: .bold, design: .rounded)
-                            .foregroundStyle(player == OldMaidModel.humanIndex ? Theme.coral : Theme.ink)
+                            .foregroundStyle(player == OldMaidModel.humanIndex ? Theme.coralText : Theme.ink)
                         Spacer()
                         if isLoser {
                             OldMaidCardFaceView(card: .joker, highlighted: false, size: .mini)

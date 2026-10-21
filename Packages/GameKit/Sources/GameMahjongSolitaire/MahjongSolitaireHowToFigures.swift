@@ -46,7 +46,7 @@ enum MahjongSolitaireHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("同じ牌を 2 枚タップ") : tr("消える"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -135,7 +135,7 @@ enum MahjongSolitaireHowToFigures {
                             .scaledFont(30, weight: .bold, maxScale: 1.15)
                             .foregroundStyle(Color(hex: 0x2E9D6B))
                             .frame(height: MahjongSolitaireHowToFigures.tileHeight + 9)
-                        RuleFigureLabel(tr("全部消したらクリア"), color: Theme.coral)
+                        RuleFigureLabel(tr("全部消したらクリア"), color: Theme.coralText)
                     }
                 }
             }

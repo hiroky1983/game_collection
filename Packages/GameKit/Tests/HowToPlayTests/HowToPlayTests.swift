@@ -54,10 +54,16 @@ import GameSpider
 @testable import GameSudoku
 @testable import GameBlocks
 @testable import GameFifteen
+@testable import GameRoulette
+@testable import GameFruits
+@testable import GameColorRelay
+@testable import GameBackgammon
+@testable import GameSpeed
 @testable import GameAnzan
 @testable import GameAkariKeshi
 @testable import GameTsunagi
 import GameHanoi
+import GameYonmoku
 @testable import GameShiritori
 import GameChess
 import GameBlocks
@@ -105,6 +111,7 @@ private let registeredModules: [GameModule] = [
     HeartsModule(),
     TsunagiModule(),
     HanoiModule(),
+    YonmokuModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
@@ -272,7 +279,6 @@ struct CardGameHowToFiguresTests {
     private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
         [
             ("poker", .poker, PokerHowToFigures.items),
-            ("pokerBonus", .pokerBonus, PokerHowToFigures.bonusItems),
             ("concentration", .concentration, ConcentrationHowToFigures.items),
             ("blackjack", .blackjack, BlackjackHowToFigures.items),
             ("daifugo", .daifugo, DaifugoHowToFigures.items),
@@ -294,24 +300,17 @@ struct CardGameHowToFiguresTests {
         }
     }
 
-    @Test("ポーカーのボーナスルールは gameID が同じで all に入らず、スタンダードの項目に役ボーナスとダブルアップが加わる（#2268）")
-    func pokerBonusVariant() throws {
-        let standard = HowToPlayGuide.poker
-        let bonus = HowToPlayGuide.pokerBonus
-        #expect(bonus.gameID == standard.gameID)
-        #expect(!HowToPlayGuide.all.contains(bonus))
-        #expect(Array(bonus.items.prefix(standard.items.count)) == standard.items)
-        #expect(bonus.items.count == standard.items.count + 2)
-        #expect(PokerHowToFigures.guide(for: .standard).items.count == standard.items.count)
-        #expect(PokerHowToFigures.guide(for: .bonus).items.count == bonus.items.count)
+    @Test("ポーカーの開始シートに図入りの要点が埋まっている（#2268・#2551）")
+    func pokerStartSheetEmbedsGuide() throws {
+        #expect(PokerHowToFigures.guide.items.count == HowToPlayGuide.poker.items.count)
         let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GamePoker/PokerSheets.swift"))
-        #expect(code.contains("PokerHowToFigures.guide(for: rules)"), "開始シートに要点が埋まっていない")
+        #expect(code.contains("PokerHowToFigures.guide"), "開始シートに要点が埋まっていない")
     }
 
     @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GamePoker/PokerView.swift", "PokerHowToFigures.guide(for: model.rules)", "poker"),
+            ("GamePoker/PokerView.swift", "PokerHowToFigures.guide)", "poker"),
             ("GameConcentration/ConcentrationView.swift", "HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items)", "concentration"),
             ("GameBlackjack/BlackjackView.swift", "HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items)", "blackjack"),
             ("GameDaifugo/DaifugoView.swift", "HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)", "daifugo"),
@@ -541,9 +540,8 @@ struct PuzzleOtherHowToFiguresTests {
 
     @Test("ハブに並ぶ全ゲームの「？」が図入りになった（#2044 の完了条件）")
     func everyRegisteredGameIsIllustrated() {
-        // 倉庫のゲーム（ハブに出していない）は対象外。ハブの一覧は App 側にあるので、ここでは倉庫の ID を除いて見る。
-        let warehouse: Set<String> = ["roulette", "fruits", "colorrelay", "backgammon", "speed"]
-        for guide in HowToPlayGuide.all where !warehouse.contains(guide.gameID) {
+        // 除外は無い（倉庫のゲームも含む。ルーレット・盆栽・いろリレー・バックギャモン・スピードは #2386 で図を足した）。
+        for guide in HowToPlayGuide.all {
             #expect(!guide.items.isEmpty, "\(guide.gameID) の遊び方が図入りでない")
         }
     }
@@ -588,6 +586,49 @@ struct PuzzleOtherHowToFiguresTests {
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
             #expect(code.contains(expected), "\(name) の「？」が図入りの版でない")
+        }
+    }
+}
+
+// MARK: - 図がなかった 5 本の図（#2386）
+
+@Suite("ルーレット・盆栽・いろリレー・バックギャモン・スピードの図入りの遊び方")
+@MainActor
+struct LateIllustratedHowToFiguresTests {
+    private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
+        [
+            ("roulette", .roulette, RouletteHowToFigures.items),
+            ("fruits", .fruits, FruitsHowToFigures.items),
+            ("colorRelay", .colorRelay, ColorRelayHowToFigures.items),
+            ("backgammon", .backgammon, BackgammonHowToFigures.items),
+            ("speed", .speed, SpeedHowToFigures.items),
+        ]
+    }
+
+    @Test("項目ごとに図が 1 つずつあり、図を差し込んでも文言は変わらない")
+    func everyItemHasFigure() {
+        for (name, guide, figures) in pairs {
+            #expect(!guide.items.isEmpty, "\(name) に図入りの項目が無い")
+            #expect(figures.count == guide.items.count, "\(name): 図と項目の数がずれている")
+            let illustrated = guide.illustrated(figures)
+            #expect(illustrated.items.allSatisfy { $0.figure != nil })
+            #expect(illustrated.items.map(\.text) == guide.items.map(\.text))
+            #expect(illustrated.notes == guide.notes)
+        }
+    }
+
+    @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
+    func viewsWireIllustratedGuide() throws {
+        let files: [(String, String, String)] = [
+            ("GameRoulette/RouletteView.swift", "HowToPlayGuide.roulette.illustrated(RouletteHowToFigures.items)", "roulette"),
+            ("GameFruits/FruitsView.swift", "HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items)", "fruits"),
+            ("GameColorRelay/ColorRelayView.swift", "HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)", "colorRelay"),
+            ("GameBackgammon/BackgammonView.swift", "HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items)", "backgammon"),
+            ("GameSpeed/SpeedView.swift", "HowToPlayGuide.speed.illustrated(SpeedHowToFigures.items)", "speed"),
+        ]
+        for (path, expected, name) in files {
+            let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
+            #expect(code.contains(".howToPlay(" + expected), "\(name) の「？」が図入りの版でない")
         }
     }
 }

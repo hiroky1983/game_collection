@@ -49,7 +49,7 @@ struct HubCategoryTests {
         #expect(r.populatedCategories(among: []).isEmpty)
     }
 
-    /// `AppEnvironment.registry` の `categories:` に載った ID。
+    /// `AppEnvironment.registry` の `categories:` に載った ID（登録中・企画倉庫どちらも含む）。
     private func categorizedIDs(_ source: String) throws -> [String] {
         let start = try #require(source.range(of: "categories: ["))
         let end = try #require(source.range(of: "])", range: start.upperBound..<source.endIndex))
@@ -59,16 +59,58 @@ struct HubCategoryTests {
         return ids
     }
 
+    /// `registry = GameRegistry([ ... ], categories:` のゲーム一覧から、コメントアウトされていない
+    /// （= ハブに登録中の）`XxxModule()` の型名一覧を拾う。倉庫ゲームの説明文コメントも行頭が `//` なので、
+    /// 行単位で `//` 始まりを落とすだけで登録行だけが残る。
+    private func registeredModuleTypeNames(_ source: String) throws -> [String] {
+        let start = try #require(source.range(of: "static let registry = GameRegistry(["))
+        let end = try #require(source.range(of: "], categories: [", range: start.upperBound..<source.endIndex))
+        let body = String(source[start.upperBound..<end.lowerBound])
+        let activeBody = body.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        return try activeBody.matches(of: Regex(#"([A-Za-z0-9]+Module)\(\)"#))
+            .compactMap { $0.output[1].substring.map(String.init) }
+    }
+
+    /// `Packages/GameKit/Sources/**/*Module.swift` 全部から `id` を読み、型名をキーにして返す
+    /// （ハブに登録中・企画倉庫（コメントアウト中）どちらも含む・#2385）。
+    private func allGameModuleIDsByTypeName() throws -> [String: String] {
+        let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let enumerator = try #require(
+            FileManager.default.enumerator(at: sourcesRoot, includingPropertiesForKeys: nil),
+            "\(sourcesRoot.path) を走査できない")
+        var result: [String: String] = [:]
+        while let item = enumerator.nextObject() {
+            guard let url = item as? URL, url.lastPathComponent.hasSuffix("Module.swift"),
+                  url.lastPathComponent != "GameModule.swift" else { continue }
+            let text = try String(contentsOf: url, encoding: .utf8)
+            guard let typeMatch = text.firstMatch(of: /public struct (\w+): GameModule/),
+                  let idMatch = text.firstMatch(of: /public let id = "([a-z0-9]+)"/) else { continue }
+            result[String(typeMatch.output.1)] = String(idMatch.output.1)
+        }
+        // 空振り防止。パスがずれて 0 件になると、以降の照合がすべて素通りしてしまう。
+        #expect(result.count >= 35, "ゲームモジュールの走査が空振りしている可能性（\(result.count) 件しか読めていない）")
+        return result
+    }
+
     @Test("ハブに並ぶ全ゲームがカテゴリーを持ち、絵のアセットが同梱されている")
     func everyRegisteredGameHasCategoryAndArt() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
-        let ids = try categorizedIDs(source)
-        // コメントアウトされていない `XxxModule(),` の行数 = 登録ゲーム数。
-        let registered = SourceScan.matchCount(of: #"(?m)^\s{8}[A-Za-z0-9]+Module\(\),"#, in: source)
-        #expect(Set(ids).count == ids.count, "同じ ID が 2 回載っている")
-        #expect(ids.count == registered, "カテゴリーの表（\(ids.count)）と登録ゲーム数（\(registered)）が合わない")
-        for id in ids {
+        let categorized = try categorizedIDs(source)
+        #expect(Set(categorized).count == categorized.count, "同じ ID が 2 回載っている")
+
+        // 実際にハブへ出るのは、コメントアウトされていない登録行の分だけ（企画倉庫のゲームは除く）。
+        let moduleIDsByType = try allGameModuleIDsByTypeName()
+        let registeredTypeNames = try registeredModuleTypeNames(source)
+        let registeredIDs = registeredTypeNames.compactMap { moduleIDsByType[$0] }
+        #expect(registeredIDs.count == registeredTypeNames.count,
+                 "登録行の型名からゲーム ID を引けないものがある: \(Set(registeredTypeNames).subtracting(moduleIDsByType.keys))")
+        #expect(Set(registeredIDs).isSubset(of: Set(categorized)),
+                 "ハブに登録中なのにカテゴリーの表に無い: \(Set(registeredIDs).subtracting(categorized))")
+
+        for id in registeredIDs {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/hubtile-\(id).imageset/hubtile-\(id).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(id) の絵（hubtile-\(id).png）が無い")
@@ -83,6 +125,16 @@ struct HubCategoryTests {
         }
     }
 
+    @Test("企画倉庫（コメントアウト中）のゲームも含め、ゲームモジュール全部がカテゴリーの表に載っている（#2385）")
+    func everyGameModuleIncludingWarehousedHasCategory() throws {
+        let source = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
+        let categorized = Set(try categorizedIDs(source))
+        let allIDs = Set(try allGameModuleIDsByTypeName().values)
+        #expect(allIDs.isSubset(of: categorized),
+                 "カテゴリーの表に無いゲームモジュールがある（倉庫のコメントアウト分も含めて行を用意すること）: \(allIDs.subtracting(categorized))")
+    }
+
     @Test("ハブはカテゴリーを GameRegistry から引き、ゲーム ID を直書きしない")
     func hubUsesRegistryData() throws {
         let source = try SourceScan.appSources()
@@ -91,26 +143,68 @@ struct HubCategoryTests {
         let body = String(source[hub.lowerBound..<end.lowerBound])
         #expect(body.contains("registry.category(of:"))
         #expect(body.contains("registry.populatedCategories("))
-        // 特別枠の `heroGameID` 以外に、ゲーム ID の文字列リテラルを持たない。
-        let literals = SourceScan.matchCount(of: #"(?m)^(?!.*heroGameID).*"(homerun|ojisanpuzzle|runner|shogi|poker)""#, in: body)
+        // ゲーム ID の文字列リテラルを持たない（イベントの印の判定は `HubEventBadge` に置く）。
+        let literals = SourceScan.matchCount(of: #""(homerun|ojisanpuzzle|runner|shogi|poker)""#, in: body)
         #expect(literals == 0)
     }
 
-    @Test("柵越えおじさんだけ横長のタイルでグリッドの上に置き、iPhone 用・iPad 用の画像を同梱している（#2184）")
-    func homerunIsWideTileAboveGrid() throws {
-        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad", "hubtile-homerun-wide-en", "hubtile-homerun-wide-pad-en"] {
+    @Test("柵越えおじさんは通常のタイルでグリッドに入り、横長タイルの画像・コードを持たない（#2566）")
+    func homerunIsNormalTile() throws {
+        for name in ["hubtile-homerun", "hubtile-homerun-en"] {
             let png = SourceScan.repositoryRoot
                 .appendingPathComponent("App/Assets.xcassets/HubTiles/\(name).imageset/\(name).png")
             #expect(FileManager.default.fileExists(atPath: png.path), "\(name).png が無い")
         }
+        for name in ["hubtile-homerun-wide", "hubtile-homerun-wide-pad", "hubtile-homerun-wide-en", "hubtile-homerun-wide-pad-en"] {
+            let dir = SourceScan.repositoryRoot.appendingPathComponent("App/Assets.xcassets/HubTiles/\(name).imageset")
+            #expect(!FileManager.default.fileExists(atPath: dir.path), "\(name) は削除済みのはず")
+        }
         let source = try SourceScan.appSources()
-        let hub = try #require(source.range(of: "struct HubView: View {"))
-        let end = try #require(source.range(of: "private struct GameCard", range: hub.upperBound..<source.endIndex))
-        let body = String(source[hub.lowerBound..<end.lowerBound])
-        let wide = try #require(body.range(of: "gridTile(hero, wide: true)"), "横長タイルが置かれていない")
-        let grid = try #require(body.range(of: "LazyVGrid(", range: wide.upperBound..<body.endIndex), "横長タイルがグリッドの上に無い")
-        // グリッドからは柵越えおじさんを除く（2 回出さない）。
-        #expect(body[grid.lowerBound...].contains("ForEach(entries.filter { $0.module.id != Self.heroGameID }"))
+        for gone in ["heroGameID", "wideTileName", "wideAspect", "gridTile(hero", "wide: Bool"] {
+            #expect(!source.contains(gone), "横長タイルの名残: \(gone)")
+        }
+        #expect(source.contains("ForEach(shownGridEntries, id: \\.module.id)"))
+    }
+
+    @Test("「イベント開催中」の印は週間ランキングが有効なあいだだけ柵越えおじさんに出し、NEW を優先する（#2566）")
+    func eventBadge() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains(#"gameID == "homerun" && weeklyLeaderboardID != nil"#))
+        #expect(source.contains("weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly"))
+        let start = try #require(source.range(of: "private var badge: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badge = String(source[start.lowerBound..<end.upperBound])
+        let new = try #require(badge.range(of: #"badgeCapsule("NEW")"#))
+        let event = try #require(badge.range(of: #"badgeCapsule(tr("イベント開催中"))"#))
+        let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
+        #expect(new.lowerBound < event.lowerBound && event.lowerBound < resume.lowerBound)
+        #expect(source.contains(#"if isEvent { parts.append(tr("イベント開催中")) }"#), "読み上げに無い")
+    }
+
+    @Test("柵越えおじさんのタイルは「残り n 回」の印を「イベント開催中」と両方出し、狭ければ 2 段・読み上げにも載せる（#2572）")
+    func homerunCountBadge() throws {
+        let source = try SourceScan.appSources()
+        // 柵越えおじさんだけに残り回数を渡す（ID の判定は `HubCountBadge`。ハブの本体に ID を直書きしない）。
+        #expect(source.contains("count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil"))
+        #expect(source.contains("@MainActor static func isShown(gameID: String) -> Bool { gameID == HomerunModel.gameID }"))
+        // 文字の印（イベント開催中・NEW・続きから）と回数の印は両方出す。横に並ばなければ 2 段。
+        let start = try #require(source.range(of: "private var badges: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badges = String(source[start.lowerBound..<end.upperBound])
+        #expect(badges.contains("ViewThatFits(in: .horizontal)"))
+        #expect(SourceScan.matchCount(of: "countBadge\\(count\\)", in: badges) == 2, "1 段・2 段の両方に回数の印")
+        #expect(SourceScan.matchCount(of: "\n\\s+badge\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
+        // 読み上げは「残り n 回」（`HomerunHubCount.labelText`）。
+        #expect(source.contains("if let count { parts.append(count.labelText()) }"), "読み上げに無い")
+        // 初期値のほか、ゲームから戻ったとき・前面に戻ったとき・0:00 を越えたときに読み直す（#2208）。
+        #expect(SourceScan.matchCount(of: "homerunTally = HomerunHubCount\\.tally\\(\\)", in: source) == 4)
+    }
+
+    @Test("柵越えおじさんは登録順の先頭（新着の固定の直後に並ぶ・#2572）")
+    func homerunIsRegisteredFirst() throws {
+        let source = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
+        #expect(try registeredModuleTypeNames(source).first == "HomerunModule")
     }
 
     @Test("カテゴリーのチップは押せる範囲が 44pt 以上（HIG の最小値・#2184 の誤タップ対策）")
@@ -132,7 +226,6 @@ struct HubCategoryTests {
         let card = String(source[start.lowerBound..<end.lowerBound])
         #expect(card.contains("let language = AppLanguageStore.shared.language"))
         #expect(card.contains("HubTileStyle.tileName(for: module.id, language: language)"))
-        #expect(card.contains("HubTileStyle.wideTileName(for: module.id, pad: layout.isWide, language: language)"))
     }
 
     @Test("見出しの「きろく」「設定」ボタンは押せる範囲が 44pt 以上で、間隔を空けている（#2201）")

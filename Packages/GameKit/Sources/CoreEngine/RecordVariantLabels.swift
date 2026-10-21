@@ -57,7 +57,12 @@ public enum RecordVariantLabels {
         case "mahjong4":
             return variant == "singleHand" ? tr("一局戦", language: language) : nil
         case "poker":
-            return variant == "bonus" ? tr("ボーナスルール", language: language) : nil
+            // `round10` は 10 回勝負（#2551）。`bonus` はチップ制の頃の区分で、記録は `PlayLog` が読み飛ばす。
+            switch variant {
+            case "round10": return tr("10回勝負", language: language)
+            case "bonus":   return tr("ボーナスルール", language: language)
+            default:        return nil
+            }
         case "runner":
             return variant == "endless" ? tr("エンドレス", language: language) : nil
         case "hanafuda":

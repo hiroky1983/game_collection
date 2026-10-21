@@ -40,7 +40,7 @@ enum GomokuHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("空いた所をタップ") : tr("石が置かれる"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -81,7 +81,7 @@ enum GomokuHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("4 つ並んだ！ ここをあけると 5 つ") : tr("白で止めた"),
-                                    color: index == 0 ? Theme.coral : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
                 }
             }
         }
@@ -99,7 +99,7 @@ enum GomokuHowToFigures {
                         if row == 3, col == 3 { RuleBoardMark.cross() }
                     }
                 }
-                RuleFigureLabel(tr("黒は ✕ に打てない（三三）"), color: Theme.coral)
+                RuleFigureLabel(tr("黒は ✕ に打てない（三三）"), color: Theme.coralText)
             }
         }
     }

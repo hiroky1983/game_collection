@@ -4,61 +4,40 @@ import Core
 // MARK: - Start Sheet
 
 struct PokerStartSheet: View {
-    @Binding var rules: PokerRuleSet
     let onStart: () -> Void
     /// キャンセル（ハブへ戻る）。これが無いと開いたら 1 局遊ぶしかなかった（#1371。麻雀は #352 で対応済み）。
     let onCancel: () -> Void
 
-    /// 役一覧・配当表の詳細。共通枠は NavigationStack を持たないので、入れ子のシートで開く。
+    /// 役一覧・点数表の詳細。共通枠は NavigationStack を持たないので、入れ子のシートで開く。
     private enum Detail: Identifiable {
-        case handGuide, bonusTable
+        case handGuide, pointsTable
         var id: Self { self }
     }
     @State private var detail: Detail?
 
     var body: some View {
-        // 節が増えても（ボーナスルール選択時）中身がスクロールするので押し出されない。
         GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
-            GameSetupSection(tr("ルール")) {
-                // 他ゲームの開始シートと同じ大きめのタイルに揃える（会長指摘・2026-09-23）。
-                HStack(spacing: 12) {
-                    ForEach(PokerRuleSet.allCases) { rule in
-                        GameSetupChooser(
-                            title: rule.title, subtitle: "",
-                            selected: rules == rule, accent: Theme.Fill.coral
-                        ) { rules = rule }
-                    }
-                }
-                Text(rules.summary)
-                    .scaledFont(12, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // 選んでいるルールの遊び方を、図つきでそのまま並べる（#2044・#2268。荷物運びパズル #2132 と同じ型）。
-            // カードは「？」の遊び方シートと同じ部品。ルールを切り替えたら前のルールの図を引きずらず描き直す。
+            // 遊び方を図つきでそのまま並べる（#2044・#2268。荷物運びパズル #2132 と同じ型）。
+            // カードは「？」の遊び方シートと同じ部品。
             GameSetupSection(tr("ルールの要点")) {
-                let guide = PokerHowToFigures.guide(for: rules)
+                let guide = PokerHowToFigures.guide
                 VStack(spacing: 10) {
                     ForEach(Array(guide.items.enumerated()), id: \.offset) { _, item in
                         HowToPlayItemCard(item)
                     }
                     if !guide.notes.isEmpty { HowToPlayNotesCard(guide.notes) }
                 }
-                .id(rules)
             }
 
             detailButton(tr("役一覧を見る"), systemImage: "list.bullet.rectangle", showing: .handGuide)
-            if rules == .bonus {
-                detailButton(tr("役ボーナス配当表を見る"), systemImage: "list.number", showing: .bonusTable)
-            }
+            detailButton(tr("役の点数表を見る"), systemImage: "list.number", showing: .pointsTable)
         }
         .sheet(item: $detail) { detail in
             NavigationStack {
                 Group {
                     switch detail {
                     case .handGuide: HandGuideSheet()
-                    case .bonusTable: BonusTableSheet()
+                    case .pointsTable: PointsTableSheet()
                     }
                 }
                 .toolbar {
@@ -90,41 +69,30 @@ struct PokerStartSheet: View {
     }
 }
 
-// MARK: - Bonus Table Sheet
+// MARK: - Points Table Sheet
 
-/// 役ボーナスの配当表（#496）。役を覚える教材を兼ねるので、金額だけでなく役の説明も添える。
-struct BonusTableSheet: View {
+/// 役の点数表（#2551）。役を覚える教材を兼ねるので、点数だけでなく役の名前を強い順に並べる。
+struct PointsTableSheet: View {
     var body: some View {
-        YakuTableSheet(title: tr("役ボーナス配当表")) {
+        YakuTableSheet(title: tr("役の点数表")) {
             YakuTableSection(
-                footer: tr("勝って得たチップは、最大%lld回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。", PokerModel.maxDoubleUpStreak)
+                footer: tr("10 回勝負の合計点で、CPU より多ければ勝ちです。合計点の自己ベストが記録に残ります。")
             ) {
-                Text(tr("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。"))
+                Text(tr("その回に勝った側に、自分の役の点が入ります。負け・引き分けは 0 点です。"))
                     .scaledFont(12, weight: .medium, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
-                ForEach(PokerBonusTable.payouts) { payout in
+                ForEach(PokerScoreTable.table) { entry in
                     HStack(spacing: 8) {
-                        Text(payout.rank.description)
+                        Text(entry.rank.description)
                             .scaledFont(14, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.coralText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer()
-                        Text(tr("+%@枚", RecordFormat.number(payout.chips)))
+                        Text(tr("%lld点", entry.points))
                             .scaledFont(16, weight: .black, design: .rounded)
                             .foregroundStyle(Theme.yellowText)
                     }
-                }
-                HStack(spacing: 8) {
-                    Text(tr("ワンペア・ハイカード"))
-                        .scaledFont(14, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Spacer()
-                    Text(tr("なし"))
-                        .scaledFont(14, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
                 }
             }
         }

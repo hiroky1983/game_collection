@@ -15,6 +15,8 @@ public struct SpeedView: View {
     /// 負けそうなときに CPU を休ませる救済（広告 1 本で 1 ゲーム 1 回）。
     @State private var timeoutRescue = RewardedRescue()
     @State private var showSetup: Bool
+    /// 進行中に右上の新規を押したときの確認（#2370）。
+    @State private var showConfirmNewGame = false
     /// 画面の広さ（#458）。札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
     /// バックグラウンドへ移ったら CPU を止める（アクション枠の基盤規約「即一時停止」。ブロック崩し・チャリンコおじさんと同じ）。
@@ -59,7 +61,16 @@ public struct SpeedView: View {
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: tr("スピード"), review: services.review) {
+        // 右上の新規（#2370）は同じ速さで配り直す。速さを変えるのは隣の「速さ」から。
+        // 広告の視聴中は塞ぐ（配り直すと見終えた広告のタイムが局ガードで弾かれて見損になる）。
+        .gameChrome(title: tr("スピード"), review: services.review,
+                    newGame: GameChromeNewGame(.match, isDisabled: timeoutRescue.isWatching) {
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            startNewGame()
+                        }
+                    }) {
             ToolbarItem(placement: .primaryAction) {
                 Button { showSetup = true } label: {
                     Label(tr("速さ"), systemImage: "slider.horizontal.3")
@@ -69,7 +80,7 @@ public struct SpeedView: View {
             }
         }
         // シートを開いているあいだも CPU は止める（背面で出し切ると、読んでいる間に敗北が記録される。#1358）。
-        .howToPlay(.speed, onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
+        .howToPlay(HowToPlayGuide.speed.illustrated(SpeedHowToFigures.items), onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
             SpeedRuleSheet()
         }
         .sheet(isPresented: $showSetup) {
@@ -103,9 +114,30 @@ public struct SpeedView: View {
         .onChange(of: showSetup) { _, open in
             model.holdCPU(.sheet, open)
         }
+        .dialogs { anchor in
+            anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+                Button(tr("終了して新規対局"), role: .destructive) { startNewGame() }
+                Button(tr("キャンセル"), role: .cancel) {}
+            } message: {
+                Text(tr("途中で終了すると対局データが失われます。"))
+            }
+        }
+        // 確認を出しているあいだも CPU は止める（迷っているうちに出し切られて負けが記録される、を防ぐ）。
+        .onChange(of: showConfirmNewGame) { _, open in
+            model.holdCPU(.sheet, open)
+        }
         // CPU の待ちは Model が決め、ここは待つだけ。場が動くたびに `cpuRun` が進んで前のループが止まり、
         // 画面を離れれば `.task` ごと止まる。
         .task(id: model.cpuRun) { await runCPU() }
+    }
+
+    /// 右上の新規（#2370）。まだ 1 ゲームも始めていなければ速さのシートから、それ以外は同じ速さで配り直す。
+    private func startNewGame() {
+        if model.phase == .idle {
+            showSetup = true
+        } else {
+            withGameAnimation { model.start(model.settings) }
+        }
     }
 
     /// 同じ `cpuRun` のあいだだけ CPU を回す。場が動いて番号が変わったら、新しい `.task` に譲って抜ける
@@ -162,7 +194,7 @@ public struct SpeedView: View {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
                     .scaledFont(12, weight: .bold)
-                    .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coral)
+                    .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coralText)
                 Text(model.isTimeoutActive ? tr("タイム中") : "CPU")
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
@@ -314,7 +346,7 @@ public struct SpeedView: View {
                 Button { showSetup = true } label: {
                     Text(tr("速さを変える")).themeBody(15).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.bordered).controlSize(.large).tint(Theme.coralText)
             }
             .padding(.horizontal, 24)
         }
@@ -375,10 +407,10 @@ public struct SpeedView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.winner == .human ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.winner == .human ? Theme.yellow : Theme.inkSub)
+                    .foregroundStyle(model.winner == .human ? Theme.yellowText : Theme.inkSub)
                 Text(statusText)
                     .scaledFont(17, weight: .black, design: .rounded)
-                    .foregroundStyle(model.winner == .human ? Theme.teal : Theme.ink)
+                    .foregroundStyle(model.winner == .human ? Theme.tealText : Theme.ink)
                 Spacer()
             }
             VStack(spacing: 4) {
@@ -413,7 +445,7 @@ public struct SpeedView: View {
                 .background(Capsule().fill(isWinner ? Theme.Fill.yellow : Color.clear))
             Text(name)
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(name == tr("あなた") ? Theme.coral : Theme.ink)
+                .foregroundStyle(name == tr("あなた") ? Theme.coralText : Theme.ink)
             Spacer()
             Text(remaining == 0 ? tr("出し切り") : tr("残り%lld枚", remaining))
                 .scaledFont(12, weight: .semibold, design: .rounded)

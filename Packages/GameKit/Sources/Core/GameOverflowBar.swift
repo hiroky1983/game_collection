@@ -164,7 +164,7 @@ public struct GameControlMenu: View {
         if item.isEnabled {
             Label(item.title, systemImage: item.systemImage)
         } else {
-            // iOS 標準のメニューはアイコンをアプリの差し色（`HubView` の `.tint(Theme.coral)`）で塗り直すため、
+            // iOS 標準のメニューはアイコンをアプリの差し色（`HubView` の `.tint(Theme.coralText)`）で塗り直すため、
             // `.foregroundStyle` の指定は効かずコーラルのまま残った（会長 QA 2026-09-28）。色を焼き込んだ画像
             // （`alwaysOriginal`）で渡すと塗り直されないので、押せない項目だけアイコンを文字と同じグレーにできる。
             Label {

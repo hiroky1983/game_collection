@@ -228,7 +228,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case firstPick = "first_pick"
     /// ホーム画面アイコン長押しの項目（#1642）。
     case quickAction = "quick_action"
-    /// ハブ先頭の特別枠（柵越えおじさん・#1761）。1枚しか出ないので `position` は持たない。
+    /// ハブ先頭の特別枠（柵越えおじさん・#1761）。#2566 で通常のタイル（`hub`）になり**発火点は無い**
+    /// （既存の GA4 レポートの値を壊さないよう、語彙には残す）。
     case hero
     /// 中断したゲームのローカル通知（#663・#1950）。
     case resumeReminder = "resume_reminder"

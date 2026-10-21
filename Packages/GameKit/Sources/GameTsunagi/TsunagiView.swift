@@ -99,7 +99,7 @@ public struct TsunagiView: View {
                 connected: model.connectedCount, pairs: model.puzzle.pairCount,
                 filled: model.filledCount, cells: model.puzzle.cellCount))
             .scaledFont(13, weight: .bold, design: .rounded)
-            .foregroundStyle(model.isConnectedButNotFilled ? Theme.coral : Theme.inkSub)
+            .foregroundStyle(model.isConnectedButNotFilled ? Theme.coralText : Theme.inkSub)
             .multilineTextAlignment(.center)
     }
 

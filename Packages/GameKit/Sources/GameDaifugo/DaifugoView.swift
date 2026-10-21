@@ -135,7 +135,7 @@ public struct DaifugoView: View {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
                     .themeCaption(12, maxScale: Self.seatTextMaxScale)
-                    .foregroundStyle(model.currentPlayer == index && model.phase == .playing ? Theme.coral : Theme.inkSub)
+                    .foregroundStyle(model.currentPlayer == index && model.phase == .playing ? Theme.coralText : Theme.inkSub)
                 Text(model.playerName(index))
                     .themeCaption(12, maxScale: Self.seatTextMaxScale)
                     .foregroundStyle(Theme.ink)
@@ -406,10 +406,10 @@ public struct DaifugoView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellow : Theme.inkSub)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
                 Text(tr("あなたは %@", model.playerTitle))
                     .scaledFont(17, weight: .black, design: .rounded)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.teal : Theme.ink)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
                 if let note = humanResultNote {
                     Text(note)
                         .scaledFont(11, weight: .bold, design: .rounded)
@@ -434,7 +434,7 @@ public struct DaifugoView: View {
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
                             .scaledFont(13, weight: .bold, design: .rounded)
-                            .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)
+                            .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coralText : Theme.ink)
                         if let note = rankRowNote(player) {
                             Text(note)
                                 .scaledFont(10, weight: .bold, design: .rounded)

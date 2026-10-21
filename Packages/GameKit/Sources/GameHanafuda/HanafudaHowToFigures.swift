@@ -67,7 +67,7 @@ enum HanafudaHowToFigures {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(spacing: 4) {
                             HanafudaHowToFigures.card(0, highlighted: true)
-                            RuleFigureLabel(tr("手札"), color: Theme.coral)
+                            RuleFigureLabel(tr("手札"), color: Theme.coralText)
                         }
                         VStack(spacing: 4) {
                             HStack(spacing: 3) {
@@ -84,7 +84,7 @@ enum HanafudaHowToFigures {
                             HanafudaHowToFigures.card(0)
                             HanafudaHowToFigures.card(2)
                         }
-                        RuleFigureLabel(tr("同じ月を取る"), color: Theme.coral)
+                        RuleFigureLabel(tr("同じ月を取る"), color: Theme.coralText)
                     }
                 }
             }
@@ -112,7 +112,7 @@ enum HanafudaHowToFigures {
                             HanafudaHowToFigures.card(8)
                             HanafudaHowToFigures.card(10)
                         }
-                        RuleFigureLabel(tr("場の同じ月と合わさる"), color: Theme.coral)
+                        RuleFigureLabel(tr("場の同じ月と合わさる"), color: Theme.coralText)
                     }
                 }
             }
@@ -129,7 +129,7 @@ enum HanafudaHowToFigures {
                             HanafudaHowToFigures.card(id)
                         }
                     }
-                    RuleFigureLabel(tr("役ができた！（猪鹿蝶）"), color: Theme.coral)
+                    RuleFigureLabel(tr("役ができた！（猪鹿蝶）"), color: Theme.coralText)
                 }
                 HStack(spacing: 10) {
                     choice(tr("あがり"), detail: tr("得点する"), fill: Theme.Fill.coral)

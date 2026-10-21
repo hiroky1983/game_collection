@@ -1,5 +1,6 @@
 import Testing
 import Core
+import SwiftUI
 import GameKitTestSupport
 @testable import GameOjisanPuzzle
 
@@ -36,7 +37,19 @@ struct OjisanPuzzleHowToTests {
             try SourceScan.packageSource("Sources/GameOjisanPuzzle/OjisanPuzzleView.swift"))
         #expect(code.contains(".howToPlay(howToPlayGuide,"))
         #expect(code.contains("model.mode.howToPlayGuide"))
-        #expect(code.contains("onPresent: { model.pause() }"))
+        #expect(code.contains("onPresent: { showHowTo = true; model.pause() }"))
+    }
+
+    @Test("遊び方を開いたまま背面から戻っても荷物を動かさない（#2353）")
+    func foregroundDoesNotResumeWhileHowToIsOpen() throws {
+        #expect(!OjisanPuzzleResume.shouldResume(phase: .active, showSetup: false, showHowTo: true))
+        #expect(!OjisanPuzzleResume.shouldResume(phase: .active, showSetup: true, showHowTo: false))
+        #expect(!OjisanPuzzleResume.shouldResume(phase: .background, showSetup: false, showHowTo: false))
+        #expect(OjisanPuzzleResume.shouldResume(phase: .active, showSetup: false, showHowTo: false))
+        let code = SourceScan.strippingComments(
+            try SourceScan.packageSource("Sources/GameOjisanPuzzle/OjisanPuzzleView.swift"))
+        #expect(code.contains("onPresent: { showHowTo = true; model.pause() }"))
+        #expect(code.contains("OjisanPuzzleResume.shouldResume(phase: phase, showSetup: showSetup, showHowTo: showHowTo)"))
     }
 
     @Test("モードごとの遊び方は、そのモード用の図入りの文言になる")

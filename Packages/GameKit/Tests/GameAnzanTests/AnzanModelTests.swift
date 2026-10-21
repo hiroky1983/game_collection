@@ -532,4 +532,13 @@ struct AnzanModelTests {
         model.start(AnzanSettings(digits: .two, count: .five, speed: .normal))
         #expect(model.advanceDisplay() != nil)
     }
+
+    @Test("難易度シートを開いたまま背面→復帰しても再開しない（#2334）")
+    func setupSheetBlocksResumeOnForeground() {
+        // 復帰（active）でもシートが開いていれば再開しない。閉じて初めて再開してよい。
+        #expect(!AnzanModel.canResumeDisplay(isActive: true, showHowToPlay: false, showSetup: true))
+        #expect(!AnzanModel.canResumeDisplay(isActive: true, showHowToPlay: true, showSetup: false))
+        #expect(!AnzanModel.canResumeDisplay(isActive: false, showHowToPlay: false, showSetup: false))
+        #expect(AnzanModel.canResumeDisplay(isActive: true, showHowToPlay: false, showSetup: false))
+    }
 }

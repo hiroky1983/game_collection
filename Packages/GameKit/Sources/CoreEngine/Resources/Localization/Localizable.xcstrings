@@ -317,6 +317,17 @@
         }
       }
     },
+    "10回勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 Rounds"
+          }
+        }
+      }
+    },
     "3枚めくり" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -8,10 +8,11 @@ public struct DiceComboView: View {
     private let services: GameServices
     @State private var model: DiceComboModel
     @State private var showConfirmReset = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: DiceComboModel(services: services))
+        _model = State(initialValue: DiceComboModel(services: services, rollInterval: DiceComboMotion.rollInterval))
     }
 
     public var body: some View {
@@ -155,7 +156,7 @@ public struct DiceComboView: View {
             Spacer(minLength: 2)
             Text(verbatim: model.bonus > 0 ? "+\(model.bonus)" : "0")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                .foregroundStyle(model.bonus > 0 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(model.bonus > 0 ? Theme.coralText : Theme.inkSub)
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, minHeight: DiceComboScoreRow.height)
@@ -167,17 +168,51 @@ public struct DiceComboView: View {
 
     // MARK: - サイコロ
 
+    /// 振ると、キープしていないサイコロが目をパラパラ変えながら跳ねて立体に転がり、止まる（#2365・#2389）。
+    /// 出目は Model が振った瞬間に確定済みで、ここは止まるまで途中の目を描くだけ。
+    /// 「視差効果を減らす」がオンなら跳ねる・転がるは止め、目の切り替えだけにする。
     private var diceRow: some View {
+        TimelineView(AnimationTimelineSchedule(minimumInterval: DiceComboMotion.flickerStep, paused: !model.isRolling)) { timeline in
+            diceButtons(tick: DiceComboMotion.tick(at: timeline.date))
+        }
+        .onChange(of: model.isRolling) { wasRolling, isRolling in
+            // 止まってから目を読み上げる（転がっている途中の目は読まない）。
+            guard wasRolling, !isRolling, !model.dice.isEmpty else { return }
+            AccessibilityNotification.Announcement(
+                DiceComboAccessibility.diceLabel(dice: model.dice, held: model.held)
+            ).post()
+        }
+    }
+
+    private func diceButtons(tick: Int) -> some View {
         HStack(spacing: 10) {
             ForEach(0..<DiceComboLogic.diceCount, id: \.self) { index in
                 let value = model.dice.indices.contains(index) ? model.dice[index] : nil
                 let isHeld = model.held.indices.contains(index) && model.held[index]
+                let shown = DiceComboMotion.displayedFace(final: value, isRolling: model.isRolling,
+                                                          isHeld: isHeld, index: index, tick: tick)
+                let tumbles = !isHeld && !reduceMotion && value != nil  // 転がり中に新しいゲームにしたら振る前の目は跳ねない
                 Button {
                     model.toggleHold(index)
                 } label: {
                     VStack(spacing: 3) {
-                        DiceComboDieFace(value: value, isHeld: isHeld)
-                            .rotationEffect(.degrees(isHeld || value == nil ? 0 : Double((model.rollSerial * 37 + index * 53) % 21 - 10)))
+                        // 転がる向きはキーフレームの値から毎コマ描く（`KeyframeAnimator` は値を中身へ渡せる形）。
+                        KeyframeAnimator(initialValue: DiceComboTumble(), trigger: model.rollSerial) { tumble in
+                            // まだ振っていなければ固定の目を薄く出す（役の計算には使わない・#2389）。
+                            DiceComboDieFace(value: shown ?? DiceComboMotion.idleFace(index: index),
+                                             isHeld: isHeld, isUnrolled: value == nil,
+                                             rotation: tumbles
+                                                ? tumble.rotation(direction: DiceComboMotion.spinDirection(index: index))
+                                                : .identity)
+                                // 目の切り替えは補間しない（ばねが掛かると点が滑って見える）。動かすのは傾き・跳ね・転がりだけ。
+                                .transaction { $0.animation = nil }
+                                // 止まったあとの少しの傾き。転がっている間は 0 にして、止まるときにばねで傾ける。
+                                .rotationEffect(.degrees(isHeld || value == nil || model.isRolling
+                                    ? 0 : Double((model.rollSerial * 37 + index * 53) % 21 - 10)))
+                                .offset(y: tumbles ? tumble.lift : 0)
+                        } keyframes: { _ in
+                            DiceComboMotion.tumbleKeyframes()
+                        }
                         Text(tr("キープ"))
                             .scaledFont(10, weight: .black, design: .rounded, maxScale: 1.1)
                             .foregroundStyle(Theme.coralText)
@@ -187,7 +222,9 @@ public struct DiceComboView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(!model.canHold)
+                // 転がっている間は押しても何も起きない（Model が弾く）が、見た目は薄くしない（0.8 秒ごとに点滅して見えるため）。
+                .disabled(!model.canHold && !model.isRolling)
+                // 読み上げは常に確定した目（`value`）。途中の目（`shown`）は読まない。
                 .accessibilityLabel(value.map { DiceComboAccessibility.dieLabel(index: index, value: $0, isHeld: isHeld) }
                     ?? tr("サイコロ%lld、まだ振っていません", index + 1))
                 .accessibilityHint(model.canHold ? tr("タップでキープを切り替えます") : "")
@@ -195,6 +232,7 @@ public struct DiceComboView: View {
         }
         .frame(maxWidth: 360)
         .gameAnimation(.spring(response: 0.3, dampingFraction: 0.6), value: model.rollSerial)
+        .gameAnimation(.spring(response: 0.3, dampingFraction: 0.6), value: model.isRolling)
         .accessibilityElement(children: .contain)
     }
 
@@ -206,7 +244,8 @@ public struct DiceComboView: View {
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.2)
         }
         .buttonStyle(.game(.primary, shape: .block))
-        .disabled(!model.canRoll)
+        // 転がっている間の連打は Model が黙って捨てる。ボタンは薄くしない（振るたびに点滅して見えるため）。
+        .disabled(!model.canRoll && !model.isRolling)
         .accessibilityLabel(DiceComboAccessibility.rollLabel(remaining: model.rollsRemaining))
     }
 
@@ -279,7 +318,7 @@ struct DiceComboScoreRow: View {
         } else if let preview {
             Text(verbatim: "\(preview)")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                .foregroundStyle(preview > 0 ? Theme.coral : Theme.inkSub)
+                .foregroundStyle(preview > 0 ? Theme.coralText : Theme.inkSub)
         } else {
             Text(verbatim: "–")
                 .scaledFont(15, weight: .bold, design: .rounded, maxScale: 1.15)
@@ -295,35 +334,62 @@ struct DiceComboScoreRow: View {
     }
 }
 
-/// サイコロ 1 個（コードで描く）。まだ振っていなければ「？」。キープ中は差し色の枠。
+/// サイコロ 1 個（コードで描く立方体・#2389）。`rotation` が 0 なら前面 1 枚の平らなサイコロ、
+/// 転がっている間は見える面を `DiceComboCube` の投影で描く。キープ中は差し色の枠。
+/// まだ振っていないときは目を薄く描く（「？」は出さない）。
 struct DiceComboDieFace: View {
-    let value: Int?
+    let value: Int
     var isHeld = false
+    /// まだ振っていない（固定の目を薄く見せる）。
+    var isUnrolled = false
+    /// 立方体の向き。
+    var rotation: DiceComboCube.Rotation = .identity
+
+    /// 転がる途中は横の面が正方形の外へはみ出す（45° で辺の √2 倍）。描く領域をその分広く取り、
+    /// レイアウト上の大きさは変えない。
+    static let drawingScale: CGFloat = 1.8
 
     var body: some View {
         GeometryReader { geo in
             let s = geo.size.width
-            let shape = RoundedRectangle(cornerRadius: s * 0.2, style: .continuous)
-            ZStack {
-                shape.fill(Color.white)
-                shape.strokeBorder(isHeld ? Theme.coral : Color.black.opacity(0.25), lineWidth: isHeld ? max(3, s * 0.07) : 1)
-                if let value {
-                    ForEach(Array(DiceComboDieFace.pips(value).enumerated()), id: \.offset) { _, p in
-                        Circle()
-                            .fill(value == 1 ? Theme.coral : Color(hex: 0x2B2624))
-                            .frame(width: s * (value == 1 ? 0.26 : 0.18), height: s * (value == 1 ? 0.26 : 0.18))
-                            .position(x: p.x * s, y: p.y * s)
-                    }
-                } else {
-                    Text(verbatim: "?")
-                        .font(.system(size: s * 0.5, weight: .black, design: .rounded)) // fixed-size: サイコロの寸法に比例させる文字
-                        .foregroundStyle(Color.black.opacity(0.25))
-                }
+            let pad = s * (Self.drawingScale - 1) / 2
+            Canvas(rendersAsynchronously: false) { context, _ in
+                context.translateBy(x: pad, y: pad)
+                Self.draw(into: &context, side: s, value: value, isHeld: isHeld,
+                          isUnrolled: isUnrolled, rotation: rotation)
             }
+            .frame(width: s * Self.drawingScale, height: s * Self.drawingScale)
+            .offset(x: -pad, y: -pad)
         }
         .aspectRatio(1, contentMode: .fit)
         .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
         .accessibilityHidden(true)
+    }
+
+    /// 辺 `side` のサイコロを `(0,0)-(side,side)` に描く。面の中身は単位正方形の座標で作り、
+    /// `DiceComboCube` の変換で画面へ写す（回転 0 の前面は正方形そのもの）。
+    static func draw(into context: inout GraphicsContext, side s: CGFloat, value: Int,
+                     isHeld: Bool, isUnrolled: Bool, rotation: DiceComboCube.Rotation) {
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let corner: CGFloat = 0.2
+        let borderWidth: CGFloat = isHeld ? max(3, s * 0.07) : 1
+        let borderColor = isHeld ? Theme.coral : Color.black.opacity(0.25)
+        // 枠は面の内側に引く（`strokeBorder` と同じ）。線の幅は画面の pt なので、単位座標では 1/s にする。
+        let inset = borderWidth / 2 / s
+        for face in DiceComboCube.visibleFaces(front: value, rotation: rotation, side: s) {
+            let shape = Path(roundedRect: unit, cornerRadius: corner, style: .continuous).applying(face.transform)
+            context.fill(shape, with: .color(Color(white: face.brightness)))
+            let border = Path(roundedRect: unit.insetBy(dx: inset, dy: inset), cornerRadius: corner - inset, style: .continuous)
+                .applying(face.transform)
+            context.stroke(border, with: .color(borderColor), lineWidth: borderWidth)
+            let pipColor = isUnrolled ? Color.black.opacity(0.22)
+                : (face.value == 1 ? Theme.coral : Color(hex: 0x2B2624))
+            let diameter: CGFloat = face.value == 1 ? 0.26 : 0.18
+            for p in pips(face.value) {
+                let rect = CGRect(x: p.x - diameter / 2, y: p.y - diameter / 2, width: diameter, height: diameter)
+                context.fill(Path(ellipseIn: rect).applying(face.transform), with: .color(pipColor))
+            }
+        }
     }
 
     /// 目 1〜6 の点の位置（0〜1 の座標）。
