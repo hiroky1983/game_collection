@@ -216,7 +216,7 @@ public struct CatPuzzleView: View {
         ZStack {
             if model.isSolved {
                 // おじさんの一言は横いっぱいの吹き出しにして、文字が窮屈にならないようにする（会長 QA 2026-10-21・build 42）。
-                ojisanLine(face: .cheer, text: tr("%lld匹ともくつろいでおる", model.size.side))
+                ojisanLine(face: .cheer, text: tr("みんなでくつろいでおる"))
             } else if model.isFailed {
                 ojisanLine(face: .frown, text: tr("猫はどこへ行ったんじゃ…"))
             } else if model.lastWrongCell != nil {

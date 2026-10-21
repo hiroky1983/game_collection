@@ -34,29 +34,6 @@
         }
       }
     },
-    "%lld匹ともくつろいでおる" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "The %lld cat is relaxing"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "All %lld cats are relaxing"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld回まちがえた…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -229,6 +206,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Normal"
+          }
+        }
+      }
+    },
+    "みんなでくつろいでおる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone's relaxing together"
           }
         }
       }
