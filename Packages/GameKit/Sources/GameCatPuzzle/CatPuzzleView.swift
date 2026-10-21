@@ -19,7 +19,8 @@ public struct CatPuzzleView: View {
     public init(services: GameServices) {
         self.services = services
         let saved = UserDefaults.standard.string(forKey: "catPuzzleSize").flatMap(CatPuzzleSize.init(rawValue:))
-        let model = CatPuzzleModel(services: services, size: saved ?? .normal)
+        // 開始シートで始めると `newGame` が数えるので、新規の盤の `game_start` は遅らせる。
+        let model = CatPuzzleModel(services: services, size: saved ?? .normal, defersStart: true)
         _model = State(initialValue: model)
         // 続きの盤が無ければ、まず難易度を選んでもらう（ナンプレ・マインスイーパー・明かり消しと同じ）。
         _showNewGame = State(initialValue: Self.startsWithNewGameSheet(model))
@@ -68,6 +69,8 @@ public struct CatPuzzleView: View {
                 startNewGame(size: size)
             } onCancel: {
                 showNewGame = false
+                // 閉じて今の盤で遊ぶ。遅らせていた開始をここで数える。
+                model.startPlayIfPending()
             }
         }
         .dialogs { anchor in

@@ -35,6 +35,7 @@ enum CatPuzzleHowToFigures {
         var crosses: [Int] = []
         var solved = false
         var cellSide: CGFloat = CatPuzzleHowToFigures.cellSide
+        var showsRoomLabels = true
         var body: some View {
             let sample = CatPuzzleHowToFigures.sample
             var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: sample.cellCount)
@@ -42,7 +43,7 @@ enum CatPuzzleHowToFigures {
             for cell in cats { marks[cell] = .cat }
             let violations = CatPuzzleLogic.violations(puzzle: sample, cats: cats)
             return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells,
-                                        isSolved: solved, cellSide: cellSide)
+                                        isSolved: solved, showsRoomLabels: showsRoomLabels, cellSide: cellSide)
                 .padding(3)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous).fill(Theme.surface))
         }
@@ -74,7 +75,7 @@ enum CatPuzzleHowToFigures {
             VStack(spacing: 4) {
                 RuleFrames(count: 3, spacing: 6) { index in
                     Board(cats: index == 2 ? [1] : [], crosses: index == 1 ? [1] : [],
-                          cellSide: CatPuzzleHowToFigures.frameCellSide)
+                          cellSide: CatPuzzleHowToFigures.frameCellSide, showsRoomLabels: false)
                 }
                 RuleFigureLabel(tr("タップで × → 猫 → 空"), color: Theme.coralText)
             }

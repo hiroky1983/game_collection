@@ -509,18 +509,39 @@ struct CatPuzzleModelTests {
     @Test("＋: 印が無ければ確認なしで開始シート。途中なら確認を挟み、やめて始めた局は途中離脱（quit）に数える")
     func newGameFromPlusCountsQuit() {
         let spy = SpyAnalyticsService()
-        let model = CatPuzzleModel(services: makeServices(analytics: spy), size: .easy, seed: 6)
+        let model = CatPuzzleModel(services: makeServices(analytics: spy), size: .easy, seed: 6, defersStart: true)
         #expect(CatPuzzleView.startsWithNewGameSheet(model), "続きが無ければ最初に開始シートで難易度を選ぶ")
-        // 開いただけの盤で開始シートから始め直しても、離脱には数えない。
+        #expect(spy.starts(of: CatPuzzleModel.gameID) == 0, "開始シートで選ぶまで game_start は遅らせる")
+        // 開いただけの盤で開始シートから始めても、離脱には数えない。開始は選んだ難易度の 1 回だけ。
         #expect(!model.hasProgressToLose, "確認なしで開始シートを出す")
         model.newGame(size: .normal)
         #expect(spy.quits(of: CatPuzzleModel.gameID) == 0)
-        #expect(spy.startLevels == [.beginner, .normal])
+        #expect(spy.startLevels == [.normal])
+        model.startPlayIfPending()
+        #expect(spy.starts(of: CatPuzzleModel.gameID) == 1, "シートで始めた局に遅らせた開始を足さない")
         // 1 手打った局は確認を挟む（`hasProgressToLose`）。開始シートで始めた時点で quit。
         model.tap(cell: 0)
         #expect(model.hasProgressToLose, "途中なので確認を出す")
         model.newGame(size: .hard)
         #expect(spy.quits(of: CatPuzzleModel.gameID) == 1)
-        #expect(spy.starts(of: CatPuzzleModel.gameID) == 3)
+        #expect(spy.starts(of: CatPuzzleModel.gameID) == 2)
+    }
+
+    @Test("開始シートを閉じて今の盤で遊ぶときは、遅らせた game_start を 1 回だけ数える")
+    func cancelledSheetStartsOnce() {
+        let spy = SpyAnalyticsService()
+        let model = CatPuzzleModel(services: makeServices(analytics: spy), size: .hard, seed: 6, defersStart: true)
+        #expect(spy.starts(of: CatPuzzleModel.gameID) == 0)
+        model.startPlayIfPending()
+        model.startPlayIfPending()
+        model.tap(cell: 0)
+        #expect(spy.starts(of: CatPuzzleModel.gameID) == 1)
+        #expect(spy.startLevels == [.hard])
+        // 閉じる経路を通らずに最初の操作をしても 1 回。
+        let other = SpyAnalyticsService()
+        let direct = CatPuzzleModel(services: makeServices(analytics: other), size: .easy, seed: 7, defersStart: true)
+        direct.tap(cell: 0)
+        direct.tap(cell: 1)
+        #expect(other.starts(of: CatPuzzleModel.gameID) == 1)
     }
 }

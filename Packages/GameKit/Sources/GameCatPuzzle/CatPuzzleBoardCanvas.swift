@@ -29,6 +29,8 @@ struct CatPuzzleBoardCanvas: View {
     /// 赤い × を揺らすきっかけ（値が変わるたびに `lastWrongCell` の × が短く揺れて点滅する。`CatPuzzleModel.mistakes`）。
     var shakeToken = 0
     var isSolved = false
+    /// 部屋の名前の札を描くか（遊び方の小さな 3 コマの図だけ外す。札がマスからはみ出すため）。
+    var showsRoomLabels = true
     let cellSide: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -62,8 +64,10 @@ struct CatPuzzleBoardCanvas: View {
             }
             // 部屋の札。×（通常・ヒント・赤）より上に重ねる（札の背景で × の一部が隠れてよい・会長 QA 2026-10-21・build 43）。
             // 猫より下に敷く（間違えて札のマスに猫を置いても、猫の顔が札に隠れない）。
-            Canvas { context, _ in
-                drawLabels(&context, rooms: rooms)
+            if showsRoomLabels {
+                Canvas { context, _ in
+                    drawLabels(&context, rooms: rooms)
+                }
             }
             // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
             CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)

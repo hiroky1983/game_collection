@@ -81,7 +81,10 @@ public final class CatPuzzleModel {
 
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     /// `seed` を渡すと問題を種から決める（テスト・日替わり用。省略時はシステム乱数）。
-    public init(services: GameServices? = nil, size: CatPuzzleSize = .normal, seed: UInt64? = nil) {
+    /// `defersStart` が真なら、新規開始の `game_start` を最初の操作か `startPlayIfPending()` まで遅らせる
+    /// （開始シートを出す画面用。シートで始めると `newGame` が数えるので、ここで先に数えると 1 局が 2 回になる・
+    /// 囲碁・チェスと同じ #1372）。
+    public init(services: GameServices? = nil, size: CatPuzzleSize = .normal, seed: UInt64? = nil, defersStart: Bool = false) {
         self.services = services
         var seeded = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(CatPuzzleSnapshot.self, for: Self.gameID),
@@ -110,9 +113,23 @@ public final class CatPuzzleModel {
             // 壊れた・手つかずの保存が残っていれば捨てる（印の無い盤は保存しない）。
             services?.snapshots.clear(for: Self.gameID)
             // 中断からの復元は「新しいプレイ」ではないので開始は数えない。
-            services?.gameDidStart(gameID: Self.gameID, level: size.analyticsLevel)
+            if defersStart {
+                pendingInitialStart = true
+            } else {
+                services?.gameDidStart(gameID: Self.gameID, level: size.analyticsLevel)
+            }
         }
         generator = seeded
+    }
+
+    /// 遅らせている新規開始の `game_start`（`defersStart`）。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    /// 開始シートを閉じた（このまま今の盤で遊ぶ）・最初の操作をしたときに、遅らせていた `game_start` を数える。
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: Self.gameID, level: size.analyticsLevel)
     }
 
     /// 問題を直接与えて開始する。狙った局面から検証するためのテスト用の経路。
@@ -163,6 +180,7 @@ public final class CatPuzzleModel {
     /// 答えでないマスに猫を置こうとしたら、猫は置かず赤い × を固定で置き、ミスを 1 数える。
     public func tap(cell: Int) {
         guard !isOver, marks.indices.contains(cell), !isFixed(cell: cell) else { return }
+        startPlayIfPending()
         lastHint = nil
         lastWrongCell = nil
         let next: Mark
@@ -229,6 +247,7 @@ public final class CatPuzzleModel {
     /// 回数は必ず 1 だけ減り、盤は必ず 1 歩進む。置いた結果で盤が完成すればそのままクリア。
     public func useHint() {
         guard canHint, let hint = nextHint else { return }
+        startPlayIfPending()
         for cell in hint.removed + hint.crossed {
             marks[cell] = .cross
             hintCrosses.insert(cell)
@@ -276,6 +295,8 @@ public final class CatPuzzleModel {
         moves = 0
         isSolved = false
         isFailed = false
+        // 開始シートで始めた局は `gameDidRestart` だけで数える（遅らせていた開始は捨てる）。
+        pendingInitialStart = false
         showsClearCard = false
         solvedAt = nil
         recordResult = nil
