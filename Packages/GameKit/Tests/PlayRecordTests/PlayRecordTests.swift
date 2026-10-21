@@ -385,6 +385,32 @@ struct RecordFormatTests {
         #expect(RecordFormat.resultLine(notCleared) == "クリア記録なし（1回挑戦）")
     }
 
+    @Test("最短タイム指標の1行に最少手数と連勝を添える（#2597）")
+    func shortestTimeLineShowsMovesAndStreak() {
+        // 初回クリア（1連勝）では連勝を出さない。手数が無いゲームは従来の文言のまま。
+        let first = PlayRecord(metric: .shortestTime, plays: 1, wins: 1, bestStreak: 1, bestSeconds: 83)
+        #expect(RecordFormat.resultLine(first) == "最短タイム 1:23・1回クリア")
+        #expect(RecordFormat.hubLine([first]) == "最短 1:23")
+
+        // 手数を渡しているゲームは最少手数、2連勝以上なら最高連勝が付く。
+        let full = PlayRecord(metric: .shortestTime, plays: 3, wins: 3, bestStreak: 3, bestSeconds: 83, fewestMoves: 120)
+        #expect(RecordFormat.resultLine(full) == "最短タイム 1:23・3回クリア・最少 120手・最高3連勝")
+        #expect(RecordFormat.hubLine([full]) == "最短 1:23・最高3連勝")
+        #expect(RecordFormat.shareMessage(title: "ソリティア", record: full)
+            == "あそびばの「ソリティア」で記録更新！\n最短タイム 1:23・3回クリア・最少 120手・最高3連勝")
+
+        // 手数だけ（連勝は1）。
+        let movesOnly = PlayRecord(metric: .shortestTime, plays: 1, wins: 1, bestStreak: 1, bestSeconds: 83, fewestMoves: 9)
+        #expect(RecordFormat.resultLine(movesOnly) == "最短タイム 1:23・1回クリア・最少 9手")
+
+        // 未クリアは従来どおり。
+        #expect(RecordFormat.resultLine(PlayRecord(metric: .shortestTime, plays: 2, bestStreak: 0)) == "クリア記録なし（2回挑戦）")
+
+        // 区分つきのハブ行は1行に収めるため変えない。
+        let labeled = PlayRecord(metric: .shortestTime, variantLabel: "初級", plays: 2, wins: 2, bestStreak: 2, bestSeconds: 45)
+        #expect(RecordFormat.hubLine([labeled]) == "最短 0:45（初級）")
+    }
+
     @Test("共有の文言は記録を前面に出し、リザルトの1行と同じ表記を使う（#1043）")
     func shareMessages() {
         let points = PlayRecord.applying(
