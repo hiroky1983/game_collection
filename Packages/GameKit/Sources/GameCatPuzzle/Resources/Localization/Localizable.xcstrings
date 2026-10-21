@@ -57,6 +57,17 @@
         }
       }
     },
+    "%lld回まちがえた…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld mistakes…"
+          }
+        }
+      }
+    },
     "%lld行目" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -145,6 +156,17 @@
         }
       }
     },
+    "そこに猫はいない。赤い×を置いた。ミス %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat there. A red × was placed. Mistakes %1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "そこに猫はいない！ 赤い×はミス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -152,6 +174,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No cat there! A red × counts as a miss"
+          }
+        }
+      }
+    },
+    "そこに猫はいない！ 赤い×はミス（あと%lld回で終わり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat there! A red × is a mistake (%lld more ends the game)"
           }
         }
       }
@@ -453,6 +486,28 @@
         }
       }
     },
+    "ミス %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miss %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "ミス %1$lld回、あと%2$lld回で終わり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld mistakes, game over after %2$lld more"
+          }
+        }
+      }
+    },
     "ミス %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -714,6 +769,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cats next to each other"
+          }
+        }
+      }
+    },
+    "猫はどこへ行ったんじゃ…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where did the cats go…"
           }
         }
       }

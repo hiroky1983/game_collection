@@ -1,13 +1,13 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
-    "答えでないマスに猫を置こうとすると、赤い × が付いてミスになります（赤い × は消せません）。" : {
+    "答えでないマスに猫を置こうとすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If you try to put a cat on a square that isn't part of the answer, a red × appears and counts as a miss (the red × can't be removed)."
+            "value" : "If you try to put a cat on a square that isn't part of the answer, a red × appears and counts as a miss (the red × can't be removed). Three misses end the game."
           }
         }
       }

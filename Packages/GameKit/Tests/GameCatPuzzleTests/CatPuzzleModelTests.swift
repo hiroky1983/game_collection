@@ -368,23 +368,159 @@ struct CatPuzzleModelTests {
         #expect(spy.quits(of: CatPuzzleModel.gameID) == 1, "途中の盤を捨てたので quit が出る")
     }
 
-    @Test("計時は最初のタップで始まり、離れると止まり、戻ると再開する")
-    func timerLifecycle() {
+    @Test("計時は盤が出た時点（タップ前）から進み、シート・離脱で止まり、戻ると再開する")
+    func timerStartsWhenBoardIsShown() {
         let clock = ManualClock()
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
         model.clockNow = clock.now
-        #expect(!model.isCounting)
-        model.tap(cell: 0)
-        #expect(model.isCounting)
-        clock.advance(by: .seconds(10))
-        model.pauseTimer()
-        #expect(!model.isCounting)
-        #expect(model.elapsedSeconds == 10)
-        clock.advance(by: .seconds(30))
+        // 画面が盤を出したとき（`.task` / 開始シートを閉じたとき）に呼ぶ入口。1 手も打っていなくても進む。
         model.resumeTimerIfNeeded()
         #expect(model.isCounting)
+        clock.advance(by: .seconds(10))
+        model.syncElapsed()
+        #expect(model.elapsedSeconds == 10, "眺めて考えている時間も数える")
+        // 開始シート・確認・遊び方を出している間（`gameTimerLifecycle` が pause を呼ぶ）。
+        model.pauseTimer()
+        #expect(!model.isCounting)
+        clock.advance(by: .seconds(30))
+        model.resumeTimerIfNeeded()
         clock.advance(by: .seconds(5))
         model.syncElapsed()
         #expect(model.elapsedSeconds == 15, "止めていたあいだは数えない")
+    }
+
+    @Test("開始シート・確認を出している間は計時を止める（画面の判定）")
+    func clockIsHeldWhileSheetsAreOpen() {
+        #expect(!CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: false, showConfirmClear: false))
+        #expect(CatPuzzleView.holdsClock(showNewGame: true, showConfirmNewGame: false, showConfirmClear: false))
+        #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: true, showConfirmClear: false))
+        #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: false, showConfirmClear: true))
+    }
+
+    @Test("新しい問題が出た瞬間から計時し、記録の最短タイムもこの計時")
+    func newGameStartsClockImmediately() {
+        let clock = ManualClock()
+        let log = makeLog("clock")
+        let model = CatPuzzleModel(services: makeServices(log: log), puzzle: sample, size: .easy)
+        model.clockNow = clock.now
+        model.newGame()
+        #expect(model.isCounting, "開始シートで選んだ直後・もう一回の直後から動く")
+        // 問題を差し替えた盤を解くのは手間なので、見本の盤を使う別の局で記録を確かめる。
+        let solving = CatPuzzleModel(services: makeServices(log: log), puzzle: sample, size: .easy)
+        solving.clockNow = clock.now
+        solving.resumeTimerIfNeeded()
+        clock.advance(by: .seconds(40))
+        for cell in sample.solutionCells { placeCat(solving, at: cell) }
+        #expect(solving.isSolved && solving.elapsedSeconds == 40, "最初のタップより前の 40 秒も含む")
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.bestSeconds == 40)
+    }
+
+    @Test("中断データからの再開は経過時間を引き継いで、そこから進む")
+    func resumedGameKeepsElapsedTime() {
+        let store = MemorySnapshotStore()
+        let clock = ManualClock()
+        let first = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 3)
+        first.clockNow = clock.now
+        first.resumeTimerIfNeeded()
+        first.tap(cell: first.puzzle.solutionCells[0] == 0 ? 1 : 0)
+        clock.advance(by: .seconds(25))
+        first.pauseTimer()
+        let second = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 9)
+        #expect(second.elapsedSeconds == 25)
+        #expect(!CatPuzzleView.startsWithNewGameSheet(second), "続きの盤があれば開始シートを出さない")
+        second.clockNow = clock.now
+        second.resumeTimerIfNeeded()
+        clock.advance(by: .seconds(5))
+        second.syncElapsed()
+        #expect(second.elapsedSeconds == 30)
+    }
+
+    @Test("ミス 2 回までは続き、3 回目で終局（負け）。記録・解析は負けで、中断データは消える")
+    func threeMistakesLose() throws {
+        let store = MemorySnapshotStore()
+        let spy = SpyAnalyticsService()
+        let log = makeLog("lose")
+        let feedback = SpyFeedbackService()
+        let model = CatPuzzleModel(services: makeServices(store: store, log: log, analytics: spy, feedback: feedback),
+                                   puzzle: sample, size: .easy)
+        #expect(CatPuzzleModel.maxMistakes == 3)
+        let wrongs = (0..<sample.cellCount).filter { !sample.solutionCells.contains($0) }
+        placeCat(model, at: wrongs[0])
+        placeCat(model, at: wrongs[1])
+        #expect(model.mistakes == 2 && model.mistakesRemaining == 1)
+        #expect(!model.isFailed && !model.isOver, "2 回目まではまだ続く")
+        #expect(model.hasProgressToLose && store.exists(for: CatPuzzleModel.gameID))
+        model.tap(cell: sample.solutionCells[0])
+        #expect(model.marks[sample.solutionCells[0]] == .cross, "2 回目のあとも打てる")
+        placeCat(model, at: wrongs[2])
+        #expect(model.mistakes == 3 && model.mistakesRemaining == 0)
+        #expect(model.isFailed && model.isOver && !model.isSolved)
+        #expect(model.wrongCrosses.count == 3 && model.lastWrongCell == wrongs[2], "3 回目の赤い × も盤に残す")
+        #expect(!model.isCounting)
+        #expect(!store.exists(for: CatPuzzleModel.gameID), "終局した盤は続きにしない")
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 1)
+        #expect(spy.outcomes == [.loss])
+        #expect(spy.quits(of: CatPuzzleModel.gameID) == 0)
+        let record = try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "easy"))
+        #expect(record.losses == 1 && record.wins == 0 && record.bestSeconds == nil, "負けは最短タイムに数えない")
+        #expect(model.recordResult != nil)
+        // 終局後は触れない・ヒントも戻すも出さない。
+        model.tap(cell: sample.solutionCells[1])
+        #expect(model.marks[sample.solutionCells[1]] == .empty)
+        #expect(!model.canHint && !model.canUndo && !model.hasProgressToLose)
+        let controls = CatPuzzleView.playControls(for: model)
+        #expect(controls.actions.isEmpty && controls.menu.isEmpty)
+        model.resumeTimerIfNeeded()
+        #expect(!model.isCounting, "終局後は計時しない")
+        // もう一回で負けが解け、ミスも 0 に戻る。前の局は決着済みなので quit は出ない。
+        model.newGame()
+        #expect(!model.isFailed && model.mistakes == 0 && model.mistakesRemaining == 3)
+        #expect(spy.quits(of: CatPuzzleModel.gameID) == 0)
+    }
+
+    @Test("ミスの回数は中断データに残り、再開後の 3 回目で負けになる。上限に届いた古い中断データは捨てる")
+    func mistakesSurviveResume() throws {
+        let store = MemorySnapshotStore()
+        let first = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 4)
+        let puzzle = first.puzzle
+        let wrongs = (0..<puzzle.cellCount).filter { !puzzle.solutionCells.contains($0) }
+        placeCat(first, at: wrongs[0])
+        placeCat(first, at: wrongs[1])
+        let log = makeLog("resume-lose")
+        let second = CatPuzzleModel(services: makeServices(store: store, log: log), size: .easy, seed: 9)
+        #expect(second.mistakes == 2 && second.mistakesRemaining == 1)
+        placeCat(second, at: wrongs[2])
+        #expect(second.isFailed)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.losses == 1)
+
+        // ミス 3 回で負けの決まりより前（build 43 まで）の中断データでミスが 3 以上のもの。
+        var marks = Array(repeating: CatPuzzleModel.Mark.empty.rawValue, count: puzzle.cellCount)
+        for cell in wrongs.prefix(4) { marks[cell] = CatPuzzleModel.Mark.cross.rawValue }
+        let old = CatPuzzleSnapshot(size: "easy", puzzle: puzzle, marks: marks, elapsedSeconds: 30, mistakes: 4,
+                                    hintsUsed: 0, wrongCrosses: Array(wrongs.prefix(4)))
+        #expect(CatPuzzleSnapshot.isWellFormed(old))
+        #expect(!CatPuzzleSnapshot.isResumable(old), "上限に届いた盤は終局済み")
+        let oldStore = MemorySnapshotStore()
+        try oldStore.save(old, for: CatPuzzleModel.gameID)
+        let fresh = CatPuzzleModel(services: makeServices(store: oldStore), size: .easy, seed: 2)
+        #expect(fresh.mistakes == 0 && fresh.marks.allSatisfy { $0 == .empty }, "捨てて新しい問題で始める")
+    }
+
+    @Test("＋: 印が無ければ確認なしで開始シート。途中なら確認を挟み、やめて始めた局は途中離脱（quit）に数える")
+    func newGameFromPlusCountsQuit() {
+        let spy = SpyAnalyticsService()
+        let model = CatPuzzleModel(services: makeServices(analytics: spy), size: .easy, seed: 6)
+        #expect(CatPuzzleView.startsWithNewGameSheet(model), "続きが無ければ最初に開始シートで難易度を選ぶ")
+        // 開いただけの盤で開始シートから始め直しても、離脱には数えない。
+        #expect(!model.hasProgressToLose, "確認なしで開始シートを出す")
+        model.newGame(size: .normal)
+        #expect(spy.quits(of: CatPuzzleModel.gameID) == 0)
+        #expect(spy.startLevels == [.beginner, .normal])
+        // 1 手打った局は確認を挟む（`hasProgressToLose`）。開始シートで始めた時点で quit。
+        model.tap(cell: 0)
+        #expect(model.hasProgressToLose, "途中なので確認を出す")
+        model.newGame(size: .hard)
+        #expect(spy.quits(of: CatPuzzleModel.gameID) == 1)
+        #expect(spy.starts(of: CatPuzzleModel.gameID) == 3)
     }
 }

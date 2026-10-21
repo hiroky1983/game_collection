@@ -11,7 +11,11 @@ enum CatPuzzleHowToFigures {
         { AnyView(TapCycleFigure()) },
     ]
 
-    private static let cellSide: CGFloat = 28
+    /// 1 枚だけの図のマスの大きさ。
+    static let cellSide: CGFloat = 28
+    /// 3 コマを横に並べる図（タップで × → 猫 → 空）のマスの大きさ。iPhone SE の遊び方のカード
+    /// （画面幅 375 − 余白 16×2 − カードの内側 14×2 = 315pt）に 3 枚と矢印が収まる大きさ（会長 QA 2026-10-21・build 43）。
+    static let frameCellSide: CGFloat = 18
 
     /// 4×4・部屋 4 つ。答えは行の順に列 1・3・0・2 の 1 通りだけ（`CatPuzzleModuleTests` が数え上げで確かめる）。
     static let sample = CatPuzzle(
@@ -30,6 +34,7 @@ enum CatPuzzleHowToFigures {
         var cats: [Int] = []
         var crosses: [Int] = []
         var solved = false
+        var cellSide: CGFloat = CatPuzzleHowToFigures.cellSide
         var body: some View {
             let sample = CatPuzzleHowToFigures.sample
             var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: sample.cellCount)
@@ -37,7 +42,7 @@ enum CatPuzzleHowToFigures {
             for cell in cats { marks[cell] = .cat }
             let violations = CatPuzzleLogic.violations(puzzle: sample, cats: cats)
             return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells,
-                                        isSolved: solved, cellSide: CatPuzzleHowToFigures.cellSide)
+                                        isSolved: solved, cellSide: cellSide)
                 .padding(3)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous).fill(Theme.surface))
         }
@@ -68,7 +73,8 @@ enum CatPuzzleHowToFigures {
         var body: some View {
             VStack(spacing: 4) {
                 RuleFrames(count: 3, spacing: 6) { index in
-                    Board(cats: index == 2 ? [1] : [], crosses: index == 1 ? [1] : [])
+                    Board(cats: index == 2 ? [1] : [], crosses: index == 1 ? [1] : [],
+                          cellSide: CatPuzzleHowToFigures.frameCellSide)
                 }
                 RuleFigureLabel(tr("タップで × → 猫 → 空"), color: Theme.coralText)
             }
