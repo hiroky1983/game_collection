@@ -104,7 +104,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 終局後の検討画面もスナップショットに残すので、再起動でその画面に戻ったとき
         // 記録行が消えないよう、保存済みの記録から作り直す。**記録し直さない**
         // （`gameDidFinish` を呼ばない）ので二重計上にはならない。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -380,7 +380,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
         startPlayIfPending()
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: outcome, score: hints.winLossScore,
+            gameID: gameID, outcome: outcome, score: hints.winLossScore(gameID: gameID, aiLevel: recordLevel),
             // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
             isReviewHighlight: beatsWorthyCPU
         )
@@ -641,6 +641,17 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     // MARK: - 永続化
+
+    /// 記録の強さ（#2617）。人間同士の対局は CPU がいないので「ふつう」＝区分なしに寄せる。
+    private var recordLevel: Int {
+        (white == .ai || black == .ai) ? aiLevel : CPUStrength.standard.rawValue
+    }
+
+    /// 記録の区分キー。「ふつう」は nil（それまでの記録）。
+    private var recordVariant: String? {
+        let strength = CPUStrength.strength(for: recordLevel)
+        return strength == .standard ? nil : strength.recordVariantKey
+    }
 
     /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
     private var beatsWorthyCPU: Bool {
