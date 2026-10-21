@@ -25,6 +25,11 @@ public final class FifteenModel {
     let gameID = "fifteen"
     private var generator: SplitMix64?
 
+    /// ヘッダーに出す保存済みの自己ベスト手数（#2615）。記録が無いときは nil（出さない）。
+    var savedBestMoves: Int? {
+        services?.playLog?.record(gameID: gameID)?.fewestMoves
+    }
+
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     /// `seed` を渡すと配置を種から決める（テスト用。省略時はシステム乱数）。
     public init(services: GameServices? = nil, seed: UInt64? = nil) {

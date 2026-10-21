@@ -134,6 +134,17 @@
         }
       }
     },
+    "スコア %1$@、ベスト %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %1$@, best %2$@"
+          }
+        }
+      }
+    },
     "タイルを合体させて2048を目指そう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -141,6 +152,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Merge tiles and reach 2048"
+          }
+        }
+      }
+    },
+    "ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
           }
         }
       }
