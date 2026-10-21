@@ -17,6 +17,13 @@ struct BlackjackLocalizationTests {
         #expect(GameBlackjack.tr("連勝 %lld", 2, language: .english) == "Streak: 2")
     }
 
+    @Test("点数のルールの文言に英語の訳がある（#2596）")
+    func englishScoringRules() {
+        #expect(GameBlackjack.tr("点数のルール", language: .english) == "Scoring rules")
+        #expect(GameBlackjack.tr("引き分け・バストは 0 点。引き分けでも連勝は途切れます。", language: .english)
+                == "A push or a bust scores 0 points. A push also ends your streak.")
+    }
+
     @Test("日本語ではキーがそのまま出る")
     func japaneseIsUnchanged() {
         #expect(GameBlackjack.tr("あなた%1$lld 対 ディーラー%2$lld", 19, 17, language: .japanese) == "あなた19 対 ディーラー17")

@@ -8,6 +8,8 @@ public struct BlackjackView: View {
     @Environment(\.adaptiveLayout) private var layout
     /// 負けた回のやり直し（#2552）のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var retryRescue = RewardedRescue()
+    /// ナビバーの「点数のルール」シート（#2596。ポーカーの「役の点数表」と同じ位置）。
+    @State private var showScoringRules = false
 
     public init(services: GameServices) {
         self.services = services
@@ -36,7 +38,18 @@ public struct BlackjackView: View {
         // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2426 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
         // （戻る・ブラックジャック・？）、バナーは画面最下部。ディーラー・あなたの白い札と操作欄の白い札はやめて
         // フェルトに直に置く。勝負の帯（何回目・勝ち点・連勝）はモックの A 案どおりヘッダーの下に 1 行の札で残す。
-        .gameChrome(title: tr("ブラックジャック"), review: services.review, fullScreen: .felt, ads: services.ads)
+        .gameChrome(title: tr("ブラックジャック"), review: services.review, fullScreen: .felt, ads: services.ads,
+                    reference: GameChromeReference(tr("点数のルール")) { showScoringRules = true })
+        .sheet(isPresented: $showScoringRules) {
+            NavigationStack {
+                BlackjackScoringRulesSheet()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(tr("閉じる")) { showScoringRules = false }.fontWeight(.semibold)
+                        }
+                    }
+            }
+        }
         .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
         // ディーラーが 1 枚引くたびに合計を読む（#2595）。文字の更新は VoiceOver が自動では読まない。
         .onChange(of: model.dealerHand.count) { old, new in
@@ -166,6 +179,10 @@ public struct BlackjackView: View {
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                 Text(tr("21 に近いほうが勝ち。勝てば 1 点、ブラックジャックで勝てば 2 点。ディーラーは 17 以上で止まります。"))
+                    .themeBody(13)
+                    .foregroundStyle(Theme.inkSub)
+                    .multilineTextAlignment(.center)
+                Text(tr("引き分け・バストは 0 点。引き分けでも連勝は途切れます。"))
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .multilineTextAlignment(.center)
@@ -650,5 +667,23 @@ struct BJCardPlaceholder: View {
             .strokeBorder(ink.slotStroke,
                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             .frame(width: metrics.width, height: metrics.height)
+    }
+}
+
+// MARK: - Scoring Rules Sheet
+
+/// 対局中にナビバーから開く点数のルール（#2596）。配る前の説明と同じ文言を再利用する。
+struct BlackjackScoringRulesSheet: View {
+    var body: some View {
+        YakuTableSheet(title: tr("点数のルール")) {
+            YakuTableSection {
+                Text(tr("21 に近いほうが勝ち。勝てば 1 点、ブラックジャックで勝てば 2 点。ディーラーは 17 以上で止まります。"))
+                    .themeBody(13, weight: .medium)
+                    .foregroundStyle(Theme.ink)
+                Text(tr("引き分け・バストは 0 点。引き分けでも連勝は途切れます。"))
+                    .themeBody(13, weight: .medium)
+                    .foregroundStyle(Theme.ink)
+            }
+        }
     }
 }
