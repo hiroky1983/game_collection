@@ -30,6 +30,10 @@ struct DaifugoSnapshot: Codable {
     /// **旧バージョンの保存データには存在しない**ため optional にして、欠けていても復元を失敗させない
     /// （`JSONDecoder` は非 optional のキーが無いと丸ごと復号に失敗し、中断データが消える）。
     let lastActions: [String]?
+    /// この局に焼き込んだローカルルール（#2605）。旧データには無いので optional（欠けていれば標準 = すべてオフ）。
+    let ruleSet: DaifugoRuleSet?
+    /// しばり中のスート（#2605）。旧データには無いので optional。
+    let bindSuits: [DaifugoSuit]?
     /// CPU の強さ（`CPUStrength.rawValue`・#2604）。**旧バージョンの保存データには存在しない**ため optional
     /// （欠けていたら「ふつう」＝それまでの挙動で再開する）。1 局 = 1 RuleSet なので再開で変わらない。
     var aiLevel: Int? = nil
@@ -83,6 +87,13 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var currentPlayer: Int = humanIndex
     public private(set) var passedPlayers: Set<Int> = []
     public private(set) var isRevolution = false
+    /// この局に焼き込んだローカルルール（#2605。1 局 = 1 RuleSet）。配った時点の `preferredRuleSet` で決まる。
+    public private(set) var ruleSet = DaifugoRuleSet.standard
+    /// 次のゲームから使うローカルルールの選択（#2605）。開始シートで変え、アプリを閉じても引き継ぐ。
+    /// 対局中に変えても今の局（`ruleSet`）は変わらない。
+    public private(set) var preferredRuleSet = DaifugoRuleSet.standard
+    /// しばり中のスート（#2605）。空ならしばりなし。場が流れたら解ける。
+    public private(set) var bindSuits: Set<DaifugoSuit> = []
     public private(set) var phase: DaifugoPhase = .idle
     /// 手札が尽きた順のプレイヤー番号（反則上がりを含む）。
     public private(set) var finishOrder: [Int] = []
@@ -118,6 +129,8 @@ public final class DaifugoModel: AITurnGuarded {
     let gameID = "daifugo"
     /// 次のゲームへの持ち越し（#1066）の置き場。中断データ（`gameID`）とは別のキーにする。
     private var carryOverID: String { "\(gameID)-carryover" }
+    /// ローカルルールの選択（#2605）の置き場。中断データ（`gameID`）とは別のキーなので、ハブの「続きから」には影響しない。
+    private var ruleSetID: String { "\(gameID)-rules" }
     /// 引き継ぐ強さの置き場。中断データ・持ち越しとは別のキーにする（#2604）。
     private var preferencesID: String { "\(gameID)-prefs" }
     private let cpuDelay: Duration
@@ -151,6 +164,9 @@ public final class DaifugoModel: AITurnGuarded {
         self.seed = seed
         self.hints = hints
         cpuRNG = SplitMix64(seed: seed.map { $0 ^ 0x5DEECE66D } ?? UInt64.random(in: 0...UInt64.max))
+        if let saved = services?.snapshots.load(DaifugoRuleSet.self, for: ruleSetID) {
+            preferredRuleSet = saved
+        }
         if let prefs = services?.snapshots.load(DaifugoPreferences.self, for: preferencesID) {
             aiLevel = CPUStrength.strength(for: prefs.aiLevel).rawValue
         }
@@ -168,6 +184,8 @@ public final class DaifugoModel: AITurnGuarded {
             currentPlayer = snap.currentPlayer
             passedPlayers = Set(snap.passedPlayers)
             isRevolution  = snap.isRevolution
+            ruleSet       = snap.ruleSet ?? .standard
+            bindSuits     = ruleSet.isBindEnabled ? Set(snap.bindSuits ?? []) : []
             finishOrder   = snap.finishOrder
             fouls         = Set(snap.fouls)
             gameNumber    = snap.gameNumber
@@ -238,7 +256,7 @@ public final class DaifugoModel: AITurnGuarded {
     /// 選択中のカードを今の場に出せるか。
     public var canPlaySelection: Bool {
         guard isPlayerTurn, !selected.isEmpty else { return false }
-        return DaifugoRules.isValidPlay(selectedCards, field: field, isRevolution: isRevolution)
+        return DaifugoRules.isValidPlay(selectedCards, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
     }
 
     /// 人間がパスできるか（親のときはパスできない = 場を流せないため）。
@@ -253,7 +271,7 @@ public final class DaifugoModel: AITurnGuarded {
     public var handHint: DaifugoHandHint? {
         guard hints.isEnabled, isPlayerTurn, !playerHand.isEmpty else { return nil }
         let playable = DaifugoRules.playableCardIDs(
-            hand: playerHand, field: field, isRevolution: isRevolution
+            hand: playerHand, field: field, isRevolution: isRevolution, bindSuits: bindSuits
         )
         guard playable.count < playerHand.count else { return nil }
         return DaifugoHandHint(
@@ -265,7 +283,7 @@ public final class DaifugoModel: AITurnGuarded {
     /// 選択中の組を出せない理由の1行表示（#190）。出せるとき・未選択・ヒントがオフなら nil。
     public var selectionIssue: String? {
         guard hints.isEnabled, isPlayerTurn else { return nil }
-        return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution)
+        return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
     }
 
     /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
@@ -378,6 +396,8 @@ public final class DaifugoModel: AITurnGuarded {
         fieldOwner = nil
         passedPlayers = []
         isRevolution = false
+        ruleSet = preferredRuleSet
+        bindSuits = []
         finishOrder = []
         fouls = []
         resigned = []
@@ -398,6 +418,13 @@ public final class DaifugoModel: AITurnGuarded {
         // 1 ゲーム = 1 プレイ（`gameDidFinish` もゲームごとに呼んでいる）。
         // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
+    }
+
+    /// 次のゲームから使うローカルルールを選ぶ（#2605）。保存して次回起動にも引き継ぐ。
+    /// 今の局には効かない（1 局 = 1 RuleSet）。
+    public func choosePreferredRuleSet(_ ruleSet: DaifugoRuleSet) {
+        preferredRuleSet = ruleSet
+        try? services?.snapshots.save(ruleSet, for: ruleSetID)
     }
 
     /// 親（最初の手番）。初回は♦3を持つ人、2ゲーム目以降は前回の大貧民。
@@ -433,7 +460,7 @@ public final class DaifugoModel: AITurnGuarded {
     public func playSelected() {
         guard isPlayerTurn else { return }
         let cards = selectedCards
-        guard DaifugoRules.isValidPlay(cards, field: field, isRevolution: isRevolution) else {
+        guard DaifugoRules.isValidPlay(cards, field: field, isRevolution: isRevolution, bindSuits: bindSuits) else {
             services?.feedback.notify(.warning)
             return
         }
@@ -511,6 +538,9 @@ public final class DaifugoModel: AITurnGuarded {
             note += isRevolution ? " 革命！" : " 革命返し！"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         }
 
+        bindSuits = DaifugoRules.nextBindSuits(
+            current: bindSuits, field: field, played: cards, ruleSet: ruleSet
+        )
         field = cards
         fieldOwner = player
 
@@ -569,6 +599,7 @@ public final class DaifugoModel: AITurnGuarded {
         field = []
         fieldOwner = nil
         passedPlayers = []
+        bindSuits = []
         if !hands[preferredLeader].isEmpty {
             currentPlayer = preferredLeader
         } else if let next = nextActivePlayer(after: preferredLeader) {
@@ -615,6 +646,7 @@ public final class DaifugoModel: AITurnGuarded {
         field = []
         fieldOwner = nil
         passedPlayers = []
+        bindSuits = []
         phase = .result
 
         switch reviewOutcome {
@@ -681,7 +713,7 @@ public final class DaifugoModel: AITurnGuarded {
         if let play = DaifugoRules.cpuPlay(
             hand: hands[player], field: field, isRevolution: isRevolution,
             strength: CPUStrength.strength(for: aiLevel),
-            minOpponentHandCount: minOpponentHandCount, using: &cpuRNG
+            minOpponentHandCount: minOpponentHandCount, bindSuits: bindSuits, using: &cpuRNG
         ) {
             self.play(play, by: player)
         } else {
@@ -701,13 +733,17 @@ public final class DaifugoModel: AITurnGuarded {
         isRevolution: Bool = false,
         passedPlayers: Set<Int> = [],
         gameNumber: Int = 1,
-        finishOrder: [Int] = []
+        finishOrder: [Int] = [],
+        ruleSet: DaifugoRuleSet = .standard,
+        bindSuits: Set<DaifugoSuit> = []
     ) {
         self.hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         self.field = field
         self.fieldOwner = fieldOwner
         self.currentPlayer = currentPlayer
         self.isRevolution = isRevolution
+        self.ruleSet = ruleSet
+        self.bindSuits = bindSuits
         self.passedPlayers = passedPlayers
         self.gameNumber = gameNumber
         self.finishOrder = finishOrder
@@ -752,6 +788,8 @@ public final class DaifugoModel: AITurnGuarded {
             gameNumber: gameNumber,
             lastRanking: lastRanking,
             lastActions: lastActions,
+            ruleSet: ruleSet,
+            bindSuits: Array(bindSuits).sorted { $0.rawValue < $1.rawValue },
             aiLevel: aiLevel
         )
         do {

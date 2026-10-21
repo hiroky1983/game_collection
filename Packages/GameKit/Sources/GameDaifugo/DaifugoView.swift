@@ -5,7 +5,7 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @State private var showResignConfirm = false
-    /// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。
+    /// 右上の新規で開く開始シート（CPU の強さ・しばりを選ぶ・#2604・#2605）。
     @State private var showNewGame = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
@@ -63,8 +63,11 @@ public struct DaifugoView: View {
         }
         // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
         .sheet(isPresented: $showNewGame) {
-            DaifugoNewGameSheet(aiLevel: model.aiLevel, discardsProgress: model.hasProgressToLose) { level in
+            DaifugoNewGameSheet(
+                aiLevel: model.aiLevel, ruleSet: model.preferredRuleSet, discardsProgress: model.hasProgressToLose
+            ) { level, ruleSet in
                 showNewGame = false
+                model.choosePreferredRuleSet(ruleSet)
                 model.startGame(aiLevel: level)
                 runCPU()
             } onCancel: { showNewGame = false }
@@ -113,10 +116,12 @@ public struct DaifugoView: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
                 gameCountLabel
+                bindBadge
                 revolutionBadge
                 turnChip
             }
             HStack(spacing: 8) {
+                bindBadge
                 revolutionBadge
                 turnChip
             }
@@ -135,6 +140,18 @@ public struct DaifugoView: View {
                 OpponentSeatIcon(index: model.currentPlayer, diameter: layout.scaled(22))
             }
             TurnBadge(turnLabel, kind: turnKind)
+        }
+    }
+
+    /// しばり中の札（#2605）。スートの印を添え、VoiceOver には「しばり中、♠のカードだけ出せます」を読ませる。
+    @ViewBuilder private var bindBadge: some View {
+        if !model.bindSuits.isEmpty {
+            Text(tr("しばり %@", DaifugoRules.bindLabel(model.bindSuits)))
+                .scaledFont(12, weight: .black, design: .rounded)
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.Fill.coral))
+                .accessibilityLabel(DaifugoAccessibility.bindLabel(model.bindSuits))
         }
     }
 
@@ -684,6 +701,7 @@ struct DaifugoRuleSheet: View {
             (tr("出し方"), tr("場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます")),
             (tr("革命"), tr("同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）")),
             (tr("8切り"), tr("8 を含む組を出すと場が流れ、そのまま続けて出せます")),
+            (tr("しばり（任意）"), tr("新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません")),
             (tr("反則上がり"), tr("最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます")),
             (tr("階級とカード交換"), tr("上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します")),
         ]
@@ -696,15 +714,19 @@ struct DaifugoRuleSheet: View {
 
 // MARK: - New Game Sheet
 
-/// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+/// 右上の新規で開く開始シート（CPU の強さ・#2604、しばり・#2605）。強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+/// しばりは既定オフで、選んだ値は次のゲームにも引き継ぐ。
 struct DaifugoNewGameSheet: View {
     @State private var level: Int
+    @State private var ruleSet: DaifugoRuleSet
     let discardsProgress: Bool
-    let onStart: (Int) -> Void
+    let onStart: (Int, DaifugoRuleSet) -> Void
     let onCancel: () -> Void
 
-    init(aiLevel: Int, discardsProgress: Bool, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
+    init(aiLevel: Int, ruleSet: DaifugoRuleSet, discardsProgress: Bool,
+         onStart: @escaping (Int, DaifugoRuleSet) -> Void, onCancel: @escaping () -> Void) {
         _level = State(initialValue: aiLevel)
+        _ruleSet = State(initialValue: ruleSet)
         self.discardsProgress = discardsProgress
         self.onStart = onStart
         self.onCancel = onCancel
@@ -714,7 +736,7 @@ struct DaifugoNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             discardsProgress: discardsProgress,
-            onStart: { onStart(level) }, onCancel: onCancel
+            onStart: { onStart(level, ruleSet) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `DaifugoRules.cpuPlay` の中身と一致させる（#416）。
@@ -722,6 +744,16 @@ struct DaifugoNewGameSheet: View {
                     tr("出せる手からでたらめに選ぶ"), tr("ときどき最善でない手を選ぶ"),
                     tr("出せる最弱の手を選ぶ"), tr("強い札を温存し、革命も狙う"),
                 ])
+            }
+            GameSetupSection(tr("しばり")) {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: tr("なし"), subtitle: tr("ふつうのルール"),
+                                     selected: !ruleSet.isBindEnabled, accent: Theme.fillMuted,
+                                     onAccent: .white) { ruleSet.isBindEnabled = false }
+                    GameSetupChooser(title: tr("あり"), subtitle: tr("同じ柄が2回続くとその柄だけ"),
+                                     selected: ruleSet.isBindEnabled, accent: Theme.fillStrong,
+                                     onAccent: .white) { ruleSet.isBindEnabled = true }
+                }
             }
         }
     }

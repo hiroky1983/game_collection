@@ -41,12 +41,26 @@ public struct DaifugoHandHint: Equatable, Sendable {
     }
 }
 
+/// 局ごとに選べるローカルルール（Issue #2605）。**1 局 = 1 RuleSet**: 配った時点の値を局に焼き込み、
+/// 対局中は変わらない（中断データにも載せる）。既定（`standard`）はすべてオフ = 従来どおりの挙動。
+public struct DaifugoRuleSet: Codable, Equatable, Sendable {
+    /// しばり（同じスートが 2 回続いたら、場が流れるまでそのスートしか出せない）。
+    public var isBindEnabled: Bool
+
+    public init(isBindEnabled: Bool = false) {
+        self.isBindEnabled = isBindEnabled
+    }
+
+    public static let standard = DaifugoRuleSet()
+}
+
 /// 大富豪のルールを**乱数も状態も持たない純粋関数**として閉じ込めた層。
 ///
 /// Model（`DaifugoModel`）は進行と永続化だけを持ち、勝ち負けの判断はここに集約する。
 /// ユニットテストはこの層に対して書くので、UI・CPU の都合でルールが揺れない。
 ///
-/// v1 の採用ルール（Issue #89）: 革命 / 8切り / 反則上がり。縛り・階段・都落ちは入れない。
+/// v1 の採用ルール（Issue #89）: 革命 / 8切り / 反則上がり。階段・都落ちは入れない。
+/// しばりだけは任意で選べる（`DaifugoRuleSet`・Issue #2605。既定はオフ）。
 public enum DaifugoRules {
     /// ジョーカーの `rank`。通常の 1〜13 と衝突しない値を使う。
     public static let jokerRank = 0
@@ -95,12 +109,55 @@ public enum DaifugoRules {
     // MARK: - 合法判定
 
     /// `cards` を今の場に出せるか。場が空なら組として成立していれば出せる。
-    public static func isValidPlay(_ cards: [DaifugoCard], field: [DaifugoCard], isRevolution: Bool) -> Bool {
+    ///
+    /// `bindSuits` が空でないとき（しばり中）は、ジョーカー以外の札がすべてそのスートでなければ出せない。
+    public static func isValidPlay(
+        _ cards: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
+    ) -> Bool {
         guard let played = playStrength(cards, isRevolution: isRevolution) else { return false }
         guard !field.isEmpty else { return true }
+        guard satisfiesBind(cards, bindSuits: bindSuits) else { return false }
         guard cards.count == field.count else { return false }
         guard let current = playStrength(field, isRevolution: isRevolution) else { return false }
         return played > current
+    }
+
+    // MARK: - しばり（Issue #2605）
+
+    /// 札に含まれるスート（ジョーカーはワイルドなので数えない）。
+    public static func suits(of cards: [DaifugoCard]) -> Set<DaifugoSuit> {
+        Set(cards.compactMap(\.suit))
+    }
+
+    /// しばり中のスートに合う組か。しばりが無ければ常に true。ジョーカーはどのスートの代わりにもなる。
+    public static func satisfiesBind(_ cards: [DaifugoCard], bindSuits: Set<DaifugoSuit>) -> Bool {
+        bindSuits.isEmpty || suits(of: cards).isSubset(of: bindSuits)
+    }
+
+    /// `played` を出した直後のしばりのスート。
+    ///
+    /// すでにしばり中ならそのまま。そうでなければ、場に組があり、直前の組と**ジョーカー以外のスートの集合が同じ**
+    /// （ともに空でない）ときに、そのスートでしばる。ジョーカーだけの組はスートを持たないので、しばりを作りも解きもしない。
+    /// 場が流れたら呼び出し側が空に戻す（`DaifugoModel.clearField`）。
+    public static func nextBindSuits(
+        current: Set<DaifugoSuit>,
+        field: [DaifugoCard],
+        played: [DaifugoCard],
+        ruleSet: DaifugoRuleSet
+    ) -> Set<DaifugoSuit> {
+        guard ruleSet.isBindEnabled else { return [] }
+        guard current.isEmpty else { return current }
+        guard !field.isEmpty else { return [] }
+        let playedSuits = suits(of: played)
+        return !playedSuits.isEmpty && playedSuits == suits(of: field) ? playedSuits : []
+    }
+
+    /// しばり中のスートを「♠」「♥♦」のように並べた表示用の文字列。
+    public static func bindLabel(_ suits: Set<DaifugoSuit>) -> String {
+        suits.sorted { $0.rawValue < $1.rawValue }.map(\.symbol).joined()
     }
 
     /// 革命（同ランク4枚以上）か。
@@ -130,7 +187,8 @@ public enum DaifugoRules {
     public static func playableCardIDs(
         hand: [DaifugoCard],
         field: [DaifugoCard],
-        isRevolution: Bool
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
     ) -> Set<Int> {
         guard !hand.isEmpty else { return [] }
         // 場が流れていれば1枚から好きな組を出せる = 手札すべてが出せる。
@@ -139,7 +197,10 @@ public enum DaifugoRules {
 
         let jokers = hand.filter(\.isJoker)
         var groups: [Int: [DaifugoCard]] = [:]
-        for card in hand where !card.isJoker { groups[card.rank, default: []].append(card) }
+        // しばり中は、そのスート以外の札は組を作る材料にならない（ジョーカーは別に数える）。
+        for card in hand where !card.isJoker && satisfiesBind([card], bindSuits: bindSuits) {
+            groups[card.rank, default: []].append(card)
+        }
 
         let count = field.count
         var ids: Set<Int> = []
@@ -167,7 +228,8 @@ public enum DaifugoRules {
     public static func rejectionReason(
         _ cards: [DaifugoCard],
         field: [DaifugoCard],
-        isRevolution: Bool
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
     ) -> String? {
         guard !cards.isEmpty else { return nil }
         guard let played = playStrength(cards, isRevolution: isRevolution) else {
@@ -184,6 +246,9 @@ public enum DaifugoRules {
                 ? tr("革命中です。場の %@ より弱い数字が必要です", label)
                 : tr("場の %@ より強い数字が必要です", label)
         }
+        guard satisfiesBind(cards, bindSuits: bindSuits) else {
+            return tr("しばり中です。%@のカードだけ出せます（ジョーカーは使えます）", bindLabel(bindSuits))
+        }
         return nil
     }
 
@@ -194,11 +259,14 @@ public enum DaifugoRules {
     public static func legalPlays(
         hand: [DaifugoCard],
         field: [DaifugoCard],
-        isRevolution: Bool
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
     ) -> [[DaifugoCard]] {
         let jokers = hand.filter(\.isJoker).sorted { $0.id < $1.id }
         var groups: [Int: [DaifugoCard]] = [:]
-        for card in hand where !card.isJoker { groups[card.rank, default: []].append(card) }
+        for card in hand where !card.isJoker && satisfiesBind([card], bindSuits: bindSuits) {
+            groups[card.rank, default: []].append(card)
+        }
 
         let counts: [Int]
         if field.isEmpty {
@@ -216,12 +284,12 @@ public enum DaifugoRules {
                 guard jokersNeeded <= jokers.count else { continue }
                 let play = Array(group.prefix(count - jokersNeeded)) + Array(jokers.prefix(jokersNeeded))
                 guard play.count == count else { continue }
-                if isValidPlay(play, field: field, isRevolution: isRevolution) { plays.append(play) }
+                if isValidPlay(play, field: field, isRevolution: isRevolution, bindSuits: bindSuits) { plays.append(play) }
             }
             // ジョーカーだけで出す（場が空のときの最強手、または最後の1枚）。
             if count <= jokers.count {
                 let play = Array(jokers.prefix(count))
-                if isValidPlay(play, field: field, isRevolution: isRevolution) { plays.append(play) }
+                if isValidPlay(play, field: field, isRevolution: isRevolution, bindSuits: bindSuits) { plays.append(play) }
             }
         }
         return plays
@@ -235,18 +303,20 @@ public enum DaifugoRules {
     public static func greedyPlay(
         hand: [DaifugoCard],
         field: [DaifugoCard],
-        isRevolution: Bool
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
     ) -> [DaifugoCard]? {
-        rankedPlays(hand: hand, field: field, isRevolution: isRevolution).first
+        rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits).first
     }
 
     /// 出せる手を、貪欲法の好みの順（先頭が `greedyPlay` の手）に並べたもの。
     static func rankedPlays(
         hand: [DaifugoCard],
         field: [DaifugoCard],
-        isRevolution: Bool
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
     ) -> [[DaifugoCard]] {
-        let plays = legalPlays(hand: hand, field: field, isRevolution: isRevolution)
+        let plays = legalPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
 
         func isFoul(_ play: [DaifugoCard]) -> Bool {
             play.count == hand.count && isFoulFinish(play)
@@ -291,9 +361,10 @@ public enum DaifugoRules {
         isRevolution: Bool,
         strength: CPUStrength,
         minOpponentHandCount: Int = .max,
+        bindSuits: Set<DaifugoSuit> = [],
         using rng: inout some RandomNumberGenerator
     ) -> [DaifugoCard]? {
-        let ranked = rankedPlays(hand: hand, field: field, isRevolution: isRevolution)
+        let ranked = rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
         guard let best = ranked.first else { return nil }
         switch strength {
         case .normal:
