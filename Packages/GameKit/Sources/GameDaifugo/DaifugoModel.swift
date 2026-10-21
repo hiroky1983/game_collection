@@ -30,6 +30,9 @@ struct DaifugoSnapshot: Codable {
     /// **旧バージョンの保存データには存在しない**ため optional にして、欠けていても復元を失敗させない
     /// （`JSONDecoder` は非 optional のキーが無いと丸ごと復号に失敗し、中断データが消える）。
     let lastActions: [String]?
+    /// CPU の強さ（`CPUStrength.rawValue`・#2604）。**旧バージョンの保存データには存在しない**ため optional
+    /// （欠けていたら「ふつう」＝それまでの挙動で再開する）。1 局 = 1 RuleSet なので再開で変わらない。
+    var aiLevel: Int? = nil
 }
 
 // MARK: - CarryOver
@@ -50,6 +53,12 @@ struct DaifugoCarryOver: Codable {
     /// 大富豪⇔大貧民の交換を広告で免除済みか（#1048）。
     /// 順位だけ持ち越して免除が消えると、広告を見た人だけが損をするので一緒に残す。
     let isExchangeWaived: Bool
+}
+
+/// 次のゲームにも引き継ぐ CPU の強さ（#2604）。中断データ・持ち越しは「配りが確定したとき」にしか書かれない
+/// （#1103）ので、シートで選んだ直後に閉じても残るよう、専用のキーに選んだ時点で書く。
+struct DaifugoPreferences: Codable {
+    let aiLevel: Int
 }
 
 // MARK: - Model
@@ -102,13 +111,19 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
     /// 手札から選択中のカード ID。
     public private(set) var selected: Set<Int> = []
+    /// CPU の強さ（`CPUStrength.rawValue`・#2604）。開始シートで選び、次のゲームにも引き継ぐ。
+    public private(set) var aiLevel = CPUStrength.standard.rawValue
 
     private let services: GameServices?
     let gameID = "daifugo"
     /// 次のゲームへの持ち越し（#1066）の置き場。中断データ（`gameID`）とは別のキーにする。
     private var carryOverID: String { "\(gameID)-carryover" }
+    /// 引き継ぐ強さの置き場。中断データ・持ち越しとは別のキーにする（#2604）。
+    private var preferencesID: String { "\(gameID)-prefs" }
     private let cpuDelay: Duration
     private var seed: UInt64?
+    /// CPU の強さによる「ぶれ」（かんたんの次善手・入門のでたらめ）用の乱数。配りの種とは別に持つ。
+    private var cpuRNG: SplitMix64
     /// ヒント表示のオン / オフ（#190）。設定画面はハブ側にしか無く**対局中には変わらない**ため、
     /// `@Observable` の追跡対象にはせず参照のたびに読む。
     private let hints: FeedbackPreference
@@ -135,6 +150,10 @@ public final class DaifugoModel: AITurnGuarded {
         self.cpuDelay = cpuDelay
         self.seed = seed
         self.hints = hints
+        cpuRNG = SplitMix64(seed: seed.map { $0 ^ 0x5DEECE66D } ?? UInt64.random(in: 0...UInt64.max))
+        if let prefs = services?.snapshots.load(DaifugoPreferences.self, for: preferencesID) {
+            aiLevel = CPUStrength.strength(for: prefs.aiLevel).rawValue
+        }
         var loaded = services?.snapshots.load(DaifugoSnapshot.self, for: gameID)
         // 人数・添字が合わない中断データは、`playerHand` などの配列参照で開くたびに落ちる（#1913。
         // #1384 と同じ作法）。消して新規開始に倒す。
@@ -158,6 +177,7 @@ public final class DaifugoModel: AITurnGuarded {
             if let actions = snap.lastActions, actions.count == Self.playerCount {
                 lastActions = actions
             }
+            aiLevel       = CPUStrength.strength(for: snap.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             phase         = .playing
         } else if let carry = services?.snapshots.load(DaifugoCarryOver.self, for: carryOverID) {
             // 中断中の対局が無いときだけ持ち越しを読む（#1066）。対局中の中断データは順位を
@@ -183,6 +203,9 @@ public final class DaifugoModel: AITurnGuarded {
 
     /// 人間の手札（画面に並べる順にソート済み）。
     public var playerHand: [DaifugoCard] { hands[Self.humanIndex] }
+
+    /// 「新規対局」で失われる進行があるか（1 手でも進んだ未決着のゲーム。ColorRelayModel と同じ）。
+    public var hasProgressToLose: Bool { phase == .playing && !isUntouchedDeal }
 
     /// 人間がもう上がっているか。
     public var isPlayerFinished: Bool { hands[Self.humanIndex].isEmpty && phase != .idle }
@@ -245,6 +268,18 @@ public final class DaifugoModel: AITurnGuarded {
         return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution)
     }
 
+    /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
+    /// それ以外の強さは強さ別の区分に分ける（花札と同じ「既定と違うときだけ区分する」作法・#2604）。
+    var recordScore: GameScore {
+        let strength = CPUStrength.strength(for: aiLevel)
+        guard strength != .standard else { return GameScore(metric: .winLoss) }
+        let variant = strength.recordVariantKey
+        return GameScore(
+            metric: .winLoss, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
+    }
+
     /// 評価リクエスト（#53）の判定用。大富豪なら勝ち、大貧民なら負け、間は引き分け扱い。
     public var reviewOutcome: GameOutcome {
         guard let place = playerPlace else { return .draw }
@@ -296,7 +331,13 @@ public final class DaifugoModel: AITurnGuarded {
     // MARK: - ゲーム開始
 
     /// 新しい1ゲームを始める。2ゲーム目以降は前ゲームの階級に応じてカード交換を行う。
-    public func startGame() {
+    /// `aiLevel` を渡すとその強さで配る（開始シート・難易度の階段）。渡さなければ前のゲームの強さのまま。
+    public func startGame(aiLevel newLevel: Int? = nil) {
+        if let newLevel {
+            aiLevel = CPUStrength.strength(for: newLevel).rawValue
+            // 配った直後に閉じても選んだ強さが残るよう、持ち越しとは別に書く。
+            try? services?.snapshots.save(DaifugoPreferences(aiLevel: aiLevel), for: preferencesID)
+        }
         var deck = DaifugoCard.makeDeck()
         if var generator = makeGenerator() {
             deck.shuffle(using: &generator)
@@ -354,7 +395,7 @@ public final class DaifugoModel: AITurnGuarded {
         persist()
         // 1 ゲーム = 1 プレイ（`gameDidFinish` もゲームごとに呼んでいる）。
         // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     /// 親（最初の手番）。初回は♦3を持つ人、2ゲーム目以降は前回の大貧民。
@@ -579,7 +620,11 @@ public final class DaifugoModel: AITurnGuarded {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(
+            gameID: gameID, outcome: reviewOutcome, score: recordScore,
+            // 「入門」「かんたん」に勝っても評価を頼むほどの手応えとは言えない（#1471）。
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
+        )
         services?.snapshots.clear(for: gameID)
         // 決着した = 免除を乗せた配りが終わった（#1146）。1手も出さずに投了した局は `persist()` を
         // 通らないので、消費をあちらだけに任せると免除が次の階級と一緒に持ち越され、
@@ -627,8 +672,14 @@ public final class DaifugoModel: AITurnGuarded {
     /// CPU の1手。CPU の着手では触覚を鳴らさない（人間の操作と区別するため）。
     private func performCPUTurn(_ player: Int) {
         if isPlayerFinished { cpuTurnsAfterPlayerFinished += 1 }
-        if let play = DaifugoRules.greedyPlay(
-            hand: hands[player], field: field, isRevolution: isRevolution
+        // 手札が残っている他のプレイヤーの最少枚数（「むずかしい」が温存するかの判断）。
+        let minOpponentHandCount = hands.indices
+            .filter { $0 != player && !hands[$0].isEmpty }
+            .map { hands[$0].count }.min() ?? .max
+        if let play = DaifugoRules.cpuPlay(
+            hand: hands[player], field: field, isRevolution: isRevolution,
+            strength: CPUStrength.strength(for: aiLevel),
+            minOpponentHandCount: minOpponentHandCount, using: &cpuRNG
         ) {
             self.play(play, by: player)
         } else {
@@ -698,7 +749,8 @@ public final class DaifugoModel: AITurnGuarded {
             fouls: Array(fouls).sorted(),
             gameNumber: gameNumber,
             lastRanking: lastRanking,
-            lastActions: lastActions
+            lastActions: lastActions,
+            aiLevel: aiLevel
         )
         do {
             try services?.snapshots.save(snap, for: gameID)

@@ -79,6 +79,11 @@ public enum RecordVariantLabels {
         case "catpuzzle":
             // おじさんの飼い猫パズル（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
             return difficultyWord(variant, language: language)
+        case "daifugo":
+            // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。
+            return cpuStrengthLabel(variant, language: language)
+        case "colorrelay":
+            return cpuStrengthLabel(variant, language: language)
         default:
             return nil
         }
@@ -159,6 +164,18 @@ public enum RecordVariantLabels {
         default:       return nil
         }
         return tr("%1$@・%2$@", handicap, dropper, language: language)
+    }
+
+    /// CPU の強さ別の区分（`CPUStrength.recordVariantKey`）。花札と同じ「CPU◯◯」の言い方。
+    private static func cpuStrengthLabel(_ variant: String, language: AppLanguage?) -> String? {
+        let level: String
+        switch variant {
+        case "novice": level = tr("入門", language: language)
+        default:
+            guard let word = difficultyWord(variant, language: language) else { return nil }
+            level = word
+        }
+        return tr("CPU%@", level, language: language)
     }
 
     private static func difficultyWord(_ raw: String, language: AppLanguage?) -> String? {

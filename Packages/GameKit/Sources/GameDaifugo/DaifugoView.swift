@@ -5,6 +5,8 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @State private var showResignConfirm = false
+    /// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。
+    @State private var showNewGame = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
     /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
@@ -53,8 +55,19 @@ public struct DaifugoView: View {
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
         // ゲーム数・革命中・手番は、ヘッダー下の帯（`GameStatusBar`）ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
-        .gameChrome(title: daifugoGameName(), review: services.review, fullScreen: .felt, ads: services.ads) {
+        .gameChrome(title: daifugoGameName(), review: services.review, fullScreen: .felt, ads: services.ads,
+                    newGame: GameChromeNewGame(.match, isDisabled: waiveRescue.isWatching) {
+                        showNewGame = true
+                    }) {
             statusChips
+        }
+        // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
+        .sheet(isPresented: $showNewGame) {
+            DaifugoNewGameSheet(aiLevel: model.aiLevel, discardsProgress: model.hasProgressToLose) { level in
+                showNewGame = false
+                model.startGame(aiLevel: level)
+                runCPU()
+            } onCancel: { showNewGame = false }
         }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)) { DaifugoRuleSheet() }
@@ -678,5 +691,38 @@ struct DaifugoRuleSheet: View {
 
     var body: some View {
         RuleListSheet(rules: rules)
+    }
+}
+
+// MARK: - New Game Sheet
+
+/// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+struct DaifugoNewGameSheet: View {
+    @State private var level: Int
+    let discardsProgress: Bool
+    let onStart: (Int) -> Void
+    let onCancel: () -> Void
+
+    init(aiLevel: Int, discardsProgress: Bool, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
+        _level = State(initialValue: aiLevel)
+        self.discardsProgress = discardsProgress
+        self.onStart = onStart
+        self.onCancel = onCancel
+    }
+
+    var body: some View {
+        GameSetupSheet(
+            kind: .versus,
+            discardsProgress: discardsProgress,
+            onStart: { onStart(level) }, onCancel: onCancel
+        ) {
+            GameSetupSection(tr("CPUの強さ")) {
+                // 説明は `DaifugoRules.cpuPlay` の中身と一致させる（#416）。
+                CPUStrengthPicker(level: $level, details: [
+                    tr("出せる手からでたらめに選ぶ"), tr("ときどき最善でない手を選ぶ"),
+                    tr("出せる最弱の手を選ぶ"), tr("強い札を温存し、革命も狙う"),
+                ])
+            }
+        }
     }
 }

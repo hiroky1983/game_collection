@@ -29,6 +29,15 @@ struct ColorRelaySnapshot: Codable {
     let lastActions: [String]
     let isPenaltyWaived: Bool
     let turnSerial: Int
+    /// CPU の強さ（`CPUStrength.rawValue`・#2604）。**旧バージョンの保存データには存在しない**ため optional
+    /// （欠けていたら「ふつう」＝それまでの挙動で再開する）。1 局 = 1 RuleSet なので再開で変わらない。
+    var aiLevel: Int? = nil
+}
+
+/// 次のゲームにも引き継ぐ CPU の強さ（#2604）。中断データ（対局中だけ在る）とは別のキーに置き、
+/// 決着後に画面を離れて開き直しても選んだ強さが残るようにする。
+struct ColorRelayPreferences: Codable {
+    let aiLevel: Int
 }
 
 // MARK: - Model
@@ -74,6 +83,8 @@ public final class ColorRelayModel: AITurnGuarded {
     public private(set) var isPenaltyWaived = false
     /// 手番の通し番号。番が動くたびに進む。広告の前後で同じ手番かの照合に使う（#729 の局ガード）。
     public private(set) var turnSerial = 0
+    /// CPU の強さ（`CPUStrength.rawValue`・#2604）。開始シートで選び、次のゲームにも引き継ぐ。
+    public private(set) var aiLevel = CPUStrength.standard.rawValue
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// 配ったばかりで 1 手も進んでいない局か（#240）。`startGame()` で立て、最初に札が動いた時点で下ろす。
@@ -85,6 +96,10 @@ public final class ColorRelayModel: AITurnGuarded {
     let gameID = ColorRelayModel.gameID
     private let cpuDelay: Duration
     private var seed: UInt64?
+    /// CPU の強さによる「ぶれ」（かんたんの取りこぼし・入門のでたらめ）用の乱数。配りの種とは別に持つ。
+    private var cpuRNG: SplitMix64
+    /// 引き継ぐ強さの置き場。中断データ（`gameID`）とは別のキーにする。
+    private var preferencesID: String { "\(gameID)-prefs" }
     /// ヒント表示のオン / オフ（#190）。対局中には変わらないので参照のたびに読む。
     private let hints: FeedbackPreference
     /// CPU の連続手番が二重に走らないようにする門番。テストが同期ゲートに使うので `internal`。
@@ -100,6 +115,10 @@ public final class ColorRelayModel: AITurnGuarded {
         self.cpuDelay = cpuDelay
         self.seed = seed
         self.hints = hints
+        cpuRNG = SplitMix64(seed: seed.map { $0 ^ 0x5DEECE66D } ?? UInt64.random(in: 0...UInt64.max))
+        if let prefs = services?.snapshots.load(ColorRelayPreferences.self, for: preferencesID) {
+            aiLevel = CPUStrength.strength(for: prefs.aiLevel).rawValue
+        }
         // 手書き・壊れた中断データで落ちないよう、配列の長さと番号の範囲を見てから戻す。
         if let snap = services?.snapshots.load(ColorRelaySnapshot.self, for: gameID),
            snap.hands.count == Self.playerCount, !snap.discardPile.isEmpty,
@@ -117,6 +136,8 @@ public final class ColorRelayModel: AITurnGuarded {
             if snap.lastActions.count == Self.playerCount { lastActions = snap.lastActions }
             isPenaltyWaived  = snap.isPenaltyWaived
             turnSerial       = snap.turnSerial
+            // 対局中の強さは中断データが正（1 局 = 1 RuleSet）。
+            aiLevel          = CPUStrength.strength(for: snap.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             phase            = .playing
         }
     }
@@ -186,6 +207,18 @@ public final class ColorRelayModel: AITurnGuarded {
     /// 人間の最終順位（0 始まり）。決着していなければ nil。
     public var playerPlace: Int? { ranking.firstIndex(of: Self.humanIndex) }
 
+    /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
+    /// それ以外の強さは強さ別の区分に分ける（花札と同じ「既定と違うときだけ区分する」作法・#2604）。
+    var recordScore: GameScore {
+        let strength = CPUStrength.strength(for: aiLevel)
+        guard strength != .standard else { return GameScore(metric: .winLoss) }
+        let variant = strength.recordVariantKey
+        return GameScore(
+            metric: .winLoss, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
+    }
+
     /// 評価リクエスト（#53）の判定用。上がれば勝ち、それ以外は負け。
     public var reviewOutcome: GameOutcome { playerPlace == 0 ? .win : .loss }
 
@@ -202,7 +235,12 @@ public final class ColorRelayModel: AITurnGuarded {
     // MARK: - ゲーム開始
 
     /// 新しい 1 ゲームを始める。7 枚ずつ配り、山の 1 枚目を場に置く（数字札が出るまでめくる）。
-    public func startGame() {
+    /// `aiLevel` を渡すとその強さで配る（開始シート・難易度の階段）。渡さなければ前のゲームの強さのまま。
+    public func startGame(aiLevel newLevel: Int? = nil) {
+        if let newLevel {
+            aiLevel = CPUStrength.strength(for: newLevel).rawValue
+            try? services?.snapshots.save(ColorRelayPreferences(aiLevel: aiLevel), for: preferencesID)
+        }
         var deck = RelayCard.makeDeck()
         shuffle(&deck)
 
@@ -247,7 +285,7 @@ public final class ColorRelayModel: AITurnGuarded {
         // 配ったばかりの局は `persist()` 側のガードで保存されない（1 手目で改めて保存される）。
         persist()
         // 1 ゲーム = 1 プレイ。中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     private func isNumber(_ kind: RelayKind) -> Bool {
@@ -441,7 +479,11 @@ public final class ColorRelayModel: AITurnGuarded {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(
+            gameID: gameID, outcome: reviewOutcome, score: recordScore,
+            // 「入門」「かんたん」に勝っても評価を頼むほどの手応えとは言えない（#1471）。
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
+        )
         services?.snapshots.clear(for: gameID)
     }
 
@@ -478,7 +520,8 @@ public final class ColorRelayModel: AITurnGuarded {
         }
         let next = nextPlayer(after: player)
         if let card = ColorRelayRules.cpuPlay(
-            hand: hands[player], top: top, activeColor: activeColor, nextHandCount: hands[next].count
+            hand: hands[player], top: top, activeColor: activeColor, nextHandCount: hands[next].count,
+            strength: CPUStrength.strength(for: aiLevel), using: &cpuRNG
         ) {
             play(card, by: player, chosenColor: card.isWild ? ColorRelayRules.dominantColor(in: hands[player]) : nil)
             return
@@ -597,7 +640,8 @@ public final class ColorRelayModel: AITurnGuarded {
             gameNumber: gameNumber,
             lastActions: lastActions,
             isPenaltyWaived: isPenaltyWaived,
-            turnSerial: turnSerial
+            turnSerial: turnSerial,
+            aiLevel: aiLevel
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
