@@ -271,11 +271,13 @@ public final class DaifugoModel: AITurnGuarded {
     /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
     /// それ以外の強さは強さ別の区分に分ける（花札と同じ「既定と違うときだけ区分する」作法・#2604）。
     var recordScore: GameScore {
+        // 順位は勝敗とは別に平均順位へ累計する（#2606）。
+        let place = playerPlace.map { $0 + 1 }
         let strength = CPUStrength.strength(for: aiLevel)
-        guard strength != .standard else { return GameScore(metric: .winLoss) }
+        guard strength != .standard else { return GameScore(metric: .winLoss, place: place) }
         let variant = strength.recordVariantKey
         return GameScore(
-            metric: .winLoss, variant: variant,
+            metric: .winLoss, place: place, variant: variant,
             variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
         )
     }

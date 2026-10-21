@@ -67,6 +67,17 @@
         }
       }
     },
+    "%1$@・平均%2$@位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Avg. place %2$@"
+          }
+        }
+      }
+    },
     "%1$@・最高%2$lld連勝" : {
       "extractionState" : "manual",
       "localizations" : {
