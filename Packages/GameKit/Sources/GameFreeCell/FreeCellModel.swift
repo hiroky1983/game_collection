@@ -100,7 +100,10 @@ public final class FreeCellModel {
     /// テスト専用: 読みが終わった直後（結果を取り込む前）に呼ぶ。読みの最中に盤が動いた状況を決定的に作る。
     var hintSearchDidFinishForTesting: (() -> Void)?
     /// 読み・広告経路・回数の消費の流れ（盤の版番号・読みの Task は Core が持つ・#2125）。
-    private let hintReader = BoardHintReader<FreeCellHintResult>()
+    /// 前に示した勝ち筋の続き（#2602）。盤をキーに引くので、違う手を指せば自然に外れて解き直す。
+    private var hintTrail: FreeCellHintTrail?
+
+    private let hintReader = BoardHintReader<FreeCellHintAnswer>()
 
     private var moves: [FreeCellMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。
@@ -378,24 +381,27 @@ public final class FreeCellModel {
         await hintReader.requestAd(hintContext, readDidFinish: readDidFinish)
     }
 
-    private var hintContext: BoardHintReader<FreeCellHintResult>.Context {
+    private var hintContext: BoardHintReader<FreeCellHintAnswer>.Context {
         .init(
             services: services, gameID: gameID, canUse: canUseHint, needsAd: needsAdForHint, isPlaying: phase == .playing,
-            cachedAnswer: { nil },
+            // 前に示した筋の続きに着いていれば、解き直さずその続きを示す（待たせない・往復しない）。
+            cachedAnswer: { [self] in hintTrail?.answer(at: board) },
             makeSearch: { [self] in
                 let board = self.board
-                return { FreeCellHint.find(in: board, isCancelled: { Task.isCancelled }) }
+                return { FreeCellHint.findPlan(in: board, isCancelled: { Task.isCancelled }) }
             },
             searchDidFinish: { [self] in hintSearchDidFinishForTesting?() },
-            verdict: { [self] result in
-                switch result {
+            verdict: { [self] answer in
+                switch answer.result {
                 case .hopeless: return .hopeless
                 case .move(let move): return board.isLegal(move) ? .legal : .illegal
                 }
             },
-            show: { [self] result in
-                guard case .move(let move) = result else { return }
+            show: { [self] answer in
+                guard case .move(let move) = answer.result else { return }
                 hintMove = move
+                // 続きを控える。示した手を指した後の盤を覚えておき、そこに着いたら先頭から使う。
+                hintTrail = FreeCellHintTrail.after(answer, from: board)
             },
             persist: { [self] in persist() },
             consumeFree: { [self] in hints.consume() },
@@ -437,6 +443,7 @@ public final class FreeCellModel {
         undosRemaining = FreeCellUndoBudget.free
         hints.reset()
         hintReader.reset()
+        hintTrail = nil
         board = Self.replay(moves, seed: dealNumber).board
         phase = .playing
         selection = nil
