@@ -49,6 +49,15 @@ public struct SolitaireView: View {
         _model = State(initialValue: SolitaireModel(services: services))
     }
 
+    /// クリアが続いたら一段上のめくり方（3 枚めくり）を勧める（#2599）。始め直しは開始シートの「配る」と同じ経路。
+    private var ladder: DifficultyLadderPrompt? {
+        let modes = SolitaireDrawMode.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: modes.firstIndex(of: model.rules.drawMode),
+                                      levelLabels: modes.map(\.label)) { level in
+            model.newGame(rules: SolitaireRuleSet(drawMode: modes[level]))
+        }
+    }
+
     public var body: some View {
         // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
         // 帯・ボタンは全画面の枠の左右の余白（8pt）。フリーセルと同じ。
@@ -71,7 +80,8 @@ public struct SolitaireView: View {
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo,
                 isWatchingHintAd: hintRescue.isWatching,
-                onHint: requestHint
+                onHint: requestHint,
+                ladder: ladder
             )
             .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
             HowToPlayHint(.solitaire, playLog: services.playLog)

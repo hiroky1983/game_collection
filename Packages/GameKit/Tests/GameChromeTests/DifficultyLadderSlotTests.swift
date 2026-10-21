@@ -73,6 +73,8 @@ struct DifficultyLadderSlotTests {
         let leveled = [
             "GameChess", "GameConcentration", "GameGo", "GameGomoku", "GameHanafuda",
             "GameMinesweeper", "GameOthello", "GameShogi", "GameSudoku",
+            // #2599: 段の構造を持つのに未配線だった 4 本。フリーセルは段が無いので対象外。
+            "GameSolitaire", "GameSpider", "GameShiritori", "GameAnzan",
         ]
         for name in leveled {
             let dir = sources.appendingPathComponent(name)
