@@ -529,6 +529,39 @@
         }
       }
     },
+    "引き分け・バストは 0 点。引き分けでも連勝は途切れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A push or a bust scores 0 points. A push also ends your streak."
+          }
+        }
+      }
+    },
+    "点数のルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scoring rules"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
     "配る" : {
       "extractionState" : "manual",
       "localizations" : {
