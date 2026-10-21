@@ -38,6 +38,13 @@ public struct BlackjackView: View {
         // フェルトに直に置く。勝負の帯（何回目・勝ち点・連勝）はモックの A 案どおりヘッダーの下に 1 行の札で残す。
         .gameChrome(title: tr("ブラックジャック"), review: services.review, fullScreen: .felt, ads: services.ads)
         .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
+        // ディーラーが 1 枚引くたびに合計を読む（#2595）。文字の更新は VoiceOver が自動では読まない。
+        .onChange(of: model.dealerHand.count) { old, new in
+            if let text = BlackjackAccessibility.dealerDrawAnnouncement(oldCount: old, newCount: new,
+                                                                        value: model.dealerValue) {
+                AccessibilityNotification.Announcement(text).post()
+            }
+        }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateBlackjackAction <split|hit|stand>` でその操作を1回行う（#439）。
@@ -461,6 +468,7 @@ public struct BlackjackView: View {
                         .minimumScaleFactor(0.65)
                 }
                 .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
+                .accessibilityHint(tr("10回の勝負につき1回だけ、広告を見るとこの回をやり直せます"))
                 .disabled(retryRescue.isWatching)
             }
             actionButton(model.isFinalRoundResult ? tr("結果を見る") : tr("次の回へ"), role: .primary,
