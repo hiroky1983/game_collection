@@ -373,7 +373,9 @@ public enum RecordFormat {
             if let label = best.1 {
                 return tr("最短 %1$@（%2$@）", time(best.0), label, language: language)
             }
-            return tr("最短 %@", time(best.0), language: language)
+            // 1 行（SE・最大文字サイズでも折り返さない長さ）に収めるため、手数は出さず連勝だけ添える（#2597）。
+            return withBestStreak(tr("最短 %@", time(best.0), language: language),
+                                  streak: played.map(\.bestStreak).max() ?? 0, language: language)
         case .points:
             // 区分が複数あるときは**区分なし（本編）の記録を代表**にする。チャリンコおじさんは
             // 本編＝到達ステージ数（区分なし）、エンドレス＝走行距離 m（区分あり）で桁が違い、
@@ -396,6 +398,11 @@ public enum RecordFormat {
             let base = winLossText(played, language: language)
             return streak >= 2 ? tr("%1$@・%2$lld連勝中", base, streak, language: language) : base
         }
+    }
+
+    /// 最高連勝を末尾に添える。`.winLoss` と同じ閾値（2 連勝以上）に満たなければ行をそのまま返す。
+    private static func withBestStreak(_ line: String, streak: Int, language: AppLanguage?) -> String {
+        streak >= 2 ? tr("%1$@・最高%2$lld連勝", line, streak, language: language) : line
     }
 
     /// ポーカー・ブラックジャックの ID（`PokerModel.gameID` / `BlackjackModel.gameID`）。Core からは参照できないので文字列で持つ。
@@ -479,7 +486,12 @@ public enum RecordFormat {
                 // まだ一度もクリアしていない。挑戦した回数だけを出す（「記録なし」で終わらせない）。
                 return tr("クリア記録なし（%lld回挑戦）", record.plays, language: language)
             }
-            return tr("最短タイム %1$@・%2$lld回クリア", time(best), record.wins, language: language)
+            var line = tr("最短タイム %1$@・%2$lld回クリア", time(best), record.wins, language: language)
+            // 手数を記録しているゲームだけ「最少 n手」、2 連勝以上なら「最高n連勝」を添える（#2597）。
+            if let moves = record.fewestMoves {
+                line = tr("%1$@・最少 %2$@手", line, number(moves), language: language)
+            }
+            return withBestStreak(line, streak: record.bestStreak, language: language)
         case .points:
             guard let best = record.bestPoints else { return nil }
             // ポーカー・ブラックジャックの highestValue は「役」「連勝」で、数としての「最大」ではない。

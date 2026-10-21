@@ -56,6 +56,17 @@
         }
       }
     },
+    "%1$@・最少 %2$@手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Fewest moves %2$@"
+          }
+        }
+      }
+    },
     "%1$@・最高%2$lld連勝" : {
       "extractionState" : "manual",
       "localizations" : {
