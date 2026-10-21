@@ -189,6 +189,39 @@
         }
       }
     },
+    "CPUが考えています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU is thinking"
+          }
+        }
+      }
+    },
+    "CPUが「%@」を取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU took “%@”"
+          }
+        }
+      }
+    },
+    "CPUが「%@」を取りました。あなたの番です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU took “%@”. Your turn"
+          }
+        }
+      }
+    },
     "CPUが考え中…" : {
       "extractionState" : "manual",
       "localizations" : {
