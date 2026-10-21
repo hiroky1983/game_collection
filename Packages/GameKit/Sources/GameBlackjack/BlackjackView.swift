@@ -94,30 +94,41 @@ public struct BlackjackView: View {
     private func content(_ metrics: BlackjackVerticalMetrics) -> some View {
         VStack(spacing: metrics.spacing) {
             matchBar(metrics)
-            // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
-            // 勝負の説明を出す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
-            if isBeforeDeal {
+            // 卓・ミニガイド・操作欄を 1 つのまとまりにして、帯の下の残りの真ん中に置く（会長 QA 2026-10-22・#2531）。
+            // 全画面にして縦が伸びた分を卓の中（ディーラーとあなたの間）で吸うと、真ん中が大きく空いていた。
+            VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                preDealTable
-                Spacer(minLength: 0)
-            } else {
-                // ディーラーとあなたの境目（= 卓の中央）に勝敗を重ねる（#1754）。画面全体の中央に
-                // 重ねるとあなたの手札を覆ってしまうので、この 2 つだけを囲んで中央を取る。
-                // 手ごとのバッジ（`outcomeBadge`）は残す——スプリットでは手ごとの勝敗が行に要るし、
-                // バナーが消えたあとも結果が読める。勝敗の読み上げ（#1574）もこの重ねが担う
-                // （出る瞬間に、理由と増減まで添えて読む）。
-                VStack(spacing: metrics.tableSpacing) {
-                    dealerArea(metrics)
-                    Spacer(minLength: 4)
-                    playerArea(metrics)
+                VStack(spacing: metrics.spacing) {
+                    // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
+                    // 勝負の説明を出す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
+                    if isBeforeDeal {
+                        preDealTable
+                    } else {
+                        // ディーラーとあなたの境目（= 卓の中央）に勝敗を重ねる（#1754）。画面全体の中央に
+                        // 重ねるとあなたの手札を覆ってしまうので、この 2 つだけを囲んで中央を取る。
+                        // 手ごとのバッジ（`outcomeBadge`）は残す——スプリットでは手ごとの勝敗が行に要るし、
+                        // バナーが消えたあとも結果が読める。勝敗の読み上げ（#1574）もこの重ねが担う
+                        // （出る瞬間に、理由と増減まで添えて読む）。
+                        // 卓の高さはスプリット中の高さまで（`estimatedSplitTableHeight`）。1 手 ⇄ スプリットで
+                        // 卓の背が変わらないので、ディーラーの札は動かない（中身が上限を超えたら中身の高さになる）。
+                        VStack(spacing: metrics.tableSpacing) {
+                            dealerArea(metrics)
+                            Spacer(minLength: 4)
+                            playerArea(metrics)
+                        }
+                        .frame(maxHeight: layout.scaled(metrics.estimatedSplitTableHeight))
+                        .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
+                    }
+                    HowToPlayHint(.blackjack, playLog: services.playLog)
+                    if model.matchOver {
+                        matchOverView
+                    } else {
+                        // ボタン 2 段ぶんを取っておき上詰め（スプリット・やり直しのボタンの出入りでまとまりが動かない）。
+                        actionArea
+                            .frame(minHeight: metrics.actionAreaMinHeight, alignment: .top)
+                    }
                 }
-                .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
-            }
-            HowToPlayHint(.blackjack, playLog: services.playLog)
-            if model.matchOver {
-                matchOverView
-            } else {
-                actionArea
+                Spacer(minLength: 0)
             }
             // おすすめは 10 回の勝負を終えたときだけ出す（1 回ごとの結果は勝負の途中）。
             RecommendationSlot(services: services, isFinished: model.matchOver)

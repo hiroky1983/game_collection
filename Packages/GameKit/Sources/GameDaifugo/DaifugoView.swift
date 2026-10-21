@@ -52,6 +52,9 @@ public struct DaifugoView: View {
             // 左右 8pt（全画面の枠の値）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に 4 を足す。
             .padding(.horizontal, DaifugoLayoutA.sideInset)
             .padding(.vertical, DaifugoLayoutA.verticalInset)
+            // 縦の余りを場だけが吸うと手札・操作欄が下端に張り付いて見えるので、下に少し余白を足して全体を上へ寄せる。
+            .padding(.bottom, DaifugoLayoutA.bottomLift(contentHeight: geometry.size.height,
+                                                        screenWidth: geometry.size.width))
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             // 交換の帯は盤の高さを変えないよう重ねで出す（#2607・#2493 の再発防止）。
             .overlay { exchangeBanner }
@@ -657,6 +660,17 @@ enum DaifugoLayoutA {
         let hand = 16 + 6 + m.handCard.height * 2 + DaifugoHandLayout.rowSpacing + 6 + 14
         let rows: [CGFloat] = [seat, field, hand, 22, 60]
         return rows.reduce(0, +) + spacing * CGFloat(rows.count - 1) + verticalInset * 2
+    }
+
+    /// 手札・操作欄を下端から持ち上げる量の上限（会長 QA 2026-10-22「気持ち要素を上に」・#2531）。
+    static let maxBottomLift: CGFloat = 24
+
+    /// 手札・操作欄を下端から持ち上げる量。中身の下に足す余白で、縦の余りを吸う場が同じだけ縮むので、
+    /// 場・手札・操作欄がそろって少し上へ寄る。控えめな量（上限 `maxBottomLift`）にとどめ、
+    /// 縦の余り（使える高さ − 最低限の高さ）の半分を超えない（SE で手札や操作欄が下にはみ出さない）。
+    static func bottomLift(contentHeight: CGFloat, screenWidth: CGFloat) -> CGFloat {
+        let slack = contentHeight - estimatedMinimumHeight(screenWidth: screenWidth)
+        return min(maxBottomLift, max(0, slack / 2))
     }
 }
 
