@@ -31,14 +31,14 @@ public struct CatPuzzleView: View {
         VStack(spacing: 12) {
             statusBar
             // 盤は残りの高さを Spacer と山分けしない（操作の段が増えた分だけ盤が縮むのを防ぐ）。
+            // クリアのダイアログは最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて重ねる。
             board
-                .gameClearCard(isPresented: model.isSolved, title: tr("クリア！"), details: clearDetails)
+                .gameClearCard(isPresented: model.showsClearCard, title: tr("クリア！"), details: clearDetails)
                 .layoutPriority(1)
             messageLine
-            actionRow
+            controlArea
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.catPuzzle, playLog: services.playLog)
-            RecommendationArea(services: services, isFinished: model.isSolved)
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
@@ -66,11 +66,18 @@ public struct CatPuzzleView: View {
                 Text(tr("同じ問題を最初から解きます。タイムとミスはそのままです。"))
             }
         }
-        // 矛盾が出たとき・消えたときに読み上げる。
-        .onChange(of: model.violations) { _, violations in
-            if let message = CatPuzzleAccessibility.message(for: violations) {
-                AccessibilityNotification.Announcement(message).post()
+        // 答えでないマスに赤い × が付いたら読み上げる。
+        .onChange(of: model.mistakes) { _, _ in
+            if model.lastWrongCell != nil {
+                AccessibilityNotification.Announcement(tr("そこに猫はいない。赤い×を置いた")).post()
             }
+        }
+        // 最後の猫を置いたら 1 拍おいてクリアのダイアログを出す。
+        .task(id: model.isSolved) {
+            guard let wait = model.clearCardWait else { return }
+            if wait > .zero { try? await Task.sleep(for: wait) }
+            guard !Task.isCancelled else { return }
+            withGameAnimation { model.revealClearCardIfDue() }
         }
         // 画面を離れたら・背面に回ったら計時を止め、戻ったら再開する（#375・#1734。`gameTimerLifecycle`・#1857）。
         .gameTimerLifecycle(
@@ -82,25 +89,15 @@ public struct CatPuzzleView: View {
 
     // MARK: - 上の帯
 
-    /// 左に残りの猫（決まり違反があるときは「同じ列に2匹」等をはっきり）、右にミス・難易度（押すと切り替え）・タイム。
+    /// 左に残りの猫、右にミス・難易度（押すと切り替え）・タイム。
     private var statusBar: some View {
         GameStatusBar {
-            if !model.isSolved, let message = CatPuzzleAccessibility.message(for: model.violations) {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .scaledFont(15, weight: .heavy, design: .rounded, maxScale: 1.3)
-                    .foregroundStyle(Theme.coralText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.6)
-                    // 読み上げは `onChange` の通知で 1 回だけ伝える。
-                    .accessibilityHidden(true)
-            } else {
-                Text(model.isSolved ? tr("全員みつけた！") : tr("残り %lld匹", model.remainingCats))
-                    .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.3)
-                    .foregroundStyle(model.isSolved ? Theme.tealText : Theme.ink)
-                    .contentTransition(.numericText())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-            }
+            Text(model.isSolved ? tr("全員みつけた！") : tr("残り %lld匹", model.remainingCats))
+                .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.3)
+                .foregroundStyle(model.isSolved ? Theme.tealText : Theme.ink)
+                .contentTransition(.numericText())
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
         } trailing: {
             // 右側は折り返さない（「0:00」が 2 行に割れないよう固定幅で勝たせる）。
             HStack(spacing: 6) {
@@ -151,7 +148,8 @@ public struct CatPuzzleView: View {
                     .fill(Theme.surface)
                     .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
                 CatPuzzleBoardCanvas(
-                    puzzle: model.puzzle, marks: model.marks, conflicts: shownConflicts, violations: model.violations,
+                    puzzle: model.puzzle, marks: model.marks,
+                    wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
                     hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint,
                     shakeToken: model.mistakes, isSolved: model.isSolved, cellSide: cellSide
                 )
@@ -165,13 +163,9 @@ public struct CatPuzzleView: View {
         .aspectRatio(1, contentMode: .fit)
     }
 
-    /// 印を付ける矛盾。ヒントで置いた猫は答えなので印を付けない（違うのは相手の猫）。
-    private var shownConflicts: Set<Int> { model.violations.cells.subtracting(model.hintCells) }
-
     /// タップと VoiceOver 用のマスの並び。見た目は Canvas で描き、操作と読み上げだけをこちらに置く。
     private func cells(cellSide: CGFloat, inset: CGFloat) -> some View {
         let n = model.puzzle.side
-        let conflicts = shownConflicts
         return ForEach(0..<model.puzzle.cellCount, id: \.self) { index in
             Color.clear
                 .frame(width: cellSide, height: cellSide)
@@ -183,12 +177,13 @@ public struct CatPuzzleView: View {
                     row: index / n, col: index % n,
                     roomName: CatPuzzleHouse.room(model.puzzle.rooms[index]).name,
                     mark: model.marks[index],
-                    isConflict: conflicts.contains(index),
+                    isConflict: model.wrongCrosses.contains(index),
                     isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index)
                 ))
                 .accessibilityHint(model.isSolved ? "" : model.hintCells.contains(index)
                                    ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
-                                   ? tr("ヒントで置いた × は消せません") : tr("押すと ×、猫、空きの順に変わります"))
+                                   ? tr("ヒントで置いた × は消せません") : model.wrongCrosses.contains(index)
+                                   ? tr("ここに猫はいません。赤い × は消せません") : tr("押すと ×、猫、空きの順に変わります"))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { withGameAnimation { model.tap(cell: index) } }
         }
@@ -196,33 +191,35 @@ public struct CatPuzzleView: View {
 
     // MARK: - 盤の下
 
-    /// 盤の下の 1 行。ヒント・矛盾の説明・クリアの一言。高さは常に確保して盤が跳ねないようにする。
+    /// 盤の下の 1 行。ヒント・赤い × の説明・クリアの一言。高さは常に確保して盤が跳ねないようにする。
     private var messageLine: some View {
         ZStack {
             if model.isSolved {
-                VStack(spacing: 6) {
-                    HStack(spacing: 8) {
-                        OjisanPixel.faceImage(.cheer)
-                            .frame(width: 48, height: 45)
-                        Text(tr("%lld匹ともくつろいでおる", model.size.side))
-                            .scaledFont(14, weight: .bold, design: .rounded)
-                            .foregroundStyle(Theme.ink)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .popCard(corner: Theme.cornerSmall)
-                    }
-                    RecordLabel(model.recordResult)
+                // おじさんの一言は横いっぱいの吹き出しにして、文字が窮屈にならないようにする（会長 QA 2026-10-21・build 42）。
+                HStack(spacing: 10) {
+                    OjisanPixel.faceImage(.cheer)
+                        .frame(width: 40, height: 37.5)
+                    Text(tr("%lld匹ともくつろいでおる", model.size.side))
+                        .scaledFont(16, weight: .bold, design: .rounded, maxScale: 1.4)
+                        .foregroundStyle(Theme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16).padding(.vertical, 9)
+                        .popCard(corner: Theme.cornerSmall)
                 }
+                .frame(maxWidth: .infinity)
+            } else if model.lastWrongCell != nil {
+                Text(tr("そこに猫はいない！ 赤い×はミス"))
+                    .scaledFont(14, weight: .bold, design: .rounded)
+                    .foregroundStyle(Theme.coralText)
+                    .multilineTextAlignment(.center)
+                    // 読み上げは `onChange` の通知で伝える。
+                    .accessibilityHidden(true)
             } else if let hint = model.lastHint {
                 Label(CatPuzzleAccessibility.message(for: hint, puzzle: model.puzzle, roomName: { CatPuzzleHouse.room($0).name }),
                       systemImage: "lightbulb.fill")
                     .scaledFont(14, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.yellowText)
-                    .multilineTextAlignment(.center)
-            } else if !model.violations.isEmpty {
-                // 違反の中身は盤の上の状態行に出す。ここは直し方だけ。
-                Text(tr("赤い帯の中の猫を見直そう"))
-                    .scaledFont(14, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.coralText)
                     .multilineTextAlignment(.center)
             } else {
                 Text(tr("タップで ×、もう一度で猫"))
@@ -233,36 +230,64 @@ public struct CatPuzzleView: View {
         .frame(minHeight: 36)
     }
 
-    /// 操作の段（#1834）。広告が絡むヒントと「戻す」を段に、やり直しは「⋯」に入れる。
-    private var actionRow: some View {
-        GameOverflowBar(
-            menuItems: [
-                GameControlMenuItem(
-                    id: "clear", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
-                    isDestructive: true, isEnabled: model.hasProgressToLose
-                ) { showConfirmClear = true },
-            ],
-            actions: [
-                GameActionItem(
-                    id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
-                    isEnabled: model.canUndo
-                ) { withGameAnimation { model.undo() } },
-                GameActionItem(
-                    id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
-                    badge: hintBadge,
-                    isEnabled: model.canHint,
-                    accessibilityLabel: tr("ヒント、あと%lld回", model.hintsRemaining),
-                    accessibilityHint: tr("推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます")
-                ) { withGameAnimation { model.useHint() } },
-            ],
-            verticalPadding: 4
-        )
+    /// 盤の下の操作（#148・#1689）。遊んでいる間はヒント・戻す・⋯、クリアしたら他のゲームと同じ
+    /// 「同じ条件でもう一回」「設定を変える」（`GameReplayBar`）とレコメンドに替える（会長 QA 2026-10-21・build 42）。
+    /// 高さは `GameControlArea` が終局後の最大構成に揃える（決着で盤が縮まない）。
+    private var controlArea: some View {
+        GameControlArea(isFinished: model.isSolved, services: services) {
+            GameReplayBar(
+                onReplay: { startNewGame(size: nil) },
+                onChangeSettings: { showSizeDialog = true }
+            ) {
+                RecordLabel(model.recordResult)
+            }
+        } playing: {
+            let controls = Self.playControls(
+                for: model,
+                onClear: { showConfirmClear = true },
+                onUndo: { withGameAnimation { model.undo() } },
+                onHint: { withGameAnimation { model.useHint() } }
+            )
+            if !controls.menu.isEmpty || !controls.actions.isEmpty {
+                GameOverflowBar(menuItems: controls.menu, actions: controls.actions, verticalPadding: 4)
+            }
+        }
+    }
+
+    /// 遊んでいる間の操作の段（#1834）。広告が絡むヒントと「戻す」を段に、やり直しは「⋯」に入れる。
+    /// クリアした後は何も返さない（終局後は `GameReplayBar` に替わる）。
+    static func playControls(
+        for model: CatPuzzleModel,
+        onClear: @escaping () -> Void = {}, onUndo: @escaping () -> Void = {}, onHint: @escaping () -> Void = {}
+    ) -> (menu: [GameControlMenuItem], actions: [GameActionItem]) {
+        guard !model.isSolved else { return ([], []) }
+        let menu = [
+            GameControlMenuItem(
+                id: "clear", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
+                isDestructive: true, isEnabled: model.hasProgressToLose, action: onClear
+            ),
+        ]
+        let actions = [
+            GameActionItem(
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
+                isEnabled: model.canUndo, action: onUndo
+            ),
+            GameActionItem(
+                id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
+                badge: hintBadge(for: model),
+                isEnabled: model.canHint,
+                accessibilityLabel: tr("ヒント、あと%lld回", model.hintsRemaining),
+                accessibilityHint: tr("推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます"),
+                action: onHint
+            ),
+        ]
+        return (menu, actions)
     }
 
     /// ヒントの 2 行目。無料ぶんを使い切ったら「0回 ▶ 広告を見て +1」の面にする。
     /// **試作では広告の差し込み口だけ**で、`RewardedRescue` は呼ばない（押せない）。本導入時に
     /// ナンプレのヒントの救済（`hintRescue`・目的はヒント）と同じ経路をここへつなぐ。
-    private var hintBadge: GameActionBadge {
+    private static func hintBadge(for model: CatPuzzleModel) -> GameActionBadge {
         model.hintsRemaining > 0 ? .count(model.hintsRemaining) : .ad(gain: 1)
     }
 
@@ -277,8 +302,9 @@ public struct CatPuzzleView: View {
     // MARK: - 新規ゲーム
 
     /// 途中の盤面があるときだけ確認を挟む。`size` が nil なら同じ大きさで始め直す。
+    /// 遊んでいる途中に今と同じ大きさを選んだときは何もしない（クリア後は同じ大きさでも新しい問題を始める）。
     private func requestNewGame(size: CatPuzzleSize?) {
-        if let size, size == model.size { return }
+        if let size, size == model.size, !model.isSolved { return }
         if model.hasProgressToLose {
             pendingSize = size
             showConfirmReset = true

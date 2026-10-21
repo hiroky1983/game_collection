@@ -123,6 +123,39 @@
         }
       }
     },
+    "ここに猫はいません。赤い × は消せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat here. The red × can't be removed"
+          }
+        }
+      }
+    },
+    "そこに猫はいない。赤い×を置いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat there. Marked with a red ×"
+          }
+        }
+      }
+    },
+    "そこに猫はいない！ 赤い×はミス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat there! A red × counts as a miss"
+          }
+        }
+      }
+    },
     "ちがう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -725,17 +758,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Porch"
-          }
-        }
-      }
-    },
-    "赤い帯の中の猫を見直そう" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check the cats inside the red band"
           }
         }
       }

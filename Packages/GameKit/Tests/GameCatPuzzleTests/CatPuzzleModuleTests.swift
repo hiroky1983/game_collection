@@ -45,7 +45,9 @@ struct CatPuzzleModuleTests {
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
         #expect(code.contains("GameStatusBar {"))
         #expect(code.contains("GameOverflowBar("))
-        #expect(code.contains("RecommendationArea("))
+        // 終局後は他のゲームと同じ「同じ条件でもう一回」「設定を変える」とレコメンド（会長 QA 2026-10-21・build 42）。
+        #expect(code.contains("GameControlArea(isFinished:"))
+        #expect(code.contains("GameReplayBar("))
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.catPuzzle"))
         #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))"))
@@ -95,10 +97,12 @@ struct CatPuzzleModuleTests {
         let model = CatPuzzleModel(services: services, seed: 4)
         #expect(!module.hasResumableSnapshot(in: store))
         #expect(!module.hasUntouchedSnapshot(in: store), "手つかずの盤はそもそも保存しない")
-        model.tap(cell: 0)
+        // 答えのマス（× → 猫 → 空 と一巡できる。答えでないマスは猫にすると赤い × が残る）。
+        let cell = model.puzzle.solutionCells[0]
+        model.tap(cell: cell)
         #expect(module.hasResumableSnapshot(in: store))
-        model.tap(cell: 0)
-        model.tap(cell: 0)
+        model.tap(cell: cell)
+        model.tap(cell: cell)
         #expect(!module.hasResumableSnapshot(in: store), "印を消したら続きではない")
     }
 

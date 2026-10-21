@@ -14,9 +14,12 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
     public var hintCells: [Int]?
     /// ヒントで置いた × のマス（印付き・消せない）。同じく optional。
     public var hintCrosses: [Int]?
+    /// 答えでないマスに猫を置こうとして付いた固定の赤い ×（消せない）。同じく optional。
+    public var wrongCrosses: [Int]?
 
     public init(size: String, puzzle: CatPuzzle, marks: [Int], elapsedSeconds: Int,
-                mistakes: Int, hintsUsed: Int, hintCells: [Int]? = nil, hintCrosses: [Int]? = nil) {
+                mistakes: Int, hintsUsed: Int, hintCells: [Int]? = nil, hintCrosses: [Int]? = nil,
+                wrongCrosses: [Int]? = nil) {
         self.size = size
         self.puzzle = puzzle
         self.marks = marks
@@ -25,6 +28,7 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         self.hintsUsed = hintsUsed
         self.hintCells = hintCells
         self.hintCrosses = hintCrosses
+        self.wrongCrosses = wrongCrosses
     }
 
     /// 続きから再開できる中断データか（正しい問題・印が 1 つ以上・まだ解けていない）。
@@ -47,10 +51,13 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         for cell in snap.hintCells ?? [] {
             guard (0..<snap.puzzle.cellCount).contains(cell), snap.marks[cell] == CatPuzzleModel.Mark.cat.rawValue else { return false }
         }
-        // ヒントで置いた × も盤の中にあり、そのマスの印は ×。
-        for cell in snap.hintCrosses ?? [] {
+        // ヒントで置いた × と赤い × も盤の中にあり、そのマスの印は ×。
+        for cell in (snap.hintCrosses ?? []) + (snap.wrongCrosses ?? []) {
             guard (0..<snap.puzzle.cellCount).contains(cell), snap.marks[cell] == CatPuzzleModel.Mark.cross.rawValue else { return false }
         }
+        // 赤い × は答えでないマスにしか付かない（答えのマスに固定の × があると解けなくなる）。
+        let solution = Set(snap.puzzle.solutionCells)
+        guard (snap.wrongCrosses ?? []).allSatisfy({ !solution.contains($0) }) else { return false }
         return true
     }
 }
