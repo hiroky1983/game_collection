@@ -276,28 +276,6 @@
         }
       }
     },
-    "タップで × → 猫 → 空" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap: × → cat → empty"
-          }
-        }
-      }
-    },
-    "タップで ×、もう一度で猫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap for ×, tap again for a cat"
-          }
-        }
-      }
-    },
     "ヒント" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -672,17 +650,6 @@
         }
       }
     },
-    "押すと ×、猫、空きの順に変わります" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap to cycle through ×, cat, and empty"
-          }
-        }
-      }
-    },
     "推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -856,6 +823,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Difficulty %@"
+          }
+        }
+      }
+    },
+    "タップで ×、ダブルタップで猫" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap for ×, double-tap to find a cat"
+          }
+        }
+      }
+    },
+    "押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activate to add or remove ×. To find a cat, choose the “Find cat” action."
+          }
+        }
+      }
+    },
+    "× を付け外し" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle ×"
+          }
+        }
+      }
+    },
+    "猫を見つける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find cat"
+          }
+        }
+      }
+    },
+    "タップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap"
+          }
+        }
+      }
+    },
+    "ダブルタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap"
+          }
+        }
+      }
+    },
+    "タップで × を付け外し、ダブルタップで猫" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap: toggle ×. Double-tap: cat"
           }
         }
       }

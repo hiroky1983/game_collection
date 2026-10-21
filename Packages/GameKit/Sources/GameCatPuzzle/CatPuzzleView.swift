@@ -1,7 +1,7 @@
 import SwiftUI
 import Core
 
-/// おじさんの飼い猫パズル（#2250）のプレイ画面。家の間取りのマスをタップして ×・猫を置く。
+/// おじさんの飼い猫パズル（#2250）のプレイ画面。家の間取りのマスをタップで ×（いない）を付け外しし、ダブルタップで猫を見つける。
 public struct CatPuzzleView: View {
     private let services: GameServices
     @State private var model: CatPuzzleModel
@@ -184,6 +184,8 @@ public struct CatPuzzleView: View {
     }
 
     /// タップと VoiceOver 用のマスの並び。見た目は Canvas で描き、操作と読み上げだけをこちらに置く。
+    /// タップは 1 回ごとに `CatPuzzleModel.tap(cell:)` へ渡し、ダブルタップの判定はモデルが時刻と同じマスかで行う
+    /// （`.onTapGesture(count: 2)` と排他にすると単タップが約 0.3 秒遅れるため・会長 QA 2026-10-22・build 45）。
     private func cells(cellSide: CGFloat, inset: CGFloat) -> some View {
         let n = model.puzzle.side
         return ForEach(0..<model.puzzle.cellCount, id: \.self) { index in
@@ -203,9 +205,13 @@ public struct CatPuzzleView: View {
                 .accessibilityHint(model.isOver ? "" : model.hintCells.contains(index)
                                    ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
                                    ? tr("ヒントで置いた × は消せません") : model.wrongCrosses.contains(index)
-                                   ? tr("ここに猫はいません。赤い × は消せません") : tr("押すと ×、猫、空きの順に変わります"))
+                                   ? tr("ここに猫はいません。赤い × は消せません") : model.marks[index] == .cat
+                                   ? "" : tr("押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます"))
                 .accessibilityAddTraits(.isButton)
-                .accessibilityAction { withGameAnimation { model.tap(cell: index) } }
+                // VoiceOver では × の付け外しと猫を見つけるを別の操作に分ける（ダブルタップは VoiceOver の「押す」と重なるため）。
+                .accessibilityAction { withGameAnimation { _ = model.toggleCross(cell: index) } }
+                .accessibilityAction(named: tr("× を付け外し")) { withGameAnimation { _ = model.toggleCross(cell: index) } }
+                .accessibilityAction(named: tr("猫を見つける")) { withGameAnimation { model.findCat(cell: index) } }
         }
     }
 
@@ -233,7 +239,7 @@ public struct CatPuzzleView: View {
                     .foregroundStyle(Theme.yellowText)
                     .multilineTextAlignment(.center)
             } else {
-                Text(tr("タップで ×、もう一度で猫"))
+                Text(tr("タップで ×、ダブルタップで猫"))
                     .scaledFont(14, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
             }

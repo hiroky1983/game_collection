@@ -6,8 +6,9 @@ import Observation
 /// 中断スナップショットを書く。生成・判定の純粋ロジックは `CatPuzzleLogic` に委譲し、
 /// ここは操作の受け付け・計時・永続化・決着の記録だけを担う。
 ///
-/// 操作: マスをタップすると ×（いない）→ 猫 → 空 の順に変わる。答え（唯一解）でないマスに猫を置こうとしたら
-/// 猫は置かず、そのマスに**赤い × を固定**で置いてミスを 1 数える（会長 QA 2026-10-21・build 42。答えとの一致を見せる）。
+/// 操作: マスをタップすると ×（いない）を付け外しし、ダブルタップでそのマスに猫を見つける（会長 QA 2026-10-22・build 45。
+/// 「一回バツ印つけるとキャンセルできない」への対応。× の付け外しはミスにならない）。答え（唯一解）でないマスで
+/// 猫を見つけようとしたら猫は置かず、そのマスに**赤い × を固定**で置いてミスを 1 数える（会長 QA 2026-10-21・build 42。答えとの一致を見せる）。
 /// 固定の赤 × はタップ・戻す・やり直しで消えず、中断データにも残る。盤に残る猫は必ず答えのマスなので、
 /// 決まり違反（同じ部屋・行・列に 2 匹、隣り合う）は起きない。猫が部屋の数だけ置けたらクリア。
 /// 赤い ×（ミス）が `maxMistakes`（3）回目になったら終局（負け）にする（会長 QA 2026-10-21・build 43）。
@@ -30,6 +31,9 @@ public final class CatPuzzleModel {
     /// 最後の猫を置いてからクリアのダイアログを出すまでの間（仮 0.8 秒・会長 QA 2026-10-21・build 42）。
     /// 最後の猫が「ぽん」と出る演出を見せてからダイアログを重ねる。
     public static let clearCardDelay: Duration = .milliseconds(800)
+    /// 同じマスへの 2 回目のタップをダブルタップとみなす間隔（会長 QA 2026-10-22・build 45）。
+    /// 1 回目はすぐ × を付け外しし（単タップを遅らせない）、この間に同じマスへ 2 回目が来たら 1 回目を取り消して猫を見つける。
+    public static let doubleTapInterval: Duration = .milliseconds(300)
 
     /// マスの印。
     public enum Mark: Int, Codable, Sendable {
@@ -72,6 +76,17 @@ public final class CatPuzzleModel {
     private var generator: SplitMix64?
     /// 「戻す」用の履歴（印。保存しない。ヒントは履歴に積まず、戻してもヒントの猫は残す）。
     private var history: [[Mark]] = []
+    /// 直前の 1 回目のタップ（ダブルタップの 2 回目が来たら、その × の付け外しを取り消すための控え）。保存しない。
+    private struct PendingTap {
+        let cell: Int
+        let at: ContinuousClock.Instant
+        /// 1 回目で × を付け外ししたか（猫・決まった印のマスでは何も変わらない）。
+        let toggled: Bool
+        let marksBefore: [Mark]
+        let historyCount: Int
+        let movesBefore: Int
+    }
+    @ObservationIgnored private var pendingTap: PendingTap?
     private let stopwatch = GameStopwatch(persistInterval: CatPuzzleModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
     var clockNow: ElapsedClock.Now {
@@ -176,24 +191,62 @@ public final class CatPuzzleModel {
 
     // MARK: - 操作
 
-    /// マスをタップする。×（いない）→ 猫 → 空 の順に変わる。ヒントで置いた猫・×、赤い × のマスは変わらない。
-    /// 答えでないマスに猫を置こうとしたら、猫は置かず赤い × を固定で置き、ミスを 1 数える。
+    /// 画面のタップの入口（1 回のタップごとに呼ぶ）。1 回目はすぐ `toggleCross` で × を付け外しする（単タップを遅らせない）。
+    /// 同じマスへの 2 回目が `doubleTapInterval` 以内に来たらダブルタップとみなし、1 回目の付け外しを取り消して
+    /// （印・「戻す」の履歴・手数を 1 回目の前に戻して）から `findCat` する。3 回目は新しい 1 回目として扱う。
+    /// 時刻は `clockNow`（タップを受けた時点）で測る。
     public func tap(cell: Int) {
-        guard !isOver, marks.indices.contains(cell), !isFixed(cell: cell) else { return }
+        let now = stopwatch.now()
+        if let first = pendingTap, first.cell == cell, now - first.at <= Self.doubleTapInterval {
+            pendingTap = nil
+            if first.toggled, !isOver {
+                marks = first.marksBefore
+                history.removeSubrange(min(first.historyCount, history.count)...)
+                moves = first.movesBefore
+            }
+            findCat(cell: cell)
+            return
+        }
+        let before = (marks: marks, history: history.count, moves: moves)
+        let toggled = toggleCross(cell: cell)
+        pendingTap = PendingTap(cell: cell, at: now, toggled: toggled, marksBefore: before.marks,
+                                historyCount: before.history, movesBefore: before.moves)
+    }
+
+    /// シングルタップ: 空のマスに × を付け、× のマスなら外す（空に戻す）。ミスにはならない。
+    /// 猫のいるマス・ヒントで置いた猫・×、赤い × のマスは変わらない。付け外ししたら真を返す。
+    @discardableResult
+    public func toggleCross(cell: Int) -> Bool {
+        // 直接の呼び出し（VoiceOver のアクションなど）は、手前の 1 回目のタップの控えを捨てる（`tap` は呼んだ後で控え直す）。
+        pendingTap = nil
+        guard !isOver, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return false }
         startPlayIfPending()
         lastHint = nil
         lastWrongCell = nil
-        let next: Mark
-        switch marks[cell] {
-        case .empty: next = .cross
-        case .cross: next = .cat
-        case .cat: next = .empty
-        }
+        let next: Mark = marks[cell] == .cross ? .empty : .cross
         moves += 1
         if !stopwatch.isRunning { startTimer() }
         // 印を付けた = 捨てたら途中離脱として数える盤面。
         services?.gameDidProgress(gameID: Self.gameID)
-        if next == .cat, !puzzle.solutionCells.contains(cell) {
+        history.append(marks)
+        marks[cell] = next
+        services?.feedback.impact(.light)
+        persist()
+        return true
+    }
+
+    /// ダブルタップ: そのマスで猫を見つける（空でも × でも同じ）。答えのマスなら猫を置き、答えでなければ猫は置かず
+    /// 赤い × を固定で置いてミスを 1 数える。猫のいるマス・ヒントで置いた猫・×、赤い × のマスでは何もしない。
+    public func findCat(cell: Int) {
+        pendingTap = nil
+        guard !isOver, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return }
+        startPlayIfPending()
+        lastHint = nil
+        lastWrongCell = nil
+        moves += 1
+        if !stopwatch.isRunning { startTimer() }
+        services?.gameDidProgress(gameID: Self.gameID)
+        if !puzzle.solutionCells.contains(cell) {
             // 戻せない印なので履歴には積まない（「戻す」で取り消せる操作ではない）。
             marks[cell] = .cross
             wrongCrosses.insert(cell)
@@ -208,8 +261,8 @@ public final class CatPuzzleModel {
             return
         }
         history.append(marks)
-        marks[cell] = next
-        services?.feedback.impact(next == .cat ? .medium : .light)
+        marks[cell] = .cat
+        services?.feedback.impact(.medium)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -217,9 +270,10 @@ public final class CatPuzzleModel {
         }
     }
 
-    /// 直前のタップを取り消す。ヒントで置いた猫・× は戻しても残る。
+    /// 直前の × の付け外し・見つけた猫を取り消す。ヒントで置いた猫・×、赤い × は戻しても残る。
     public func undo() {
         guard canUndo, let previous = history.popLast() else { return }
+        pendingTap = nil
         marks = previous
         keepFixedMarks()
         lastHint = nil
@@ -233,6 +287,7 @@ public final class CatPuzzleModel {
     public func reset() {
         guard !isOver else { return }
         history.removeAll()
+        pendingTap = nil
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         keepFixedMarks()
         lastHint = nil
@@ -247,6 +302,7 @@ public final class CatPuzzleModel {
     /// 回数は必ず 1 だけ減り、盤は必ず 1 歩進む。置いた結果で盤が完成すればそのままクリア。
     public func useHint() {
         guard canHint, let hint = nextHint else { return }
+        pendingTap = nil
         startPlayIfPending()
         for cell in hint.removed + hint.crossed {
             marks[cell] = .cross
@@ -280,6 +336,7 @@ public final class CatPuzzleModel {
     /// 新規ゲーム。`size` を渡すと盤の大きさを変える。
     public func newGame(size newSize: CatPuzzleSize? = nil) {
         if let newSize { size = newSize }
+        pendingTap = nil
         stopwatch.stop()
         puzzle = Self.makePuzzle(size: size, generator: &generator)
         marks = Array(repeating: .empty, count: puzzle.cellCount)
