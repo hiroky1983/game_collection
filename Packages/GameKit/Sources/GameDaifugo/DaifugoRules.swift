@@ -14,6 +14,24 @@ public struct DaifugoTransfer: Codable, Sendable, Equatable {
     }
 }
 
+/// ゲーム開始直後に卓へ出す「あなたの交換」の内容（#2607）。交換で動いた札のうち、あなたが受け取った札と渡した札。
+public struct DaifugoExchangeNotice: Equatable, Sendable {
+    /// 交換の相手（プレイヤー番号）。
+    public let partner: Int
+    public let received: [DaifugoCard]
+    public let gave: [DaifugoCard]
+
+    /// あなたが関わる交換が無いとき（1 ゲーム目・免除で動かなかったとき）は nil。
+    public init?(transfers: [DaifugoTransfer], human: Int) {
+        let received = transfers.first { $0.to == human }
+        let gave = transfers.first { $0.from == human }
+        guard let partner = received?.from ?? gave?.to else { return nil }
+        self.partner = partner
+        self.received = received?.cards ?? []
+        self.gave = gave?.cards ?? []
+    }
+}
+
 /// 手札1枚のヒント表示の状態（#190）。
 public enum DaifugoCardHint: Equatable, Sendable {
     /// ヒント無し（設定オフ・相手の手番・手札すべてが出せる場合）。

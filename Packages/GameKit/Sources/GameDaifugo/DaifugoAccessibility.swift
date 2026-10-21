@@ -57,6 +57,19 @@ public enum DaifugoAccessibility {
         return tr("%1$@。%2$@が出しました", cardsText, ownerName)
     }
 
+    /// 交換の帯の文（#2607）。受け取った札・渡した札の順で 1 行ずつ。画面は記号（♠A）、読み上げはスートの読み（スペードのエース）。
+    public static func exchangeLines(_ notice: DaifugoExchangeNotice, partnerName: String, spoken: Bool) -> [String] {
+        func cards(_ list: [DaifugoCard]) -> String {
+            spoken
+                ? list.map(cardName).joined(separator: tr("、"))
+                : list.map { ($0.suit?.symbol ?? "") + $0.rankLabel }.joined(separator: " ")
+        }
+        var lines: [String] = []
+        if !notice.received.isEmpty { lines.append(tr("%1$@から %2$@ を受け取りました", partnerName, cards(notice.received))) }
+        if !notice.gave.isEmpty { lines.append(tr("%1$@へ %2$@ を渡しました", partnerName, cards(notice.gave))) }
+        return lines
+    }
+
     /// しばり中の札の読み上げ文（#2605）。記号のままだと読みが安定しないのでスートの読みで伝える。
     public static func bindLabel(_ suits: Set<DaifugoSuit>) -> String {
         let names = suits.sorted { $0.rawValue < $1.rawValue }.compactMap { suitName($0) }
