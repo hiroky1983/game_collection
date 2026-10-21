@@ -35,7 +35,7 @@ public struct ShiritoriView: View {
                 .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
             HowToPlayHint(.shiritori, playLog: services.playLog)
             actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
+            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             // 札の盤は札の枚数ぶんの高さしか取らないため、余りをここで吸って広告を画面の下端に置く。
             // 吸わないと画面全体が縦に伸びず、背景色が中身の範囲にしか塗られない（ヘッダーまわりと広告の下が白く残る）
             Spacer(minLength: 0)
@@ -326,6 +326,16 @@ public struct ShiritoriView: View {
         .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// ノルマ戦で勝ちが続いたら一段上のノルマを勧める（#2599）。とことんは段が無いので勧めない。
+    private var ladder: DifficultyLadderPrompt? {
+        let quotas = ShiritoriQuota.allCases
+        return DifficultyLadderPrompt(result: model.recordResult,
+                                      currentLevel: model.mode == .quota ? quotas.firstIndex(of: model.quota) : nil,
+                                      levelLabels: quotas.map(\.label)) { level in
+            model.startGame(quota: quotas[level], mode: .quota)
+        }
     }
 
     // MARK: - リザルト

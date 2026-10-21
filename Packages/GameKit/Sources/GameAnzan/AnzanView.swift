@@ -32,6 +32,18 @@ public struct AnzanView: View {
         _showSetup = State(initialValue: model.phase == .idle)
     }
 
+    /// 正解が続いたら一段速い表示を勧める（#2599。段は速さの 1 軸だけ・仮置き）。桁数・個数は今のまま。
+    private var ladder: DifficultyLadderPrompt? {
+        let speeds = AnzanSpeed.allCases
+        let current = model.settings
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: speeds.firstIndex(of: current.speed),
+                                      levelLabels: speeds.map(\.label)) { level in
+            withGameAnimation {
+                model.start(AnzanSettings(digits: current.digits, count: current.count, speed: speeds[level]))
+            }
+        }
+    }
+
     public var body: some View {
         VStack(spacing: 14) {
             header
@@ -39,7 +51,7 @@ public struct AnzanView: View {
             controls
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.anzan, playLog: services.playLog)
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
+            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             BannerSlot(ads: services.ads)
         }
         .padding()

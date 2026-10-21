@@ -17,9 +17,11 @@ struct SolitaireControlsView: View {
     let isWatchingHintAd: Bool
     /// ヒントの入口。無料か広告かの振り分けは画面本体が持つ。
     let onHint: () -> Void
+    /// クリアが続いたら 3 枚めくりを勧める「階段」（#2599）。
+    var ladder: DifficultyLadderPrompt?
 
     var body: some View {
-        GameControlArea(isFinished: model.phase == .won, services: services) {
+        GameControlArea(isFinished: model.phase == .won, services: services, ladder: ladder) {
             resultControls
         } playing: {
             gameControls

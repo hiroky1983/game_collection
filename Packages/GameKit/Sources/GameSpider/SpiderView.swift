@@ -552,8 +552,17 @@ public struct SpiderView: View {
 
     // MARK: - 盤の下の操作エリア
 
+    /// クリアが続いたら一段上のスート数を勧める（#2599）。始め直しは開始シートの「配る」と同じ経路。
+    private var ladder: DifficultyLadderPrompt? {
+        let counts = SpiderSuitCount.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: counts.firstIndex(of: model.rules.suitCount),
+                                      levelLabels: counts.map(\.label)) { level in
+            model.newGame(rules: SpiderRuleSet(suitCount: counts[level]))
+        }
+    }
+
     private var controlArea: some View {
-        GameControlArea(isFinished: model.phase == .won, services: services) {
+        GameControlArea(isFinished: model.phase == .won, services: services, ladder: ladder) {
             resultControls
         } playing: {
             gameControls
