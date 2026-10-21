@@ -961,6 +961,127 @@
           }
         }
       }
+    },
+    "「ルールを選ぶ」でオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn it on from \"Choose rules\". When the same suit is played twice in a row, only that suit (and Jokers) can be played until the table is cleared"
+          }
+        }
+      }
+    },
+    "あり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "しばり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock"
+          }
+        }
+      }
+    },
+    "しばり %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lock %@"
+          }
+        }
+      }
+    },
+    "しばり中、%@のカードだけ出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock is on, only %@ cards can be played"
+          }
+        }
+      }
+    },
+    "しばり中です。%@のカードだけ出せます（ジョーカーは使えます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locked to %@. Only that suit can be played (Jokers still work)"
+          }
+        }
+      }
+    },
+    "しばり（任意）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock (optional)"
+          }
+        }
+      }
+    },
+    "なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "ふつうのルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard rules"
+          }
+        }
+      }
+    },
+    "ルールを選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose rules"
+          }
+        }
+      }
+    },
+    "同じ柄が2回続くとその柄だけ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same suit twice locks the suit"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

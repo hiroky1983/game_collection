@@ -5,6 +5,8 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @State private var showResignConfirm = false
+    /// ローカルルール（しばり）を選ぶ開始シート（#2605）。
+    @State private var showRuleSetup = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
     /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
@@ -58,6 +60,16 @@ public struct DaifugoView: View {
         }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)) { DaifugoRuleSheet() }
+        .sheet(isPresented: $showRuleSetup) {
+            DaifugoSetupSheet(ruleSet: model.preferredRuleSet, discardsProgress: model.hasProgress) { ruleSet in
+                model.choosePreferredRuleSet(ruleSet)
+                showRuleSetup = false
+                model.startGame()
+                runCPU()
+            } onCancel: {
+                showRuleSetup = false
+            }
+        }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button(tr("投了する"), role: .destructive) { model.resign() }
@@ -100,10 +112,12 @@ public struct DaifugoView: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
                 gameCountLabel
+                bindBadge
                 revolutionBadge
                 turnChip
             }
             HStack(spacing: 8) {
+                bindBadge
                 revolutionBadge
                 turnChip
             }
@@ -122,6 +136,18 @@ public struct DaifugoView: View {
                 OpponentSeatIcon(index: model.currentPlayer, diameter: layout.scaled(22))
             }
             TurnBadge(turnLabel, kind: turnKind)
+        }
+    }
+
+    /// しばり中の札（#2605）。スートの印を添え、VoiceOver には「しばり中、♠のカードだけ出せます」を読ませる。
+    @ViewBuilder private var bindBadge: some View {
+        if !model.bindSuits.isEmpty {
+            Text(tr("しばり %@", DaifugoRules.bindLabel(model.bindSuits)))
+                .scaledFont(12, weight: .black, design: .rounded)
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.Fill.coral))
+                .accessibilityLabel(DaifugoAccessibility.bindLabel(model.bindSuits))
         }
     }
 
@@ -366,6 +392,9 @@ public struct DaifugoView: View {
                 // （丸 44×44pt・全ゲーム共通の見た目）を並びの中に置く（#2494・#2455 の SE の高さを保つ）。
                 GameControlMenu(items: [
                     GameControlMenuItem(
+                        id: "rules", title: tr("ルールを選ぶ"), systemImage: "slider.horizontal.3"
+                    ) { showRuleSetup = true },
+                    GameControlMenuItem(
                         id: "resign", title: tr("投了"), systemImage: "flag.fill",
                         isDestructive: true, isEnabled: model.canResign
                     ) { showResignConfirm = true }
@@ -382,6 +411,9 @@ public struct DaifugoView: View {
                 actionButton(tr("もう一回"), role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
                     runCPU()
+                }
+                actionButton(tr("ルールを選ぶ"), role: .skip, disabled: waiveRescue.isWatching) {
+                    showRuleSetup = true
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -658,6 +690,42 @@ struct DaifugoCardView: View {
     }
 }
 
+// MARK: - Setup Sheet
+
+/// ローカルルールを選ぶ開始シート（#2605）。今は「しばり」だけ。既定はオフで、選んだ値は次のゲームにも引き継ぐ。
+struct DaifugoSetupSheet: View {
+    @State private var ruleSet: DaifugoRuleSet
+    let discardsProgress: Bool
+    let onStart: (DaifugoRuleSet) -> Void
+    let onCancel: () -> Void
+
+    init(ruleSet: DaifugoRuleSet, discardsProgress: Bool,
+         onStart: @escaping (DaifugoRuleSet) -> Void, onCancel: @escaping () -> Void) {
+        _ruleSet = State(initialValue: ruleSet)
+        self.discardsProgress = discardsProgress
+        self.onStart = onStart
+        self.onCancel = onCancel
+    }
+
+    var body: some View {
+        GameSetupSheet(
+            kind: .versus, discardsProgress: discardsProgress,
+            onStart: { onStart(ruleSet) }, onCancel: onCancel
+        ) {
+            GameSetupSection(tr("しばり")) {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: tr("なし"), subtitle: tr("ふつうのルール"),
+                                     selected: !ruleSet.isBindEnabled, accent: Theme.fillMuted,
+                                     onAccent: .white) { ruleSet.isBindEnabled = false }
+                    GameSetupChooser(title: tr("あり"), subtitle: tr("同じ柄が2回続くとその柄だけ"),
+                                     selected: ruleSet.isBindEnabled, accent: Theme.fillStrong,
+                                     onAccent: .white) { ruleSet.isBindEnabled = true }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Rule Sheet
 
 struct DaifugoRuleSheet: View {
@@ -671,6 +739,7 @@ struct DaifugoRuleSheet: View {
             (tr("出し方"), tr("場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます")),
             (tr("革命"), tr("同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）")),
             (tr("8切り"), tr("8 を含む組を出すと場が流れ、そのまま続けて出せます")),
+            (tr("しばり（任意）"), tr("「ルールを選ぶ」でオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません")),
             (tr("反則上がり"), tr("最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます")),
             (tr("階級とカード交換"), tr("上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します")),
         ]

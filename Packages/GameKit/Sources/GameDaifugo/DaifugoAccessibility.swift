@@ -57,6 +57,12 @@ public enum DaifugoAccessibility {
         return tr("%1$@。%2$@が出しました", cardsText, ownerName)
     }
 
+    /// しばり中の札の読み上げ文（#2605）。記号のままだと読みが安定しないのでスートの読みで伝える。
+    public static func bindLabel(_ suits: Set<DaifugoSuit>) -> String {
+        let names = suits.sorted { $0.rawValue < $1.rawValue }.compactMap { suitName($0) }
+        return tr("しばり中、%@のカードだけ出せます", names.joined(separator: tr("、")))
+    }
+
     /// CPU の席 1 つの読み上げ文。手番かどうかは画面ではアイコンの色でしか示さないので、文字にして足す（#2495）。
     /// 名前・残り枚数・直前の動き（空なら省く）を 1 まとまりに読ませる。
     public static func seatLabel(name: String, remaining: Int, action: String, isTurn: Bool) -> String {
