@@ -61,8 +61,9 @@ public enum ShiritoriPresentation {
     /// ノルマが勝敗に絡むのは時間切れと到達の決着だけなので、ノルマの説明もそのときだけ添える。
     /// とことんモードにはノルマが無いので、ノルマの説明は添えない。
     public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota, ending: ShiritoriEnding,
-                                    mode: ShiritoriMode = .quota) -> String {
-        let base = tr("あなた%1$lld枚・CPU%2$lld枚", player, cpu)
+                                    mode: ShiritoriMode = .quota, clearSeconds: Int? = nil) -> String {
+        var base = tr("あなた%1$lld枚・CPU%2$lld枚", player, cpu)
+        if let clearSeconds { base += tr("・今回%lld秒", clearSeconds) }
         guard mode == .quota else { return base }
         return ending == .timeUp || ending == .quotaReached ? base + tr("／ノルマ: %@", quota.summary) : base
     }

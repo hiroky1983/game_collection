@@ -267,6 +267,19 @@ struct RecordFormatTests {
         #expect(RecordFormat.hubLine([PlayRecord()]) == nil)
     }
 
+    @Test("カードしりとり: 勝ちに秒数を載せると最速が残り、負けでは更新されない。行には勝敗の後ろに最速が付く（#2609）")
+    func winLossBestSecondsLines() {
+        var r = PlayRecord.applying(outcome: .win, score: GameScore(metric: .winLoss, seconds: 42), to: nil)
+        #expect(r.record.bestSeconds == 42 && r.update.seconds)
+        r = PlayRecord.applying(outcome: .win, score: GameScore(metric: .winLoss, seconds: 50), to: r.record)
+        #expect(r.record.bestSeconds == 42 && !r.update.seconds)
+        r = PlayRecord.applying(outcome: .loss, score: GameScore(metric: .winLoss, seconds: 5), to: r.record)
+        #expect(r.record.bestSeconds == 42 && !r.update.seconds)
+        #expect(RecordFormat.resultLine(r.record, language: .japanese) == "通算 2勝1敗・最速42秒・最高2連勝")
+        #expect(RecordFormat.hubLine([r.record], language: .japanese) == "2勝1敗・最速42秒")
+        #expect(RecordFormat.hubLine([r.record], language: .english) == "2W 1L · Fastest: 42 s")
+    }
+
     @Test("大富豪・いろリレー: 2 位と最下位で終えると記録の行が変わる。順位が無ければ従来の表記のまま（#2606）")
     func averagePlaceLines() {
         func record(_ places: [Int], key: String = "daifugo") -> PlayRecord {

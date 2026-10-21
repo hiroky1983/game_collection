@@ -387,6 +387,17 @@
         }
       }
     },
+    "・今回%lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · This run: %lld s"
+          }
+        }
+      }
+    },
     "おてつき！ -%lldびょう" : {
       "extractionState" : "manual",
       "localizations" : {
