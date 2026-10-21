@@ -962,13 +962,68 @@
         }
       }
     },
-    "「ルールを選ぶ」でオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません" : {
+    "CPUの強さ" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Turn it on from \"Choose rules\". When the same suit is played twice in a row, only that suit (and Jokers) can be played until the table is cleared"
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "出せる手からでたらめに選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays any legal move at random"
+          }
+        }
+      }
+    },
+    "ときどき最善でない手を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sometimes picks a weaker move"
+          }
+        }
+      }
+    },
+    "出せる最弱の手を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays the weakest legal move"
+          }
+        }
+      }
+    },
+    "強い札を温存し、革命も狙う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves strong cards and aims for a revolution"
+          }
+        }
+      }
+    },
+    "新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn it on in the new game setup sheet. When the same suit is played twice in a row, only that suit (and Jokers) can be played until the table is cleared"
           }
         }
       }
@@ -1057,17 +1112,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Standard rules"
-          }
-        }
-      }
-    },
-    "ルールを選ぶ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose rules"
           }
         }
       }

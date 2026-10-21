@@ -295,7 +295,7 @@ public enum DaifugoRules {
         return plays
     }
 
-    /// CPU の選択（貪欲法）: **出せる最弱の手**を選ぶ。強さ調整は Issue #89 のスコープ外。
+    /// CPU の選択（貪欲法）: **出せる最弱の手**を選ぶ。「ふつう」の CPU はこれをそのまま使う。
     ///
     /// 同じ強さならジョーカーを使わない手を選ぶ。枚数は場の状況で向きが変わる:
     /// 場に追随するときは枚数が場と一致するので比較に効かず、**親番（場が空）では枚数の多い手**を選ぶ。
@@ -306,8 +306,17 @@ public enum DaifugoRules {
         isRevolution: Bool,
         bindSuits: Set<DaifugoSuit> = []
     ) -> [DaifugoCard]? {
+        rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits).first
+    }
+
+    /// 出せる手を、貪欲法の好みの順（先頭が `greedyPlay` の手）に並べたもの。
+    static func rankedPlays(
+        hand: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool,
+        bindSuits: Set<DaifugoSuit> = []
+    ) -> [[DaifugoCard]] {
         let plays = legalPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
-        guard !plays.isEmpty else { return nil }
 
         func isFoul(_ play: [DaifugoCard]) -> Bool {
             play.count == hand.count && isFoulFinish(play)
@@ -324,7 +333,70 @@ public enum DaifugoRules {
                 play.first?.id ?? 0
             )
         }
-        return plays.min { rankKey($0) < rankKey($1) }
+        return plays.sorted { rankKey($0) < rankKey($1) }
+    }
+
+    // MARK: - CPU の強さ（#2604）
+
+    /// 「かんたん」が最善手を外して次善手を選ぶ確率。仮置き（実装後の会長 QA で調整する）。
+    static let easySlipChance = 0.3
+    /// 「むずかしい」が強い札を温存してパスする、その札の強さの下限（A・2・ジョーカー。革命中は 3・4・ジョーカー）。
+    static let hoardStrength = 11
+    /// 手札がこの枚数以下なら温存しない（上がりを急ぐ）。
+    static let hoardMinHandCount = 3
+    /// 他の誰かの手札がこの枚数以下なら温存しない（上がられる前に止める）。
+    static let hoardOpponentThreshold = 2
+
+    /// 強さを踏まえた CPU の選択。出せる手が無い・出さない（パス）なら nil。
+    ///
+    /// - 入門: 出せる手からでたらめに選ぶ。
+    /// - かんたん: 一定確率で、最善手ではなく次善手を選ぶ。
+    /// - ふつう: `greedyPlay` と同じ（回帰なし）。
+    /// - むずかしい: ① 追随のとき、最善手が強い札（A・2・ジョーカー）なら、手札が多く誰も上がり間近でない間は
+    ///   パスして温存する ② 親番のとき、革命を起こせて、残る手札が弱い札に偏っているなら革命で始める。
+    /// - Parameter minOpponentHandCount: 手札が残っている他のプレイヤーのうち最も少ない枚数（温存の判断に使う）。
+    public static func cpuPlay(
+        hand: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool,
+        strength: CPUStrength,
+        minOpponentHandCount: Int = .max,
+        bindSuits: Set<DaifugoSuit> = [],
+        using rng: inout some RandomNumberGenerator
+    ) -> [DaifugoCard]? {
+        let ranked = rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
+        guard let best = ranked.first else { return nil }
+        switch strength {
+        case .normal:
+            return best
+        case .novice:
+            return ranked.randomElement(using: &rng)
+        case .easy:
+            guard ranked.count > 1, Double.random(in: 0..<1, using: &rng) < easySlipChance else { return best }
+            return ranked[1]
+        case .hard:
+            if field.isEmpty {
+                return revolutionLead(ranked, hand: hand, isRevolution: isRevolution) ?? best
+            }
+            let isStrong = (playStrength(best, isRevolution: isRevolution) ?? 0) >= hoardStrength
+            let canHoard = hand.count > hoardMinHandCount && minOpponentHandCount > hoardOpponentThreshold
+            return isStrong && canHoard ? nil : best
+        }
+    }
+
+    /// 親番で革命から始める手。起こせる手が無い・残る手札が強い札に偏っているときは nil。
+    /// 革命は強さの並びを反転するので、残る手札が弱い札ばかりのときに得になる。
+    private static func revolutionLead(
+        _ ranked: [[DaifugoCard]], hand: [DaifugoCard], isRevolution: Bool
+    ) -> [DaifugoCard]? {
+        guard let play = ranked.first(where: {
+            triggersRevolution($0) && !($0.count == hand.count && isFoulFinish($0))
+        }) else { return nil }
+        let playedIDs = Set(play.map(\.id))
+        let rest = hand.filter { !playedIDs.contains($0.id) }
+        let weak = rest.filter { !$0.isJoker && strength(rank: $0.rank, isRevolution: isRevolution) <= 4 }.count
+        let strong = rest.filter { $0.isJoker || strength(rank: $0.rank, isRevolution: isRevolution) >= 8 }.count
+        return weak > strong ? play : nil
     }
 
     // MARK: - 順位と階級

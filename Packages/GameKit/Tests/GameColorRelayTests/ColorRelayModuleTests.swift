@@ -66,7 +66,7 @@ struct ColorRelayModuleTests {
         #expect(code.contains("unavailable: RewardUnavailableAlert("))
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由でしか出さない")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
-        #expect(!code.contains("level: "), "難易度は持たないので game_start に level を載せない")
+        #expect(code.contains("level: CPUStrength.analyticsLevel(forLevel: aiLevel)"), "CPU の強さを game_start の level に載せる（#2604）")
         #expect(code.contains("gameDidRestart(") && code.contains("gameDidProgress(") && code.contains("gameDidFinish("),
                 "解析は 1 ゲーム 1 組 + 進行の 3 点で接続する")
     }
@@ -85,7 +85,7 @@ struct ColorRelayModuleTests {
         }
         let release = releaseLines.joined(separator: "\n")
         #expect(!release.contains("applyDebugScenario"))
-        #expect(release.contains("public func startGame()"), "走査そのものが機能している")
+        #expect(release.contains("public func startGame(aiLevel"), "走査そのものが機能している")
     }
 
     @Test("手札の 1 枚あたりの見える幅（タップ判定）は、何枚になっても 44pt 以上", arguments: [375.0, 393.0, 402.0, 440.0])

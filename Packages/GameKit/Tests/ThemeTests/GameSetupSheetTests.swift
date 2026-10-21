@@ -62,6 +62,7 @@ struct GameSetupSheetSourceTests {
         ("GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift", ".solo"),
         ("GameHearts/HeartsView.swift", ".versus"),
         ("GameDaifugo/DaifugoView.swift", ".versus"),
+        ("GameColorRelay/ColorRelayView.swift", ".versus"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。
