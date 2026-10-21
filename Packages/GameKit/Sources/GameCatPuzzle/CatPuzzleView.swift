@@ -141,8 +141,8 @@ public struct CatPuzzleView: View {
                     .fill(Theme.surface)
                     .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
                 CatPuzzleBoardCanvas(
-                    puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells,
-                    hintCell: model.hintCell, isSolved: model.isSolved, cellSide: cellSide
+                    puzzle: model.puzzle, marks: model.marks, conflicts: shownConflicts,
+                    hintCells: model.hintCells, lastHint: model.lastHint, isSolved: model.isSolved, cellSide: cellSide
                 )
                 .offset(x: inset, y: inset)
                 cells(cellSide: cellSide, inset: inset)
@@ -154,9 +154,13 @@ public struct CatPuzzleView: View {
         .aspectRatio(1, contentMode: .fit)
     }
 
+    /// 印を付ける矛盾。ヒントで置いた猫は答えなので印を付けない（違うのは相手の猫）。
+    private var shownConflicts: Set<Int> { model.violations.cells.subtracting(model.hintCells) }
+
     /// タップと VoiceOver 用のマスの並び。見た目は Canvas で描き、操作と読み上げだけをこちらに置く。
     private func cells(cellSide: CGFloat, inset: CGFloat) -> some View {
         let n = model.puzzle.side
+        let conflicts = shownConflicts
         return ForEach(0..<model.puzzle.cellCount, id: \.self) { index in
             Color.clear
                 .frame(width: cellSide, height: cellSide)
@@ -168,10 +172,11 @@ public struct CatPuzzleView: View {
                     row: index / n, col: index % n,
                     roomName: CatPuzzleHouse.room(model.puzzle.rooms[index]).name,
                     mark: model.marks[index],
-                    isConflict: model.violations.cells.contains(index),
-                    isHint: model.hintCell == index
+                    isConflict: conflicts.contains(index),
+                    isHint: model.hintCells.contains(index)
                 ))
-                .accessibilityHint(model.isSolved ? "" : tr("押すと ×、猫、空きの順に変わります"))
+                .accessibilityHint(model.isSolved ? "" : model.hintCells.contains(index)
+                                   ? tr("ヒントで置いた猫は消せません") : tr("押すと ×、猫、空きの順に変わります"))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { withGameAnimation { model.tap(cell: index) } }
         }
@@ -195,8 +200,8 @@ public struct CatPuzzleView: View {
                     }
                     RecordLabel(model.recordResult)
                 }
-            } else if let hint = model.hintCell {
-                Label(tr("ヒント: %@にいるよ", CatPuzzleHouse.room(model.puzzle.rooms[hint]).name), systemImage: "lightbulb.fill")
+            } else if let hint = model.lastHint {
+                Label(CatPuzzleAccessibility.message(for: hint, roomName: CatPuzzleHouse.room(hint.room).name), systemImage: "lightbulb.fill")
                     .scaledFont(14, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.yellowText)
                     .multilineTextAlignment(.center)
@@ -235,7 +240,7 @@ public struct CatPuzzleView: View {
                     badge: hintBadge,
                     isEnabled: model.canHint,
                     accessibilityLabel: tr("ヒント、あと%lld回", model.hintsRemaining),
-                    accessibilityHint: tr("答えの猫がいるマスを1つ示します")
+                    accessibilityHint: tr("答えの猫を1匹置きます。違う場所の猫があれば先に×にします")
                 ) { withGameAnimation { model.useHint() } },
             ],
             verticalPadding: 4

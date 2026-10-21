@@ -22,13 +22,24 @@ struct CatPuzzleRenderTests {
         GameServices(snapshots: store, ads: NoopAdService())
     }
 
-    /// 遊んでいる途中（猫 3 匹・× いくつか・ヒント 1 つ）。
+    /// 遊んでいる途中（猫 3 匹・× いくつか）。
     private static func playingModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
         let answers = model.puzzle.solutionCells
         for cell in answers.prefix(3) { model.tap(cell: cell); model.tap(cell: cell) }
         for cell in [answers[0] + 1, answers[1] - 1, answers[2] + model.puzzle.side] where model.marks.indices.contains(cell) && model.marks[cell] == .empty {
             model.tap(cell: cell)
+        }
+        return model
+    }
+
+    /// ヒントを使った直後（違う場所に置いた猫を × にして、正しいマスに猫を置いた場面）。
+    private static func hintModel() -> CatPuzzleModel {
+        let model = playingModel()
+        let answers = model.puzzle.solutionCells
+        let room = model.puzzle.rooms[answers[4]]
+        if let wrong = model.puzzle.cells(inRoom: room).first(where: { $0 != answers[4] && model.marks[$0] == .empty }) {
+            model.tap(cell: wrong); model.tap(cell: wrong)
         }
         model.useHint()
         return model
@@ -63,12 +74,25 @@ struct CatPuzzleRenderTests {
         let model = Self.playingModel()
         let renderer = ImageRenderer(content: CatPuzzleBoardCanvas(
             puzzle: model.puzzle, marks: model.marks, conflicts: model.violations.cells,
-            hintCell: model.hintCell, cellSide: 40
+            hintCells: model.hintCells, lastHint: model.lastHint, cellSide: 40
         ))
         renderer.scale = 1
         let image = renderer.cgImage
         #expect(image != nil)
         #expect(image?.width == 40 * model.puzzle.side)
+    }
+
+    @Test("猫の矩形: 途中はマスの内側、クリア後はマスより大きく盤の中に収まる")
+    func catRectFits() {
+        let n = 7
+        let side: CGFloat = 40
+        let playing = CatPuzzleBoardCanvas.catRect(cell: 0, pose: .faceNormal, solved: false, side: n, cellSide: side)
+        #expect(CGRect(x: 0, y: 0, width: side, height: side).contains(playing))
+        for cell in [0, n - 1, n * n - 1, n * 3 + 3] {
+            let solved = CatPuzzleBoardCanvas.catRect(cell: cell, pose: .sleep, solved: true, side: n, cellSide: side)
+            #expect(solved.width > side || solved.height > side)
+            #expect(CGRect(x: 0, y: 0, width: side * CGFloat(n), height: side * CGFloat(n)).insetBy(dx: -0.01, dy: -0.01).contains(solved))
+        }
     }
 
     @Test("静止画を書き出す（CAT_PUZZLE_RENDER_DIR があるときだけ）")
@@ -78,20 +102,25 @@ struct CatPuzzleRenderTests {
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
             ("1-playing", Self.playingModel),
             ("2-mistake", Self.mistakeModel),
-            ("3-clear", Self.clearModel),
+            ("3-hint", Self.hintModel),
+            ("4-clear", Self.clearModel),
         ]
+        let schemes: [(name: String, scheme: ColorScheme)] = [("light", .light), ("dark", .dark)]
         for device in Self.devices {
             for scene in scenes {
-                let model = scene.make()
-                let view = CatPuzzleView(services: Self.services(), model: model)
-                    .frame(width: device.size.width, height: device.size.height)
-                    .background(Theme.background)
-                    .environment(\.colorScheme, .light)
-                let renderer = ImageRenderer(content: view)
-                renderer.scale = 3
-                let image = try #require(renderer.cgImage, "\(device.name) \(scene.name) が描けない")
-                let url = URL(fileURLWithPath: dir).appendingPathComponent("\(scene.name)-\(device.name).png")
-                try Self.write(image, to: url)
+                for scheme in schemes {
+                    let model = scene.make()
+                    let view = CatPuzzleView(services: Self.services(), model: model)
+                        .frame(width: device.size.width, height: device.size.height)
+                        .background(Theme.background)
+                        .environment(\.colorScheme, scheme.scheme)
+                    let renderer = ImageRenderer(content: view)
+                    renderer.scale = 3
+                    let image = try #require(renderer.cgImage, "\(device.name) \(scene.name) \(scheme.name) が描けない")
+                    let suffix = scheme.scheme == .light ? "" : "-dark"
+                    let url = URL(fileURLWithPath: dir).appendingPathComponent("\(scene.name)-\(device.name)\(suffix).png")
+                    try Self.write(image, to: url)
+                }
             }
         }
         // クリアの盤だけ（カードに隠れない、猫がくつろぐ絵）。
@@ -101,7 +130,28 @@ struct CatPuzzleRenderTests {
         ).padding(8).background(Theme.surface))
         board.scale = 3
         let boardImage = try #require(board.cgImage)
-        try Self.write(boardImage, to: URL(fileURLWithPath: dir).appendingPathComponent("4-clear-board.png"))
+        try Self.write(boardImage, to: URL(fileURLWithPath: dir).appendingPathComponent("5-clear-board.png"))
+
+        // 猫を置いた瞬間のコマ（出入りの transition と同じ `CatPopModifier` を途中の値で描く）。
+        let frames: [(CGFloat, Double, Double)] = [(0.25, -18, 0), (0.55, -12, 0.55), (0.9, -4, 1), (1.08, 2, 1), (1, 0, 1)]
+        let room = CatPuzzleHouse.room(0)
+        let strip = HStack(spacing: 6) {
+            ForEach(Array(frames.enumerated()), id: \.offset) { _, f in
+                ZStack {
+                    Rectangle().fill(room.tint)
+                    CatPuzzleArt.image(.faceNormal)
+                        .padding(5)
+                        .modifier(CatPopModifier(scale: f.0, degrees: f.1, opacity: f.2))
+                }
+                .frame(width: 60, height: 60)
+                .clipped()
+            }
+        }
+        .padding(8)
+        .background(Theme.surface)
+        let stripRenderer = ImageRenderer(content: strip)
+        stripRenderer.scale = 3
+        try Self.write(try #require(stripRenderer.cgImage), to: URL(fileURLWithPath: dir).appendingPathComponent("6-appear-frames.png"))
     }
 
     private static func write(_ image: CGImage, to url: URL) throws {

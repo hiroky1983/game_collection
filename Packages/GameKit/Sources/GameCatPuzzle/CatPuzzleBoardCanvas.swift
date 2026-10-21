@@ -3,14 +3,20 @@ import Core
 
 /// 盤の絵（家の間取り・印・猫）。本番と遊び方の図で同じものを使う（#2250）。
 ///
-/// 1 マスずつ床の色と柄を塗り、部屋の境目に太い壁を引き、部屋の左上に名前の札を置く。
-/// 猫・×・ヒント・矛盾の印はこの上に描く。読み上げと操作は `CatPuzzleView` の透明なマスが担う
-/// （この絵は `accessibilityHidden`）。
+/// 1 マスずつ床の色と柄を塗り、マスの区切り（タップの単位）をはっきりした線で引き、部屋の境目に
+/// 太い壁を引き、部屋の左上に名前の札を置く。線の強さは **壁＞マスの区切り＞床の柄** の順
+/// （`CatPuzzleHouse`）。
+/// 猫は `Canvas` ではなく `CatPuzzleCatLayer` の SwiftUI ビューで重ねる（置いた瞬間に弾む・消すときは
+/// 短く縮む・クリアで順に跳ねる演出のため。会長 QA 2026-10-21）。読み上げと操作は
+/// `CatPuzzleView` の透明なマスが担う（この絵は `accessibilityHidden`）。
 struct CatPuzzleBoardCanvas: View {
     let puzzle: CatPuzzle
     let marks: [CatPuzzleModel.Mark]
     let conflicts: Set<Int>
-    var hintCell: Int? = nil
+    /// ヒントで置いた猫のマス（電球の印を付ける）。
+    var hintCells: Set<Int> = []
+    /// 直近のヒント（置いたマスを黄色の枠、× にしたマスを赤の枠で囲む）。
+    var lastHint: CatPuzzleHint? = nil
     var isSolved = false
     let cellSide: CGFloat
 
@@ -21,24 +27,53 @@ struct CatPuzzleBoardCanvas: View {
         let n = puzzle.side
         let boardSide = cellSide * CGFloat(n)
         let rooms = (0..<n).map { CatPuzzleHouse.room($0) }
-        Canvas { context, _ in
-            drawFloors(&context, rooms: rooms)
-            drawGrid(&context)
-            drawMarks(&context, rooms: rooms)
-            drawWalls(&context)
-            drawLabels(&context, rooms: rooms)
-            drawHint(&context)
+        ZStack(alignment: .topLeading) {
+            // 下の層: 床・マスの区切り・×・矛盾の赤い面・壁。
+            Canvas { context, _ in
+                drawFloors(&context, rooms: rooms)
+                drawGrid(&context)
+                drawCrosses(&context)
+                drawConflictFills(&context)
+                drawWalls(&context)
+            }
+            // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
+            CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
+            // 上の層: 部屋の札・矛盾の「！」・ヒントの印と枠（猫より前に出す）。
+            Canvas { context, _ in
+                drawLabels(&context, rooms: rooms)
+                drawConflictBadges(&context)
+                drawHintBadges(&context)
+                drawLastHint(&context)
+            }
         }
         .frame(width: boardSide, height: boardSide)
         .accessibilityHidden(true)
     }
 
-    // MARK: - 部品
+    // MARK: - 寸法
+
+    static func rect(of cell: Int, side n: Int, cellSide: CGFloat) -> CGRect {
+        CGRect(x: CGFloat(cell % n) * cellSide, y: CGFloat(cell / n) * cellSide, width: cellSide, height: cellSide)
+    }
+
+    /// 猫の絵を置く矩形。遊んでいる途中はマスの内側、クリア後はマスより少し大きく（盤の外にははみ出さない）。
+    static func catRect(cell: Int, pose: CatPuzzleArt.Pose, solved: Bool, side n: Int, cellSide: CGFloat) -> CGRect {
+        let r = rect(of: cell, side: n, cellSide: cellSide)
+        guard solved else {
+            return CatPuzzleArt.fitted(pose, in: r.insetBy(dx: cellSide * 0.08, dy: cellSide * 0.08))
+        }
+        let boardRect = CGRect(x: 0, y: 0, width: cellSide * CGFloat(n), height: cellSide * CGFloat(n))
+        var target = CatPuzzleArt.fitted(pose, in: r.insetBy(dx: -cellSide * 0.12, dy: -cellSide * 0.12))
+        target.origin.x = min(max(target.minX, boardRect.minX), boardRect.maxX - target.width)
+        target.origin.y = min(max(target.minY, boardRect.minY), boardRect.maxY - target.height)
+        return target
+    }
 
     private func rect(of cell: Int) -> CGRect {
-        let n = puzzle.side
-        return CGRect(x: CGFloat(cell % n) * cellSide, y: CGFloat(cell / n) * cellSide, width: cellSide, height: cellSide)
+        Self.rect(of: cell, side: puzzle.side, cellSide: cellSide)
     }
+
+    // MARK: - 下の層
 
     private func drawFloors(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
         for cell in 0..<puzzle.cellCount {
@@ -49,7 +84,7 @@ struct CatPuzzleBoardCanvas: View {
         }
     }
 
-    /// 部屋の中のマス目（薄い線）。
+    /// マスの区切り（タップの単位）。床の柄よりはっきり、壁より細く。
     private func drawGrid(_ context: inout GraphicsContext) {
         let n = puzzle.side
         var path = Path()
@@ -60,7 +95,7 @@ struct CatPuzzleBoardCanvas: View {
             path.move(to: CGPoint(x: 0, y: p))
             path.addLine(to: CGPoint(x: cellSide * CGFloat(n), y: p))
         }
-        context.stroke(path, with: .color(Theme.ink.opacity(0.14)), lineWidth: CatPuzzleHouse.gridWidth)
+        context.stroke(path, with: .color(Theme.ink.opacity(CatPuzzleHouse.gridOpacity)), lineWidth: CatPuzzleHouse.gridWidth)
     }
 
     /// 部屋の境目の壁と外周。
@@ -85,6 +120,36 @@ struct CatPuzzleBoardCanvas: View {
         context.stroke(Path(outer.insetBy(dx: borderWidth / 2, dy: borderWidth / 2)), with: .color(Theme.ink), lineWidth: borderWidth)
     }
 
+    /// ×（いない印）。こげ茶（ダークは生成り）の太い × に、面の色の縁取りを敷いて床の上で読めるようにする。
+    private func drawCrosses(_ context: inout GraphicsContext) {
+        guard !isSolved else { return }
+        var cross = Path()
+        for cell in 0..<puzzle.cellCount where marks[cell] == .cross {
+            let r = rect(of: cell)
+            let arm = cellSide * 0.17
+            cross.move(to: CGPoint(x: r.midX - arm, y: r.midY - arm))
+            cross.addLine(to: CGPoint(x: r.midX + arm, y: r.midY + arm))
+            cross.move(to: CGPoint(x: r.midX + arm, y: r.midY - arm))
+            cross.addLine(to: CGPoint(x: r.midX - arm, y: r.midY + arm))
+        }
+        guard !cross.isEmpty else { return }
+        let width = max(2.5, cellSide * 0.085)
+        context.stroke(cross, with: .color(CatPuzzleHouse.crossHalo.opacity(0.9)),
+                       style: StrokeStyle(lineWidth: width + max(3, cellSide * 0.09), lineCap: .round))
+        context.stroke(cross, with: .color(CatPuzzleHouse.crossColor),
+                       style: StrokeStyle(lineWidth: width, lineCap: .round))
+    }
+
+    /// 矛盾した猫のマスの赤い面（猫の下に敷く）。
+    private func drawConflictFills(_ context: inout GraphicsContext) {
+        guard !isSolved else { return }
+        for cell in conflicts where marks.indices.contains(cell) && marks[cell] == .cat {
+            context.fill(Path(rect(of: cell)), with: .color(Theme.coral.opacity(0.32)))
+        }
+    }
+
+    // MARK: - 上の層
+
     /// 部屋の名前の札。部屋のいちばん上・左のマスの左上に置く。
     private func drawLabels(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
         let n = puzzle.side
@@ -107,68 +172,149 @@ struct CatPuzzleBoardCanvas: View {
         }
     }
 
-    /// ×・猫・矛盾・ヒント。クリア後は部屋ごとのくつろぐ姿に替える。
-    private func drawMarks(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
-        let boardRect = CGRect(x: 0, y: 0, width: cellSide * CGFloat(puzzle.side), height: cellSide * CGFloat(puzzle.side))
-        for cell in 0..<puzzle.cellCount {
+    /// 矛盾の「！」の丸（赤い面と合わせ、色と印の両方で示す）。
+    private func drawConflictBadges(_ context: inout GraphicsContext) {
+        guard !isSolved else { return }
+        for cell in conflicts where marks.indices.contains(cell) && marks[cell] == .cat {
             let r = rect(of: cell)
-            switch marks[cell] {
-            case .empty:
-                break
-            case .cross:
-                guard !isSolved else { break }
-                var cross = Path()
-                let arm = cellSide * 0.16
-                cross.move(to: CGPoint(x: r.midX - arm, y: r.midY - arm))
-                cross.addLine(to: CGPoint(x: r.midX + arm, y: r.midY + arm))
-                cross.move(to: CGPoint(x: r.midX + arm, y: r.midY - arm))
-                cross.addLine(to: CGPoint(x: r.midX - arm, y: r.midY + arm))
-                context.stroke(cross, with: .color(Theme.inkSub.opacity(0.75)),
-                               style: StrokeStyle(lineWidth: max(2, cellSide * 0.07), lineCap: .round))
-            case .cat:
-                if isSolved {
-                    let pose = rooms[puzzle.rooms[cell] % rooms.count].clearPose
-                    var target = CatPuzzleArt.fitted(pose, in: r.insetBy(dx: -cellSide * 0.12, dy: -cellSide * 0.12))
-                    // 盤の外にはみ出さない。
-                    target.origin.x = min(max(target.minX, boardRect.minX), boardRect.maxX - target.width)
-                    target.origin.y = min(max(target.minY, boardRect.minY), boardRect.maxY - target.height)
-                    drawCat(pose, in: target, context: &context)
-                } else {
-                    drawCat(.faceNormal, in: CatPuzzleArt.fitted(.faceNormal, in: r.insetBy(dx: cellSide * 0.08, dy: cellSide * 0.08)), context: &context)
-                    if conflicts.contains(cell) {
-                        // 色（赤い面）と印（「！」の丸）の両方で示す。
-                        context.fill(Path(r), with: .color(Theme.coral.opacity(0.28)))
-                        let radius = cellSide * 0.15
-                        let center = CGPoint(x: r.maxX - radius - 2, y: r.minY + radius + 2)
-                        context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
-                                     with: .color(Theme.coralText))
-                        let bang = context.resolve(
-                            Text(verbatim: "!")
-                                .font(.system(size: radius * 1.6, weight: .heavy, design: .rounded)) // fixed-size: 矛盾の印の丸に合わせる記号（図形のジオメトリに従う）
-                                .foregroundColor(.white)
-                        )
-                        context.draw(bang, at: center, anchor: .center)
-                    }
-                }
+            let radius = cellSide * 0.15
+            let center = CGPoint(x: r.maxX - radius - 2, y: r.minY + radius + 2)
+            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
+                         with: .color(Theme.coralText))
+            let bang = context.resolve(
+                Text(verbatim: "!")
+                    .font(.system(size: radius * 1.6, weight: .heavy, design: .rounded)) // fixed-size: 矛盾の印の丸に合わせる記号（図形のジオメトリに従う）
+                    .foregroundColor(.white)
+            )
+            context.draw(bang, at: center, anchor: .center)
+        }
+    }
+
+    /// ヒントで置いた猫の印（右下の黄色い丸に電球）。消せない猫だと分かるよう、クリアまで出し続ける。
+    private func drawHintBadges(_ context: inout GraphicsContext) {
+        guard !isSolved else { return }
+        for cell in hintCells.sorted() where marks.indices.contains(cell) && marks[cell] == .cat {
+            let r = rect(of: cell)
+            let radius = cellSide * 0.15
+            let center = CGPoint(x: r.maxX - radius - 2, y: r.maxY - radius - 2)
+            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
+                         with: .color(Theme.yellow))
+            let bulb = context.resolve(
+                Text(Image(systemName: "lightbulb.fill"))
+                    .font(.system(size: radius * 1.3, weight: .bold)) // fixed-size: ヒントの印の丸に合わせる記号（図形のジオメトリに従う）
+                    .foregroundColor(Theme.Fixed.ink)
+            )
+            context.draw(bulb, at: center, anchor: .center)
+        }
+    }
+
+    /// 直近のヒントの枠。置いたマスは黄色の太枠（「ここ！」）、× に変えたマスは赤の枠。次の操作で消える。
+    private func drawLastHint(_ context: inout GraphicsContext) {
+        guard let lastHint, !isSolved else { return }
+        let inset = CatPuzzleHouse.wallWidth / 2
+        for cell in lastHint.removed where marks.indices.contains(cell) {
+            context.stroke(Path(roundedRect: rect(of: cell).insetBy(dx: inset, dy: inset), cornerRadius: cellSide * 0.12),
+                           with: .color(Theme.coralText), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        }
+        if let placed = lastHint.placed, marks.indices.contains(placed) {
+            context.stroke(Path(roundedRect: rect(of: placed).insetBy(dx: inset, dy: inset), cornerRadius: cellSide * 0.12),
+                           with: .color(Theme.yellow), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+        }
+    }
+}
+
+// MARK: - 猫の層
+
+/// 盤の上に置く猫たち。マスごとに 1 つのビューにして、置いた瞬間の「ぽん」・消すときの縮み・
+/// クリアで順に跳ねる演出を SwiftUI の transition / phaseAnimator で付ける（会長 QA 2026-10-21）。
+/// Reduce Motion のときは弾まず・回らず・跳ねず、出入りは透明度だけ（`Motion` の方針どおり即時反映）。
+struct CatPuzzleCatLayer: View {
+    let puzzle: CatPuzzle
+    let marks: [CatPuzzleModel.Mark]
+    let isSolved: Bool
+    let cellSide: CGFloat
+    let rooms: [CatPuzzleHouse.Room]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let n = puzzle.side
+        let boardSide = cellSide * CGFloat(n)
+        // 行→列の順（クリアの跳ねる順もこの順）。
+        let cats = marks.indices.filter { marks[$0] == .cat }
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(cats.enumerated()), id: \.element) { order, cell in
+                let pose: CatPuzzleArt.Pose = isSolved ? rooms[puzzle.rooms[cell] % rooms.count].clearPose : .faceNormal
+                let target = CatPuzzleBoardCanvas.catRect(cell: cell, pose: pose, solved: isSolved, side: n, cellSide: cellSide)
+                CatPuzzleCatSprite(pose: pose, order: order, isSolved: isSolved, hop: cellSide * 0.28)
+                    .frame(width: target.width, height: target.height)
+                    .position(x: target.midX, y: target.midY)
+                    .transition(CatPuzzleMotion.catTransition(reduceMotion: reduceMotion))
             }
         }
+        .frame(width: boardSide, height: boardSide)
     }
+}
 
-    /// ヒントのマス（黄色の点線の枠）。札や壁の上に描く。
-    private func drawHint(_ context: inout GraphicsContext) {
-        guard let hintCell, !isSolved, marks.indices.contains(hintCell) else { return }
-        let inset = CatPuzzleHouse.wallWidth
-        context.stroke(Path(roundedRect: rect(of: hintCell).insetBy(dx: inset, dy: inset), cornerRadius: cellSide * 0.12),
-                       with: .color(Theme.yellow),
-                       style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [6, 4]))
+/// 猫 1 匹。クリアになった瞬間、`order` の順に少し間を置いて 1 回ずつ跳ねる。
+private struct CatPuzzleCatSprite: View {
+    let pose: CatPuzzleArt.Pose
+    let order: Int
+    let isSolved: Bool
+    /// 跳ねる高さ（pt）。
+    let hop: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        CatPuzzleArt.image(pose)
+            .phaseAnimator([false, true], trigger: isSolved) { view, up in
+                let jumping = up && isSolved && !reduceMotion
+                view
+                    .scaleEffect(jumping ? 1.08 : 1)
+                    .offset(y: jumping ? -hop : 0)
+            } animation: { up in
+                guard !reduceMotion else { return nil }
+                return up
+                    ? CatPuzzleMotion.hopUp.delay(Double(order) * CatPuzzleMotion.hopStagger)
+                    : CatPuzzleMotion.hopDown
+            }
     }
+}
 
-    private func drawCat(_ pose: CatPuzzleArt.Pose, in rect: CGRect, context: inout GraphicsContext) {
-        if let cg = CatPuzzleArt.cgImage(pose) {
-            context.draw(Image(decorative: cg, scale: 1), in: rect)
-        } else {
-            let symbol = context.resolve(Image(systemName: "cat.fill"))
-            context.draw(symbol, in: rect.insetBy(dx: rect.width * 0.15, dy: rect.height * 0.15))
-        }
+/// 猫の演出の数値。
+enum CatPuzzleMotion {
+    /// 置いた瞬間（小さく回りながら、少し行き過ぎて戻る）。
+    static let appear: Animation = .spring(response: 0.32, dampingFraction: 0.55)
+    /// 消すとき（短く縮んで消える）。
+    static let vanish: Animation = .easeOut(duration: 0.12)
+    /// クリアで跳ねる（上がる / 着地）。
+    static let hopUp: Animation = .spring(response: 0.22, dampingFraction: 0.7)
+    static let hopDown: Animation = .spring(response: 0.32, dampingFraction: 0.5)
+    /// クリアで 1 匹ずつずらす間（秒）。
+    static let hopStagger: Double = 0.08
+
+    /// 猫の出入り。Reduce Motion のときは透明度だけ（アニメーションは周囲のトランザクションに従う＝即時）。
+    static func catTransition(reduceMotion: Bool) -> AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let rest = CatPopModifier(scale: 1, degrees: 0, opacity: 1)
+        return .asymmetric(
+            insertion: AnyTransition.modifier(active: CatPopModifier(scale: 0.25, degrees: -18, opacity: 0), identity: rest)
+                .gameAnimation(appear, reduceMotion: reduceMotion),
+            removal: AnyTransition.modifier(active: CatPopModifier(scale: 0.6, degrees: 0, opacity: 0), identity: rest)
+                .gameAnimation(vanish, reduceMotion: reduceMotion)
+        )
+    }
+}
+
+/// 出入りの途中の姿（大きさ・傾き・透明度）。静止画のコマ出し（`CatPuzzleRenderTests`）でも使う。
+struct CatPopModifier: ViewModifier {
+    var scale: CGFloat
+    var degrees: Double
+    var opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .rotationEffect(.degrees(degrees))
+            .opacity(opacity)
     }
 }

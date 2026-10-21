@@ -68,7 +68,23 @@ public struct CatPuzzleViolations: Equatable, Sendable {
     public var isEmpty: Bool { cells.isEmpty }
 }
 
-/// おじさんの飼い猫パズルの純粋ロジック（#2250）。生成・解の数え上げ・矛盾の判定。
+/// ヒント 1 回ぶんの中身（`CatPuzzleLogic.hint`）。`placed` に猫を置き、`removed` の猫を × に変える。
+public struct CatPuzzleHint: Equatable, Sendable {
+    /// 対象の部屋（`CatPuzzle.rooms` の値）。
+    public let room: Int
+    /// 猫を置くマス。部屋の答えの猫がすでにあれば nil。
+    public let placed: Int?
+    /// × に変える、答えでない位置の猫のマス（昇順）。
+    public let removed: [Int]
+
+    public init(room: Int, placed: Int?, removed: [Int]) {
+        self.room = room
+        self.placed = placed
+        self.removed = removed
+    }
+}
+
+/// おじさんの飼い猫パズルの純粋ロジック（#2250）。生成・解の数え上げ・矛盾の判定・ヒント。
 ///
 /// 遊び方: 各部屋・各行・各列に猫がちょうど 1 匹。猫どうしは縦横ななめに隣り合わない。
 public enum CatPuzzleLogic {
@@ -155,6 +171,57 @@ public enum CatPuzzleLogic {
     /// 鳩の巣原理でどの行・列・部屋にもちょうど 1 匹になる。
     public static func isSolved(puzzle: CatPuzzle, cats: [Int]) -> Bool {
         cats.count == puzzle.side && violations(puzzle: puzzle, cats: cats).isEmpty
+    }
+
+    // MARK: - ヒント
+
+    /// 次のヒントの中身（会長の決まり・2026-10-21、#2250）。ヒントは「マスを示す」のではなく
+    /// **盤を 1 歩進める**: 猫を実際に置き、間違った猫があれば × に変える。
+    ///
+    /// 1. すでに正しい位置に猫がある部屋（＝その行・列）は対象にしない。
+    /// 2. 答えでない位置に猫がある部屋があれば、まずそれを正す（違う猫を × にし、その部屋の答えの
+    ///    マスに猫を置く。答えの猫がすでにあって余分な猫だけなら × にするだけ）。
+    /// 3. それ以外は、まだ猫のいない部屋のうち、いま推理で決めやすい（候補マスが最も少ない）部屋の答えに置く。
+    /// 4. 置いた猫は `CatPuzzleModel.hintCells` で印付き・消せない扱いにする。
+    /// 5. 盤が解けていれば nil（ヒントは押せない）。
+    /// 6. 返す値は必ず盤を変える（`placed` か `removed` のどちらかが空でない）。
+    public static func hint(puzzle: CatPuzzle, marks: [CatPuzzleModel.Mark]) -> CatPuzzleHint? {
+        let n = puzzle.side
+        let solution = Set(puzzle.solutionCells)
+        let cats = marks.indices.filter { marks[$0] == .cat }
+        /// 部屋ごとの答えのマス（`isWellFormed` により部屋 1 つに 1 マス）。
+        func answer(ofRoom room: Int) -> Int? { puzzle.solutionCells.first { puzzle.rooms[$0] == room } }
+
+        // 2. 答えでない位置の猫を正す。答えの猫がまだ無い部屋を優先し、同じなら部屋の番号の若い順。
+        let wrong = cats.filter { !solution.contains($0) }
+        if !wrong.isEmpty {
+            let rooms = Set(wrong.map { puzzle.rooms[$0] })
+            let room = rooms.min { a, b in
+                let aMissing = answer(ofRoom: a).map { marks[$0] != .cat } ?? false
+                let bMissing = answer(ofRoom: b).map { marks[$0] != .cat } ?? false
+                return aMissing != bMissing ? aMissing : a < b
+            }!
+            let removed = wrong.filter { puzzle.rooms[$0] == room }.sorted()
+            let placed = answer(ofRoom: room).flatMap { marks[$0] == .cat ? nil : $0 }
+            return CatPuzzleHint(room: room, placed: placed, removed: removed)
+        }
+
+        // 3. 置いてある猫は全部正しい。まだ猫のいない部屋のうち、候補のマスが最も少ない部屋の答えに置く。
+        //    候補 = その部屋で × でなく、置いた猫と同じ行・列になく、隣り合わないマス（答えのマスは常に候補）。
+        var best: (room: Int, cell: Int, candidates: Int)?
+        for cell in puzzle.solutionCells where marks[cell] != .cat {
+            let room = puzzle.rooms[cell]
+            let candidates = puzzle.cells(inRoom: room).filter { candidate in
+                marks[candidate] != .cross && !cats.contains { cat in
+                    cat / n == candidate / n || cat % n == candidate % n || isAdjacent(cat, candidate, side: n)
+                }
+            }.count
+            if best == nil || candidates < best!.candidates || (candidates == best!.candidates && room < best!.room) {
+                best = (room, cell, candidates)
+            }
+        }
+        guard let best else { return nil }
+        return CatPuzzleHint(room: best.room, placed: best.cell, removed: [])
     }
 
     // MARK: - 解の数え上げ

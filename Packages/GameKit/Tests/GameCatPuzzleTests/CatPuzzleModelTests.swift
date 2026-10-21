@@ -112,57 +112,82 @@ struct CatPuzzleModelTests {
         #expect(store.exists(for: CatPuzzleModel.gameID))
 
         model.useHint()
+        let hintCat = model.lastHint!.placed!
+        model.tap(cell: 5)
         model.reset()
-        #expect(model.marks.allSatisfy { $0 == .empty })
-        #expect(model.hintCell == nil)
+        #expect(model.marks.indices.allSatisfy { model.marks[$0] == ($0 == hintCat ? .cat : .empty) }, "ヒントの猫だけ残る")
+        #expect(model.hintCells == [hintCat])
+        #expect(model.lastHint == nil)
         #expect(model.hintsUsed == 1, "ヒントの回数は引き継ぐ")
         #expect(model.mistakes == 1, "ミスは引き継ぐ")
         #expect(!model.canUndo)
-        #expect(!store.exists(for: CatPuzzleModel.gameID), "印の無い盤は保存しない")
+        #expect(store.exists(for: CatPuzzleModel.gameID), "ヒントの猫がある盤は保存する")
     }
 
-    @Test("ヒントは答えの猫のマスを示し、無料ぶん 3 回で尽きる。そこに猫を置くと消える")
+    @Test("ヒントは答えの猫を置く（印付き・消せない）。無料ぶん 3 回で尽き、広告は呼ばない")
     func hints() {
         let spy = SpyAnalyticsService()
         let model = CatPuzzleModel(services: makeServices(analytics: spy), puzzle: sample)
-        let target = model.hintTarget
-        #expect(target != nil && sample.solutionCells.contains(target!))
+        let hint = model.nextHint
+        #expect(hint?.placed != nil && sample.solutionCells.contains(hint!.placed!))
         model.useHint()
-        #expect(model.hintCell == target)
+        #expect(model.lastHint == hint)
+        #expect(model.marks[hint!.placed!] == .cat)
+        #expect(model.hintCells == [hint!.placed!])
         #expect(model.hintsRemaining == 2)
-        #expect(!model.canHint, "出しているあいだは次のヒントを出さない")
-        placeCat(model, at: target!)
-        #expect(model.hintCell == nil)
-        #expect(model.canHint)
-        #expect(model.hintTarget != target, "置いた猫のマスはもう示さない")
+        #expect(model.violations.isEmpty)
+        #expect(model.canHint, "次のヒントもすぐ押せる")
+        // ヒントの猫はタップしても変わらず、「戻す」でも残る。
+        model.tap(cell: hint!.placed!)
+        #expect(model.marks[hint!.placed!] == .cat)
+        #expect(!model.canUndo, "ヒントは戻せない")
+        model.tap(cell: 0)
+        #expect(model.lastHint == nil, "次の操作でヒントの一言は消える")
+        model.undo()
+        #expect(model.marks[hint!.placed!] == .cat)
         model.useHint()
-        placeCat(model, at: model.hintCell!)
         model.useHint()
         #expect(model.hintsRemaining == 0)
-        placeCat(model, at: model.hintCell!)
+        #expect(model.hintCells.count == 3)
         #expect(!model.canHint, "無料ぶんを使い切った")
         #expect(spy.events.filter { if case .rewardOffer = $0 { return true } else { return false } }.isEmpty, "広告は呼ばない")
     }
 
-    @Test("ヒントのマスに置いた猫を戻すと、ヒントの枠も戻る（回数は減らない）")
-    func undoRestoresHint() {
+    @Test("ヒントで最後の猫が置けたらそのままクリア")
+    func hintCanFinish() {
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
+        for cell in sample.solutionCells.dropLast() { placeCat(model, at: cell) }
+        #expect(model.canHint)
         model.useHint()
-        let target = model.hintCell!
-        placeCat(model, at: target)
-        #expect(model.hintCell == nil)
-        model.undo()
-        #expect(model.hintCell == target)
+        #expect(model.isSolved)
+        #expect(!model.canHint)
         #expect(model.hintsUsed == 1)
-        #expect(!model.canHint, "出しているあいだは次のヒントを出さない")
     }
 
-    @Test("ヒントは空きの少ない部屋から出す")
+    @Test("違う場所の猫があれば、ヒントはまずそれを × にして正しいマスに置く（会長の決まり 2）")
+    func hintCorrectsWrongCat() {
+        let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
+        // 部屋 2（左下）の答えは 8。隣の 12 に置くと違う。
+        placeCat(model, at: 12)
+        let hint = model.nextHint
+        #expect(hint == CatPuzzleHint(room: 2, placed: 8, removed: [12]))
+        model.useHint()
+        #expect(model.marks[12] == .cross)
+        #expect(model.marks[8] == .cat)
+        #expect(model.hintCells == [8])
+        #expect(model.violations.isEmpty)
+    }
+
+    @Test("ヒントは候補の少ない部屋から置き、正しい猫のある部屋は指さない（会長の決まり 1・3）")
     func hintPrefersNarrowRoom() {
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
-        // 部屋 2（左下 4 マス）の答え以外を × にする → 部屋 2 の空きが 1 つになる。
+        // 部屋 2（左下 4 マス）の答え以外を × にする → 部屋 2 の候補が 1 つになる。
         for cell in [9, 12, 13] { model.tap(cell: cell) }
-        #expect(model.hintTarget == 8)
+        #expect(model.nextHint == CatPuzzleHint(room: 2, placed: 8, removed: []))
+        model.useHint()
+        // 部屋 2 に正しい猫がある → 次のヒントは別の部屋。
+        #expect(model.nextHint?.room != 2)
+        #expect(model.nextHint?.placed.map { sample.solutionCells.contains($0) } == true)
     }
 
     @Test("全部の猫を置くとクリアし、記録はタイム（大きさごと）。中断データは消える")
@@ -211,7 +236,7 @@ struct CatPuzzleModelTests {
         #expect(second.marks == first.marks)
         #expect(second.mistakes == 1)
         #expect(second.hintsUsed == 1)
-        #expect(second.hintCell == first.hintCell)
+        #expect(second.hintCells == first.hintCells && !second.hintCells.isEmpty)
         #expect(second.violations == first.violations)
         #expect(spy.starts(of: CatPuzzleModel.gameID) == 0, "復元は新しいプレイではない")
     }
@@ -240,7 +265,7 @@ struct CatPuzzleModelTests {
         #expect(model.puzzle.side == 8)
         #expect(model.puzzle != before)
         #expect(model.marks.allSatisfy { $0 == .empty })
-        #expect(model.mistakes == 0 && model.hintsUsed == 0 && model.elapsedSeconds == 0 && model.hintCell == nil)
+        #expect(model.mistakes == 0 && model.hintsUsed == 0 && model.elapsedSeconds == 0 && model.hintCells.isEmpty && model.lastHint == nil)
         #expect(spy.starts(of: CatPuzzleModel.gameID) == 2)
         #expect(spy.startLevels == [.beginner, .hard])
         #expect(spy.quits(of: CatPuzzleModel.gameID) == 1, "途中の盤を捨てたので quit が出る")
