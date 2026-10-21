@@ -520,9 +520,18 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
-            recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: recordScore)
             services?.snapshots.clear(for: gameID)
         }
+    }
+
+    /// 決着で記録に渡す点。CPU の強さ別に区分を分ける（「ふつう」は区分なし・#2608）。
+    var recordScore: GameScore {
+        guard let variant = cpuLevel.recordVariantKey else { return GameScore(metric: .winLoss) }
+        return GameScore(
+            metric: .winLoss, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
     }
 
     private func persist() {

@@ -34,7 +34,19 @@ public enum RecordVariantLabels {
         case "minesweeper":
             return minesweeper(variant, language: language)
         case "shiritori":
-            return variant == "endless" ? tr("とことん", language: language) : nil
+            switch variant {
+            case "endless":    return tr("とことん", language: language)
+            case "quota-easy": return tr("かんたん", language: language)
+            case "quota-hard": return tr("むずかしい", language: language)
+            default:           return nil
+            }
+        case "concentration":
+            // 神経衰弱は CPU の強さ別（#2608）。「ふつう」は区分なし。
+            switch variant {
+            case "cpu-weak":   return tr("CPU%@", tr("かんたん", language: language), language: language)
+            case "cpu-strong": return tr("CPU%@", tr("むずかしい", language: language), language: language)
+            default:           return nil
+            }
         case "mahjong":
             switch variant {
             case "turtle":  return tr("亀甲", language: language)
