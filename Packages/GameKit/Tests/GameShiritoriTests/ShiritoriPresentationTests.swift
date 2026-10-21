@@ -68,4 +68,11 @@ struct ShiritoriPresentationTests {
         #expect(ShiritoriPresentation.currentLabel(card: nil, reading: "") == "場の札はまだありません")
         #expect(ShiritoriPresentation.currentLabel(card: card, reading: "りんご") == "場の札はりんご、読みはりんご")
     }
+
+    @Test("VoiceOver: CPU の手番の開始と取った札を読み上げる。対局が続くときだけ自分の番を添える（#2610）")
+    func cpuAnnouncements() {
+        #expect(ShiritoriPresentation.cpuThinkingAnnouncement() == "CPUが考えています")
+        #expect(ShiritoriPresentation.cpuPlayedAnnouncement(reading: "ごりら", continues: true) == "CPUが「ごりら」を取りました。あなたの番です")
+        #expect(ShiritoriPresentation.cpuPlayedAnnouncement(reading: "ごりら", continues: false) == "CPUが「ごりら」を取りました")
+    }
 }

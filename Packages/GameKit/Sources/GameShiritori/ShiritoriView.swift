@@ -107,6 +107,19 @@ public struct ShiritoriView: View {
             // 開いた直後は難易度を選ばせる。
             if model.phase == .idle { showSetup = true }
         }
+        // CPU の手番の開始と取った札を VoiceOver へ伝える（#2610）。カーソルの途中経過は読まない。
+        .onChange(of: model.isPlayerTurn) { _, isPlayerTurn in
+            if model.phase == .playing, !isPlayerTurn {
+                AccessibilityNotification.Announcement(ShiritoriPresentation.cpuThinkingAnnouncement()).post()
+            }
+        }
+        .onChange(of: model.lastEvent) { _, event in
+            if case let .played(by: .cpu, reading, _) = event {
+                AccessibilityNotification.Announcement(
+                    ShiritoriPresentation.cpuPlayedAnnouncement(reading: reading, continues: model.phase == .playing)
+                ).post()
+            }
+        }
         .task(id: model.isPlayerTurn) {
             // CPU の手番。画面を離れたらこのタスクごと取り消される（非構造化の Task にすると、
             // 離脱後に手が着地して幽霊の対局記録を書く）。
