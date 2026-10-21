@@ -331,6 +331,23 @@ struct SpiderModelTests {
         #expect(!model.showsDeadEndPrompt)
     }
 
+    @Test("restartSameDeal は同じ配札を最初から配り直し、手数・戻す回数を初期化する（#2603）")
+    func restartSameDealReplaysFromStart() {
+        let model = SpiderModel(services: makeServices(), seed: firstSeed())
+        let initial = model.board
+        let deal = model.dealNumber
+        _ = playFirstLegalMove(model)
+        #expect(model.moveCount == 1)
+        model.restartSameDeal()
+        #expect(model.dealNumber == deal)
+        #expect(model.board == initial)
+        #expect(model.moveCount == 0)
+        #expect(!model.canUndo)
+        #expect(model.undosRemaining == SpiderUndoBudget.free)
+        #expect(model.elapsedSeconds == 0)
+        #expect(model.phase == .playing)
+    }
+
     @Test("行き止まりの「新しい配札にする」は引数なしの newGame()：スート数を保ったまま即配り直す（#2600）")
     func deadEndNewDealKeepsSuitCount() {
         let model = SpiderModel(

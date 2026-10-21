@@ -35,6 +35,11 @@ struct SolitaireControlsView: View {
 
             Spacer(minLength: 8)
 
+            Button { model.restartSameDeal() } label: {
+                Text(tr("同じ配札で"))
+            }
+            .buttonStyle(.game(.skip))
+
             Button { model.newGame() } label: {
                 Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }

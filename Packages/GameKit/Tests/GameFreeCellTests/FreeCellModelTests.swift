@@ -17,6 +17,23 @@ struct FreeCellModelTests {
 
     // MARK: - 操作
 
+    @Test("restartSameDeal は同じ配札を最初から配り直し、手数・戻す回数を初期化する（#2603）")
+    func restartSameDealReplaysFromStart() {
+        let model = FreeCellModel(services: makeServices(), seed: firstSeed())
+        let initial = model.board
+        let deal = model.dealNumber
+        model.tapPile(0)
+        model.tapCell(0)
+        #expect(model.moveCount == 1)
+        model.restartSameDeal()
+        #expect(model.dealNumber == deal)
+        #expect(model.board == initial)
+        #expect(model.moveCount == 0)
+        #expect(!model.canUndo)
+        #expect(model.undosRemaining == FreeCellUndoBudget.free)
+        #expect(model.phase == .playing)
+    }
+
     @Test("札をタップして選び、置き先をタップすると動く")
     func tapToMove() {
         let model = FreeCellModel(services: makeServices(), seed: firstSeed())

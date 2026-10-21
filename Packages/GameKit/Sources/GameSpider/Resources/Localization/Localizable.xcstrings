@@ -1187,6 +1187,28 @@
           }
         }
       }
+    },
+    "同じ配札でやり直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay This Deal"
+          }
+        }
+      }
+    },
+    "同じ配札で" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same Deal"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
