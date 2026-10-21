@@ -112,6 +112,32 @@ struct CatPuzzleRenderTests {
         return model
     }
 
+    /// 部屋の札のあるマスに × を付けた盤。札のマスのうち 2 つに通常の ×、1 つに赤い ×（答えでないので猫を置こうとした）。
+    /// × はほかのマスと同じ中央にあり、札が × の上に重なる（会長 QA 2026-10-21・build 43）。
+    private static func labelCrossModel() -> CatPuzzleModel {
+        let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
+        let puzzle = model.puzzle
+        let labelCells = (0..<puzzle.side).compactMap { room -> Int? in
+            guard let narrow = CatPuzzleBoardCanvas.labelPlacement(room: room, in: puzzle, wide: false),
+                  let wide = CatPuzzleBoardCanvas.labelPlacement(room: room, in: puzzle, wide: true),
+                  narrow.cell == wide.cell else { return nil }
+            return narrow.cell
+        }
+        for cell in labelCells.prefix(2) { model.tap(cell: cell) }
+        if let wrong = labelCells.dropFirst(2).first { model.tap(cell: wrong); model.tap(cell: wrong) }
+        return model
+    }
+
+    /// ミスが 3 回になって終局（負け）したところ。
+    private static func failedModel() -> CatPuzzleModel {
+        let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
+        let answers = model.puzzle.solutionCells
+        for cell in answers.prefix(2) { model.tap(cell: cell); model.tap(cell: cell) }
+        let wrongs = (0..<model.puzzle.cellCount).filter { !answers.contains($0) && model.marks[$0] == .empty }
+        for cell in [wrongs[3], wrongs[12], wrongs[25]] { model.tap(cell: cell); model.tap(cell: cell) }
+        return model
+    }
+
     /// 最後の猫を置いた瞬間（クリアのダイアログはまだ出ていない。ダイアログを「盤を見る」で閉じた後もこの見た目）。
     private static func lastCatModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
@@ -193,6 +219,28 @@ struct CatPuzzleRenderTests {
         #expect(checkedRooms == 30 * 6 + 30 * 7 + 6 * 8)
     }
 
+    /// iPhone SE の遊び方のカードで図に使える幅（画面幅 375 − シートの余白 16×2 − カードの内側 14×2）。
+    static let seHowToFigureWidth: CGFloat = 375 - Theme.pad * 2 - 14 * 2
+
+    @Test("遊び方の図は iPhone SE の遊び方のカードの幅に収まる（横にはみ出さない）")
+    func howToFiguresFitSE() throws {
+        #expect(CatPuzzleHowToFigures.items.count == HowToPlayGuide.catPuzzle.items.count)
+        for (index, figure) in CatPuzzleHowToFigures.items.enumerated() {
+            let renderer = ImageRenderer(content: figure().fixedSize())
+            renderer.scale = 1
+            let image = try #require(renderer.cgImage, "図 \(index + 1) が描けない")
+            #expect(CGFloat(image.width) <= Self.seHowToFigureWidth,
+                    "図 \(index + 1) の幅 \(image.width)pt が SE のカード（\(Self.seHowToFigureWidth)pt）を超える")
+        }
+    }
+
+    @Test("札のマスの × は他のマスと同じ中央に描く（札は × の上に重ねる）")
+    func crossIsCenteredEvenUnderLabel() {
+        let r = CGRect(x: 40, y: 80, width: 40, height: 40)
+        let bounds = CatPuzzleBoardCanvas.crossPath(in: r, cellSide: 40).boundingRect
+        #expect(abs(bounds.midX - r.midX) < 0.01 && abs(bounds.midY - r.midY) < 0.01)
+    }
+
     @Test("静止画を書き出す（CAT_PUZZLE_RENDER_DIR があるときだけ）")
     func writeScreens() throws {
         guard let dir = ProcessInfo.processInfo.environment["CAT_PUZZLE_RENDER_DIR"], !dir.isEmpty else { return }
@@ -205,6 +253,8 @@ struct CatPuzzleRenderTests {
             ("3c-hint-cat", Self.hintCatModel),
             ("4a-last-cat", Self.lastCatModel),
             ("4b-clear-dialog", Self.clearModel),
+            ("10-label-cross", Self.labelCrossModel),
+            ("11-three-mistakes", Self.failedModel),
         ]
         let schemes: [(name: String, scheme: ColorScheme)] = [("light", .light), ("dark", .dark)]
         for device in Self.devices {
@@ -224,6 +274,52 @@ struct CatPuzzleRenderTests {
                 }
             }
         }
+        // 開始シート（難易度を選ぶ）と遊び方のカード（図入り）を端末の幅で。
+        for device in Self.devices {
+            for scheme in schemes {
+                let suffix = scheme.scheme == .light ? "" : "-dark"
+                // `ImageRenderer` は ScrollView の中身を描かないので、節を本来の位置（題名の行の下）に重ねて描く。
+                let sheet = ZStack(alignment: .top) {
+                    CatPuzzleNewGameSheet(initial: .normal, onStart: { _ in }, onCancel: {})
+                    CatPuzzleNewGameSheet.sizeSection(selection: .constant(.normal))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(Theme.pad)
+                        .padding(.top, 78)
+                }
+                    .frame(width: device.size.width, height: device.size.height)
+                    .environment(\.colorScheme, scheme.scheme)
+                let sheetRenderer = ImageRenderer(content: sheet)
+                sheetRenderer.scale = 3
+                try Self.write(try #require(sheetRenderer.cgImage),
+                               to: URL(fileURLWithPath: dir).appendingPathComponent("12-setup-sheet-\(device.name)\(suffix).png"))
+                let guide = HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items)
+                let howTo = VStack(spacing: 10) {
+                    ForEach(Array(guide.items.enumerated()), id: \.offset) { index, item in
+                        HowToPlayItemCard(item, number: index + 1)
+                    }
+                    if !guide.notes.isEmpty { HowToPlayNotesCard(guide.notes) }
+                }
+                .padding(Theme.pad)
+                .frame(width: device.size.width)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Theme.background)
+                .environment(\.colorScheme, scheme.scheme)
+                let howToRenderer = ImageRenderer(content: howTo)
+                howToRenderer.scale = 3
+                try Self.write(try #require(howToRenderer.cgImage),
+                               to: URL(fileURLWithPath: dir).appendingPathComponent("13-howto-\(device.name)\(suffix).png"))
+            }
+        }
+
+        // 札のマスの × を大きく（通常・赤）。
+        let labelModel = Self.labelCrossModel()
+        let labelBoard = ImageRenderer(content: CatPuzzleBoardCanvas(
+            puzzle: labelModel.puzzle, marks: labelModel.marks, wrongCrosses: labelModel.wrongCrosses,
+            lastWrongCell: labelModel.lastWrongCell, cellSide: 50
+        ).padding(8).background(Theme.surface))
+        labelBoard.scale = 3
+        try Self.write(try #require(labelBoard.cgImage), to: URL(fileURLWithPath: dir).appendingPathComponent("10-label-cross-board.png"))
+
         // クリアの盤だけ（カードに隠れない、猫がくつろぐ絵）。
         let solved = Self.clearModel()
         let board = ImageRenderer(content: CatPuzzleBoardCanvas(

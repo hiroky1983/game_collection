@@ -31,10 +31,11 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         self.wrongCrosses = wrongCrosses
     }
 
-    /// 続きから再開できる中断データか（正しい問題・印が 1 つ以上・まだ解けていない）。
+    /// 続きから再開できる中断データか（正しい問題・印が 1 つ以上・まだ解けていない・ミスが上限に届いていない）。
     /// `CatPuzzleModel.init` の復元と `CatPuzzleModule.hasResumableSnapshot` の両方がこれを使う。
+    /// ミス 3 回で負けの決まり（build 43 の QA）より前の中断データでミスが上限以上のものは、終局済みとして捨てる。
     public static func isResumable(_ snap: CatPuzzleSnapshot) -> Bool {
-        guard isWellFormed(snap) else { return false }
+        guard isWellFormed(snap), snap.mistakes < CatPuzzleModel.maxMistakes else { return false }
         let cats = snap.marks.indices.filter { snap.marks[$0] == CatPuzzleModel.Mark.cat.rawValue }
         guard !CatPuzzleLogic.isSolved(puzzle: snap.puzzle, cats: cats) else { return false }
         return snap.marks.contains { $0 != CatPuzzleModel.Mark.empty.rawValue }

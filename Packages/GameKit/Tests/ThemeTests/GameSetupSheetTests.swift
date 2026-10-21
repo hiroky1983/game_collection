@@ -53,6 +53,7 @@ struct GameSetupSheetSourceTests {
         ("GameSudoku/SudokuView.swift", ".solo"),
         ("GameAnzan/AnzanView.swift", ".solo"),
         ("GameAkariKeshi/AkariKeshiView.swift", ".solo"),
+        ("GameCatPuzzle/CatPuzzleView.swift", ".solo"),
         ("GameSpider/SpiderView.swift", ".solo"),
         ("GameRunner/RunnerStartSheet.swift", ".solo"),
         ("GameMahjong/MahjongStartSheet.swift", ".versus"),
