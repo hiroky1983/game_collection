@@ -1017,6 +1017,61 @@
           }
         }
       }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "出せる札からでたらめに選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays any legal card at random"
+          }
+        }
+      }
+    },
+    "ときどきでたらめに出し、攻撃しない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sometimes plays at random and never attacks"
+          }
+        }
+      }
+    },
+    "相手の手札が2枚以下で攻撃する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attacks when the next player has 2 cards or fewer"
+          }
+        }
+      }
+    },
+    "相手の手札が3枚以下で攻撃する" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attacks when the next player has 3 cards or fewer"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

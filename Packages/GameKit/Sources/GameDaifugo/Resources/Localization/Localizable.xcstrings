@@ -961,6 +961,61 @@
           }
         }
       }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "出せる手からでたらめに選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays any legal move at random"
+          }
+        }
+      }
+    },
+    "ときどき最善でない手を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sometimes picks a weaker move"
+          }
+        }
+      }
+    },
+    "出せる最弱の手を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays the weakest legal move"
+          }
+        }
+      }
+    },
+    "強い札を温存し、革命も狙う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves strong cards and aims for a revolution"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

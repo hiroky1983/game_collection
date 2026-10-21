@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// 手札 1 枚のヒント表示の状態（大富豪 #190 と同じ形）。
 public enum RelayCardHint: Equatable, Sendable {
@@ -62,22 +63,56 @@ public enum ColorRelayRules {
         return RelayColor.allCases.max { (counts[$0] ?? 0) < (counts[$1] ?? 0) } ?? .red
     }
 
-    /// CPU の 1 手（貪欲法・難易度は持たない）。出せる札が無ければ nil（= 山から引く）。
+    /// 番を奪う札を先に出し始める、次の人の手札の枚数（「ふつう」）。「むずかしい」は `hardAttackHandCount`。
+    public static let attackHandCount = 2
+    /// 「むずかしい」が攻撃札を優先し始める、次の人の手札の枚数。仮置き（実装後の会長 QA で調整する）。
+    public static let hardAttackHandCount = 3
+    /// 「かんたん」が最善手を外して出せる札からでたらめに選ぶ確率。仮置き。
+    public static let easySlipChance = 0.35
+
+    /// 強さを踏まえた CPU の 1 手（#2604）。出せる札が無ければ nil（= 山から引く）。
+    ///
+    /// - 入門: 出せる札からでたらめに選ぶ。
+    /// - かんたん: 一定確率で出せる札からでたらめに選び、それ以外も攻撃札を優先しない（番を奪いに行かない）。
+    /// - ふつう: `cpuPlay(hand:top:activeColor:nextHandCount:)` と同じ（回帰なし）。
+    /// - むずかしい: 次の人の手札が 3 枚以下から攻撃札を優先する（ふつうは 2 枚以下）。
+    public static func cpuPlay(
+        hand: [RelayCard], top: RelayCard, activeColor: RelayColor, nextHandCount: Int,
+        strength: CPUStrength, using rng: inout some RandomNumberGenerator
+    ) -> RelayCard? {
+        let playable = hand.filter { canPlay($0, onto: top, activeColor: activeColor) }
+        guard !playable.isEmpty else { return nil }
+        switch strength {
+        case .normal:
+            return cpuPlay(hand: hand, top: top, activeColor: activeColor, nextHandCount: nextHandCount)
+        case .novice:
+            return playable.randomElement(using: &rng)
+        case .easy:
+            if Double.random(in: 0..<1, using: &rng) < easySlipChance { return playable.randomElement(using: &rng) }
+            return cpuPlay(hand: hand, top: top, activeColor: activeColor, nextHandCount: .max)
+        case .hard:
+            return cpuPlay(hand: hand, top: top, activeColor: activeColor, nextHandCount: nextHandCount,
+                           attackHandCount: hardAttackHandCount)
+        }
+    }
+
+    /// CPU の 1 手（貪欲法）。出せる札が無ければ nil（= 山から引く）。「ふつう」の CPU はこれ。
     ///
     /// 優先順位:
-    /// 1. **次の人の手札が 2 枚以下**なら、番を奪う札（いろがえ+4 → +2 → とばし → ぎゃく）を先に出す
+    /// 1. **次の人の手札が 2 枚以下**（`attackHandCount`）なら、番を奪う札（いろがえ+4 → +2 → とばし → ぎゃく）を先に出す
     /// 2. 色の合う**数字札**を大きい数字から（手札の多い色を残すため、いまの色と同じ色を優先）
     /// 3. 色の合う特殊札（+2 → とばし → ぎゃく）
     /// 4. 色は違うが種類が同じ札（数字・記号が同じ）。**手札で最も多い色**へ寄せられる札を優先
     /// 5. いろがえ、最後にいろがえ+4（万能札は温存する）
     public static func cpuPlay(
-        hand: [RelayCard], top: RelayCard, activeColor: RelayColor, nextHandCount: Int
+        hand: [RelayCard], top: RelayCard, activeColor: RelayColor, nextHandCount: Int,
+        attackHandCount: Int = ColorRelayRules.attackHandCount
     ) -> RelayCard? {
         let playable = hand.filter { canPlay($0, onto: top, activeColor: activeColor) }
         guard !playable.isEmpty else { return nil }
         let dominant = dominantColor(in: hand)
 
-        if nextHandCount <= 2 {
+        if nextHandCount <= attackHandCount {
             let attackOrder: [RelayKind] = [.wildDrawFour, .drawTwo, .skip, .reverse]
             for kind in attackOrder {
                 if let card = playable.first(where: { $0.kind == kind }) { return card }

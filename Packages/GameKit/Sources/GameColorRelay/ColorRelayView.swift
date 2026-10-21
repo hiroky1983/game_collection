@@ -12,6 +12,8 @@ public struct ColorRelayView: View {
     @State private var cpuTask: Task<Void, Never>?
     /// 進行中に右上の新規を押したときの確認（#2370）。
     @State private var showConfirmNewGame = false
+    /// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。
+    @State private var showNewGame = false
     /// 画面の広さ（#458）。幅で札の大きさを決め、広い画面では同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -50,7 +52,7 @@ public struct ColorRelayView: View {
                         if model.hasProgressToLose {
                             showConfirmNewGame = true
                         } else {
-                            startNewGame()
+                            showNewGame = true
                         }
                     }) {
             tableHeader
@@ -58,11 +60,17 @@ public struct ColorRelayView: View {
         .howToPlay(HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)) { ColorRelayRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button(tr("終了して新規対局"), role: .destructive) { startNewGame() }
+                Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
                 Button(tr("キャンセル"), role: .cancel) {}
             } message: {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
+        }
+        .sheet(isPresented: $showNewGame) {
+            ColorRelayNewGameSheet(aiLevel: model.aiLevel) { level in
+                showNewGame = false
+                startNewGame(aiLevel: level)
+            } onCancel: { showNewGame = false }
         }
         // 免除の提示（#780）。自分の番で引き札を課され、免除ボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(waiveRescue, for: .revival, isPresented: model.canWaivePenalty,
@@ -94,8 +102,8 @@ public struct ColorRelayView: View {
     }
 
     /// 新しい 1 ゲームを配って、CPU が親なら手番を回す（右上の新規・#2370）。
-    private func startNewGame() {
-        model.startGame()
+    private func startNewGame(aiLevel: Int) {
+        model.startGame(aiLevel: aiLevel)
         runCPU()
     }
 
@@ -702,5 +710,35 @@ struct ColorRelayRuleSheet: View {
 
     var body: some View {
         RuleListSheet(rules: Self.rules)
+    }
+}
+
+// MARK: - New Game Sheet
+
+/// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+struct ColorRelayNewGameSheet: View {
+    @State private var level: Int
+    let onStart: (Int) -> Void
+    let onCancel: () -> Void
+
+    init(aiLevel: Int, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
+        _level = State(initialValue: aiLevel)
+        self.onStart = onStart
+        self.onCancel = onCancel
+    }
+
+    var body: some View {
+        GameSetupSheet(
+            kind: .versus,
+            onStart: { onStart(level) }, onCancel: onCancel
+        ) {
+            GameSetupSection(tr("CPUの強さ")) {
+                // 説明は `ColorRelayRules.cpuPlay` の中身と一致させる（#416）。
+                CPUStrengthPicker(level: $level, details: [
+                    tr("出せる札からでたらめに選ぶ"), tr("ときどきでたらめに出し、攻撃しない"),
+                    tr("相手の手札が2枚以下で攻撃する"), tr("相手の手札が3枚以下で攻撃する"),
+                ])
+            }
+        }
     }
 }
