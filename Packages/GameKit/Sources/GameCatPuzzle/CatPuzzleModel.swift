@@ -6,9 +6,10 @@ import Observation
 /// 中断スナップショットを書く。生成・判定の純粋ロジックは `CatPuzzleLogic` に委譲し、
 /// ここは操作の受け付け・計時・永続化・決着の記録だけを担う。
 ///
-/// 操作: マスをタップすると ×（いない）→ 猫 → 空 の順に変わる。猫を置いた瞬間に矛盾
-/// （同じ部屋・行・列に 2 匹、隣り合う）があればミスを 1 数え、該当の猫に印を付ける。
-/// 猫が部屋の数だけ置けて矛盾が無ければクリア（答えは 1 つしか無いので、それが答え）。
+/// 操作: マスをタップすると ×（いない）→ 猫 → 空 の順に変わる。答え（唯一解）でないマスに猫を置こうとしたら
+/// 猫は置かず、そのマスに**赤い × を固定**で置いてミスを 1 数える（会長 QA 2026-10-21・build 42。答えとの一致を見せる）。
+/// 固定の赤 × はタップ・戻す・やり直しで消えず、中断データにも残る。盤に残る猫は必ず答えのマスなので、
+/// 決まり違反（同じ部屋・行・列に 2 匹、隣り合う）は起きない。猫が部屋の数だけ置けたらクリア。
 @MainActor
 @Observable
 public final class CatPuzzleModel {
@@ -19,6 +20,9 @@ public final class CatPuzzleModel {
     public static let freeHints = 3
     /// 計時中に保存し直す間隔（秒）。他の計時のあるゲームと同じ幅。
     static let persistInterval = 10
+    /// 最後の猫を置いてからクリアのダイアログを出すまでの間（仮 0.8 秒・会長 QA 2026-10-21・build 42）。
+    /// 最後の猫が「ぽん」と出る演出を見せてからダイアログを重ねる。
+    public static let clearCardDelay: Duration = .milliseconds(800)
 
     /// マスの印。
     public enum Mark: Int, Codable, Sendable {
@@ -30,10 +34,12 @@ public final class CatPuzzleModel {
     public private(set) var size: CatPuzzleSize
     public private(set) var puzzle: CatPuzzle
     public private(set) var marks: [Mark]
-    /// いま置いてある猫どうしの矛盾（印の表示用）。
-    public private(set) var violations = CatPuzzleViolations()
-    /// 猫を置いた瞬間に矛盾があった回数。
+    /// 答えでないマスに猫を置こうとした回数。
     public private(set) var mistakes = 0
+    /// 答えでないマスに猫を置こうとして付いた、固定の赤い ×（タップ・戻す・やり直しで消えない。中断データに保存）。
+    public private(set) var wrongCrosses: Set<Int> = []
+    /// 直近に赤い × が付いたマス（揺れ・赤の点滅の演出用）。次の操作で消える。保存しない。
+    public private(set) var lastWrongCell: Int?
     public private(set) var hintsUsed = 0
     /// ヒントで置いた猫のマス（印付き・タップでも「戻す」「やり直し」でも消えない。会長の決まり 2026-10-21）。
     public private(set) var hintCells: Set<Int> = []
@@ -44,6 +50,10 @@ public final class CatPuzzleModel {
     /// 最初の 1 手からの経過秒。開いて眺めているだけの時間は数えない。
     public private(set) var elapsedSeconds = 0
     public private(set) var isSolved = false
+    /// クリアのダイアログを出すか。最後の猫を置いてから `clearCardDelay` おいて真になる（`revealClearCardIfDue`）。
+    public private(set) var showsClearCard = false
+    /// クリアした時刻（ダイアログまでの間を測る）。
+    private var solvedAt: ContinuousClock.Instant?
     /// 直近の決着で確定した自己ベスト。クリアのカードに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// タップした回数（手数）。
@@ -75,7 +85,14 @@ public final class CatPuzzleModel {
             hintsUsed = snap.hintsUsed
             hintCells = Set(snap.hintCells ?? [])
             hintCrosses = Set(snap.hintCrosses ?? [])
-            violations = CatPuzzleLogic.violations(puzzle: snap.puzzle, cats: Self.cats(in: marks))
+            wrongCrosses = Set(snap.wrongCrosses ?? [])
+            // 赤い × の決まりより前（build 42 まで）の中断データには答えでない猫が残りうる。固定の赤 × に置き換える
+            // （そのときのミスは数え済みなので足さない）。
+            let solution = Set(snap.puzzle.solutionCells)
+            for cell in marks.indices where marks[cell] == .cat && !solution.contains(cell) {
+                marks[cell] = .cross
+                wrongCrosses.insert(cell)
+            }
         } else {
             self.size = size
             let made = Self.makePuzzle(size: size, generator: &seeded)
@@ -117,38 +134,45 @@ public final class CatPuzzleModel {
     public var canHint: Bool { !isSolved && hintsRemaining > 0 && nextHint != nil }
     public var canUndo: Bool { !history.isEmpty && !isSolved }
 
+    /// 決まった印（ヒントの猫・×、赤い ×）のマスか。タップしても変わらない。
+    public func isFixed(cell: Int) -> Bool {
+        hintCells.contains(cell) || hintCrosses.contains(cell) || wrongCrosses.contains(cell)
+    }
+
     /// 「新規ゲーム」・大きさの切り替え・やり直しで失われる進行があるか。印の無い盤と解き終えた盤は捨ててよい。
     public var hasProgressToLose: Bool { marks.contains { $0 != .empty } && !isSolved }
 
     // MARK: - 操作
 
-    /// マスをタップする。×（いない）→ 猫 → 空 の順に変わる。ヒントで置いた猫・× のマスは変わらない。
+    /// マスをタップする。×（いない）→ 猫 → 空 の順に変わる。ヒントで置いた猫・×、赤い × のマスは変わらない。
+    /// 答えでないマスに猫を置こうとしたら、猫は置かず赤い × を固定で置き、ミスを 1 数える。
     public func tap(cell: Int) {
-        guard !isSolved, marks.indices.contains(cell), !hintCells.contains(cell), !hintCrosses.contains(cell) else { return }
-        history.append(marks)
+        guard !isSolved, marks.indices.contains(cell), !isFixed(cell: cell) else { return }
         lastHint = nil
+        lastWrongCell = nil
         let next: Mark
         switch marks[cell] {
         case .empty: next = .cross
         case .cross: next = .cat
         case .cat: next = .empty
         }
-        marks[cell] = next
         moves += 1
         if !stopwatch.isRunning { startTimer() }
         // 印を付けた = 捨てたら途中離脱として数える盤面。
         services?.gameDidProgress(gameID: Self.gameID)
-        refreshViolations()
-        if next == .cat {
-            if violations.cells.contains(cell) {
-                mistakes += 1
-                services?.feedback.notify(.warning)
-            } else {
-                services?.feedback.impact(.medium)
-            }
-        } else {
-            services?.feedback.impact(.light)
+        if next == .cat, !puzzle.solutionCells.contains(cell) {
+            // 戻せない印なので履歴には積まない（「戻す」で取り消せる操作ではない）。
+            marks[cell] = .cross
+            wrongCrosses.insert(cell)
+            lastWrongCell = cell
+            mistakes += 1
+            services?.feedback.notify(.warning)
+            persist()
+            return
         }
+        history.append(marks)
+        marks[cell] = next
+        services?.feedback.impact(next == .cat ? .medium : .light)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -160,24 +184,24 @@ public final class CatPuzzleModel {
     public func undo() {
         guard canUndo, let previous = history.popLast() else { return }
         marks = previous
-        keepHintMarks()
+        keepFixedMarks()
         lastHint = nil
+        lastWrongCell = nil
         moves += 1
-        refreshViolations()
         services?.feedback.impact(.light)
         persist()
     }
 
-    /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫・× も残る。
+    /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫・×、赤い × も残る。
     public func reset() {
         guard !isSolved else { return }
         history.removeAll()
         marks = Array(repeating: .empty, count: puzzle.cellCount)
-        keepHintMarks()
+        keepFixedMarks()
         lastHint = nil
-        refreshViolations()
+        lastWrongCell = nil
         services?.feedback.impact(.light)
-        // 印の無い盤は保存しない（開いただけの盤を「続き」にしない）。ヒントの印があれば保存する。
+        // 印の無い盤は保存しない（開いただけの盤を「続き」にしない）。ヒント・赤い × の印があれば保存する。
         persist()
     }
 
@@ -195,12 +219,12 @@ public final class CatPuzzleModel {
             hintCells.insert(placed)
         }
         lastHint = hint
+        lastWrongCell = nil
         hintsUsed += 1
         moves += 1
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseHint(gameID: Self.gameID)
         services?.gameDidProgress(gameID: Self.gameID)
-        refreshViolations()
         services?.feedback.impact(.medium)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
@@ -209,10 +233,10 @@ public final class CatPuzzleModel {
         }
     }
 
-    /// ヒントで置いた猫・× を盤に戻す（「戻す」「やり直し」で消えないように）。
-    private func keepHintMarks() {
+    /// ヒントで置いた猫・×、赤い × を盤に戻す（「戻す」「やり直し」で消えないように）。
+    private func keepFixedMarks() {
         for cell in hintCells where marks.indices.contains(cell) { marks[cell] = .cat }
-        for cell in hintCrosses where marks.indices.contains(cell) { marks[cell] = .cross }
+        for cell in hintCrosses.union(wrongCrosses) where marks.indices.contains(cell) { marks[cell] = .cross }
     }
 
     /// 新規ゲーム。`size` を渡すと盤の大きさを変える。
@@ -222,15 +246,18 @@ public final class CatPuzzleModel {
         puzzle = Self.makePuzzle(size: size, generator: &generator)
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         history.removeAll()
-        violations = CatPuzzleViolations()
         mistakes = 0
         hintsUsed = 0
         hintCells = []
         hintCrosses = []
+        wrongCrosses = []
+        lastWrongCell = nil
         lastHint = nil
         elapsedSeconds = 0
         moves = 0
         isSolved = false
+        showsClearCard = false
+        solvedAt = nil
         recordResult = nil
         services?.snapshots.clear(for: Self.gameID)
         services?.gameDidRestart(gameID: Self.gameID, level: size.analyticsLevel)
@@ -271,6 +298,8 @@ public final class CatPuzzleModel {
         syncElapsed()
         stopwatch.stop()
         isSolved = true
+        solvedAt = stopwatch.now()
+        showsClearCard = false
         services?.feedback.notify(.success)
         // 決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。記録は大きさごとに分ける。
         recordResult = services?.gameDidFinish(
@@ -284,8 +313,18 @@ public final class CatPuzzleModel {
         services?.snapshots.clear(for: Self.gameID)
     }
 
-    private func refreshViolations() {
-        violations = CatPuzzleLogic.violations(puzzle: puzzle, cats: catCells)
+    /// クリアのダイアログまでの残り時間（解けていなければ nil、出してよければ 0）。画面はこの分だけ待って
+    /// `revealClearCardIfDue` を呼ぶ。
+    public var clearCardWait: Duration? {
+        guard isSolved, let solvedAt else { return nil }
+        guard !showsClearCard else { return .zero }
+        return max(.zero, Self.clearCardDelay - (stopwatch.now() - solvedAt))
+    }
+
+    /// クリアから `clearCardDelay` 経っていれば、クリアのダイアログを出す。
+    public func revealClearCardIfDue() {
+        guard let wait = clearCardWait, wait == .zero else { return }
+        showsClearCard = true
     }
 
     private func persist() {
@@ -297,7 +336,7 @@ public final class CatPuzzleModel {
         let snapshot = CatPuzzleSnapshot(
             size: size.rawValue, puzzle: puzzle, marks: marks.map(\.rawValue),
             elapsedSeconds: elapsedSeconds, mistakes: mistakes, hintsUsed: hintsUsed, hintCells: hintCells.sorted(),
-            hintCrosses: hintCrosses.sorted()
+            hintCrosses: hintCrosses.sorted(), wrongCrosses: wrongCrosses.sorted()
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }

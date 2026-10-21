@@ -258,23 +258,25 @@ struct CatPuzzleHintTests {
         let store = MemorySnapshotStore()
         let services = GameServices(snapshots: store, ads: NoopAdService())
         let first = CatPuzzleModel(services: services, size: .normal, seed: UInt64(seed) &+ 50)
-        // 途中まで遊ぶ（正しい猫 1 匹・違う猫 1 匹・×）。
+        // 途中まで遊ぶ（正しい猫 1 匹・答えでないマスへの猫 1 回 = 赤い ×・×）。
         let answers = first.puzzle.solutionCells
         first.tap(cell: answers[0]); first.tap(cell: answers[0])
         let wrong = first.puzzle.cells(inRoom: first.puzzle.rooms[answers[1]]).first { $0 != answers[1] }!
         first.tap(cell: wrong); first.tap(cell: wrong)
+        #expect(first.wrongCrosses == [wrong] && first.marks[wrong] == .cross, "答えでないマスには猫が残らず、赤い × になる")
         first.tap(cell: first.marks.indices.first { first.marks[$0] == .empty && !answers.contains($0) }!)
         let hint = first.nextHint!
         Self.check(hint, puzzle: first.puzzle, marks: first.marks, hintMarks: [], note: "seed \(seed) 生成直後")
-        #expect(hint.reason == .wrongCat(cell: wrong, violation: nil) || hint.removed == [wrong], "違う猫を先に外す")
+        #expect(hint.removed.isEmpty && !hint.crossed.contains(wrong), "赤い × は推理の前提（もう × なので触らない）")
         first.useHint()
-        #expect(first.hintCrosses.contains(wrong) && first.marks[wrong] == .cross)
+        #expect(first.marks[wrong] == .cross && first.wrongCrosses == [wrong])
         #expect(store.exists(for: CatPuzzleModel.gameID))
 
         // 中断から再開（別の種・別の大きさを渡しても保存した盤が優先される）。
         let resumed = CatPuzzleModel(services: services, size: .easy, seed: 999)
         #expect(resumed.puzzle == first.puzzle && resumed.marks == first.marks)
         #expect(resumed.hintCells == first.hintCells && resumed.hintCrosses == first.hintCrosses)
+        #expect(resumed.wrongCrosses == first.wrongCrosses && resumed.mistakes == first.mistakes)
         if let next = resumed.nextHint {
             Self.check(next, puzzle: resumed.puzzle, marks: resumed.marks, hintMarks: resumed.hintCrosses.union(resumed.hintCells), note: "seed \(seed) 再開後")
         }
@@ -287,7 +289,7 @@ struct CatPuzzleHintTests {
 
         // 難易度切り替え → 新しい盤で判定され、ヒントの印は消える。
         resumed.newGame(size: .hard)
-        #expect(resumed.puzzle.side == 8 && resumed.hintCells.isEmpty && resumed.hintCrosses.isEmpty)
+        #expect(resumed.puzzle.side == 8 && resumed.hintCells.isEmpty && resumed.hintCrosses.isEmpty && resumed.wrongCrosses.isEmpty)
         let hardHint = resumed.nextHint!
         Self.check(hardHint, puzzle: resumed.puzzle, marks: resumed.marks, hintMarks: [], note: "seed \(seed) 難易度切り替え後")
         resumed.useHint()
