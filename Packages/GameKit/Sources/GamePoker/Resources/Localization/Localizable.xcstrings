@@ -688,13 +688,13 @@
         }
       }
     },
-    "%1$lld回目 / %2$lld、合計%3$lld点、CPU %4$lld点" : {
+    "%1$lld回目 / %2$lld、合計%3$@、CPU %4$@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Round %1$lld of %2$lld, total %3$lld points, CPU %4$lld points"
+            "value" : "Round %1$lld of %2$lld, total %3$@, CPU %4$@"
           }
         }
       }
