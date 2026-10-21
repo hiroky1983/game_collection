@@ -57,29 +57,33 @@ public struct SpiderView: View {
 
     public var body: some View {
         // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
-        // 帯・ヒント・ボタン・バナーは従来どおり `Theme.pad`（16pt）。フリーセルと同じ。
+        // 帯・ヒント・ボタンは全画面の枠の左右の余白（8pt）。ソリティア・フリーセルと同じ。
         VStack(spacing: 8) {
             statusBar
-                .padding(.horizontal, Theme.pad)
-            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // レイアウトパターン A（全画面・#2531）: 卓のフェルトは全画面の枠が画面全体に敷くので、盤に `.cardTable()`
+            // （木枠付きの卓）は付けない。札の大きさは盤の幅から決まるので、木枠の分だけ大きくなる。
+            // 札が帯に張り付いて見えないよう、卓の中の上の余白（`cardTopInset`・ソリティア系で共通）は残す。
             board
-                .cardTable(topInset: CardTableStyle.cardTopInset)
+                .padding(.top, CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
                                details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea
-                .padding(.horizontal, Theme.pad)
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
             HowToPlayHint(.spider, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // 余りの高さは「⋯」の行とバナーの帯のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
-                .padding(.horizontal, Theme.pad)
         }
-        .padding(.vertical, Theme.pad)
-        .gameChrome(title: tr("スパイダーソリティア"), review: services.review,
+        // 上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.vertical, 4)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-22・#2111 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・スパイダーソリティア・？・＋）、バナーは画面最下部。手数・スート・配札・時計はソリティア・フリーセルと
+        // 同じくヘッダーの下に低い 1 行の札で残す。
+        .gameChrome(title: tr("スパイダーソリティア"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
@@ -184,8 +188,10 @@ public struct SpiderView: View {
     // MARK: - ステータスバー
 
     /// 帯には表示だけを置く。拡大の切り替えは右下の「⋯」へ（#1468）。
+    /// 全画面（A・#2531）ではモックどおり 44pt の帯より低い 1 行の札にする（`GameStatusBarStyle.compactMinHeight`）。
     private var statusBar: some View {
-        GameStatusBar {
+        GameStatusBar(verticalPadding: GameStatusBarStyle.compactVerticalPadding,
+                      minHeight: GameStatusBarStyle.compactMinHeight) {
             statusReadout
         } trailing: {
             EmptyView()
