@@ -579,7 +579,7 @@ public final class DaifugoModel: AITurnGuarded {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss, place: playerPlace.map { $0 + 1 }))
         services?.snapshots.clear(for: gameID)
         // 決着した = 免除を乗せた配りが終わった（#1146）。1手も出さずに投了した局は `persist()` を
         // 通らないので、消費をあちらだけに任せると免除が次の階級と一緒に持ち越され、

@@ -441,7 +441,7 @@ public final class ColorRelayModel: AITurnGuarded {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss, place: playerPlace.map { $0 + 1 }))
         services?.snapshots.clear(for: gameID)
     }
 

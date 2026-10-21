@@ -30,6 +30,9 @@ public struct GameScore: Equatable, Sendable {
     public var seconds: Int?
     /// クリアまでの手数。少ないほど良い。**勝ち / クリアのときだけ記録する**。
     public var moves: Int?
+    /// 多人数対戦での最終順位（1 始まり。1 = 一番）。大富豪・いろリレーが載せる（#2606）。
+    /// 勝敗（`GameOutcome`）とは別に、4 人中の 2 位と 3 位の違いを通算の平均順位に残すためのもの。
+    public var place: Int?
     /// 記録を分けたい区分のキー（マインスイーパーの難易度）。nil ならゲーム単位で 1 件。
     public var variant: String?
     /// 区分の表示名（「初級」など）。ハブの 1 行に添える。
@@ -48,6 +51,7 @@ public struct GameScore: Equatable, Sendable {
         highestValue: Int? = nil,
         seconds: Int? = nil,
         moves: Int? = nil,
+        place: Int? = nil,
         variant: String? = nil,
         variantLabel: String? = nil,
         isLeaderboardEligible: Bool = true
@@ -57,6 +61,7 @@ public struct GameScore: Equatable, Sendable {
         self.highestValue = highestValue
         self.seconds = seconds
         self.moves = moves
+        self.place = place
         self.variant = variant
         self.variantLabel = variantLabel
         self.isLeaderboardEligible = isLeaderboardEligible
@@ -93,6 +98,13 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     public var bestSeconds: Int?
     /// 最少クリア手数。
     public var fewestMoves: Int?
+    /// 順位（1 始まり）の累計と、その順位を記録した回数（#2606）。平均順位 = 累計 ÷ 回数。
+    ///
+    /// **必ず Optional にする**（`lastPlayedAt` と同じ理由。旧データには鍵が無い）。順位を載せない決着
+    /// （旧版の記録・順位を持たないゲーム）は回数に数えず、平均から外れる。2 つの整数だけなので、
+    /// プレイ回数が増えても保存サイズは増えない。
+    public var placeTotal: Int?
+    public var placeCount: Int?
     /// 最後に決着した日時。レコメンドの「久しぶり枠」（#335）が使う。
     ///
     /// **必ず Optional にする**。旧データ（この項目が入る前に保存された JSON）には鍵が無く、
@@ -104,7 +116,7 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     /// `recordKey` は保存しない（`PlayLog` の保存形式は変えない）。
     private enum CodingKeys: String, CodingKey {
         case metric, variantLabel, plays, wins, losses, draws, currentStreak, bestStreak
-        case bestPoints, highestValue, bestSeconds, fewestMoves, lastPlayedAt
+        case bestPoints, highestValue, bestSeconds, fewestMoves, placeTotal, placeCount, lastPlayedAt
     }
 
     public init(
@@ -121,6 +133,8 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         highestValue: Int? = nil,
         bestSeconds: Int? = nil,
         fewestMoves: Int? = nil,
+        placeTotal: Int? = nil,
+        placeCount: Int? = nil,
         lastPlayedAt: Date? = nil
     ) {
         self.metric = metric
@@ -136,7 +150,15 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         self.highestValue = highestValue
         self.bestSeconds = bestSeconds
         self.fewestMoves = fewestMoves
+        self.placeTotal = placeTotal
+        self.placeCount = placeCount
         self.lastPlayedAt = lastPlayedAt
+    }
+
+    /// 平均順位（1 始まり）。順位を記録した決着が 1 回も無ければ nil。
+    public var averagePlace: Double? {
+        guard let total = placeTotal, let count = placeCount, count > 0 else { return nil }
+        return Double(total) / Double(count)
     }
 
     /// 何か 1 つでも記録があるか。何も無いゲームはハブに 1 行も出さない。
@@ -205,6 +227,10 @@ public extension PlayRecord {
         result.highestValue = Self.better(highestValue, newer.highestValue, by: >)
         result.bestSeconds  = Self.better(bestSeconds, newer.bestSeconds, by: <)
         result.fewestMoves  = Self.better(fewestMoves, newer.fewestMoves, by: <)
+        if let count = placeCount, count > 0 {
+            result.placeTotal = (newer.placeTotal ?? 0) + (placeTotal ?? 0)
+            result.placeCount = (newer.placeCount ?? 0) + count
+        }
         if let mine = lastPlayedAt, mine > (newer.lastPlayedAt ?? .distantPast) {
             result.lastPlayedAt = mine
         }
@@ -260,6 +286,12 @@ public extension PlayRecord {
             record.draws += 1
             // 引き分けは「連勝」ではないため連勝は途切れる。
             record.currentStreak = 0
+        }
+
+        // 順位は勝敗とは別に累計する（1 位未満は不正値として取り込まない）。
+        if let place = score.place, place >= 1 {
+            record.placeTotal = (record.placeTotal ?? 0) + place
+            record.placeCount = (record.placeCount ?? 0) + 1
         }
 
         // 初回は記録として残すが、0 点では「更新」と言わない（#1067）。言うと共有ボタン（#1043）が
@@ -395,7 +427,7 @@ public enum RecordFormat {
             return tr("最少 %@手", number(best), language: language)
         case .winLoss:
             let streak = played.map(\.currentStreak).max() ?? 0
-            let base = winLossText(played, language: language)
+            let base = withAveragePlace(winLossText(played, language: language), played, language: language)
             return streak >= 2 ? tr("%1$@・%2$lld連勝中", base, streak, language: language) : base
         }
     }
@@ -477,6 +509,17 @@ public enum RecordFormat {
             : tr("%1$lld勝%2$lld敗", wins, losses, language: language)
     }
 
+    /// 順位を記録した決着があれば、勝敗の後ろに「平均2.1位」を添える（#2606）。無ければそのまま。
+    ///
+    /// 区分が複数ある記録は累計を足してから割る（区分ごとの平均を平均しない）。
+    private static func withAveragePlace(_ line: String, _ records: [PlayRecord], language: AppLanguage?) -> String {
+        let count = records.reduce(0) { $0 + ($1.placeCount ?? 0) }
+        guard count > 0 else { return line }
+        let total = records.reduce(0) { $0 + ($1.placeTotal ?? 0) }
+        let average = String(format: "%.1f", Double(total) / Double(count))
+        return tr("%1$@・平均%2$@位", line, average, language: language)
+    }
+
     /// リザルトに出す 1 行（そのゲームの自己ベスト）。記録が無ければ nil。
     public static func resultLine(_ record: PlayRecord, language: AppLanguage? = nil) -> String? {
         guard record.hasAnyRecord else { return nil }
@@ -511,7 +554,8 @@ public enum RecordFormat {
             guard let best = record.fewestMoves else { return nil }
             return tr("最少手数 %@手", number(best), language: language)
         case .winLoss:
-            let base = tr("通算 %@", winLossText([record], language: language), language: language)
+            let base = tr("通算 %@", withAveragePlace(winLossText([record], language: language), [record], language: language),
+                          language: language)
             return record.bestStreak >= 2 ? tr("%1$@・最高%2$lld連勝", base, record.bestStreak, language: language) : base
         }
     }

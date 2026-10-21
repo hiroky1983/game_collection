@@ -206,6 +206,38 @@ struct PlayRecordApplyTests {
         #expect(second.record.bestStreak == 2)
         #expect(second.update.streak)
     }
+
+    @Test("順位は累計して平均にする。順位の無い決着・不正値は平均から外す（#2606）")
+    func placeAverage() {
+        func play(_ outcome: GameOutcome, place: Int?, to previous: PlayRecord?) -> PlayRecord {
+            PlayRecord.applying(outcome: outcome, score: GameScore(metric: .winLoss, place: place), to: previous).record
+        }
+        var record = play(.win, place: 1, to: nil)
+        record = play(.draw, place: 2, to: record)
+        record = play(.draw, place: nil, to: record)   // 旧版相当: 順位なし
+        record = play(.draw, place: 0, to: record)     // 不正値
+        record = play(.loss, place: 4, to: record)
+        #expect(record.plays == 5)
+        #expect(record.placeCount == 3)
+        #expect(record.averagePlace == 7.0 / 3.0)
+        #expect(PlayRecord().averagePlace == nil)
+    }
+
+    @Test("旧データ（順位の鍵が無い JSON）は落ちずに読め、平均は出ない。区分をまとめると累計も足される（#2606）")
+    func placeLegacyDecodeAndMerge() throws {
+        let legacy = try JSONEncoder().encode(PlayRecord(plays: 2, wins: 1, losses: 1))
+        var object = try #require(try JSONSerialization.jsonObject(with: legacy) as? [String: Any])
+        object.removeValue(forKey: "placeTotal")
+        object.removeValue(forKey: "placeCount")
+        let decoded = try JSONDecoder().decode(PlayRecord.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(decoded.averagePlace == nil)
+
+        let old = PlayRecord(plays: 2, placeTotal: 3, placeCount: 2)
+        let newer = PlayRecord(plays: 1, placeTotal: 4, placeCount: 1)
+        let merged = old.merged(into: newer)
+        #expect(merged.placeTotal == 7 && merged.placeCount == 3)
+        #expect(decoded.merged(into: newer).placeCount == 1)
+    }
 }
 
 // MARK: - 表示の整形
@@ -233,6 +265,34 @@ struct RecordFormatTests {
     func hubLineEmpty() {
         #expect(RecordFormat.hubLine([]) == nil)
         #expect(RecordFormat.hubLine([PlayRecord()]) == nil)
+    }
+
+    @Test("大富豪・いろリレー: 2 位と最下位で終えると記録の行が変わる。順位が無ければ従来の表記のまま（#2606）")
+    func averagePlaceLines() {
+        func record(_ places: [Int], key: String = "daifugo") -> PlayRecord {
+            var r: PlayRecord?
+            for place in places {
+                let outcome: GameOutcome = place == 1 ? .win : (place == 4 ? .loss : .draw)
+                r = PlayRecord.applying(outcome: outcome, score: GameScore(metric: .winLoss, place: place), to: r).record
+            }
+            r?.recordKey = key
+            return r!
+        }
+        let second = record([2])
+        let last = record([4])
+        #expect(RecordFormat.resultLine(second, language: .japanese) == "通算 0勝0敗1分・平均2.0位")
+        #expect(RecordFormat.resultLine(last, language: .japanese) == "通算 0勝1敗・平均4.0位")
+        let mixed = record([1, 2, 2, 3])
+        #expect(RecordFormat.hubLine([mixed], language: .japanese) == "1勝0敗3分・平均2.0位")
+        #expect(RecordFormat.hubLine([mixed], language: .english) == "1W 0L 3D · Avg. place 2.0")
+        // 順位の無い記録（旧データ）は従来どおり。
+        let legacy = PlayRecord(plays: 2, wins: 1, losses: 1)
+        #expect(RecordFormat.hubLine([legacy], language: .japanese) == "1勝1敗")
+        // 旧データと新データが混ざったら、順位のある回だけで平均する。
+        var withLegacy = legacy
+        withLegacy.placeTotal = 3
+        withLegacy.placeCount = 1
+        #expect(RecordFormat.resultLine(withLegacy, language: .japanese) == "通算 1勝1敗・平均3.0位")
     }
 
     @Test("ブラックジャックの最高連勝は highestValue に残り、ハブとリザルトに「最高 n 連勝」で出る。0 連勝・他のゲームでは出さない（#2591）")
