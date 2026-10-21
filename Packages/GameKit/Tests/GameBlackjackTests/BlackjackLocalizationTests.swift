@@ -24,6 +24,17 @@ struct BlackjackLocalizationTests {
                 == "A push or a bust scores 0 points. A push also ends your streak.")
     }
 
+    @Test("点は単数と複数で言い分ける（#2574）")
+    func pointPlurals() {
+        #expect(GameBlackjack.tr("%1$@（+%2$lld点）", "Blackjack", 1, language: .english) == "Blackjack (+1 pt)")
+        #expect(GameBlackjack.tr("%1$@（+%2$lld点）", "Blackjack", 2, language: .english) == "Blackjack (+2 pts)")
+        #expect(GameBlackjack.tr("%1$lld回勝負の結果：勝ち %2$@", 10, GameBlackjack.tr("%lld点", 1, language: .english),
+                                 language: .english) == "10-round result: 1 pt")
+        #expect(GameBlackjack.tr("%1$lld回勝負の結果：勝ち %2$@", 10, GameBlackjack.tr("%lld点", 0, language: .english),
+                                 language: .english) == "10-round result: 0 pts")
+        #expect(GameBlackjack.tr("%1$@（+%2$lld点）", "ブラックジャック", 1, language: .japanese) == "ブラックジャック（+1点）")
+    }
+
     @Test("日本語ではキーがそのまま出る")
     func japaneseIsUnchanged() {
         #expect(GameBlackjack.tr("あなた%1$lld 対 ディーラー%2$lld", 19, 17, language: .japanese) == "あなた19 対 ディーラー17")

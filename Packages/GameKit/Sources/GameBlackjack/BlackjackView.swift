@@ -506,7 +506,7 @@ public struct BlackjackView: View {
                     .foregroundStyle(Theme.tealText)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(tr("%1$lld回勝負の結果：勝ち %2$lld点", BlackjackModel.roundsPerMatch, model.points))
+                    Text(tr("%1$lld回勝負の結果：勝ち %2$@", BlackjackModel.roundsPerMatch, tr("%lld点", model.points)))
                         .themeBody(16, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
