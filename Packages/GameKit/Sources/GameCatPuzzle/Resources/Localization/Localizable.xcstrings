@@ -23,6 +23,17 @@
         }
       }
     },
+    "%lld列目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "column %lld"
+          }
+        }
+      }
+    },
     "%lld匹ともくつろいでおる" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -42,6 +53,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld行目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "row %lld"
           }
         }
       }
@@ -108,6 +130,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "wrong"
+          }
+        }
+      }
+    },
+    "と" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " and "
           }
         }
       }
@@ -222,35 +255,123 @@
         }
       }
     },
-    "ヒント: %@の猫はここ！" : {
+    "ヒント: %1$@の猫は%2$@にしかいないので、%2$@のほかのマスに猫はいない" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hint: the %@ cat is right here!"
+            "value" : "Hint: the %1$@ cat can only be in %2$@, so no other cell in %2$@ has a cat"
           }
         }
       }
     },
-    "ヒント: %@の猫は違う場所だったよ。ここ！" : {
+    "ヒント: %@で猫が入れるのはここだけ。猫はここ！" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hint: the %@ cat was in the wrong spot. It's here!"
+            "value" : "Hint: this is the only cell left in %@. The cat is here!"
           }
         }
       }
     },
-    "ヒント: %@の違う猫を × にしたよ" : {
+    "ヒント: %@の猫と同じ行・列・部屋と、その隣のマスに、ほかの猫はいない" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hint: the extra cat in the %@ was wrong, so it's now an ×"
+            "value" : "Hint: no other cat shares the %@ cat's row, column or room, or sits next to it"
+          }
+        }
+      }
+    },
+    "ヒント: %@の猫は答えと合わないので外すよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: the %@ cat doesn't fit the answer, so it comes off"
+          }
+        }
+      }
+    },
+    "ヒント: ここに猫がいると%@に猫が入れなくなるので、ここに猫はいない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: a cat here would leave no room for the cat in %@, so there is no cat here"
+          }
+        }
+      }
+    },
+    "ヒント: ここに猫がいると、決まるマスを埋めていくと%@に猫が入れなくなるので、ここに猫はいない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: a cat here, once the forced cells are filled in, would leave no room for the cat in %@, so there is no cat here"
+          }
+        }
+      }
+    },
+    "ヒント: ここは決まり。%@の猫はここ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: this one is certain. The %@ cat is here!"
+          }
+        }
+      }
+    },
+    "ヒント: 同じ列に2匹はいないので、%@の猫を外すよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: no column has two cats, so the %@ cat comes off"
+          }
+        }
+      }
+    },
+    "ヒント: 同じ行に2匹はいないので、%@の猫を外すよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: no row has two cats, so the %@ cat comes off"
+          }
+        }
+      }
+    },
+    "ヒント: 同じ部屋に2匹はいないので、%@の猫を1匹外すよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: no room has two cats, so one cat in the %@ comes off"
+          }
+        }
+      }
+    },
+    "ヒント: 猫どうしは隣り合わないので、%@の猫を外すよ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: cats never sit next to each other, so the %@ cat comes off"
           }
         }
       }
@@ -273,6 +394,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "placed by a hint"
+          }
+        }
+      }
+    },
+    "ヒントで置いた × は消せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An × placed by a hint can't be removed"
           }
         }
       }
@@ -475,6 +607,17 @@
         }
       }
     },
+    "推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows one step of reasoning. Puts × on cells that can't have a cat, and places a cat only when it is certain"
+          }
+        }
+      }
+    },
     "新規ゲームを始めますか？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -564,17 +707,6 @@
         }
       }
     },
-    "答えの猫を1匹置きます。違う場所の猫があれば先に×にします" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Places one correct cat. A cat in the wrong spot is turned into an × first"
-          }
-        }
-      }
-    },
     "終了して新規ゲーム" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -593,6 +725,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Porch"
+          }
+        }
+      }
+    },
+    "赤い帯の中の猫を見直そう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the cats inside the red band"
           }
         }
       }

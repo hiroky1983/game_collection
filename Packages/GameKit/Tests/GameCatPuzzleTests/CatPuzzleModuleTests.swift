@@ -134,12 +134,17 @@ struct CatPuzzleLocalizationTests {
         #expect(CatPuzzleAccessibility.cellLabel(row: 0, col: 0, roomName: "台所", mark: .cross) == "1行1列、台所、×")
         #expect(CatPuzzleAccessibility.cellLabel(row: 3, col: 4, roomName: "寝室", mark: .cat, isHint: true)
                 == "4行5列、寝室、猫、ヒントで置いた")
-        #expect(CatPuzzleAccessibility.message(for: CatPuzzleHint(room: 3, placed: 5, removed: []), roomName: "書斎")
-                == "ヒント: 書斎の猫はここ！")
-        #expect(CatPuzzleAccessibility.message(for: CatPuzzleHint(room: 3, placed: 5, removed: [6]), roomName: "書斎")
-                == "ヒント: 書斎の猫は違う場所だったよ。ここ！")
-        #expect(CatPuzzleAccessibility.message(for: CatPuzzleHint(room: 3, placed: nil, removed: [6]), roomName: "書斎")
-                == "ヒント: 書斎の違う猫を × にしたよ")
+        let puzzle = CatPuzzle(side: 4, rooms: [0, 0, 1, 1, 0, 0, 1, 1, 2, 2, 3, 1, 2, 2, 3, 3], solution: [1, 3, 0, 2])
+        let roomName: (Int) -> String = { ["居間", "押し入れ", "寝室", "書斎"][$0] }
+        #expect(CatPuzzleAccessibility.message(for: CatPuzzleHint(reason: .onlyCell(group: .room(3), cell: 14), placed: 14),
+                                               puzzle: puzzle, roomName: roomName)
+                == "ヒント: 書斎で猫が入れるのはここだけ。猫はここ！")
+        #expect(CatPuzzleAccessibility.message(for: CatPuzzleHint(reason: .confined(sources: [.room(3)], targets: [.column(3)]), crossed: [3]),
+                                               puzzle: puzzle, roomName: roomName)
+                == "ヒント: 書斎の猫は4列目にしかいないので、4列目のほかのマスに猫はいない")
+        #expect(CatPuzzleAccessibility.message(for: CatPuzzleHint(reason: .wrongCat(cell: 10, violation: .adjacent), removed: [10]),
+                                               puzzle: puzzle, roomName: roomName)
+                == "ヒント: 猫どうしは隣り合わないので、書斎の猫を外すよ")
         #expect(CatPuzzleAccessibility.message(for: CatPuzzleViolations(cells: [0, 1], kinds: [.room, .adjacent]))
                 == "同じ部屋に2匹・猫どうしが隣")
         #expect(CatPuzzleAccessibility.message(for: CatPuzzleViolations()) == nil)

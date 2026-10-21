@@ -5,16 +5,20 @@ import CoreEngine
 import CoreTestSupport
 @testable import GameCatPuzzle
 
-/// ヒントの決まり（会長 2026-10-21・#2250）と「ヒントのマス＝今の盤のただ 1 つの解」の検証。
-/// 会長 QA「ヒントが玄関の答えでないマスを指した」を受け、解の数え上げとは別の素朴な全探索で答えを確かめ、
-/// 生成直後・中断から再開後・難易度切り替え後・新規ゲーム後のそれぞれで多数の種を回す。
+/// ヒント＝推理の 1 歩（会長 QA 2026-10-21・build 41、#2250）の検証。
+/// どのヒントも「置いた × が答えのマスでない・置いた猫が答えのマス・必ず盤が 1 歩進む」ことを、
+/// 生成直後の盤・ランダムな途中局面（違う猫・答えのマスの ×・余分な猫を含む）・中断から再開後・
+/// 難易度切り替え後・新規ゲーム後のそれぞれで多数の種を回して確かめる。答えは解の数え上げとは別の全探索で確かめる。
 @Suite("おじさんの飼い猫パズルのヒント")
 struct CatPuzzleHintTests {
+
+    /// 4×4 の見本（答えは行の順に列 1・3・0・2 → マス 1・7・8・14）。
+    /// 部屋 0: 0,1,4,5 / 部屋 1: 2,3,6,7,11 / 部屋 2: 8,9,12,13 / 部屋 3: 10,14,15。
+    static let sample = CatPuzzle(side: 4, rooms: [0, 0, 1, 1, 0, 0, 1, 1, 2, 2, 3, 1, 2, 2, 3, 3], solution: [1, 3, 0, 2])
 
     // MARK: - 部品
 
     /// 素朴な全探索（`CatPuzzleLogic.countSolutions` とは独立に書く）。
-    /// マスを 0 から順に「猫を置く / 置かない」で分け、置くたびに行・列・部屋・隣を確かめる。
     static func allSolutions(_ puzzle: CatPuzzle) -> [[Int]] {
         let n = puzzle.side
         var found: [[Int]] = []
@@ -23,7 +27,6 @@ struct CatPuzzleHintTests {
             if cats.count == n { found.append(cats); return }
             if cell >= n * n { return }
             let row = cell / n, col = cell % n, room = puzzle.rooms[cell]
-            // 残りの行数より猫が足りなければ打ち切る。
             if n - row < n - cats.count { return }
             if !rows.contains(row), !cols.contains(col), !rooms.contains(room),
                !cats.contains(where: { CatPuzzleLogic.isAdjacent($0, cell, side: n) }) {
@@ -37,61 +40,190 @@ struct CatPuzzleHintTests {
         return found
     }
 
-    /// 盤の「答えからの距離」: まだ置けていない答えの猫 ＋ 答えでない位置の猫。
-    static func distance(_ puzzle: CatPuzzle, marks: [CatPuzzleModel.Mark]) -> Int {
-        let solution = Set(puzzle.solutionCells)
-        let cats = marks.indices.filter { marks[$0] == .cat }
-        return solution.subtracting(cats).count + cats.filter { !solution.contains($0) }.count
+    /// ヒントを盤に反映する（`CatPuzzleModel.useHint` と同じ手順）。
+    static func apply(_ hint: CatPuzzleHint, to marks: inout [CatPuzzleModel.Mark]) {
+        for cell in hint.removed + hint.crossed { marks[cell] = .cross }
+        if let placed = hint.placed { marks[placed] = .cat }
     }
 
-    /// ヒントが「盤のただ 1 つの解の猫の位置」を置き、置いても正しい猫と矛盾しないこと。
-    static func checkHintMatchesSolution(_ puzzle: CatPuzzle, marks: [CatPuzzleModel.Mark], note: String) {
-        let solutions = allSolutions(puzzle)
-        #expect(solutions == [puzzle.solutionCells], "\(note): 解がただ 1 つで、持っている答えと一致する")
-        guard let hint = CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) else {
-            #expect(CatPuzzleLogic.isSolved(puzzle: puzzle, cats: marks.indices.filter { marks[$0] == .cat }), "\(note): 解けていないのにヒントが無い")
-            return
-        }
-        #expect(hint.placed != nil || !hint.removed.isEmpty, "\(note): 何も変えないヒント")
+    /// ヒント 1 つの健全性: 答えと矛盾せず、必ず盤を変える。
+    static func check(_ hint: CatPuzzleHint, puzzle: CatPuzzle, marks: [CatPuzzleModel.Mark], hintMarks: Set<Int>, note: String) {
+        let solution = Set(puzzle.solutionCells)
+        #expect(hint.changesBoard, "\(note): 何も変えないヒント")
         if let placed = hint.placed {
-            #expect(puzzle.solutionCells.contains(placed), "\(note): 置くマスが答えでない")
-            #expect(puzzle.rooms[placed] == hint.room, "\(note): 置くマスが対象の部屋にない")
+            #expect(solution.contains(placed), "\(note): 置くマスが答えでない")
             #expect(marks[placed] != .cat, "\(note): すでに猫のあるマスに置こうとした")
-            let correctCats = marks.indices.filter { marks[$0] == .cat && puzzle.solutionCells.contains($0) }
-            #expect(CatPuzzleLogic.violations(puzzle: puzzle, cats: correctCats + [placed]).isEmpty, "\(note): 置いた猫が正しい猫と矛盾する")
+        }
+        for cell in hint.crossed {
+            #expect(!solution.contains(cell), "\(note): 答えのマスに × を置いた")
+            #expect(marks[cell] == .empty, "\(note): 空きでないマスに × を置いた（無駄なヒント）")
         }
         for cell in hint.removed {
-            #expect(marks[cell] == .cat && !puzzle.solutionCells.contains(cell), "\(note): × にするのは答えでない位置の猫だけ")
-            #expect(puzzle.rooms[cell] == hint.room, "\(note): × にする猫が対象の部屋にない")
+            #expect(marks[cell] == .cat && !solution.contains(cell), "\(note): × にするのは答えでない位置の猫だけ")
+            #expect(!hintMarks.contains(cell), "\(note): ヒントで置いた猫を外した")
+        }
+        if case .forced = hint.reason {
+            #expect(hint.placed != nil && solution.contains(hint.placed!), "\(note): 最後の手段は答えの猫を置く")
         }
     }
 
-    // MARK: - 生成直後
+    /// ヒントだけで解き切る。各歩を検査し、歩数と「最後の手段」の回数を返す。
+    @discardableResult
+    static func solveByHints(_ puzzle: CatPuzzle, marks start: [CatPuzzleModel.Mark], note: String) -> (steps: Int, forced: Int, reasons: [String]) {
+        var marks = start
+        var hintMarks = Set<Int>()
+        var steps = 0, forced = 0
+        var reasons: [String] = []
+        let limit = puzzle.cellCount + puzzle.side * 2
+        while !CatPuzzleLogic.isSolved(puzzle: puzzle, cats: marks.indices.filter { marks[$0] == .cat }) {
+            steps += 1
+            guard steps <= limit else { Issue.record("\(note): ヒントを繰り返しても解けない"); break }
+            guard let hint = CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) else {
+                Issue.record("\(note): 解けていないのにヒントが無い"); break
+            }
+            check(hint, puzzle: puzzle, marks: marks, hintMarks: hintMarks, note: "\(note) step \(steps)")
+            let correctBefore = Set(marks.indices.filter { marks[$0] == .cat && puzzle.solutionCells.contains($0) })
+            apply(hint, to: &marks)
+            hintMarks.formUnion(hint.crossed)
+            hintMarks.formUnion(hint.removed)
+            if let placed = hint.placed { hintMarks.insert(placed) }
+            let correctAfter = Set(marks.indices.filter { marks[$0] == .cat && puzzle.solutionCells.contains($0) })
+            #expect(correctBefore.isSubset(of: correctAfter), "\(note): 正しい猫が消えた")
+            if case .forced = hint.reason { forced += 1 }
+            reasons.append(Self.name(of: hint.reason))
+        }
+        #expect(CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) == nil, "\(note): 解けた盤にヒントを出した")
+        return (steps, forced, reasons)
+    }
 
-    @Test("生成直後: 全探索の解はただ 1 つで答えと一致し、最初のヒントはその猫を置く（6×6）", arguments: 0..<40)
+    static func name(of reason: CatPuzzleHint.Reason) -> String {
+        switch reason {
+        case .wrongCat: "wrongCat"
+        case .confined: "confined"
+        case .aroundCat: "aroundCat"
+        case .onlyCell: "onlyCell"
+        case .wouldBlock: "wouldBlock"
+        case .wouldBlockChain: "wouldBlockChain"
+        case .forced: "forced"
+        }
+    }
+
+    // MARK: - 見本での決まりの確認
+
+    @Test("手つかずの盤: 答えを置かず、推理の 1 歩（部屋 2 と 3 の猫は 3・4 行目にしかいない → 4 行目側の部屋 1 のマスは ×）")
+    func freshSampleIsOneStep() {
+        let marks = Array(repeating: CatPuzzleModel.Mark.empty, count: 16)
+        let hint = CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+        #expect(hint == CatPuzzleHint(
+            reason: .confined(sources: [.room(2), .room(3)], targets: [.row(2), .row(3)]),
+            crossed: [11], highlights: [.room(2), .room(3), .row(2), .row(3)]
+        ))
+        #expect(hint?.placed == nil, "ヒントは答えの猫を置かない")
+    }
+
+    @Test("(a) 答えでない位置の猫を先に外す。決まり違反なら違反の種類、違反が無ければ「答えと合わない」")
+    func wrongCatFirst() {
+        var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: 16)
+        marks[12] = .cat  // 部屋 2 の違う猫（答えは 8）。違反は無い。
+        #expect(CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+                == CatPuzzleHint(reason: .wrongCat(cell: 12, violation: nil), removed: [12]))
+        marks[12] = .empty
+        marks[1] = .cat   // 正しい猫
+        marks[3] = .cat   // 同じ行の違う猫
+        #expect(CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+                == CatPuzzleHint(reason: .wrongCat(cell: 3, violation: .row), removed: [3], highlights: [.row(0)]))
+        marks[3] = .empty
+        marks[5] = .cat   // 同じ部屋でななめ隣の違う猫 → 部屋の違反を先に言う
+        #expect(CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+                == CatPuzzleHint(reason: .wrongCat(cell: 5, violation: .room), removed: [5], highlights: [.room(0)]))
+    }
+
+    @Test("(b) 部屋が 1 行に収まる → その行のほかのマスは ×。(c) 行が 1 部屋に収まる → その部屋のほかのマスは ×")
+    func confinedToLine() {
+        var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: 16)
+        // 部屋 2（8,9,12,13）の 12・13 に × → 部屋 2 は 3 行目だけ → 3 行目の 10・11 は ×。
+        marks[12] = .cross; marks[13] = .cross
+        #expect(CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+                == CatPuzzleHint(reason: .confined(sources: [.room(2)], targets: [.row(2)]), crossed: [10, 11],
+                                 highlights: [.room(2), .row(2)]))
+        // 4 行目（12,13,14,15）の 12・13 が × → 4 行目の猫は部屋 3 の中だけ → 部屋 3 の 10 は ×（部屋→行の推理が先に 10・11 を消すので、10・11 を × にしてから）。
+        marks[10] = .cross; marks[11] = .cross
+        let hint = CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+        #expect(hint?.changesBoard == true && hint?.placed == nil)
+    }
+
+    @Test("(e) 入れるマスが 1 つだけになった部屋には猫を置く（確定したときだけ猫）")
+    func onlyCellPlacesCat() {
+        var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: 16)
+        for cell in [0, 4, 9, 10, 11, 12, 13] { marks[cell] = .cross }
+        #expect(CatPuzzleLogic.hint(puzzle: Self.sample, marks: marks)
+                == CatPuzzleHint(reason: .onlyCell(group: .room(2), cell: 8), placed: 8, highlights: [.room(2)]))
+    }
+
+    @Test("答えのマスに置いた × は信じない: その × があっても答えと矛盾する推理はしない")
+    func crossOnAnswerIsIgnored() {
+        var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: 16)
+        marks[8] = .cross  // 部屋 2 の答えに ×
+        for cell in [9, 12, 13] { marks[cell] = .cross }  // 部屋 2 の残りにも × → 信じると部屋 2 に猫が入れない
+        let result = Self.solveByHints(Self.sample, marks: marks, note: "cross on answer")
+        #expect(result.steps > 0)
+    }
+
+    @Test("見本はヒントだけで解け、最後の手段は使わない")
+    func sampleSolvesByDeduction() {
+        let result = Self.solveByHints(Self.sample, marks: Array(repeating: .empty, count: 16), note: "sample")
+        #expect(result.forced == 0, "推理だけで解けるはず: \(result.reasons)")
+    }
+
+    // MARK: - 生成した盤
+
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（6×6）", arguments: 0..<30)
     func freshEasy(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed))
         let puzzle = CatPuzzleLogic.generate(size: .easy, using: &generator)
-        Self.checkHintMatchesSolution(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "easy \(seed)")
+        #expect(Self.allSolutions(puzzle) == [puzzle.solutionCells], "easy \(seed): 解がただ 1 つで答えと一致する")
+        Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "easy \(seed)")
     }
 
-    @Test("生成直後: 全探索の解はただ 1 つで答えと一致し、最初のヒントはその猫を置く（7×7）", arguments: 0..<30)
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（7×7）", arguments: 0..<24)
     func freshNormal(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed))
         let puzzle = CatPuzzleLogic.generate(size: .normal, using: &generator)
-        Self.checkHintMatchesSolution(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "normal \(seed)")
+        #expect(Self.allSolutions(puzzle) == [puzzle.solutionCells], "normal \(seed): 解がただ 1 つで答えと一致する")
+        Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "normal \(seed)")
     }
 
-    @Test("生成直後: 全探索の解はただ 1 つで答えと一致し、最初のヒントはその猫を置く（8×8）", arguments: 0..<12)
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（8×8）", arguments: 0..<10)
     func freshHard(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed))
         let puzzle = CatPuzzleLogic.generate(size: .hard, using: &generator)
-        Self.checkHintMatchesSolution(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "hard \(seed)")
+        #expect(Self.allSolutions(puzzle) == [puzzle.solutionCells], "hard \(seed): 解がただ 1 つで答えと一致する")
+        Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "hard \(seed)")
+    }
+
+    @Test("生成した盤は推理だけで解け、最後の手段（答えを置く）は出ない")
+    func deductionCoversGeneratedPuzzles() {
+        var forcedTotal = 0, puzzles = 0
+        var seen = Set<String>()
+        for (size, seeds) in [(CatPuzzleSize.easy, 0..<20), (.normal, 0..<16), (.hard, 0..<6)] {
+            for seed in seeds {
+                var generator = SplitMix64(seed: UInt64(seed) &+ 7000)
+                let puzzle = CatPuzzleLogic.generate(size: size, using: &generator)
+                let result = Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "\(size) \(seed)")
+                forcedTotal += result.forced
+                puzzles += 1
+                seen.formUnion(result.reasons)
+            }
+        }
+        // 種は固定なので結果は決まっている。(a)〜(h) の推理で 42 問とも解け、最後の手段は 0 回（2026-10-21 時点）。
+        // ここが崩れたら、生成器か推理の変更で「ヒント＝答え」に戻っている。
+        #expect(forcedTotal == 0, "最後の手段が出た: \(forcedTotal)/\(puzzles)")
+        #expect(seen.isSuperset(of: ["confined", "aroundCat", "onlyCell", "wouldBlock"]), "主な推理が一度も出ない: \(seen)")
     }
 
     // MARK: - ランダムな途中局面
 
-    @Test("ランダムな途中局面: ヒントは毎回必ず盤を答えへ 1 歩以上進め、正しい猫・ヒントの猫には触れず、最後は解ける", arguments: 0..<60)
+    @Test("ランダムな途中局面（違う猫・答えのマスの ×・余分な猫を含む）: ヒントは毎回必ず進み、答えと矛盾せず、最後は解ける", arguments: 0..<60)
     func randomStatesAlwaysProgress(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed) &+ 1000)
         let size = CatPuzzleSize.allCases[seed % CatPuzzleSize.allCases.count]
@@ -115,56 +247,12 @@ struct CatPuzzleHintTests {
         for cell in marks.indices where marks[cell] == .empty && Int.random(in: 0..<4, using: &generator) == 0 {
             marks[cell] = .cross
         }
-
-        var hintCells = Set<Int>()
-        var steps = 0
-        while !CatPuzzleLogic.isSolved(puzzle: puzzle, cats: marks.indices.filter { marks[$0] == .cat }) {
-            steps += 1
-            #expect(steps <= puzzle.side * 3, "seed \(seed): ヒントを繰り返しても解けない")
-            if steps > puzzle.side * 3 { return }
-            let before = Self.distance(puzzle, marks: marks)
-            Self.checkHintMatchesSolution(puzzle, marks: marks, note: "seed \(seed) step \(steps)")
-            guard let hint = CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) else { return }
-            let correctBefore = Set(marks.indices.filter { marks[$0] == .cat && solution.contains($0) })
-            for cell in hint.removed {
-                #expect(!hintCells.contains(cell), "seed \(seed): ヒントで置いた猫を × にした")
-                marks[cell] = .cross
-            }
-            if let placed = hint.placed {
-                marks[placed] = .cat
-                hintCells.insert(placed)
-            }
-            let correctAfter = Set(marks.indices.filter { marks[$0] == .cat && solution.contains($0) })
-            #expect(correctBefore.isSubset(of: correctAfter), "seed \(seed): 正しい猫が消えた")
-            #expect(Self.distance(puzzle, marks: marks) < before, "seed \(seed): ヒントで盤が進んでいない")
-        }
-        #expect(CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) == nil, "seed \(seed): 解けた盤にヒントを出した")
-    }
-
-    @Test("決まり 2: 違う位置の猫がある部屋を先に正す。答えの猫がすでにある部屋の余分な猫は × にするだけ")
-    func wrongCatsFirst() {
-        // 4×4 の見本（答えは 1・7・8・14）。
-        let puzzle = CatPuzzle(side: 4, rooms: [0, 0, 1, 1, 0, 0, 1, 1, 2, 2, 3, 1, 2, 2, 3, 3], solution: [1, 3, 0, 2])
-        var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: 16)
-        marks[1] = .cat   // 部屋 0 の正しい猫
-        marks[4] = .cat   // 部屋 0 の余分な猫
-        marks[10] = .cat  // 部屋 3 の違う猫（答えは 14）
-        // 答えの猫が無い部屋 3 を優先し、× にして置く。
-        #expect(CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) == CatPuzzleHint(room: 3, placed: 14, removed: [10]))
-        marks[10] = .cross
-        marks[14] = .cat
-        // 残るのは部屋 0 の余分な猫 → × にするだけ（置く猫は無い）。
-        #expect(CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) == CatPuzzleHint(room: 0, placed: nil, removed: [4]))
-        marks[4] = .cross
-        // 違う猫が無くなれば、候補の少ない部屋の答えを置く。
-        let next = CatPuzzleLogic.hint(puzzle: puzzle, marks: marks)
-        #expect(next?.removed.isEmpty == true)
-        #expect(next.flatMap(\.placed).map { [7, 8].contains($0) } == true)
+        Self.solveByHints(puzzle, marks: marks, note: "seed \(seed)")
     }
 
     // MARK: - 中断から再開・難易度切り替え・新規ゲーム（Model 経由）
 
-    @Test("中断から再開・難易度切り替え・新規ゲームのあとも、ヒントは今の盤のただ 1 つの解の猫を置く", arguments: 0..<10)
+    @Test("中断から再開・難易度切り替え・新規ゲームのあとも、ヒントは今の盤の答えと矛盾せず、ヒントの印は残る", arguments: 0..<8)
     @MainActor
     func hintAfterFlows(seed: Int) {
         let store = MemorySnapshotStore()
@@ -175,37 +263,71 @@ struct CatPuzzleHintTests {
         first.tap(cell: answers[0]); first.tap(cell: answers[0])
         let wrong = first.puzzle.cells(inRoom: first.puzzle.rooms[answers[1]]).first { $0 != answers[1] }!
         first.tap(cell: wrong); first.tap(cell: wrong)
-        first.tap(cell: answers[2] == 0 ? 1 : 0)
+        first.tap(cell: first.marks.indices.first { first.marks[$0] == .empty && !answers.contains($0) }!)
+        let hint = first.nextHint!
+        Self.check(hint, puzzle: first.puzzle, marks: first.marks, hintMarks: [], note: "seed \(seed) 生成直後")
+        #expect(hint.reason == .wrongCat(cell: wrong, violation: nil) || hint.removed == [wrong], "違う猫を先に外す")
         first.useHint()
-        Self.checkHintMatchesSolution(first.puzzle, marks: first.marks, note: "seed \(seed) 生成直後")
+        #expect(first.hintCrosses.contains(wrong) && first.marks[wrong] == .cross)
         #expect(store.exists(for: CatPuzzleModel.gameID))
 
         // 中断から再開（別の種・別の大きさを渡しても保存した盤が優先される）。
         let resumed = CatPuzzleModel(services: services, size: .easy, seed: 999)
-        #expect(resumed.puzzle == first.puzzle && resumed.marks == first.marks && resumed.hintCells == first.hintCells)
-        Self.checkHintMatchesSolution(resumed.puzzle, marks: resumed.marks, note: "seed \(seed) 再開後")
+        #expect(resumed.puzzle == first.puzzle && resumed.marks == first.marks)
+        #expect(resumed.hintCells == first.hintCells && resumed.hintCrosses == first.hintCrosses)
+        if let next = resumed.nextHint {
+            Self.check(next, puzzle: resumed.puzzle, marks: resumed.marks, hintMarks: resumed.hintCrosses.union(resumed.hintCells), note: "seed \(seed) 再開後")
+        }
         resumed.useHint()
-        Self.checkHintMatchesSolution(resumed.puzzle, marks: resumed.marks, note: "seed \(seed) 再開後にヒント")
+        // ヒントの × はタップで変わらない。
+        if let fixed = resumed.hintCrosses.first {
+            resumed.tap(cell: fixed)
+            #expect(resumed.marks[fixed] == .cross)
+        }
 
-        // 難易度切り替え → 新しい盤の解で判定される。
+        // 難易度切り替え → 新しい盤で判定され、ヒントの印は消える。
         resumed.newGame(size: .hard)
-        #expect(resumed.puzzle.side == 8 && resumed.hintCells.isEmpty)
+        #expect(resumed.puzzle.side == 8 && resumed.hintCells.isEmpty && resumed.hintCrosses.isEmpty)
+        let hardHint = resumed.nextHint!
+        Self.check(hardHint, puzzle: resumed.puzzle, marks: resumed.marks, hintMarks: [], note: "seed \(seed) 難易度切り替え後")
         resumed.useHint()
-        #expect(resumed.hintCells.count == 1 && resumed.puzzle.solutionCells.contains(resumed.hintCells.first!))
-        Self.checkHintMatchesSolution(resumed.puzzle, marks: resumed.marks, note: "seed \(seed) 難易度切り替え後")
+        #expect(resumed.hintsUsed == 1)
 
         // 新規ゲーム（同じ大きさ）。
         resumed.newGame()
-        #expect(resumed.hintCells.isEmpty && resumed.hintsUsed == 0)
-        resumed.useHint()
-        Self.checkHintMatchesSolution(resumed.puzzle, marks: resumed.marks, note: "seed \(seed) 新規ゲーム後")
+        #expect(resumed.hintCells.isEmpty && resumed.hintCrosses.isEmpty && resumed.hintsUsed == 0)
+        Self.check(resumed.nextHint!, puzzle: resumed.puzzle, marks: resumed.marks, hintMarks: [], note: "seed \(seed) 新規ゲーム後")
     }
 
-    @Test("日替わりの種からの盤でも、ヒントは答えの猫を置く")
+    @Test("日替わりの種からの盤でも、ヒントだけで解ける")
     func dailySeedPuzzle() {
         let seed = CatPuzzleLogic.dailySeed(for: Date(timeIntervalSince1970: 1_792_000_000))
         var generator = SplitMix64(seed: seed)
         let puzzle = CatPuzzleLogic.generate(size: .normal, using: &generator)
-        Self.checkHintMatchesSolution(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "daily")
+        Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "daily")
+    }
+
+    @Test("理由の文: 行・列・部屋の呼び方と「〜なので、〜」の形")
+    func messages() {
+        let roomName: (Int) -> String = { ["居間", "押し入れ", "寝室", "書斎"][$0] }
+        func text(_ hint: CatPuzzleHint) -> String { CatPuzzleAccessibility.message(for: hint, puzzle: Self.sample, roomName: roomName) }
+        #expect(text(CatPuzzleHint(reason: .confined(sources: [.room(2)], targets: [.column(1)]), crossed: [5]))
+                == "ヒント: 寝室の猫は2列目にしかいないので、2列目のほかのマスに猫はいない")
+        #expect(text(CatPuzzleHint(reason: .confined(sources: [.row(2), .row(3)], targets: [.room(2), .room(3)]), crossed: [11]))
+                == "ヒント: 3行目と4行目の猫は寝室と書斎にしかいないので、寝室と書斎のほかのマスに猫はいない")
+        #expect(text(CatPuzzleHint(reason: .wrongCat(cell: 3, violation: .row), removed: [3]))
+                == "ヒント: 同じ行に2匹はいないので、押し入れの猫を外すよ")
+        #expect(text(CatPuzzleHint(reason: .wrongCat(cell: 12, violation: nil), removed: [12]))
+                == "ヒント: 寝室の猫は答えと合わないので外すよ")
+        #expect(text(CatPuzzleHint(reason: .aroundCat(cell: 1), crossed: [0]))
+                == "ヒント: 居間の猫と同じ行・列・部屋と、その隣のマスに、ほかの猫はいない")
+        #expect(text(CatPuzzleHint(reason: .onlyCell(group: .room(2), cell: 8), placed: 8))
+                == "ヒント: 寝室で猫が入れるのはここだけ。猫はここ！")
+        #expect(text(CatPuzzleHint(reason: .wouldBlock(cell: 5, blocked: .row(2)), crossed: [5]))
+                == "ヒント: ここに猫がいると3行目に猫が入れなくなるので、ここに猫はいない")
+        #expect(text(CatPuzzleHint(reason: .wouldBlockChain(cell: 5, blocked: .room(3)), crossed: [5]))
+                == "ヒント: ここに猫がいると、決まるマスを埋めていくと書斎に猫が入れなくなるので、ここに猫はいない")
+        #expect(text(CatPuzzleHint(reason: .forced(cell: 14), placed: 14))
+                == "ヒント: ここは決まり。書斎の猫はここ！")
     }
 }
