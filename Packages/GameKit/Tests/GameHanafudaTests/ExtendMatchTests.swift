@@ -289,3 +289,33 @@ struct HanafudaExtendMatchTests {
         #expect(spy.scores.count == 1)
     }
 }
+
+@MainActor
+@Suite("花札: 試合の後に条件を変えて始め直す（#2612）")
+struct RestartWithOptionsTests {
+    @Test("局数・強さ・酒の役を選び直して始め直せる")
+    func restartAppliesNewOptions() {
+        let model = HanafudaModel(services: nil, cpuDelay: .zero, seed: 3)
+        model.startMatch(options: HanafudaOptions())
+        model.resign()
+        #expect(model.phase == .matchResult)
+        #expect(model.wasResigned)
+
+        let changed = HanafudaOptions(sakeYakuEnabled: false, rounds: 12, difficulty: .easy)
+        model.restartMatch(options: changed)
+        #expect(model.options == changed)
+        #expect(model.totalRounds == 12)
+        #expect(model.round == 1)
+        #expect(!model.wasResigned)
+    }
+
+    @Test("引数なしの restartMatch は今の条件のまま")
+    func plainRestartKeepsOptions() {
+        let model = HanafudaModel(services: nil, cpuDelay: .zero, seed: 3)
+        let chosen = HanafudaOptions(sakeYakuEnabled: false, rounds: 12, difficulty: .easy)
+        model.startMatch(options: chosen)
+        model.resign()
+        model.restartMatch()
+        #expect(model.options == chosen)
+    }
+}

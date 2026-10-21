@@ -13,6 +13,8 @@ public struct HanafudaView: View {
     @State private var extendRescue = RewardedRescue()
     /// 開始前の設定（局数・酒の役・強さ）。局が始まったら焼き込まれる（1 局 = 1 RuleSet）。
     @State private var draft = HanafudaOptions()
+    /// 試合の後に「設定を変える」で設定シートを開き直しているか（#2612）。初回は `.idle` で開く。
+    @State private var showChangeSettings = false
 
     public init(services: GameServices) {
         self.services = services
@@ -30,9 +32,16 @@ public struct HanafudaView: View {
                 if model.phase == .matchResult {
                     // 「もう一度」は結果カードのすぐ下に置き、余りの高さは広告との間に残す（#1519）。
                     // 下の操作エリアに置くと、この枠が残り高さを取るぶんボタンが広告の直上へ押し下げられて誤タップを招く。
+                    // 他のゲームと同じ共通部品（同じ条件でもう一回／設定を変える・#2612）。ヘッダーの新規は付けない（投了せずに記録を抜ける経路を作らない）。
                     VStack(spacing: 8) {
                         matchResultCard
-                        actionButton(tr("もう一回"), role: .primary) { model.restartMatch() }
+                        GameReplayBar(
+                            onReplay: { model.restartMatch() },
+                            onChangeSettings: {
+                                draft = model.options
+                                showChangeSettings = true
+                            }
+                        )
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .transition(.opacity)
@@ -73,6 +82,17 @@ public struct HanafudaView: View {
         .sheet(isPresented: .constant(model.phase == .idle)) {
             HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
                 .interactiveDismissDisabled()
+        }
+        // 試合の後の選び直し。閉じても結果カードに戻るだけ。
+        .sheet(isPresented: $showChangeSettings) {
+            HanafudaSetupSheet(
+                draft: $draft,
+                onStart: {
+                    showChangeSettings = false
+                    model.restartMatch(options: draft)
+                },
+                onCancel: { showChangeSettings = false }
+            )
         }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {

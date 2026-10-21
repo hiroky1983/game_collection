@@ -627,7 +627,9 @@ public final class HanafudaModel: AITurnGuarded {
     ///
     /// - Parameter difficulty: CPU の強さだけ変えて始め直すとき（リザルトの「階段」#722）に渡す。
     ///   試合の開始時に焼き込む設定の一部なので、`game_start` より前に差し替える。
-    public func restartMatch(difficulty: HanafudaDifficulty? = nil) {
+    /// - Parameter options: 局数・酒の役・強さをまとめて選び直して始め直すとき（結果カードの「設定を変える」#2612）に渡す。
+    public func restartMatch(difficulty: HanafudaDifficulty? = nil, options newOptions: HanafudaOptions? = nil) {
+        if let newOptions { options = newOptions }
         if let difficulty { options.difficulty = difficulty }
         services?.gameDidRestart(gameID: Self.gameID, level: options.difficulty.analyticsLevel)
         let options = self.options
