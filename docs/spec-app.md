@@ -955,7 +955,14 @@ Game Center の ID。英語の訳文には他社の商標名を入れない（�
 - **しばり中の制約**: ジョーカー以外の札がすべてしばりのスートでなければ出せない（`satisfiesBind`）。出せる判定・ヒント・出せない理由・CPU の候補（`legalPlays` / `greedyPlay`）に同じ `bindSuits` を通す。革命中も同じに働く
 - **解ける**: 場が流れたとき（8切り・全員パス）と決着で空に戻す（`clearField` / `concludeGame`）
 - **選択の保存**: `SnapshotStore` のキー `"daifugo-rules"`（`DaifugoModel.ruleSetID`。中断データ・持ち越しとは別枠で、ハブの「続きから」には影響しない）。次のゲーム・次回起動にも引き継ぐ
-- **導線**: 開幕には出さない（#192 で開幕モーダルを廃止済み）。対局中の「⋯」メニュー「ルールを選ぶ」と、リザルトの「ルールを選ぶ」から `GameSetupSheet`（`.versus`）を開く。表示は場のヘッダーの「しばり ♠」の札（VoiceOver は「しばり中、スペードのカードだけ出せます」）
+- **導線**: 開幕には出さない（#192 で開幕モーダルを廃止済み）。右上の「新規」の開始シート（`DaifugoNewGameSheet`・`GameSetupSheet` の `.versus`）に、#2604 の「CPU の強さ」と並べて「しばり なし／あり」を置く（独自のシート・「⋯」メニュー・リザルトのボタンは持たない）。表示は場のヘッダーの「しばり ♠」の札（VoiceOver は「しばり中、スペードのカードだけ出せます」）
+
+### 大富豪: カード交換の帯（#2607・`release/v1.1.14`）
+
+交換が起きたゲームの配り直後に、あなたが受け取った札・渡した札を卓の上に 1 回だけ出す（「CPU2から ♠A ♦2 を受け取りました」「CPU2へ ♣3 ♥4 を渡しました」の 2 行）。1 ゲーム目・免除で自分の交換が起きないゲームでは出さない。
+
+- **中身**: `DaifugoExchangeNotice(transfers:human:)`。`DaifugoModel.exchangeNotice` に持ち、`startGame()` の配りで入れる。**中断データには載せない**ので、再開した直後は出し直さない
+- **見せ方**: `DaifugoView.exchangeBanner`。`GeometryReader` の中身への `.overlay` で重ねるので盤の高さは変えない。5 秒（`exchangeNoticeRun` を鍵にした `.task(id:)`）で消え、タップでも閉じる。VoiceOver には出た時点で `AccessibilityNotification.Announcement` で読む（文は `DaifugoAccessibility.exchangeLines(spoken:)`）
 
 ### ブラックジャックの 10 回勝負（#2552・`release/v1.1.13`）
 
