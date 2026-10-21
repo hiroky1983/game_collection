@@ -97,12 +97,11 @@ struct CatPuzzleModuleTests {
         let model = CatPuzzleModel(services: services, seed: 4)
         #expect(!module.hasResumableSnapshot(in: store))
         #expect(!module.hasUntouchedSnapshot(in: store), "手つかずの盤はそもそも保存しない")
-        // 答えのマス（× → 猫 → 空 と一巡できる。答えでないマスは猫にすると赤い × が残る）。
+        // × を付けて外す（タップで付け外し）。
         let cell = model.puzzle.solutionCells[0]
-        model.tap(cell: cell)
+        model.toggleCross(cell: cell)
         #expect(module.hasResumableSnapshot(in: store))
-        model.tap(cell: cell)
-        model.tap(cell: cell)
+        model.toggleCross(cell: cell)
         #expect(!module.hasResumableSnapshot(in: store), "印を消したら続きではない")
     }
 

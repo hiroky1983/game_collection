@@ -260,11 +260,11 @@ struct CatPuzzleHintTests {
         let first = CatPuzzleModel(services: services, size: .normal, seed: UInt64(seed) &+ 50)
         // 途中まで遊ぶ（正しい猫 1 匹・答えでないマスへの猫 1 回 = 赤い ×・×）。
         let answers = first.puzzle.solutionCells
-        first.tap(cell: answers[0]); first.tap(cell: answers[0])
+        first.findCat(cell: answers[0])
         let wrong = first.puzzle.cells(inRoom: first.puzzle.rooms[answers[1]]).first { $0 != answers[1] }!
-        first.tap(cell: wrong); first.tap(cell: wrong)
+        first.findCat(cell: wrong)
         #expect(first.wrongCrosses == [wrong] && first.marks[wrong] == .cross, "答えでないマスには猫が残らず、赤い × になる")
-        first.tap(cell: first.marks.indices.first { first.marks[$0] == .empty && !answers.contains($0) }!)
+        first.toggleCross(cell: first.marks.indices.first { first.marks[$0] == .empty && !answers.contains($0) }!)
         let hint = first.nextHint!
         Self.check(hint, puzzle: first.puzzle, marks: first.marks, hintMarks: [], note: "seed \(seed) 生成直後")
         #expect(hint.removed.isEmpty && !hint.crossed.contains(wrong), "赤い × は推理の前提（もう × なので触らない）")
@@ -283,6 +283,7 @@ struct CatPuzzleHintTests {
         resumed.useHint()
         // ヒントの × はタップで変わらない。
         if let fixed = resumed.hintCrosses.first {
+            resumed.tap(cell: fixed)
             resumed.tap(cell: fixed)
             #expect(resumed.marks[fixed] == .cross)
         }

@@ -8,12 +8,12 @@ enum CatPuzzleHowToFigures {
     static let items: [@MainActor @Sendable () -> AnyView] = [
         { AnyView(OnePerRoomFigure()) },
         { AnyView(NotAdjacentFigure()) },
-        { AnyView(TapCycleFigure()) },
+        { AnyView(TapControlsFigure()) },
     ]
 
     /// 1 枚だけの図のマスの大きさ。
     static let cellSide: CGFloat = 28
-    /// 3 コマを横に並べる図（タップで × → 猫 → 空）のマスの大きさ。iPhone SE の遊び方のカード
+    /// 3 コマを横に並べる図（タップで ×・ダブルタップで猫）のマスの大きさ。iPhone SE の遊び方のカード
     /// （画面幅 375 − 余白 16×2 − カードの内側 14×2 = 315pt）に 3 枚と矢印が収まる大きさ（会長 QA 2026-10-21・build 43）。
     static let frameCellSide: CGFloat = 18
 
@@ -69,16 +69,40 @@ enum CatPuzzleHowToFigures {
         }
     }
 
-    /// 空き → × → 猫。
-    private struct TapCycleFigure: View {
+    /// 空き ⇄ ×（タップ）と、空き → 猫（ダブルタップ）。3 コマ「× ⇄ 空き → 猫」に並べ、両端のコマの下に操作を書く。
+    /// 横幅は従来の 3 コマ（`frameCellSide`）と同じなので iPhone SE のカードに収まる（#2669）。
+    private struct TapControlsFigure: View {
         var body: some View {
             VStack(spacing: 4) {
-                RuleFrames(count: 3, spacing: 6) { index in
-                    Board(cats: index == 2 ? [1] : [], crosses: index == 1 ? [1] : [],
-                          cellSide: CatPuzzleHowToFigures.frameCellSide, showsRoomLabels: false)
+                HStack(alignment: .top, spacing: 6) {
+                    frame(crosses: [1], caption: tr("タップ"))
+                    arrow("arrow.left.arrow.right")
+                    frame(caption: nil)
+                    arrow("arrow.right")
+                    frame(cats: [1], caption: tr("ダブルタップ"))
                 }
-                RuleFigureLabel(tr("タップで × → 猫 → 空"), color: Theme.coralText)
+                RuleFigureLabel(tr("タップで × を付け外し、ダブルタップで猫"), color: Theme.coralText)
             }
+        }
+
+        private func frame(cats: [Int] = [], crosses: [Int] = [], caption: String?) -> some View {
+            VStack(spacing: 2) {
+                Board(cats: cats, crosses: crosses, cellSide: CatPuzzleHowToFigures.frameCellSide, showsRoomLabels: false)
+                // 説明の無いコマも同じ高さにして、3 コマの盤の高さを揃える。
+                Text(caption ?? " ")
+                    .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.2)
+                    .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+
+        private func arrow(_ systemImage: String) -> some View {
+            Image(systemName: systemImage)
+                .scaledFont(12, weight: .black, maxScale: 1.2)
+                .foregroundStyle(Theme.inkSub)
+                // 盤（4 マス＋余白）の縦の真ん中に合わせる。
+                .frame(height: CatPuzzleHowToFigures.frameCellSide * 4 + 6)
         }
     }
 }

@@ -33,11 +33,10 @@ private let sample = CatPuzzle(
     solution: [1, 3, 0, 2]
 )
 
-/// マスに猫を置く（× → 猫 の 2 タップ）。
+/// マスで猫を見つける（ダブルタップ）。
 @MainActor
 private func placeCat(_ model: CatPuzzleModel, at cell: Int) {
-    model.tap(cell: cell)
-    model.tap(cell: cell)
+    model.findCat(cell: cell)
 }
 
 @Suite("おじさんの飼い猫パズルの Model")
@@ -61,18 +60,125 @@ struct CatPuzzleModelTests {
         #expect(spy.startLevels == [.beginner])
     }
 
-    @Test("タップで × → 猫 → 空 の順に変わる")
-    func tapCycles() {
+    @Test("シングルタップは × の付け外し（ミスにならない）。猫のいるマスは変わらない")
+    func toggleCross() {
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
+        model.toggleCross(cell: 3)
+        #expect(model.marks[3] == .cross)
+        model.toggleCross(cell: 3)
+        #expect(model.marks[3] == .empty, "× を外して空に戻せる（会長 QA 2026-10-22・build 45）")
+        #expect(model.mistakes == 0 && model.wrongCrosses.isEmpty, "答えでないマスでも付け外しはミスにならない")
+        #expect(model.moves == 2)
+        #expect(!model.hasProgressToLose, "印が無くなった盤は捨ててよい")
+        placeCat(model, at: 1)
+        #expect(model.marks[1] == .cat && model.remainingCats == 3)
+        #expect(!model.toggleCross(cell: 1))
+        #expect(model.marks[1] == .cat, "猫のいるマスはタップしても変わらない")
+        model.findCat(cell: 1)
+        #expect(model.marks[1] == .cat && model.mistakes == 0, "猫のいるマスをダブルタップしても何も起きない")
+    }
+
+    @Test("ダブルタップは空でも × でも猫を見つける。答えなら猫、答えでなければ赤い ×（ミス）")
+    func findCatFromEmptyOrCross() {
+        let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
+        placeCat(model, at: 1)
+        #expect(model.marks[1] == .cat && model.mistakes == 0)
+        model.toggleCross(cell: 7)   // 7 は答え（2 行目の答えは列 3）
+        model.findCat(cell: 7)
+        #expect(model.marks[7] == .cat, "× のマスでも猫を見つけられる")
+        model.toggleCross(cell: 0)
+        model.findCat(cell: 0)
+        #expect(model.marks[0] == .cross && model.wrongCrosses == [0] && model.mistakes == 1)
+        model.toggleCross(cell: 0)
+        model.findCat(cell: 0)
+        #expect(model.marks[0] == .cross && model.mistakes == 1, "赤い × は付け外しも猫を見つけるもできない")
+    }
+
+    @Test("入力経路: 1 回目はすぐ × を付け、同じマスへの 0.3 秒以内の 2 回目で 1 回目を取り消して猫を見つける")
+    func tapInputPathDoubleTap() {
+        let clock = ManualClock()
+        let store = MemorySnapshotStore()
+        let model = CatPuzzleModel(services: makeServices(store: store), puzzle: sample)
+        model.clockNow = clock.now
+        #expect(CatPuzzleModel.doubleTapInterval == .milliseconds(300))
+        // 1 回目: 待たずにすぐ × が付く（単タップを遅らせない）。
         model.tap(cell: 1)
-        #expect(model.marks[1] == .cross)
+        #expect(model.marks[1] == .cross && model.moves == 1 && model.canUndo)
+        // 2 回目（0.25 秒後・同じマス）: ダブルタップ。答えのマスなので猫。
+        clock.advance(by: .milliseconds(250))
+        model.tap(cell: 1)
+        #expect(model.marks[1] == .cat && model.mistakes == 0)
+        #expect(model.moves == 1, "1 回目の付け外しは手数に残らない")
+        model.undo()
+        #expect(model.marks[1] == .empty, "戻すは猫の前（空）に戻る。1 回目の × は履歴に残らない")
+        #expect(!model.canUndo)
+
+        // 答えでないマス（0）へのダブルタップ: 赤い × が 1 つ、ミス 1。戻すの履歴には何も積まない。
+        clock.advance(by: .seconds(1))
+        model.tap(cell: 0)
+        clock.advance(by: .milliseconds(300))
+        model.tap(cell: 0)
+        #expect(model.marks[0] == .cross && model.wrongCrosses == [0] && model.mistakes == 1)
+        #expect(!model.canUndo, "1 回目の × も赤い × も戻すの対象にならない")
+        let saved = store.load(CatPuzzleSnapshot.self, for: CatPuzzleModel.gameID)
+        #expect(saved?.wrongCrosses == [0] && saved?.mistakes == 1)
+
+        // × のマスへのダブルタップ: 1 回目で × が外れ、2 回目で × に戻してから猫を見つける。
+        clock.advance(by: .seconds(1))
+        model.tap(cell: 7)
+        #expect(model.marks[7] == .cross)
+        clock.advance(by: .seconds(1))
+        model.tap(cell: 7)
+        #expect(model.marks[7] == .empty, "間が空いた 2 回目は単タップ（× を外す）")
+        clock.advance(by: .seconds(1))
+        model.toggleCross(cell: 7)
+        let movesBefore = model.moves
+        model.tap(cell: 7)
+        #expect(model.marks[7] == .empty)
+        clock.advance(by: .milliseconds(100))
+        model.tap(cell: 7)
+        #expect(model.marks[7] == .cat && model.moves == movesBefore + 1)
+        model.undo()
+        #expect(model.marks[7] == .cross, "戻すと × のマスに戻る（1 回目の × 外しは残らない）")
+    }
+
+    @Test("入力経路: 間隔が 0.3 秒を超えた・別のマス・3 回目は単タップとして扱う")
+    func tapInputPathSingleTaps() {
+        let clock = ManualClock()
+        let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
+        model.clockNow = clock.now
+        // 0.3 秒を超えた 2 回目は単タップ: × を外す。
+        model.tap(cell: 3)
+        clock.advance(by: .milliseconds(301))
+        model.tap(cell: 3)
+        #expect(model.marks[3] == .empty && model.mistakes == 0)
+        // 別のマスへの続けてのタップは、それぞれ単タップ。
+        model.tap(cell: 2)
+        model.tap(cell: 3)
+        #expect(model.marks[2] == .cross && model.marks[3] == .cross && model.mistakes == 0)
+        // 間に別のマスを挟んだら、元のマスへ戻ってもダブルタップにならない。
+        model.tap(cell: 2)
+        #expect(model.marks[2] == .empty)
+        // ダブルタップ（猫を見つけた）の後の 3 回目は新しい 1 回目。猫のマスなので何も起きない。
+        model.tap(cell: 1)
         model.tap(cell: 1)
         #expect(model.marks[1] == .cat)
-        #expect(model.remainingCats == 3)
         model.tap(cell: 1)
-        #expect(model.marks[1] == .empty)
-        #expect(model.moves == 3)
-        #expect(model.hasProgressToLose == false, "印が無くなった盤は捨ててよい")
+        #expect(model.marks[1] == .cat && model.mistakes == 0)
+        // 赤い × のマスへのダブルタップは何も起きない（ミスも増えない）。
+        clock.advance(by: .seconds(1))
+        model.tap(cell: 0); model.tap(cell: 0)
+        #expect(model.wrongCrosses == [0] && model.mistakes == 1)
+        clock.advance(by: .seconds(1))
+        model.tap(cell: 0)
+        model.tap(cell: 0)
+        #expect(model.marks[0] == .cross && model.mistakes == 1)
+        // 1 回目の後に「戻す」を挟んだら、2 回目はダブルタップにしない。
+        clock.advance(by: .seconds(1))
+        model.tap(cell: 5)
+        model.undo()
+        model.tap(cell: 5)
+        #expect(model.marks[5] == .cross && model.mistakes == 1)
     }
 
     @Test("答えでないマスに猫を置こうとすると、猫は置かれず赤い × が固定で付き、ミスが 1 増える")
@@ -90,11 +196,11 @@ struct CatPuzzleModelTests {
         #expect(model.mistakes == 1)
         #expect(!model.catCells.contains(3))
         // タップしても消えない・ミスも増えない。
-        model.tap(cell: 3)
-        model.tap(cell: 3)
+        model.toggleCross(cell: 3)
+        model.toggleCross(cell: 3)
         #expect(model.marks[3] == .cross && model.mistakes == 1)
         // 次の操作で直近の印（揺れ・赤枠）は消えるが、赤い × は残る。
-        model.tap(cell: 2)
+        model.toggleCross(cell: 2)
         #expect(model.lastWrongCell == nil)
         #expect(model.mistakes == 1, "× を置くだけではミスにならない")
         // 戻す・やり直しでも消えない。
@@ -137,7 +243,7 @@ struct CatPuzzleModelTests {
         let model = CatPuzzleModel(services: makeServices(store: store), puzzle: sample)
         placeCat(model, at: 1)
         placeCat(model, at: 3)   // 答えでない → 赤い ×（ミス 1・戻す対象にならない）
-        model.tap(cell: 2)
+        model.toggleCross(cell: 2)
         #expect(model.canUndo)
         model.undo()
         #expect(model.marks[2] == .empty)
@@ -152,7 +258,7 @@ struct CatPuzzleModelTests {
         model.useHint()
         let hintCrosses = model.hintCrosses
         #expect(!hintCrosses.isEmpty, "猫 1 匹の盤では、ヒントは × を置く推理になる")
-        model.tap(cell: 5)
+        model.toggleCross(cell: 5)
         model.reset()
         #expect(model.marks.indices.allSatisfy { model.marks[$0] == (hintCrosses.union([3]).contains($0) ? .cross : .empty) }, "ヒントの印と赤い × だけ残る")
         #expect(model.hintCrosses == hintCrosses)
@@ -177,10 +283,10 @@ struct CatPuzzleModelTests {
         #expect(model.hintsRemaining == 2)
         #expect(model.canHint, "次のヒントもすぐ押せる")
         // ヒントの × はタップしても変わらず、「戻す」でも残る。
-        model.tap(cell: 11)
+        model.toggleCross(cell: 11)
         #expect(model.marks[11] == .cross)
         #expect(!model.canUndo, "ヒントは戻せない")
-        model.tap(cell: 0)
+        model.toggleCross(cell: 0)
         #expect(model.lastHint == nil, "次の操作でヒントの一言は消える")
         model.undo()
         #expect(model.marks[11] == .cross)
@@ -197,7 +303,7 @@ struct CatPuzzleModelTests {
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
         for cell in sample.solutionCells.dropLast() { placeCat(model, at: cell) }
         // 部屋 3 の答え（14）以外の空きマスを全部 × にする → 残る推理は「部屋 3 に入れるのはここだけ」。
-        for cell in 0..<16 where model.marks[cell] == .empty && cell != 14 { model.tap(cell: cell) }
+        for cell in 0..<16 where model.marks[cell] == .empty && cell != 14 { model.toggleCross(cell: cell) }
         #expect(model.canHint)
         #expect(model.nextHint?.placed == 14)
         model.useHint()
@@ -223,11 +329,11 @@ struct CatPuzzleModelTests {
     @Test("入れるマスが 1 つだけになった部屋には、ヒントが猫を置く（印付き・消せない）")
     func hintPlacesOnlyCell() {
         let model = CatPuzzleModel(services: makeServices(), puzzle: sample)
-        for cell in [0, 4, 9, 10, 11, 12, 13] { model.tap(cell: cell) }
+        for cell in [0, 4, 9, 10, 11, 12, 13] { model.toggleCross(cell: cell) }
         #expect(model.nextHint == CatPuzzleHint(reason: .onlyCell(group: .room(2), cell: 8), placed: 8, highlights: [.room(2)]))
         model.useHint()
         #expect(model.marks[8] == .cat && model.hintCells == [8])
-        model.tap(cell: 8)
+        model.toggleCross(cell: 8)
         #expect(model.marks[8] == .cat, "ヒントの猫は消せない")
         // 部屋 2 に正しい猫がある → 次のヒントは部屋 2 を指さない。
         #expect(model.nextHint?.highlights.contains(.room(2)) == false)
@@ -259,7 +365,7 @@ struct CatPuzzleModelTests {
         #expect(spy.ends(of: CatPuzzleModel.gameID) == 1)
         #expect(spy.outcomes == [.win])
         // 解き終えた盤はもう触れない。
-        model.tap(cell: 0)
+        model.toggleCross(cell: 0)
         #expect(model.marks[0] == .empty)
     }
 
@@ -316,7 +422,7 @@ struct CatPuzzleModelTests {
             CatPuzzleLogic.isAdjacent($0, answer, side: puzzle.side) && puzzle.rooms[$0] != puzzle.rooms[answer]
         }!
         let cross = (0..<puzzle.cellCount).first { ![answer, wrong].contains($0) }!
-        first.tap(cell: cross)
+        first.toggleCross(cell: cross)
         placeCat(first, at: answer)
         placeCat(first, at: wrong)
         first.useHint()
@@ -332,7 +438,7 @@ struct CatPuzzleModelTests {
         #expect(second.hintCells == first.hintCells)
         #expect(second.hintCrosses == first.hintCrosses)
         #expect(second.wrongCrosses == [wrong] && first.wrongCrosses == [wrong])
-        second.tap(cell: wrong)
+        second.toggleCross(cell: wrong)
         #expect(second.marks[wrong] == .cross, "再開後も赤い × は消せない")
         #expect(spy.starts(of: CatPuzzleModel.gameID) == 0, "復元は新しいプレイではない")
     }
@@ -422,7 +528,7 @@ struct CatPuzzleModelTests {
         let first = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 3)
         first.clockNow = clock.now
         first.resumeTimerIfNeeded()
-        first.tap(cell: first.puzzle.solutionCells[0] == 0 ? 1 : 0)
+        first.toggleCross(cell: first.puzzle.solutionCells[0] == 0 ? 1 : 0)
         clock.advance(by: .seconds(25))
         first.pauseTimer()
         let second = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 9)
@@ -450,7 +556,7 @@ struct CatPuzzleModelTests {
         #expect(model.mistakes == 2 && model.mistakesRemaining == 1)
         #expect(!model.isFailed && !model.isOver, "2 回目まではまだ続く")
         #expect(model.hasProgressToLose && store.exists(for: CatPuzzleModel.gameID))
-        model.tap(cell: sample.solutionCells[0])
+        model.toggleCross(cell: sample.solutionCells[0])
         #expect(model.marks[sample.solutionCells[0]] == .cross, "2 回目のあとも打てる")
         placeCat(model, at: wrongs[2])
         #expect(model.mistakes == 3 && model.mistakesRemaining == 0)
@@ -465,7 +571,7 @@ struct CatPuzzleModelTests {
         #expect(record.losses == 1 && record.wins == 0 && record.bestSeconds == nil, "負けは最短タイムに数えない")
         #expect(model.recordResult != nil)
         // 終局後は触れない・ヒントも戻すも出さない。
-        model.tap(cell: sample.solutionCells[1])
+        model.toggleCross(cell: sample.solutionCells[1])
         #expect(model.marks[sample.solutionCells[1]] == .empty)
         #expect(!model.canHint && !model.canUndo && !model.hasProgressToLose)
         let controls = CatPuzzleView.playControls(for: model)
@@ -520,7 +626,7 @@ struct CatPuzzleModelTests {
         model.startPlayIfPending()
         #expect(spy.starts(of: CatPuzzleModel.gameID) == 1, "シートで始めた局に遅らせた開始を足さない")
         // 1 手打った局は確認を挟む（`hasProgressToLose`）。開始シートで始めた時点で quit。
-        model.tap(cell: 0)
+        model.toggleCross(cell: 0)
         #expect(model.hasProgressToLose, "途中なので確認を出す")
         model.newGame(size: .hard)
         #expect(spy.quits(of: CatPuzzleModel.gameID) == 1)
@@ -534,14 +640,14 @@ struct CatPuzzleModelTests {
         #expect(spy.starts(of: CatPuzzleModel.gameID) == 0)
         model.startPlayIfPending()
         model.startPlayIfPending()
-        model.tap(cell: 0)
+        model.toggleCross(cell: 0)
         #expect(spy.starts(of: CatPuzzleModel.gameID) == 1)
         #expect(spy.startLevels == [.hard])
         // 閉じる経路を通らずに最初の操作をしても 1 回。
         let other = SpyAnalyticsService()
         let direct = CatPuzzleModel(services: makeServices(analytics: other), size: .easy, seed: 7, defersStart: true)
-        direct.tap(cell: 0)
-        direct.tap(cell: 1)
+        direct.toggleCross(cell: 0)
+        direct.toggleCross(cell: 1)
         #expect(other.starts(of: CatPuzzleModel.gameID) == 1)
     }
 }

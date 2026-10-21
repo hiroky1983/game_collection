@@ -1,17 +1,6 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
-    "答えでないマスに猫を置こうとすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "If you try to put a cat on a square that isn't part of the answer, a red × appears and counts as a miss (the red × can't be removed). Three misses end the game."
-          }
-        }
-      }
-    },
     "ラスト" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2087,17 +2076,6 @@
         }
       }
     },
-    "マスをタップすると ×（いない）→ 猫 → 空の順に変わります。全部の猫を見つけたらクリアです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap a square to cycle through × (no cat), cat, and empty. Find every cat to clear the puzzle."
-          }
-        }
-      }
-    },
     "部屋・行・列に猫を 1 匹ずつ。隣には置けない" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2116,17 +2094,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Each room, row, and column has exactly one cat."
-          }
-        }
-      }
-    },
-    "マスをタップすると ×（いない）→ 猫 → 空の順に変わります。全部見つけたらクリアです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap a square to cycle through × (no cat), cat, and empty. Find them all to clear the puzzle."
           }
         }
       }
@@ -5691,6 +5658,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an ad to draw cards one more time, once per 10 rounds."
+          }
+        }
+      }
+    },
+    "マスをタップすると ×（いない）を付け外しし、ダブルタップでそのマスの猫を見つけます。全部の猫を見つけたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to add or remove × (no cat). Double-tap a square to find the cat there. Find every cat to clear the puzzle."
+          }
+        }
+      }
+    },
+    "タップで ×（いない）を付け外し、ダブルタップで猫を見つけます。全部見つけたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to add or remove × (no cat), double-tap to find a cat. Find them all to clear the puzzle."
+          }
+        }
+      }
+    },
+    "× の付け外しはミスになりません。答えでないマスをダブルタップすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding or removing × never counts as a miss. Double-tapping a square that isn't part of the answer puts a red × there and counts as a miss (the red × can't be removed). Three misses end the game."
           }
         }
       }

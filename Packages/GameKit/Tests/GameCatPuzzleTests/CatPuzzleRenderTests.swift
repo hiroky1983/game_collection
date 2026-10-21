@@ -26,9 +26,9 @@ struct CatPuzzleRenderTests {
     private static func playingModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
         let answers = model.puzzle.solutionCells
-        for cell in answers.prefix(3) { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in answers.prefix(3) { model.findCat(cell: cell) }
         for cell in [answers[0] + 1, answers[1] - 1, answers[2] + model.puzzle.side] where model.marks.indices.contains(cell) && model.marks[cell] == .empty {
-            model.tap(cell: cell)
+            model.toggleCross(cell: cell)
         }
         return model
     }
@@ -45,8 +45,8 @@ struct CatPuzzleRenderTests {
                     return model
                 }
                 steps += 1
-                for cell in hint.crossed where model.marks[cell] == .empty { model.tap(cell: cell) }
-                if let placed = hint.placed { model.tap(cell: placed); model.tap(cell: placed) }
+                for cell in hint.crossed where model.marks[cell] == .empty { model.toggleCross(cell: cell) }
+                if let placed = hint.placed { model.findCat(cell: placed) }
             }
         }
         Issue.record("\(name): 狙った種類のヒントになる局面が見つからない")
@@ -84,10 +84,10 @@ struct CatPuzzleRenderTests {
         let puzzle = model.puzzle
         let answers = puzzle.solutionCells
         let n = puzzle.side
-        for cell in answers.prefix(2) { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in answers.prefix(2) { model.findCat(cell: cell) }
         // 答えでないマスを 2 つ（前のミスと、いまのミス）。
         let wrongs = (0..<puzzle.cellCount).filter { !answers.contains($0) && model.marks[$0] == .empty && $0 / n >= 3 }
-        for cell in [wrongs[2], wrongs[9]] { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in [wrongs[2], wrongs[9]] { model.findCat(cell: cell) }
         return model
     }
 
@@ -97,17 +97,17 @@ struct CatPuzzleRenderTests {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: seed)
         let puzzle = model.puzzle
         let answers = puzzle.solutionCells
-        for cell in answers.prefix(3) { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in answers.prefix(3) { model.findCat(cell: cell) }
         for room in 0..<puzzle.side {
             if let cell = puzzle.cells(inRoom: room).first(where: { !answers.contains($0) }), model.marks[cell] == .empty {
-                model.tap(cell: cell)
+                model.toggleCross(cell: cell)
             }
         }
         model.useHint()
         if seed == 2,
            let room = answers.map({ puzzle.rooms[$0] }).first(where: { room in !puzzle.cells(inRoom: room).contains { model.marks[$0] == .cat } }),
            let wrong = puzzle.cells(inRoom: room).first(where: { !answers.contains($0) }) {
-            for _ in 0..<3 where model.marks[wrong] != .cat { model.tap(cell: wrong) }
+            model.findCat(cell: wrong)
         }
         return model
     }
@@ -123,8 +123,8 @@ struct CatPuzzleRenderTests {
                   narrow.cell == wide.cell else { return nil }
             return narrow.cell
         }
-        for cell in labelCells.prefix(2) { model.tap(cell: cell) }
-        if let wrong = labelCells.dropFirst(2).first { model.tap(cell: wrong); model.tap(cell: wrong) }
+        for cell in labelCells.prefix(2) { model.toggleCross(cell: cell) }
+        if let wrong = labelCells.dropFirst(2).first { model.findCat(cell: wrong) }
         return model
     }
 
@@ -132,16 +132,16 @@ struct CatPuzzleRenderTests {
     private static func failedModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
         let answers = model.puzzle.solutionCells
-        for cell in answers.prefix(2) { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in answers.prefix(2) { model.findCat(cell: cell) }
         let wrongs = (0..<model.puzzle.cellCount).filter { !answers.contains($0) && model.marks[$0] == .empty }
-        for cell in [wrongs[3], wrongs[12], wrongs[25]] { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in [wrongs[3], wrongs[12], wrongs[25]] { model.findCat(cell: cell) }
         return model
     }
 
     /// 最後の猫を置いた瞬間（クリアのダイアログはまだ出ていない。ダイアログを「盤を見る」で閉じた後もこの見た目）。
     private static func lastCatModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
-        for cell in model.puzzle.solutionCells { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in model.puzzle.solutionCells { model.findCat(cell: cell) }
         return model
     }
 
@@ -150,7 +150,7 @@ struct CatPuzzleRenderTests {
         let clock = ManualClock()
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
         model.clockNow = clock.now
-        for cell in model.puzzle.solutionCells { model.tap(cell: cell); model.tap(cell: cell) }
+        for cell in model.puzzle.solutionCells { model.findCat(cell: cell) }
         clock.advance(by: CatPuzzleModel.clearCardDelay)
         model.revealClearCardIfDue()
         return model
