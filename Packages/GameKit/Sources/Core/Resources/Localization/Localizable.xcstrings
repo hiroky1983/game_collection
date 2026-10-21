@@ -124,6 +124,29 @@
         }
       }
     },
+    "%lld連敗中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld loss in a row"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld losses in a row"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "+%lld枚" : {
       "extractionState" : "manual",
       "localizations" : {
