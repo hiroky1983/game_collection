@@ -257,6 +257,9 @@ public enum CatPuzzleLogic {
     /// 3. 解の数を数え、2 つ以上あれば部屋の境目のマスを隣の部屋へ付け替えて減らす（山登り）。
     ///    答えの猫のマスは動かさず、部屋は 2 マス以上・1 かたまりを保つ。
     ///    一定回数で 1 つにならなければ答えから作り直す。
+    /// 4. 盤を乱数で回す・裏返し（8 通り）、部屋の番号を乱数で振り直す（`shuffled`）。
+    ///    育てる段階では部屋 k の種が行 k の答えなので、そのままだと「玄関（部屋 6）の猫は必ず最下行」の
+    ///    ように部屋と行の対応が毎回同じになり、慣れた解き手に答えが読めてしまう（#2250）。
     public static func generate<G: RandomNumberGenerator>(size: CatPuzzleSize, using generator: inout G) -> CatPuzzle {
         let n = size.side
         while true {
@@ -283,10 +286,40 @@ public enum CatPuzzleLogic {
                     }
                 }
                 if count == 1 {
-                    return CatPuzzle(side: n, rooms: rooms, solution: solution)
+                    return shuffled(CatPuzzle(side: n, rooms: rooms, solution: solution), using: &generator)
                 }
             }
         }
+    }
+
+    /// 解を変えずに見た目の並びを乱数で混ぜる: 盤の回転・裏返し（8 通りのどれか）と、部屋の番号の振り直し。
+    /// 回転・裏返しでも「各行・各列に 1 匹」「ななめを含めて隣り合わない」「部屋は 1 かたまり」は保たれ、
+    /// 解の数も変わらない。部屋の番号は名前・床の柄の割り当て（`CatPuzzleHouse`）に直結する。
+    static func shuffled<G: RandomNumberGenerator>(_ puzzle: CatPuzzle, using generator: inout G) -> CatPuzzle {
+        let n = puzzle.side
+        let transpose = Bool.random(using: &generator)
+        let flipRows = Bool.random(using: &generator)
+        let flipCols = Bool.random(using: &generator)
+        // 元の (row, col) → 新しい (row, col)。
+        func map(_ row: Int, _ col: Int) -> (row: Int, col: Int) {
+            var (r, c) = transpose ? (col, row) : (row, col)
+            if flipRows { r = n - 1 - r }
+            if flipCols { c = n - 1 - c }
+            return (r, c)
+        }
+        var relabel = Array(0..<n)
+        relabel.shuffle(using: &generator)
+        var rooms = Array(repeating: 0, count: n * n)
+        var solution = Array(repeating: 0, count: n)
+        for row in 0..<n {
+            for col in 0..<n {
+                let to = map(row, col)
+                rooms[to.row * n + to.col] = relabel[puzzle.rooms[row * n + col]]
+            }
+            let cat = map(row, puzzle.solution[row])
+            solution[cat.row] = cat.col
+        }
+        return CatPuzzle(side: n, rooms: rooms, solution: solution)
     }
 
     /// 部屋の広さの上限（マス数）。これより広い部屋は作らない（間取りとして偏りすぎないように）。

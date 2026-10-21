@@ -81,6 +81,48 @@ struct CatPuzzleLogicTests {
         }
     }
 
+    /// 偏りの検査（#2250）: 以前は部屋 k の答えが必ず行 k にあり、7×7 の玄関（部屋 6）は必ず最下行だった。
+    /// 多数の種で、部屋ごとに答えの行・列がほぼ一様に散ることを確かめる（期待値 1/N、許容は ±0.1）。
+    @Test("部屋と答えの行・列の対応に偏りが無い", arguments: [CatPuzzleSize.easy, .normal])
+    func roomToRowIsNotBiased(size: CatPuzzleSize) {
+        let n = size.side
+        let trials = 25 * n
+        var rowCounts = Array(repeating: Array(repeating: 0, count: n), count: n)
+        var colCounts = Array(repeating: Array(repeating: 0, count: n), count: n)
+        for seed in 0..<trials {
+            var generator = SplitMix64(seed: UInt64(5000 + seed))
+            let puzzle = CatPuzzleLogic.generate(size: size, using: &generator)
+            for (row, col) in puzzle.solution.enumerated() {
+                let room = puzzle.rooms[row * n + col]
+                rowCounts[room][row] += 1
+                colCounts[room][col] += 1
+            }
+        }
+        let expected = 1.0 / Double(n)
+        for room in 0..<n {
+            for line in 0..<n {
+                let rowRate = Double(rowCounts[room][line]) / Double(trials)
+                let colRate = Double(colCounts[room][line]) / Double(trials)
+                #expect(abs(rowRate - expected) < 0.1, "\(size): 部屋 \(room) の答えが行 \(line) にある割合 \(rowRate)")
+                #expect(abs(colRate - expected) < 0.1, "\(size): 部屋 \(room) の答えが列 \(line) にある割合 \(colRate)")
+            }
+        }
+        // 名指しの例: いちばん最後の部屋（7×7 では玄関）の答えが最下行にある割合が 1/N に近い。
+        let lastRoomBottom = Double(rowCounts[n - 1][n - 1]) / Double(trials)
+        #expect(abs(lastRoomBottom - expected) < 0.1, "\(size): 最後の部屋が最下行 \(lastRoomBottom)")
+    }
+
+    @Test("混ぜても問題は壊れない: 形が正しく、解は 1 つで、持っている答えが解のまま", arguments: 0..<16)
+    func shuffleKeepsPuzzle(seed: Int) {
+        var generator = SplitMix64(seed: UInt64(seed))
+        let mixed = CatPuzzleLogic.shuffled(sample, using: &generator)
+        #expect(CatPuzzleLogic.isWellFormed(mixed))
+        #expect(CatPuzzleLogic.isSolved(puzzle: mixed, cats: mixed.solutionCells))
+        #expect(CatPuzzleLogic.countSolutions(side: 4, rooms: mixed.rooms, limit: 3) == 1)
+        let sizes = { (p: CatPuzzle) in (0..<4).map { p.cells(inRoom: $0).count }.sorted() }
+        #expect(sizes(mixed) == sizes(sample), "部屋の広さの組は変わらない")
+    }
+
     @Test("答えの形: 各列に 1 匹で、隣の行と隣り合わない")
     func placementValidity() {
         #expect(CatPuzzleLogic.isValidPlacement([1, 3, 0, 2], side: 4))
