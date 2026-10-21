@@ -531,6 +531,21 @@ struct PlayRecordStorageTests {
         #expect(reopened.summaryLine(gameID: "minesweeper") == "最短 0:42（初級）")
     }
 
+    @Test("連敗数（#2614）は再起動をまたいで残り、コンティニューで取り消した負けは数えない")
+    func lossStreakPersistsAndCancelLossRewinds() {
+        let (log, defaults, name) = makeLog(suite: "lossStreak")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        for _ in 0..<3 { log.recordResult(gameID: "shogi", outcome: .loss, score: GameScore()) }
+        #expect(PlayLog(defaults: defaults).record(gameID: "shogi")?.lossStreak == 3)
+
+        log.cancelLoss(gameID: "shogi")
+        #expect(log.record(gameID: "shogi")?.lossStreak == 2)
+        log.cancelLoss(gameID: "shogi")
+        log.cancelLoss(gameID: "shogi")
+        #expect(log.record(gameID: "shogi")?.currentLossStreak == nil)
+    }
+
     @Test("難易度ごとに別々の記録として保存される")
     func variantsAreSeparate() {
         let (log, defaults, name) = makeLog(suite: "variants")
