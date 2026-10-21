@@ -107,6 +107,10 @@ public final class FreeCellModel {
     private var autoFinishPlan: [FreeCellMove]?
     /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
     private let stopwatch = GameStopwatch(persistInterval: FreeCellModel.persistInterval)
+    /// 直前にタップした札と時刻（ダブルタップの判定用・#2598）。
+    private var lastCardTap: (selection: FreeCellSelection, at: ContinuousClock.Instant)?
+    /// この間隔に同じ札を 2 回タップしたらダブルタップ（組札へ直接送る）。仮置きの値で、会長 QA で調整する。
+    static let doubleTapInterval: Duration = .milliseconds(350)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
     var clockNow: ElapsedClock.Now {
         get { stopwatch.now }
@@ -217,6 +221,7 @@ public final class FreeCellModel {
     /// フリーセルの 1 枠をタップ。札があれば持ち上げ / 空いていれば置く。
     public func tapCell(_ cell: Int) {
         guard phase == .playing, board.cells.indices.contains(cell) else { return }
+        if board.cells[cell] != nil, registerCardTap(.cell(cell)), sendToFoundation(.cell(cell)) { return }
         if selection == .cell(cell) { return deselect() }
 
         if let selection, board.cells[cell] == nil {
@@ -248,6 +253,12 @@ public final class FreeCellModel {
     public func tapPile(_ pile: Int, cardIndex: Int? = nil) {
         guard phase == .playing, board.tableau.indices.contains(pile) else { return }
 
+        if !board.tableau[pile].isEmpty {
+            let top = cardIndex ?? (board.tableau[pile].count - 1)
+            let target = FreeCellSelection.tableau(pile: pile, cardIndex: top)
+            if registerCardTap(target), sendToFoundation(target) { return }
+        }
+
         if let selection {
             if case .tableau(let from, let index) = selection, from == pile {
                 // 同じ列の同じ札をもう一度 → 選択解除。別の札 → 選び直し。
@@ -269,6 +280,8 @@ public final class FreeCellModel {
 
     public func deselect() {
         selection = nil
+        // ドラッグの落とし先は deselect → 合成タップで処理される。ダブルタップと取り違えない（#2598）。
+        lastCardTap = nil
         services?.feedback.impact(.rigid)
     }
 
@@ -477,6 +490,24 @@ public final class FreeCellModel {
         }
     }
 
+    /// 札のタップを控え、直前に同じ札をタップしてから `doubleTapInterval` 以内ならダブルタップとして true を返す。
+    ///
+    /// 1 回目のタップは今までどおり選択に使うので、シングルタップの反応は遅らせない。
+    private func registerCardTap(_ target: FreeCellSelection) -> Bool {
+        let now = clockNow()
+        defer { lastCardTap = (target, now) }
+        guard let last = lastCardTap, last.selection == target else { return false }
+        return now - last.at <= Self.doubleTapInterval
+    }
+
+    /// 札を選択なしで組札へ送る。送れなければ何もせず false（拒否の演出も出さない）。
+    private func sendToFoundation(_ target: FreeCellSelection) -> Bool {
+        guard let move = foundationMove(from: target), board.isLegal(move) else { return false }
+        lastCardTap = nil
+        perform(move)
+        return true
+    }
+
     private func foundationMove(from selection: FreeCellSelection) -> FreeCellMove? {
         switch selection {
         case .cell(let cell):
@@ -499,6 +530,7 @@ public final class FreeCellModel {
     }
 
     private func perform(_ move: FreeCellMove) {
+        lastCardTap = nil
         guard board.apply(move) else { return reject() }
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
