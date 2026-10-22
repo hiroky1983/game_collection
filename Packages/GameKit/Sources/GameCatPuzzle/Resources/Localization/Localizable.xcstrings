@@ -408,6 +408,50 @@
         }
       }
     },
+    "ヒント、無料の回数は使い切りました。広告を見ると1回追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint. You've used your free hints. Watch an ad to add 1"
+          }
+        }
+      }
+    },
+    "ヒントを使えませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Use a Hint"
+          }
+        }
+      }
+    },
+    "ヒントを出せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Show a Hint"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started or the board changed while the ad was playing, so the hint couldn't be shown.\nYour remaining hints weren't used."
+          }
+        }
+      }
+    },
     "ヒント、あと%lld回" : {
       "extractionState" : "manual",
       "localizations" : {

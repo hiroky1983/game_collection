@@ -78,6 +78,13 @@ struct CatPuzzleRenderTests {
         }
     }
 
+    /// 無料のヒントを使い切った途中の盤（次の 1 回は広告）。
+    private static func hintAdModel() -> CatPuzzleModel {
+        let model = playingModel()
+        for _ in 0..<CatPuzzleModel.freeHints { model.useHint() }
+        return model
+    }
+
     /// 答えでないマスに猫を置こうとした直後。前に付いた赤い × 1 つと、いま付いた赤い ×（赤枠）1 つ。
     private static func wrongCrossModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
@@ -256,6 +263,8 @@ struct CatPuzzleRenderTests {
             ("3a-hint-line", Self.hintLineModel),
             ("3b-hint-room", Self.hintRoomModel),
             ("3c-hint-cat", Self.hintCatModel),
+            // 無料のヒントを使い切ったところ（ヒントのボタンが「0回 ▶ 広告を見て +1」）。
+            ("3d-hint-ad", Self.hintAdModel),
             ("4a-last-cat", Self.lastCatModel),
             ("4b-clear-dialog", { Self.clearModel() }),
             ("10-label-cross", Self.labelCrossModel),

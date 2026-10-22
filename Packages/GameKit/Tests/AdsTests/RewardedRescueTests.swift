@@ -321,7 +321,7 @@ struct RewardGuardCallSiteTests {
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(requests == 25, "救済の入口は25面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348・しりとりの時間延長 #1717・麻雀ソリティアとナンプレの戻す #1855・2048 の戻す #2023・マインスイーパーのヒント #2024・15パズルのヒント #1975・おじさんの荷物運びパズルの続ける救済 #2013 を含む）")
+        #expect(requests == 26, "救済の入口は26面（おじさんちのねこさがしのヒント #2250・`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348・しりとりの時間延長 #1717・麻雀ソリティアとナンプレの戻す #1855・2048 の戻す #2023・マインスイーパーのヒント #2024・15パズルのヒント #1975・おじさんの荷物運びパズルの続ける救済 #2013 を含む）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }

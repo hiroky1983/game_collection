@@ -39,7 +39,7 @@ struct CatPuzzleModuleTests {
         }
     }
 
-    @Test("画面は共通の枠・操作の段・レコメンド枠・図入りの遊び方を使い、広告は差し込み口だけで呼ばない")
+    @Test("画面は共通の枠・操作の段・レコメンド枠・図入りの遊び方・リワード広告の部品を使う")
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameCatPuzzle"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
@@ -53,9 +53,13 @@ struct CatPuzzleModuleTests {
         #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))"))
         #expect(code.contains("RecordLabel("))
         #expect(code.contains(".gameClearCard(isPresented:"))
-        #expect(!code.contains("Rescue.request(") && !code.contains("RewardedRescue("),
-                "広告は差し込み口（バッジ）だけで、試作では呼ばない")
-        #expect(!code.contains("showRewardedAd("))
+        // ヒントの広告は他のゲームと同じ部品（`RewardedRescue`）で、局ガード・失敗アラート・視聴中の計時停止まで揃える。
+        #expect(code.contains("var hintRescue = RewardedRescue()"))
+        #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
+        #expect(code.contains(".rewardedRescueAlerts(\n            hintRescue,"))
+        #expect(code.contains("rescues: [hintRescue]"), "広告の視聴中は計時を止める")
+        #expect(code.contains(".hint(totalRemaining:"), "ヒントの 2 行目は他のゲームと同じ共通のバッジ")
+        #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由だけで出す")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("UIImage("), "macOS でもビルドできるよう画像は ImageIO で読む")
         #expect(code.contains("level: size.analyticsLevel"), "盤の大きさを game_start の level に載せる")

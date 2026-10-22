@@ -21,8 +21,8 @@ import Observation
 public final class CatPuzzleModel {
     /// 解析・記録・中断データの ID。`CatPuzzleModule.id` と同じ。
     public nonisolated static let gameID = "catpuzzle"
-    /// 1 問につき無料で使えるヒントの回数。使い切ったあとの「広告を見て +1」は差し込み口だけ
-    /// （試作の段階では広告を呼ばない・`CatPuzzleView`）。
+    /// 1 問につき無料で使えるヒントの回数。使い切ったあとはリワード広告 1 本ごとに 1 回足せる
+    /// （上限は `BoardHintBudget.adRefillMax`。15パズルなどと同じ回数制・`CatPuzzleView`）。
     public static let freeHints = 3
     /// 赤い ×（ミス）の上限。この回数目で終局（負け）。
     public nonisolated static let maxMistakes = 3
@@ -51,7 +51,12 @@ public final class CatPuzzleModel {
     public private(set) var wrongCrosses: Set<Int> = []
     /// 直近に赤い × が付いたマス（揺れ・赤の点滅の演出用）。次の操作で消える。保存しない。
     public private(set) var lastWrongCell: Int?
-    public private(set) var hintsUsed = 0
+    /// この局のヒントの回数（無料 `freeHints` 回 + 広告で最大 `BoardHintBudget.adRefillMax` 回）。勘定は Core の `BoardHintBudget`。
+    public private(set) var hints = BoardHintBudget(freeLimit: CatPuzzleModel.freeHints)
+    /// この局で使ったヒントの回数（無料・広告の合計。中断データに保存する）。
+    public var hintsUsed: Int { hints.used }
+    /// 局の通し番号。広告を出す前に控え、視聴中に新しい局へ入れ替わっていたら報酬を乗せない（#815）。
+    public private(set) var gameSerial = 0
     /// ヒントで置いた猫のマス（印付き・タップでも「戻す」「やり直し」でも消えない。会長の決まり 2026-10-21）。
     public private(set) var hintCells: Set<Int> = []
     /// ヒントで置いた × のマス（印付き・猫と同じく消えない。推理の 1 歩で確定した「いない」マス）。
@@ -109,7 +114,7 @@ public final class CatPuzzleModel {
             marks = snap.marks.compactMap(Mark.init(rawValue:))
             elapsedSeconds = snap.elapsedSeconds
             mistakes = snap.mistakes
-            hintsUsed = snap.hintsUsed
+            hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints)
             hintCells = Set(snap.hintCells ?? [])
             hintCrosses = Set(snap.hintCrosses ?? [])
             wrongCrosses = Set(snap.wrongCrosses ?? [])
@@ -165,8 +170,11 @@ public final class CatPuzzleModel {
     /// まだ置いていない猫の数（部屋の数 − 置いた猫）。
     public var remainingCats: Int { max(0, puzzle.side - catCells.count) }
 
-    /// いま使えるヒントの回数（無料ぶんの残り）。
-    public var hintsRemaining: Int { max(0, Self.freeHints - hintsUsed) }
+    /// いま使えるヒントの回数（無料ぶんの残り）。ボタンの「あと n 回」はこの数で、広告で足せる分は含めない（#1897）。
+    public var hintsRemaining: Int { hints.freeRemaining }
+
+    /// 無料ぶんを使い切っていて、次の 1 回に広告が要るか（広告の追加まで使い切ったら false）。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
 
     /// 次のヒントの中身（推理の 1 歩。選び方は `CatPuzzleLogic.hint`）。解けていれば nil。
     public var nextHint: CatPuzzleHint? { CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) }
@@ -177,8 +185,9 @@ public final class CatPuzzleModel {
     /// あと何回まちがえられるか（上限で終局）。
     public var mistakesRemaining: Int { max(0, Self.maxMistakes - mistakes) }
 
-    /// ヒントを押せるか。終局した・無料ぶんを使い切った・盤を進める手が無いときは押せない（回数は減らない）。
-    public var canHint: Bool { !isOver && hintsRemaining > 0 && nextHint != nil }
+    /// ヒントを押せるか。終局した・広告の追加まで使い切った・盤を進める手が無いときは押せない（回数は減らない）。
+    /// 無料ぶんを使い切っていても広告で足せるうちは押せる（押すと広告・`needsAdForHint`）。
+    public var canHint: Bool { !isOver && !hints.isExhausted && nextHint != nil }
     public var canUndo: Bool { !history.isEmpty && !isOver }
 
     /// 決まった印（ヒントの猫・×、赤い ×）のマスか。タップしても変わらない。
@@ -300,8 +309,23 @@ public final class CatPuzzleModel {
     /// ヒントを 1 回使う。推理の 1 歩（`CatPuzzleLogic.hint`）を盤に反映する: 確定した × を置き、猫が確定する
     /// ときだけ猫を置く。答えでない位置の猫があれば先にそれを × に変える。ヒントで置いた猫・× は印付きで消せない。
     /// 回数は必ず 1 だけ減り、盤は必ず 1 歩進む。置いた結果で盤が完成すればそのままクリア。
+    /// 無料ぶんだけを使う。使い切っていたら何もしない（広告の 1 回は `grantAdHint(forGame:)`）。
     public func useHint() {
-        guard canHint, let hint = nextHint else { return }
+        guard canHint, !needsAdForHint, let hint = nextHint, hints.consume() else { return }
+        apply(hint)
+    }
+
+    /// 広告を最後まで見たあとの 1 回。`game` は広告を出す前に控えた `gameSerial`。
+    /// 局が入れ替わっていた・終局した・無料ぶんが残っている・盤を進める手が無いときは適用せず false（回数も減らさない）。
+    @discardableResult
+    public func grantAdHint(forGame game: Int) -> Bool {
+        guard game == gameSerial, canHint, needsAdForHint, let hint = nextHint, hints.consumeAd() else { return false }
+        apply(hint)
+        return true
+    }
+
+    /// ヒントの中身を盤に反映する（回数の消費は呼び出し側が済ませている）。
+    private func apply(_ hint: CatPuzzleHint) {
         pendingTap = nil
         startPlayIfPending()
         for cell in hint.removed + hint.crossed {
@@ -314,7 +338,6 @@ public final class CatPuzzleModel {
         }
         lastHint = hint
         lastWrongCell = nil
-        hintsUsed += 1
         moves += 1
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseHint(gameID: Self.gameID)
@@ -342,7 +365,8 @@ public final class CatPuzzleModel {
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         history.removeAll()
         mistakes = 0
-        hintsUsed = 0
+        hints.reset()
+        gameSerial += 1
         hintCells = []
         hintCrosses = []
         wrongCrosses = []

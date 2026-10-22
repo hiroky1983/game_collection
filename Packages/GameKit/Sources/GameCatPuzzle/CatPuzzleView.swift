@@ -15,6 +15,8 @@ public struct CatPuzzleView: View {
     @State private var showConfirmClear = false
     /// ミス上限の終局カードを「盤を見る」で閉じたか（新しい局で開け直す）。
     @State private var failCardClosed = false
+    /// ヒントの広告救済（無料 3 回を使い切った後の 1 回。連打ガード・広告・失敗アラート。15パズル・ナンプレと同じ #526）。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -51,6 +53,8 @@ public struct CatPuzzleView: View {
             board
                 .gameClearCard(isPresented: model.showsClearCard, title: tr("クリア！"), details: clearDetails)
                 .boardGameResultCard(isPresented: model.isFailed && !failCardClosed) { failCard }
+                // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
+                .disabled(hintRescue.isWatching)
                 .layoutPriority(1)
             messageLine
             controlArea
@@ -61,7 +65,7 @@ public struct CatPuzzleView: View {
         }
         .padding()
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
-                    newGame: GameChromeNewGame(.solo) { requestNewGame() })
+                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initial: model.size) { size in
@@ -87,6 +91,14 @@ public struct CatPuzzleView: View {
                 Text(tr("同じ問題を最初から解きます。タイムとミスはそのままです。"))
             }
         }
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: tr("ヒントを使えませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
+            )
+        )
         // 答えでないマスに赤い × が付いたら読み上げる（3 回目の終局は結果カードが読み上げる）。
         .onChange(of: model.mistakes) { _, _ in
             if model.lastWrongCell != nil, !model.isFailed {
@@ -109,6 +121,7 @@ public struct CatPuzzleView: View {
         // 計時は盤が出た時点から（会長 QA 2026-10-21・build 43）。開始シート・確認・遊び方・広告・背面の間は止め、
         // 画面を離れたら止め、戻ったら再開する（#375・#1734・#1857・#2406）。
         .gameTimerLifecycle(
+            rescues: [hintRescue],
             isHeld: Self.holdsClock(showNewGame: showNewGame, showConfirmNewGame: showConfirmNewGame,
                                     showConfirmClear: showConfirmClear),
             pause: { model.pauseTimer() },
@@ -277,9 +290,10 @@ public struct CatPuzzleView: View {
         } playing: {
             let controls = Self.playControls(
                 for: model,
+                isWatchingAd: hintRescue.isWatching,
                 onClear: { showConfirmClear = true },
                 onUndo: { withGameAnimation { model.undo() } },
-                onHint: { withGameAnimation { model.useHint() } }
+                onHint: { requestHint() }
             )
             if !controls.menu.isEmpty || !controls.actions.isEmpty {
                 GameOverflowBar(menuItems: controls.menu, actions: controls.actions, verticalPadding: 4)
@@ -291,25 +305,26 @@ public struct CatPuzzleView: View {
     /// 終局した後は何も返さない（終局後は `GameReplayBar` に替わる）。
     static func playControls(
         for model: CatPuzzleModel,
+        isWatchingAd: Bool = false,
         onClear: @escaping () -> Void = {}, onUndo: @escaping () -> Void = {}, onHint: @escaping () -> Void = {}
     ) -> (menu: [GameControlMenuItem], actions: [GameActionItem]) {
         guard !model.isOver else { return ([], []) }
         let menu = [
             GameControlMenuItem(
                 id: "clear", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
-                isDestructive: true, isEnabled: model.hasProgressToLose, action: onClear
+                isDestructive: true, isEnabled: model.hasProgressToLose && !isWatchingAd, action: onClear
             ),
         ]
         let actions = [
             GameActionItem(
                 id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
-                isEnabled: model.canUndo, action: onUndo
+                isEnabled: model.canUndo && !isWatchingAd, action: onUndo
             ),
             GameActionItem(
                 id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
                 badge: hintBadge(for: model),
-                isEnabled: model.canHint,
-                accessibilityLabel: tr("ヒント、あと%lld回", model.hintsRemaining),
+                isEnabled: model.canHint && !isWatchingAd,
+                accessibilityLabel: CatPuzzleAccessibility.hintLabel(remaining: model.hintsRemaining, needsAd: model.needsAdForHint),
                 accessibilityHint: tr("推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます"),
                 action: onHint
             ),
@@ -317,11 +332,33 @@ public struct CatPuzzleView: View {
         return (menu, actions)
     }
 
-    /// ヒントの 2 行目。無料ぶんを使い切ったら「0回 ▶ 広告を見て +1」の面にする。
-    /// **試作では広告の差し込み口だけ**で、`RewardedRescue` は呼ばない（押せない）。本導入時に
-    /// ナンプレのヒントの救済（`hintRescue`・目的はヒント）と同じ経路をここへつなぐ。
-    private static func hintBadge(for model: CatPuzzleModel) -> GameActionBadge {
-        model.hintsRemaining > 0 ? .count(model.hintsRemaining) : .ad(gain: 1)
+    /// ヒントの 2 行目。「あと n 回」は無料ぶんだけで、使い切ったら「0回 ▶ 広告を見て +1」の面にする
+    /// （15パズル・将棋などと同じ `GameActionBadge.hint`。広告の追加まで使い切ったら 0 のまま・#1897）。
+    static func hintBadge(for model: CatPuzzleModel) -> GameActionBadge {
+        .hint(totalRemaining: model.hints.remaining, needsAd: model.needsAdForHint)
+    }
+
+    /// 無料が残っていればそのまま示し、使い切っていれば広告を見たあとに示す（広告は押下起点・自動再生しない）。
+    private func requestHint() {
+        Self.requestHint(model: model, hintRescue: hintRescue, services: services)
+    }
+
+    /// `requestHint()` の中身（テストからモックの services で広告の成功・失敗を確かめるため static にしている）。
+    /// どの局に対する広告かを出す前に控え、ロード中に始めた新しい局へは乗せない（15パズル・ナンプレのヒントと同じ #815）。
+    static func requestHint(model: CatPuzzleModel, hintRescue: RewardedRescue, services: GameServices) {
+        guard !hintRescue.isWatching, model.canHint else { return }
+        guard model.needsAdForHint else {
+            withGameAnimation { model.useHint() }
+            return
+        }
+        let game = model.gameSerial
+        hintRescue.request(
+            services, gameID: CatPuzzleModel.gameID, purpose: .hint,
+            guardedBy: .checkedByGrant
+        ) {
+            // 広告を見たのに入らなかったら黙って終わらせない（`grantAdHint` が false → 「出せませんでした」）。
+            withGameAnimation { model.grantAdHint(forGame: game) }
+        }
     }
 
     private var clearDetails: [String] {
