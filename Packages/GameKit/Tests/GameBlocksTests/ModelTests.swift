@@ -533,14 +533,14 @@ struct ModelTests {
         let model = BlocksModel(services: services, startingAt: 1, lives: 1, preference: makePreference("continue-quit"))
         dropBall(model)
         #expect(model.phase == .gameOver)
-        let endsAtGameOver = spy.events.filter { if case .gameEnd = $0 { true } else { false } }.count
+        let endsAtGameOver = spy.ends.count
         #expect(model.continueAfterAd(forRun: model.fieldGeneration))
 
         model.newGame()
 
-        let ends = spy.events.filter { if case .gameEnd = $0 { true } else { false } }.count
         #expect(spy.starts.count == 3, "前提: 最初・続き・新規で `game_start` は計 3 回")
-        #expect(ends == endsAtGameOver + 1, "続きの 1 プレイに `game_end` が付く")
+        #expect(spy.ends.count == endsAtGameOver + 1, "続きの 1 プレイに `game_end` が付く")
+        #expect(spy.quits.count == 1, "付いた `game_end` は quit")
     }
 
     @Test("コンティニュー直後の launch でも二重に数えない（#2642）")
@@ -557,8 +557,7 @@ struct ModelTests {
         model.launch()
         model.newGame()
 
-        let ends = spy.events.filter { if case .gameEnd = $0 { true } else { false } }.count
-        #expect(ends == 2, "負け 1 件 + 続きの quit 1 件")
+        #expect(spy.outcomes == [.loss, .quit], "負け 1 件 + 続きの quit 1 件")
     }
 
     @Test("コンティニューは1プレイにつき1回だけ")
