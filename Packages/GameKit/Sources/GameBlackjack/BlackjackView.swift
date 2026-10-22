@@ -438,6 +438,7 @@ public struct BlackjackView: View {
             readyView
         case .playerTurn:
             playerActionView
+                .disabled(model.isRevealingNatural) // 21 の回は伏せ札を見せるあいだ操作を受けない（#2700）
         case .result:
             resultView
         case .dealerTurn:
