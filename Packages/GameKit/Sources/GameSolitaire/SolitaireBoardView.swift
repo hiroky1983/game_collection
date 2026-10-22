@@ -215,9 +215,18 @@ struct SolitaireBoardView: View {
             if model.board.stock.isEmpty {
                 CardSlot(metrics: metrics, systemImage: "arrow.clockwise")
             } else {
-                ZStack {
-                    PlayingCardSurface(faceUp: false, cornerRadius: metrics.cornerRadius)
-                    PlayingCardBack(metrics: metrics)
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        PlayingCardSurface(faceUp: false, cornerRadius: metrics.cornerRadius)
+                        PlayingCardBack(metrics: metrics)
+                    }
+                    // 残り枚数。スパイダーの山札と同じ作りの「×N」カプセルを右下に重ねる（#2709）。
+                    Text(verbatim: "×\(model.board.stock.count)")
+                        .font(.system(size: max(9, metrics.rankFont * 0.55), weight: .black, design: .rounded)) // fixed-size: カード・セットアップ部品の寸法（metrics）に比例させる文字
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Capsule().fill(Theme.Fill.coral))
+                        .offset(x: 4, y: 4)
                 }
                 .frame(width: metrics.width, height: metrics.height)
             }
