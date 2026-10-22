@@ -209,7 +209,8 @@ public final class BlackjackModel {
     public private(set) var recordResult: RecordResult?
 
     private var streakBeforeRound = 0
-    private var handsWon = 0
+    /// この勝負で勝った手の数（ブラックジャックの勝ちを含む）。結果カードの「勝ち N回」に出す。
+    public private(set) var handsWon = 0
     private var handsLost = 0
     private var naturalWins = 0
 

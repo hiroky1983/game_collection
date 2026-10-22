@@ -651,6 +651,50 @@
         }
       }
     },
+    "10回勝負は勝ち越し！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You came out ahead over the 10 rounds!"
+          }
+        }
+      }
+    },
+    "10回勝負は負け越し" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You finished behind over the 10 rounds"
+          }
+        }
+      }
+    },
+    "10回勝負は引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 10 rounds ended in a draw"
+          }
+        }
+      }
+    },
+    "勝ち %lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wins: %lld"
+          }
+        }
+      }
+    },
     "この勝負の最高連勝 %lld" : {
       "extractionState" : "manual",
       "localizations" : {

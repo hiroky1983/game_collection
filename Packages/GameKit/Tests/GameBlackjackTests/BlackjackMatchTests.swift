@@ -135,6 +135,7 @@ struct BlackjackMatchTests {
         #expect(model.matchOver)
         #expect(model.points == 7)
         #expect(model.matchOutcome == .win, "勝った手 7・負けた手 3 で勝ち越し")
+        #expect(model.handsWon == 7, "結果カードの「勝ち N回」に出す回数")
         #expect(log.record(gameID: "blackjack", variant: BlackjackModel.recordVariant)?.bestPoints == 7)
     }
 
