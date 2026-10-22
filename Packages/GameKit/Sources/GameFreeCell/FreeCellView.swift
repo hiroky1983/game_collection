@@ -134,6 +134,16 @@ public struct FreeCellView: View {
                 FreeCellAccessibility.hintLabel(move: move, board: model.board)
             ).post()
         }
+        // 「自動で上がる」は 1 手ずつ順に送る（#2706）。画面を離れて止められたら残りを一気に片付けて、
+        // 「入力が止まったまま」の盤を残さない。
+        .task(id: model.autoFinishRun) {
+            while let wait = model.advanceAutoFinish() {
+                do { try await Task.sleep(for: wait) } catch {
+                    model.finishAutoFinishNow()
+                    return
+                }
+            }
+        }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG

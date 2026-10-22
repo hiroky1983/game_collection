@@ -276,7 +276,44 @@ struct FreeCellModelTests {
         model.replaceBoardForTesting(FreeCellBoard(tableau: tableau, foundations: [12, 12, 12, 12]))
         #expect(model.canAutoFinish)
         #expect(model.autoFinish())
+        // 1 手ずつ進む（#2706）。始めた直後はまだ決着せず、入力は止まる。
+        #expect(model.isAutoFinishing)
+        #expect(model.phase == .playing)
+        var steps = 0
+        while model.advanceAutoFinish() != nil { steps += 1 }
+        #expect(steps == 3, "最後の 1 手は待ち時間を返さず決着させる（K 4 枚 = 4 手）")
         #expect(model.phase == .won)
+        #expect(!model.isAutoFinishing)
+    }
+
+    @Test("「自動で上がる」の最中は盤への入力を受け付けず、新規ゲームで手順が捨てられる")
+    func autoFinishBlocksInputAndCancelsOnNewGame() {
+        let model = FreeCellModel(services: makeServices(), seed: firstSeed())
+        var tableau: [[FreeCellCard]] = Array(repeating: [], count: FreeCellBoard.pileCount)
+        for (index, suit) in PlayingCardSuit.allCases.enumerated() {
+            tableau[index] = [FreeCellCard(suit, 13)]
+        }
+        model.replaceBoardForTesting(FreeCellBoard(tableau: tableau, foundations: [12, 12, 12, 12]))
+        #expect(model.autoFinish())
+        #expect(!model.autoFinish(), "二重に始めない")
+        model.tapPile(0)
+        #expect(model.selection == nil)
+        _ = model.advanceAutoFinish()
+        model.newGame()
+        #expect(!model.isAutoFinishing)
+        #expect(model.advanceAutoFinish() == nil)
+        #expect(model.phase == .playing)
+    }
+
+    @Test("「自動で上がる」の間隔: 20 手以下は 0.05 秒・超えたら 0.03 秒・合計は 2 秒以内")
+    func autoFinishPacing() {
+        #expect(AutoFinishPacing.interval(moveCount: 4) == .milliseconds(50))
+        #expect(AutoFinishPacing.interval(moveCount: 20) == .milliseconds(50))
+        #expect(AutoFinishPacing.interval(moveCount: 21) == .milliseconds(30))
+        #expect(AutoFinishPacing.interval(moveCount: 60) == .milliseconds(30))
+        for count in [1, 20, 21, 66, 67, 100, 200] {
+            #expect(AutoFinishPacing.interval(moveCount: count) * count <= .seconds(2))
+        }
     }
 
     // MARK: - 行き止まり

@@ -313,6 +313,23 @@ struct SolitaireAutoFinishTests {
         #expect(plan.allSatisfy { $0 != .draw }, "この盤面に山札は無いのでめくる手は出ない")
     }
 
+    @Test("「自動で上がる」は 1 手ずつ進み、最後の 1 手で決着する（#2706）")
+    func autoFinishAdvancesOneMoveAtATime() {
+        let model = SolitaireModel(services: nil, seed: 1)
+        model.replaceBoardForTesting(almostWonBoard())
+        #expect(model.autoFinish())
+        #expect(model.isAutoFinishing)
+        #expect(model.phase == .playing)
+        model.tapStock()
+        #expect(model.selection == nil, "最中の入力は無視する")
+        var steps = 0
+        while model.advanceAutoFinish() != nil { steps += 1 }
+        #expect(steps >= 1)
+        #expect(model.phase == .won)
+        #expect(model.board.isWon)
+        #expect(!model.isAutoFinishing)
+    }
+
     @Test("山札に沈んだ札も、めくりだけで届くなら手順に含める")
     func drawsThroughTheStock() {
         var piles: [SolitairePile] = []
