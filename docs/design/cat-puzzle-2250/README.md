@@ -82,3 +82,13 @@ python3 docs/design/cat-puzzle-2250/tools/build.py docs/design/cat-puzzle-2250
   画面も情報が多くなる。**案A の上級の難易度（むずかしい）だけに足す**のが落としどころと考える。
 - 盤の大きさは 7×7 を基準に、かんたん 6×6・むずかしい 8×8 を想定（8×8 は 1 マス 45pt でまだ押せる）。
 - 未決のまま残す点: 名前（仮）・おじさんの役回りの話の付け方・出す版。
+
+## 正式名とハブのタイル（2026-10-22 会長決裁）
+
+- 名前は「おじさんちのねこさがし」（英語名 Ojisan's Hidden Cats）に決定。上の「おじさんの飼い猫パズル」は仮名で、このモックは当時のまま残す。
+- ハブのタイルは案 a6b（家の間取りの盤の上辺の真ん中から猫が顔を出し、前足を掛ける）。`hub-tile/a6b.png` がアプリに入れたタイル（名前・青緑の下線入り）の写し。
+- アプリのアセットは release ブランチの `Scripts/generate-hub-tiles.py --only catpuzzle --cat-art <このフォルダ>` が書き出す。使う素材は
+  `assets/cats/face_normal.png`（顔）と `hub-tile/parts/` の部品:
+  - `paw.png`・`paw-r.png` … 盤に掛ける左右の前足（`assets/cats` の会長の猫の絵から切り抜き）
+  - `tail-v.png` … こたつの布団から出る尻尾（`assets/cats/sit_side.png` の尻尾を切り抜いて縦向きにしたもの）
+- release ブランチには docs が無いので、`git archive origin/main docs/design/cat-puzzle-2250 | tar -x -C /tmp/mock` で取り出して渡す。
