@@ -170,7 +170,9 @@ public struct HeartsView: View {
         let isCurrent = model.phase == .playing && !model.isTrickComplete && model.currentPlayer == index
         let count = model.hands[index].count
         // ハーツは場の札が直前の手を見せるので、吹き出しにはこの手の点と合計点を出す（以前の白い札の 2・3 行目）。
-        let points = "\(tr("この手 %lld点", model.takenPoints[index])) / \(tr("合計 %lld点", model.totals[index]))"
+        let handPoints = tr("この手 %lld点", model.takenPoints[index])
+        let totalPoints = tr("合計 %lld点", model.totals[index])
+        let points = "\(handPoints) / \(totalPoints)"
         var spoken = [HeartsAccessibility.scoreLabel(
             name: model.playerName(index), handPoints: model.takenPoints[index], total: model.totals[index]
         ), seatLabel(index)]
