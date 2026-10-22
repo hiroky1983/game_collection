@@ -159,6 +159,10 @@ public final class ColorRelayModel: AITurnGuarded {
     /// 山から 1 枚引けるか（通常の手番で、まだ引いていないとき）。
     public var canDraw: Bool { isPlayerTurn && pendingDraw == 0 && !hasDrawnThisTurn }
 
+    /// 出せる札が1枚も無く、山から引くしかないか（#2693）。「1枚引く」ボタンを主役の色にする判定。
+    /// 手札ヒントの設定に関係なく、ルール判定（`playableCardIDs`）だけで決める。
+    public var mustDraw: Bool { canDraw && playableCardIDs.isEmpty }
+
     /// 引いた札を出さずに番を終えられるか（引いた札が出せるときだけこの操作が要る。
     /// 出せない札を引いたときは自動で次へ回る）。
     public var canEndTurn: Bool { isPlayerTurn && pendingDraw == 0 && hasDrawnThisTurn }

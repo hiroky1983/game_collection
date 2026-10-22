@@ -269,6 +269,15 @@ public final class DaifugoModel: AITurnGuarded {
     /// 人間がパスできるか（親のときはパスできない = 場を流せないため）。
     public var canPass: Bool { isPlayerTurn && !field.isEmpty }
 
+    /// 出せる手が1つも無く、パスするしかないか（#2693）。パスボタンを主役の色にする判定。
+    /// 手札ヒントの設定（`hints`）に関係なく、ルール判定（`playableCardIDs`）だけで決める。
+    public var mustPass: Bool {
+        guard canPass else { return false }
+        return DaifugoRules.playableCardIDs(
+            hand: playerHand, field: field, isRevolution: isRevolution, bindSuits: bindSuits
+        ).isEmpty
+    }
+
     /// 手札のヒント（#190）。強調するものが無いときは nil。
     ///
     /// nil になるのは、設定でオフ / 自分の手番でない / 手札が空 / **手札すべてが出せる**

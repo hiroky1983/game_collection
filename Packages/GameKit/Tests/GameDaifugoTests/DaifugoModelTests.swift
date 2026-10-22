@@ -494,6 +494,32 @@ struct DaifugoHandHintTests {
         #expect(hint.unplayable == [card(3).id, card(4).id])
     }
 
+    @Test("出せる手が無いときだけ mustPass になる。ヒント設定には依存しない（#2693）")
+    func mustPassOnlyWhenNothingPlayable() {
+        for enabled in [true, false] {
+            let model = makeModel(hintsEnabled: enabled)
+            model.configureForTesting(
+                hands: [[card(3), card(4)], [card(5)], [card(6)], [card(7)]],
+                field: [card(2)],
+                fieldOwner: 1
+            )
+            #expect(model.mustPass)
+
+            // 1枚でも出せる札があれば通常のパス。
+            model.configureForTesting(
+                hands: [[card(3), card(13)], [card(5)], [card(6)], [card(7)]],
+                field: [card(9, .hearts)],
+                fieldOwner: 1
+            )
+            #expect(model.canPass)
+            #expect(!model.mustPass)
+
+            // 親（場が空）のときはパスできないので対象外。
+            model.configureForTesting(hands: [[card(3), card(4)], [card(5)], [card(6)], [card(7)]])
+            #expect(!model.mustPass)
+        }
+    }
+
     @Test("CPU の手番ではヒントを出さない")
     func noHintOnCPUTurn() {
         let model = makeModel()

@@ -427,7 +427,8 @@ public struct DaifugoView: View {
             .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton(tr("パス"), role: .skip, disabled: !model.canPass) {
+                // 出せる手が無いときは押してほしいボタンとして主役の色にする（#2693）。
+                actionButton(tr("パス"), role: model.mustPass ? .primary : .skip, disabled: !model.canPass) {
                     model.pass()
                     runCPU()
                 }
