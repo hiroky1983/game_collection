@@ -731,13 +731,13 @@
         }
       }
     },
-    "動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます" : {
+    "動かしたい札をタップして選び、置きたい列か組札をタップします。ドラッグでも動かせます。もう一度同じ札をタップすると選択を外せます。同じ札をすばやく2回タップすると組札へ送れます。あとは積むだけになったら、右下の「⋯」の「自動で上がる」で残りをまとめて組札へ送れます" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap a card to select it, then tap the column or foundation to move it to. Tap the same card again to deselect it"
+            "value" : "Tap a card to select it, then tap the column or foundation to move it to. You can also drag. Tap the same card again to deselect it. Tap the same card twice quickly to send it to a foundation. Once only foundation moves are left, \"Auto-finish\" in the \"...\" menu at the bottom right sends the rest to the foundations"
           }
         }
       }

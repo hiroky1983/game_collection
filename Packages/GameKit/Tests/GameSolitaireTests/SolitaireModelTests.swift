@@ -723,3 +723,15 @@ struct SolitaireRuleSheetTests {
         #expect(text.contains("クリアできることを確かめて"))
     }
 }
+
+@Suite("ソリティアの「操作」説明")
+struct SolitaireOperationRuleTests {
+
+    @Test("ドラッグ・2回タップ・自動で上がるを書いている（#2710）")
+    func operationMentionsDragDoubleTapAndAutoFinish() throws {
+        let operation = try #require(SolitaireRuleSheet.rules.first { $0.0 == tr("操作") }).1
+        #expect(operation.contains("ドラッグ"))
+        #expect(operation.contains("2回タップ"))
+        #expect(operation.contains("自動で上がる"))
+    }
+}
