@@ -347,7 +347,9 @@ public struct FreeCellView: View {
             }
             .onEnded { value in
                 guard let current = drag else { return }
-                drag = nil
+                // 置けなかったとき、指の下の札が消えて元の札が「パッ」と濃くなるのを避け、
+                // 薄さが戻る様子を見せる（#2707）。成功時の移動（0.2 秒）より少し短く。
+                withGameAnimation(.easeOut(duration: 0.15)) { drag = nil }
                 resolveDrop(of: current, at: value.location)
             }
     }
