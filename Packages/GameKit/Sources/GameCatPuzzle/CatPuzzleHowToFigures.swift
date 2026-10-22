@@ -1,7 +1,7 @@
 import Core
 import SwiftUI
 
-/// 図入りの遊び方（#2044）のおじさんの飼い猫パズル（#2250）の図。文言は `HowToPlayGuide.catPuzzle.items`（Core）と同じ順。
+/// 図入りの遊び方（#2044）のおじさんちのねこさがし（#2250）の図。文言は `HowToPlayGuide.catPuzzle.items`（Core）と同じ順。
 /// 盤は本番と同じ `CatPuzzleBoardCanvas` で、4×4 の小さな問題を描く。
 @MainActor
 enum CatPuzzleHowToFigures {

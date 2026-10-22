@@ -1,7 +1,7 @@
 import SwiftUI
 import Core
 
-/// おじさんの飼い猫パズル（#2250）のプレイ画面。家の間取りのマスをタップで ×（いない）を付け外しし、ダブルタップで猫を見つける。
+/// おじさんちのねこさがし（#2250）のプレイ画面。家の間取りのマスをタップで ×（いない）を付け外しし、ダブルタップで猫を見つける。
 public struct CatPuzzleView: View {
     private let services: GameServices
     @State private var model: CatPuzzleModel
@@ -60,7 +60,7 @@ public struct CatPuzzleView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: tr("おじさんの飼い猫パズル"), review: services.review,
+        .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))
         .sheet(isPresented: $showNewGame) {

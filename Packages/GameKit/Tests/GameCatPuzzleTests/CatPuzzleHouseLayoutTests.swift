@@ -5,7 +5,7 @@ import CoreTestSupport
 
 /// 家具・ドア・窓の自動配置（`CatPuzzleHouseLayout`・#2250 ドールハウス）。
 /// 6×6 / 7×7 / 8×8 の多数の種で、家具が部屋からはみ出さない・ドアが共有壁の上にある・全部屋がつながる、を確かめる。
-@Suite("おじさんの飼い猫パズルの家の配置")
+@Suite("おじさんちのねこさがしの家の配置")
 @MainActor
 struct CatPuzzleHouseLayoutTests {
     private static func services() -> GameServices {

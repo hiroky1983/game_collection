@@ -5,7 +5,7 @@ import CoreEngine
 import CoreTestSupport
 import GameKitTestSupport
 
-@Suite("おじさんの飼い猫パズルのモジュール")
+@Suite("おじさんちのねこさがしのモジュール")
 @MainActor
 struct CatPuzzleModuleTests {
     @Test("登録口の ID と Model の gameID・遊び方ガイドは同じ")
@@ -23,12 +23,12 @@ struct CatPuzzleModuleTests {
     @Test("表示名・説明・ルール・部屋の名前に他社の名称を含めない（Issue #2250 の権利の整理）")
     func noTrademarkedWords() {
         let module = CatPuzzleModule()
-        #expect(module.title == "おじさんの飼い猫パズル")
+        #expect(module.title == "おじさんちのねこさがし")
         #expect(!module.description.isEmpty)
         let guide = HowToPlayGuide.catPuzzle
-        let english = [GameCatPuzzle.tr("おじさんの飼い猫パズル", language: .english),
+        let english = [GameCatPuzzle.tr("おじさんちのねこさがし", language: .english),
                        GameCatPuzzle.tr("家のどこかに隠れた飼い猫を、部屋ごとに1匹ずつ見つけよう", language: .english),
-                       Core.tr("おじさんの飼い猫パズルの遊び方", language: .english)]
+                       Core.tr("おじさんちのねこさがしの遊び方", language: .english)]
         let texts = [module.title, module.description, guide.title, guide.hint]
             + guide.lines + guide.items.map(\.text) + guide.notes + english
             + CatPuzzleHouse.rooms.map(\.name)
@@ -118,16 +118,16 @@ struct CatPuzzleModuleTests {
 }
 
 /// 英語の表示（多言語 #2169）。`swift test` は日本語で動くので、英語は `language: .english` を明示して引く。
-@Suite("おじさんの飼い猫パズル: 英語の文言と読み上げ")
+@Suite("おじさんちのねこさがし: 英語の文言と読み上げ")
 struct CatPuzzleLocalizationTests {
     @Test("題名・読み上げ・残りの表示に英語の訳がある")
     func englishTerms() {
-        #expect(GameCatPuzzle.tr("おじさんの飼い猫パズル", language: .english) == "Ojisan's Cat Puzzle")
+        #expect(GameCatPuzzle.tr("おじさんちのねこさがし", language: .english) == "Ojisan's Hidden Cats")
         #expect(GameCatPuzzle.tr("残り %lld匹", 1, language: .english) == "1 cat left")
         #expect(GameCatPuzzle.tr("残り %lld匹", 4, language: .english) == "4 cats left")
         #expect(GameCatPuzzle.tr("%1$lld行%2$lld列", 2, 3, language: .english) == "Row 2, column 3")
         #expect(GameCatPuzzle.tr("居間", language: .english) == "Living Room")
-        #expect(Core.tr("おじさんの飼い猫パズルの遊び方", language: .english) == "How to Play Ojisan's Cat Puzzle")
+        #expect(Core.tr("おじさんちのねこさがしの遊び方", language: .english) == "How to Play Ojisan's Hidden Cats")
     }
 
     @Test("読み上げは部屋の名前と印・矛盾・ヒントを言葉で区別する")

@@ -89,7 +89,7 @@ public enum RecordVariantLabels {
             guard variant.hasSuffix("disks"), let count = Int(variant.dropLast(5)) else { return nil }
             return tr("円盤%lld枚", count, language: language)
         case "catpuzzle":
-            // おじさんの飼い猫パズル（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
+            // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
             return difficultyWord(variant, language: language)
         case "daifugo":
             // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。

@@ -27,6 +27,7 @@ import GameAnzan
 import GameColorRelay
 import GameFruits
 import GameDiceCombo
+import GameCatPuzzle
 import GameSpider
 import GameChess
 import GameBlocks
@@ -47,7 +48,7 @@ private let hubOrder = [
     "homerun", "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
     "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
     "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
-    "colorrelay", "fruits", "dicecombo",
+    "colorrelay", "fruits", "dicecombo", "catpuzzle",
 ]
 
 @MainActor
@@ -60,7 +61,7 @@ private func makeRegistry() -> GameRegistry {
         DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
         OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
         BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
-        ColorRelayModule(), FruitsModule(), DiceComboModule(),
+        ColorRelayModule(), FruitsModule(), DiceComboModule(), CatPuzzleModule(),
     ])
 }
 
@@ -143,7 +144,7 @@ struct RecommendationTableTests {
         ("daifugo",       ["poker", "blackjack", "colorrelay"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
-        ("sudoku",        ["minesweeper", "2048", "mahjong"]),
+        ("sudoku",        ["minesweeper", "2048", "catpuzzle"]),
         ("go",            ["gomoku", "othello", "shogi"]),
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
         ("freecell",      ["solitaire", "spider", "sudoku"]),
@@ -158,6 +159,7 @@ struct RecommendationTableTests {
         ("colorrelay",    ["daifugo", "poker", "concentration"]),
         ("fruits",        ["ojisanpuzzle", "2048", "blocks"]),
         ("dicecombo",     ["poker", "mahjong4", "blackjack"]),
+        ("catpuzzle",     ["sudoku", "minesweeper", "ojisanpuzzle"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
