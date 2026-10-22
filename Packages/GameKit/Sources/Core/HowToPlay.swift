@@ -1142,6 +1142,8 @@ private struct HowToPlayNumberBadge: View {
             .foregroundStyle(Theme.onAccent)
             .frame(width: 22, height: 22)
             .background(Circle().fill(Theme.Fill.coral))
+            // 番号は見た目の飾り。「1」だけが単独のフォーカスにならないよう読み上げから外す（#2641）。
+            .accessibilityHidden(true)
     }
 }
 
@@ -1363,6 +1365,7 @@ public struct RuleListSheet<Figures: View>: View {
                         Text(rule.0)
                             .themeBody(14, weight: .black)
                             .foregroundStyle(Theme.coralText)
+                            .accessibilityAddTraits(.isHeader)
                         Text(rule.1)
                             .themeBody(13, weight: .medium)
                             .foregroundStyle(Theme.ink)
@@ -1416,6 +1419,7 @@ public struct RuleFigureCard<Content: View>: View {
                         Text(title)
                             .themeBody(14, weight: .black)
                             .foregroundStyle(Theme.coralText)
+                            .accessibilityAddTraits(.isHeader)
                     }
                     if let detail {
                         Text(detail)
@@ -1500,6 +1504,7 @@ public struct YakuTableSection<Content: View>: View {
                     .themeBody(13, weight: .black)
                     .foregroundStyle(Theme.inkSub)
                     .padding(.horizontal, 4)
+                    .accessibilityAddTraits(.isHeader)
             }
             VStack(alignment: .leading, spacing: 12) {
                 content
