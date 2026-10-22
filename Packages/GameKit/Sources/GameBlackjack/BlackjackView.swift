@@ -518,16 +518,31 @@ public struct BlackjackView: View {
     private var matchOverView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "flag.checkered")
+                let outcome = model.matchOutcome
+                let icon = outcome == .win ? "trophy.fill" : outcome == .loss ? "xmark.octagon.fill" : "equal.circle.fill"
+                let iconColor = outcome == .win ? Theme.yellowText : outcome == .loss ? Theme.coralText : Theme.tealText
+                let title = outcome == .win ? tr("10回勝負は勝ち越し！") : outcome == .loss ? tr("10回勝負は負け越し") : tr("10回勝負は引き分け")
+                let titleColor = outcome == .loss ? Theme.coralText : Theme.tealText
+                Image(systemName: icon)
                     .scaledFont(24)
-                    .foregroundStyle(Theme.tealText)
+                    .foregroundStyle(iconColor)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(tr("%1$lld回勝負の結果：勝ち %2$@", BlackjackModel.roundsPerMatch, tr("%lld点", model.points)))
+                    Text(title)
                         .themeBody(16, weight: .bold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(titleColor)
+                    Text(tr("%1$lld回勝負の結果：勝ち %2$@", BlackjackModel.roundsPerMatch, tr("%lld点", model.points)))
+                        .themeCaption(12, weight: .medium, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(Theme.inkSub)
+                    Text(tr("勝ち %lld回", model.handsWon))
+                        .themeCaption(12, weight: .medium, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(Theme.inkSub)
                     Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
                         .themeCaption(12, weight: .medium, maxScale: 1.5)
                         .lineLimit(1)
