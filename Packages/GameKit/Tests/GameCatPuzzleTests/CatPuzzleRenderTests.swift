@@ -23,8 +23,8 @@ struct CatPuzzleRenderTests {
     }
 
     /// 遊んでいる途中（猫 3 匹・× いくつか）。
-    private static func playingModel() -> CatPuzzleModel {
-        let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
+    private static func playingModel(size: CatPuzzleSize = .normal) -> CatPuzzleModel {
+        let model = CatPuzzleModel(services: services(), size: size, seed: 1)
         let answers = model.puzzle.solutionCells
         for cell in answers.prefix(3) { model.findCat(cell: cell) }
         for cell in [answers[0] + 1, answers[1] - 1, answers[2] + model.puzzle.side] where model.marks.indices.contains(cell) && model.marks[cell] == .empty {
@@ -146,9 +146,9 @@ struct CatPuzzleRenderTests {
     }
 
     /// クリアから 1 拍おいてダイアログが出たところ。
-    private static func clearModel() -> CatPuzzleModel {
+    private static func clearModel(size: CatPuzzleSize = .normal) -> CatPuzzleModel {
         let clock = ManualClock()
-        let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
+        let model = CatPuzzleModel(services: services(), size: size, seed: 1)
         model.clockNow = clock.now
         for cell in model.puzzle.solutionCells { model.findCat(cell: cell) }
         clock.advance(by: CatPuzzleModel.clearCardDelay)
@@ -246,13 +246,18 @@ struct CatPuzzleRenderTests {
         guard let dir = ProcessInfo.processInfo.environment["CAT_PUZZLE_RENDER_DIR"], !dir.isEmpty else { return }
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
-            ("1-playing", Self.playingModel),
+            ("1-playing", { Self.playingModel() }),
+            // 6×6 と 8×8 の途中とクリア（家具・ドア・窓がどの大きさでも崩れないことを目で見る。とくに SE の 8×8）。
+            ("1-playing-easy", { Self.playingModel(size: .easy) }),
+            ("1-playing-hard", { Self.playingModel(size: .hard) }),
+            ("4c-clear-easy", { Self.clearModel(size: .easy) }),
+            ("4c-clear-hard", { Self.clearModel(size: .hard) }),
             ("2-wrong-cross", Self.wrongCrossModel),
             ("3a-hint-line", Self.hintLineModel),
             ("3b-hint-room", Self.hintRoomModel),
             ("3c-hint-cat", Self.hintCatModel),
             ("4a-last-cat", Self.lastCatModel),
-            ("4b-clear-dialog", Self.clearModel),
+            ("4b-clear-dialog", { Self.clearModel() }),
             ("10-label-cross", Self.labelCrossModel),
             ("11-three-mistakes", Self.failedModel),
         ]
