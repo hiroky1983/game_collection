@@ -177,7 +177,7 @@ struct CardTableSurfaceTests {
     /// `@Environment(\.cardTableInk)` を持っても既定の `.plain` しか届かず、フェルトの上に地の色が
     /// 乗る（verifier が最小構成で再現。フリーセルの仕切りと麻雀ソリティアのクリア文字で実際に起きた）。
     @Test("卓の上の色は画面の View 本体で読まず、盤の中の子 View（CardTableInkReader）で読む", arguments: [
-        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
+        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameOldMaid", "GameHearts",
     ])
     func tableInkIsReadInsideTheTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
@@ -185,7 +185,7 @@ struct CardTableSurfaceTests {
                 "\(module) が画面の View 本体で cardTableInk を読んでいる（盤に付けた卓の値は届かない）")
         // 卓の上に色の要る部品を持つゲームは、器を通して読む。麻雀ソリティアのクリア表示は共通の
         // `GameClearCard`（素材の上に Theme.ink で描く）になり、卓の色を読まなくなった（#1755）。
-        if module == "GameFreeCell" {
+        if ["GameFreeCell", "GameOldMaid", "GameHearts"].contains(module) {
             #expect(source.contains("CardTableInkReader {"), "\(module) が CardTableInkReader を使っていない")
         }
     }
