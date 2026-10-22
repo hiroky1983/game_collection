@@ -5,6 +5,7 @@ import Foundation
 //   nps                   達人の 1 秒あたりの局面数と、読み切る深さ（中盤 24 局面・1 秒）
 //   timing [局面数]        出荷の設定（実時間）で 1 手にかかる時間: 平均・最大
 //   match <局面数>         達人 対 むずかしい。開始局面ごとに先後を入れ替えて 2 局ずつ
+//   ablation <局面数>      技法を 1 つ外した達人（OPTIONS）対 出荷の達人（MODE・MASTER_TIME は match と同じ。1 手詰めの検出のように局面数の数え方が変わる技法は MODE=time で比べる）
 // 環境変数:
 //   MODE=nodes|time       nodes（既定）: 考える時間を局面数に置き換える（同時に走る対局の負荷で強さが揺れない）。
 //                         time: 両者とも出荷の実時間で指す（1 手の時間の分布もここで取る）。
@@ -84,7 +85,8 @@ struct GameRecord {
 }
 
 func playGame(seed: UInt64, masterIsBlack: Bool, nodes: Bool, hardNPS: Double, masterNPS: Double,
-              masterTime: Double, options: ShogiMasterOptions, maxPlies: Int, openingPlies: Int) async -> GameRecord {
+              masterTime: Double, options: ShogiMasterOptions, maxPlies: Int, openingPlies: Int,
+              opponentOptions: ShogiMasterOptions? = nil) async -> GameRecord {
     var pos = CPUBenchLadder.opening(seed: seed, plies: openingPlies)
     var seen: [String: Int] = [:]
     var rec = GameRecord(result: .draw("手数"), plies: 0, masterTimes: [], hardTimes: [], kif: [])
@@ -110,6 +112,11 @@ func playGame(seed: UInt64, masterIsBlack: Bool, nodes: Bool, hardNPS: Double, m
             let e = nodes
                 ? ShogiMasterEngine(timeLimit: .infinity, nodeLimit: Int(masterTime * masterNPS), options: options)
                 : ShogiMasterEngine(timeLimit: masterTime, options: options)
+            usi = await e.bestMove(sfen: sfen)
+        } else if let opponentOptions {
+            let e = nodes
+                ? ShogiMasterEngine(timeLimit: .infinity, nodeLimit: Int(masterTime * masterNPS), options: opponentOptions)
+                : ShogiMasterEngine(timeLimit: masterTime, options: opponentOptions)
             usi = await e.bestMove(sfen: sfen)
         } else {
             let e = nodes
@@ -187,7 +194,8 @@ struct Bench {
             }
             wall.sort()
             print("TIMING 達人 上限 \(ShogiMasterEngine.shippedTimeLimit)s: 平均 \(f3(wall.reduce(0, +) / Double(wall.count)))s 中央値 \(f3(wall[wall.count / 2]))s 最大 \(f3(wall.last!))s（\(wall.count) 局面）")
-        case "match":
+        case "match", "ablation":
+            let ablation = args[1] == "ablation"
             let openings = Int(args.count > 2 ? args[2] : "") ?? 50
             let nodes = (env["MODE"] ?? "nodes") != "time"
             let hardNPS = Double(env["HARD_NPS"] ?? "") ?? 53_000
@@ -203,6 +211,7 @@ struct Bench {
             var wins = 0, losses = 0, draws = 0
             var masterTimes: [Double] = [], hardTimes: [Double] = []
             var plyCounts: [Int] = []
+            if ablation { print("ABLATION 外した側=「達人」 \(env["OPTIONS"] ?? "") 対 出荷の達人（「むずかしい」の欄）") }
             print("MATCH mode=\(nodes ? "nodes" : "time") 達人 \(masterTime)s 対 むずかしい 2s 開始局面 \(first)〜\(first + openings - 1) options=\(env["OPTIONS"] ?? "shipped")")
             await withTaskGroup(of: (UInt64, Bool, GameRecord).self) { group in
                 func add() {
@@ -212,7 +221,8 @@ struct Bench {
                     group.addTask {
                         (seed, black, await playGame(seed: seed, masterIsBlack: black, nodes: nodes, hardNPS: hardNPS,
                                                      masterNPS: masterNPS, masterTime: masterTime, options: options,
-                                                     maxPlies: plies, openingPlies: openingPlies))
+                                                     maxPlies: plies, openingPlies: openingPlies,
+                                                     opponentOptions: ablation ? .shipped : nil))
                     }
                 }
                 for _ in 0..<conc { add() }
