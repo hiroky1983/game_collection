@@ -229,6 +229,20 @@ public final class DaifugoModel: AITurnGuarded {
     /// 人間の手札（画面に並べる順にソート済み）。
     public var playerHand: [DaifugoCard] { hands[Self.humanIndex] }
 
+    /// 画面に並べる人間の手札。革命中は強さが逆になるので、左（弱い）→右（強い）の並びも
+    /// 革命後の強さで組み直す（ジョーカーは革命中も最強なので右端のまま）。
+    /// 表示順だけで、`hands` の持ち方・配り・交換・強さ判定は変えない。
+    public var displayHand: [DaifugoCard] {
+        guard isRevolution else { return playerHand }
+        return playerHand.sorted {
+            Self.displayKey($0, isRevolution: true) < Self.displayKey($1, isRevolution: true)
+        }
+    }
+
+    private static func displayKey(_ card: DaifugoCard, isRevolution: Bool) -> Int {
+        DaifugoRules.strength(rank: card.rank, isRevolution: isRevolution) * 10 + (card.suit?.rawValue ?? 0)
+    }
+
     /// 「新規対局」で失われる進行があるか（1 手でも進んだ未決着のゲーム。ColorRelayModel と同じ）。
     public var hasProgressToLose: Bool { phase == .playing && !isUntouchedDeal }
 

@@ -355,7 +355,7 @@ public struct DaifugoView: View {
                 ),
                 spacing: DaifugoHandLayout.rowSpacing
             ) {
-                ForEach(model.playerHand) { card in
+                ForEach(model.displayHand) { card in
                     let isSelected = model.selected.contains(card.id)
                     let hint = handHint?.state(for: card.id) ?? .none
                     DaifugoCardView(card: card, metrics: metrics.handCard, selected: isSelected, hint: hint)
@@ -381,7 +381,7 @@ public struct DaifugoView: View {
                 }
             }
             // 出した札が手札から消える／交換で増える変化を演出する（#195）。
-            .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
+            .gameAnimation(.easeInOut(duration: 0.18), value: model.displayHand)
             hintLine(handHint)
         }
     }
