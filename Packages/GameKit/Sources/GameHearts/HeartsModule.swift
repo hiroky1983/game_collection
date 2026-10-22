@@ -3,9 +3,7 @@ import Core
 
 /// ハーツ（Issue #1884）の `GameModule` 登録口。
 ///
-/// 企画倉庫（`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」）の段階では
-/// `AppEnvironment.registry` への登録行がコメントアウトされている。出荷する版が決まったら
-/// そのコメントアウトを外すだけでハブに並ぶ。
+/// 企画倉庫から v1.1.14 でハブに公開（会長決裁 2026-10-22）。
 public struct HeartsModule: GameModule {
     // **文字列リテラルで書く**（`HeartsModel.gameID` を参照しない）。LP の顔ぶれ照合
     // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため。

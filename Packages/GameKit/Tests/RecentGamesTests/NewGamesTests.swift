@@ -239,9 +239,9 @@ struct NewGamesPinnedTests {
         #expect(NewGames.pinned(visibleIDs: ["x", "y"], newIDs: []) == ["x", "y"])
     }
 
-    @Test("この版の新着は おじさんちのねこさがし")
+    @Test("この版の新着は おじさんちのねこさがし・スピード・ババ抜き・ハーツ")
     func currentVersionIDs() {
-        #expect(NewGames.currentVersionIDs == ["catpuzzle"])
+        #expect(NewGames.currentVersionIDs == ["catpuzzle", "speed", "oldmaid", "hearts"])
     }
 }
 

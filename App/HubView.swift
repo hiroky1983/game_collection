@@ -862,6 +862,7 @@ enum HubTileStyle {
         "mahjong": pink, "hanafuda": coral, "go": teal, "blocks": purple, "concentration": yellow,
         "chess": pink, "freecell": coral, "fifteen": teal, "ojisanpuzzle": yellow, "anzan": coral,
         "colorrelay": purple, "fruits": teal, "dicecombo": pink, "catpuzzle": teal,
+        "speed": teal, "oldmaid": purple, "hearts": coral,
     ]
 
     static func accent(for gameID: String) -> Color { Color(hex: accentHex[gameID] ?? coral) }

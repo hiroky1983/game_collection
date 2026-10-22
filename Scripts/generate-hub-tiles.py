@@ -90,6 +90,11 @@ GAMES = {
     "dicecombo": ("サイコロ役づくり", PINK),
     # 企画倉庫から v1.1.14 でハブに出した 1 本（#2250・会長決裁 2026-10-22）。橙の下地に映える青緑の下線（隣に並ぶ柵越えおじさんの紫と分ける）。
     "catpuzzle": ("おじさんちのねこさがし", TEAL),
+    # 企画倉庫から v1.1.14 でハブに出すトランプ 3 本（#1323・#1577・#1884）。モックに絵が無いので、モックの
+    # トランプのタイル（ポーカー等の `.card` / `.back`）と同じ札で `art_html` に描く。
+    "speed": ("スピード", TEAL),
+    "oldmaid": ("ババ抜き", PURPLE),
+    "hearts": ("ハーツ", CORAL),
 }
 # 英語のゲーム名（#2181）。各ゲームの String Catalog（`Resources/Localization/Localizable.xcstrings`）の訳と同じ
 # （#2166〜#2169）。食い違いは `check_english_names` が書き出しの前に止める。2048 は訳さない（タイトルを直書き）、
@@ -124,6 +129,9 @@ GAMES_EN = {
     "fruits": "Ojisan no Bonsai",
     "dicecombo": "Dice Combos",
     "catpuzzle": "Ojisan's Hidden Cats",
+    "speed": "Speed",
+    "oldmaid": "Old Maid",
+    "hearts": "Hearts",
 }
 # String Catalog を引かずに上の表で持つゲーム（理由は上）。
 EN_NOT_IN_CATALOG = {"2048", "daifugo"}
@@ -159,7 +167,7 @@ def asset_name(base, lang):
 
 # モックの絵を使わず描き直すゲーム（上の docstring 参照）。倉庫から出した 3 本（#2384）はモックに絵が無いので、
 # ゲーム内の部品（いろリレーの札・盆栽の絵と縁側のおじさん・サイコロ）を同じ方式で組む。
-REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "fruits", "dicecombo", "catpuzzle"}
+REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "fruits", "dicecombo", "catpuzzle", "speed", "oldmaid", "hearts"}
 FRUITS_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameFruits/Resources")
 
 # モックの HTML からカジノチップを外して描くゲーム（#2552）。モックの PNG ではなく、隣の `<id>.html` を描く。
@@ -194,7 +202,42 @@ body{font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans",sans-serif;-w
 .die{position:absolute;width:54px;height:54px;border-radius:12px;background:#fff;box-shadow:0 6px 8px rgba(0,0,0,.28)}
 .die i{position:absolute;border-radius:50%;background:#2B2624;transform:translate(-50%,-50%)}
 .pill{position:absolute;padding:3px 10px;border-radius:999px;background:#fff;font-weight:900;font-size:13px;box-shadow:0 4px 6px rgba(0,0,0,.25)}
+.card{position:absolute;width:62px;height:88px;border-radius:7px;background:#fff;border:1.5px solid #E6E0D6;box-shadow:0 6px 8px rgba(0,0,0,.28);font-weight:800;font-family:"SF Pro Rounded",".SF NS Rounded",sans-serif;transform-origin:bottom center}
+.card .r{position:absolute;left:6px;top:4px;font-size:17px;line-height:1}
+.card .s{position:absolute;left:6px;top:22px;font-size:14px;line-height:1}
+.card .c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;padding-top:10px}
+.card.red{color:#C0392B}.card.blk{color:#1A1A1A}
+.card .jk{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#1A1A1A;font-weight:900;font-size:9px;letter-spacing:.5px}
+.back{position:absolute;width:62px;height:88px;border-radius:7px;background:#2F5F9E;border:4px solid #fff;box-shadow:0 6px 8px rgba(0,0,0,.28);transform-origin:bottom center}
+.back::after{content:"";position:absolute;inset:4px;border-radius:4px;border:2px solid rgba(255,255,255,.55);background:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 4px,transparent 4px 8px)}
+.streak{position:absolute;height:5px;border-radius:999px;background:rgba(255,255,255,.9);box-shadow:0 2px 3px rgba(0,0,0,.18)}
+.glyph{position:absolute;color:rgba(255,255,255,.9);font-weight:900;line-height:1;text-shadow:0 4px 6px rgba(0,0,0,.25)}
 """
+
+
+def pcard(rank, suit, x, y, rot, scale=1.0):
+    """モックのトランプのタイルと同じ札（白・62×88・左上にランクとスート・中央に大きなスート）。"""
+    color = "red" if suit in ("♥", "♦") else "blk"
+    return (f'<div class="card {color}" style="left:{x}px;top:{y}px;transform:rotate({rot}deg) scale({scale})">'
+            f'<div class="r">{rank}</div><div class="s">{suit}</div><div class="c">{suit}</div></div>')
+
+
+def back(x, y, rot, scale=1.0):
+    """モックと同じ青い裏向きの札。"""
+    return f'<div class="back" style="left:{x}px;top:{y}px;transform:rotate({rot}deg) scale({scale})"></div>'
+
+
+# ゲーム内のジョーカーの図案（`JesterCapMark`: とんがり帽・つば・鈴 3 つを `Theme.purple` で塗る）。座標は
+# `JesterCapGeometry` の比率（0〜1）を 100 倍したもの。
+JESTER_CAP = ('<svg viewBox="0 0 100 100" style="width:{size}px;height:{size}px" fill="#8C7BE0">'
+              '<circle cx="11" cy="83" r="10.5"/><circle cx="50" cy="11" r="10.5"/><circle cx="89" cy="83" r="10.5"/>'
+              '<path d="M20 66 Q30 24 50 7 Q70 24 80 66 Z"/><rect x="13" y="62" width="74" height="16" rx="8"/></svg>')
+
+
+def joker(x, y, rot, scale=1.0):
+    """ジョーカーの札（ゲーム内と同じく左上のランクは無く、中央に帽子の図案と小さな JOKER の文字）。"""
+    return (f'<div class="card" style="left:{x}px;top:{y}px;transform:rotate({rot}deg) scale({scale})">'
+            f'<div class="jk">{JESTER_CAP.format(size=34)}<div>JOKER</div></div></div>')
 
 
 def img(path, x, y, w, rot=0):
@@ -422,6 +465,34 @@ def art_html(gid):
     elif gid == "catpuzzle":
         bg = "linear-gradient(160deg,#FFD98A 0%,#F7A94B 55%,#E88A2E 100%)"
         body = cat_art_body()
+    elif gid == "speed":
+        # 場の 2 列の台札（6♦・7♠）を真ん中に、両脇に山札（裏向き）。右下から 8♥ を台札へ叩きつける瞬間で、
+        # 札の後ろに白い流線を引いて速さを出す。暖色の下地はトランプの他のタイル（緑・紫・赤）と重ならない橙。
+        bg = "linear-gradient(160deg,#FFD38A 0%,#F28C2E 55%,#C9641A 100%)"
+        # 8♥ は右の台札（7♠）へ、右下から流線を引きながら飛び込む（7 の上に 8 は出せる札）。流線は札の後ろ
+        # （先に描く）に置き、札と重ならない右下の空きに出す。
+        # 全体を左に寄せて右下に流線の場所を空ける（飛び込む札は右上の角が回って右に出るので、その外側に引く）。
+        body = (back(-30, 36, -8) + back(120, 36, 8)
+                + pcard("6", "♦", 6, 58, -3) + pcard("7", "♠", 76, 58, 3)
+                + '<div class="streak" style="left:146px;top:150px;width:40px;transform:rotate(-58deg)"></div>'
+                + '<div class="streak" style="left:132px;top:172px;width:30px;transform:rotate(-58deg)"></div>'
+                + '<div class="streak" style="left:158px;top:134px;width:22px;transform:rotate(-58deg)"></div>'
+                + pcard("8", "♥", 62, 112, 16))
+    elif gid == "oldmaid":
+        # 扇に広げた裏向きの手札（4 枚）から、ジョーカー 1 枚だけが表を向いて浮き上がる。裏は青なので下地は
+        # 桃色にして、ジョーカーの紫（`Theme.purple`）と青の裏の両方が映えるようにする。
+        bg = "linear-gradient(160deg,#FFC2D4 0%,#EE6E96 50%,#C2446F 100%)"
+        body = (back(2, 100, -28) + back(34, 86, -14) + back(84, 86, 14) + back(116, 100, 28)
+                + joker(58, 58, 0, 1.08))
+    elif gid == "hearts":
+        # 卓の真ん中の 1 トリック: ♥ の札 3 枚（7・A・K）に、罰点の大きいスペードの Q を手前に大きく置く。
+        # 右上には白い ♥ を 2 つ浮かせて、ゲーム名の「ハーツ」を絵でも言う。下地はハート色の葡萄酒色
+        # （藍だと隣に並ぶ いろリレー の紺と同じに見える。ブラックジャックの暖色の赤・ババ抜きの桃より濃い）。
+        bg = "linear-gradient(160deg,#C9607F 0%,#8B2A4E 50%,#5C1A34 100%)"
+        body = (pcard("A", "♥", 58, 44, 0) + pcard("7", "♥", 12, 66, -18) + pcard("K", "♥", 104, 66, 18)
+                + pcard("Q", "♠", 60, 92, -5, 1.12)
+                + '<div class="glyph" style="left:118px;top:10px;font-size:30px;transform:rotate(14deg)">♥</div>'
+                + '<div class="glyph" style="left:146px;top:28px;font-size:20px;transform:rotate(22deg)">♥</div>')
     else:
         raise KeyError(gid)
     # モックと同じく、名前を上に重ねるぶん物を 24pt 下げる。

@@ -341,7 +341,8 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameAnzan",
-            "GameColorRelay", "GameFruits", "GameDiceCombo", "GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport",
+            "GameColorRelay", "GameFruits", "GameDiceCombo", "GameCatPuzzle", "GameSpeed", "GameOldMaid", "GameHearts",
+            "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
