@@ -1,11 +1,12 @@
 import SwiftUI
 import Core
 
-/// 盤の絵（家の間取り・印・猫）。本番と遊び方の図で同じものを使う（#2250）。
+/// 盤の絵（家の間取り・家具・印・猫）。本番と遊び方の図で同じものを使う（#2250）。
 ///
-/// 1 マスずつ床の色と柄を塗り、マスの区切り（タップの単位）をはっきりした線で引き、部屋の境目に
-/// 太い壁を引き、部屋の左上寄りの「答えでないマス」に名前の札を置く（`labelPlacement`）。線の強さは
-/// **壁＞マスの区切り＞床の柄** の順（`CatPuzzleHouse`）。
+/// 1 マスずつ床の色と柄を塗り、部屋ごとの家具（`CatPuzzleHouseLayout`）を置き、その上にマスの区切り（タップの単位）を
+/// はっきりした線で引き、部屋の境目に太い壁（ドア付き）と外周の壁（窓付き）を引き、部屋の左上寄りの
+/// 「答えでないマス」に名前の札を置く（`labelPlacement`）。線の強さは **壁＞マスの区切り＞床の柄** の順（`CatPuzzleHouse`）。
+/// 家具は × や猫より下の層（細い部屋で家具と × が重なっても × が読める）。
 /// 猫は `Canvas` ではなく `CatPuzzleCatLayer` の SwiftUI ビューで重ねる（置いた瞬間に弾む・消すときは
 /// 短く縮む・クリアで順に跳ねる演出のため。会長 QA 2026-10-21）。答えでないマスに猫を置こうとして付いた
 /// 固定の赤い × も別の層で重ねる（付いた瞬間に揺れて赤く点滅する。build 42）。読み上げと操作は
@@ -34,21 +35,27 @@ struct CatPuzzleBoardCanvas: View {
     let cellSide: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// 壁・ドア・窓の寸法の縮尺。本番の盤（マス 40pt 以上）で 1、遊び方の小さな図では細くする。
+    private var scale: CGFloat { min(1, cellSide / 36) }
+    /// 部屋の境目の壁の太さ。
+    private var wallWidth: CGFloat { CatPuzzleHouse.wallWidth * scale }
     /// 外周の壁の太さ。
-    private var borderWidth: CGFloat { CatPuzzleHouse.wallWidth * 1.5 }
+    private var borderWidth: CGFloat { CatPuzzleHouse.outerWallWidth * scale }
 
     var body: some View {
         let n = puzzle.side
         let boardSide = cellSide * CGFloat(n)
         let rooms = (0..<n).map { CatPuzzleHouse.room($0) }
+        let layout = CatPuzzleHouseLayout.cached(for: puzzle)
         ZStack(alignment: .topLeading) {
-            // 下の層: 床・マスの区切り・ヒントの黄色い帯・壁・×（赤い × は別の層）。× はどのマスでも中央に描く。
+            // 下の層: 床・家具・マスの区切り・ヒントの黄色い帯・壁（ドア・窓）・×（赤い × は別の層）。× はどのマスでも中央に描く。
             Canvas { context, _ in
                 drawFloors(&context, rooms: rooms)
+                drawFurniture(&context, layout: layout)
                 drawGrid(&context)
                 drawHintGlow(&context)
                 drawConflictFills(&context)
-                drawWalls(&context)
+                drawWalls(&context, layout: layout)
                 drawCrosses(&context)
             }
             // 答えでないマスの赤い ×（付いた瞬間に揺れて点滅する）。
@@ -134,15 +141,26 @@ struct CatPuzzleBoardCanvas: View {
     // MARK: - 下の層
 
     private func drawFloors(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
+        let n = puzzle.side
         for cell in 0..<puzzle.cellCount {
             let room = rooms[puzzle.rooms[cell] % rooms.count]
             let r = rect(of: cell)
             context.fill(Path(r), with: .color(room.tint))
-            CatPuzzleFloorPainter.draw(room.floor, in: r, strength: room.patternStrength, context: &context, ink: Theme.ink)
+            CatPuzzleFloorPainter.draw(room.floor, in: r, row: cell / n, col: cell % n, strength: room.patternStrength, context: &context, ink: Theme.ink)
         }
     }
 
-    /// マスの区切り（タップの単位）。床の柄よりはっきり、壁より細く。
+    /// 部屋ごとの家具（マスの区切りより下・× と猫より下）。箱はマスから 0.14 マス内側。
+    private func drawFurniture(_ context: inout GraphicsContext, layout: CatPuzzleHouseLayout) {
+        let margin = cellSide * 0.14
+        for item in layout.furniture {
+            let box = CGRect(x: CGFloat(item.col) * cellSide + margin, y: CGFloat(item.row) * cellSide + margin,
+                             width: CGFloat(item.width) * cellSide - margin * 2, height: CGFloat(item.height) * cellSide - margin * 2)
+            CatPuzzleFurniturePainter.draw(item.kind, in: box, cellSide: cellSide, context: &context)
+        }
+    }
+
+    /// マスの区切り（タップの単位）。床の柄よりはっきり、壁より細く。家具の上にも引く。
     private func drawGrid(_ context: inout GraphicsContext) {
         let n = puzzle.side
         var path = Path()
@@ -153,29 +171,47 @@ struct CatPuzzleBoardCanvas: View {
             path.move(to: CGPoint(x: 0, y: p))
             path.addLine(to: CGPoint(x: cellSide * CGFloat(n), y: p))
         }
-        context.stroke(path, with: .color(Theme.ink.opacity(CatPuzzleHouse.gridOpacity)), lineWidth: CatPuzzleHouse.gridWidth)
+        context.stroke(path, with: .color(CatPuzzleHouse.gridColor), lineWidth: CatPuzzleHouse.gridWidth)
     }
 
-    /// 部屋の境目の壁と外周。
-    private func drawWalls(_ context: inout GraphicsContext) {
+    /// 部屋の境目の壁（ドアの口だけ切る）・ドア・外周の壁・窓。
+    private func drawWalls(_ context: inout GraphicsContext, layout: CatPuzzleHouseLayout) {
         let n = puzzle.side
+        let doorSegments = layout.doorSegments
+        let stub = cellSide * (1 - CatPuzzleOpeningPainter.doorOpening) / 2
         var walls = Path()
-        for cell in 0..<puzzle.cellCount {
-            let r = rect(of: cell)
-            let row = cell / n, col = cell % n
-            if col < n - 1, puzzle.rooms[cell] != puzzle.rooms[cell + 1] {
-                walls.move(to: CGPoint(x: r.maxX, y: r.minY))
-                walls.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
-            }
-            if row < n - 1, puzzle.rooms[cell] != puzzle.rooms[cell + n] {
-                walls.move(to: CGPoint(x: r.minX, y: r.maxY))
-                walls.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        for s in layout.walls {
+            let r = rect(of: s.row * n + s.col)
+            let hasDoor = doorSegments.contains(s)
+            if s.orientation == .vertical {
+                if hasDoor {
+                    walls.move(to: CGPoint(x: r.maxX, y: r.minY)); walls.addLine(to: CGPoint(x: r.maxX, y: r.minY + stub))
+                    walls.move(to: CGPoint(x: r.maxX, y: r.maxY - stub)); walls.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+                } else {
+                    walls.move(to: CGPoint(x: r.maxX, y: r.minY)); walls.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+                }
+            } else {
+                if hasDoor {
+                    walls.move(to: CGPoint(x: r.minX, y: r.maxY)); walls.addLine(to: CGPoint(x: r.minX + stub, y: r.maxY))
+                    walls.move(to: CGPoint(x: r.maxX - stub, y: r.maxY)); walls.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+                } else {
+                    walls.move(to: CGPoint(x: r.minX, y: r.maxY)); walls.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+                }
             }
         }
         // 端は伸ばさない（外周の壁からはみ出さないように）。T 字の継ぎ目は外周の壁が覆う。
-        context.stroke(walls, with: .color(Theme.ink), style: StrokeStyle(lineWidth: CatPuzzleHouse.wallWidth, lineCap: .butt))
+        context.stroke(walls, with: .color(CatPuzzleHouse.Palette.wall), style: StrokeStyle(lineWidth: wallWidth, lineCap: .butt))
+        // 壁の上面のハイライト（少し立体に）。
+        context.stroke(walls, with: .color(CatPuzzleHouse.Palette.wallHighlight.opacity(0.9)), style: StrokeStyle(lineWidth: wallWidth * 0.3, lineCap: .butt))
+        for door in layout.doors {
+            CatPuzzleOpeningPainter.drawDoor(door, cellSide: cellSide, scale: scale, context: &context)
+        }
         let outer = CGRect(x: 0, y: 0, width: cellSide * CGFloat(n), height: cellSide * CGFloat(n))
-        context.stroke(Path(outer.insetBy(dx: borderWidth / 2, dy: borderWidth / 2)), with: .color(Theme.ink), lineWidth: borderWidth)
+        context.stroke(Path(roundedRect: outer.insetBy(dx: borderWidth / 2, dy: borderWidth / 2), cornerRadius: 3 * scale),
+                       with: .color(CatPuzzleHouse.Palette.wall), lineWidth: borderWidth)
+        for window in layout.windows {
+            CatPuzzleOpeningPainter.drawWindow(window, side: n, cellSide: cellSide, wallWidth: borderWidth, scale: scale, context: &context)
+        }
     }
 
     /// ×（いない印）。こげ茶（ダークは生成り）の太い × に、面の色の縁取りを敷いて床の上で読めるようにする。
@@ -222,7 +258,7 @@ struct CatPuzzleBoardCanvas: View {
     /// 揺れているあいだはマスの赤を濃くして点滅させる。
     private func drawWrongCrosses(_ context: inout GraphicsContext, phase: CGFloat) {
         let width = Self.crossWidth(cellSide: cellSide) * 1.15
-        let inset = CatPuzzleHouse.wallWidth / 2
+        let inset = wallWidth / 2
         for cell in wrongCrosses.sorted() {
             let r = rect(of: cell)
             let isLast = cell == lastWrongCell
@@ -277,18 +313,18 @@ struct CatPuzzleBoardCanvas: View {
         return (free.first ?? first, false)
     }
 
-    /// 部屋の名前の札。`labelPlacement` のマスの左上に置き、隣の部屋のマスにははみ出さない。
+    /// 部屋の名前の札（木の看板。両端に釘、文字は生成り）。`labelPlacement` のマスの左上に置き、隣の部屋のマスにははみ出さない。
     /// × より上の層に描く（× の一部が札の背景で隠れてよい）。
     private func drawLabels(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
         let n = puzzle.side
         let baseFont = max(8, cellSide * 0.22)
-        let margin = max(cellSide * 0.06, CatPuzzleHouse.wallWidth / 2 + 1)
+        let margin = max(cellSide * 0.06, borderWidth / 2 + 1)
         let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
         func resolved(_ name: String, size: CGFloat) -> GraphicsContext.ResolvedText {
             context.resolve(
                 Text(name)
                     .font(.system(size: size, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
-                    .foregroundColor(Theme.Fixed.ink)
+                    .foregroundColor(CatPuzzleHouse.Palette.signText)
             )
         }
         for room in 0..<n {
@@ -306,7 +342,15 @@ struct CatPuzzleBoardCanvas: View {
             let origin = rect(of: placement.cell).origin.applying(.init(translationX: margin, y: margin))
             let chip = CGRect(x: origin.x, y: origin.y,
                               width: measured.width + padding.width * 2, height: measured.height + padding.height * 2)
-            context.fill(Path(roundedRect: chip, cornerRadius: chip.height / 2), with: .color(.white.opacity(0.9)))
+            let sign = Path(roundedRect: chip, cornerRadius: 3 * scale)
+            context.fill(sign, with: .color(CatPuzzleHouse.Palette.sign))
+            context.stroke(sign, with: .color(CatPuzzleHouse.Palette.signEdge), lineWidth: 1 * scale)
+            var nails = Path()
+            let nail = 0.9 * scale
+            for x in [chip.minX + 3 * scale, chip.maxX - 3 * scale] {
+                nails.addEllipse(in: CGRect(x: x - nail, y: chip.midY - nail, width: nail * 2, height: nail * 2))
+            }
+            context.fill(nails, with: .color(CatPuzzleHouse.Palette.signNail))
             context.draw(text, at: CGPoint(x: chip.minX + padding.width, y: chip.minY + padding.height), anchor: .topLeading)
         }
     }
@@ -356,7 +400,7 @@ struct CatPuzzleBoardCanvas: View {
             let path = Self.outline(of: Set(cells(of: group)), side: n, cellSide: cellSide)
             context.stroke(path, with: .color(Theme.yellowText), style: StrokeStyle(lineWidth: max(2, cellSide * 0.05), lineCap: .square))
         }
-        let inset = CatPuzzleHouse.wallWidth / 2
+        let inset = wallWidth / 2
         for cell in lastHint.crossed where marks.indices.contains(cell) {
             context.stroke(Path(roundedRect: rect(of: cell).insetBy(dx: inset + 1, dy: inset + 1), cornerRadius: cellSide * 0.12),
                            with: .color(Theme.yellowText), style: StrokeStyle(lineWidth: 2, lineCap: .round))
