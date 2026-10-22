@@ -85,6 +85,10 @@ struct ShogiMasterOptions: Sendable, Equatable {
     /// 外した方が強かった（自己対局 20 局で外した側が 65%。1 局面ごとに全部の手を作るので読める局面数が半分になる）。
     var mateInOne = false
     var kingSafety = true
+    /// 玉の周り 8 マスの利きの数（攻め・守り）と相手の持ち駒から、玉の危なさを見る。
+    var kingAttackMap = false
+    /// `kingAttackMap` の強さ（危なさの 2 乗にかける重み）。
+    var kingAttackWeight = 3
     /// 置換表の大きさ（エントリ数の 2 の冪の指数）。
     var ttBits = 20
 
@@ -321,6 +325,47 @@ private final class MasterSearcher {
             if MP.isPiece(p) && MP.color(p) == color && slideMask[p] & (1 << i) != 0 { return true }
         }
         return false
+    }
+
+    /// マス t に color の駒が利いている数（3 で打ち切る）。
+    @inline(__always) func attackCount(_ t: Int, by color: Int) -> Int {
+        var n = 0
+        for i in 0..<12 {
+            let p = board[t - dirs[i]]
+            if MP.isPiece(p) && MP.color(p) == color && stepMask[p] & (1 << i) != 0 { n += 1 }
+        }
+        for i in 0..<8 {
+            let d = dirs[i]
+            var s = t - d
+            while board[s] == MP.empty { s -= d }
+            let p = board[s]
+            if MP.isPiece(p) && MP.color(p) == color && slideMask[p] & (1 << i) != 0 { n += 1 }
+            if n >= 3 { return 3 }
+        }
+        return min(n, 3)
+    }
+
+    /// color の玉の危なさ（大きいほど危ない）。玉の周り 8 マスについて、相手の利きが自分の利き（玉を除く）を
+    /// 上回るマスを重く、相手が利かせているだけのマスを軽く数え、空いたマスは相手に持ち駒があれば打ち込みの的として数える。
+    func kingDangerMap(_ color: Int) -> Int {
+        let k = kingSq[color], opp = color ^ 1
+        var danger = 0
+        var oppHand = 0
+        for t in 1...7 { oppHand += hands[opp * 8 + t] * (t >= MP.silver ? 2 : 1) }
+        for i in 0..<8 {
+            let s = k + dirs[i]
+            let occ = board[s]
+            if occ == MP.wall { continue }
+            let a = attackCount(s, by: opp)
+            if a > 0 {
+                let d = attackCount(s, by: color) - 1   // 玉自身の利きを除く
+                danger += a > d ? 2 + a : 1
+            } else if occ == MP.empty && oppHand > 0 {
+                danger += 1
+            }
+        }
+        if isAttacked(k, by: opp) { danger += 2 }
+        return danger * danger * options.kingAttackWeight + danger * min(oppHand, 12) * 3
     }
 
     @inline(__always) func inCheck() -> Bool { isAttacked(kingSq[side], by: side ^ 1) }
@@ -624,6 +669,9 @@ private final class MasterSearcher {
         if useKing {
             // 迫る駒が守り駒を上回るほど、その差を大きく見る（攻めは数がそろって初めて効く）。
             score += kingPressure(attack0, defend1) - kingPressure(attack1, defend0)
+        }
+        if options.kingAttackMap {
+            score += kingDangerMap(1) - kingDangerMap(0)
         }
         return side == 0 ? score : -score
     }

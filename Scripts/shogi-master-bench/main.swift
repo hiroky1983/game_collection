@@ -5,6 +5,7 @@ import Foundation
 //   nps                   達人の 1 秒あたりの局面数と、読み切る深さ（中盤 24 局面・1 秒）
 //   timing [局面数]        出荷の設定（実時間）で 1 手にかかる時間: 平均・最大
 //   match <局面数>         達人 対 むずかしい。開始局面ごとに先後を入れ替えて 2 局ずつ
+//   replay <先手が達人 true|false> <開始局面> <USI...>  対局を再生し、達人の手番ごとに達人の読み（手・値・深さ）を出す
 //   ablation <局面数>      技法を 1 つ外した達人（OPTIONS）対 出荷の達人（MODE・MASTER_TIME は match と同じ。1 手詰めの検出のように局面数の数え方が変わる技法は MODE=time で比べる）
 // 環境変数:
 //   MODE=nodes|time       nodes（既定）: 考える時間を局面数に置き換える（同時に走る対局の負荷で強さが揺れない）。
@@ -31,8 +32,10 @@ func masterOptions() -> ShogiMasterOptions {
         case "checkExtension": o.checkExtension = on
         case "mateInOne": o.mateInOne = on
         case "kingSafety": o.kingSafety = on
+        case "kingAttackMap": o.kingAttackMap = on
         default:
-            if key.hasPrefix("tt="), let b = Int(key.dropFirst(3)) { o.ttBits = b } else {
+            if key.hasPrefix("tt="), let b = Int(key.dropFirst(3)) { o.ttBits = b }
+            else if key.hasPrefix("kaw="), let w = Int(key.dropFirst(4)) { o.kingAttackWeight = w } else {
                 FileHandle.standardError.write("不明な技法: \(key)\n".data(using: .utf8)!); exit(2)
             }
         }
@@ -169,6 +172,18 @@ struct Bench {
                 }
             }
             print("CHECK \(checked) 局面・不一致 \(bad)")
+        case "replay":
+            let masterBlack = args[2] == "true"
+            var pos = CPUBenchLadder.opening(seed: UInt64(args[3])!, plies: Int(env["OPENING_PLIES"] ?? "") ?? 6)
+            let t = Double(env["MASTER_TIME"] ?? "") ?? ShogiMasterEngine.shippedTimeLimit
+            for (i, usi) in args.dropFirst(4).enumerated() {
+                if (pos.sideToMove == .black) == masterBlack {
+                    let r = ShogiMasterEngine(timeLimit: t, options: masterOptions()).analyze(sfen: pos.toSFEN())!
+                    print("REPLAY \(i + 1) 指した \(usi) 読み \(r.usi ?? "-") 値 \(r.score) 深さ \(r.depth)")
+                }
+                guard let m = Move.fromUSI(usi) else { break }
+                pos.make(m)
+            }
         case "nps":
             let sfens = await samplePositions(count: 24)
             var nodes = 0, depthSum = 0
