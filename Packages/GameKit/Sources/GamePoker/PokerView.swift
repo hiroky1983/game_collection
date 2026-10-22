@@ -402,9 +402,12 @@ public struct PokerView: View {
                 }
             }
             HStack(spacing: 8) {
-                ForEach(model.playerHand) { card in
+                ForEach(Array(model.playerHand.enumerated()), id: \.element.id) { index, card in
                     let isSelected = model.selectedForExchange.contains(card.id)
+                    let exchanged = model.playerExchangedIndices.contains(index)
+                        && (model.phase == .drawn || model.phase == .result)
                     CardView(card: card, faceUp: true, selected: isSelected)
+                        .overlay { if exchanged { exchangedMark } }
                         .onTapGesture {
                             if model.phase == .exchange {
                                 model.toggleCardSelection(card)
@@ -414,7 +417,8 @@ public struct PokerView: View {
                         // 自動では付かない（#710。大富豪の #188 と同じ形）。
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(
-                            PokerAccessibility.handCardLabel(card: card, isSelected: isSelected, phase: model.phase)
+                            PokerAccessibility.handCardLabel(
+                                card: card, isSelected: isSelected, phase: model.phase, wasExchanged: exchanged)
                         )
                         .accessibilityHint(PokerAccessibility.handCardHint(phase: model.phase))
                         .accessibilityAddTraits(.isButton)
@@ -432,6 +436,16 @@ public struct PokerView: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 自分が替えた札の枠（#2704）。CPU の札（`cpuCard`）と同じ紫の枠。
+    private var exchangedMark: some View {
+        let metrics = PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+        return RoundedRectangle(cornerRadius: metrics.cornerRadius)
+            .strokeBorder(Theme.purple, lineWidth: 2)
+            .frame(width: metrics.width, height: metrics.height)
+            .shadow(color: Theme.purple.opacity(0.6), radius: 6)
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder

@@ -57,6 +57,8 @@ struct PokerSnapshot: Codable {
     var bestStreak: Int? = nil
     /// CPU が替えた札の位置（#2594）。この項目を足す前の中断データには無いので optional（読めなくして続きを消さない）。
     var cpuExchangedIndices: [Int]? = nil
+    /// 自分が替えた札の位置（#2704）。この項目を足す前の中断データには無いので optional。
+    var playerExchangedIndices: [Int]? = nil
 }
 
 // MARK: - Model
@@ -74,6 +76,8 @@ public final class PokerModel {
     public private(set) var cpuAction: String = ""
     /// CPU が替えた札の `cpuHand` 上の位置（#2594）。決着で表になったとき、引いた札の枠に使う。
     public private(set) var cpuExchangedIndices: Set<Int> = []
+    /// 自分が替えた札の `playerHand` 上の位置（#2704）。もう 1 回交換したときは両方の回の分を合わせる。
+    public private(set) var playerExchangedIndices: Set<Int> = []
 
     // MARK: 10 回勝負（#2551）
 
@@ -168,6 +172,7 @@ public final class PokerModel {
             extraExchangeUsed = snap.extraExchangeUsed
             cpuAction = snap.cpuAction
             cpuExchangedIndices = Set((snap.cpuExchangedIndices ?? []).filter { (0..<snap.cpuHand.count).contains($0) })
+            playerExchangedIndices = Set((snap.playerExchangedIndices ?? []).filter { (0..<snap.playerHand.count).contains($0) })
             winner = snap.winner
             playerHandRank = snap.playerHandRank
             cpuHandRank = snap.cpuHandRank
@@ -190,7 +195,8 @@ public final class PokerModel {
             extraExchangeUsed: extraExchangeUsed, cpuAction: cpuAction,
             winner: winner, playerHandRank: playerHandRank, cpuHandRank: cpuHandRank,
             roundPoints: roundPoints, streak: streak, bestStreak: bestStreak,
-            cpuExchangedIndices: cpuExchangedIndices.sorted()
+            cpuExchangedIndices: cpuExchangedIndices.sorted(),
+            playerExchangedIndices: playerExchangedIndices.sorted()
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -276,6 +282,7 @@ public final class PokerModel {
         winner = nil
         cpuAction = ""
         cpuExchangedIndices = []
+        playerExchangedIndices = []
         selectedForExchange = []
         playerHandRank = .highCard
         cpuHandRank = .highCard
@@ -310,6 +317,7 @@ public final class PokerModel {
             if let newCard = deck.first {
                 deck.removeFirst()
                 playerHand[i] = newCard
+                playerExchangedIndices.insert(i)
             }
         }
         selectedForExchange = []
