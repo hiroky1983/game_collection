@@ -522,6 +522,44 @@ struct ModelTests {
         #expect(!model.field.isCleared, "盤が頭から組み直されている")
     }
 
+    @Test("コンティニュー → 撃たずに「はじめから」: `game_end`(quit) が 1 件出て対応が取れる（#2642）")
+    func newGameRightAfterAdContinueSendsQuit() {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(),
+            ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: [BlocksModel.gameID])
+        )
+        let model = BlocksModel(services: services, startingAt: 1, lives: 1, preference: makePreference("continue-quit"))
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        let endsAtGameOver = spy.ends.count
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
+
+        model.newGame()
+
+        #expect(spy.starts.count == 3, "前提: 最初・続き・新規で `game_start` は計 3 回")
+        #expect(spy.ends.count == endsAtGameOver + 1, "続きの 1 プレイに `game_end` が付く")
+        #expect(spy.quits.count == 1, "付いた `game_end` は quit")
+    }
+
+    @Test("コンティニュー直後の launch でも二重に数えない（#2642）")
+    func launchAfterAdContinueDoesNotDoubleCount() {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(),
+            ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: [BlocksModel.gameID])
+        )
+        let model = BlocksModel(services: services, startingAt: 1, lives: 1, preference: makePreference("continue-launch"))
+        dropBall(model)
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
+        model.launch()
+        model.newGame()
+
+        #expect(spy.outcomes == [.loss, .quit], "負け 1 件 + 続きの quit 1 件")
+    }
+
     @Test("コンティニューは1プレイにつき1回だけ")
     func continueOnlyOnce() {
         let model = BlocksModel(
