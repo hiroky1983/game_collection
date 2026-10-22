@@ -19,4 +19,24 @@ struct PokerCardSoundTests {
         model.startGame()
         #expect(feedback.impacts == [.card(.shuffle)])
     }
+
+    @Test("「交換しない」では配る音を鳴らさず、1 枚でも替えたときだけ鳴る")
+    func dealSoundOnlyWhenExchanged() {
+        let feedback = SpyFeedbackService()
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: feedback)
+        let model = PokerModel(services: services)
+        model.startGame()
+        feedback.reset()
+        model.confirmExchange()
+        #expect(!feedback.impacts.contains(.card(.deal)))
+
+        // 同じ保存先だと前の局の中断データを復元してしまうので、別の組で始める。
+        let feedback2 = SpyFeedbackService()
+        let model2 = PokerModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: feedback2))
+        model2.startGame()
+        model2.toggleCardSelection(model2.playerHand[0])
+        feedback2.reset()
+        model2.confirmExchange()
+        #expect(feedback2.impacts.contains(.card(.deal)))
+    }
 }

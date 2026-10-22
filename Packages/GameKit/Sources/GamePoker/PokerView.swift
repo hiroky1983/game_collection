@@ -274,6 +274,13 @@ public struct PokerView: View {
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(Theme.Fill.purple))
+                        // 役名と同じく、5 枚が返り終わってから現れる（バッジだけ先に出ない）。
+                        .opacity(cpuRevealed ? 1 : 0)
+                        .gameAnimation(
+                            .easeIn(duration: PokerMotion.pointsChangeDuration)
+                                .delay(PokerMotion.showdownTotalDuration),
+                            value: cpuRevealed
+                        )
                 }
                 Spacer()
                 if model.phase == .result {
@@ -510,7 +517,7 @@ public struct PokerView: View {
                 .disabled(exchangeRescue.isWatching)
                 .accessibilityHint(tr("10回のうち1度だけ、広告を見るともう1回カードを交換できます"))
             }
-            actionButton(tr("勝負する"), role: .primary) {
+            actionButton(tr("勝負する"), role: .primary, disabled: exchangeRescue.isWatching) {
                 model.showdown()
             }
         }
