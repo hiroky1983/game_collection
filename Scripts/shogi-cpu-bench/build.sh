@@ -18,5 +18,10 @@ done
 cp Scripts/shogi-cpu-bench/main.swift "$WORK/main.swift"
 # CPUStrength が参照するだけの型（解析の本体は GameKit の CoreEngine にあり、計測には要らない）。
 echo 'public enum AnalyticsLevel { case novice, beginner, normal, hard }' >"$WORK/AnalyticsLevelStub.swift"
+# 同じく、表示の翻訳（`tr`）とヒントの予算（`BoardHintBudget`）は計測に要らないので最小限の代役を置く。
+cat >"$WORK/BenchStubs.swift" <<'SWIFT'
+func tr(_ s: String) -> String { s }
+enum BoardHintBudget { static let engineLevel = 2; static let extraThinkingTime: Double = 1 }
+SWIFT
 swiftc -O -wmo -D SHOGI_BENCH_STANDALONE -parse-as-library -o "$OUT" "$WORK"/*.swift 2>"$WORK/swiftc.log" \
   || { grep -v "warning:" "$WORK/swiftc.log" >&2; echo "ビルドに失敗しました" >&2; exit 1; }
