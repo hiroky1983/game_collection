@@ -435,7 +435,8 @@ public struct ColorRelayView: View {
                         runCPU()
                     }
                 } else {
-                    actionButton(tr("1枚引く"), role: .skip, disabled: !model.canDraw) {
+                    // 出せる札が無いときは押してほしいボタンとして主役の色にする（#2693）。
+                    actionButton(tr("1枚引く"), role: model.mustDraw ? .primary : .skip, disabled: !model.canDraw) {
                         model.drawCard()
                         runCPU()
                     }
