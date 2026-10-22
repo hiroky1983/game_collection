@@ -270,7 +270,7 @@ public final class SpeedModel {
 
     /// 次に CPU が動くまでの待ち。ゲーム中でなければ nil。
     ///
-    /// - 出せる札があれば、見つけた時刻からの反応の残り。
+    /// - 出せる札があれば、見つけた時刻からの反応の残り（あなたが出せないあいだは半分の間。#2690）。
     /// - 出せる札が無く、あなたが出せるなら、場を見直す間隔（あなたを待つ）。
     /// - どちらも出せなければ、「めくる」までの残り。
     /// - タイム中なら、タイムの残り。
@@ -290,7 +290,7 @@ public final class SpeedModel {
                 cpuReaction = makeReaction()
             }
             let elapsed = Duration.seconds(current.timeIntervalSince(cpuArmedAt ?? current))
-            return max(.zero, cpuReaction - elapsed)
+            return max(.zero, effectiveReaction - elapsed)
         }
         cpuArmedAt = nil
         if humanHasPlayable {
@@ -324,7 +324,7 @@ public final class SpeedModel {
             }
             // 待ち終えた直後の呼び出しでは、丸めで数ミリ秒足りないことがある。
             let elapsed = Duration.seconds(current.timeIntervalSince(armedAt)) + .milliseconds(5)
-            guard elapsed >= cpuReaction, let card = cpuHand.first(where: { $0.id == choice.cardID }) else { return }
+            guard elapsed >= effectiveReaction, let card = cpuHand.first(where: { $0.id == choice.cardID }) else { return }
             play(card, onto: choice.pile, by: .cpu)
             return
         }
@@ -439,6 +439,12 @@ public final class SpeedModel {
         }
         let base = Double(settings.level.reactionMilliseconds)
         return .milliseconds(Int((base * (1 + jitter) * timingMultiplier).rounded()))
+    }
+
+    /// 見つけた時点で決めた反応の間。あなたが出せる札を持たないあいだだけ縮める（#2690）。
+    /// 待つたびに判定するので、あなたが出せるようになった瞬間に元の長さへ戻る。
+    private var effectiveReaction: Duration {
+        humanHasPlayable ? cpuReaction : cpuReaction * SpeedRules.humanStuckReactionRatio
     }
 
     private var stuckDelay: Duration {

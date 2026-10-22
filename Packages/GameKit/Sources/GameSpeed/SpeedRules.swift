@@ -40,6 +40,9 @@ public enum SpeedRules {
     /// 設定の「ゆっくりモード」（アクション枠共通・`FeedbackPreference.actionSlowMode`）がオンのとき、
     /// CPU の反応と「めくる」までの間に掛ける倍率。チャリンコおじさんの時間の進み（0.68 倍）の逆数に近い値。
     public static let slowModeMultiplier = 1.5
+    /// あなたが出せる札を持たないあいだ、CPU の反応の間に掛ける倍率（#2690）。待つしかないあなたの間延びを防ぐ。
+    /// 両方つまったときの「めくる」までの間には掛けない。
+    public static let humanStuckReactionRatio = 0.5
     /// 反応の速さに載せる揺らぎの幅（±この割合）。毎回同じ間で出すと機械的に見えるため。
     public static let reactionJitterRatio = 0.2
 
