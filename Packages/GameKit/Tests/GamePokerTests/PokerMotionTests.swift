@@ -119,10 +119,10 @@ struct PokerMotionTests {
             SourceScan.matchCount(of: #"if phase == \.result \{ revealCPU = true \}"#, in: source) == 1,
             "公開の合図が onChange から立っていない"
         )
-        // 役名は「返り終わってから」出す遅延付き。定数ごと外れていないか見る。
+        // 役名と「○枚交換」バッジは「返り終わってから」出す遅延付き（2 か所）。定数ごと外れていないか見る。
         #expect(
-            SourceScan.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 1,
-            "役名のフェードから、カードが返り終わるまでの遅延が外れている"
+            SourceScan.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 2,
+            "役名かバッジのフェードから、カードが返り終わるまでの遅延が外れている"
         )
     }
 

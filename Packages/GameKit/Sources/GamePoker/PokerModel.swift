@@ -306,6 +306,7 @@ public final class PokerModel {
     /// 選んだ札を引き直す。もう 1 回の交換が残っていれば選ぶ段（`.drawn`）へ、使い切っていればそのまま勝負する。
     public func confirmExchange() {
         guard phase == .exchange else { return }
+        let exchangedAny = !selectedForExchange.isEmpty
         for i in playerHand.indices where selectedForExchange.contains(playerHand[i].id) {
             if let newCard = deck.first {
                 deck.removeFirst()
@@ -313,7 +314,10 @@ public final class PokerModel {
             }
         }
         selectedForExchange = []
-        services?.feedback.impact(.card(.deal)) // 交換成立（新しい札が配られる）
+        // 「交換しない」では何も配られないので鳴らさない。
+        if exchangedAny {
+            services?.feedback.impact(.card(.deal)) // 交換成立（新しい札が配られる）
+        }
         // 1 回でも交換すれば、捨てたら途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)
         if !extraExchangeUsed && deck.count >= 10 {
