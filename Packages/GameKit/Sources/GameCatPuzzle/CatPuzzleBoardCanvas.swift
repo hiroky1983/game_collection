@@ -207,7 +207,7 @@ struct CatPuzzleBoardCanvas: View {
             CatPuzzleOpeningPainter.drawDoor(door, cellSide: cellSide, scale: scale, context: &context)
         }
         let outer = CGRect(x: 0, y: 0, width: cellSide * CGFloat(n), height: cellSide * CGFloat(n))
-        context.stroke(Path(roundedRect: outer.insetBy(dx: borderWidth / 2, dy: borderWidth / 2), cornerRadius: 3 * scale),
+        context.stroke(Path(roundedRect: outer.insetBy(dx: borderWidth / 2, dy: borderWidth / 2), cornerRadius: CatPuzzleHouse.outerWallCorner * scale),
                        with: .color(CatPuzzleHouse.Palette.wall), lineWidth: borderWidth)
         for window in layout.windows {
             CatPuzzleOpeningPainter.drawWindow(window, side: n, cellSide: cellSide, wallWidth: borderWidth, scale: scale, context: &context)
@@ -342,7 +342,7 @@ struct CatPuzzleBoardCanvas: View {
             let origin = rect(of: placement.cell).origin.applying(.init(translationX: margin, y: margin))
             let chip = CGRect(x: origin.x, y: origin.y,
                               width: measured.width + padding.width * 2, height: measured.height + padding.height * 2)
-            let sign = Path(roundedRect: chip, cornerRadius: 3 * scale)
+            let sign = Path(roundedRect: chip, cornerRadius: CatPuzzleHouse.signCorner * scale)
             context.fill(sign, with: .color(CatPuzzleHouse.Palette.sign))
             context.stroke(sign, with: .color(CatPuzzleHouse.Palette.signEdge), lineWidth: 1 * scale)
             var nails = Path()

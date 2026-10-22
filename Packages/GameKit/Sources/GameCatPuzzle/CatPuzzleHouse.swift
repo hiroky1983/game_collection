@@ -99,6 +99,10 @@ enum CatPuzzleHouse {
     static let wallWidth: CGFloat = 5
     /// 外周の壁の太さ。
     static let outerWallWidth: CGFloat = 8
+    /// 外周の壁の角の丸み・部屋の札（木の看板）の角・木の扉の角（本番の盤での pt。遊び方の図では縮める）。
+    static let outerWallCorner: CGFloat = 3
+    static let signCorner: CGFloat = 3
+    static let doorLeafCorner: CGFloat = 1.5
     /// マスの区切り（タップの単位）の線の太さ。壁より細く、床の柄よりはっきり濃く引く。
     /// モック（1.5pt・不透明度 0.45）より一段はっきり（会長 2026-10-22「若干見えづらい」）。
     static let gridWidth: CGFloat = 1.75

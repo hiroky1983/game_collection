@@ -166,7 +166,7 @@ enum CatPuzzleOpeningPainter {
         let leaf: CGRect = vertical
             ? CGRect(x: min(hinge.x, hinge.x + dir * len), y: hinge.y - thickness / 2, width: len, height: thickness)
             : CGRect(x: hinge.x - thickness / 2, y: min(hinge.y, hinge.y + dir * len), width: thickness, height: len)
-        let leafPath = Path(roundedRect: leaf, cornerRadius: 1.5 * scale)
+        let leafPath = Path(roundedRect: leaf, cornerRadius: CatPuzzleHouse.doorLeafCorner * scale)
         context.fill(leafPath, with: .color(CatPuzzleHouse.Palette.doorLeaf))
         context.stroke(leafPath, with: .color(CatPuzzleHouse.Palette.outline), lineWidth: 1 * scale)
         // 開く軌跡（蝶番を中心に 1/4 円。扉の先端から口の反対側の端へ）。
