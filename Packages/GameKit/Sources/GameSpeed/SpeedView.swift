@@ -386,6 +386,9 @@ public struct SpeedView: View {
             .updating($isTouching) { _, touching, _ in touching = true }
             .onChanged { value in
                 guard model.phase == .playing else { return }
+                // 2 本目の指: ほかの札を持ち上げているあいだは、この札のジェスチャは何もしない
+                // （指の位置を書き換えて持ち上げた札を奪わない。CodeRabbit 指摘・PR #2720）。
+                if let lifted, lifted.card.id != card.id { return }
                 if lifted == nil {
                     let moved = hypot(value.translation.width, value.translation.height)
                     guard moved >= SpeedSwipe.tapSlop, let frame = frames[.hand(card.id)] else { return }
@@ -400,6 +403,8 @@ public struct SpeedView: View {
                 }
             }
             .onEnded { value in
+                // ほかの札を持ち上げているあいだに離した 2 本目の指は無視する（持ち上げた札の操作を横取りしない）。
+                if let lifted, lifted.card.id != card.id { return }
                 lifted = nil
                 guard model.phase == .playing, let frame = frames[.hand(card.id)] else { return }
                 let outcome = SpeedSwipe.resolve(

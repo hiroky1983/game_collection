@@ -118,6 +118,8 @@ struct SpeedModuleTests {
         #expect(code.contains("SpeedSwipe.resolve("))
         #expect(code.contains("translation: value.translation") && code.contains("velocity: value.velocity"))
         #expect(!code.contains("value.time"), "ジェスチャの時刻を読まない")
+        #expect(code.components(separatedBy: "if let lifted, lifted.card.id != card.id { return }").count - 1 == 2,
+                "ほかの札を持ち上げているあいだの 2 本目の指（onChanged・onEnded）を無視していない")
         #expect(code.contains("model.swipeCard(card, onto: pile)"), "判定の結果を Model に渡していない")
         #expect(code.contains(".cardDropTarget(SpeedSlot.pile(index)"), "台札の枠を測っていない")
         #expect(code.contains(".accessibilityAction { tapHandCard(card) }"), "VoiceOver の操作（ダブルタップで出す）が残っていない")
