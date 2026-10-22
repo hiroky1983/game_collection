@@ -164,8 +164,9 @@ public struct CatPuzzleView: View {
             let boardSide = min(geo.size.width, geo.size.height)
             let cellSide = max(1, (boardSide - inset * 2) / CGFloat(n))
             ZStack(alignment: .topLeading) {
-                // 盤の外側は庭（芝生）。家の外周の壁の外に草と花（ドールハウス・会長決裁 2026-10-22）。
-                CatPuzzleGarden(side: boardSide, inset: inset)
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .fill(Theme.surface)
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
                 CatPuzzleBoardCanvas(
                     puzzle: model.puzzle, marks: model.marks,
                     wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
