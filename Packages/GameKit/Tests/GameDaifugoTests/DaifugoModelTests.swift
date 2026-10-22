@@ -1262,3 +1262,23 @@ struct DaifugoCancelTests {
 private enum SeededGeneratorBox {
     @MainActor static var shared = SeededGenerator(seed: 191)
 }
+
+// MARK: - 革命中の手札の並び
+
+@MainActor
+struct DaifugoRevolutionHandOrderTests {
+
+    private func ranks(_ cards: [DaifugoCard]) -> [Int] { cards.map(\.rank) }
+
+    @Test("革命前は弱い順、革命中は3が右端・2が左端に並び、ジョーカーは常に右端")
+    func displayHandFollowsRevolution() {
+        let (model, _) = makeModel(seed: 7)
+        let hand = [card(3), card(9), card(2), card(1), joker()]
+        let others: [[DaifugoCard]] = [[card(4)], [card(5)], [card(6)]]
+        model.configureForTesting(hands: [hand] + others, currentPlayer: 0)
+        #expect(ranks(model.displayHand) == [3, 9, 1, 2, DaifugoRules.jokerRank])
+
+        model.configureForTesting(hands: [hand] + others, currentPlayer: 0, isRevolution: true)
+        #expect(ranks(model.displayHand) == [2, 1, 9, 3, DaifugoRules.jokerRank])
+    }
+}
