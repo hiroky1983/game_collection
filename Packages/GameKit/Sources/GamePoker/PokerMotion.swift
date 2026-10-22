@@ -54,6 +54,12 @@ enum PokerMotion {
         .milliseconds(Int((showdownTotalDuration * 1000).rounded()))
     }
 
+    /// 結果に入ってから「次の勝負へ」を押せるようになるまでの長さ（秒・#2701）。
+    ///
+    /// 5 枚のめくり → 役名・交換した札の印の出現（`pointsChangeDuration`）が終わるまで。
+    /// 連打で役と勝敗を見ないまま次へ進まないようにする。
+    static var nextButtonLockDuration: TimeInterval { showdownTotalDuration + pointsChangeDuration }
+
     /// CPU の手札 `index` 枚目（0 始まり）の反転。左から順に段差をつける。
     static func showdownFlip(index: Int) -> Animation {
         .easeInOut(duration: showdownFlipDuration)

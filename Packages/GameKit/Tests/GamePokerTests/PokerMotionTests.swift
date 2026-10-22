@@ -144,6 +144,22 @@ struct PokerMotionTests {
         ))
     }
 
+    // MARK: - 「次の勝負へ」の待ち（#2701）
+
+    @Test("次への待ちは、めくりと役名の出現が終わるまで（約0.85秒）")
+    func nextButtonLockCoversReveal() {
+        let lock = PokerMotion.nextButtonLockDuration
+        #expect(lock >= PokerMotion.showdownTotalDuration + PokerMotion.pointsChangeDuration)
+        #expect(lock < 0.9)
+    }
+
+    @Test("「次の勝負へ」は待ちが終わるまで押せない")
+    func nextButtonIsDisabledWhileLocked() throws {
+        let source = try Self.viewSource()
+        #expect(SourceScan.matchCount(of: #"disabled: nextLocked"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"PokerMotion\.nextButtonLockDuration"#, in: source) == 1)
+    }
+
     // MARK: - ヘルパー
 
     /// モジュール一式を読む（#831）。コメントを落とすのは、`PokerMotion` の説明文にある

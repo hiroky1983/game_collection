@@ -10,6 +10,9 @@ public struct PokerView: View {
     /// 広告の「もう 1 回交換」の段取り（連打ガード・失敗アラート。#526・#2551）。
     @State private var exchangeRescue = RewardedRescue()
     @State private var showPointsTable = false
+    /// 結果の演出（めくり・役名）が終わるまで「次の勝負へ」を押せなくする（#2701）。
+    @State private var nextLocked = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 初回だけ出す遊び方ヒントを出すか（#118）。**この画面では判定を自前で持つ**（#650）。
     /// 下の `body` は `ViewThatFits` で同じ列を2回組み立てるため、init で「見せた」を消費する
     /// `HowToPlayHint(_:playLog:)` を使うと 2 つめが false を受け取り、あとから選ばれた枝で
@@ -520,10 +523,17 @@ public struct PokerView: View {
         actionButton(model.round + 1 >= PokerModel.roundsPerSession
                         ? tr("最後の勝負へ")
                         : tr("次の勝負へ（%lld回目）", model.round + 1),
-                     role: .primary) {
+                     role: .primary, disabled: nextLocked) {
             revealCPU = false
             model.nextRound()
         }
+        .task {
+            nextLocked = !reduceMotion
+            guard !reduceMotion else { return }
+            try? await Task.sleep(for: .seconds(PokerMotion.nextButtonLockDuration))
+            if !Task.isCancelled { nextLocked = false }
+        }
+        .onDisappear { nextLocked = true }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }

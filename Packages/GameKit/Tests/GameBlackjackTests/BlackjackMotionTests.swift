@@ -153,6 +153,23 @@ struct BlackjackMotionTests {
         )
     }
 
+    // MARK: - 「次へ」の待ち（#2701）
+
+    @Test("次への待ちは、めくりと勝敗バッジが終わるまで（約0.55秒）")
+    func nextButtonLockCoversReveal() {
+        let lock = BlackjackMotion.nextButtonLockDuration
+        #expect(lock >= BlackjackMotion.holeCardFlipDuration + BlackjackMotion.outcomeBadgeDuration)
+        #expect(lock < 0.6)
+    }
+
+    @Test("「次の回へ」「もう一度」は待ちが終わるまで押せない")
+    func nextButtonsAreDisabledWhileLocked() throws {
+        let source = try Self.viewSource()
+        #expect(SourceScan.matchCount(of: #"disabled: retryRescue\.isWatching \|\| nextLocked"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"disabled: nextLocked\)"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"BlackjackMotion\.nextButtonLockDuration"#, in: source) == 2)
+    }
+
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
