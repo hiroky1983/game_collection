@@ -268,6 +268,9 @@ public final class BlackjackModel {
     private let dealerDrawInterval: Duration
     /// 1枚ずつ引いている最中の `Task`。「結果まで進める」とやり直しで止める。
     private(set) var dealerTask: Task<Void, Never>?
+    /// 配った 2 枚で 21 が出て、伏せ札を一度見せてから結果に進むまでの待ち（#2700）。
+    /// 待っているあいだは操作を受けない。
+    public private(set) var isRevealingNatural = false
 
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
@@ -369,20 +372,39 @@ public final class BlackjackModel {
         // 配った時点で勝負は動いている。ここから捨てれば途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)
 
+        services?.feedback.impact(.card(.deal)) // カードを配る（21 が出た回も鳴らす。#2700）
+
         // ディーラーのナチュラルも配った時点で見る（標準ルール）。
         // プレイヤーもナチュラルならプッシュ（`blackjackSettlement`）。
         if isBlackjack(playerHand) || isBlackjack(dealerHand) {
+            resolveNaturalAfterDeal()
+            return
+        }
+        persist()
+    }
+
+    /// 21 が出た回の決着。画面用の間があるときは、配りが終わって伏せ札が一度描かれてから結果に進む（#2700）。
+    /// 間が `.zero`（テスト）なら従来どおりその場で決着する。
+    private func resolveNaturalAfterDeal() {
+        guard dealerDrawInterval > .zero else {
             resolveAll()
             return
         }
-        services?.feedback.impact(.card(.deal)) // カードを配る
-        persist()
+        isRevealingNatural = true
+        let wait = Duration.seconds(BlackjackMotion.dealTotalDuration) + dealerDrawInterval
+        dealerTask = Task { [weak self] in
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled, let self, self.isRevealingNatural else { return }
+            self.dealerTask = nil
+            self.isRevealingNatural = false
+            self.resolveAll()
+        }
     }
 
     // MARK: - Player Actions
 
     public func hit() {
-        guard phase == .playerTurn, hands.indices.contains(activeHandIndex) else { return }
+        guard phase == .playerTurn, !isRevealingNatural, hands.indices.contains(activeHandIndex) else { return }
         hands[activeHandIndex].cards.append(drawCard())
         guard hands[activeHandIndex].isBusted else {
             services?.feedback.impact(.card(.deal)) // 1枚引く
@@ -397,7 +419,7 @@ public final class BlackjackModel {
     }
 
     public func stand() {
-        guard phase == .playerTurn, hands.indices.contains(activeHandIndex) else { return }
+        guard phase == .playerTurn, !isRevealingNatural, hands.indices.contains(activeHandIndex) else { return }
         hands[activeHandIndex].isDone = true
         advanceHand()
     }
@@ -410,7 +432,7 @@ public final class BlackjackModel {
     /// 10 と K のような組み合わせも割れる。A は 11 点で他と重ならないため、
     /// この判定でも「A のペア」だけが A のスプリットになる。
     public var canSplit: Bool {
-        guard phase == .playerTurn, hands.count == 1, let hand = activeHand else { return false }
+        guard phase == .playerTurn, !isRevealingNatural, hands.count == 1, let hand = activeHand else { return false }
         return hand.cards.count == 2 && !hand.isDone && hand.cards[0].value == hand.cards[1].value
     }
 
@@ -693,6 +715,7 @@ public final class BlackjackModel {
         // ディーラーが引いている途中なら止める（#667。新しい勝負の卓に前の回の札が足されない）。
         dealerTask?.cancel()
         dealerTask = nil
+        isRevealingNatural = false
         recordResult = nil
         matchSerial += 1
         completedRounds = 0
