@@ -336,6 +336,14 @@ public final class OldMaidModel: AITurnGuarded {
             ], currentPlayer: Self.humanIndex, level: .normal))
             selectedID = card(.hearts, 4).id
             drawSelected()
+        case "crowded":
+            // 縦の短い画面の確認用: あなたの手札 14 枚（ジョーカー込み）と、引く相手の伏せ札 13 枚（2 段）。
+            configureForTesting(scenario([
+                (1...13).map { card(.spades, $0) } + [OldMaidCard.joker],
+                (1...13).map { card(.hearts, $0) },
+                [card(.clubs, 1), card(.clubs, 2)],
+                [card(.diamonds, 1), card(.diamonds, 2)],
+            ], currentPlayer: Self.humanIndex, level: .normal))
         default:
             break
         }

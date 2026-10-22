@@ -28,6 +28,9 @@ public struct OldMaidView: View {
                     .transition(.opacity)
             } else {
                 tableArea
+                    // 伏せ札は縮められる（枠の中でスクロール）が、余白があるうちは手札より先に全段を見せる。
+                    // 手札の最小の高さ（札 1 段）は優先度が低くても先に確保される。
+                    .layoutPriority(1)
                     .transition(.opacity)
                 handArea
                     .transition(.opacity)
@@ -58,7 +61,7 @@ public struct OldMaidView: View {
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
             if model.phase == .idle { model.startGame() }
             #if DEBUG
-            // 撮影・動作確認用: `-oldMaidScenario tell|watched|result` で局面を差し替える。
+            // 撮影・動作確認用: `-oldMaidScenario tell|watched|result|crowded` で局面を差し替える。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-oldMaidScenario"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -225,30 +228,54 @@ public struct OldMaidView: View {
                 Spacer(minLength: 0)
             }
             .gameAnimation(.easeInOut(duration: 0.15), value: face)
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: OldMaidHandLayout.columnSpacing),
-                               count: OldMaidHandLayout.columns),
-                spacing: OldMaidHandLayout.rowSpacing
-            ) {
-                ForEach(Array(cards.enumerated()), id: \.element.id) { position, card in
-                    let isSelected = model.selectedID == card.id
-                    OldMaidCardBackView(selected: isSelected)
-                        .offset(y: isSelected ? -8 : 0)
-                        .gameAnimation(.spring(response: 0.2), value: isSelected)
-                        // 見える札は 42pt のまま、タップ判定だけを列いっぱいに広げて 44pt 以上にする（#195）。
-                        .frame(maxWidth: .infinity, minHeight: OldMaidHandLayout.minimumTapTarget)
-                        .contentShape(Rectangle())
-                        .onTapGesture { model.toggleSelection(card.id) }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(OldMaidAccessibility.targetCardLabel(
-                            position: position, count: cards.count, isSelected: isSelected))
-                        .accessibilityHint(tr("ダブルタップで選択を切り替えます"))
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { model.toggleSelection(card.id) }
+            // 伏せ札が 2 段になると、縦の短い画面（iPhone SE）では下の手札の枠が潰れて札が 1 枚も見えなく
+            // なっていた（v1.1.14 の公開前 QA）。伏せ札も枠の中でスクロールできるようにし、縮むのは 1 段ぶんまで。
+            // 余裕のある画面では 2 段とも見える高さ（上限）まで広がる。選んだ札が 8pt 浮くぶん上に余白を取る。
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: OldMaidHandLayout.columnSpacing),
+                                   count: OldMaidHandLayout.columns),
+                    spacing: OldMaidHandLayout.rowSpacing
+                ) {
+                    ForEach(Array(cards.enumerated()), id: \.element.id) { position, card in
+                        let isSelected = model.selectedID == card.id
+                        OldMaidCardBackView(selected: isSelected)
+                            .offset(y: isSelected ? -Self.selectedLift : 0)
+                            .gameAnimation(.spring(response: 0.2), value: isSelected)
+                            // 見える札は 42pt のまま、タップ判定だけを列いっぱいに広げて 44pt 以上にする（#195）。
+                            .frame(maxWidth: .infinity, minHeight: OldMaidHandLayout.minimumTapTarget)
+                            .contentShape(Rectangle())
+                            .onTapGesture { model.toggleSelection(card.id) }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(OldMaidAccessibility.targetCardLabel(
+                                position: position, count: cards.count, isSelected: isSelected))
+                            .accessibilityHint(tr("ダブルタップで選択を切り替えます"))
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { model.toggleSelection(card.id) }
+                    }
                 }
+                .gameAnimation(.easeInOut(duration: 0.18), value: cards)
+                .frame(maxWidth: .infinity)
+                .padding(.top, Self.selectedLift)
             }
-            .gameAnimation(.easeInOut(duration: 0.18), value: cards)
+            .frame(maxWidth: .infinity,
+                   minHeight: targetGridHeight(rows: 1),
+                   maxHeight: targetGridHeight(rows: targetRows(cards.count)))
         }
+    }
+
+    /// 選んだ伏せ札が浮き上がる高さ。
+    private static let selectedLift: CGFloat = 8
+
+    private func targetRows(_ count: Int) -> Int {
+        max(1, (count + OldMaidHandLayout.columns - 1) / OldMaidHandLayout.columns)
+    }
+
+    /// 伏せ札 `rows` 段ぶんの高さ（浮き上がりの余白を含む）。
+    private func targetGridHeight(rows: Int) -> CGFloat {
+        let card = max(PlayingCardMetrics.compact.scaled(by: layout.elementScale).height,
+                       OldMaidHandLayout.minimumTapTarget)
+        return Self.selectedLift + card * CGFloat(rows) + OldMaidHandLayout.rowSpacing * CGFloat(rows - 1)
     }
 
     private func faceCaption(_ face: OldMaidFace) -> String {
@@ -307,6 +334,11 @@ public struct OldMaidView: View {
 
     // MARK: - 手札
 
+    /// 手札の札 1 段の高さ（札の高さ ＋ グリッドの上の余白 4pt）。
+    private var handRowHeight: CGFloat {
+        PlayingCardMetrics.compact.scaled(by: layout.elementScale).height + 4
+    }
+
     private var handArea: some View {
         let lastDrawn = model.lastDrawnCardID
         return VStack(spacing: 6) {
@@ -351,7 +383,9 @@ public struct OldMaidView: View {
                 // 引いた札が増える・ペアで消える・混ぜて並びが変わる変化を演出する（#195）。
                 .gameAnimation(.easeInOut(duration: 0.2), value: model.playerHand)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 縦の短い画面（iPhone SE）では手札の枠が札 1 段ぶんより低く潰れ、数字だけ見えてマークが
+            // 切れていた（v1.1.14 の公開前 QA）。少なくとも 1 段は札が丸ごと見える高さを確保する。
+            .frame(maxWidth: .infinity, minHeight: handRowHeight, maxHeight: .infinity)
             if model.isJokerWatched {
                 HStack(spacing: 4) {
                     Image(systemName: "eye.fill")
