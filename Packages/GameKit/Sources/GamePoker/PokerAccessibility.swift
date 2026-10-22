@@ -16,9 +16,10 @@ public enum PokerAccessibility {
     /// 手札 1 枚の読み上げ文（例: "ハートの7、捨てる札に選択中"）。
     ///
     /// 選択の状態は交換フェーズでだけ読む。ほかのフェーズでは選べないので、札の名前だけにする。
-    public static func handCardLabel(card: PokerCard, isSelected: Bool, phase: PokerPhase) -> String {
+    public static func handCardLabel(card: PokerCard, isSelected: Bool, phase: PokerPhase, wasExchanged: Bool = false) -> String {
         let name = card.figure.spokenLabel
-        guard acceptsSelection(phase: phase), isSelected else { return name }
+        guard acceptsSelection(phase: phase) else { return wasExchanged ? tr("%@、引いた札", name) : name }
+        guard isSelected else { return name }
         return tr("%@、捨てる札に選択中", name)
     }
 
