@@ -65,8 +65,8 @@ struct PokerEnglishTests {
 
     @Test("決着の理由は語順を英語に合わせる")
     func resultReason() {
-        #expect(GamePoker.tr("%1$@ 対 %2$@・+%3$lld点", "Flush", "Two Pair", 12, language: .english)
-                == "Flush vs. Two Pair · +12 pts")
+        #expect(GamePoker.tr("%1$@ 対 %2$@", "Flush", "Two Pair", language: .english)
+                == "Flush vs. Two Pair")
         #expect(GamePoker.tr("どちらも%@", "One Pair", language: .english) == "Both have One Pair")
     }
 }
