@@ -312,13 +312,13 @@ public struct CatPuzzleView: View {
         let menu = [
             GameControlMenuItem(
                 id: "clear", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
-                isDestructive: true, isEnabled: model.hasProgressToLose, action: onClear
+                isDestructive: true, isEnabled: model.hasProgressToLose && !isWatchingAd, action: onClear
             ),
         ]
         let actions = [
             GameActionItem(
                 id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
-                isEnabled: model.canUndo, action: onUndo
+                isEnabled: model.canUndo && !isWatchingAd, action: onUndo
             ),
             GameActionItem(
                 id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
