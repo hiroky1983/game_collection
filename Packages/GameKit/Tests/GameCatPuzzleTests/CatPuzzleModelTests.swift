@@ -269,7 +269,7 @@ struct CatPuzzleModelTests {
         #expect(store.exists(for: CatPuzzleModel.gameID), "ヒントの印がある盤は保存する")
     }
 
-    @Test("ヒントは推理の 1 歩として × を置く（印付き・消せない）。無料ぶん 3 回で尽き、広告は呼ばない")
+    @Test("ヒントは推理の 1 歩として × を置く（印付き・消せない）。無料ぶん 3 回のあとは広告が要る")
     func hints() {
         let spy = SpyAnalyticsService()
         let model = CatPuzzleModel(services: makeServices(analytics: spy), puzzle: sample)
@@ -294,8 +294,17 @@ struct CatPuzzleModelTests {
         model.useHint()
         #expect(model.hintsRemaining == 0)
         #expect(model.hintCrosses.count + model.hintCells.count >= 3)
-        #expect(!model.canHint, "無料ぶんを使い切った")
-        #expect(spy.events.filter { if case .rewardOffer = $0 { return true } else { return false } }.isEmpty, "広告は呼ばない")
+        // 無料ぶんを使い切ったら、押せるが次の 1 回は広告（`useHint` だけでは減らず、盤も進まない）。
+        #expect(model.needsAdForHint && model.canHint, "無料ぶんを使い切っても広告で足せる")
+        let marksBefore = model.marks
+        model.useHint()
+        #expect(model.hintsUsed == 3 && model.marks == marksBefore, "広告を見ずに 4 回目は出ない")
+        #expect(spy.events.filter {
+            switch $0 {
+            case .rewardOffer, .rewardRequest, .rewardAd: true
+            default: false
+            }
+        }.isEmpty, "無料のヒントは広告を呼ばない")
     }
 
     @Test("ヒントで最後の猫が確定したらそのままクリア")

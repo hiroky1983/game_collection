@@ -2,6 +2,12 @@ import Core
 
 /// おじさんちのねこさがしの読み上げ文（#2250）。部屋は色ではなく名前で読み、矛盾は「ちがう」の言葉で伝える。
 public enum CatPuzzleAccessibility {
+    /// ヒントのボタン。2 行目（▶ 広告を見て）は専用の読み上げ文を渡すと読まれないので、広告が要ることを文に含める。
+    public static func hintLabel(remaining: Int, needsAd: Bool) -> String {
+        if needsAd { return tr("ヒント、無料の回数は使い切りました。広告を見ると1回追加") }
+        return tr("ヒント、あと%lld回", remaining)
+    }
+
     /// マス 1 つの読み上げ文（例: 「2行3列、居間、猫」「1行1列、台所、×」「4行5列、寝室、猫、ヒントで置いた」）。
     public static func cellLabel(
         row: Int, col: Int, roomName: String, mark: CatPuzzleModel.Mark,
