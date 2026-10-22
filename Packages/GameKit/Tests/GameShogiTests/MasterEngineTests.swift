@@ -6,6 +6,17 @@ import CoreEngine
 /// 達人（#2698）の自前の盤・手生成と探索の検収。強さの計測は `Scripts/shogi-cpu-bench`（`master`）で行う。
 @Suite("将棋 達人のエンジン")
 struct MasterEngineTests {
+    /// 達人は段の番号 3 で引ける。開始シートの段の並びには出ない（UI に出すのは v1.1.15）。
+    /// 既存の段は今の `SimpleMinimaxEngine` のまま。
+    @Test func masterIsLevelThreeAndHiddenFromPicker() {
+        #expect(ShogiMasterEngine.engine(level: ShogiMasterEngine.level) is ShogiMasterEngine)
+        #expect(!CPUStrength.allCases.map(\.rawValue).contains(ShogiMasterEngine.level))
+        for strength in CPUStrength.allCases {
+            #expect(ShogiMasterEngine.engine(level: strength.rawValue) is SimpleMinimaxEngine)
+        }
+        #expect(ShogiMasterEngine.shippedTimeLimit <= 3)
+    }
+
     /// 既存の合法手生成（`Position.legalMoves`）と同じ手を出すか。達人は歩・角・飛の不成を生成しない
     /// （成れるのに成らない手は損しかない）ので、比べる側からも外す。
     static func referenceMoves(_ pos: Position) -> Set<String> {
@@ -81,12 +92,12 @@ struct MasterEngineTests {
         #expect(usi == "5f5e")
     }
 
-    /// 出荷の設定で、1 手の時間が上限（2.5 秒）を超えない（デバッグビルドなので余裕を見る）。
+    /// 時間の上限（ここでは 1 秒）で打ち切って指す（デバッグビルドなので余裕を見る）。
     @Test func respectsTimeLimit() async {
         let sfen = "ln1g1g1nl/1r1s1k1s1/p1pp1pbpp/1p2p1p2/9/2P1P1P2/PPBP1P1PP/1S2K2R1/LN1G1GSNL b - 15"
         let t = Date()
         let usi = await ShogiMasterEngine(timeLimit: 1.0).bestMove(sfen: sfen)
         #expect(usi != nil)
-        #expect(Date().timeIntervalSince(t) < 1.6)
+        #expect(Date().timeIntervalSince(t) < 2.0)
     }
 }

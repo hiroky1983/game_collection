@@ -19,6 +19,15 @@ import Foundation
 /// 各技法の効果（「むずかしい」との勝率・1 手の時間）は issue #2698 に記録している。
 /// UI にはまだ出さない（v1.1.15 で出す）。
 public struct ShogiMasterEngine: ShogiEngine {
+    /// 段の番号（`aiLevel`）。`CPUStrength` が見送った「ガチ」の 3 を将棋だけで使う。`CPUStrength` には足さないので、
+    /// 開始シートの段の並び（`CPUStrength.allCases`）には出ない（UI に出すのは v1.1.15）。
+    public static let level = 3
+
+    /// 段の番号に対応するエンジン。達人の番号だけこちら、ほかは今の `SimpleMinimaxEngine`（設定は変えない）。
+    public static func engine(level: Int) -> any ShogiEngine {
+        level == Self.level ? ShogiMasterEngine() : SimpleMinimaxEngine(level: level)
+    }
+
     /// 1 手の考える時間の上限（秒・実時間）。禁止事項「1 手 3 秒を超えない」に余裕を残した値。
     public static let shippedTimeLimit: TimeInterval = 2.5
 
