@@ -7,6 +7,7 @@ import SwiftUI
 enum SpeedHowToFigures {
     static let items: [@MainActor @Sendable () -> AnyView] = [
         { AnyView(AdjacentFigure()) },
+        { AnyView(SwipeFigure()) },
         { AnyView(WrapFigure()) },
         { AnyView(SimultaneousFigure()) },
         { AnyView(FlipFigure()) },
@@ -34,6 +35,33 @@ enum SpeedHowToFigures {
                     }
                     RuleFigureLabel(tr("1つ違いの札"))
                 }
+            }
+        }
+    }
+
+    /// 手札の札を、出したい台札のほうへ払う（会長 QA 2026-10-23・スワイプ前提）。
+    private struct SwipeFigure: View {
+        var body: some View {
+            VStack(spacing: 4) {
+                HStack(spacing: 20) {
+                    RuleMiniCard("6", suit: .spade, isHighlighted: true)
+                    RuleMiniCard("10", suit: .club)
+                }
+                HStack(spacing: 20) {
+                    Image(systemName: "arrow.up.left")
+                        .scaledFont(16, weight: .black)
+                        .foregroundStyle(Theme.coralText)
+                        .frame(width: RuleMiniCard.width)
+                    Color.clear.frame(width: RuleMiniCard.width, height: 1)
+                }
+                .offset(x: RuleMiniCard.width / 2 + 10)
+                HStack(spacing: 4) {
+                    RuleMiniCard("5", suit: .heart, isHighlighted: true)
+                    RuleMiniCard("J", suit: .diamond)
+                    RuleMiniCard("9", suit: .heart)
+                }
+                .offset(x: RuleMiniCard.width + 14)
+                RuleFigureLabel(tr("台札のほうへ払う"), color: Theme.coralText)
             }
         }
     }

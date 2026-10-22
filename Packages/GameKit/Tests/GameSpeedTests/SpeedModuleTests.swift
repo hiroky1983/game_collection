@@ -46,7 +46,10 @@ struct SpeedModuleTests {
         let code = SourceScan.strippingComments(source)
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
         #expect(code.contains("RecommendationSlot("))
-        #expect(code.contains("BannerSlot("))
+        // レイアウトパターン A（全画面・#2531）: バナーは枠が最下部に置くので、ゲーム側に BannerSlot を書かない。
+        #expect(code.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠にバナーの取得元を渡していない")
+        #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
+        #expect(code.contains("FullScreenGameLayoutMetrics.sideInset"), "左右の余白は全画面の枠の値")
         #expect(code.contains("HowToPlayHint(.speed"))
         #expect(code.contains("GameSetupSheet(") && code.contains("GameSetupChooser("), "速さのシートは共通枠から組む")
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口はタイムの 1 面だけ")
@@ -97,8 +100,23 @@ struct SpeedModuleTests {
     @Test("手札 4 枚と山札は iPhone SE の幅に収まり、札は 44pt 以上の押し幅を持つ")
     func handFits() {
         #expect(SpeedHandLayout.fits(screenWidth: 375))
-        #expect(PlayingCardMetrics.standard.width >= 44)
-        #expect(PlayingCardMetrics.standard.height >= 44)
+        #expect(SpeedHandLayout.cardWidth(contentWidth: 375 - FullScreenGameLayoutMetrics.sideInset * 2) >= 44)
+    }
+
+    /// 柵越えおじさんで、モデルのテストは緑なのに実際の `DragGesture` で動かなかった事故（時刻の扱い）の再発防止。
+    /// 払いの判定は離した瞬間の動いた量と OS の速さだけを読み、時刻は読まない。タップ・VoiceOver の入口も残す。
+    @Test("手札の払いは DragGesture の動いた量と速さを SpeedSwipe に渡し、時刻を読まない")
+    func swipeIsWiredFromGesture() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains("DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.tableSpace))"))
+        #expect(code.contains(".gesture(swipeGesture(card))"), "手札に払いのジェスチャがついていない")
+        #expect(code.contains("SpeedSwipe.resolve("))
+        #expect(code.contains("translation: value.translation") && code.contains("velocity: value.velocity"))
+        #expect(!code.contains("value.time"), "ジェスチャの時刻を読まない")
+        #expect(code.contains("model.swipeCard(card, onto: pile)"), "判定の結果を Model に渡していない")
+        #expect(code.contains(".cardDropTarget(SpeedSlot.pile(index)"), "台札の枠を測っていない")
+        #expect(code.contains(".accessibilityAction { tapHandCard(card) }"), "VoiceOver の操作（ダブルタップで出す）が残っていない")
+        #expect(code.contains("case .tap:") && code.contains("tapHandCard(card)"), "タップの補助が残っていない")
     }
 }
 
@@ -141,6 +159,9 @@ struct SpeedAccessibilityTests {
                 == "どちらも出せません。めくってください")
         #expect(SpeedAccessibility.statusLabel(phase: .playing, isStuck: false, hasSelection: true, winner: nil, isDraw: false)
                 == "どちらの台札に置くか選んでください")
+        // 盤の下の 1 行はスワイプ前提の言い方（会長 QA 2026-10-23）。
+        #expect(SpeedAccessibility.statusLabel(phase: .playing, isStuck: false, hasSelection: false, winner: nil, isDraw: false)
+                == "1つ違いの札を台札のほうへ払ってください")
         #expect(SpeedAccessibility.statusLabel(phase: .result, isStuck: false, hasSelection: false, winner: .human, isDraw: false)
                 == "あなたの勝ち")
         #expect(SpeedAccessibility.statusLabel(phase: .result, isStuck: false, hasSelection: false, winner: nil, isDraw: true)

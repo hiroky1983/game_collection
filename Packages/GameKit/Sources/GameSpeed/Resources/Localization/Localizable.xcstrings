@@ -431,6 +431,17 @@
         }
       }
     },
+    "出し方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play a card"
+          }
+        }
+      }
+    },
     "出せます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -486,13 +497,24 @@
         }
       }
     },
-    "台札と1つ違いの札を出してください" : {
+    "1つ違いの札を台札のほうへ払ってください" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Play a card one up or down from a pile"
+            "value" : "Flick a card one up or down toward a pile"
+          }
+        }
+      }
+    },
+    "台札のほうへ払う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick toward a pile"
           }
         }
       }
@@ -592,6 +614,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The first to play out their hand and stock wins. If nothing but flips keeps happening, the game is a draw."
+          }
+        }
+      }
+    },
+    "手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。出せない札は手札に戻ります（ペナルティはありません）。札をタップしても出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card from your hand toward the pile you want. You can also drag it onto the pile and let go. A card that can't be played slides back (no penalty). Tapping a card also plays it"
           }
         }
       }
