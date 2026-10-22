@@ -285,7 +285,7 @@ public final class PokerModel {
         deck = Array(deck.dropFirst(10))
 
         phase = .exchange
-        services?.feedback.impact(.medium) // カードを配る
+        services?.feedback.impact(.card(.shuffle)) // カードを切って配る
         persist()
     }
 
@@ -311,7 +311,7 @@ public final class PokerModel {
             }
         }
         selectedForExchange = []
-        services?.feedback.impact(.medium) // 交換成立
+        services?.feedback.impact(.card(.deal)) // 交換成立（新しい札が配られる）
         // 1 回でも交換すれば、捨てたら途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)
         if !extraExchangeUsed && deck.count >= 10 {

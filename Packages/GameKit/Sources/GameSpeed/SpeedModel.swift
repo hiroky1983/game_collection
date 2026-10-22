@@ -392,7 +392,7 @@ public final class SpeedModel {
         playClock = isCPUHeld ? nil : ElapsedClock(now: elapsedNow)
         phase = .playing
         cpuRun += 1
-        services?.feedback.impact(.medium)   // 札が配られた
+        services?.feedback.impact(.card(.shuffle))   // 札が切られて配られた
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID, level: settings.level.analyticsLevel)
         } else {
@@ -457,7 +457,7 @@ public final class SpeedModel {
             guard let index = humanHand.firstIndex(of: card) else { return }
             humanHand.remove(at: index)
             if let next = humanStock.popLast() { humanHand.insert(next, at: index) }
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.card(.place))
         case .cpu:
             guard let index = cpuHand.firstIndex(of: card) else { return }
             cpuHand.remove(at: index)
@@ -503,7 +503,7 @@ public final class SpeedModel {
         cpuArmedAt = nil
         stuckSince = nil
         selectedID = nil
-        services?.feedback.impact(.light)
+        services?.feedback.impact(.card(.flip))
         markProgress()
         cpuRun += 1
     }

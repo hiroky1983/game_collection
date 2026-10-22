@@ -66,7 +66,9 @@ let package = Package(
         // 各ゲーム・App の `import Core` はそのまま CoreEngine の型も見える。
         // 各ターゲットの `.copy("Resources/Localization")` は、そのモジュール自身の文言の表（String Catalog・#2109）。
         // コンパイルせずにそのまま同梱し、`StringTable` が実行時に読む（理由は StringTable.swift の説明）。
-        .target(name: "CoreEngine", resources: [.copy("Resources/Localization")]),
+        .target(name: "CoreEngine",
+                // トランプの効果音 4 種（CC0・出所は docs/design/card-sfx/assets-license.md・#2697）。
+                resources: [.copy("Resources/Localization"), .copy("Resources/Sounds")]),
         .target(name: "Core",               dependencies: ["CoreEngine"],
                 // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
                 resources: [.copy("Resources/Localization"),

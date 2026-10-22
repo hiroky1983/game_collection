@@ -43,6 +43,8 @@ public enum SoundEffect: String, CaseIterable, Sendable {
         case .light:     self = .light
         case .medium:    self = .medium
         case .rigid, .selection: self = .rigid
+        // カードの音は同梱ファイル（`CardSound`）を鳴らす。ここへ来るのは網羅のためだけで、触覚と同じ強さの合成音に寄せる。
+        case .card(let sound): self = SoundEffect(sound.haptic)
         }
     }
 
@@ -116,7 +118,7 @@ public enum SoundEffect: String, CaseIterable, Sendable {
 public struct SoundThrottle {
     /// この間隔より短い連打では鳴らし直さない。
     public let minimumInterval: Double
-    private var lastPlayedAt: [SoundEffect: Double] = [:]
+    private var lastPlayedAt: [AnyHashable: Double] = [:]
 
     public init(minimumInterval: Double = 0.04) {
         self.minimumInterval = minimumInterval
@@ -126,6 +128,15 @@ public struct SoundThrottle {
     ///
     /// - Parameter now: 単調増加する時計の現在値（秒）。
     public mutating func shouldPlay(_ effect: SoundEffect, now: Double) -> Bool {
+        shouldPlay(key: effect, now: now)
+    }
+
+    /// カードの音（`CardSound`）版。連続で配るときに音が重なって割れないよう、同じ音は間引く（#2697）。
+    public mutating func shouldPlay(_ sound: CardSound, now: Double) -> Bool {
+        shouldPlay(key: sound, now: now)
+    }
+
+    private mutating func shouldPlay(key effect: AnyHashable, now: Double) -> Bool {
         if let last = lastPlayedAt[effect], now >= last, now - last < minimumInterval {
             return false
         }

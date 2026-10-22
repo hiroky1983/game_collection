@@ -11,6 +11,8 @@ public enum FeedbackImpact: Equatable, Sendable {
     /// 駒・牌・カードを「選ぶ」だけの操作（まだ何も確定しない）。`UISelectionFeedbackGenerator` で最も弱い。
     /// 効果音は鳴らさない（`SoundEffect` に対応する音が無い）。
     case selection
+    /// トランプの配る・めくる・出す・切る。触覚は `CardSound.haptic`、効果音は同梱のカードの音（#2697）。
+    case card(CardSound)
 
     /// 効果音を相乗りさせるか。選ぶだけの操作は触覚だけ（効果音を増やさない・#2303）。
     public var hasSound: Bool { self != .selection }

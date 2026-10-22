@@ -392,7 +392,7 @@ public final class SpiderModel {
         refreshDerivedState()
         stopwatch.stop()
         startTimer()
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.shuffle))
         services?.snapshots.clear(for: gameID)
         services?.gameDidRestart(gameID: gameID, level: self.rules.suitCount.analyticsLevel)
     }
@@ -427,7 +427,7 @@ public final class SpiderModel {
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
         selection = nil
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(move == .deal ? .card(.deal) : .card(.place))
         refreshDerivedState()
 
         if board.isWon {

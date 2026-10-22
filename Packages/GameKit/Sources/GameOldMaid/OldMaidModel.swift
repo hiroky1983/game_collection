@@ -159,7 +159,7 @@ public final class OldMaidModel: AITurnGuarded {
         isUntouchedDeal = true
         phase = .playing
 
-        services?.feedback.impact(.medium)   // 札が配られた
+        services?.feedback.impact(.card(.shuffle))   // 札が切られて配られた
         // 1 ゲーム = 1 プレイ。中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
         // 配っただけで決着・あなたが抜けた（ペアだけで手札が尽きた）ときは、そのまま決着まで進める。
@@ -192,7 +192,7 @@ public final class OldMaidModel: AITurnGuarded {
             if transfer.card.isJoker {
                 services?.feedback.notify(.warning)   // ジョーカーを引いてしまった
             } else {
-                services?.feedback.impact(transfer.paired ? .medium : .light)
+                services?.feedback.impact(transfer.paired ? .card(.place) : .card(.deal))
             }
         }
         settleIfHumanOut()
@@ -204,7 +204,7 @@ public final class OldMaidModel: AITurnGuarded {
         guard canShuffle, var next = game else { return }
         next.shuffleHand(of: Self.humanIndex, using: &generator)
         game = next
-        services?.feedback.impact(.light)
+        services?.feedback.impact(.card(.shuffle))
         persist()
     }
 

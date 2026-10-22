@@ -6,7 +6,8 @@ import Core
 ///
 /// - オン / オフ判定は持たない（Core の `GatedFeedbackService` が受け持つ）。触覚と同じ構造。
 /// - 音源ファイルは同梱せず、`SoundEffect` の波形定義から起動後に合成する
-///   （素材のライセンスとアプリサイズの問題を避けるため）。
+///   （素材のライセンスとアプリサイズの問題を避けるため）。例外はトランプの配る・めくる・出す・切るの 4 場面で、
+///   CC0 素材の `CardSound` 同梱ファイルを鳴らす（#2697）。
 /// - `AVAudioSession` のカテゴリは `.ambient`。この設定は
 ///   「消音（サイレント）スイッチと画面ロックで無音になる」「他アプリの音を止めない」ことが
 ///   ドキュメントで保証されている組み合わせで、ゲーム音として求められる挙動そのもの。
@@ -19,6 +20,8 @@ final class SoundFeedbackService: FeedbackService {
     private var throttle = SoundThrottle()
     /// 触覚に添える音なので控えめに。
     private let volume: Float = 0.6
+    /// トランプの場面の音（同梱ファイル）。`players` と同じく種類ごとに 1 つ使い回し、連続で鳴らしても重ならない。
+    private var cardPlayers: [CardSound: AVAudioPlayer] = [:]
     /// 柵越えおじさんの場面の音（`HomerunSoundService`）。`players` とは別に持ち、**互いを止めない**
     /// （カキーンの余韻が月への上昇音で切れない）。`SoundEffect` を鳴らしたときの「他の音を止める」も、こちらには掛けない。
     private var homerunPlayers: [HomerunSound: AVAudioPlayer] = [:]
@@ -27,6 +30,10 @@ final class SoundFeedbackService: FeedbackService {
 
     func impact(_ style: FeedbackImpact) {
         guard style.hasSound else { return }
+        if case .card(let sound) = style {
+            play(sound)
+            return
+        }
         play(SoundEffect(style))
     }
 
@@ -48,6 +55,7 @@ final class SoundFeedbackService: FeedbackService {
         for (kind, other) in players where kind != effect && other.isPlaying {
             other.pause()
         }
+        for other in cardPlayers.values where other.isPlaying { other.pause() }
 
         // 鳴っている途中なら頭へ巻き戻して鳴らし直す（重ねない）。
         // `stop()` は `prepareToPlay()` のバッファまで捨ててしまい 2 回目以降の発音が遅れるので使わない。
@@ -58,6 +66,33 @@ final class SoundFeedbackService: FeedbackService {
             try? AVAudioSession.sharedInstance().setActive(true)
             player.play()
         }
+    }
+
+    /// トランプの音を鳴らす。間引き・他の音を止める・頭から鳴らし直す、は合成音（`play(_ effect:)`）と同じ作法。
+    private func play(_ sound: CardSound) {
+        guard throttle.shouldPlay(sound, now: CACurrentMediaTime()) else { return }
+
+        configureSessionIfNeeded()
+        guard let player = cardPlayer(for: sound) else { return }
+
+        for other in players.values where other.isPlaying { other.pause() }
+        for (kind, other) in cardPlayers where kind != sound && other.isPlaying { other.pause() }
+
+        player.currentTime = 0
+        if !player.play() {
+            try? AVAudioSession.sharedInstance().setActive(true)
+            player.play()
+        }
+    }
+
+    private func cardPlayer(for sound: CardSound) -> AVAudioPlayer? {
+        if let cached = cardPlayers[sound] { return cached }
+        // 同梱ファイルが見つからない・読めないときは無音にする（落とさない）。
+        guard let url = sound.url, let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
+        player.volume = volume
+        player.prepareToPlay()
+        cardPlayers[sound] = player
+        return player
     }
 
     /// カテゴリが `.ambient` でなければ張り直す。

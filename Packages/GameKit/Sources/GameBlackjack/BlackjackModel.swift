@@ -375,7 +375,7 @@ public final class BlackjackModel {
             resolveAll()
             return
         }
-        services?.feedback.impact(.medium) // カードを配る
+        services?.feedback.impact(.card(.deal)) // カードを配る
         persist()
     }
 
@@ -385,7 +385,7 @@ public final class BlackjackModel {
         guard phase == .playerTurn, hands.indices.contains(activeHandIndex) else { return }
         hands[activeHandIndex].cards.append(drawCard())
         guard hands[activeHandIndex].isBusted else {
-            services?.feedback.impact(.light) // 1枚引く
+            services?.feedback.impact(.card(.deal)) // 1枚引く
             persist()
             return
         }
@@ -430,7 +430,7 @@ public final class BlackjackModel {
         }
         hands = [first, second]
         activeHandIndex = 0
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.deal))
         if hands[0].isDone {
             advanceHand()
         } else {
