@@ -253,6 +253,21 @@ public final class SpeedModel {
         play(candidates[0], onto: index, by: .human)
     }
 
+    /// 手札を払って台札 `index` に出す（会長 QA 2026-10-23・スワイプ前提）。出せなければ警告を鳴らして何もしない
+    /// （ペナルティは無い。タップで出せない札を選んだときと同じ）。
+    /// - Returns: 出せたか。
+    @discardableResult
+    public func swipeCard(_ card: SpeedCard, onto index: Int) -> Bool {
+        guard phase == .playing, humanHand.contains(card), piles.indices.contains(index) else { return false }
+        guard SpeedRules.canPlay(card, onto: tops[index]) else {
+            selectedID = nil
+            services?.feedback.notify(.warning)
+            return false
+        }
+        play(card, onto: index, by: .human)
+        return true
+    }
+
     public func clearSelection() {
         selectedID = nil
     }

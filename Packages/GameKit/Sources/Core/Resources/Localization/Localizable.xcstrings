@@ -12,6 +12,28 @@
         }
       }
     },
+    "出せない札を払うと手札に戻ります（ペナルティはありません）。札のタップでも出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card that can't be played slides back to your hand (no penalty). You can also tap a card to play it."
+          }
+        }
+      }
+    },
+    "手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card from your hand toward the pile you want to play it on. You can also drag it onto the pile and let go."
+          }
+        }
+      }
+    },
     "最後の勝負" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1304,13 +1326,13 @@
         }
       }
     },
-    "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+    "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「＋」で始めるときに選べます。あなたの側に制限時間はありません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles. Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles. Choose the CPU's pace when you start a game with “+” at the top right. There's no time limit on your side."
           }
         }
       }
@@ -2857,24 +2879,24 @@
         }
       }
     },
-    "台札と1つ違いの札を重ねよう" : {
+    "1つ違いの札を台札のほうへ払おう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Play a card one higher or lower than a pile"
+            "value" : "Flick a card one up or down toward a pile"
           }
         }
       }
     },
-    "台札は真ん中の2山。手札から、台札の数字と1つ違い（A と K もつながる）の札を、どちらかの台札に重ねます。順番はなく、CPU も同時に出してきます。" : {
+    "台札は真ん中の2山。台札の数字と1つ違い（A と K もつながる）の手札を、重ねたい台札のほうへ払って出します。順番はなく、CPU も同時に出してきます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The two piles in the middle are the play piles. Play a card from your hand that's one higher or lower than either pile (A and K connect). There are no turns: the CPU plays at the same time."
+            "value" : "The two piles in the middle are the play piles. Flick a card that's one higher or lower than a pile (A and K connect) toward that pile to play it. There are no turns: the CPU plays at the same time."
           }
         }
       }
@@ -5541,13 +5563,13 @@
         }
       }
     },
-    "CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+    "CPU の速さは、右上の「＋」で始めるときに選べます。あなたの側に制限時間はありません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+            "value" : "Choose the CPU's pace when you start a game with “+” at the top right. There's no time limit on your side."
           }
         }
       }
