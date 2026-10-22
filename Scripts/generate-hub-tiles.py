@@ -21,8 +21,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   切り抜く（#2572）。release ブランチには docs が無いので、main から取り出して `--hero` で渡す。
 
 使い方:
-  git archive origin/main docs/design/hub-redesign-1831 | tar -x -C /tmp/mock
-  python3 Scripts/generate-hub-tiles.py --mock /tmp/mock/docs/design/hub-redesign-1831/hub-redesign/assets/tiles
+  mkdir -p /tmp/mock && git archive origin/main docs/design/hub-redesign-1831 docs/design/homerun docs/design/cat-puzzle-2250 | tar -x -C /tmp/mock
+  python3 Scripts/generate-hub-tiles.py --mock /tmp/mock/docs/design/hub-redesign-1831/hub-redesign/assets/tiles \
+    --hero /tmp/mock/docs/design/homerun/hub-tile/source.png --cat-art /tmp/mock/docs/design/cat-puzzle-2250
 出力: App/Assets.xcassets/HubTiles/
   hubtile-<id>.imageset  … 名前・下線入りのタイル（537×645）
   hubthumb-<id>.imageset … 「つづき・最近」の小さいアイコン用（名前なしの絵を正方形に切り抜き・120×120）
@@ -32,7 +33,7 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
 柵越えおじさんだけ書き直すとき（元絵は main の docs から取り出して渡す。取り出し方は hub-tile/README.md）:
   python3 Scripts/generate-hub-tiles.py --only homerun --hero /tmp/mock/docs/design/homerun/hub-tile/source.png
 おじさんちのねこさがしだけ書き直すとき（猫の高解像度の絵と前足・尻尾の部品は main の docs にあるので取り出して渡す）:
-  git archive origin/main docs/design/cat-puzzle-2250 | tar -x -C /tmp/mock
+  mkdir -p /tmp/mock && git archive origin/main docs/design/cat-puzzle-2250 | tar -x -C /tmp/mock
   python3 Scripts/generate-hub-tiles.py --only catpuzzle --cat-art /tmp/mock/docs/design/cat-puzzle-2250
 英語版だけ書き直すとき（日本語版は消さない）:
   python3 Scripts/generate-hub-tiles.py --lang en --mock <上と同じ場所>
