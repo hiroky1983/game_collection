@@ -4,7 +4,7 @@ import Core
 /// スピード（#1323）のプレイ画面。
 ///
 /// レイアウトパターン A（全画面・会長 QA 2026-10-23・#2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
-/// （戻る・スピード・速さ・？・新規）、バナーは画面最下部。上から 速さと記録の帯 → CPU の手札と山札 → 台札 2 山 →
+/// （戻る・スピード・？・新規）、バナーは画面最下部。上から 速さと記録の帯 → CPU の手札と山札 → 台札 2 山 →
 /// あなたの手札と山札 → 操作 → 遊び方の 1 行 → レコメンド。台札とあなたの手札は近めに置き、払う距離を短くする。
 ///
 /// 操作はスワイプ前提（会長 QA 2026-10-23）: 手札の札を出したい台札のほうへ払うと、その台札に出す（判定は `SpeedSwipe`）。
@@ -91,18 +91,17 @@ public struct SpeedView: View {
             .padding(.vertical, SpeedTableLayout.verticalInset)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        // 右上の新規（#2370）は同じ速さで配り直す。速さを変えるのはヘッダーの「速さ」から。
-        // 広告の視聴中は塞ぐ（配り直すと見終えた広告のタイムが局ガードで弾かれて見損になる）。
+        // 右上の新規（#2370）。途中なら確認を挟んで、速さのシート（共通の開始シート・初期選択は前回の速さ）から始める
+        // （会長 QA 2026-10-23「＋ともう一個ボタンあるけど、これ同じじゃね？」で以前の「速さ」ボタンを統合）。
+        // 広告の視聴中は塞ぐ（始め直すと見終えた広告のタイムが局ガードで弾かれて見損になる）。
         .gameChrome(title: tr("スピード"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.match, isDisabled: timeoutRescue.isWatching) {
                         if model.hasProgressToLose {
                             showConfirmNewGame = true
                         } else {
-                            startNewGame()
+                            showSetup = true
                         }
-                    }) {
-            speedButton
-        }
+                    })
         // シートを開いているあいだも CPU は止める（背面で出し切ると、読んでいる間に敗北が記録される。#1358）。
         .howToPlay(HowToPlayGuide.speed.illustrated(SpeedHowToFigures.items), onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
             SpeedRuleSheet()
@@ -134,7 +133,7 @@ public struct SpeedView: View {
         .onChange(of: scenePhase) { _, phase in
             model.holdCPU(.inactive, phase != .active)
         }
-        // 「速さ」のシートも同じ（開いたまま置くと背面で CPU が出し続ける）。閉じたら再開する。
+        // 速さのシートも同じ（開いたまま置くと背面で CPU が出し続ける）。閉じたら再開する。
         .onChange(of: showSetup) { _, open in
             model.holdCPU(.sheet, open)
         }
@@ -148,7 +147,7 @@ public struct SpeedView: View {
         }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-                Button(tr("終了して新規対局"), role: .destructive) { startNewGame() }
+                Button(tr("終了して新規対局"), role: .destructive) { showSetup = true }
                 Button(tr("キャンセル"), role: .cancel) {}
             } message: {
                 Text(tr("途中で終了すると対局データが失われます。"))
@@ -167,15 +166,6 @@ public struct SpeedView: View {
         .task(id: model.cpuRun) { await runCPU() }
     }
 
-    /// 右上の新規（#2370）。まだ 1 ゲームも始めていなければ速さのシートから、それ以外は同じ速さで配り直す。
-    private func startNewGame() {
-        if model.phase == .idle {
-            showSetup = true
-        } else {
-            withGameAnimation { model.start(model.settings) }
-        }
-    }
-
     /// 同じ `cpuRun` のあいだだけ CPU を回す。場が動いて番号が変わったら、新しい `.task` に譲って抜ける
     /// （SwiftUI のキャンセルが届く前に同じループが 2 度動かないよう、番号でも見張る）。
     private func runCPU() async {
@@ -185,36 +175,6 @@ public struct SpeedView: View {
             guard !Task.isCancelled, model.cpuRun == run else { return }
             withGameAnimation { model.performCPUAction() }
         }
-    }
-
-    // MARK: - ヘッダーの「速さ」
-
-    /// CPU の速さを選ぶシートを開く（以前の右上の「速さ」）。ヘッダーの行の札に置く。
-    /// 幅が足りないとき（英語の iPhone SE など）は文字を落として絵柄だけにする。
-    private var speedButton: some View {
-        Button { showSetup = true } label: {
-            ViewThatFits(in: .horizontal) {
-                Label(tr("速さ"), systemImage: "slider.horizontal.3")
-                Image(systemName: "slider.horizontal.3")
-            }
-            .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3)
-            .foregroundStyle(Color(hex: Theme.Hex.coralText.light))
-            .padding(.horizontal, 12)
-            .frame(minWidth: 44, minHeight: 34)
-            .background(
-                Capsule()
-                    .fill(Color.white.opacity(0.92))
-                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-            )
-            .frame(height: FullScreenGameLayoutMetrics.headerHeight)
-            .contentShape(Rectangle())
-            .opacity(timeoutRescue.isWatching ? 0.45 : 1)
-        }
-        .buttonStyle(.plain)
-        // 広告の視聴中は塞ぐ（速さを変えるとゲームが入れ替わり、見終えた広告のタイムが乗らない）。
-        .disabled(timeoutRescue.isWatching)
-        .accessibilityLabel(tr("速さ"))
-        .accessibilityValue(model.settings.level.label)
     }
 
     // MARK: - 速さと記録の帯

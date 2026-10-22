@@ -50,6 +50,11 @@ struct SpeedModuleTests {
         #expect(code.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠にバナーの取得元を渡していない")
         #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
         #expect(code.contains("FullScreenGameLayoutMetrics.sideInset"), "左右の余白は全画面の枠の値")
+        // 会長 QA 2026-10-23「＋ともう一個ボタンあるけど、これ同じじゃね？」: 新規は「＋」1 つで、速さのシートから始める。
+        #expect(!code.contains("slider.horizontal.3"), "ヘッダーに「速さ」のボタンが残っている")
+        #expect(code.contains("GameChromeNewGame(.match, isDisabled: timeoutRescue.isWatching)"), "広告の視聴中に＋を塞いでいない")
+        #expect(code.contains("Button(tr(\"終了して新規対局\"), role: .destructive) { showSetup = true }"),
+                "途中の確認のあとは速さのシートから始める")
         #expect(code.contains("HowToPlayHint(.speed"))
         #expect(code.contains("GameSetupSheet(") && code.contains("GameSetupChooser("), "速さのシートは共通枠から組む")
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口はタイムの 1 面だけ")
