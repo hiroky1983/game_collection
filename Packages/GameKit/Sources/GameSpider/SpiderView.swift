@@ -415,13 +415,10 @@ public struct SpiderView: View {
         return Group {
             if slot < completed.count {
                 let suit = completed[slot]
+                let kingID = model.board.completedKingIDs.indices.contains(slot)
+                    ? model.board.completedKingIDs[slot] : nil
                 // 取り除いた組は K の面で示す。
-                ZStack {
-                    PlayingCardSurface(cornerRadius: metrics.cornerRadius)
-                    PlayingCardFace(figure: .pip(suit: suit.playingCardSuit, rank: 13), metrics: metrics)
-                        .frame(width: metrics.width, height: metrics.height)
-                }
-                .frame(width: metrics.width, height: metrics.height)
+                foundationKing(suit: suit, kingID: kingID, metrics: metrics)
             } else {
                 CardSlot(metrics: metrics, systemImage: "checkmark")
             }
@@ -429,6 +426,21 @@ public struct SpiderView: View {
         .accessibilityHidden(slot != 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.completedLabel(count: completed.count))
+    }
+
+    /// 完成枠の K。場の K と同じ ID で補間を付け、組がそろった瞬間に場から枠へ滑らせる（#2708）。
+    @ViewBuilder private func foundationKing(suit: SpiderSuit, kingID: Int?, metrics: PlayingCardMetrics) -> some View {
+        let face = ZStack {
+            PlayingCardSurface(cornerRadius: metrics.cornerRadius)
+            PlayingCardFace(figure: .pip(suit: suit.playingCardSuit, rank: 13), metrics: metrics)
+                .frame(width: metrics.width, height: metrics.height)
+        }
+        .frame(width: metrics.width, height: metrics.height)
+        if let kingID {
+            face.matchedGeometryEffect(id: CardMotionID(deal: model.dealSerial, card: kingID), in: cardMotion)
+        } else {
+            face
+        }
     }
 
     // MARK: - 場札

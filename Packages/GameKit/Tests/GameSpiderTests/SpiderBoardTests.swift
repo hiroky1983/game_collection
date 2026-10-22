@@ -98,6 +98,7 @@ struct SpiderBoardTests {
         let applied6 = b.apply(.move(from: 1, cardIndex: 0, to: 0))
         #expect(applied6)
         #expect(b.completed == [.spade])
+        #expect(b.completedKingIDs == [card(.spade, 13).id], "完成枠の K を場の K と結ぶ id を残す（#2708）")
         #expect(b.piles[0].cards == [card(.heart, 5)])
         #expect(b.piles[0].faceDownCount == 0, "取り除いたあとに残った伏せ札は表になる")
         #expect(b.piles[1].isEmpty)
