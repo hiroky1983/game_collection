@@ -33,6 +33,7 @@ func masterOptions() -> ShogiMasterOptions {
         case "mateInOne": o.mateInOne = on
         case "kingSafety": o.kingSafety = on
         case "kingAttackMap": o.kingAttackMap = on
+        case "badCaptures": o.badCaptures = on
         default:
             if key.hasPrefix("tt="), let b = Int(key.dropFirst(3)) { o.ttBits = b }
             else if key.hasPrefix("kaw="), let w = Int(key.dropFirst(4)) { o.kingAttackWeight = w } else {

@@ -87,6 +87,8 @@ struct ShogiMasterOptions: Sendable, Equatable {
     var kingSafety = true
     /// 玉の周り 8 マスの利きの数（攻め・守り）と相手の持ち駒から、玉の危なさを見る。
     var kingAttackMap = false
+    /// 安い駒を高い駒で取り、取り返される取り（損な取り）を、静止探索では読まず、本探索ではキラーより後に回す。
+    var badCaptures = false
     /// `kingAttackMap` の強さ（危なさの 2 乗にかける重み）。
     var kingAttackWeight = 3
     /// 置換表の大きさ（エントリ数の 2 の冪の指数）。
@@ -697,6 +699,7 @@ private final class MasterSearcher {
                 let attacker = MP.type(board[MM.from(m)])
                 s = 500_000_000 + MP.captureGain(victim) * 16 - MP.value[attacker] / 16
                 if MM.isPromote(m) { s += 1000 }
+                if options.badCaptures && isBadCapture(m) { s = 200_000_000 + MP.captureGain(victim) }
             } else if MM.isPromote(m) {
                 s = 400_000_000 + MP.value[MP.promoteOf[MP.type(board[MM.from(m)])]]
             } else if m == k0 {
@@ -708,6 +711,14 @@ private final class MasterSearcher {
             }
             scores[i] = Int32(clamping: s)
         }
+    }
+
+    /// 安い駒を高い駒で取り、相手に取り返される取りか（駒の損得の大まかな見積もり）。
+    @inline(__always) func isBadCapture(_ m: UInt32) -> Bool {
+        let victim = MP.type(board[MM.to(m)])
+        let attacker = MP.type(board[MM.from(m)])
+        if attacker == MP.king || MP.value[victim] >= MP.value[attacker] { return false }
+        return isAttacked(MM.to(m), by: side ^ 1)
     }
 
     /// i 番目以降で最も点の高い手を i へ持ってくる（選択ソート。途中で枝刈りされることが多い）。
@@ -825,6 +836,7 @@ private final class MasterSearcher {
                 let gain = cap != MP.empty ? MP.captureGain(MP.type(cap)) : 0
                 let promo = MM.isPromote(m) ? MP.value[MP.promoteOf[MP.type(board[MM.from(m)])]] - MP.value[MP.type(board[MM.from(m)])] : 0
                 if standPat + gain + promo + 200 <= alpha { continue }
+                if options.badCaptures && cap != MP.empty && isBadCapture(m) { continue }
             }
             make(m)
             if !lastMoveIsLegal() { unmake(); continue }
