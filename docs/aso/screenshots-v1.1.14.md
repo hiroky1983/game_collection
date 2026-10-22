@@ -34,7 +34,8 @@
   - おじさんの荷物運びパズル: `-startGame ojisanpuzzle -simulateOjisanPain 50`
   - チャリンコおじさん: `-startGame runner -simulateRunner bird:5`
   - ソリティア: `-startGame solitaire -solitaireMidgame`
-  - 大富豪・ブラックジャック・将棋・麻雀・ナンプレは `aso-demo-snapshots.py` の中断データ
+  - 4 人麻雀: `-startGame mahjong4`（中断データ `mahjong4.json`。`mahjong` は麻雀ソリティアの ID なので使わない）
+  - 大富豪・ブラックジャック・将棋・ナンプレは `aso-demo-snapshots.py` の中断データ
 - 撮影後に新しい `GameCollection-*.ips`（クラッシュログ）が増えていないことを確認した。
 - 解像度: iPhone は 6.9"、iPad は 2064×2752（13" 枠にそのまま入る）。
 
