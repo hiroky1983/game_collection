@@ -21,7 +21,7 @@ public enum CatPuzzleSize: String, CaseIterable, Codable, Sendable {
 /// `rooms[cell]` がそのマスの部屋の番号（0 始まり・部屋の数は `side`）、`solution[row]` が
 /// その行で猫がいる列（唯一の答え）。部屋は必ず上下左右につながった 1 かたまりで、
 /// 答えの猫はそれぞれ別の部屋にいる。
-public struct CatPuzzle: Codable, Hashable, Sendable {
+public struct CatPuzzle: Codable, Equatable, Sendable {
     public let side: Int
     public let rooms: [Int]
     public let solution: [Int]

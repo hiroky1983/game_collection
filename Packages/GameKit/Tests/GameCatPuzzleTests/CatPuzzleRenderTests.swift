@@ -247,7 +247,7 @@ struct CatPuzzleRenderTests {
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
             ("1-playing", { Self.playingModel() }),
-            // 6×6 と 8×8 の途中とクリア（家具・ドア・窓がどの大きさでも崩れないことを目で見る。とくに SE の 8×8）。
+            // 6×6 と 8×8 の途中とクリア（どの大きさでも札・壁・マスの区切りが崩れないことを目で見る。とくに SE の 8×8）。
             ("1-playing-easy", { Self.playingModel(size: .easy) }),
             ("1-playing-hard", { Self.playingModel(size: .hard) }),
             ("4c-clear-easy", { Self.clearModel(size: .easy) }),
