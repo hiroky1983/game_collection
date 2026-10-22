@@ -154,10 +154,11 @@ public struct SpeedView: View {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
-        // 確認を出しているあいだも CPU は止める（迷っているうちに出し切られて負けが記録される、を防ぐ）。
+        // 払いが取り消された（`onEnded` が来ない）ときも、指についた札を残さない。
         .onChange(of: isTouching) { _, touching in
             if !touching { lifted = nil }
         }
+        // 確認を出しているあいだも CPU は止める（迷っているうちに出し切られて負けが記録される、を防ぐ）。
         .onChange(of: showConfirmNewGame) { _, open in
             model.holdCPU(.sheet, open)
         }
