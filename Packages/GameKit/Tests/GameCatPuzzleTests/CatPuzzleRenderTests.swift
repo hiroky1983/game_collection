@@ -9,7 +9,7 @@ import CoreTestSupport
 /// 普段のテストでは盤の絵が描けることだけを確かめる。シミュレータを使わずに `ImageRenderer` で描く。
 ///
 /// 例: `CAT_PUZZLE_RENDER_DIR=/tmp/cat swift test --package-path Packages/GameKit --filter CatPuzzleRenderTests`
-@Suite("おじさんの飼い猫パズルの静止画")
+@Suite("おじさんちのねこさがしの静止画")
 @MainActor
 struct CatPuzzleRenderTests {
     /// 幅・高さ（pt）: iPhone 17（393×852）と iPhone SE（375×667）。

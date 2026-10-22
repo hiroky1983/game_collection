@@ -13,13 +13,17 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   描き直す（#2552。審査で疑似ギャンブルと見られないよう、賭けを思わせる絵を出さない）。札・下地・配置はモックのまま。
 - 花札こいこいはモックの絵が旧仕様の札なので、ゲーム内の札の画像（#2188 の `Hanafuda_NN.png`）で描き直す（#2273）。
   左下・右下は「続きから」「NEW」が重なるので、文字や吹き出しは入れない。
+- おじさんちのねこさがし（#2250）はモックに絵が無いので `art_html` で描く（案 a6b・会長決裁 2026-10-22）。猫の顔は
+  main の `docs/design/cat-puzzle-2250/assets/cats`（ゲーム内の `Resources/Cats` より高解像度）、前足・尻尾は同じ場所の
+  `hub-tile/parts`。release ブランチには docs が無いので、main から取り出して `--cat-art` で渡す。
 - 柵越えおじさんはモックの絵（おじさんの顔が上に切れる）ではなく、横長タイル（#2273・廃止 #2566）と同じ会長提供の
   正方形の絵（main の `docs/design/homerun/hub-tile/source.png`・ロゴ無し）から、**顔がはっきり見える構図**で
   切り抜く（#2572）。release ブランチには docs が無いので、main から取り出して `--hero` で渡す。
 
 使い方:
-  git archive origin/main docs/design/hub-redesign-1831 | tar -x -C /tmp/mock
-  python3 Scripts/generate-hub-tiles.py --mock /tmp/mock/docs/design/hub-redesign-1831/hub-redesign/assets/tiles
+  mkdir -p /tmp/mock && git archive origin/main docs/design/hub-redesign-1831 docs/design/homerun docs/design/cat-puzzle-2250 | tar -x -C /tmp/mock
+  python3 Scripts/generate-hub-tiles.py --mock /tmp/mock/docs/design/hub-redesign-1831/hub-redesign/assets/tiles \
+    --hero /tmp/mock/docs/design/homerun/hub-tile/source.png --cat-art /tmp/mock/docs/design/cat-puzzle-2250
 出力: App/Assets.xcassets/HubTiles/
   hubtile-<id>.imageset  … 名前・下線入りのタイル（537×645）
   hubthumb-<id>.imageset … 「つづき・最近」の小さいアイコン用（名前なしの絵を正方形に切り抜き・120×120）
@@ -28,6 +32,9 @@ Chrome のヘッドレスでモックと同じ HTML を 179×215pt @3x で描く
   python3 Scripts/generate-hub-tiles.py --only anzan
 柵越えおじさんだけ書き直すとき（元絵は main の docs から取り出して渡す。取り出し方は hub-tile/README.md）:
   python3 Scripts/generate-hub-tiles.py --only homerun --hero /tmp/mock/docs/design/homerun/hub-tile/source.png
+おじさんちのねこさがしだけ書き直すとき（猫の高解像度の絵と前足・尻尾の部品は main の docs にあるので取り出して渡す）:
+  mkdir -p /tmp/mock && git archive origin/main docs/design/cat-puzzle-2250 | tar -x -C /tmp/mock
+  python3 Scripts/generate-hub-tiles.py --only catpuzzle --cat-art /tmp/mock/docs/design/cat-puzzle-2250
 英語版だけ書き直すとき（日本語版は消さない）:
   python3 Scripts/generate-hub-tiles.py --lang en --mock <上と同じ場所>
 """
@@ -81,6 +88,8 @@ GAMES = {
     "colorrelay": ("いろリレー", PURPLE),
     "fruits": ("おじさんの盆栽", TEAL),
     "dicecombo": ("サイコロ役づくり", PINK),
+    # 企画倉庫から v1.1.14 でハブに出した 1 本（#2250・会長決裁 2026-10-22）。橙の下地に映える青緑の下線（隣に並ぶ柵越えおじさんの紫と分ける）。
+    "catpuzzle": ("おじさんちのねこさがし", TEAL),
 }
 # 英語のゲーム名（#2181）。各ゲームの String Catalog（`Resources/Localization/Localizable.xcstrings`）の訳と同じ
 # （#2166〜#2169）。食い違いは `check_english_names` が書き出しの前に止める。2048 は訳さない（タイトルを直書き）、
@@ -114,6 +123,7 @@ GAMES_EN = {
     "colorrelay": "Color Relay",
     "fruits": "Ojisan no Bonsai",
     "dicecombo": "Dice Combos",
+    "catpuzzle": "Ojisan's Hidden Cats",
 }
 # String Catalog を引かずに上の表で持つゲーム（理由は上）。
 EN_NOT_IN_CATALOG = {"2048", "daifugo"}
@@ -149,7 +159,7 @@ def asset_name(base, lang):
 
 # モックの絵を使わず描き直すゲーム（上の docstring 参照）。倉庫から出した 3 本（#2384）はモックに絵が無いので、
 # ゲーム内の部品（いろリレーの札・盆栽の絵と縁側のおじさん・サイコロ）を同じ方式で組む。
-REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "fruits", "dicecombo"}
+REDRAWN = {"ojisanpuzzle", "anzan", "hanafuda", "colorrelay", "fruits", "dicecombo", "catpuzzle"}
 FRUITS_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameFruits/Resources")
 
 # モックの HTML からカジノチップを外して描くゲーム（#2552）。モックの PNG ではなく、隣の `<id>.html` を描く。
@@ -189,6 +199,149 @@ body{font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans",sans-serif;-w
 
 def img(path, x, y, w, rot=0):
     return f'<img class="o px" src="file://{path}" style="left:{x}px;top:{y}px;width:{w}px;transform:rotate({rot}deg);">'
+
+
+# ---- おじさんちのねこさがし（#2250）の絵（案 a6b）: 家の間取り（3×3）の上辺の真ん中の裏から猫が顔を出す ----
+# 間取りの床の色は `CatPuzzleHouse.rooms` のライトの床色（居間・押し入れ・寝室・書斎・お風呂・台所・玄関・縁側）。
+CAT_ART = os.path.join(ROOT, "docs/design/cat-puzzle-2250")
+CAT_ROOM_TINT = ["#DDE49C", "#F1D9AE", "#FFC4CE", "#C9BFF4", "#A9E2EE", "#FFCF8A", "#D5CBBB", "#E6B274"]
+CAT_ROOM_FLOOR = ["tatami", "planks", "carpet", "planks", "tile", "tile", "stone", "planks"]
+CAT_INK = "#4A3B33"
+CAT_ROOMS = [[0, 0, 2], [1, 1, 2], [1, 5, 5]]
+
+
+def cat_png(name):
+    return os.path.join(CAT_ART, "assets/cats", f"{name}.png")
+
+
+def cat_part(name):
+    return os.path.join(CAT_ART, "hub-tile/parts", f"{name}.png")
+
+
+def cat_floor_pattern(kind, s):
+    a = "rgba(74,59,51,.09)"
+    if kind == "tatami":
+        return f"repeating-linear-gradient(180deg,transparent 0 {s/5-0.8:.1f}px,{a} {s/5-0.8:.1f}px {s/5:.1f}px)"
+    if kind == "planks":
+        return f"repeating-linear-gradient(90deg,transparent 0 {s/3-0.8:.1f}px,{a} {s/3-0.8:.1f}px {s/3:.1f}px)"
+    if kind == "carpet":
+        return f"radial-gradient({a} 0.8px,transparent 1px) 0 0/{s/4:.1f}px {s/4:.1f}px"
+    if kind == "stone":
+        return f"radial-gradient(circle at 50% 50%,rgba(255,255,255,.35) {s*0.3:.1f}px,transparent {s*0.33:.1f}px)"
+    return "none"
+
+
+def cat_board(rooms, s, x, y, rot, marks=(), extra="", z=1):
+    """間取りの盤。部屋の境は太い墨の壁、マスの区切りは細い線、外側は墨と白の二重の縁。extra は盤の座標の家具。"""
+    rows, cols = len(rooms), len(rooms[0])
+    cells = ""
+    for r in range(rows):
+        for c in range(cols):
+            k = rooms[r][c]
+            tint, fl = CAT_ROOM_TINT[k % 8], CAT_ROOM_FLOOR[k % 8]
+            face = ""
+            if fl == "tile":
+                i = s * 0.07
+                face = (f'<div style="position:absolute;left:{i:.1f}px;top:{i:.1f}px;right:{i:.1f}px;bottom:{i:.1f}px;'
+                        f'border-radius:{s*0.04:.1f}px;background:rgba(255,255,255,.3)"></div>')
+            cells += (f'<div style="position:absolute;left:{c*s}px;top:{r*s}px;width:{s}px;height:{s}px;background:{tint};'
+                      f'background-image:{cat_floor_pattern(fl, s)};box-shadow:inset 0 0 0 0.6px rgba(74,59,51,.3)">{face}</div>')
+    walls = ""
+    wt = max(2.2, s * 0.09)
+    for r in range(rows):
+        for c in range(cols):
+            if c + 1 < cols and rooms[r][c] != rooms[r][c + 1]:
+                walls += f'<div style="position:absolute;left:{(c+1)*s - wt/2:.1f}px;top:{r*s}px;width:{wt:.1f}px;height:{s}px;background:{CAT_INK}"></div>'
+            if r + 1 < rows and rooms[r][c] != rooms[r + 1][c]:
+                walls += f'<div style="position:absolute;left:{c*s}px;top:{(r+1)*s - wt/2:.1f}px;width:{s}px;height:{wt:.1f}px;background:{CAT_INK}"></div>'
+    xs = "".join(f'<div style="position:absolute;left:{c*s}px;top:{r*s}px;width:{s}px;height:{s}px;display:flex;align-items:center;'
+                 f'justify-content:center;font-weight:900;font-size:{s*0.78:.0f}px;line-height:1;color:{CAT_INK};'
+                 f'text-shadow:0 0 3px #fff,0 0 2px #fff;font-family:\'SF Pro Rounded\',\'Hiragino Sans\',sans-serif">×</div>'
+                 for (r, c) in marks)
+    ow = wt * 1.5
+    return (f'<div style="position:absolute;left:{x}px;top:{y}px;width:{cols*s}px;height:{rows*s}px;transform:rotate({rot}deg) scale(1.0);'
+            f'transform-origin:center;z-index:{z};border-radius:6px;background:#fff;'
+            f'box-shadow:0 0 0 {ow:.1f}px {CAT_INK},0 0 0 {ow+5:.1f}px #fff,0 8px 10px {ow+5:.1f}px rgba(0,0,0,.28)">'
+            f'<div style="position:absolute;inset:0;overflow:hidden;border-radius:4px">{cells}{walls}{xs}{extra}</div></div>')
+
+
+def cat_kotatsu(r, c, s):
+    """こたつ。布団の下から尻尾が下に出ている（付け根は布団の下に隠す）。"""
+    x, y = c * s, r * s
+    tw = s * 0.42
+    th = tw * 141 / 99
+    return (f'<img src="file://{cat_part("tail-v")}" style="position:absolute;left:{x + s*0.5:.1f}px;top:{y + s*1.28 - th:.1f}px;'
+            f'width:{tw:.1f}px;z-index:2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))">'
+            f'<div style="position:absolute;left:{x + s*0.08:.1f}px;top:{y + s*0.12:.1f}px;width:{s*0.84:.1f}px;height:{s*0.8:.1f}px;'
+            f'border-radius:{s*0.16:.1f}px;background:#E8684F;z-index:3;'
+            f'background-image:radial-gradient(rgba(255,255,255,.55) {s*0.045:.1f}px,transparent {s*0.055:.1f}px);background-size:{s*0.2:.1f}px {s*0.2:.1f}px;'
+            f'box-shadow:0 2px 2px rgba(0,0,0,.25)"></div>'
+            f'<div style="position:absolute;left:{x + s*0.24:.1f}px;top:{y + s*0.28:.1f}px;width:{s*0.52:.1f}px;height:{s*0.46:.1f}px;'
+            f'border-radius:{s*0.08:.1f}px;background:#8F5F3C;z-index:4;box-shadow:inset 0 0 0 1.2px #6B4428"></div>')
+
+
+def cat_box(r, c, s, peek=0.5):
+    """段ボール箱。箱のふちの上に耳と目だけ出す（peek は顔の出具合）。"""
+    x, y = c * s, r * s
+    fw = s * 0.9
+    im = Image.open(cat_png("face_normal"))
+    fh = fw * im.height / im.width
+    rim = y + s * 0.5
+    return (f'<div style="position:absolute;left:{x + s*0.1:.1f}px;top:{y + s*0.2:.1f}px;width:{s*0.8:.1f}px;height:{s*0.34:.1f}px;'
+            f'background:#B8925F;z-index:2;border-radius:2px"></div>'
+            f'<img src="file://{cat_png("face_normal")}" style="position:absolute;left:{x + s*0.05:.1f}px;top:{rim - fh*peek:.1f}px;'
+            f'width:{fw:.1f}px;z-index:3;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))">'
+            f'<div style="position:absolute;left:{x + s*0.06:.1f}px;top:{rim:.1f}px;width:{s*0.88:.1f}px;height:{s*0.46:.1f}px;'
+            f'background:#D3AC77;z-index:4;border-radius:2px;box-shadow:inset 0 0 0 1.2px #9D7444,0 2px 2px rgba(0,0,0,.25)">'
+            f'<div style="position:absolute;left:38%;top:0;width:24%;height:100%;background:rgba(255,255,255,.35)"></div></div>'
+            f'<div style="position:absolute;left:{x + s*0.02:.1f}px;top:{rim - s*0.06:.1f}px;width:{s*0.96:.1f}px;height:{s*0.1:.1f}px;'
+            f'background:#C49A62;z-index:5;border-radius:1.5px;box-shadow:inset 0 0 0 1px #9D7444"></div>')
+
+
+def cat_fusuma(r, c, s, gap=0.34):
+    """押し入れのふすま。少し開いた隙間から顔がのぞく（gap は隙間の幅の割合）。"""
+    x, y = c * s, r * s
+    gx = x + s * 0.5 - s * gap / 2
+    fw = s * 0.9
+    im = Image.open(cat_png("face_normal"))
+    fh = fw * im.height / im.width
+    door = lambda l, w: (f'<div style="position:absolute;left:{l:.1f}px;top:{y + s*0.1:.1f}px;width:{w:.1f}px;height:{s*0.8:.1f}px;'
+                         f'background:#F4ECD9;z-index:4;box-shadow:inset 0 0 0 1.2px #8B6A45;'
+                         f'background-image:linear-gradient(90deg,transparent 0 30%,rgba(139,106,69,.25) 30% 31%,transparent 31%)"></div>')
+    return (f'<div style="position:absolute;left:{x + s*0.04:.1f}px;top:{y + s*0.06:.1f}px;width:{s*0.92:.1f}px;height:{s*0.88:.1f}px;'
+            f'background:#8B6A45;z-index:2;border-radius:2px;box-shadow:0 2px 2px rgba(0,0,0,.25)"></div>'
+            f'<div style="position:absolute;left:{x + s*0.08:.1f}px;top:{y + s*0.1:.1f}px;width:{s*0.84:.1f}px;height:{s*0.8:.1f}px;'
+            f'background:#2E2521;z-index:3;overflow:hidden">'
+            f'<img src="file://{cat_png("face_normal")}" style="position:absolute;left:{s*0.5 - s*0.08 - fw*0.52:.1f}px;top:{s*0.42 - fh*0.45:.1f}px;width:{fw:.1f}px"></div>'
+            + door(x + s * 0.08, gx - (x + s * 0.08)) + door(gx + s * gap, x + s * 0.92 - (gx + s * gap)))
+
+
+def cat_board_top(y, s, x, rot=-8):
+    """3×3 の盤（左上 x, y・一辺 3s・回転 rot）の上辺の y を、x から求める関数（translateY 前の座標）。"""
+    import math
+    n = 3 * s
+    cx, cy = x + n / 2, y + n / 2
+    t = math.radians(rot)
+    pt = lambda dx, dy: (cx + dx * math.cos(t) - dy * math.sin(t), cy + dx * math.sin(t) + dy * math.cos(t))
+    tl, tr = pt(-n / 2, -n / 2), pt(n / 2, -n / 2)
+    return lambda px: tl[1] + (tr[1] - tl[1]) * (px - tl[0]) / (tr[0] - tl[0])
+
+
+def cat_art_body():
+    """案 a6b「上辺の真ん中から顔をしっかり」: 盤（右寄せ）の上辺の真ん中の裏から、鼻・口元まで顔を出し、
+    前足をほほの下で左右に掛ける。盤の中は こたつ（尻尾）・段ボール（耳と目）・ふすま（隙間から両目）と × 。"""
+    s, bx, by = 34, 40, 74
+    extra = cat_kotatsu(0, 1, s) + cat_box(1, 2, s) + cat_fusuma(1, 0, s)
+    board = cat_board(CAT_ROOMS, s, bx, by, -8, marks=[(0, 0), (0, 2), (2, 1)], extra=extra)
+    fw, cx, face_top = 76, 98, 6
+    rim = cat_board_top(by, s, bx)(cx) - 10  # 墨の外枠 5px + 白い縁 5px
+    face = (f'<img class="o" src="file://{cat_png("face_normal")}" '
+            f'style="left:{cx - fw / 2}px;top:{face_top}px;width:{fw}px;transform:rotate(-8deg);z-index:0;">')
+    pw, gap = 20, 9
+    ptop = rim + 6 - pw * 41 / 52  # 指先が白い縁に 6px かかる高さ
+    paw = lambda part, x: (f'<img src="file://{cat_part(part)}" style="position:absolute;left:{x}px;top:{ptop}px;width:{pw}px;'
+                           f'transform:rotate(-8deg);z-index:5;filter:drop-shadow(0 1px 1px rgba(0,0,0,.3))">')
+    return board + face + paw("paw", cx - gap / 2 - pw) + paw("paw-r", cx + gap / 2)
 
 
 def art_html(gid):
@@ -266,6 +419,9 @@ def art_html(gid):
         bg = "linear-gradient(160deg,#6C7CC9 0%,#3F4F9E 50%,#2C3875 100%)"
         # フルハウス（5・5・5・1・1）。上の段に 3 つ、下の段に 2 つ。絵は日本語・英語で共通なので役の名前の文字は入れない。
         body = die(5, 8, 58, -10) + die(5, 64, 52, 4) + die(5, 120, 60, 12) + die(1, 34, 118, -6) + die(1, 96, 122, 8)
+    elif gid == "catpuzzle":
+        bg = "linear-gradient(160deg,#FFD98A 0%,#F7A94B 55%,#E88A2E 100%)"
+        body = cat_art_body()
     else:
         raise KeyError(gid)
     # モックと同じく、名前を上に重ねるぶん物を 24pt 下げる。
@@ -289,8 +445,8 @@ body{color:#4A3B33;font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans"
 """
 
 # モックで 16pt（`.name.small`）になっている名前は 8 文字以上。
-# 荷物運びパズルの名前はモックに無い長さなので、省略せずに入るよう縮める（`fit`）。
-FIT = {"ojisanpuzzle"}
+# 荷物運びパズル・ねこさがし（11 文字）の名前はモックに無い長さなので、省略せずに入るよう縮める（`fit`）。
+FIT = {"ojisanpuzzle", "catpuzzle"}
 
 
 # 英語の名前は日本語より横に長い（#2181）。まず 1 行のまま 14px まで縮めて収め（日本語の長い名前と同じく 1 行・
@@ -388,15 +544,22 @@ def write_imageset(name, image):
 
 
 def main():
+    global CAT_ART
     ap = argparse.ArgumentParser()
     ap.add_argument("--mock", help="モックのタイル絵の場所（hub-redesign/assets/tiles）。描き直すゲームだけなら不要")
     ap.add_argument("--keep", help="途中の PNG（名前なしの絵）を残す場所")
     ap.add_argument("--only", nargs="+", help="このゲームだけ書き直す（ほかのアセットは消さない）")
     ap.add_argument("--hero", default=HERO_ART, help="柵越えおじさんの元絵（既定は docs/design/homerun/hub-tile/source.png）")
+    ap.add_argument("--cat-art", default=CAT_ART,
+                    help="おじさんちのねこさがしの素材（main の docs/design/cat-puzzle-2250。既定はこのツリーの同じ場所）")
     ap.add_argument("--lang", nargs="+", choices=["ja", "en"], default=["ja", "en"],
                     help="書き出す言語（既定は両方）。1 つだけ指定したときはほかの言語のアセットを消さない")
     args = ap.parse_args()
     check_english_names()
+    CAT_ART = args.cat_art
+    if not args.only or "catpuzzle" in args.only:
+        for path in (cat_png("face_normal"), cat_part("tail-v"), cat_part("paw"), cat_part("paw-r")):
+            assert os.path.exists(path), f"ねこさがしの素材が無い: {path}（--cat-art で渡す。使い方は先頭の説明）"
 
     # 元絵の検証は出力先を消す前に済ませる（無い・サイズ違いのまま HubTiles を消して止まらないように。#2577）。検証済みの crop / thumb は後続で使い回す。
     homerun = homerun_art(args.hero) if not args.only or "homerun" in args.only else None

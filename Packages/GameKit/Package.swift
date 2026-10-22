@@ -227,7 +227,7 @@ let package = Package(
         // 弱い段の外しの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は五目並べと同じ `AITurnGuarded` の定石。
         .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
-        // おじさんの飼い猫パズル（#2250・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・
+        // おじさんちのねこさがし（#2250・v1.1.14 でハブに公開）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・
         // 矛盾の判定は純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。
         .target(name: "GameCatPuzzle",      dependencies: ["Core", "CoreEngine"],
                 // 会長の猫（ハチワレ・赤い首輪に金の鈴）の絵 9 枚（出所は docs/design/cat-puzzle-2250/README.md）。
@@ -341,7 +341,7 @@ let package = Package(
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameRunner",
             "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameHomerun", "GameOjisanPuzzle", "GameAnzan",
-            "GameColorRelay", "GameFruits", "GameDiceCombo", "GameKitTestSupport", "CoreTestSupport",
+            "GameColorRelay", "GameFruits", "GameDiceCombo", "GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [

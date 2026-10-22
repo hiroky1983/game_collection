@@ -897,10 +897,10 @@ public extension HowToPlayGuide {
         ]
     ) }
 
-    /// おじさんの飼い猫パズル（#2250・企画倉庫）。図は `GameCatPuzzle` 側で `illustrated(_:)` を使って差し込む。
+    /// おじさんちのねこさがし（#2250）。図は `GameCatPuzzle` 側で `illustrated(_:)` を使って差し込む。
     static var catPuzzle: HowToPlayGuide { HowToPlayGuide(
         gameID: "catpuzzle",
-        title: tr("おじさんの飼い猫パズルの遊び方"),
+        title: tr("おじさんちのねこさがしの遊び方"),
         lines: [
             tr("おじさんの家の間取りに、飼い猫が隠れています。部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。"),
             tr("猫どうしは、ななめも含めて隣り合いません。"),

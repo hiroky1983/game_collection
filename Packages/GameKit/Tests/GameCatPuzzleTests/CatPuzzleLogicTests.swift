@@ -15,7 +15,7 @@ private let sample = CatPuzzle(
     solution: [1, 3, 0, 2]
 )
 
-@Suite("おじさんの飼い猫パズルのロジック")
+@Suite("おじさんちのねこさがしのロジック")
 struct CatPuzzleLogicTests {
 
     @Test("生成した問題は形が正しく、解がちょうど 1 つ（6×6）", arguments: 0..<20)

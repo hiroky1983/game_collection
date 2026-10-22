@@ -39,7 +39,7 @@ private func placeCat(_ model: CatPuzzleModel, at cell: Int) {
     model.findCat(cell: cell)
 }
 
-@Suite("おじさんの飼い猫パズルの Model")
+@Suite("おじさんちのねこさがしの Model")
 @MainActor
 struct CatPuzzleModelTests {
 

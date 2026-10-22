@@ -78,13 +78,13 @@
         }
       }
     },
-    "おじさんの飼い猫パズル" : {
+    "おじさんちのねこさがし" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ojisan's Cat Puzzle"
+            "value" : "Ojisan's Hidden Cats"
           }
         }
       }

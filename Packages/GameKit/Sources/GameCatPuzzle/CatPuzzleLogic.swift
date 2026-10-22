@@ -93,7 +93,7 @@ public struct CatPuzzleViolations: Equatable, Sendable {
     public var isEmpty: Bool { cells.isEmpty }
 }
 
-/// おじさんの飼い猫パズルの純粋ロジック（#2250）。生成・解の数え上げ・矛盾の判定・ヒント。
+/// おじさんちのねこさがしの純粋ロジック（#2250）。生成・解の数え上げ・矛盾の判定・ヒント。
 ///
 /// 遊び方: 各部屋・各行・各列に猫がちょうど 1 匹。猫どうしは縦横ななめに隣り合わない。
 public enum CatPuzzleLogic {
