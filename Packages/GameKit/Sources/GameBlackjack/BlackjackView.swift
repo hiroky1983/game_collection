@@ -10,6 +10,9 @@ public struct BlackjackView: View {
     @State private var retryRescue = RewardedRescue()
     /// ナビバーの「点数のルール」シート（#2596。ポーカーの「役の点数表」と同じ位置）。
     @State private var showScoringRules = false
+    /// 結果の演出（めくり・勝敗バッジ）が終わるまで「次へ」を押せなくする（#2701）。
+    @State private var nextLocked = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
         self.services = services
@@ -501,10 +504,12 @@ public struct BlackjackView: View {
                 .disabled(retryRescue.isWatching)
             }
             actionButton(model.isFinalRoundResult ? tr("結果を見る") : tr("次の回へ"), role: .primary,
-                         disabled: retryRescue.isWatching) {
+                         disabled: retryRescue.isWatching || nextLocked) {
                 model.nextRound()
             }
         }
+        .modifier(NextUnlock(locked: $nextLocked, duration: BlackjackMotion.nextButtonLockDuration,
+                             reduceMotion: reduceMotion))
     }
 
     // MARK: - Match Over (#2552)
@@ -535,11 +540,14 @@ public struct BlackjackView: View {
 
             RecordLabel(model.recordResult)
 
-            actionButton(tr("もう一度%lld回勝負", BlackjackModel.roundsPerMatch), role: .primary) {
+            actionButton(tr("もう一度%lld回勝負", BlackjackModel.roundsPerMatch), role: .primary,
+                         disabled: nextLocked) {
                 model.restartMatch()
                 model.deal()
             }
         }
+        .modifier(NextUnlock(locked: $nextLocked, duration: BlackjackMotion.nextButtonLockDuration,
+                             reduceMotion: reduceMotion))
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -697,5 +705,23 @@ struct BlackjackScoringRulesSheet: View {
                     .foregroundStyle(Theme.ink)
             }
         }
+    }
+}
+
+/// 現れてから `duration` 秒のあいだ `locked` を真にし、過ぎたら偽にする（#2701）。Reduce Motion では演出が無いので待たない。
+private struct NextUnlock: ViewModifier {
+    @Binding var locked: Bool
+    let duration: TimeInterval
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                locked = !reduceMotion
+                guard !reduceMotion else { return }
+                try? await Task.sleep(for: .seconds(duration))
+                if !Task.isCancelled { locked = false }
+            }
+            .onDisappear { locked = true }
     }
 }
