@@ -19,6 +19,8 @@ enum CatPuzzleFurniturePainter {
                 layer.translateBy(x: box.minX, y: box.minY)
             }
             // 文脈の写しは描く先を共有する（変換・クリップだけが独立）。
+            // `small` は短い辺で決める（モック `house.js` と同じ）。箱は 0.14 マスずつ内側なので、1×1 だけでなく
+            // 2×1 / 1×2 も短い辺が 0.72 マスになり `small`。部品の多い描き方は 2×2（こたつ・縁側）の箱だけが使う。
             var painter = Painter(context: layer, w: width, h: height, small: min(width, height) < cellSide * 0.8)
             painter.draw(kind)
         }
@@ -29,7 +31,7 @@ enum CatPuzzleFurniturePainter {
         var context: GraphicsContext
         let w: CGFloat
         let h: CGFloat
-        /// 1×1（箱が 0.8 マスより小さい）。部品を減らす。
+        /// 短い辺が 0.8 マスより小さい（1×1 と 2×1 / 1×2）。部品を減らす（会長が見たモックと同じ見た目）。
         let small: Bool
         var rr: CGFloat { min(w, h) * 0.12 }
         var m: CGFloat { min(w, h) }
