@@ -6,6 +6,8 @@ import SwiftUI
 /// ここには「何と書くか」だけを渡す（バッジの 12〜13pt では決着が見落とされるため）。
 public struct HandResult: Equatable, Sendable {
     public enum Kind: Equatable, Sendable { case win, lose, draw }
+    /// 増減の単位。チップを賭けるゲームは枚、勝ち点を競うゲーム（ブラックジャック・ポーカー）は点（#2702）。
+    public enum Unit: Equatable, Sendable { case chips, points }
 
     public let kind: Kind
     /// 大見出し（例: "勝ち！"）。
@@ -14,17 +16,20 @@ public struct HandResult: Equatable, Sendable {
     public let reason: String
     /// このハンドでの手持ちチップの増減。取れないとき（旧い中断データから戻った局）は nil で行ごと出さない。
     public let chipDelta: Int?
+    /// `chipDelta` の単位。
+    public let unit: Unit
     /// VoiceOver で勝敗として読む文。見出しと違い「勝ちです」のように文にする。
     public let spokenResult: String
     /// 強い役で勝ったときの強調（#2593）。拡大・きらめきと役名（`reason`）の強調に使う。既定は無し。
     public let isEmphasized: Bool
 
-    public init(kind: Kind, headline: String, reason: String, chipDelta: Int?, spokenResult: String,
-                isEmphasized: Bool = false) {
+    public init(kind: Kind, headline: String, reason: String, chipDelta: Int?, unit: Unit = .chips,
+                spokenResult: String, isEmphasized: Bool = false) {
         self.kind = kind
         self.headline = headline
         self.reason = reason
         self.chipDelta = chipDelta
+        self.unit = unit
         self.spokenResult = spokenResult
         self.isEmphasized = isEmphasized && kind == .win
     }
@@ -32,9 +37,16 @@ public struct HandResult: Equatable, Sendable {
     /// 増減の表示（例: "+40枚" / "−20枚" / "±0枚"）。数値の桁区切りを避けるため文字列で組む。
     public var chipText: String? {
         guard let delta = chipDelta else { return nil }
-        if delta > 0 { return tr("+%lld枚", delta) }
-        if delta < 0 { return tr("−%lld枚", -delta) }
-        return tr("±0枚")
+        switch unit {
+        case .chips:
+            if delta > 0 { return tr("+%lld枚", delta) }
+            if delta < 0 { return tr("−%lld枚", -delta) }
+            return tr("±0枚")
+        case .points:
+            if delta > 0 { return tr("+%lld点", delta) }
+            if delta < 0 { return tr("−%lld点", -delta) }
+            return tr("±0点")
+        }
     }
 
     /// 読み上げ全文。「勝ちです。ツーペア 対 ワンペア。チップ 40枚増えました」。
@@ -42,9 +54,16 @@ public struct HandResult: Equatable, Sendable {
         var parts = [spokenResult]
         if !reason.isEmpty { parts.append(reason) }
         if let delta = chipDelta {
-            if delta > 0 { parts.append(tr("チップが%lld枚増えました", delta)) }
-            else if delta < 0 { parts.append(tr("チップが%lld枚減りました", -delta)) }
-            else { parts.append(tr("チップの増減はありません")) }
+            switch unit {
+            case .chips:
+                if delta > 0 { parts.append(tr("チップが%lld枚増えました", delta)) }
+                else if delta < 0 { parts.append(tr("チップが%lld枚減りました", -delta)) }
+                else { parts.append(tr("チップの増減はありません")) }
+            case .points:
+                if delta > 0 { parts.append(tr("%lld点入りました", delta)) }
+                else if delta < 0 { parts.append(tr("%lld点減りました", -delta)) }
+                else { parts.append(tr("点の増減はありません")) }
+            }
         }
         return parts.joined(separator: tr("。"))
     }

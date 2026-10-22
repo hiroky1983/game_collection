@@ -216,11 +216,13 @@ public final class PokerModel {
         case .tie:
             reason = tr("どちらも%@", playerHandRank.description)
         case .player:
-            reason = tr("%1$@ 対 %2$@・+%3$lld点", playerHandRank.description, cpuHandRank.description, roundPoints)
+            reason = tr("%1$@ 対 %2$@", playerHandRank.description, cpuHandRank.description)
         case .cpu:
             reason = tr("%1$@ 対 %2$@・CPUに+%3$lld点", playerHandRank.description, cpuHandRank.description, roundPoints)
         }
-        return HandResult(kind: kind, headline: headline, reason: reason, chipDelta: nil, spokenResult: spoken,
+        // 勝ったときの点だけ大きい増減欄に出す（#2702）。負けの点は CPU に入るので、自分の増減としては出さない。
+        return HandResult(kind: kind, headline: headline, reason: reason,
+                          chipDelta: winner == .player ? roundPoints : nil, unit: .points, spokenResult: spoken,
                           isEmphasized: winner == .player && playerHandRank >= Self.strongHandRank)
     }
 
