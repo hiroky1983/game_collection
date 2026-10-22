@@ -44,7 +44,7 @@ public enum NewGames {
     ///
     /// 利用者の端末の状態（初回起動・更新・プレイ履歴）とは無関係に、ハブのカードの NEW 印と先頭への
     /// 固定に使う。`ids` が決める「更新後の最初の1回だけ」の判定とは別物（1行のお知らせ用）。
-    public static let currentVersionIDs: Set<String> = ["catpuzzle"]
+    public static let currentVersionIDs: Set<String> = ["catpuzzle", "speed", "oldmaid", "hearts"]
 
     /// ハブに並べるゲームの順。この版の新着を先に、そのあとに残りを並べる。どちらも元の順
     /// （利用者の並び替え設定を反映済みの順）を保つ。

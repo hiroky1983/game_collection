@@ -28,6 +28,9 @@ import GameColorRelay
 import GameFruits
 import GameDiceCombo
 import GameCatPuzzle
+import GameSpeed
+import GameOldMaid
+import GameHearts
 import GameSpider
 import GameChess
 import GameBlocks
@@ -48,7 +51,7 @@ private let hubOrder = [
     "homerun", "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
     "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
     "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
-    "colorrelay", "fruits", "dicecombo", "catpuzzle",
+    "colorrelay", "fruits", "dicecombo", "catpuzzle", "speed", "oldmaid", "hearts",
 ]
 
 @MainActor
@@ -61,7 +64,7 @@ private func makeRegistry() -> GameRegistry {
         DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
         OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
         BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
-        ColorRelayModule(), FruitsModule(), DiceComboModule(), CatPuzzleModule(),
+        ColorRelayModule(), FruitsModule(), DiceComboModule(), CatPuzzleModule(), SpeedModule(), OldMaidModule(), HeartsModule(),
     ])
 }
 
@@ -160,6 +163,9 @@ struct RecommendationTableTests {
         ("fruits",        ["ojisanpuzzle", "2048", "blocks"]),
         ("dicecombo",     ["poker", "mahjong4", "blackjack"]),
         ("catpuzzle",     ["sudoku", "minesweeper", "ojisanpuzzle"]),
+        ("speed",         ["oldmaid", "hearts", "solitaire"]),
+        ("oldmaid",       ["speed", "concentration", "daifugo"]),
+        ("hearts",        ["daifugo", "colorrelay", "oldmaid"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
