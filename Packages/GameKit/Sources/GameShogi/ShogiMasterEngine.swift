@@ -12,11 +12,11 @@ import Foundation
 /// - 置換表（手・値・深さ・種別）
 /// - 静止探索（取る手・成る手）、王手の延長
 /// - 手の並べ替え（置換表の手 → 駒得の取り → キラー → 履歴）
-/// - Null Move 枝刈り、LMR（後ろの手の読みを浅くする）、Futility 枝刈り
-/// - 1 手詰めの検出（王手になる手だけを読む浅い詰み探索）
+/// - LMR（後ろの手の読みを浅くする）、Futility 枝刈り
 /// - 評価: 駒の価値 ＋ 位置 ＋ 玉の周りの守り駒・攻め駒
 ///
-/// 各技法の効果（「むずかしい」との勝率・1 手の時間）は issue #2698 に記録している。
+/// Null Move 枝刈りと 1 手詰めの検出も実装したが、外した方が強かった（自己対局で外した側が 67.5%）ので
+/// 出荷では切ってある（`ShogiMasterOptions`）。各技法の効果は `docs/analytics/shogi-2698-master.md` と issue #2698。
 /// UI にはまだ出さない（v1.1.15 で出す）。
 public struct ShogiMasterEngine: ShogiEngine {
     /// 段の番号（`aiLevel`）。`CPUStrength` が見送った「ガチ」の 3 を将棋だけで使う。`CPUStrength` には足さないので、
@@ -77,11 +77,13 @@ public struct ShogiMasterEngine: ShogiEngine {
 struct ShogiMasterOptions: Sendable, Equatable {
     var aspiration = true
     var pvs = true
-    var nullMove = true
+    /// 外した方が強かった（自己対局 20 局で外した側が 75%）。
+    var nullMove = false
     var lmr = true
     var futility = true
     var checkExtension = true
-    var mateInOne = true
+    /// 外した方が強かった（自己対局 20 局で外した側が 65%。1 局面ごとに全部の手を作るので読める局面数が半分になる）。
+    var mateInOne = false
     var kingSafety = true
     /// 置換表の大きさ（エントリ数の 2 の冪の指数）。
     var ttBits = 20
