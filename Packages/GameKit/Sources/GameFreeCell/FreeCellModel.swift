@@ -453,6 +453,19 @@ public final class FreeCellModel {
         return nil
     }
 
+    /// `advanceAutoFinish()` の run 指定版。**task の持ち主の run が今の run と違えば何もしない**
+    /// （取り消された古い task が、次の「自動で上がる」の手順を巻き込まないため）。
+    public func advanceAutoFinish(for run: Int) -> Duration? {
+        guard run == autoFinishRun else { return nil }
+        return advanceAutoFinish()
+    }
+
+    /// `finishAutoFinishNow()` の run 指定版。
+    public func finishAutoFinishNow(for run: Int) {
+        guard run == autoFinishRun else { return }
+        finishAutoFinishNow()
+    }
+
     /// 控えた手順を待たずに最後まで適用する（画面を離れたとき・テスト用）。
     public func finishAutoFinishNow() {
         while advanceAutoFinish() != nil {}
