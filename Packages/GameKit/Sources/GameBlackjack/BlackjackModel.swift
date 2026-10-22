@@ -625,7 +625,7 @@ public final class BlackjackModel {
         case .push:            (kind, headline) = (.draw, tr("引き分け"))
         case .lose, .bust:     (kind, headline) = (.lose, tr("負け"))
         }
-        var reason: String
+        let reason: String
         if hands.count > 1 {
             reason = hands.enumerated().map { index, hand in
                 tr("ハンド%lld %@", index + 1, hand.outcome.map(Self.shortLabel) ?? "")
@@ -633,11 +633,10 @@ public final class BlackjackModel {
         } else {
             reason = singleHandReason(outcome)
         }
-        if let gained = roundPoints, gained > 0 {
-            reason = tr("%1$@（+%2$lld点）", reason, gained)
-        }
+        // 入った点は理由文に埋めず、幕の大きな増減欄に出す（#2702）。点が入らない回（負け・引き分け）は出さない。
+        let gained = roundPoints.flatMap { $0 > 0 ? $0 : nil }
         return HandResult(
-            kind: kind, headline: headline, reason: reason, chipDelta: nil,
+            kind: kind, headline: headline, reason: reason, chipDelta: gained, unit: .points,
             spokenResult: BlackjackAccessibility.outcomeAnnouncement(outcome: outcome, isSplit: hands.count > 1)
         )
     }

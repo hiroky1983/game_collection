@@ -232,7 +232,7 @@ struct PokerScoreTests {
         #expect(used.phase == .result, "使い切った勝負では交換したらそのまま勝負になる")
     }
 
-    @Test("決着の表示: 見出し・役の対比・その回の点。持ち点の増減は出さない")
+    @Test("決着の表示: 見出し・役の対比。勝った回の点は大きい増減欄（点）に出す")
     func handResult() throws {
         let model = makePokerModel(pokerSnapshot(player: PokerHands.fullHouse, cpu: PokerHands.straight))
         #expect(model.handResult == nil, "決着するまでは出さない")
@@ -240,13 +240,14 @@ struct PokerScoreTests {
         let result = try #require(model.handResult)
         #expect(result.kind == .win)
         #expect(result.headline == "勝ち！")
-        #expect(result.reason == "フルハウス 対 ストレート・+18点")
-        #expect(result.chipDelta == nil)
-        #expect(result.chipText == nil)
+        #expect(result.reason == "フルハウス 対 ストレート")
+        #expect(result.chipDelta == 18)
+        #expect(result.chipText == "+18点")
 
         let lose = makePokerModel(pokerSnapshot(player: PokerHands.highCard, cpu: PokerHands.flush))
         lose.showdown()
-        #expect(lose.handResult?.reason == "ハイカード 対 フラッシュ・CPUに+12点")
+        #expect(lose.handResult?.reason == "ハイカード 対 フラッシュ・CPUに+12点", "負けの点は CPU に入るので理由に残す")
+        #expect(lose.handResult?.chipDelta == nil)
 
         let tie = makePokerModel(pokerSnapshot(player: PokerHands.straight, cpu: PokerHands.sameStraight))
         tie.showdown()

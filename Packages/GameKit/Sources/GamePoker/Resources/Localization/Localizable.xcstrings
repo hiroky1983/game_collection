@@ -631,29 +631,6 @@
         }
       }
     },
-    "%1$@ 対 %2$@・+%3$lld点" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%1$@ vs. %2$@ · +%3$lld pt"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%1$@ vs. %2$@ · +%3$lld pts"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%1$@ 対 %2$@・CPUに+%3$lld点" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1119,6 +1096,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, streak %lld"
+          }
+        }
+      }
+    },
+    "%1$@ 対 %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ vs. %2$@"
           }
         }
       }
