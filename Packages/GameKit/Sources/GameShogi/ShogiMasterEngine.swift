@@ -85,8 +85,8 @@ struct ShogiMasterOptions: Sendable, Equatable {
     /// 外した方が強かった（自己対局 20 局で外した側が 65%。1 局面ごとに全部の手を作るので読める局面数が半分になる）。
     var mateInOne = false
     var kingSafety = true
-    /// 玉の周り 8 マスの利きの数（攻め・守り）と相手の持ち駒から、玉の危なさを見る。
-    var kingAttackMap = false
+    /// 玉の周り 8 マスの利きの数（攻め・守り）と相手の持ち駒から、玉の危なさを見る（自己対局で入れた側が 82.5%）。
+    var kingAttackMap = true
     /// 安い駒を高い駒で取り、取り返される取り（損な取り）を、静止探索では読まず、本探索ではキラーより後に回す。
     var badCaptures = false
     /// `kingAttackMap` の強さ（危なさの 2 乗にかける重み）。
