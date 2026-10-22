@@ -409,7 +409,7 @@ struct SpeedModelTests {
         )
         let wait = model.nextCPUWait()
         #expect(wait != nil)
-        #expect(reactionRange(.normal).contains(wait!), "反応は基準 ±20%: \(String(describing: wait))")
+        #expect(reactionRange(.normal, multiplier: SpeedRules.humanStuckReactionRatio).contains(wait!), "あなたが出せないので反応は半分の間 ±20%: \(String(describing: wait))")
         // 半分だけ進めても出さない。残りは縮む。
         clock.advance(wait! / 2)
         model.performCPUAction()
@@ -514,7 +514,7 @@ struct SpeedModelTests {
         let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now,
                                slowMode: makeSlowMode("on", enabled: true))
         model.configureForTesting(
-            humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 5)],
+            humanHand: [card(.hearts, 4)], cpuHand: [card(.spades, 5)],
             piles: [[card(.spades, 6)], [card(.clubs, 3)]],
             settings: SpeedSettings(level: .fast)
         )
@@ -599,10 +599,72 @@ struct SpeedModelTests {
         #expect(!model.isTimeoutActive)
         #expect(model.piles[0].last == card(.spades, 6), "終わった直後も、反応の間を数え直してから出す")
         let wait = model.nextCPUWait()!
-        #expect(reactionRange(.fast).contains(wait))
+        #expect(reactionRange(.fast, multiplier: SpeedRules.humanStuckReactionRatio).contains(wait))
         clock.advance(wait)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
+    }
+
+    // MARK: - あなたが出せないあいだの CPU（#2690）
+
+    @Test("あなたが出せる札を持たないあいだだけ、CPU の反応の間が半分になり、出せるようになったら元に戻る")
+    func cpuFasterWhileHumanHasNoPlayable() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5), card(.spades, 12)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .normal)
+        )
+        #expect(!model.humanHasPlayable && model.cpuHasPlayable)
+        let fast = model.nextCPUWait()!
+        #expect(reactionRange(.normal, multiplier: SpeedRules.humanStuckReactionRatio).contains(fast), "半分の間: \(fast)")
+
+        // 台札が変わってあなたが出せるようになると、同じ見つけ方のまま元の長さに戻る。
+        model.configureForTesting(
+            humanHand: [card(.hearts, 4), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5), card(.spades, 12)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .normal)
+        )
+        #expect(model.humanHasPlayable && model.cpuHasPlayable)
+        let normal = model.nextCPUWait()!
+        #expect(reactionRange(.normal).contains(normal), "満額: \(normal)")
+        #expect(normal > .milliseconds(Int(Double(SpeedLevel.normal.reactionMilliseconds) * 0.6)), "半分の上限より長い")
+    }
+
+    @Test("見つけたあとにあなたが出せなくなると、残りの待ちも半分の長さで数え直す")
+    func cpuSpeedsUpWhenHumanBecomesStuckMidWait() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 4)],
+            humanStock: [card(.diamonds, 12)],
+            cpuHand: [card(.spades, 5), card(.spades, 12)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .normal)
+        )
+        let full = model.nextCPUWait()!
+        // あなたが ♥4 を出すと、補充された ♦12 は出せず、あなたは詰まる。CPU の ♠5 は出せるまま。
+        model.tapHandCard(card(.hearts, 4))
+        #expect(!model.humanHasPlayable && model.cpuHasPlayable)
+        let remaining = model.nextCPUWait()!
+        #expect(remaining <= full / 2 + .milliseconds(1), "見つけた間の半分まで縮む: \(remaining) / \(full)")
+    }
+
+    @Test("両方つまったときの「めくる」までの間は、あなたが出せなくても短くならない")
+    func stuckFlipDelayIsUnchanged() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 9)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        #expect(model.isStuck)
+        #expect(model.nextCPUWait() == .milliseconds(SpeedRules.stuckDelayMilliseconds))
     }
 
     @Test("CPU を止めているあいだ（広告の視聴中・バックグラウンド）は待ちも動きも無く、解くと反応の間を数え直す")
@@ -630,7 +692,7 @@ struct SpeedModelTests {
         #expect(!model.isCPUHeld)
         #expect(model.cpuRun == run + 1, "解いたら View の待ちを組み直す")
         let restarted = model.nextCPUWait()!
-        #expect(reactionRange(.fast).contains(restarted), "反応の間は満額から数え直す: \(restarted)")
+        #expect(reactionRange(.fast, multiplier: SpeedRules.humanStuckReactionRatio).contains(restarted), "反応の間は満額から数え直す: \(restarted)")
         clock.advance(restarted)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
@@ -666,7 +728,7 @@ struct SpeedModelTests {
         #expect(!model.isCPUHeld)
         #expect(model.cpuRun == run + 1, "すべて解いたら View の待ちを組み直す")
         let wait = model.nextCPUWait()!
-        #expect(reactionRange(.fast).contains(wait), "反応の間は満額から数え直す: \(wait)")
+        #expect(reactionRange(.fast, multiplier: SpeedRules.humanStuckReactionRatio).contains(wait), "反応の間は満額から数え直す: \(wait)")
         clock.advance(wait)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
