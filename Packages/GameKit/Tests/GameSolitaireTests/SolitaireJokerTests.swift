@@ -663,6 +663,7 @@ struct SolitaireJokerSubmissionTests {
         model.tick()
         model.replaceBoardForTesting(almostWonBoard())
         #expect(model.autoFinish())
+        model.finishAutoFinishNow()
         #expect(model.phase == .won)
         return spy
     }

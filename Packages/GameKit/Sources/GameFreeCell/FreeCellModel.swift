@@ -108,6 +108,13 @@ public final class FreeCellModel {
     private var moves: [FreeCellMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。
     private var autoFinishPlan: [FreeCellMove]?
+    /// 「自動で上がる」で、まだ適用していない手（#2706）。空でなければ自動で上がっている最中。
+    private var autoFinishQueue: [FreeCellMove] = []
+    private var autoFinishInterval: Duration = .zero
+    /// 「自動で上がる」を始めるたびに増える通し番号。View の `.task(id:)` の鍵。
+    public private(set) var autoFinishRun: Int = 0
+    /// 自動で上がっている最中か。この間は盤への入力を受け付けない。
+    public var isAutoFinishing: Bool { !autoFinishQueue.isEmpty }
     /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
     private let stopwatch = GameStopwatch(persistInterval: FreeCellModel.persistInterval)
     /// 直前にタップした札と時刻（ダブルタップの判定用・#2598）。
@@ -223,7 +230,7 @@ public final class FreeCellModel {
 
     /// フリーセルの 1 枠をタップ。札があれば持ち上げ / 空いていれば置く。
     public func tapCell(_ cell: Int) {
-        guard phase == .playing, board.cells.indices.contains(cell) else { return }
+        guard phase == .playing, !isAutoFinishing, board.cells.indices.contains(cell) else { return }
         if board.cells[cell] != nil, registerCardTap(.cell(cell)), sendToFoundation(.cell(cell)) { return }
         if selection == .cell(cell) { return deselect() }
 
@@ -241,7 +248,7 @@ public final class FreeCellModel {
 
     /// 組札をタップ。選択中の札を送る。
     public func tapFoundation(_ suit: PlayingCardSuit) {
-        guard phase == .playing else { return }
+        guard phase == .playing, !isAutoFinishing else { return }
         guard let selection, let move = foundationMove(from: selection), board.isLegal(move) else {
             return reject()
         }
@@ -254,7 +261,7 @@ public final class FreeCellModel {
     ///
     /// - Parameter cardIndex: 列の中の添字。省略時は一番上の 1 枚（列全体の受け皿としての扱い）。
     public func tapPile(_ pile: Int, cardIndex: Int? = nil) {
-        guard phase == .playing, board.tableau.indices.contains(pile) else { return }
+        guard phase == .playing, !isAutoFinishing, board.tableau.indices.contains(pile) else { return }
 
         if !board.tableau[pile].isEmpty {
             let top = cardIndex ?? (board.tableau[pile].count - 1)
@@ -298,7 +305,7 @@ public final class FreeCellModel {
     /// 1 手戻す。**1 局につき無料 `FreeCellUndoBudget.free` 回まで**（使い切ったら `grantUndos()` で補充）。
     @discardableResult
     public func undo() -> Bool {
-        guard canUndo, hasUndoCredit else {
+        guard canUndo, hasUndoCredit, !isAutoFinishing else {
             reject()
             return false
         }
@@ -411,18 +418,57 @@ public final class FreeCellModel {
 
     // MARK: - 自動で上がる
 
-    /// 組札へ送る手だけで勝ち切れるなら、まとめて送って決着させる。
+    /// 組札へ送る手だけで勝ち切れるなら、1 手ずつ順に送って決着させる（#2706）。
+    ///
+    /// ここでは手順を控えて `autoFinishRun` を進めるだけ。実際に 1 手ずつ適用するのは
+    /// View の `.task(id: autoFinishRun)` が `advanceAutoFinish()` を呼び続ける形（待ち時間は戻り値で返す）。
     @discardableResult
     public func autoFinish() -> Bool {
-        guard phase == .playing, let plan = autoFinishPlan else { return false }
-        for move in plan {
-            board.apply(move)
-            moves.append(move)
+        guard phase == .playing, !isAutoFinishing, let plan = autoFinishPlan else { return false }
+        autoFinishQueue = plan
+        autoFinishInterval = AutoFinishPacing.interval(moveCount: plan.count)
+        autoFinishRun += 1
+        selection = nil
+        return true
+    }
+
+    /// 控えた手順を 1 手適用し、次の手までの待ち時間を返す。最後の 1 手で決着させて nil を返す。
+    /// 取り消された（新規ゲーム）・手順が空なら nil。
+    /// Reduce Motion が ON のときも待ちを飛ばすだけで、手は同じ順に適用する。
+    public func advanceAutoFinish() -> Duration? {
+        guard phase == .playing, !autoFinishQueue.isEmpty else {
+            autoFinishQueue = []
+            return nil
+        }
+        let move = autoFinishQueue.removeFirst()
+        board.apply(move)
+        moves.append(move)
+        guard autoFinishQueue.isEmpty else {
+            services?.feedback.impact(.card(.place))
+            return Motion.isReduceMotionEnabled ? .zero : autoFinishInterval
         }
         selection = nil
         refreshDerivedState()
         finish()
-        return true
+        return nil
+    }
+
+    /// `advanceAutoFinish()` の run 指定版。**task の持ち主の run が今の run と違えば何もしない**
+    /// （取り消された古い task が、次の「自動で上がる」の手順を巻き込まないため）。
+    public func advanceAutoFinish(for run: Int) -> Duration? {
+        guard run == autoFinishRun else { return nil }
+        return advanceAutoFinish()
+    }
+
+    /// `finishAutoFinishNow()` の run 指定版。
+    public func finishAutoFinishNow(for run: Int) {
+        guard run == autoFinishRun else { return }
+        finishAutoFinishNow()
+    }
+
+    /// 控えた手順を待たずに最後まで適用する（画面を離れたとき・テスト用）。
+    public func finishAutoFinishNow() {
+        while advanceAutoFinish() != nil {}
     }
 
     // MARK: - 新規配札
@@ -450,6 +496,7 @@ public final class FreeCellModel {
         if !sameDeal {
             dealNumber = Self.pickSeed(excluding: dealNumber)
         }
+        autoFinishQueue = []
         moves = []
         undosRemaining = FreeCellUndoBudget.free
         hints.reset()
