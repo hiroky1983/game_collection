@@ -432,7 +432,7 @@ public final class DaifugoModel: AITurnGuarded {
         cpuTurnsAfterPlayerFinished = 0
         phase = .playing
 
-        services?.feedback.impact(.medium)   // カードが配られた
+        services?.feedback.impact(.card(.shuffle))   // カードが切られて配られた
         // 配ったばかりの局は `persist()` 側のガードで保存されず、前局の中断データが消えるだけになる
         // （#240。1 手目を出した時点で改めて保存される）。
         persist()
@@ -486,7 +486,7 @@ public final class DaifugoModel: AITurnGuarded {
             return
         }
         selected = []
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.place))
         play(cards, by: Self.humanIndex)
     }
 

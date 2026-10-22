@@ -641,7 +641,7 @@ public final class SolitaireModel {
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         stopwatch.stop()
         startTimer()
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.shuffle))
         services?.snapshots.clear(for: gameID)
         services?.gameDidRestart(gameID: gameID)
     }
@@ -737,7 +737,7 @@ public final class SolitaireModel {
         // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
         services?.gameDidProgress(gameID: gameID)
         selection = nil
-        services?.feedback.impact(move == .draw ? .light : .medium)
+        services?.feedback.impact(move == .draw ? .card(.deal) : .card(.place))
         refreshDerivedState()
 
         if board.isWon {

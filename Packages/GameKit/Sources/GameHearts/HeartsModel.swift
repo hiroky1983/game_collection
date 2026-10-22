@@ -214,7 +214,7 @@ public final class HeartsModel: AITurnGuarded {
         isUntouchedDeal = true
         // 配ったばかりの局は保存しない。前の対局の中断データも残さない。
         services?.snapshots.clear(for: gameID)
-        services?.feedback.impact(.medium)   // 札が配られた
+        services?.feedback.impact(.card(.shuffle))   // 札が切られて配られた
         // 1 対局 = 1 プレイ。中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: self.aiLevel))
     }
@@ -284,7 +284,7 @@ public final class HeartsModel: AITurnGuarded {
         currentPlayer = HeartsRules.startingPlayer(hands: hands)
         turnSerial += 1
         phase = .playing
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.deal))   // 札を渡し合った
         // 札を渡した = 盤面が動いた。配っただけの局面を捨てても離脱には数えない境目（#500）。
         services?.gameDidProgress(gameID: gameID)
         persist()
@@ -307,7 +307,7 @@ public final class HeartsModel: AITurnGuarded {
             return
         }
         selectedID = nil
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.place))
         play(card, by: Self.humanIndex)
         persist()
     }
@@ -352,7 +352,7 @@ public final class HeartsModel: AITurnGuarded {
     public func nextHand() {
         guard phase == .handResult else { return }
         dealHand()
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.shuffle))
         persist()
     }
 

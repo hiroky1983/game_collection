@@ -127,7 +127,7 @@ struct SpeedModelTests {
                 "出した位置（先頭）に山札の一番上が入る")
         #expect(model.humanStock == [card(.diamonds, 3)])
         #expect(model.cpuRun == run + 1, "場が動いたので CPU の待ちが組み直される")
-        #expect(feedback.impacts == [.medium])
+        #expect(feedback.impacts == [.card(.place)])
     }
 
     @Test("出せない手札をタップしても何も起きず、警告の触覚だけ鳴る")
@@ -206,7 +206,7 @@ struct SpeedModelTests {
         #expect(model.humanStock == [card(.diamonds, 3)] && model.cpuStock == [card(.clubs, 4)])
         #expect(model.consecutiveFlips == 1)
         #expect(model.cpuRun == run + 1)
-        #expect(feedback.impacts == [.light])
+        #expect(feedback.impacts == [.card(.flip)])
         // めくった結果 ♥9 が左（♦10）と右（♣8）に、♥11 が左（♦10）に出せるようになった。
         #expect(!model.isStuck)
         #expect(model.humanPlayableIDs == [card(.hearts, 9).id, card(.hearts, 11).id])

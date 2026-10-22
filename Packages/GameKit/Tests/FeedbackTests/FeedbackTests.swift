@@ -473,7 +473,7 @@ struct FeedbackEnabledTests {
         playSolitaire(services)
         playFreeCell(services)
         playSpider(services)
-        #expect(spy.impacts.contains(.light), "山めくりで発火する")
+        #expect(spy.impacts.contains(.card(.deal)), "山めくりで発火する")
         #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
         #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
     }
@@ -543,7 +543,7 @@ struct FeedbackEnabledTests {
     func poker() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playPoker(services)
-        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
+        #expect(spy.impacts.contains(.card(.shuffle)), "カードを切って配ると発火する")
         #expect(spy.impacts.contains(.rigid), "交換札の選択で発火する")
         // 決着は「最後の notify が勝敗と一致するか」で見る（件数だけだと拒否の発火で常に真になる）。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
@@ -560,7 +560,7 @@ struct FeedbackEnabledTests {
     func concentration() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playConcentration(services)
-        #expect(spy.impacts.contains(.light), "カードをめくると発火する")
+        #expect(spy.impacts.contains(.card(.flip)), "カードをめくると発火する")
         #expect(spy.impacts.contains(.medium), "ペア成立で発火する")
         #expect(spy.notices(of: .warning) > 0, "めくり済みのカードは拒否として発火する")
         #expect(spy.notices(of: .success) > 0, "全ペア成立（勝ち）で発火する")
@@ -570,7 +570,7 @@ struct FeedbackEnabledTests {
     func blackjack() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playBlackjack(services)
-        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
+        #expect(spy.impacts.contains(.card(.deal)), "カードを配ると発火する")
         // ポーカーと同じ理由で、件数ではなく最後の notify を結果と突き合わせる。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
         let expected: FeedbackNotice
@@ -587,7 +587,7 @@ struct FeedbackEnabledTests {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = await playDaifugo(services)
         #expect(spy.impacts.contains(.rigid), "カードを選ぶと発火する")
-        #expect(spy.impacts.contains(.medium), "配り・カードを出すと発火する")
+        #expect(spy.impacts.contains(.card(.place)), "カードを出すと発火する")
         #expect(spy.notices(of: .warning) > 0, "出せない組は拒否として発火する")
         #expect(model.phase == .result, "手順の最後は必ず決着している")
         let expected: FeedbackNotice

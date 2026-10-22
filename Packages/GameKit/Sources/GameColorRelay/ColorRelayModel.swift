@@ -287,7 +287,7 @@ public final class ColorRelayModel: AITurnGuarded {
         turnSerial += 1
         phase = .playing
 
-        services?.feedback.impact(.medium)   // 札が配られた
+        services?.feedback.impact(.card(.shuffle))   // 札が切られて配られた
         // 配ったばかりの局は `persist()` 側のガードで保存されない（1 手目で改めて保存される）。
         persist()
         // 1 ゲーム = 1 プレイ。中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
@@ -333,7 +333,7 @@ public final class ColorRelayModel: AITurnGuarded {
             return
         }
         selectedID = nil
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.place))
         play(card, by: Self.humanIndex, chosenColor: color)
     }
 
@@ -343,7 +343,7 @@ public final class ColorRelayModel: AITurnGuarded {
             services?.feedback.notify(.warning)
             return
         }
-        services?.feedback.impact(.light)
+        services?.feedback.impact(.card(.deal))
         let drawn = draw(count: 1, for: Self.humanIndex)
         hasDrawnThisTurn = true
         drawnCardID = drawn.first?.id

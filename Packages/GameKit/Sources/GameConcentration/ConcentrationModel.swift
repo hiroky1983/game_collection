@@ -507,12 +507,12 @@ public final class ConcentrationModel {
             } else {
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]
-                if isHumanMove { services?.feedback.impact(.light) }
+                if isHumanMove { services?.feedback.impact(.card(.flip)) }
             }
         } else {
             firstFlippedIndex = index
             lastMatchedIndices = []
-            if isHumanMove { services?.feedback.impact(.light) }
+            if isHumanMove { services?.feedback.impact(.card(.flip)) }
         }
     }
 

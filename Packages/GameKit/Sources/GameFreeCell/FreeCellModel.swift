@@ -466,7 +466,7 @@ public final class FreeCellModel {
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         stopwatch.stop()
         startTimer()
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.shuffle))
         services?.snapshots.clear(for: gameID)
         services?.gameDidRestart(gameID: gameID)
     }
@@ -556,7 +556,7 @@ public final class FreeCellModel {
         // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
         services?.gameDidProgress(gameID: gameID)
         selection = nil
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.place))
         refreshDerivedState()
 
         if board.isWon {
