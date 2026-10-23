@@ -238,6 +238,13 @@ public struct CatPuzzleView: View {
                 ojisanLine(face: .cheer, text: tr("みんなでくつろいでおる"))
             } else if model.isFailed {
                 ojisanLine(face: .frown, text: tr("猫はどこへ行ったんじゃ…"))
+            } else if model.lastWrongCell != nil, model.mistakesRemaining == 1 {
+                // 残りミス 1 回は一段強く（アイコン付き・太字）。次の 1 回で終わることを見逃さないようにする。
+                Label(tr("あと1回で終わり！ そこに猫はいない"), systemImage: "exclamationmark.triangle.fill")
+                    .scaledFont(15, weight: .heavy, design: .rounded)
+                    .foregroundStyle(Theme.coralText)
+                    .multilineTextAlignment(.center)
+                    .accessibilityHidden(true)
             } else if model.lastWrongCell != nil {
                 Text(tr("そこに猫はいない！ 赤い×はミス（あと%lld回で終わり）", model.mistakesRemaining))
                     .scaledFont(14, weight: .bold, design: .rounded)
@@ -365,7 +372,8 @@ public struct CatPuzzleView: View {
         [
             tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
             tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
-            tr("ミス %lld", model.mistakes),
+            model.mistakes == 0 ? tr("ミス 0・パーフェクト！") : tr("ミス %lld", model.mistakes),
+            tr("手数 %lld", model.moves),
         ]
     }
 
@@ -377,6 +385,7 @@ public struct CatPuzzleView: View {
             details: [
                 tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
                 tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
+                tr("手数 %lld", model.moves),
             ],
             record: model.recordResult
         ) { failCardClosed = true }
