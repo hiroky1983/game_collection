@@ -530,6 +530,8 @@ private struct CapturedAreaView: View {
                     .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
                 Text(owner.name)
                     .scaledFont(12).foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
             .frame(width: 38, alignment: .leading)
 

@@ -34,6 +34,7 @@ public struct Game2048View: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        .operationResultAnnouncement(model.lastResult)
         .gameChrome(title: "2048", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         if model.hasProgressToLose {

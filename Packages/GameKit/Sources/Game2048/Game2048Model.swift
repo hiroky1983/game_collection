@@ -49,6 +49,8 @@ public final class Game2048Model {
     public private(set) var showWinPrompt: Bool = false
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 直近のスワイプの結果（VoiceOver の読み上げ用・#2687）。View は値が変わったときだけ読む。
+    public private(set) var lastResult: OperationResult?
     /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
     /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に「もう一度」で局が入れ替わったら適用しない）。
     public private(set) var gameSerial = 0
@@ -148,6 +150,7 @@ public final class Game2048Model {
         guard !gameOver, !showWinPrompt else { return }
         let result = Game2048Logic.slide(board, direction)
         guard result.moved else {
+            announce(tr("その方向には動かせません"))
             services?.feedback.notify(.warning) // 1マスも動かない方向へのスワイプ
             return
         }
@@ -162,6 +165,10 @@ public final class Game2048Model {
         services?.gameDidProgress(gameID: gameID)
         let spawned = Self.spawn(into: &board)
         applyTileMoves(moves, spawned: spawned)
+        announce(Game2048Accessibility.moveResult(
+            gained: result.gained,
+            spawned: spawned.map { (row: $0.row, col: $0.col, value: board[$0.row][$0.col]) }
+        ))
 
         // この手で初めて 2048 を作ったか（#438）。新タイルは 2 か 4 なので、判定は合体の結果だけを見る。
         let justWon = !hasWon && Game2048Logic.hasWinningTile(board)
@@ -194,6 +201,10 @@ public final class Game2048Model {
             services?.feedback.impact(result.gained > 0 ? .medium : .light)
             persist()
         }
+    }
+
+    private func announce(_ text: String) {
+        lastResult = .next(after: lastResult, text: text)
     }
 
     /// 勝利演出の「続ける」。盤面もスコアもそのままに、続きを次の 1 プレイとして数え直す（#438）。

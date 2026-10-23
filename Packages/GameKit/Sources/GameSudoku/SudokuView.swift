@@ -76,6 +76,7 @@ public struct SudokuView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
+        .operationResultAnnouncement(model.lastResult)
         // 生成中の二度押しで 2 本目の生成が走らないようにする（Model 側でも再入を弾く）。
         // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
         // 「広告を見たのに入らなかった」を起こさないための緩和）。
