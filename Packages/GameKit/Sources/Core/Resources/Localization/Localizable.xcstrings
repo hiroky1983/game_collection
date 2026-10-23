@@ -5552,13 +5552,13 @@
         }
       }
     },
-    "手札も山札も先に出し切ったほうの勝ちです。" : {
+    "手札も山札も先に出し切ったほうの勝ち。山札が無くなったら、めくらずに手札を出し切れば勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The first to play out both hand and stock wins."
+            "value" : "The first to play out both hand and stock wins. Once your stock runs out, you no longer flip: play out your hand to win."
           }
         }
       }
