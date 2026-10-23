@@ -142,7 +142,8 @@ struct FullScreenGameChromeTests {
     /// レイアウトパターン A に載せ替えたゲーム（#2531）。バナーは枠が最下部に置くので、ゲーム側に
     /// `BannerSlot` を書くと二重になる。いろリレー・大富豪はそれぞれのテストで見ている。
     @Test("A のゲームは全画面の枠にバナーの取得元を渡し、ゲーム側に BannerSlot を置かない", arguments: [
-        "GameMahjongSolitaire", "GameFreeCell", "GameSolitaire", "GameSpider", "GameOldMaid", "GameHearts", "GameConcentration",
+        "GameMahjongSolitaire", "GameFreeCell", "GameSolitaire", "GameSpider", "GameOldMaid", "GameHearts", "GamePoker",
+        "GameConcentration",
     ])
     func fullScreenGamesLeaveBannerToChrome(module: String) throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources(module))
