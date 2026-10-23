@@ -726,6 +726,7 @@ private struct HandAreaView: View {
                     // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
                     // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
                     let koma     = layout.scaled(32)
+                    let komaPlateCorner: CGFloat = 8 // 駒の板の角丸（背景の fill と同じ値）
                     let tapWidth = max(44, koma + 10)
                     HStack(spacing: max(0, 6 - (tapWidth - (koma + 10)))) {
                         ForEach(owned, id: \.rawValue) { type in
@@ -744,7 +745,7 @@ private struct HandAreaView: View {
                                         // ヒントが打つ手のとき、打つ駒にも盤と同じ紫の印を付ける（#2768）。
                                         .overlay {
                                             if isHint {
-                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                RoundedRectangle(cornerRadius: komaPlateCorner, style: .continuous)
                                                     .stroke(BoardGameHintColor.color, lineWidth: 3)
                                             }
                                         }
