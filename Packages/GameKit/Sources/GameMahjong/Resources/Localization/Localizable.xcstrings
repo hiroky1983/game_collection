@@ -1808,13 +1808,13 @@
         }
       }
     },
-    "子 ロン %1$@ ・ ツモ %2$@　親 ロン %3$@ ・ ツモ %4$@" : {
+    "子: ロン %1$@ ・ ツモ %2$@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non-dealer: ron %1$@ / tsumo %2$@   Dealer: ron %3$@ / tsumo %4$@"
+            "value" : "Non-dealer: ron %1$@ / tsumo %2$@"
           }
         }
       }
@@ -2773,6 +2773,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pass"
+          }
+        }
+      }
+    },
+    "親: ロン %1$@ ・ ツモ %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dealer: ron %1$@ / tsumo %2$@"
           }
         }
       }

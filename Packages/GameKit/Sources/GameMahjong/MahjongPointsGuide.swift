@@ -107,10 +107,12 @@ struct MahjongPointsGuideView: View {
                             .scaledFont(11, weight: .medium, design: .rounded)
                             .foregroundStyle(Theme.inkSub)
                     }
-                    Text(limitLine(han: row.han))
-                        .scaledFont(12, weight: .heavy, design: .rounded)
-                        .foregroundStyle(Theme.coralText)
-                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(limitLines(han: row.han), id: \.self) { line in
+                        Text(line)
+                            .scaledFont(12, weight: .heavy, design: .rounded)
+                            .foregroundStyle(Theme.coralText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -122,12 +124,15 @@ struct MahjongPointsGuideView: View {
         }
     }
 
-    private func limitLine(han: Int) -> String {
-        let childRon = MahjongPointsGuide.ronText(han: han, fu: 30, isDealer: false)
-        let dealerRon = MahjongPointsGuide.ronText(han: han, fu: 30, isDealer: true)
-        let childTsumo = MahjongPointsGuide.tsumoText(han: han, isDealer: false)
-        let dealerTsumo = MahjongPointsGuide.tsumoText(han: han, isDealer: true)
-        return tr("子 ロン %1$@ ・ ツモ %2$@　親 ロン %3$@ ・ ツモ %4$@", childRon, childTsumo, dealerRon, dealerTsumo)
+    private func limitLines(han: Int) -> [String] {
+        [
+            tr("子: ロン %1$@ ・ ツモ %2$@",
+               MahjongPointsGuide.ronText(han: han, fu: 30, isDealer: false),
+               MahjongPointsGuide.tsumoText(han: han, isDealer: false)),
+            tr("親: ロン %1$@ ・ ツモ %2$@",
+               MahjongPointsGuide.ronText(han: han, fu: 30, isDealer: true),
+               MahjongPointsGuide.tsumoText(han: han, isDealer: true)),
+        ]
     }
 
     private func ronTable(isDealer: Bool) -> some View {
