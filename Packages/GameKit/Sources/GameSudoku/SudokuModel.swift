@@ -103,6 +103,8 @@ public final class SudokuModel {
     public private(set) var unitFlash: SudokuUnitFlash?
     /// 誤答を入れた回数をマスごとに数えたもの（#666）。View はこれを通し番号にして、そのマスだけを揺らす。
     public private(set) var mistakeShakes: [Int: Int] = [:]
+    /// 直近の入力の結果（VoiceOver の読み上げ用・#2687）。View は値が変わったときだけ読む。
+    public private(set) var lastResult: OperationResult?
     /// この局で既に光らせたユニット（`SudokuEngine.units(of:)` の通し番号）。**一度揃ったユニットは
     /// 消して入れ直しても光らせない**。出題の時点・中断から復元した時点で揃っているものは最初から含める。
     private var celebratedUnits: Set<Int> = []
@@ -373,6 +375,7 @@ public final class SudokuModel {
     public func enter(digit: Int) {
         guard (1...SudokuEngine.size).contains(digit) else { return }
         guard state == .playing, let index = selected, !given[index] else {
+            if state == .playing, selected != nil { announce(tr("出題のマスです")) }
             services?.feedback.notify(.warning)  // 出題のマスは書き換えられない
             return
         }
@@ -413,6 +416,13 @@ public final class SudokuModel {
             // 正解のときだけ、同じ行・列・ブロックの同じ数字のメモを消してやる。
             // 間違いのときに消すと、正しかったメモまで巻き添えで失われる。
             if digit == solution[index] { clearPeerNotes(for: index, digit: digit) }
+            if digit == solution[index] {
+                announce(tr("%lld を入れました", digit))
+            } else if isNewWrongEntry {
+                announce(tr("違います。ミス%lld回目", mistakes + 1))
+            } else {
+                announce(tr("違います"))
+            }
             if isNewWrongEntry {
                 mistakes += 1
                 if mistakes >= Self.maxMistakes {
@@ -432,6 +442,10 @@ public final class SudokuModel {
             checkCompletion()
         }
         persist()
+    }
+
+    private func announce(_ text: String) {
+        lastResult = .next(after: lastResult, text: text)
     }
 
     /// 直前の1手を取り消す（#353）。盤・メモ・巻き添えで消えたメモが戻る。

@@ -21,4 +21,14 @@ public enum Game2048Accessibility {
         case .right: return tr("右へ動かす")
         }
     }
+
+    /// 動いた手の読み上げ文（例: "得点 +4。2行3列に 2 が出ました" / 合体が無ければ得点を省く）。
+    public static func moveResult(gained: Int, spawned: (row: Int, col: Int, value: Int)?) -> String {
+        var parts: [String] = []
+        if gained > 0 { parts.append(tr("得点 +%lld", gained)) }
+        if let spawned {
+            parts.append(tr("%1$lld行%2$lld列に %3$lld が出ました", spawned.row + 1, spawned.col + 1, spawned.value))
+        }
+        return parts.joined(separator: tr("。"))
+    }
 }
