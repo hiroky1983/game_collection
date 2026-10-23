@@ -164,9 +164,16 @@ public struct FruitsView: View {
                     .accessibilityElement()
                     .accessibilityLabel(tr("庭"))
                     .accessibilityValue(accessibilityValue)
-                    .accessibilityAction(named: tr("左へ")) { nudge(-Self.accessibilityNudge) }
-                    .accessibilityAction(named: tr("右へ")) { nudge(Self.accessibilityNudge) }
-                    .accessibilityAction(named: tr("落とす")) { model.drop() }
+                    // 実行しても何も起きない局面（終局中・果物を持っていない待機中）では出さない（#2688）。
+                    .accessibilityActions {
+                        if model.phase == .playing {
+                            Button(tr("左へ")) { nudge(-Self.accessibilityNudge) }
+                            Button(tr("右へ")) { nudge(Self.accessibilityNudge) }
+                        }
+                        if model.canDrop {
+                            Button(tr("落とす")) { model.drop() }
+                        }
+                    }
                 if model.phase == .gameOver {
                     gameOverOverlay
                 }
