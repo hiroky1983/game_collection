@@ -244,13 +244,13 @@
         }
       }
     },
-    "どちらも出せる札が無くなったら「めくる」。両方の山札から1枚ずつ台札に置きます。山札が無いときは、自分側の台札を切り直して山札にします" : {
+    "どちらも出せる札が無くなったら「めくる」。山札が残っている側が、山札から1枚ずつ台札に置きます。山札が無くなったら、めくらずに手札を出し切れば勝ちです。両方とも山札が無いときは、台札を切り直して一番上の札を入れ替えます" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When neither side can play, tap Flip. One card from each stock goes onto the piles. If your stock is empty, your side's pile is shuffled into a new stock."
+            "value" : "When neither side can play, tap Flip. Each side that still has a stock turns one card onto its pile. Once your stock runs out, you no longer flip: play out your hand to win. If both stocks are empty, the piles are reshuffled to show new top cards."
           }
         }
       }
@@ -295,6 +295,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Normal"
+          }
+        }
+      }
+    },
+    "めくる（台札を切り直す）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip (reshuffle the piles)"
+          }
+        }
+      }
+    },
+    "めくる（山札が残っている側だけ）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip (only stocks with cards left)"
           }
         }
       }

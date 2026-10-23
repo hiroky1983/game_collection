@@ -59,6 +59,12 @@ public final class SpeedModel {
     /// `nextCPUWait()` は nil を返し、すべて解くと反応の間を数え直してから動く（止めていたぶん CPU が有利にならない）。
     public private(set) var cpuHolds: CPUHold = []
     public var isCPUHeld: Bool { !cpuHolds.isEmpty }
+    /// 出せる札の案内（`SpeedRules.playableNavigationDelay` 何もしなかったら光らせる）を出しているか。
+    /// あなたが操作する・場が動く・CPU を止める / 解くと消え、そこから数え直す。
+    public private(set) var isShowingPlayableNavigation = false
+    /// 案内の数え直しの番号。View はこれを `.task(id:)` の鍵にし、`playableNavigationWait()` だけ待って
+    /// `updatePlayableNavigation()` を呼ぶ（CPU の待ちと同じく、Model は時計を持たない）。
+    public private(set) var navigationEpoch = 0
 
     /// CPU を止めている理由。理由ごとに独立して数えるので、広告が終わってもシートが開いていれば止まったまま。
     public struct CPUHold: OptionSet, Sendable {
@@ -94,6 +100,8 @@ public final class SpeedModel {
     private var cpuReaction: Duration = .zero
     /// どちらも出せなくなった時刻。
     private var stuckSince: Date?
+    /// 案内の 5 秒を数え始めた時刻（最後の操作か、場が動いた時刻）。
+    private var navigationSince: Date?
     /// タイムが終わる時刻。
     private var timeoutEndsAt: Date?
     /// 勝利タイムの計時。CPU を止めている間（シート・背面・広告）は進めないので、止める前までを `playedBefore` に積み、
@@ -154,6 +162,17 @@ public final class SpeedModel {
 
     /// 手札のヒント（#190）。設定でオフのときは出さない。
     public var showsHints: Bool { hints.isEnabled }
+
+    /// 案内で光らせる台札（あなたの出せる札のどれかを置ける台札）。案内を出していなければ空。
+    public var playableNavigationPiles: Set<Int> {
+        guard isShowingPlayableNavigation else { return [] }
+        return Set(SpeedRules.placements(hand: humanHand, tops: tops).map(\.pile))
+    }
+
+    /// 案内で光らせる手札の ID。案内を出していなければ空。
+    public var playableNavigationCardIDs: Set<Int> {
+        isShowingPlayableNavigation ? humanPlayableIDs : []
+    }
 
     /// 選択中の札。
     public var selectedCard: SpeedCard? {
@@ -219,6 +238,7 @@ public final class SpeedModel {
     /// 手札をタップ。置ける台札が 1 つならそこへ出し、2 つなら選択して台札のタップを待つ。
     public func tapHandCard(_ card: SpeedCard) {
         guard phase == .playing, humanHand.contains(card) else { return }
+        restartPlayableNavigation()
         let targets = playableTargets(for: card)
         switch targets.count {
         case 0:
@@ -236,6 +256,7 @@ public final class SpeedModel {
     /// 台札をタップ。選択中の札があればそこへ出す。無ければ、その台札に置ける手札がちょうど 1 枚のときに出す。
     public func tapPile(_ index: Int) {
         guard phase == .playing, piles.indices.contains(index) else { return }
+        restartPlayableNavigation()
         if let card = selectedCard {
             guard SpeedRules.canPlay(card, onto: tops[index]) else {
                 services?.feedback.notify(.warning)
@@ -259,6 +280,7 @@ public final class SpeedModel {
     @discardableResult
     public func swipeCard(_ card: SpeedCard, onto index: Int) -> Bool {
         guard phase == .playing, humanHand.contains(card), piles.indices.contains(index) else { return false }
+        restartPlayableNavigation()
         guard SpeedRules.canPlay(card, onto: tops[index]) else {
             selectedID = nil
             services?.feedback.notify(.warning)
@@ -270,6 +292,47 @@ public final class SpeedModel {
 
     public func clearSelection() {
         selectedID = nil
+    }
+
+    // MARK: - 出せる札の案内
+
+    /// 札に触れた（払い始めた）ことを伝える。案内を消して 5 秒を数え直す。
+    public func noteHumanActivity() {
+        guard phase == .playing else { return }
+        restartPlayableNavigation()
+    }
+
+    /// 案内を出すまでの残り。出す条件（ゲーム中・CPU を止めていない・ヒントがオン・あなたに出せる札がある・まだ出していない）を
+    /// 満たさなければ nil（出せる札が無いときは案内しない。そのときは CPU が速くなる #2690 のまま）。
+    public func playableNavigationWait() -> Duration? {
+        guard isPlayableNavigationEligible, !isShowingPlayableNavigation else { return nil }
+        let current = now()
+        let since = navigationSince ?? current
+        if navigationSince == nil { navigationSince = current }
+        let elapsed = Duration.seconds(current.timeIntervalSince(since))
+        return max(.zero, SpeedRules.playableNavigationDelay - elapsed)
+    }
+
+    /// `playableNavigationWait()` の待ちを終えたあとに呼ぶ。5 秒が過ぎていて条件を満たしていれば案内を出す。
+    public func updatePlayableNavigation() {
+        guard isPlayableNavigationEligible, let since = navigationSince else {
+            isShowingPlayableNavigation = false
+            return
+        }
+        // 待ち終えた直後の呼び出しでは、丸めで数ミリ秒足りないことがある（CPU の待ちと同じ）。
+        let elapsed = Duration.seconds(now().timeIntervalSince(since)) + .milliseconds(5)
+        if elapsed >= SpeedRules.playableNavigationDelay { isShowingPlayableNavigation = true }
+    }
+
+    private var isPlayableNavigationEligible: Bool {
+        phase == .playing && !isCPUHeld && hints.isEnabled && humanHasPlayable
+    }
+
+    /// 案内を消し、いまから数え直す。あなたの操作・場が動いたとき・CPU を止める / 解くときに呼ぶ。
+    private func restartPlayableNavigation() {
+        isShowingPlayableNavigation = false
+        navigationSince = now()
+        navigationEpoch += 1
     }
 
     /// どちらも出せないとき、両方の山札から 1 枚ずつ台札に置く（「めくる」）。
@@ -362,6 +425,8 @@ public final class SpeedModel {
         cpuHolds = next
         cpuArmedAt = nil
         stuckSince = nil
+        // 止めているあいだは数えない。解いたらそこから 5 秒を数え直す（広告・シート・背面の時間で案内を出さない）。
+        restartPlayableNavigation()
         if !wasHeld && isCPUHeld { pausePlayClock() }
         if wasHeld && !isCPUHeld {
             if phase == .playing { playClock = ElapsedClock(now: elapsedNow) }
@@ -401,6 +466,7 @@ public final class SpeedModel {
         recordResult = nil
         cpuArmedAt = nil
         stuckSince = nil
+        restartPlayableNavigation()
         hasProgressed = false
         timingMultiplier = slowMode.isEnabled ? SpeedRules.slowModeMultiplier : 1
         playedBefore = .zero
@@ -462,8 +528,10 @@ public final class SpeedModel {
         humanHasPlayable ? cpuReaction : cpuReaction * SpeedRules.humanStuckReactionRatio
     }
 
+    /// めくるまでの間。めくった直後にまためくる（2 回目以降）は短い間にする。
     private var stuckDelay: Duration {
-        .milliseconds(Int((Double(SpeedRules.stuckDelayMilliseconds) * timingMultiplier).rounded()))
+        let base = consecutiveFlips > 0 ? SpeedRules.stuckRepeatDelayMilliseconds : SpeedRules.stuckDelayMilliseconds
+        return .milliseconds(Int((Double(base) * timingMultiplier).rounded()))
     }
 
     private func play(_ card: SpeedCard, onto pile: Int, by player: Player) {
@@ -481,6 +549,7 @@ public final class SpeedModel {
         }
         piles[pile].append(card)
         consecutiveFlips = 0
+        restartPlayableNavigation()
         // CPU が出したら反応の間を数え直す。あなたが出しただけなら、CPU が見つけていた札の間は持ち越す
         // （出せなくなっていれば `nextCPUWait()` が捨てる）。連打で CPU を先送りし続けられないようにするため。
         if player == .cpu { cpuArmedAt = nil }
@@ -502,22 +571,21 @@ public final class SpeedModel {
             concludeDraw()
             return
         }
-        // 山札が尽きていれば、自分側の台札を切り直して山札にする。
-        if humanStock.isEmpty {
-            humanStock = piles[0]
-            shuffle(&humanStock)
-            piles[0] = []
-        }
-        if cpuStock.isEmpty {
-            cpuStock = piles[1]
-            shuffle(&cpuStock)
-            piles[1] = []
+        // 山札が尽きた人はめくらない（手札を出し切れば勝ち）。めくるのは山札が残っている側だけ（会長 QA 2026-10-24）。
+        // 以前は尽きた人が自分側の台札を切り直して山札に抱え直していたため、出し切りかけた人の残りが 20 枚近くへ
+        // 戻り、後半が 1 局の 6 割を占めていた（計測は `SpeedPacingTests`・PR の表）。
+        // 両方とも尽きてどちらも出せないときだけ、台札をそれぞれ切り直して一番上を入れ替える。札は台札に残したまま
+        // 手札へは戻さない（山札へ戻す形だと、両方の残りがまた 20 枚近くへ戻り同じ間延びになるため）。
+        if humanStock.isEmpty && cpuStock.isEmpty {
+            shuffle(&piles[0])
+            shuffle(&piles[1])
         }
         if let card = humanStock.popLast() { piles[0].append(card) }
         if let card = cpuStock.popLast() { piles[1].append(card) }
         cpuArmedAt = nil
         stuckSince = nil
         selectedID = nil
+        restartPlayableNavigation()
         services?.feedback.impact(.card(.flip))
         markProgress()
         cpuRun += 1
@@ -540,6 +608,7 @@ public final class SpeedModel {
     private func concludeGame(winner: Player) {
         self.winner = winner
         phase = .result
+        isShowingPlayableNavigation = false
         selectedID = nil
         cpuArmedAt = nil
         stuckSince = nil
@@ -556,6 +625,7 @@ public final class SpeedModel {
         isDraw = true
         winner = nil
         phase = .result
+        isShowingPlayableNavigation = false
         selectedID = nil
         cpuArmedAt = nil
         stuckSince = nil
@@ -618,6 +688,7 @@ public final class SpeedModel {
         consecutiveFlips = 0
         cpuArmedAt = nil
         stuckSince = nil
+        restartPlayableNavigation()
         cpuRun += 1
     }
 
