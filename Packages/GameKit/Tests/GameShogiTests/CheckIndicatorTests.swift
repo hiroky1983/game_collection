@@ -230,7 +230,7 @@ struct ShogiCheckFeedbackTests {
         )
         playIntoCheck(model)
         // 手順のうち王手になるのは 3 手目だけ。1 手目（人間）は impact、2 手目（後手）は無音。
-        #expect(spy.impacts == [.medium], "王手の手で着手の impact まで鳴っている: \(spy.impacts)")
+        #expect(spy.impacts == [.board(.shogiPiece)], "王手の手で着手の impact まで鳴っている: \(spy.impacts)")
         #expect(spy.notices == [.warning], "王手の合図が鳴っていない: \(spy.notices)")
     }
 

@@ -440,6 +440,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 合法手を適用する（AI もここを通る）。
     public func apply(_ move: Move) {
         let mover = position.sideToMove
+        // 駒を取る手かは盤を動かす前にしか分からない（取ったときは指す音より少し重い音・#2767）。
+        let isCapture: Bool
+        if case let .board(_, to, _) = move { isCapture = position.squares[to] != nil } else { isCapture = false }
         position.make(move)
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
@@ -488,7 +491,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(isCapture ? .shogiCapture : .shogiPiece))
         }
         persist()
     }

@@ -17,6 +17,10 @@ final class HapticFeedbackService: FeedbackService {
             impact(sound.haptic) // カードの音の場面も、触覚は従来どおりの強さ
             return
         }
+        if case .board(let sound) = style {
+            impact(sound.haptic) // 盤の音の場面も、触覚は従来どおりの強さ
+            return
+        }
         if style == .selection {
             selection.selectionChanged()
             selection.prepare()
@@ -27,7 +31,7 @@ final class HapticFeedbackService: FeedbackService {
         case .light:  generator = light
         case .medium: generator = medium
         case .rigid:  generator = rigid
-        case .selection, .card: return // 上で処理済み
+        case .selection, .card, .board: return // 上で処理済み
         }
         generator.impactOccurred()
         generator.prepare() // 連打される操作なので次回に備えて温めておく
