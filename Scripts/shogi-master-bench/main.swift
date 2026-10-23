@@ -5,6 +5,7 @@ import Foundation
 //   nps                   達人の 1 秒あたりの局面数と、読み切る深さ（中盤 24 局面・1 秒）
 //   timing [局面数]        出荷の設定（実時間）で 1 手にかかる時間: 平均・最大
 //   match <局面数>         達人 対 むずかしい。開始局面ごとに先後を入れ替えて 2 局ずつ
+//   probe <SFEN>          1 局面だけ読み、手・値・深さと、指したあとの相手の合法手の数を出す
 //   replay <先手が達人 true|false> <開始局面> <USI...>  対局を再生し、達人の手番ごとに達人の読み（手・値・深さ）を出す
 //   ablation <局面数>      技法を 1 つ外した達人（OPTIONS）対 出荷の達人（MODE・MASTER_TIME は match と同じ。1 手詰めの検出のように局面数の数え方が変わる技法は MODE=time で比べる）
 // 環境変数:
@@ -185,6 +186,12 @@ struct Bench {
                 guard let m = Move.fromUSI(usi) else { break }
                 pos.make(m)
             }
+        case "probe":
+            let sfen = args.dropFirst(2).joined(separator: " ")
+            let r = ShogiMasterEngine(timeLimit: Double(env["MASTER_TIME"] ?? "") ?? 1, options: masterOptions()).analyze(sfen: sfen)!
+            var pos = Position.fromSFEN(sfen)!
+            pos.make(Move.fromUSI(r.usi!)!)
+            print("PROBE \(r.usi!) 値 \(r.score) 深さ \(r.depth) 相手の合法手 \(pos.legalMoves().count)")
         case "nps":
             let sfens = await samplePositions(count: 24)
             var nodes = 0, depthSum = 0

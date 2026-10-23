@@ -75,10 +75,10 @@ struct MasterEngineTests {
 
     /// 1 手詰めを見つけて指す。
     @Test func findsMateInOne() async {
-        // 上と同じ形で持ち駒が金。G*1b（または G*2b）で詰み。
+        // 上と同じ形で持ち駒が金。G*1b・G*2b・G*2a のどれでも詰む（どれを選ぶかは問わない）。
         let sfen = "8k/6S2/7G1/9/9/9/9/9/K8 b G 1"
         let usi = await ShogiMasterEngine(timeLimit: 1).bestMove(sfen: sfen)
-        #expect(usi == "G*1b" || usi == "G*2b")
+        #expect(usi != nil)
         var pos = Position.fromSFEN(sfen)!
         pos.make(Move.fromUSI(usi!)!)
         #expect(pos.legalMoves().isEmpty)
