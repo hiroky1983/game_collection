@@ -215,7 +215,12 @@ private func playMinesweeper(_ services: GameServices) {
     let model = MinesweeperModel(services: services)
     model.newGame(rows: 9, cols: 9, mines: 10)
     model.tap(row: 0, col: 0)  // 成立（初手は必ず安全マス）
-    model.tap(row: 0, col: 0)  // 拒否（開き済み）
+    // 拒否（旗数が合わない開き済みの数字マス）。周囲 0 の開き済みマスは黙って無視する（#2719）。
+    if let number = model.cells.indices.flatMap({ r in
+        model.cells[r].indices.map { (r, $0) }
+    }).first(where: { model.cells[$0.0][$0.1].isRevealed && model.cells[$0.0][$0.1].adjacentMines > 0 }) {
+        model.tap(row: number.0, col: number.1)
+    }
 
     if let flagTarget = model.cells.indices.flatMap({ r in
         model.cells[r].indices.map { (r, $0) }

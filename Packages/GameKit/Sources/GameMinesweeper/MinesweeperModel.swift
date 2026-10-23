@@ -417,6 +417,8 @@ public final class MinesweeperModel {
     /// 旗が誤っていれば地雷を踏んで負ける（本家と同じ挙動。安全化しない）。
     /// 旗数が一致しないときは `canChord` が false になるので盤面は一切変わらない。
     private func chord(row: Int, col: Int) {
+        // 周囲に地雷が無い開いたマスは、まとめて開く対象そのものではない。触れても黙って無視する（#2719）。
+        guard cells[row][col].adjacentMines > 0 else { return }
         guard canChord(row: row, col: col) else {
             services?.feedback.notify(.warning) // 旗数が合っていない・開く先が無い
             return
