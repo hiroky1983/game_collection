@@ -674,35 +674,35 @@
         }
       }
     },
-    "約0.75秒で出す" : {
+    "約1.2秒で出す" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays in about 0.75s"
+            "value" : "Plays in about 1.2s"
           }
         }
       }
     },
-    "約1.4秒で出す" : {
+    "約1.9秒で出す" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays in about 1.4s"
+            "value" : "Plays in about 1.9s"
           }
         }
       }
     },
-    "約2.6秒で出す" : {
+    "約3.2秒で出す" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays in about 2.6s"
+            "value" : "Plays in about 3.2s"
           }
         }
       }
