@@ -164,6 +164,18 @@ public struct SpeedView: View {
         // CPU の待ちは Model が決め、ここは待つだけ。場が動くたびに `cpuRun` が進んで前のループが止まり、
         // 画面を離れれば `.task` ごと止まる。
         .task(id: model.cpuRun) { await runCPU() }
+        // 出せる札の案内（5 秒）。あなたの操作・場が動く・CPU を止める / 解くたびに番号が進み、数え直す。
+        .task(id: model.navigationEpoch) { await runPlayableNavigation() }
+    }
+
+    /// 案内を出すまで待つ。番号が変わったら新しい `.task` に譲って抜ける。
+    private func runPlayableNavigation() async {
+        let epoch = model.navigationEpoch
+        while !Task.isCancelled, model.navigationEpoch == epoch, let wait = model.playableNavigationWait() {
+            do { try await Task.sleep(for: wait) } catch { return }
+            guard !Task.isCancelled, model.navigationEpoch == epoch else { return }
+            withGameAnimation(.easeInOut(duration: 0.25)) { model.updatePlayableNavigation() }
+        }
     }
 
     /// 同じ `cpuRun` のあいだだけ CPU を回す。場が動いて番号が変わったら、新しい `.task` に譲って抜ける
@@ -319,6 +331,12 @@ public struct SpeedView: View {
                 }
             }
             .frame(width: metrics.width, height: metrics.height)
+            // 出せる札の案内（5 秒何もしなかったとき）。この台札に置ける手札があれば光らせる。
+            .overlay {
+                if model.playableNavigationPiles.contains(index) {
+                    SpeedNavigationRing(cornerRadius: metrics.cornerRadius)
+                }
+            }
             .cardDropTarget(SpeedSlot.pile(index), in: Self.tableSpace)
             // 見える札はそのまま、タップ判定だけを左右に広げる。
             .padding(.horizontal, 10)
@@ -380,6 +398,12 @@ public struct SpeedView: View {
             highlighted: showsHints && isPlayable && !isSelected,
             dimmed: showsHints && !isPlayable && !isSelected && model.phase == .playing
         )
+        // 出せる札の案内（5 秒何もしなかったとき）。
+        .overlay {
+            if model.playableNavigationCardIDs.contains(card.id) {
+                SpeedNavigationRing(cornerRadius: metrics.cornerRadius)
+            }
+        }
         .offset(y: isSelected ? SpeedHandLayout.selectedLift : 0)
         .gameAnimation(.spring(response: 0.2), value: isSelected)
         // 持ち上げている間・跳ね返って戻る途中は、元の位置を空けておく（札は指 / 飛ぶ札の側で見せる）。
@@ -412,6 +436,8 @@ public struct SpeedView: View {
                     let moved = hypot(value.translation.width, value.translation.height)
                     guard moved >= SpeedSwipe.tapSlop, let frame = frames[.hand(card.id)] else { return }
                     model.clearSelection()
+                    // 払い始めた = 操作した。出ている案内を消して 5 秒を数え直す。
+                    model.noteHumanActivity()
                     // 位置を先に入れる。持ち上げた最初の 1 フレームから正しい場所に出す。
                     dragLocation.point = value.location
                     lifted = SpeedLift(card: card, grab: CGSize(width: value.startLocation.x - frame.minX,
@@ -547,7 +573,7 @@ public struct SpeedView: View {
         case .playing:
             VStack(spacing: 8) {
                 if model.canFlip {
-                    actionButton(tr("めくる（両方の山札から1枚ずつ）"), color: Theme.Fill.coral) {
+                    actionButton(flipTitle, color: Theme.Fill.coral) {
                         model.flipStocks()
                     }
                 } else {
@@ -582,6 +608,15 @@ public struct SpeedView: View {
                 .background(Theme.surface, in: Capsule())
             }
             .padding(.horizontal, 24)
+        }
+    }
+
+    /// 「めくる」の文言。山札が尽きた人はめくらないので、残っている山札に合わせて言い分ける。
+    private var flipTitle: String {
+        switch (model.humanStock.isEmpty, model.cpuStock.isEmpty) {
+        case (false, false): return tr("めくる（両方の山札から1枚ずつ）")
+        case (true, true):   return tr("めくる（台札を切り直す）")
+        default:             return tr("めくる（山札が残っている側だけ）")
         }
     }
 
@@ -893,6 +928,43 @@ struct SpeedCardView: View {
     }
 }
 
+/// 出せる札の案内の枠（会長 QA 2026-10-24）。ほかのゲームのヒントの印と同じ色（`BoardGameHintColor`）で、
+/// ゆっくり脈打たせる。Reduce Motion では脈打たせず、濃い枠のまま止める。当たり判定・読み上げは持たない。
+struct SpeedNavigationRing: View {
+    let cornerRadius: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// 1 回の明暗の長さ（ゆっくり。ヒントの促し `HintNudge` の光り方と同じ）。
+    static let pulseDuration = 0.8
+
+    var body: some View {
+        Group {
+            if reduceMotion {
+                ring(bright: true)
+            } else {
+                // 2 つの位相を行き来して脈打たせる（`phaseAnimator` は trigger を渡さなければ繰り返す）。
+                ring(bright: false).phaseAnimator([false, true]) { _, bright in
+                    ring(bright: bright)
+                } animation: { _ in
+                    .easeInOut(duration: Self.pulseDuration)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// フェルトにも札の白にも沈まないよう、白い縁を挟んだ二重枠にする（神経衰弱のヒントと同じ形）。
+    private func ring(bright: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        return shape.strokeBorder(.white, lineWidth: 5)
+            .overlay(shape.strokeBorder(BoardGameHintColor.color, lineWidth: 3))
+            .shadow(color: BoardGameHintColor.color.opacity(bright ? 0.85 : 0.3), radius: bright ? 9 : 3)
+            .opacity(bright ? 1 : 0.5)
+            .padding(-3)
+    }
+}
+
 /// 山札（裏向き + 残り枚数）。空なら破線の枠。
 struct SpeedStockView: View {
     let metrics: PlayingCardMetrics
@@ -969,7 +1041,7 @@ struct SpeedRuleSheet: View {
         (tr("出せる札"), tr("台札の数字と1つ違いの札（台札が7なら6か8）。A と K もつながります。マークは関係ありません")),
         (tr("順番はない"), tr("出せる札があればいつでも出せます。CPU も同時に出してくるので、早い者勝ちです。あなたの側に制限時間はありません")),
         (tr("補充"), tr("札を出すと、自分の山札から手札に1枚補充されます（手札はいつも4枚まで）")),
-        (tr("つまったら"), tr("どちらも出せる札が無くなったら「めくる」。両方の山札から1枚ずつ台札に置きます。山札が無いときは、自分側の台札を切り直して山札にします")),
+        (tr("つまったら"), tr("どちらも出せる札が無くなったら「めくる」。山札が残っている側が、山札から1枚ずつ台札に置きます。山札が無くなったら、めくらずに手札を出し切れば勝ちです。両方とも山札が無いときは、台札を切り直して一番上の札を入れ替えます")),
         (tr("勝ち"), tr("手札と山札を先に出し切ったほうの勝ち。めくるだけが続いて場が動かないときは引き分けです")),
         (tr("タイム"), tr("負けそうなとき（CPU の残りが8枚以下で、あなたより少ないとき）、広告を見ると1ゲームに1回だけ CPU が8秒休みます")),
         (tr("速さ"), tr("CPU の反応は「ゆっくり / ふつう / はやい」から選べます。設定の「ゆっくりモード」をオンにすると、さらにゆっくりになります")),
