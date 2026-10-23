@@ -13,6 +13,8 @@ public struct DaifugoView: View {
     @State private var cpuTask: Task<Void, Never>?
     /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
     @Environment(\.adaptiveLayout) private var layout
+    /// Reduce Motion のときは革命・8切りの弾みを出さない（#2713）。
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
         self.services = services
@@ -281,6 +283,15 @@ public struct DaifugoView: View {
                     }
                 }
             }
+        }
+        // 革命の切り替わり・8切りの瞬間だけ場を 1.15 倍→1.0 倍に弾ませる。自分が起こしたときは一段大きく（#2713）。
+        // Reduce Motion ではトリガーを止めて弾ませない。
+        .keyframeAnimator(initialValue: 1.0, trigger: reduceMotion ? nil : model.fieldImpact) { content, scale in
+            content.scaleEffect(scale)
+        } keyframes: { _ in
+            let peak = model.fieldImpact?.byHuman == true ? 1.25 : 1.15
+            CubicKeyframe(peak, duration: 0.12)
+            SpringKeyframe(1.0, duration: 0.25, spring: .bouncy)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 誰が出しても場は同じ経路（`field` の差し替え）で更新されるので、CPU の手も人間の手も
