@@ -95,6 +95,8 @@ public final class ColorRelayModel: AITurnGuarded {
     private let services: GameServices?
     let gameID = ColorRelayModel.gameID
     private let cpuDelay: Duration
+    /// 直前の手番も CPU だったときの間合い（#2714）。CPU が続く間の待ち時間を詰める。
+    static let chainedCPUDelay: Duration = .milliseconds(400)
     private var seed: UInt64?
     /// CPU の強さによる「ぶれ」（かんたんの取りこぼし・入門のでたらめ）用の乱数。配りの種とは別に持つ。
     private var cpuRNG: SplitMix64
@@ -499,15 +501,19 @@ public final class ColorRelayModel: AITurnGuarded {
     /// View から複数の契機で呼ばれても内部で 1 本に制限する（`withAITurnRunner`・#531）。
     public func runCPUTurnsIfNeeded() async {
         await withAITurnRunner(running: \.isRunningCPUTurns) {
+            // このループで CPU が1手でも指したか。2手目以降だけ間合いを詰める（#2714）。
+            var isChained = false
             while phase == .playing, currentPlayer != Self.humanIndex {
                 // 間合いが 0 の手番には suspend が無く、下の sleep 後の判定を通らない。ループ先頭でも見る（#287）。
                 guard !Task.isCancelled else { return }
-                if cpuDelay > .zero {
+                let delay = isChained ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
+                if delay > .zero {
                     // sleep の直後にキャンセルを見る。見ないと画面を離れた瞬間に残りの手番が間合いゼロで走り抜ける（#287）。
-                    guard await pauseCPUTurn(for: cpuDelay) else { return }
+                    guard await pauseCPUTurn(for: delay) else { return }
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
                 performCPUTurn(currentPlayer)
+                isChained = true
             }
         }
     }

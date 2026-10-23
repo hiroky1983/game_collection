@@ -156,6 +156,8 @@ public final class DaifugoModel: AITurnGuarded {
 
     /// 自分が上がった後の消化試合で使う間合い（#191）。自分の操作が無い区間なので短くする。
     static let finishedCPUDelay: Duration = .milliseconds(120)
+    /// 直前の手番も CPU だったときの間合い（#2714）。CPU が続く間の待ち時間を詰める。
+    static let chainedCPUDelay: Duration = .milliseconds(400)
     /// 自分が上がった後に消化した CPU の手番数（#191）。
     /// 手番数 × `finishedCPUDelay` が消化試合の待ち時間になるため、テストで上限を見張る。
     private(set) var cpuTurnsAfterPlayerFinished = 0
@@ -713,13 +715,15 @@ public final class DaifugoModel: AITurnGuarded {
         // 走者不在になり手番が止まりうるため、麻雀（#311）と同じく先行タスクの終了を
         // 待ってから引き継ぐ。待機中に自分もキャンセルされたら次のタスクに譲って抜ける（#531 で共通化）。
         await withAITurnRunner(running: \.isRunningCPUTurns) {
+            // このループで CPU が1手でも指したか。2手目以降だけ間合いを詰める（#2714）。
+            var isChained = false
             while phase == .playing, currentPlayer != Self.humanIndex {
                 // 間合いが 0 の手番（早送り中など）には suspend が無く、下の sleep 後の判定を
                 // 通らない。ループ先頭でも見て、どの経路でもキャンセル後は進めないようにする（#287）。
                 guard !Task.isCancelled else { return }
                 // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
                 // 待たずに済むようにするため（#191）。
-                let delay = currentCPUDelay
+                let delay = currentCPUDelay(isChained: isChained)
                 if delay > .zero {
                     // キャンセルを見ないと、画面を離れた瞬間に残りの CPU 手番が遅延ゼロで走り抜けてしまう（#287）。
                     // 下の状態 guard は状態しか見ないので、これの代わりにはならない。
@@ -727,14 +731,17 @@ public final class DaifugoModel: AITurnGuarded {
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
                 performCPUTurn(currentPlayer)
+                isChained = true
             }
         }
     }
 
     /// この手番で取る間合い（#191）。自分が上がった後は短くし、早送り中は取らない。
     /// `cpuDelay` が 0 のテストでは常に 0 のまま（`min` で頭打ちにしているため）。
-    private var currentCPUDelay: Duration {
-        guard isPlayerFinished else { return cpuDelay }
+    private func currentCPUDelay(isChained: Bool) -> Duration {
+        guard isPlayerFinished else {
+            return isChained ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
+        }
         return isSkippingToResult ? .zero : min(cpuDelay, Self.finishedCPUDelay)
     }
 
