@@ -106,6 +106,11 @@ public enum RecordVariantLabels {
             return cpuStrengthLabel(variant, language: language)
         case "othello":
             return cpuStrengthLabel(variant, language: language)
+        // ハーツ・ババ抜きも CPU の強さ別（#2716）。「ふつう」は区分なし。
+        case "hearts":
+            return cpuStrengthLabel(variant, language: language)
+        case "oldmaid":
+            return cpuStrengthLabel(variant, language: language)
         default:
             return nil
         }

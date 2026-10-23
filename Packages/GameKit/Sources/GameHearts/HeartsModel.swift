@@ -356,6 +356,18 @@ public final class HeartsModel: AITurnGuarded {
         persist()
     }
 
+    /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
+    /// それ以外の強さは強さ別の区分に分ける（大富豪と同じ作法・#2604、#2716）。
+    var recordScore: GameScore {
+        let strength = CPUStrength.strength(for: aiLevel)
+        guard strength != .standard else { return GameScore(metric: .winLoss) }
+        let variant = strength.recordVariantKey
+        return GameScore(
+            metric: .winLoss, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
+    }
+
     private func concludeMatch() {
         ranking = HeartsRules.ranking(totals: totals)
         selectedID = nil
@@ -365,7 +377,11 @@ public final class HeartsModel: AITurnGuarded {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(
+            gameID: gameID, outcome: reviewOutcome, score: recordScore,
+            // 「入門」「かんたん」に勝っても評価を頼むほどの手応えとは言えない（#1471）。
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
+        )
         services?.snapshots.clear(for: gameID)
     }
 

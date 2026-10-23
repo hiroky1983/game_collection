@@ -296,6 +296,20 @@ struct HeartsAnalyticsTests {
         #expect(spy.ends.count == 1)
         #expect(spy.ends.first?.gameID == HeartsModel.gameID)
     }
+
+    @Test("記録は「ふつう」だけ区分なし、ほかの強さは強さ別の区分に分かれる（#2716）")
+    func recordVariantPerStrength() {
+        let model = makeModel()
+        model.startMatch()
+        #expect(model.recordScore.variant == nil)
+        for strength in CPUStrength.allCases where strength != .standard {
+            model.startMatch(aiLevel: strength.rawValue)
+            #expect(model.recordScore.variant == strength.recordVariantKey)
+            #expect(model.recordScore.variantLabel != nil)
+            #expect(model.recordScore.variantLabel == RecordVariantLabels.label(
+                recordKey: "hearts#\(strength.recordVariantKey)", language: .japanese))
+        }
+    }
 }
 
 // MARK: - CPU 進行のキャンセル
