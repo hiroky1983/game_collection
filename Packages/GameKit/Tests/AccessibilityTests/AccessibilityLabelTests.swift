@@ -236,14 +236,14 @@ struct MinesweeperAccessibilityTests {
                 == "ダブルタップで旗・はてなを切り替えます")
     }
 
-    /// コード（#437）は開き済みの数字マスでだけ案内する。旗モード中は旗の操作が優先。
+    /// コード（#437）は開き済みの数字マスでだけ案内する。開き済みは旗を置けないので旗モードでも案内する（#2719）。
     @Test("コードできる数字マスにはヒントを出す") func hintForChord() {
         #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false,
                                                   canChord: true)
                 == "ダブルタップで周囲をまとめて開きます")
         #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false,
                                                   canChord: true)
-                .isEmpty, "旗モード中は旗の案内だけにする")
+                == "ダブルタップで周囲をまとめて開きます", "開き済みの数字マスは旗モードでもコード")
     }
 
     @Test("操作の可否は Model が唯一の出どころ") @MainActor func modelIsSourceOfTruth() {
