@@ -518,6 +518,39 @@
         }
       }
     },
+    "手数 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves %lld"
+          }
+        }
+      }
+    },
+    "ミス 0・パーフェクト！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No mistakes – Perfect!"
+          }
+        }
+      }
+    },
+    "あと1回で終わり！ そこに猫はいない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One more and it is over! No cat there"
+          }
+        }
+      }
+    },
     "ミス %lld" : {
       "extractionState" : "manual",
       "localizations" : {
