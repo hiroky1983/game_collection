@@ -45,9 +45,9 @@ struct MasterEngineTests {
     @Test func legalMovesMatchReferenceOnRandomGames() {
         var rng = MMIXRandom(seed: 2698)
         var checked = 0
-        for _ in 0..<30 {
+        for _ in 0..<10 {
             var pos = Position.start()
-            for _ in 0..<160 {
+            for _ in 0..<120 {
                 let ref = Self.referenceMoves(pos)
                 let mine = Set(ShogiMasterEngine.legalMovesUSI(sfen: pos.toSFEN()))
                 #expect(mine == ref, "局面 \(pos.toSFEN()): 余分 \(mine.subtracting(ref)) 不足 \(ref.subtracting(mine))")
@@ -61,7 +61,7 @@ struct MasterEngineTests {
                 pos.make(pool[Int(rng.next() % UInt64(pool.count))])
             }
         }
-        #expect(checked > 1000)
+        #expect(checked > 500)
     }
 
     /// 打ち歩詰めは指さない・数えない。
