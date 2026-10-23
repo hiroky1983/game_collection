@@ -22,6 +22,8 @@ final class SoundFeedbackService: FeedbackService {
     private let volume: Float = 0.6
     /// トランプの場面の音（同梱ファイル）。`players` と同じく種類ごとに 1 つ使い回し、連続で鳴らしても重ならない。
     private var cardPlayers: [CardSound: AVAudioPlayer] = [:]
+    /// 盤ゲームの着手の音（同梱ファイル・#2767）。`cardPlayers` と同じ作り。
+    private var boardPlayers: [BoardSound: AVAudioPlayer] = [:]
     /// 柵越えおじさんの場面の音（`HomerunSoundService`）。`players` とは別に持ち、**互いを止めない**
     /// （カキーンの余韻が月への上昇音で切れない）。`SoundEffect` を鳴らしたときの「他の音を止める」も、こちらには掛けない。
     private var homerunPlayers: [HomerunSound: AVAudioPlayer] = [:]
@@ -31,6 +33,10 @@ final class SoundFeedbackService: FeedbackService {
     func impact(_ style: FeedbackImpact) {
         guard style.hasSound else { return }
         if case .card(let sound) = style {
+            play(sound)
+            return
+        }
+        if case .board(let sound) = style {
             play(sound)
             return
         }
@@ -56,6 +62,7 @@ final class SoundFeedbackService: FeedbackService {
             other.pause()
         }
         for other in cardPlayers.values where other.isPlaying { other.pause() }
+        for other in boardPlayers.values where other.isPlaying { other.pause() }
 
         // 鳴っている途中なら頭へ巻き戻して鳴らし直す（重ねない）。
         // `stop()` は `prepareToPlay()` のバッファまで捨ててしまい 2 回目以降の発音が遅れるので使わない。
@@ -77,12 +84,40 @@ final class SoundFeedbackService: FeedbackService {
 
         for other in players.values where other.isPlaying { other.pause() }
         for (kind, other) in cardPlayers where kind != sound && other.isPlaying { other.pause() }
+        for other in boardPlayers.values where other.isPlaying { other.pause() }
 
         player.currentTime = 0
         if !player.play() {
             try? AVAudioSession.sharedInstance().setActive(true)
             player.play()
         }
+    }
+
+    /// 盤ゲームの音を鳴らす。作法は `play(_ sound: CardSound)` と同じ。
+    private func play(_ sound: BoardSound) {
+        guard throttle.shouldPlay(sound, now: CACurrentMediaTime()) else { return }
+
+        configureSessionIfNeeded()
+        guard let player = boardPlayer(for: sound) else { return }
+
+        for other in players.values where other.isPlaying { other.pause() }
+        for other in cardPlayers.values where other.isPlaying { other.pause() }
+        for (kind, other) in boardPlayers where kind != sound && other.isPlaying { other.pause() }
+
+        player.currentTime = 0
+        if !player.play() {
+            try? AVAudioSession.sharedInstance().setActive(true)
+            player.play()
+        }
+    }
+
+    private func boardPlayer(for sound: BoardSound) -> AVAudioPlayer? {
+        if let cached = boardPlayers[sound] { return cached }
+        guard let url = sound.url, let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
+        player.volume = volume
+        player.prepareToPlay()
+        boardPlayers[sound] = player
+        return player
     }
 
     private func cardPlayer(for sound: CardSound) -> AVAudioPlayer? {
