@@ -400,13 +400,13 @@
         }
       }
     },
-    "20符から始めて足します。門前でロン +10、ツモ +2、刻子（ポン・暗刻）は明刻 2・暗刻 4（1・9・字牌は倍）、槓は明槓 8・暗槓 16（1・9・字牌は倍）、役牌の雀頭 +2、嵌張・辺張・単騎待ち +2。最後に10符単位へ切り上げます。七対子は25符固定、平和はツモ20符・ロン30符です。" : {
+    "20符から始めて足します。門前でロン +10、ツモ +2、刻子（ポン・暗刻）は明刻 2・暗刻 4（1・9・字牌は倍）、槓は明槓 8・暗槓 16（1・9・字牌は倍）、役牌の雀頭 +2（自風と場風が同じ連風牌は +4）、嵌張・辺張・単騎待ち +2。最後に10符単位へ切り上げます。七対子は25符固定、平和はツモ20符・ロン30符です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start at 20 fu and add: concealed ron +10, tsumo +2, triplets (pon / concealed) open 2 / concealed 4 (doubled for terminals and honors), kans open 8 / concealed 16 (doubled for terminals and honors), yakuhai pair +2, closed / edge / pair wait +2. Round up to the next 10 fu. Seven Pairs is fixed at 25 fu; Pinfu is 20 fu on tsumo and 30 fu on ron."
+            "value" : "Start at 20 fu and add: concealed ron +10, tsumo +2, triplets (pon / concealed) open 2 / concealed 4 (doubled for terminals and honors), kans open 8 / concealed 16 (doubled for terminals and honors), yakuhai pair +2 (+4 when seat wind and round wind are the same), closed / edge / pair wait +2. Round up to the next 10 fu. Seven Pairs is fixed at 25 fu; Pinfu is 20 fu on tsumo and 30 fu on ron."
           }
         }
       }
