@@ -27,6 +27,35 @@ struct MinesweeperFlagModeTests {
         #expect(model.gameState == .idle, "モードの切り替えだけで局は始まらない")
     }
 
+    @Test("周囲 0 の開いたマスを触っても警告を鳴らさない（#2719）")
+    func zeroCellTapIsSilent() {
+        let spy = SpyFeedbackService()
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        let model = MinesweeperModel(services: services, rows: 9, cols: 9, mines: 10)
+        model.tap(row: 4, col: 4)   // 初手は周囲も地雷から外すので 0 マスになる
+        #expect(model.cells[4][4].isRevealed && model.cells[4][4].adjacentMines == 0)
+        spy.reset()
+
+        model.tap(row: 4, col: 4)
+        #expect(spy.notices(of: .warning) == 0)
+        #expect(model.gameState == .playing)
+    }
+
+    @Test("旗数が合わない数字マスの警告は残る（#2719）")
+    func numberCellWithoutFlagsStillWarns() {
+        let spy = SpyFeedbackService()
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        let model = MinesweeperModel(services: services, rows: 9, cols: 9, mines: 10)
+        model.tap(row: 4, col: 4)
+        guard let target = (0..<9).flatMap({ r in (0..<9).map { (r, $0) } })
+            .first(where: { model.cells[$0.0][$0.1].isRevealed && model.cells[$0.0][$0.1].adjacentMines > 0 })
+        else { return }   // 乱数で数字マスが開かなかった盤は対象外
+        spy.reset()
+
+        model.tap(row: target.0, col: target.1)
+        #expect(spy.notices(of: .warning) == 1)
+    }
+
     @Test("新規ゲームで旗モードはオフに戻る")
     func newGameResetsFlagMode() {
         let model = MinesweeperModel(rows: 9, cols: 9, mines: 10)

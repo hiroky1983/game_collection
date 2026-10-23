@@ -58,7 +58,9 @@ public enum MinesweeperAccessibility {
         if flagMode {
             // マークは「なし → 旗 → ? → なし」の3状態を循環する（#444）。いま何が置かれて
             // いるかは `cellLabel` が読み上げるので、ここでは循環に何が含まれるかだけ伝える。
-            return canToggleFlag ? tr("ダブルタップで旗・はてなを切り替えます") : ""
+            if canToggleFlag { return tr("ダブルタップで旗・はてなを切り替えます") }
+            // 開いている数字マスは旗モード中でも、タップでまとめて開く（#2719）。
+            return canChord ? tr("ダブルタップで周囲をまとめて開きます") : ""
         }
         if canReveal { return tr("ダブルタップで開きます") }
         // 開いている数字マスは、周囲の旗が揃っていればまとめて開ける（コード・#437）。

@@ -476,7 +476,8 @@ public struct MinesweeperView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            if model.flagMode {
+            // 開いているマスは旗を置けないので、旗モード中でも数字タップのまとめて開くに回す（#2719）。
+            if model.flagMode && !cell.isRevealed {
                 model.toggleFlag(row: row, col: col)
             } else {
                 model.tap(row: row, col: col)
@@ -500,7 +501,8 @@ public struct MinesweeperView: View {
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
-            if model.flagMode {
+            // 開いているマスは旗を置けないので、旗モード中でも数字タップのまとめて開くに回す（#2719）。
+            if model.flagMode && !cell.isRevealed {
                 model.toggleFlag(row: row, col: col)
             } else {
                 model.tap(row: row, col: col)
