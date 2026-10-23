@@ -620,6 +620,17 @@
         }
       }
     },
+    "1巡目はハート・スペードのQを出せません（それしか無ければ出せます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hearts or the Queen of Spades on the first trick (unless that's all you have)"
+          }
+        }
+      }
+    },
     "向かい" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -208,19 +208,19 @@ public struct HeartsView: View {
     /// 縦の余りはここが吸い、十字はその真ん中に置く（大富豪の場と同じ）。札は手札と同じ大きさまでで、
     /// 縦の短い画面（iPhone SE）では残りの高さに収まるよう小さくする。
     private func trickArea(_ metrics: HeartsLayoutA.Metrics) -> some View {
-        let complete = model.isTrickComplete
+        // 札が 1 枚でも出ていれば、その時点で最も強い人を強調する（4 枚そろう前は暫定）。
         let leader = model.trickLeader
         return GeometryReader { proxy in
             let card = HeartsLayoutA.trickCard(hand: metrics.handCard, height: proxy.size.height)
             ZStack {
                 heartsChip
-                trickSlot(2, metrics: card, highlighted: complete && leader == 2)
+                trickSlot(2, metrics: card, highlighted: leader == 2)
                     .offset(y: -card.height * HeartsLayoutA.trickVerticalOffset)
-                trickSlot(1, metrics: card, highlighted: complete && leader == 1)
+                trickSlot(1, metrics: card, highlighted: leader == 1)
                     .offset(x: -card.width * HeartsLayoutA.trickHorizontalOffset)
-                trickSlot(3, metrics: card, highlighted: complete && leader == 3)
+                trickSlot(3, metrics: card, highlighted: leader == 3)
                     .offset(x: card.width * HeartsLayoutA.trickHorizontalOffset)
-                trickSlot(0, metrics: card, highlighted: complete && leader == 0)
+                trickSlot(0, metrics: card, highlighted: leader == 0)
                     .offset(y: card.height * HeartsLayoutA.trickVerticalOffset)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -352,7 +352,12 @@ public struct HeartsView: View {
                 if let lead = model.currentTrick.first?.card.suit, model.playerHand.contains(where: { $0.suit == lead }) {
                     return tr("出された札と同じスートを出します")
                 }
-                if !model.currentTrick.isEmpty { return tr("同じスートが無いので、どの札でも出せます") }
+                if !model.currentTrick.isEmpty {
+                    // 1 巡目だけは点の札（ハート・スペードの Q）を避ける（HeartsRules.legalPlays）。
+                    return model.trickNumber == 0
+                        ? tr("1巡目はハート・スペードのQを出せません（それしか無ければ出せます）")
+                        : tr("同じスートが無いので、どの札でも出せます")
+                }
                 return nil
             default:
                 return nil
