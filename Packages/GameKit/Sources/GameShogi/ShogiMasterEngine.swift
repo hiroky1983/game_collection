@@ -13,7 +13,7 @@ import Foundation
 /// - 静止探索（取る手・成る手）、王手の延長
 /// - 手の並べ替え（置換表の手 → 駒得の取り → キラー → 履歴）
 /// - LMR（後ろの手の読みを浅くする）、Futility 枝刈り
-/// - 評価: 駒の価値 ＋ 位置 ＋ 玉の周りの守り駒・攻め駒
+/// - 評価: 駒の価値 ＋ 位置 ＋ 玉の周りの守り駒・攻め駒 ＋ 玉の周り 8 マスの利きと相手の持ち駒による危なさ
 ///
 /// Null Move 枝刈りと 1 手詰めの検出も実装したが、外した方が強かった（自己対局で外した側が 67.5%）ので
 /// 出荷では切ってある（`ShogiMasterOptions`）。各技法の効果は `docs/analytics/shogi-2698-master.md` と issue #2698。
@@ -1175,13 +1175,5 @@ extension ShogiMasterEngine {
         let s = MasterSearcher(pos, options: .shipped)
         defer { s.release() }
         return s.perft(depth)
-    }
-
-    /// テスト用: 評価値（手番側から見た値）とハッシュ。
-    static func debugEval(sfen: String) -> Int {
-        guard let pos = Position.fromSFEN(sfen) else { return 0 }
-        let s = MasterSearcher(pos, options: .shipped)
-        defer { s.release() }
-        return s.evaluate()
     }
 }

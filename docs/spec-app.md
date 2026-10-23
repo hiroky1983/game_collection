@@ -150,7 +150,8 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
   段の番号は見送った「ガチ」の **3** を将棋だけで使い、`CPUStrength` には足さない（開始シートには出ない）。
   `ShogiMasterEngine.engine(level:)` が番号からエンジンを選び、3 以外は今の `SimpleMinimaxEngine` のまま（既存 4 段・ヒントは不変）。
   考える時間は実時間 2.5 秒で打ち切る（禁止「1 手 3 秒以内」に余裕を残す）。自前の盤（番兵つき 1 次元・差分 Zobrist）と
-  αβ の定番技法（反復深化＋アスピレーション・PVS・置換表・静止探索・王手延長・Null Move・LMR・Futility・1 手詰め）で、
+  αβ の定番技法（反復深化＋アスピレーション・PVS・置換表・静止探索・王手延長・LMR・Futility）と、玉の周りの利きを見る評価で、
+  Null Move・1 手詰めの検出は計測で外した方が強かったので切ってある（`ShogiMasterOptions`）。
   やねうら王は考え方だけを参考にした（GPLv3 のためソース・評価関数ファイルは持ち込まない）。
   合格基準は「むずかしいに 100 局全勝」。計測は `Scripts/shogi-master-bench`（Linux でも動く単体バイナリ）、結果は
   `docs/analytics/shogi-2698-master.md`
