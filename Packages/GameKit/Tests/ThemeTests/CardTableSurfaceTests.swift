@@ -178,6 +178,7 @@ struct CardTableSurfaceTests {
     /// 乗る（verifier が最小構成で再現。フリーセルの仕切りと麻雀ソリティアのクリア文字で実際に起きた）。
     @Test("卓の上の色は画面の View 本体で読まず、盤の中の子 View（CardTableInkReader）で読む", arguments: [
         "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameOldMaid", "GameHearts", "GamePoker",
+        "GameConcentration",
     ])
     func tableInkIsReadInsideTheTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))

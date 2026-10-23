@@ -7,10 +7,10 @@ import GameKitTestSupport
 /// 対戦ゲームのヘッダー下の行（#1419）が、共通の枠と手番表示を通っていること。
 @Suite("対戦ゲームのステータス行")
 struct GameStatusBarTests {
-    /// 対象の 8 本（ディレクトリ名）。大富豪はレイアウトパターン A（全画面・#2531）でヘッダー下の帯を持たず、
-    /// ゲーム数・手番の札はヘッダーの行に置く（下の `daifugoPutsTurnBadgeInHeader`）。
+    /// 対象の 7 本（ディレクトリ名）。大富豪・神経衰弱はレイアウトパターン A（全画面・#2531）でヘッダー下の帯を持たず、
+    /// ゲーム数・得点・手番の札はヘッダーの行に置く（下の `daifugoPutsTurnBadgeInHeader`・`concentrationPutsScoresInHeader`）。
     private static let games = ["GameShogi", "GameChess", "GameGo", "GameOthello", "GameGomoku",
-                                "GameConcentration", "GameHanafuda", "GameShiritori"]
+                                "GameHanafuda", "GameShiritori"]
 
     @Test("最小の高さは 44pt・余白は横 12 / 縦 6")
     func styleValues() {
@@ -41,9 +41,17 @@ struct GameStatusBarTests {
         for game in Self.games {
             let source = SourceScan.strippingComments(try SourceScan.moduleSources(game))
             #expect(source.contains("GameStatusBar {"), "\(game) が GameStatusBar を使っていない")
-            #expect(source.contains("TurnBadge(") || game == "GameConcentration",
-                    "\(game) が TurnBadge を使っていない")
+            #expect(source.contains("TurnBadge("), "\(game) が TurnBadge を使っていない")
         }
+    }
+
+    /// 神経衰弱（A・#2531）: 帯は無く、得点（あなた・CPU）と手番（手番の側の札を塗る）は全画面の枠のヘッダーの札に置く。
+    @Test("神経衰弱は全画面の枠のヘッダーに得点の札を置く（ヘッダー下の帯は持たない）")
+    func concentrationPutsScoresInHeader() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameConcentration"))
+        #expect(!source.contains("GameStatusBar {"), "A ではヘッダー下の帯を置かない")
+        #expect(source.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠を通っていない")
+        #expect(SourceScan.matchCount(of: #"\}\)\s*\{\s*scoreChips\s*\}"#, in: source) == 1, "得点の札をヘッダーに渡していない")
     }
 
     /// 大富豪（A・#2531）: 帯は無いが、手番の表示は共通の `TurnBadge` を全画面の枠のヘッダーの札として置く。
