@@ -112,17 +112,6 @@
         }
       }
     },
-    "8 を含む組を出すと場が流れ、そのまま続けて出せます" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playing a set that includes an 8 clears the table right away, and you get to lead the next play."
-          }
-        }
-      }
-    },
     "8切り" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -763,17 +752,6 @@
         }
       }
     },
-    "最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Going out with a 2, an 8, or a Joker as your final play is a foul. You drop to Beggar even though you went out."
-          }
-        }
-      }
-    },
     "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1017,28 +995,6 @@
         }
       }
     },
-    "新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn it on in the new game setup sheet. When the same suit is played twice in a row, only that suit (and Jokers) can be played until the table is cleared"
-          }
-        }
-      }
-    },
-    "あり" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On"
-          }
-        }
-      }
-    },
     "しばり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1079,39 +1035,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Locked to %@. Only that suit can be played (Jokers still work)"
-          }
-        }
-      }
-    },
-    "しばり（任意）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suit lock (optional)"
-          }
-        }
-      }
-    },
-    "なし" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off"
-          }
-        }
-      }
-    },
-    "ふつうのルール" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standard rules"
           }
         }
       }
@@ -1167,6 +1090,281 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : ". "
+          }
+        }
+      }
+    },
+    "8 を含む組を出すと場が流れ、出した人がそのまま続けて出せます（初期設定はあり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing a set that includes an 8 clears the field, and that player keeps the lead (on by default)."
+          }
+        }
+      }
+    },
+    "8を出すと場が流れ、出した人から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A played 8 clears the field and that player leads"
+          }
+        }
+      }
+    },
+    "8切り：場が流れて、8を出した人から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8-Stop: the field clears and the player of the 8 leads"
+          }
+        }
+      }
+    },
+    "しばり：場が流れるまで%@のカードだけ出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock: only %@ cards can be played until the field clears"
+          }
+        }
+      }
+    },
+    "ローカルルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local rules"
+          }
+        }
+      }
+    },
+    "前のゲームの大富豪が1位で上がれなかったら、その場で大貧民に落ちます（初期設定はなし）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If last game's Tycoon doesn't finish 1st, they drop straight to Beggar (off by default)."
+          }
+        }
+      }
+    },
+    "前の大富豪が1位でないと大貧民へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If last game's Tycoon doesn't finish 1st, they drop to Beggar"
+          }
+        }
+      }
+    },
+    "反則上がり：最後が 2・8・ジョーカーなので最下位です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foul finish: going out on a 2, 8 or Joker puts you last"
+          }
+        }
+      }
+    },
+    "反則上がり：最後が 2・ジョーカーなので最下位です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foul finish: going out on a 2 or Joker puts you last"
+          }
+        }
+      }
+    },
+    "同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません（初期設定はなし）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the same suit is played twice in a row, only that suit (and Jokers) can be played until the field clears (off by default)."
+          }
+        }
+      }
+    },
+    "同じスートで数が連なる3枚以上（例: ♠5-6-7）を1つの組として出せます。強さは一番強い札で比べ、場と同じ枚数の階段だけで受けます。ジョーカーは欠けた数の代わりになります（初期設定はなし）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three or more consecutive cards of one suit (e.g. ♠5-6-7) can be played as one set. Runs are compared by their strongest card and can only be answered by a run of the same length. A Joker can stand in for a missing number (off by default)."
+          }
+        }
+      }
+    },
+    "同じ柄の連番3枚以上を出せる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 3+ cards in a row of one suit"
+          }
+        }
+      }
+    },
+    "場の階段より強い階段が必要です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You need a stronger run than the one on the field"
+          }
+        }
+      }
+    },
+    "場は同じ数字の組です。階段では出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The field is a set of the same number. A run can't beat it"
+          }
+        }
+      }
+    },
+    "場は階段です。同じ柄の連番で出してください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The field is a run. Play a run of the same length"
+          }
+        }
+      }
+    },
+    "数字がそろっていないか、階段（同じ柄の連番3枚以上）になっていません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The numbers don't match, and it isn't a run (3+ consecutive cards of one suit)"
+          }
+        }
+      }
+    },
+    "新規ゲームの開始シートで、8切り・しばり・階段・都落ち・反則上がりのあり／なしを選べます。ルールは局の始めに決まり、途中では変わりません（選んだ組み合わせは次のゲームにも引き継ぎます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the new game sheet you can turn 8-Stop, Suit lock, Runs, Downfall and Foul finish on or off. The rules are fixed when the game starts and don't change mid-game (your choices carry over to the next game)."
+          }
+        }
+      }
+    },
+    "最後が 2・ジョーカー・8 だと最下位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finishing on a 2, Joker or 8 puts you last"
+          }
+        }
+      }
+    },
+    "最後の1手が 2・ジョーカー・8（8切りありのとき）だと反則。上がっても大貧民に落ちます（初期設定はあり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finishing on a 2, a Joker or an 8 (when 8-Stop is on) is a foul: you drop to Beggar even though you went out (on by default)."
+          }
+        }
+      }
+    },
+    "都落ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downfall"
+          }
+        }
+      }
+    },
+    "都落ち：前のゲームの大富豪（%@）が1位になれなかったので、大貧民に落ちました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downfall: last game's Tycoon (%@) didn't finish 1st, so they dropped to Beggar"
+          }
+        }
+      }
+    },
+    "階段" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runs"
+          }
+        }
+      }
+    },
+    "革命中です。場の階段より弱い階段が必要です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution is on. You need a weaker run than the one on the field"
+          }
+        }
+      }
+    },
+    "革命返し：カードの強さが元に戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counter-revolution: card strengths go back to normal"
+          }
+        }
+      }
+    },
+    "革命：カードの強さが逆になります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution: card strengths are reversed"
           }
         }
       }

@@ -300,6 +300,44 @@ public struct DaifugoView: View {
         // 場は「何が出ているか」が分かればよいので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field, ownerName: fieldOwnerName))
+        // 8切り・革命・しばり・反則上がりが起きた瞬間の一言説明（#2721）。盤の高さを変えないよう重ねで出す。
+        .overlay(alignment: .top) { ruleNoticeBanner }
+    }
+
+    /// ルールの一言説明（#2721）。数秒で消える。VoiceOver には出た時点で読み上げる。
+    @ViewBuilder
+    private var ruleNoticeBanner: some View {
+        Group {
+            if let notice = model.ruleNotice {
+                VStack(spacing: 2) {
+                    ForEach(Array(notice.events.enumerated()), id: \.offset) { _, event in
+                        Text(verbatim: DaifugoAccessibility.ruleEventText(event))
+                            .themeCaption(12, weight: .bold, maxScale: Self.seatTextMaxScale)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.Fill.teal))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                    .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 1.5))
+                .padding(.horizontal, 8)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(notice.events.map(DaifugoAccessibility.ruleEventText).joined(separator: tr("。")))
+            }
+        }
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.ruleNotice)
+        .task(id: model.ruleNotice?.serial) {
+            guard let notice = model.ruleNotice else { return }
+            AccessibilityNotification.Announcement(
+                notice.events.map(DaifugoAccessibility.ruleEventText).joined(separator: tr("。"))).post()
+            try? await Task.sleep(for: .seconds(3.5))
+            if !Task.isCancelled { model.dismissRuleNotice(serial: notice.serial) }
+        }
     }
 
     /// 場の出し手（`fieldOwner`）の名前。場が空 / 出し手が不明なら nil。
@@ -508,6 +546,7 @@ public struct DaifugoView: View {
     /// リザルト見出しに添える但し書き。投了は反則上がりより下の扱いなので先に見る（#194）。
     private var humanResultNote: String? {
         if model.resigned.contains(DaifugoModel.humanIndex) { return tr("投了") }
+        if model.downfallPlayer == DaifugoModel.humanIndex { return tr("都落ち") }
         if model.fouls.contains(DaifugoModel.humanIndex) { return tr("反則上がり") }
         return nil
     }
@@ -515,6 +554,7 @@ public struct DaifugoView: View {
     /// 順位表の各行に添える但し書き（見出しより短く詰める）。
     private func rankRowNote(_ player: Int) -> String? {
         if model.resigned.contains(player) { return tr("投了") }
+        if model.downfallPlayer == player { return tr("都落ち") }
         if model.fouls.contains(player) { return tr("反則") }
         return nil
     }
@@ -565,6 +605,12 @@ public struct DaifugoView: View {
                         Spacer()
                     }
                 }
+            }
+            if let fallen = model.downfallPlayer {
+                Text(tr("都落ち：前のゲームの大富豪（%@）が1位になれなかったので、大貧民に落ちました", model.playerName(fallen)))
+                    .scaledFont(11, weight: .medium, design: .rounded)
+                    .foregroundStyle(Theme.coralText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             // 「今回の結果」（見出し・順位表）を上、「この先」（通算成績・次ゲームの案内）を下に置き、
             // 伸びた分の余りは2つの塊の**間**に集める（#193）。カード全体を中央寄せにすると
@@ -769,9 +815,12 @@ struct DaifugoRuleSheet: View {
             (tr("カードの強さ"), tr("弱い ← 3 4 5 6 7 8 9 10 J Q K A 2 → 強い。ジョーカーが最強で、どのカードの代わりにもなります")),
             (tr("出し方"), tr("場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます")),
             (tr("革命"), tr("同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）")),
-            (tr("8切り"), tr("8 を含む組を出すと場が流れ、そのまま続けて出せます")),
-            (tr("しばり（任意）"), tr("新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません")),
-            (tr("反則上がり"), tr("最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます")),
+            (tr("ローカルルール"), tr("新規ゲームの開始シートで、8切り・しばり・階段・都落ち・反則上がりのあり／なしを選べます。ルールは局の始めに決まり、途中では変わりません（選んだ組み合わせは次のゲームにも引き継ぎます）")),
+            (tr("8切り"), tr("8 を含む組を出すと場が流れ、出した人がそのまま続けて出せます（初期設定はあり）")),
+            (tr("しばり"), tr("同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません（初期設定はなし）")),
+            (tr("階段"), tr("同じスートで数が連なる3枚以上（例: ♠5-6-7）を1つの組として出せます。強さは一番強い札で比べ、場と同じ枚数の階段だけで受けます。ジョーカーは欠けた数の代わりになります（初期設定はなし）")),
+            (tr("都落ち"), tr("前のゲームの大富豪が1位で上がれなかったら、その場で大貧民に落ちます（初期設定はなし）")),
+            (tr("反則上がり"), tr("最後の1手が 2・ジョーカー・8（8切りありのとき）だと反則。上がっても大貧民に落ちます（初期設定はあり）")),
             (tr("階級とカード交換"), tr("上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します")),
         ]
     }
@@ -783,8 +832,8 @@ struct DaifugoRuleSheet: View {
 
 // MARK: - New Game Sheet
 
-/// 右上の新規で開く開始シート（CPU の強さ・#2604、しばり・#2605）。強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
-/// しばりは既定オフで、選んだ値は次のゲームにも引き継ぐ。
+/// 右上の新規で開く開始シート（CPU の強さ・#2604、ローカルルール・#2605・#2721）。強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+/// ローカルルールの初期値は従来の採用ルール（8切り・反則上がりあり）で、選んだ値は次のゲームにも引き継ぐ。
 struct DaifugoNewGameSheet: View {
     @State private var level: Int
     @State private var ruleSet: DaifugoRuleSet
@@ -814,16 +863,30 @@ struct DaifugoNewGameSheet: View {
                     tr("出せる最弱の手を選ぶ"), tr("強い札を温存し、革命も狙う"),
                 ])
             }
-            GameSetupSection(tr("しばり")) {
-                HStack(spacing: 12) {
-                    GameSetupChooser(title: tr("なし"), subtitle: tr("ふつうのルール"),
-                                     selected: !ruleSet.isBindEnabled, accent: Theme.fillMuted,
-                                     onAccent: .white) { ruleSet.isBindEnabled = false }
-                    GameSetupChooser(title: tr("あり"), subtitle: tr("同じ柄が2回続くとその柄だけ"),
-                                     selected: ruleSet.isBindEnabled, accent: Theme.fillStrong,
-                                     onAccent: .white) { ruleSet.isBindEnabled = true }
+            GameSetupSection(tr("ローカルルール")) {
+                VStack(spacing: 8) {
+                    ruleToggle(tr("8切り"), tr("8を出すと場が流れ、出した人から"), $ruleSet.isEightCutEnabled)
+                    ruleToggle(tr("しばり"), tr("同じ柄が2回続くとその柄だけ"), $ruleSet.isBindEnabled)
+                    ruleToggle(tr("階段"), tr("同じ柄の連番3枚以上を出せる"), $ruleSet.isSequenceEnabled)
+                    ruleToggle(tr("都落ち"), tr("前の大富豪が1位でないと大貧民へ"), $ruleSet.isDownfallEnabled)
+                    ruleToggle(tr("反則上がり"), tr("最後が 2・ジョーカー・8 だと最下位"), $ruleSet.isFoulFinishEnabled)
                 }
             }
         }
+    }
+
+    /// ローカルルール 1 つぶんのあり／なしの行。行ぜんたいが 44pt 以上のスイッチ。
+    private func ruleToggle(_ title: String, _ detail: String, _ isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).themeBody(16, weight: .bold).foregroundStyle(Theme.ink)
+                Text(detail).themeCaption(12).foregroundStyle(Theme.inkSub)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+            }
+        }
+        .tint(Theme.fillStrong)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .frame(minHeight: 44)
+        .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.fillMuted.opacity(0.12)))
     }
 }

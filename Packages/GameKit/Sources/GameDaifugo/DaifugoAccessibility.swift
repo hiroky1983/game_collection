@@ -84,4 +84,22 @@ public enum DaifugoAccessibility {
         if isTurn { parts.append(tr("%@の番", name)) }
         return parts.joined(separator: tr("、"))
     }
+
+    /// ルール上の出来事の一言説明（#2721）。画面に出す文と読み上げ文は同じ。
+    public static func ruleEventText(_ event: DaifugoRuleEvent) -> String {
+        switch event {
+        case .eightCut:
+            return tr("8切り：場が流れて、8を出した人から")
+        case .revolution:
+            return tr("革命：カードの強さが逆になります")
+        case .counterRevolution:
+            return tr("革命返し：カードの強さが元に戻ります")
+        case .bind(let suits):
+            return tr("しばり：場が流れるまで%@のカードだけ出せます", DaifugoRules.bindLabel(suits))
+        case .foulFinish(let includesEight):
+            return includesEight
+                ? tr("反則上がり：最後が 2・8・ジョーカーなので最下位です")
+                : tr("反則上がり：最後が 2・ジョーカーなので最下位です")
+        }
+    }
 }
