@@ -797,7 +797,7 @@ public extension HowToPlayGuide {
             HowToPlayItem(tr("A と K もつながります。マークは関係ありません。")),
             HowToPlayItem(tr("順番はなく、CPU も同時に出してきます。出したぶん、山札から手札に補充されます。")),
             HowToPlayItem(tr("どちらも出せなくなったら「めくる」。両方の山札から 1 枚ずつ台札に置きます。")),
-            HowToPlayItem(tr("手札も山札も先に出し切ったほうの勝ちです。")),
+            HowToPlayItem(tr("手札も山札も先に出し切ったほうの勝ち。山札が無くなったら、めくらずに手札を出し切れば勝ちです。")),
         ],
         notes: [
             tr("出せない札を払うと手札に戻ります（ペナルティはありません）。札のタップでも出せます。"),
