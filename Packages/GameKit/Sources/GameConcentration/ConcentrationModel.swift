@@ -301,13 +301,13 @@ public final class ConcentrationModel {
         // sleep の直後とループ先頭でキャンセルを見る（#725。大富豪 #287 と同形）。
         while currentPlayer == .cpu && !isGameOver {
             guard !Task.isCancelled else { isThinking = false; return }
-            try? await Task.sleep(nanoseconds: 600_000_000)
+            try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let first = ai.chooseCard(cards: cards, firstFlipped: nil)
             flipCard(index: first)
 
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let second = ai.chooseCard(cards: cards, firstFlipped: first)
@@ -325,7 +325,7 @@ public final class ConcentrationModel {
 
             if isGameOver { isThinking = false; return }
 
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: 350_000_000)
         }
 
         isThinking = false
