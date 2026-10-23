@@ -105,7 +105,7 @@ Packages/GameKit/
         - トランプの「スピード」を CPU と 1 対 1 で遊ぶ。
         - 赤 26 枚（あなた）・黒 26 枚（CPU）、手札 4 枚、台札 2 山に 1 つ違い（A-K もつながる）の札を重ね、出した位置に山札から補充。
         - **手番が無い同時進行**で、本アプリで唯一 `AITurnGuarded` を使わない: Model が「次に待つ時間」（`nextCPUWait()`）と「待ち終えたらすること」（`performCPUAction()`）を返し、View の `.task(id: cpuRun)` が待つだけ（時計は注入・テストは実時間を待たない）。
-        - CPU の速さ 3 段（ゆっくり 2.6 秒 / ふつう 1.4 秒 / はやい 0.75 秒・±20% の揺らぎ）で、あなたの側に制限時間は無い。
+        - CPU の速さ 3 段（ゆっくり 3.2 秒 / ふつう 1.9 秒 / はやい 1.2 秒・±20% の揺らぎ。全段を遅くした #2746・`release/v1.1.14`）で、あなたの側に制限時間は無い。
         - あなたの手札に台札へ出せる札が無いあいだだけ、CPU の反応の間を半分にする（`SpeedRules.humanStuckReactionRatio` = 0.5・`SpeedModel.effectiveReaction`・待つたびに `humanHasPlayable` で判定するので出せる札ができた瞬間に元の速さへ戻る。両者つまったときの「めくる」の間 `stuckDelay` には掛けない・#2690。`release/v1.1.14` で追加）。
         - 設定の「ゆっくりモード」（`FeedbackPreference.actionSlowMode`・アクション枠共通）がオンなら CPU の反応と「めくる」までの間を 1.5 倍（ゲーム開始時に焼き込み）。
         - どちらも出せなければ「めくる」（両方の山札から 1 枚ずつ。0.9 秒後に CPU も自動でめくる。山札が尽きたら自分側の台札を切り直す）で、めくるだけが 20 回続いたら引き分け。
@@ -642,6 +642,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - **CPU の強さ・難易度で記録を分けるゲーム**（`release/v1.1.14`。どれも「ふつう」は区分なしで、それまでの記録を引き継ぐ）:
   - チェス・囲碁・五目並べ・オセロ（#2617）: `BoardHintBudget.winLossScore(gameID:aiLevel:)` が `CPUStrength.recordVariantKey` を区分にする。
     人間同士の対局（チェス）は「ふつう」＝区分なしに寄せる。ゲームの行（`summaryLine`）は強さをまたいで合算する
+  - ハーツ・ババ抜き（#2716）: `recordScore` が `CPUStrength.recordVariantKey` を区分にする（大富豪・いろリレーと同じ作法）。
+    決着の `gameDidFinish` の `isReviewHighlight` は `CPUStrength.isReviewWorthy`（「入門」「かんたん」の勝ちでは評価を頼まない）
   - 神経衰弱（#2608）: CPU の強さ別（`cpu-weak` / `cpu-strong`。枚数では分けない）
   - カードしりとり（#2608）: ノルマの難易度別（`quota-easy` / `quota-hard`。「ふつう」は区分なし。`endless` は従来どおり別枠）。順位表は持たない
   - 区分を足すときは `RecordVariantLabels` の表にキーと訳を足す（走査テスト `RecordVariantLabelCoverageTests` が漏れを赤くする）
@@ -974,6 +976,16 @@ Game Center の ID。英語の訳文には他社の商標名を入れない（�
 - **解ける**: 場が流れたとき（8切り・全員パス）と決着で空に戻す（`clearField` / `concludeGame`）
 - **選択の保存**: `SnapshotStore` のキー `"daifugo-rules"`（`DaifugoModel.ruleSetID`。中断データ・持ち越しとは別枠で、ハブの「続きから」には影響しない）。次のゲーム・次回起動にも引き継ぐ
 - **導線**: 開幕には出さない（#192 で開幕モーダルを廃止済み）。右上の「新規」の開始シート（`DaifugoNewGameSheet`・`GameSetupSheet` の `.versus`）に、#2604 の「CPU の強さ」と並べて「しばり なし／あり」を置く（独自のシート・「⋯」メニュー・リザルトのボタンは持たない）。表示は場のヘッダーの「しばり ♠」の札（VoiceOver は「しばり中、スペードのカードだけ出せます」）
+
+### 大富豪: ローカルルールの拡張と一言説明（#2721・`release/v1.1.15`）
+
+「しばり」だけだった `DaifugoRuleSet` を 5 項目に広げた: `isEightCutEnabled`（8切り・既定オン）/ `isBindEnabled`（しばり・オフ）/ `isSequenceEnabled`（階段・オフ）/ `isDownfallEnabled`（都落ち・オフ）/ `isFoulFinishEnabled`（反則上がり・オン）。既定は従来の採用ルールと同じで、**1 局 = 1 RuleSet**・保存先（`daifugo-rules`・中断データ）も上の「しばり」の節のまま。欠けたキーは既定で補って読むので旧データ（しばりだけ）も読める。選ぶ場所は開始シートのトグル 5 行。
+
+- **階段**: 同じスートの連番 3 枚以上（強さの並び 3…K・A・2 で連番。2→3 の輪はつながない）。場と同じ枚数で、場が階段のときは階段だけ・場が同じ数字の組のときは組だけが出せる（`DaifugoPlayShape`）。ジョーカーは穴か端を埋め、強さは出す側に有利な置き方で数える。階段は革命にならず、8 を含む階段は 8切りが働く。CPU は階段も合法手に数え、親番では弱い札から始まる階段を優先する（`orderingStrength`）
+- **8切りなし**: 場は流れない。8 は反則上がりの札にも数えない（`isFoulFinish(_:ruleSet:)`）。反則上がりなしの局では最後の 1 手が 2・ジョーカーでも順位を落とさない
+- **都落ち**: 前のゲームの大富豪（`lastRanking.first`）が 1 位で上がれなかったら、投了者を除く最下位に落とす（`DaifugoRules.downfallPlayer` / `ranking(previousTycoon:)`。反則で下がった場合も含む）。1 ゲーム目は起きない。`downfallPlayer` は決着した局だけ持ち、次のゲームで消える（中断データには載せない）。前の順位 `lastRanking` は中断データ・持ち越し（`DaifugoCarryOver`）から復元する
+- **起きた瞬間の一言説明**: 8切り・革命・革命返し・しばり（掛かった瞬間）・反則上がりが起きると `ruleNotice`（`serial` 付き）を入れ、`DaifugoView.ruleNoticeBanner` が場の上に 3.5 秒出す（`.task(id: serial)`）。VoiceOver にも読み上げる。保存せず、決着・次のゲームで消える
+- 記録は 1 本のまま（ルール別には分けない。CPU 強さ別の区分が既にあり、二重に割ると薄まるため。必要なら別 Issue）
 
 ### 大富豪: カード交換の帯（#2607・`release/v1.1.14`）
 
