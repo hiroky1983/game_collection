@@ -399,6 +399,50 @@
           }
         }
       }
+    },
+    "その方向には動かせません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't move that way"
+          }
+        }
+      }
+    },
+    "得点 +%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score +%lld"
+          }
+        }
+      }
+    },
+    "%1$lld行%2$lld列に %3$lld が出ました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%3$lld appeared at row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -829,6 +829,50 @@
           }
         }
       }
+    },
+    "%lld を入れました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entered %lld"
+          }
+        }
+      }
+    },
+    "違います。ミス%lld回目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong. Mistake number %lld"
+          }
+        }
+      }
+    },
+    "違います" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong"
+          }
+        }
+      }
+    },
+    "出題のマスです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That square is part of the puzzle"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
