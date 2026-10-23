@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import CoreEngine
 @testable import GameSpeed
 
 // MARK: - 1 局を時計を進めながら最後まで打つ計測器（会長 QA 2026-10-24「後半がグダる」）
@@ -69,12 +70,10 @@ struct SpeedPacingGame: Sendable {
 @MainActor
 enum SpeedPacingSimulator {
     /// 小さな擬似乱数（人間役の揺らぎ用。Model の乱数と混ぜない）。
+    /// 共通の `SplitMix64`（`CoreEngine`）を 0〜1 の小数で引く。
     struct Rand {
-        var state: UInt64
-        mutating func next() -> Double {
-            state = state &* 6364136223846793005 &+ 1442695040888963407
-            return Double(state >> 11) / Double(1 << 53)
-        }
+        var generator: SplitMix64
+        mutating func next() -> Double { Double.random(in: 0..<1, using: &generator) }
     }
 
     static func play(seed: UInt64, level: SpeedLevel, bot: SpeedPacingBot) -> SpeedPacingGame {
@@ -83,7 +82,7 @@ enum SpeedPacingSimulator {
                                hints: FeedbackPreference(key: "pacing.hints", defaults: .init(suiteName: "asobiba.speed.pacing")!, defaultValue: true),
                                slowMode: FeedbackPreference(key: "pacing.slow", defaults: .init(suiteName: "asobiba.speed.pacing")!, defaultValue: false))
         model.start(SpeedSettings(level: level))
-        var rand = Rand(state: seed &* 0x9E3779B97F4A7C15 &+ 1)
+        var rand = Rand(generator: SplitMix64(seed: seed &+ 0x5EED))
         var game = SpeedPacingGame()
         var inBack = false
         var humanArmedAt: Date?
