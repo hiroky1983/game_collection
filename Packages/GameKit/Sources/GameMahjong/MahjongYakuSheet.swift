@@ -24,6 +24,7 @@ public struct MahjongYakuSheet: View {
                     }
                 }
             }
+            MahjongPointsGuideView()
         }
     }
 

@@ -213,6 +213,17 @@
         }
       }
     },
+    "%lld点オール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld each"
+          }
+        }
+      }
+    },
     "%lld符" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -253,6 +264,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Draw 1"
+          }
+        }
+      }
+    },
+    "11〜12飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "11–12 han"
+          }
+        }
+      }
+    },
+    "13飜以上" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "13+ han"
           }
         }
       }
@@ -367,6 +400,28 @@
         }
       }
     },
+    "20符から始めて足します。門前でロン +10、ツモ +2、刻子（ポン・暗刻）は明刻 2・暗刻 4（1・9・字牌は倍）、槓は明槓 8・暗槓 16（1・9・字牌は倍）、役牌の雀頭 +2、嵌張・辺張・単騎待ち +2。最後に10符単位へ切り上げます。七対子は25符固定、平和はツモ20符・ロン30符です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start at 20 fu and add: concealed ron +10, tsumo +2, triplets (pon / concealed) open 2 / concealed 4 (doubled for terminals and honors), kans open 8 / concealed 16 (doubled for terminals and honors), yakuhai pair +2, closed / edge / pair wait +2. Round up to the next 10 fu. Seven Pairs is fixed at 25 fu; Pinfu is 20 fu on tsumo and 30 fu on ron."
+          }
+        }
+      }
+    },
+    "25符は七対子（2飜以上）です。20符は平和のツモだけなので、ロンの表にはありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "25 fu is Seven Pairs (2 han or more). 20 fu only happens with a Pinfu tsumo, so it isn't in the ron table."
+          }
+        }
+      }
+    },
     "2位" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -444,6 +499,39 @@
         }
       }
     },
+    "5飜（4飜40符・3飜70符から）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 han (from 4 han 40 fu or 3 han 70 fu)"
+          }
+        }
+      }
+    },
+    "6〜7飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6–7 han"
+          }
+        }
+      }
+    },
+    "8〜10飜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8–10 han"
+          }
+        }
+      }
+    },
     "CPU3人と一局戦（東1局のみ）。持ち点は25000点から" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -473,6 +561,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "An East Round against 3 CPUs (East 1 to East 4). Everyone starts with 25000 points"
+          }
+        }
+      }
+    },
+    "① 符を数える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "① Count fu"
+          }
+        }
+      }
+    },
+    "② 基本点を出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "② Find the base points"
+          }
+        }
+      }
+    },
+    "③ 支払いを出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "③ Work out the payment"
           }
         }
       }
@@ -1291,6 +1412,17 @@
         }
       }
     },
+    "ロンは、子なら基本点×4、親なら基本点×6。ツモは、子の和了なら親が基本点×2・子が基本点×1ずつ、親の和了なら全員が基本点×2ずつ払います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ron: base × 4 for a non-dealer, base × 6 for the dealer. Tsumo: when a non-dealer wins, the dealer pays base × 2 and each other player pays base × 1; when the dealer wins, everyone pays base × 2."
+          }
+        }
+      }
+    },
     "・" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1632,6 +1764,17 @@
         }
       }
     },
+    "基本点 ＝ 符 × 2^(飜+2)。2000を超える（満貫以上）と、飜数で決まった基本点になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Base points = fu × 2^(han+2). Once that reaches 2000 (mangan or higher), the base points are set by the han count instead."
+          }
+        }
+      }
+    },
     "場の風（東風戦は常に東）を3枚そろえる（鳴いても付く）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1661,6 +1804,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Daisuushii"
+          }
+        }
+      }
+    },
+    "子 ロン %1$@ ・ ツモ %2$@　親 ロン %3$@ ・ ツモ %4$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non-dealer: ron %1$@ / tsumo %2$@   Dealer: ron %3$@ / tsumo %4$@"
+          }
+        }
+      }
+    },
+    "子のロン（符 × 飜）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non-dealer ron (fu × han)"
           }
         }
       }
@@ -1908,6 +2073,17 @@
         }
       }
     },
+    "役満は %1$lld点（子）・%2$lld点（親）。複数そろうと倍になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yakuman is %1$lld points (non-dealer) / %2$lld (dealer), and doubles when you stack more than one."
+          }
+        }
+      }
+    },
     "役満は飜数によらず点数が固定で、複数そろうと倍役満になります。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2025,6 +2201,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rules not used"
+          }
+        }
+      }
+    },
+    "支払いは100点単位に切り上げます。このアプリでは、4飜30符・3飜60符などの「切り上げ満貫」はありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payments are rounded up to the next 100 points. This app has no \"rounded-up mangan\" (4 han 30 fu, 3 han 60 fu, etc.)."
           }
         }
       }
@@ -2315,6 +2502,28 @@
         }
       }
     },
+    "満貫以上の点数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mangan and above"
+          }
+        }
+      }
+    },
+    "点数の数え方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How scoring works"
+          }
+        }
+      }
+    },
     "白・發・中のどれかを3枚そろえる（鳴いても付く）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2399,6 +2608,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In Riichi"
+          }
+        }
+      }
+    },
+    "符" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fu"
           }
         }
       }
@@ -2553,6 +2773,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pass"
+          }
+        }
+      }
+    },
+    "親のロン（符 × 飜）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dealer ron (fu × han)"
           }
         }
       }
