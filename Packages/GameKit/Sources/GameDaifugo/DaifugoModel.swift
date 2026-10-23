@@ -2,6 +2,12 @@ import Foundation
 import Observation
 import Core
 
+/// 革命の切り替わり・8切りが起きた合図（#2713）。`serial` が変わるたびに場を弾ませ、`byHuman` なら一段強く弾ませる。
+public struct FieldImpact: Equatable, Sendable {
+    public let serial: Int
+    public let byHuman: Bool
+}
+
 // MARK: - Phase
 
 public enum DaifugoPhase: String, Equatable, Sendable, Codable {
@@ -127,6 +133,8 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var recordResult: RecordResult?
     /// 各プレイヤーの直近の動き（「パス」「8切り！」など）。画面のバッジ表示用。
     public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
+    /// 直近の「革命の切り替わり・8切り」（#2713）。画面が場を弾ませる合図で、保存はしない。
+    public private(set) var fieldImpact: FieldImpact?
     /// 手札から選択中のカード ID。
     public private(set) var selected: Set<Int> = []
     /// CPU の強さ（`CPUStrength.rawValue`・#2604）。開始シートで選び、次のゲームにも引き継ぐ。
@@ -593,6 +601,11 @@ public final class DaifugoModel: AITurnGuarded {
         }
 
         let clears = DaifugoRules.clearsField(cards)
+        if clears || DaifugoRules.triggersRevolution(cards) {
+            fieldImpact = FieldImpact(serial: (fieldImpact?.serial ?? 0) + 1, byHuman: player == Self.humanIndex)
+            // 自分が起こしたときだけ一段強い手応え（CPU の着手は無音のまま）。
+            if player == Self.humanIndex { services?.feedback.impact(.medium) }
+        }
         if clears { note += finished ? "（8切り）" : " 8切り！" }  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         lastActions[player] = note
 
