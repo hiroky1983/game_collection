@@ -144,6 +144,7 @@ public struct OpponentSeat<Fan: View>: View {
     private let isCurrent: Bool
     private let cardCount: Int
     private let lastAction: String
+    private let lastActionOpacity: Double
     private let accessibilityLabel: String
     private let fan: () -> Fan
     @Environment(\.cardTableInk) private var ink
@@ -154,15 +155,17 @@ public struct OpponentSeat<Fan: View>: View {
     ///   - isCurrent: いまこの人の番か（黄色い輪）。
     ///   - cardCount: 残り枚数。1 枚なら黄色の札で目立たせる。
     ///   - lastAction: 直前の手（空なら吹き出しを透明にして高さだけ残す。CPU が打つたびに場の大きさが揺れないように）。
+    ///   - lastActionOpacity: 吹き出しの濃さ（既定 1）。何手も前の手を薄くして、今起きたことと見分けるのに使う。
     ///   - accessibilityLabel: 席 1 まとまりの読み上げ文。
     ///   - fan: 裏向きの札の束（`OpponentCardFan`）。
     public init(index: Int, diameter: CGFloat, isCurrent: Bool, cardCount: Int, lastAction: String,
-                accessibilityLabel: String, @ViewBuilder fan: @escaping () -> Fan) {
+                lastActionOpacity: Double = 1, accessibilityLabel: String, @ViewBuilder fan: @escaping () -> Fan) {
         self.index = index
         self.diameter = diameter
         self.isCurrent = isCurrent
         self.cardCount = cardCount
         self.lastAction = lastAction
+        self.lastActionOpacity = lastActionOpacity
         self.accessibilityLabel = accessibilityLabel
         self.fan = fan
     }
@@ -182,7 +185,7 @@ public struct OpponentSeat<Fan: View>: View {
                 .padding(.horizontal, 6).padding(.vertical, 3)
                 .background(Capsule().fill(Color.white))
                 .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                .opacity(lastAction.isEmpty ? 0 : 1)
+                .opacity(lastAction.isEmpty ? 0 : lastActionOpacity)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
