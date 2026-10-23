@@ -168,6 +168,8 @@ public struct OldMaidView: View {
 
     /// CPU の席・卓のラベルが文字サイズ設定で拡大する上限倍率（大富豪 #1782 と同じ）。
     private static let seatTextMaxScale: CGFloat = 1.6
+    /// 直前の「引く」に関わらない席の吹き出しの濃さ。
+    private static let staleBubbleOpacity: Double = 0.35
 
     /// CPU 3 人の席。見せ方は大富豪・いろリレーと同じ共通部品（`OpponentSeat`・#2531）:
     /// 色と記号の丸いアイコン・手番の黄色い輪・裏向きのトランプの束・残り枚数・直前の手の吹き出し。
@@ -186,6 +188,8 @@ public struct OldMaidView: View {
         // あがった人は札が無いので、吹き出しに「n位であがり」を出す（以前の白い札の 2 行目）。
         let finished = finishedLabel(index)
         let bubble = finished ?? action
+        // 直前の「引く」に関わらない人の吹き出しは何手も前の出来事なので薄くする（配った直後は直前の「引く」が無いので全員そのまま）。
+        let isStale = model.game?.lastTransfer.map { $0.from != index && $0.to != index } ?? false
         let back = metrics.seatCardMetrics
         var spoken = [model.playerName(index), finished ?? tr("残り%lld枚", count)]
         if finished == nil, !action.isEmpty { spoken.append(action) }
@@ -193,6 +197,7 @@ public struct OldMaidView: View {
         if isCurrent { spoken.append(tr("%@の番", model.playerName(index))) }
         return OpponentSeat(
             index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent, cardCount: count, lastAction: bubble,
+            lastActionOpacity: isStale ? Self.staleBubbleOpacity : 1,
             accessibilityLabel: spoken.joined(separator: tr("、"))
         ) {
             OpponentCardFan(count: count, cardWidth: back.width, cardHeight: back.height) {
@@ -845,6 +850,7 @@ struct OldMaidNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            discardsProgress: true,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {
