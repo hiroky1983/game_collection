@@ -1,4 +1,5 @@
 import Testing
+import CoreGraphics
 import Core
 import CoreEngine
 @testable import GameSpeed
@@ -106,6 +107,46 @@ struct SpeedModuleTests {
     func handFits() {
         #expect(SpeedHandLayout.fits(screenWidth: 375))
         #expect(SpeedHandLayout.cardWidth(contentWidth: 375 - FullScreenGameLayoutMetrics.sideInset * 2) >= 44)
+    }
+
+    /// 会長 QA 2026-10-23「スピードの画面がチカチカフラッシュする」の再発防止。補充された札は `.transition(.scale)` で
+    /// ほぼ 0 倍から出てくるので、札の側で枠を測ると幅 0.0007pt の枠が残り、台札へ飛ぶ札が 14 万倍に拡大されて
+    /// 札の面が画面全体を白く覆っていた。
+    @Test("台札へ飛ぶ札の倍率は、測った手札の枠が潰れていても台札の大きさの上限を超えない")
+    func flightScaleIsBounded() {
+        // 実際に記録された潰れた枠（幅 0.0007pt）と台札の幅 98pt。
+        #expect(SpeedFlight.pileScale(handWidth: 0.0007, pileWidth: 98) == SpeedTableLayout.maxPileRatio)
+        #expect(SpeedFlight.pileScale(handWidth: 70, pileWidth: 98) == 1.4)
+        #expect(SpeedFlight.pileScale(handWidth: 70, pileWidth: 70) == 1)
+        #expect(SpeedFlight.pileScale(handWidth: 0, pileWidth: 98) == 1)
+        #expect(SpeedFlight.pileScale(handWidth: nil, pileWidth: 98) == 1)
+        // どの画面の寸法でも、台札 ÷ 手札は 1〜maxPileRatio に収まる（上限で切っても見た目は変わらない）。
+        for size in [CGSize(width: 375, height: 667), CGSize(width: 402, height: 874), CGSize(width: 1024, height: 1366), .zero] {
+            let metrics = SpeedTableLayout.metrics(contentSize: size)
+            let ratio = metrics.pileCard.width / metrics.handCard.width
+            #expect(ratio >= 1 && ratio <= SpeedTableLayout.maxPileRatio + 0.0001)
+        }
+    }
+
+    @Test("手札の枠は、拡大縮小の出入りをする札の外（動かない枠）で測る")
+    func handFrameIsMeasuredOutsideTransition() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains(".cardDropTarget(SpeedSlot.hand(id), in: Self.tableSpace)"))
+        #expect(!code.contains(".cardDropTarget(SpeedSlot.hand(card.id)"), "出入りで縮む札の側で枠を測っている")
+        #expect(code.contains("SpeedFlight.pileScale(handWidth: metrics.width"), "飛ぶ札の倍率を寸法の幅から上限つきで決めていない")
+    }
+
+    /// 会長 QA 2026-10-23「相手が出したアニメーションが無く、急に札が入れ替わったように感じる」。
+    @Test("CPU が出した札も CPU の手札の位置から台札へ飛び、台札は下の札を重ねて見せる")
+    func cpuPlayFlies() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains("flyCPUPlay(hand: hand, tops: tops)"), "CPU の着手のあとに飛ぶ札を出していない")
+        #expect(code.contains(".cardDropTarget(SpeedSlot.cpu(card.id), in: Self.tableSpace)"), "CPU の札の位置を測っていない")
+        #expect(code.contains("fromScale: SpeedTableLayout.cpuCardRatio"), "CPU の札の大きさから飛び始めていない")
+        #expect(code.contains("ForEach(model.piles[index].suffix(3))"), "台札が 1 枚だけで、飛んでくるあいだ空いて見える")
+        // CPU の着手は無音・触覚なし（#2726 の効果音も CPU では鳴らさない）。飛ぶ演出の側で鳴らさない。
+        let body = try #require(code.range(of: "private func flyCPUPlay").map { String(code[$0.lowerBound...].prefix(700)) })
+        #expect(!body.contains("feedback"), "CPU の札を飛ばすときに音・触覚を鳴らしている")
     }
 
     /// 柵越えおじさんで、モデルのテストは緑なのに実際の `DragGesture` で動かなかった事故（時刻の扱い）の再発防止。

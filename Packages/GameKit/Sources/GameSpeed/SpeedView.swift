@@ -173,7 +173,10 @@ public struct SpeedView: View {
         while !Task.isCancelled, model.cpuRun == run, let wait = model.nextCPUWait() {
             do { try await Task.sleep(for: wait) } catch { return }
             guard !Task.isCancelled, model.cpuRun == run else { return }
+            let hand = model.cpuHand
+            let tops = model.tops
             withGameAnimation { model.performCPUAction() }
+            flyCPUPlay(hand: hand, tops: tops)
         }
     }
 
@@ -253,6 +256,8 @@ public struct SpeedView: View {
             HStack(spacing: SpeedTableLayout.cpuCardSpacing) {
                 ForEach(model.cpuHand) { card in
                     SpeedCardView(card: card, metrics: cpuMetrics)
+                        // 出した札を台札へ飛ばす起点（中心だけ使う。出入りの拡大縮小でも中心は動かない）。
+                        .cardDropTarget(SpeedSlot.cpu(card.id), in: Self.tableSpace)
                         .id(card.id)
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -300,14 +305,15 @@ public struct SpeedView: View {
             if let lifted, model.showsHints { return SpeedRules.canPlay(lifted.card, onto: top) }
             return false
         }()
-        // 台札へ飛んでいる途中の札は、着くまで台札の側では見せない（同じ札が 2 枚見えないように）。
-        let arriving = top.map { card in flights.contains { $0.card.id == card.id && $0.isToPile } } ?? false
         return Button { tapPile(index) } label: {
             ZStack {
                 CardSlot(metrics: metrics, systemImage: "arrow.down.to.line")
-                if let top {
-                    SpeedCardView(card: top, metrics: metrics, highlighted: accepts)
-                        .id(top.id)
+                // 上の数枚を重ねて置く。飛んでくる札が着くまでのあいだも下の札が見えたままになり、
+                // 台札が空いて見えたり急に差し替わったりしない（会長 QA 2026-10-23）。
+                ForEach(model.piles[index].suffix(3)) { card in
+                    // 台札へ飛んでいる途中の札は、着くまで台札の側では見せない（同じ札が 2 枚見えないように）。
+                    let arriving = flights.contains { $0.card.id == card.id && $0.isToPile }
+                    SpeedCardView(card: card, metrics: metrics, highlighted: card == top && accepts)
                         .opacity(arriving ? 0 : 1)
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
@@ -333,14 +339,28 @@ public struct SpeedView: View {
         let handMetrics = metrics.handCard
         return HStack(spacing: SpeedHandLayout.spacing) {
             ForEach(Array(slots.enumerated()), id: \.offset) { position, id in
-                if let id, let card = model.humanHand.first(where: { $0.id == id }) {
-                    handCard(card, position: position, metrics: handMetrics,
-                             isPlayable: playable.contains(card.id), showsHints: showsHints)
-                } else {
-                    // 山札が尽きて空いた枠。ほかの札を寄せない（狙った札の位置が動かない）。
-                    CardSlot(metrics: handMetrics)
-                        .frame(width: handMetrics.width, height: handMetrics.height)
-                        .accessibilityHidden(true)
+                ZStack {
+                    if let id, let card = model.humanHand.first(where: { $0.id == id }) {
+                        handCard(card, position: position, metrics: handMetrics,
+                                 isPlayable: playable.contains(card.id), showsHints: showsHints)
+                    } else {
+                        // 山札が尽きて空いた枠。ほかの札を寄せない（狙った札の位置が動かない）。
+                        CardSlot(metrics: handMetrics)
+                            .frame(width: handMetrics.width, height: handMetrics.height)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(width: handMetrics.width, height: handMetrics.height)
+                // 札の枠は、補充の札の `.transition(.scale)` の外（動かない枠）で測る。札の側で測ると、出てきた瞬間の
+                // ほぼ 0 倍に縮んだ枠（幅 0.0007pt）が残り、台札へ飛ぶ札の倍率が 14 万倍になって画面全体が白く光った
+                // （会長 QA 2026-10-23「スピードの画面がチカチカフラッシュする」）。
+                .background {
+                    // 選択中の札は 8pt 浮かせて見せているので、測る枠もそろえる（払いのつかみ位置・飛び始めの位置）。
+                    if let id {
+                        Color.clear
+                            .offset(y: model.selectedID == id ? SpeedHandLayout.selectedLift : 0)
+                            .cardDropTarget(SpeedSlot.hand(id), in: Self.tableSpace)
+                    }
                 }
             }
             SpeedStockView(metrics: handMetrics, count: model.humanStock.count)
@@ -360,11 +380,10 @@ public struct SpeedView: View {
             highlighted: showsHints && isPlayable && !isSelected,
             dimmed: showsHints && !isPlayable && !isSelected && model.phase == .playing
         )
-        .offset(y: isSelected ? -8 : 0)
+        .offset(y: isSelected ? SpeedHandLayout.selectedLift : 0)
         .gameAnimation(.spring(response: 0.2), value: isSelected)
         // 持ち上げている間・跳ね返って戻る途中は、元の位置を空けておく（札は指 / 飛ぶ札の側で見せる）。
         .opacity(isAway ? 0 : 1)
-        .cardDropTarget(SpeedSlot.hand(card.id), in: Self.tableSpace)
         .contentShape(Rectangle())
         .gesture(swipeGesture(card))
         .id(card.id)
@@ -467,19 +486,29 @@ public struct SpeedView: View {
         }
     }
 
-    private func fly(_ card: SpeedCard, from: CGPoint, toPile pile: Int) {
+    /// 札を台札 `pile` へ飛ばす。`fromScale` は飛び始めの大きさ（手札の札に対する倍率。CPU の札は小さい）。
+    private func fly(_ card: SpeedCard, from: CGPoint, toPile pile: Int, fromScale: CGFloat = 1) {
         guard let target = pileFrames[pile] else { return }
-        // 台札の札は手札の札より大きいので、着くまでに台札の大きさへそろえる。
-        let scale = frames[.hand(card.id)].map { $0.width > 0 ? target.width / $0.width : 1 } ?? 1
+        // 台札の札は手札の札より大きいので、着くまでに台札の大きさへそろえる（倍率は飛ぶ札の側で寸法から決める）。
         flights.append(SpeedFlight(card: card, from: from, to: CGPoint(x: target.midX, y: target.midY),
-                                   toScale: scale, isToPile: true))
+                                   fromScale: fromScale, toWidth: target.width, isToPile: true))
+    }
+
+    /// CPU が出した札を、CPU の手札の位置から台札へ飛ばす（会長 QA 2026-10-23「相手が出したアニメーションが無く、
+    /// 急に札が入れ替わったように感じる」）。自分が払ったときと同じ飛び方・速さ。音は鳴らさない（CPU の着手は無音の決まり）。
+    /// 出す前の CPU の手札 `hand` と台札 `tops` を比べ、台札に増えた札が CPU の手札にあったものなら飛ばす。
+    private func flyCPUPlay(hand: [SpeedCard], tops: [SpeedCard?]) {
+        for (index, top) in model.tops.enumerated() where index < tops.count && top != tops[index] {
+            guard let top, hand.contains(top), let frame = frames[.cpu(top.id)] else { continue }
+            fly(top, from: CGPoint(x: frame.midX, y: frame.midY), toPile: index, fromScale: SpeedTableLayout.cpuCardRatio)
+        }
     }
 
     private func bounce(_ card: SpeedCard, from: CGPoint, home: CGRect) {
         let to = CGPoint(x: home.midX, y: home.midY)
         // ほとんど動いていなければ跳ね返しの演出は要らない。
         guard hypot(from.x - to.x, from.y - to.y) > 1 else { return }
-        flights.append(SpeedFlight(card: card, from: from, to: to, toScale: 1, isToPile: false))
+        flights.append(SpeedFlight(card: card, from: from, to: to, isToPile: false))
     }
 
     /// 指につく札と、飛ぶ / 跳ね返る札。当たり判定は持たない。
@@ -667,6 +696,8 @@ enum SpeedSlot: Hashable {
     case pile(Int)
     /// 手札の札（札の ID）。
     case hand(Int)
+    /// CPU の手札の札（札の ID）。出した札を飛ばす起点。
+    case cpu(Int)
 }
 
 /// 指についている札と、つかんだ位置（札の左上からのずれ）。
@@ -681,8 +712,10 @@ struct SpeedFlight: Identifiable, Equatable {
     let card: SpeedCard
     let from: CGPoint
     let to: CGPoint
-    /// 着いたときの大きさ（手札の札に対する倍率。台札は手札より大きい）。
-    let toScale: CGFloat
+    /// 飛び始めの大きさ（手札の札に対する倍率。CPU の札は手札より小さい）。
+    var fromScale: CGFloat = 1
+    /// 着く先の札の幅（台札）。nil なら手札の大きさのまま（跳ね返り）。
+    var toWidth: CGFloat?
     let isToPile: Bool
 
     /// 動きの長さ。台札へはすっと速く、跳ね返りはばねで少し揺らす（ミスの手応え）。
@@ -692,6 +725,14 @@ struct SpeedFlight: Identifiable, Equatable {
 
     /// 動き終えて消すまでの時間（動きの長さに少し足す）。
     var lifetime: Duration { isToPile ? .milliseconds(170) : .milliseconds(380) }
+
+    /// 台札へ飛ぶ札の着いたときの倍率（台札の枠の幅 ÷ 手札の札の寸法の幅）。以前は手札の札の**測った枠**で割っていて、
+    /// 出てくる途中の札（`.transition(.scale)` でほぼ 0 倍）の枠だと 14 万倍になり、札の面が画面全体を覆って白く光った
+    /// （会長 QA 2026-10-23「チカチカフラッシュする」）。寸法の幅で割り、台札の大きさの上限 `maxPileRatio` 倍までに抑える。
+    static func pileScale(handWidth: CGFloat?, pileWidth: CGFloat?) -> CGFloat {
+        guard let handWidth, let pileWidth, handWidth > 0, pileWidth > 0 else { return 1 }
+        return min(max(pileWidth / handWidth, 1), SpeedTableLayout.maxPileRatio)
+    }
 }
 
 /// 飛ぶ札 1 枚。出た瞬間に `from` から `to` へ動き出す（Reduce Motion ではすぐ着く）。
@@ -702,7 +743,7 @@ private struct SpeedFlightView: View {
 
     var body: some View {
         SpeedCardView(card: flight.card, metrics: metrics)
-            .scaleEffect(arrived ? flight.toScale : 1)
+            .scaleEffect(arrived ? SpeedFlight.pileScale(handWidth: metrics.width, pileWidth: flight.toWidth) : flight.fromScale)
             .shadow(color: .black.opacity(0.25), radius: 6, y: 4)
             .position(arrived ? flight.to : flight.from)
             .onAppear {
@@ -716,6 +757,8 @@ private struct SpeedFlightView: View {
 /// 手札の並びの寸法。札 4 枚 + 山札 1 枚を横 1 列に置き、画面の幅いっぱいまで札を大きくする（払いやすく）。
 enum SpeedHandLayout {
     static let spacing: CGFloat = 8
+    /// 選択中の札を浮かせる量。
+    static let selectedLift: CGFloat = -8
     /// 手札の札の幅の上限（iPhone の幅）。広い画面は `elementScale` 倍。
     static let maxCardWidth: CGFloat = 72
     /// 札の幅の下限（タップ標的の 44pt）。
