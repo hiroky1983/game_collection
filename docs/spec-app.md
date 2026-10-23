@@ -146,6 +146,15 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
   90% 以上」になる 10% 刻みの最大値（上から順に決定。段階表は `docs/analytics/shogi-1461-ladder.md`）。
   勝率表と計測条件は #1461 の PR / Issue コメント。計測は最適化ビルドの単体バイナリ（`Scripts/shogi-cpu-bench`）と
   `CPUBenchTests`（`CPU_BENCH=1` のときだけ走る）で、CI には入れない
+- **将棋の「達人」（#2698・v1.1.15 で UI に出す予定）**は、上の 4 段とは別の探索（`ShogiMasterEngine.swift`）。
+  段の番号は見送った「ガチ」の **3** を将棋だけで使い、`CPUStrength` には足さない（開始シートには出ない）。
+  `ShogiMasterEngine.engine(level:)` が番号からエンジンを選び、3 以外は今の `SimpleMinimaxEngine` のまま（既存 4 段・ヒントは不変）。
+  考える時間は実時間 2.5 秒で打ち切る（禁止「1 手 3 秒以内」に余裕を残す）。自前の盤（番兵つき 1 次元・差分 Zobrist）と
+  αβ の定番技法（反復深化＋アスピレーション・PVS・置換表・静止探索・王手延長・LMR・Futility）と、玉の周りの利きを見る評価で、
+  Null Move・1 手詰めの検出は計測で外した方が強かったので切ってある（`ShogiMasterOptions`）。
+  やねうら王は考え方だけを参考にした（GPLv3 のためソース・評価関数ファイルは持ち込まない）。
+  合格基準は「むずかしいに 100 局全勝」。計測は `Scripts/shogi-master-bench`（Linux でも動く単体バイナリ）、結果は
+  `docs/analytics/shogi-2698-master.md`
 - **チェスは #1398（v1.1.7）で、将棋の #1397 と同じ作り（局面数の上限＋見逃し。将棋はその後 #1461 で作り直した）に変えた**。局面数の上限は `ChessEngine.swift` の
   `normalNodeLimit` / `hardNodeLimit`、見逃しは `ChessMovePolicy`、入門は自分の手 1 手だけを読む。
   計測は `CPUBenchTests`（`CPU_BENCH=1`）。CPU 同士の対局計測は最適化ビルドの単体バイナリで回す
