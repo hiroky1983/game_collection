@@ -734,6 +734,17 @@
         }
       }
     },
+    "あと %@ で自己ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ short of your personal best"
+          }
+        }
+      }
+    },
     "自己ベスト更新！" : {
       "extractionState" : "manual",
       "localizations" : {

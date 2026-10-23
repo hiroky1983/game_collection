@@ -459,6 +459,14 @@ struct HomerunResultView: View {
         if model.ledger.canStart {
             HomerunStartButton(model: model, title: tr("もう一回"))
         } else {
+            // 自己ベストまであと少しのときだけ、広告を見てプレイの上に差を出す（#2724）。
+            if model.ledger.canPlayWithAd, let meters = HomerunRecoveryHint.metersToBest(
+                totalTenths: Int(((model.challenge?.totalDistance ?? 0) * 10).rounded()),
+                bestTenths: model.records.bestTotalTenths, isNewBest: model.isNewBest) {
+                Text(tr("あと %@ で自己ベスト", HomerunText.meters(Double(meters))))
+                    .themeBody(15, weight: .heavy)
+                    .foregroundStyle(Theme.coralText)
+            }
             HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue,
                                   showsLimitNotice: false)
             HomerunResetCountdown(freePlays: true, readsAloud: true)
