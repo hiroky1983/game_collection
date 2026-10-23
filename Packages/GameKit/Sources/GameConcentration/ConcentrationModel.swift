@@ -331,6 +331,50 @@ public final class ConcentrationModel {
         isThinking = false
     }
 
+    #if DEBUG
+    /// 撮影・動作確認用（Release には残らない）。`-concentrationScenario <name>` で局面を差し替える。
+    /// 記録・中断データには書かない（決着の記録を汚さない）。
+    ///
+    /// - `mid`: あなたの番。4 組が取られていて（あなた 3・CPU 1）、1 枚目をめくった途中
+    /// - `result`: 全部の札が取られた決着（あなた 7・CPU 5 で、あなたの勝ち。枚数は 12 ペアのとき）
+    public func applyDebugScenario(_ name: String) {
+        cancelAutoClear()
+        let pairs = pairCount.rawValue
+        let symbols = Array(ConcentrationFigure.allCases.prefix(pairs).map(\.rawValue))
+        // 並びを固定する（撮るたびに同じ盤になるように）: 1 組目の 2 枚は離して置く。
+        let order = symbols + symbols.reversed()
+        cards = order.enumerated().map { ConcentrationCard(id: $0.offset, symbol: $0.element) }
+        firstFlippedIndex = nil
+        lastMatchedIndices = []
+        mismatchedIndices = []
+        currentPlayer = .human
+        switch name {
+        case "mid":
+            let taken = Set(symbols.prefix(4))
+            for i in cards.indices where taken.contains(cards[i].symbol) {
+                cards[i].isFaceUp = true
+                cards[i].isMatched = true
+            }
+            playerScore = 3
+            cpuScore = 1
+            let first = symbols.count - 1
+            cards[first].isFaceUp = true
+            firstFlippedIndex = first
+        case "result":
+            for i in cards.indices {
+                cards[i].isFaceUp = true
+                cards[i].isMatched = true
+            }
+            cpuScore = pairs / 2 - 1
+            playerScore = pairs - cpuScore
+            isGameOver = true
+        default:
+            break
+        }
+        turnID += 1
+    }
+    #endif
+
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         cancelAutoClear()
         gameSerial += 1

@@ -177,7 +177,7 @@ struct CardTableSurfaceTests {
     /// `@Environment(\.cardTableInk)` を持っても既定の `.plain` しか届かず、フェルトの上に地の色が
     /// 乗る（verifier が最小構成で再現。フリーセルの仕切りと麻雀ソリティアのクリア文字で実際に起きた）。
     @Test("卓の上の色は画面の View 本体で読まず、盤の中の子 View（CardTableInkReader）で読む", arguments: [
-        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameOldMaid", "GameHearts",
+        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameOldMaid", "GameHearts", "GameConcentration",
     ])
     func tableInkIsReadInsideTheTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
