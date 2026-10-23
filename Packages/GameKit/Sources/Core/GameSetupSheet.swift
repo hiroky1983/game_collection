@@ -190,6 +190,8 @@ public struct GameSetupChooser: View {
         public var titleMinimumScale: CGFloat?
         /// 副題の縮小率。同上。
         public var subtitleMinimumScale: CGFloat?
+        /// 題名に使う行数の上限（既定 2）。1 にすると折り返さずに縮めて収める（将棋の 5 段の並び・#2698）。
+        public var titleLineLimit: Int = 2
 
         public init(
             title: TitleFont = .title(22),
@@ -276,7 +278,7 @@ public struct GameSetupChooser: View {
             }
         }
         .foregroundStyle(selected ? onAccent : Theme.ink)
-        .modifier(ShrinkToFit(minimumScale: metrics.titleMinimumScale))
+        .modifier(ShrinkToFit(minimumScale: metrics.titleMinimumScale, lineLimit: metrics.titleLineLimit))
     }
 
     private var subtitleText: some View {
@@ -292,10 +294,11 @@ public struct GameSetupChooser: View {
 /// 末尾が `...` になったりするのを防ぐ・#2318）。
 private struct ShrinkToFit: ViewModifier {
     let minimumScale: CGFloat?
+    var lineLimit: Int = 2
 
     func body(content: Content) -> some View {
         content
-            .lineLimit(2)
+            .lineLimit(lineLimit)
             .minimumScaleFactor(minimumScale ?? 0.6)
             .padding(.horizontal, 4)
     }

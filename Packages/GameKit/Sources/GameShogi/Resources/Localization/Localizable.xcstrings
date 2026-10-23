@@ -475,6 +475,28 @@
         }
       }
     },
+    "達人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master"
+          }
+        }
+      }
+    },
+    "さらに深く読む最強の段" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strongest: searches even deeper"
+          }
+        }
+      }
+    },
     "定跡＋深読み" : {
       "extractionState" : "manual",
       "localizations" : {

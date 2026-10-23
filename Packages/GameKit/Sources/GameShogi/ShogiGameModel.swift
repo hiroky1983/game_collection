@@ -134,7 +134,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
         // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
         // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: matchSetting.recordVariant) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -541,7 +541,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         persist()
         pendingInitialStart = false
         services?.gameDidRestart(
-            gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel), mode: matchSetting.analyticsMode)
+            gameID: gameID, level: ShogiMasterEngine.analyticsLevel(forLevel: aiLevel), mode: matchSetting.analyticsMode)
     }
 
     /// この局の手合いと落とす側（#2179）。開始局面と人間の座る側から毎回導く（状態として持たない）ので、
@@ -555,8 +555,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 決着に渡す成績。手合いごとに記録を分ける（平手は従来の保存先のまま）。
     private var recordScore: GameScore {
         var score = hints.winLossScore
-        score.variant = matchSetting.recordVariant
-        score.variantLabel = matchSetting.recordVariantLabel
+        score.variant = recordVariant
+        score.variantLabel = recordVariant.map { RecordVariantLabels.stored(gameID: "shogi", variant: $0) }
         return score
     }
 
@@ -830,4 +830,30 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
+}
+
+// MARK: - 達人（#2698）
+
+extension ShogiGameModel {
+    /// 記録の区分キー。手合いの区分に、達人のときだけ `master` を前に付ける（既存の段の記録と混ぜない）。
+    var recordVariant: String? {
+        ShogiMasterEngine.recordVariant(level: aiLevel, handicapVariant: matchSetting.recordVariant)
+    }
+}
+
+extension ShogiMasterEngine {
+    /// 開始シートに出す呼び名。
+    public static var label: String { tr("達人") }
+
+    /// 記録の区分キー。達人は既存の段（平手は区分なし＝通算の保存先）と混ざらないよう別の保存先にする。
+    /// 駒落ちは手合いのキーの前に付ける（`master-rook-player` など）。達人以外は手合いの区分のまま。
+    public static func recordVariant(level: Int, handicapVariant: String?) -> String? {
+        guard level == Self.level else { return handicapVariant }
+        return handicapVariant.map { "master-\($0)" } ?? "master"
+    }
+
+    /// 解析の段。達人は既存 4 段（novice/beginner/normal/hard）と分けるため最上級（`expert`）で送る。
+    public static func analyticsLevel(forLevel level: Int) -> AnalyticsLevel {
+        level == Self.level ? .expert : CPUStrength.analyticsLevel(forLevel: level)
+    }
 }

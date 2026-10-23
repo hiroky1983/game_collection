@@ -372,6 +372,17 @@
         }
       }
     },
+    "達人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master"
+          }
+        }
+      }
+    },
     "CPU%@" : {
       "extractionState" : "manual",
       "localizations" : {

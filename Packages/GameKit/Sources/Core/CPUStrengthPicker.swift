@@ -27,21 +27,54 @@ public extension CPUStrength {
 /// 4 ゲーム（将棋・チェス・五目並べ・オセロ）が同じ部品を使い、寸法も色も揃える。
 /// 呼び出し側は節の見出しごと `GameSetupSection("CPUの強さ")` で包む。
 public struct CPUStrengthPicker: View {
+    /// `CPUStrength` に無い、1 ゲームだけの段（将棋の「達人」#2698）。共通の段の後ろに並べる。
+    public struct ExtraLevel {
+        public let level: Int
+        public let label: String
+        public let accent: Color
+        public let detail: String
+
+        public init(level: Int, label: String, accent: Color, detail: String) {
+            self.level = level
+            self.label = label
+            self.accent = accent
+            self.detail = detail
+        }
+    }
+
     /// 段ごとの説明。**やさしい順**に `CPUStrength.allCases` と同じ並び。
     private let details: [String]
+    private let extras: [ExtraLevel]
     @Binding private var level: Int
 
     /// 寸法は他ゲームの難易度タイルと同じ（`DifficultyTile`・#1417）。
-    private static let metrics = DifficultyTile.metrics
+    private static let baseMetrics = DifficultyTile.metrics
 
-    public init(level: Binding<Int>, details: [String]) {
+    /// 追加の段で 5 列になると「むずかしい」が 2 行に折れるので、そのときだけ 1 行で縮めて収める。
+    private var metrics: GameSetupChooser.Metrics {
+        var m = Self.baseMetrics
+        if !extras.isEmpty {
+            m.titleLineLimit = 1
+            m.titleMinimumScale = 0.6
+        }
+        return m
+    }
+
+    public init(level: Binding<Int>, details: [String], extras: [ExtraLevel] = []) {
         _level = level
         self.details = details
+        self.extras = extras
     }
 
     /// 段に対応する説明。段の数と説明の数が食い違っても落ちないようにしておく。
     private func detail(_ strength: CPUStrength) -> String {
         details.indices.contains(strength.ladderIndex) ? details[strength.ladderIndex] : ""
+    }
+
+    /// 選んでいる段の説明（追加の段を含む）。
+    private var selectedDetail: String {
+        if let extra = extras.first(where: { $0.level == level }) { return extra.detail }
+        return detail(CPUStrength.strength(for: level))
     }
 
     public var body: some View {
@@ -51,14 +84,22 @@ public struct CPUStrengthPicker: View {
                     GameSetupChooser(
                         title: strength.label, subtitle: "",
                         selected: level == strength.rawValue,
-                        accent: strength.accent, metrics: Self.metrics
+                        accent: strength.accent, metrics: metrics
                     ) { level = strength.rawValue }
                         // 読み上げでは説明もタイルに添える（画面では選んだ段のぶんしか出ないため）。
                         .accessibilityLabel(strength.label + tr("、") + detail(strength))
                 }
+                ForEach(extras, id: \.level) { extra in
+                    GameSetupChooser(
+                        title: extra.label, subtitle: "",
+                        selected: level == extra.level,
+                        accent: extra.accent, metrics: metrics
+                    ) { level = extra.level }
+                        .accessibilityLabel(extra.label + tr("、") + extra.detail)
+                }
             }
             // 段を選び直しても高さが変わらないよう 1 行に固定する（シートが伸び縮みしない）。
-            Text(detail(CPUStrength.strength(for: level)))
+            Text(selectedDetail)
                 .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
                 .lineLimit(1)
