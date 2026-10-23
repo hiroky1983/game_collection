@@ -59,17 +59,55 @@ public struct DaifugoHandHint: Equatable, Sendable {
     }
 }
 
-/// 局ごとに選べるローカルルール（Issue #2605）。**1 局 = 1 RuleSet**: 配った時点の値を局に焼き込み、
-/// 対局中は変わらない（中断データにも載せる）。既定（`standard`）はすべてオフ = 従来どおりの挙動。
+/// 局ごとに選べるローカルルール（Issue #2605・#2721）。**1 局 = 1 RuleSet**: 配った時点の値を局に焼き込み、
+/// 対局中は変わらない（中断データにも載せる）。既定（`standard`）は従来の採用ルール（8切り・反則上がりあり、
+/// しばり・階段・都落ちなし）と同じ。
 public struct DaifugoRuleSet: Codable, Equatable, Sendable {
+    /// 8切り（8 を含む組を出すと場が流れ、出した人がそのまま親になる）。
+    public var isEightCutEnabled: Bool
     /// しばり（同じスートが 2 回続いたら、場が流れるまでそのスートしか出せない）。
     public var isBindEnabled: Bool
+    /// 階段（同じスートの連番 3 枚以上を 1 つの組として出せる）。
+    public var isSequenceEnabled: Bool
+    /// 都落ち（前のゲームの大富豪が 1 位で上がれなかったら、その場で大貧民に落ちる）。
+    public var isDownfallEnabled: Bool
+    /// 反則上がり（最後の 1 手が 2・ジョーカー・8 だと、上がっても最下位に落ちる）。
+    public var isFoulFinishEnabled: Bool
 
-    public init(isBindEnabled: Bool = false) {
+    public init(
+        isEightCutEnabled: Bool = true,
+        isBindEnabled: Bool = false,
+        isSequenceEnabled: Bool = false,
+        isDownfallEnabled: Bool = false,
+        isFoulFinishEnabled: Bool = true
+    ) {
+        self.isEightCutEnabled = isEightCutEnabled
         self.isBindEnabled = isBindEnabled
+        self.isSequenceEnabled = isSequenceEnabled
+        self.isDownfallEnabled = isDownfallEnabled
+        self.isFoulFinishEnabled = isFoulFinishEnabled
+    }
+
+    /// 欠けているキーは標準の値で補う。#2605 のしばりだけを書いた保存データ（中断データ・選択の記録）も読める。
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let standard = DaifugoRuleSet()
+        isEightCutEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEightCutEnabled) ?? standard.isEightCutEnabled
+        isBindEnabled = try c.decodeIfPresent(Bool.self, forKey: .isBindEnabled) ?? standard.isBindEnabled
+        isSequenceEnabled = try c.decodeIfPresent(Bool.self, forKey: .isSequenceEnabled) ?? standard.isSequenceEnabled
+        isDownfallEnabled = try c.decodeIfPresent(Bool.self, forKey: .isDownfallEnabled) ?? standard.isDownfallEnabled
+        isFoulFinishEnabled = try c.decodeIfPresent(Bool.self, forKey: .isFoulFinishEnabled) ?? standard.isFoulFinishEnabled
     }
 
     public static let standard = DaifugoRuleSet()
+}
+
+/// 出された組の形。
+public enum DaifugoPlayShape: Equatable, Sendable {
+    /// 同じ数字の組（ジョーカーはワイルド）。
+    case group
+    /// 階段（同じスートの連番）。
+    case sequence
 }
 
 /// 大富豪のルールを**乱数も状態も持たない純粋関数**として閉じ込めた層。
@@ -77,8 +115,8 @@ public struct DaifugoRuleSet: Codable, Equatable, Sendable {
 /// Model（`DaifugoModel`）は進行と永続化だけを持ち、勝ち負けの判断はここに集約する。
 /// ユニットテストはこの層に対して書くので、UI・CPU の都合でルールが揺れない。
 ///
-/// v1 の採用ルール（Issue #89）: 革命 / 8切り / 反則上がり。階段・都落ちは入れない。
-/// しばりだけは任意で選べる（`DaifugoRuleSet`・Issue #2605。既定はオフ）。
+/// 既定の採用ルール（Issue #89）: 革命 / 8切り / 反則上がり。しばり・階段・都落ちと、8切り・反則上がりの
+/// オン / オフは局ごとに選べる（`DaifugoRuleSet`・Issue #2605・#2721）。
 public enum DaifugoRules {
     /// ジョーカーの `rank`。通常の 1〜13 と衝突しない値を使う。
     public static let jokerRank = 0
@@ -129,18 +167,96 @@ public enum DaifugoRules {
     /// `cards` を今の場に出せるか。場が空なら組として成立していれば出せる。
     ///
     /// `bindSuits` が空でないとき（しばり中）は、ジョーカー以外の札がすべてそのスートでなければ出せない。
+    /// 階段（`ruleSet.isSequenceEnabled`）は、場が階段のときは階段だけ、場が同じ数字の組のときは組だけが出せる。
     public static func isValidPlay(
         _ cards: [DaifugoCard],
         field: [DaifugoCard],
         isRevolution: Bool,
-        bindSuits: Set<DaifugoSuit> = []
+        bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard
     ) -> Bool {
-        guard let played = playStrength(cards, isRevolution: isRevolution) else { return false }
+        let options = evaluations(cards, isRevolution: isRevolution, ruleSet: ruleSet)
+        guard !options.isEmpty else { return false }
         guard !field.isEmpty else { return true }
         guard satisfiesBind(cards, bindSuits: bindSuits) else { return false }
         guard cards.count == field.count else { return false }
-        guard let current = playStrength(field, isRevolution: isRevolution) else { return false }
-        return played > current
+        guard let current = evaluations(field, isRevolution: isRevolution, ruleSet: ruleSet).first else { return false }
+        return options.contains { $0.shape == current.shape && $0.strength > current.strength }
+    }
+
+    // MARK: - 階段（Issue #2721）
+
+    /// 階段の最短の枚数。
+    public static let minimumSequenceLength = 3
+    /// 強さの段数（3〜K・A・2 の 13 段。ジョーカーは別格）。
+    private static let strengthLevels = 13
+
+    /// 組の読み方とその強さ。
+    struct PlayEvaluation: Equatable {
+        let shape: DaifugoPlayShape
+        let strength: Int
+    }
+
+    /// `cards` の組としての読み方。同じ数字の組を先に、階段を後に挙げる（どちらにも読めるのは
+    /// 「札 1 種 + ジョーカー」だけで、場に出ている組は先頭の読み方で扱う）。
+    static func evaluations(_ cards: [DaifugoCard], isRevolution: Bool, ruleSet: DaifugoRuleSet) -> [PlayEvaluation] {
+        var result: [PlayEvaluation] = []
+        if let strength = playStrength(cards, isRevolution: isRevolution) {
+            result.append(PlayEvaluation(shape: .group, strength: strength))
+        }
+        if ruleSet.isSequenceEnabled, let strength = sequenceStrength(cards, isRevolution: isRevolution) {
+            result.append(PlayEvaluation(shape: .sequence, strength: strength))
+        }
+        return result
+    }
+
+    /// 階段として置ける最下段の位置の範囲（強さの並び 3→0 … K→10・A→11・2→12 での位置）。
+    /// 3 枚未満・スートが混ざる・同じ数字が重なる・ジョーカーだけのときは nil。
+    /// ジョーカーは欠けた段か、端の外側を埋める。
+    static func sequenceLowRange(_ cards: [DaifugoCard]) -> ClosedRange<Int>? {
+        guard cards.count >= minimumSequenceLength, cards.count <= strengthLevels else { return nil }
+        let naturals = cards.filter { !$0.isJoker }
+        guard let suit = naturals.first?.suit, naturals.allSatisfy({ $0.suit == suit }) else { return nil }
+        let positions = naturals.map { baseStrength(rank: $0.rank) }
+        guard Set(positions).count == positions.count, let lowest = positions.min(), let highest = positions.max() else {
+            return nil
+        }
+        let low = max(0, highest - cards.count + 1)
+        let high = min(lowest, strengthLevels - cards.count)
+        return low <= high ? low...high : nil
+    }
+
+    /// 階段の強さ。ジョーカーで置き方が選べるときは、出す側に最も有利な置き方（革命中は逆向き）で数える。
+    /// 革命中は強さが逆になるので、いちばん低い段が強さを決める。
+    static func sequenceStrength(_ cards: [DaifugoCard], isRevolution: Bool) -> Int? {
+        guard let range = sequenceLowRange(cards) else { return nil }
+        return isRevolution ? strengthLevels - 1 - range.lowerBound : range.upperBound + cards.count - 1
+    }
+
+    /// 場の組の形。場が空なら nil。
+    public static func shape(of field: [DaifugoCard], isRevolution: Bool, ruleSet: DaifugoRuleSet) -> DaifugoPlayShape? {
+        evaluations(field, isRevolution: isRevolution, ruleSet: ruleSet).first?.shape
+    }
+
+    /// 手札から作れる階段の候補（ジョーカーは足りない段にだけ必要な枚数を使う）。場が空なら 3 枚以上のすべて、
+    /// 場があれば同じ枚数だけ。合法かどうかは呼び出し側が `isValidPlay` で確かめる。
+    private static func sequenceCandidates(hand: [DaifugoCard], field: [DaifugoCard], bindSuits: Set<DaifugoSuit>) -> [[DaifugoCard]] {
+        let jokers = hand.filter(\.isJoker).sorted { $0.id < $1.id }
+        let lengths = field.isEmpty ? Array(minimumSequenceLength...strengthLevels) : [field.count]
+        var plays: [[DaifugoCard]] = []
+        for suit in DaifugoSuit.allCases where bindSuits.isEmpty || bindSuits.contains(suit) {
+            var bySuit: [Int: DaifugoCard] = [:]
+            for card in hand where card.suit == suit { bySuit[baseStrength(rank: card.rank)] = card }
+            for length in lengths where length >= minimumSequenceLength && length <= strengthLevels {
+                for low in 0...(strengthLevels - length) {
+                    let present = (low..<(low + length)).compactMap { bySuit[$0] }
+                    let missing = length - present.count
+                    guard !present.isEmpty, missing <= jokers.count else { continue }
+                    plays.append(present + jokers.prefix(missing))
+                }
+            }
+        }
+        return plays
     }
 
     // MARK: - しばり（Issue #2605）
@@ -183,16 +299,17 @@ public enum DaifugoRules {
         playRank(cards) != nil && cards.count >= revolutionCount
     }
 
-    /// 8切り（8 を含む組は場を流し、出した人がそのまま次の親になる）か。
-    public static func clearsField(_ cards: [DaifugoCard]) -> Bool {
-        cards.contains { $0.rank == 8 }
+    /// 8切り（8 を含む組は場を流し、出した人がそのまま次の親になる）か。8切りなしの局では流れない。
+    public static func clearsField(_ cards: [DaifugoCard], ruleSet: DaifugoRuleSet = .standard) -> Bool {
+        ruleSet.isEightCutEnabled && cards.contains { $0.rank == 8 }
     }
 
-    /// 反則上がり（最後の1手が 2・ジョーカー・8 を含む）か。
-    /// v1 では「出せない」ではなく「上がっても最下位に落ちる」として扱う
-    /// （2 しか残っていないと永久に上がれなくなるため）。
-    public static func isFoulFinish(_ cards: [DaifugoCard]) -> Bool {
-        cards.contains { $0.isJoker || $0.rank == 2 || $0.rank == 8 }
+    /// 反則上がり（最後の1手が 2・ジョーカー・8 を含む）か。反則上がりなしの局では起きない。
+    /// 8 は 8切りがある局だけ数える（8切りなしなら 8 は特別な札ではない）。
+    /// 「出せない」ではなく「上がっても最下位に落ちる」として扱う（2 しか残っていないと永久に上がれなくなるため）。
+    public static func isFoulFinish(_ cards: [DaifugoCard], ruleSet: DaifugoRuleSet = .standard) -> Bool {
+        guard ruleSet.isFoulFinishEnabled else { return false }
+        return cards.contains { $0.isJoker || $0.rank == 2 || (ruleSet.isEightCutEnabled && $0.rank == 8) }
     }
 
     // MARK: - ヒント（#190）
@@ -206,11 +323,22 @@ public enum DaifugoRules {
         hand: [DaifugoCard],
         field: [DaifugoCard],
         isRevolution: Bool,
-        bindSuits: Set<DaifugoSuit> = []
+        bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard
     ) -> Set<Int> {
         guard !hand.isEmpty else { return [] }
         // 場が流れていれば1枚から好きな組を出せる = 手札すべてが出せる。
         guard !field.isEmpty else { return Set(hand.map(\.id)) }
+        // 場が階段のときは階段しか出せない。出せる階段のどれかに入る札が「出せる」札で、
+        // 階段が作れるならジョーカーはどの札の代わりにもなれる。
+        if shape(of: field, isRevolution: isRevolution, ruleSet: ruleSet) == .sequence {
+            let plays = sequenceCandidates(hand: hand, field: field, bindSuits: bindSuits).filter {
+                isValidPlay($0, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet)
+            }
+            var ids = Set(plays.flatMap { $0.map(\.id) })
+            if !ids.isEmpty { ids.formUnion(hand.filter(\.isJoker).map(\.id)) }
+            return ids
+        }
         guard let fieldStrength = playStrength(field, isRevolution: isRevolution) else { return [] }
 
         let jokers = hand.filter(\.isJoker)
@@ -247,17 +375,32 @@ public enum DaifugoRules {
         _ cards: [DaifugoCard],
         field: [DaifugoCard],
         isRevolution: Bool,
-        bindSuits: Set<DaifugoSuit> = []
+        bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard
     ) -> String? {
         guard !cards.isEmpty else { return nil }
-        guard let played = playStrength(cards, isRevolution: isRevolution) else {
-            return tr("数字がそろっていません（ジョーカーは他の数字の代わりに使えます）")
+        let options = evaluations(cards, isRevolution: isRevolution, ruleSet: ruleSet)
+        guard !options.isEmpty else {
+            return ruleSet.isSequenceEnabled
+                ? tr("数字がそろっていないか、階段（同じ柄の連番3枚以上）になっていません")
+                : tr("数字がそろっていません（ジョーカーは他の数字の代わりに使えます）")
         }
         guard !field.isEmpty else { return nil }
         guard cards.count == field.count else {
             return tr("場は%1$lld枚です。%2$lld枚では出せません", field.count, cards.count)
         }
-        guard let current = playStrength(field, isRevolution: isRevolution), played > current else {
+        let current = evaluations(field, isRevolution: isRevolution, ruleSet: ruleSet).first
+        if let current, !options.contains(where: { $0.shape == current.shape }) {
+            return current.shape == .sequence
+                ? tr("場は階段です。同じ柄の連番で出してください")
+                : tr("場は同じ数字の組です。階段では出せません")
+        }
+        guard let current, options.contains(where: { $0.shape == current.shape && $0.strength > current.strength }) else {
+            if current?.shape == .sequence {
+                return isRevolution
+                    ? tr("革命中です。場の階段より弱い階段が必要です")
+                    : tr("場の階段より強い階段が必要です")
+            }
             // 場がジョーカーだけのときは非ジョーカーが無いので、そのまま JOKER と呼ぶ。
             let label = field.first { !$0.isJoker }?.rankLabel ?? "JOKER"
             return isRevolution
@@ -278,7 +421,8 @@ public enum DaifugoRules {
         hand: [DaifugoCard],
         field: [DaifugoCard],
         isRevolution: Bool,
-        bindSuits: Set<DaifugoSuit> = []
+        bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard
     ) -> [[DaifugoCard]] {
         let jokers = hand.filter(\.isJoker).sorted { $0.id < $1.id }
         var groups: [Int: [DaifugoCard]] = [:]
@@ -302,15 +446,26 @@ public enum DaifugoRules {
                 guard jokersNeeded <= jokers.count else { continue }
                 let play = Array(group.prefix(count - jokersNeeded)) + Array(jokers.prefix(jokersNeeded))
                 guard play.count == count else { continue }
-                if isValidPlay(play, field: field, isRevolution: isRevolution, bindSuits: bindSuits) { plays.append(play) }
+                if isValidPlay(play, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet) {
+                    plays.append(play)
+                }
             }
             // ジョーカーだけで出す（場が空のときの最強手、または最後の1枚）。
             if count <= jokers.count {
                 let play = Array(jokers.prefix(count))
-                if isValidPlay(play, field: field, isRevolution: isRevolution, bindSuits: bindSuits) { plays.append(play) }
+                if isValidPlay(play, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet) {
+                    plays.append(play)
+                }
             }
         }
-        return plays
+        if ruleSet.isSequenceEnabled {
+            plays += sequenceCandidates(hand: hand, field: field, bindSuits: bindSuits).filter {
+                isValidPlay($0, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet)
+            }
+        }
+        // 「札 1 種 + ジョーカー」は組にも階段にも読めるので、同じ札の組み合わせは 1 つにする。
+        var seen = Set<[Int]>()
+        return plays.filter { seen.insert($0.map(\.id).sorted()).inserted }
     }
 
     /// CPU の選択（貪欲法）: **出せる最弱の手**を選ぶ。「ふつう」の CPU はこれをそのまま使う。
@@ -322,9 +477,10 @@ public enum DaifugoRules {
         hand: [DaifugoCard],
         field: [DaifugoCard],
         isRevolution: Bool,
-        bindSuits: Set<DaifugoSuit> = []
+        bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard
     ) -> [DaifugoCard]? {
-        rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits).first
+        rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet).first
     }
 
     /// 出せる手を、貪欲法の好みの順（先頭が `greedyPlay` の手）に並べたもの。
@@ -332,12 +488,13 @@ public enum DaifugoRules {
         hand: [DaifugoCard],
         field: [DaifugoCard],
         isRevolution: Bool,
-        bindSuits: Set<DaifugoSuit> = []
+        bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard
     ) -> [[DaifugoCard]] {
-        let plays = legalPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
+        let plays = legalPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet)
 
         func isFoul(_ play: [DaifugoCard]) -> Bool {
-            play.count == hand.count && isFoulFinish(play)
+            play.count == hand.count && isFoulFinish(play, ruleSet: ruleSet)
         }
         // 親番だけ枚数を降順にする。場に追随するときは合法手の枚数が場と一致するのでこの項は効かないが、
         // 場が空のときは同じランクを 1 枚だけ出す手が常に最小になり、CPU がペアも革命も一度も出さなかった（#375）。
@@ -345,13 +502,28 @@ public enum DaifugoRules {
         func rankKey(_ play: [DaifugoCard]) -> (Int, Int, Int, Int, Int) {
             (
                 isFoul(play) ? 1 : 0,
-                playStrength(play, isRevolution: isRevolution) ?? Int.max,
+                orderingStrength(play, isRevolution: isRevolution, ruleSet: ruleSet, leads: leadsField),
                 play.filter(\.isJoker).count,
                 leadsField ? -play.count : play.count,
                 play.first?.id ?? 0
             )
         }
         return plays.sorted { rankKey($0) < rankKey($1) }
+    }
+
+    /// 手の強さ（CPU が弱い手から選ぶための並べ替え用）。読み方が複数あるときは最も弱い読み方。
+    ///
+    /// 親番（`leads`）で出す階段は、勝つための強さ（いちばん強い札）ではなく**いちばん弱い札**で数える。
+    /// 場を取られる心配のない親番では、弱い札から始まる階段を単独の弱い札と並べて、枚数の多いほうを先に出すため。
+    private static func orderingStrength(
+        _ play: [DaifugoCard], isRevolution: Bool, ruleSet: DaifugoRuleSet, leads: Bool = false
+    ) -> Int {
+        evaluations(play, isRevolution: isRevolution, ruleSet: ruleSet).map { option -> Int in
+            guard leads, option.shape == .sequence, let range = sequenceLowRange(play) else { return option.strength }
+            return isRevolution
+                ? strengthLevels - 1 - (range.upperBound + play.count - 1)
+                : range.lowerBound
+        }.min() ?? Int.max
     }
 
     // MARK: - CPU の強さ（#2604）
@@ -380,9 +552,10 @@ public enum DaifugoRules {
         strength: CPUStrength,
         minOpponentHandCount: Int = .max,
         bindSuits: Set<DaifugoSuit> = [],
+        ruleSet: DaifugoRuleSet = .standard,
         using rng: inout some RandomNumberGenerator
     ) -> [DaifugoCard]? {
-        let ranked = rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
+        let ranked = rankedPlays(hand: hand, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet)
         guard let best = ranked.first else { return nil }
         switch strength {
         case .normal:
@@ -394,9 +567,9 @@ public enum DaifugoRules {
             return ranked[1]
         case .hard:
             if field.isEmpty {
-                return revolutionLead(ranked, hand: hand, isRevolution: isRevolution) ?? best
+                return revolutionLead(ranked, hand: hand, isRevolution: isRevolution, ruleSet: ruleSet) ?? best
             }
-            let isStrong = (playStrength(best, isRevolution: isRevolution) ?? 0) >= hoardStrength
+            let isStrong = orderingStrength(best, isRevolution: isRevolution, ruleSet: ruleSet) >= hoardStrength
             let canHoard = hand.count > hoardMinHandCount && minOpponentHandCount > hoardOpponentThreshold
             return isStrong && canHoard ? nil : best
         }
@@ -405,10 +578,10 @@ public enum DaifugoRules {
     /// 親番で革命から始める手。起こせる手が無い・残る手札が強い札に偏っているときは nil。
     /// 革命は強さの並びを反転するので、残る手札が弱い札ばかりのときに得になる。
     private static func revolutionLead(
-        _ ranked: [[DaifugoCard]], hand: [DaifugoCard], isRevolution: Bool
+        _ ranked: [[DaifugoCard]], hand: [DaifugoCard], isRevolution: Bool, ruleSet: DaifugoRuleSet
     ) -> [DaifugoCard]? {
         guard let play = ranked.first(where: {
-            triggersRevolution($0) && !($0.count == hand.count && isFoulFinish($0))
+            triggersRevolution($0) && !($0.count == hand.count && isFoulFinish($0, ruleSet: ruleSet))
         }) else { return nil }
         let playedIDs = Set(play.map(\.id))
         let rest = hand.filter { !playedIDs.contains($0.id) }
@@ -419,17 +592,34 @@ public enum DaifugoRules {
 
     // MARK: - 順位と階級
 
-    /// 上がり順・反則上がり・投了から最終順位を決める。反則上がりは順位を失い末尾へ回り、
+    /// 上がり順・反則上がり・都落ち・投了から最終順位を決める。反則上がりは順位を失い末尾へ回り、
     /// 投了（#194）は最後まで打っていないので反則上がりよりさらに下に置く。
+    /// 都落ち（#2721）は、前のゲームの大富豪が 1 位でなければその人を（投了者を除く）最下位に落とす。
     /// - Parameters:
     ///   - finishOrder: 手札が尽きた順のプレイヤー番号。
     ///   - fouls: 反則上がりしたプレイヤー番号。
     ///   - resigned: 投了したプレイヤー番号。反則上がりと重なっても投了の扱いを優先する。
+    ///   - previousTycoon: 都落ちが有効な局での、前のゲームの大富豪。無効な局・1 ゲーム目は nil。
     /// - Returns: 1位から順のプレイヤー番号。
-    public static func ranking(finishOrder: [Int], fouls: Set<Int>, resigned: Set<Int> = []) -> [Int] {
-        finishOrder.filter { !fouls.contains($0) && !resigned.contains($0) }
-            + finishOrder.filter { fouls.contains($0) && !resigned.contains($0) }
-            + finishOrder.filter { resigned.contains($0) }
+    public static func ranking(
+        finishOrder: [Int], fouls: Set<Int>, resigned: Set<Int> = [], previousTycoon: Int? = nil
+    ) -> [Int] {
+        let clean = finishOrder.filter { !fouls.contains($0) && !resigned.contains($0) }
+        let fouled = finishOrder.filter { fouls.contains($0) && !resigned.contains($0) }
+        let quit = finishOrder.filter { resigned.contains($0) }
+        let ordered = clean + fouled
+        guard let fallen = downfallPlayer(order: ordered, previousTycoon: previousTycoon, resigned: resigned) else {
+            return ordered + quit
+        }
+        return ordered.filter { $0 != fallen } + [fallen] + quit
+    }
+
+    /// 都落ちで最下位に落ちる人。前の大富豪が 1 位でなく、投了してもいないとき。
+    /// `order` は反則上がりを下げた後の順位（投了者を除く）。
+    public static func downfallPlayer(order: [Int], previousTycoon: Int?, resigned: Set<Int> = []) -> Int? {
+        guard let tycoon = previousTycoon, !resigned.contains(tycoon),
+              let place = order.firstIndex(of: tycoon), place > 0 else { return nil }
+        return tycoon
     }
 
     /// 順位（0 始まり）に対応する階級名。4人以外でも落ちないよう範囲外は空文字にする。
