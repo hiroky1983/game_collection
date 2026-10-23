@@ -493,12 +493,15 @@ public struct OjisanPuzzleView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tr("荷物の盤"))
             .accessibilityValue(boardAccessibilityValue)
-            .accessibilityAction(named: tr("左へ")) { if canOperate { model.move(by: -1) } }
-            .accessibilityAction(named: tr("右へ")) { if canOperate { model.move(by: 1) } }
-            .accessibilityAction(named: tr("回す")) {
-                if canOperate { withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) } }
+            // 操作できない局面（結果表示・設定中・一時停止中）では出さない（#2688）。
+            .accessibilityActions {
+                if canOperate {
+                    Button(tr("左へ")) { model.move(by: -1) }
+                    Button(tr("右へ")) { model.move(by: 1) }
+                    Button(tr("回す")) { withGameAnimation(.easeOut(duration: 0.1)) { model.rotate(clockwise: true) } }
+                    Button(tr("落とす")) { model.softDrop() }
+                }
             }
-            .accessibilityAction(named: tr("落とす")) { if canOperate { model.softDrop() } }
             .padding(Self.boardInset)
             .frame(width: geo.size.width, height: geo.size.height)
             .background {
