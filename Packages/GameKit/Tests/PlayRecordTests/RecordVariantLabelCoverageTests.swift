@@ -73,7 +73,7 @@ struct RecordVariantLabelCoverageTests {
             add("daifugo", strength.recordVariantKey)
             add("colorrelay", strength.recordVariantKey)
             // チェス・囲碁・五目並べ・オセロも CPU の強さ別（#2617）。
-            for game in ["chess", "go", "gomoku", "othello"] { add(game, strength.recordVariantKey) }
+            for game in ["chess", "go", "gomoku", "othello", "hearts", "oldmaid"] { add(game, strength.recordVariantKey) }
         }
         return result
     }
