@@ -45,6 +45,7 @@ public enum SoundEffect: String, CaseIterable, Sendable {
         case .rigid, .selection: self = .rigid
         // カードの音は同梱ファイル（`CardSound`）を鳴らす。ここへ来るのは網羅のためだけで、触覚と同じ強さの合成音に寄せる。
         case .card(let sound): self = SoundEffect(sound.haptic)
+        case .board(let sound): self = SoundEffect(sound.haptic)
         }
     }
 
@@ -133,6 +134,11 @@ public struct SoundThrottle {
 
     /// カードの音（`CardSound`）版。連続で配るときに音が重なって割れないよう、同じ音は間引く（#2697）。
     public mutating func shouldPlay(_ sound: CardSound, now: Double) -> Bool {
+        shouldPlay(key: sound, now: now)
+    }
+
+    /// 盤ゲームの音（`BoardSound`）版（#2767）。
+    public mutating func shouldPlay(_ sound: BoardSound, now: Double) -> Bool {
         shouldPlay(key: sound, now: now)
     }
 

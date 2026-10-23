@@ -66,11 +66,13 @@ public struct PokerView: View {
                 }
             }
         }
-        .padding(Theme.pad)
         .rewardOffer(exchangeRescue, for: .undo, isPresented: model.canUseExtraExchange,
                      services: services, gameID: model.gameID)
         // 点数表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
-        .gameChrome(title: tr("ポーカー"), review: services.review,
+        // レイアウトパターン A（全画面・会長 QA 2026-10-23・#2531）: ブラックジャックと同じく、フェルトを画面全体に敷き、
+        // ヘッダーは 1 行（戻る・ポーカー・点数表・？）、バナーは画面最下部。CPU・役・あなた・操作欄の白い札はやめて
+        // フェルトに直に置く。勝負の帯（何回目・連勝・合計点）はブラックジャックと同じくヘッダーの下に 1 行の札で残す。
+        .gameChrome(title: tr("ポーカー"), review: services.review, fullScreen: .felt, ads: services.ads,
                     reference: GameChromeReference(tr("役の点数表")) { showPointsTable = true })
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
         .howToPlay(PokerHowToFigures.guide) { HandGuideSheet() }
@@ -109,6 +111,14 @@ public struct PokerView: View {
                 showStartSheet = false
                 if model.phase == .idle { model.startGame() }
             }
+            // 撮影用（#2531）: `-pokerSelectExchange <枚数>` で左から n 枚を捨てる札に選ぶ（交換を選ぶところ）。
+            // `-pokerAutoPlay` と併せると、その札を替えて決着する（替えた札の印 #2738 が写る）。
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-pokerSelectExchange"), i + 1 < args.count, let n = Int(args[i + 1]) {
+                showStartSheet = false
+                if model.phase == .idle { model.startGame() }
+                for card in model.playerHand.prefix(n) { model.toggleCardSelection(card) }
+            }
             // 撮影用（#1754）: 開始シートを飛ばし、交換なしで勝負して 1 回目の決着の画を出す。
             if ProcessInfo.processInfo.arguments.contains("-pokerAutoPlay") {
                 showStartSheet = false
@@ -140,60 +150,43 @@ public struct PokerView: View {
 
     /// 画面の縦並び本体。`ViewThatFits` の2つの枝で同じものを使うために切り出しただけ。
     private var mainColumn: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             scoreBar
-            verticalSlack
-            cpuArea
-            verticalSlack
-            // 1 回の勝敗を卓の中央（CPU とあなたの境目）に大きく出す（#1754）。画面全体の中央に
-            // 重ねるとあなたの手札を覆ってしまうので、中央の帯に重ねる。13pt のバッジ（`resultBadge`）は残す
-            // ——バナーは数秒で消えるので、消えたあとも手札の横で勝敗が読める。
-            // CPU の 5 枚は返り終わってから出す（先に出すと勝敗の答えを見せてから返すことになる・#667）。
-            handArea
-                .handResultOverlay(
-                    model.handResult,
-                    appearDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay
-                )
-                // 後ろに並ぶ手札の枠より手前に描く（兄弟は並び順に重なるため、無いとバナーの下半分が隠れる）。
-                .zIndex(1)
-            verticalSlack
-            playerArea
-            verticalSlack
-            actionSlack
-            // 出すかどうかは `showsHowToPlayHint` が1回だけ決める（上の `body` のコメント）。
-            HowToPlayHint(.poker, isVisible: showsHowToPlayHint)
-            if model.sessionOver {
-                sessionOverView
-            } else {
-                actionArea
+            // CPU・役・あなた・操作欄を 1 つのまとまりにして、帯の下の残りの真ん中に置く（ブラックジャック #2671 と同じ）。
+            // 全画面にして縦が伸びた分を札のあいだで吸うと、真ん中が大きく空く。
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: 8) {
+                    cpuArea
+                    // 1 回の勝敗を卓の中央（CPU とあなたの境目）に大きく出す（#1754）。画面全体の中央に
+                    // 重ねるとあなたの手札を覆ってしまうので、中央の帯に重ねる。13pt のバッジ（`resultBadge`）は残す
+                    // ——バナーは数秒で消えるので、消えたあとも手札の横で勝敗が読める。
+                    // CPU の 5 枚は返り終わってから出す（先に出すと勝敗の答えを見せてから返すことになる・#667）。
+                    handArea
+                        .handResultOverlay(
+                            model.handResult,
+                            appearDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay
+                        )
+                        // 後ろに並ぶ手札より手前に描く（兄弟は並び順に重なるため、無いとバナーの下半分が隠れる）。
+                        .zIndex(1)
+                    playerArea
+                    // 出すかどうかは `showsHowToPlayHint` が1回だけ決める（上の `body` のコメント）。
+                    HowToPlayHint(.poker, isVisible: showsHowToPlayHint)
+                    if model.sessionOver {
+                        sessionOverView
+                    } else {
+                        // ボタン 1 段ぶんを取っておき上詰め（配る前・広告の交換ボタンの出入りでまとまりが動かない）。
+                        actionArea
+                            .frame(minHeight: PokerMetrics.actionButtonMinHeight, alignment: .top)
+                    }
+                }
+                Spacer(minLength: 0)
             }
             RecommendationSlot(services: services, isFinished: model.sessionOver)
-            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
-            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
-            if layout.isWide {
-                Color.clear.frame(height: 4)
-            } else {
-                Spacer(minLength: 4)
-            }
-            BannerSlot(ads: services.ads)
         }
-    }
-
-    /// iPad で余った高さを節の間に配るための可変余白（#485）。iPhone では何も置かないので
-    /// `VStack` の子の並びが変わらず、見た目は 1pt も動かない。
-    @ViewBuilder
-    private var verticalSlack: some View {
-        if layout.isWide { Spacer(minLength: 0) }
-    }
-
-    /// 操作の節（遊び方ヒント + 交換・勝負）の上に置く可変余白（#640）。
-    ///
-    /// iPhone では余りが下端の `Spacer` に全部たまり、操作の列が画面の中ほどに浮いて
-    /// 下だけが大きく空いていた。ここに同じ可変余白をもう 1 つ置くと余りが上下で等分される。
-    /// iPad は `verticalSlack` がすでに余りを節の間に配っているので何も置かない（#485 の配分を崩さない）。
-    @ViewBuilder
-    private var actionSlack: some View {
-        if !layout.isWide { Spacer(minLength: 0) }
+        // 左右は全画面の枠の値（8pt）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Score Bar（#2551）
@@ -259,49 +252,54 @@ public struct PokerView: View {
     // MARK: - CPU Area
 
     private var cpuArea: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Text("CPU")
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
-                    // 役名の行が「CPU、…」と主体まで読むので、見出しは重ねて読まない（#2589）。
-                    .accessibilityHidden(model.phase == .result)
-                if !model.cpuAction.isEmpty {
-                    Text(model.cpuActionLabel)
-                        .themeCaption(12, weight: .bold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Theme.Fill.purple))
-                        // 役名と同じく、5 枚が返り終わってから現れる（バッジだけ先に出ない）。
-                        .opacity(cpuRevealed ? 1 : 0)
-                        .gameAnimation(
-                            .easeIn(duration: PokerMotion.pointsChangeDuration)
-                                .delay(PokerMotion.showdownTotalDuration),
-                            value: cpuRevealed
-                        )
+        VStack(spacing: 8) {
+            // フェルトの上の見出し・役名は卓の上の文字色（白系）。
+            CardTableInkReader { ink in
+                HStack(spacing: 8) {
+                    Text("CPU")
+                        .themeBody(13)
+                        .foregroundStyle(ink.labelSub)
+                        // 役名の行が「CPU、…」と主体まで読むので、見出しは重ねて読まない（#2589）。
+                        .accessibilityHidden(model.phase == .result)
+                    if !model.cpuAction.isEmpty {
+                        Text(model.cpuActionLabel)
+                            .themeCaption(12, weight: .bold, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Theme.Fill.purple))
+                            // 役名と同じく、5 枚が返り終わってから現れる（バッジだけ先に出ない）。
+                            .opacity(cpuRevealed ? 1 : 0)
+                            .gameAnimation(
+                                .easeIn(duration: PokerMotion.pointsChangeDuration)
+                                    .delay(PokerMotion.showdownTotalDuration),
+                                value: cpuRevealed
+                            )
+                    }
+                    Spacer()
+                    if model.phase == .result {
+                        Text(model.cpuHandRank.description)
+                            // 主体と勝敗の印を畳んだ 1 要素で読む（#2589）。見た目は変えない。
+                            .accessibilityLabel(PokerAccessibility.handRankLabel(
+                                subject: tr("CPU"), rank: model.cpuHandRank, side: .cpu,
+                                winner: model.winner))
+                            .themeCaption(12, weight: .bold, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(ink.label)
+                            // 役名が手札より先に出ると答えを見せてから返すことになるので、
+                            // 5 枚が返り終わってから薄く現れる（#206）。
+                            .opacity(cpuRevealed ? 1 : 0)
+                            .gameAnimation(
+                                .easeIn(duration: PokerMotion.pointsChangeDuration)
+                                    .delay(PokerMotion.showdownTotalDuration),
+                                value: cpuRevealed
+                            )
+                    }
                 }
-                Spacer()
-                if model.phase == .result {
-                    Text(model.cpuHandRank.description)
-                        // 主体と勝敗の印を畳んだ 1 要素で読む（#2589）。見た目は変えない。
-                        .accessibilityLabel(PokerAccessibility.handRankLabel(
-                            subject: tr("CPU"), rank: model.cpuHandRank, side: .cpu,
-                            winner: model.winner))
-                        .themeCaption(12, weight: .bold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.purple)
-                        // 役名が手札より先に出ると答えを見せてから返すことになるので、
-                        // 5 枚が返り終わってから薄く現れる（#206）。
-                        .opacity(cpuRevealed ? 1 : 0)
-                        .gameAnimation(
-                            .easeIn(duration: PokerMotion.pointsChangeDuration)
-                                .delay(PokerMotion.showdownTotalDuration),
-                            value: cpuRevealed
-                        )
-                }
+                // 決着で出る「n枚交換」の札の高さを先に取っておく（出入りで札の列が動かない）。
+                .frame(minHeight: Self.handHeaderMinHeight)
             }
 
             HStack(spacing: 8) {
@@ -312,10 +310,8 @@ public struct PokerView: View {
             }
             .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
                 .rowWidth(count: model.cpuHand.count, spacing: 8))
-            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 18).padding(.vertical, 20)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.horizontal, 6).padding(.vertical, 2)
     }
 
     /// CPU の札 1 枚。決着で替えた札には、プレイヤーの「捨てる札」と対になる枠を、返り終わってから薄く重ねる（#2594）。
@@ -354,59 +350,69 @@ public struct PokerView: View {
             case .tie:    return (tr("引き分け"), tr("0点"))
             }
         }()
-        return HStack {
-            Spacer()
-            VStack(spacing: 2) {
-                Text(caption)
-                    .themeCaption(11, weight: .semibold, maxScale: 1.5)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .foregroundStyle(Theme.inkSub)
-                Text(value)
-                    .themeBody(20, weight: .black, maxScale: 1.5)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .foregroundStyle(Theme.yellowText)
+        // 白い札はやめてフェルトに直に置く。役・点は卓の上で目立つ黄色、見出しは卓の上の文字色。
+        return CardTableInkReader { ink in
+            HStack {
+                Spacer()
+                VStack(spacing: 2) {
+                    Text(caption)
+                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(ink.labelSub)
+                    Text(value)
+                        .themeBody(22, weight: .black, maxScale: 1.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(Theme.Fill.yellow)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(tr("%1$@、%2$@", caption, value))
+                Spacer()
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(tr("%1$@、%2$@", caption, value))
-            Spacer()
         }
-        .padding(.vertical, 12)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.vertical, 2)
     }
 
     // MARK: - Player Area
 
+    /// CPU・あなたの見出しの行の高さの下限。勝敗のバッジ（13pt + 上下 4pt）が収まる高さ。
+    private static let handHeaderMinHeight: CGFloat = 26
+
     private var playerArea: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Text(tr("あなた"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityHidden(model.phase == .result)
-                Spacer()
-                if model.phase == .exchange {
-                    Text(tr("捨てるカードを選んでください"))
-                        .themeCaption(11, weight: .semibold, maxScale: 1.5)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.tealText)
-                }
-                if model.phase == .result {
-                    if let w = model.winner {
-                        resultBadge(w)
-                            .accessibilityHidden(true)  // 役名の行が勝敗まで読む（#2589）
+        VStack(spacing: 8) {
+            CardTableInkReader { ink in
+                HStack {
+                    Text(tr("あなた"))
+                        .themeBody(13)
+                        .foregroundStyle(ink.label)
+                        .accessibilityHidden(model.phase == .result)
+                    Spacer()
+                    if model.phase == .exchange {
+                        Text(tr("捨てるカードを選んでください"))
+                            .themeCaption(11, weight: .semibold, maxScale: 1.5)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(ink.label)
                     }
-                    Text(model.playerHandRank.description)
-                        .accessibilityLabel(PokerAccessibility.handRankLabel(
-                            subject: tr("あなた"), rank: model.playerHandRank, side: .player,
-                            winner: model.winner))
-                        .themeCaption(12, weight: .bold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.tealText)
+                    if model.phase == .result {
+                        if let w = model.winner {
+                            resultBadge(w)
+                                .accessibilityHidden(true)  // 役名の行が勝敗まで読む（#2589）
+                        }
+                        Text(model.playerHandRank.description)
+                            .accessibilityLabel(PokerAccessibility.handRankLabel(
+                                subject: tr("あなた"), rank: model.playerHandRank, side: .player,
+                                winner: model.winner))
+                            .themeCaption(12, weight: .bold, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(ink.label)
+                    }
                 }
+                // 決着で出る勝敗のバッジの高さを先に取っておく（出入りで札の列と操作欄が動かない）。
+                .frame(minHeight: Self.handHeaderMinHeight)
             }
             HStack(spacing: 8) {
                 ForEach(Array(model.playerHand.enumerated()), id: \.element.id) { index, card in
@@ -439,10 +445,11 @@ public struct PokerView: View {
             }
             .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
                 .rowWidth(count: model.playerHand.count, spacing: 8))
-            .padding(.vertical, 6)
+            // 選んだ札は 10pt 下がる（`offset`）。下がったぶんを取っておき、操作欄に重ならないようにする。
+            // 10 回勝負の決着は選べないうえ縦が足りない（iPhone SE）ので取らない。
+            .padding(.bottom, model.sessionOver ? 0 : 10)
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.horizontal, 6).padding(.vertical, 2)
     }
 
     /// 自分が替えた札の枠（#2704）。CPU の札（`cpuCard`）と同じ紫の枠。
@@ -507,8 +514,6 @@ public struct PokerView: View {
         return actionButton(count == 0 ? tr("交換しない") : tr("%lld枚を交換", count), role: .primary) {
             model.confirmExchange()
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // 交換のあと: そのまま勝負するか、広告を見てもう 1 回交換するか（#2551）
@@ -535,8 +540,6 @@ public struct PokerView: View {
                 model.showdown()
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // リザルト（回の終わり）
@@ -555,8 +558,6 @@ public struct PokerView: View {
             if !Task.isCancelled { nextLocked = false }
         }
         .onDisappear { nextLocked = true }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // 10 回勝負の決着
@@ -605,7 +606,7 @@ public struct PokerView: View {
                 model.startGame()
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 

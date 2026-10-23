@@ -439,7 +439,7 @@ struct FeedbackEnabledTests {
     func shogi() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playShogi(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.shogiPiece)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) > 0, "指せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -448,7 +448,7 @@ struct FeedbackEnabledTests {
     func gomoku() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playGomoku(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.goStone)), "着手で駒・石の音（#2767）が発火する")
         // 埋まっているマス（1回）と盤外（1回）で 2 回。無反応で済ませていた盤外を #202 で追加した。
         #expect(spy.notices(of: .warning) >= 2, "埋まっているマス・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
@@ -458,7 +458,7 @@ struct FeedbackEnabledTests {
     func go() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playGo(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.goStone)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) >= 2, "石のある交点・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -467,7 +467,7 @@ struct FeedbackEnabledTests {
     func chess() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playChess(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.chessPiece)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) > 0, "指せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -539,7 +539,7 @@ struct FeedbackEnabledTests {
     func othello() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playOthello(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.othelloDisc)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) > 0, "石を返せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }

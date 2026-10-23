@@ -358,7 +358,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(.chessPiece))
         }
         persist()
     }

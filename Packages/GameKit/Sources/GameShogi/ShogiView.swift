@@ -260,7 +260,8 @@ public struct ShogiView: View {
                                 isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx),
                                 isCheckedKing: checkedKing == idx,
-                                isHint: model.hintSquares.contains(idx)
+                                isHint: model.hintSquares.contains(idx),
+                                hintDrop: model.hintSquares.contains(idx) ? model.hintDropType.map { Piece(type: $0, color: model.humanSide) } : nil
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -413,6 +414,14 @@ public struct ShogiView: View {
                         .stroke(BoardStyle.check, lineWidth: 3)
                         .background(RoundedRectangle(cornerRadius: 4).fill(BoardStyle.check.opacity(0.22)))
                         .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
+                // 打つ手のヒントは、打つ駒の薄い影を打つ先に出す（#2768）。何をどこへ打つかが一目で分かる。
+                if let type = model.hintDropType, let to = model.hintSquares.first {
+                    let spot = Sq.displayPosition(of: to, flipped: flipped)
+                    KomaView(piece: Piece(type: type, color: model.humanSide), size: cell, pointsUp: true)
+                        .opacity(0.45)
                         .position(x: slot * (CGFloat(spot.col) + 0.5),
                                   y: slot * (CGFloat(spot.row) + 0.5))
                 }
@@ -717,11 +726,13 @@ private struct HandAreaView: View {
                     // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
                     // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
                     let koma     = layout.scaled(32)
+                    let komaPlateCorner: CGFloat = 8 // 駒の板の角丸（背景の fill と同じ値）
                     let tapWidth = max(44, koma + 10)
                     HStack(spacing: max(0, 6 - (tapWidth - (koma + 10)))) {
                         ForEach(owned, id: \.rawValue) { type in
                             let selected = model.selectedHand == type && color == pos.sideToMove
                             let count    = hand[type.rawValue]
+                            let isHint   = isYou && model.hintDropType == type
                             Button { model.tapHand(type, color: color) } label: {
                                 VStack(spacing: 2) {
                                     KomaView(piece: Piece(type: type, color: color),
@@ -731,6 +742,13 @@ private struct HandAreaView: View {
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                                 .fill(selected ? Theme.yellow : BoardStyle.komaWoodLight)
                                         )
+                                        // ヒントが打つ手のとき、打つ駒にも盤と同じ紫の印を付ける（#2768）。
+                                        .overlay {
+                                            if isHint {
+                                                RoundedRectangle(cornerRadius: komaPlateCorner, style: .continuous)
+                                                    .stroke(BoardGameHintColor.color, lineWidth: 3)
+                                            }
+                                        }
                                     Text("×\(count)")
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
                                         .foregroundStyle(selected ? Theme.coralText : Theme.inkSub)
@@ -740,7 +758,7 @@ private struct HandAreaView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(ShogiAccessibility.handLabel(
-                                type: type, color: color, count: count, isSelected: selected
+                                type: type, color: color, count: count, isSelected: selected, isHint: isHint
                             ))
                         }
                     }
