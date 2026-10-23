@@ -65,7 +65,7 @@ public struct OldMaidView: View {
         }
         .howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
-            OldMaidNewGameSheet(aiLevel: model.aiLevel) { level in
+            OldMaidNewGameSheet(aiLevel: model.aiLevel, discardsProgress: model.phase == .playing) { level in
                 showNewGame = false
                 model.startGame(aiLevel: level)
                 runCPU()
@@ -838,11 +838,14 @@ struct OldMaidFaceView: View {
 
 struct OldMaidNewGameSheet: View {
     @State private var level: Int
+    /// 対局中に開いたとき true（開始ボタンが「終了してスタート」になる）。決着後・開始待ちは通常の「スタート」。
+    let discardsProgress: Bool
     let onStart: (Int) -> Void
     let onCancel: () -> Void
 
-    init(aiLevel: Int, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
+    init(aiLevel: Int, discardsProgress: Bool = false, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
         _level = State(initialValue: aiLevel)
+        self.discardsProgress = discardsProgress
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -850,7 +853,7 @@ struct OldMaidNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
-            discardsProgress: true,
+            discardsProgress: discardsProgress,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {
