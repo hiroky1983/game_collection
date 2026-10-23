@@ -70,6 +70,7 @@ public enum ShogiAccessibility {
         isLastMove: Bool,
         isCheckedKing: Bool = false,
         isHint: Bool = false,
+        hintDrop: Piece? = nil,
         language: AppLanguage? = nil
     ) -> String {
         let language = resolved(language)
@@ -89,7 +90,14 @@ public enum ShogiAccessibility {
         }
         if isLastMove { parts.append(tr("直前の手", language: language)) }
         // ヒントの印（#1118）。見た目の枠（`ShogiView.targetLayer` が描くヒントの印）と同じ条件で読ませる。
-        if isHint { parts.append(tr("ヒントの手", language: language)) }
+        // 打つ手（#2768）は何を打つかも読ませる。例: 「ヒント：銀を打つ」。
+        if isHint {
+            if let hintDrop {
+                parts.append(tr("ヒント：%@を打つ", pieceName(hintDrop, language: language), language: language))
+            } else {
+                parts.append(tr("ヒントの手", language: language))
+            }
+        }
         return parts.joined(separator: separator(language))
     }
 
@@ -99,13 +107,15 @@ public enum ShogiAccessibility {
 
     /// 持ち駒 1 種類の読み上げ文。
     public static func handLabel(
-        type: PieceType, color: Side, count: Int, isSelected: Bool, language: AppLanguage? = nil
+        type: PieceType, color: Side, count: Int, isSelected: Bool, isHint: Bool = false, language: AppLanguage? = nil
     ) -> String {
         let language = resolved(language)
         var text = tr("%1$@の持ち駒、%2$@%3$lld枚", sideName(color, language: language),
                       pieceName(Piece(type: type, color: color), language: language), count,
                       language: language)
         if isSelected { text += separator(language) + tr("選択中", language: language) }
+        // ヒントが打つ手のとき、打つ駒の欄に印が付く（#2768）。
+        if isHint { text += separator(language) + tr("ヒントの駒", language: language) }
         return text
     }
 

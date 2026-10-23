@@ -278,6 +278,12 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
     }
 
+    /// ヒントが「持ち駒を打つ手」のとき、その駒の種類（持ち駒の欄の印と、打つ先の薄い駒の影に使う・#2768）。
+    public var hintDropType: PieceType? {
+        if case let .drop(type, _) = hintMove { return type }
+        return nil
+    }
+
     /// 王手されている側の玉のマス（表示局面基準）。王手でなければ nil。
     ///
     /// 状態として持たず**局面から毎回導く**（#377）。こうしておくと、検討ナビで戻った局面でも
@@ -603,7 +609,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// ヒントで示している最善手。着手・待った・新規対局・投了で消える（局面が変われば印は嘘になる）。
     /// **永続化しない** — 中断データに残すのは使った回数だけで、印は開き直したら出し直す。
-    public private(set) var hintMove: Move?
+    public internal(set) var hintMove: Move?
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「CPU思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
