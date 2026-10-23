@@ -329,7 +329,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } else {
             currentStone = currentStone.opponent
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
-            if mover == humanSide { services?.feedback.impact(.medium) }
+            if mover == humanSide { services?.feedback.impact(.board(.goStone)) }
         }
         persist()
     }

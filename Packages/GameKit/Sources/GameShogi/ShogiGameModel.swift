@@ -278,6 +278,12 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
     }
 
+    /// ヒントが「持ち駒を打つ手」のとき、その駒の種類（持ち駒の欄の印と、打つ先の薄い駒の影に使う・#2768）。
+    public var hintDropType: PieceType? {
+        if case let .drop(type, _) = hintMove { return type }
+        return nil
+    }
+
     /// 王手されている側の玉のマス（表示局面基準）。王手でなければ nil。
     ///
     /// 状態として持たず**局面から毎回導く**（#377）。こうしておくと、検討ナビで戻った局面でも
@@ -440,6 +446,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 合法手を適用する（AI もここを通る）。
     public func apply(_ move: Move) {
         let mover = position.sideToMove
+        // 駒を取る手かは盤を動かす前にしか分からない（取ったときは指す音より少し重い音・#2767）。
+        let isCapture: Bool
+        if case let .board(_, to, _) = move { isCapture = position.squares[to] != nil } else { isCapture = false }
         position.make(move)
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
@@ -488,7 +497,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(isCapture ? .shogiCapture : .shogiPiece))
         }
         persist()
     }
@@ -603,7 +612,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// ヒントで示している最善手。着手・待った・新規対局・投了で消える（局面が変われば印は嘘になる）。
     /// **永続化しない** — 中断データに残すのは使った回数だけで、印は開き直したら出し直す。
-    public private(set) var hintMove: Move?
+    public internal(set) var hintMove: Move?
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「CPU思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false

@@ -27,25 +27,31 @@ public struct ConcentrationView: View {
     }
 
     public var body: some View {
+        // レイアウトパターン A（全画面・会長決裁 2026-10-23・#2531）: ほかのトランプと同じく、フェルトを画面全体に敷き、
+        // ヘッダーは 1 行（戻る・神経衰弱・得点と手番の札・？・＋）、バナーは画面最下部（枠が置く）。
+        // ヘッダー下の得点の帯はやめてヘッダーの行へ移し、札の並びに縦をできるだけ回す。
         VStack(spacing: Self.stackSpacing) {
-            statusBar
-            // 札の並びと「⋯」の行は `cardGrid` の中で上から詰めて置き、余りの高さは「⋯」の行と広告の
-            // あいだに残す（盤→「⋯」→余白→広告・#1485）。
+            // 札の並びと「⋯」の行は `cardGrid` の中で置き、余りの高さは「⋯」の行の下に残す
+            // （盤→「⋯」→余白→広告・#1485）。
             cardGrid
             HowToPlayHint(.concentration, playLog: services.playLog)
             // レコメンド・階段の枠は結果の暗幕の中に置く（`resultOverlay`）。ここに置くと
             // 決着後は暗幕の下になり、透けて見えるのに押せない（#847）。
-            BannerSlot(ads: services.ads)
         }
-        .padding(Theme.pad)
-        .gameChrome(title: tr("神経衰弱"), review: services.review,
+        // 左右 8pt（全画面の枠の値）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+        .padding(.vertical, Self.verticalInset)
+        // 得点（あなた・CPU）と手番は、ヘッダー下の帯ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
+        .gameChrome(title: tr("神経衰弱"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.match) {
                         if model.hasProgressToLose {
                             showConfirmNewGame = true
                         } else {
                             showNewGame = true
                         }
-                    })
+                    }) {
+            scoreChips
+        }
         .howToPlay(HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items))
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局を始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
@@ -130,6 +136,15 @@ public struct ConcentrationView: View {
                 message: tr("広告を見ているあいだに新しいゲームが始まったか、札の状況が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
             )
         )
+        #if DEBUG
+        .task {
+            // 撮影・動作確認用: `-concentrationScenario mid|result` で局面を差し替える。
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-concentrationScenario"), i + 1 < args.count {
+                model.applyDebugScenario(args[i + 1])
+            }
+        }
+        #endif
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
         }
@@ -144,33 +159,64 @@ public struct ConcentrationView: View {
         // CPUのミスマッチは doCPUTurn が自前でクリアするため onChange 不要
     }
 
-    // MARK: - Status Bar
+    // MARK: - 得点と手番（ヘッダーの行の札）
 
-    private var statusBar: some View {
-        GameStatusBar {
-            scoreChip(label: tr("あなた"), score: model.playerScore,
-                      color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver,
-                      turnText: tr("あなたの番"))
-        } trailing: {
-            // 常に場所を取り、思考中の出入りで CPU のチップが左右に動かないようにする。
-            ProgressView().controlSize(.small)
-                .opacity(model.isThinking ? 1 : 0)
-            scoreChip(label: "CPU", score: model.cpuScore,
-                      color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver,
-                      turnText: tr("CPUの番"))
+    /// あなた・CPU の得点。手番の側の札を塗って手番を示す（以前のヘッダー下の帯と同じ見せ方）。
+    /// 文字色は札が自分で持つ（白い面の上に墨・塗った面の上に白）。
+    /// ヘッダーの残りの幅に「あなた」「CPU」の文字が収まらないとき（iPhone SE など）は、文字を人とコンピュータの印に替える。
+    private var scoreChips: some View {
+        ViewThatFits(in: .horizontal) {
+            scoreChipPair(compact: false)
+            scoreChipPair(compact: true)
         }
     }
 
-    private func scoreChip(label: String, score: Int, color: Color, isActive: Bool, turnText: String) -> some View {
+    private func scoreChipPair(compact: Bool) -> some View {
         HStack(spacing: 6) {
-            Text(label)
-                .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
-            Text("\(score)")
-                .scaledFont(20, weight: .black, design: .rounded)
-                .foregroundStyle(isActive ? Theme.onAccent : Theme.ink)
+            scoreChip(label: tr("あなた"), symbol: compact ? "person.fill" : nil, score: model.playerScore,
+                      color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver,
+                      turnText: tr("あなたの番"))
+            scoreChip(label: "CPU", symbol: compact ? "desktopcomputer" : nil, score: model.cpuScore,
+                      color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver,
+                      turnText: tr("CPUの番"))
+                // 思考中の印は CPU の札の角に重ねる（場所を取らないので、出入りで札が左右に動かない）。
+                .overlay(alignment: .topTrailing) {
+                    ProgressView().controlSize(.mini)
+                        .tint(.white)
+                        .offset(x: 4, y: -6)
+                        .opacity(model.isThinking ? 1 : 0)
+                        .accessibilityHidden(true)
+                }
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
+    }
+
+    /// - Parameter symbol: 狭い幅で文字の代わりに出す印。nil なら文字（`label`）を出す。読み上げはどちらも `label`。
+    private func scoreChip(label: String, symbol: String? = nil, score: Int, color: Color, isActive: Bool,
+                           turnText: String) -> some View {
+        HStack(spacing: 5) {
+            Group {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .scaledFont(12, weight: .bold, maxScale: Self.headerTextMaxScale)
+                        .accessibilityLabel(label)
+                } else {
+                    Text(label)
+                        .scaledFont(12, weight: .bold, design: .rounded, maxScale: Self.headerTextMaxScale)
+                }
+            }
+            .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
+            // 幅はこの盤の最高点の桁数ぶん先に取る。点が 9 → 10 に増えたときに札の幅が変わり、
+            // 文字 ↔ 印の切り替え（`scoreChips`）が局の途中で起きないようにする。
+            ZStack {
+                Text(String(repeating: "8", count: String(model.pairCount.rawValue).count))
+                    .hidden()
+                Text("\(score)")
+            }
+            .monospacedDigit()
+            .scaledFont(18, weight: .black, design: .rounded, maxScale: Self.headerTextMaxScale)
+            .foregroundStyle(isActive ? Theme.onAccent : Theme.ink)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 4)
         .background(Capsule().fill(isActive ? color : Theme.surface))
         // 手番が移ったことを色の変化で見せる（#208）。文字色（白 ↔ inkSub）も同じ値で
         // 切り替わるため、この1つで chip 全体が一緒に馴染む。
@@ -251,23 +297,21 @@ public struct ConcentrationView: View {
     // MARK: - Card Grid
 
     private var cardGrid: some View {
-        let cols = model.pairCount == .small ? 4 : 6
-        let rows = Int((Double(model.cards.count) / Double(cols)).rounded(.up))
-
         // 幅だけでカードの大きさを決めると縦に大きな空白が残る。与えられた高さも見て、
         // 余っていればカードを縦に伸ばす（伸ばしすぎて不自然にならないよう上限を設ける）。
         // 「⋯」の行（対局中だけ）も同じ枠の中で札のすぐ下に置くので、その高さを先に引いておく（#1485）。
-        return GeometryReader { geo in
-            let spacing = Self.gridSpacing
-            let controls = model.isGameOver ? 0 : Self.controlRowHeight + Self.stackSpacing
+        GeometryReader { geo in
+            let spacing = ConcentrationGridLayout.spacing
+            let controlRow = Self.controlRowHeight + Self.stackSpacing
+            // 列の数は「⋯」の行を引いた高さで決める（決着で「⋯」の行が消えても並びが組み替わらない）。
+            let cols = ConcentrationGridLayout.columns(
+                pairCount: model.pairCount, width: geo.size.width, height: max(0, geo.size.height - controlRow))
+            let controls = model.isGameOver ? 0 : controlRow
             let gridHeight = max(0, geo.size.height - controls)
-            let widthLimit = (geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
-            let heightLimit = rows > 0
-                ? (gridHeight - spacing * CGFloat(rows - 1)) / CGFloat(rows)
-                : widthLimit / Self.cardAspect
-            // 高さが足りないときは幅を削って収める。余っているときは幅いっぱいに使う。
-            let cardWidth = max(1, min(widthLimit, heightLimit * Self.cardAspect / Self.maxStretch))
-            let cardHeight = max(1, min(heightLimit, cardWidth / Self.cardAspect * Self.maxStretch))
+            let size = ConcentrationGridLayout.cardSize(
+                cardCount: model.cards.count, columns: cols, width: geo.size.width, height: gridHeight)
+            let cardWidth = size.width
+            let cardHeight = size.height
             let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: spacing), count: cols)
 
             VStack(spacing: Self.stackSpacing) {
@@ -301,15 +345,13 @@ public struct ConcentrationView: View {
 
     /// 画面の縦の並びの間隔。
     private static let stackSpacing: CGFloat = 10
+    /// 中身の上下の余白（ヘッダーの余白 4 / バナーの帯の余白 8 に足す分。ババ抜き・ハーツと同じ）。
+    private static let verticalInset: CGFloat = 2
+    /// ヘッダーの得点の札が文字サイズ設定で拡大する上限（ヘッダーの 44pt の行に収める）。
+    private static let headerTextMaxScale: CGFloat = 1.3
     /// 「⋯」の行の上下の余白と、それを含めた行の高さ（`GameOverflowBar` は 44pt の枠 + 上下の余白）。
     private static let controlRowPadding: CGFloat = 8
     private static let controlRowHeight: CGFloat = BoardGameControlMetrics.minTapTarget + 2 * controlRowPadding
-
-    /// カードの基準の幅 : 高さ
-    private static let cardAspect: CGFloat = 0.75
-    /// 縦に余ったときにカードを引き伸ばしてよい上限（基準比に対する倍率）
-    private static let maxStretch: CGFloat = 1.3
-    private static let gridSpacing: CGFloat = 6
 
     // MARK: - Result Overlay
 
@@ -429,9 +471,10 @@ private struct CardView: View {
         ZStack {
             if isFaceUp {
                 // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
+                // 獲得済みの淡いティールは紙の上に重ねる（素の半透明だとフェルトの緑が透けて沈む・#2531）。
                 cardShape
-                    .fill(card.isMatched ? AnyShapeStyle(Theme.teal.opacity(0.15))
-                                         : AnyShapeStyle(CardStyle.faceFill))
+                    .fill(CardStyle.faceFill)
+                    .overlay(cardShape.fill(Theme.teal.opacity(card.isMatched ? 0.15 : 0)))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(
@@ -462,6 +505,62 @@ private struct CardView: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
+    }
+}
+
+// MARK: - 札の並びの寸法
+
+/// 札の並び（列の数と札の大きさ）。View を組まずに大きさを確かめられるよう純関数にする（`ConcentrationGridLayoutTests`）。
+///
+/// レイアウトパターン A（#2531）で縦が伸びたので、札の並びが画面にいちばん大きく見える列の数を選ぶ:
+/// 12 ペア（24 枚）は 6 列 × 4 段が既定で、縦長の画面（iPhone 17）では 4 列 × 6 段のほうが札が大きくなるのでそちらにする。
+/// 札は基準比（幅 : 高さ = 0.75）より横長にはせず、縦は基準比の `maxStretch` 倍まで伸ばす。
+enum ConcentrationGridLayout {
+    /// カードの基準の幅 : 高さ
+    static let cardAspect: CGFloat = 0.75
+    /// 縦に余ったときにカードを引き伸ばしてよい上限（基準比に対する倍率）
+    static let maxStretch: CGFloat = 1.3
+    /// 札のあいだの間隔。
+    static let spacing: CGFloat = 6
+    /// 既定の列の数より札がこれ以上大きくなるときだけ、別の列の数に替える（ほぼ同じなら既定の並びのまま）。
+    static let switchThreshold: CGFloat = 2
+
+    /// 試す列の数。先頭が既定（以前の固定の列の数）。
+    static func candidateColumns(pairCount: ConcentrationPairCount) -> [Int] {
+        switch pairCount {
+        case .small: return [4]
+        case .medium: return [6, 4]
+        case .large: return [6]
+        }
+    }
+
+    /// 札の大きさ。高さが足りないときは基準比を保ったまま縮め、余っているときは縦を `maxStretch` 倍まで伸ばす。
+    static func cardSize(cardCount: Int, columns: Int, width: CGFloat, height: CGFloat) -> CGSize {
+        let cols = max(1, columns)
+        let rows = Int((Double(cardCount) / Double(cols)).rounded(.up))
+        let widthLimit = (width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
+        let heightLimit = rows > 0
+            ? (height - spacing * CGFloat(rows - 1)) / CGFloat(rows)
+            : widthLimit / cardAspect
+        let cardWidth = max(1, min(widthLimit, heightLimit * cardAspect))
+        let cardHeight = max(1, min(heightLimit, cardWidth / cardAspect * maxStretch))
+        return CGSize(width: cardWidth, height: cardHeight)
+    }
+
+    /// 札の幅（＝図案の大きさ）がいちばん大きくなる列の数。差が `switchThreshold` 未満なら既定の列の数。
+    static func columns(pairCount: ConcentrationPairCount, width: CGFloat, height: CGFloat) -> Int {
+        let candidates = candidateColumns(pairCount: pairCount)
+        let cardCount = pairCount.rawValue * 2
+        var best = candidates[0]
+        var bestWidth = cardSize(cardCount: cardCount, columns: best, width: width, height: height).width
+        for cols in candidates.dropFirst() {
+            let w = cardSize(cardCount: cardCount, columns: cols, width: width, height: height).width
+            if w >= bestWidth + switchThreshold {
+                best = cols
+                bestWidth = w
+            }
+        }
+        return best
     }
 }
 

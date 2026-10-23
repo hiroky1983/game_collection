@@ -310,6 +310,28 @@
         }
       }
     },
+    "ヒント：%@を打つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint: drop %@"
+          }
+        }
+      }
+    },
+    "ヒントの駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint piece"
+          }
+        }
+      }
+    },
     "ヒントの手" : {
       "extractionState" : "manual",
       "localizations" : {

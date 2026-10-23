@@ -277,7 +277,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             if mover == humanSide, !state.isTwoPassEnd { services?.feedback.impact(.light) }
         } else if mover == humanSide {
             // 着手の手応えは自分が打ったときだけ。CPU の着手では鳴らさない。
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(.goStone))
         }
 
         if state.isTwoPassEnd {

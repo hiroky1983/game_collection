@@ -459,7 +459,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         checkTermination()
         // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
         if !notifyTermination(), mover == humanSide {
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(.othelloDisc))
         }
         persist()
     }
