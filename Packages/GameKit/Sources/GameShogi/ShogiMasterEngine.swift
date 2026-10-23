@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// 達人（#2698）。「むずかしい」（`SimpleMinimaxEngine` の .hard）より強い段。
 ///
