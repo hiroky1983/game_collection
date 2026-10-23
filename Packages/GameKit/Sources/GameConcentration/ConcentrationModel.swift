@@ -338,6 +338,9 @@ public final class ConcentrationModel {
     /// - `mid`: あなたの番。4 組が取られていて（あなた 3・CPU 1）、1 枚目をめくった途中
     /// - `result`: 全部の札が取られた決着（あなた 7・CPU 5 で、あなたの勝ち。枚数は 12 ペアのとき）
     public func applyDebugScenario(_ name: String) {
+        // 知らない名前では盤を差し替えない（打ち間違いで進行中の局を壊さない）。
+        guard ["mid", "result"].contains(name) else { return }
+        isDebugScenario = true
         cancelAutoClear()
         let pairs = pairCount.rawValue
         let symbols = Array(ConcentrationFigure.allCases.prefix(pairs).map(\.rawValue))
@@ -373,10 +376,25 @@ public final class ConcentrationModel {
         }
         turnID += 1
     }
+
+    /// 撮影用の局面を差し替えたあとの局か（新規ゲームで外れる）。この局は中断データ・記録・解析に書かない。
+    private var isDebugScenario = false
     #endif
+
+    /// 中断データ・記録・解析に書いてよい局か。撮影用の局面（DEBUG）の局だけ false。
+    private var writesRecords: Bool {
+        #if DEBUG
+        return !isDebugScenario
+        #else
+        return true
+        #endif
+    }
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         cancelAutoClear()
+        #if DEBUG
+        isDebugScenario = false
+        #endif
         gameSerial += 1
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
@@ -533,7 +551,7 @@ public final class ConcentrationModel {
         // （1ターンで2枚めくるため、鳴らすと触れていない間に連続で振動してしまう）。
         let isHumanMove = currentPlayer == .human
         // 札がめくれた = 捨てたら途中離脱として数える盤面（#500）。
-        services?.gameDidProgress(gameID: gameID)
+        if writesRecords { services?.gameDidProgress(gameID: gameID) }
         cards[index].isFaceUp = true
         hintTarget = nil
         ai.observe(index: index, symbol: cards[index].symbol)
@@ -568,6 +586,7 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
+            guard writesRecords else { return }
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: recordScore)
             services?.snapshots.clear(for: gameID)
         }
@@ -583,7 +602,7 @@ public final class ConcentrationModel {
     }
 
     private func persist() {
-        guard !isGameOver else { return }
+        guard !isGameOver, writesRecords else { return }
         let snap = ConcentrationSnapshot(
             symbols: cards.map(\.symbol),
             isFaceUp: cards.map(\.isFaceUp),
