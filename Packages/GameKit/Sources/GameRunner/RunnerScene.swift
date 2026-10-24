@@ -60,6 +60,7 @@ final class RunnerScene: SKScene {
         .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         .yuoke: RunnerScene.makeTexture(RunnerPixelArt.yuoke(), name: "湯桶"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .snowman: RunnerScene.makeTexture(RunnerPixelArt.snowman(), name: "雪だるま"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     ]
     /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
     ///

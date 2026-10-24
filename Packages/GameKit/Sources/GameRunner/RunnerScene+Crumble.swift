@@ -31,8 +31,28 @@ extension RunnerScene {
     /// 板張りの**下は谷**（里山＝川、港町＝海）。谷そのものは `buildStageCourse` が
     /// 穴と同じ部品（`addPitVoid` / `addPitEdgeMarkers`）で描くので、ここでは架かっている
     /// ものだけを作る——「崩れた後に下の景色が見える」は、板を消せば谷がそのまま出る形にしてある。
+    /// 崩れる足場の色。吊り橋・桟橋は木（`crumble〜`）、薄氷の橋（雪国・#2729）は氷（`ice〜`）。
+    /// **組み立て・動き・当たり判定は同じ**で、着せ替えが替えるのはこの 5 色だけ。
+    struct CrumbleColors {
+        let deck: UInt32
+        let seam: UInt32
+        let rope: UInt32
+        let post: UInt32
+        let crack: UInt32
+
+        static func colors(for style: RunnerWorld.Dressing.CrumblingPlatform) -> CrumbleColors {
+            typealias P = RunnerWorld.DressingPalette
+            switch style {
+            case .suspensionBridge, .woodenPier:
+                return CrumbleColors(deck: P.crumbleDeck, seam: P.crumbleDeckSeam, rope: P.crumbleRope, post: P.crumblePost, crack: P.crumbleCrack)
+            case .iceBridge:
+                return CrumbleColors(deck: P.iceDeck, seam: P.iceDeckSeam, rope: P.iceRope, post: P.icePost, crack: P.iceCrack)
+            }
+        }
+    }
+
     func makeCrumblingPlatform(_ platform: RunnerPlatform) -> CrumblingPlatformView {
-        typealias P = RunnerWorld.DressingPalette
+        let P = CrumbleColors.colors(for: world.dressing.crumblingPlatform)
         let pier = world.dressing.crumblingPlatform == .woodenPier
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)
@@ -48,7 +68,7 @@ extension RunnerScene {
         // 袂の柱（吊り橋）／付け根の杭（桟橋）。**揺れない**＝崩れても残る、この区間の縁の目印。
         for x in [0.0, length] {
             let post = SKSpriteNode(
-                color: RunnerPalette.color(P.crumblePost),
+                color: RunnerPalette.color(P.post),
                 size: CGSize(width: 1.4, height: pier ? top + 1.0 : top + 3.5)
             )
             post.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -67,7 +87,7 @@ extension RunnerScene {
         for i in 0..<count {
             let x = length * Double(i) / Double(count)
             let plank = SKSpriteNode(
-                color: RunnerPalette.color(P.crumbleDeck),
+                color: RunnerPalette.color(P.deck),
                 size: CGSize(width: plankWidth, height: 1.6)
             )
             plank.anchorPoint = CGPoint(x: 0, y: 1)
@@ -75,7 +95,7 @@ extension RunnerScene {
             plank.zPosition = 3
             // 木目（板の下側の影）。板と別ノードにすると枚数が倍になるので、子 1 つで済ませる。
             let seam = SKSpriteNode(
-                color: RunnerPalette.color(P.crumbleDeckSeam),
+                color: RunnerPalette.color(P.seam),
                 size: CGSize(width: plankWidth, height: 0.45)
             )
             seam.anchorPoint = CGPoint(x: 0, y: 1)
@@ -89,7 +109,7 @@ extension RunnerScene {
         if pier {
             // 桟橋: 板を載せる桁（横木）と、海へ落ちる杭。桁は板と一緒に落ちる。
             let beam = SKSpriteNode(
-                color: RunnerPalette.color(P.crumblePost),
+                color: RunnerPalette.color(P.post),
                 size: CGSize(width: length, height: 0.8)
             )
             beam.anchorPoint = .zero
@@ -100,7 +120,7 @@ extension RunnerScene {
             var x = pitch * 3
             while x < length - pitch {
                 let pile = SKSpriteNode(
-                    color: RunnerPalette.color(P.crumblePost),
+                    color: RunnerPalette.color(P.post),
                     size: CGSize(width: 1.0, height: top - 2.6 + Self.roadHeight)
                 )
                 pile.anchorPoint = CGPoint(x: 0.5, y: 1)
@@ -120,7 +140,7 @@ extension RunnerScene {
                 control: CGPoint(x: length / 2, y: top - 2.2)
             )
             let cableNode = SKShapeNode(path: cable)
-            cableNode.strokeColor = RunnerPalette.color(P.crumbleRope)
+            cableNode.strokeColor = RunnerPalette.color(P.rope)
             cableNode.lineWidth = 0.6
             cableNode.fillColor = .clear
             cableNode.zPosition = 2
@@ -137,7 +157,7 @@ extension RunnerScene {
                 x += pitch * 3
             }
             let hangerNode = SKShapeNode(path: hangers)
-            hangerNode.fillColor = RunnerPalette.color(P.crumbleRope)
+            hangerNode.fillColor = RunnerPalette.color(P.rope)
             hangerNode.strokeColor = .clear
             hangerNode.zPosition = 2
             deck.addChild(hangerNode)
@@ -154,7 +174,7 @@ extension RunnerScene {
             cx += pitch * 5
         }
         let crackNode = SKShapeNode(path: cracks)
-        crackNode.fillColor = RunnerPalette.color(P.crumbleCrack)
+        crackNode.fillColor = RunnerPalette.color(P.crack)
         crackNode.strokeColor = .clear
         crackNode.zPosition = 4
         crackNode.alpha = 0

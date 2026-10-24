@@ -292,9 +292,9 @@ public struct RunnerField: Equatable, Sendable {
     /// ここを「接地面からの高さ」に変えると台座の有無で意味が変わる値になってしまう。
     public var altitude: Double { footY - Metrics.groundY }
 
-    /// `x` に穴が開いているか（点で見る）。
+    /// `x` に穴が開いているか（点で見る）。裂け目（#2729）も幅の広い穴そのもの。
     public func isPit(at x: Double) -> Bool {
-        firstHazard { $0.kind == .pit && $0.start <= x && x < $0.end } != nil
+        firstHazard { ($0.kind == .pit || $0.kind == .chasm) && $0.start <= x && x < $0.end } != nil
     }
 
     /// その x で**足が乗る高さ**（#674）。台座の範囲内なら台座の上面、外は地面。
@@ -374,7 +374,7 @@ public struct RunnerField: Equatable, Sendable {
         var best: (hazard: RunnerHazard, start: Double)?
         forEachHazard { hazard in
             guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { return }
-            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { return }
+            guard hazard.kind == .pit || hazard.kind == .chasm || frame.bottom < Metrics.playerHeight else { return }
             if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
         }
         return best?.hazard
@@ -794,7 +794,7 @@ public struct RunnerField: Equatable, Sendable {
         // 高い塀（#1091）も横に動かない相手なので岩と同じ扱い。二段ジャンプは滞空が長く、
         // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
         // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
-        case .pit, .lowBlock, .tallBlock, .shoot, .geyser, .wall: return true
+        case .pit, .chasm, .lowBlock, .tallBlock, .shoot, .geyser, .wall: return true
         case .bird, .dog, .boar:                         return false
         }
     }
@@ -809,7 +809,7 @@ public struct RunnerField: Equatable, Sendable {
     /// 抜けるので、同じ式のまま自然に当たらなくなる。
     private var hittingHazard: RunnerHazard? {
         firstHazard { hazard in
-            guard hazard.kind != .pit,
+            guard hazard.kind != .pit, hazard.kind != .chasm,
                   let frame = hazard.frame(atRunnerDistance: distance) else { return false }
             guard frame.start < playerMaxX, playerMinX < frame.end else { return false }
             return footY < Metrics.groundY + frame.top

@@ -89,6 +89,15 @@ extension RunnerScene {
         )
     }
 
+    /// 氷の裂け目の黒い水（`Dressing.Pit.iceCrevasse`・雪国 #2729）。穴と、幅の広い裂け目（`RunnerHazardKind.chasm`）
+    /// の両方をこれで描く——裂け目は同じ絵が 52 の幅に広がるだけ（当たり判定の幅そのもの）。
+    func addCrevasseWater(_ pit: RunnerHazard, into parent: SKNode) {
+        addWaterFilledPit(
+            pit, into: parent,
+            deep: RunnerWorld.DressingPalette.crevasseWater, surface: RunnerWorld.DressingPalette.crevasseSurface
+        )
+    }
+
     /// 水の入った穴。丘の楕円は地面より下にも半分伸びている（`addHillBump`）ので、奈落と同じく
     /// **画面の下端まで**塗って穴の中に丘が透けないようにする。水面の帯は路面の 1.6 下——
     /// 「落ちる高さがある」と読める段差。
@@ -130,6 +139,23 @@ extension RunnerScene {
             wall.anchorPoint = CGPoint(x: 0.5, y: 1)
             wall.position = CGPoint(x: edgeX, y: Metrics.groundY)
             parent.addChild(wall)
+        }
+    }
+
+    /// 氷の裂け目の両岸（`Dressing.Pit.iceCrevasse`・#2729）。割れた氷の断面を、路面から水面の下まで
+    /// 青白い縦帯で立てる（用水路の壁と同じ置き方）。その内側に深い氷の青の細い線を 1 本添えて、
+    /// 白い路面の上でも「ここで割れている」と縁が読めるようにする。
+    func addIceWalls(_ pit: RunnerHazard, into parent: SKNode) {
+        typealias P = RunnerWorld.DressingPalette
+        for (edgeX, inward) in [(pit.start, 1.0), (pit.end, -1.0)] {
+            let wall = SKSpriteNode(color: RunnerPalette.color(P.iceWall), size: CGSize(width: 1.1, height: 4.6))
+            wall.anchorPoint = CGPoint(x: 0.5, y: 1)
+            wall.position = CGPoint(x: edgeX, y: Metrics.groundY)
+            parent.addChild(wall)
+            let crack = SKSpriteNode(color: RunnerPalette.color(RunnerPixelArt.iceDeep), size: CGSize(width: 0.35, height: 4.2))
+            crack.anchorPoint = CGPoint(x: 0.5, y: 1)
+            crack.position = CGPoint(x: edgeX + inward * 0.55, y: Metrics.groundY - 0.2)
+            parent.addChild(crack)
         }
     }
 
@@ -212,12 +238,25 @@ extension RunnerScene {
     /// いちばん明るい板色にする。箱の縁・板の継ぎ目・斜めの補強材は暗い線で 1 本のパスに描く。
     func makeCrateStack(_ platform: RunnerPlatform) -> SKNode {
         typealias P = RunnerWorld.DressingPalette
+        return makeBoxStack(platform, body: P.crateWood, line: P.crateLine, top: P.crateTop, braced: true)
+    }
+
+    /// 雪のブロック（`Dressing.Platform.snowBlocks`・雪国 #2729）。かまくらの壁のように固く締まった雪の
+    /// 塊を 1 段に並べる。木箱の山とまったく同じ組み立て（箱の幅・縁・継ぎ目・上面の約束）で、色だけが雪
+    /// ——斜めの補強材は無い（雪の塊には板が無い）。
+    func makeSnowBlocks(_ platform: RunnerPlatform) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        return makeBoxStack(platform, body: P.snowBlockBody, line: P.snowBlockLine, top: P.snowBlockTop, braced: false)
+    }
+
+    /// 箱を並べた台座（木箱の山・雪のブロック）。`braced` なら箱ごとに斜めの補強材を渡す。
+    private func makeBoxStack(_ platform: RunnerPlatform, body bodyColor: UInt32, line lineColor: UInt32, top topColor: UInt32, braced: Bool) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)
         let w = platform.length, top = platform.top
         let bodyTop = top - Self.dressedDeckHeight - 0.5
 
-        let body = SKSpriteNode(color: RunnerPalette.color(P.crateWood), size: CGSize(width: w, height: bodyTop))
+        let body = SKSpriteNode(color: RunnerPalette.color(bodyColor), size: CGSize(width: w, height: bodyTop))
         body.anchorPoint = .zero
         node.addChild(body)
 
@@ -234,6 +273,7 @@ extension RunnerScene {
             lines.addRect(CGRect(x: x0, y: bodyTop * 0.33, width: actualWidth, height: 0.3))
             lines.addRect(CGRect(x: x0, y: bodyTop * 0.66, width: actualWidth, height: 0.3))
             // 斜めの補強材（左下から右上へ）。
+            guard braced else { continue }
             let inset = 0.9, t = 0.5
             lines.addLines(between: [
                 CGPoint(x: x0 + inset, y: 0.5), CGPoint(x: x0 + inset + t, y: 0.5),
@@ -245,11 +285,11 @@ extension RunnerScene {
         // 箱の底の縁。
         lines.addRect(CGRect(x: 0, y: 0, width: w, height: 0.45))
         let lineNode = SKShapeNode(path: lines)
-        lineNode.fillColor = RunnerPalette.color(P.crateLine)
+        lineNode.fillColor = RunnerPalette.color(lineColor)
         lineNode.strokeColor = .clear
         node.addChild(lineNode)
 
-        addDressedDeck(to: node, width: w, top: top, deck: P.crateTop, shade: P.crateLine)
+        addDressedDeck(to: node, width: w, top: top, deck: topColor, shade: lineColor)
         return node
     }
 
@@ -288,15 +328,28 @@ extension RunnerScene {
     /// 形と動きで伝える約束（`makeBoostFloor`）はそのまま。
     func makePavedFarmRoad(_ floor: RunnerBoostFloor) -> SKNode {
         typealias P = RunnerWorld.DressingPalette
+        return makePavedFloor(floor, surface: P.pavedAsphalt, edge: P.pavedEdge, arrow: P.pavedArrow)
+    }
+
+    /// アイスバーン（`Dressing.BoostFloor.iceSheet`・雪国 #2729）。圧雪の路面の中に深い青の氷の区間を敷き、
+    /// 上下に青白い氷の縁、白い山形の矢印を右へ流す。舗装された農道とまったく同じ組み立てで色だけが氷
+    /// ——白い氷では圧雪の路面と見分けが付かないので、面は深い青（路面と 3:1 以上・`WorldTests`）。
+    func makeIceSheet(_ floor: RunnerBoostFloor) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        return makePavedFloor(floor, surface: P.iceSheet, edge: P.iceSheetEdge, arrow: P.iceSheetArrow)
+    }
+
+    /// 路面を塗り替える加速床（舗装・アイスバーン）。面の色・上下の縁の色・矢印の色だけが違う。
+    private func makePavedFloor(_ floor: RunnerBoostFloor, surface: UInt32, edge: UInt32, arrow: UInt32) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
-        addBand(to: node, color: P.pavedAsphalt, x: 0, y: bottom, width: floor.length, height: height)
+        addBand(to: node, color: surface, x: 0, y: bottom, width: floor.length, height: height)
         for edgeY in [bottom, Metrics.groundY - 0.5] {
-            addBand(to: node, color: P.pavedEdge, x: 0, y: edgeY, width: floor.length, height: 0.5)
+            addBand(to: node, color: edge, x: 0, y: edgeY, width: floor.length, height: 0.5)
         }
-        addFlowingChevrons(to: node, length: floor.length, bottom: bottom, height: height, color: P.pavedArrow)
+        addFlowingChevrons(to: node, length: floor.length, bottom: bottom, height: height, color: arrow)
         return node
     }
 
@@ -350,15 +403,16 @@ extension RunnerScene {
         typealias P = RunnerWorld.DressingPalette
         let paddy = world.dressing.sinkFloor == .paddy
         let footBath = world.dressing.sinkFloor == .footBath
+        let freshSnow = world.dressing.sinkFloor == .freshSnow
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
         let surfaceHeight = height * 0.7
-        addBand(to: node, color: footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep),
-                x: 0, y: bottom, width: floor.length, height: height)
-        addBand(to: node, color: footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud),
-                x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
+        let deepColor: UInt32 = freshSnow ? P.freshSnowDeep : footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep)
+        let surfaceColor: UInt32 = freshSnow ? P.freshSnowSurface : footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud)
+        addBand(to: node, color: deepColor, x: 0, y: bottom, width: floor.length, height: height)
+        addBand(to: node, color: surfaceColor, x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
 
         // 水面（泥）の模様。田んぼは苗の列、干潟はカニの穴。どちらも 1 本のパスにまとめて
         // 1 ノードで描く（長い床でもノード数が増えない。`makeConveyor` のローラーと同じ作法）。
@@ -366,7 +420,13 @@ extension RunnerScene {
         let spacing = 5.0
         var x = spacing / 2
         while x < floor.length - 1 {
-            if footBath {
+            if freshSnow {
+                // 新雪（#2729）: 吹き溜まりの表面に盛り上がった雪の塊の影。地面の線より上へ 2.4 突き出す
+                // 青灰の塊 2 つで、白い背景の前でも「ここは柔らかく積もっている」と踏み込む前に読める
+                // （雪そのものを白で描くと白い丘に溶けて目印にならないので、塊の影を描く）。
+                marks.addEllipse(in: CGRect(x: x - 1.6, y: Metrics.groundY - 0.6, width: 2.6, height: 1.7))
+                marks.addEllipse(in: CGRect(x: x + 0.4, y: Metrics.groundY + 0.6, width: 1.9, height: 1.8))
+            } else if footBath {
                 // 湯けむり: 水面から立ち上る白い湯気の粒を 3 つ（踏み込む前に読める目印）。
                 marks.addEllipse(in: CGRect(x: x - 1.2, y: Metrics.groundY - 0.4, width: 2.0, height: 1.6))
                 marks.addEllipse(in: CGRect(x: x + 0.2, y: Metrics.groundY + 1.0, width: 1.6, height: 1.4))
@@ -388,10 +448,28 @@ extension RunnerScene {
             x += spacing
         }
         let markNode = SKShapeNode(path: marks)
-        markNode.fillColor = RunnerPalette.color(footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole))
+        markNode.fillColor = RunnerPalette.color(
+            freshSnow ? P.freshSnowShade : footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole)
+        )
         markNode.strokeColor = .clear
         markNode.zPosition = 2
         node.addChild(markNode)
+        if freshSnow {
+            // 新雪の塊そのもの（雪の白）を影の上に少しずらして重ねる。影だけだと青い石に見える
+            // （撮って分かった）。影が左下へはみ出す分が「盛り上がった雪の陰」になる。
+            let lumps = CGMutablePath()
+            var lx = spacing / 2
+            while lx < floor.length - 1 {
+                lumps.addEllipse(in: CGRect(x: lx - 1.3, y: Metrics.groundY - 0.2, width: 2.3, height: 1.5))
+                lumps.addEllipse(in: CGRect(x: lx + 0.7, y: Metrics.groundY + 1.0, width: 1.6, height: 1.5))
+                lx += spacing
+            }
+            let lumpNode = SKShapeNode(path: lumps)
+            lumpNode.fillColor = RunnerPalette.color(RunnerPixelArt.snowWhite)
+            lumpNode.strokeColor = .clear
+            lumpNode.zPosition = 2.5
+            node.addChild(lumpNode)
+        }
 
         // 水面（泥）の照り。**水面のマスクで切るので地面の線より上には出ない**——踏み込む前の
         // 目印は上の `marks`（苗・泡）が担う。
@@ -399,11 +477,14 @@ extension RunnerScene {
         let glintSpacing = 9.0
         var gx = 0.0
         while gx < floor.length + glintSpacing {
-            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath)
+            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow)
             gx += glintSpacing
         }
         let glintNode = SKShapeNode(path: glints)
-        glintNode.fillColor = RunnerPalette.color((paddy || footBath) ? P.waterGlint : P.tidelandSheen)
+        // 新雪の照りは雪の白（粉雪のきらめき）。
+        glintNode.fillColor = RunnerPalette.color(
+            freshSnow ? RunnerPixelArt.snowWhite : (paddy || footBath) ? P.waterGlint : P.tidelandSheen
+        )
         glintNode.strokeColor = .clear
         glintNode.alpha = 0.85
         glintNode.zPosition = 1

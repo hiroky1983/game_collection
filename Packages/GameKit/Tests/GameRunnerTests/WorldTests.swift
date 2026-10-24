@@ -7,7 +7,7 @@ import Testing
 @Suite("チャリンコおじさん: 世界")
 struct RunnerWorldTests {
 
-    @Test("1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街（境界を含む）")
+    @Test("1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国（境界を含む）")
     func stageRanges() {
         #expect(RunnerWorld.world(forStage: 1) == .morning)
         #expect(RunnerWorld.world(forStage: 6) == .morning)
@@ -23,21 +23,23 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.world(forStage: 36) == .kyotoNara)
         #expect(RunnerWorld.world(forStage: 37) == .onsen)
         #expect(RunnerWorld.world(forStage: 42) == .onsen)
+        #expect(RunnerWorld.world(forStage: 43) == .snow)
+        #expect(RunnerWorld.world(forStage: 48) == .snow)
     }
 
-    @Test("範囲外は夜（ショーケースの 0 番・最後の世界より後ろの 43 面以降も落ちずに描く）")
+    @Test("範囲外は夜（ショーケースの 0 番・最後の世界より後ろの 49 面以降も落ちずに描く）")
     func outOfRangeIsNight() {
         #expect(RunnerWorld.world(forStage: 0) == .night)
         #expect(RunnerWorld.world(forStage: -1) == .night)
-        #expect(RunnerWorld.world(forStage: 43) == .night)
+        #expect(RunnerWorld.world(forStage: 49) == .night)
         #expect(RunnerWorld.world(forStage: RunnerRules.stageCount + 1) == .night)
     }
 
-    @Test("全 42 面がちょうど 6 面ずつ 7 つの世界に分かれる")
+    @Test("全 48 面がちょうど 6 面ずつ 8 つの世界に分かれる")
     func everyStageHasAWorld() {
         let counts = Dictionary(grouping: RunnerStage.all, by: { RunnerWorld.world(forStage: $0.number) })
             .mapValues(\.count)
-        #expect(counts == [.morning: 6, .evening: 6, .night: 6, .satoyama: 6, .harbor: 6, .kyotoNara: 6, .onsen: 6])
+        #expect(counts == [.morning: 6, .evening: 6, .night: 6, .satoyama: 6, .harbor: 6, .kyotoNara: 6, .onsen: 6, .snow: 6])
         #expect(RunnerWorld.stagesPerWorld * RunnerWorld.allCases.count == RunnerRules.stageCount)
     }
 
@@ -205,6 +207,7 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.harbor.scenery == .harbor)
         #expect(RunnerWorld.kyotoNara.scenery == .kyotoNara)
         #expect(RunnerWorld.onsen.scenery == .onsen)
+        #expect(RunnerWorld.snow.scenery == .snow)
     }
 
     // MARK: 背景は淡く沈め、手前は縁取る（#929）
@@ -407,11 +410,19 @@ struct RunnerWorldTests {
             platform: .crateStack, boostFloor: .pavedFarmRoad, shoot: .steamColumn, sinkFloor: .footBath,
             crumblingPlatform: .suspensionBridge, wall: .stoneWall
         ))
+        // 雪国（#2729・設計書の着せ替え表）: 新しく描くのは犬の枠のキタキツネ・低い岩の雪だるま。穴と裂け目は氷の
+        // 裂け目、高い岩は雪をかぶった岩（岩塊の頂だけ白）、それ以外は既存の部品の色替え。
+        #expect(RunnerWorld.snow.dressing == D(
+            pit: .iceCrevasse, lowBlock: .snowman, tallBlock: .boulder, dog: .fox, boar: .boar,
+            platform: .snowBlocks, boostFloor: .iceSheet, shoot: .snowSpout, sinkFloor: .freshSnow,
+            crumblingPlatform: .iceBridge, wall: .snowBank
+        ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
         #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
-        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot, .geyser, .wall] {
+        #expect(RunnerWorld.snow.dressing.block(for: .lowBlock) == .snowman)
+        for kind in [RunnerHazardKind.pit, .chasm, .bird, .dog, .boar, .shoot, .geyser, .wall] {
             #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
         }
     }
@@ -526,16 +537,65 @@ struct RunnerWorldTests {
         }
     }
 
+    /// 雪国（#2729）の着せ替えた手前の物。背景が白い帯なので、**濃い側が 3:1 を担う**ものが多い:
+    /// 雪柱の右の陰（`J`）・雪山の目地（`J`）・薄氷の橋の板の下端と柱・新雪の塊の影は主色だけで 3:1、
+    /// 雪だるま・雪のブロックは縁取りで 3:1（切り株・木箱と同じ扱い）。アイスバーン・新雪の底・裂け目の水は路面と 3:1。
+    @Test("雪国の着せ替えた手前の物は、濃い側か縁取りが白い背景と 3:1 以上")
+    func snowDressedForegroundStandsOutFromBackdrops() {
+        typealias P = RunnerWorld.DressingPalette
+        let art = RunnerPixelArt.palette
+        let snow = RunnerWorld.snow
+        // 主色か縁取りのどちらかで 3:1（切り株・木箱と同じ形）。
+        for (name, main, edge) in [
+            ("雪だるま", art["F"]!, RunnerPixelArt.outline),
+            ("雪のブロック", P.snowBlockBody, snow.outline),
+            ("雪のブロックの上面", P.snowBlockTop, snow.outline),
+            ("氷の裂け目の壁", P.iceWall, P.crevasseWater),
+        ] {
+            for (backdrop, color) in snow.groundBackdrops {
+                #expect(
+                    max(WCAG.contrast(main, color), WCAG.contrast(edge, color)) >= 3.0,
+                    "雪国の\(name)が \(backdrop) (\(String(color, radix: 16))) に溶ける"
+                )
+            }
+        }
+        // **主色だけで 3:1 を要求する**もの（縁取りのノードを持たない・縁取りで通ってしまう形にしない）。
+        for (name, color) in [
+            ("雪柱の右の陰", art["J"]!), ("雪山の目地", art["J"]!),
+            ("薄氷の橋の板の下端", P.iceDeckSeam), ("薄氷の橋の柱", P.icePost), ("薄氷の橋の縄", P.iceRope),
+            ("新雪の塊の影", P.freshSnowShade),
+        ] {
+            for (backdrop, hex) in snow.groundBackdrops {
+                #expect(WCAG.contrast(color, hex) >= 3.0, "雪国の\(name)が \(backdrop) (\(String(hex, radix: 16))) に溶ける")
+            }
+        }
+        // 雪柱・雪山・雪が舞い上がる予告は、絵の中に濃い側（`J`）が実在する。
+        #expect(RunnerPixelArt.snowSpoutRows.joined().contains("J"), "雪柱に濃い陰が無い")
+        #expect(RunnerPixelArt.snowBankRows.joined().contains("J"), "雪山に目地が無い")
+        // 路面の中に描くもの（加速床・沈む床・穴）は路面とだけ比べる（`foregroundStandsOutFromBackdrops` と同じ）。
+        let asphalt = snow.road.asphalt
+        #expect(WCAG.contrast(P.iceSheet, asphalt) >= 3.0, "アイスバーンが圧雪の路面に溶ける")
+        #expect(WCAG.contrast(P.iceSheetArrow, P.iceSheet) >= 3.0, "アイスバーンの矢印が読めない")
+        #expect(WCAG.contrast(P.freshSnowDeep, asphalt) >= 3.0, "新雪の底が路面に溶ける")
+        #expect(WCAG.relativeLuminance(P.freshSnowSurface) > WCAG.relativeLuminance(P.freshSnowDeep), "新雪の面が底より暗い")
+        #expect(WCAG.contrast(P.freshSnowSurface, P.freshSnowShade) >= 2.0, "新雪の塊の影が面に溶ける")
+        #expect(WCAG.contrast(P.iceCrack, P.iceDeck) >= 3.0, "氷のひびが板に溶ける")
+        #expect(WCAG.relativeLuminance(P.iceDeck) > WCAG.relativeLuminance(P.iceDeckSeam), "氷の板が下端より暗い")
+    }
+
     /// 穴に水を張っても「穴」だと分かること: 深い水は路面と 3:1 以上、水面の帯は深い水より明るく、
-    /// 用水路の壁は路面より明るい（切れ目の縁が立つ）。
-    @Test("用水路・岸壁の切れ目の水は路面と 3:1 以上で、水面は深い水より明るい")
+    /// 用水路の壁は路面より明るい（切れ目の縁が立つ）。氷の裂け目（#2729）も同じ約束。
+    @Test("用水路・岸壁の切れ目・氷の裂け目の水は路面と 3:1 以上で、水面は深い水より明るい")
     func waterPitsReadAsHoles() {
         typealias P = RunnerWorld.DressingPalette
         #expect(WCAG.contrast(P.ditchWater, RunnerWorld.satoyama.road.asphalt) >= 3.0)
         #expect(WCAG.contrast(P.gapSea, RunnerWorld.harbor.road.asphalt) >= 3.0)
+        #expect(WCAG.contrast(P.crevasseWater, RunnerWorld.snow.road.asphalt) >= 3.0)
         #expect(WCAG.relativeLuminance(P.ditchSurface) > WCAG.relativeLuminance(P.ditchWater))
         #expect(WCAG.relativeLuminance(P.gapSurface) > WCAG.relativeLuminance(P.gapSea))
+        #expect(WCAG.relativeLuminance(P.crevasseSurface) > WCAG.relativeLuminance(P.crevasseWater))
         #expect(WCAG.relativeLuminance(P.ditchWall) > WCAG.relativeLuminance(RunnerWorld.satoyama.road.asphalt))
+        #expect(WCAG.relativeLuminance(P.iceWall) > WCAG.relativeLuminance(RunnerWorld.snow.road.asphalt))
         // 奈落（1〜18 面）の色は変えていない。
         #expect(RunnerPalette.pitVoid == 0x141824)
     }
@@ -577,6 +637,11 @@ struct RunnerWorldTests {
         #expect(gull.birdBeak == RunnerPalette.birdBeak)
         // 白目は腹の色。カラスの腹は胴より明るい灰で、黒目（`RunnerPalette.birdEye`）が読める。
         #expect(WCAG.contrast(crow.birdBelly, RunnerPalette.birdEye) >= 3.0, "カラスの目が読めない")
+        // 雪国のシロフクロウ（#2729）はカモメと同じ「白い頭・暗い主色」で、くちばしは炭色。
+        let owl = RunnerWorld.snow.creatures
+        #expect(WCAG.relativeLuminance(owl.birdHead) > 0.8, "シロフクロウの頭が白くない")
+        #expect(WCAG.relativeLuminance(owl.birdBeak) < 0.1, "シロフクロウのくちばしが橙のまま")
+        #expect(WCAG.relativeLuminance(owl.birdBeak) > WCAG.relativeLuminance(owl.outline), "くちばしが縁取りに溶ける")
     }
 
     @Test("読み上げにはステージ番号に世界の名前が添えられる")
@@ -589,6 +654,8 @@ struct RunnerWorldTests {
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 31, total: 36) == "ステージ 31 / 36、京都・奈良")
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 36, total: 36) == "ステージ 36 / 36、京都・奈良")
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 42, total: 42) == "ステージ 42 / 42、温泉街")
+        #expect(RunnerAccessibility.stageLabelWithWorld(number: 43, total: 48) == "ステージ 43 / 48、雪国")
+        #expect(RunnerAccessibility.stageLabelWithWorld(number: 48, total: 48) == "ステージ 48 / 48、雪国")
         // 見た目の文言（番号だけ）は変えない。
         #expect(RunnerAccessibility.stageLabel(number: 3, total: 18) == "ステージ 3 / 18")
     }
@@ -612,7 +679,7 @@ struct RunnerStageCodeTests {
         #expect(!RunnerWorld.contains(stage: -1))
     }
 
-    @Test("世界と面番号の対応: 1-1 は 1 面、2-1 は 7 面、3-6 は 18 面、4-1 は 19 面、5-6 は 30 面、6-6 は 36 面、7-6 は 42 面")
+    @Test("世界と面番号の対応: 1-1 は 1 面、2-1 は 7 面、3-6 は 18 面、4-1 は 19 面、5-6 は 30 面、6-6 は 36 面、7-6 は 42 面、8-6 は 48 面")
     func codesFollowWorldBoundaries() {
         #expect(RunnerWorld.morning.number == 1)
         #expect(RunnerWorld.evening.number == 2)
@@ -621,6 +688,7 @@ struct RunnerStageCodeTests {
         #expect(RunnerWorld.harbor.number == 5)
         #expect(RunnerWorld.kyotoNara.number == 6)
         #expect(RunnerWorld.onsen.number == 7)
+        #expect(RunnerWorld.snow.number == 8)
         #expect(RunnerWorld.morning.stageRange == 1...6)
         #expect(RunnerWorld.evening.stageRange == 7...12)
         #expect(RunnerWorld.night.stageRange == 13...18)
@@ -628,6 +696,7 @@ struct RunnerStageCodeTests {
         #expect(RunnerWorld.harbor.stageRange == 25...30)
         #expect(RunnerWorld.kyotoNara.stageRange == 31...36)
         #expect(RunnerWorld.onsen.stageRange == 37...42)
+        #expect(RunnerWorld.snow.stageRange == 43...48)
 
         #expect(RunnerWorld.code(forStage: 1) == "1-1")
         #expect(RunnerWorld.code(forStage: 6) == "1-6")
@@ -643,8 +712,10 @@ struct RunnerStageCodeTests {
         #expect(RunnerWorld.code(forStage: 36) == "6-6")
         #expect(RunnerWorld.code(forStage: 37) == "7-1")
         #expect(RunnerWorld.code(forStage: 42) == "7-6")
+        #expect(RunnerWorld.code(forStage: 43) == "8-1")
+        #expect(RunnerWorld.code(forStage: 48) == "8-6")
 
-        // 世界の範囲を順に並べると 1…42 を漏れなく 1 度ずつ覆う。
+        // 世界の範囲を順に並べると 1…48 を漏れなく 1 度ずつ覆う。
         let covered = RunnerWorld.allCases.flatMap { Array($0.stageRange) }
         #expect(covered == Array(1...RunnerRules.stageCount))
     }
@@ -712,5 +783,6 @@ struct RunnerStageCodeTests {
         #expect(RunnerAccessibility.stageMapLabel(number: 30, reached: false) == "5-6、未到達")
         #expect(RunnerAccessibility.stageMapLabel(number: 36, reached: false) == "6-6、未到達")
         #expect(RunnerAccessibility.stageMapLabel(number: 42, reached: false) == "7-6、未到達")
+        #expect(RunnerAccessibility.stageMapLabel(number: 48, reached: false) == "8-6、未到達")
     }
 }

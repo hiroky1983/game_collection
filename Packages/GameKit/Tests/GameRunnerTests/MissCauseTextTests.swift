@@ -49,6 +49,15 @@ struct MissTextTests {
             (.wall, .satoyama, "石垣にぶつかった"),
             (.wall, .harbor, "コンテナにぶつかった"),
             (.bird, .harbor, "鳥にぶつかった"),
+            // 雪国（#2729）。裂け目は穴と同じ「穴に落ちた」。
+            (.dog, .snow, "キツネにぶつかった"),
+            (.lowBlock, .snow, "雪だるまにぶつかった"),
+            (.tallBlock, .snow, "岩にぶつかった"),
+            (.shoot, .snow, "雪柱にぶつかった"),
+            (.wall, .snow, "雪山にぶつかった"),
+            (.boar, .snow, "イノシシにぶつかった"),
+            (.chasm, .snow, "穴に落ちた"),
+            (.pit, .snow, "穴に落ちた"),
         ]
         for (kind, world, expected) in table {
             #expect(text(kind, world) == expected, "\(kind)・\(world)")
@@ -63,6 +72,7 @@ struct MissTextTests {
         #expect(face(.morning) == "足場にぶつかった")
         #expect(face(.satoyama) == "わら積みにぶつかった")
         #expect(face(.harbor) == "木箱にぶつかった")
+        #expect(face(.snow) == "雪のブロックにぶつかった")
     }
 
     @Test("崩れる足場の正面は足場の見た目（吊り橋・桟橋）で言う（#2285）")
@@ -73,6 +83,7 @@ struct MissTextTests {
         #expect(face(.satoyama) == "吊り橋にぶつかった")
         #expect(face(.harbor) == "桟橋にぶつかった")
         #expect(face(.kyotoNara) == "吊り橋にぶつかった")
+        #expect(face(.snow) == "薄氷の橋にぶつかった")
         for world in RunnerWorld.allCases {
             #expect(face(world) != RunnerView.missText(cause: .rock, object: .platformFace, world: world))
         }
@@ -86,7 +97,7 @@ struct MissTextTests {
 
     @Test("全ての世界・全ての障害に文があり、英語がある")
     func everyCombinationHasTextAndEnglish() {
-        let kinds: [RunnerHazardKind] = [.lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser, .wall]
+        let kinds: [RunnerHazardKind] = [.lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser, .wall, .chasm]
         for world in RunnerWorld.allCases {
             var texts = kinds.map { text($0, world) }
             texts.append(RunnerView.missText(cause: .rock, object: .platformFace, world: world))

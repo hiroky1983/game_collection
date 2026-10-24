@@ -190,7 +190,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world6|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|chasm:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world8|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092・#2729）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 // ストーリーの始まり（#1092）だけは走行と無関係な View の状態なので、
@@ -752,15 +752,18 @@ public struct RunnerView: View {
             case .scaffold: return tr("足場にぶつかった")
             case .strawStack: return tr("わら積みにぶつかった")
             case .crateStack: return tr("木箱にぶつかった")
+            case .snowBlocks: return tr("雪のブロックにぶつかった")
             }
         case .crumblingPlatformFace:
             switch dressing.crumblingPlatform {
             case .suspensionBridge: return tr("吊り橋にぶつかった")
             case .woodenPier: return tr("桟橋にぶつかった")
+            case .iceBridge: return tr("薄氷の橋にぶつかった")
             }
         case .hazard(let kind):
             switch kind {
-            case .pit: return missCauseText(.pit)
+            // 裂け目（#2729）に落ちるのも「穴に落ちた」（死因も穴と同じ）。
+            case .pit, .chasm: return missCauseText(.pit)
             case .bird: return missCauseText(.bird)
             case .lowBlock: return blockText(dressing.lowBlock)
             case .tallBlock: return blockText(dressing.tallBlock)
@@ -770,6 +773,7 @@ public struct RunnerView: View {
                 case .cat: return tr("猫にぶつかった")
                 case .deer: return tr("鹿にぶつかった")
                 case .monkey: return tr("サルにぶつかった")
+                case .fox: return tr("キツネにぶつかった")
                 }
             case .boar:
                 switch dressing.boar {
@@ -781,11 +785,13 @@ public struct RunnerView: View {
                 case .bambooShoot: return tr("竹の子にぶつかった")
                 case .seaSpray: return tr("波しぶきにぶつかった")
                 case .steamColumn: return tr("湯柱にぶつかった")
+                case .snowSpout: return tr("雪柱にぶつかった")
                 }
             case .wall:
                 switch dressing.wall {
                 case .stoneWall: return tr("石垣にぶつかった")
                 case .containerStack: return tr("コンテナにぶつかった")
+                case .snowBank: return tr("雪山にぶつかった")
                 }
             }
         }
@@ -798,6 +804,7 @@ public struct RunnerView: View {
         case .ropeCoil: return tr("ロープにぶつかった")
         case .drum: return tr("ドラム缶にぶつかった")
         case .yuoke: return tr("湯桶にぶつかった")
+        case .snowman: return tr("雪だるまにぶつかった")
         }
     }
 

@@ -17,6 +17,7 @@ import Foundation
 /// | `i` | イノシシ（#801） |
 /// | `^` | 下から突き上げる障害（#1010。里山＝竹の子・港町＝波しぶき。19 面以降だけ） |
 /// | `w` | 二段ジャンプでしか越えられない高い塀（#1091。里山＝石垣・港町＝積まれたコンテナ。19 面以降だけ） |
+/// | `V` | 二段ジャンプでしか渡れない広い裂け目（#2729。雪国＝割れた氷の湖。幅 `RunnerRules.chasmTiles`。43 面以降だけ） |
 /// | `s` | スピードアップアイテム（平地 + アイテム。障害としては扱わない） |
 /// | `k` | たこ焼き（平地 + 一定時間無敵になるアイテム。障害としては扱わない・#797） |
 /// | `P` | 乗れる台座（区画まるごと。**連続する `P` は 1 つの台座にまとまる**） |
@@ -274,6 +275,9 @@ public struct RunnerStage: Equatable, Sendable {
         case "^": return (.shoot, 1)
         case "w": return (.wall, 1)
         case "g": return (.geyser, 1)
+        // 裂け目（#2729）は穴と同じ場所（`hazardTileOffset`）から始まり、幅だけが広い——右端は次の区画へ
+        // 3 タイル食い込む。着地点 2 区画を平地にする決まり（`RunnerSnowGimmickTests`）で、その食い込みは問題にならない。
+        case "V": return (.chasm, RunnerRules.chasmTiles)
         default:  return nil
         }
     }

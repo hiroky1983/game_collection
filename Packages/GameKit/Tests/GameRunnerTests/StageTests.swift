@@ -9,12 +9,27 @@ import Testing
 @Suite("チャリンコおじさん: ステージ定義")
 struct RunnerStageTests {
 
-    @Test("受け入れ条件どおり 42 ステージある")
+    @Test("受け入れ条件どおり 48 ステージある")
     func stageCount() {
         // #494 の受け入れ条件は「最低15ステージ」。16〜18 は乗れる台座の枠（#674）、
-        // 19〜30 は里山・港町の 2 世界（#1009）、31〜36 は京都・奈良（#1824）、37〜42 は温泉街（#1938）。
-        #expect(RunnerRules.stageCount == 42)
-        #expect(RunnerStage.all.map(\.number) == Array(1...42))
+        // 19〜30 は里山・港町の 2 世界（#1009）、31〜36 は京都・奈良（#1824）、37〜42 は温泉街（#1938）、
+        // 43〜48 は雪国（#2729）。
+        #expect(RunnerRules.stageCount == 48)
+        #expect(RunnerStage.all.map(\.number) == Array(1...48))
+    }
+
+    /// **37〜42 面のパターン文字列もリテラルで固定する**（#2729 の「1〜42 面は無変更」）。雪国（43 面以降）を
+    /// 足すときに、公開済みの温泉街の面が意図せず書き換わっていないことを押さえる。
+    @Test("37〜42 ステージのパターン文字列が固定値どおり")
+    func onsenStagePatternsArePinned() {
+        #expect(RunnerStage.all[36..<42].map(\.pattern) == [
+            "--PP-gm1^nd2t-C-t~ik2t1g-=-n2b1-w--d^1~1-C-t^n--",
+            "--1n-PP-gmt2d~1i-C-n2b1-=-t1g2-w--t1k~n^1t-C-2n--",
+            "--PP-2m^1dn-C-t2~1mikt1-=-b2g1n-w--d~2g1t-C-1t2n--",
+            "--1n^d2t-PP-~i1k-C-t1g2n-=-2mb1d-w--~ng2t-C-1d2tn--",
+            "--PP-2gnd-C-t1~im2n1-=-n^1bm2d-w--t~2g1nk1-C-1tn2t--",
+            "--1^nd2t-C-1tmt~ik2t1g-PP-n2b1-w--=-d^1~1-C-tgn1n2t--",
+        ])
     }
 
     /// **19〜30 面のパターン文字列もリテラルで固定する**（#1824 の「1〜30 面は無変更」）。31 面以降を
@@ -140,9 +155,9 @@ struct RunnerStageTests {
     ///   （#1009 は「おおむね増える」で厳密な単調増加は求めていないが、手で組んだ 18 面は減らない並びに
     ///   してあるので、崩したときに気付けるよう固定する）
     /// - 19 面は 18 面以上（新しい世界に入って急に易しくならない）
-    /// - 各世界の最初の面（19・25・31）は、直前の世界の最後の面（18・24・30）より極端に難しくならない
+    /// - 各世界の最初の面（19・25・31・37・43）は、直前の世界の最後の面（18・24・30・36・42）より極端に難しくならない
     ///   （目安として +3 個まで。世界が変わった直後は新しい仕組みを覚える面なので数で押さない）
-    @Test("里山・港町・京都・奈良の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
+    @Test("里山・港町・京都・奈良・温泉街・雪国の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
     func newWorldHazardCountsNeverDecrease() {
         // **沈む床（#1089）と崩れる足場（#1090）も 1 つで 1 個と数える。** `RunnerHazard` では
         // ないが、遊ぶ側から見れば「越えるか、連打して抜けるか」「止まらずに渡り切るか」を
@@ -151,8 +166,8 @@ struct RunnerStageTests {
         let counts = RunnerStage.all.map {
             $0.hazards.count + $0.sinkFloors.count + $0.crumblingPlatforms.count
         }
-        #expect(counts.count == 42)
-        for range in [18..<24, 24..<30, 30..<36, 36..<42] {
+        #expect(counts.count == 48)
+        for range in [18..<24, 24..<30, 30..<36, 36..<42, 42..<48] {
             let group = Array(counts[range])
             for (previous, next) in zip(group, group.dropFirst()) {
                 #expect(previous <= next, "世界の中で障害数が減っている: \(group)")
@@ -163,7 +178,9 @@ struct RunnerStageTests {
         #expect(counts[30] >= counts[29], "31 面（\(counts[30]) 個）が 30 面（\(counts[29]) 個）より少ない")
         // 温泉街（#1938）も京都・奈良の締め（36 面）から易しく戻らない。
         #expect(counts[36] >= counts[35], "37 面（\(counts[36]) 個）が 36 面（\(counts[35]) 個）より少ない")
-        for (last, first) in [(17, 18), (23, 24), (29, 30), (35, 36)] {
+        // 雪国（#2729）も温泉街の締め（42 面）から易しく戻らない。
+        #expect(counts[42] >= counts[41], "43 面（\(counts[42]) 個）が 42 面（\(counts[41]) 個）より少ない")
+        for (last, first) in [(17, 18), (23, 24), (29, 30), (35, 36), (41, 42)] {
             #expect(
                 counts[first] <= counts[last] + 3,
                 "\(first + 1) 面（\(counts[first]) 個）が \(last + 1) 面（\(counts[last]) 個）より極端に多い"
@@ -398,11 +415,14 @@ struct RunnerStageTests {
         }
     }
 
-    @Test("区画数と速さがステージ番号どおりに増える（速さは上限 60 で頭打ち）")
+    @Test("区画数と速さがステージ番号どおりに増える（速さは上限 60、区画数は上限 59 で頭打ち）")
     func rampsUp() {
+        // 長さの上限（#2729）: 48 面の 59 区画が `RunnerRules.maxSegments` そのもの。49 面以降を足すときはここで頭打ち。
+        #expect(RunnerRules.baseSegments + 48 - 1 == RunnerRules.maxSegments)
+        #expect(RunnerStage.all.map(\.pattern.count).max() == RunnerRules.maxSegments)
         for stage in RunnerStage.all {
             #expect(
-                stage.pattern.count == RunnerRules.baseSegments + stage.number - 1,
+                stage.pattern.count == min(RunnerRules.baseSegments + stage.number - 1, RunnerRules.maxSegments),
                 "ステージ \(stage.number) の区画数"
             )
             let expected = min(
@@ -478,6 +498,19 @@ struct RunnerStageTests {
                     #expect(
                         encounter.height < RunnerRules.jumpApex,
                         "ステージ \(stage.number) の \(hazard.kind) がジャンプの頂点より高い"
+                    )
+                case .chasm:
+                    // 裂け目（#2729）は**二段ジャンプ**で渡る穴。式の形は穴と同じで、飛距離だけが二段ぶん
+                    // （`RunnerRules.doubleJumpRange(at:)`）。「一段では渡れない」ことは `RunnerSnowGimmickTests` が
+                    // 実際に走らせて固定するが、ここでも式で言う（縁ぎりぎりで踏み切った 1 段の着地が届かないこと）。
+                    let needed = RunnerAutoPilot.lead(for: hazard, speed: stage.speed) + hazard.length
+                    #expect(
+                        RunnerRules.doubleJumpRange(at: stage.speed) > needed + RunnerRules.tileWidth,
+                        "ステージ \(stage.number) の裂け目（長さ \(hazard.length)）が二段でも渡れない"
+                    )
+                    #expect(
+                        range < hazard.length,
+                        "ステージ \(stage.number) の裂け目（長さ \(hazard.length)）が一段で渡れてしまう"
                     )
                 case .wall:
                     // 高い塀（#1091）は**二段ジャンプ**で越える相手。式の形は岩と同じで、
@@ -1145,7 +1178,7 @@ struct RunnerPlaythroughTests {
         for stage in RunnerStage.all {
             for hazard in stage.hazards
             where hazard.kind != .tallBlock && hazard.kind != .bird && hazard.kind != .shoot
-                && hazard.kind != .geyser && hazard.kind != .wall
+                && hazard.kind != .geyser && hazard.kind != .wall && hazard.kind != .chasm
                 && !(hazard.kind == .boar && hazard.stopAt != nil) {
                 var field = RunnerField(stage: stage)
                 // 踏み切り位置へ直接置く。**測っているのは「踏み切ってからの弾道だけ」**で、
@@ -1540,9 +1573,10 @@ struct RunnerPlaythroughTests {
         case .bird, .dog, .boar:
             // 動いている相手（#796/#955/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
             return (safeTakeOff, false)
-        case .wall:
+        case .wall, .chasm:
             // 高い塀（#1091）は二段で越える相手で、着地は高さ 18 を落ちたぶんずっと先——
             // ジャスト着地の窓（体 1 つぶん）には構造的に入らないので狙わない。
+            // 裂け目（#2729）も二段で渡る相手で、自動操縦の着地は向こう岸の 18.8 先なので狙わない。
             return (safeTakeOff, false)
         }
         guard distance <= latest else { return (safeTakeOff, false) }

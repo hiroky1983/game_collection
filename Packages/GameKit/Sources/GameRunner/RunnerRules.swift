@@ -194,8 +194,15 @@ public enum RunnerRules {
     /// 最小のジャンプ（滞空 `jumpAirTime` = 0.75 秒）で 0.23 落ちる = 幅 0.55 の半分弱を失い、
     /// 取り戻すのに 0.32 秒の地面が要る。押し続けて高く跳べば滞空が伸び、そのぶん多く落ちる。
     public static let pedalLoss: Double = 0.30
-    /// ステージ 1 の区画数。ここから 1 ステージごとに 1 区画ずつ長くなる。
+    /// ステージ 1 の区画数。ここから 1 ステージごとに 1 区画ずつ長くなる（上限は `maxSegments`）。
     public static let baseSegments = 12
+    /// 1 面の区画数の上限（#2729・雪国の設計で決めた 48 面 = 59 区画）。
+    ///
+    /// 速さが 34 面で上限 60（`endlessMaxSpeed`）に達したのと同じ考え方で、**長さも 48 面で頭打ち**にする。
+    /// 長さを伸ばし続けると 60 面は 71 区画 = 4,544 単位の素走り 76 秒になり、自動操縦の実測でも
+    /// 50 秒超で `RunnerPlaythroughTests.stagesAreShortEnough` の上限 60 秒に迫る。49 面以降は 59 区画の
+    /// まま、仕掛けの種類と組み合わせで難しくする（`RunnerStageTests.rampsUp` が固定）。
+    public static let maxSegments = 59
 
     // MARK: ジャスト着地（#673・2026-09-12 会長決裁 #635）
 
