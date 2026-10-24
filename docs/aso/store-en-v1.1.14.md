@@ -44,7 +44,7 @@ ja は `docs/aso/metadata-v1.1.14.md`。形式・使わない語は `docs/aso/st
 100/100 字（2026-10-24 入稿時に数えた）。en-US の欄は日本のストアでも検索対象になる **2 枠目**（`keywords-cross-localization-v1.1.1.md`）なので、
 ja の欄から外した語（ナンプレ・囲碁・チェス・マインスイーパー・暇つぶし・ブロック崩し・麻雀ソリティア・2048）をここへ回した（#2053「キーワードの組み直し」）。
 ソリティアは ja のサブタイトルに入ったので日本語では入れず、英語の `solitaire` だけ残した。
-残りは英語の語（米国のストア向け）: 名前に入った `card` は外し、`mahjong` `hearts` と新作の `cats`（Ojisan's Hidden Cats）を足した。
+残りは英語の語（米国のストア向け）: 名前に `Cards` が入ったので旧キーワードの `card` は外し（App Store は単数・複数を同じ語として扱う前提）、`mahjong` `hearts` と新作の `cats`（Ojisan's Hidden Cats）を足した。
 字数のため `koikoi` `freecell` `spider` `gomoku` `minesweeper` `speed` `board` `riichi` は外した（freecell・spider・gomoku は説明文にある）。
 `Sudoku`（他社の商標）・`dice` など賭けを連想させうる語は入れていない。
 
