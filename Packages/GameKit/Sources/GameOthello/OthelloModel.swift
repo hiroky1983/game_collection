@@ -48,6 +48,11 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var lastCPUMoveKey: AITurnKey?
     /// `lastCPUMoveKey` の手がパスだったか（#2280）。
     public private(set) var lastCPUPassed = false
+    /// パスが成立するたびに増える通し番号（#2797。囲碁 `passEventID` と同じ）。View は値が変わったことで
+    /// 「パス」の札を出す。人間のパスも CPU のパスも数える。永続化せず、0 へも戻さない。
+    public private(set) var passEventID: Int = 0
+    /// 出したままの「パス」の札を畳む契機（待った・新規対局・投了。囲碁 `passBannerDismissID` と同じ）。
+    public private(set) var passBannerDismissID: Int = 0
     public private(set) var undoUsed: Bool
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
@@ -206,6 +211,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         hintPoint    = nil
         currentStone = currentStone.opponent
         turnID      += 1
+        passEventID += 1
         checkTermination()
         notifyTermination()
         persist()
@@ -224,6 +230,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         isDraw       = false
         undoUsed     = true
         turnID      += 1
+        passBannerDismissID += 1
         // 決着・パスの有無は**戻した盤面から導出し直す**（#414）。無条件に false へ倒すと、
         // 打てる手が無い局面へ戻ったときに誰も着手できず、投了か新規対局しか手が無くなる。
         checkTermination()
@@ -243,6 +250,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     public func resign() {
         guard !gameOver else { return }
+        passBannerDismissID += 1
         winner = humanSide.opponent
         hintPoint = nil
         services?.feedback.notify(.error)
@@ -375,6 +383,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         flippedCells   = []
         mustPass       = false
         turnID         = 0
+        passBannerDismissID += 1
         undoUsed       = false
         undoHistory    = []
         // ヒントは 1 局ごとに戻す（#2011）。前の局の印も残さない。

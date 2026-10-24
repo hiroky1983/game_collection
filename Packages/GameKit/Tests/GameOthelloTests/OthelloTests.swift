@@ -313,6 +313,45 @@ struct OthelloPassDeadlockTests {
         #expect(spy.impacts == [.light])
     }
 
+    /// パスが成立するたびに `passEventID` が 1 つ増える（#2797。View の「パス」の札の契機）。
+    @Test func confirmPassBumpsPassEventID() throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .white, mustPass: true),
+            for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(model.passEventID == 0)
+
+        model.confirmPass()
+        #expect(model.passEventID == 1)
+
+        model.confirmPass() // 押せない状態では増やさない
+        #expect(model.passEventID == 1)
+    }
+
+    /// 新規対局・投了は出ている札を畳む契機を進める。`passEventID` は 0 へ戻さない（#2797）。
+    @Test func newGameAndResignDismissPassBanner() throws {
+        let model = OthelloModel(services: makeServices(MemorySnapshotStore()), flipSettleDelay: .zero)
+        let before = model.passBannerDismissID
+        model.resign()
+        #expect(model.passBannerDismissID == before + 1)
+        model.newGame()
+        #expect(model.passBannerDismissID == before + 2)
+        #expect(model.passEventID == 0)
+    }
+
+    /// 結果カードは「盤を見る」で閉じられ、新しい対局で開け直す（#2797。将棋・チェス・囲碁・五目並べと同じ形）。
+    /// パスの手段は人間側の自動確定 1 箇所で、ブロッキングのアラートは残さない。
+    @Test func viewWiresResultCardCloseAndNonBlockingPass() throws {
+        let source = try Self.viewSource()
+        #expect(SourceScan.matchCount(of: #"resultCardClosed = true"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"if !over \{ resultCardClosed = false \}"#, in: source) == 1,
+                "新しい対局で結果カードを開け直していない")
+        #expect(SourceScan.matchCount(of: #"model\.gameOver && !resultCardClosed"#, in: source) >= 1)
+        #expect(SourceScan.matchCount(of: #"\.alert\("#, in: source) == 0, "パスがブロッキングのアラートに戻っている")
+    }
+
     /// View が復元直後にも案内を出すよう結線されていること。
     /// モデル側が正しくても、2 引数版 `onChange` は `initial: true` が無いと初期値で発火せず、
     /// パスの手段（案内の「OK」）に到達できないまま詰む。
