@@ -650,6 +650,226 @@
           }
         }
       }
+    },
+    "神経衰弱のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concentration: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "伏せられた札から、同じ絵柄の 2 枚をそろえます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find two face-down cards with the same picture."
+          }
+        }
+      }
+    },
+    "そろえた 2 枚が 1 ペアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two matching cards make one pair."
+          }
+        }
+      }
+    },
+    "同じ絵柄の 2 枚をそろえる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match two of the same picture"
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "札を 2 枚、タップしてめくります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to flip over two cards."
+          }
+        }
+      }
+    },
+    "同じ絵柄ならペアになり、もう一度めくれます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If they match, you keep the pair and go again."
+          }
+        }
+      }
+    },
+    "ちがう絵柄だったとき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When they don't match"
+          }
+        }
+      }
+    },
+    "ちがう絵柄なら、札は伏せられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the pictures differ, the cards are turned back over."
+          }
+        }
+      }
+    },
+    "そこで CPU の番になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then it is the CPU's turn."
+          }
+        }
+      }
+    },
+    "覚えるのがコツ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The trick is to remember"
+          }
+        }
+      }
+    },
+    "めくった札の絵柄と場所を、覚えておきましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remember each card's picture and where it is."
+          }
+        }
+      }
+    },
+    "CPU がめくった札も、覚えるヒントになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cards the CPU flips are clues too."
+          }
+        }
+      }
+    },
+    "🍎 の場所を覚える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remember where the 🍎 is"
+          }
+        }
+      }
+    },
+    "覚えた場所をめくってペア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip the spot you remember to make a pair"
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "すべての札がなくなったら、終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when all the cards are gone."
+          }
+        }
+      }
+    },
+    "取ったペアが多いほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever has more pairs wins."
+          }
+        }
+      }
+    },
+    "同じ数なら、引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the counts are equal, it is a draw."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
