@@ -134,17 +134,6 @@
         }
       }
     },
-    "スコア %1$@、ベスト %2$@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Score %1$@, best %2$@"
-          }
-        }
-      }
-    },
     "タイルを合体させて2048を目指そう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -440,6 +429,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : ". "
+          }
+        }
+      }
+    },
+    "最高" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top tile"
+          }
+        }
+      }
+    },
+    "スコア %1$@、最高タイル %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %1$@, top tile %2$@"
+          }
+        }
+      }
+    },
+    "スコア %1$@、最高タイル %2$@、ベスト %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %1$@, top tile %2$@, best %3$@"
           }
         }
       }
