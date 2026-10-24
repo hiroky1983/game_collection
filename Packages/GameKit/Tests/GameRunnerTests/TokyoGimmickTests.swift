@@ -352,22 +352,32 @@ struct RunnerTokyoGimmickTests {
 
     // MARK: - 色（#929 の規則）
 
-    /// 東京の着せ替えた手前の物も、濃い側の主色が背景の全部と 3:1 以上（縁取りに頼らない部品）。
-    @Test("東京の着せ替え（歩道橋の鉄骨・古い板の桁・動く歩道の帯・塗りたての舗装・看板の桁・蒸気の陰）は背景と 3:1 以上")
+    /// 東京の着せ替えた手前の物も、**明るい側**の主色が背景の全部と 3:1 以上（縁取りに頼らない部品。宵の口で背景が
+    /// 暗いので、雪国の「濃い側が担う」とは逆向き——夜の繁華街と同じ）。
+    @Test("東京の着せ替え（歩道橋の鉄骨・古い板の桁・動く歩道の帯・水たまり・ネオン看板の面・蒸気の照り）は背景と 3:1 以上")
     func tokyoDressedForegroundStandsOut() {
         typealias P = RunnerWorld.DressingPalette
         let art = RunnerPixelArt.palette
         let items: [(String, UInt32)] = [
             ("歩道橋の桁", P.footbridgeGirder), ("歩道橋の鉄柵", P.footbridgeRail),
             ("古い歩道橋の板の桁", P.footbridgeDeckSeam), ("古い歩道橋の杭", P.footbridgePost),
-            ("動く歩道の帯", P.walkwayBelt), ("塗りたての舗装", P.freshAsphaltSurface),
-            ("看板の桁", art["q"]!), ("蒸気の陰", art["g"]!), ("カラーコーンの台", art["g"]!),
+            ("ネオン看板の面", art["Q"]!), ("ネオン看板の照り", art["u"]!), ("蒸気の照り", art["M"]!),
         ]
         for (name, color) in items {
             for (backdrop, hex) in RunnerWorld.tokyo.groundBackdrops {
                 #expect(WCAG.contrast(color, hex) >= 3.0, "東京の\(name)が \(backdrop) (\(String(hex, radix: 16))) に溶ける")
             }
         }
+        // 路面の中に描く帯・水面は路面とだけ比べる（加速帯と同じ扱い）。
+        for (name, color) in [("動く歩道の帯", P.walkwayBelt), ("水たまりの水面", P.puddleSurface)] {
+            #expect(WCAG.contrast(color, RunnerWorld.tokyo.road.asphalt) >= 3.0, "東京の\(name)が路面に溶ける")
+        }
+        // 背景は宵の暗い帯（明るい手前が 3:1 を取れる暗さ）で、灯り（窓・ネオン・信号・航空灯）は帯に入れていない。
+        for (name, hex) in RunnerWorld.tokyo.groundBackdrops {
+            #expect(WCAG.relativeLuminance(hex) <= 0.17, "東京の背景 \(name) が明るすぎる")
+        }
+        // タクシーはハブの世界の色と同じ黄の系統（色相 40〜55°）。
+        #expect((40...55).contains(Self.hue(RunnerWorld.tokyo.creatures.boarBody)), "タクシーが黄色でない")
         // 歩道橋の歩く面は台座の床板と同じく縁取り（世界の `outline`）で浮く。
         for (backdrop, hex) in RunnerWorld.tokyo.groundBackdrops {
             #expect(max(WCAG.contrast(P.footbridgeWalk, hex), WCAG.contrast(RunnerWorld.tokyo.outline, hex)) >= 3.0, "歩道橋の床板が \(backdrop) に溶ける")
@@ -380,6 +390,16 @@ struct RunnerTokyoGimmickTests {
         let steam = RunnerPixelArt.manholeSteamRows.joined()
         #expect(steam.contains("c") && steam.contains("p") && steam.contains("g"))
         #expect(steam != RunnerPixelArt.steamColumnRows.joined() && steam != RunnerPixelArt.snowSpoutRows.joined())
+    }
+
+    private static func hue(_ hex: UInt32) -> Double {
+        let r = Double((hex >> 16) & 0xFF) / 255, g = Double((hex >> 8) & 0xFF) / 255, b = Double(hex & 0xFF) / 255
+        let maxC = max(r, g, b), minC = min(r, g, b), delta = maxC - minC
+        guard delta > 0 else { return 0 }
+        var h: Double
+        if maxC == r { h = (g - b) / delta } else if maxC == g { h = 2 + (b - r) / delta } else { h = 4 + (r - g) / delta }
+        h *= 60
+        return h < 0 ? h + 360 : h
     }
 
     // MARK: - 描画
@@ -408,7 +428,7 @@ struct RunnerTokyoGimmickTests {
         return abs(lhs[0] - rhs[0]) < 0.004 && abs(lhs[1] - rhs[1]) < 0.004 && abs(lhs[2] - rhs[2]) < 0.004
     }
 
-    @Test("49 面は東京の着せ替え（歩道橋・カラーコーン・自動販売機・タクシー・蒸気・塗りたての舗装・古い板・動く歩道）で組まれ、走らせても落ちない")
+    @Test("49 面は東京の着せ替え（歩道橋・カラーコーン・自動販売機・タクシー・蒸気・水たまり・古い板・動く歩道）で組まれ、走らせても落ちない")
     @MainActor
     func tokyoSceneBuilds() throws {
         typealias P = RunnerWorld.DressingPalette
@@ -434,8 +454,8 @@ struct RunnerTokyoGimmickTests {
         #expect(talls > 0 && spriteCount(in: scene.courseLayer, texture: vending) == talls)
         // 突き上げはマンホールの蒸気（その世界のぶんしかテクスチャを作らない）。
         #expect(scene.cachedShootStyles == [.manholeSteam], "作ったテクスチャ: \(scene.cachedShootStyles)")
-        // 塗りたての舗装・古い板・動く歩道の色が出ていて、他の世界の色は出ない。
-        for (name, hex) in [("塗りたての舗装", P.freshAsphaltSurface), ("古い板", P.footbridgeDeck), ("動く歩道", P.walkwayBelt)] {
+        // 水たまり・古い板・動く歩道の色が出ていて、他の世界の色は出ない。
+        for (name, hex) in [("水たまり", P.puddleSurface), ("古い板", P.footbridgeDeck), ("動く歩道", P.walkwayBelt)] {
             #expect(fillCount(in: scene.courseLayer, color: hex) > 0, "\(name)の色が出ていない")
         }
         for (name, hex) in [("足湯", P.footBathWater), ("新雪", P.freshSnowSurface), ("木の板", P.crumbleDeck), ("氷の板", P.iceDeck), ("コンベア", P.conveyorBelt), ("木箱", P.crateWood)] {
@@ -449,7 +469,7 @@ struct RunnerTokyoGimmickTests {
         // 遠景のタイルに丘以外（ビル街・高架・電車・塔か信号機）が載っている。
         for tile in scene.hillTiles { #expect(tile.children.count > 3, "遠景のタイルに丘しか無い") }
 
-        // 自動操縦で 15 秒ぶん走らせて反映しても落ちない（歩道橋の二段・塗りたての舗装・古い板の経路を通る）。
+        // 自動操縦で 15 秒ぶん走らせて反映しても落ちない（歩道橋の二段・水たまり・古い板の経路を通る）。
         model.press()
         model.release()
         for _ in 0..<900 {

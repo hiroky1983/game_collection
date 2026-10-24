@@ -253,7 +253,7 @@ extension RunnerScene {
     ///
     /// 足場（`makePlatform`）と同じ約束で組む: 歩く面（`footbridgeWalk`・コンクリートの床板）を当たり判定の
     /// 上面にぴったり合わせ、世界の縁取りで浮かせ、左端に穴の柵と同じ黄の警告帯（正面から突っ込むとミス）。
-    /// 床板の下は緑の鉄骨——横に通す桁と、12 単位ごとの太い柱。床板の**上**には緑の鉄柵（手すり。柱と
+    /// 床板の下は街灯に照らされた淡い緑の鉄骨——横に通す桁と、12 単位ごとの太い柱。床板の**上**には鉄柵（手すり。柱と
     /// 2 本の横桟）を立てて歩道橋だと読ませる。柵は当たり判定を持たない飾りで、走者より奥に描かれる
     /// （コース層は走者の層より下）。右端から降りる階段（段々のシルエット）を次の区画へ少しはみ出して描く
     /// ——降りるほうは端から走り出れば落ちるだけで、階段そのものに当たり判定は無い。
@@ -440,7 +440,7 @@ extension RunnerScene {
     }
 
     /// 動く歩道（`Dressing.BoostFloor.movingWalkway`・東京 #2729）。ベルトコンベアとまったく同じ組み立てで、
-    /// 色だけが黒いゴムの帯・銀の枠とローラー・白い矢印。
+    /// 色だけが街灯に照らされた明るい帯・暗い枠・暗い矢印（宵の暗い路面の中で明るい側が 3:1 を担う）。
     func makeMovingWalkway(_ floor: RunnerBoostFloor) -> SKNode {
         typealias P = RunnerWorld.DressingPalette
         return makeBeltFloor(floor, belt: P.walkwayBelt, frame: P.walkwayFrame, roller: P.walkwayRoller, arrow: P.walkwayArrow)
@@ -495,16 +495,16 @@ extension RunnerScene {
         let paddy = world.dressing.sinkFloor == .paddy
         let footBath = world.dressing.sinkFloor == .footBath
         let freshSnow = world.dressing.sinkFloor == .freshSnow
-        // 塗りたてのアスファルト（東京・#2729）は足湯と同じ組み立て（面から湯気が立つ）で、色だけが黒い舗装。
-        let freshAsphalt = world.dressing.sinkFloor == .freshAsphalt
+        // 雨上がりの水たまり（東京・#2729）は足湯と同じ組み立て（面から立つ粒 = 水面に映る街の灯り）で、色だけが宵の水面。
+        let puddle = world.dressing.sinkFloor == .puddle
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
         let surfaceHeight = height * 0.7
-        let deepColor: UInt32 = freshAsphalt ? P.freshAsphaltDeep : freshSnow ? P.freshSnowDeep
+        let deepColor: UInt32 = puddle ? P.puddleDeep : freshSnow ? P.freshSnowDeep
             : footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep)
-        let surfaceColor: UInt32 = freshAsphalt ? P.freshAsphaltSurface : freshSnow ? P.freshSnowSurface
+        let surfaceColor: UInt32 = puddle ? P.puddleSurface : freshSnow ? P.freshSnowSurface
             : footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud)
         addBand(to: node, color: deepColor, x: 0, y: bottom, width: floor.length, height: height)
         addBand(to: node, color: surfaceColor, x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
@@ -521,8 +521,8 @@ extension RunnerScene {
                 // （雪そのものを白で描くと白い丘に溶けて目印にならないので、塊の影を描く）。
                 marks.addEllipse(in: CGRect(x: x - 1.6, y: Metrics.groundY - 0.6, width: 2.6, height: 1.7))
                 marks.addEllipse(in: CGRect(x: x + 0.4, y: Metrics.groundY + 0.6, width: 1.9, height: 1.8))
-            } else if footBath || freshAsphalt {
-                // 湯けむり（足湯）／熱の湯気（塗りたてのアスファルト）: 面から立ち上る白い粒を 3 つ（踏み込む前に読める目印）。
+            } else if footBath || puddle {
+                // 湯けむり（足湯）／街の灯りの映り込み（水たまり）: 面から立ち上る白い粒を 3 つ（踏み込む前に読める目印）。
                 marks.addEllipse(in: CGRect(x: x - 1.2, y: Metrics.groundY - 0.4, width: 2.0, height: 1.6))
                 marks.addEllipse(in: CGRect(x: x + 0.2, y: Metrics.groundY + 1.0, width: 1.6, height: 1.4))
                 marks.addEllipse(in: CGRect(x: x - 0.6, y: Metrics.groundY + 2.4, width: 1.2, height: 1.1))
@@ -544,7 +544,7 @@ extension RunnerScene {
         }
         let markNode = SKShapeNode(path: marks)
         markNode.fillColor = RunnerPalette.color(
-            freshAsphalt ? P.freshAsphaltSteam : freshSnow ? P.freshSnowShade
+            puddle ? P.puddleGlint : freshSnow ? P.freshSnowShade
                 : footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole)
         )
         markNode.strokeColor = .clear
@@ -573,13 +573,13 @@ extension RunnerScene {
         let glintSpacing = 9.0
         var gx = 0.0
         while gx < floor.length + glintSpacing {
-            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow || freshAsphalt)
+            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow || puddle)
             gx += glintSpacing
         }
         let glintNode = SKShapeNode(path: glints)
-        // 新雪の照りは雪の白（粉雪のきらめき）、塗りたてのアスファルトは濡れた舗装の光沢。
+        // 新雪の照りは雪の白（粉雪のきらめき）、水たまりは水面の照り。
         glintNode.fillColor = RunnerPalette.color(
-            freshAsphalt ? P.freshAsphaltSheen : freshSnow ? RunnerPixelArt.snowWhite
+            puddle ? P.puddleSheen : freshSnow ? RunnerPixelArt.snowWhite
                 : (paddy || footBath) ? P.waterGlint : P.tidelandSheen
         )
         glintNode.strokeColor = .clear

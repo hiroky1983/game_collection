@@ -425,7 +425,7 @@ struct RunnerWorldTests {
         // 着せ替えの枠を持たない（`RunnerScene.makeFootbridge`）。
         #expect(RunnerWorld.tokyo.dressing == D(
             pit: .construction, lowBlock: .trafficCone, tallBlock: .vendingMachine, dog: .dog, boar: .taxi,
-            platform: .scaffold, boostFloor: .movingWalkway, shoot: .manholeSteam, sinkFloor: .freshAsphalt,
+            platform: .scaffold, boostFloor: .movingWalkway, shoot: .manholeSteam, sinkFloor: .puddle,
             crumblingPlatform: .oldFootbridge, wall: .signboardStack
         ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
