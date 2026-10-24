@@ -23,6 +23,17 @@
         }
       }
     },
+    "最大 %lld連鎖" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best chain: %lld"
+          }
+        }
+      }
+    },
     "%lld連鎖" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -448,6 +459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Swipe down"
+          }
+        }
+      }
+    },
+    "速く下に払うと一気に落とせるようになりました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick down fast to drop it all at once"
           }
         }
       }
