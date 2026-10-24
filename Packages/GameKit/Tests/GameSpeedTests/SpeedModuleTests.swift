@@ -164,7 +164,16 @@ struct SpeedModuleTests {
         #expect(code.contains("model.swipeCard(card, onto: pile)"), "判定の結果を Model に渡していない")
         #expect(code.contains(".cardDropTarget(SpeedSlot.pile(index)"), "台札の枠を測っていない")
         #expect(code.contains(".accessibilityAction { tapHandCard(card) }"), "VoiceOver の操作（ダブルタップで出す）が残っていない")
-        #expect(code.contains("case .tap:") && code.contains("tapHandCard(card)"), "タップの補助が残っていない")
+        // 通常の操作ではタップで札を出さない（会長 QA 2026-10-24・build 52）。支援機能のときだけ今までのタップの操作に渡す。
+        let tapCase = try #require(code.range(of: "case .tap:").map { String(code[$0.upperBound...].prefix(80)) })
+        #expect(tapCase.contains("fingerTapHandCard(card)"), "指のタップを、札を出さない入口に通していない")
+        #expect(code.contains("Button { fingerTapPile(index) }"), "台札の指のタップを、通常時は止める入口に通していない")
+        #expect(code.contains("model.fingerTapHandCard(card, assistive: false)"))
+        #expect(code.contains("model.fingerTapPile(index, assistive: assistive)"))
+        #expect(code.contains("@Environment(\\.accessibilityVoiceOverEnabled)")
+                && code.contains("@Environment(\\.accessibilitySwitchControlEnabled)"),
+                "VoiceOver・スイッチコントロールの使用を読んでいない")
+        #expect(code.contains("private var assistive: Bool { voiceOverEnabled || switchControlEnabled }"))
     }
 }
 

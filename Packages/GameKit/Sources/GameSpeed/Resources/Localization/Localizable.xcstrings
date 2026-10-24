@@ -530,6 +530,17 @@
         }
       }
     },
+    "台札のほうへ払って出します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card toward a pile to play it"
+          }
+        }
+      }
+    },
     "台札のほうへ払う" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -640,13 +651,13 @@
         }
       }
     },
-    "手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。出せない札は手札に戻ります（ペナルティはありません）。札をタップしても出せます" : {
+    "手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。出せない札は手札に戻ります（ペナルティはありません）" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flick a card from your hand toward the pile you want. You can also drag it onto the pile and let go. A card that can't be played slides back (no penalty). Tapping a card also plays it"
+            "value" : "Flick a card from your hand toward the pile you want. You can also drag it onto the pile and let go. A card that can't be played slides back (no penalty)"
           }
         }
       }
