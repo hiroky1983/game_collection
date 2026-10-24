@@ -342,10 +342,11 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// 止められた最後の局面を裏で探す（#2851）。読み終えたとき同じ対局が決着したままなら入れる。
     private func startMissedBlockAnalysis() {
         let serial = gameSerial, base = baseBoard, history = moves, side = humanSide
+        let renju = forbiddenMovesEnabled
         missedBlockTask?.cancel()
         missedBlockTask = Task { [weak self] in
             let found = await Task.detached(priority: .userInitiated) {
-                GomokuMissedBlockFinder.find(base: base, moves: history, humanSide: side)
+                GomokuMissedBlockFinder.find(base: base, moves: history, humanSide: side, forbiddenMoves: renju)
             }.value
             guard let self, !Task.isCancelled, gameSerial == serial, winner != nil else { return }
             missedBlock = found

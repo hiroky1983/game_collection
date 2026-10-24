@@ -389,7 +389,9 @@ public struct GomokuView: View {
                             row: row,
                             col: col,
                             stone: displayBoard[row, col],
-                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false,
+                            isLastMove: (reviewBlock != nil ? reviewBlock?.previousMove
+                                         : model.lastMove.map { GomokuPoint(row: $0.row, col: $0.col) })
+                                .map { $0 == GomokuPoint(row: row, col: col) } ?? false,
                             isHint: model.hintPoint == GomokuPoint(row: row, col: col)
                                 || (reviewBlock?.stopPoints.contains(GomokuPoint(row: row, col: col)) ?? false)
                         ))

@@ -26,7 +26,8 @@ enum GomokuMissedBlockFinder {
 
     typealias Move = (row: Int, col: Int, stone: GomokuStone)
 
-    static func find(base: GomokuBoard, moves: [Move], humanSide: GomokuStone) -> GomokuMissedBlock? {
+    static func find(base: GomokuBoard, moves: [Move], humanSide: GomokuStone,
+                     forbiddenMoves: Bool = false) -> GomokuMissedBlock? {
         let cpu = humanSide.opponent
         guard moves.count >= 2, let last = moves.last, last.stone == cpu else { return nil }
 
@@ -47,15 +48,17 @@ enum GomokuMissedBlockFinder {
             let position = boards[index]
             // 自分が勝てる局面を見逃していた・CPU に脅しが無かった局は、「止める」話ではない。
             guard completionPoints(position, stone: humanSide).isEmpty,
-                  cpuWins(position, cpu: cpu, depth: maxForcingDepth) else { return nil }
+                  cpuWins(position, cpu: cpu, depth: maxForcingDepth, forbiddenMoves: forbiddenMoves) else { return nil }
 
             let played = GomokuPoint(row: moves[index].row, col: moves[index].col)
             var stops = [GomokuPoint]()
             for point in candidates(position) {
+                // 禁じ手ルールで黒の人間が打てない交点は、止める手として示さない。
+                guard !isForbidden(position, point: point, stone: humanSide, enabled: forbiddenMoves) else { continue }
                 var after = position
                 after[point.row, point.col] = humanSide
                 guard completionPoints(after, stone: humanSide).isEmpty,
-                      !cpuWins(after, cpu: cpu, depth: maxForcingDepth) else { continue }
+                      !cpuWins(after, cpu: cpu, depth: maxForcingDepth, forbiddenMoves: forbiddenMoves) else { continue }
                 stops.append(point)
             }
             // 実際の手が「止める手」と判定された = この読みでは負け筋を説明できない局面。さらに遡る。
@@ -76,10 +79,12 @@ enum GomokuMissedBlockFinder {
     // MARK: - 四追い
 
     /// `cpu` の手番で、四を作り続けて勝てるか。
-    static func cpuWins(_ board: GomokuBoard, cpu: GomokuStone, depth: Int) -> Bool {
+    static func cpuWins(_ board: GomokuBoard, cpu: GomokuStone, depth: Int, forbiddenMoves: Bool = false) -> Bool {
         if !completionPoints(board, stone: cpu).isEmpty { return true }
         guard depth > 0 else { return false }
         for point in candidates(board) {
+            // 禁じ手ルールで黒の CPU が打てない交点は、四を作る手に数えない。
+            guard !isForbidden(board, point: point, stone: cpu, enabled: forbiddenMoves) else { continue }
             var after = board
             after[point.row, point.col] = cpu
             let fives = completionPoints(after, stone: cpu, through: point)
@@ -89,9 +94,16 @@ enum GomokuMissedBlockFinder {
             if fives.count >= 2 { return true }   // 達四・四四: 1 手では受けきれない
             var blocked = after
             blocked[fives[0].row, fives[0].col] = cpu.opponent
-            if cpuWins(blocked, cpu: cpu, depth: depth - 1) { return true }
+            if cpuWins(blocked, cpu: cpu, depth: depth - 1, forbiddenMoves: forbiddenMoves) { return true }
         }
         return false
+    }
+
+    /// 連珠の禁じ手ルールが有効で、黒が `point` へ打てないか（五が揃う手は規定どおり打てるので除く）。
+    private static func isForbidden(_ board: GomokuBoard, point: GomokuPoint, stone: GomokuStone,
+                                    enabled: Bool) -> Bool {
+        guard enabled, stone == .black else { return false }
+        return board.renjuForbidden(row: point.row, col: point.col) != nil
     }
 
     /// 空点で、`stone` を置くと五（以上）が揃う交点。
