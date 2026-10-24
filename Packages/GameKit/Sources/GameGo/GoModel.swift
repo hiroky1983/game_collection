@@ -33,6 +33,8 @@ public enum GoTapRejection: Equatable, Sendable {
 public struct GoEndgame: Equatable, Sendable {
     public let score: GoScore
     public let dead: Set<GoPoint>
+    /// 盤上で色分けする地の持ち主（`GoScoring.territory`）。
+    public let territory: [GoStone?]
     /// 簡易死活の判定が曖昧か（真なら「対局続行」を強く勧める）。
     public let isUncertain: Bool
 }
@@ -310,7 +312,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let result = await Task.detached(priority: .userInitiated) {
                 let analysis = GoDeadStones.analyze(state: snapshot, playouts: 600, seed: seed)
                 let score = GoScoring.score(board: snapshot.board, removing: analysis.dead, ruleset: ruleset)
-                return GoEndgame(score: score, dead: analysis.dead, isUncertain: !analysis.isConfident)
+                let territory = GoScoring.territory(of: snapshot.board, removing: analysis.dead)
+                return GoEndgame(score: score, dead: analysis.dead, territory: territory, isUncertain: !analysis.isConfident)
             }.value
 
             await afterEndgameComputeForTesting?()

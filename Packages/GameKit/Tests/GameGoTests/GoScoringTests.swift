@@ -67,6 +67,28 @@ struct GoAreaScoringTests {
         #expect(counted.neutral == 5, "中央の列は双方に接する")
     }
 
+    @Test("地の色分け: 空点と死に石の跡だけが持ち主を持ち、ダメと石は nil")
+    func territoryColoursEmptyAndDeadPointsOnly() {
+        let board = GoDiagram.board([
+            ".X.O.",
+            ".X.O.",
+            ".XOO.",
+            ".X.O.",
+            ".X.O.",
+        ])
+        let dead: Set<GoPoint> = [GoPoint(row: 2, col: 2)]
+        let territory = GoScoring.territory(of: board, removing: dead)
+        func owner(_ row: Int, _ col: Int) -> GoStone? { territory[row * 5 + col] }
+        #expect(owner(0, 0) == .black)
+        #expect(owner(0, 4) == .white)
+        #expect(owner(0, 1) == nil, "石の上は色分けしない")
+        #expect(owner(0, 2) == nil, "双方に接するダメ")
+        #expect(owner(2, 2) == nil, "死に石の跡も双方に接すれば中立")
+        let counted = territory.compactMap { $0 }
+        let black = counted.filter { $0 == .black }.count
+        #expect(black == 5, "黒地は左端の空点 5")
+    }
+
     @Test("保存則: 黒の面積 + 白の面積 + 中立 = 交点数（ランダム局面 200 件）")
     func conservationLawHolds() {
         var random = GoRandom(seed: 0xC0FFEE)
