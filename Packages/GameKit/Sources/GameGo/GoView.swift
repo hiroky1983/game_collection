@@ -100,7 +100,10 @@ public struct GoView: View {
         .task {
             #if DEBUG
             // 撮影用（#2360）: 終局後レイアウト（「もう一回」の段）を即再現する（将棋・チェスの -xxxAutoResign と同じ）。
-            if ProcessInfo.processInfo.arguments.contains("-goAutoResign") { model.resign() }
+            if ProcessInfo.processInfo.arguments.contains("-goAutoResign") {
+                model.resign()
+                showNewGame = false   // 中断データが無い起動では開始シートが結果を隠す（CodeRabbit 指摘）
+            }
             // 撮影用（#398）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
             if ProcessInfo.processInfo.arguments.contains("-goScoring") {
                 await model.applyPreviewScoringForTesting()
@@ -136,9 +139,9 @@ public struct GoView: View {
 
     /// 対局中（投了・パス・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148 の横展開）。
-    /// 対局中（パス・投了）/ 死活確認中 / 終局後（もう一度）で中身が入れ替わるが、どれも
-    /// 同じ余白の1行なので高さは変わらない（決着で盤が縮まない契約）。レコメンドの常時高さ予約は
-    /// 盤を狭くしていたため撤廃し、盤の下端へのオーバーレイに移した（将棋 #405 と同じ手当て。
+    /// 対局中（パス・投了）/ 死活確認中 / 終局後（もう一回）で中身が入れ替わる。終局後の段（`GameReplayBar`・60pt・#2360）が
+    /// 対局中の操作列（46pt）より高いので、最低の高さを終局後の段に揃えて決着で盤が縮まないようにする（#139）。
+    /// レコメンドの常時高さ予約は盤を狭くしていたため撤廃し、盤の下端へのオーバーレイに移した（将棋 #405 と同じ手当て。
     /// 会長指摘 2026-09-02「碁盤が小さい」）。
     private var controlArea: some View {
         ZStack(alignment: .top) {
@@ -151,6 +154,7 @@ public struct GoView: View {
                 resultControls
             }
         }
+        .frame(minHeight: GameReplayBarMetrics.cardHeight)
     }
 
     private var resultControls: some View {
