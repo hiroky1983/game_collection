@@ -52,6 +52,7 @@ public struct SolitaireSetupSheet: View {
         // （旧・確認ダイアログの「終了して新規ゲーム」と同じ重み）。
         GameSetupSheet(
             kind: .solo, discardsProgress: discardsProgress,
+            onboarding: SolitaireOnboarding.guide,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("山札のめくり方")) {

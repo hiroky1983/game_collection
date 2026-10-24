@@ -13,7 +13,7 @@ enum SpiderHowToFigures {
     ]
 
     /// スートは問わない。1 つ小さい札ならどれでも置ける。
-    private struct StackFigure: View {
+    struct StackFigure: View {
         var body: some View {
             RuleStackPairsFigure([
                 .init(base: RuleCardSpec("8", .spade), placed: RuleCardSpec("7", .heart), isOK: true),
@@ -24,7 +24,7 @@ enum SpiderHowToFigures {
     }
 
     /// 同じスートで降順に揃った並びだけ、まとめて動かせる。
-    private struct RunFigure: View {
+    struct RunFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 36) {
                 column(ranks: [("8", .spade), ("7", .spade), ("6", .spade)], isOK: true)
@@ -46,7 +46,7 @@ enum SpiderHowToFigures {
     }
 
     /// 山札をタップすると各列に 1 枚ずつ配る。
-    private struct DealFigure: View {
+    struct DealFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
@@ -71,7 +71,7 @@ enum SpiderHowToFigures {
     }
 
     /// K から A まで 13 枚揃うと取り除かれる。
-    private struct CompleteFigure: View {
+    struct CompleteFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 20) { index in
                 VStack(spacing: 4) {

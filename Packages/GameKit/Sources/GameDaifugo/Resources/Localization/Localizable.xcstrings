@@ -1511,6 +1511,259 @@
           }
         }
       }
+    },
+    "大富豪のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tycoon: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "手札を、だれよりも早く出し切るゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get rid of all your cards before anyone else."
+          }
+        }
+      }
+    },
+    "早く上がるほど、上の階級になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sooner you go out, the higher your rank."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "場に組があるときは、同じ枚数で、より強い組を出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When there is a set on the table, play a stronger set with the same number of cards."
+          }
+        }
+      }
+    },
+    "場が空なら、1 枚・ペア・3 枚…を好きに出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the table is empty, you can lead anything: one card, a pair, three cards..."
+          }
+        }
+      }
+    },
+    "3 がいちばん弱く、K・A・2 の順に強くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 is the weakest; it gets stronger through K, A, then 2."
+          }
+        }
+      }
+    },
+    "ジョーカーが最強で、どの札の代わりにもなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker is the strongest and can stand in for any card."
+          }
+        }
+      }
+    },
+    "出せないとき、出したくないときは、パスします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass when you cannot play, or do not want to."
+          }
+        }
+      }
+    },
+    "全員がパスすると、場が流れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When everyone passes, the table is cleared."
+          }
+        }
+      }
+    },
+    "革命と 8 切り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution and 8-Stop"
+          }
+        }
+      }
+    },
+    "同じ数字を %lld 枚以上まとめて出すと「革命」。強さが逆になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play %lld or more cards of the same number for a Revolution: the strength order flips."
+          }
+        }
+      }
+    },
+    "8 を含む組を出すと「8 切り」。場が流れて、続けて出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a set that includes an 8 for an 8-Stop: the table clears and you lead again."
+          }
+        }
+      }
+    },
+    "同じ数字 4 枚\n革命で強さが逆に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 of a number\nRevolution flips strength"
+          }
+        }
+      }
+    },
+    "8 を出すと\n場が流れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play an 8\nand the table clears"
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "上がった順に、大富豪・富豪・貧民・大貧民になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In order of going out, you become Tycoon, Rich, Poor, then Beggar."
+          }
+        }
+      }
+    },
+    "最後の 1 手が 2・8・ジョーカーだと反則。大貧民に落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Going out with a 2, an 8 or the Joker as your last play is a foul. You drop to Beggar."
+          }
+        }
+      }
+    },
+    "次のゲームの前に、階級に応じてカードを交換します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before the next game, you swap cards according to rank."
+          }
+        }
+      }
+    },
+    "%lld 番目に上がる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goes out No. %lld"
+          }
+        }
+      }
+    },
+    "手札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
+          }
+        }
+      }
+    },
+    "0 枚で上がり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 cards: you win"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

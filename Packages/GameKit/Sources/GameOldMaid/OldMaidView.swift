@@ -63,7 +63,13 @@ public struct OldMaidView: View {
                     }) {
             statusChips
         }
-        .howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items))
+        // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
+        .howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items).onboarding(OldMaidOnboarding.guide),
+                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() })
+        // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める。
+        .onChange(of: showNewGame) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
         .sheet(isPresented: $showNewGame) {
             OldMaidNewGameSheet(aiLevel: model.aiLevel, discardsProgress: model.phase == .playing) { level in
                 showNewGame = false
@@ -84,7 +90,7 @@ public struct OldMaidView: View {
             }
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            runCPU()
         }
     }
 
@@ -854,6 +860,7 @@ struct OldMaidNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             discardsProgress: discardsProgress,
+            onboarding: OldMaidOnboarding.guide,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {

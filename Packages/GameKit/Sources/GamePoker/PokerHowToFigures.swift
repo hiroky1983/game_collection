@@ -13,31 +13,31 @@ enum PokerHowToFigures {
     ]
 
     /// 遊び方（開始シートと「？」で共有する）。図は項目と同じ順。
-    static var guide: HowToPlayGuide { HowToPlayGuide.poker.illustrated(items) }
+    static var guide: HowToPlayGuide { HowToPlayGuide.poker.illustrated(items).onboarding(PokerOnboarding.guide) }
 
     /// 5 枚のうち残す 2 枚を選んだところ。
-    private struct SelectFigure: View {
+    struct SelectFigure: View {
         var body: some View {
             VStack(spacing: 6) {
                 HStack(spacing: 6) {
-                    RuleMiniCard("K", suit: .spade, isHighlighted: true)
-                    RuleMiniCard("K", suit: .heart, isHighlighted: true)
-                    RuleMiniCard("9", suit: .diamond)
-                    RuleMiniCard("5", suit: .club)
-                    RuleMiniCard("2", suit: .spade)
+                    RuleMiniCard("K", suit: .spade)
+                    RuleMiniCard("K", suit: .heart)
+                    RuleMiniCard("9", suit: .diamond, isHighlighted: true)
+                    RuleMiniCard("5", suit: .club, isHighlighted: true)
+                    RuleMiniCard("2", suit: .spade, isHighlighted: true)
                 }
                 .padding(.top, 4)
-                RuleFigureLabel(tr("タップで選んだ札は残る"), color: Theme.coralText)
+                RuleFigureLabel(tr("タップで選んだ札を入れ替える"), color: Theme.coralText)
             }
         }
     }
 
-    /// 選ばなかった 3 枚が新しい札に入れ替わる。
+    /// 選んだ 3 枚が新しい札に入れ替わる。
     ///
     /// 5 枚の手札 2 コマを横に並べると iPhone の幅（SE・17 Pro とも）に収まらず、シート全体が
     /// 横に押し広げられて左右の余白が消える（#2207）。横 1 列に収まらない幅では、
     /// 「前」の下に「後」を置く 2 段にする（iPad など広い幅では横並びのまま）。
-    private struct DrawFigure: View {
+    struct DrawFigure: View {
         var body: some View {
             ViewThatFits(in: .horizontal) {
                 RuleFrames(count: 2, spacing: 10) { index in hand(index) }
@@ -54,12 +54,12 @@ enum PokerHowToFigures {
         private func hand(_ index: Int) -> some View {
             VStack(spacing: 4) {
                 HStack(spacing: 3) {
-                    RuleMiniCard("K", suit: .spade, isHighlighted: index == 0)
-                    RuleMiniCard("K", suit: .heart, isHighlighted: index == 0)
+                    RuleMiniCard("K", suit: .spade)
+                    RuleMiniCard("K", suit: .heart)
                     if index == 0 {
-                        RuleMiniCard("9", suit: .diamond, isDimmed: true)
-                        RuleMiniCard("5", suit: .club, isDimmed: true)
-                        RuleMiniCard("2", suit: .spade, isDimmed: true)
+                        RuleMiniCard("9", suit: .diamond, isHighlighted: true)
+                        RuleMiniCard("5", suit: .club, isHighlighted: true)
+                        RuleMiniCard("2", suit: .spade, isHighlighted: true)
                     } else {
                         RuleMiniCard("K", suit: .diamond)
                         RuleMiniCard("7", suit: .club)
@@ -67,13 +67,13 @@ enum PokerHowToFigures {
                     }
                 }
                 .padding(.top, 4)
-                RuleFigureLabel(index == 0 ? tr("選ばなかった 3 枚") : tr("引き直した 3 枚"))
+                RuleFigureLabel(index == 0 ? tr("選んだ 3 枚") : tr("引き直した 3 枚"))
             }
         }
     }
 
     /// 役の強さの並び（弱い → 強い）。
-    private struct RankFigure: View {
+    struct RankFigure: View {
         private let names = [tr("ワン\nペア"), tr("ツー\nペア"), tr("スリー\nカード"), tr("フル\nハウス")]
 
         var body: some View {
@@ -90,7 +90,7 @@ enum PokerHowToFigures {
     }
 
     /// 勝った回に入る役の点（点数表の一部・#2551）。数字は `PokerScoreTable` から引く。
-    private struct PointsFigure: View {
+    struct PointsFigure: View {
         private let ranks: [PokerHandRank] = [.onePair, .twoPair, .fullHouse]
 
         var body: some View {

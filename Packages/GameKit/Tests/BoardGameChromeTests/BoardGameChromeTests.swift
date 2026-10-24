@@ -416,38 +416,86 @@ extension BoardGameChromeSourceTests {
 @Suite("終局後の GameReplayBar")
 struct GameReplayBarTests {
 
-    /// 従来の「もう一度」1 つの行（五目並べ・オセロ・囲碁）。2 つ目のボタンが増えても高さは変わらない
-    /// （対局中の操作列と高さが揃う契約・#148。決着で盤が縮まない）。
-    @Test("高さは従来の「もう一度」1 つの行と同じ")
-    func heightMatchesLegacySingleButtonRow() throws {
-        let legacy = try Self.render(
-            HStack(spacing: 12) {
-                Spacer(minLength: 0)
-                Button {} label: {
-                    Label("もう一度", systemImage: "arrow.clockwise")
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.Fill.coral))
-                }
-                Spacer(minLength: 0)
-            }
-            .themeBody(14)
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
-        )
+    /// 案3（#2360・会長方針 2026-10-25）: ボタン自体が 44pt（押せる範囲 = 見た目）。カードは 44 + 縦余白 8 × 2 = 60pt。
+    @Test("ボタンは 44pt・カードの外寸は 60pt（案3）")
+    func buttonsAreTapTargetTallAndCardIs60() throws {
+        #expect(GameReplayBarMetrics.buttonHeight == BoardGameControlMetrics.minTapTarget)
+        #expect(GameReplayBarMetrics.buttonHeight >= 44)
+        let expected: CGFloat = GameReplayBarMetrics.buttonHeight + GameReplayBarMetrics.verticalPadding * 2
+        #expect(GameReplayBarMetrics.cardHeight == expected)
         let bar = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}))
-        // 記号（SF Symbols）を外したぶん最大 1px 低い。**高くはならない**（盤が縮まない）ことが契約。
-        #expect(bar.height <= legacy.height)
-        #expect(legacy.height - bar.height <= 1)
+        #expect(abs(CGFloat(bar.height) - expected) <= 1, "カードの外寸 \(bar.height)")
     }
 
-    /// 記録ラベルを左に置く 2 本（マインスイーパー・ナンプレ）も、ラベルの有無で高さが変わらない。
-    @Test("左端に記録ラベルを置いても高さは変わらない")
-    func leadingLabelDoesNotChangeHeight() throws {
+    /// 2 つのボタンは全幅を等分し、あいだの 8pt で押せる範囲が切れる。縦は上下の余白（8pt）を除いた 44pt を面で塗る。
+    @Test("2 つのボタンは全幅を等分して 44pt を塗る（間隔 8pt）")
+    func buttonsSplitFullWidth() throws {
+        let width = 360
+        // macOS の `.borderless` はラベル全体をアクセント色で塗り直すので、面の色を読むこの検査だけ `.plain` で描く。
+        let renderer = ImageRenderer(
+            content: GameReplayBar(onReplay: {}, onChangeSettings: {}).frame(width: CGFloat(width))
+                .buttonStyle(.plain).environment(\.colorScheme, .light)
+        )
+        renderer.scale = 1
+        let bar = try #require(renderer.cgImage)
+        #expect(bar.width == width)
+        let content = width - 32
+        let half = (content - Int(GameReplayBarMetrics.buttonSpacing)) / 2   // 160
+        let leftStart = 16, gapStart = leftStart + half, rightStart = gapStart + Int(GameReplayBarMetrics.buttonSpacing)
+        let midY = bar.height / 2
+        let coral = Self.rgb(Theme.Hex.Fill.coral), muted = Self.rgb(Theme.Hex.fillMuted.light), surface = Self.rgb(Theme.Hex.surface.light)
+        // 左のボタン（もう一回）の面。文字の無い左端寄りを読む。
+        #expect(Self.pixel(bar, x: leftStart + 6, y: midY) == coral, "左 \(Self.pixel(bar, x: leftStart + 6, y: midY)) 期待 \(coral)")
+        // あいだはカードの面（どちらのボタンでもない）。
+        #expect(Self.pixel(bar, x: gapStart + 4, y: midY) == surface)
+        // 右のボタン（設定を変える）の面。
+        #expect(Self.pixel(bar, x: rightStart + 6, y: midY) == muted, "右 \(Self.pixel(bar, x: rightStart + 6, y: midY)) 期待 \(muted)")
+        #expect(Self.pixel(bar, x: width - 16 - 6, y: midY) == muted)
+        // 縦: 余白 8pt の中はカードの面、ボタンの上端・下端の内側は面が塗られている（44pt の面 = 押せる範囲）。
+        let x = leftStart + half / 2
+        let top = Int(GameReplayBarMetrics.verticalPadding), bottom = top + Int(GameReplayBarMetrics.buttonHeight)
+        #expect(Self.pixel(bar, x: x, y: top - 3) == surface)
+        #expect(Self.pixel(bar, x: x, y: top + 2) == coral)
+        #expect(Self.pixel(bar, x: x, y: bottom - 3) == coral)
+        #expect(Self.pixel(bar, x: x, y: bottom + 3) == surface)
+    }
+
+    /// 記録ラベル（マインスイーパー・ナンプレ）は上段に出る。ボタンの段は変わらず、カードはその行のぶんだけ高い。
+    @Test("記録ラベルは上段に出て、カードはその行のぶんだけ高い")
+    func leadingLabelAddsARowAboveButtons() throws {
         let plain = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}))
         let withLabel = try Self.render(
             GameReplayBar(onReplay: {}, onChangeSettings: {}) { Text("3連勝") }
         )
-        #expect(withLabel.height == plain.height)
+        #expect(abs(CGFloat(withLabel.height) - GameReplayBarMetrics.cardHeightWithLeading) <= 1, "外寸 \(withLabel.height)")
+        #expect(withLabel.height > plain.height)
+    }
+
+    /// `GameControlArea` のひな形は対局中（記録なし）の実寸で高さを取る。記録が入ってもバッジが載ってもカードが伸びないこと
+    /// （伸びると決着の瞬間に盤が縮む・#148。マインスイーパー・あかり消し・ねこパズルが `RecordLabel(model.recordResult)` を渡す）。
+    @Test("記録の有無・自己ベストのバッジの有無でカードの高さは変わらない")
+    func leadingRowHeightIsReservedWhileRecordIsEmpty() throws {
+        func result(newBest: Bool) -> RecordResult {
+            RecordResult(record: PlayRecord(metric: .points, plays: 3, bestPoints: 12_340),
+                         update: RecordUpdate(points: newBest))
+        }
+        let empty = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}) { RecordLabel(nil) })
+        let plain = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}) { RecordLabel(result(newBest: false)) })
+        let badge = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}) { RecordLabel(result(newBest: true)) })
+        #expect(empty.height == plain.height, "記録なし \(empty.height) / あり \(plain.height)")
+        #expect(plain.height == badge.height, "記録あり \(plain.height) / バッジあり \(badge.height)")
+        #expect(abs(CGFloat(empty.height) - GameReplayBarMetrics.cardHeightWithLeading) <= 1, "外寸 \(empty.height)")
+    }
+
+    /// 押せる範囲の組み方はソースで固定する（枠 44pt の中に入れて `contentShape` で受ける。枠の外へはみ出させる負の padding は使わない・#711）。
+    @Test("押せる範囲はボタンの枠（44pt・全幅）に入れて contentShape で受ける")
+    func hitAreaLivesInsideTheButtonFrame() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameReplayBar.swift"))
+        let capsule = try #require(SourceScan.declaration(of: "private func capsule(", in: source))
+        #expect(capsule.contains(".frame(maxWidth: .infinity, minHeight: GameReplayBarMetrics.buttonHeight)"))
+        #expect(capsule.contains(".contentShape(Rectangle())"))
+        #expect(!capsule.contains("padding(.vertical, -"), "枠の外へはみ出させる負の padding が使われている")
+        #expect(source.contains("HStack(spacing: GameReplayBarMetrics.buttonSpacing)"))
     }
 
     /// 幅が足りなくても折り返さず、高さを保ったまま短い文言に切り替わる（会長決裁 2026-10-02）。
@@ -508,6 +556,21 @@ struct GameReplayBarTests {
         )
         renderer.scale = 1
         return try #require(renderer.cgImage)
+    }
+
+    private static func pixel(_ image: CGImage, x: Int, y: Int) -> [Int] {
+        var data = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &data, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
+        return data.prefix(3).map(Int.init)
+    }
+
+    private static func rgb(_ hex: UInt32) -> [Int] {
+        [Int(hex >> 16 & 0xFF), Int(hex >> 8 & 0xFF), Int(hex & 0xFF)]
     }
 }
 

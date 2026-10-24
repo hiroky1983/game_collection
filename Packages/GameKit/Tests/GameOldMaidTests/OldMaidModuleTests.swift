@@ -46,7 +46,7 @@ struct OldMaidModuleTests {
         #expect(code.contains("fullScreen: .felt, ads: services.ads"), "レイアウトパターン A（全画面の枠がバナーを最下部に置く・#2531）")
         #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
         #expect(code.contains("HowToPlayHint(.oldMaid"))
-        #expect(code.contains(".howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items))"))
+        #expect(code.contains(".howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items)"))  // 後ろに .onboarding(...)（#2824）が続く
         #expect(code.contains("GameSetupSheet(") && code.contains("CPUStrengthPicker("))
         #expect(!code.contains("Rescue.request(") && !code.contains("showRewardedAd("), "リワード広告の入口は持たない")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
