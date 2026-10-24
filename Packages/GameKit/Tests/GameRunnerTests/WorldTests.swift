@@ -872,4 +872,20 @@ struct RunnerStageSelectUITests {
         // 縦横比は帯の縦横比そのもの。
         #expect(abs(crop.width / crop.height - RunnerWorldBandArt.aspectRatio) < 0.02)
     }
+
+    @Test("帯の絵は画面に出さずに描け、写す範囲 × 画素密度の大きさで、2 回目は同じ 1 枚を返す")
+    func bandImageRenders() throws {
+        // 世界を 2 つ続けて描く（シーンを使い回しても 2 つ目が描けることを見る）。
+        let tokyo = try #require(RunnerWorldBandArt.image(for: .tokyo), "東京の帯が描けない")
+        let morning = try #require(RunnerWorldBandArt.image(for: .morning), "朝の帯が描けない")
+        let crop = RunnerWorldBandArt.cropRect
+        let expectedWidth = Int((crop.width * RunnerWorldBandArt.pixelsPerUnit).rounded())
+        let expectedHeight = Int((crop.height * RunnerWorldBandArt.pixelsPerUnit).rounded())
+        // 画面の倍率で割って描くので、画素数は倍率によらず `pixelsPerUnit` で決まる（±1px は丸め）。
+        #expect(abs(tokyo.width - expectedWidth) <= 1, "\(tokyo.width) != \(expectedWidth)")
+        #expect(abs(tokyo.height - expectedHeight) <= 1, "\(tokyo.height) != \(expectedHeight)")
+        #expect(morning.width == tokyo.width && morning.height == tokyo.height)
+        // 控えが効く（同じ 1 枚）。
+        #expect(RunnerWorldBandArt.image(for: .tokyo) === tokyo)
+    }
 }

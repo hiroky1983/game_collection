@@ -2,6 +2,9 @@ import Core
 import Foundation
 import SpriteKit
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - 世界の帯の背景（#2730）
 
@@ -24,7 +27,7 @@ enum RunnerWorldBandArt {
     static let aspectRatio: Double = 3.5
 
     /// 写す範囲の縦（シーンの座標・ワールド単位）。路肩の下（地盤）を少し含む 12 から、
-    /// 丘の稜線（地面 34 + 34 = 68）と遠景の飾りを越えて、雲の帯の下端（93）までの 86。
+    /// 丘の稜線（地面 34 + 34 = 68）と遠景の飾りを越えて、いちばん低い雲（93）が入る 98 までの 86。
     static let cropY: ClosedRange<Double> = 12...98
 
     /// 1 単位あたりの画素数。帯は iPhone 17 で 370pt（@3x で 1110px）に伸ばすので、幅 301 単位 × 4 で足りる。
@@ -84,10 +87,13 @@ enum RunnerWorldBandArt {
     private static func render(layers: [(node: SKNode, z: CGFloat)], sky: UInt32) -> CGImage? {
         let crop = cropRect
         let view = SKView(frame: CGRect(x: 0, y: 0, width: 64, height: 64))
-        // `texture(from:)` は画面の倍率（@3x）を掛けて描く（`contentScaleFactor` を 1 にしても効かない）。
-        // 掛かると 1 枚が 3 倍角（約 15MB）になるので、倍率で割って画素数を `pixelsPerUnit` に合わせる。
+        // `texture(from:)` は画面の倍率（iPhone で @3x・Retina の Mac で @2x）を掛けて描く（`contentScaleFactor` を
+        // 1 にしても効かない）。掛かると 1 枚が 3 倍角（約 15MB）になるので、倍率で割って画素数を `pixelsPerUnit` に
+        // 合わせる（`RunnerStageSelectUITests.bandImageRenders` が画素数を固定）。
         #if canImport(UIKit)
         let displayScale = Double(max(view.traitCollection.displayScale, 1))
+        #elseif canImport(AppKit)
+        let displayScale = Double(max(NSScreen.main?.backingScaleFactor ?? 1, 1))
         #else
         let displayScale = 1.0
         #endif
