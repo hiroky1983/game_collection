@@ -590,6 +590,19 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 4. 英語は日本語より横に長い。1 行に収める所（`lineLimit(1)`・幅が固定の枠）は `minimumScaleFactor` か、
    `ViewThatFits` で短い言い回しに切り替える形にして、SE（幅 375pt）で確かめる。
 
+### 図で見る「はじめての遊び方」（#2827・v1.1.14）
+
+- **自動では出さない。ボタンを押したときだけ開く**。入口は①「？」シートの先頭の目立つボタン「はじめての遊び方（図で見る）」
+  ②新規ゲーム・開始シート（`GameSetupSheet(onboarding:)`）の先頭の小さな同じボタン。`HowToPlayGuide.onboarding(_:)` /
+  `onboarding:` を渡したゲームだけに出る（試作は花札こいこい・ハーツ・チェス。残りは #2824・#2825・#2826）。
+- 中身は Core の `OnboardingGuide`（`pages: [OnboardingPage]`）。**4〜6 枚**、1 枚は「見出し＋大きな図 1 つ＋短い言葉 2〜3 行」
+  （`isWellFormed`）。型は ①目的 → ②1 回の番でやること → ③大事なルール → ④勝ち負け。横にめくり、最後のカードの「閉じる」で終わる。
+  図は各ゲームの既存の遊び方の図（本番と同じ札・駒）の部品を使い回す。
+- 開いている間は CPU の手番を止める（「？」を開いている間は `.howToPlay(onPresent:onDismiss:)`、チェス・ハーツは新規シートの間も）。
+  タイマーは既存の `HowToPlayPresentedKey`（#2406）。
+- 文言と図の数字は実装の値から引き、`*OnboardingTests` が突き合わせる（役の札と文数・倍率・ハーツの点と出せる札・チェスの図の局面を FEN で）。
+  文言は各ゲームの表に英訳を持つ。撮影用に DEBUG 限定の `-showOnboarding` / `-onboardingPage <番号>`。
+
 ### 遊び方の文言（#2165）
 
 - 遊び方の本文（`Core/HowToPlay.swift` の `HowToPlayGuide`：題名・3 行ルール・ミニガイド・図入りの項目・補足）は
