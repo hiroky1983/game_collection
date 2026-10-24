@@ -539,6 +539,31 @@ struct OthelloEmptyCellBonusTests {
         #expect(model.blackScore + model.whiteScore == 64)
     }
 
+    /// 結果カードの数え上げ（#2813）: 0 マス目は実石数、最後は確定スコアに一致し、途中は 1 マスずつ増える。
+    @Test func scoreCountsUpOneCellAtATime() throws {
+        let model = try restored(othelloWipeoutPendingDiagram)
+        model.tap(row: 2, col: 5)
+
+        try #require(model.gameOver)
+        #expect(model.bonusCellCount == 60)
+        #expect(model.score(revealingBonus: 0) == (4, 0))
+        #expect(model.score(revealingBonus: 1) == (5, 0))
+        #expect(model.score(revealingBonus: 60) == (model.blackScore, model.whiteScore))
+        #expect(model.score(revealingBonus: 999) == (model.blackScore, model.whiteScore))
+        #expect(model.score(revealingBonus: -3) == (4, 0))
+    }
+
+    /// 加算が無い終局（引き分け・満盤・投了）では数え上げるものが無い（#2813）。
+    @Test func noBonusCellsWhenNothingToAdd() throws {
+        let draw = try restored(othelloDrawPendingDiagram)
+        draw.tap(row: 0, col: 2)
+        #expect(draw.bonusCellCount == 0)
+
+        let full = try restored(othelloLastCellDiagram)
+        full.tap(row: 0, col: 0)
+        #expect(full.bonusCellCount == 0)
+    }
+
     /// 勝敗は加算前の石数で決まる（加算は表示だけ）。
     @Test func winnerIsDecidedBeforeBonus() throws {
         let model = try restored(othelloWipeoutPendingDiagram)

@@ -220,7 +220,9 @@ public extension HowToPlayGuide {
             HowToPlayItem(tr("自分の石ではさんだ相手の石は、すべて自分の色に裏返ります。")),
             HowToPlayItem(tr("最後に石が多かったほうが勝ちです。")),
         ],
-        notes: []
+        notes: [
+            tr("お互い置けなくなって空きマスが残ったときは、残ったマスは勝った方に加算されます。"),
+        ]
     ) }
 
     static var poker: HowToPlayGuide { HowToPlayGuide(

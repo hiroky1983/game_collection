@@ -4078,6 +4078,17 @@
         }
       }
     },
+    "お互い置けなくなって空きマスが残ったときは、残ったマスは勝った方に加算されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If neither player can move and empty squares remain, they are added to the winner's score."
+          }
+        }
+      }
+    },
     "最後の 1 個が自分のストア（右端）に入ったら、もう一度あなたの番。" : {
       "extractionState" : "manual",
       "localizations" : {

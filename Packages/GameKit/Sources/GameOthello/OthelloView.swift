@@ -10,6 +10,9 @@ public struct OthelloView: View {
     @State private var passBannerID: Int?
     /// 結果カードを閉じたか（#2797）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
     @State private var resultCardClosed = false
+    /// 結果カードで数え上げ済みの空きマス数（#2813）。nil は数え終わり（確定スコアを出す）。
+    @State private var revealedBonus: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
     /// ヒントの広告救済（無料枠を使い切った後の1回・#2011）。
@@ -323,13 +326,13 @@ public struct OthelloView: View {
                         Circle()
                             .fill(Color(hex: 0x1A1A1A))
                             .frame(width: 22, height: 22)
-                        Text("\(model.blackScore)")
+                        Text("\(shownScore.black)")
                             .themeBody(30, weight: .black)
                             .foregroundStyle(Theme.ink)
                         Text("–")
                             .themeBody(22, weight: .semibold)
                             .foregroundStyle(Theme.inkSub)
-                        Text("\(model.whiteScore)")
+                        Text("\(shownScore.white)")
                             .themeBody(30, weight: .black)
                             .foregroundStyle(Theme.ink)
                         Circle()
@@ -360,6 +363,29 @@ public struct OthelloView: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
         .announcesResultAppearance(resultAccessibilityLabel)
+        .task { await countUpBonus() }
+    }
+
+    /// 結果カードに出すスコア。数え上げ中は空きマスを途中まで加算した値（#2813）。
+    private var shownScore: (black: Int, white: Int) {
+        guard let revealed = revealedBonus else { return (model.blackScore, model.whiteScore) }
+        return model.score(revealingBonus: revealed)
+    }
+
+    /// 終局の空きマスを 1 マスずつ勝者へ加算して見せる（#2813）。加算が無い終局・Reduce Motion では何もしない。
+    /// 全体が 1.5 秒を超えないよう、1 マスあたりの間隔は `bonus` に応じて縮める。
+    private func countUpBonus() async {
+        let bonus = model.bonusCellCount
+        guard bonus > 0, !reduceMotion else { return }
+        revealedBonus = 0
+        defer { revealedBonus = nil }
+        let step = Duration.seconds(min(0.06, 1.5 / Double(bonus)))
+        try? await Task.sleep(for: .seconds(OthelloBoardStyle.resultOverlayFadeDuration + 0.2))
+        for n in 1...bonus {
+            if Task.isCancelled { return }
+            revealedBonus = n
+            try? await Task.sleep(for: step)
+        }
     }
 
     private var resultAccessibilityLabel: String {
