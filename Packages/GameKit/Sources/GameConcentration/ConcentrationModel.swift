@@ -18,6 +18,8 @@ struct ConcentrationSnapshot: Codable {
     /// この局で使ったヒントの回数（#2026）。再開で回数が戻らないよう保存する。鍵を持たない旧い中断データは 0 として読む。
     /// 盤の上の印は保存しない。
     let hintsUsed: Int?
+    /// CPU の記憶（#2543）。再開で消えると離れて戻るだけで CPU を弱くできる。鍵を持たない旧い中断データは記憶なしとして読む。
+    let cpuMemory: ConcentrationCPUMemory?
 }
 
 /// ヒントの回数（会長決裁 2026-10-11・#2026）。1 ゲーム 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回。
@@ -438,6 +440,9 @@ public final class ConcentrationModel {
             used: snap.hintsUsed ?? 0,
             freeLimit: ConcentrationHintPolicy.freeCount, adLimit: ConcentrationHintPolicy.adRefillMax
         )
+        if let saved = snap.cpuMemory {
+            ai.restore(saved, symbols: setting.symbols, isMatched: snap.isMatched)
+        }
         hintTarget = nil
         isThinking = false
         firstFlippedIndex = nil
@@ -614,7 +619,8 @@ public final class ConcentrationModel {
             cpuLevel: cpuLevel.rawValue,
             mattaUsed: mattaUsed,
             mismatchedIndices: mismatchedIndices,
-            hintsUsed: hints.used
+            hintsUsed: hints.used,
+            cpuMemory: ai.persistedMemory
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

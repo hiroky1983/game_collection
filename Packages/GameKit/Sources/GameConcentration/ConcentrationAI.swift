@@ -86,8 +86,37 @@ class ConcentrationAI {
         return nil
     }
 
+    /// 中断データに書く CPU の記憶（#2543）。復元で記憶が消えると、離れて戻るたびに CPU を弱くできた。
+    var persistedMemory: ConcentrationCPUMemory {
+        let sorted = memory.sorted { $0.key < $1.key }
+        return ConcentrationCPUMemory(
+            indices: sorted.map(\.key), symbols: sorted.map(\.value), judged: judged.sorted()
+        )
+    }
+
+    /// 中断データから記憶を戻す。盤と食い違う項目（範囲外・絵柄違い・獲得済みの札）は捨てる。
+    func restore(_ saved: ConcentrationCPUMemory, symbols: [String], isMatched: [Bool]) {
+        guard saved.indices.count == saved.symbols.count else { return }
+        for (index, symbol) in zip(saved.indices, saved.symbols)
+        where symbols.indices.contains(index) && symbols[index] == symbol && !isMatched[index] {
+            memory[index] = symbol
+        }
+        judged = Set(saved.judged.filter { symbols.indices.contains($0) })
+        // 覚えている札は判定済みでもある（観測を経ない食い違いがあっても判定をやり直させない）
+        judged.formUnion(memory.keys)
+    }
+
     func reset() {
         memory = [:]
         judged = []
     }
+}
+
+/// 中断データに残す CPU の記憶（#2543）。`[Int: String]` は JSON で交互の配列になり読みにくいので、並びを分けて持つ。
+struct ConcentrationCPUMemory: Codable, Equatable {
+    /// 覚えている札の位置と、その絵柄（同じ並び）
+    var indices: [Int]
+    var symbols: [String]
+    /// 「覚えるか」の判定を済ませた札の位置
+    var judged: [Int]
 }
