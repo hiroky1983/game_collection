@@ -145,6 +145,16 @@ struct CatPuzzleRenderTests {
         return model
     }
 
+    /// 3 回目のミスの直後（コンティニューの提案を出している）。
+    private static func offerModel() -> CatPuzzleModel { failedModel() }
+
+    /// コンティニューを断って負けを確定したところ（見つけていない猫が正解の場所に出る）。
+    private static func revealedModel() -> CatPuzzleModel {
+        let model = failedModel()
+        model.declineContinue()
+        return model
+    }
+
     /// 最後の猫を置いた瞬間（クリアのダイアログはまだ出ていない。ダイアログを「盤を見る」で閉じた後もこの見た目）。
     private static func lastCatModel() -> CatPuzzleModel {
         let model = CatPuzzleModel(services: services(), size: .normal, seed: 1)
@@ -268,14 +278,18 @@ struct CatPuzzleRenderTests {
             ("4a-last-cat", Self.lastCatModel),
             ("4b-clear-dialog", { Self.clearModel() }),
             ("10-label-cross", Self.labelCrossModel),
-            ("11-three-mistakes", Self.failedModel),
+            ("11-three-mistakes", Self.offerModel),
+            ("11b-answers-card", Self.revealedModel),
+            ("11c-answers-board", Self.revealedModel),
         ]
         let schemes: [(name: String, scheme: ColorScheme)] = [("light", .light), ("dark", .dark)]
         for device in Self.devices {
             for scene in scenes {
                 for scheme in schemes {
                     let model = scene.make()
-                    let view = CatPuzzleView(services: Self.services(), model: model)
+                    let view = CatPuzzleView(services: Self.services(), model: model,
+                                             showsAnswers: scene.name.hasPrefix("11b") || scene.name.hasPrefix("11c"),
+                                             failCardClosed: scene.name.hasPrefix("11c"))
                         .frame(width: device.size.width, height: device.size.height)
                         .background(Theme.background)
                         .environment(\.colorScheme, scheme.scheme)

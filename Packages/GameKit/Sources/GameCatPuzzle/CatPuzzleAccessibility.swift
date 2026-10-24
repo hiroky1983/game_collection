@@ -11,7 +11,7 @@ public enum CatPuzzleAccessibility {
     /// マス 1 つの読み上げ文（例: 「2行3列、居間、猫」「1行1列、台所、×」「4行5列、寝室、猫、ヒントで置いた」）。
     public static func cellLabel(
         row: Int, col: Int, roomName: String, mark: CatPuzzleModel.Mark,
-        isConflict: Bool = false, isHint: Bool = false
+        isConflict: Bool = false, isHint: Bool = false, isUnfoundCat: Bool = false
     ) -> String {
         var parts = [tr("%1$lld行%2$lld列", row + 1, col + 1), roomName]
         switch mark {
@@ -21,6 +21,7 @@ public enum CatPuzzleAccessibility {
         }
         if isConflict { parts.append(tr("ちがう")) }
         if isHint { parts.append(tr("ヒントで置いた")) }
+        if isUnfoundCat { parts.append(tr("見つけられなかった猫がいた")) }
         return parts.joined(separator: tr("、"))
     }
 
