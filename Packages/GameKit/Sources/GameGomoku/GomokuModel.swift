@@ -75,6 +75,10 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// View はこれを盤上の勝ち筋として光らせ、「なぜ負けたか」を見せる。
     public private(set) var winningLine: [GomokuPoint]?
     private var resigned: Bool
+    /// 負けた局の「ここで止めていれば」（#2851）。五連で負けたときだけ、読みが終わってから入る。
+    /// **永続化しない**（決着した局は中断データを消すので、再開後に持ち越すものが無い）。
+    private(set) var missedBlock: GomokuMissedBlock?
+    @ObservationIgnored var missedBlockTask: Task<Void, Never>?
     /// 仮置き中の交点（#2297）。1 回目のタップで照準だけ置き、同じ交点の再タップで確定する。
     /// **永続化しない**（中断データに入れず、復元時は無し）。着手・投了・待った・新規対局で消える。
     public private(set) var pendingPoint: GomokuPoint?
@@ -313,6 +317,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             winningLine = line
             winner = currentStone
             services?.feedback.notify(mover == humanSide ? .success : .error)
+            if mover != humanSide { startMissedBlockAnalysis() }
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
@@ -332,6 +337,19 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             if mover == humanSide { services?.feedback.impact(.board(.goStone)) }
         }
         persist()
+    }
+
+    /// 止められた最後の局面を裏で探す（#2851）。読み終えたとき同じ対局が決着したままなら入れる。
+    private func startMissedBlockAnalysis() {
+        let serial = gameSerial, base = baseBoard, history = moves, side = humanSide
+        missedBlockTask?.cancel()
+        missedBlockTask = Task { [weak self] in
+            let found = await Task.detached(priority: .userInitiated) {
+                GomokuMissedBlockFinder.find(base: base, moves: history, humanSide: side)
+            }.value
+            guard let self, !Task.isCancelled, gameSerial == serial, winner != nil else { return }
+            missedBlock = found
+        }
     }
 
     #if DEBUG
@@ -498,6 +516,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         hintPoint      = nil
         pendingPoint   = nil
         recordResult   = nil
+        missedBlockTask?.cancel()
+        missedBlock    = nil
         startedAt      = Date()
         gameSerial    += 1
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする。

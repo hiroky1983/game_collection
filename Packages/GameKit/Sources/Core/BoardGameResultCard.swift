@@ -30,15 +30,31 @@ public struct BoardGameResultCard: View {
     private let details: [String]
     private let record: RecordResult?
     private let onClose: () -> Void
+    private let secondaryAction: SecondaryAction?
+
+    /// 「盤を見る」の上に足す、ゲーム固有の動線（五目並べの「ここで止めていれば」など・#2851）。
+    public struct SecondaryAction {
+        let title: String
+        let hint: String
+        let action: () -> Void
+
+        public init(title: String, hint: String, action: @escaping () -> Void) {
+            self.title = title
+            self.hint = hint
+            self.action = action
+        }
+    }
 
     /// - Parameters:
     ///   - reason: 終局の理由（「詰み」「投了」「五連」など）。
     ///   - decisiveMove: 決め手の手（将棋・チェス。例 "▲７六歩"）。無ければ nil。
     ///   - details: 補足の行（囲碁の目数の内訳など）。
     ///   - record: 自己ベストの行に使う記録。
+    ///   - secondaryAction: ゲーム固有の動線。無ければ出さない。
     ///   - onClose: 「盤を見る」。
     public init(verdict: Verdict, reason: String, decisiveMove: String? = nil, details: [String] = [],
-                record: RecordResult?, onClose: @escaping () -> Void) {
+                record: RecordResult?, secondaryAction: SecondaryAction? = nil, onClose: @escaping () -> Void) {
+        self.secondaryAction = secondaryAction
         self.verdict = verdict
         self.reason = reason
         self.decisiveMove = decisiveMove
@@ -103,6 +119,17 @@ public struct BoardGameResultCard: View {
                                                             decisiveMove: decisiveMove, details: details))
                 // 共有ボタンを持つので、読み上げの塊の外に置く（オセロ #1716 と同じ）。
                 RecordLabel(record)
+                if let secondaryAction {
+                    Button(action: secondaryAction.action) {
+                        Text(secondaryAction.title)
+                            .themeBody(15, weight: .bold, maxScale: 1.5)
+                            .foregroundStyle(Theme.coralText)
+                            .padding(.horizontal, 20)
+                            .frame(minHeight: 44)
+                            .background(Capsule().stroke(Theme.coralText, lineWidth: 2))
+                    }
+                    .accessibilityHint(secondaryAction.hint)
+                }
                 Button(action: onClose) {
                     Text(tr("盤を見る"))
                         .themeBody(15, weight: .bold, maxScale: 1.5)
