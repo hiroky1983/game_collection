@@ -1043,6 +1043,226 @@
           }
         }
       }
+    },
+    "フリーセルのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeCell: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "配られた札を、右上の組札に積み上げていきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build up the dealt cards on the foundations at the top right."
+          }
+        }
+      }
+    },
+    "♠♥♦♣ ごとに、A から K まで順に積みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build each suit, ♠♥♦♣, in order from A to K."
+          }
+        }
+      }
+    },
+    "52 枚すべて、最初から見えています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All 52 cards are face up from the start."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "動かす札をタップして選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to pick it up."
+          }
+        }
+      }
+    },
+    "置きたい列・フリーセル・組札のどれかをタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then tap a column, a free cell or a foundation to put it there."
+          }
+        }
+      }
+    },
+    "左上の %lld つの枠が「フリーセル」です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The %lld slots at the top left are the free cells."
+          }
+        }
+      }
+    },
+    "札を 1 枚ずつ、一時的に置いておけます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each one can hold a single card for now."
+          }
+        }
+      }
+    },
+    "入れた札は、列や組札へいつでも戻せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can move a card out to a column or foundation at any time."
+          }
+        }
+      }
+    },
+    "札の重ね方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacking cards"
+          }
+        }
+      }
+    },
+    "列には、1 つ小さくて色ちがいの札だけ重ねられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On a column, you can stack only a card one rank lower in the opposite color."
+          }
+        }
+      }
+    },
+    "そろった並びは、まとめて動かせます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A matching run can be moved all at once."
+          }
+        }
+      }
+    },
+    "札がなくなった列には、どの札でも置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any card can go on an empty column."
+          }
+        }
+      }
+    },
+    "空きのフリーセルや空き列が多いほど、まとめて動かせる枚数が増えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The more free cells and empty columns you have, the more cards you can move at once."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "4 つの組札が、すべて K まで積み上がったらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You clear the game when all four foundations are built up to K."
+          }
+        }
+      }
+    },
+    "全部の札が見えているので、運ではなく読みで決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every card is visible, so it comes down to planning, not luck."
+          }
+        }
+      }
+    },
+    "4 つとも K まで積めたらクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All four built up to K: you win"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
