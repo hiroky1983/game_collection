@@ -9,6 +9,10 @@ public struct ShiritoriView: View {
     @State private var resultCardClosed = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.adaptiveLayout) private var layout
+    /// 盤札の読み（10pt・`.caption` 基準）の 1 行の高さ。文字を拡大すると札の絵をそのぶん縮めて 5 行を収める（#2847）。
+    @ScaledMetric(relativeTo: .caption) private var readingLineHeight: CGFloat = ShiritoriBoardLayout.baseReadingHeight
+    /// 盤の下の操作（ヒント・もう一回／延長・レコメンド）の実測の高さ。盤の絵の大きさはこれを引いた残りから決める。
+    @State private var controlsHeight: CGFloat = 0
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -31,14 +35,11 @@ public struct ShiritoriView: View {
                 currentArea
                     .transition(.opacity)
             }
-            boardArea
-                .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
-            HowToPlayHint(.shiritori, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
-            // 札の盤は札の枚数ぶんの高さしか取らないため、余りをここで吸って広告を画面の下端に置く。
-            // 吸わないと画面全体が縦に伸びず、背景色が中身の範囲にしか塗られない（ヘッダーまわりと広告の下が白く残る）
-            Spacer(minLength: 0)
+            // 盤とその下の操作（ヒント・もう一回・レコメンド）は残りの高さをまとめて受け取り（`GeometryReader`）、
+            // 札の絵を「残りの高さ − 下の操作の高さ」に収まる大きさで描く（#2847）。固定 pt のまま積むと
+            // iPhone SE（中身 571pt）で溢れ、最上段のカードがナビバーの裏に入っていた。
+            // 余りは操作の下・広告の上に残る（以前の `Spacer` と同じ場所。操作が盤から離れて広告の直上へ沈まない・#1485）。
+            boardAndControls
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -95,6 +96,12 @@ public struct ShiritoriView: View {
             if ProcessInfo.processInfo.arguments.contains("-shiritoriEndlessProbe") {
                 // 撮影用: とことんモードの対局を開始シートを出さずに始める（シミュレータは自動タップできない・#1502）。
                 model.startGame(mode: .endless)
+                return
+            }
+            if ProcessInfo.processInfo.arguments.contains("-shiritoriResultProbe") {
+                // 撮影用（#2360・#2847）: 時間切れの結果画面（延長ボタン + もう一回の段）を開始シートを出さずに再現する。
+                model.startGame(quota: .normal, mode: .quota)
+                model.tick(ShiritoriTime.initial + 1)
                 return
             }
             #endif
@@ -255,15 +262,49 @@ public struct ShiritoriView: View {
 
     // MARK: - 盤
 
-    private var boardArea: some View {
+    /// 盤と、その下の操作（初回ガイド・もう一回／延長・レコメンド）。
+    ///
+    /// 札の絵の一辺は、幅から決まる値と「残りの高さ − 下の操作の高さ」から決まる値の小さい方（`ShiritoriBoardLayout.artSide`）。
+    /// iPhone 17 では幅で決まり従来と同じ大きさ、iPhone SE では高さで決まって 5 行が画面に収まる（#2847）。
+    /// `LazyVGrid` は提案された高さに札を合わせてくれないので、絵の一辺を先に決めて渡す。下の操作の高さは
+    /// `background` の `GeometryReader` で測る（配置に干渉しない。`onGeometryChange` は iOS 18 以降のため使わない）。
+    /// 下の操作は盤のすぐ下に付き、余りはその下（広告の上）に残る。全部が収まらないときは下端側へはみ出す。
+    private var boardAndControls: some View {
+        GeometryReader { geo in
+            let artSide = ShiritoriBoardLayout.artSide(
+                availableWidth: geo.size.width,
+                availableHeight: geo.size.height - controlsHeight - 8,
+                count: model.slots.count, readingHeight: readingLineHeight * layout.elementScale
+            )
+            VStack(spacing: 8) {
+                boardCard(artSide: artSide)
+                    .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
+                VStack(spacing: 8) {
+                    HowToPlayHint(.shiritori, playLog: services.playLog)
+                    actionArea
+                    RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
+                }
+                .background {
+                    GeometryReader { below in
+                        Color.clear.task(id: below.size.height) { controlsHeight = below.size.height }
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+        }
+    }
+
+    private func boardCard(artSide: CGFloat) -> some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: ShiritoriBoardLayout.columns),
-            spacing: 6
+            columns: Array(repeating: GridItem(.flexible(), spacing: ShiritoriBoardLayout.tileSpacing),
+                           count: ShiritoriBoardLayout.columns),
+            spacing: ShiritoriBoardLayout.tileSpacing
         ) {
             ForEach(Array(model.slots.enumerated()), id: \.element.card.id) { index, slot in
                 ShiritoriCardTile(card: slot.card, reading: slot.displayReading,
                                   style: .board(owner: slot.owner, selectable: model.isSelectable(index),
-                                                isCPUCursor: model.cpuCursorSlot == index))
+                                                isCPUCursor: model.cpuCursorSlot == index),
+                                  artSide: artSide)
                     .contentShape(Rectangle())
                     .onTapGesture { select(index) }
                     .accessibilityElement(children: .ignore)
@@ -272,7 +313,8 @@ public struct ShiritoriView: View {
                     .accessibilityAction { select(index) }
             }
         }
-        .padding(.horizontal, 8).padding(.vertical, 10)
+        .padding(.horizontal, ShiritoriBoardLayout.cardHorizontalPadding)
+        .padding(.vertical, ShiritoriBoardLayout.cardVerticalPadding)
         .frame(maxWidth: .infinity)
         .popCard(corner: Theme.cornerSmall)
         // slots と cpuCursorSlot を1つの Equatable にまとめて modifier を1つだけ掛ける
@@ -421,8 +463,47 @@ private struct ShiritoriBoardAnimationState: Equatable {
 // MARK: - 盤の寸法
 
 enum ShiritoriBoardLayout {
-    /// 30 枚が 6 列 × 5 行にぴったり収まる（#1660: 29 枚の頃は右下が歯抜けだった）。iPhone SE でも広告枠を含めて縦に収まる本数。
+    /// 30 枚が 6 列 × 5 行にぴったり収まる（#1660: 29 枚の頃は右下が歯抜けだった）。
     static let columns = 6
+    /// 札のあいだ（列・行とも）。
+    static let tileSpacing: CGFloat = 6
+    /// 盤のカードの内側の余白。
+    static let cardHorizontalPadding: CGFloat = 8
+    static let cardVerticalPadding: CGFloat = 10
+    /// 札の内側の余白（`ShiritoriCardTile`）。
+    static let tileHorizontalPadding: CGFloat = 2
+    static let tileVerticalPadding: CGFloat = 3
+    /// 盤札の絵のまわりの余白と、絵と読みのあいだ。
+    static let artPadding: CGFloat = 3
+    static let artSpacing: CGFloat = 2
+    /// 絵の一辺の下限。これより小さくすると何の絵か読めないので、ここで止めて溢れるほうを取る。
+    static let minArtSide: CGFloat = 16
+    /// 読みの 1 行の高さの目安（10pt の太字・標準の文字サイズ）。Dynamic Type の拡大は呼び出し側が `@ScaledMetric` で掛ける。
+    static let baseReadingHeight: CGFloat = 13
+
+    static func rows(for count: Int) -> Int { max(1, (count + columns - 1) / columns) }
+
+    /// 盤札の絵の一辺（#2847）。幅から決まる値（6 列が横に収まる）と、残りの高さから決まる値（全行が縦に収まる）の小さい方。
+    /// iPhone 17（中身 702pt）では幅で決まり、iPhone SE（中身 571pt）では高さで決まる。
+    static func artSide(availableWidth: CGFloat, availableHeight: CGFloat, count: Int, readingHeight: CGFloat) -> CGFloat {
+        let rows = CGFloat(rows(for: count))
+        let tileWidth = (availableWidth - cardHorizontalPadding * 2 - tileSpacing * CGFloat(columns - 1)) / CGFloat(columns)
+        let byWidth = tileWidth - tileHorizontalPadding * 2 - artPadding * 2
+        let tileHeight = (availableHeight - cardVerticalPadding * 2 - tileSpacing * (rows - 1)) / rows
+        let byHeight = tileHeight - tileVerticalPadding * 2 - artPadding * 2 - artSpacing - readingHeight
+        return max(minArtSide, min(byWidth, byHeight))
+    }
+
+    /// 絵の一辺から逆算した札 1 枚の高さ。
+    static func tileHeight(artSide: CGFloat, readingHeight: CGFloat) -> CGFloat {
+        artSide + artPadding * 2 + artSpacing + readingHeight + tileVerticalPadding * 2
+    }
+
+    /// 絵の一辺から逆算した盤のカードの高さ。`artSide(...)` が高さで決めた値を戻すと、余りを除いて `availableHeight` 以下になる。
+    static func boardHeight(artSide: CGFloat, count: Int, readingHeight: CGFloat) -> CGFloat {
+        let rows = CGFloat(rows(for: count))
+        return tileHeight(artSide: artSide, readingHeight: readingHeight) * rows + tileSpacing * (rows - 1) + cardVerticalPadding * 2
+    }
 }
 
 // MARK: - 札
@@ -438,6 +519,8 @@ struct ShiritoriCardTile: View {
     let card: ShiritoriCard
     let reading: String
     let style: Style
+    /// 絵の一辺。盤札は `ShiritoriBoardLayout.artSide` で決めた値を受け取る（nil なら幅なりに描く・場の札）。
+    var artSide: CGFloat? = nil
 
     private var owner: ShiritoriOwner? {
         if case let .board(owner, _, _) = style { return owner }
@@ -459,9 +542,10 @@ struct ShiritoriCardTile: View {
     private var showsReading: Bool { isCurrent || owner != nil }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: ShiritoriBoardLayout.artSpacing) {
             ObjectCardArt(card.kind)
-                .padding(isCurrent ? 6 : 3)
+                .frame(width: artSide, height: artSide)
+                .padding(isCurrent ? 6 : ShiritoriBoardLayout.artPadding)
             // 常に描画して高さを確保する（グリッドの行の高さが札ごとにばらつかないように）。
             // 隠すときは不透明度だけ0にする（VoiceOver は `boardArea` 側の `accessibilityLabel` が別に持つ）。
             Text(reading)
@@ -471,7 +555,8 @@ struct ShiritoriCardTile: View {
                 .opacity(showsReading ? 1 : 0)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 2).padding(.vertical, 3)
+        .padding(.horizontal, ShiritoriBoardLayout.tileHorizontalPadding)
+        .padding(.vertical, ShiritoriBoardLayout.tileVerticalPadding)
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
