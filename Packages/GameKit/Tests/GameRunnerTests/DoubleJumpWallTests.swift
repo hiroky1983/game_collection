@@ -262,9 +262,11 @@ struct RunnerDoubleJumpWallTests {
                     // 打ち切られ、`events.contains(.crashed)` も `!invincibleAtWall` も 1 本目で
                     // 決まってしまう——**2 本目には一度も到達しないまま緑**になる
                     // （9 本中 5 本しか実走していなかった。#1148）。
+                    // 雪国（#2729）には塀の手前に裂け目（二段で渡る穴）がある面もある。裂け目のための二段目まで
+                    // 抜くと塀に着く前に落ちるので、**いま二段目を踏もうとしている相手が対象の塀のときだけ**抜く。
                     if RunnerAutoPilot.shouldJump(field: field) {
-                        let skipping = RunnerAutoPilot.shouldTakeSecondJump(field: field)
-                            && Self.nextWall(in: walls, at: field)?.start == wall.start
+                        let aiming = field.nextHazardFrame(from: field.playerMaxX)?.hazard
+                        let skipping = RunnerAutoPilot.shouldTakeSecondJump(field: field) && aiming?.start == wall.start
                         if !skipping { field.jump() }
                     }
                     if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
@@ -293,13 +295,6 @@ struct RunnerDoubleJumpWallTests {
             }
         }
         #expect(checked >= 9, "塀が \(checked) 本しか無い（この検証が空振りしている）")
-    }
-
-    /// いま走者が向かっている塀（右端がまだ走者の後ろに抜けていない、いちばん手前の塀）。
-    /// `RunnerAutoPilot.isAimingSecondJump` は「どの塀か」を返さないので、対象の塀でだけ
-    /// 二段目を抜くために `wallsAreHitWhenTheSecondJumpIsSkipped` が自前で持つ。
-    static func nextWall(in walls: [RunnerHazard], at field: RunnerField) -> RunnerHazard? {
-        walls.first { $0.end >= field.playerMinX }
     }
 
     /// ゆっくりモード（アクセシビリティ）でも同じ操作で越えられること。時間が一様に遅くなるだけで
@@ -335,12 +330,12 @@ struct RunnerDoubleJumpWallTests {
 
     // MARK: - 置き方（#1009 の「入れない組み合わせ」）
 
-    @Test("塀は 19 面以降にだけ置かれていて、里山・港町・京都・奈良のどの世界にもある")
+    @Test("塀は 19 面以降にだけ置かれていて、里山・港町・京都・奈良・温泉街・雪国のどの世界にもある")
     func wallsOnlyAppearInTheNewWorlds() {
         for stage in RunnerStage.all.prefix(18) {
             #expect(!stage.pattern.contains("w"), "ステージ \(stage.number) に塀がある: \(stage.pattern)")
         }
-        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30), (.kyotoNara, 31...36), (.onsen, 37...42)] {
+        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30), (.kyotoNara, 31...36), (.onsen, 37...42), (.snow, 43...48)] {
             let count = RunnerStage.all
                 .filter { range.contains($0.number) }
                 .reduce(0) { $0 + $1.hazards.filter { $0.kind == .wall }.count }

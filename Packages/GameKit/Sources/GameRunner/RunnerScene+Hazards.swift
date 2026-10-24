@@ -493,8 +493,8 @@ extension RunnerScene {
             // 揺れを止めたら塚・泡を地面へ戻す。`isPaused` はいまの位置で止めるだけなので、
             // 揺れの上端で止まると予告が浮いたまま固まる（#1010 で CodeRabbit が指摘）。
             if !rising { view.cue?.position.y = 0 }
-        case .pit, .lowBlock, .tallBlock, .wall:
-            // 動かない相手（#1091 の高い塀を含む）はここへ来ない（`movingHazards` に入れていない）。
+        case .pit, .chasm, .lowBlock, .tallBlock, .wall:
+            // 動かない相手（#1091 の高い塀・#2729 の裂け目を含む）はここへ来ない（`movingHazards` に入れていない）。
             break
         }
     }

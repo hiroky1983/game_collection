@@ -244,6 +244,11 @@ public enum RunnerEndlessCourse {
             let window = RunnerRules.doubleJumpAirTime(above: encounter.height + RunnerAutoPilot.clearance)
             let overlap = (encounter.length + RunnerField.Metrics.playerWidth) / speed
             return window > overlap && encounter.height < RunnerRules.doubleJumpApex
+        case .chasm:
+            // 裂け目（#2729）も生成器には置かない。式は穴と同じ形で、飛距離だけが二段ぶん。
+            let range = RunnerRules.doubleJumpRange(at: speed)
+            let needed = RunnerAutoPilot.lead(for: hazard, speed: speed) + hazard.length
+            return range > needed + RunnerRules.tileWidth
         }
     }
 

@@ -46,14 +46,22 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// 青灰の 2 階調、道は濡れた石畳で路肩に湯の川。遠景に旅館・外湯（のれん・提灯）・源泉の櫓・湯けむり。
     /// 犬の枠はニホンザル（絵ごと着せ替え）、鳥はトンビ、突き上げは湯柱（波しぶきを流用）、沈む床は泥湯。
     case onsen
+    /// 43〜48 面。雪国（#2729・会長決裁 2026-10-23）。温泉街から北へ峠を越えた、雪に埋もれた町。空は淡い灰青
+    /// （温泉街より少し白く）、丘は白の 2 階調、道は圧雪の灰白で路肩は雪、地盤は凍った土。遠景にかまくら・
+    /// 雪をかぶった瓦屋根・枯れ木・道の奥の雪の壁、遠くだけに雪がちらつく（手前は隠さない）。
+    /// 新しい仕掛けは**二段ジャンプでしか渡れない広い裂け目**（`RunnerHazardKind.chasm`・割れた氷の湖）。
+    /// 犬の枠はキタキツネ（絵ごと着せ替え）、鳥はシロフクロウ、低い岩は雪だるま、台座は雪のブロック、
+    /// 加速床はアイスバーン、突き上げは地吹雪の雪柱、沈む床は新雪、崩れる足場は薄氷の橋、高い塀は除雪の雪山。
+    case snow
 
-    /// 1 つの世界が受け持つ面数。6 面ずつ（30 面 = 5 世界、#1824 で 36 面 = 6 世界、#1938 で 42 面 = 7 世界）。
+    /// 1 つの世界が受け持つ面数。6 面ずつ（30 面 = 5 世界、#1824 で 36 面 = 6 世界、#1938 で 42 面 = 7 世界、
+    /// #2729 で 48 面 = 8 世界）。
     public static let stagesPerWorld = 6
 
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
-    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街。
+    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 43 以上）は `.night`。面を足して世界を足し忘れた
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 49 以上）は `.night`。面を足して世界を足し忘れた
     /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
     /// `WorldTests.everyStageHasAWorld` が固定する）。
     ///
@@ -74,6 +82,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .harbor:  return tr("港町")
         case .kyotoNara: return tr("京都・奈良")
         case .onsen: return tr("温泉街")
+        case .snow: return tr("雪国")
         }
     }
 
@@ -118,6 +127,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case kyotoNara
         /// 道の奥に提灯の並ぶ柵、その後ろに旅館・外湯・源泉の櫓・湯けむり、山には雪（#1938）。
         case onsen
+        /// 道の奥に雪の壁、その後ろにかまくら・雪をかぶった瓦屋根の家・枯れ木、遠くだけに雪がちらつく（#2729）。
+        case snow
     }
 
     public var scenery: Scenery {
@@ -129,6 +140,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .harbor:   return .harbor
         case .kyotoNara: return .kyotoNara
         case .onsen: return .onsen
+        case .snow: return .snow
         }
     }
 
@@ -183,6 +195,11 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
             // 濡れた石畳（#1938）。寒色の石の灰で明るさは京都と同じ帯。目地は雪まじりの白、縁石は雪、
             // 路肩は湯の川（淡い湯色の青緑）、地盤は濡れた暗い石。
             return Road(asphalt: 0xB3B7BE, line: 0xF4F6F8, curb: 0xE4E8EC, shoulder: 0x9ED0CB, subsoil: 0x7A838C)
+        case .snow:
+            // 圧雪の路面（#2729）。砂利の混じった圧雪の灰白で、明るさは朝・里山・港町の路面より一段明るい帯
+            // （相対輝度 0.52。白線は路面より 60 以上明るい必要があるので、路面はこれが上限）。暗い縁取りの
+            // 手前の物が 3:1 以上で乗る明るさは保つ（`WorldTests`）。縁石は雪、路肩は積もった雪、地盤は凍った土。
+            return Road(asphalt: 0xB9BFC6, line: 0xFFFFFF, curb: 0xE6EBEF, shoulder: 0xF0F4F7, subsoil: 0x7E8690)
         }
     }
 
@@ -330,6 +347,23 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 rockBody: 0x585E6E,
                 rockDark: 0x23272F
             )
+        case .snow:
+            // 雪国（#2729）。真冬。空は温泉街より少し白い淡い灰青（色相 210°。服の黄・車体の赤から 150° 以上
+            // 離れる）、丘は雪の 2 階調（白と淡い青白）。背景はどれも白に近い帯（相対輝度 0.45〜0.88）で、
+            // 手前は**暗く**して縁取りで締める（朝・里山と同じ組み立て。`WorldTests` が 3:1 を固定）。
+            // 岩（雪をかぶった岩）は朝と同じストーングレーの本体に、頂の面だけ雪の白（`rockLight`）。
+            return Palette(
+                sky: 0xE3E9EF,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xEEF2F5,
+                hillNear: 0xDCE4EA,
+                groundTop: 0xE6EAEE,
+                groundBody: 0x7E8690,
+                rockLight: 0xF3F5F7,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
+            )
         }
     }
 }
@@ -461,6 +495,19 @@ public extension RunnerWorld {
                 birdBody: 0x5A4030, birdWing: 0x3E2A1E, birdWingFar: 0x2A1C12, birdBelly: 0xC9A882,
                 birdHead: 0x5A4030, birdBeak: RunnerPalette.birdBeak
             )
+        case .snow:
+            // 雪国（#2729）。背景が白に近いので手前は**いちばん暗く**する。犬の枠はキタキツネ——
+            // 濃い赤錆の毛（`dogBody`。白い背景のどれとも 3:1 以上にするには朝の柴より暗い赤茶が上限）に
+            // 黒い脚・耳の先・鼻（`dogDark`）、胸・腹・尾の先の白（`dogBelly`）。イノシシは雪まみれの
+            // 灰茶（`boarBody`）に薄い鼻先。鳥はシロフクロウ——**主色は暗い灰**（白い胴では白い背景に溶ける。
+            // 港町のカモメと同じ理由）で、頭と腹を白にして白い鳥に見せる。くちばしは炭色（フクロウは黒いくちばし）。
+            return Creatures(
+                outline: 0x14181C,
+                dogBody: 0x944218, dogDark: 0x2A1C14, dogBelly: 0xF4EFE6,
+                boarBody: 0x5A4A3E, boarDark: 0x2E2219, boarSnout: 0xC9BEB4,
+                birdBody: 0x4A5058, birdWing: 0x34393F, birdWingFar: 0x22262A, birdBelly: 0xF4F4F0,
+                birdHead: 0xF4F4F0, birdBeak: 0x4A4A52
+            )
         }
     }
 
@@ -563,6 +610,19 @@ public extension RunnerWorld {
         public static let steam: UInt32 = 0xF6F7F8
         /// 道の奥の低い柵（提灯の並ぶ）。
         public static let fence: UInt32 = 0xC6BBA8
+
+        // 雪国（`Scenery.snow`・#2729）。どれも空（0xE3E9EF）と 2:1 未満に沈める淡い色で、手前のいちばん暗い
+        // キタキツネ（0x944218）とも 3:1 以上離れる（相対輝度 0.45 以上・`WorldTests`）。
+        /// 道の奥の雪の壁・かまくらの陰（雪の影の淡い青灰）。
+        public static let snowShade: UInt32 = 0xC9D6E0
+        /// かまくらの入り口（中の暗がり。背景なので黒くはしない）。
+        public static let kamakuraDoor: UInt32 = 0xAAB4C0
+        /// 雪国の家の壁（板張り・灰がかった生成り）。屋根は温泉街と同じ青灰の瓦（`ryokanRoof`）に雪（`snow`）。
+        public static let snowHouseWall: UInt32 = 0xD6CEC2
+        /// 枯れ木の幹と枝。
+        public static let bareTree: UInt32 = 0xBDB1A5
+        /// ちらつく雪（白）。
+        public static let snowflake: UInt32 = 0xFFFFFF
     }
 
     /// 遠景の飾りのタイル幅（`RunnerScene.hillSpacing`）。家並み（`townHouses`）の `dx` はこの幅の中の位置。
@@ -646,6 +706,18 @@ public extension RunnerWorld {
                 "steam": SceneryPalette.steam,
                 "fence": SceneryPalette.fence,
             ]
+        case .snow:
+            return [
+                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
+                "snow": SceneryPalette.snow,
+                "snowShade": SceneryPalette.snowShade,
+                "kamakuraDoor": SceneryPalette.kamakuraDoor,
+                "snowHouseWall": SceneryPalette.snowHouseWall,
+                "ryokanRoof": SceneryPalette.ryokanRoof,
+                "windowGlow": SceneryPalette.windowGlow,
+                "bareTree": SceneryPalette.bareTree,
+                "snowflake": SceneryPalette.snowflake,
+            ]
         }
     }
 
@@ -660,6 +732,7 @@ public extension RunnerWorld {
         case .harbor:   return ["sky": palette.sky]
         case .kyotoNara: return ["sky": palette.sky]
         case .onsen: return ["sky": palette.sky]
+        case .snow: return ["sky": palette.sky]
         }
     }
 }
@@ -727,7 +800,7 @@ public extension RunnerWorld {
     }
 
     /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30・
-    /// 京都・奈良 31…36・温泉街 37…42。
+    /// 京都・奈良 31…36・温泉街 37…42・雪国 43…48。
     var stageRange: ClosedRange<Int> {
         let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
         return first...(first + RunnerWorld.stagesPerWorld - 1)
@@ -735,13 +808,13 @@ public extension RunnerWorld {
 
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
-    /// 範囲外（0 以下・43 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 範囲外（0 以下・49 以上）でも落ちないよう剰余で畳むだけなので、
     /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
-    /// ワールドマップの短い表記「1-1」…「7-6」。
+    /// ワールドマップの短い表記「1-1」…「8-6」。
     ///
     /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
     /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
@@ -749,7 +822,7 @@ public extension RunnerWorld {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…42）。
+    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…48）。
     static func contains(stage number: Int) -> Bool {
         number >= 1 && number <= stagesPerWorld * allCases.count
     }
@@ -774,6 +847,9 @@ public extension RunnerWorld {
         case .kyotoNara: return 0xD9876A
         // 温泉街（#1938）は湯の青緑。隣の京都・奈良の橙とは色相で正反対。
         case .onsen: return 0x7FB8B2
+        // 雪国（#2729）は冬の夕暮れの淡い藤青（色相 257°）。空の白では朝・港町と区別が付かず、氷の水色は
+        // 温泉街の青緑（174°）と 20° 離せないので、夜の青紫（226°）からも 30° 離れたこの色相にする。
+        case .snow: return 0xB8A8E0
         }
     }
 }
@@ -797,6 +873,8 @@ public extension RunnerWorld {
             case irrigationDitch
             /// 岸壁の切れ目（黒いゴムの防舷材・海）。
             case quayGap
+            /// 氷の裂け目（雪国・#2729。青白い氷の壁と黒い水面）。穴と、幅の広い裂け目（`RunnerHazardKind.chasm`）の両方に使う。
+            case iceCrevasse
         }
         /// 低い岩・高い岩。
         public enum Block: Equatable, Sendable {
@@ -810,6 +888,8 @@ public extension RunnerWorld {
             case drum
             /// 湯桶（温泉街・案 B。低い岩の 4×5）。
             case yuoke
+            /// 雪だるま（雪国・#2729。低い岩の 4×5）。
+            case snowman
         }
         /// 犬の枠（画面の右から歩いて来る動物）。
         public enum Walker: Equatable, Sendable {
@@ -821,6 +901,8 @@ public extension RunnerWorld {
             case deer
             /// ニホンザル（温泉街・#1938）。犬と同じ格子・同じ動き。
             case monkey
+            /// キタキツネ（雪国・#2729）。犬と同じ格子・同じ動き。
+            case fox
         }
         /// イノシシの枠（右から向かってくるもの）。
         public enum Charger: Equatable, Sendable {
@@ -836,6 +918,8 @@ public extension RunnerWorld {
             case strawStack
             /// 木箱の山。
             case crateStack
+            /// 雪のブロック（かまくらの壁・雪国 #2729。木箱の山と同じ組み立てで色だけ雪）。
+            case snowBlocks
         }
         /// 下から突き上げる障害（#1010）。**動き・当たり判定・寸法は 1 つ**で、絵だけを替える。
         public enum Shoot: Equatable, Sendable {
@@ -846,6 +930,8 @@ public extension RunnerWorld {
             /// 湯柱（温泉街・#1938）。白〜灰の湯気の柱（雪景色の中で氷柱に見えないよう青みを入れない）。
             /// 間欠泉（`RunnerHazardKind.geyser`）の絵。泡立つ予告 → 湯柱が噴き上がる。
             case steamColumn
+            /// 地吹雪の雪柱（雪国・#2729）。雪が舞い上がる予告 → 青白い雪の柱が立つ。湯柱と同じ格子で色だけ雪。
+            case snowSpout
         }
         /// 崩れる足場（#1090）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum CrumblingPlatform: Equatable, Sendable {
@@ -853,6 +939,8 @@ public extension RunnerWorld {
             case suspensionBridge
             /// 古い木の桟橋（港町）。杭に載った板がきしみ、海へ落ちる。
             case woodenPier
+            /// 薄氷の橋（雪国・#2729）。吊り橋と同じ組み立てで、板は氷・縄と柱は凍った木。
+            case iceBridge
         }
         /// 高い塀（#1091）。**当たり判定・高さは 1 つ**で、絵だけを替える。
         public enum Wall: Equatable, Sendable {
@@ -860,6 +948,8 @@ public extension RunnerWorld {
             case stoneWall
             /// 積まれたコンテナ（港町）。海上コンテナを 2 段積み。
             case containerStack
+            /// 除雪の雪山（雪国・#2729）。石垣と同じ格子で、固く締まった雪を積んだ段々。
+            case snowBank
         }
         /// 沈む床（#1089）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum SinkFloor: Equatable, Sendable {
@@ -869,6 +959,8 @@ public extension RunnerWorld {
             case tideland
             /// 足湯（温泉街・案 B）。濁った湯に湯けむりが立つ。
             case footBath
+            /// 新雪（雪国・#2729）。青白い粉雪の吹き溜まりで、踏むと埋もれる。
+            case freshSnow
         }
         /// 加速床。
         public enum BoostFloor: Equatable, Sendable {
@@ -878,6 +970,8 @@ public extension RunnerWorld {
             case pavedFarmRoad
             /// ベルトコンベア。
             case conveyor
+            /// アイスバーン（雪国・#2729）。舗装の農道と同じ組み立てで、面は深い青の氷。
+            case iceSheet
         }
 
         public let pit: Pit
@@ -899,7 +993,7 @@ public extension RunnerWorld {
             case .tallBlock:                       return tallBlock
             // 突き上げ（#1010）は岩の枠ではなく自分の着せ替え（`shoot`）を持つ。
             // 突き上げ（#1010）・高い塀（#1091）は岩の枠ではなく自分の着せ替え（`shoot` / `wall`）を持つ。
-            case .pit, .bird, .dog, .boar, .shoot, .geyser, .wall: return nil
+            case .pit, .chasm, .bird, .dog, .boar, .shoot, .geyser, .wall: return nil
             }
         }
     }
@@ -959,6 +1053,18 @@ public extension RunnerWorld {
                 dog: .monkey, boar: .boar,
                 platform: .crateStack, boostFloor: .pavedFarmRoad, shoot: .steamColumn,
                 sinkFloor: .footBath, crumblingPlatform: .suspensionBridge, wall: .stoneWall
+            )
+        case .snow:
+            // 雪国（#2729・設計書 `docs/design/runner-60-stages/worlds-8-10.md` の着せ替え表）。新しく描くのは犬の枠の
+            // **キタキツネ**と低い岩の**雪だるま**。穴と裂け目＝氷の裂け目（用水路の色替え）・高い岩＝雪をかぶった岩
+            // （岩塊の頂だけ白）・イノシシ＝雪まみれのイノシシ（色替え）・台座＝雪のブロック（木箱の山の色替え）・
+            // 加速床＝アイスバーン（農道の舗装の色替え）・突き上げ＝地吹雪の雪柱（湯柱の色替え）・沈む床＝新雪
+            // （足湯の色替え）・崩れる足場＝薄氷の橋（吊り橋の色替え）・高い塀＝除雪の雪山（石垣の色替え）。
+            return Dressing(
+                pit: .iceCrevasse, lowBlock: .snowman, tallBlock: .boulder,
+                dog: .fox, boar: .boar,
+                platform: .snowBlocks, boostFloor: .iceSheet, shoot: .snowSpout,
+                sinkFloor: .freshSnow, crumblingPlatform: .iceBridge, wall: .snowBank
             )
         }
     }
@@ -1058,5 +1164,47 @@ public extension RunnerWorld {
         public static let crumblePost: UInt32 = 0x4E3B27
         /// 崩れる予告のひび（揺れているあいだ板の上に出る）。板の面の上の模様なので板と 3:1 以上。
         public static let crumbleCrack: UInt32 = 0x3A2B18
+
+        // 雪国（#2729）。路面は圧雪の灰白（0xB9BFC6・相対輝度 0.52）で背景も白い帯なので、
+        // **「穴・床・橋だと分かる」ための 3:1 は暗い側（深い水・氷の底・氷の目地・凍った柱）が担う**。
+        // 氷の裂け目（`Dressing.Pit.iceCrevasse`。穴と `RunnerHazardKind.chasm` で共通）
+        /// 裂け目の底の黒い水。路面と 3:1 以上で「落ちる」と分かる暗さ。
+        public static let crevasseWater: UInt32 = 0x1E3A50
+        /// 水面の帯（深い水より明るい）。
+        public static let crevasseSurface: UInt32 = 0x4F86AA
+        /// 裂け目の両岸の氷の壁（青白）。路面より明るく、切れ目の縁を立てる（用水路の壁と同じ約束）。
+        public static let iceWall: UInt32 = 0xDDEDF6
+        // 雪のブロック（`Dressing.Platform.snowBlocks`）
+        /// ブロックの面（固く締まった雪）。
+        public static let snowBlockBody: UInt32 = 0xE9EFF4
+        /// ブロックの継ぎ目・縁（雪の影の青灰）。
+        public static let snowBlockLine: UInt32 = 0x8FA0B0
+        /// 上面（歩く面。いちばん明るい——台座の床板と同じ約束）。
+        public static let snowBlockTop: UInt32 = 0xF7FAFC
+        // アイスバーン（`Dressing.BoostFloor.iceSheet`）
+        /// 氷の面。圧雪の路面（0xB9BFC6）と 3:1 以上の深い青（白い氷では路面と見分けが付かない）。
+        public static let iceSheet: UInt32 = 0x2F5F7E
+        /// 氷の縁（上下の青白い線）。
+        public static let iceSheetEdge: UInt32 = 0xDDEDF6
+        /// 氷の上の白い矢印。
+        public static let iceSheetArrow: UInt32 = 0xFFFFFF
+        // 新雪（`Dressing.SinkFloor.freshSnow`）
+        /// 粉雪の面（青白）。路面より明るい。
+        public static let freshSnowSurface: UInt32 = 0xD3E5F0
+        /// 吹き溜まりの底（沈む先の青い影）。路面と 3:1 以上。
+        public static let freshSnowDeep: UInt32 = 0x2F5F7E
+        /// 地面の線より上へ盛り上がった雪の塊の影（踏み込む前に読める目印）。白い背景と 3:1 以上。
+        public static let freshSnowShade: UInt32 = 0x2F5F7E
+        // 薄氷の橋（`Dressing.CrumblingPlatform.iceBridge`）
+        /// 氷の板（乗る面。いちばん明るい）。
+        public static let iceDeck: UInt32 = 0xDCEBF4
+        /// 板の下端の濃い氷（板 1 枚ごとの輪郭。背景と 3:1 を担う）。
+        public static let iceDeckSeam: UInt32 = 0x2F5F7E
+        /// 凍った縄（主索・吊り索）。
+        public static let iceRope: UInt32 = 0x3E5E74
+        /// 袂の凍った柱（崩れても残る）。
+        public static let icePost: UInt32 = 0x3E5E74
+        /// 氷のひび（揺れているあいだ板の上に出る）。板と 3:1 以上。
+        public static let iceCrack: UInt32 = 0x1E3A50
     }
 }

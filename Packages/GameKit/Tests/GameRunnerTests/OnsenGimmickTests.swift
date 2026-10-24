@@ -125,7 +125,8 @@ struct RunnerOnsenGimmickTests {
 
     @Test("間欠泉は温泉街にだけ置かれ、各面に 2 本以上、後ろの面ほど減らない。37 面の初出は前後が平地")
     func geysersAppearOnlyInOnsen() {
-        for stage in RunnerStage.all where stage.number < 37 {
+        // 温泉街より前の面にも、後ろの世界（雪国・#2729）にも置かない（湯柱は温泉街だけの仕掛け）。
+        for stage in RunnerStage.all where RunnerWorld.world(forStage: stage.number) != .onsen {
             #expect(!stage.pattern.contains("g"), "ステージ \(stage.number) に間欠泉がある")
         }
         let counts = Self.onsenStages.map { $0.hazards.filter { $0.kind == .geyser }.count }
@@ -168,7 +169,7 @@ struct RunnerOnsenGimmickTests {
 
     @Test("湯けむりは温泉街の全面にあり、他の世界には無い")
     func steamOnlyInOnsen() {
-        for stage in RunnerStage.all where stage.number < 37 {
+        for stage in RunnerStage.all where RunnerWorld.world(forStage: stage.number) != .onsen {
             #expect(stage.steamBanks.isEmpty, "ステージ \(stage.number) に湯けむりがある")
         }
         for stage in Self.onsenStages {

@@ -416,6 +416,9 @@ struct RunnerEndlessCourseTests {
             case .wall:
                 // 高い塀（#1091）も同じ理由で生成器に教えていない。
                 check(false, "種 \(seed): エンドレスに高い塀が出た（\(hazard.start)）")
+            case .chasm:
+                // 裂け目（#2729）も同じ理由で生成器に教えていない。
+                check(false, "種 \(seed): エンドレスに裂け目が出た（\(hazard.start)）")
             case .lowBlock, .tallBlock, .bird, .dog, .boar:
                 let overlap = (encounter.length + halfWidth * 2) / speed
                 check(

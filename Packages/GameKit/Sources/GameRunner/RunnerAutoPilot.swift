@@ -14,11 +14,11 @@ import Foundation
 /// 判断は**押して即離す最小のジャンプ**だけを使う。大ジャンプ（押し続け）は余裕を増やす
 /// 上振れなので、これでゴールできれば「押さなくても越えられる地形」であることの証明になる。
 ///
-/// **唯一の例外が高い塀（#1091）**で、そこだけは二段目を踏む（`shouldTakeSecondJump`）——
-/// 一段では物理的に越えられない高さなので、「二段を使うのが最小の操作」になる。
-/// 二段目を踏むのは一段目の頂点（いちばん高く上がる踏み方）で、それ以外の障害では踏まない。
+/// **例外は高い塀（#1091）と広い裂け目（#2729）**で、そこだけは二段目を踏む（`shouldTakeSecondJump`）——
+/// 一段では物理的に越えられない高さ・幅なので、「二段を使うのが最小の操作」になる。
+/// 二段目を踏むのは一段目の頂点（いちばん高く・遠く跳ぶ踏み方）で、それ以外の障害では踏まない。
 public enum RunnerAutoPilot {
-    /// 踏み切るべきか。接地していないときは、高い塀（#1091）の**二段目**だけを踏む。
+    /// 踏み切るべきか。接地していないときは、高い塀（#1091）・裂け目（#2729）の**二段目**だけを踏む。
     public static func shouldJump(field: RunnerField) -> Bool {
         guard field.isGrounded else { return shouldTakeSecondJump(field: field) }
         // 沈む床（#1089）の上では、**沈む前に跳ぶ。ただし跳んだ先が次の障害の踏み切り地点を
@@ -40,7 +40,7 @@ public enum RunnerAutoPilot {
         return target.start - field.distance <= target.lead
     }
 
-    /// 空中で二段目を踏むべきか（#1091 の高い塀だけ）。
+    /// 空中で二段目を踏むべきか（#1091 の高い塀と #2729 の裂け目だけ）。
     ///
     /// **踏むのは一段目の頂点**（上昇が終わった最初のフレーム = `vy <= 0`）。二段目は `vy` を
     /// `jumpVelocity` に戻すので、高いところで踏むほど高く上がる——頂点で踏めば
@@ -51,15 +51,16 @@ public enum RunnerAutoPilot {
         isAimingSecondJump(field: field) && field.vy <= 0
     }
 
-    /// いま空中にいるジャンプが「高い塀を二段で越えるための一段目」か。
+    /// いま空中にいるジャンプが「高い塀（裂け目）を二段で越えるための一段目」か。
     ///
-    /// **塀のために踏み切ったジャンプでしか二段目を踏まない**のが要点。前方に塀があるだけで
+    /// **塀（裂け目）のために踏み切ったジャンプでしか二段目を踏まない**のが要点。前方に塀があるだけで
     /// 頂点ごとに踏むと、まだ遠い塀に向かって空中で跳ね続けて手前の地形を読み違える。
     /// 「踏み切りの余裕（`lead`）の内側に塀の左端がある」ことを条件にすることで、
     /// 一段目を踏み切った地点から連続した 1 回の跳躍だけが二段目を持つ。
     static func isAimingSecondJump(field: RunnerField) -> Bool {
         guard !field.isGrounded, field.jumpCount == 1 else { return false }
-        guard let next = field.nextHazardFrame(from: field.playerMaxX), next.hazard.kind == .wall
+        guard let next = field.nextHazardFrame(from: field.playerMaxX),
+              next.hazard.kind == .wall || next.hazard.kind == .chasm
         else { return false }
         let speed = field.stage.speed(at: field.distance)
         return next.frame.start - field.distance <= lead(for: next.hazard, frame: next.frame, speed: speed)
@@ -167,7 +168,8 @@ public enum RunnerAutoPilot {
     /// 上がるあいだに縮む間合いも `(1 − a)` 倍で済む（向かってくるなら `a` が負で、逆に増える）。
     private static func lead(for hazard: RunnerHazard, advance: Double, speed: Double) -> Double {
         switch hazard.kind {
-        case .pit:
+        case .pit, .chasm:
+            // 裂け目（#2729）も穴と同じ縁の手前で踏み切る。渡り切れるかは幅ではなく二段目を踏むかで決まる。
             return baseLead
         case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser:
             // 間欠泉（#1938）も噴き切った高さで見る（止まっている間に踏み切ることは無い——

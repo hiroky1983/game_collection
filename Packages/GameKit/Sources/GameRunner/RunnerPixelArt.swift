@@ -49,6 +49,14 @@ enum RunnerPixelArt {
         // 紙そのものは既にある `M`（生成りの白）と `T`（淡いクリーム＝切り取り線の側）を使う。
         "Y": lotteryBand,
         "P": lotteryPrint,
+        // 雪国（#2729）。`F` は雪の白、`I`/`i`/`J` は氷の 3 階調（青白・青・深い青）。雪だるま・雪柱・
+        // 雪山・雪が舞い上がる予告で使い、**濃い側（`J`）が背景との 3:1 を担う**（湯柱の `g`・石垣の `g` と
+        // 同じ約束。`WorldTests` が固定）。雪だるまの人参の鼻はたこ焼きの生地 `D`、マフラーはコンテナの赤 `R`、
+        // 雪山の泥はねは樹皮の `s` を使う（新しい色を増やしすぎない）。
+        "F": snowWhite,
+        "I": iceLight,
+        "i": iceMid,
+        "J": iceDeep,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -66,6 +74,15 @@ enum RunnerPixelArt {
     static let lotteryBand: UInt32 = 0xE4B23C
     /// 宝くじに刷られた赤い文字・罫線。
     static let lotteryPrint: UInt32 = 0xC6314C
+
+    /// 雪の白（`F`・#2729）。紙の生成り（`M`）より青白い。雪だるまの体・雪柱の照り・雪山の天端。
+    static let snowWhite: UInt32 = 0xF7FAFC
+    /// 氷の青白（`I`）。雪柱・雪山の面。
+    static let iceLight: UInt32 = 0xDDEDF6
+    /// 氷の青（`i`）。雪だるまの陰・雪柱の中の陰。
+    static let iceMid: UInt32 = 0x9DC3DA
+    /// 深い氷の青（`J`）。雪柱の右の陰・雪山の目地で、**白い背景との 3:1 を担う濃い側**。
+    static let iceDeep: UInt32 = 0x2F5F7E
 
     // MARK: たこ焼き（`RunnerPickupKind.invincible`・#797 → #956）
 
@@ -148,6 +165,7 @@ enum RunnerPixelArt {
         case .cat:  return cat(frame, colors: world.creatures)
         case .deer: return deer(frame, colors: world.creatures)
         case .monkey: return monkey(frame, colors: world.creatures)
+        case .fox: return fox(frame, colors: world.creatures)
         }
     }
 
@@ -166,6 +184,7 @@ enum RunnerPixelArt {
         case .cat:  return catWalk0Rows
         case .deer: return deerWalk0Rows
         case .monkey: return monkeyWalk0Rows
+        case .fox: return foxWalk0Rows
         }
     }
 
@@ -224,6 +243,29 @@ enum RunnerPixelArt {
     /// 湯桶（`RunnerWorld.Dressing.Block.yuoke`・温泉街 案 B）。
     static func yuoke() -> PixelSprite { PixelSprite(rows: yuokeRows, palette: palette) }
 
+    /// 雪だるま（`RunnerWorld.Dressing.Block.snowman`・雪国 #2729）。
+    static func snowman() -> PixelSprite { PixelSprite(rows: snowmanRows, palette: palette) }
+
+    /// 雪だるま（雪国の低い岩）: 雪の白（`F`）の 2 段の玉に右側の青い陰（`i`）、炭の目と口（`K`）、人参の鼻（`D`）、
+    /// 赤いマフラー（`R`）、胸のボタン（`K`）。白い背景の前では縁取り（`K`）とマフラーの赤で形が立つ。
+    static let snowmanRows: [String] = [
+        "...KKKKKK...",
+        "..KFFFFFFK..",
+        ".KFFFFFFFFK.",
+        "KFKFFFFKFFiK",
+        "KFFFDDFFFFiK",
+        "KFFKFFFKFFiK",
+        ".KRRRRRRRRK.",
+        "KRRFFFFFFRRK",
+        "KFFFFFFFFFiK",
+        "KFFFFKFFFFiK",
+        "KFFFFFFFFiiK",
+        "KFFFFKFFFiiK",
+        "KFFFFFFFFiiK",
+        ".KFFFFFFFiK.",
+        ".KKKKKKKKKK.",
+    ]
+
     /// 湯桶（温泉街の低い岩・案 B）: 木の桶（`H`/`h` の縦の板・`S` のたが）に白い手ぬぐい（`M`）を載せる。
     static let yuokeRows: [String] = [
         "...KKKKKK...",
@@ -256,6 +298,7 @@ enum RunnerPixelArt {
         case .bambooShoot: return PixelSprite(rows: bambooShootRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: seaSprayRows, palette: palette)
         case .steamColumn: return PixelSprite(rows: steamColumnRows, palette: palette)
+        case .snowSpout:   return PixelSprite(rows: snowSpoutRows, palette: palette)
         }
     }
 
@@ -265,6 +308,7 @@ enum RunnerPixelArt {
         case .bambooShoot: return PixelSprite(rows: soilMoundRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: foamRows, palette: palette)
         case .steamColumn: return PixelSprite(rows: steamBubbleRows, palette: palette)
+        case .snowSpout:   return PixelSprite(rows: snowPuffRows, palette: palette)
         }
     }
 
@@ -275,6 +319,7 @@ enum RunnerPixelArt {
         switch style {
         case .stoneWall:      return PixelSprite(rows: stoneWallRows, palette: palette)
         case .containerStack: return PixelSprite(rows: containerStackRows, palette: palette)
+        case .snowBank:       return PixelSprite(rows: snowBankRows, palette: palette)
         }
     }
 
@@ -537,6 +582,57 @@ enum RunnerPixelArt {
         "..........KKKWWWWWWWWWKKOOOK..",
     ]
 
+    // MARK: キタキツネ（雪国の犬の枠・#2729）
+
+    /// キタキツネ（左向き）30×21 ドット。犬・猫・鹿・サルと同じ格子・同じ脚の段（下の 6 行、うち脚は 5 行）で、
+    /// `RunnerScene.addDog` が犬と同じ置き方で貼れる（当たり判定・寸法・動きは犬のまま）。
+    /// 色は犬と同じ文字で世界の `Creatures` から写す（`O` 赤錆の毛・`o` 黒い脚と耳の先と鼻・`W` 白・`K` 縁取り）。
+    ///
+    /// キツネに見せる要素: **前へ細く突き出た鼻先**（犬のマズルより長く、先に黒い鼻）、頭の上の**大きな三角の耳**
+    /// （先が黒）、胸から腹へ続く**白い毛**、**後ろへ長く伸びて先が白いふさふさの尾**（犬の巻き尾・猫の立ち尾・
+    /// 鹿の枝角とは別物）、**黒い脚**（キツネの黒い靴下。手前の脚は `o`、奥の脚は縁取りの色で沈める）。
+    /// 首輪は持たない（野生）。頭は左（右から左へ歩いて来る向き）。2 コマの違いは脚だけ（犬と同じ約束）。
+    static func fox(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? foxWalk0Rows : foxWalk1Rows, palette: creaturePalette(colors))
+    }
+
+    static let foxWalk0Rows: [String] = foxBodyRows + [
+        "........KKooKKKKKKKKKKKKKooKK.",
+        "........KooK.KKKK...KKKK.KooK.",
+        "........KooK.KKKK...KKKK.KooK.",
+        "........KooK.KKKK...KKKK.KooK.",
+        "........KooK.KKKK...KKKK.KooK.",
+        "........KKKK.KKKK...KKKK.KKKK.",
+    ]
+
+    static let foxWalk1Rows: [String] = foxBodyRows + [
+        "........KKKKKKooKKKKKooKKKKKK.",
+        "........KKKK.KooK...KooK.KKKK.",
+        "........KKKK.KooK...KooK.KKKK.",
+        "........KKKK.KooK...KooK.KKKK.",
+        "........KKKK.KooK...KooK.KKKK.",
+        "........KKKK.KKKK...KKKK.KKKK.",
+    ]
+
+    /// キツネの頭・胴・尾（脚より上の 15 行）。2 コマで共通。
+    private static let foxBodyRows: [String] = [
+        "..KK....KK....................",
+        "..KoK..KoK....................",
+        "..KOOK.KOOK.............KKKKK.",
+        "..KOWOKKOWOK...........KWWWWWK",
+        ".KOOOOOOOOOK..........KWWWOOOK",
+        ".KOOOOOOOOOOK........KWWOOOOOK",
+        "KKWOOOOOOOOOOKKKKKKKKKOOOOOOOK",
+        "KoKWWOOOOOOOOOOOOOOOOOOOOOOOOK",
+        "KKWWWWOOOOOOOOOOOOOOOOOOOOOOK.",
+        ".KWWWWWOOOOOOOOOOOOOOOOOOOOK..",
+        "..KWWWWWWOOOOOOOOOOOOOOOOOK...",
+        "...KKWWWWWWOOOOOOOOOOOOOOOK...",
+        ".....KWWWWWWWWWWWWOOOOOOOOK...",
+        ".....KKWWWWWWWWWWWWWWOOOOOK...",
+        ".......KKWWWWWWWWWWWWWWOOOK...",
+    ]
+
     // MARK: フォークリフト（港町のイノシシの枠・#1009）
 
     /// フォークリフト（左向き）33×23 ドット。イノシシと同じ格子で、`RunnerScene.addBoar` が
@@ -792,6 +888,68 @@ enum RunnerPixelArt {
         "KKKKKKKKKKKK",
     ]
 
+    /// 除雪の雪山（雪国の高い塀・#2729）。石垣とまったく同じ 12×54 の格子で、色だけが固く締まった雪。
+    ///
+    /// 天端は雪の白（`F`）、面は氷の青白（`I`）、段と段のあいだの目地は深い氷の青（`J`）で、**目地が
+    /// 白い背景との 3:1 を担う**（石垣の `g` と同じ約束）。下の段には除雪で混じった泥はね（`s`）を差して、
+    /// 道の脇に積まれた雪だと分かるようにする。雪だるま（4×5 の丸い 2 段）とは高さも形も違う。
+    static let snowBankRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KFFFFFFFFFFK",
+        "KFFFFFFFFFFK",
+        "KFFFFFFFFFFK",
+        "KJJJJJJJJJJK",
+        "KFFFJFFFJFFK",
+        "KIIIJIIIJIIK",
+        "KIIIJIIIJIIK",
+        "KIIIJIIIJIIK",
+        "KIIIJIIIJIIK",
+        "KIIIJIIIJIIK",
+        "KJJJJJJJJJJK",
+        "KFFFFFJFFFJK",
+        "KIIIIIJIIIJK",
+        "KIIIIIJIIIJK",
+        "KIIIIIJIIIJK",
+        "KIIIIIJIIIJK",
+        "KIIIIIJIIIJK",
+        "KJJJJJJJJJJK",
+        "KFFJFFFJFFFK",
+        "KIIJIIIJIIIK",
+        "KIIJIIIJIIIK",
+        "KIIJIIIJIIIK",
+        "KIIJIIIJIIIK",
+        "KIIJIIIJIIIK",
+        "KJJJJJJJJJJK",
+        "KFFFFJFFFJFK",
+        "KIIIIJIIIJIK",
+        "KIIIIJIIIJIK",
+        "KIIIIJIIIJIK",
+        "KIIIIJIIIJIK",
+        "KIIIIJIIIJIK",
+        "KJJJJJJJJJJK",
+        "KFFFJFFFFJFK",
+        "KIIIJIIIIJIK",
+        "KIIIJIIIIJIK",
+        "KIsIJIIIIJIK",
+        "KIsIJIIIIJIK",
+        "KIIIJIIIIJIK",
+        "KJJJJJJJJJJK",
+        "KFFJFFJFFFFK",
+        "KIIJIIJIIIIK",
+        "KIIJIIJIIIIK",
+        "KIIJIIJIIsIK",
+        "KIIJIIJIIsIK",
+        "KIIJIIJIIIIK",
+        "KJJJJJJJJJJK",
+        "KFFFFJFFJFFK",
+        "KIIIIJIIJIIK",
+        "KIIIIJIIJIIK",
+        "KIIsIJIIJIIK",
+        "KIIsIJIIJIIK",
+        "KIIIIJIIJIIK",
+        "KKKKKKKKKKKK",
+    ]
+
     // MARK: 突き上げの絵（#1010）
 
     /// 竹の子（里山の突き上げ）。当たり判定は高い岩と同じ 4×9 なので格子は 12×27
@@ -900,6 +1058,51 @@ enum RunnerPixelArt {
         "KMWWWWWGGggK",
         "KMMWWWGGgggK",
         "KKKKKKKKKKKK",
+    ]
+
+    /// 地吹雪の雪柱（雪国の突き上げ・#2729）。湯柱とまったく同じ格子・同じシルエットで、色だけが雪と氷。
+    ///
+    /// 雪国の背景は白い丘と淡い空なので、柱は雪の白（`F`・左の照り）→ 氷の青白（`I`）→ 氷の青（`i`）→
+    /// 深い氷の青（`J`・右の陰）の寒色の濃淡で立て、右の陰（`J`）が背景との 3:1 を担う（湯柱の `g` と同じ約束）。
+    static let snowSpoutRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KFFK....",
+        "....KFFK....",
+        "....KFIK....",
+        "...KFFIiK...",
+        "...KFIIiK...",
+        "...KFIIiK...",
+        "..KFFIIiiK..",
+        "..KFIIIiiK..",
+        "..KFIIIiJK..",
+        "..KFIIIiJK..",
+        ".KFFIIIiiJK.",
+        ".KFIIFIiiJK.",
+        ".KFIIIIiiJK.",
+        ".KFFIIIiiJK.",
+        "KFFIIIIiiJJK",
+        "KFIIFIIiiJJK",
+        "KFIIIIIiiJJK",
+        "KFFIIIIiiJJK",
+        "KFIIFIIiiJJK",
+        "KFIIIIIiiJJK",
+        "KFFIIIIiiJJK",
+        "KFIIFIIiiJJK",
+        "KFIIIIIiiJJK",
+        "KFFIIIiiJJJK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 予告（雪国）: 地面の雪が舞い上がる。塚・泡・湯だまりとまったく同じ格子で、色だけが雪。
+    static let snowPuffRows: [String] = [
+        ".......KKKK.......",
+        ".....KKIIIIKK.....",
+        "...KKIIFIIIFIKK...",
+        "..KIIFIIIIFIIIIK..",
+        ".KIIIFIIIIIIFIIIK.",
+        "KIIFIIIIIIIIFIIIIK",
+        "KKKKKKKKKKKKKKKKKK",
     ]
 
     /// 予告（温泉街）: 湯だまりにぶくぶくと泡が立つ。塚・泡とまったく同じ格子で、色だけが湯気。

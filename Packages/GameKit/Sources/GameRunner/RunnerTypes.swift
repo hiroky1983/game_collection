@@ -113,6 +113,22 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     ///
     /// 解析の死因は決裁どおり**高い岩と同じ `rock`**（`AnalyticsEndCause` は増やさない）。
     case wall
+    /// 二段ジャンプでしか渡れない広い裂け目（#2729・区画記号 `V`）。雪国（43〜48 面）の**割れた氷の湖**。
+    ///
+    /// **当たり判定の作りは穴（`pit`）とまったく同じ**（中心が上にある状態で足が地面まで落ちるとミス・
+    /// 空中では何にも当たらない）で、**違うのは幅だけ**（`RunnerRules.chasmTiles` = 13 タイル = 52）。
+    /// 高い塀（`wall`）が「高さ」で二段ジャンプを求めるのに対し、こちらは「幅」で求める:
+    /// 速さ 60 で 1 段の飛距離は 45（`RunnerRules.jumpAirTime` × 60）で縁の手前から踏み切っても
+    /// 向こう岸に届かず、一段目の頂点で二段目を踏めば 76.8（`RunnerRules.doubleJumpRange(at:)`）で
+    /// 24 余る——その中身が `chasmTiles` の根拠（`RunnerRules+Hazards.swift` の注記）。
+    ///
+    /// 穴と別の種類にしてあるのは、**自動操縦が二段目を踏む相手**（`RunnerAutoPilot.isAimingSecondJump`）と
+    /// **着地までの滞空が二段ぶん**（`RunnerRules.airTime(clearing:)`）であることを、幅から読み替えずに
+    /// 種類で言い切るため（高い塀と同じ扱い）。置き方の決まりも塀と同じで、着地点 2 区画は平地・
+    /// 手前 1 区画に鳥を置かない（`RunnerSnowGimmickTests`）。たこ焼きの決まりは要らない——穴は無敵でも落ちる。
+    ///
+    /// 解析の死因は**穴と同じ `pit`**（`AnalyticsEndCause` は増やさない）。
+    case chasm
 
     /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
@@ -121,7 +137,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 止まった鳥に触れることは無い。
     public var bottom: Double {
         switch self {
-        case .pit, .lowBlock, .tallBlock, .dog, .boar, .shoot, .geyser, .wall: return 0
+        case .pit, .chasm, .lowBlock, .tallBlock, .dog, .boar, .shoot, .geyser, .wall: return 0
         case .bird:                                                  return Self.birdLowTop - Self.birdBandHeight
         }
     }
@@ -140,7 +156,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// `RunnerField.nextHazard` が頭より上の帯を対象から外す）。
     public var height: Double {
         switch self {
-        case .pit:               return 0
+        case .pit, .chasm:       return 0
         case .lowBlock:          return 5
         case .tallBlock:         return 9
         case .bird, .dog, .boar: return Self.birdLowTop
@@ -171,7 +187,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// （どちらも決裁どおり `AnalyticsEndCause` は増やさない）。
     public var missCause: AnalyticsEndCause {
         switch self {
-        case .pit:                         return .pit
+        case .pit, .chasm:                 return .pit
         case .lowBlock, .tallBlock, .shoot, .geyser, .wall: return .rock
         case .bird:                        return .bird
         case .dog, .boar:                  return .animal
@@ -328,7 +344,7 @@ public struct RunnerHazard: Equatable, Sendable {
     /// `shootRise(atRunnerDistance:)` から描く）。
     public var cue: (distance: Double, event: RunnerEvent)? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .bird, .dog, .shoot, .geyser, .wall: return nil
+        case .pit, .chasm, .lowBlock, .tallBlock, .bird, .dog, .shoot, .geyser, .wall: return nil
         case .boar: return (boarChargeStartDistance, .boarCharging)
         }
     }
@@ -416,8 +432,8 @@ public struct RunnerHazard: Equatable, Sendable {
     /// イノシシ・画面の右に現れる前の犬）は nil。岩・穴は常に置いた場所そのもの。
     public func frame(atRunnerDistance distance: Double) -> RunnerHazardFrame? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .wall:
-            // 高い塀（#1091）は置いた場所から動かない——高い岩と同じ 1 行で足りる。
+        case .pit, .chasm, .lowBlock, .tallBlock, .wall:
+            // 高い塀（#1091）・裂け目（#2729）は置いた場所から動かない——高い岩と同じ 1 行で足りる。
             return RunnerHazardFrame(start: start, end: end, bottom: bottom, top: height, advance: 0)
         case .bird:
             let travel = birdTravel(atRunnerDistance: distance)
@@ -480,8 +496,8 @@ public struct RunnerHazard: Equatable, Sendable {
     public var encounter: RunnerHazardEncounter {
         let playerWidth = RunnerField.Metrics.playerWidth
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .shoot, .geyser, .wall:
-            // 間欠泉（#1938）も同じ——重なる区間は常に噴き切っている。
+        case .pit, .chasm, .lowBlock, .tallBlock, .shoot, .geyser, .wall:
+            // 裂け目（#2729）は幅の広い穴そのもの。間欠泉（#1938）も同じ——重なる区間は常に噴き切っている。
             // 突き上げ（#1010）は横に動かず、走者が着くより手前で伸び切っている——
             // 走者から見れば置いた位置の高い岩そのもの。高い塀（#1091）も置いた位置のまま
             // （高さだけが違うので、間隔の式は岩と同じで踏み切りの余裕だけが変わる）。
@@ -525,7 +541,7 @@ public struct RunnerHazard: Equatable, Sendable {
     public var activeRange: ClosedRange<Double> {
         let half = RunnerField.Metrics.playerHalfWidth
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .wall:
+        case .pit, .chasm, .lowBlock, .tallBlock, .wall:
             return (start - half)...(end + half)
         case .bird:
             // 羽ばたきの予備動作から、後端が抜けるまで。

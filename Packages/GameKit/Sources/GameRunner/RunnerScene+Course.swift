@@ -59,7 +59,8 @@ extension RunnerScene {
         // 渡れるが、崩れ切れば穴と同じ扱いになる（`RunnerField.isCrumbledGap(at:)`）ので、
         // 地面の側では穴とまったく同じに扱う——ここで場合分けを増やすと、絵だけ地面が残って
         // 「落ちたのに床が見えている」画になる。
-        var gaps = stage.hazards.filter { $0.kind == .pit }
+        // 裂け目（#2729）も幅の広い穴そのもの（絵は穴の着せ替えを幅いっぱいに描く）。
+        var gaps = stage.hazards.filter { $0.kind == .pit || $0.kind == .chasm }
         gaps += stage.crumblingPlatforms.map {
             RunnerHazard(kind: .pit, start: $0.start, length: $0.length)
         }
@@ -81,7 +82,7 @@ extension RunnerScene {
         for floor in stage.sinkFloors { courseLayer.addChild(makeSinkFloor(floor)) }
 
         movingHazards = []
-        for hazard in stage.hazards where hazard.kind != .pit {
+        for hazard in stage.hazards where hazard.kind != .pit && hazard.kind != .chasm {
             switch hazard.kind {
             case .bird:                    movingHazards.append(addBird(hazard))
             case .dog:                     movingHazards.append(addDog(hazard))
@@ -92,7 +93,7 @@ extension RunnerScene {
             case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
             // 高い塀（#1091）は動かないので岩と同じくコース層へ 1 回置くだけ。
             case .wall:                    courseLayer.addChild(makeWall(hazard))
-            case .pit:                     break
+            case .pit, .chasm:             break
             }
         }
 
@@ -139,6 +140,7 @@ extension RunnerScene {
         case .scaffold:   break
         case .strawStack: return makeStrawStack(platform)
         case .crateStack: return makeCrateStack(platform)
+        case .snowBlocks: return makeSnowBlocks(platform)
         }
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)

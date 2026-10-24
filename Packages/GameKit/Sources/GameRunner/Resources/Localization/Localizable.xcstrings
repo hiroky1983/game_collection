@@ -442,28 +442,6 @@
         }
       }
     },
-    "吊り橋にぶつかった" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ran into a suspension bridge"
-          }
-        }
-      }
-    },
-    "桟橋にぶつかった" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ran into a pier"
-          }
-        }
-      }
-    },
     "わら積みにぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -526,6 +504,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endless. Tap to start"
+          }
+        }
+      }
+    },
+    "キツネにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a fox"
           }
         }
       }
@@ -728,13 +717,13 @@
         }
       }
     },
-    "タップで跳んで42ステージを走りぬけよう" : {
+    "タップで跳んで48ステージを走りぬけよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap to jump and pedal through all 42 stages"
+            "value" : "Tap to jump and pedal through all 48 stages"
           }
         }
       }
@@ -992,6 +981,17 @@
         }
       }
     },
+    "吊り橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a suspension bridge"
+          }
+        }
+      }
+    },
     "商店街の福引き、回してみよか" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1142,6 +1142,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "not reached yet"
+          }
+        }
+      }
+    },
+    "東京行きの列車やて？ ほな、行くしかないやろ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bound for Tokyo? Guess I'm going too"
+          }
+        }
+      }
+    },
+    "桟橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a pier"
           }
         }
       }
@@ -1489,6 +1511,17 @@
         }
       }
     },
+    "薄氷の橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the thin-ice bridge"
+          }
+        }
+      }
+    },
     "走った距離が記録" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1618,6 +1651,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expanded"
+          }
+        }
+      }
+    },
+    "雪だるまにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snowman"
+          }
+        }
+      }
+    },
+    "雪に埋もれた……除雪車！ 持っていかんで！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buried in snow... hey, snowplow! Don't take it!"
+          }
+        }
+      }
+    },
+    "雪のブロックにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snow block"
+          }
+        }
+      }
+    },
+    "雪の峠まで来たで。サルめ、寒ないんか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snowy pass at last. Monkey, aren't you cold?"
+          }
+        }
+      }
+    },
+    "雪国" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow Country"
+          }
+        }
+      }
+    },
+    "雪山にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snowbank"
+          }
+        }
+      }
+    },
+    "雪柱にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snow spout"
           }
         }
       }

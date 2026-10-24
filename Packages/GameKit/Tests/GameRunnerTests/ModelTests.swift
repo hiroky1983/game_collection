@@ -334,8 +334,8 @@ struct RunnerCheckpointTests {
 
     @Test("代表ステージで、再開した面は自動操縦でゴールまで走り切れる（罠を取り除いても成立する）")
     func resumedStageIsClearable() {
-        // 全 42 面だと 2 分かかるので、世界ごとの代表と最も密な 15 面に絞る。
-        for number in [1, 8, 15, 18, 24, 30, 36, 42] {
+        // 全 48 面だと 2 分以上かかるので、世界ごとの代表と最も密な 15 面に絞る。
+        for number in [1, 8, 15, 18, 24, 30, 36, 42, 48] {
             let model = RunnerModel(startingAt: number, preference: makePreference("cp-clearable-\(number)"))
             failAfterCheckpoint(model)
             #expect(model.resumeFromCheckpoint(forRun: model.runGeneration), "ステージ \(number): 再開できない")
@@ -1363,8 +1363,10 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.stageHeadline(number: 31) == "6-1")
         #expect(RunnerAccessibility.stageHeadline(number: 36) == "6-6")
         #expect(RunnerAccessibility.stageHeadline(number: 42) == "7-6")
+        #expect(RunnerAccessibility.stageHeadline(number: 43) == "8-1")
+        #expect(RunnerAccessibility.stageHeadline(number: 48) == "8-6")
         #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "どの世界にも収まらない番号は「ステージ N」")
-        #expect(RunnerAccessibility.stageHeadline(number: 43) == "ステージ 43")
+        #expect(RunnerAccessibility.stageHeadline(number: 49) == "ステージ 49")
         #expect(RunnerAccessibility.startStageLabel(number: 2) == "1-2 から走る")
         #expect(RunnerAccessibility.startEndlessLabel(bestDistance: 1234) == "エンドレス、自己ベスト 1,234 メートル")
         #expect(RunnerAccessibility.startEndlessLabel(bestDistance: nil) == "エンドレス、まだ記録なし")

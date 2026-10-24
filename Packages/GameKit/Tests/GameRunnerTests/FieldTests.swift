@@ -1139,6 +1139,10 @@ struct RunnerHazardLayoutTests {
         #expect(RunnerStage.segmentSpec("2")?.tiles == 3)
         #expect(RunnerStage.segmentSpec("n")?.kind == .lowBlock)
         #expect(RunnerStage.segmentSpec("t")?.kind == .tallBlock)
+        // 裂け目（#2729）は幅 13 タイル（52）の穴。
+        #expect(RunnerStage.segmentSpec("V")?.kind == .chasm)
+        #expect(RunnerStage.segmentSpec("V")?.tiles == RunnerRules.chasmTiles)
+        #expect(RunnerHazardKind.chasm.height == 0)
         #expect(RunnerStage.segmentSpec("-") == nil, "平地")
         #expect(RunnerHazardKind.pit.height == 0)
         #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.tallBlock.height)

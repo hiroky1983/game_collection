@@ -202,15 +202,44 @@ extension RunnerRules {
         return ascent + (jumpVelocity + fall) / gravity
     }
 
-    /// その障害を越えるジャンプの滞空時間。**高い塀（#1091）だけが二段ぶん**で、ほかは一段。
+    /// その障害を越えるジャンプの滞空時間。**高い塀（#1091）と裂け目（#2729）だけが二段ぶん**で、ほかは一段。
     ///
     /// 「前の障害を跳んで着地してから次の踏み切りに入れるか」（`RunnerStageTests.hazardsAreFarEnoughApart` /
     /// `RunnerEndlessCourse.hasLandingGap`）は、前の障害を跳んだ滞空で進む距離を土台にしている。
     /// 塀を二段で越えると滞空が 0.75 → 1.28 秒に伸びる（進む距離は約 1.7 倍）ので、
-    /// **ここを一段で見積もると塀の次の障害が近すぎても緑になる**。
+    /// **ここを一段で見積もると塀の次の障害が近すぎても緑になる**。裂け目も同じ理由で二段ぶん。
     public static func airTime(clearing kind: RunnerHazardKind) -> Double {
-        kind == .wall ? doubleJumpAirTime : jumpAirTime
+        kind == .wall || kind == .chasm ? doubleJumpAirTime : jumpAirTime
     }
+
+    // MARK: 二段ジャンプでしか渡れない広い裂け目（#2729・会長決裁 2026-10-23。雪国＝割れた氷の湖）
+
+    /// 裂け目の幅（タイル数）。**1 段では絶対に届かず、二段ジャンプなら十分余る**値。
+    ///
+    /// 高い塀（`RunnerHazardKind.wallTop`）の「高さ」の考え方を「幅」に写したもの。置くのは速さが上限
+    /// （`endlessMaxSpeed` = 60）に達した雪国（43 面以降）だけなので、数字は 60 で決める:
+    ///
+    /// | | 距離 | 52 との差 |
+    /// |---|---|---|
+    /// | 跳べる最大幅の穴（`3`・16） | 16 | 3.25 倍（一目で別物と分かる幅） |
+    /// | 1 段で進む距離（60 × `jumpAirTime`）− 踏み切りの余裕（`RunnerAutoPilot.baseLead` = 6） | 39 | **13 足りない**（中心が向こう岸へ届かない） |
+    /// | 二段で進む距離（`doubleJumpRange(at: 60)`）− 同じ余裕 | 70.8 | **18.8 余る** |
+    ///
+    /// - **下側**: 穴は中心の x で判定する（`RunnerField.isPit`）ので、縁ぎりぎり（左端ちょうど）で
+    ///   踏み切っても 1 段の着地は左端から 45——幅 52 の向こう岸には 7 足りない。踏み切る位置を
+    ///   どこへ動かしても、1 段の飛距離は速さ × 滞空（押しっぱなしで最大）で頭打ちなので届かない
+    ///   （`RunnerSnowGimmickTests.singleJumpNeverCrossesTheChasm` が踏み切り位置を振って実走で確かめる）
+    /// - **上側**: 二段目の押し始めの猶予（塀と同じ「0.2 秒以上」）。幅が広いほど二段目を早く踏まねば
+    ///   ならず猶予が細るが、52 なら一段目の 0.13 秒（タップの猶予 `jumpCutGraceTime` と同じ）あたりから
+    ///   着地まで、どこで踏んでも渡れる（`RunnerSnowGimmickTests.doubleJumpWindowIsGenerous`）
+    ///
+    /// 区画（16 タイル）の中では穴と同じ `hazardTileOffset`（6 タイル目）から始まるので、右端は次の
+    /// 区画へ 3 タイル食い込む。着地点（二段で降りるまで）は塀と同じ `wallLandingSegments`（2 区画）で、
+    /// その内側に穴・突き上げ・沈む床・動物・鳥・崩れる足場を置かない（`chasmsLeaveSafeLandingGround`）。
+    public static let chasmTiles = 13
+
+    /// 裂け目の幅（ワールド単位）。
+    public static var chasmWidth: Double { Double(chasmTiles) * tileWidth }
 
     /// 高い塀の着地点（塀の右端から、二段ジャンプで降りてくるまで）に何も置かない距離。
     ///

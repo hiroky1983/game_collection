@@ -614,6 +614,8 @@ struct RunnerHazardMotionTests {
         #expect(RunnerHazardKind.dog.missCause == .animal)
         #expect(RunnerHazardKind.boar.missCause == .animal)
         #expect(RunnerHazardKind.shoot.missCause == .rock, "`AnalyticsEndCause` は増やさない（決裁）")
+        #expect(RunnerHazardKind.chasm.missCause == .pit, "裂け目（#2729）は穴と同じ死因")
+        #expect(cause("--V---", at: Self.segment * 2 + offset - 6) == .pit, "裂け目は 1 段で跳んでも落ちる")
         // 沈む床（#1089）だけは `RunnerHazardKind` を持たない——床は障害ではないので、
         // 死因は `RunnerField` が直に立てる（`sink`）。語彙はこの 1 つだけ増えた。
         #expect(AnalyticsEndCause.allCases.count == 5)

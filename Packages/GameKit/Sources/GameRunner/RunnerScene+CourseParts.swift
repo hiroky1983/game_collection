@@ -119,6 +119,7 @@ extension RunnerScene {
         case .construction:    break
         case .irrigationDitch: return addDitchWater(pit, into: parent ?? courseLayer)
         case .quayGap:         return addGapSea(pit, into: parent ?? courseLayer)
+        case .iceCrevasse:     return addCrevasseWater(pit, into: parent ?? courseLayer)
         }
         let void = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.pitVoid),
@@ -137,6 +138,7 @@ extension RunnerScene {
         case .construction:    break
         case .irrigationDitch: return addDitchWalls(pit, into: parent ?? courseLayer)
         case .quayGap:         return addQuayFenders(pit, into: parent ?? courseLayer)
+        case .iceCrevasse:     return addIceWalls(pit, into: parent ?? courseLayer)
         }
         // 黄と黒の 3 段（工事の柵）。道路の穴＝工事中の切れ目、という読みに揃える（会長 QA 2026-09-14）。
         for edgeX in [pit.start, pit.end] {
@@ -223,6 +225,7 @@ extension RunnerScene {
         case .boostBand:     break
         case .pavedFarmRoad: return makePavedFarmRoad(floor)
         case .conveyor:      return makeConveyor(floor)
+        case .iceSheet:      return makeIceSheet(floor)
         }
         // 路面全体（アスファルトの厚み）を加速帯の色で塗り替え、上下を暗い青で縁取る。
         // 以前は 2.2 の薄い帯に小さな三角で、走者の足元では気づけなかった（会長 QA 2026-09-14）。
