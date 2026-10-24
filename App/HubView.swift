@@ -771,7 +771,7 @@ private struct GameCard: View {
         } else if isEvent {
             badgeCapsule(tr("イベント開催中"))
         } else if let updateTag {
-            badgeCapsule(tr(updateTag.label))
+            badgeCapsule(updateTag.label)
         } else if hasResume {
             badgeCapsule(tr("続きから"))
         }
@@ -823,7 +823,7 @@ private struct GameCard: View {
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
-        if let updateTag { parts.append(tr(updateTag.label)) }
+        if let updateTag { parts.append(updateTag.label) }
         if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
     }

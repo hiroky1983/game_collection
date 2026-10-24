@@ -317,11 +317,11 @@ struct UpdatedGamesTests {
         let path = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("App/Localization/Localizable.xcstrings")
+            .appendingPathComponent("Packages/GameKit/Sources/CoreEngine/Resources/Localization/Localizable.xcstrings")
         let json = try JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any]
         let strings = try #require(json?["strings"] as? [String: Any])
         for tag in UpdateTag.allCases {
-            #expect(strings[tag.label] != nil, "\(tag.label) の英訳が無い")
+            #expect(strings[["newStage": "新ステージ追加"][tag.rawValue] ?? ""] != nil, "\(tag.rawValue) の英訳が無い")
         }
     }
 
@@ -334,9 +334,9 @@ struct UpdatedGamesTests {
         let badge = String(source[start.lowerBound..<end.upperBound])
         let new = try #require(badge.range(of: #"badgeCapsule("NEW")"#))
         let event = try #require(badge.range(of: #"badgeCapsule(tr("イベント開催中"))"#))
-        let update = try #require(badge.range(of: "badgeCapsule(tr(updateTag.label))"))
+        let update = try #require(badge.range(of: "badgeCapsule(updateTag.label)"))
         let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
         #expect(new.lowerBound < event.lowerBound && event.lowerBound < update.lowerBound && update.lowerBound < resume.lowerBound)
-        #expect(source.contains("if let updateTag { parts.append(tr(updateTag.label)) }"), "読み上げに無い")
+        #expect(source.contains("if let updateTag { parts.append(updateTag.label) }"), "読み上げに無い")
     }
 }

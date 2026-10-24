@@ -5,10 +5,10 @@ public enum UpdateTag: String, Sendable, CaseIterable {
     /// 新しいステージが入った。
     case newStage
 
-    /// 日本語の文言（ローカライズのキーを兼ねる。画面側で `tr` に通す）。
+    /// 表示中の言語の文言。
     public var label: String {
         switch self {
-        case .newStage: "新ステージ追加"
+        case .newStage: tr("新ステージ追加")
         }
     }
 }
