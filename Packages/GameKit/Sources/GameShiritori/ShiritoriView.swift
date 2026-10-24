@@ -48,7 +48,9 @@ public struct ShiritoriView: View {
             if phase != .result { resultCardClosed = false }
         }
         .padding(Theme.pad)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 上詰め: 結果の画面で延長ボタン・レコメンドが同時に出て絵の下限（16pt）でも収まらないときは、
+        // 上端のカードをナビバーの裏に入れず、下端（広告側）へはみ出させる（#2847）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .gameChrome(title: tr("カードしりとり"), review: services.review,
                     condition: GameChromeCondition(conditionParts) { requestNewGame() },
                     newGame: GameChromeNewGame(.solo) { requestNewGame() })
@@ -96,6 +98,12 @@ public struct ShiritoriView: View {
             if ProcessInfo.processInfo.arguments.contains("-shiritoriEndlessProbe") {
                 // 撮影用: とことんモードの対局を開始シートを出さずに始める（シミュレータは自動タップできない・#1502）。
                 model.startGame(mode: .endless)
+                return
+            }
+            if ProcessInfo.processInfo.arguments.contains("-shiritoriResultProbe") {
+                // 撮影用（#2360・#2847）: 時間切れの結果画面（延長ボタン + もう一回の段）を開始シートを出さずに再現する。
+                model.startGame(quota: .normal, mode: .quota)
+                model.tick(ShiritoriTime.initial + 1)
                 return
             }
             #endif
