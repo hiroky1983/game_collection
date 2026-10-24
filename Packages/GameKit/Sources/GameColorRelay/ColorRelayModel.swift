@@ -32,6 +32,10 @@ struct ColorRelaySnapshot: Codable {
     /// CPU の強さ（`CPUStrength.rawValue`・#2604）。**旧バージョンの保存データには存在しない**ため optional
     /// （欠けていたら「ふつう」＝それまでの挙動で再開する）。1 局 = 1 RuleSet なので再開で変わらない。
     var aiLevel: Int? = nil
+    /// 人間が 1 枚でも出した／引いたか（#2763）。2 ゲーム目以降は CPU が親で、人間が打つ前に CPU の手が
+    /// 保存されるため、「続きから」の判定に要る。**旧バージョンの保存データには存在しない**ため optional
+    /// （欠けていたら「打った」＝それまでの挙動の「続きから」で戻す）。
+    var humanHasActed: Bool? = nil
 }
 
 /// 次のゲームにも引き継ぐ CPU の強さ（#2604）。中断データ（対局中だけ在る）とは別のキーに置き、
@@ -91,6 +95,9 @@ public final class ColorRelayModel: AITurnGuarded {
     /// 枚数から推定すると、山の切り直し直後にたまたま配った直後と同じ枚数になる局面で誤判定する
     /// （CodeRabbit 指摘・PR #1339）ので、フラグで持つ。配ったばかりの局は保存しないため中断データには入れない。
     private var isUntouchedDeal = false
+    /// 人間が 1 枚でも出した／引いたか（#2763）。CPU が親の局では CPU の先手だけで `isUntouchedDeal` が下りるので、
+    /// 「続きから」・確認ダイアログの判定はこちらで見る。`startGame()` で下ろす。
+    private var humanHasActed = false
 
     private let services: GameServices?
     let gameID = ColorRelayModel.gameID
@@ -138,6 +145,7 @@ public final class ColorRelayModel: AITurnGuarded {
             if snap.lastActions.count == Self.playerCount { lastActions = snap.lastActions }
             isPenaltyWaived  = snap.isPenaltyWaived
             turnSerial       = snap.turnSerial
+            humanHasActed    = snap.humanHasActed ?? true
             // 対局中の強さは中断データが正（1 局 = 1 RuleSet）。
             aiLevel          = CPUStrength.strength(for: snap.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             phase            = .playing
@@ -173,7 +181,7 @@ public final class ColorRelayModel: AITurnGuarded {
     public var canWaivePenalty: Bool { isPlayerPenalized && !isPenaltyWaived }
 
     /// 「新規対局」で失われる進行があるか（1 枚でも札が動いた未決着のゲーム。#2370）。
-    public var hasProgressToLose: Bool { phase == .playing && !isUntouchedDeal }
+    public var hasProgressToLose: Bool { phase == .playing && humanHasActed }
 
     /// 人間がいま出せる札の ID。引いた直後は引いた札だけ。
     public var playableCardIDs: Set<Int> {
@@ -283,6 +291,7 @@ public final class ColorRelayModel: AITurnGuarded {
         isPenaltyWaived = false
         recordResult = nil
         isUntouchedDeal = true
+        humanHasActed = false
         gameNumber += 1
         // 親はゲームごとに 1 人ずつ回す（1 ゲーム目は人間）。
         currentPlayer = (gameNumber - 1) % Self.playerCount
@@ -385,6 +394,7 @@ public final class ColorRelayModel: AITurnGuarded {
     public func waivePenaltyAfterAd(forTurn serial: Int) -> Bool {
         guard serial == turnSerial, canWaivePenalty else { return false }
         isPenaltyWaived = true
+        humanHasActed = true
         pendingDraw = 0
         lastActions[Self.humanIndex] = tr("引き札を免除")
         services?.feedback.notify(.success)
@@ -398,6 +408,7 @@ public final class ColorRelayModel: AITurnGuarded {
 
     private func play(_ card: RelayCard, by player: Int, chosenColor: RelayColor?) {
         isUntouchedDeal = false
+        if player == Self.humanIndex { humanHasActed = true }
         hands[player].removeAll { $0.id == card.id }
         discardPile.append(card)
         activeColor = card.color ?? chosenColor ?? activeColor
@@ -457,6 +468,7 @@ public final class ColorRelayModel: AITurnGuarded {
     @discardableResult
     private func draw(count: Int, for player: Int) -> [RelayCard] {
         isUntouchedDeal = false
+        if player == Self.humanIndex { humanHasActed = true }
         var drawn: [RelayCard] = []
         for _ in 0..<count {
             if drawPile.isEmpty { refillDrawPile() }
@@ -564,7 +576,8 @@ public final class ColorRelayModel: AITurnGuarded {
         isClockwise: Bool = true,
         pendingDraw: Int = 0,
         isPenaltyWaived: Bool = false,
-        gameNumber: Int = 1
+        gameNumber: Int = 1,
+        humanHasActed: Bool = true
     ) {
         self.hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         self.discardPile = discardBelowTop + [top]
@@ -581,6 +594,7 @@ public final class ColorRelayModel: AITurnGuarded {
         ranking = []
         lastActions = Array(repeating: "", count: Self.playerCount)
         isUntouchedDeal = false
+        self.humanHasActed = humanHasActed
         turnSerial += 1
         phase = .playing
         persist()
@@ -653,7 +667,8 @@ public final class ColorRelayModel: AITurnGuarded {
             lastActions: lastActions,
             isPenaltyWaived: isPenaltyWaived,
             turnSerial: turnSerial,
-            aiLevel: aiLevel
+            aiLevel: aiLevel,
+            humanHasActed: humanHasActed
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

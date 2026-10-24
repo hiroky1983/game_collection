@@ -20,4 +20,17 @@ public struct ColorRelayModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(ColorRelayView(services: services))
     }
+
+    /// 2 ゲーム目以降は CPU が親で、人間が打つ前に CPU の先手が保存される。それだけの局は「続き」ではない
+    /// （#2763。チェス・将棋などの #2508 と同じ型）。旧バージョンの保存データは「打った」扱い。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(ColorRelaySnapshot.self, for: id) else { return false }
+        return snap.humanHasActed ?? true
+    }
+
+    /// 人間が一手も打っていない局（#2161）。開き直したときに `game_start` を数え直すのに使う。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(ColorRelaySnapshot.self, for: id) else { return false }
+        return !(snap.humanHasActed ?? true)
+    }
 }
