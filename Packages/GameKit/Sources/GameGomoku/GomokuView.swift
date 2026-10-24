@@ -346,6 +346,8 @@ public struct GomokuView: View {
             BoardGameResultCard(
                 verdict: verdict,
                 reason: model.isDraw ? tr("盤が埋まった") : (model.winningLine != nil ? tr("五連") : tr("投了")),
+                details: GomokuAccessibility.resultCardDetails(
+                    moveCount: model.moveCount, winningLine: model.winningLine, lastMove: model.lastMove),
                 record: model.recordResult
             ) { resultCardClosed = true }
         }

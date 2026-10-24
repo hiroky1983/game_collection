@@ -496,6 +496,7 @@ public struct ShogiView: View {
                 verdict: verdict,
                 reason: kind.reasonText,
                 decisiveMove: model.decisiveMoveText,
+                details: [tr("%lld手", model.moves.count)],
                 record: model.recordResult
             ) { resultCardClosed = true }
         }
