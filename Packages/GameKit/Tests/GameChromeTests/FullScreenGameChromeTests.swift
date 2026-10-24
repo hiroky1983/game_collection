@@ -113,7 +113,7 @@ struct FullScreenGameChromeTests {
     func titleShrinks() throws {
         let source = try Self.source
         let title = try #require(source.range(of: "Text(title)"))
-        let head = String(source[title.lowerBound...].prefix(600))
+        let head = String(source[title.lowerBound...].prefix(1200))
         #expect(head.contains(".lineLimit(1)"))
         #expect(head.contains(".minimumScaleFactor(0.6)"))
         #expect(head.contains(".layoutPriority(1)"), "表示名が札より先に幅をもらわないと、英語の題字が 0.6 倍まで縮む")

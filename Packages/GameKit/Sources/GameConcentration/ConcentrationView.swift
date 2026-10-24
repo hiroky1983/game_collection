@@ -43,13 +43,8 @@ public struct ConcentrationView: View {
         .padding(.vertical, Self.verticalInset)
         // 得点（あなた・CPU）と手番は、ヘッダー下の帯ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
         .gameChrome(title: tr("神経衰弱"), review: services.review, fullScreen: .felt, ads: services.ads,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.hasProgressToLose {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    }) {
+                    condition: GameChromeCondition([model.cpuLevel.displayName, model.pairCount.displayName]) { requestNewGame() },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() }) {
             scoreChips
         }
         .howToPlay(HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items))
@@ -157,6 +152,15 @@ public struct ConcentrationView: View {
             model.finishHint(run: run)
         }
         // CPUのミスマッチは doCPUTurn が自前でクリアするため onChange 不要
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.hasProgressToLose {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
+        }
     }
 
     // MARK: - 得点と手番（ヘッダーの行の札）

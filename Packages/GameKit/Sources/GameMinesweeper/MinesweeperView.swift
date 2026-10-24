@@ -56,13 +56,8 @@ public struct MinesweeperView: View {
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .gameChrome(title: tr("マインスイーパー"), review: services.review,
-                    newGame: GameChromeNewGame(.solo) {
-                        if model.gameState == .playing {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition([model.recordVariantLabel]) { requestNewGame() },
+                    newGame: GameChromeNewGame(.solo) { requestNewGame() })
         .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet(playLog: services.playLog) { rows, cols, mines in
@@ -159,6 +154,15 @@ public struct MinesweeperView: View {
             if state == .lost && model.canContinue {
                 showContinue = true
             }
+        }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.gameState == .playing {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
         }
     }
 
