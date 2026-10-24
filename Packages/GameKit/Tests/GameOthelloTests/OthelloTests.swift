@@ -293,6 +293,26 @@ struct OthelloPassDeadlockTests {
         #expect(model.gameOver == false)
     }
 
+    /// パスは石が動かない操作なので、押した 1 回の触覚だけが手応えになる（#2540）。
+    @Test func confirmPassGivesLightImpactOnce() throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .white, mustPass: true),
+            for: "othello")
+        let spy = SpyFeedbackService()
+        let model = OthelloModel(
+            services: GameServices(snapshots: store, ads: NoopAdService(), feedback: spy),
+            flipSettleDelay: .zero)
+        spy.reset()
+
+        model.confirmPass()
+        #expect(spy.impacts == [.light])
+
+        model.confirmPass() // 押せない状態では鳴らさない
+        #expect(spy.impacts == [.light])
+    }
+
     /// View が復元直後にも案内を出すよう結線されていること。
     /// モデル側が正しくても、2 引数版 `onChange` は `initial: true` が無いと初期値で発火せず、
     /// パスの手段（案内の「OK」）に到達できないまま詰む。
