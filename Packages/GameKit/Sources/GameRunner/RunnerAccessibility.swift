@@ -20,10 +20,23 @@ public enum RunnerAccessibility {
         tr("%1$@、%2$@", stageLabel(number: number, total: total), RunnerWorld.world(forStage: number).displayName)
     }
 
-    /// ワールドマップ（#798）の面のボタン。「1-1、到達済み」の形で、表記と選べるかどうかを
-    /// 1 文で言う（鍵の絵だけでは読み上げに出ない）。面の名前は #946 で外した。
-    public static func stageMapLabel(number: Int, reached: Bool) -> String {
-        tr("%1$@、%2$@", stageHeadline(number: number), reached ? tr("到達済み") : tr("未到達"))
+    /// ステージセレクト（#2730）の面のボタン。「雪国、8-1、クリア済み」の形で、世界の名前・表記・
+    /// 状態（クリア済み／今ここ／まだ遊べない）を 1 文で言う（✓・▶・鍵の絵だけでは読み上げに出ない）。
+    /// 面の名前は #946 で外した。
+    public static func stageSelectLabel(number: Int, state: RunnerStageSelectState) -> String {
+        let status: String
+        switch state {
+        case .cleared: status = tr("クリア済み")
+        case .current: status = tr("今ここ")
+        case .locked:  status = tr("まだ遊べません")
+        }
+        return tr("%1$@、%2$@、%3$@", RunnerWorld.world(forStage: number).displayName, stageHeadline(number: number), status)
+    }
+
+    /// ステージセレクト（#2730）の世界の帯とつまみ。「ワールド 8 / 10、雪国」。`total` は
+    /// つまみの数（実在の世界 + 「つづく」のティザー 1 つ）。
+    public static func worldBandLabel(world: RunnerWorld, total: Int) -> String {
+        tr("%1$@、%2$@", tr("ワールド %1$lld / %2$lld", world.number, total), world.displayName)
     }
 
     /// 面の見出し「2-3」（#931。名前は #946 で外し番号だけ）。走行中の HUD・スタート画面の

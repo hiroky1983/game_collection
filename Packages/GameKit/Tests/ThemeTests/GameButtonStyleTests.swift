@@ -75,7 +75,6 @@ struct NumericCornerRadiusScanTests {
         "GamePoker/PokerSheets.swift": 2,
         "GameRunner/RunnerScene+Dressing.swift": 1,
         "GameRunner/RunnerStoryView.swift": 2,
-        "GameRunner/RunnerWorldMap.swift": 1,
         "GameShiritori/ShiritoriView.swift": 3,
         "GameShogi/ShogiView.swift": 9,
         "GameSpeed/SpeedView.swift": 2,

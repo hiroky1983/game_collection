@@ -788,14 +788,88 @@ struct RunnerStageCodeTests {
         return min(d, 360 - d)
     }
 
-    @Test("面のボタンの読み上げは「1-1、到達済み／未到達」（名前は付けない・#946）")
-    func stageMapLabel() {
-        #expect(RunnerAccessibility.stageMapLabel(number: 1, reached: true) == "1-1、到達済み")
-        #expect(RunnerAccessibility.stageMapLabel(number: 7, reached: false) == "2-1、未到達")
-        #expect(RunnerAccessibility.stageMapLabel(number: 18, reached: false) == "3-6、未到達")
-        #expect(RunnerAccessibility.stageMapLabel(number: 30, reached: false) == "5-6、未到達")
-        #expect(RunnerAccessibility.stageMapLabel(number: 36, reached: false) == "6-6、未到達")
-        #expect(RunnerAccessibility.stageMapLabel(number: 42, reached: false) == "7-6、未到達")
-        #expect(RunnerAccessibility.stageMapLabel(number: 48, reached: false) == "8-6、未到達")
+    @Test("面のボタンの読み上げは「世界、1-1、クリア済み／今ここ／まだ遊べません」（名前は付けない・#946・#2730）")
+    func stageSelectLabel() {
+        #expect(RunnerAccessibility.stageSelectLabel(number: 1, state: .cleared) == "朝の下町、1-1、クリア済み")
+        #expect(RunnerAccessibility.stageSelectLabel(number: 7, state: .current) == "夕方の川沿い、2-1、今ここ")
+        #expect(RunnerAccessibility.stageSelectLabel(number: 18, state: .locked) == "夜の繁華街、3-6、まだ遊べません")
+        #expect(RunnerAccessibility.stageSelectLabel(number: 43, state: .cleared) == "雪国、8-1、クリア済み")
+        #expect(RunnerAccessibility.stageSelectLabel(number: 54, state: .locked) == "東京、9-6、まだ遊べません")
+    }
+
+    @Test("世界の帯の読み上げは「ワールド n / 合計、名前」")
+    func worldBandLabel() {
+        #expect(RunnerAccessibility.worldBandLabel(world: .snow, total: 10) == "ワールド 8 / 10、雪国")
+        #expect(RunnerAccessibility.worldBandLabel(world: .morning, total: 10) == "ワールド 1 / 10、朝の下町")
+    }
+}
+
+/// ステージセレクト（#2730・C 案）の純データ: 面の見え方と、帯の枚数・開いたときに出す帯。
+@Suite("チャリンコおじさん: ステージセレクト")
+@MainActor
+struct RunnerStageSelectUITests {
+
+    @Test("到達点の手前はクリア済み、到達点は今ここ、その先はまだ遊べない")
+    func stateFollowsReachedStage() {
+        #expect(RunnerStageSelectState.state(of: 1, reachedStage: 8) == .cleared)
+        #expect(RunnerStageSelectState.state(of: 7, reachedStage: 8) == .cleared)
+        #expect(RunnerStageSelectState.state(of: 8, reachedStage: 8) == .current)
+        #expect(RunnerStageSelectState.state(of: 9, reachedStage: 8) == .locked)
+        #expect(RunnerStageSelectState.state(of: 54, reachedStage: 8) == .locked)
+        // 1 面は到達点が 1 のとき「今ここ」（はじめて開いたとき）。
+        #expect(RunnerStageSelectState.state(of: 1, reachedStage: 1) == .current)
+        // 最終面は到達点が頭打ちなので「今ここ」のまま。
+        #expect(RunnerStageSelectState.state(of: RunnerRules.stageCount, reachedStage: RunnerRules.stageCount) == .current)
+    }
+
+    @Test("世界ごとのクリア数は 0〜6 で、到達点の世界だけ途中の値になる")
+    func clearedCount() {
+        #expect(RunnerStageSelectState.clearedCount(in: .morning, reachedStage: 1) == 0)
+        #expect(RunnerStageSelectState.clearedCount(in: .morning, reachedStage: 8) == 6)
+        #expect(RunnerStageSelectState.clearedCount(in: .evening, reachedStage: 8) == 1)
+        #expect(RunnerStageSelectState.clearedCount(in: .night, reachedStage: 8) == 0)
+        #expect(RunnerStageSelectState.clearedCount(in: .satoyama, reachedStage: 20) == 1)
+        #expect(RunnerStageSelectState.clearedCount(in: .tokyo, reachedStage: 54) == 5)
+    }
+
+    @Test("帯は実在の世界 + ティザー 1 枚で、世界の数は RunnerWorld から取る")
+    func pageCount() {
+        #expect(RunnerWorldMap.pageCount == RunnerWorld.allCases.count + 1)
+        #expect(RunnerWorldMap.pageCount == 10)
+        // 最後の帯はティザー（世界が無い）。
+        #expect(RunnerWorldMap.world(at: RunnerWorldMap.pageCount - 1) == nil)
+        #expect(RunnerWorldMap.world(at: 0) == .morning)
+        #expect(RunnerWorldMap.world(at: 8) == .tokyo)
+        #expect(RunnerWorldMap.world(at: -1) == nil)
+    }
+
+    @Test("開いたときに出す帯は選んでいる面の世界（8 面＝世界 2、20 面＝世界 4、54 面＝世界 9）")
+    func pageForStage() {
+        #expect(RunnerWorldMap.page(forStage: 8) == 1)
+        #expect(RunnerWorldMap.page(forStage: 20) == 3)
+        #expect(RunnerWorldMap.page(forStage: 54) == 8)
+        #expect(RunnerWorldMap.page(forStage: 1) == 0)
+        // 範囲外は最初の世界に倒す。
+        #expect(RunnerWorldMap.page(forStage: 0) == 0)
+        #expect(RunnerWorldMap.page(forStage: 55) == 0)
+    }
+
+    @Test("帯に写す範囲は道路の帯の下・雲の帯の下端に収まり、丘と道路のタイルが覆う横幅に収まる")
+    func bandCropStaysInsideCoveredArea() {
+        let crop = RunnerWorldBandArt.cropRect
+        // 縦: 路肩の下（地面 34 − 道 5 − 縁石 1 − 路肩 4 = 24）より下から、最上段の雲（115 − 4 = 111）の手前まで。
+        #expect(crop.minY < 24)
+        #expect(crop.maxY > RunnerField.Metrics.groundY + 34, "丘の稜線（地面 + 34）が切れる")
+        #expect(crop.maxY <= RunnerField.Metrics.height)
+        // 横: 距離 0 で丘のタイルは [−2 間隔, 全幅 − 2 間隔) ＝ [−120, 240) を覆い、道路は −100 から敷いてある
+        // （コース層の原点は走者の x = 26）。
+        let hillLeft = -2 * RunnerScene.hillSpacing
+        let hillRight = RunnerScene.hillSpacing * 6 - 2 * RunnerScene.hillSpacing
+        #expect(crop.minX >= hillLeft)
+        #expect(crop.maxX <= hillRight)
+        #expect(crop.minX >= RunnerWorldBandArt.roadSpan.lowerBound, "道路の左が切れる")
+        #expect(crop.maxX <= RunnerWorldBandArt.roadSpan.upperBound, "道路の右が切れる")
+        // 縦横比は帯の縦横比そのもの。
+        #expect(abs(crop.width / crop.height - RunnerWorldBandArt.aspectRatio) < 0.02)
     }
 }

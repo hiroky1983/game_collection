@@ -202,9 +202,11 @@ public struct RunnerView: View {
                     model.applyDebugScenario(args[i + 1])
                 }
             }
-            // 撮影用: 開始シート（ワールドマップ #798）を開いた状態にする（`-showRunnerStartSheet`）。
+            // 撮影用: 開始シート（ステージセレクト #798 → #2730）を開いた状態にする（`-showRunnerStartSheet`）。
+            // 選んでいる面は到達点（`-simulateRunner map:N` で作る）——ふつうに開いたときと同じく
+            // 「今いる面」の世界の帯が出る画になる。
             if args.contains("-showRunnerStartSheet") {
-                openStartSheet(mode: model.mode, stage: 1)
+                openStartSheet(mode: model.mode, stage: model.reachedStage)
             }
             #endif
             // 自動表示の判断は**起動引数を適用したあと**（#1063）。先に判断すると、その時点では
