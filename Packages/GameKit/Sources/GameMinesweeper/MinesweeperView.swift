@@ -45,7 +45,7 @@ public struct MinesweeperView: View {
                 // 勝ちは盤に重ねる共通のクリアカードで示す（#2801。ナンプレ・麻雀ソリティアと同じ）。
                 // ヒントは 0 回でも省かず出す（#2613）。負けの演出・コンティニューの幕は今のまま。
                 .gameClearCard(isPresented: model.gameState == .won,
-                               details: [tr("%1$@ / ヒント%2$lld回 / タイム %3$@", model.recordVariantLabel, model.hints.used,
+                               details: [tr("%1$@ / ヒント %2$lld回 / タイム %3$@", model.recordVariantLabel, model.hints.used,
                                             RecordFormat.time(model.elapsedSeconds))])
             controlArea
             HowToPlayHint(.minesweeper, playLog: services.playLog)
