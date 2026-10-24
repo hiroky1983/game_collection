@@ -29,10 +29,17 @@ enum CatPuzzleHowToFigures {
         solution: [1, 3, 0, 2]
     )
 
+    /// ななめに隣り合った 2 匹の図の猫のマス（`sample` の上で）。
+    static let adjacentCats = [1, 6]
+    /// タップ操作の図で印を付けるマス（`sample` の答えのマス）。
+    static let tapCell = 1
+
     /// 図の 1 コマ。`cats` と `crosses` のマスに印を置き、矛盾は本番と同じ判定で印を付ける。
-    private struct Board: View {
+    struct Board: View {
         var cats: [Int] = []
         var crosses: [Int] = []
+        /// 赤い ×（答えでないマスをダブルタップしたミス）。`crosses` にも入れておく（本番と同じ持ち方）。
+        var wrongCrosses: Set<Int> = []
         var solved = false
         var cellSide: CGFloat = CatPuzzleHowToFigures.cellSide
         var showsRoomLabels = true
@@ -43,14 +50,14 @@ enum CatPuzzleHowToFigures {
             for cell in cats { marks[cell] = .cat }
             let violations = CatPuzzleLogic.violations(puzzle: sample, cats: cats)
             return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells,
-                                        isSolved: solved, showsRoomLabels: showsRoomLabels, cellSide: cellSide)
+                                        wrongCrosses: wrongCrosses, isSolved: solved, showsRoomLabels: showsRoomLabels, cellSide: cellSide)
                 .padding(3)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous).fill(Theme.surface))
         }
     }
 
     /// 答えの盤（部屋・行・列に 1 匹ずつ）。
-    private struct OnePerRoomFigure: View {
+    struct OnePerRoomFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 Board(cats: CatPuzzleHowToFigures.sample.solutionCells)
@@ -60,10 +67,10 @@ enum CatPuzzleHowToFigures {
     }
 
     /// ななめに隣り合った 2 匹に「！」の印。
-    private struct NotAdjacentFigure: View {
+    struct NotAdjacentFigure: View {
         var body: some View {
             VStack(spacing: 4) {
-                Board(cats: [1, 6])
+                Board(cats: CatPuzzleHowToFigures.adjacentCats)
                 RuleFigureLabel(tr("ななめでも隣はダメ"), color: Theme.coralText)
             }
         }
@@ -71,15 +78,15 @@ enum CatPuzzleHowToFigures {
 
     /// 空き ⇄ ×（タップ）と、空き → 猫（ダブルタップ）。3 コマ「× ⇄ 空き → 猫」に並べ、両端のコマの下に操作を書く。
     /// 横幅は従来の 3 コマ（`frameCellSide`）と同じなので iPhone SE のカードに収まる（#2669）。
-    private struct TapControlsFigure: View {
+    struct TapControlsFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 HStack(alignment: .top, spacing: 6) {
-                    frame(crosses: [1], caption: tr("タップ"))
+                    frame(crosses: [CatPuzzleHowToFigures.tapCell], caption: tr("タップ"))
                     arrow("arrow.left.arrow.right")
                     frame(caption: nil)
                     arrow("arrow.right")
-                    frame(cats: [1], caption: tr("ダブルタップ"))
+                    frame(cats: [CatPuzzleHowToFigures.tapCell], caption: tr("ダブルタップ"))
                 }
                 RuleFigureLabel(tr("タップで × を付け外し、ダブルタップで猫"), color: Theme.coralText)
             }

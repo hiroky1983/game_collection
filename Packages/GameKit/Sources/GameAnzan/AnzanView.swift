@@ -65,7 +65,7 @@ public struct AnzanView: View {
                 .disabled(model.phase == .flashing || replayRescue.isWatching)
             }
         }
-        .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items), onPresent: {
+        .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items).onboarding(AnzanOnboarding.guide), onPresent: {
             // 数が出ているあいだに読むと出題が進んで誤答になるので、止めて頭から出し直す。
             showHowToPlay = true
             model.pauseDisplay()
@@ -401,6 +401,7 @@ struct AnzanSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: AnzanOnboarding.guide,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("桁数")) {
