@@ -639,6 +639,17 @@
           }
         }
       }
+    },
+    "ヒント %lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hints: %lld"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

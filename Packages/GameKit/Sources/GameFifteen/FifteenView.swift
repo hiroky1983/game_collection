@@ -158,6 +158,9 @@ public struct FifteenView: View {
                 Text(tr("クリア！")).font(.title2.bold()).foregroundStyle(.white)
                 Text(tr("%lld手で揃えました", model.moves))
                     .font(.subheadline).foregroundStyle(.white.opacity(0.85))
+                // ヒントは 0 回でも省かず出す（#2613・#2801）。
+                Text(tr("ヒント %lld回", model.hints.used))
+                    .font(.subheadline).foregroundStyle(.white.opacity(0.85))
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 Button { withGameAnimation { model.newGame() } } label: {
                     Text(tr("もう一回")).foregroundStyle(Theme.onAccent)
@@ -168,7 +171,7 @@ public struct FifteenView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
-        .announcesResultAppearance([tr("クリア！"), tr("%lld手で揃えました", model.moves)].joined(separator: tr("。")))
+        .announcesResultAppearance([tr("クリア！"), tr("%lld手で揃えました", model.moves), tr("ヒント %lld回", model.hints.used)].joined(separator: tr("。")))
     }
 }
 

@@ -42,6 +42,11 @@ public struct MinesweeperView: View {
                 .overlay {
                     if showContinue { continueOverlay }
                 }
+                // 勝ちは盤に重ねる共通のクリアカードで示す（#2801。ナンプレ・麻雀ソリティアと同じ）。
+                // ヒントは 0 回でも省かず出す（#2613）。負けの演出・コンティニューの幕は今のまま。
+                .gameClearCard(isPresented: model.gameState == .won,
+                               details: [tr("%1$@ / ヒント %2$lld回 / タイム %3$@", model.recordVariantLabel, model.hints.used,
+                                            RecordFormat.time(model.elapsedSeconds))])
             controlArea
             HowToPlayHint(.minesweeper, playLog: services.playLog)
             // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
