@@ -596,6 +596,7 @@ struct HubView: View {
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
+                updateTag: UpdatedGames.tag(for: module.id),
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
                 count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
             )
@@ -688,6 +689,8 @@ private struct GameCard: View {
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
+    /// その版で中身が増えたゲームのタグ（「新ステージ追加」など・#2790）。優先順は NEW ＞ イベント ＞ 更新 ＞ 続きから。
+    var updateTag: UpdateTag?
     /// 今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
     /// 「続きから」「NEW」「イベント開催中」と同じ部品（`badgeCapsule`）・同じ大きさで、文字の印と**両方**出す
     /// （#2572。横に並ばない幅では 2 段）。読み上げは「残り n 回」。
@@ -767,6 +770,8 @@ private struct GameCard: View {
             badgeCapsule("NEW")
         } else if isEvent {
             badgeCapsule(tr("イベント開催中"))
+        } else if let updateTag {
+            badgeCapsule(tr(updateTag.label))
         } else if hasResume {
             badgeCapsule(tr("続きから"))
         }
@@ -818,6 +823,7 @@ private struct GameCard: View {
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
+        if let updateTag { parts.append(tr(updateTag.label)) }
         if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
     }

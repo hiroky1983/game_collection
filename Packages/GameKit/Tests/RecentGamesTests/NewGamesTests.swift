@@ -294,3 +294,49 @@ struct NewGamesMoveToTopTests {
                 == "「X」を先頭に移しました")
     }
 }
+
+/// 更新タグ（#2790）。一覧に入ったゲームだけにタグが出る。
+@Suite("更新タグ")
+struct UpdatedGamesTests {
+    @Test("一覧に入ったゲームだけにタグが出る。v1.1.15 はチャリンコおじさん（runner）の新ステージ追加")
+    func onlyListedGames() {
+        #expect(UpdatedGames.tag(for: "runner") == .newStage)
+        #expect(UpdatedGames.tag(for: "2048") == nil)
+        #expect(UpdatedGames.currentVersion.count == 1)
+    }
+
+    @Test("ブロック崩し（blocks）は一覧に 1 行足すだけでタグが出る。いまは付けない")
+    func blocksReadyButOff() {
+        #expect(UpdatedGames.tag(for: "blocks") == nil)
+        #expect(UpdatedGames.tag(for: "blocks", in: ["blocks": .newStage]) == .newStage)
+        #expect(UpdatedGames.tag(for: "runner", in: [:]) == nil)
+    }
+
+    @Test("タグの文言は種類ごとに持ち、英訳が xcstrings にある")
+    func labelsAreLocalized() throws {
+        let path = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Localization/Localizable.xcstrings")
+        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any]
+        let strings = try #require(json?["strings"] as? [String: Any])
+        for tag in UpdateTag.allCases {
+            #expect(strings[tag.label] != nil, "\(tag.label) の英訳が無い")
+        }
+    }
+
+    @Test("タイルは NEW ＞ イベント ＞ 更新 ＞ 続きから の順で 1 つだけ出し、読み上げにも載せる")
+    func badgePriorityWiring() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("updateTag: UpdatedGames.tag(for: module.id)"))
+        let start = try #require(source.range(of: "private var badge: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badge = String(source[start.lowerBound..<end.upperBound])
+        let new = try #require(badge.range(of: #"badgeCapsule("NEW")"#))
+        let event = try #require(badge.range(of: #"badgeCapsule(tr("イベント開催中"))"#))
+        let update = try #require(badge.range(of: "badgeCapsule(tr(updateTag.label))"))
+        let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
+        #expect(new.lowerBound < event.lowerBound && event.lowerBound < update.lowerBound && update.lowerBound < resume.lowerBound)
+        #expect(source.contains("if let updateTag { parts.append(tr(updateTag.label)) }"), "読み上げに無い")
+    }
+}
