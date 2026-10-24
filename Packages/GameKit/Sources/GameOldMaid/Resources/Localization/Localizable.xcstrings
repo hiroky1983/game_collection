@@ -719,6 +719,248 @@
           }
         }
       }
+    },
+    "ババ抜きのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Old Maid: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "ジョーカーを、最後まで持たないことが目的です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal is not to be left holding the Joker."
+          }
+        }
+      }
+    },
+    "ほかの札をぜんぶ出し切って、先に抜けましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get rid of all your other cards and drop out first."
+          }
+        }
+      }
+    },
+    "ジョーカー（ペアにならない）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joker (never pairs)"
+          }
+        }
+      }
+    },
+    "最初に起こること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What happens first"
+          }
+        }
+      }
+    },
+    "配られた手札の、同じ数字の 2 枚（ペア）は、自動で捨てられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pairs of the same number in your dealt hand are thrown away automatically."
+          }
+        }
+      }
+    },
+    "ジョーカーはペアになりません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker doesn't pair with anything."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "次の CPU の伏せた札を、1 枚選んで引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick one face-down card from the next CPU's hand and draw it."
+          }
+        }
+      }
+    },
+    "ペアができたら捨てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If it makes a pair, throw the pair away."
+          }
+        }
+      }
+    },
+    "CPU の顔をよく見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the CPU's face"
+          }
+        }
+      }
+    },
+    "札を選ぶと、CPU の顔に出ることがあります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you pick a card, the CPU's face may give something away."
+          }
+        }
+      }
+    },
+    "にやりとしたら、ジョーカーかもしれません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A smirk could mean it's the Joker."
+          }
+        }
+      }
+    },
+    "ジョーカーを引いたら" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you draw the Joker"
+          }
+        }
+      }
+    },
+    "引いたジョーカーは、手札の右端に入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker you draw goes to the right end of your hand."
+          }
+        }
+      }
+    },
+    "CPU に場所を見られるので、「シャッフル」で混ぜましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPUs see where it is, so mix your hand with Shuffle."
+          }
+        }
+      }
+    },
+    "右端に入る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goes to the right end"
+          }
+        }
+      }
+    },
+    "シャッフルで混ぜる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mix it with Shuffle"
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you lose"
+          }
+        }
+      }
+    },
+    "手札がなくなった人から、抜けていきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Players drop out as their hands run out."
+          }
+        }
+      }
+    },
+    "最後にジョーカーを持って残った人が、負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever is left holding the Joker at the end loses."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

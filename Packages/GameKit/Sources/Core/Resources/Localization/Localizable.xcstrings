@@ -3737,13 +3737,13 @@
         }
       }
     },
-    "手札は 5 枚。残したいカードをタップで選びます。" : {
+    "手札は 5 枚。入れ替えたいカードをタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You get 5 cards. Tap the ones you want to keep."
+            "value" : "You get 5 cards. Tap the cards you want to swap."
           }
         }
       }
@@ -4287,13 +4287,13 @@
         }
       }
     },
-    "残すカードをタップしよう" : {
+    "入れ替えるカードをタップしよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap the cards to keep"
+            "value" : "Tap the cards to swap"
           }
         }
       }
@@ -5156,13 +5156,13 @@
         }
       }
     },
-    "選ばなかったカードは 1 回だけ引き直せます。" : {
+    "選んだカードを引き直せます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You can redraw the cards you didn't pick, once."
+            "value" : "The cards you picked are replaced with new ones."
           }
         }
       }
@@ -5706,13 +5706,13 @@
         }
       }
     },
-    "役の一覧と点数は「くわしいルール」で見られます。" : {
+    "役の一覧は「くわしいルール」、点数は「役の点数表」で見られます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See “Detailed Rules” for the list of hands and their points."
+            "value" : "See “Detailed Rules” for the list of hands, and the “Hand Points” table for their points."
           }
         }
       }

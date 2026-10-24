@@ -15,7 +15,7 @@ enum SpeedHowToFigures {
     ]
 
     /// 台札が 7 なら、6 か 8 を重ねられる。9 は出せない。
-    private struct AdjacentFigure: View {
+    struct AdjacentFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(spacing: 4) {
@@ -40,7 +40,7 @@ enum SpeedHowToFigures {
     }
 
     /// 手札の札を、出したい台札のほうへ払う（会長 QA 2026-10-23・スワイプ前提）。
-    private struct SwipeFigure: View {
+    struct SwipeFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 HStack(spacing: 20) {
@@ -67,7 +67,7 @@ enum SpeedHowToFigures {
     }
 
     /// K の上に A、A の上に K も重ねられる。
-    private struct WrapFigure: View {
+    struct WrapFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 VStack(spacing: 4) {
@@ -87,7 +87,7 @@ enum SpeedHowToFigures {
     }
 
     /// 手札から台札へ出すと、山札から手札に補充される。CPU も同時に出す。
-    private struct SimultaneousFigure: View {
+    struct SimultaneousFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -114,7 +114,7 @@ enum SpeedHowToFigures {
     }
 
     /// つまったら「めくる」。両方の山札から 1 枚ずつ台札に置く。
-    private struct FlipFigure: View {
+    struct FlipFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -137,7 +137,7 @@ enum SpeedHowToFigures {
     }
 
     /// 手札も山札も空になったほうの勝ち。
-    private struct WinFigure: View {
+    struct WinFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(spacing: 4) {

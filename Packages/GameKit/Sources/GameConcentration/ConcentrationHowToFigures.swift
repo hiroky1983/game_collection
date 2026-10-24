@@ -11,7 +11,7 @@ enum ConcentrationHowToFigures {
     ]
 
     /// 2 枚めくって同じ絵柄ならペア。
-    private struct PairFigure: View {
+    struct PairFigure: View {
         var body: some View {
             RuleFrames(count: 3, spacing: 12) { index in
                 VStack(spacing: 4) {
@@ -37,7 +37,7 @@ enum ConcentrationHowToFigures {
     }
 
     /// ちがう絵柄なら伏せ直して相手の番。
-    private struct MissFigure: View {
+    struct MissFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -58,7 +58,7 @@ enum ConcentrationHowToFigures {
     }
 
     /// 取ったペアの数を比べる。
-    private struct ScoreFigure: View {
+    struct ScoreFigure: View {
         var body: some View {
             HStack(spacing: 24) {
                 score(name: tr("あなた"), pairs: 5, isWinner: true)

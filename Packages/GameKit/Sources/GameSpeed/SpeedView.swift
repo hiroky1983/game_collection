@@ -112,7 +112,7 @@ public struct SpeedView: View {
                         }
                     })
         // シートを開いているあいだも CPU は止める（背面で出し切ると、読んでいる間に敗北が記録される。#1358）。
-        .howToPlay(HowToPlayGuide.speed.illustrated(SpeedHowToFigures.items), onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
+        .howToPlay(HowToPlayGuide.speed.illustrated(SpeedHowToFigures.items).onboarding(SpeedOnboarding.guide), onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
             SpeedRuleSheet()
         }
         .sheet(isPresented: $showSetup) {
@@ -1080,6 +1080,7 @@ struct SpeedSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: SpeedOnboarding.guide,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("速さ")) {

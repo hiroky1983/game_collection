@@ -790,10 +790,8 @@ public struct SudokuView: View {
     // MARK: - Result Controls
 
     private var resultControls: some View {
-        // 行の高さは数字パッドの 1 ボタンと同じ（対局中の操作列との高さ合わせ）。ボタン自体は他ゲームと同じ大きさ。
+        // ボタンは他ゲームと同じ 44pt（#2360・案3）。数字パッドの 1 ボタンと同じ高さなので、行の高さ合わせの引数は要らない。
         GameReplayBar(
-            contentMinHeight: SudokuMetrics.padButtonMinSide,
-            verticalPadding: 4,
             onReplay: {
                 Task { await model.newGame(difficulty: model.difficulty) }
             },

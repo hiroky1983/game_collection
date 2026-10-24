@@ -53,7 +53,7 @@ public struct BlackjackView: View {
                     }
             }
         }
-        .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items))
+        .howToPlay(HowToPlayGuide.blackjack.illustrated(BlackjackHowToFigures.items).onboarding(BlackjackOnboarding.guide))
         // ディーラーが 1 枚引くたびに合計を読む（#2595）。文字の更新は VoiceOver が自動では読まない。
         .onChange(of: model.dealerHand.count) { old, new in
             if let text = BlackjackAccessibility.dealerDrawAnnouncement(oldCount: old, newCount: new,

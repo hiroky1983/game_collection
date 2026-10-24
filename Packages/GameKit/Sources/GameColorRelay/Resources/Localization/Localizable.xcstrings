@@ -1072,6 +1072,204 @@
           }
         }
       }
+    },
+    "いろリレーのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Relay: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "配られた %lld 枚の手札を、先になくした人の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever gets rid of their %lld dealt cards first wins."
+          }
+        }
+      }
+    },
+    "ほかの 3 人の CPU と、順番に札を出し合います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You take turns playing cards with the 3 CPUs."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "場の札と、同じ色か同じ数字・記号の札を 1 枚出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play one card that matches the top card's color, or its number or symbol."
+          }
+        }
+      }
+    },
+    "色も数字・記号もちがう札は、出せません。いろがえは別です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card with a different color and a different number or symbol can't be played. Color Change cards are the exception."
+          }
+        }
+      }
+    },
+    "出せないとき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you can't play"
+          }
+        }
+      }
+    },
+    "出せる札がないときは、山から 1 枚引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have no playable card, draw one from the pile."
+          }
+        }
+      }
+    },
+    "引いた札が出せるなら、そのまま出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the card you drew can be played, you can play it right away."
+          }
+        }
+      }
+    },
+    "とばしとぎゃく" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip and Reverse"
+          }
+        }
+      }
+    },
+    "「とばし」は、次の人の番を飛ばします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip makes the next player miss a turn."
+          }
+        }
+      }
+    },
+    "「ぎゃく」は、回る向きを逆にします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverse flips the direction of play."
+          }
+        }
+      }
+    },
+    "+2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+2"
+          }
+        }
+      }
+    },
+    "「+2」を出すと、次の人が 2 枚引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play +2 and the next player draws 2 cards."
+          }
+        }
+      }
+    },
+    "引いた人は、その番を飛ばされます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The player who draws also misses their turn."
+          }
+        }
+      }
+    },
+    "「いろがえ」は、どの札の上にも出せて、次の色を選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Change can go on any card, and you choose the next color."
+          }
+        }
+      }
+    },
+    "「いろがえ+4」は、次の人が 4 枚引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With Color Change +4, the next player draws 4 cards."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

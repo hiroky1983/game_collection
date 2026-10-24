@@ -47,7 +47,7 @@ public struct ConcentrationView: View {
                     newGame: GameChromeNewGame(.match) { requestNewGame() }) {
             scoreChips
         }
-        .howToPlay(HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items))
+        .howToPlay(HowToPlayGuide.concentration.illustrated(ConcentrationHowToFigures.items).onboarding(ConcentrationOnboarding.guide))
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局を始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
@@ -596,6 +596,7 @@ struct ConcentrationNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus, startTint: Theme.Fill.purple,
+            onboarding: ConcentrationOnboarding.guide,
             onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("盤面サイズ")) {

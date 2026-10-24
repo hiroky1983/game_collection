@@ -99,6 +99,8 @@ public struct GoView: View {
         }
         .task {
             #if DEBUG
+            // 撮影用（#2360）: 終局後レイアウト（「もう一回」の段）を即再現する（将棋・チェスの -xxxAutoResign と同じ）。
+            if ProcessInfo.processInfo.arguments.contains("-goAutoResign") { model.resign() }
             // 撮影用（#398）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
             if ProcessInfo.processInfo.arguments.contains("-goScoring") {
                 await model.applyPreviewScoringForTesting()
