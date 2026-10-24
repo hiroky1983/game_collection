@@ -11,7 +11,7 @@ enum DaifugoHowToFigures {
     ]
 
     /// 場の札より強い札を出す。
-    private struct PlayFigure: View {
+    struct PlayFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
@@ -39,7 +39,7 @@ enum DaifugoHowToFigures {
     }
 
     /// カードの強さの並び（弱い → 強い）。
-    private struct StrengthFigure: View {
+    struct StrengthFigure: View {
         private let cards: [(String, RuleMiniCard.Suit?)] = [
             ("3", .spade), ("7", .heart), ("J", .club), ("A", .diamond), ("2", .spade), ("JK", nil),
         ]
@@ -53,7 +53,7 @@ enum DaifugoHowToFigures {
     }
 
     /// 全員がパスすると場が流れる。
-    private struct PassFigure: View {
+    struct PassFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
