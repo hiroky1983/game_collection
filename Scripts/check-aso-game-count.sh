@@ -106,22 +106,31 @@ fi
 #    見るのは会長が ASC にコピペするブロックだけ = 実際に商品ページへ出る主張だけ。
 # 「N本」「N種」をそのまま拾うと、収録本数ではない言い回しを誤検知する
 #   （v1.1.0 パックの説明文「8つの定番ゲームが**これ1本**。」が実例）。
-# 誤検知は `fastlane beta` を止めてしまうので、**収録本数を主張していることが明らかな構文だけ**を見る:
-#   - 「定番<N>種」「定番ゲーム<N>種」（サブタイトル。`定番` と数字のあいだに他の語は挟ませない。
-#     緩めると「8つの定番ゲームがこれ1本」の `1` を拾ってしまう）
-#   - 「遊べる<N>種」「遊べる<N>本」（サブタイトル。v1.1.11 で「定番」を外した言い回し。#1873）
-#   - 「<N>本を収録」「<N>種を収録」（説明文・プロモーションテキスト）
-#   - 「<N>本すべて」「<N>本全て」（オフライン訴求）
+# 誤検知は `fastlane beta` を止めてしまうので、**収録本数を主張していることが明らかな構文だけ**を見る。
+# 欄ごとに正しさの基準が違う（会長決裁 2026-10-24・#2053）ので、EXACT（実装本数とちょうど一致）と
+# ROUND（実装本数を10の位で丸めた数）の2種類に分けて拾う:
+#   - EXACT（説明文・プロモーションテキスト。ちょうどの本数で書く欄）
+#       「定番<N>種」「定番ゲーム<N>種」（サブタイトルの旧い言い回し。`定番` と数字のあいだに
+#       他の語は挟ませない。緩めると「8つの定番ゲームがこれ1本」の `1` を拾ってしまう）
+#       「遊べる<N>種」「遊べる<N>本」（サブタイトルの旧い言い回し。v1.1.11 で「定番」を外した。#1873）
+#       「<N>本を収録」「<N>種を収録」（説明文・プロモーションテキスト）
+#       「<N>本すべて」「<N>本全て」（オフライン訴求）
+#   - ROUND（サブタイトル。v1.1.14 からの言い回し。#2053）
+#       「(定番)?<N>種以上」「(定番)?<N>本以上」「遊べる<N>種以上」。会長決裁で、サブタイトルの本数は
+#       **ちょうどの本数ではなく10の位で丸めて書き、10の位が上がったとき（32本→40本）だけ更新する**。
+#       例: 「大富豪・ソリティアなど定番30種以上｜全画面広告なし」（実装32本→30種以上）。
+#       英語（en-US）は同じ決まりで「30+ Offline Games」のように `N+` と書くが、英語パックを検証する
+#       呼び出しは今のところ無い（store-en-vX.Y.Z.md は fastlane からは読まれない）。
 # 別の言い回しに変えた場合はここに合致しなくなるが、そのときは「記述がありません」で落ちる
 # （黙って通さない = fail safe）。「本」「種」はマルチバイトなので切り出しは awk の中で完結させる
 # （sed の `[本種]` はバイト単位に効いて文字を壊す）。
 CLAIMS="$(awk '
-  function harvest(line, re,   hit, num) {
+  function harvest(line, re, kind,   hit, num) {
     while (match(line, re)) {
       hit = substr(line, RSTART, RLENGTH)
       num = hit
       gsub(/[^0-9]/, "", num)
-      print num
+      print num, kind
       line = substr(line, RSTART + RLENGTH)
     }
   }
@@ -129,40 +138,51 @@ CLAIMS="$(awk '
   /^```[[:space:]]*$/     { fence = 0; next }
   fence {
     # 正規表現は**文字列で**渡す。awk で /re/ を式として書くと $0 ~ /re/ の 0/1 に化ける。
-    harvest($0, "定番(ゲーム)?[0-9]+(本|種)")
-    harvest($0, "遊べる[0-9]+(本|種)")
-    harvest($0, "[0-9]+(本|種)(を収録|すべて|全て)")
+    round_re = "(定番(ゲーム)?|遊べる)?[0-9]+(本|種)以上"
+    harvest($0, round_re, "ROUND")
+    # EXACT 側はいったん ROUND の構文（「定番30種以上」等）を空文字に落としてから拾う。
+    # 落とさないと「定番30種以上」の前半「定番30種」を EXACT 側にも二重に拾ってしまう。
+    exact_line = $0
+    gsub(round_re, "", exact_line)
+    harvest(exact_line, "定番(ゲーム)?[0-9]+(本|種)", "EXACT")
+    harvest(exact_line, "遊べる[0-9]+(本|種)", "EXACT")
+    harvest(exact_line, "[0-9]+(本|種)(を収録|すべて|全て)", "EXACT")
   }
-' "$PACK" | sort -un)"
+' "$PACK")"
 
-CLAIM_COUNT="$(printf '%s' "$CLAIMS" | grep -c . || true)"
+CLAIM_COUNT="$(printf '%s\n' "$CLAIMS" | grep -c . || true)"
 
 if [ "$CLAIM_COUNT" -eq 0 ]; then
   echo "check-aso-game-count: $PACK の入稿文言（\`\`\`text ブロック）に収録本数の記述がありません" >&2
-  echo "  拾える書き方は「定番N種」「遊べるN種」「N本を収録」「N本すべて」です。" >&2
+  echo "  拾える書き方は「定番N種」「遊べるN種」「N本を収録」「N本すべて」「N種以上」です。" >&2
   echo "  言い回しを変えた場合は本スクリプトのパターンも追加してください。" >&2
   echo "  文言から本数の主張を意図的に外したのであれば、呼び出し側でこの検証を外してください。" >&2
   exit 1
 fi
 
+EXACT_CLAIMS="$(printf '%s\n' "$CLAIMS" | awk '$2=="EXACT"{print $1}' | sort -un)"
+ROUND_CLAIMS="$(printf '%s\n' "$CLAIMS" | awk '$2=="ROUND"{print $1}' | sort -un)"
+ROUNDED_EXPECT=$(((ACTUAL / 10) * 10))
+
 MISMATCH=""
-for c in $CLAIMS; do
-  [ "$c" = "$ACTUAL" ] || MISMATCH="$MISMATCH $c"
+for c in $EXACT_CLAIMS; do
+  [ "$c" = "$ACTUAL" ] || MISMATCH="$MISMATCH ${c}本（ちょうど一致の欄）"
+done
+for c in $ROUND_CLAIMS; do
+  [ "$c" = "$ROUNDED_EXPECT" ] || MISMATCH="$MISMATCH ${c}種以上（サブタイトル・10の位で丸めた欄）"
 done
 
 if [ -n "$MISMATCH" ]; then
-  FOUND=""
-  for c in $MISMATCH; do FOUND="$FOUND ${c}本"; done
   cat >&2 <<EOF
 check-aso-game-count: 入稿パックの収録本数が実装と一致しません
 
-  実装（$SOURCE の GameRegistry）:$( printf ' %s本' "$ACTUAL")
-  パック（$PACK の入稿文言）      :$FOUND
+  実装（$SOURCE の GameRegistry）                 : ${ACTUAL}本（サブタイトルは丸めて ${ROUNDED_EXPECT}種以上）
+  パック（$PACK の入稿文言）:$MISMATCH
 
 売り物を検索面・商品ページから落とさないため、入稿前に次を是正してください:
-  - サブタイトル（「定番${ACTUAL}種」または「遊べる${ACTUAL}種」）
+  - サブタイトル（「${ROUNDED_EXPECT}種以上」。10の位で丸めた本数＋「種以上」。ちょうどの本数には戻さない）
   - 説明文の冒頭（ゲーム名の列挙と「${ACTUAL}本を収録」「${ACTUAL}本すべてが最後まで遊べます」）
-  - プロモーションテキスト（同上）
+  - プロモーションテキスト（同上。ちょうどの本数）
   - キーワード欄（新しいゲームの正式名が1枠目に入っているか）
   - オフライン訴求の根拠（${ACTUAL}本での取り直し）
 
@@ -171,4 +191,6 @@ EOF
   exit 1
 fi
 
-echo "check-aso-game-count: OK（実装 ${ACTUAL}本 / $(basename "$PACK") の主張 ${ACTUAL}本）"
+SUMMARY="実装 ${ACTUAL}本 / $(basename "$PACK") の主張 ちょうど${ACTUAL}本"
+[ -z "$ROUND_CLAIMS" ] || SUMMARY="${SUMMARY}・サブタイトル${ROUNDED_EXPECT}種以上"
+echo "check-aso-game-count: OK（${SUMMARY}）"
