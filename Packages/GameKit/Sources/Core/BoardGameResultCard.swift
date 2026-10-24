@@ -145,6 +145,7 @@ public struct BoardGameResultCard: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
             .playStreakCaption()
             .padding(16)
+            .resultCardScrollsWhenTall()
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
         .accessibilityElement(children: .contain)
@@ -168,6 +169,18 @@ public extension View {
                 }
             }
             .gameAnimation(.easeOut(duration: 0.25), value: isPresented)
+        }
+    }
+}
+
+extension View {
+    /// 結果カードが重ね先の盤より背が高いとき（最大の文字サイズ・SE）、上下が切り落とされないよう縦にスクロールさせる（#2858）。
+    /// 収まるときは `ViewThatFits` が素のカードを選ぶので、標準の文字サイズでは見た目も挙動も変わらない。
+    @ViewBuilder
+    func resultCardScrollsWhenTall() -> some View {
+        ViewThatFits(in: .vertical) {
+            self
+            ScrollView { self }.scrollBounceBehavior(.basedOnSize)
         }
     }
 }

@@ -57,6 +57,7 @@ public struct GameClearCard: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         .playStreakCaption()
         .padding(16)
+        .resultCardScrollsWhenTall()
         .announcesResultAppearance(Self.accessibilityLabel(title: title, details: details))
     }
 }
