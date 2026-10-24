@@ -116,6 +116,7 @@ public struct BoardGameResultCard: View {
             .padding(24)
             .frame(maxWidth: 320)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .playStreakCaption()
             .padding(16)
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
