@@ -68,7 +68,7 @@ public struct OthelloView: View {
                         requestNewGame()
                     },
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items))
+        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
@@ -653,6 +653,7 @@ struct OthelloNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: OthelloOnboarding.guide,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あなたの石")) {
