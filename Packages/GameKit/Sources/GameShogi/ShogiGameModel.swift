@@ -597,7 +597,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let sfen = position.toSFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleMinimaxEngine(level: level).bestMove(sfen: sfen)
+                await ShogiMasterEngine.engine(level: level).bestMove(sfen: sfen)
             }.value
         } commit: { usi in
             // 計算中に状況が変わっていないか確認してから着手。
