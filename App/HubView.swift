@@ -597,6 +597,8 @@ struct HubView: View {
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
+                // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
+                isUnplayed: services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
                 count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
             )
@@ -689,6 +691,8 @@ private struct GameCard: View {
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
+    /// 一度も遊んでいないゲームか（#2849）。NEW・イベント・続きからのどれも無いときだけ「未プレイ」を出す。
+    let isUnplayed: Bool
     /// 今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
     /// 「続きから」「NEW」「イベント開催中」と同じ部品（`badgeCapsule`）・同じ大きさで、文字の印と**両方**出す
     /// （#2572。横に並ばない幅では 2 段）。読み上げは「残り n 回」。
@@ -770,6 +774,8 @@ private struct GameCard: View {
             badgeCapsule(tr("イベント開催中"))
         } else if hasResume {
             badgeCapsule(tr("続きから"))
+        } else if isUnplayed {
+            badgeCapsule(tr("未プレイ"))
         }
     }
 
@@ -819,6 +825,7 @@ private struct GameCard: View {
         if hasResume { parts.append(tr("続きから")) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
+        if isUnplayed { parts.append(tr("未プレイ")) }
         if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
     }
