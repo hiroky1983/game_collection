@@ -667,7 +667,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // 成・不成は選べてしまい、そのとき `aiTurnKey` はまだ変わらないのでキーの照合では弾けない。
             // 弾かずに通すと、直後の `apply` が印を消すので「回数だけ減ってヒントが出ない」になる。
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
-                  !hints.isExhausted, let answer else { return }
+                  hints.hasFreeRemaining, let answer else { return }
             // 受けが無い局面は知らせるだけ。回数は減らさない（#2779）。
             guard let move = answer.move else { showsHintHopeless = true; return }
             guard legalMovesCache.contains(move), hints.consume() else { return }
@@ -717,8 +717,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             }.value
         } commit: { answer in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
-                  !hints.isExhausted, let answer, let move = answer.move,
-                  legalMovesCache.contains(move), hints.consumeAd() else { return }
+                  !hints.isExhausted, let answer else { return }
+            // 広告の前の確認が間に合わず、広告のあとに受けが無いと分かったとき（回数は減らさない・#2779）。
+            guard let move = answer.move else { showsHintHopeless = true; outcome = .granted; return }
+            guard legalMovesCache.contains(move), hints.consumeAd() else { return }
             showHint(move, isMate: answer.isMate)
             outcome = .granted
         }
