@@ -881,6 +881,50 @@
           }
         }
       }
+    },
+    "ここで止めていれば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you had blocked here"
+          }
+        }
+      }
+    },
+    "負けにつながった局面に盤を戻し、止められた交点を示します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the position that led to the loss and the points that could have stopped it"
+          }
+        }
+      }
+    },
+    "ここで止めるなら %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To stop it here: %@"
+          }
+        }
+      }
+    },
+    "結果に戻る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to result"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
