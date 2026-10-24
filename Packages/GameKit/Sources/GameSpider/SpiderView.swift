@@ -87,7 +87,7 @@ public struct SpiderView: View {
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
-        .howToPlay(HowToPlayGuide.spider.illustrated(SpiderHowToFigures.items)) { SpiderRuleSheet() }
+        .howToPlay(HowToPlayGuide.spider.illustrated(SpiderHowToFigures.items).onboarding(SpiderOnboarding.guide)) { SpiderRuleSheet() }
         .sheet(isPresented: $showSetup) {
             SpiderSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
                 showSetup = false
@@ -776,6 +776,7 @@ struct SpiderSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo, discardsProgress: discardsProgress,
+            onboarding: SpiderOnboarding.guide,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("スートの数")) {
