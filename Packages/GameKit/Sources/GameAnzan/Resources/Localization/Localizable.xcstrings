@@ -706,6 +706,61 @@
           }
         }
       }
+    },
+    "まちがえた問題を見る（%lld）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View missed questions (%lld)"
+          }
+        }
+      }
+    },
+    "正解 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correct: %lld"
+          }
+        }
+      }
+    },
+    "%1$@。あなたの答えは%2$lld、正解は%3$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. Your answer was %2$lld; the correct answer is %3$lld"
+          }
+        }
+      }
+    },
+    "まちがえた問題" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missed questions"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
