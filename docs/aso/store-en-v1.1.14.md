@@ -11,13 +11,14 @@ ja は `docs/aso/metadata-v1.1.14.md`。形式・使わない語は `docs/aso/st
   ババ抜き = **Old Maid**、ハーツ = **Hearts**。
 - 本数は **32本**（ja も 32本）。賭けを連想させる語・他社の商品名・倉庫のゲームは書かない。
 - 名前（appInfo）から `Mahjong` を外して `Cards` を入れ、`Mahjong` はキーワードへ移した（ja と同じ入れ替え）。
+- 会長決裁（2026-10-24）: サブタイトルの本数は、ちょうどの本数ではなく**10の位で丸めて「30+」**のように書き、10の位が上がったとき（40本）だけ更新する（ja の §0 と同じ決まり。説明文など他の欄はちょうどの本数のまま）。
 
 ## 1. 変更点（v1.1.13 → v1.1.14）
 
 | 項目 | 上限 | ASC の今の値（v1.1.13・2026-10-24 に GET） | v1.1.14 |
 |---|---|---|---|
 | 名前（appInfo） | 30 | `Asobiba: Mahjong, Shogi, Poker` | `Asobiba: Cards, Shogi, Poker`（28字） |
-| サブタイトル | 30 | `28 Offline Games, No Pop-ups` | `32 Offline Games, No Pop-ups`（28字） |
+| サブタイトル | 30 | `28 Offline Games, No Pop-ups` | `30+ Offline Games, No Pop-ups`（29字） |
 | プロモーションテキスト | 170 | 28 本の文（167字） | §3（162字） |
 | キーワード | 100 | `solitaire,chess,hanafuda,koikoi,riichi,blackjack,minesweeper,2048,freecell,spider,gomoku,card,board`（99字） | §4（100字） |
 | 説明文 | 4000 | 28本（3589字） | §5（32本） |
@@ -26,8 +27,10 @@ ja は `docs/aso/metadata-v1.1.14.md`。形式・使わない語は `docs/aso/st
 ## 2. サブタイトル（30字）
 
 ```
-32 Offline Games, No Pop-ups
+30+ Offline Games, No Pop-ups
 ```
+
+29/30 字。ja と同じ決まり（§0）で、10の位で丸めた本数（登録数32→30）＋「+」。10の位が上がる（40本）まで更新しない。
 
 ## 3. プロモーションテキスト（170字）
 
