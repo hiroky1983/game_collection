@@ -2754,6 +2754,259 @@
           }
         }
       }
+    },
+    "麻雀のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mahjong: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "CPU 3 人と対局します。東 1 局から東 4 局まで打ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play against 3 CPUs, from East 1 through East 4."
+          }
+        }
+      }
+    },
+    "CPU 3 人と対局します。東 1 局だけを打ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play against 3 CPUs for East 1 only."
+          }
+        }
+      }
+    },
+    "最後に、持ち点が多い順に順位が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At the end, rankings go by points, highest first."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do on your turn"
+          }
+        }
+      }
+    },
+    "山から 1 枚引いて、手牌から 1 枚切ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw one tile from the wall, then discard one from your hand."
+          }
+        }
+      }
+    },
+    "切る牌は、タップで選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the tile you want to discard."
+          }
+        }
+      }
+    },
+    "和了（あがり）の形" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The winning hand"
+          }
+        }
+      }
+    },
+    "同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえると和了です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make 4 sets of three identical tiles or three in a row, plus one pair of identical tiles, to win."
+          }
+        }
+      }
+    },
+    "自分で引いた牌での和了が「ツモ」、他の人の捨て牌での和了が「ロン」です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning on a tile you drew is tsumo; winning on someone else's discard is ron."
+          }
+        }
+      }
+    },
+    "役と立直" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yaku and riichi"
+          }
+        }
+      }
+    },
+    "和了の形でも、役が 1 つも無いと和了できません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Even with a winning shape, you can't win without at least one yaku."
+          }
+        }
+      }
+    },
+    "あと 1 枚で和了の「聴牌」になったら、立直を宣言すると役が付きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you are one tile from winning (tenpai), declaring riichi gives you a yaku."
+          }
+        }
+      }
+    },
+    "立直は鳴いていない手だけ。1000 点を供託します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riichi is only for hands with no calls. You put up 1000 points."
+          }
+        }
+      }
+    },
+    "鳴く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calling tiles"
+          }
+        }
+      }
+    },
+    "他の人の捨て牌は、ポン・チー・カンで取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can take others' discards with pon, chi or kan."
+          }
+        }
+      }
+    },
+    "ポンは誰の捨て牌でも。チーは左の人（上家）の捨て牌だけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pon works on anyone's discard. Chi only works on the discard of the player on your left."
+          }
+        }
+      }
+    },
+    "鳴くと、その組を手牌の外に出して、そのまま 1 枚切ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you call, you lay the set out of your hand and then discard one tile."
+          }
+        }
+      }
+    },
+    "流局と順位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draws and rankings"
+          }
+        }
+      }
+    },
+    "山が尽きたら流局。聴牌していた人が、3000 点を分け合います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the wall runs out, it's a draw. Players in tenpai share 3000 points."
+          }
+        }
+      }
+    },
+    "親が和了したり、聴牌で流局したりすると、同じ局を続けます（連荘）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the dealer wins or is in tenpai at a draw, the same round continues (renchan)."
+          }
+        }
+      }
+    },
+    "一局戦は、親が和了っても連荘せず、その局で終わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a single-hand game, the round ends even if the dealer wins, with no renchan."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

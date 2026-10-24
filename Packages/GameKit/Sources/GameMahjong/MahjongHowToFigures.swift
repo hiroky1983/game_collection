@@ -29,7 +29,7 @@ enum MahjongHowToFigures {
     }
 
     /// 東 1 局 → … → 東 4 局（一局戦は東 1 局だけ）。持ち点は 25000 点から。
-    private struct FlowFigure: View {
+    struct FlowFigure: View {
         let rounds: Int
 
         var body: some View {
@@ -48,7 +48,7 @@ enum MahjongHowToFigures {
     }
 
     /// 1 枚引いて（ツモ）、タップした牌を切る。
-    private struct DrawDiscardFigure: View {
+    struct DrawDiscardFigure: View {
         private let hand: [MahjongTile] = [.characters(2), .characters(3), .circles(5), .circles(6), .bamboos(9)]
 
         var body: some View {
@@ -71,8 +71,8 @@ enum MahjongHowToFigures {
     }
 
     /// 和了の形: 連番 3 枚 ×2・同じ牌 3 枚 ×2・同じ牌 2 枚。
-    private struct WinningShapeFigure: View {
-        private let groups: [(tiles: [MahjongTile], label: String)] = [
+    struct WinningShapeFigure: View {
+        let groups: [(tiles: [MahjongTile], label: String)] = [
             ([.characters(1), .characters(2), .characters(3)], tr("連番")),
             ([.circles(4), .circles(5), .circles(6)], tr("連番")),
             ([.bamboos(7), .bamboos(7), .bamboos(7)], tr("同じ 3 枚")),
@@ -102,8 +102,8 @@ enum MahjongHowToFigures {
     }
 
     /// あと 1 枚で和了（聴牌）→ 立直を宣言すると役が付く。
-    private struct RiichiFigure: View {
-        private let hand: [MahjongTile] = [
+    struct RiichiFigure: View {
+        let hand: [MahjongTile] = [
             .characters(1), .characters(2), .characters(3), .circles(4), .circles(5), .circles(6),
             .bamboos(7), .bamboos(7), .bamboos(7), .dragon(0), .dragon(0), .wind(0), .wind(0),
         ]
@@ -139,7 +139,7 @@ enum MahjongHowToFigures {
     }
 
     /// 他の人の捨て牌をポン（同じ牌 2 枚 + 捨て牌 = 3 枚）。
-    private struct CallFigure: View {
+    struct CallFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 10) { index in
                 VStack(spacing: 4) {
