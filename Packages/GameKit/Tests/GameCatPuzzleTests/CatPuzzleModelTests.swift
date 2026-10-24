@@ -569,6 +569,11 @@ struct CatPuzzleModelTests {
         #expect(model.marks[sample.solutionCells[0]] == .cross, "2 回目のあとも打てる")
         placeCat(model, at: wrongs[2])
         #expect(model.mistakes == 3 && model.mistakesRemaining == 0)
+        // 3 回目のミスでは、まず広告を見て続ける提案（負けは断ってから確定する・#2780）。
+        #expect(model.isOfferingContinue && !model.isFailed && !model.isCounting)
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 0 && model.unfoundCats.isEmpty)
+        model.declineContinue()
+        #expect(!model.isOfferingContinue)
         #expect(model.isFailed && model.isOver && !model.isSolved)
         #expect(model.wrongCrosses.count == 3 && model.lastWrongCell == wrongs[2], "3 回目の赤い × も盤に残す")
         #expect(!model.isCounting)
@@ -605,6 +610,7 @@ struct CatPuzzleModelTests {
         let second = CatPuzzleModel(services: makeServices(store: store, log: log), size: .easy, seed: 9)
         #expect(second.mistakes == 2 && second.mistakesRemaining == 1)
         placeCat(second, at: wrongs[2])
+        second.declineContinue()
         #expect(second.isFailed)
         #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.losses == 1)
 
@@ -658,5 +664,118 @@ struct CatPuzzleModelTests {
         direct.toggleCross(cell: 0)
         direct.toggleCross(cell: 1)
         #expect(other.starts(of: CatPuzzleModel.gameID) == 1)
+    }
+
+    // MARK: - 負けたあとの答え合わせ・コンティニュー（#2780）
+
+    /// 3 回目のミスまで進めた盤（見本の問題・答えの 1 匹目だけ見つけてある）。
+    private func atThirdMistake(
+        store: MemorySnapshotStore = MemorySnapshotStore(), spy: SpyAnalyticsService? = nil, log: PlayLog? = nil
+    ) -> (CatPuzzleModel, wrongs: [Int]) {
+        let model = CatPuzzleModel(services: makeServices(store: store, log: log, analytics: spy), puzzle: sample, size: .easy)
+        let wrongs = (0..<sample.cellCount).filter { !sample.solutionCells.contains($0) }
+        placeCat(model, at: sample.solutionCells[0])
+        for cell in wrongs.prefix(3) { placeCat(model, at: cell) }
+        return (model, wrongs)
+    }
+
+    @Test("負けを確定すると、まだ見つけていない猫がすべて正解の場所に出る（自分で見つけた猫は含めない）")
+    func lossRevealsEveryUnfoundCat() {
+        let (model, wrongs) = atThirdMistake()
+        #expect(model.unfoundCats.isEmpty, "提案の最中はまだ見せない")
+        model.declineContinue()
+        #expect(model.isFailed)
+        #expect(model.unfoundCats == Array(sample.solutionCells.dropFirst()).sorted())
+        #expect(model.unfoundCats.count == sample.side - 1)
+        #expect(model.isUnfoundCat(cell: sample.solutionCells[1]) && !model.isUnfoundCat(cell: sample.solutionCells[0]))
+        // 自分が置いた猫・赤い × はそのまま残る。
+        #expect(model.marks[sample.solutionCells[0]] == .cat)
+        #expect(wrongs.prefix(3).allSatisfy { model.marks[$0] == .cross && model.wrongCrosses.contains($0) })
+        // 新しい局では出さない。
+        model.newGame()
+        #expect(model.unfoundCats.isEmpty)
+    }
+
+    @Test("ヒントで置いた猫・自分で × を付けた答えのマスの扱い: 猫の印が無い答えのマスだけが出る")
+    func revealSkipsPlacedCatsOnly() {
+        let model = CatPuzzleModel(services: makeServices(), puzzle: sample, size: .easy)
+        model.toggleCross(cell: sample.solutionCells[1])
+        let wrongs = (0..<sample.cellCount).filter { !sample.solutionCells.contains($0) }
+        for cell in wrongs.prefix(3) { placeCat(model, at: cell) }
+        model.declineContinue()
+        #expect(model.unfoundCats.count == sample.side, "答えのマスに × を付けていても、猫はそこにいた")
+        #expect(model.unfoundCats.contains(sample.solutionCells[1]))
+    }
+
+    @Test("コンティニュー: 広告のあとミスが 1 回ぶん戻り、赤い × は残る。計時が再開し、解析は負けを送らない")
+    func continueAfterAd() {
+        let store = MemorySnapshotStore()
+        let spy = SpyAnalyticsService()
+        let (model, wrongs) = atThirdMistake(store: store, spy: spy)
+        #expect(model.isOfferingContinue && !model.continueUsed)
+        #expect(store.exists(for: CatPuzzleModel.gameID), "提案の最中も続きは残る")
+        // 提案の最中は盤に触れない・ヒントも戻すも使えない。
+        model.toggleCross(cell: sample.solutionCells[2])
+        placeCat(model, at: sample.solutionCells[2])
+        #expect(model.marks[sample.solutionCells[2]] == .empty && !model.canHint && !model.canUndo)
+        model.resumeTimerIfNeeded()
+        #expect(!model.isCounting)
+        let serial = model.gameSerial
+        #expect(!model.continueAfterAd(forGame: serial + 1), "別の局への報酬は乗せない")
+        #expect(model.continueAfterAd(forGame: serial))
+        #expect(!model.isOfferingContinue && !model.isFailed && model.continueUsed)
+        #expect(model.mistakes == CatPuzzleModel.maxMistakes - 1 && model.mistakesRemaining == 1)
+        #expect(model.wrongCrosses == Set(wrongs.prefix(3)), "最後の赤い × は盤に残る")
+        #expect(model.isCounting)
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 0)
+        #expect(!model.continueAfterAd(), "提案が出ていないときは使えない")
+        // 続けて遊べる。
+        placeCat(model, at: sample.solutionCells[1])
+        #expect(model.marks[sample.solutionCells[1]] == .cat)
+    }
+
+    @Test("コンティニューは 1 局 1 回。使ったあとの 3 回目のミスはそのまま負け、新しい局で使える")
+    func continueOncePerGame() {
+        let spy = SpyAnalyticsService()
+        let (model, wrongs) = atThirdMistake(spy: spy)
+        #expect(model.continueAfterAd())
+        placeCat(model, at: wrongs[3])
+        #expect(model.mistakes == 3 && model.isFailed && !model.isOfferingContinue, "2 回目の提案はしない")
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 1 && spy.outcomes == [.loss])
+        model.newGame()
+        #expect(!model.continueUsed && !model.isFailed)
+    }
+
+    @Test("答えを見たあとはコンティニューできない")
+    func noContinueAfterReveal() {
+        let (model, _) = atThirdMistake()
+        model.declineContinue()
+        let serial = model.gameSerial
+        #expect(!model.continueAfterAd(forGame: serial))
+        #expect(model.isFailed && model.mistakes == 3)
+    }
+
+    @Test("提案の最中に離れても、開き直すと同じ提案から続く。使用済みなら上限の保存は残らない")
+    func offerSurvivesResume() throws {
+        let store = MemorySnapshotStore()
+        let first = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 4)
+        let puzzle = first.puzzle
+        let wrongs = (0..<puzzle.cellCount).filter { !puzzle.solutionCells.contains($0) }
+        for cell in wrongs.prefix(3) { placeCat(first, at: cell) }
+        #expect(first.isOfferingContinue)
+        let snap = try #require(store.load(CatPuzzleSnapshot.self, for: CatPuzzleModel.gameID))
+        #expect(snap.mistakes == 3 && CatPuzzleSnapshot.isResumable(snap))
+        let resumed = CatPuzzleModel(services: makeServices(store: store), size: .easy, seed: 3)
+        #expect(resumed.isOfferingContinue && resumed.mistakes == 3 && !resumed.isFailed)
+        resumed.resumeTimerIfNeeded()
+        #expect(!resumed.isCounting)
+        #expect(resumed.continueAfterAd())
+        #expect(resumed.continueUsed && resumed.mistakes == 2)
+        // 使用済みであることも保存される。使用済みで上限の保存は終局済み（残さない）。
+        let saved = try #require(store.load(CatPuzzleSnapshot.self, for: CatPuzzleModel.gameID))
+        #expect(saved.continueUsed == true && saved.mistakes == 2)
+        var broken = saved
+        broken.mistakes = 3
+        #expect(!CatPuzzleSnapshot.isResumable(broken))
     }
 }

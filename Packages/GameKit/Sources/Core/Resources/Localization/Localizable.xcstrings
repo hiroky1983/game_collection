@@ -12,13 +12,13 @@
         }
       }
     },
-    "出せない札を払うと手札に戻ります（ペナルティはありません）。札のタップでも出せます。" : {
+    "出せない札を払うと手札に戻ります（ペナルティはありません）。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A card that can't be played slides back to your hand (no penalty). You can also tap a card to play it."
+            "value" : "A card that can't be played slides back to your hand (no penalty)."
           }
         }
       }

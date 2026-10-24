@@ -8,8 +8,12 @@ import Core
 /// あなたの手札と山札 → 操作 → 遊び方の 1 行 → レコメンド。台札とあなたの手札は近めに置き、払う距離を短くする。
 ///
 /// 操作はスワイプ前提（会長 QA 2026-10-23）: 手札の札を出したい台札のほうへ払うと、その台札に出す（判定は `SpeedSwipe`）。
-/// ドラッグ中は札が指についてきて、台札の上で離しても出せる。タップは補助として残す（置ける台札が 1 つならそこへ、
-/// 2 つなら選んで台札のタップを待つ）。手札は 4 枚の位置が動かない（出した位置に補充し、山札が尽きても空けたまま）。
+/// ドラッグ中は札が指についてきて、台札の上で離しても出せる。手札は 4 枚の位置が動かない（出した位置に補充し、山札が尽きても空けたまま）。
+///
+/// 通常の操作では、タップで札を出せない（会長 QA 2026-10-24・build 52「タップで押せると『はやい』でも勝てる」）。
+/// 手札のタップは札を少し持ち上げて戻し、1 局に 1 回だけ「台札のほうへ払って出します」と出す。台札のタップも何もしない。
+/// VoiceOver・スイッチコントロールを使っているときだけ、今までのタップ・アクションの操作（置ける台札が 1 つならそこへ、
+/// 2 つなら選んで台札のタップを待つ）を残す。
 ///
 /// CPU の待ちは Model が返す時間を `.task(id: model.cpuRun)` で待つだけ。場が動くたびに `cpuRun` が進んで
 /// 前の待ちが止まり、画面を離れれば `.task` ごと止まる（`Timer` は持たない）。
@@ -35,6 +39,11 @@ public struct SpeedView: View {
     @State private var dragLocation = CardDragLocation()
     /// 台札へ飛ぶ / 元の位置へ跳ね返る途中の札。
     @State private var flights: [SpeedFlight] = []
+    /// 指でタップされて少し持ち上がっている札（すぐ戻る）。タップでは札を出さない代わりの小さな反応。
+    @State private var nudgedID: Int?
+    /// 支援機能（VoiceOver・スイッチコントロール）を使っているか。使っているときだけタップで札を出せる。
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControlEnabled
     /// 画面の広さ（#458）。札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
     /// バックグラウンドへ移ったら CPU を止める（アクション枠の基盤規約「即一時停止」。ブロック崩し・チャリンコおじさんと同じ）。
@@ -166,7 +175,16 @@ public struct SpeedView: View {
         .task(id: model.cpuRun) { await runCPU() }
         // 出せる札の案内（5 秒）。あなたの操作・場が動く・CPU を止める / 解くたびに番号が進み、数え直す。
         .task(id: model.navigationEpoch) { await runPlayableNavigation() }
+        // 「台札のほうへ払って出します」の一言は少し出して消す。
+        .task(id: model.isShowingSwipeTip) {
+            guard model.isShowingSwipeTip else { return }
+            do { try await Task.sleep(for: SpeedTableLayout.swipeTipDuration) } catch { return }
+            withGameAnimation(.easeInOut(duration: 0.2)) { model.dismissSwipeTip() }
+        }
     }
+
+    /// 支援機能を使っているか。使っていれば指のタップも今までどおり札を出す操作として扱う。
+    private var assistive: Bool { voiceOverEnabled || switchControlEnabled }
 
     /// 案内を出すまで待つ。番号が変わったら新しい `.task` に譲って抜ける。
     private func runPlayableNavigation() async {
@@ -306,6 +324,22 @@ public struct SpeedView: View {
             }
         }
         .gameAnimation(.easeInOut(duration: 0.18), value: model.isStuck)
+        // 手札をタップしたときの一言（1 局に 1 回）。支援機能では出ない（タップで出せるため）。
+        .overlay(alignment: .bottom) {
+            if model.isShowingSwipeTip {
+                Label(tr("台札のほうへ払って出します"), systemImage: "hand.draw.fill")
+                    .scaledFont(12, weight: .bold, design: .rounded)
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.surface))
+                    .shadow(color: Theme.cardShadow, radius: 3, y: 1)
+                    .offset(y: 6)
+                    .allowsHitTesting(false)
+                    .transition(.scale.combined(with: .opacity))
+                    .accessibilityHidden(true)
+            }
+        }
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.isShowingSwipeTip)
     }
 
     private func pileView(_ index: Int, metrics: PlayingCardMetrics) -> some View {
@@ -317,7 +351,7 @@ public struct SpeedView: View {
             if let lifted, model.showsHints { return SpeedRules.canPlay(lifted.card, onto: top) }
             return false
         }()
-        return Button { tapPile(index) } label: {
+        return Button { fingerTapPile(index) } label: {
             ZStack {
                 CardSlot(metrics: metrics, systemImage: "arrow.down.to.line")
                 // 上の数枚を重ねて置く。飛んでくる札が着くまでのあいだも下の札が見えたままになり、
@@ -404,7 +438,7 @@ public struct SpeedView: View {
                 SpeedNavigationRing(cornerRadius: metrics.cornerRadius)
             }
         }
-        .offset(y: isSelected ? SpeedHandLayout.selectedLift : 0)
+        .offset(y: isSelected ? SpeedHandLayout.selectedLift : (nudgedID == card.id ? SpeedHandLayout.nudgeLift : 0))
         .gameAnimation(.spring(response: 0.2), value: isSelected)
         // 持ち上げている間・跳ね返って戻る途中は、元の位置を空けておく（札は指 / 飛ぶ札の側で見せる）。
         .opacity(isAway ? 0 : 1)
@@ -473,7 +507,7 @@ public struct SpeedView: View {
     private func apply(_ outcome: SpeedSwipe.Outcome, card: SpeedCard, release: CGPoint, home: CGRect) {
         switch outcome {
         case .tap:
-            tapHandCard(card)
+            fingerTapHandCard(card)
         case .play(let pile):
             if model.swipeCard(card, onto: pile) {
                 fly(card, from: release, toPile: pile)
@@ -489,7 +523,28 @@ public struct SpeedView: View {
         }
     }
 
-    /// 手札のタップ（補助）。置ける台札が 1 つならそこへ飛ばし、2 つなら選んで台札のタップを待つ。
+    /// 手札の指のタップ。通常の操作では札を出さず、持ち上げて戻す反応と 1 局に 1 回の一言だけ。
+    /// 支援機能を使っているときは `tapHandCard`（今までのタップの操作）に渡す。
+    private func fingerTapHandCard(_ card: SpeedCard) {
+        if assistive {
+            tapHandCard(card)
+            return
+        }
+        guard case .nudged = model.fingerTapHandCard(card, assistive: false) else { return }
+        nudge(card)
+    }
+
+    /// 札を少し持ち上げて戻す（タップで出せないことを、何も起きない故障に見せない）。
+    private func nudge(_ card: SpeedCard) {
+        withGameAnimation(.spring(response: 0.12, dampingFraction: 0.7)) { nudgedID = card.id }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(140))
+            guard nudgedID == card.id else { return }
+            withGameAnimation(.spring(response: 0.25, dampingFraction: 0.6)) { nudgedID = nil }
+        }
+    }
+
+    /// 手札のタップ（支援機能の操作・アクション）。置ける台札が 1 つならそこへ飛ばし、2 つなら選んで台札のタップを待つ。
     private func tapHandCard(_ card: SpeedCard) {
         let targets = model.playableTargets(for: card)
         let home = frames[.hand(card.id)]
@@ -499,15 +554,17 @@ public struct SpeedView: View {
         }
     }
 
-    /// 台札のタップ。選んだ札（無ければ、その台札に置けるただ 1 枚）を置く。
-    private func tapPile(_ index: Int) {
+    /// 台札のタップ。通常の操作では何もしない。支援機能を使っているとき（か、支援機能で札を選んであるとき）は、
+    /// 選んだ札（無ければ、その台札に置けるただ 1 枚）を置く。
+    private func fingerTapPile(_ index: Int) {
         let card = model.selectedCard ?? {
             let candidates = model.humanHand.filter { SpeedRules.canPlay($0, onto: model.tops[index]) }
             return candidates.count == 1 ? candidates[0] : nil
         }()
         let home = card.flatMap { frames[.hand($0.id)] }
-        withGameAnimation { model.tapPile(index) }
-        if let card, let home, model.tops[index] == card {
+        var handled = false
+        withGameAnimation { handled = model.fingerTapPile(index, assistive: assistive) }
+        if handled, let card, let home, model.tops[index] == card {
             fly(card, from: CGPoint(x: home.midX, y: home.midY), toPile: index)
         }
     }
@@ -794,6 +851,8 @@ enum SpeedHandLayout {
     static let spacing: CGFloat = 8
     /// 選択中の札を浮かせる量。
     static let selectedLift: CGFloat = -8
+    /// 指でタップした札を持ち上げる量（すぐ戻す）。
+    static let nudgeLift: CGFloat = -6
     /// 手札の札の幅の上限（iPhone の幅）。広い画面は `elementScale` 倍。
     static let maxCardWidth: CGFloat = 72
     /// 札の幅の下限（タップ標的の 44pt）。
@@ -834,6 +893,8 @@ enum SpeedTableLayout {
     static let spacing: CGFloat = 8
     /// 上下の余白（ヘッダーの余白 4 とバナーの帯の余白 8 に足す分）。
     static let verticalInset: CGFloat = 4
+    /// 手札をタップしたときの一言（「台札のほうへ払って出します」）を出しておく時間。
+    static let swipeTipDuration: Duration = .milliseconds(2500)
     /// 速さと記録の帯の高さの見積もり。
     static let statsHeight: CGFloat = 44
     /// 操作の段に取っておく高さ（ボタン 2 段: めくる・タイム）。
@@ -1037,7 +1098,7 @@ struct SpeedSetupSheet: View {
 struct SpeedRuleSheet: View {
     static var rules: [(String, String)] { [
         (tr("ゲームの流れ"), tr("トランプを赤（♥♦）と黒（♠♣）の26枚ずつに分け、あなたが赤、CPU が黒を使います。手札は4枚。真ん中の台札2山に、手札から札を重ねていきます")),
-        (tr("出し方"), tr("手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。出せない札は手札に戻ります（ペナルティはありません）。札をタップしても出せます")),
+        (tr("出し方"), tr("手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。出せない札は手札に戻ります（ペナルティはありません）")),
         (tr("出せる札"), tr("台札の数字と1つ違いの札（台札が7なら6か8）。A と K もつながります。マークは関係ありません")),
         (tr("順番はない"), tr("出せる札があればいつでも出せます。CPU も同時に出してくるので、早い者勝ちです。あなたの側に制限時間はありません")),
         (tr("補充"), tr("札を出すと、自分の山札から手札に1枚補充されます（手札はいつも4枚まで）")),

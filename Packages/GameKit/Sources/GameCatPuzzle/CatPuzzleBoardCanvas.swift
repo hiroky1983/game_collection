@@ -29,6 +29,8 @@ struct CatPuzzleBoardCanvas: View {
     /// 赤い × を揺らすきっかけ（値が変わるたびに `lastWrongCell` の × が短く揺れて点滅する。`CatPuzzleModel.mistakes`）。
     var shakeToken = 0
     var isSolved = false
+    /// 負けたあとに見せる、まだ見つけていない猫のマス（薄く・点線の枠つきで、自分で見つけた猫と区別する・#2780）。
+    var ghostCats: [Int] = []
     /// 部屋の名前の札を描くか（遊び方の小さな 3 コマの図だけ外す。札がマスからはみ出すため）。
     var showsRoomLabels = true
     let cellSide: CGFloat
@@ -71,6 +73,10 @@ struct CatPuzzleBoardCanvas: View {
             }
             // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
             CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
+            // 負けたあとの正解の猫。自分の ×・赤い × は残したまま、その上に薄く重ねる。
+            if !ghostCats.isEmpty {
+                CatPuzzleGhostLayer(puzzle: puzzle, cells: ghostCats, cellSide: cellSide)
+            }
             // 上の層: 矛盾の「！」・ヒントの印と枠（猫より前に出す）。
             Canvas { context, _ in
                 drawConflictBadges(&context)
@@ -404,6 +410,40 @@ struct CatPuzzleCatLayer: View {
     }
 }
 
+/// 負けたあとに答え合わせで出す、まだ見つけていない猫。半透明で点線の枠をつけ、自分で見つけた猫と区別する。
+/// 出入りは `cells` の増減に合わせた「ぽん」（View が間隔をあけて 1 匹ずつ足す）。
+struct CatPuzzleGhostLayer: View {
+    let puzzle: CatPuzzle
+    let cells: [Int]
+    let cellSide: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// 猫の透明度。床と自分の × が透けて見える濃さ。
+    static let catOpacity = 0.55
+
+    var body: some View {
+        let n = puzzle.side
+        let boardSide = cellSide * CGFloat(n)
+        ZStack(alignment: .topLeading) {
+            ForEach(cells, id: \.self) { cell in
+                let target = CatPuzzleBoardCanvas.catRect(cell: cell, pose: .faceNormal, solved: false, side: n, cellSide: cellSide)
+                let frame = CatPuzzleBoardCanvas.rect(of: cell, side: n, cellSide: cellSide)
+                ZStack {
+                    RoundedRectangle(cornerRadius: cellSide * 0.12, style: .continuous)
+                        .strokeBorder(Theme.coralText, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+                        .frame(width: frame.width - 6, height: frame.height - 6)
+                    CatPuzzleArt.image(.faceNormal)
+                        .opacity(Self.catOpacity)
+                        .frame(width: target.width, height: target.height)
+                }
+                .position(x: frame.midX, y: frame.midY)
+                .transition(CatPuzzleMotion.catTransition(reduceMotion: reduceMotion))
+            }
+        }
+        .frame(width: boardSide, height: boardSide)
+    }
+}
+
 /// 猫 1 匹。クリアになった瞬間、`order` の順に少し間を置いて 1 回ずつ跳ねる。
 private struct CatPuzzleCatSprite: View {
     let pose: CatPuzzleArt.Pose
@@ -440,6 +480,11 @@ enum CatPuzzleMotion {
     static let hopDown: Animation = .spring(response: 0.32, dampingFraction: 0.5)
     /// クリアで 1 匹ずつずらす間（秒）。
     static let hopStagger: Double = 0.08
+    /// 負けたあとの答え合わせで、見つけていない猫を 1 匹出す間隔と、全部を出し終えるまでの目安（匹数が多いときは間隔を詰める）。
+    static let revealStep: Duration = .milliseconds(250)
+    static let revealTotal: Duration = .milliseconds(1000)
+    /// 出し終えてから結果カードを重ねるまでの間。
+    static let revealSettle: Duration = .milliseconds(500)
     /// 赤い × が付いた瞬間に揺れる位置（マスの幅に対する割合の係数。0 で止まる）。
     static let shakePhases: [CGFloat] = [0, -1, 1, -0.6, 0.6, 0]
     /// 揺れの 1 コマ。
