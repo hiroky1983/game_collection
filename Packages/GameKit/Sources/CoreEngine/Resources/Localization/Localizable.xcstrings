@@ -471,6 +471,17 @@
         }
       }
     },
+    "新ステージ追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New stages"
+          }
+        }
+      }
+    },
     "かんたん" : {
       "extractionState" : "manual",
       "localizations" : {
