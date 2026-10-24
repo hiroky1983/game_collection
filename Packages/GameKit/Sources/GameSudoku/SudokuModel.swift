@@ -220,15 +220,15 @@ public final class SudokuModel {
     }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
-    private var currentScore: GameScore {
+    var currentScore: GameScore {
         GameScore(
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: difficulty.rawValue,
             variantLabel: difficulty.recordLabel,
-            // 広告コンティニューを使った局は順位表へ送らない（#730・`Core/GameCenter.swift` の #406 の方針）。
-            // 自己ベスト（端末内）には従来どおり残す。
-            isLeaderboardEligible: !continueUsed
+            // 広告コンティニューやヒントを使った局は順位表へ送らない（#730・#2798・`Core/GameCenter.swift` の
+            // #406 の方針。マインスイーパー・15パズルと揃える）。自己ベスト（端末内）には従来どおり残す。
+            isLeaderboardEligible: !continueUsed && hintsUsed == 0
         )
     }
 
