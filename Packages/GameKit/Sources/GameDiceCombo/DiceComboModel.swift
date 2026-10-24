@@ -90,6 +90,13 @@ public final class DiceComboModel {
     public var bonus: Int { DiceComboLogic.bonus(scores) }
     public var total: Int { DiceComboLogic.total(scores) }
 
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。保存済みの自己ベストと今の合計の大きい方。
+    /// 記録は決着時にしか書かれないので、今の合計が超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: Self.gameID)?.bestPoints ?? 0, total)
+        return best > 0 ? best : nil
+    }
+
     /// 「新しいゲーム」で失われる進行があるか（#1011）。1 回も振っていない局と決着した局は捨てて構わない。
     public var hasProgressToLose: Bool { !isFinished && (rollsUsed > 0 || !scores.isEmpty) }
 

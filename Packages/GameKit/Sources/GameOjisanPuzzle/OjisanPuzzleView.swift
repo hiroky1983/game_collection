@@ -297,6 +297,9 @@ public struct OjisanPuzzleView: View {
                     .transition(.scale.combined(with: .opacity))
             }
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)

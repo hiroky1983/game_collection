@@ -82,6 +82,9 @@ public struct DiceComboView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tr("%1$lldターン目、全%2$lldターン", model.turn, DiceComboCategory.allCases.count))
             Spacer()
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             VStack(alignment: .trailing, spacing: 2) {
                 Text(tr("合計"))
                     .scaledFont(12, weight: .bold, design: .rounded)

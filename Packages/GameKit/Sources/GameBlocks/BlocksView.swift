@@ -137,6 +137,9 @@ public struct BlocksView: View {
                     .contentTransition(.numericText())
             }
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             VStack(alignment: .trailing, spacing: 4) {
                 Text(tr("ステージ %1$lld / %2$lld", model.stageNumber, BlocksRules.stageCount))
                     .themeCaption(12)

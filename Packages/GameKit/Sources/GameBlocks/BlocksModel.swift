@@ -18,6 +18,12 @@ public final class BlocksModel {
 
     public private(set) var field: BlocksField
     public private(set) var score: Int
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。保存済みの自己ベストと今の得点の大きい方。
+    /// 記録は決着時にしか書かれないので、今の得点が超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: Self.gameID)?.bestPoints ?? 0, score)
+        return best > 0 ? best : nil
+    }
     /// このステージを始めた時点の得点（#1622）。
     ///
     /// 復元・コンティニューはブロックが全部戻るステージ頭から再開するので、保存する得点も
