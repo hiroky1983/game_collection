@@ -468,10 +468,11 @@ public struct HanafudaView: View {
     private var roundResultCard: some View {
         VStack(spacing: 6) {
             if let result = model.roundResult {
-                Text(roundResultTitle(result.winner))
-                    .themeBody(18, weight: .heavy)
-                    .fitOneLine()
-                    .foregroundStyle(result.winner == .human ? Theme.tealText : Theme.ink)
+                HanafudaRoundTitle(
+                    text: roundResultTitle(result.winner),
+                    color: result.winner == .human ? Theme.tealText : Theme.ink,
+                    isBig: result.isBigHumanWin
+                )
                 if !result.hits.isEmpty {
                     Text(result.hits.map { tr("%@ %lld文", $0.name, $0.points) }.joined(separator: tr("・")))
                         .themeCaption(13, weight: .semibold, maxScale: 1.5)
@@ -706,5 +707,28 @@ private extension View {
     /// 文字サイズ設定で拡大しても、帯・見出しを折り返さず 1 行に縮めて収める（#1469）。
     func fitOneLine() -> some View {
         lineLimit(1).minimumScaleFactor(0.5)
+    }
+}
+
+
+/// 局結果の見出し。大きなあがり（#2804）のときだけ一回り大きくし、出た瞬間に弾ませる。
+/// Reduce Motion のときは弾ませず、大きさだけで強調する。
+private struct HanafudaRoundTitle: View {
+    let text: String
+    let color: Color
+    let isBig: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var popped = false
+
+    var body: some View {
+        Text(text)
+            .themeBody(isBig ? 26 : 18, weight: .heavy)
+            .fitOneLine()
+            .foregroundStyle(color)
+            .scaleEffect(isBig && !reduceMotion && !popped ? 0.6 : 1)
+            .onAppear {
+                guard isBig, !reduceMotion else { return }
+                withGameAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { popped = true }
+            }
     }
 }

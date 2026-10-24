@@ -67,6 +67,12 @@ public struct HanafudaRoundResult: Equatable, Sendable, Codable {
     /// 倍率の内訳（「7文以上で2倍」など）。
     public let reasons: [String]
 
+    /// 大きなあがりとして祝う文数（#2804）。五光（10 文）・四光（8 文）・猪鹿蝶（5 文＋α）の手を、カス（1 文）と見分ける。
+    public static let bigScoreThreshold = 6
+
+    /// 自分が大きくあがったか。見出しの拡大と強い触覚・効果音の条件。CPU のあがりでは祝わない。
+    public var isBigHumanWin: Bool { winner == .human && score >= Self.bigScoreThreshold }
+
     public init(
         winner: HanafudaPlayer?, hits: [HanafudaYakuHit],
         basePoints: Int, score: Int, reasons: [String]
@@ -573,7 +579,8 @@ public final class HanafudaModel: AITurnGuarded {
             ? tr("あなたのあがり！ %lld文", score)
             : tr("CPUのあがり！ %lld文", score)
         phase = .roundResult
-        services?.feedback.notify(winner == .human ? .success : .error)
+        let big = roundResult?.isBigHumanWin == true
+        services?.feedback.notify(big ? .milestone : (winner == .human ? .success : .error))
         save()
     }
 

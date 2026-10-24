@@ -277,3 +277,19 @@ struct HanafudaModuleTests {
         #expect(related?.contains(HanafudaModel.gameID) == false)
     }
 }
+
+@Suite("大きなあがりの判定（#2804）")
+struct HanafudaBigWinTests {
+    private func result(_ winner: HanafudaPlayer?, score: Int) -> HanafudaRoundResult {
+        HanafudaRoundResult(winner: winner, hits: [], basePoints: score, score: score, reasons: [])
+    }
+
+    @Test("自分が 6 文以上であがったときだけ大きなあがり")
+    func threshold() {
+        #expect(result(.human, score: 6).isBigHumanWin)
+        #expect(result(.human, score: 10).isBigHumanWin)
+        #expect(!result(.human, score: 5).isBigHumanWin)
+        #expect(!result(.cpu, score: 10).isBigHumanWin, "CPU のあがりは祝わない")
+        #expect(!HanafudaRoundResult.drawn.isBigHumanWin)
+    }
+}
