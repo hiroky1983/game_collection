@@ -312,6 +312,13 @@ struct DiceComboScoreRow: View {
                 .fill(background)
         )
         .contentShape(Rectangle())
+        .scaleEffect(isCelebrated ? 1.08 : 1)
+        .gameAnimation(.spring(response: 0.3, dampingFraction: 0.45), value: isCelebrated)
+    }
+
+    /// 大きな役を入れた直後（#2804）。この行だけ一回り大きくして強調する。
+    private var isCelebrated: Bool {
+        isJustFilled && (scored ?? 0) >= DiceComboModel.bigScoreThreshold
     }
 
     @ViewBuilder
@@ -332,6 +339,7 @@ struct DiceComboScoreRow: View {
     }
 
     private var background: Color {
+        if isCelebrated { return Theme.yellow.opacity(0.7) }
         if isJustFilled { return Theme.yellow.opacity(0.35) }
         if scored != nil { return Theme.inkSub.opacity(0.12) }
         if let preview, preview > 0 { return Theme.coral.opacity(0.12) }

@@ -245,4 +245,27 @@ struct DiceComboModelTests {
             #expect(a.dice == b.dice)
         }
     }
+
+    @Test("25 点以上の役を入れたときだけ強い触覚（milestone）、それ未満は軽い触覚のまま（#2804）")
+    func bigScoreCelebratesOnlyAtThreshold() {
+        var big = false, small = false
+        for seed in UInt64(1)...300 where !(big && small) {
+            let feedback = SpyFeedbackService()
+            let model = DiceComboModel(services: makeServices(feedback: feedback), seed: seed)
+            model.roll()
+            let points = model.preview(.choice) ?? 0
+            feedback.reset()
+            model.choose(.choice)
+            if points >= DiceComboModel.bigScoreThreshold {
+                big = true
+                #expect(feedback.notices(of: .milestone) == 1)
+                #expect(feedback.impacts.isEmpty)
+            } else {
+                small = true
+                #expect(feedback.notices(of: .milestone) == 0)
+                #expect(feedback.impacts == [.light])
+            }
+        }
+        #expect(big && small, "両方の出目が探索範囲に出る")
+    }
 }

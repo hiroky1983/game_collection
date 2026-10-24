@@ -10,6 +10,10 @@ import Observation
 public final class DiceComboModel {
     public static let gameID = "dicecombo"
 
+    /// 大きな役として祝う点（#2804）。ファイブダイス（50）・ビッグストレート（30）・スモールストレート（25）。
+    /// 通常の役（フルハウスの合計・チョイスなど）では超えにくい線に置く。
+    public static let bigScoreThreshold = 25
+
     /// いまの出目。このターンでまだ振っていなければ空。
     public private(set) var dice: [Int] = []
     /// 各サイコロをキープしているか（`dice` と同じ並び）。
@@ -150,15 +154,17 @@ public final class DiceComboModel {
             services?.feedback.notify(.warning)
             return
         }
-        scores[category] = DiceComboLogic.score(category, dice: dice)
+        let points = DiceComboLogic.score(category, dice: dice)
+        scores[category] = points
         lastFilled = category
+        if points >= Self.bigScoreThreshold { services?.feedback.notify(.milestone) }
         dice = []
         held = []
         rollsUsed = 0
         if DiceComboLogic.isComplete(scores) {
             finish()
         } else {
-            services?.feedback.impact(.light)
+            if points < Self.bigScoreThreshold { services?.feedback.impact(.light) }
             persist()
         }
     }
