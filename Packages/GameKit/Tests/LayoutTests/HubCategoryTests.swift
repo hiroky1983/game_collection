@@ -181,6 +181,20 @@ struct HubCategoryTests {
         #expect(source.contains(#"if isEvent { parts.append(tr("イベント開催中")) }"#), "読み上げに無い")
     }
 
+    @Test("一度も遊んでいないゲームのタイルに「未プレイ」を出し、NEW・イベント・続きからのどれも無いときだけ・読み上げにも載せる（#2849）")
+    func unplayedBadge() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false"))
+        #expect(source.contains("isUnplayed: isUnplayed,"))
+        let start = try #require(source.range(of: "private var badge: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badge = String(source[start.lowerBound..<end.upperBound])
+        let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
+        let unplayed = try #require(badge.range(of: #"badgeCapsule(tr("未プレイ"))"#))
+        #expect(resume.lowerBound < unplayed.lowerBound, "未プレイは最も優先度が低い")
+        #expect(source.contains(#"if isUnplayed { parts.append(tr("未プレイ")) }"#), "読み上げに無い")
+    }
+
     @Test("柵越えおじさんのタイルは「残り n 回」の印を「イベント開催中」と両方出し、狭ければ 2 段・読み上げにも載せる（#2572）")
     func homerunCountBadge() throws {
         let source = try SourceScan.appSources()

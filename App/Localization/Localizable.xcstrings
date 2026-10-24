@@ -628,6 +628,17 @@
         }
       }
     },
+    "未プレイ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not played"
+          }
+        }
+      }
+    },
     "新着" : {
       "extractionState" : "manual",
       "localizations" : {
