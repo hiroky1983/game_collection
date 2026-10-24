@@ -52,6 +52,12 @@ public final class FruitsModel {
     public private(set) var field: FruitField
     public private(set) var score: Int
     public private(set) var phase: FruitsPhase
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。保存済みの自己ベストと今の得点の大きい方。
+    /// 記録は決着時にしか書かれないので、今の得点が超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: Self.gameID)?.bestPoints ?? 0, score)
+        return best > 0 ? best : nil
+    }
     /// 手に持っている果物。落とした直後、次が現れるまでは nil。
     public private(set) var heldKind: FruitKind?
     /// 「つぎ」に出す果物。手の果物を落とすと、間を置いてこれが手に来る。
@@ -170,7 +176,12 @@ public final class FruitsModel {
 
     /// 手の果物を落とす。
     public func drop() {
-        guard phase == .playing, let kind = heldKind else { return }
+        guard phase == .playing else { return }
+        guard let kind = heldKind else {
+            // 落とした直後の待ち時間。手に何も無いことを無音で無視せず、警告の手応えで伝える。
+            services?.feedback.notify(.warning)
+            return
+        }
         field.drop(kind)
         fruitCount = field.count
         heldKind = nil

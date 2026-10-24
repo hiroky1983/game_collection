@@ -111,6 +111,9 @@ public struct FruitsView: View {
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             HStack(spacing: 8) {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(tr("つぎ"))
@@ -252,7 +255,7 @@ struct FruitsRuleSheet: View {
             (tr("得点"), tr("%1$@。金の松どうしがくっつくと 2 つとも消えて %2$lld 点。",
                           FruitKind.allCases.dropFirst().map { "\($0.name) \($0.points)" }.joined(separator: tr("・")),
                           FruitKind.kinmatsuVanishPoints)),
-            (tr("ゲームオーバー"), tr("上の点線より上に盆栽が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
+            (tr("ゲームオーバー"), tr("上の点線より上に盆栽が 3 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
             (tr("コンティニュー"), tr("ゲームオーバー後に広告を見ると、1 回だけ小さい盆栽（%@）と線より上の盆栽を片づけて続けられます。スコアはそのままです。",
                                  FruitKind.allCases.prefix(FruitField.Metrics.continueRemovedKinds).map(\.name).joined(separator: tr("・")))),
         ])

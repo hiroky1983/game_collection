@@ -42,4 +42,11 @@ struct Game2048LiveBestTests {
         let high = Game2048Model(services: services, board: board, score: 5200)
         #expect(high.liveBestScore == 5200)
     }
+
+    @Test("今回の最高タイルは盤の最大値（#2812）")
+    func highestTileIsBoardMax() {
+        let model = Game2048Model(services: makeServices(suite: "tile", savedBest: nil),
+                                  board: [[2, 512, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], score: 0)
+        #expect(model.highestTile == 512)
+    }
 }

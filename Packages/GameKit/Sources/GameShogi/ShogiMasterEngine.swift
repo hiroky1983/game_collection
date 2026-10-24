@@ -25,8 +25,8 @@ public struct ShogiMasterEngine: ShogiEngine {
     public static let level = 3
 
     /// 段の番号に対応するエンジン。達人の番号だけこちら、ほかは今の `SimpleMinimaxEngine`（設定は変えない）。
-    public static func engine(level: Int) -> any ShogiEngine {
-        level == Self.level ? ShogiMasterEngine() : SimpleMinimaxEngine(level: level)
+    public static func engine(level: Int, seed: UInt64? = nil) -> any ShogiEngine {
+        level == Self.level ? ShogiMasterEngine() : SimpleMinimaxEngine(level: level, seed: seed)
     }
 
     /// 1 手の考える時間の上限（秒・実時間）。禁止事項「1 手 3 秒を超えない」に余裕を残した値。

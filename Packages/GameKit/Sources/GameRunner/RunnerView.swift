@@ -824,7 +824,7 @@ public struct RunnerView: View {
         switch cause {
         case .pit: return tr("穴に落ちた")
         case .rock: return tr("岩にぶつかった")
-        case .bird: return tr("鳥にぶつかった")
+        case .bird: return tr("鳥にぶつかった。跳ばずに走って下を抜けよう")
         case .animal: return tr("動物にぶつかった")
         case .sink: return tr("沈んでしまった")
         }

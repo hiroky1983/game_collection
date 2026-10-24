@@ -1,6 +1,12 @@
 import SwiftUI
 import Core
 
+/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
+private struct PausableTurn: Equatable {
+    let key: AITurnKey
+    let paused: Bool
+}
+
 /// チェスの対局画面（CPU 対戦）。人間の手番側を常に手前に表示する。
 public struct ChessView: View {
     @State private var model: ChessGameModel
@@ -20,6 +26,8 @@ public struct ChessView: View {
     /// 駒の意匠（#598）。見た目だけの設定なので局には焼き込まず、保存値をここで持って
     /// 盤・取られた駒・成りの札・遊び方の一覧へ配る。
     @State private var pieceStyle: ChessPieceStyle
+    /// 「？」（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の思考を止める（#2827）。
+    @State private var isHowToPlayOpen = false
 
     public init(services: GameServices) {
         self.services = services
@@ -60,14 +68,10 @@ public struct ChessView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("チェス"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.phase == .playing && !model.moves.isEmpty {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
-        .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)) {
+                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
+        .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items).onboarding(ChessOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) {
             ChessRuleDetail(style: pieceStyle)
         }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
@@ -92,7 +96,10 @@ public struct ChessView: View {
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }
-        .task(id: model.aiTurnKey) {
+        // 「？」と新規対局シート（図で見る遊び方の入口がある）を開いているあいだは読ませない。
+        // 閉じたら鍵（paused）が変わって再起動し、止めていた思考をやり直す。
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（とチェック）を読み上げる（#2280）。
@@ -433,6 +440,7 @@ public struct ChessView: View {
                 verdict: verdict,
                 reason: result.reasonText,
                 decisiveMove: model.decisiveMoveText,
+                details: [tr("%lld手", model.moves.count)],
                 record: model.recordResult
             ) { resultCardClosed = true }
         }
@@ -464,6 +472,20 @@ public struct ChessView: View {
                 Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.phase == .playing && !model.moves.isEmpty {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 自分の色。
+    private var conditionParts: [String] {
+        [CPUStrength.strength(for: model.aiLevel).label, model.humanSide == .white ? tr("白") : tr("黒")]
     }
 
     // MARK: - 盤の下の操作エリア
@@ -593,6 +615,7 @@ struct ChessNewGameSheet: View {
         // （`GameSetupSheet` の注記。取り違えると開始ボタンがはみ出して押せなくなる）。
         GameSetupSheet(
             kind: .versus,
+            onboarding: ChessOnboarding.guide,
             onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あなたの手番")) {

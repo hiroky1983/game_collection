@@ -12,6 +12,17 @@
         }
       }
     },
+    "決め手 %1$lld行%2$lld列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning move: row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
     "%@は打てません（禁じ手）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -614,6 +625,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "When on, the first tap previews a stone and tapping the same point again places it"
+          }
+        }
+      }
+    },
+    "禁じ手あり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renju rules"
           }
         }
       }

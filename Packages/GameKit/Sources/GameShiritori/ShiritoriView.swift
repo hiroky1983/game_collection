@@ -49,14 +49,8 @@ public struct ShiritoriView: View {
         .padding(Theme.pad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: tr("カードしりとり"), review: services.review,
-                    newGame: GameChromeNewGame(.solo) {
-                        model.pause()
-                        if model.hasProgressToLose {
-                            showConfirmNewGame = true
-                        } else {
-                            showSetup = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    newGame: GameChromeNewGame(.solo) { requestNewGame() })
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { showSetup = true }
@@ -138,6 +132,21 @@ public struct ShiritoriView: View {
                 model.tick(min(elapsed, 0.5))
             }
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        model.pause()
+        if model.hasProgressToLose {
+            showConfirmNewGame = true
+        } else {
+            showSetup = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。遊び方（ノルマ / とことん）→ ノルマのときだけ難易度。
+    private var conditionParts: [String] {
+        model.mode == .quota ? [model.mode.label, model.quota.label] : [model.mode.label]
     }
 
     // MARK: - ステータス

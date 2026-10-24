@@ -67,6 +67,12 @@ public struct HanafudaRoundResult: Equatable, Sendable, Codable {
     /// 倍率の内訳（「7文以上で2倍」など）。
     public let reasons: [String]
 
+    /// 大きなあがりとして祝う文数（#2804）。五光（10 文）・四光（8 文）・猪鹿蝶（5 文＋α）の手を、カス（1 文）と見分ける。
+    public static let bigScoreThreshold = 6
+
+    /// 自分が大きくあがったか。見出しの拡大と強い触覚・効果音の条件。CPU のあがりでは祝わない。
+    public var isBigHumanWin: Bool { winner == .human && score >= Self.bigScoreThreshold }
+
     public init(
         winner: HanafudaPlayer?, hits: [HanafudaYakuHit],
         basePoints: Int, score: Int, reasons: [String]
@@ -109,6 +115,8 @@ struct HanafudaSnapshot: Codable {
     /// この試合で広告の延長（#1049）を使ったか。旧データには無いので optional（nil = 未使用）。
     /// 持ち回らないと、延長戦の途中で中断 → 再開したときに延長の権利が戻る。
     var hasExtendedMatch: Bool? = nil
+    /// 終わった局までの、試合累計のこいこい宣言回数 [人間, CPU]（#2803）。旧データには無いので optional（nil = 0 回）。
+    var bankedKoiKoiCounts: [Int]? = nil
 }
 
 // MARK: - Model
@@ -141,6 +149,12 @@ public final class HanafudaModel: AITurnGuarded {
     /// こいこいの宣言回数（こいこい返しの判定に使う）。
     public private(set) var humanKoiKoiCount = 0
     public private(set) var cpuKoiKoiCount = 0
+    /// 終わった局までの試合累計こいこい宣言回数（局ごとに戻る `*KoiKoiCount` とは別。#2803）。
+    private var bankedHumanKoiKoi = 0
+    private var bankedCPUKoiKoi = 0
+    /// この試合のこいこい宣言回数（試合結果カード用）。
+    public var humanMatchKoiKoiCount: Int { bankedHumanKoiKoi + humanKoiKoiCount }
+    public var cpuMatchKoiKoiCount: Int { bankedCPUKoiKoi + cpuKoiKoiCount }
     /// 試合の累計文数。
     public private(set) var humanTotal = 0
     public private(set) var cpuTotal = 0
@@ -256,6 +270,9 @@ public final class HanafudaModel: AITurnGuarded {
         cpuClaimed = snap.claimed[1]
         humanKoiKoiCount = snap.koiKoiCounts[0]
         cpuKoiKoiCount = snap.koiKoiCounts[1]
+        let banked = snap.bankedKoiKoiCounts ?? []
+        bankedHumanKoiKoi = banked.count == 2 ? max(banked[0], 0) : 0
+        bankedCPUKoiKoi = banked.count == 2 ? max(banked[1], 0) : 0
         humanTotal = snap.totals[0]
         cpuTotal = snap.totals[1]
         phase = snap.phase
@@ -277,7 +294,8 @@ public final class HanafudaModel: AITurnGuarded {
             totals: [humanTotal, cpuTotal],
             phase: phase, selection: selection, drawnCard: drawnCard,
             roundResult: roundResult, message: message,
-            hasExtendedMatch: hasExtendedMatch
+            hasExtendedMatch: hasExtendedMatch,
+            bankedKoiKoiCounts: [bankedHumanKoiKoi, bankedCPUKoiKoi]
         )
         try? services?.snapshots.save(snap, for: Self.gameID)
     }
@@ -289,12 +307,21 @@ public final class HanafudaModel: AITurnGuarded {
         self.options = options
         humanTotal = 0
         cpuTotal = 0
+        resetMatchKoiKoi()
         hasExtendedMatch = false
         // 親決め。実物は札を引き合うが、結果は五分なのでそのまま乱数で決める。
         dealer = (rng.next() % 2 == 0) ? .human : .cpu
         round = 0
         services?.gameDidStart(gameID: Self.gameID, level: options.difficulty.analyticsLevel)
         startRound()
+    }
+
+    /// 新しい試合の頭で、こいこいの累計を 0 に戻す。
+    private func resetMatchKoiKoi() {
+        bankedHumanKoiKoi = 0
+        bankedCPUKoiKoi = 0
+        humanKoiKoiCount = 0
+        cpuKoiKoiCount = 0
     }
 
     /// 次の局を配る。
@@ -316,6 +343,9 @@ public final class HanafudaModel: AITurnGuarded {
         cpuCaptured = []
         humanClaimed = 0
         cpuClaimed = 0
+        // 前の局のこいこいを試合累計へ繰り入れてから戻す。
+        bankedHumanKoiKoi += humanKoiKoiCount
+        bankedCPUKoiKoi += cpuKoiKoiCount
         humanKoiKoiCount = 0
         cpuKoiKoiCount = 0
         selection = nil
@@ -549,7 +579,8 @@ public final class HanafudaModel: AITurnGuarded {
             ? tr("あなたのあがり！ %lld文", score)
             : tr("CPUのあがり！ %lld文", score)
         phase = .roundResult
-        services?.feedback.notify(winner == .human ? .success : .error)
+        let big = roundResult?.isBigHumanWin == true
+        services?.feedback.notify(big ? .milestone : (winner == .human ? .success : .error))
         save()
     }
 
@@ -635,6 +666,7 @@ public final class HanafudaModel: AITurnGuarded {
         let options = self.options
         humanTotal = 0
         cpuTotal = 0
+        resetMatchKoiKoi()
         // 新しい試合なので延長の権利も戻る（#1049）。
         hasExtendedMatch = false
         wasResigned = false

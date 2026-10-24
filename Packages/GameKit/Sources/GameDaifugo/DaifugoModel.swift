@@ -60,6 +60,16 @@ struct DaifugoSnapshot: Codable {
     /// CPU の強さ（`CPUStrength.rawValue`・#2604）。**旧バージョンの保存データには存在しない**ため optional
     /// （欠けていたら「ふつう」＝それまでの挙動で再開する）。1 局 = 1 RuleSet なので再開で変わらない。
     var aiLevel: Int? = nil
+
+    /// 人間がこの局で一度でも動いた（札を出した・パスした・投了した）か（#2774）。
+    ///
+    /// 親が CPU の局は CPU の 1 枚目で中断データが保存されるが、人間は何もしていないので「続き」ではない。
+    /// 人間の動きは `lastActions[humanIndex]` に必ず残る（局が変わるまで消えない）ので、それを見る。
+    /// 旧データ（`lastActions` が無い・壊れている）は判定できないため、従来どおり「動いた」側に倒す。
+    static func humanHasActed(lastActions: [String]?) -> Bool {
+        guard let actions = lastActions, actions.count == DaifugoModel.playerCount else { return true }
+        return !actions[DaifugoModel.humanIndex].isEmpty
+    }
 }
 
 // MARK: - CarryOver
@@ -97,9 +107,9 @@ struct DaifugoPreferences: Codable {
 @Observable
 public final class DaifugoModel: AITurnGuarded {
     /// 人間プレイヤーの番号。
-    public static let humanIndex = 0
+    public nonisolated static let humanIndex = 0
     /// 参加人数（人間1 + CPU3）。
-    public static let playerCount = 4
+    public nonisolated static let playerCount = 4
     /// 山札の枚数（52 + ジョーカー2）。「配ったばかりか」の判定に使う（#240）。
     /// 定数で持たず `makeDeck()` から導くので、山札の構成を変えても取り違えない。
     private static let deckCount = DaifugoCard.makeDeck().count
@@ -605,8 +615,8 @@ public final class DaifugoModel: AITurnGuarded {
     private func play(_ cards: [DaifugoCard], by player: Int) {
         let ids = Set(cards.map(\.id))
         hands[player] = hands[player].filter { !ids.contains($0.id) }
-        // 札が出た = 捨てたら途中離脱として数える局面（#500。`isUntouchedDeal` の否定と同じ境目）。
-        services?.gameDidProgress(gameID: gameID)
+        // 人間が札を出した = 捨てたら途中離脱として数える局面（#500）。CPU が親で先に出しただけでは数えない（#2774）。
+        if player == Self.humanIndex { services?.gameDidProgress(gameID: gameID) }
 
         var note = cards.map(\.rankLabel).joined(separator: " ")
         var events: [DaifugoRuleEvent] = []
@@ -668,6 +678,7 @@ public final class DaifugoModel: AITurnGuarded {
 
     private func passTurn(by player: Int) {
         passedPlayers.insert(player)
+        if player == Self.humanIndex { services?.gameDidProgress(gameID: gameID) }
         lastActions[player] = "パス"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         advanceTurn(from: player)
         persist()

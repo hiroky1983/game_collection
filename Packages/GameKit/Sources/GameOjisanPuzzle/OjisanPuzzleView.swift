@@ -16,6 +16,12 @@ public struct OjisanPuzzleView: View {
     @State private var appliedRows = 0
     /// いま触っているドラッグが受け持つ向き。決まったら指を離すまで変えない（下へ払うときの横流れを拾わない・#2063）。
     @State private var dragAxis: OjisanPuzzleDrag.Axis?
+    /// いま触っているドラッグが始まった時刻。下へ払う速さを測る（#2810）。
+    @State private var dragStartedAt: Date?
+    /// このドラッグですでに一気に落としたか。落としたあとの指の動きは、次に出る組へ流さない。
+    @State private var didHardDrop = false
+    /// 「速く下に払うと一気に落とせる」の初回案内を出すか（#2810）。更新後に初めてこのゲームを開いたとき 1 回だけ。
+    @State private var showFlickGuide: Bool
     /// 遊び方を選ぶ開始シート（#1920）。開いた直後は出しておき、選んでから始める。
     @State private var showSetup = true
     /// シートで選んでいる遊び方。最初は荷運びモード。
@@ -36,8 +42,16 @@ public struct OjisanPuzzleView: View {
     /// 盤の内側の余白。
     private static let boardInset: CGFloat = 6
 
+    /// 一気落としの案内の「見た」印。ゲーム ID のミニガイドとは別のキー（更新前から遊んでいる人にも出すため）。
+    static let flickGuideKey = "ojisan_puzzle.hardDrop"
+
     public init(services: GameServices) {
         self.services = services
+        // 撮影モードでは出さず、印も消費しない（ストア用スクショへの写り込み防止。ランナーの導入と同じ作法）。
+        let isScreenshot = ProcessInfo.processInfo.arguments.contains("-screenshotMode")
+        _showFlickGuide = State(
+            initialValue: !isScreenshot && (services.playLog?.markGuideShown(for: Self.flickGuideKey) ?? false)
+        )
         #if DEBUG
         // 動作確認用: 腰痛ゲージを最初から高くして始める（`-simulateOjisanPain 85`）。
         // 高いゲージの手触り（落下が速い・操作が遅れる）と顔は、実際に十数個積まないと出せないため。
@@ -174,7 +188,7 @@ public struct OjisanPuzzleView: View {
                 boardView
                 sidePanel
             }
-            controlHint
+            if showFlickGuide { flickGuide } else { controlHint }
             // 終局したら次に遊ぶゲームを勧める枠（#52・#722）。全ゲーム共通の部品をそのまま置く。
             // 一時停止ボタンは、高さが常に確保されているこの枠の右端に相乗りさせる（ブロック崩しと同じ位置・盤を削らない・#2135）。
             HStack(alignment: .center, spacing: 12) {
@@ -297,6 +311,9 @@ public struct OjisanPuzzleView: View {
                     .transition(.scale.combined(with: .opacity))
             }
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -643,6 +660,7 @@ public struct OjisanPuzzleView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 guard model.outcome == nil, !showSetup, !model.isUserPaused else { return }
+                if dragStartedAt == nil { dragStartedAt = value.time }
                 if dragAxis == nil { dragAxis = OjisanPuzzleDrag.axis(for: value.translation) }
                 switch dragAxis {
                 case .horizontal:
@@ -650,6 +668,17 @@ public struct OjisanPuzzleView: View {
                     while appliedColumns < columns { appliedColumns += 1; model.move(by: 1) }
                     while appliedColumns > columns { appliedColumns -= 1; model.move(by: -1) }
                 case .vertical:
+                    // 速く払ったら 1 回だけ一気に落とす（#2810）。以降はこの指の動きを捨てる。
+                    guard !didHardDrop else { break }
+                    if let startedAt = dragStartedAt,
+                       OjisanPuzzleDrag.isFlickDown(distance: value.translation.height,
+                                                    elapsed: value.time.timeIntervalSince(startedAt)),
+                       model.current != nil {
+                        didHardDrop = true
+                        showFlickGuide = false
+                        model.hardDrop()
+                        break
+                    }
                     // 下方向だけ拾う（上スワイプには何も割り当てない）。
                     let rows = OjisanPuzzleDrag.downSteps(value.translation.height, step: step)
                     while appliedRows < rows { appliedRows += 1; model.softDrop() }
@@ -668,6 +697,8 @@ public struct OjisanPuzzleView: View {
                 appliedColumns = 0
                 appliedRows = 0
                 dragAxis = nil
+                dragStartedAt = nil
+                didHardDrop = false
             }
     }
 
@@ -728,6 +759,21 @@ public struct OjisanPuzzleView: View {
         .foregroundStyle(Theme.inkSub)
     }
 
+    /// 初回だけ、操作のヒント行の代わりに出す案内（共通の `HowToPlayHint` を流用・#2810）。
+    private var flickGuide: some View {
+        HowToPlayHint(
+            HowToPlayGuide(
+                gameID: OjisanPuzzleModel.gameID, title: "", lines: [],
+                hint: tr("速く下に払うと一気に落とせるようになりました"),
+                hintIcon: "arrow.down.to.line"
+            ),
+            isVisible: true
+        )
+        .lineLimit(2).minimumScaleFactor(0.8)
+        .multilineTextAlignment(.center)
+        .frame(minHeight: 18)
+    }
+
     private func hintItem(_ title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .labelStyle(.titleAndIcon)
@@ -777,6 +823,11 @@ public struct OjisanPuzzleView: View {
             Text(tr("スコア %@", model.score.formatted()))
                 .scaledFont(18, weight: .bold, design: .rounded, maxScale: 1.4).monospacedDigit()
                 .foregroundStyle(Theme.ink)
+            if model.maxChain >= 2 {
+                Text(tr("最大 %lld連鎖", model.maxChain))
+                    .scaledFont(16, weight: .bold, design: .rounded, maxScale: 1.4)
+                    .foregroundStyle(Theme.coralText)
+            }
             // 自己ベストの 1 行（他ゲームのリザルトと同じ共通部品・#1904）。
             RecordLabel(model.recordResult)
             if model.canContinue { continueButton }

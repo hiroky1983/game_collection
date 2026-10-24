@@ -431,7 +431,7 @@ struct MahjongHanafudaHowToFiguresTests {
             ("GameMahjong/MahjongView.swift", ".howToPlay(model.gameLength.howToPlayGuide)", "mahjong"),
             ("GameMahjong/MahjongStartSheet.swift", "length.setupKeyItems", "mahjong の開始シート"),
             ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items))", "mahjongSolitaire"),
-            ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items))", "hanafuda"),
+            ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)", "hanafuda"),  // 後ろに .onboarding(...)（#2827）が続く
         ]
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))

@@ -29,4 +29,11 @@ struct OjisanPuzzleLocalizationTests {
         #expect(GameOjisanPuzzle.tr("スイカ", language: .english) == "Watermelon")
         #expect(OjisanPuzzleLuggage.all.map(\.name) == ["座布団の山", "スイカ", "クーラーボックス", "灯油のポリタンク", "ビールケース"])
     }
+
+    @Test("最大連鎖と一気落としの案内に英語の訳がある（#2810）")
+    func maxChainAndFlickGuide() {
+        #expect(GameOjisanPuzzle.tr("最大 %lld連鎖", 3, language: .english) == "Best chain: 3")
+        #expect(GameOjisanPuzzle.tr("速く下に払うと一気に落とせるようになりました", language: .english)
+                == "Flick down fast to drop it all at once")
+    }
 }

@@ -37,7 +37,7 @@ public struct ColorRelayView: View {
             }
             HowToPlayHint(.colorRelay, playLog: services.playLog)
             actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
+            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
         }
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -98,6 +98,15 @@ public struct ColorRelayView: View {
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722・#2806）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            startNewGame(aiLevel: CPUStrength.level(atLadderIndex: index))
         }
     }
 
@@ -293,7 +302,7 @@ public struct ColorRelayView: View {
         let playable = model.playableCardIDs
         return VStack(alignment: .leading, spacing: 4) {
             youPill
-            handStrip(handHint)
+            handStrip(handHint, playable: playable)
             hintLine(handHint, playable: playable)
         }
     }
@@ -305,8 +314,16 @@ public struct ColorRelayView: View {
         return HStack(spacing: 6) {
             Text(isTurn ? tr("あなたの番") : tr("あなた"))
                 .scaledFont(12, weight: .black, design: .rounded)
+            // 残り 1 枚は相手の席（`OpponentSeat`）と同じ黄色の札で目立たせる（#2805）。自分の番の黄色い見出しの上でも
+            // 埋もれないよう、墨の細い縁を付ける。
+            let isLast = model.playerHand.count == 1
             Text(tr("残り%lld枚", model.playerHand.count))
-                .scaledFont(11, weight: .bold, design: .rounded)
+                .scaledFont(11, weight: isLast ? .black : .bold, design: .rounded)
+                .foregroundStyle(isLast ? Theme.onAccent : (isTurn ? Theme.onAccent : Theme.ink))
+                .padding(.horizontal, isLast ? 8 : 0)
+                .padding(.vertical, isLast ? 2 : 0)
+                .background(Capsule().fill(isLast ? Theme.Fill.yellow : Color.clear))
+                .overlay(Capsule().strokeBorder(Theme.onAccent.opacity(isLast && isTurn ? 0.6 : 0), lineWidth: 1))
             if !action.isEmpty {
                 Text(action)
                     .scaledFont(11, weight: .bold, design: .rounded)
@@ -322,7 +339,7 @@ public struct ColorRelayView: View {
     }
 
     /// 手札をまっすぐ重ねて大きく並べる。1 枚あたりの見える幅は 44pt 以上に保ち、収まらない枚数は横にスクロールする。
-    private func handStrip(_ handHint: RelayHandHint?) -> some View {
+    private func handStrip(_ handHint: RelayHandHint?, playable: Set<Int>) -> some View {
         let m = metrics
         let cardHeight = ColorRelayCardSize(width: m.handCardWidth).height
         return GeometryReader { proxy in
@@ -338,7 +355,7 @@ public struct ColorRelayView: View {
                 // 見えている帯（exposure）が、その札のタップ判定になる。
                 HStack(alignment: .top, spacing: exposure - m.handCardWidth) {
                     ForEach(model.playerHand) { card in
-                        handCard(card, hint: handHint?.state(for: card.id) ?? .none, width: m.handCardWidth)
+                        handCard(card, hint: handHint?.state(for: card.id) ?? .none, glows: playable.contains(card.id), width: m.handCardWidth)
                     }
                 }
                 .padding(.top, ColorRelayHandLayout.lift)
@@ -351,9 +368,9 @@ public struct ColorRelayView: View {
         .frame(height: cardHeight + ColorRelayHandLayout.lift)
     }
 
-    private func handCard(_ card: RelayCard, hint: RelayCardHint, width: CGFloat) -> some View {
+    private func handCard(_ card: RelayCard, hint: RelayCardHint, glows: Bool, width: CGFloat) -> some View {
         let isSelected = model.selectedID == card.id
-        return ColorRelayCardView(card: card, width: width, selected: isSelected, hint: hint)
+        return ColorRelayCardView(card: card, width: width, selected: isSelected, hint: hint, glows: glows)
             .offset(y: isSelected ? -ColorRelayHandLayout.lift : 0)
             .gameAnimation(.spring(response: 0.2), value: isSelected)
             .contentShape(Rectangle())

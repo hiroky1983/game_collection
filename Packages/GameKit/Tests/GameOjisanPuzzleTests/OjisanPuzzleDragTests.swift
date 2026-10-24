@@ -114,4 +114,14 @@ struct OjisanPuzzleDragTests {
         // 向きを決めない従来の拾い方だと、同じ軌跡で 1 マス横へずれていた。
         #expect(OjisanPuzzleDrag.steps(cell * 1.4, step: cell) == 1)
     }
+
+    @Test("速く長く下へ払ったときだけ一気落としになる（#2810）")
+    func flickDownNeedsDistanceAndSpeed() {
+        #expect(OjisanPuzzleDrag.isFlickDown(distance: 120, elapsed: 0.12))
+        // 速くても短い・長くてもゆっくり（1 マスずつ刻むつもりの下スワイプ）は対象外。
+        #expect(!OjisanPuzzleDrag.isFlickDown(distance: 40, elapsed: 0.03))
+        #expect(!OjisanPuzzleDrag.isFlickDown(distance: 150, elapsed: 0.8))
+        #expect(!OjisanPuzzleDrag.isFlickDown(distance: 120, elapsed: 0))
+        #expect(!OjisanPuzzleDrag.isFlickDown(distance: -120, elapsed: 0.1))
+    }
 }

@@ -16,7 +16,7 @@ enum HeartsHowToFigures {
     ]
 
     /// 札と、その下の名前（誰が出したか）。
-    private struct Played: View {
+    struct Played: View {
         let rank: String
         let suit: RuleMiniCard.Suit
         let who: String
@@ -32,7 +32,7 @@ enum HeartsHowToFigures {
     }
 
     /// 手札から 3 枚を選んで、左どなり（CPU1）へ渡す。
-    private struct PassFigure: View {
+    struct PassFigure: View {
         var body: some View {
             HStack(spacing: 10) {
                 RuleMiniCardRow(overlap: 10) {
@@ -56,7 +56,7 @@ enum HeartsHowToFigures {
     }
 
     /// クラブの 2 から、同じスートを順に出す。
-    private struct FollowFigure: View {
+    struct FollowFigure: View {
         var body: some View {
             RuleFrames(count: 4, spacing: 4) { index in
                 let plays: [(String, String)] = [("2", tr("あなた")), ("9", "CPU1"), ("K", "CPU2"), ("5", "CPU3")]
@@ -128,7 +128,7 @@ enum HeartsHowToFigures {
     }
 
     /// 50 点に届いたら終わり。合計の少ない人が勝ち。
-    private struct FinishFigure: View {
+    struct FinishFigure: View {
         private let rows: [(String, Int)] = [(tr("あなた"), 21), ("CPU1", 53), ("CPU2", 26), ("CPU3", 41)]
 
         var body: some View {

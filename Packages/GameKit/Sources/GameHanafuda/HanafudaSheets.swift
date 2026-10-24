@@ -22,6 +22,7 @@ public struct HanafudaSetupSheet: View {
     public var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: HanafudaOnboarding.guide,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("何局戦うか")) {
@@ -41,6 +42,11 @@ public struct HanafudaSetupSheet: View {
                         difficultyTile(value, accent: DifficultyTile.accent(step: step, of: HanafudaDifficulty.allCases.count))
                     }
                 }
+                // 段を選び直してもシートが伸び縮みしないよう 1 行に固定する（`CPUStrengthPicker` と同じ）。
+                Text(draft.difficulty.detail)
+                    .themeBody(13).foregroundStyle(Theme.inkSub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             GameSetupSection(tr("ローカルルール")) {
                 Toggle(isOn: $draft.sakeYakuEnabled) {

@@ -365,7 +365,7 @@ public struct CatPuzzleView: View {
     /// 「同じ条件でもう一回」「設定を変える」（`GameReplayBar`）とレコメンドに替える（会長 QA 2026-10-21・build 42）。
     /// 高さは `GameControlArea` が終局後の最大構成に揃える（決着で盤が縮まない）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.isOver, services: services) {
+        GameControlArea(isFinished: model.isOver, services: services, ladder: ladder) {
             GameReplayBar(
                 onReplay: { startNewGame(size: nil) },
                 onChangeSettings: { showNewGame = true }
@@ -452,6 +452,8 @@ public struct CatPuzzleView: View {
             tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
             model.mistakes == 0 ? tr("ミス 0・パーフェクト！") : tr("ミス %lld", model.mistakes),
             tr("手数 %lld", model.moves),
+            // ヒントは 0 回でも省かず出す（#2613・#2801）。
+            tr("ヒント %lld回", model.hintsUsed),
         ]
     }
 
@@ -478,6 +480,15 @@ public struct CatPuzzleView: View {
             showConfirmNewGame = true
         } else {
             showNewGame = true
+        }
+    }
+
+    /// 勝ちが続いたら一段上の大きさを勧める（#722・#2806）。並びは開始シートの大きさと同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        let sizes = CatPuzzleSize.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: sizes.firstIndex(of: model.size),
+                                      levelLabels: sizes.map(\.label)) { index in
+            startNewGame(size: sizes[index])
         }
     }
 

@@ -173,6 +173,16 @@ public enum HanafudaDifficulty: String, CaseIterable, Sendable, Equatable, Codab
         case .hard:   return tr("むずかしい")
         }
     }
+
+    /// 開始シートに出す強さの説明（#2803）。`HanafudaAI` の中身と一致させる
+    /// （かんたん = 無作為に取る・こいこいしない／ふつう = 役の文数で選ぶ／むずかしい = 相手の役の芽も見る）。
+    public var detail: String {
+        switch self {
+        case .easy:   return tr("札を無作為に選ぶ・こいこいしない")
+        case .normal: return tr("役を狙う・7文までこいこい")
+        case .hard:   return tr("相手の役も阻む・慎重にこいこい")
+        }
+    }
 }
 
 // MARK: - 役の判定

@@ -428,12 +428,15 @@ public final class MahjongSolitaireModel {
     /// **記録はレイアウトごとに分ける**（#239）。かたちが違えば取り切るまでの手数も難度も違うため、
     /// 同じ「最短タイム」に混ぜると自己ベストが比べものにならない。区分の仕組みは
     /// マインスイーパーの難易度と同じ `GameScore.variant` を使うので、保存の形式は増えない。
-    private var currentScore: GameScore {
+    var currentScore: GameScore {
         GameScore(
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: layout.id,
-            variantLabel: layout.recordLabel
+            variantLabel: layout.recordLabel,
+            // ヒントや並べ替えを使った局は順位表へ送らない（#2798。ナンプレ・マインスイーパーと揃える）。
+            // 自己ベスト（端末内）には従来どおり残す。
+            isLeaderboardEligible: hintCount == 0 && shuffleCount == 0
         )
     }
 

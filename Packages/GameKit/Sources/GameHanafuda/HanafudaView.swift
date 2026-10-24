@@ -2,6 +2,12 @@ import Foundation
 import SwiftUI
 import Core
 
+/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
+private struct PausableTurn: Equatable {
+    let key: AITurnKey
+    let paused: Bool
+}
+
 public struct HanafudaView: View {
     @State private var model: HanafudaModel
     private let services: GameServices
@@ -15,6 +21,8 @@ public struct HanafudaView: View {
     @State private var draft = HanafudaOptions()
     /// 試合の後に「設定を変える」で設定シートを開き直しているか（#2612）。初回は `.idle` で開く。
     @State private var showChangeSettings = false
+    /// 「？」（図で見る遊び方を含む）を開いているあいだ CPU の手番を止める（#2827）。
+    @State private var isHowToPlayOpen = false
 
     public init(services: GameServices) {
         self.services = services
@@ -77,7 +85,8 @@ public struct HanafudaView: View {
         // 早見表を置く（#495 の仕様）。
         .gameChrome(title: tr("花札こいこい"), review: services.review,
                     reference: GameChromeReference { showYakuSheet = true })
-        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)) { HanafudaRuleSheet() }
+        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items).onboarding(HanafudaOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
             HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
@@ -113,7 +122,9 @@ public struct HanafudaView: View {
                 message: tr("広告を見ているあいだに試合が終わったため、延長できませんでした。")
             )
         )
-        .task(id: model.aiTurnKey) {
+        // 閉じたら鍵（paused）が変わって再起動し、止めていた手番の続きを回す。
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen)) {
+            guard !isHowToPlayOpen else { return }
             await model.runCPUTurnIfNeeded()
         }
         // CPU の手番の締めに 1 回だけ読み上げる（#2280）。
@@ -468,10 +479,11 @@ public struct HanafudaView: View {
     private var roundResultCard: some View {
         VStack(spacing: 6) {
             if let result = model.roundResult {
-                Text(roundResultTitle(result.winner))
-                    .themeBody(18, weight: .heavy)
-                    .fitOneLine()
-                    .foregroundStyle(result.winner == .human ? Theme.tealText : Theme.ink)
+                HanafudaRoundTitle(
+                    text: roundResultTitle(result.winner),
+                    color: result.winner == .human ? Theme.tealText : Theme.ink,
+                    isBig: result.isBigHumanWin
+                )
                 if !result.hits.isEmpty {
                     Text(result.hits.map { tr("%@ %lld文", $0.name, $0.points) }.joined(separator: tr("・")))
                         .themeCaption(13, weight: .semibold, maxScale: 1.5)
@@ -506,6 +518,9 @@ public struct HanafudaView: View {
                 .foregroundStyle(matchTitleColor)
             Text(tr("あなた %1$lld文 ・ CPU %2$lld文", model.humanTotal, model.cpuTotal))
                 .themeBody(15, weight: .semibold, maxScale: 1.5)
+                .foregroundStyle(Theme.inkSub)
+            Text(tr("こいこい あなた %1$lld回 ・ CPU %2$lld回", model.humanMatchKoiKoiCount, model.cpuMatchKoiKoiCount))
+                .themeBody(13, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
         }
@@ -703,5 +718,28 @@ private extension View {
     /// 文字サイズ設定で拡大しても、帯・見出しを折り返さず 1 行に縮めて収める（#1469）。
     func fitOneLine() -> some View {
         lineLimit(1).minimumScaleFactor(0.5)
+    }
+}
+
+
+/// 局結果の見出し。大きなあがり（#2804）のときだけ一回り大きくし、出た瞬間に弾ませる。
+/// Reduce Motion のときは弾ませず、大きさだけで強調する。
+private struct HanafudaRoundTitle: View {
+    let text: String
+    let color: Color
+    let isBig: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var popped = false
+
+    var body: some View {
+        Text(text)
+            .themeBody(isBig ? 26 : 18, weight: .heavy)
+            .fitOneLine()
+            .foregroundStyle(color)
+            .scaleEffect(isBig && !reduceMotion && !popped ? 0.6 : 1)
+            .onAppear {
+                guard isBig, !reduceMotion else { return }
+                withGameAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { popped = true }
+            }
     }
 }

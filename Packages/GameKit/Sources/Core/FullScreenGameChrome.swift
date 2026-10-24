@@ -129,6 +129,8 @@ public extension View {
     ///   - review: 評価リクエストの実行をこの画面に紐づける（通常の枠と同じ）。
     ///   - fullScreen: 画面全体に敷く面（カード系は `.felt`）。
     ///   - ads: 画面最下部のバナー（`BannerSlot`）の取得元。ゲーム側に `BannerSlot` は置かない。
+    ///   - condition: ヘッダーの表示名の下に出す今の条件のチップ（#1690）。幅が足りないときは
+    ///     全文 → 難易度だけ → 出さない、の順に縮める（札の数字を最優先・ヘッダーが画面幅をはみ出さない）。
     ///   - reference: 役の早見表。あるゲームだけ渡す。
     ///   - newGame: 新規ボタン。あるゲームだけ渡す。
     ///   - status: ヘッダーの行に置く札（ゲーム数・手番など。`GameStatusBar` に置いていた中身）。
@@ -141,12 +143,13 @@ public extension View {
         review: ReviewRequestService?,
         fullScreen surface: FullScreenGameSurface,
         ads: AdService,
+        condition: GameChromeCondition? = nil,
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
         @ViewBuilder status: () -> Status
     ) -> some View {
         modifier(GameChromeBase(review: review, paintsBackground: false))
-            .modifier(FullScreenGameChromeModifier(title: title, surface: surface, ads: ads,
+            .modifier(FullScreenGameChromeModifier(title: title, surface: surface, ads: ads, condition: condition,
                                                    reference: reference, newGame: newGame, status: status()))
     }
 
@@ -156,10 +159,11 @@ public extension View {
         review: ReviewRequestService?,
         fullScreen surface: FullScreenGameSurface,
         ads: AdService,
+        condition: GameChromeCondition? = nil,
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil
     ) -> some View {
-        gameChrome(title: title, review: review, fullScreen: surface, ads: ads,
+        gameChrome(title: title, review: review, fullScreen: surface, ads: ads, condition: condition,
                    reference: reference, newGame: newGame) { EmptyView() }
     }
 }
@@ -170,13 +174,15 @@ private struct FullScreenGameChromeModifier<Status: View>: ViewModifier {
     let title: String
     let surface: FullScreenGameSurface
     let ads: AdService
+    let condition: GameChromeCondition?
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let status: Status
 
     func body(content: Content) -> some View {
         VStack(spacing: 0) {
-            FullScreenGameHeader(title: title, surface: surface, reference: reference, newGame: newGame, status: status)
+            FullScreenGameHeader(title: title, surface: surface, condition: condition,
+                                 reference: reference, newGame: newGame, status: status)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -242,13 +248,16 @@ private struct FullScreenGameHeader<Status: View>: View {
 
     let title: String
     let surface: FullScreenGameSurface
+    let condition: GameChromeCondition?
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let status: Status
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        let showsChip = condition != nil && !dynamicTypeSize.isAccessibilitySize
         HStack(spacing: Metrics.headerSpacing) {
             FullScreenHeaderButton(systemImage: "chevron.left", label: tr("戻る"), surface: surface) { dismiss() }
             Text(title)
@@ -257,31 +266,73 @@ private struct FullScreenGameHeader<Status: View>: View {
                 .minimumScaleFactor(0.6)
                 .foregroundStyle(surface.headerInk)
                 .shadow(color: surface == .felt ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
-                .layoutPriority(1)
                 .accessibilityAddTraits(.isHeader)
+                .anchorPreference(key: HeaderFramesKey.self, value: .bounds) { [.title: $0] }
+                // 条件のチップは表示名の真下に重ねる（下の `overlayPreferenceValue`）。重ねる分の高さだけ空けて、
+                // 表示名＋チップの組が行の中央に来るようにする。
+                .padding(.bottom, showsChip ? Self.chipHeight : 0)
+                .layoutPriority(1)
             Spacer(minLength: 0)
             status
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(surface.headerInk)
+                .anchorPreference(key: HeaderFramesKey.self, value: .bounds) { [.status: $0] }
             // 並びはここで固定する: 役の早見表 → ？ → 新規（通常の枠 `GameChromeToolbar` と同じ）。
-            if let reference {
-                FullScreenHeaderButton(systemImage: "list.bullet.rectangle", label: reference.accessibilityLabel,
-                                       surface: surface, action: reference.action)
+            HStack(spacing: Metrics.headerSpacing) {
+                if let reference {
+                    FullScreenHeaderButton(systemImage: "list.bullet.rectangle", label: reference.accessibilityLabel,
+                                           surface: surface, action: reference.action)
+                }
+                if let howToPlay {
+                    FullScreenHeaderButton(systemImage: "questionmark.circle", label: tr("遊び方"),
+                                           surface: surface, action: howToPlay.present)
+                }
+                if let newGame {
+                    FullScreenHeaderButton(systemImage: newGame.kind.systemImage, label: newGame.kind.accessibilityLabel,
+                                           surface: surface, action: newGame.action)
+                        .disabled(newGame.isDisabled)
+                }
             }
-            if let howToPlay {
-                FullScreenHeaderButton(systemImage: "questionmark.circle", label: tr("遊び方"),
-                                       surface: surface, action: howToPlay.present)
-            }
-            if let newGame {
-                FullScreenHeaderButton(systemImage: newGame.kind.systemImage, label: newGame.kind.accessibilityLabel,
-                                       surface: surface, action: newGame.action)
-                    .disabled(newGame.isDisabled)
-            }
+            .anchorPreference(key: HeaderFramesKey.self, value: .bounds) { [.buttons: $0] }
         }
         .padding(.horizontal, Metrics.sideInset)
         .padding(.vertical, Metrics.headerVerticalPadding)
         .frame(height: Metrics.headerTotalHeight)
+        // 条件のチップ: 行の配置には関わらせず（札・ボタンを押し出さない）、表示名の下から「札またはボタンの手前」までの
+        // 幅に、全文 → 難易度だけ → 出さない、の順で収める。得点の札の数字を必ず優先する（会長決裁 2026-10-25）。
+        .overlayPreferenceValue(HeaderFramesKey.self) { frames in
+            GeometryReader { proxy in
+                if showsChip, let condition, let titleAnchor = frames[.title] {
+                    let title = proxy[titleAnchor]
+                    let right = [frames[.status], frames[.buttons]].compactMap { $0 }.map { proxy[$0].minX }.min()
+                        ?? proxy.size.width
+                    let available = max(0, right - Metrics.headerSpacing - title.minX)
+                    ViewThatFits(in: .horizontal) {
+                        GameConditionChip(text: condition.fullText, ink: surface.headerInk, action: condition.action)
+                        if condition.hasShortForm {
+                            GameConditionChip(text: condition.shortText, ink: surface.headerInk, action: condition.action)
+                        }
+                        Color.clear.frame(width: 0, height: 0)
+                    }
+                    .shadow(color: surface == .felt ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
+                    .frame(width: available, alignment: .leading)
+                    .offset(x: title.minX, y: title.maxY)
+                }
+            }
+        }
+    }
+
+    /// 条件のチップの高さ（12pt の文字 + 上下の余白。`GameConditionChip` の `minHeight` と同じ）。
+    private static var chipHeight: CGFloat { 16 }
+}
+
+/// ヘッダーの部品の枠（チップの置き場の幅を測る）。
+private struct HeaderFramesKey: PreferenceKey {
+    enum Part: Hashable { case title, status, buttons }
+    static var defaultValue: [Part: Anchor<CGRect>] { [:] }
+    static func reduce(value: inout [Part: Anchor<CGRect>], nextValue: () -> [Part: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 

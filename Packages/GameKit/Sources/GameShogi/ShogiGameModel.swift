@@ -33,6 +33,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var sente: PlayerKind
     public var gote: PlayerKind
     public var aiLevel: Int
+    /// 定跡の選び方を 1 局ごとに変える種（#2800）。新規対局ごとに引き直す。保存はしない
+    /// （続きから再開した対局は、その時点から別の定跡筋を選んでよい。手は常に定跡の合法手）。
+    private var bookSeed = UInt64.random(in: .min ... .max)
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
     /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ。
@@ -541,6 +544,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.aiLevel = aiLevel
         startedAt = startedAtFallback()
         gameSerial += 1
+        bookSeed = UInt64.random(in: .min ... .max)
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（#145）。
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking = false
@@ -594,10 +598,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
             let level = aiLevel
+            let seed = bookSeed
             let sfen = position.toSFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await ShogiMasterEngine.engine(level: level).bestMove(sfen: sfen)
+                await ShogiMasterEngine.engine(level: level, seed: seed).bestMove(sfen: sfen)
             }.value
         } commit: { usi in
             // 計算中に状況が変わっていないか確認してから着手。

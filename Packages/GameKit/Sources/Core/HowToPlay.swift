@@ -23,6 +23,8 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public let items: [HowToPlayItem]
     /// 図に入らない補足。`items` のあとに文だけのカードで出す。
     public let notes: [String]
+    /// 図で見る「はじめての遊び方」（#2827）。持つゲームだけ、シートの先頭に入口のボタンが出る。
+    public let onboarding: OnboardingGuide?
 
     public init(
         gameID: String,
@@ -31,7 +33,8 @@ public struct HowToPlayGuide: Sendable, Equatable {
         hint: String,
         hintIcon: String = "hand.tap.fill",
         items: [HowToPlayItem] = [],
-        notes: [String] = []
+        notes: [String] = [],
+        onboarding: OnboardingGuide? = nil
     ) {
         self.gameID = gameID
         self.title = title
@@ -40,6 +43,15 @@ public struct HowToPlayGuide: Sendable, Equatable {
         self.hintIcon = hintIcon
         self.items = items
         self.notes = notes
+        self.onboarding = onboarding
+    }
+
+    /// 「はじめての遊び方」（#2827）を持たせた版を返す。
+    public func onboarding(_ guide: OnboardingGuide) -> HowToPlayGuide {
+        HowToPlayGuide(
+            gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
+            items: items, notes: notes, onboarding: guide
+        )
     }
 
     /// 項目に図を差し込んだ版を返す。図の View はゲーム側のモジュールにあるので、文言は Core、
@@ -50,7 +62,7 @@ public struct HowToPlayGuide: Sendable, Equatable {
         return HowToPlayGuide(
             gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
             items: zip(items, figures).map { HowToPlayItem($0.text, figure: $1) },
-            notes: notes
+            notes: notes, onboarding: onboarding
         )
     }
 
@@ -58,7 +70,7 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public static func == (lhs: HowToPlayGuide, rhs: HowToPlayGuide) -> Bool {
         lhs.gameID == rhs.gameID && lhs.title == rhs.title && lhs.lines == rhs.lines
             && lhs.hint == rhs.hint && lhs.hintIcon == rhs.hintIcon
-            && lhs.items == rhs.items && lhs.notes == rhs.notes
+            && lhs.items == rhs.items && lhs.notes == rhs.notes && lhs.onboarding == rhs.onboarding
     }
 }
 
@@ -220,7 +232,9 @@ public extension HowToPlayGuide {
             HowToPlayItem(tr("自分の石ではさんだ相手の石は、すべて自分の色に裏返ります。")),
             HowToPlayItem(tr("最後に石が多かったほうが勝ちです。")),
         ],
-        notes: []
+        notes: [
+            tr("お互い置けなくなって空きマスが残ったときは、残ったマスは勝った方に加算されます。"),
+        ]
     ) }
 
     static var poker: HowToPlayGuide { HowToPlayGuide(
@@ -530,6 +544,9 @@ public extension HowToPlayGuide {
         notes: [
             tr("青いチェックポイントより先でミスしたときは、広告を見てそこから再開することもできます。"),
             tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
+            tr("鳥は近づくと飛び立ちます。跳ばずに走ったまま、下を抜けましょう。"),
+            tr("スピードアップのアイテムを取ると、しばらく速くなります。"),
+            tr("たこ焼きを取ると、3 秒だけ障害にぶつからなくなります。"),
         ]
     ) }
 
@@ -540,6 +557,9 @@ public extension HowToPlayGuide {
         lastLine: tr("ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。"),
         notes: [
             tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
+            tr("鳥は近づくと飛び立ちます。跳ばずに走ったまま、下を抜けましょう。"),
+            tr("スピードアップのアイテムを取ると、しばらく速くなります。"),
+            tr("たこ焼きを取ると、3 秒だけ障害にぶつからなくなります。"),
         ]
     ) }
 
@@ -1045,6 +1065,8 @@ public struct HowToPlaySheet<Extra: View>: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 10) {
+                    // 自動では開かない。ボタンを押したときだけ図のカードが開く（#2827）。
+                    OnboardingEntry(guide.onboarding, style: .prominent)
                     if !guide.items.isEmpty {
                         illustratedItems
                     } else {

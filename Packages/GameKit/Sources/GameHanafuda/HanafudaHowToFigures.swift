@@ -14,14 +14,14 @@ enum HanafudaHowToFigures {
 
     private static let cardWidth: CGFloat = 40
 
-    private static func card(_ id: Int, width: CGFloat = cardWidth, highlighted: Bool = false, dimmed: Bool = false) -> some View {
+    static func card(_ id: Int, width: CGFloat = cardWidth, highlighted: Bool = false, dimmed: Bool = false) -> some View {
         // 高さも固定する（`HanafudaCardFace` は `GeometryReader` なので、高さを詰めて提案されると縮む）。
         HanafudaCardFace(card: HanafudaCard(id: id), isDimmed: dimmed, isHighlighted: highlighted)
             .frame(width: width, height: width * HanafudaCardArt.aspectRatio)
     }
 
     /// 札の裏（山札）。図のための簡素な裏面。
-    private struct CardBack: View {
+    struct CardBack: View {
         var body: some View {
             RoundedRectangle(cornerRadius: HanafudaHowToFigures.cardWidth * 0.12, style: .continuous)
                 .fill(Color(hex: 0x3A2E27))
@@ -36,7 +36,7 @@ enum HanafudaHowToFigures {
     }
 
     /// 同じ月（1 月・松）の 4 枚。左上の数字が月。
-    private struct MonthFigure: View {
+    struct MonthFigure: View {
         var body: some View {
             HStack(spacing: 18) {
                 VStack(spacing: 4) {
@@ -60,7 +60,7 @@ enum HanafudaHowToFigures {
     }
 
     /// 手札の松に鶴を選ぶと、場の松のカスと合わせて取れる。
-    private struct MatchFigure: View {
+    struct MatchFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 if index == 0 {
@@ -92,7 +92,7 @@ enum HanafudaHowToFigures {
     }
 
     /// 山札から 1 枚めくり、場の同じ月の札と合わせる。
-    private struct DrawFigure: View {
+    struct DrawFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 if index == 0 {
@@ -120,7 +120,7 @@ enum HanafudaHowToFigures {
     }
 
     /// 役（猪鹿蝶）ができたら、あがり か こいこい。
-    private struct YakuFigure: View {
+    struct YakuFigure: View {
         var body: some View {
             VStack(spacing: 8) {
                 VStack(spacing: 4) {
