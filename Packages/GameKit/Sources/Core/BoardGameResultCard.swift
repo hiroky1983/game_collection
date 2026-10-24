@@ -103,6 +103,7 @@ public struct BoardGameResultCard: View {
                                                             decisiveMove: decisiveMove, details: details))
                 // 共有ボタンを持つので、読み上げの塊の外に置く（オセロ #1716 と同じ）。
                 RecordLabel(record)
+                PlayStreakLine()
                 Button(action: onClose) {
                     Text(tr("盤を見る"))
                         .themeBody(15, weight: .bold, maxScale: 1.5)

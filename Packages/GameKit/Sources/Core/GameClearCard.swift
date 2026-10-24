@@ -40,6 +40,7 @@ public struct GameClearCard: View {
             .multilineTextAlignment(.center)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Self.accessibilityLabel(title: title, details: details))
+            PlayStreakLine()
             if let onClose {
                 Button(action: onClose) {
                     Text(tr("盤を見る"))

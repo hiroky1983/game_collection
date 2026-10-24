@@ -290,6 +290,7 @@ struct HubView: View {
                     let services = services
                     // 描き直しのたびに model を作って捨てないよう、1 回だけ作る入れ物を通す（#1926）。
                     GameScreenHost { module.makeView(services: services) }
+                        .environment(\.playStreakProvider, { services.playLog?.playStreak() ?? 0 })
                         .environment(\.recordShare, RecordShareContext(
                             gameTitle: module.title,
                             url: AppEnvironment.appStoreURL,
