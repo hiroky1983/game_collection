@@ -1,6 +1,12 @@
 import SwiftUI
 import Core
 
+/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
+private struct PausableTurn: Equatable {
+    let key: AITurnKey
+    let paused: Bool
+}
+
 /// チェスの対局画面（CPU 対戦）。人間の手番側を常に手前に表示する。
 public struct ChessView: View {
     @State private var model: ChessGameModel
@@ -20,6 +26,8 @@ public struct ChessView: View {
     /// 駒の意匠（#598）。見た目だけの設定なので局には焼き込まず、保存値をここで持って
     /// 盤・取られた駒・成りの札・遊び方の一覧へ配る。
     @State private var pieceStyle: ChessPieceStyle
+    /// 「？」（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の思考を止める（#2827）。
+    @State private var isHowToPlayOpen = false
 
     public init(services: GameServices) {
         self.services = services
@@ -62,7 +70,8 @@ public struct ChessView: View {
         .gameChrome(title: tr("チェス"), review: services.review,
                     condition: GameChromeCondition(conditionParts) { requestNewGame() },
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)) {
+        .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items).onboarding(ChessOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) {
             ChessRuleDetail(style: pieceStyle)
         }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
@@ -87,7 +96,10 @@ public struct ChessView: View {
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }
-        .task(id: model.aiTurnKey) {
+        // 「？」と新規対局シート（図で見る遊び方の入口がある）を開いているあいだは読ませない。
+        // 閉じたら鍵（paused）が変わって再起動し、止めていた思考をやり直す。
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（とチェック）を読み上げる（#2280）。
@@ -603,6 +615,7 @@ struct ChessNewGameSheet: View {
         // （`GameSetupSheet` の注記。取り違えると開始ボタンがはみ出して押せなくなる）。
         GameSetupSheet(
             kind: .versus,
+            onboarding: ChessOnboarding.guide,
             onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あなたの手番")) {

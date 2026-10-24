@@ -958,6 +958,292 @@
           }
         }
       }
+    },
+    "チェスのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chess: First-time Guide"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "相手のキングを詰ませたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkmate the opponent's King to win."
+          }
+        }
+      }
+    },
+    "逃げ場の無い王手を「チェックメイト」といいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A check with no escape is called \"checkmate\"."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "自分の駒をタップすると、動けるマスが光ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one of your pieces and the squares it can move to light up."
+          }
+        }
+      }
+    },
+    "光ったマスをタップして、駒を動かします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a lit square to move the piece."
+          }
+        }
+      }
+    },
+    "相手の駒があるマスへ動くと、その駒を取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move onto an enemy piece to capture it."
+          }
+        }
+      }
+    },
+    "駒の動き方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How pieces move"
+          }
+        }
+      }
+    },
+    "ナイトは L 字、ビショップはななめ、ルークはたてよこ。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Knights move in an L, Bishops diagonally, Rooks in straight lines."
+          }
+        }
+      }
+    },
+    "クイーンはたてよこななめ、キングは 1 マス。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queens move straight or diagonally; Kings move 1 square."
+          }
+        }
+      }
+    },
+    "ポーンは前へ 1 マス（最初だけ 2 マス）。取るときはななめ前。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawns step forward 1 (2 on their first move) and capture diagonally forward."
+          }
+        }
+      }
+    },
+    "特別な動き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Special moves"
+          }
+        }
+      }
+    },
+    "キャスリング: キングとルークを一度に動かします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Castling: move the King and a Rook together."
+          }
+        }
+      }
+    },
+    "アンパッサン: 2 マス進んだポーンを、通り過ぎたマスへ取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En passant: capture a pawn that just moved 2 squares, as if it had moved 1."
+          }
+        }
+      }
+    },
+    "プロモーション: ポーンが奥に着くと、好きな駒に変わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promotion: a pawn that reaches the far side becomes any piece you choose."
+          }
+        }
+      }
+    },
+    "王手（チェック）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "キングが次に取られる形が「王手（チェック）」です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When your King could be captured next, it is \"check\"."
+          }
+        }
+      }
+    },
+    "王手のときは、逃げるか、守るか、取るかで外します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get out of check by moving away, blocking, or capturing the attacker."
+          }
+        }
+      }
+    },
+    "どうしても外せない王手が、チェックメイトです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A check you cannot escape is checkmate."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the game ends"
+          }
+        }
+      }
+    },
+    "チェックメイトをかけた側の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The side that delivers checkmate wins."
+          }
+        }
+      }
+    },
+    "王手が無いのに動かせない「ステイルメイト」は引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you are not in check but cannot move, it is \"stalemate\": a draw."
+          }
+        }
+      }
+    },
+    "ルークがキングを狙っている（王手）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Rook attacks the King (check)"
+          }
+        }
+      }
+    },
+    "王手ではないのに黒は動けない（引き分け）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black is not in check but cannot move (draw)"
+          }
+        }
+      }
+    },
+    "同じ局面が 3 回・50 手のあいだポーンも駒取りも無い・駒不足も引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three repeats of a position, 50 moves with no pawn move or capture, or too few pieces are also draws."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
