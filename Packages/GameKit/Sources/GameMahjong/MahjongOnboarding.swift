@@ -59,7 +59,7 @@ enum MahjongOnboarding {
                     lines: [
                         tr("他の人の捨て牌は、ポン・チー・カンで取れます。"),
                         tr("ポンは誰の捨て牌でも。チーは左の人（上家）の捨て牌だけです。"),
-                        tr("鳴くと、その組を手牌の外に出して、そのまま 1 枚切ります。"),
+                        tr("鳴くと、その組を手牌の外に出します。ポン・チーのあとは、そのまま 1 枚切ります。"),
                     ],
                     figure: { AnyView(MahjongHowToFigures.CallFigure()) }
                 ),

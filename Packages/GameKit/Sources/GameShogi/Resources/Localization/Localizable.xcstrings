@@ -1487,17 +1487,6 @@
         }
       }
     },
-    "同じ局面が 4 回くり返されると、千日手で引き分けです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "If the same position occurs four times, it is a draw by repetition (sennichite)."
-          }
-        }
-      }
-    },
     "歩のある筋の ✕ には歩を打てない（二歩）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1516,6 +1505,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The rook is aiming at the king (check)"
+          }
+        }
+      }
+    },
+    "同じ局面が 4 回くり返されると千日手で引き分け。王手を続けた側は負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the same position occurs four times, it's a draw by repetition — but the side that kept giving check loses."
           }
         }
       }

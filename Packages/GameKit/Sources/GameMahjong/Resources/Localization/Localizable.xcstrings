@@ -2953,17 +2953,6 @@
         }
       }
     },
-    "鳴くと、その組を手牌の外に出して、そのまま 1 枚切ります。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When you call, you lay the set out of your hand and then discard one tile."
-          }
-        }
-      }
-    },
     "流局と順位" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3004,6 +2993,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In a single-hand game, the round ends even if the dealer wins, with no renchan."
+          }
+        }
+      }
+    },
+    "鳴くと、その組を手牌の外に出します。ポン・チーのあとは、そのまま 1 枚切ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you call, you lay the set out of your hand. After pon or chi you then discard one tile."
           }
         }
       }

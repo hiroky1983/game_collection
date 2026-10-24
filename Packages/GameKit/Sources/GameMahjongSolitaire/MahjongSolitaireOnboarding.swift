@@ -51,7 +51,7 @@ enum MahjongSolitaireOnboarding {
                     heading: tr("取れる組が無くなったら"),
                     lines: [
                         tr("取れる牌に同じ絵柄が無くなると、手詰まりです。"),
-                        tr("広告を見て並べ替えるか、直前の 1 手を戻すか、はじめからやり直せます。"),
+                        tr("並べ替え（広告を見ます）・直前の 1 手を戻す・はじめから、のどれかで続けます。"),
                     ],
                     figure: { AnyView(DeadlockFigure()) }
                 ),

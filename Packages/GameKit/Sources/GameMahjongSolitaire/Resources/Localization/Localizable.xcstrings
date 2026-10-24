@@ -926,17 +926,6 @@
         }
       }
     },
-    "広告を見て並べ替えるか、直前の 1 手を戻すか、はじめからやり直せます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watch an ad to reshuffle, undo your last move, or start over."
-          }
-        }
-      }
-    },
     "同じ牌が取れる所に無い（手詰まり）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -944,6 +933,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No matching free tiles (stuck)"
+          }
+        }
+      }
+    },
+    "並べ替え（広告を見ます）・直前の 1 手を戻す・はじめから、のどれかで続けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue by reshuffling (watch an ad), undoing your last move, or starting over."
           }
         }
       }
