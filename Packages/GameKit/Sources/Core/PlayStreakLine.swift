@@ -16,7 +16,9 @@ public extension EnvironmentValues {
     }
 }
 
-/// 結果カードの末尾に添える「連続 N 日あそび中」の 1 行（#2510）。
+/// 結果カードの**すぐ下**に添える「連続 N 日あそび中」の 1 行（#2510）。
+///
+/// カードの高さを変えないよう、カードの中には入れず暗幕の上へ重ねる（`playStreakCaption()`）。
 ///
 /// 文言と出す条件（2 日以上）はハブと同じ `PlayDayStreak.hubText`。連続が 2 日未満なら何も描画しない。
 /// 通知・広告・報酬には繋げない（`docs/spec-app.md` の連続日数の方針）。
@@ -27,8 +29,20 @@ struct PlayStreakLine: View {
         if let text = PlayDayStreak.hubText(streak: provider()) {
             Text(text)
                 .themeCaption(13, weight: .semibold, maxScale: 1.3)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
+        }
+    }
+}
+
+extension View {
+    /// 結果カードの下端の外側に連続日数の 1 行を重ねる。レイアウトには参加しないので、カードの高さは変わらない。
+    /// 暗幕（黒 45%）の上に出るので文字は白。
+    func playStreakCaption() -> some View {
+        overlay(alignment: .bottom) {
+            PlayStreakLine()
+                .padding(.top, 4)
+                .alignmentGuide(.bottom) { $0[.top] }
         }
     }
 }
