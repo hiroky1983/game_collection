@@ -24,9 +24,9 @@ enum MinesweeperHowToFigures {
         case mine
     }
 
-    private static let size: CGFloat = 26
+    static let size: CGFloat = 26
 
-    private struct CellView: View {
+    struct CellView: View {
         let cell: Cell
         var highlighted = false
 
@@ -75,7 +75,7 @@ enum MinesweeperHowToFigures {
     }
 
     /// マスを格子に並べる。`highlight` は (行, 列) の組。
-    private struct Grid: View {
+    struct Grid: View {
         let cells: [[Cell]]
         var highlight: Set<Int> = []
 
@@ -95,7 +95,7 @@ enum MinesweeperHowToFigures {
     }
 
     /// 数字はまわり 8 マスにある地雷の数（まん中の 1 と、まわりの 1 つの地雷）。
-    private struct NumberFigure: View {
+    struct NumberFigure: View {
         var body: some View {
             HStack(spacing: 16) {
                 RuleFrames(count: 2, spacing: 10) { index in
@@ -118,7 +118,7 @@ enum MinesweeperHowToFigures {
     }
 
     /// 長押しで旗。
-    private struct FlagFigure: View {
+    struct FlagFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleFrames(count: 2, spacing: 10) { index in
@@ -130,7 +130,7 @@ enum MinesweeperHowToFigures {
     }
 
     /// 旗の数が数字と同じなら、数字をタップでまわりをまとめて開ける。
-    private struct ChordFigure: View {
+    struct ChordFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleFrames(count: 2, spacing: 10) { index in
@@ -147,7 +147,7 @@ enum MinesweeperHowToFigures {
     }
 
     /// 地雷以外を全部開けたらクリア。
-    private struct ClearFigure: View {
+    struct ClearFigure: View {
         var body: some View {
             HStack(spacing: 12) {
                 Grid(cells: [

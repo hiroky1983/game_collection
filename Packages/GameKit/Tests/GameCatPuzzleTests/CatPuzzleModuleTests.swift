@@ -50,7 +50,8 @@ struct CatPuzzleModuleTests {
         #expect(code.contains("GameReplayBar("))
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.catPuzzle"))
-        #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))"))
+        // 後ろに .onboarding(...)（#2826）が続くので、閉じ括弧の手前までで見る。
+        #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items)"))
         #expect(code.contains("RecordLabel("))
         #expect(code.contains(".gameClearCard(isPresented:"))
         // ヒントの広告は他のゲームと同じ部品（`RewardedRescue`）で、局ガード・失敗アラート・視聴中の計時停止まで揃える。

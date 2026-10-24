@@ -67,6 +67,83 @@
         }
       }
     },
+    "1 ターンに 3 回まで振れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can roll up to 3 times per turn."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "12 の役をぜんぶ埋めたら終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when all 12 combos are filled."
+          }
+        }
+      }
+    },
+    "12 役を埋めたら終わり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends when all 12 are filled"
+          }
+        }
+      }
+    },
+    "1〜6 の目のボーナス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 1–6 bonus"
+          }
+        }
+      }
+    },
+    "1〜6 の目の小計が 63 点以上なら、ボーナス +35 点。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your 1–6 subtotal is 63 or more, you get a +35 bonus."
+          }
+        }
+      }
+    },
+    "1〜6 の目の役は、その目の合計が点になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the 1–6 rows, you score the sum of dice showing that number."
+          }
+        }
+      }
+    },
     "1〜6の目の小計" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -243,6 +320,28 @@
         }
       }
     },
+    "「振る」でサイコロ 5 個を振ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Roll to roll all five dice."
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
     "この役に点を入れます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -298,6 +397,17 @@
         }
       }
     },
+    "キープした目は、振り直しても変わりません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kept dice stay the same when you roll again."
+          }
+        }
+      }
+    },
     "キープした目は残る" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -316,6 +426,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Game Over"
+          }
+        }
+      }
+    },
+    "サイコロ 5 個を振って、役をつくるゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roll five dice to make combos."
           }
         }
       }
@@ -405,6 +526,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dice Combos"
+          }
+        }
+      }
+    },
+    "サイコロ役づくりのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dice Combos: first steps"
           }
         }
       }
@@ -530,6 +662,17 @@
         }
       }
     },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
     "合計" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -597,6 +740,39 @@
         }
       }
     },
+    "役を選んで点を入れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a combo to score"
+          }
+        }
+      }
+    },
+    "得点表の 12 の役に点を入れて、合計点を伸ばします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score all 12 combos on the score sheet and build up your total."
+          }
+        }
+      }
+    },
+    "得点表の役を 1 つタップして点を入れると、ターン終了です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one combo on the score sheet to score it. That ends your turn."
+          }
+        }
+      }
+    },
     "振り直す（あと%lld回）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -642,6 +818,39 @@
         }
       }
     },
+    "条件に合わない役に入れると 0 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your dice don't fit that combo, it scores 0."
+          }
+        }
+      }
+    },
+    "残したい目をキープ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the dice you want"
+          }
+        }
+      }
+    },
+    "残したい目をタップするとキープ。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a die to keep it."
+          }
+        }
+      }
+    },
     "終了して新規ゲーム" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -649,6 +858,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quit and Start New Game"
+          }
+        }
+      }
+    },
+    "負けはありません。合計点で自己ベストを目指そう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's no losing. Go for your best total."
           }
         }
       }

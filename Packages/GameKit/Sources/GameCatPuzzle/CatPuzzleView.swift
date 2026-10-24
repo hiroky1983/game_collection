@@ -83,7 +83,7 @@ public struct CatPuzzleView: View {
         .padding()
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))
+        .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initial: model.size) { size in
                 showNewGame = false
@@ -518,6 +518,7 @@ struct CatPuzzleNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: CatPuzzleOnboarding.guide,
             onStart: { onStart(size) }, onCancel: onCancel
         ) {
             Self.sizeSection(selection: $size)
