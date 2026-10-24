@@ -476,6 +476,8 @@ A に載せる対戦ゲームの**相手（CPU）の席**は共通部品 `Oppone
   昨日遊んでいれば昨日から遡って数え、昨日も今日も遊んでいなければ 0。今日より未来の日（端末時刻を戻した場合）は数えない。
   保存は `PlayLog` の1キー `playLog_playDays_v1`（遊んだ日の日番号の整数配列・直近 366 個まで・端末内の `UserDefaults` のみ・
   サーバ送信なし・`PlayLog.clear()` で消える）。ハブ上部にも 2 日以上のときだけ 1 行（「連続 N 日あそび中」）出す。
+  決着の結果カード（`BoardGameResultCard` / `GameClearCard`・#2510 から）の下端にも同じ文言（`PlayDayStreak.hubText`）を 1 行重ねる
+  （カードの外へ overlay で重ねるので高さは変わらない。連続日数はハブが環境値 `playStreakProvider`（関数）で配る）。
   広告・通知・報酬には繋げない
 - Game Center ボタンはシートを閉じ切ってからハブの `openGameCenter()` を呼ぶ（未サインインの案内もハブ側）
 
