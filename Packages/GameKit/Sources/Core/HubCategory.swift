@@ -2,9 +2,9 @@
 /// `GameRegistry` がデータとして持つ**（画面のコードにゲーム ID を直書きしない）。
 public enum HubCategory: String, CaseIterable, Hashable, Sendable {
     case all
+    case cards
     case ojisan
     case board
-    case cards
     case mahjongHanafuda
     case puzzleOther
 
