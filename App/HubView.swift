@@ -588,6 +588,8 @@ struct HubView: View {
     private func gridTile(_ entry: GridEntry) -> some View {
         let module = entry.module
         let hasResume = isResumable(module.id)
+        // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
+        let isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false
         // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
         return NavigationLink(value: HubRoute(
             gameID: module.id, source: .hub, position: entry.position, resume: hasResume
@@ -597,8 +599,7 @@ struct HubView: View {
                 hasResume: hasResume,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
-                // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
-                isUnplayed: services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false,
+                isUnplayed: isUnplayed,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
                 count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
             )

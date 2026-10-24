@@ -184,7 +184,8 @@ struct HubCategoryTests {
     @Test("一度も遊んでいないゲームのタイルに「未プレイ」を出し、NEW・イベント・続きからのどれも無いときだけ・読み上げにも載せる（#2849）")
     func unplayedBadge() throws {
         let source = try SourceScan.appSources()
-        #expect(source.contains("isUnplayed: services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false"))
+        #expect(source.contains("isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false"))
+        #expect(source.contains("isUnplayed: isUnplayed,"))
         let start = try #require(source.range(of: "private var badge: some View {"))
         let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
         let badge = String(source[start.lowerBound..<end.upperBound])
