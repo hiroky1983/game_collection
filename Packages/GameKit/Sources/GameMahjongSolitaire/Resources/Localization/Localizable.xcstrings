@@ -760,6 +760,17 @@
           }
         }
       }
+    },
+    "取れる組 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pairs: %lld"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

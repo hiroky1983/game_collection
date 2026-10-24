@@ -82,6 +82,9 @@ public final class Game2048Model {
         return best > 0 ? best : nil
     }
 
+    /// 今の盤で一番大きいタイル（#2812）。ヘッダーに「最高」として出す。
+    var highestTile: Int { board.flatMap { $0 }.max() ?? 0 }
+
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     public init(services: GameServices? = nil) {
         self.services = services
