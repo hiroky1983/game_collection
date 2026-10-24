@@ -775,24 +775,24 @@
         }
       }
     },
-    "最初にやること" : {
+    "最初に起こること" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "What you do first"
+            "value" : "What happens first"
           }
         }
       }
     },
-    "配られた手札から、同じ数字の 2 枚（ペア）を捨てます。" : {
+    "配られた手札の、同じ数字の 2 枚（ペア）は、自動で捨てられます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Throw away every pair of cards with the same number from your dealt hand."
+            "value" : "Pairs of the same number in your dealt hand are thrown away automatically."
           }
         }
       }

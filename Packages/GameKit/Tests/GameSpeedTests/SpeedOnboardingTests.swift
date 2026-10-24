@@ -50,9 +50,9 @@ struct SpeedOnboardingTests {
 
     @Test("文言の数字（手札の枚数）が実装の値から作られ、全部の文言に英語の訳がある")
     func numbersAndEnglish() {
-        let key = "配られた手札は %lld 枚です。"
+        let key = "手札は、最大 %lld 枚です。"
         let lines = SpeedOnboarding.guide.pages.flatMap(\.lines)
-        #expect(lines.contains("配られた手札は \(SpeedRules.handSize) 枚です。"))
+        #expect(lines.contains("手札は、最大 \(SpeedRules.handSize) 枚です。"))
         #expect(tr.hasTranslation(key, language: .english))
         let filled = tr(key, SpeedRules.handSize)
         for text in SpeedOnboarding.guide.texts where text != filled {

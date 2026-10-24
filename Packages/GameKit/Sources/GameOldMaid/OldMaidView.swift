@@ -90,7 +90,7 @@ public struct OldMaidView: View {
             }
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            runCPU()
         }
     }
 

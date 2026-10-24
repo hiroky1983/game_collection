@@ -1026,13 +1026,13 @@
         }
       }
     },
-    "1 回の番でやること" : {
+    "札の出し方" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "What you do on your turn"
+            "value" : "Playing cards"
           }
         }
       }
@@ -1125,24 +1125,24 @@
         }
       }
     },
-    "配られた手札は %lld 枚です。" : {
+    "手札は、最大 %lld 枚です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You are dealt %lld cards."
+            "value" : "Your hand holds up to %lld cards."
           }
         }
       }
     },
-    "山札があるあいだは、1 枚出すごとに 1 枚補充されます。" : {
+    "山札が残っているあいだは、1 枚出すごとに補充されます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "While your stock lasts, each card you play is refilled from it."
+            "value" : "While your stock has cards, each card you play is refilled."
           }
         }
       }
@@ -1158,13 +1158,13 @@
         }
       }
     },
-    "「めくる」を押すと、両方の山札から 1 枚ずつ台札に置かれます。" : {
+    "「めくる」を押すと、山札が残っている側が 1 枚ずつ台札に置きます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap Flip, and one card from each stock is turned onto the piles."
+            "value" : "Tap Flip, and each side that still has a stock turns one card onto its pile."
           }
         }
       }
@@ -1176,6 +1176,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If only flips keep happening and nothing moves, the game is a draw."
+          }
+        }
+      }
+    },
+    "両方の山札が空なら、台札を切り直します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If both stocks are empty, the piles are reshuffled."
           }
         }
       }

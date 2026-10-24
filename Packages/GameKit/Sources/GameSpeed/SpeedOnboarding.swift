@@ -21,7 +21,7 @@ public enum SpeedOnboarding {
                     figure: { AnyView(SpeedHowToFigures.WinFigure()) }
                 ),
                 OnboardingPage(
-                    heading: tr("1 回の番でやること"),
+                    heading: tr("札の出し方"),
                     lines: [
                         tr("手札の札を、出したい台札のほうへ払います。"),
                         tr("出せない札は、手札に戻るだけです。"),
@@ -47,15 +47,16 @@ public enum SpeedOnboarding {
                 OnboardingPage(
                     heading: tr("手札の補充"),
                     lines: [
-                        tr("配られた手札は %lld 枚です。", SpeedRules.handSize),
-                        tr("山札があるあいだは、1 枚出すごとに 1 枚補充されます。"),
+                        tr("手札は、最大 %lld 枚です。", SpeedRules.handSize),
+                        tr("山札が残っているあいだは、1 枚出すごとに補充されます。"),
                     ],
                     figure: { AnyView(SpeedHowToFigures.SimultaneousFigure()) }
                 ),
                 OnboardingPage(
                     heading: tr("どちらも出せないとき"),
                     lines: [
-                        tr("「めくる」を押すと、両方の山札から 1 枚ずつ台札に置かれます。"),
+                        tr("「めくる」を押すと、山札が残っている側が 1 枚ずつ台札に置きます。"),
+                        tr("両方の山札が空なら、台札を切り直します。"),
                         tr("めくるだけが続いて場が動かないときは、引き分けです。"),
                     ],
                     figure: { AnyView(SpeedHowToFigures.FlipFigure()) }

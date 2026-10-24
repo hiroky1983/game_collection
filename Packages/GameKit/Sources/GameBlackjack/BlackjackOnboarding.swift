@@ -61,7 +61,7 @@ public enum BlackjackOnboarding {
                     heading: tr("勝ち負けの決まり"),
                     lines: [
                         tr("%lld 回勝負して、勝ち点の合計で競います。", BlackjackModel.roundsPerMatch),
-                        tr("勝てば 1 点、最初の 2 枚で 21 なら 2 点です。"),
+                        tr("勝てば 1 点。分けずに、最初の 2 枚で 21 を作って勝てば 2 点です。"),
                         tr("引き分けと負けは 0 点です。"),
                     ],
                     figure: { AnyView(ScoreFigure()) }

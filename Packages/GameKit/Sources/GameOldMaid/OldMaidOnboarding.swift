@@ -21,9 +21,9 @@ public enum OldMaidOnboarding {
                     figure: { AnyView(JokerFigure()) }
                 ),
                 OnboardingPage(
-                    heading: tr("最初にやること"),
+                    heading: tr("最初に起こること"),
                     lines: [
-                        tr("配られた手札から、同じ数字の 2 枚（ペア）を捨てます。"),
+                        tr("配られた手札の、同じ数字の 2 枚（ペア）は、自動で捨てられます。"),
                         tr("ジョーカーはペアになりません。"),
                     ],
                     figure: { AnyView(OldMaidHowToFigures.PairFigure()) }

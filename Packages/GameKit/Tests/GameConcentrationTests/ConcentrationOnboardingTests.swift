@@ -39,7 +39,8 @@ struct ConcentrationOnboardingTests {
         #expect(model.currentPlayer == .cpu)
     }
 
-    @Test("すべての札がなくなったら終わり。多く取ったほうが勝ち、同数は引き分け")
+#if DEBUG
+    @Test("すべてのペアが取られたら終わり。多く取ったほうが勝ち、同数は引き分け")
     func finish() {
         let model = ConcentrationModel(services: nil, autoClearDelay: delay)
         #expect(!model.isGameOver)
@@ -51,6 +52,7 @@ struct ConcentrationOnboardingTests {
         #expect(model.winner == expected)
         #expect(model.isDraw == (model.playerScore == model.cpuScore))
     }
+#endif
 
     @Test("全部の文言に英語の訳がある（訳し漏れ 0）")
     func everyTextHasEnglish() {

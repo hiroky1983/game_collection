@@ -838,13 +838,13 @@
         }
       }
     },
-    "すべての札がなくなったら、終わりです。" : {
+    "すべてのペアが取られたら、終わりです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The game ends when all the cards are gone."
+            "value" : "The game ends when all the pairs have been taken."
           }
         }
       }

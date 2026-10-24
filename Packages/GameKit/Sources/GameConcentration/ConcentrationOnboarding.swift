@@ -47,7 +47,7 @@ public enum ConcentrationOnboarding {
                 OnboardingPage(
                     heading: tr("勝ち負けの決まり"),
                     lines: [
-                        tr("すべての札がなくなったら、終わりです。"),
+                        tr("すべてのペアが取られたら、終わりです。"),
                         tr("取ったペアが多いほうの勝ちです。"),
                         tr("同じ数なら、引き分けです。"),
                     ],

@@ -24,7 +24,7 @@ public enum ColorRelayOnboarding {
                     heading: tr("1 回の番でやること"),
                     lines: [
                         tr("場の札と、同じ色か同じ数字・記号の札を 1 枚出します。"),
-                        tr("色も数字もちがう札は、出せません。"),
+                        tr("色も数字・記号もちがう札は、出せません。いろがえは別です。"),
                     ],
                     figure: { AnyView(ColorRelayHowToFigures.MatchFigure()) }
                 ),

@@ -1026,13 +1026,13 @@
         }
       }
     },
-    "勝てば 1 点、最初の 2 枚で 21 なら 2 点です。" : {
+    "勝てば 1 点。分けずに、最初の 2 枚で 21 を作って勝てば 2 点です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A win is 1 point; 21 with your first two cards is 2 points."
+            "value" : "A win is 1 point. Winning with 21 from your first two cards, without splitting, is 2 points."
           }
         }
       }

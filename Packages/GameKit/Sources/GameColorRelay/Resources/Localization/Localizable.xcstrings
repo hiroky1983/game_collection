@@ -1139,13 +1139,13 @@
         }
       }
     },
-    "色も数字もちがう札は、出せません。" : {
+    "色も数字・記号もちがう札は、出せません。いろがえは別です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A card with a different color and a different number can't be played."
+            "value" : "A card with a different color and a different number or symbol can't be played. Color Change cards are the exception."
           }
         }
       }
