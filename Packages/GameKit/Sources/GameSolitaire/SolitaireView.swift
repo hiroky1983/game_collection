@@ -98,7 +98,7 @@ public struct SolitaireView: View {
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
-        .howToPlay(HowToPlayGuide.solitaire.illustrated(SolitaireHowToFigures.items)) { SolitaireRuleSheet() }
+        .howToPlay(HowToPlayGuide.solitaire.illustrated(SolitaireHowToFigures.items).onboarding(SolitaireOnboarding.guide)) { SolitaireRuleSheet() }
         // めくり方を選んでから配る（#498）。局に焼き込むのは「配る」を押した瞬間だけ。
         .sheet(isPresented: $showSetup) {
             SolitaireSetupSheet(draft: $draft, discardsProgress: model.canUndo) {

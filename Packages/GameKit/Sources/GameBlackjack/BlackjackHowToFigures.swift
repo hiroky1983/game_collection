@@ -18,7 +18,7 @@ enum BlackjackHowToFigures {
     }
 
     /// 21 ぴったりと、21 超え。
-    private struct GoalFigure: View {
+    struct GoalFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 28) {
                 VStack(spacing: 4) {
@@ -43,7 +43,7 @@ enum BlackjackHowToFigures {
     }
 
     /// 札の点数。
-    private struct PointsFigure: View {
+    struct PointsFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 22) {
                 column(cards: [RuleMiniCard("A", suit: .spade)], caption: tr("1 か 11"))
@@ -65,7 +65,7 @@ enum BlackjackHowToFigures {
     }
 
     /// ヒットで 1 枚足す。ここで止めるのがスタンド。
-    private struct HitStandFigure: View {
+    struct HitStandFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -84,7 +84,7 @@ enum BlackjackHowToFigures {
     }
 
     /// 同じ点数の 2 枚を 2 手に分ける。
-    private struct SplitFigure: View {
+    struct SplitFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {

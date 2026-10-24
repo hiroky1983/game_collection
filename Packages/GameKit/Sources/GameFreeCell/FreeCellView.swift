@@ -86,7 +86,7 @@ public struct FreeCellView: View {
                     newGame: GameChromeNewGame(.solo) {
                         startNewGame()
                     })
-        .howToPlay(HowToPlayGuide.freecell.illustrated(FreeCellHowToFigures.items)) { FreeCellRuleSheet() }
+        .howToPlay(HowToPlayGuide.freecell.illustrated(FreeCellHowToFigures.items).onboarding(FreeCellOnboarding.guide)) { FreeCellRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新しい配札にしますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { model.newGame() }

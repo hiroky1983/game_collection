@@ -12,7 +12,7 @@ enum FreeCellHowToFigures {
     ]
 
     /// 左上のフリーセル 4 つ（札を 1 枚ずつ置いておける）と右上の組札。
-    private struct CellsFigure: View {
+    struct CellsFigure: View {
         var body: some View {
             VStack(spacing: 6) {
                 HStack(spacing: 4) {

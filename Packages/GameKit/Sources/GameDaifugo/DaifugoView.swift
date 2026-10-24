@@ -85,6 +85,10 @@ public struct DaifugoView: View {
         .onChange(of: showReference) { _, isOpen in
             if isOpen { cpuTask?.cancel() } else { runCPU() }
         }
+        // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2824）。
+        .onChange(of: showNewGame) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
         // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
         .sheet(isPresented: $showNewGame) {
             DaifugoNewGameSheet(
@@ -97,7 +101,9 @@ public struct DaifugoView: View {
             } onCancel: { showNewGame = false }
         }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
-        .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)) { DaifugoRuleSheet() }
+        // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
+        .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items).onboarding(DaifugoOnboarding.guide),
+                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() }) { DaifugoRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button(tr("投了する"), role: .destructive) { model.resign() }
@@ -827,6 +833,7 @@ struct DaifugoNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             discardsProgress: discardsProgress,
+            onboarding: DaifugoOnboarding.guide,
             onStart: { onStart(level, ruleSet) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {

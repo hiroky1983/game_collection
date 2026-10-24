@@ -981,6 +981,215 @@
           }
         }
       }
+    },
+    "スピードのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speed: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "手札と山札を、CPU より先に出し切ったほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Be the first to play out your hand and your stock."
+          }
+        }
+      }
+    },
+    "順番はなく、CPU も同時に出してきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no turns; the CPU plays at the same time as you."
+          }
+        }
+      }
+    },
+    "札の出し方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing cards"
+          }
+        }
+      }
+    },
+    "手札の札を、出したい台札のほうへ払います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card from your hand toward the pile you want to play it on."
+          }
+        }
+      }
+    },
+    "出せない札は、手札に戻るだけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card that can't be played just goes back to your hand."
+          }
+        }
+      }
+    },
+    "台札の数字と、1 つ違いの札が出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play a card one rank away from the pile's top card."
+          }
+        }
+      }
+    },
+    "台札が 7 なら、6 か 8 です。マークは関係ありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On a 7, that's a 6 or an 8. The suit doesn't matter."
+          }
+        }
+      }
+    },
+    "A と K もつながる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ace and King connect"
+          }
+        }
+      }
+    },
+    "K の上に A、A の上に K も出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play an A on a K, or a K on an A."
+          }
+        }
+      }
+    },
+    "K の次は、A にもどると考えましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Think of it as wrapping around: after K comes A again."
+          }
+        }
+      }
+    },
+    "手札の補充" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refilling your hand"
+          }
+        }
+      }
+    },
+    "手札は、最大 %lld 枚です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your hand holds up to %lld cards."
+          }
+        }
+      }
+    },
+    "山札が残っているあいだは、1 枚出すごとに補充されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While your stock has cards, each card you play is refilled."
+          }
+        }
+      }
+    },
+    "どちらも出せないとき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When neither side can play"
+          }
+        }
+      }
+    },
+    "「めくる」を押すと、山札が残っている側が 1 枚ずつ台札に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Flip, and each side that still has a stock turns one card onto its pile."
+          }
+        }
+      }
+    },
+    "めくるだけが続いて場が動かないときは、引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If only flips keep happening and nothing moves, the game is a draw."
+          }
+        }
+      }
+    },
+    "両方の山札が空なら、台札を切り直します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If both stocks are empty, the piles are reshuffled."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
