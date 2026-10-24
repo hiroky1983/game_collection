@@ -630,7 +630,10 @@ public final class RunnerModel {
             fallElapsed = 0
             // 死因を解析に覚えさせる（#796）。イベントは出ず、このプレイの `game_end` に載る。
             if let cause = field.lastMissCause {
-                services?.gameDidMiss(gameID: Self.gameID, cause: cause)
+                services?.gameDidMiss(
+                    gameID: Self.gameID, cause: cause,
+                    progressPercent: mode == .stages ? Int(field.progress * 100) : nil
+                )
             }
             // エンドレスはミスした時点で 1 回が決着する（#675）。記録は演出を待たずに確定させ、
             // 演出明けの `.failed` のリザルトに出す。

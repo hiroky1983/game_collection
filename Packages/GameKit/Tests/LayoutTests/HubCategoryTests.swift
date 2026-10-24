@@ -44,7 +44,7 @@ struct HubCategoryTests {
     @Test("チップに出すのは、表示中のゲームが 1 本以上入るカテゴリーだけ")
     func populatedOnly() {
         let r = registry()
-        #expect(r.populatedCategories(among: ["a", "b", "c", "d"]) == [.board, .cards, .puzzleOther])
+        #expect(r.populatedCategories(among: ["a", "b", "c", "d"]) == [.cards, .board, .puzzleOther])
         #expect(r.populatedCategories(among: ["b"]) == [.board])
         #expect(r.populatedCategories(among: []).isEmpty)
     }

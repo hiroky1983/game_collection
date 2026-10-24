@@ -62,6 +62,8 @@ struct ColorRelayCardView: View {
     let width: CGFloat
     var selected: Bool = false
     var hint: RelayCardHint = .none
+    /// 出せる札に薄く光る枠を付ける（#2805）。ヒント設定とは独立で、手札の描き手がルール判定から渡す。
+    var glows: Bool = false
 
     private var size: ColorRelayCardSize { ColorRelayCardSize(width: width) }
 
@@ -98,6 +100,13 @@ struct ColorRelayCardView: View {
         .overlay(
             RoundedRectangle(cornerRadius: s.corner, style: .continuous)
                 .strokeBorder(selected ? Theme.Fixed.ink : Color.black.opacity(0.28), lineWidth: selected ? 3 : 1)
+        )
+        // 出せる札は黄色の枠と薄い光で浮かせる（#2805）。選択中は墨の太枠が主役なので重ねない。
+        .overlay(
+            RoundedRectangle(cornerRadius: s.corner, style: .continuous)
+                .strokeBorder(Theme.Fill.yellow, lineWidth: glows && !selected ? 2.5 : 0)
+                .shadow(color: Theme.Fill.yellow.opacity(glows && !selected ? 0.6 : 0), radius: 4)
+                .allowsHitTesting(false)
         )
         // 出せない札はフェルトの上なので、不透明度ではなく白を重ねて沈める（緑に濁らない・#2531）。
         .tableDimmed(isDimmed, cornerRadius: s.corner)

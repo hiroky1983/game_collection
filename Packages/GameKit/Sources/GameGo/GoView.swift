@@ -44,13 +44,8 @@ public struct GoView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("囲碁"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.gameOver || model.moveCount == 0 {
-                            showNewGame = true
-                        } else {
-                            showConfirmNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items)) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
@@ -117,6 +112,22 @@ public struct GoView: View {
             }
             #endif
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.gameOver || model.moveCount == 0 {
+            showNewGame = true
+        } else {
+            showConfirmNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 自分の石 → 置き石（ハンデがあるときだけ）。
+    private var conditionParts: [String] {
+        var parts = [model.aiLevel.label, model.humanSide == .black ? tr("黒・先番") : tr("白・後番")]
+        if model.ruleset.handicap > 0 { parts.append(tr("%lld子", model.ruleset.handicap)) }
+        return parts
     }
 
     // MARK: - 盤の下の操作エリア
@@ -201,11 +212,13 @@ public struct GoView: View {
                 BoardGameResultCard(
                     verdict: verdict,
                     reason: score.summary,
-                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score))],
+                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score)),
+                              tr("%lld手", model.moveCount)],
                     record: model.recordResult
                 ) { resultCardClosed = true }
             } else {
-                BoardGameResultCard(verdict: verdict, reason: tr("投了"), record: model.recordResult) {
+                BoardGameResultCard(verdict: verdict, reason: tr("投了"), details: [tr("%lld手", model.moveCount)],
+                                    record: model.recordResult) {
                     resultCardClosed = true
                 }
             }

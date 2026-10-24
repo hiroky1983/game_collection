@@ -218,3 +218,25 @@ struct SudokuSnapshotTests {
         #expect(!model.noteMode, "新規対局は OFF")
     }
 }
+
+/// ヒントを使った局の順位表の扱い（#2798。マインスイーパー・15パズルと同じ方針）。
+@Suite("ナンプレ ヒントと順位表（#2798）")
+@MainActor
+struct SudokuHintLeaderboardTests {
+
+    @Test("ヒントを使った局は順位表の対象外で、使わない局は対象")
+    func hintedGameIsNotEligible() async {
+        let f = Fixture(suite: "hint")
+        let model = f.makeModel()
+        await model.newGame(difficulty: .easy)
+        #expect(model.currentScore.isLeaderboardEligible, "対照: ヒント前は対象")
+
+        guard let index = (0..<81).first(where: { model.canHint(at: $0) }) else {
+            Issue.record("ヒントを入れられるマスが無い")
+            return
+        }
+        #expect(model.applyHint(at: index))
+        #expect(model.hintsUsed == 1)
+        #expect(!model.currentScore.isLeaderboardEligible)
+    }
+}

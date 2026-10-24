@@ -207,11 +207,16 @@ public final class SudokuModel {
         return Set((0..<SudokuEngine.cellCount).filter { board[$0] == digit })
     }
 
-    /// その数字がもう 9 個すべて**正解の位置に**入っているか（数字パッドを薄く落とす判定）。
+    /// その数字があと何個、正解の位置に入る必要があるか（数字パッドの残数。#2802）。
     /// 盤上の個数で数えると誤答まで数え、まだ置く必要がある数字を使い切り扱いにする（#813）。
+    public func remainingCount(of digit: Int) -> Int {
+        SudokuEngine.size
+            - (0..<SudokuEngine.cellCount).filter { board[$0] == digit && solution[$0] == digit }.count
+    }
+
+    /// その数字がもう 9 個すべて**正解の位置に**入っているか（数字パッドを薄く落とす判定）。
     public func isDigitExhausted(_ digit: Int) -> Bool {
-        (0..<SudokuEngine.cellCount).filter { board[$0] == digit && solution[$0] == digit }.count
-            == SudokuEngine.size
+        remainingCount(of: digit) == 0
     }
 
     /// `index` のマスに `digit` のメモが付いているか。
@@ -220,15 +225,15 @@ public final class SudokuModel {
     }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
-    private var currentScore: GameScore {
+    var currentScore: GameScore {
         GameScore(
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: difficulty.rawValue,
             variantLabel: difficulty.recordLabel,
-            // 広告コンティニューを使った局は順位表へ送らない（#730・`Core/GameCenter.swift` の #406 の方針）。
-            // 自己ベスト（端末内）には従来どおり残す。
-            isLeaderboardEligible: !continueUsed
+            // 広告コンティニューやヒントを使った局は順位表へ送らない（#730・#2798・`Core/GameCenter.swift` の
+            // #406 の方針。マインスイーパー・15パズルと揃える）。自己ベスト（端末内）には従来どおり残す。
+            isLeaderboardEligible: !continueUsed && hintsUsed == 0
         )
     }
 

@@ -462,6 +462,28 @@
           }
         }
       }
+    },
+    "盤を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Board"
+          }
+        }
+      }
+    },
+    "結果を閉じて盤面を見返します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closes the result so you can look back over the board"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

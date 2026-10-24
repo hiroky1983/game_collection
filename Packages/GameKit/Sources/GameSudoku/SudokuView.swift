@@ -81,13 +81,8 @@ public struct SudokuView: View {
         // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
         // 「広告を見たのに入らなかった」を起こさないための緩和）。
         .gameChrome(title: tr("ナンプレ"), review: services.review,
-                    newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) {
-                        if model.state == .playing {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition([model.difficulty.label]) { requestNewGame() },
+                    newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             SudokuNewGameSheet(playLog: services.playLog) { difficulty in
@@ -242,6 +237,17 @@ public struct SudokuView: View {
         guard !Task.isCancelled, !holdsUnitFlash else { return }
         withGameAnimation(.easeOut(duration: SudokuMetrics.unitFlashFadeDuration)) {
             flashingCells = []
+        }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        // 生成中・ヒント広告の視聴中は「新規」ボタンと同じく受けつけない。
+        guard !(model.isGenerating || hintRescue.isWatching) else { return }
+        if model.state == .playing {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
         }
     }
 
@@ -586,7 +592,8 @@ public struct SudokuView: View {
     }
 
     private func digitButton(_ digit: Int) -> some View {
-        let exhausted = model.isDigitExhausted(digit)
+        let remaining = model.remainingCount(of: digit)
+        let exhausted = remaining == 0
         return Button {
             model.enter(digit: digit)
         } label: {
@@ -600,6 +607,16 @@ public struct SudokuView: View {
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(model.noteMode ? Theme.purple.opacity(0.18) : Theme.surface)
                 )
+                .overlay(alignment: .topTrailing) {
+                    // 残り個数（#2802）。使い切った数字は薄くするだけで数は出さない。
+                    if !exhausted {
+                        Text(verbatim: "\(remaining)")
+                            .scaledFont(10, weight: .semibold, design: .rounded)
+                            .foregroundStyle(Theme.inkSub)
+                            .padding(.top, 3)
+                            .padding(.trailing, 5)
+                    }
+                }
                 .foregroundStyle(exhausted ? Theme.inkSub : Theme.ink)
                 .contentShape(Rectangle())
         }

@@ -1103,6 +1103,259 @@
           }
         }
       }
+    },
+    "ハーツのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hearts: First-time Guide"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "札を「取らない」ゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The aim is to NOT take cards."
+          }
+        }
+      }
+    },
+    "ハートは 1 枚 1 点、スペードの Q は 13 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each heart is 1 point and the Queen of Spades is 13."
+          }
+        }
+      }
+    },
+    "点が少ないほど勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The fewer points, the better."
+          }
+        }
+      }
+    },
+    "最初にやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To start"
+          }
+        }
+      }
+    },
+    "13 枚が配られたら、まず %lld 枚を選んで左どなりへ渡します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With your 13 cards dealt, first pick %lld and pass them to your left."
+          }
+        }
+      }
+    },
+    "最初はクラブの 2 を持っている人から出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever holds the 2 of Clubs plays first."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "最初に出た札と同じマークを、1 枚出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 1 card of the same suit as the first card played."
+          }
+        }
+      }
+    },
+    "同じマークが無ければ、どの札でも出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have none, you can play any card."
+          }
+        }
+      }
+    },
+    "だれが取るか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who takes the cards"
+          }
+        }
+      }
+    },
+    "最初のマークで、いちばん強い札を出した人が 4 枚を取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever plays the highest card of the first suit takes all 4 cards."
+          }
+        }
+      }
+    },
+    "A が最強、2 が最弱。切り札はありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ace is highest, 2 is lowest. There is no trump."
+          }
+        }
+      }
+    },
+    "ハートの出し方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing hearts"
+          }
+        }
+      }
+    },
+    "ハートは、だれかが場に出すまで先頭に出せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You cannot lead a heart until someone has played one."
+          }
+        }
+      }
+    },
+    "1 巡目は、ハートとスペードの Q を出せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the first trick, you cannot play a heart or the Queen of Spades."
+          }
+        }
+      }
+    },
+    "手札がそれだけのときは出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If that is all you hold, you may play them."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "だれかが %lld 点に届いたら、そこで終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends once anyone reaches %lld points."
+          }
+        }
+      }
+    },
+    "合計の点がいちばん少ない人が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever has the lowest total wins."
+          }
+        }
+      }
+    },
+    "ハートがまだ出ていない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No heart played yet"
+          }
+        }
+      }
+    },
+    "ハートが出たあと" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a heart is played"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

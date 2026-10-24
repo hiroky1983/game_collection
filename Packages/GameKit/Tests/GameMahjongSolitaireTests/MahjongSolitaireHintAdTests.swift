@@ -252,3 +252,28 @@ struct MahjongSolitaireHintAnalyticsTests {
         #expect(endParameters(spy).first?["hints_used"] == .int(1))
     }
 }
+
+@Suite("麻雀ソリティアのヒント・並べ替えと順位表（#2798）")
+@MainActor
+struct MahjongSolitaireLeaderboardEligibilityTests {
+
+    @Test("ヒントも並べ替えも使わない局は順位表の対象")
+    func untouchedGameIsEligible() {
+        let model = MahjongSolitaireModel(services: makeServices(), seed: 21)
+        #expect(model.currentScore.isLeaderboardEligible)
+    }
+
+    @Test("ヒントを使った局は順位表の対象外")
+    func hintedGameIsNotEligible() {
+        let model = MahjongSolitaireModel(services: makeServices(), seed: 21)
+        #expect(model.showHint())
+        #expect(!model.currentScore.isLeaderboardEligible)
+    }
+
+    @Test("並べ替えを使った局は順位表の対象外")
+    func shuffledGameIsNotEligible() {
+        let model = MahjongSolitaireModel(services: makeServices(), seed: 21)
+        #expect(model.shuffleRemaining())
+        #expect(!model.currentScore.isLeaderboardEligible)
+    }
+}

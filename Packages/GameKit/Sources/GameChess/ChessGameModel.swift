@@ -27,6 +27,9 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var white: ChessPlayerKind
     public var black: ChessPlayerKind
     public var aiLevel: Int
+    /// 定跡の選び方を 1 局ごとに変える種（#2800）。新規対局ごとに引き直す。保存はしない
+    /// （続きから再開した対局は、その時点から別の定跡筋を選んでよい。手は常に定跡の合法手）。
+    private var bookSeed = UInt64.random(in: .min ... .max)
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
     /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋と共通）。
@@ -415,6 +418,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         services?.playLog?.saveLastStart(ChessStartChoice(humanSide: humanSide, aiLevel: aiLevel), gameID: gameID)
         startedAt = startedAtFallback()
         gameSerial += 1
+        bookSeed = UInt64.random(in: .min ... .max)
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（将棋 #145）。
         isThinking = false
         // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
@@ -457,10 +461,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
             let level = aiLevel
+            let seed = bookSeed
             let fen = position.toFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleChessEngine(level: level).bestMove(fen: fen)
+                await SimpleChessEngine(level: level, seed: seed).bestMove(fen: fen)
             }.value
         } commit: { uci in
             guard isAITurn, let uci, let move = ChessMove.fromUCI(uci),

@@ -295,6 +295,7 @@ struct HubView: View {
                             url: AppEnvironment.appStoreURL,
                             didTap: { services.gameDidTapShare(gameID: gameID) }
                         ))
+                        .environment(\.playStreakProvider, { services.playLog?.playStreak() ?? 0 })
                         .task {
                             // 手つかずの中断データを開き直した回の `game_start` を数える（#2161）。
                             services.gameScreenDidAppear(

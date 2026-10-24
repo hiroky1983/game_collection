@@ -48,7 +48,7 @@ struct MissTextTests {
             (.geyser, .onsen, "湯柱にぶつかった"),
             (.wall, .satoyama, "石垣にぶつかった"),
             (.wall, .harbor, "コンテナにぶつかった"),
-            (.bird, .harbor, "鳥にぶつかった"),
+            (.bird, .harbor, "鳥にぶつかった。跳ばずに走って下を抜けよう"),
             // 雪国（#2729）。裂け目は穴と同じ「穴に落ちた」。
             (.dog, .snow, "キツネにぶつかった"),
             (.lowBlock, .snow, "雪だるまにぶつかった"),

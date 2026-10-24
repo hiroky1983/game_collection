@@ -229,6 +229,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
 
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
+        // 駒が動かない操作なので、触覚が押せた手応え（囲碁・大富豪のパスと同じ・#2540）。
+        services?.feedback.impact(.light)
         mustPass = false
         selectedPoint = nil
         turnID += 1

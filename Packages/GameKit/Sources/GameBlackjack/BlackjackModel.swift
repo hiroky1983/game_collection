@@ -421,6 +421,8 @@ public final class BlackjackModel {
 
     public func stand() {
         guard phase == .playerTurn, !isRevealingNatural, hands.indices.contains(activeHandIndex) else { return }
+        // 札が動かない操作なので、触覚が押せた唯一の手応え（ディーラーの引きは CPU なので鳴らさない・#2540）。
+        services?.feedback.impact(.light)
         hands[activeHandIndex].isDone = true
         advanceHand()
     }
