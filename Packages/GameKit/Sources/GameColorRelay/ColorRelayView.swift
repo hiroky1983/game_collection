@@ -37,7 +37,7 @@ public struct ColorRelayView: View {
             }
             HowToPlayHint(.colorRelay, playLog: services.playLog)
             actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
+            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
         }
         // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -98,6 +98,15 @@ public struct ColorRelayView: View {
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722・#2806）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            startNewGame(aiLevel: CPUStrength.level(atLadderIndex: index))
         }
     }
 
