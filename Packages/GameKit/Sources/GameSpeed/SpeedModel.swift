@@ -65,6 +65,13 @@ public final class SpeedModel {
     /// 案内の数え直しの番号。View はこれを `.task(id:)` の鍵にし、`playableNavigationWait()` だけ待って
     /// `updatePlayableNavigation()` を呼ぶ（CPU の待ちと同じく、Model は時計を持たない）。
     public private(set) var navigationEpoch = 0
+    /// 「台札のほうへ払って出します」の一言を出しているか（指のタップでは札を出さない・会長 QA 2026-10-24）。
+    /// View が少し待って `dismissSwipeTip()` で消す（Model は時計を持たない）。
+    public private(set) var isShowingSwipeTip = false
+    /// この局で一言を出したか。1 局に 1 回まで。
+    private var swipeTipUsed = false
+    /// この局で払って札を出したか。払い方が分かっている人には一言を出さない（初めのうちだけ）。
+    private var hasSwipedThisGame = false
 
     /// CPU を止めている理由。理由ごとに独立して数えるので、広告が終わってもシートが開いていれば止まったまま。
     public struct CPUHold: OptionSet, Sendable {
@@ -235,7 +242,49 @@ public final class SpeedModel {
 
     // MARK: - あなたの操作
 
-    /// 手札をタップ。置ける台札が 1 つならそこへ出し、2 つなら選択して台札のタップを待つ。
+    /// 指のタップへの反応。
+    public enum TapResponse: Equatable, Sendable {
+        /// 支援機能の操作として扱った（`tapHandCard` と同じ）。
+        case acted
+        /// 札は出さない。札を持ち上げて戻す反応だけ返す。`showsTip` は一言を出すか。
+        case nudged(showsTip: Bool)
+    }
+
+    /// 手札を指でタップした（会長 QA 2026-10-24・build 52「タップで押せると『はやい』でも勝てる」）。
+    /// 通常の操作では札を出さず、持ち上げて戻す反応と、1 局に 1 回の一言だけ返す。札を出す手段は払いだけ。
+    /// - Parameter assistive: VoiceOver・スイッチコントロールを使っているか。使っていればタップで出す（`tapHandCard`）。
+    @discardableResult
+    public func fingerTapHandCard(_ card: SpeedCard, assistive: Bool) -> TapResponse {
+        if assistive {
+            tapHandCard(card)
+            return .acted
+        }
+        guard phase == .playing, humanHand.contains(card) else { return .nudged(showsTip: false) }
+        // 札は動いていないので、出せる札の案内（5 秒）は数え直さない（タップを続ける人にも案内が出る）。
+        services?.feedback.impact(.light)
+        guard !swipeTipUsed, !hasSwipedThisGame else { return .nudged(showsTip: false) }
+        swipeTipUsed = true
+        isShowingSwipeTip = true
+        return .nudged(showsTip: true)
+    }
+
+    /// 台札を指でタップした。通常の操作では何もしない（選んだ札・置けるただ 1 枚を置く操作も止める）。
+    /// 支援機能を使っているとき、または札を選んであるとき（選択は支援機能の操作でしか作られない）だけ `tapPile` する。
+    /// - Returns: `tapPile` に渡したか。
+    @discardableResult
+    public func fingerTapPile(_ index: Int, assistive: Bool) -> Bool {
+        guard assistive || selectedID != nil else { return false }
+        tapPile(index)
+        return true
+    }
+
+    /// 一言を消す。
+    public func dismissSwipeTip() {
+        isShowingSwipeTip = false
+    }
+
+    /// 手札をタップ（支援機能の操作・アクション）。置ける台札が 1 つならそこへ出し、2 つなら選択して台札のタップを待つ。
+    /// 指のタップは `fingerTapHandCard` を通す（通常の操作では出さない）。
     public func tapHandCard(_ card: SpeedCard) {
         guard phase == .playing, humanHand.contains(card) else { return }
         restartPlayableNavigation()
@@ -287,6 +336,8 @@ public final class SpeedModel {
             return false
         }
         play(card, onto: index, by: .human)
+        hasSwipedThisGame = true
+        isShowingSwipeTip = false
         return true
     }
 
@@ -468,6 +519,9 @@ public final class SpeedModel {
         stuckSince = nil
         restartPlayableNavigation()
         hasProgressed = false
+        swipeTipUsed = false
+        hasSwipedThisGame = false
+        isShowingSwipeTip = false
         timingMultiplier = slowMode.isEnabled ? SpeedRules.slowModeMultiplier : 1
         playedBefore = .zero
         playClock = isCPUHeld ? nil : ElapsedClock(now: elapsedNow)

@@ -188,7 +188,7 @@ struct SpeedSwipeModelPathTests {
                                          pileFrames: table.piles, playable: Set(model.playableTargets(for: card)))
         switch outcome {
         case .play(let pile), .miss(let pile): model.swipeCard(card, onto: pile)
-        case .tap: model.tapHandCard(card)
+        case .tap: model.fingerTapHandCard(card, assistive: false)
         case .cancel: break
         }
         return outcome

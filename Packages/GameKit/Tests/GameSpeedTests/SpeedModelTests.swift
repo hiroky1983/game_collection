@@ -1094,3 +1094,96 @@ struct SpeedPlayableNavigationTests {
         #expect(model.playableNavigationWait() == nil)
     }
 }
+
+/// 通常の操作ではタップで札を出せない（会長 QA 2026-10-24・build 52「タップで押せると『はやい』でも割と勝てる」）。
+/// 札を出す手段は払いだけ。VoiceOver・スイッチコントロールを使っているときだけ、タップ・アクションで出せる。
+@MainActor
+@Suite("スピード: タップでは出さない")
+struct SpeedTapOnlyAssistiveTests {
+    /// ♥5 は左（♠6）にだけ出せる。♥9 は右（♥10）にだけ出せる。
+    private func model(feedback: SpyFeedbackService = SpyFeedbackService()) -> SpeedModel {
+        let model = SpeedModel(services: makeServices(feedback: feedback), seed: 3)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5), card(.hearts, 9), card(.diamonds, 12)],
+            humanStock: [card(.diamonds, 3)],
+            cpuHand: [card(.spades, 2)],
+            piles: [[card(.spades, 6)], [card(.hearts, 10)]]
+        )
+        return model
+    }
+
+    @Test("通常時は、出せる手札をタップしても台札に出ない（軽い触覚と一言だけ）")
+    func fingerTapDoesNotPlay() {
+        let feedback = SpyFeedbackService()
+        let m = model(feedback: feedback)
+        let before = (m.humanHand, m.piles, m.cpuRun)
+        feedback.reset()
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: false) == .nudged(showsTip: true))
+        #expect(m.humanHand == before.0 && m.piles == before.1 && m.cpuRun == before.2, "場が動いた")
+        #expect(m.selectedID == nil, "タップで札を選ばない")
+        #expect(m.isShowingSwipeTip)
+        #expect(feedback.impacts == [.light] && feedback.notices.isEmpty)
+    }
+
+    @Test("通常時は、台札をタップしても置けるただ 1 枚を出さない")
+    func fingerTapPileDoesNotPlay() {
+        let m = model()
+        let before = (m.humanHand, m.piles)
+        #expect(m.fingerTapPile(0, assistive: false) == false)
+        #expect(m.humanHand == before.0 && m.piles == before.1)
+    }
+
+    @Test("一言は 1 局に 1 回まで。新しい局ではまた出る")
+    func tipOncePerGame() {
+        let m = model()
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: false) == .nudged(showsTip: true))
+        m.dismissSwipeTip()
+        #expect(!m.isShowingSwipeTip)
+        #expect(m.fingerTapHandCard(card(.hearts, 9), assistive: false) == .nudged(showsTip: false))
+        #expect(!m.isShowingSwipeTip, "同じ局で 2 回目は出さない")
+        m.start(SpeedSettings(level: .normal))
+        #expect(m.fingerTapHandCard(m.humanHand[0], assistive: false) == .nudged(showsTip: true))
+    }
+
+    @Test("払って出したあとの局では一言を出さない（初めのうちだけ）")
+    func noTipAfterSwipe() {
+        let m = model()
+        #expect(m.swipeCard(card(.hearts, 5), onto: 0))
+        #expect(m.fingerTapHandCard(card(.hearts, 9), assistive: false) == .nudged(showsTip: false))
+        #expect(!m.isShowingSwipeTip)
+    }
+
+    @Test("払って出すと、出ている一言は消える")
+    func swipeDismissesTip() {
+        let m = model()
+        m.fingerTapHandCard(card(.diamonds, 12), assistive: false)
+        #expect(m.isShowingSwipeTip)
+        #expect(m.swipeCard(card(.hearts, 5), onto: 0))
+        #expect(!m.isShowingSwipeTip)
+    }
+
+    @Test("VoiceOver・スイッチコントロールの使用中は、タップ（アクション）で出せる")
+    func assistiveTapPlays() {
+        let m = model()
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: true) == .acted)
+        #expect(m.piles[0].last == card(.hearts, 5))
+        #expect(!m.isShowingSwipeTip, "支援機能では一言を出さない")
+        // 台札のタップ: 右（♥10）に置けるのは ♥9 だけなので出す。
+        #expect(m.fingerTapPile(1, assistive: true))
+        #expect(m.piles[1].last == card(.hearts, 9))
+    }
+
+    @Test("支援機能で選んだ札は、台札のタップで置ける")
+    func assistiveSelectionThenPile() {
+        let m = SpeedModel(services: makeServices(), seed: 3)
+        m.configureForTesting(
+            humanHand: [card(.hearts, 5), card(.hearts, 9)],
+            cpuHand: [card(.spades, 2)],
+            piles: [[card(.spades, 4)], [card(.clubs, 6)]]
+        )
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: true) == .acted)
+        #expect(m.selectedID == card(.hearts, 5).id, "両方に置けるので選択")
+        #expect(m.fingerTapPile(1, assistive: false), "選択は支援機能でしか作られないので、台札のタップで置く")
+        #expect(m.piles[1].last == card(.hearts, 5))
+    }
+}
