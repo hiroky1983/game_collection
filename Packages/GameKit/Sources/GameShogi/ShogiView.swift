@@ -33,6 +33,10 @@ public struct ShogiView: View {
         _showNewGame = State(initialValue: showSheet)
     }
 
+    private var hopelessBinding: Binding<Bool> {
+        Binding(get: { model.showsHintHopeless }, set: { if !$0 { model.dismissHintHopeless() } })
+    }
+
     /// 人間が後手なら盤を反転して表示する。
     private var flipped: Bool { model.humanSide == .white }
 
@@ -85,6 +89,15 @@ public struct ShogiView: View {
             } message: {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
+            .alert(tr("この局面は詰みを逃れる手がありません"), isPresented: hopelessBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(tr("ヒントの回数は減っていません。"))
+            }
+        }
+        // 詰ます手のヒントは、印だけでは詰みだと伝わらないので読み上げで添える（#2779）。
+        .onChange(of: model.hintIsMate) { _, isMate in
+            if isMate { AccessibilityNotification.Announcement(tr("詰みがあります")).post() }
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }

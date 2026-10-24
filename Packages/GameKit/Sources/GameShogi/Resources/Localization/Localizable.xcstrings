@@ -1244,6 +1244,39 @@
           }
         }
       }
+    },
+    "この局面は詰みを逃れる手がありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No move here avoids checkmate"
+          }
+        }
+      }
+    },
+    "ヒントの回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your hint count has not been used."
+          }
+        }
+      }
+    },
+    "詰みがあります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is a checkmate"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
