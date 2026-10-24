@@ -771,6 +771,182 @@
           }
         }
       }
+    },
+    "麻雀ソリティアのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mahjong Solitaire: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "積まれた牌を、すべて消したらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear all the stacked tiles to win."
+          }
+        }
+      }
+    },
+    "消すのにかかった時間が、記録されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your clearing time is recorded."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do"
+          }
+        }
+      }
+    },
+    "同じ絵柄の牌を、2 枚タップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap two tiles with the same picture."
+          }
+        }
+      }
+    },
+    "2 枚そろうと、牌が消えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you have a pair, the tiles disappear."
+          }
+        }
+      }
+    },
+    "取れる牌・取れない牌" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free and blocked tiles"
+          }
+        }
+      }
+    },
+    "上に牌が乗っていない牌だけが、取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can only take tiles with no tile on top."
+          }
+        }
+      }
+    },
+    "左右のどちらかが空いている牌だけが、取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can only take tiles with the left or right side open."
+          }
+        }
+      }
+    },
+    "花牌どうし、季節牌どうしは、絵柄がちがってもペアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any two flower tiles, or any two season tiles, make a pair even if the pictures differ."
+          }
+        }
+      }
+    },
+    "それ以外の牌は、まったく同じ絵柄の 2 枚だけが合います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All other tiles only match an identical picture."
+          }
+        }
+      }
+    },
+    "取れる組が無くなったら" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When no pairs are left"
+          }
+        }
+      }
+    },
+    "取れる牌に同じ絵柄が無くなると、手詰まりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If no free tiles match each other, you are stuck."
+          }
+        }
+      }
+    },
+    "広告を見て並べ替えるか、直前の 1 手を戻すか、はじめからやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to reshuffle, undo your last move, or start over."
+          }
+        }
+      }
+    },
+    "同じ牌が取れる所に無い（手詰まり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching free tiles (stuck)"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
