@@ -125,8 +125,9 @@ public struct CatPuzzleView: View {
             )
         )
         // 答えでないマスに赤い × が付いたら読み上げる（3 回目の終局は結果カードが読み上げる。コンティニューの提案は幕が読み上げる）。
-        .onChange(of: model.mistakes) { _, _ in
-            if model.lastWrongCell != nil, !model.isFailed, !model.isOfferingContinue {
+        .onChange(of: model.mistakes) { old, new in
+            // 増えたときだけ（コンティニューでミスが戻ったときは読み上げない）。
+            if new > old, model.lastWrongCell != nil, !model.isFailed, !model.isOfferingContinue {
                 AccessibilityNotification.Announcement(
                     tr("そこに猫はいない。赤い×を置いた。ミス %1$lld/%2$lld", model.mistakes, CatPuzzleModel.maxMistakes)
                 ).post()
