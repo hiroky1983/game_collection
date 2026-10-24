@@ -314,14 +314,10 @@ struct UpdatedGamesTests {
 
     @Test("タグの文言は種類ごとに持ち、英訳が xcstrings にある")
     func labelsAreLocalized() throws {
-        let path = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Packages/GameKit/Sources/CoreEngine/Resources/Localization/Localizable.xcstrings")
-        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any]
-        let strings = try #require(json?["strings"] as? [String: Any])
+        let catalog = try SourceScan.packageSource("Sources/CoreEngine/Resources/Localization/Localizable.xcstrings")
         for tag in UpdateTag.allCases {
-            #expect(strings[["newStage": "新ステージ追加"][tag.rawValue] ?? ""] != nil, "\(tag.rawValue) の英訳が無い")
+            let key = ["newStage": "新ステージ追加"][tag.rawValue] ?? ""
+            #expect(catalog.contains("\"\(key)\" : {"), "\(tag.rawValue) の英訳が無い")
         }
     }
 
