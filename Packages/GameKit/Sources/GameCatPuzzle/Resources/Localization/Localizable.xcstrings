@@ -980,6 +980,118 @@
           }
         }
       }
+    },
+    "あきらめて答えを見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give Up and See the Answer"
+          }
+        }
+      }
+    },
+    "コンティニューできませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Continue"
+          }
+        }
+      }
+    },
+    "ミスが%lld回になりました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've made %lld mistake"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've made %lld mistakes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started while you were watching the ad, so you couldn't continue."
+          }
+        }
+      }
+    },
+    "広告を見てコンティニュー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
+    "広告を見ると、ミスが1回ぶん戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to take back one mistake."
+          }
+        }
+      }
+    },
+    "見つけられなかった猫がいた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cat you didn't find was here"
+          }
+        }
+      }
+    },
+    "見つけられなかった猫の場所を%lld匹ぶん表示しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Showing where %lld cat you didn't find was"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Showing where %lld cats you didn't find were"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

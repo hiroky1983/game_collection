@@ -12,6 +12,9 @@ import Observation
 /// 固定の赤 × はタップ・戻す・やり直しで消えず、中断データにも残る。盤に残る猫は必ず答えのマスなので、
 /// 決まり違反（同じ部屋・行・列に 2 匹、隣り合う）は起きない。猫が部屋の数だけ置けたらクリア。
 /// 赤い ×（ミス）が `maxMistakes`（3）回目になったら終局（負け）にする（会長 QA 2026-10-21・build 43）。
+/// 3 回目のミスで終局する前に、1 局 1 回だけ「広告を見て続ける」を提案する（`isOfferingContinue`・#2780。数独・マインスイーパーと
+/// 同じ `RewardedContinueOverlay`）。続けるとミスが 1 回ぶん戻り（赤い × は盤に残る）、断ったら負けを確定して
+/// まだ見つけていない猫の場所（`unfoundCats`）を盤に見せる。答えを見せたあとはコンティニューできない。
 ///
 /// 計時は盤が出た時点（画面の表示・新しい問題が出た瞬間）から動かす（最初のタップからではない。
 /// 眺めて考えてから押せばタイムが縮む抜け道を塞ぐ・会長 QA 2026-10-21・build 43）。止めるのは画面側
@@ -68,6 +71,11 @@ public final class CatPuzzleModel {
     public private(set) var isSolved = false
     /// ミスが `maxMistakes` 回になって終局した（負け）。
     public private(set) var isFailed = false
+    /// 3 回目のミスの直後で、広告を見て続けるかを選ばせている間。計時は止まり、盤は操作できない。
+    /// 断る（`declineContinue`）か広告を見る（`continueAfterAd`）まで終局にしない。
+    public private(set) var isOfferingContinue = false
+    /// この局でコンティニューを使った。使ったら 2 回目の提案はせず、次の 3 回目のミスでそのまま負け。
+    public private(set) var continueUsed = false
     /// クリアのダイアログを出すか。最後の猫を置いてから `clearCardDelay` おいて真になる（`revealClearCardIfDue`）。
     public private(set) var showsClearCard = false
     /// クリアした時刻（ダイアログまでの間を測る）。
@@ -114,6 +122,9 @@ public final class CatPuzzleModel {
             marks = snap.marks.compactMap(Mark.init(rawValue:))
             elapsedSeconds = snap.elapsedSeconds
             mistakes = snap.mistakes
+            continueUsed = snap.continueUsed ?? false
+            // ミスが上限のまま保存されている = コンティニューの提案の最中に離れた局。提案から続ける。
+            isOfferingContinue = snap.mistakes >= Self.maxMistakes
             hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints)
             hintCells = Set(snap.hintCells ?? [])
             hintCrosses = Set(snap.hintCrosses ?? [])
@@ -182,13 +193,25 @@ public final class CatPuzzleModel {
     /// 終局したか（クリア・ミス上限の負けのどちらでも）。
     public var isOver: Bool { isSolved || isFailed }
 
+    /// 盤を操作できない間（終局、またはコンティニューの提案中）。
+    private var isFrozen: Bool { isOver || isOfferingContinue }
+
+    /// 負けたあとに見せる、まだ見つけていない猫の場所（正解のうち猫の印が無いマス。行→列の順）。負けていなければ空。
+    public var unfoundCats: [Int] {
+        guard isFailed else { return [] }
+        return puzzle.solutionCells.filter { marks.indices.contains($0) && marks[$0] != .cat }.sorted()
+    }
+
+    /// 負けたあとの正解の場所か（読み上げ用）。
+    public func isUnfoundCat(cell: Int) -> Bool { unfoundCats.contains(cell) }
+
     /// あと何回まちがえられるか（上限で終局）。
     public var mistakesRemaining: Int { max(0, Self.maxMistakes - mistakes) }
 
     /// ヒントを押せるか。終局した・広告の追加まで使い切った・盤を進める手が無いときは押せない（回数は減らない）。
     /// 無料ぶんを使い切っていても広告で足せるうちは押せる（押すと広告・`needsAdForHint`）。
-    public var canHint: Bool { !isOver && !hints.isExhausted && nextHint != nil }
-    public var canUndo: Bool { !history.isEmpty && !isOver }
+    public var canHint: Bool { !isFrozen && !hints.isExhausted && nextHint != nil }
+    public var canUndo: Bool { !history.isEmpty && !isFrozen }
 
     /// 決まった印（ヒントの猫・×、赤い ×）のマスか。タップしても変わらない。
     public func isFixed(cell: Int) -> Bool {
@@ -208,7 +231,7 @@ public final class CatPuzzleModel {
         let now = stopwatch.now()
         if let first = pendingTap, first.cell == cell, now - first.at <= Self.doubleTapInterval {
             pendingTap = nil
-            if first.toggled, !isOver {
+            if first.toggled, !isFrozen {
                 marks = first.marksBefore
                 history.removeSubrange(min(first.historyCount, history.count)...)
                 moves = first.movesBefore
@@ -228,7 +251,7 @@ public final class CatPuzzleModel {
     public func toggleCross(cell: Int) -> Bool {
         // 直接の呼び出し（VoiceOver のアクションなど）は、手前の 1 回目のタップの控えを捨てる（`tap` は呼んだ後で控え直す）。
         pendingTap = nil
-        guard !isOver, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return false }
+        guard !isFrozen, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return false }
         startPlayIfPending()
         lastHint = nil
         lastWrongCell = nil
@@ -248,7 +271,7 @@ public final class CatPuzzleModel {
     /// 赤い × を固定で置いてミスを 1 数える。猫のいるマス・ヒントで置いた猫・×、赤い × のマスでは何もしない。
     public func findCat(cell: Int) {
         pendingTap = nil
-        guard !isOver, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return }
+        guard !isFrozen, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return }
         startPlayIfPending()
         lastHint = nil
         lastWrongCell = nil
@@ -262,7 +285,11 @@ public final class CatPuzzleModel {
             lastWrongCell = cell
             mistakes += 1
             if mistakes >= Self.maxMistakes {
-                fail()
+                if continueUsed {
+                    fail()
+                } else {
+                    offerContinue()
+                }
             } else {
                 services?.feedback.notify(.warning)
                 persist()
@@ -294,7 +321,7 @@ public final class CatPuzzleModel {
 
     /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫・×、赤い × も残る。
     public func reset() {
-        guard !isOver else { return }
+        guard !isFrozen else { return }
         history.removeAll()
         pendingTap = nil
         marks = Array(repeating: .empty, count: puzzle.cellCount)
@@ -365,6 +392,8 @@ public final class CatPuzzleModel {
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         history.removeAll()
         mistakes = 0
+        continueUsed = false
+        isOfferingContinue = false
         hints.reset()
         gameSerial += 1
         hintCells = []
@@ -392,7 +421,7 @@ public final class CatPuzzleModel {
     /// 盤が出たとき・画面に戻ったときの開始／再開。1 手目より前でも数える（盤が見えていれば考えている時間）。
     /// 終局した後は数えない。
     public func resumeTimerIfNeeded() {
-        guard !isOver, !stopwatch.isRunning else { return }
+        guard !isFrozen, !stopwatch.isRunning else { return }
         startTimer()
     }
 
@@ -438,6 +467,46 @@ public final class CatPuzzleModel {
         services?.snapshots.clear(for: Self.gameID)
     }
 
+    /// 3 回目のミス。負けにする前に、広告を見て続けるかを選ばせる。計時は止め、提案の最中に離れても同じ提案から
+    /// 続けられるよう、ミスが上限のまま保存する（保存しないと、アプリを閉じて開き直すだけで 3 回目のミスが無かったことになる）。
+    private func offerContinue() {
+        syncElapsed()
+        stopwatch.stop()
+        isOfferingContinue = true
+        services?.feedback.notify(.error)
+        persist()
+    }
+
+    /// 広告を見終えたら、ミスを 1 回ぶん戻して続きから再開する。**視聴が済んでから** View が呼ぶ。
+    /// 最後の赤い × は盤に残す（どこで間違えたかが分かるように）。1 局 1 回。
+    @discardableResult
+    public func continueAfterAd() -> Bool {
+        guard isOfferingContinue, !isFailed, !continueUsed else { return false }
+        continueUsed = true
+        isOfferingContinue = false
+        mistakes = Self.maxMistakes - 1
+        startTimer()
+        services?.feedback.notify(.success)
+        persist()
+        return true
+    }
+
+    /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「コンティニューできなかった」と知らせる。
+    @discardableResult
+    public func continueAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return continueAfterAd()
+    }
+
+    /// コンティニューを断る（または使えない）。負けを確定し、まだ見つけていない猫を盤に見せる（`unfoundCats`）。
+    /// 見せたあとは続けられない。
+    public func declineContinue() {
+        guard isOfferingContinue, !isFailed else { return }
+        isOfferingContinue = false
+        fail()
+    }
+
     /// ミスが上限に達した終局（負け）。記録・解析は負け（`game_end` result=loss）。中断データは消す。
     private func fail() {
         syncElapsed()
@@ -478,7 +547,8 @@ public final class CatPuzzleModel {
         let snapshot = CatPuzzleSnapshot(
             size: size.rawValue, puzzle: puzzle, marks: marks.map(\.rawValue),
             elapsedSeconds: elapsedSeconds, mistakes: mistakes, hintsUsed: hintsUsed, hintCells: hintCells.sorted(),
-            hintCrosses: hintCrosses.sorted(), wrongCrosses: wrongCrosses.sorted()
+            hintCrosses: hintCrosses.sorted(), wrongCrosses: wrongCrosses.sorted(),
+            continueUsed: continueUsed
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }

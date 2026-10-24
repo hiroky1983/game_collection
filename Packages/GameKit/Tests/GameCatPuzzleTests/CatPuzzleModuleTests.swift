@@ -57,7 +57,10 @@ struct CatPuzzleModuleTests {
         #expect(code.contains("var hintRescue = RewardedRescue()"))
         #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
         #expect(code.contains(".rewardedRescueAlerts(\n            hintRescue,"))
-        #expect(code.contains("rescues: [hintRescue]"), "広告の視聴中は計時を止める")
+        #expect(code.contains("rescues: [hintRescue, continueRescue]"), "広告の視聴中は計時を止める")
+        // 3 回目のミスのコンティニューは数独・マインスイーパーと同じ部品（局ガード・提案の計測つき・#2780）。
+        #expect(code.contains("RewardedContinueOverlay("))
+        #expect(code.contains(".rewardedRescueAlerts(\n            continueRescue,"))
         #expect(code.contains(".hint(totalRemaining:"), "ヒントの 2 行目は他のゲームと同じ共通のバッジ")
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由だけで出す")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")

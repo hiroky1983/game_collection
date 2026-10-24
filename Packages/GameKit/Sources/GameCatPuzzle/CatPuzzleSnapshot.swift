@@ -16,10 +16,12 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
     public var hintCrosses: [Int]?
     /// 答えでないマスに猫を置こうとして付いた固定の赤い ×（消せない）。同じく optional。
     public var wrongCrosses: [Int]?
+    /// この局でコンティニューを使ったか（#2780）。同じく optional で、無ければ未使用として読む。
+    public var continueUsed: Bool?
 
     public init(size: String, puzzle: CatPuzzle, marks: [Int], elapsedSeconds: Int,
                 mistakes: Int, hintsUsed: Int, hintCells: [Int]? = nil, hintCrosses: [Int]? = nil,
-                wrongCrosses: [Int]? = nil) {
+                wrongCrosses: [Int]? = nil, continueUsed: Bool? = nil) {
         self.size = size
         self.puzzle = puzzle
         self.marks = marks
@@ -29,13 +31,18 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         self.hintCells = hintCells
         self.hintCrosses = hintCrosses
         self.wrongCrosses = wrongCrosses
+        self.continueUsed = continueUsed
     }
 
     /// 続きから再開できる中断データか（正しい問題・印が 1 つ以上・まだ解けていない・ミスが上限に届いていない）。
     /// `CatPuzzleModel.init` の復元と `CatPuzzleModule.hasResumableSnapshot` の両方がこれを使う。
     /// ミス 3 回で負けの決まり（build 43 の QA）より前の中断データでミスが上限以上のものは、終局済みとして捨てる。
+    /// ただしコンティニューを使っていない局のミスが上限ちょうどの保存は、コンティニューの提案の最中に離れた局なので
+    /// 残す（#2780。使用済みの局は 3 回目のミスで負けを確定して保存を消すので、上限の保存は残らない）。
     public static func isResumable(_ snap: CatPuzzleSnapshot) -> Bool {
-        guard isWellFormed(snap), snap.mistakes < CatPuzzleModel.maxMistakes else { return false }
+        guard isWellFormed(snap) else { return false }
+        let offersContinue = snap.mistakes == CatPuzzleModel.maxMistakes && snap.continueUsed != true
+        guard snap.mistakes < CatPuzzleModel.maxMistakes || offersContinue else { return false }
         let cats = snap.marks.indices.filter { snap.marks[$0] == CatPuzzleModel.Mark.cat.rawValue }
         guard !CatPuzzleLogic.isSolved(puzzle: snap.puzzle, cats: cats) else { return false }
         return snap.marks.contains { $0 != CatPuzzleModel.Mark.empty.rawValue }
