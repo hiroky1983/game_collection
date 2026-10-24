@@ -276,7 +276,7 @@ public struct SimpleChessEngine: ChessEngine {
         let moves = pos.legalMoves()
         guard !moves.isEmpty else { return nil }
 
-        if useBook, let booked = ChessOpeningBook.move(for: fen),
+        if useBook, let booked = ChessOpeningBook.move(for: fen, seed: seed),
            let m = ChessMove.fromUCI(booked), moves.contains(m) { return booked }
 
         let startedAt = Date()

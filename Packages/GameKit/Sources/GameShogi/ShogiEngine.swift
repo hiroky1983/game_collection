@@ -332,7 +332,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         let moves = pos.legalMoves()
         guard !moves.isEmpty else { return nil }
 
-        if useBook, let booked = OpeningBook.move(for: sfen),
+        if useBook, let booked = OpeningBook.move(for: sfen, seed: seed),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
         let startedAt = Date()
