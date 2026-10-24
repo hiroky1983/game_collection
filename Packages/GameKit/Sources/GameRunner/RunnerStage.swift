@@ -21,6 +21,7 @@ import Foundation
 /// | `s` | スピードアップアイテム（平地 + アイテム。障害としては扱わない） |
 /// | `k` | たこ焼き（平地 + 一定時間無敵になるアイテム。障害としては扱わない・#797） |
 /// | `P` | 乗れる台座（区画まるごと。**連続する `P` は 1 つの台座にまとまる**） |
+/// | `H` | 高い台座（#2729。東京＝歩道橋。高さ `RunnerRules.highPlatformHeight` = 16 で、地面からは二段ジャンプでしか乗れない。`PH` は階段。49 面以降だけ） |
 
 /// | `=` | スピードアップ床（平地 + 加速区間。障害としては扱わない。連続すると 1 つの床になる） |
 /// | `~` | 沈む床（#1089。里山＝田んぼ・港町＝干潟。平地 + 減速して沈む区間。連続すると 1 つになる） |
@@ -315,13 +316,30 @@ public struct RunnerStage: Equatable, Sendable {
     /// ——置き方の規則（前後の区画は素の平地・上には何も置かない）も同じものが掛かる。
     static let crumblingPlatformSymbol: Character = "C"
 
-    /// その区画記号が作る台座の種類。台座でない記号は nil。
-    static func platformKind(_ symbol: Character) -> RunnerPlatform.Kind? {
+    /// 高い台座の区画記号（#2729。High の H）。東京の歩道橋。
+    ///
+    /// 台座（`P`）と同じ大文字で、置き方の規則（前後の区画は素の平地・上には何も置かない）も同じ。
+    /// 違うのは上面の高さ（`RunnerRules.highPlatformHeight` = 16）だけで、地面からは二段ジャンプでしか
+    /// 乗れない。**`P` の隣に置いてよい唯一の台座**で、`PH` は 1 段ずつ上がる階段、`HP` は降りる階段になる
+    /// （`RunnerStageTests.platformsHaveFlatGroundOnBothSides` の例外。`RunnerTokyoGimmickTests` が固定）。
+    static let highPlatformSymbol: Character = "H"
+
+    /// その区画記号が作る台座の種類と上面の高さ。台座でない記号は nil。
+    ///
+    /// **連続する区画をまとめるかはこの組で決める**（`makePlatforms`）: 種類も高さも同じなら 1 基、
+    /// どちらかが違えば別の基。`PH` を融合させると 8 と 16 のどちらの上面にも決められない。
+    static func platformSpec(_ symbol: Character) -> (kind: RunnerPlatform.Kind, top: Double)? {
         switch symbol {
-        case platformSymbol:          return .solid
-        case crumblingPlatformSymbol: return .crumbling
+        case platformSymbol:          return (.solid, RunnerRules.platformHeight)
+        case highPlatformSymbol:      return (.solid, RunnerRules.highPlatformHeight)
+        case crumblingPlatformSymbol: return (.crumbling, RunnerRules.platformHeight)
         default:                      return nil
         }
+    }
+
+    /// その区画記号が作る台座の種類。台座でない記号は nil（高さは見ない。`platformSpec` を参照）。
+    static func platformKind(_ symbol: Character) -> RunnerPlatform.Kind? {
+        platformSpec(symbol)?.kind
     }
 
     /// 区画記号を台座の並びへ展開する。
@@ -332,7 +350,8 @@ public struct RunnerStage: Equatable, Sendable {
     /// ——隣り合う 2 つの台座として展開すると、継ぎ目に「端から落ちる」判定が生まれてしまう。
     /// 崩れる足場（`C`・#1090）も同じ規則でまとめるが、**種類が違えばまとめない**
     /// （`PC` は崩れない台座と崩れる足場の 2 基。崩れたときに残る側と消える側が分かれるので、
-    /// 1 基に融合させてはいけない）。
+    /// 1 基に融合させてはいけない）。**高さが違ってもまとめない**（`PH`・#2729 は台座と高い台座の
+    /// 2 基で、継ぎ目がそのまま階段の段差になる）。
     ///
     /// 崩れる足場だけは、まとめたあとに**両端から岸**（`RunnerRules.crumbleBankTiles`）を
     /// 削って板張りぶんの長さにする（岸が無いと、渡り切る距離が区画まるごとになって
@@ -341,7 +360,7 @@ public struct RunnerStage: Equatable, Sendable {
         let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
         let bank = Double(RunnerRules.crumbleBankTiles) * RunnerRules.tileWidth
         var result: [RunnerPlatform] = []
-        var run: (start: Int, kind: RunnerPlatform.Kind)?
+        var run: (start: Int, kind: RunnerPlatform.Kind, top: Double)?
 
         func close(at index: Int) {
             guard let run else { return }
@@ -349,15 +368,16 @@ public struct RunnerStage: Equatable, Sendable {
             result.append(RunnerPlatform(
                 start: Double(run.start) * segmentWidth + inset,
                 length: Double(index - run.start) * segmentWidth - inset * 2,
+                top: run.top,
                 kind: run.kind
             ))
         }
 
         for (index, symbol) in pattern.enumerated() {
-            let kind = platformKind(symbol)
-            if run?.kind != kind {
+            let spec = platformSpec(symbol)
+            if run?.kind != spec?.kind || run?.top != spec?.top {
                 close(at: index)
-                run = kind.map { (start: index, kind: $0) }
+                run = spec.map { (start: index, kind: $0.kind, top: $0.top) }
             }
         }
         close(at: pattern.count)

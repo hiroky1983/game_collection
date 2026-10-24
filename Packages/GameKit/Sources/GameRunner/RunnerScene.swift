@@ -61,6 +61,8 @@ final class RunnerScene: SKScene {
         .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         .yuoke: RunnerScene.makeTexture(RunnerPixelArt.yuoke(), name: "湯桶"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         .snowman: RunnerScene.makeTexture(RunnerPixelArt.snowman(), name: "雪だるま"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .trafficCone: RunnerScene.makeTexture(RunnerPixelArt.trafficCone(), name: "カラーコーン"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .vendingMachine: RunnerScene.makeTexture(RunnerPixelArt.vendingMachine(), name: "自動販売機"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     ]
     /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
     ///

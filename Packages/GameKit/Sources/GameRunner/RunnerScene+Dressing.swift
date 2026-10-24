@@ -249,6 +249,85 @@ extension RunnerScene {
         return makeBoxStack(platform, body: P.snowBlockBody, line: P.snowBlockLine, top: P.snowBlockTop, braced: false)
     }
 
+    /// 歩道橋（高い台座 `H`・#2729 東京）。**高さ 16 の台座**で、地面からは二段ジャンプでしか乗れない。
+    ///
+    /// 足場（`makePlatform`）と同じ約束で組む: 歩く面（`footbridgeWalk`・コンクリートの床板）を当たり判定の
+    /// 上面にぴったり合わせ、世界の縁取りで浮かせ、左端に穴の柵と同じ黄の警告帯（正面から突っ込むとミス）。
+    /// 床板の下は緑の鉄骨——横に通す桁と、12 単位ごとの太い柱。床板の**上**には緑の鉄柵（手すり。柱と
+    /// 2 本の横桟）を立てて歩道橋だと読ませる。柵は当たり判定を持たない飾りで、走者より奥に描かれる
+    /// （コース層は走者の層より下）。右端から降りる階段（段々のシルエット）を次の区画へ少しはみ出して描く
+    /// ——降りるほうは端から走り出れば落ちるだけで、階段そのものに当たり判定は無い。
+    /// `PH` と並べたときは手前の足場（高さ 8）がそのまま上り段になる。
+    func makeFootbridge(_ platform: RunnerPlatform) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        let node = SKNode()
+        node.position = CGPoint(x: platform.start, y: Metrics.groundY)
+        let w = platform.length, top = platform.top
+        let deckHeight = Self.dressedDeckHeight
+        let girderTop = top - deckHeight - 0.5
+
+        // 柱（12 単位ごと。両端は内側へ寄せる）と、床板の下に通す桁。1 本のパスにまとめる。
+        let steel = CGMutablePath()
+        let postWidth = 1.6
+        let posts = max(2, Int((w / 12.0).rounded()) + 1)
+        for i in 0..<posts {
+            let x = (w - postWidth) * Double(i) / Double(posts - 1)
+            steel.addRect(CGRect(x: x, y: 0, width: postWidth, height: girderTop))
+        }
+        steel.addRect(CGRect(x: 0, y: girderTop - 1.2, width: w, height: 1.2))
+        let steelNode = SKShapeNode(path: steel)
+        steelNode.fillColor = RunnerPalette.color(P.footbridgeGirder)
+        steelNode.strokeColor = .clear
+        node.addChild(steelNode)
+
+        // 柱のあいだの筋交い（奥の材なので柱より暗い）。
+        let braces = CGMutablePath()
+        for i in 0..<(posts - 1) {
+            let x0 = (w - postWidth) * Double(i) / Double(posts - 1) + postWidth
+            let x1 = (w - postWidth) * Double(i + 1) / Double(posts - 1)
+            braces.addRect(CGRect(x: x0, y: girderTop * 0.45, width: x1 - x0, height: 0.6))
+        }
+        let braceNode = SKShapeNode(path: braces)
+        braceNode.fillColor = RunnerPalette.color(P.footbridgeRail)
+        braceNode.strokeColor = .clear
+        braceNode.zPosition = -1
+        node.addChild(braceNode)
+
+        addDressedDeck(to: node, width: w, top: top, deck: P.footbridgeWalk, shade: P.footbridgeGirder)
+
+        // 鉄柵（床板の上の手すり）。柱は 8 単位ごと、横桟は 2 本。1 本のパス。
+        let rail = CGMutablePath()
+        let railHeight = 3.2
+        var rx = 1.0
+        while rx < w - 0.6 {
+            rail.addRect(CGRect(x: rx, y: top, width: 0.6, height: railHeight))
+            rx += 8
+        }
+        rail.addRect(CGRect(x: 0, y: top + railHeight - 0.45, width: w, height: 0.45))
+        rail.addRect(CGRect(x: 0, y: top + railHeight * 0.45, width: w, height: 0.4))
+        let railNode = SKShapeNode(path: rail)
+        railNode.fillColor = RunnerPalette.color(P.footbridgeRail)
+        railNode.strokeColor = .clear
+        railNode.zPosition = 1.5
+        node.addChild(railNode)
+
+        // 右端から降りる階段（4 段）。次の区画へ 12 はみ出す飾りで、当たり判定は無い。
+        let stairs = CGMutablePath()
+        let stepWidth = 3.0, stepHeight = (top - deckHeight) / 4
+        for i in 0..<4 {
+            let x = w + stepWidth * Double(i)
+            let height = (top - deckHeight) - stepHeight * Double(i + 1)
+            guard height > 0.4 else { continue }
+            stairs.addRect(CGRect(x: x, y: 0, width: stepWidth, height: height))
+        }
+        let stairNode = SKShapeNode(path: stairs)
+        stairNode.fillColor = RunnerPalette.color(P.footbridgeRail)
+        stairNode.strokeColor = .clear
+        stairNode.zPosition = -1
+        node.addChild(stairNode)
+        return node
+    }
+
     /// 箱を並べた台座（木箱の山・雪のブロック）。`braced` なら箱ごとに斜めの補強材を渡す。
     private func makeBoxStack(_ platform: RunnerPlatform, body bodyColor: UInt32, line lineColor: UInt32, top topColor: UInt32, braced: Bool) -> SKNode {
         let node = SKNode()
@@ -357,13 +436,25 @@ extension RunnerScene {
     /// ローラーを並べ、黄の矢印を右へ流す。ローラーは 1 本のパス（区間が長くても 1 ノード）。
     func makeConveyor(_ floor: RunnerBoostFloor) -> SKNode {
         typealias P = RunnerWorld.DressingPalette
+        return makeBeltFloor(floor, belt: P.conveyorBelt, frame: P.conveyorFrame, roller: P.conveyorRoller, arrow: P.conveyorArrow)
+    }
+
+    /// 動く歩道（`Dressing.BoostFloor.movingWalkway`・東京 #2729）。ベルトコンベアとまったく同じ組み立てで、
+    /// 色だけが黒いゴムの帯・銀の枠とローラー・白い矢印。
+    func makeMovingWalkway(_ floor: RunnerBoostFloor) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        return makeBeltFloor(floor, belt: P.walkwayBelt, frame: P.walkwayFrame, roller: P.walkwayRoller, arrow: P.walkwayArrow)
+    }
+
+    /// ベルトの加速床（ベルトコンベア・動く歩道）。帯・枠・ローラー・矢印の色だけが違う。
+    private func makeBeltFloor(_ floor: RunnerBoostFloor, belt: UInt32, frame: UInt32, roller: UInt32, arrow: UInt32) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
-        addBand(to: node, color: P.conveyorBelt, x: 0, y: bottom, width: floor.length, height: height)
-        addBand(to: node, color: P.conveyorFrame, x: 0, y: Metrics.groundY - 0.6, width: floor.length, height: 0.6)
-        addBand(to: node, color: P.conveyorFrame, x: 0, y: bottom, width: floor.length, height: 0.8)
+        addBand(to: node, color: belt, x: 0, y: bottom, width: floor.length, height: height)
+        addBand(to: node, color: frame, x: 0, y: Metrics.groundY - 0.6, width: floor.length, height: 0.6)
+        addBand(to: node, color: frame, x: 0, y: bottom, width: floor.length, height: 0.8)
 
         let rollers = CGMutablePath()
         let spacing = 4.0
@@ -373,12 +464,12 @@ extension RunnerScene {
             x += spacing
         }
         let rollerNode = SKShapeNode(path: rollers)
-        rollerNode.fillColor = RunnerPalette.color(P.conveyorRoller)
+        rollerNode.fillColor = RunnerPalette.color(roller)
         rollerNode.strokeColor = .clear
         rollerNode.zPosition = 1
         node.addChild(rollerNode)
 
-        addFlowingChevrons(to: node, length: floor.length, bottom: bottom + 1.0, height: height - 1.6, color: P.conveyorArrow)
+        addFlowingChevrons(to: node, length: floor.length, bottom: bottom + 1.0, height: height - 1.6, color: arrow)
         return node
     }
 
@@ -404,13 +495,17 @@ extension RunnerScene {
         let paddy = world.dressing.sinkFloor == .paddy
         let footBath = world.dressing.sinkFloor == .footBath
         let freshSnow = world.dressing.sinkFloor == .freshSnow
+        // 塗りたてのアスファルト（東京・#2729）は足湯と同じ組み立て（面から湯気が立つ）で、色だけが黒い舗装。
+        let freshAsphalt = world.dressing.sinkFloor == .freshAsphalt
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
         let surfaceHeight = height * 0.7
-        let deepColor: UInt32 = freshSnow ? P.freshSnowDeep : footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep)
-        let surfaceColor: UInt32 = freshSnow ? P.freshSnowSurface : footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud)
+        let deepColor: UInt32 = freshAsphalt ? P.freshAsphaltDeep : freshSnow ? P.freshSnowDeep
+            : footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep)
+        let surfaceColor: UInt32 = freshAsphalt ? P.freshAsphaltSurface : freshSnow ? P.freshSnowSurface
+            : footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud)
         addBand(to: node, color: deepColor, x: 0, y: bottom, width: floor.length, height: height)
         addBand(to: node, color: surfaceColor, x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
 
@@ -426,8 +521,8 @@ extension RunnerScene {
                 // （雪そのものを白で描くと白い丘に溶けて目印にならないので、塊の影を描く）。
                 marks.addEllipse(in: CGRect(x: x - 1.6, y: Metrics.groundY - 0.6, width: 2.6, height: 1.7))
                 marks.addEllipse(in: CGRect(x: x + 0.4, y: Metrics.groundY + 0.6, width: 1.9, height: 1.8))
-            } else if footBath {
-                // 湯けむり: 水面から立ち上る白い湯気の粒を 3 つ（踏み込む前に読める目印）。
+            } else if footBath || freshAsphalt {
+                // 湯けむり（足湯）／熱の湯気（塗りたてのアスファルト）: 面から立ち上る白い粒を 3 つ（踏み込む前に読める目印）。
                 marks.addEllipse(in: CGRect(x: x - 1.2, y: Metrics.groundY - 0.4, width: 2.0, height: 1.6))
                 marks.addEllipse(in: CGRect(x: x + 0.2, y: Metrics.groundY + 1.0, width: 1.6, height: 1.4))
                 marks.addEllipse(in: CGRect(x: x - 0.6, y: Metrics.groundY + 2.4, width: 1.2, height: 1.1))
@@ -449,7 +544,8 @@ extension RunnerScene {
         }
         let markNode = SKShapeNode(path: marks)
         markNode.fillColor = RunnerPalette.color(
-            freshSnow ? P.freshSnowShade : footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole)
+            freshAsphalt ? P.freshAsphaltSteam : freshSnow ? P.freshSnowShade
+                : footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole)
         )
         markNode.strokeColor = .clear
         markNode.zPosition = 2
@@ -477,13 +573,14 @@ extension RunnerScene {
         let glintSpacing = 9.0
         var gx = 0.0
         while gx < floor.length + glintSpacing {
-            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow)
+            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow || freshAsphalt)
             gx += glintSpacing
         }
         let glintNode = SKShapeNode(path: glints)
-        // 新雪の照りは雪の白（粉雪のきらめき）。
+        // 新雪の照りは雪の白（粉雪のきらめき）、塗りたてのアスファルトは濡れた舗装の光沢。
         glintNode.fillColor = RunnerPalette.color(
-            freshSnow ? RunnerPixelArt.snowWhite : (paddy || footBath) ? P.waterGlint : P.tidelandSheen
+            freshAsphalt ? P.freshAsphaltSheen : freshSnow ? RunnerPixelArt.snowWhite
+                : (paddy || footBath) ? P.waterGlint : P.tidelandSheen
         )
         glintNode.strokeColor = .clear
         glintNode.alpha = 0.85

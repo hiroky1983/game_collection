@@ -58,6 +58,14 @@ struct MissTextTests {
             (.boar, .snow, "イノシシにぶつかった"),
             (.chasm, .snow, "穴に落ちた"),
             (.pit, .snow, "穴に落ちた"),
+            // 東京（#2729）。犬の枠は犬（秋田犬の色）、イノシシの枠はタクシー。
+            (.dog, .tokyo, "犬にぶつかった"),
+            (.boar, .tokyo, "タクシーにぶつかった"),
+            (.lowBlock, .tokyo, "カラーコーンにぶつかった"),
+            (.tallBlock, .tokyo, "自動販売機にぶつかった"),
+            (.shoot, .tokyo, "蒸気にぶつかった"),
+            (.wall, .tokyo, "看板にぶつかった"),
+            (.chasm, .tokyo, "穴に落ちた"),
         ]
         for (kind, world, expected) in table {
             #expect(text(kind, world) == expected, "\(kind)・\(world)")
@@ -73,6 +81,17 @@ struct MissTextTests {
         #expect(face(.satoyama) == "わら積みにぶつかった")
         #expect(face(.harbor) == "木箱にぶつかった")
         #expect(face(.snow) == "雪のブロックにぶつかった")
+        #expect(face(.tokyo) == "足場にぶつかった")
+    }
+
+    @Test("高い台座（歩道橋・#2729）の正面は台座とも崩れる足場とも別の 1 行で言う")
+    func highPlatformFace() {
+        for world in RunnerWorld.allCases {
+            let text = RunnerView.missText(cause: .rock, object: .highPlatformFace, world: world)
+            #expect(text == "歩道橋にぶつかった", "\(world)")
+            #expect(text != RunnerView.missText(cause: .rock, object: .platformFace, world: world))
+            #expect(text != RunnerView.missText(cause: .rock, object: .crumblingPlatformFace, world: world))
+        }
     }
 
     @Test("崩れる足場の正面は足場の見た目（吊り橋・桟橋）で言う（#2285）")
@@ -84,6 +103,7 @@ struct MissTextTests {
         #expect(face(.harbor) == "桟橋にぶつかった")
         #expect(face(.kyotoNara) == "吊り橋にぶつかった")
         #expect(face(.snow) == "薄氷の橋にぶつかった")
+        #expect(face(.tokyo) == "古い歩道橋にぶつかった")
         for world in RunnerWorld.allCases {
             #expect(face(world) != RunnerView.missText(cause: .rock, object: .platformFace, world: world))
         }
@@ -102,6 +122,7 @@ struct MissTextTests {
             var texts = kinds.map { text($0, world) }
             texts.append(RunnerView.missText(cause: .rock, object: .platformFace, world: world))
             texts.append(RunnerView.missText(cause: .rock, object: .crumblingPlatformFace, world: world))
+            texts.append(RunnerView.missText(cause: .rock, object: .highPlatformFace, world: world))
             for t in texts {
                 #expect(!t.isEmpty)
                 #expect(GameRunner.tr.hasTranslation(t, language: .english), "「\(t)」に英語が無い（\(world)）")
@@ -129,7 +150,7 @@ struct MissTextTests {
             switch field.lastMissObject {
             case .hazard(let kind)?:
                 #expect(kind.missCause == field.lastMissCause, "ステージ \(stage.number): \(kind)")
-            case .platformFace?, .crumblingPlatformFace?:
+            case .platformFace?, .crumblingPlatformFace?, .highPlatformFace?:
                 #expect(field.lastMissCause == .rock, "ステージ \(stage.number)")
             case nil:
                 Issue.record("ステージ \(stage.number): ぶつかったのに相手が記録されていない")

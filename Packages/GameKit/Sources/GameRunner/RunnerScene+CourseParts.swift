@@ -226,6 +226,7 @@ extension RunnerScene {
         case .pavedFarmRoad: return makePavedFarmRoad(floor)
         case .conveyor:      return makeConveyor(floor)
         case .iceSheet:      return makeIceSheet(floor)
+        case .movingWalkway: return makeMovingWalkway(floor)
         }
         // 路面全体（アスファルトの厚み）を加速帯の色で塗り替え、上下を暗い青で縁取る。
         // 以前は 2.2 の薄い帯に小さな三角で、走者の足元では気づけなかった（会長 QA 2026-09-14）。

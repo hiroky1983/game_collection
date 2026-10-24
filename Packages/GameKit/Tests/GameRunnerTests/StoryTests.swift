@@ -65,10 +65,10 @@ struct RunnerStoryTests {
         #expect(!keys.contains(RunnerTutorial.seenKey))
     }
 
-    @Test("締めのきっかけは 6・12・18・24・30・36・42・48 面で、それ以外の面では流れない")
+    @Test("締めのきっかけは 6・12・18・24・30・36・42・48・54 面で、それ以外の面では流れない")
     func endingsFireOnlyAtTheEndOfAWorld() {
         let triggers = RunnerStoryScene.all.compactMap(\.triggerStage)
-        #expect(triggers == [6, 12, 18, 24, 30, 36, 42, 48])
+        #expect(triggers == [6, 12, 18, 24, 30, 36, 42, 48, 54])
         #expect(RunnerStoryScene.intro.triggerStage == nil)
         for stage in 1...RunnerRules.stageCount {
             let scene = RunnerStory.ending(forClearedStage: stage)
@@ -190,11 +190,16 @@ struct RunnerStoryTests {
         // 42 面をクリアして初めて並ぶ（世界の順）。
         _ = RunnerStory.endingToPlay(clearedStage: 42, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen)])
-        // 最後の世界（雪国・#2729）の締めも、48 面をクリアして初めて並ぶ。
+        // 雪国（#2729）の締めも、48 面をクリアして初めて並ぶ。
         _ = RunnerStory.endingToPlay(clearedStage: 47, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen)])
         _ = RunnerStory.endingToPlay(clearedStage: 48, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow)])
+        // 最後の世界（東京・#2729）の締めも、54 面をクリアして初めて並ぶ。
+        _ = RunnerStory.endingToPlay(clearedStage: 53, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow)])
+        _ = RunnerStory.endingToPlay(clearedStage: 54, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow), .ending(.tokyo)])
     }
 
     // MARK: 3. 走行との結び付き
@@ -408,6 +413,9 @@ struct RunnerStoryTests {
             ("除雪車", RunnerStoryArt.snowPlow()),
             ("列車", RunnerStoryArt.train()),
             ("雪の吹き溜まり", RunnerStoryArt.snowMound()),
+            // 東京（#2729）。
+            ("ビル街", RunnerStoryArt.cityBlock()),
+            ("富士山", RunnerStoryArt.mountFuji()),
         ]
         for (name, s) in parts {
             #expect(s.undefinedKeys.isEmpty, "\(name): パレットに無い文字 \(s.undefinedKeys)")
@@ -510,7 +518,7 @@ struct RunnerStoryTests {
 
     // MARK: 5. 撮影・QA の入口
 
-    @Test("起動引数から場面を引ける（-simulateRunner story-intro / story-world1〜8）")
+    @Test("起動引数から場面を引ける（-simulateRunner story-intro / story-world1〜9）")
     func debugScenesMapToLaunchArguments() {
         #expect(RunnerStory.debugScene(for: "story-intro") == .intro)
         for world in RunnerWorld.allCases {
@@ -520,7 +528,7 @@ struct RunnerStoryTests {
         #expect(RunnerStory.debugScene(for: "story-world6") == .ending(.kyotoNara))
         #expect(RunnerStory.debugScene(for: "story-world7") == .ending(.onsen))
         #expect(RunnerStory.debugScene(for: "story-world8") == .ending(.snow))
-        #expect(RunnerStory.debugScene(for: "story-world9") == nil)
+        #expect(RunnerStory.debugScene(for: "story-world9") == .ending(.tokyo))
         #expect(RunnerStory.debugScene(for: "story-world10") == nil)
         #expect(RunnerStory.debugScene(for: "cleared") == nil, "他のシナリオを横取りしている")
         #expect(RunnerStory.debugScene(for: "chasing") == nil)

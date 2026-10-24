@@ -303,10 +303,9 @@ public struct RunnerField: Equatable, Sendable {
     /// 一本化したもの。`Metrics.groundY` を直に見ている接地まわりの箇所はすべてここを通す
     /// ——そうしておかないと「地面では接地するが台座では素通りする」という食い違いが生まれる。
     ///
-    /// 覆っている台座が複数あれば**最も高い上面**を採る。**第 1 弾ではこの `max` に到達しない**
-    /// ——台座の高さは 1 種類（`RunnerRules.platformHeight`）で、連続する `P` は 1 基に
-    /// まとまるため、ある x を覆う台座は常に高々 1 つ。高さ違いの台座を足して段を重ねる日
-    /// （次弾）に効く受け口として残してある。
+    /// 覆っている台座が複数あれば**最も高い上面**を採る。今の並びではこの `max` に到達しない
+    /// ——連続する同じ台座は 1 基にまとまり、高い台座（`H`・#2729）も台座の隣に置くだけで重ねはしない
+    /// （`PH` は左右に並んだ 2 基）ので、ある x を覆う台座は常に高々 1 つ。段を重ねる日に効く受け口として残してある。
     public func surfaceY(at x: Double) -> Double {
         var surface = Metrics.groundY
         forEachPlatform { _, platform in
@@ -624,7 +623,9 @@ public struct RunnerField: Equatable, Sendable {
             }
             if let face = hittingPlatformFace {
                 lastMissCause = .rock
-                lastMissObject = face.kind == .crumbling ? .crumblingPlatformFace : .platformFace
+                // 高い台座（#2729）は絵も文言も別（歩道橋）。崩れる足場は高さが 1 種類なので先に見てよい。
+                lastMissObject = face.kind == .crumbling ? .crumblingPlatformFace
+                    : face.isHigh ? .highPlatformFace : .platformFace
                 events.append(.crashed)
                 return
             }

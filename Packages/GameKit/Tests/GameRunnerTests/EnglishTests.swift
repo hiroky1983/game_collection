@@ -35,7 +35,7 @@ struct RunnerEnglishTests {
 
     @Test("説明のステージ数は本編の面数と一致する（英語も）")
     func descriptionStageCountInEnglish() {
-        #expect(en("タップで跳んで48ステージを走りぬけよう").contains("\(RunnerRules.stageCount)"))
+        #expect(en("タップで跳んで54ステージを走りぬけよう").contains("\(RunnerRules.stageCount)"))
     }
 
     @Test("読み上げの数は 1 のとき単数")
