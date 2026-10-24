@@ -16,7 +16,7 @@ struct PokerStartSheet: View {
     @State private var detail: Detail?
 
     var body: some View {
-        GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
+        GameSetupSheet(kind: .versus, onboarding: PokerOnboarding.guide, onStart: onStart, onCancel: onCancel) {
             // 遊び方を図つきでそのまま並べる（#2044・#2268。荷物運びパズル #2132 と同じ型）。
             // カードは「？」の遊び方シートと同じ部品。
             GameSetupSection(tr("ルールの要点")) {

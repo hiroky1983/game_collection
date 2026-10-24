@@ -213,13 +213,13 @@
         }
       }
     },
-    "タップで選んだ札は残る" : {
+    "タップで選んだ札を入れ替える" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tapped cards are kept"
+            "value" : "The cards you tap get swapped"
           }
         }
       }
@@ -598,13 +598,13 @@
         }
       }
     },
-    "選ばなかった 3 枚" : {
+    "選んだ 3 枚" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The 3 you didn't pick"
+            "value" : "The 3 you picked"
           }
         }
       }
@@ -1107,6 +1107,248 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ vs. %2$@"
+          }
+        }
+      }
+    },
+    "ポーカーのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poker: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "5 枚の手札で「役」を作ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a hand from your 5 cards."
+          }
+        }
+      }
+    },
+    "CPU より強い役を作れば、その回の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beat the CPU's hand to win the round."
+          }
+        }
+      }
+    },
+    "1 回の番でやること①" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do each round (1)"
+          }
+        }
+      }
+    },
+    "入れ替えたい札を、タップで選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the cards you want to swap."
+          }
+        }
+      }
+    },
+    "選んだ札は少し下がって、枠がつきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chosen cards slide down a little and get an outline."
+          }
+        }
+      }
+    },
+    "1 回の番でやること②" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do each round (2)"
+          }
+        }
+      }
+    },
+    "「交換」を押すと、選んだ札が新しい札になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Draw and the chosen cards are replaced with new ones."
+          }
+        }
+      }
+    },
+    "入れ替えない札は、そのまま残ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cards you did not choose stay as they are."
+          }
+        }
+      }
+    },
+    "替えないときは「交換しない」を押します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To keep your hand, tap Stand Pat."
+          }
+        }
+      }
+    },
+    "役の強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand strength"
+          }
+        }
+      }
+    },
+    "役は全部で %lld 種類あります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are %lld kinds of hands in all."
+          }
+        }
+      }
+    },
+    "ペアが 2 組、3 枚そろい…と、強くなっていきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two pairs, three of a kind, and so on: they keep getting stronger."
+          }
+        }
+      }
+    },
+    "一覧は「？」の「くわしいルール」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See the full list under Detailed rules in the ? sheet."
+          }
+        }
+      }
+    },
+    "点の入り方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How points are scored"
+          }
+        }
+      }
+    },
+    "勝った回は、自分の役の点が入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you win a round, you score the points of your hand."
+          }
+        }
+      }
+    },
+    "役が強いほど、大きな点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The stronger the hand, the more points."
+          }
+        }
+      }
+    },
+    "引き分けと負けは、点が入りません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tie or a loss scores nothing."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "%lld 回勝負して、合計点の多いほうが勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play %lld rounds. Whoever has more total points wins."
+          }
+        }
+      }
+    },
+    "広告を見ると、1 度だけもう 1 回交換できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to get one extra swap, once."
           }
         }
       }
