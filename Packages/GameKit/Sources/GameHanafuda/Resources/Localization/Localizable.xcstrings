@@ -2633,6 +2633,303 @@
           }
         }
       }
+    },
+    "花札こいこいのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koi-Koi: First-time Guide"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "同じ月の札を取って、役を作るゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture cards of the same month to make yaku (scoring combinations)."
+          }
+        }
+      }
+    },
+    "役ができたら、あがって得点を決めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once you have a yaku, stop to lock in your score."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "手札を 1 枚出して、場の同じ月の札を取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play 1 card from your hand and capture a card of the same month from the field."
+          }
+        }
+      }
+    },
+    "次に山札を 1 枚めくって、同じように取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then flip 1 card from the deck and capture the same way."
+          }
+        }
+      }
+    },
+    "合う札が無いときは、場に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If nothing matches, the card stays on the field."
+          }
+        }
+      }
+    },
+    "札の種類" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kinds of cards"
+          }
+        }
+      }
+    },
+    "札は 12 か月が 4 枚ずつ、全部で 48 枚。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "12 months, 4 cards each: 48 cards in all."
+          }
+        }
+      }
+    },
+    "光・タネ・短冊・カスの 4 種類があります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 4 kinds: Brights, Tane, Ribbons and Kasu."
+          }
+        }
+      }
+    },
+    "札の上の帯に、月と種類が出ています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The band on each card shows its month and kind."
+          }
+        }
+      }
+    },
+    "主な役" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main yaku"
+          }
+        }
+      }
+    },
+    "決まった札をそろえると役ができます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collect certain cards to make a yaku."
+          }
+        }
+      }
+    },
+    "役ごとに文（もん）の点が決まっています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each yaku is worth a set number of points (mon)."
+          }
+        }
+      }
+    },
+    "役の一覧は、画面上の「役の早見表」で見られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See every yaku in the \"Yaku list\" on the game screen."
+          }
+        }
+      }
+    },
+    "あがるか、こいこいか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop or Koi-Koi?"
+          }
+        }
+      }
+    },
+    "役ができたら「あがり」で得点が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once you have a yaku, choose \"Stop\" to score it."
+          }
+        }
+      }
+    },
+    "「こいこい」を選ぶと、続けて役を伸ばせます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose \"Koi-Koi\" to keep playing and build a bigger yaku."
+          }
+        }
+      }
+    },
+    "こいこいのあとに相手があがると、相手の得点が 2 倍です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your opponent stops after your Koi-Koi, their score is doubled."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "全部の局が終わって、文の合計が多いほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After all the rounds, whoever has more points in total wins."
+          }
+        }
+      }
+    },
+    "1 回の得点が 7 文以上だと、その局は 2 倍です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A score of 7 points or more is doubled for that round."
+          }
+        }
+      }
+    },
+    "だれもあがれずに手札が尽きたら、その局は 0 文です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If nobody stops before the hands run out, the round scores 0."
+          }
+        }
+      }
+    },
+    "役ができる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a yaku"
+          }
+        }
+      }
+    },
+    "CPU" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU"
+          }
+        }
+      }
+    },
+    "%@（勝ち）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (wins)"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

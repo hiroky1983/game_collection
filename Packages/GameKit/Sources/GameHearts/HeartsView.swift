@@ -7,6 +7,8 @@ public struct HeartsView: View {
     @State private var showNewGame = false
     /// 対局中に開ける札の強さ・点数の早見表（#2788）。
     @State private var showReference = false
+    /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2827）。
+    @State private var isHowToPlayOpen = false
     /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（いろリレー・CodeRabbit 指摘 PR #1339 と同じ）。
     /// ボタンから起こした非構造化タスクは View のライフサイクルで止まらないので、離れたら自分で止める。
     @State private var cpuTask: Task<Void, Never>?
@@ -55,7 +57,9 @@ public struct HeartsView: View {
                     newGame: GameChromeNewGame(.match) { showNewGame = true }) {
             statusChips
         }
-        .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items)) { HeartsRuleSheet() }
+        .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items).onboarding(HeartsOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true; cpuTask?.cancel() },
+                   onDismiss: { isHowToPlayOpen = false; runCPU() }) { HeartsRuleSheet() }
         // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
         .sheet(isPresented: $showReference) {
             NavigationStack {
@@ -68,6 +72,10 @@ public struct HeartsView: View {
             }
         }
         .onChange(of: showReference) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
+        // 新規対局シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2827）。
+        .onChange(of: showNewGame) { _, isOpen in
             if isOpen { cpuTask?.cancel() } else { runCPU() }
         }
         .sheet(isPresented: $showNewGame) {
@@ -739,6 +747,7 @@ struct HeartsNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             discardsProgress: true,
+            onboarding: HeartsOnboarding.guide,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {

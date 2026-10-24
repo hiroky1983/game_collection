@@ -22,6 +22,7 @@ public struct HanafudaSetupSheet: View {
     public var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: HanafudaOnboarding.guide,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("何局戦うか")) {

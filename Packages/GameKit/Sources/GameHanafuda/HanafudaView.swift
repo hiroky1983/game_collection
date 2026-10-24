@@ -2,6 +2,12 @@ import Foundation
 import SwiftUI
 import Core
 
+/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
+private struct PausableTurn: Equatable {
+    let key: AITurnKey
+    let paused: Bool
+}
+
 public struct HanafudaView: View {
     @State private var model: HanafudaModel
     private let services: GameServices
@@ -15,6 +21,8 @@ public struct HanafudaView: View {
     @State private var draft = HanafudaOptions()
     /// 試合の後に「設定を変える」で設定シートを開き直しているか（#2612）。初回は `.idle` で開く。
     @State private var showChangeSettings = false
+    /// 「？」（図で見る遊び方を含む）を開いているあいだ CPU の手番を止める（#2827）。
+    @State private var isHowToPlayOpen = false
 
     public init(services: GameServices) {
         self.services = services
@@ -77,7 +85,8 @@ public struct HanafudaView: View {
         // 早見表を置く（#495 の仕様）。
         .gameChrome(title: tr("花札こいこい"), review: services.review,
                     reference: GameChromeReference { showYakuSheet = true })
-        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)) { HanafudaRuleSheet() }
+        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items).onboarding(HanafudaOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
             HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
@@ -113,7 +122,9 @@ public struct HanafudaView: View {
                 message: tr("広告を見ているあいだに試合が終わったため、延長できませんでした。")
             )
         )
-        .task(id: model.aiTurnKey) {
+        // 閉じたら鍵（paused）が変わって再起動し、止めていた手番の続きを回す。
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen)) {
+            guard !isHowToPlayOpen else { return }
             await model.runCPUTurnIfNeeded()
         }
         // CPU の手番の締めに 1 回だけ読み上げる（#2280）。

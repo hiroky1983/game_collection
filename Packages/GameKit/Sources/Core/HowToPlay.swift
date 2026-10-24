@@ -23,6 +23,8 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public let items: [HowToPlayItem]
     /// 図に入らない補足。`items` のあとに文だけのカードで出す。
     public let notes: [String]
+    /// 図で見る「はじめての遊び方」（#2827）。持つゲームだけ、シートの先頭に入口のボタンが出る。
+    public let onboarding: OnboardingGuide?
 
     public init(
         gameID: String,
@@ -31,7 +33,8 @@ public struct HowToPlayGuide: Sendable, Equatable {
         hint: String,
         hintIcon: String = "hand.tap.fill",
         items: [HowToPlayItem] = [],
-        notes: [String] = []
+        notes: [String] = [],
+        onboarding: OnboardingGuide? = nil
     ) {
         self.gameID = gameID
         self.title = title
@@ -40,6 +43,15 @@ public struct HowToPlayGuide: Sendable, Equatable {
         self.hintIcon = hintIcon
         self.items = items
         self.notes = notes
+        self.onboarding = onboarding
+    }
+
+    /// 「はじめての遊び方」（#2827）を持たせた版を返す。
+    public func onboarding(_ guide: OnboardingGuide) -> HowToPlayGuide {
+        HowToPlayGuide(
+            gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
+            items: items, notes: notes, onboarding: guide
+        )
     }
 
     /// 項目に図を差し込んだ版を返す。図の View はゲーム側のモジュールにあるので、文言は Core、
@@ -50,7 +62,7 @@ public struct HowToPlayGuide: Sendable, Equatable {
         return HowToPlayGuide(
             gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
             items: zip(items, figures).map { HowToPlayItem($0.text, figure: $1) },
-            notes: notes
+            notes: notes, onboarding: onboarding
         )
     }
 
@@ -58,7 +70,7 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public static func == (lhs: HowToPlayGuide, rhs: HowToPlayGuide) -> Bool {
         lhs.gameID == rhs.gameID && lhs.title == rhs.title && lhs.lines == rhs.lines
             && lhs.hint == rhs.hint && lhs.hintIcon == rhs.hintIcon
-            && lhs.items == rhs.items && lhs.notes == rhs.notes
+            && lhs.items == rhs.items && lhs.notes == rhs.notes && lhs.onboarding == rhs.onboarding
     }
 }
 
@@ -1051,6 +1063,8 @@ public struct HowToPlaySheet<Extra: View>: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 10) {
+                    // 自動では開かない。ボタンを押したときだけ図のカードが開く（#2827）。
+                    OnboardingEntry(guide.onboarding, style: .prominent)
                     if !guide.items.isEmpty {
                         illustratedItems
                     } else {
