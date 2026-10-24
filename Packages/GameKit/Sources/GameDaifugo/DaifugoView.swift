@@ -7,6 +7,8 @@ public struct DaifugoView: View {
     @State private var showResignConfirm = false
     /// 右上の新規で開く開始シート（CPU の強さ・しばりを選ぶ・#2604・#2605）。
     @State private var showNewGame = false
+    /// 対局中に開ける強さの順・特別ルールの早見表（#2788）。
+    @State private var showReference = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
     /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
@@ -63,10 +65,25 @@ public struct DaifugoView: View {
         }
         // ゲーム数・革命中・手番は、ヘッダー下の帯（`GameStatusBar`）ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
         .gameChrome(title: daifugoGameName(), review: services.review, fullScreen: .felt, ads: services.ads,
+                    reference: GameChromeReference(tr("カードの強さとルール")) { showReference = true },
                     newGame: GameChromeNewGame(.match, isDisabled: waiveRescue.isWatching) {
                         showNewGame = true
                     }) {
             statusChips
+        }
+        // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
+        .sheet(isPresented: $showReference) {
+            NavigationStack {
+                DaifugoReferenceSheet(ruleSet: model.ruleSet)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(tr("閉じる")) { showReference = false }.fontWeight(.semibold)
+                        }
+                    }
+            }
+        }
+        .onChange(of: showReference) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
         }
         // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
         .sheet(isPresented: $showNewGame) {
@@ -104,8 +121,13 @@ public struct DaifugoView: View {
             // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
             if model.phase == .idle { model.startGame() }
+            #if DEBUG
+            // 撮影用（#2788）: 早見表だけを開く。
+            if ProcessInfo.processInfo.arguments.contains("-daifugoReference") { showReference = true }
+            #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
+            runCPU()
         }
         .onDisappear { cpuTask?.cancel() }
     }
