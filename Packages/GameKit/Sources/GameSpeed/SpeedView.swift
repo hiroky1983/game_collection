@@ -91,7 +91,7 @@ public struct SpeedView: View {
                 // ボタン 2 段ぶん（めくる・タイム）を取っておき上詰め（ボタンの出入りで手札が動かない）。
                 actionArea
                     .frame(minHeight: SpeedTableLayout.actionMinHeight, alignment: .top)
-                RecommendationSlot(services: services, isFinished: model.phase == .result)
+                RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             }
             // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
             .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -616,6 +616,15 @@ public struct SpeedView: View {
     }
 
     // MARK: - 操作
+
+    /// 勝ちが続いたら一段速い CPU を勧める（#722・#2806）。並びは開始シートの速さと同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = SpeedLevel.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.settings.level),
+                                      levelLabels: levels.map(\.label)) { index in
+            withGameAnimation { model.start(SpeedSettings(level: levels[index])) }
+        }
+    }
 
     @ViewBuilder
     private var actionArea: some View {
