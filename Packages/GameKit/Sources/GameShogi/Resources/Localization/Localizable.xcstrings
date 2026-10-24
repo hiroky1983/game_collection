@@ -1277,6 +1277,248 @@
           }
         }
       }
+    },
+    "将棋のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shogi: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "相手の王将（玉）を追いつめたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trap your opponent's king to win."
+          }
+        }
+      }
+    },
+    "逃げ場の無い王手を「詰み」といいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A check the king can't escape is called checkmate (tsumi)."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do on your turn"
+          }
+        }
+      }
+    },
+    "自分の駒をタップすると、動けるマスが光ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap one of your pieces and the squares it can move to light up."
+          }
+        }
+      }
+    },
+    "光ったマスをタップして、駒を動かします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a lit square to move the piece."
+          }
+        }
+      }
+    },
+    "駒を取る・持ち駒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capturing and pieces in hand"
+          }
+        }
+      }
+    },
+    "相手の駒があるマスへ動くと、その駒を取れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move onto a square with an opponent's piece to capture it."
+          }
+        }
+      }
+    },
+    "取った駒は持ち駒になり、あとで好きなマスに打てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured pieces go to your hand, and you can drop them on any square later."
+          }
+        }
+      }
+    },
+    "相手陣（奥の 3 段）に入る・中で動く・出るときに、駒を成れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can promote a piece when it enters, moves within, or leaves the enemy camp (the far three ranks)."
+          }
+        }
+      }
+    },
+    "金と玉は成れません。動けなくなる段へ進むときは、必ず成ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gold and king can't promote. A piece that would have no moves must promote."
+          }
+        }
+      }
+    },
+    "打てない場所" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where you can't drop"
+          }
+        }
+      }
+    },
+    "同じ筋に自分の歩がある筋へ、歩は打てません（二歩）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't drop a pawn on a file where you already have an unpromoted pawn (nifu)."
+          }
+        }
+      }
+    },
+    "歩を打って、すぐ相手を詰ませる手は反則です（打ち歩詰め）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropping a pawn to give immediate checkmate is illegal (uchifuzume)."
+          }
+        }
+      }
+    },
+    "歩・香・桂は、動けなくなる段へは打てません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawns, lances and knights can't be dropped where they would have no moves."
+          }
+        }
+      }
+    },
+    "王手と勝ち負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check and winning"
+          }
+        }
+      }
+    },
+    "次に玉を取られる形が「王手」。王手を外す手しか指せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A position where the king could be taken next is check. You may only play moves that end the check."
+          }
+        }
+      }
+    },
+    "外せない王手が「詰み」で、詰ませた方の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A check that can't be ended is checkmate, and the player who gave it wins."
+          }
+        }
+      }
+    },
+    "歩のある筋の ✕ には歩を打てない（二歩）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pawn drop on a ✕ in a file with your pawn (nifu)"
+          }
+        }
+      }
+    },
+    "飛車が王将を狙っている（王手）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rook is aiming at the king (check)"
+          }
+        }
+      }
+    },
+    "同じ局面が 4 回くり返されると千日手で引き分け。王手を続けた側は負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the same position occurs four times, it's a draw by repetition — but the side that kept giving check loses."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

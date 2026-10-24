@@ -16,7 +16,7 @@ enum MahjongSolitaireHowToFigures {
     private static let tileWidth: CGFloat = 26
     private static let tileHeight: CGFloat = 35
 
-    private static func tile(_ face: MahjongFace, blocked: Bool = false, selected: Bool = false) -> some View {
+    static func tile(_ face: MahjongFace, blocked: Bool = false, selected: Bool = false) -> some View {
         MahjongTileView(face: face, width: tileWidth, height: tileHeight, isBlocked: blocked, isSelected: selected)
     }
 
@@ -30,7 +30,7 @@ enum MahjongSolitaireHowToFigures {
     }
 
     /// 同じ絵柄の 2 枚をタップ → 消える。
-    private struct PairFigure: View {
+    struct PairFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 VStack(spacing: 4) {
@@ -53,7 +53,7 @@ enum MahjongSolitaireHowToFigures {
     }
 
     /// 取れる牌・取れない牌。左右の端は取れる／両どなりがふさがった牌と、上に牌が乗った牌は取れない。
-    private struct FreeTileFigure: View {
+    struct FreeTileFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 14) {
                 // 横一列: 端の牌は取れる・まん中は取れない。
@@ -87,7 +87,7 @@ enum MahjongSolitaireHowToFigures {
     }
 
     /// 花牌どうし・季節牌どうしは、絵柄がちがってもペア。
-    private struct BonusPairFigure: View {
+    struct BonusPairFigure: View {
         var body: some View {
             HStack(spacing: 20) {
                 pair(.flower(0), .flower(1), tr("花牌"))
@@ -110,7 +110,7 @@ enum MahjongSolitaireHowToFigures {
     }
 
     /// 積まれた牌を全部消したらクリア。
-    private struct ClearFigure: View {
+    struct ClearFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 VStack(spacing: 4) {
