@@ -29,6 +29,7 @@ struct PokerCardSoundTests {
         feedback.reset()
         model.confirmExchange()
         #expect(!feedback.impacts.contains(.card(.deal)))
+        #expect(feedback.impacts == [.light], "押せた手応えは .light 1 回（#2540）")
 
         // 同じ保存先だと前の局の中断データを復元してしまうので、別の組で始める。
         let feedback2 = SpyFeedbackService()

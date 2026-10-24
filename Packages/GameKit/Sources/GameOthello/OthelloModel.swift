@@ -196,6 +196,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
+        // 石が動かない操作なので、触覚が押せた手応え（囲碁・大富豪のパスと同じ・#2540）。
+        services?.feedback.impact(.light)
         // パスは石を動かさないので「待った」の巻き戻し地点にはしない（#414）。
         // ここで積むと、CPU のパス直後に「待った」を押したとき**パスの直前の局面**へ戻り、
         // CPU が再びパスして同じ局面に戻る往復になる（履歴も減らないので永久に自分の手を戻せない）。

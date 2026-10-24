@@ -322,9 +322,11 @@ public final class PokerModel {
             }
         }
         selectedForExchange = []
-        // 「交換しない」では何も配られないので鳴らさない。
+        // 「交換しない」では何も配られないので配る音は鳴らさない（押せた手応えだけ .light で返す・#2540）。
         if exchangedAny {
             services?.feedback.impact(.card(.deal)) // 交換成立（新しい札が配られる）
+        } else {
+            services?.feedback.impact(.light)
         }
         // 1 回でも交換すれば、捨てたら途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)

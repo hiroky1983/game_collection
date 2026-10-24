@@ -50,6 +50,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.outcome == .lose)
         #expect(model.dealerTask == nil)
         #expect(spy.notices == [.error])
+        #expect(spy.impacts == [.light], "スタンドを押した 1 回で鳴る（札が動かない操作の手応え・#2540）")
         #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.phase == .result, "勝負の途中なので、決着した回の結果ごと残す（#2552）")
     }
 
@@ -75,7 +76,7 @@ struct BlackjackDealerPacingTests {
         #expect(model.points == 1, "負けたので点は増えない")
         #expect(model.completedRounds == 2, "決着で回が進む")
         #expect(spy.notices == [.error], "勝敗の触覚は精算で 1 回だけ")
-        #expect(spy.impacts.isEmpty, "ディーラー（CPU）の引きでは鳴らさない")
+        #expect(spy.impacts == [.light], "鳴るのはスタンドを押した 1 回だけ。ディーラー（CPU）の引きでは鳴らさない")
         #expect(store.load(BlackjackSnapshot.self, for: "blackjack")?.phase == .result, "勝負の途中なので、決着した回の結果ごと残す（#2552）")
         #expect(model.dealerTask == nil)
     }

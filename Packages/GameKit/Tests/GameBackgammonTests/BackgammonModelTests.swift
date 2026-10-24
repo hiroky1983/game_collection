@@ -114,6 +114,18 @@ struct BackgammonModelTests {
         #expect(!model.mustPass && model.isAITurn)
     }
 
+    @Test("パスの確認は触覚を 1 回だけ鳴らす（#2540）")
+    func confirmPassGivesLightImpactOnce() {
+        let spy = SpyFeedbackService()
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 1)
+        let b = board([12: 4, 7: 3, 5: 5, 4: 2], [18: 3, 19: 3, 20: 3, 21: 2, 22: 2, 23: 2], bar: [1, 0])
+        model.configureForTesting(board: b, roll: (6, 1))
+        spy.reset()
+        model.confirmPass()
+        #expect(spy.impacts == [.light])
+    }
+
     @Test("CPU は withAITurnGuard で 1 手ずつ進め、目を使い切ると人間の番に戻る")
     func cpuTurn() async {
         let model = BackgammonModel(services: nil, cpuDelay: .zero, seed: 3)
