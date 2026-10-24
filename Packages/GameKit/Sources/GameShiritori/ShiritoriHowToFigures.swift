@@ -36,7 +36,7 @@ enum ShiritoriHowToFigures {
     }
 
     /// ノルマ: 取った札が決まった枚数に届けば勝ち。
-    private struct QuotaFigure: View {
+    struct QuotaFigure: View {
         var body: some View {
             VStack(spacing: 6) {
                 HStack(spacing: 4) {
@@ -55,7 +55,7 @@ enum ShiritoriHowToFigures {
     }
 
     /// とことん: 札が尽きるまで。
-    private struct EndlessFigure: View {
+    struct EndlessFigure: View {
         var body: some View {
             VStack(spacing: 6) {
                 HStack(spacing: 4) {
@@ -74,7 +74,7 @@ enum ShiritoriHowToFigures {
     }
 
     /// りんご → ご で始まる ごりら を取る（らっこ は合わない）。
-    private struct ChainFigure: View {
+    struct ChainFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 10) {
                 VStack(spacing: 4) {
@@ -100,7 +100,7 @@ enum ShiritoriHowToFigures {
     }
 
     /// 取った札が新しい場の札になり、CPU の番。
-    private struct TurnFigure: View {
+    struct TurnFigure: View {
         var body: some View {
             HStack(spacing: 12) {
                 VStack(spacing: 4) {
@@ -121,7 +121,7 @@ enum ShiritoriHowToFigures {
     }
 
     /// 制限時間 60 秒・成立で +10 秒・おてつきで -5 秒。
-    private struct TimerFigure: View {
+    struct TimerFigure: View {
         var body: some View {
             HStack(spacing: 10) {
                 chip("timer", "60", Theme.ink)
@@ -143,7 +143,7 @@ enum ShiritoriHowToFigures {
     }
 
     /// 続けられなくなった側の負け。
-    private struct WinLoseFigure: View {
+    struct WinLoseFigure: View {
         var body: some View {
             HStack(spacing: 18) {
                 side(symbol: "person.fill", label: tr("あなた"), win: true)

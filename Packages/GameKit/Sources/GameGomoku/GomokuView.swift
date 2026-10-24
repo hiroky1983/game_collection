@@ -49,7 +49,8 @@ public struct GomokuView: View {
         .gameChrome(title: tr("五目並べ"), review: services.review,
                     condition: GameChromeCondition(conditionParts) { requestNewGame() },
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled))
+        .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled)
+            .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)))
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
@@ -672,6 +673,7 @@ struct GomokuNewGameSheet: View {
         // はみ出すと「対局開始」が押せなくなる）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
             kind: .versus,
+            onboarding: GomokuOnboarding.guide(forbiddenMoves: renju),
             onStart: { onStart(side, level, renju) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あなたの石")) {

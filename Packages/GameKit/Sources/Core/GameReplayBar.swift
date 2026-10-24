@@ -61,11 +61,11 @@ public struct GameReplayBar<Leading: View>: View {
                 Button(action: onReplay) {
                     ViewThatFits(in: .horizontal) {
                         capsule(GameReplayBarText.replay, fill: Theme.Fill.coral, foreground: Theme.onAccent)
-                        capsule(GameReplayBarText.replayShort, fill: Theme.Fill.coral, foreground: Theme.onAccent)
+                        capsule(GameReplayBarText.replayShort, fill: Theme.Fill.coral, foreground: Theme.onAccent, scalesToFit: true)
                     }
                 }
                 Button(action: onChangeSettings) {
-                    capsule(GameReplayBarText.changeSettings, fill: Theme.fillMuted, foreground: .white)
+                    capsule(GameReplayBarText.changeSettings, fill: Theme.fillMuted, foreground: .white, scalesToFit: true)
                 }
             }
         }
@@ -77,9 +77,13 @@ public struct GameReplayBar<Leading: View>: View {
     /// 文字を拡大しても折り返してボタンの高さが跳ねないよう、1 行に固定する（`ViewThatFits` が幅を見る）。
     /// カプセルは 44pt の枠いっぱいに描き、押せる範囲は枠全体（角の外側まで `contentShape` で受ける）。
     /// 枠の外へはみ出させる負の padding は使わない（#711 のプローブで、枠の外は Button が反応しなかった）。
-    private func capsule(_ title: String, fill: Color, foreground: Color) -> some View {
+    /// - Parameter scalesToFit: 幅の半分に収まらないときに文字を縮める（最後の候補「もう一回」と「設定を変える」。
+    ///   `ViewThatFits` の最初の候補は幅で選ばせるので `fixedSize` のまま）。狭い画面で文字を大きくしたときの保険。
+    private func capsule(_ title: String, fill: Color, foreground: Color, scalesToFit: Bool = false) -> some View {
         Text(title)
-            .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+            .lineLimit(1)
+            .fixedSize(horizontal: !scalesToFit, vertical: false)
+            .minimumScaleFactor(scalesToFit ? 0.7 : 1)
             .foregroundStyle(foreground)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: GameReplayBarMetrics.buttonHeight)

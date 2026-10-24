@@ -62,7 +62,7 @@ public struct ShiritoriView: View {
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         // 「？」は遊んでいる遊び方（ノルマ・とことん）に合わせて出し分ける（#2044）。
-        .howToPlay(model.mode.howToPlayGuide, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
+        .howToPlay(model.mode.howToPlayGuide.onboarding(ShiritoriOnboarding.guide(mode: model.mode)), onPresent: { model.pause() }) { ShiritoriRuleSheet() }
         .sheet(isPresented: $showSetup) {
             ShiritoriSetupSheet(quota: model.quota, mode: model.mode) { quota, mode in
                 model.startGame(quota: quota, mode: mode)
@@ -619,6 +619,7 @@ struct ShiritoriSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: ShiritoriOnboarding.guide(mode: mode),
             onStart: { onStart(quota, mode) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あそびかた")) {
