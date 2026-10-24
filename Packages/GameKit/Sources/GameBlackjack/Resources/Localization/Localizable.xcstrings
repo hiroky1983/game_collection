@@ -772,6 +772,303 @@
           }
         }
       }
+    },
+    "ブラックジャックのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blackjack: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "カードの合計を、21 に近づけます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get your cards' total as close to 21 as you can."
+          }
+        }
+      }
+    },
+    "ディーラーより 21 に近ければ勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closer to 21 than the dealer wins."
+          }
+        }
+      }
+    },
+    "21 を超えると、その場で負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go over 21 and you lose on the spot."
+          }
+        }
+      }
+    },
+    "カードの点数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card values"
+          }
+        }
+      }
+    },
+    "A は 1 点か 11 点、J・Q・K は 10 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An ace is 1 or 11; J, Q and K are 10."
+          }
+        }
+      }
+    },
+    "2〜10 は書いてある数のままです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 to 10 count as printed."
+          }
+        }
+      }
+    },
+    "A は、21 を超えないほうで自動で数えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aces are counted automatically in whichever way keeps you at 21 or under."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "「ヒット」で、もう 1 枚引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Hit to draw one more card."
+          }
+        }
+      }
+    },
+    "これでいいと思ったら「スタンド」で止めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Stand when you are happy with your total."
+          }
+        }
+      }
+    },
+    "最初の 2 枚が同じ点数なら、2 つの手に分けられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your first two cards have the same value, you can split them into two hands."
+          }
+        }
+      }
+    },
+    "分けられるのは 1 回だけ。分けた A は 1 枚ずつで終わります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can split only once. Split aces get just one more card each."
+          }
+        }
+      }
+    },
+    "ディーラーの番" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The dealer's turn"
+          }
+        }
+      }
+    },
+    "あなたが止めたら、ディーラーが引きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once you stand, the dealer draws."
+          }
+        }
+      }
+    },
+    "合計が %1$lld 未満の間は引き、%1$lld 以上で止まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The dealer draws while under %1$lld and stops at %1$lld or more."
+          }
+        }
+      }
+    },
+    "合計 16" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total 16"
+          }
+        }
+      }
+    },
+    "合計 17" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total 17"
+          }
+        }
+      }
+    },
+    "17 未満なので引く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Under 17, so draw"
+          }
+        }
+      }
+    },
+    "17 以上なので止まる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "17 or more, so stop"
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "%lld 回勝負して、勝ち点の合計で競います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play %lld rounds and compare your total points."
+          }
+        }
+      }
+    },
+    "勝てば 1 点、最初の 2 枚で 21 なら 2 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A win is 1 point; 21 with your first two cards is 2 points."
+          }
+        }
+      }
+    },
+    "引き分けと負けは 0 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tie or a loss is 0 points."
+          }
+        }
+      }
+    },
+    "勝ち 1 点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win: 1 point"
+          }
+        }
+      }
+    },
+    "最初の 2 枚で 21\n2 点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "21 with the first two cards\n2 points"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
