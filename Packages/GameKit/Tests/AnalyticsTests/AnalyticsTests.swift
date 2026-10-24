@@ -1485,7 +1485,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1495,16 +1495,89 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
+    }
+
+    /// #2848: ミスの回数・最後の地点（5 刻みの進行率）が `game_end` に載り、ミス直後の離脱は `exit` で分かれる。
+    @Test("ミスして走り直さず離れると quit に miss_count / miss_at / exit=after_miss が付く")
+    func quitAfterMissCarriesMissSummary() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services)
+        failCurrentStage(model)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses)? = spy.events.last
+        else { Issue.record("game_end が無い"); return }
+        #expect(result == .quit)
+        #expect(misses?.count == 1)
+        #expect(misses?.exit == .afterMiss)
+        #expect((misses?.lastAtPercent ?? -1) % 5 == 0)
+        let parameters = spy.events.last?.parameters ?? [:]
+        #expect(parameters["miss_count"] == .int(1))
+        #expect(parameters["exit"] == .string("after_miss"))
+        #expect(parameters["miss_at"] != nil)
+    }
+
+    @Test("ミスを挽回してクリアすると win に miss_count が付き、exit は付かない")
+    func winAfterRetryCarriesMissCountWithoutExit() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services)
+        failCurrentStage(model)
+        model.retryStage()
+        failCurrentStage(model)
+        model.retryStage()
+        autoPlayCurrentStage(model)
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses)? = spy.events.last
+        else { Issue.record("game_end が無い"); return }
+        #expect(result == .win)
+        #expect(misses?.count == 2)
+        #expect(misses?.exit == nil)
+        #expect(spy.events.last?.parameters["exit"] == nil)
+    }
+
+    @Test("ミスの無いプレイの game_end に miss_count / miss_at / exit は付かない")
+    func noMissNoMissParameters() {
+        let parameters = AnalyticsEvent.gameEnd(gameID: "runner", result: .win, durationSec: 3).parameters
+        #expect(parameters["miss_count"] == nil)
+        #expect(parameters["miss_at"] == nil)
+        #expect(parameters["exit"] == nil)
+        #expect(AnalyticsMissSummary(count: 0, lastAtPercent: 47, exit: nil).count == 1)
+        #expect(AnalyticsMissSummary(count: 1, lastAtPercent: 47, exit: nil).lastAtPercent == 45)
+        #expect(AnalyticsMissSummary(count: 1, lastAtPercent: 400, exit: nil).lastAtPercent == 100)
+    }
+
+    /// #2848: クリアした面の画面を、次へも「もう一度」も押さずに離れたときだけ `clear_exit`。
+    @Test("クリア直後に離れると clear_exit が 1 回出る。次の面へ進めば出ない")
+    func clearExitOnlyWhenLeavingAfterClear() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        autoPlayCurrentStage(model)
+        model.advanceToNextStage()
+        failCurrentStage(model)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        #expect(!spy.events.contains { if case .clearExit = $0 { return true } else { return false } },
+                "次の面へ進んだあとのミス離脱は clear_exit ではない")
+
+        let (services2, spy2) = makeServices()
+        let model2 = RunnerModel(services: services2, startingAt: 1)
+        autoPlayCurrentStage(model2)
+        services2.gameDidLeave(gameID: RunnerModel.gameID)
+        services2.gameDidLeave(gameID: RunnerModel.gameID)
+        let exits = spy2.events.compactMap { event -> [String: AnalyticsValue]? in
+            if case .clearExit = event { return event.parameters } else { return nil }
+        }
+        #expect(exits.count == 1)
+        #expect(exits.first?["game_id"] == .string(RunnerModel.gameID))
+        #expect(exits.first?["level"] == .string("stage-1"))
+        #expect(AnalyticsEvent.clearExit(gameID: "runner", level: .stage(1)).name == "clear_exit")
     }
 
     @Test("走り出す前に離れても quit は出ない")
