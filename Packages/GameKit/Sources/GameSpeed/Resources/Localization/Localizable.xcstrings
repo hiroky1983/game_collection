@@ -1125,24 +1125,24 @@
         }
       }
     },
-    "手札はいつも %lld 枚です。" : {
+    "配られた手札は %lld 枚です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your hand is always %lld cards."
+            "value" : "You are dealt %lld cards."
           }
         }
       }
     },
-    "1 枚出すと、山札から 1 枚補充されます。" : {
+    "山札があるあいだは、1 枚出すごとに 1 枚補充されます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Each time you play a card, one is refilled from your stock."
+            "value" : "While your stock lasts, each card you play is refilled from it."
           }
         }
       }

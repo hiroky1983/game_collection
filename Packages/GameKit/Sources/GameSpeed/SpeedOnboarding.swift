@@ -47,8 +47,8 @@ public enum SpeedOnboarding {
                 OnboardingPage(
                     heading: tr("手札の補充"),
                     lines: [
-                        tr("手札はいつも %lld 枚です。", SpeedRules.handSize),
-                        tr("1 枚出すと、山札から 1 枚補充されます。"),
+                        tr("配られた手札は %lld 枚です。", SpeedRules.handSize),
+                        tr("山札があるあいだは、1 枚出すごとに 1 枚補充されます。"),
                     ],
                     figure: { AnyView(SpeedHowToFigures.SimultaneousFigure()) }
                 ),

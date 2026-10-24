@@ -1540,7 +1540,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Finishes no. %lld"
+            "value" : "Goes out No. %lld"
           }
         }
       }

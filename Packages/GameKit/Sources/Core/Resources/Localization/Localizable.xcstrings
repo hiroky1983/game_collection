@@ -5706,13 +5706,13 @@
         }
       }
     },
-    "役の一覧と点数は「くわしいルール」で見られます。" : {
+    "役の一覧は「くわしいルール」、点数は「役の点数表」で見られます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See “Detailed Rules” for the list of hands and their points."
+            "value" : "See “Detailed Rules” for the list of hands, and the “Hand Points” table for their points."
           }
         }
       }

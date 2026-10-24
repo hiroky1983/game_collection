@@ -34,7 +34,7 @@ public enum FreeCellOnboarding {
                     lines: [
                         tr("左上の %lld つの枠が「フリーセル」です。", FreeCellBoard.cellCount),
                         tr("札を 1 枚ずつ、一時的に置いておけます。"),
-                        tr("入れた札は、列や組札へいつでも戻せます。"),
+                        tr("入れた札は、置ける場所があればいつでも列や組札へ動かせます。"),
                     ],
                     figure: { AnyView(FreeCellHowToFigures.CellsFigure()) }
                 ),

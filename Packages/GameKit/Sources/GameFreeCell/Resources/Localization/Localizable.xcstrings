@@ -1154,13 +1154,13 @@
         }
       }
     },
-    "入れた札は、列や組札へいつでも戻せます。" : {
+    "入れた札は、置ける場所があればいつでも列や組札へ動かせます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You can move a card out to a column or foundation at any time."
+            "value" : "A card in a cell can move to a column or foundation whenever there is a place for it."
           }
         }
       }
