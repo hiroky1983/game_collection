@@ -17,6 +17,13 @@ public struct CatPuzzleView: View {
     @State private var failCardClosed = false
     /// ヒントの広告救済（無料 3 回を使い切った後の 1 回。連打ガード・広告・失敗アラート。15パズル・ナンプレと同じ #526）。
     @State private var hintRescue = RewardedRescue()
+    /// コンティニュー（3 回目のミスで広告を見て続ける）の広告の段取り（#2780。ヒントとは別の救済として持つ）。
+    @State private var continueRescue = RewardedRescue()
+    /// 負けたあとの答え合わせで、これまでに盤へ出した「見つけていない猫」の数（1 匹ずつ増やす）。
+    @State private var revealedGhosts = 0
+    /// 答え合わせが終わって、結果カードを重ねてよいか。
+    @State private var failCardReady = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
         self.services = services
@@ -29,10 +36,15 @@ public struct CatPuzzleView: View {
     }
 
     /// 狙った局面を描くための入口（静止画の確認・テスト用）。
-    init(services: GameServices, model: CatPuzzleModel, showNewGame: Bool = false) {
+    /// `showsAnswers` は負けたあとの答え合わせを出し終えた状態（結果カードまで）、`failCardClosed` はそのカードを「盤を見る」で閉じた状態。
+    init(services: GameServices, model: CatPuzzleModel, showNewGame: Bool = false,
+         showsAnswers: Bool = false, failCardClosed: Bool = false) {
         self.services = services
         _model = State(initialValue: model)
         _showNewGame = State(initialValue: showNewGame)
+        _revealedGhosts = State(initialValue: showsAnswers ? model.unfoundCats.count : 0)
+        _failCardReady = State(initialValue: showsAnswers)
+        _failCardClosed = State(initialValue: failCardClosed)
     }
 
     /// 開いたときに開始シートを出すか。中断データから再開した盤（印がある）なら出さずに続きを見せる。
@@ -52,9 +64,14 @@ public struct CatPuzzleView: View {
             // クリアのダイアログは最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて重ねる。
             board
                 .gameClearCard(isPresented: model.showsClearCard, title: tr("クリア！"), details: clearDetails)
-                .boardGameResultCard(isPresented: model.isFailed && !failCardClosed) { failCard }
+                // 負けの結果カードは、見つけていない猫を盤に出し終えてから重ねる（カードの後ろで答えが見えるように・#2780）。
+                .boardGameResultCard(isPresented: model.isFailed && failCardReady && !failCardClosed) { failCard }
+                // 3 回目のミスでは、負けにする前に広告を見て続けるかを選ばせる（盤だけに重ねる）。
+                .overlay {
+                    if model.isOfferingContinue { continueOverlay }
+                }
                 // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
-                .disabled(hintRescue.isWatching)
+                .disabled(hintRescue.isWatching || continueRescue.isWatching)
                 .layoutPriority(1)
             messageLine
             controlArea
@@ -65,7 +82,7 @@ public struct CatPuzzleView: View {
         }
         .padding()
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
-                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching) { requestNewGame() })
+                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initial: model.size) { size in
@@ -99,9 +116,18 @@ public struct CatPuzzleView: View {
                 message: tr("広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
             )
         )
-        // 答えでないマスに赤い × が付いたら読み上げる（3 回目の終局は結果カードが読み上げる）。
-        .onChange(of: model.mistakes) { _, _ in
-            if model.lastWrongCell != nil, !model.isFailed {
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: tr("コンティニューできませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("コンティニューできませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
+            )
+        )
+        // 答えでないマスに赤い × が付いたら読み上げる（3 回目の終局は結果カードが読み上げる。コンティニューの提案は幕が読み上げる）。
+        .onChange(of: model.mistakes) { old, new in
+            // 増えたときだけ（コンティニューでミスが戻ったときは読み上げない）。
+            if new > old, model.lastWrongCell != nil, !model.isFailed, !model.isOfferingContinue {
                 AccessibilityNotification.Announcement(
                     tr("そこに猫はいない。赤い×を置いた。ミス %1$lld/%2$lld", model.mistakes, CatPuzzleModel.maxMistakes)
                 ).post()
@@ -109,7 +135,16 @@ public struct CatPuzzleView: View {
         }
         // 新しい局が始まったら、次の負けでまたカードが出るよう開け直す。
         .onChange(of: model.isFailed) { _, failed in
-            if !failed { failCardClosed = false }
+            if !failed {
+                failCardClosed = false
+                revealedGhosts = 0
+                failCardReady = false
+            }
+        }
+        // 負けたら、見つけていない猫を正解の場所に 1 匹ずつ出し、出し終えてから結果カードを重ねる。
+        .task(id: model.isFailed) {
+            guard model.isFailed else { return }
+            await revealUnfoundCats()
         }
         // 最後の猫を置いたら 1 拍おいてクリアのダイアログを出す。
         .task(id: model.isSolved) {
@@ -121,7 +156,7 @@ public struct CatPuzzleView: View {
         // 計時は盤が出た時点から（会長 QA 2026-10-21・build 43）。開始シート・確認・遊び方・広告・背面の間は止め、
         // 画面を離れたら止め、戻ったら再開する（#375・#1734・#1857・#2406）。
         .gameTimerLifecycle(
-            rescues: [hintRescue],
+            rescues: [hintRescue, continueRescue],
             isHeld: Self.holdsClock(showNewGame: showNewGame, showConfirmNewGame: showConfirmNewGame,
                                     showConfirmClear: showConfirmClear),
             pause: { model.pauseTimer() },
@@ -184,7 +219,8 @@ public struct CatPuzzleView: View {
                     puzzle: model.puzzle, marks: model.marks,
                     wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
                     hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint,
-                    shakeToken: model.mistakes, isSolved: model.isSolved, cellSide: cellSide
+                    shakeToken: model.mistakes, isSolved: model.isSolved,
+                    ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)), cellSide: cellSide
                 )
                 .offset(x: inset, y: inset)
                 cells(cellSide: cellSide, inset: inset)
@@ -213,7 +249,8 @@ public struct CatPuzzleView: View {
                     roomName: CatPuzzleHouse.room(model.puzzle.rooms[index]).name,
                     mark: model.marks[index],
                     isConflict: model.wrongCrosses.contains(index),
-                    isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index)
+                    isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index),
+                    isUnfoundCat: model.isUnfoundCat(cell: index)
                 ))
                 .accessibilityHint(model.isOver ? "" : model.hintCells.contains(index)
                                    ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
@@ -225,6 +262,47 @@ public struct CatPuzzleView: View {
                 .accessibilityAction { withGameAnimation { _ = model.toggleCross(cell: index) } }
                 .accessibilityAction(named: tr("× を付け外し")) { withGameAnimation { _ = model.toggleCross(cell: index) } }
                 .accessibilityAction(named: tr("猫を見つける")) { withGameAnimation { model.findCat(cell: index) } }
+        }
+    }
+
+    // MARK: - コンティニュー・答え合わせ
+
+    /// 3 回目のミスの提案。広告を見ればミスが 1 回ぶん戻り、断れば負けを確定して見つけていない猫の場所を見せる。
+    private var continueOverlay: some View {
+        RewardedContinueOverlay(
+            title: tr("ミスが%lld回になりました", CatPuzzleModel.maxMistakes),
+            titleFont: .title3.bold(),
+            cornerRadius: Theme.corner,
+            detail: Text(tr("広告を見ると、ミスが1回ぶん戻ります"))
+                .themeBody(15).foregroundStyle(.white.opacity(0.85)).multilineTextAlignment(.center),
+            rescueLabel: tr("広告を見てコンティニュー"),
+            rescue: continueRescue, services: services, gameID: CatPuzzleModel.gameID,
+            serial: model.gameSerial,
+            grant: { game in model.continueAfterAd(forGame: game) },
+            secondaryTitle: tr("あきらめて答えを見る"),
+            secondaryAction: { model.declineContinue() }
+        )
+    }
+
+    /// 負けたあとの答え合わせ。見つけていない猫を 1 匹ずつ「ぽん」と出し、出し終えて少し置いてから結果カードを出す。
+    /// 全体で約 1 秒に収まるよう、匹数が多いときは間隔を詰める。Reduce Motion のときは待たずに全部出す。
+    private func revealUnfoundCats() async {
+        let total = model.unfoundCats.count
+        if !reduceMotion, total > 0 {
+            let step = min(CatPuzzleMotion.revealStep, CatPuzzleMotion.revealTotal / total)
+            for _ in 0..<total {
+                try? await Task.sleep(for: step)
+                guard !Task.isCancelled else { return }
+                withGameAnimation { revealedGhosts += 1 }
+            }
+            try? await Task.sleep(for: CatPuzzleMotion.revealSettle)
+            guard !Task.isCancelled else { return }
+        } else {
+            withGameAnimation { revealedGhosts = total }
+        }
+        withGameAnimation { failCardReady = true }
+        if total > 0 {
+            AccessibilityNotification.Announcement(tr("見つけられなかった猫の場所を%lld匹ぶん表示しました", total)).post()
         }
     }
 
@@ -319,7 +397,7 @@ public struct CatPuzzleView: View {
         let menu = [
             GameControlMenuItem(
                 id: "clear", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
-                isDestructive: true, isEnabled: model.hasProgressToLose && !isWatchingAd, action: onClear
+                isDestructive: true, isEnabled: model.hasProgressToLose && !model.isOfferingContinue && !isWatchingAd, action: onClear
             ),
         ]
         let actions = [

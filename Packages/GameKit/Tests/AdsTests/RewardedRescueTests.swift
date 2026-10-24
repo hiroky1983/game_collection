@@ -367,6 +367,8 @@ struct RewardGuardCallSiteTests {
             .sorted()
         #expect(callers == [
             "Game2048/Game2048View.swift",
+            // ねこさがし（#2780）のミス 3 回目の幕も同じ部品。
+            "GameCatPuzzle/CatPuzzleView.swift",
             // くっつきフルーツ（#1319・企画倉庫）のゲームオーバーの幕も同じ部品。
             "GameFruits/FruitsView.swift",
             "GameSudoku/SudokuView.swift",
