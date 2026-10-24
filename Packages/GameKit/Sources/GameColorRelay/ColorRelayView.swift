@@ -57,7 +57,13 @@ public struct ColorRelayView: View {
                     }) {
             tableHeader
         }
-        .howToPlay(HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)) { ColorRelayRuleSheet() }
+        // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
+        .howToPlay(HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items).onboarding(ColorRelayOnboarding.guide),
+                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() }) { ColorRelayRuleSheet() }
+        // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める。
+        .onChange(of: showNewGame) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
@@ -748,6 +754,7 @@ struct ColorRelayNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: ColorRelayOnboarding.guide,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {
