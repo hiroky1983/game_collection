@@ -254,6 +254,7 @@ public struct GoView: View {
                     board: model.board,
                     lastMove: model.lastMove,
                     dead: model.endgame?.dead ?? [],
+                    territory: model.endgame?.territory ?? [],
                     moveCount: model.moveCount,
                     pad: pad,
                     revealedMoves: Double(model.moveCount)
@@ -521,6 +522,8 @@ private struct GoBoardCanvas: View, Animatable {
     nonisolated let board: GoBoard
     nonisolated let lastMove: GoPoint?
     nonisolated let dead: Set<GoPoint>
+    /// 終局時の地の持ち主（空なら色分けしない）。
+    nonisolated let territory: [GoStone?]
     nonisolated let moveCount: Int
     nonisolated let pad: CGFloat
     nonisolated var revealedMoves: Double
@@ -581,6 +584,26 @@ private struct GoBoardCanvas: View, Animatable {
                 let r: CGFloat = 3
                 ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)),
                          with: dotColor)
+            }
+
+            // 地（終局のとき）: 黒地は黒、白地は白の小さな角丸。石より先に描いて死に石の下にも敷く。
+            if territory.count == size * size {
+                let half = s * 0.19
+                for row in 0..<size {
+                    for col in 0..<size {
+                        guard let owner = territory[row * size + col] else { continue }
+                        let cx = pad + CGFloat(col) * s
+                        let cy = pad + CGFloat(row) * s
+                        let rect = CGRect(x: cx - half, y: cy - half, width: half * 2, height: half * 2)
+                        let mark = Path(roundedRect: rect, cornerRadius: half * 0.3)
+                        if owner == .black {
+                            ctx.fill(mark, with: .color(Color(hex: 0x1C1812).opacity(0.85)))
+                        } else {
+                            ctx.fill(mark, with: .color(Color(hex: 0xFFFCF0)))
+                            ctx.stroke(mark, with: .color(Color(hex: 0x7A5810).opacity(0.7)), lineWidth: 1)
+                        }
+                    }
+                }
             }
 
             // 石

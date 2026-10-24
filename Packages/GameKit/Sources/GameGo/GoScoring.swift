@@ -117,6 +117,22 @@ public enum GoScoring {
     }
 }
 
+extension GoScoring {
+    /// 終局時に盤上で色分けする「地」の持ち主（交点の `row * size + col` で引く）。
+    ///
+    /// 死に石を取り除いた盤の面積計算と同じ定義で、石のある点は `nil`（石そのものが色を示す）。
+    /// 空点と、取り除いた死に石の跡だけが黒地・白地になる。ダメ・セキの共有点も `nil`。
+    public static func territory(of board: GoBoard, removing dead: Set<GoPoint>) -> [GoStone?] {
+        var work = board
+        for point in dead { work[point] = nil }
+        var owners = GoDeadStones.owners(of: work)
+        for point in work.allPoints where work[point] != nil {
+            owners[point.row * work.size + point.col] = nil
+        }
+        return owners
+    }
+}
+
 /// 簡易死活判定の結果。
 public struct GoDeadStoneAnalysis: Equatable, Sendable {
     /// 明確に死んでいると判断した石の交点。
