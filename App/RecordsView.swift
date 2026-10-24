@@ -90,12 +90,20 @@ struct RecordsView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(summary.progressText)
 
-            HStack(spacing: 8) {
-                statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
-                statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
-                statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
-                // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
-                statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
+            // 6 枚を 3 枚ずつ 2 段に折る（タイルの数は固定。SE でも 1 枚あたり幅が足りる）。
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
+                    statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
+                    statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
+                }
+                HStack(spacing: 8) {
+                    statTile(title: tr("総プレイ回数"), value: tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0)))
+                    // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
+                    statTile(title: tr("遊んだ日数"), value: tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0)))
+                    // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
+                    statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
+                }
             }
         }
         .padding(.vertical, 4)
