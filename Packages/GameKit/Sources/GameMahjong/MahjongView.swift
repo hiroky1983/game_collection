@@ -163,7 +163,7 @@ public struct MahjongView: View {
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
         // 「？」は打っている対局の長さ（東風戦・一局戦）に合わせて出し分ける（#2044）。
-        .howToPlay(model.gameLength.howToPlayGuide) { MahjongRuleSheet() }
+        .howToPlay(model.gameLength.howToPlayGuide.onboarding(MahjongOnboarding.guide(length: model.gameLength))) { MahjongRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { MahjongYakuSheet() }
         .sheet(isPresented: $showStartSheet) {
             MahjongStartSheet(length: $selectedLength) {

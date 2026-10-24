@@ -66,7 +66,7 @@ public struct ShogiView: View {
                     condition: GameChromeCondition(conditionParts) { requestNewGame() },
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
-        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items)) { ShogiPieceGuideSheet() }
+        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide)) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(
                 initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.matchSetting
@@ -617,6 +617,7 @@ struct NewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: ShogiOnboarding.guide,
             onStart: { onStart(side, level, ShogiMatchSetting(handicap: handicap, dropper: dropper)) },
             onCancel: onCancel
         ) {

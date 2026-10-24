@@ -484,6 +484,226 @@
           }
         }
       }
+    },
+    "オセロのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Othello: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "盤の上の石を、自分の色でたくさん増やすゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn as many stones as you can into your color."
+          }
+        }
+      }
+    },
+    "終わったとき、石が多い方が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the game ends, whoever has more stones wins."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do on your turn"
+          }
+        }
+      }
+    },
+    "半透明の○が、いま置けるマスです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The faint circles show where you can place a stone."
+          }
+        }
+      }
+    },
+    "○のマスをタップして、自分の石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a circle to place your stone."
+          }
+        }
+      }
+    },
+    "はさむと裏返る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sandwich to flip"
+          }
+        }
+      }
+    },
+    "自分の石で相手の石をはさめるマスにだけ置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can only place where your stones sandwich your opponent's."
+          }
+        }
+      }
+    },
+    "はさんだ相手の石は、すべて自分の色に裏返ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every sandwiched stone flips to your color."
+          }
+        }
+      }
+    },
+    "置けないとき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you can't place"
+          }
+        }
+      }
+    },
+    "置けるマスが無いときは、自動でパスになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If there is nowhere to place, you pass automatically."
+          }
+        }
+      }
+    },
+    "パスをすると、相手の番になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a pass, it is your opponent's turn."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to win or lose"
+          }
+        }
+      }
+    },
+    "盤が埋まるか、どちらも置けなくなると終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when the board is full or neither side can place."
+          }
+        }
+      }
+    },
+    "石が多い方の勝ち。同じ数なら引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More stones wins. The same number is a draw."
+          }
+        }
+      }
+    },
+    "空きマスを残して終わったら、空きマスは勝った方の得点になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If empty squares remain at the end, they count for the winner."
+          }
+        }
+      }
+    },
+    "はじめ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "おわり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End"
+          }
+        }
+      }
+    },
+    "黒は置けるマスが無い → パス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black has nowhere to place → pass"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

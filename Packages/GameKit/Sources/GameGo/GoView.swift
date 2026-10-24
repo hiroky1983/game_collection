@@ -46,7 +46,7 @@ public struct GoView: View {
         .gameChrome(title: tr("囲碁"), review: services.review,
                     condition: GameChromeCondition(conditionParts) { requestNewGame() },
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items)) { GoRuleDetails() }
+        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide)) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
@@ -725,6 +725,7 @@ struct GoNewGameSheet: View {
         // ハンデ以降がはみ出て操作できない）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
             kind: .versus, spacing: 20,
+            onboarding: GoOnboarding.guide,
             onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
         ) {
             Text(tr("9路盤・中国ルール（面積計算）"))
