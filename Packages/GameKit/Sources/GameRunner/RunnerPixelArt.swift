@@ -57,10 +57,11 @@ enum RunnerPixelArt {
         "I": iceLight,
         "i": iceMid,
         "J": iceDeep,
-        // 東京（#2729）。`X` はカラーコーンの橙、`Q`/`q`/`u` は看板の青灰 3 階調（面・枠と桁・白い文字の照り）、
-        // `c`/`p` はマンホールの蒸気の灰 2 階調（明・中。暗い側は湯柱と同じ `g`）。**濃い側（`q` / `g`）が背景との
-        // 3:1 を担う**（コンテナの `r`・湯柱の `g` と同じ約束。`WorldTests`）。自動販売機はコンテナの赤 `R`/`r`/`O` と
-        // 白 `M`・缶の青 `N`・クリーム `T`、タクシーは `RunnerWorld.Creatures`（イノシシの文字）で描く。
+        // 東京（#2729）。`X` はカラーコーンの橙、`Q`/`q`/`u` はネオン看板の 3 階調（光る水色の面・暗い枠と桁・白い照り）、
+        // `c`/`p` はマンホールの蒸気の灰 2 階調（明・中。暗い側は湯柱と同じ `g`）。東京は背景が暗い（宵の口）ので
+        // **明るい側（`Q` / `u`・蒸気の `M`）が背景との 3:1 を担う**（夜の繁華街と同じ向き。`RunnerTokyoGimmickTests`）。
+        // 自動販売機はコンテナの赤 `R`/`r`/`O` と白 `M`・缶の青 `N`・クリーム `T`、タクシーは `RunnerWorld.Creatures`
+        // （イノシシの文字）で描く。
         "X": coneOrange,
         "Q": signboardBody,
         "q": signboardDark,
@@ -96,12 +97,12 @@ enum RunnerPixelArt {
 
     /// カラーコーンの橙（`X`・#2729）。白い反射帯は紙の `M`、黒い台は縁取り `K` と暗い灰 `g`。
     static let coneOrange: UInt32 = 0xE8752E
-    /// 看板の面（`Q`）。閉じたシャッターのような青灰。
-    static let signboardBody: UInt32 = 0x7C9BBA
-    /// 看板の枠と桁（`q`）。**淡い灰の背景との 3:1 を担う濃い側**。
+    /// ネオン看板の面（`Q`）。光る水色で、**暗い背景との 3:1 を担う明るい側**。
+    static let signboardBody: UInt32 = 0x7FE8F0
+    /// 看板の枠と桁（`q`）。暗い鉄の枠。
     static let signboardDark: UInt32 = 0x24384C
     /// 看板の照り・白い文字（`u`）。
-    static let signboardLight: UInt32 = 0xD6E2EE
+    static let signboardLight: UInt32 = 0xF4FBFC
     /// マンホールの蒸気の明るい灰（`c`）。湯柱の `W`（生成り）より青みの灰。
     static let steamLight: UInt32 = 0xD3D7DD
     /// マンホールの蒸気の中の灰（`p`）。
@@ -257,10 +258,17 @@ enum RunnerPixelArt {
         PixelSprite(rows: frame == .walk0 ? forkliftDrive0Rows : forkliftDrive1Rows, palette: forkliftPalette(colors))
     }
 
-    /// タクシー（東京のイノシシの枠・#2729）。フォークリフトと同じパレット: `B` 車体（黒・主色）/ `b` タイヤ /
-    /// `S` 窓ガラスとバンパー・ホイールの銀 / `T` ヘッドライト / `R` 尾灯（犬の首輪の赤）/ `Y` 屋根の行灯。
+    /// タクシー（東京のイノシシの枠・#2729）。イノシシの文字を車に読み替える: `B` 車体（黄・主色）/ `b` タイヤ /
+    /// `S` 窓ガラスとバンパー・ホイールの銀 / `T` ヘッドライト / `R` 尾灯（犬の首輪の赤）/ `Y` 屋根の行灯（空車の緑）。
+    static func taxiPalette(_ c: RunnerWorld.Creatures) -> [Character: UInt32] {
+        creaturePalette(c).merging(["Y": taxiLamp]) { _, new in new }
+    }
+
+    /// タクシーの屋根の行灯（空車の緑）。黄色い車体の上で読めるよう黄ではなく緑にする。世界によらない。
+    static let taxiLamp: UInt32 = 0x6FE09A
+
     static func taxi(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
-        PixelSprite(rows: frame == .walk0 ? taxiDrive0Rows : taxiDrive1Rows, palette: forkliftPalette(colors))
+        PixelSprite(rows: frame == .walk0 ? taxiDrive0Rows : taxiDrive1Rows, palette: taxiPalette(colors))
     }
 
     /// 切り株（`RunnerWorld.Dressing.Block.stump`）。
@@ -783,7 +791,7 @@ enum RunnerPixelArt {
     /// （左端＝当たり判定の左端）で貼れる。**ヘッドライト（`T`）が絵の左端（列 0〜2）**——イノシシの鼻先・
     /// フォークの先と同じ約束で、自動販売機にぶつかって止まるとバンパーが筐体に触れた形になる。
     ///
-    /// 黒い車体（`B`）に銀の窓（`S`）3 枚、屋根の行灯（`Y`）、前のヘッドライト（`T`）、後ろの尾灯（`R`）、
+    /// 黄色い車体（`B`）に銀の窓（`S`）3 枚、屋根の行灯（`Y`）、前のヘッドライト（`T`）、後ろの尾灯（`R`）、
     /// 銀のバンパー（`S`）、黒いタイヤ（`b`）に銀のホイール（`S`）。運転席は空で誰も乗せない
     /// （フォークリフトと同じ）。2 コマの違いはホイールの向きだけ（走っていると分かる程度）。
     static let taxiDrive0Rows: [String] = taxiBodyRows + [
@@ -1093,9 +1101,9 @@ enum RunnerPixelArt {
         "KKKKKKKKKKKK",
     ]
 
-    /// 積まれた看板（東京の高い塀・#2729）。コンテナとまったく同じ 12×54 の格子で、色だけが閉じたシャッターの
-    /// ような青灰——面は `Q`、枠と桁は `q`、左肩の照りは `u`、白い文字は `M`。**桁（`q`）が淡い灰の背景との
-    /// 3:1 を担う**（コンテナの `r` と同じ約束）。
+    /// 積まれたネオン看板（東京の高い塀・#2729）。コンテナとまったく同じ 12×54 の格子で、色だけが光る水色
+    /// ——面は `Q`、枠と桁は `q`、左肩の照りは `u`、白い文字は `M`。**面（`Q`）が宵の暗い背景との 3:1 を担う**
+    /// （背景が暗い世界は明るい側が担う。夜の繁華街と同じ向き）。
     static let signboardStackRows: [String] = [
         "KKKKKKKKKKKK",
         "KqqqqqqqqqqK",
@@ -1310,9 +1318,8 @@ enum RunnerPixelArt {
 
     /// マンホールの蒸気（東京の突き上げ・#2729）。湯柱とまったく同じ格子・同じシルエットで、色だけが灰白。
     ///
-    /// 白（`M`・左の照り）→ 明るい灰（`c`）→ 中の灰（`p`）→ 暗い灰（`g`・右の陰）の 4 階調で、右の陰（`g`）が
-    /// 淡い灰の背景との 3:1 を担う（湯柱と同じ約束）。湯柱の生成り（`W`）より青みの灰にして、都心の
-    /// 地下から噴く蒸気に見せる。
+    /// 白（`M`・左の照り）→ 明るい灰（`c`）→ 中の灰（`p`）→ 暗い灰（`g`・右の陰）の 4 階調で、東京は背景が暗いので
+    /// 白い照り（`M`）が 3:1 を担う。湯柱の生成り（`W`）より青みの灰にして、都心の地下から噴く蒸気に見せる。
     static let manholeSteamRows: [String] = [
         ".....KK.....",
         ".....KK.....",

@@ -90,9 +90,15 @@ extension RunnerScene {
     /// 動かない遠景。夕方だけ、地平線に橙の帯を敷いて「橙〜桃色の空」にする。
     /// 丘の後ろ（`backdropLayer`）に置くので、丘の切れ目からだけ覗く。
     private func buildBackdrop() {
-        guard world.scenery == .riverside else { return }
+        // 東京（#2729）も地平線に帯を敷く（茜の名残。夕方の帯と同じ組み立てで色だけが違う）。
+        let glowColor: UInt32
+        switch world.scenery {
+        case .riverside: glowColor = RunnerWorld.SceneryPalette.sunsetGlow
+        case .tokyo:     glowColor = RunnerWorld.SceneryPalette.duskGlow
+        default:         return
+        }
         let glow = SKSpriteNode(
-            color: RunnerPalette.color(RunnerWorld.SceneryPalette.sunsetGlow),
+            color: RunnerPalette.color(glowColor),
             size: CGSize(width: Metrics.width, height: 30)
         )
         glow.anchorPoint = .zero
@@ -100,7 +106,7 @@ extension RunnerScene {
         backdropLayer.addChild(glow)
         // 帯の上端をぼかす代わりに、半透明の 1 枚を重ねて 2 段にする（テクスチャを使わない）。
         let haze = SKSpriteNode(
-            color: RunnerPalette.color(RunnerWorld.SceneryPalette.sunsetGlow),
+            color: RunnerPalette.color(glowColor),
             size: CGSize(width: Metrics.width, height: 14)
         )
         haze.anchorPoint = .zero
@@ -882,12 +888,13 @@ extension RunnerScene {
         tile.addChild(tree)
     }
 
-    /// 東京（`RunnerWorld.Scenery.tokyo`・#2729）。丘の 2 つの山（`palette.hillFar` / `hillNear`）の上に、同じ色で
-    /// **タイルの幅いっぱいに続く四角いビル街**を 2 列（奥は高く、手前は低く窓つき）重ねて稜線を隠し、
-    /// タイルの番号で遠くの高い塔（3 で割り切れる番号 = 鉄塔の格子、余り 1 = 針のような塔。文言に名前は出さない）
-    /// か信号機（余り 2）を立てる。道の奥には全タイルに高架が続き、その上を電車がゆっくり左へ流れる
-    /// （乱数は使わない。撮影・QA で毎回同じ画）。色は `RunnerWorld.SceneryPalette`（どれも空と 2:1 未満・
-    /// 手前の秋田犬と 3:1 以上・`WorldTests`）。
+    /// 東京（`RunnerWorld.Scenery.tokyo`・#2729）。宵の口。丘の 2 つの山（`palette.hillFar` / `hillNear`）の上に、同じ色で
+    /// **タイルの幅いっぱいに続く四角いビル街**を 2 列（奥は高く、手前は低く）重ねて稜線を隠し、手前のビルには黄色い
+    /// 窓の灯りとネオン看板（桃・水色・黄）を点す。タイルの番号で遠くの高い塔（3 で割り切れる番号 = 赤く灯る鉄塔、
+    /// 余り 1 = 針のような塔。文言に名前は出さない）か信号機（余り 2）を立て、塔のてっぺんの航空灯は点滅する。
+    /// 道の奥には全タイルに高架が続き、その上を窓に灯りの点いた電車がゆっくり左へ流れる（乱数は使わない。撮影・QA で
+    /// 毎回同じ画）。面で塗る色は `RunnerWorld.SceneryPalette`（どれも空と 2:1 未満・手前の明るい犬・タクシー・ハトと
+    /// 3:1 以上・`WorldTests`）。灯りは小さな点なので背景の帯には入れない（夜の繁華街の窓と同じ）。
     private func addTokyo(to tile: SKNode, index: Int) {
         typealias P = RunnerWorld.SceneryPalette
         let width = Self.hillSpacing
@@ -921,6 +928,7 @@ extension RunnerScene {
             towerNode.strokeColor = .clear
             towerNode.zPosition = SceneryZ.back
             tile.addChild(towerNode)
+            addAviationLight(to: tile, x: cx, y: base + 46.5)
         case 1:
             // 針のような塔。細い塔体の途中に展望台の丸い帯、てっぺんにアンテナ。
             let needle = CGMutablePath()
@@ -933,23 +941,27 @@ extension RunnerScene {
             needle.addEllipse(in: CGRect(x: cx - 3.4, y: base + 30, width: 6.8, height: 3.0))
             needle.addRect(CGRect(x: cx - 0.4, y: base + 44, width: 0.8, height: 5.0))
             let needleNode = SKShapeNode(path: needle)
-            needleNode.fillColor = RunnerPalette.color(P.tower)
+            needleNode.fillColor = RunnerPalette.color(P.needleTower)
             needleNode.strokeColor = .clear
             needleNode.zPosition = SceneryZ.back
             tile.addChild(needleNode)
+            addAviationLight(to: tile, x: cx, y: base + 49.5)
         default:
             break
         }
 
-        // 手前のビル街（丘の手前の山と同じ色・高さ 12〜20）。朝なので窓は灯りではなく空を映した明るい四角。
+        // 手前のビル街（丘の手前の山と同じ色・高さ 12〜20）。窓は黄色い灯り。決まった 1 枚おきに消して（乱数は使わない）
+        // のっぺりさせない。
         let nearBlocks = CGMutablePath(), windows = CGMutablePath()
+        var lit = 0
         for (x0, x1, h) in [(0.0, 8.0, 12.0), (8.0, 20.0, 17.0), (20.0, 30.0, 20.0), (30.0, 44.0, 14.0), (44.0, 60.0, 18.0)] {
             nearBlocks.addRect(CGRect(x: x0, y: base, width: x1 - x0, height: h))
             var wy = base + 8.0
             while wy + 1.6 < base + h - 1.0 {
                 var wx = x0 + 1.4
                 while wx + 1.2 <= x1 - 1.2 {
-                    windows.addRect(CGRect(x: wx, y: wy, width: 1.2, height: 1.6))
+                    lit += 1
+                    if lit % 5 != 0 { windows.addRect(CGRect(x: wx, y: wy, width: 1.2, height: 1.6)) }
                     wx += 3.0
                 }
                 wy += 3.4
@@ -965,6 +977,18 @@ extension RunnerScene {
         windowNode.strokeColor = .clear
         windowNode.zPosition = SceneryZ.middle
         tile.addChild(windowNode)
+
+        // ネオン看板。手前のビルの壁に縦長・横長の板を 3 枚（桃・水色・黄）。ゆっくり明滅する。
+        for (x, y, w, h, color) in [
+            (10.0, 2.0, 1.6, 7.0, P.neonPink), (22.5, 3.0, 5.0, 1.8, P.neonCyan), (47.0, 2.0, 1.6, 6.0, P.neonYellow),
+        ] {
+            let sign = SKSpriteNode(color: RunnerPalette.color(color), size: CGSize(width: w, height: h))
+            sign.anchorPoint = .zero
+            sign.position = CGPoint(x: x, y: base + y)
+            sign.zPosition = SceneryZ.middle
+            runAmbientLoop(.sequence([.fadeAlpha(to: 0.55, duration: 1.1), .fadeAlpha(to: 1.0, duration: 1.1)]), on: sign)
+            tile.addChild(sign)
+        }
 
         // 高架。道の奥に全タイル続くコンクリートの桁と、15 おきの柱。1 本のパス。
         let viaduct = CGMutablePath()
@@ -1001,7 +1025,7 @@ extension RunnerScene {
                 wx += 3.4
             }
             let carWindowNode = SKShapeNode(path: carWindows)
-            carWindowNode.fillColor = RunnerPalette.color(P.trainStripe)
+            carWindowNode.fillColor = RunnerPalette.color(P.trainWindow)
             carWindowNode.strokeColor = .clear
             train.addChild(carWindowNode)
         }
@@ -1032,6 +1056,17 @@ extension RunnerScene {
                 tile.addChild(lamp)
             }
         }
+    }
+
+    /// 塔のてっぺんの航空灯（東京・#2729）。赤い点がゆっくり点滅する。
+    private func addAviationLight(to tile: SKNode, x: Double, y: Double) {
+        let light = SKShapeNode(circleOfRadius: 0.7)
+        light.fillColor = RunnerPalette.color(RunnerWorld.SceneryPalette.aviationLight)
+        light.strokeColor = .clear
+        light.position = CGPoint(x: x, y: y)
+        light.zPosition = SceneryZ.back
+        runAmbientLoop(.sequence([.fadeAlpha(to: 0.15, duration: 0.9), .fadeAlpha(to: 1.0, duration: 0.9)]), on: light)
+        tile.addChild(light)
     }
 
     /// 里山・港町・京都・奈良の遠景の部品の相対 z（`hillLayer` の中。丘の山は 0）。家並みの `HouseZ` と同じ考え方。
