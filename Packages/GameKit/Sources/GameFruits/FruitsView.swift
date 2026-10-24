@@ -111,6 +111,9 @@ public struct FruitsView: View {
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             HStack(spacing: 8) {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(tr("つぎ"))

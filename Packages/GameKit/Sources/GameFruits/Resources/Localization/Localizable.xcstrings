@@ -188,6 +188,17 @@
         }
       }
     },
+    "ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
+          }
+        }
+      }
+    },
     "・" : {
       "extractionState" : "manual",
       "localizations" : {

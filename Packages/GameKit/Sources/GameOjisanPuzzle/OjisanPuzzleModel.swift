@@ -42,6 +42,14 @@ public final class OjisanPuzzleModel {
     /// 次に落ちてくる組。
     public private(set) var next: OjisanPuzzlePair
     public private(set) var score: Int = 0
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。パズルモードだけ。保存済みの自己ベスト
+    /// （モードごとの区分）と今の得点の大きい方。荷運びモードの自己ベストはタイムなので出さない。0 のときは nil。
+    var liveBestScore: Int? {
+        guard !mode.isCleanup else { return nil }
+        let saved = services?.playLog?.record(gameID: Self.gameID, variant: mode.recordVariant)?.bestPoints ?? 0
+        let best = max(saved, score)
+        return best > 0 ? best : nil
+    }
     /// 腰痛ゲージ（0...100）。
     public private(set) var pain: Int = 0
     /// 直前の 1 手で何連鎖したか。次に固定するまで出したままにする。
