@@ -60,13 +60,8 @@ public struct ChessView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("チェス"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.phase == .playing && !model.moves.isEmpty {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items)) {
             ChessRuleDetail(style: pieceStyle)
         }
@@ -465,6 +460,20 @@ public struct ChessView: View {
                 Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.phase == .playing && !model.moves.isEmpty {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 自分の色。
+    private var conditionParts: [String] {
+        [CPUStrength.strength(for: model.aiLevel).label, model.humanSide == .white ? tr("白") : tr("黒")]
     }
 
     // MARK: - 盤の下の操作エリア

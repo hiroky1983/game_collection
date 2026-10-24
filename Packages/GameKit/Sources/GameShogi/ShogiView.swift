@@ -63,13 +63,8 @@ public struct ShogiView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("将棋"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.phase == .playing && !model.moves.isEmpty {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
         .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items)) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
@@ -536,6 +531,22 @@ public struct ShogiView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.phase == .playing && !model.moves.isEmpty {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 手合い（駒落ちは落とす側まで・平手は先後）。
+    private var conditionParts: [String] {
+        let handicap = model.matchSetting.displayName
+        return [CPUStrength.strength(for: model.aiLevel).label,
+                handicap ?? (model.humanSide == .black ? tr("先手") : tr("後手"))]
     }
 
     // MARK: - 盤の下の操作エリア

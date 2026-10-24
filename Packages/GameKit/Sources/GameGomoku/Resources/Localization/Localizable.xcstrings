@@ -628,6 +628,17 @@
           }
         }
       }
+    },
+    "禁じ手あり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renju rules"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

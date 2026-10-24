@@ -47,13 +47,8 @@ public struct GomokuView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("五目並べ"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.gameOver || model.moveCount == 0 {
-                            showNewGame = true
-                        } else {
-                            showConfirmNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled))
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
@@ -97,6 +92,23 @@ public struct GomokuView: View {
             }
             #endif
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.gameOver || model.moveCount == 0 {
+            showNewGame = true
+        } else {
+            showConfirmNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 石の色 → 禁じ手（ありのときだけ）。
+    private var conditionParts: [String] {
+        var parts = [CPUStrength.strength(for: model.aiLevel).label,
+                     model.humanSide == .black ? tr("先手") : tr("後手")]
+        if model.forbiddenMovesEnabled { parts.append(tr("禁じ手あり")) }
+        return parts
     }
 
     // MARK: - 盤の下の操作エリア

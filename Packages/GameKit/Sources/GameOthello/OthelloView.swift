@@ -60,13 +60,11 @@ public struct OthelloView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("オセロ"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.hasProgressToLose {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition([CPUStrength.strength(for: model.aiLevel).label,
+                                                    model.humanSide == .black ? tr("先手") : tr("後手")]) {
+                        requestNewGame()
+                    },
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items))
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
@@ -372,6 +370,15 @@ public struct OthelloView: View {
             verdict = tr("引き分け")
         }
         return tr("%1$@ 黒 %2$lld 対 白 %3$lld", verdict, model.blackScore, model.whiteScore)
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.hasProgressToLose {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
+        }
     }
 
     // MARK: - 盤の下の操作エリア
