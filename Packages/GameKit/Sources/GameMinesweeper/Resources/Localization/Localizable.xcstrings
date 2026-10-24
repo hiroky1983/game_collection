@@ -651,6 +651,17 @@
           }
         }
       }
+    },
+    "%1$@ / ヒント%2$lld回 / タイム %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Hints: %2$lld / Time %3$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

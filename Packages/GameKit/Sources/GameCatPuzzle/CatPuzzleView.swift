@@ -452,6 +452,8 @@ public struct CatPuzzleView: View {
             tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
             model.mistakes == 0 ? tr("ミス 0・パーフェクト！") : tr("ミス %lld", model.mistakes),
             tr("手数 %lld", model.moves),
+            // ヒントは 0 回でも省かず出す（#2613・#2801）。
+            tr("ヒント %lld回", model.hintsUsed),
         ]
     }
 

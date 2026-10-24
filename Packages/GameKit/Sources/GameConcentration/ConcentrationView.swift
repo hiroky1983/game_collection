@@ -401,6 +401,10 @@ public struct ConcentrationView: View {
                 }
             }
 
+            // ヒントは 0 回でも省かず出す（#2613・#2801）。
+            Text(tr("ヒント %lld回", model.hints.used))
+                .themeBody(14).foregroundStyle(Theme.inkSub)
+
             RecordLabel(model.recordResult)
 
             GameReplayBar(
