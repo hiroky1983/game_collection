@@ -108,6 +108,16 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// 勝敗そのものは加算前の石数で決まる（`resolveWinner`）ため、この値は表示だけに使う。
     public var blackScore: Int { blackCount + (winner == .black ? emptyCellBonus : 0) }
     public var whiteScore: Int { whiteCount + (winner == .white ? emptyCellBonus : 0) }
+    /// 終局で勝者に加算される空きマスの数（#2813）。結果カードがこの数だけ 1 マスずつ数え上げる。
+    /// 加算が無い終局（盤が埋まった・引き分け・投了）は 0。
+    public var bonusCellCount: Int { winner == nil ? 0 : emptyCellBonus }
+    /// 空きマスを `revealed` マスぶんだけ勝者へ加算した途中経過のスコア（#2813）。
+    /// `revealed` が `bonusCellCount` 以上なら `blackScore` / `whiteScore` と一致する。
+    public func score(revealingBonus revealed: Int) -> (black: Int, white: Int) {
+        let shown = min(max(revealed, 0), bonusCellCount)
+        return (blackCount + (winner == .black ? shown : 0),
+                whiteCount + (winner == .white ? shown : 0))
+    }
     /// 勝者に加算する空きマス数。引き分け（`winner == nil`）では上の2つが参照しないので 0 になる。
     ///
     /// 投了で終わった対局は連盟ルールの対象外なので加算しない（打ち切りであって「双方が打てなくなった」
