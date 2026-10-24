@@ -467,9 +467,24 @@ struct GameReplayBarTests {
         let withLabel = try Self.render(
             GameReplayBar(onReplay: {}, onChangeSettings: {}) { Text("3連勝") }
         )
-        let added = withLabel.height - plain.height
-        #expect(added > Int(GameReplayBarMetrics.leadingSpacing), "ラベルの行が増えていない（差 \(added)）")
-        #expect(added <= 30, "ラベルの行が高すぎる（差 \(added)）")
+        #expect(abs(CGFloat(withLabel.height) - GameReplayBarMetrics.cardHeightWithLeading) <= 1, "外寸 \(withLabel.height)")
+        #expect(withLabel.height > plain.height)
+    }
+
+    /// `GameControlArea` のひな形は対局中（記録なし）の実寸で高さを取る。記録が入ってもバッジが載ってもカードが伸びないこと
+    /// （伸びると決着の瞬間に盤が縮む・#148。マインスイーパー・あかり消し・ねこパズルが `RecordLabel(model.recordResult)` を渡す）。
+    @Test("記録の有無・自己ベストのバッジの有無でカードの高さは変わらない")
+    func leadingRowHeightIsReservedWhileRecordIsEmpty() throws {
+        func result(newBest: Bool) -> RecordResult {
+            RecordResult(record: PlayRecord(metric: .points, plays: 3, bestPoints: 12_340),
+                         update: RecordUpdate(points: newBest))
+        }
+        let empty = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}) { RecordLabel(nil) })
+        let plain = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}) { RecordLabel(result(newBest: false)) })
+        let badge = try Self.render(GameReplayBar(onReplay: {}, onChangeSettings: {}) { RecordLabel(result(newBest: true)) })
+        #expect(empty.height == plain.height, "記録なし \(empty.height) / あり \(plain.height)")
+        #expect(plain.height == badge.height, "記録あり \(plain.height) / バッジあり \(badge.height)")
+        #expect(abs(CGFloat(empty.height) - GameReplayBarMetrics.cardHeightWithLeading) <= 1, "外寸 \(empty.height)")
     }
 
     /// 押せる範囲の組み方はソースで固定する（枠 44pt の中に入れて `contentShape` で受ける。枠の外へはみ出させる負の padding は使わない・#711）。

@@ -13,10 +13,11 @@ import SwiftUI
 /// 並びは #2360 の案3（会長方針 2026-10-25「将棋でも実装できるなら全部 案3 に揃える」）:
 /// - ボタン自体を 44pt（`BoardGameControlMetrics.minTapTarget`）にし、2 つを**全幅で等分**する（間隔 8pt）。
 ///   以前はカプセル 28.5pt で、押せる範囲が 44pt に届かず「もう一回」のつもりで「設定を変える」が開いた。
-/// - 記録（`leading`）はボタンの左ではなく**カードの上段**に出す（ボタンの幅を削らない）。
-/// - カードの外寸は 44 + 縦余白 8 × 2 = 60pt（記録を出す画面は上段のぶん高い）。従来の 44.5pt より 15.5pt 高く、
+/// - 記録（`leading`）はボタンの左ではなく**カードの上段**に出す（ボタンの幅を削らない）。行の高さは記録が無いあいだも確保する。
+/// - カードの外寸は 44 + 縦余白 8 × 2 = 60pt（記録を出す画面は上段のぶん高い 90pt）。従来の 44.5pt より 15.5pt 高く、
 ///   盤が高さで決まる iPhone SE では盤がそのぶん縮む（将棋 252 → 237pt など。実画面で崩れないことを確認済み・#2360）。
-///   「決着で盤が縮まない」契約（#148・#139）は `GameControlArea` のひな形がこの部品の実寸で確保するので保たれる。
+///   「決着で盤が縮まない」契約（#148・#139）は、`GameControlArea` のひな形がこの部品の実寸で高さを取り、
+///   この部品が記録の有無で高さを変えないことで保たれる。
 public struct GameReplayBar<Leading: View>: View {
     private let onReplay: () -> Void
     private let onChangeSettings: () -> Void
@@ -43,9 +44,15 @@ public struct GameReplayBar<Leading: View>: View {
     public var body: some View {
         VStack(spacing: GameReplayBarMetrics.leadingSpacing) {
             if hasLeading {
-                leading
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // 記録の行の高さは常に確保する。`RecordLabel` は記録が無いあいだ（対局中・`GameControlArea` のひな形）は
+                // 何も描かないので、行をそのまま置くと決着して記録が入った瞬間にカードが伸び、盤が縮む（#148）。
+                // 「自己ベスト更新！」のバッジが載る行でも伸びない高さ（`leadingRowHeight`）を透明な面で確保する。
+                ZStack(alignment: .leading) {
+                    Color.clear.frame(height: GameReplayBarMetrics.leadingRowHeight)
+                    leading
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(spacing: GameReplayBarMetrics.buttonSpacing) {
                 Button(action: onReplay) {
@@ -98,8 +105,13 @@ public enum GameReplayBarMetrics {
     public static let verticalPadding: CGFloat = 8
     /// 記録の行とボタンの段のあいだ。
     public static let leadingSpacing: CGFloat = 6
-    /// 記録を出さない画面のカードの外寸（60pt）。記録を出す画面は、その行の高さ + `leadingSpacing` ぶん高い。
+    /// 記録の行の高さ（記録が無いあいだも確保する）。`RecordLabel` の「自己ベスト更新！」バッジ（12pt の文字 + 上下 4pt + 枠）が
+    /// 載っても伸びない値。記録の有無・バッジの有無でカードの外寸が変わらないことがテストで固定されている。
+    public static let leadingRowHeight: CGFloat = 24
+    /// 記録を出さない画面のカードの外寸（60pt）。
     public static var cardHeight: CGFloat { buttonHeight + verticalPadding * 2 }
+    /// 記録を出す画面のカードの外寸（90pt）。
+    public static var cardHeightWithLeading: CGFloat { cardHeight + leadingRowHeight + leadingSpacing }
 }
 
 /// 終局後ボタンの文言。画面とテストが同じ文字列を見る。

@@ -11,6 +11,8 @@ public struct ShiritoriView: View {
     @Environment(\.adaptiveLayout) private var layout
     /// 盤札の読み（10pt・`.caption` 基準）の 1 行の高さ。文字を拡大すると札の絵をそのぶん縮めて 5 行を収める（#2847）。
     @ScaledMetric(relativeTo: .caption) private var readingLineHeight: CGFloat = ShiritoriBoardLayout.baseReadingHeight
+    /// 盤の下の操作（ヒント・もう一回／延長・レコメンド）の実測の高さ。盤の絵の大きさはこれを引いた残りから決める。
+    @State private var controlsHeight: CGFloat = 0
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -33,13 +35,11 @@ public struct ShiritoriView: View {
                 currentArea
                     .transition(.opacity)
             }
-            // 盤は残りの高さをすべて受け取り（`GeometryReader`）、札の絵をその中に収まる大きさで描く（#2847）。
-            // 固定 pt のまま積むと iPhone SE（中身 571pt）で溢れ、最上段のカードがナビバーの裏に入っていた。
-            // 余りは盤のカードの下に残るので、広告は画面の下端に付く（以前の `Spacer` と同じ役目）。
-            boardArea
-            HowToPlayHint(.shiritori, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
+            // 盤とその下の操作（ヒント・もう一回・レコメンド）は残りの高さをまとめて受け取り（`GeometryReader`）、
+            // 札の絵を「残りの高さ − 下の操作の高さ」に収まる大きさで描く（#2847）。固定 pt のまま積むと
+            // iPhone SE（中身 571pt）で溢れ、最上段のカードがナビバーの裏に入っていた。
+            // 余りは操作の下・広告の上に残る（以前の `Spacer` と同じ場所。操作が盤から離れて広告の直上へ沈まない・#1485）。
+            boardAndControls
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -48,9 +48,7 @@ public struct ShiritoriView: View {
             if phase != .result { resultCardClosed = false }
         }
         .padding(Theme.pad)
-        // 上詰め: 結果の画面で延長ボタン・レコメンドが同時に出て絵の下限（16pt）でも収まらないときは、
-        // 上端のカードをナビバーの裏に入れず、下端（広告側）へはみ出させる（#2847）。
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: tr("カードしりとり"), review: services.review,
                     condition: GameChromeCondition(conditionParts) { requestNewGame() },
                     newGame: GameChromeNewGame(.solo) { requestNewGame() })
@@ -264,18 +262,35 @@ public struct ShiritoriView: View {
 
     // MARK: - 盤
 
-    /// 盤。札の絵の一辺は、幅から決まる値と残りの高さから決まる値の小さい方（`ShiritoriBoardLayout.artSide`）。
+    /// 盤と、その下の操作（初回ガイド・もう一回／延長・レコメンド）。
+    ///
+    /// 札の絵の一辺は、幅から決まる値と「残りの高さ − 下の操作の高さ」から決まる値の小さい方（`ShiritoriBoardLayout.artSide`）。
     /// iPhone 17 では幅で決まり従来と同じ大きさ、iPhone SE では高さで決まって 5 行が画面に収まる（#2847）。
-    /// `LazyVGrid` は提案された高さに札を合わせてくれないので、絵の一辺を先に決めて渡す。
-    private var boardArea: some View {
+    /// `LazyVGrid` は提案された高さに札を合わせてくれないので、絵の一辺を先に決めて渡す。下の操作の高さは
+    /// `background` の `GeometryReader` で測る（配置に干渉しない。`onGeometryChange` は iOS 18 以降のため使わない）。
+    /// 下の操作は盤のすぐ下に付き、余りはその下（広告の上）に残る。全部が収まらないときは下端側へはみ出す。
+    private var boardAndControls: some View {
         GeometryReader { geo in
             let artSide = ShiritoriBoardLayout.artSide(
-                availableWidth: geo.size.width, availableHeight: geo.size.height,
+                availableWidth: geo.size.width,
+                availableHeight: geo.size.height - controlsHeight - 8,
                 count: model.slots.count, readingHeight: readingLineHeight * layout.elementScale
             )
-            boardCard(artSide: artSide)
-                .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
-                .frame(width: geo.size.width, alignment: .top)
+            VStack(spacing: 8) {
+                boardCard(artSide: artSide)
+                    .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
+                VStack(spacing: 8) {
+                    HowToPlayHint(.shiritori, playLog: services.playLog)
+                    actionArea
+                    RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
+                }
+                .background {
+                    GeometryReader { below in
+                        Color.clear.task(id: below.size.height) { controlsHeight = below.size.height }
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
     }
 

@@ -25,7 +25,9 @@ struct ShiritoriBoardLayoutTests {
         #expect(side > 40)
     }
 
-    /// iPhone SE（幅 343pt・結果の画面で盤に残る高さがおよそ 230pt）: 高さで決まり、5 行が残りの高さに収まる。
+    /// iPhone SE（幅 343pt・対局中に盤へ残る高さはおよそ 270〜340pt）: 高さで決まり、5 行が残りの高さに収まる。
+    /// 絵の下限 16pt の盤は 259pt なので、それより低い残り（結果の画面で延長ボタンとレコメンドが同時に出たとき）は収まらず、
+    /// 下端側へはみ出す（`clampsAtMinimum`）。
     @Test("高さが足りなければ高さで決まり、盤は残りの高さに収まる（iPhone SE）")
     func shortScreenFitsAvailableHeight() {
         let width: CGFloat = 343
