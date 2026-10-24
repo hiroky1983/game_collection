@@ -47,13 +47,16 @@ extension RunnerScene {
                 return CrumbleColors(deck: P.crumbleDeck, seam: P.crumbleDeckSeam, rope: P.crumbleRope, post: P.crumblePost, crack: P.crumbleCrack)
             case .iceBridge:
                 return CrumbleColors(deck: P.iceDeck, seam: P.iceDeckSeam, rope: P.iceRope, post: P.icePost, crack: P.iceCrack)
+            case .oldFootbridge:
+                // 古い歩道橋の板（東京・#2729）。桟橋の組み立てで、板はコンクリート・桁と杭は緑の鉄骨。縄は使わない。
+                return CrumbleColors(deck: P.footbridgeDeck, seam: P.footbridgeDeckSeam, rope: P.footbridgePost, post: P.footbridgePost, crack: P.footbridgeCrack)
             }
         }
     }
 
     func makeCrumblingPlatform(_ platform: RunnerPlatform) -> CrumblingPlatformView {
         let P = CrumbleColors.colors(for: world.dressing.crumblingPlatform)
-        let pier = world.dressing.crumblingPlatform == .woodenPier
+        let pier = world.dressing.crumblingPlatform.isPierStyle
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)
         courseLayer.addChild(node)

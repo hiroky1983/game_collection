@@ -508,6 +508,17 @@
         }
       }
     },
+    "カラーコーンにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a traffic cone"
+          }
+        }
+      }
+    },
     "キツネにぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -695,6 +706,17 @@
         }
       }
     },
+    "タクシーにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a taxi"
+          }
+        }
+      }
+    },
     "タップでジャンプ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -717,13 +739,13 @@
         }
       }
     },
-    "タップで跳んで48ステージを走りぬけよう" : {
+    "タップで跳んで54ステージを走りぬけよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap to jump and pedal through all 48 stages"
+            "value" : "Tap to jump and pedal through all 54 stages"
           }
         }
       }
@@ -779,6 +801,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into a drum"
+          }
+        }
+      }
+    },
+    "ビル風や！ 手ぇ伸ばしたら飛んでいく……！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building wind! No, it's blowing away...!"
           }
         }
       }
@@ -970,6 +1003,17 @@
         }
       }
     },
+    "古い歩道橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the old footbridge"
+          }
+        }
+      }
+    },
     "古都まで来たで。今度こそや" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1146,6 +1190,28 @@
         }
       }
     },
+    "東京" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokyo"
+          }
+        }
+      }
+    },
+    "東京まで来てもうた。人も車も多いなあ……あった！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokyo at last. People, cars... and there it is!"
+          }
+        }
+      }
+    },
     "東京行きの列車やて？ ほな、行くしかないやろ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1186,6 +1252,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Stage"
+          }
+        }
+      }
+    },
+    "歩道橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the footbridge"
           }
         }
       }
@@ -1356,6 +1433,17 @@
         }
       }
     },
+    "看板にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a signboard"
+          }
+        }
+      }
+    },
     "石垣にぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1429,6 +1517,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rides right on his own"
+          }
+        }
+      }
+    },
+    "自動販売機にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a vending machine"
           }
         }
       }
@@ -1511,6 +1610,17 @@
         }
       }
     },
+    "蒸気にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the steam"
+          }
+        }
+      }
+    },
     "薄氷の橋にぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1518,6 +1628,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into the thin-ice bridge"
+          }
+        }
+      }
+    },
+    "西へ西へ……あの山、富士山やないか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "West, further west... that's Mt. Fuji!"
           }
         }
       }

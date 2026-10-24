@@ -135,6 +135,8 @@ extension RunnerScene {
     /// 作ったノードは左端 `platform.start` に置いて返す（コース層へ足すのは呼び出し側。エンドレスは
     /// 同じ長さの台座を使い回す・#1086）。
     func makePlatform(_ platform: RunnerPlatform) -> SKNode {
+        // 高い台座（#2729・東京の歩道橋）は世界の着せ替えではなく高さで分かれる（置くのは東京だけ）。
+        if platform.isHigh { return makeFootbridge(platform) }
         // 里山・港町の着せ替え（#1009）。足場の描画はそのまま残し、別の物はここで分岐する。
         switch world.dressing.platform {
         case .scaffold:   break

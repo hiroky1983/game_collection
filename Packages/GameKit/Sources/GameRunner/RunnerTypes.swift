@@ -656,9 +656,9 @@ public struct RunnerPlatform: Equatable, Sendable {
     public let length: Double
     /// 上面の高さ（**地面からの相対値**。障害の `height` と同じ物差し）。
     ///
-    /// 第 1 弾は 1 種類（`RunnerRules.platformHeight` = 8）だけ。値を型に持たせてあるのは、
-    /// 接地面の解決（`RunnerField.surfaceY(at:)`）を「覆っている台座のうち最も高い上面」で
-    /// 書けるようにするため——高さ違いの台座を足す日が来ても、重ねた段の解決はそのまま動く。
+    /// 台座（`P`・`C`）は `RunnerRules.platformHeight` = 8、高い台座（`H`・#2729 東京の歩道橋）は
+    /// `RunnerRules.highPlatformHeight` = 16。値を型に持たせてあるのは、接地面の解決
+    /// （`RunnerField.surfaceY(at:)`）を「覆っている台座のうち最も高い上面」で書けるようにするため。
     public let top: Double
     /// 崩れる足場か（#1090）。
     public let kind: Kind
@@ -675,6 +675,10 @@ public struct RunnerPlatform: Equatable, Sendable {
 
     /// 右端の x。
     public var end: Double { start + length }
+
+    /// 高い台座（#2729・`RunnerRules.highPlatformHeight`）か。地面からは二段ジャンプでしか乗れない。
+    /// 絵（`RunnerScene.makePlatform`）とミスの文言（`RunnerMissObject.highPlatformFace`）がここで分かれる。
+    public var isHigh: Bool { top > RunnerRules.platformHeight }
 }
 
 /// コース上のスピードアップ床 1 区間（#672。#635 で会長決裁）。
@@ -936,4 +940,7 @@ public enum RunnerMissObject: Equatable, Sendable {
     case platformFace
     /// 崩れる足場（吊り橋・桟橋）の板の端に突っ込んだ。見た目が `dressing.crumblingPlatform` なので台座とは別に持つ。
     case crumblingPlatformFace
+    /// 高い台座（#2729・東京の歩道橋）の正面に突っ込んだ。地面からは二段ジャンプでしか乗れない相手なので、
+    /// 台座の「足場にぶつかった」とは別の 1 行にする（絵も `RunnerScene.makeFootbridge` で別）。
+    case highPlatformFace
 }

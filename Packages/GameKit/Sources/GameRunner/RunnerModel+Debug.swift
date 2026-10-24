@@ -448,6 +448,25 @@ extension RunnerModel {
                 })
                 isFrozenForCapture = true
             }
+        case let name where name.hasPrefix("footbridge:"):
+            // 本番ステージの高い台座（#2729・東京の歩道橋）を、その面の世界の背景の上で撮る（例 `-simulateRunner footbridge:49`）。
+            // 塀の `wall:` と同じく、**踏み切りの余裕より手前**（接地したまま、歩道橋の左端まで 16 以内）で止める
+            // ——高さ 16 の歩道橋と走者が 1 画面に収まり、「1 段では乗れない」高さが読める画になる。
+            if let number = Int(name.dropFirst("footbridge:".count)),
+               let stage = RunnerStage.stage(number: number),
+               stage.platforms.contains(where: \.isHigh) {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let bridge = field.stage.platforms.first(where: \.isHigh) else { return true }
+                    let rise = RunnerRules.doubleJumpRiseTime(to: bridge.top + RunnerAutoPilot.clearance)
+                    let lead = RunnerAutoPilot.baseLead + field.stage.speed * rise
+                    return field.isGrounded && bridge.start - field.distance <= lead + 16
+                })
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。

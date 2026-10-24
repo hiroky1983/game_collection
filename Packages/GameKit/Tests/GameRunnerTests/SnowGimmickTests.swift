@@ -259,10 +259,15 @@ struct RunnerSnowGimmickTests {
 
     // MARK: - 置き方（塀から写した「入れない組み合わせ」）
 
-    @Test("裂け目は雪国にだけ置かれ、43 面に 1 本・48 面に 3 本、どの面にも 1 本以上ある")
+    @Test("裂け目は雪国より前には置かれず、雪国では 43 面に 1 本・48 面に 3 本、どの面にも 1 本以上ある")
     func chasmsAppearOnlyInSnow() {
-        for stage in RunnerStage.all where RunnerWorld.world(forStage: stage.number) != .snow {
+        // 雪国で覚えた仕掛けは後ろの世界（東京・#2729）でも混ぜる（設計書「雪国の裂け目も混ぜてよい」）。
+        // 置けるのは速さが上限 60 に達した面だけ（幅 52 の根拠）なので、雪国より前の面には無い。
+        for stage in RunnerStage.all where stage.number < 43 {
             #expect(!stage.pattern.contains("V"), "ステージ \(stage.number) に裂け目がある")
+        }
+        for stage in RunnerStage.all where stage.hazards.contains(where: { $0.kind == .chasm }) {
+            #expect(stage.speed == RunnerRules.endlessMaxSpeed, "ステージ \(stage.number) の裂け目は速さ \(stage.speed) の面に置かれている")
         }
         let counts = Self.snowStages.map { $0.hazards.filter { $0.kind == .chasm }.count }
         #expect(counts.count == 6)

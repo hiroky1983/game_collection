@@ -53,15 +53,23 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// 犬の枠はキタキツネ（絵ごと着せ替え）、鳥はシロフクロウ、低い岩は雪だるま、台座は雪のブロック、
     /// 加速床はアイスバーン、突き上げは地吹雪の雪柱、沈む床は新雪、崩れる足場は薄氷の橋、高い塀は除雪の雪山。
     case snow
+    /// 49〜54 面。東京（#2729・会長決裁 2026-10-23）。雪国から列車で着いた、朝の通勤時間の東京。夜の繁華街
+    /// （13〜18 面）と被らないよう**明るい朝の曇り空**で、空は淡い灰、ビル街は青灰の 2 階調、道はアスファルト。
+    /// 遠景に高層ビルの窓・遠くの高い塔のシルエット（文言に実在の建物名は出さない）・高架を流れる電車・信号機。
+    /// 新しい仕掛けは**二段ジャンプでしか乗れない高い台座**（`RunnerRules.highPlatformHeight`・歩道橋）。
+    /// 犬の枠は犬（秋田犬の色）、鳥は都会のカラス、低い岩はカラーコーン、高い岩は自動販売機、イノシシの枠はタクシー、
+    /// 台座は工事の足場（元の絵）、加速床は動く歩道、突き上げはマンホールの蒸気、沈む床は塗りたてのアスファルト、
+    /// 崩れる足場は古い歩道橋の板、高い塀は積まれた看板。
+    case tokyo
 
     /// 1 つの世界が受け持つ面数。6 面ずつ（30 面 = 5 世界、#1824 で 36 面 = 6 世界、#1938 で 42 面 = 7 世界、
-    /// #2729 で 48 面 = 8 世界）。
+    /// #2729 で 48 面 = 8 世界 → 54 面 = 9 世界）。
     public static let stagesPerWorld = 6
 
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
-    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国。
+    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国、49〜54 面は東京。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 49 以上）は `.night`。面を足して世界を足し忘れた
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 55 以上）は `.night`。面を足して世界を足し忘れた
     /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
     /// `WorldTests.everyStageHasAWorld` が固定する）。
     ///
@@ -83,6 +91,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .kyotoNara: return tr("京都・奈良")
         case .onsen: return tr("温泉街")
         case .snow: return tr("雪国")
+        case .tokyo: return tr("東京")
         }
     }
 
@@ -129,6 +138,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case onsen
         /// 道の奥に雪の壁、その後ろにかまくら・雪をかぶった瓦屋根の家・枯れ木、遠くだけに雪がちらつく（#2729）。
         case snow
+        /// 丘の代わりにビル街の 2 階調、遠くに高い塔のシルエット、道の奥に高架を流れる電車と信号機（#2729）。
+        case tokyo
     }
 
     public var scenery: Scenery {
@@ -141,6 +152,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .kyotoNara: return .kyotoNara
         case .onsen: return .onsen
         case .snow: return .snow
+        case .tokyo: return .tokyo
         }
     }
 
@@ -200,6 +212,11 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
             // （相対輝度 0.52。白線は路面より 60 以上明るい必要があるので、路面はこれが上限）。暗い縁取りの
             // 手前の物が 3:1 以上で乗る明るさは保つ（`WorldTests`）。縁石は雪、路肩は積もった雪、地盤は凍った土。
             return Road(asphalt: 0xB9BFC6, line: 0xFFFFFF, curb: 0xE6EBEF, shoulder: 0xF0F4F7, subsoil: 0x7E8690)
+        case .tokyo:
+            // 都心のアスファルト（#2729）。朝の下町と同じ帯の淡い灰（相対輝度 0.48）に白線、縁石は明るいコンクリート、
+            // 路肩は歩道のタイル（夜の繁華街の歩道より明るい）、地盤は地下の暗い灰。暗い縁取りの手前の物が
+            // 3:1 以上で乗る明るさ（`WorldTests`）。
+            return Road(asphalt: 0xB5B9BF, line: 0xFFFFFF, curb: 0xE0E3E8, shoulder: 0xCBD0D6, subsoil: 0x6A7280)
         }
     }
 
@@ -364,6 +381,24 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 rockBody: 0x585E6E,
                 rockDark: 0x23272F
             )
+        case .tokyo:
+            // 東京（#2729）。朝の曇り空。空は彩度のほとんど無い淡い灰（色相 220°。服の黄・車体の赤から 170° 以上
+            // 離れ、雪国 0xE3E9EF・温泉街 0xDAE0E8 より一段暗い）。丘の 2 階調は**遠くのビル街**の青灰で、
+            // 遠景（`RunnerScene.addTokyo`）がその上に四角いビルの影を重ねて稜線を隠す。背景は相対輝度 0.44〜0.80
+            // の帯に沈め、手前は**暗く**して縁取りで締める（朝・里山と同じ組み立て。`WorldTests` が 3:1 を固定）。
+            // 岩の枠はカラーコーン・自動販売機に着せ替えるので岩の色は朝と同じ。
+            return Palette(
+                sky: 0xD9DDE3,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xC6CDD7,
+                hillNear: 0xB4BCC9,
+                groundTop: 0xC9CDD2,
+                groundBody: 0x6A7280,
+                rockLight: 0x9CA4B2,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
+            )
         }
     }
 }
@@ -508,6 +543,19 @@ public extension RunnerWorld {
                 birdBody: 0x4A5058, birdWing: 0x34393F, birdWingFar: 0x22262A, birdBelly: 0xF4F4F0,
                 birdHead: 0xF4F4F0, birdBeak: 0x4A4A52
             )
+        case .tokyo:
+            // 東京（#2729）。背景は淡い灰の帯なので手前は**暗く**。犬の枠は犬——秋田犬の色（朝の柴より赤みの
+            // 薄い濃い茶 `dogBody` に、生成りの胸と腹 `dogBelly`。絵は犬のまま）。イノシシの枠はタクシー——
+            // 黒い車体（`boarBody`）に黒いタイヤ（`boarDark`）、銀のバンパーとホイール（`boarSnout`）。
+            // 鳥は都会のカラス（里山のカラスと同じ黒に近い 3 階調。くちばしは炭色）。縁取りは青みの黒で、
+            // カラスの胴（0x23232B）より暗い。
+            return Creatures(
+                outline: 0x0A0C10,
+                dogBody: 0x7A4A28, dogDark: 0x3A2412, dogBelly: 0xF2E6D2,
+                boarBody: 0x1E232A, boarDark: 0x0C0E12, boarSnout: 0xA8AEB6,
+                birdBody: 0x23232B, birdWing: 0x18181F, birdWingFar: 0x0E0E12, birdBelly: 0x7A7A88,
+                birdHead: 0x23232B, birdBeak: 0x4A4A52
+            )
         }
     }
 
@@ -623,6 +671,26 @@ public extension RunnerWorld {
         public static let bareTree: UInt32 = 0xBDB1A5
         /// ちらつく雪（白）。
         public static let snowflake: UInt32 = 0xFFFFFF
+
+        // 東京（`Scenery.tokyo`・#2729）。どれも空（0xD9DDE3）と 2:1 未満に沈める淡い灰の帯（相対輝度 0.44 以上）で、
+        // 手前のいちばん明るい秋田犬（0x7A4A28）とも 3:1 以上離れる（`WorldTests`）。ビルの影そのものは丘の 2 階調
+        // （`palette.hillFar` / `hillNear`）で描く。
+        /// ビルの窓（朝なので灯りではなく、空を映した明るい窓）。
+        public static let cityWindow: UInt32 = 0xE4E8EE
+        /// 遠くの高い塔のシルエット（鉄塔の格子・針のような塔。文言に名前は出さない）。
+        public static let tower: UInt32 = 0xAEB6C2
+        /// 高架（コンクリートの桁と柱）。
+        public static let viaduct: UInt32 = 0xBFC5CC
+        /// 高架を流れる電車の車体。
+        public static let train: UInt32 = 0xD3DAE2
+        /// 電車の帯（窓の下のライン）。
+        public static let trainStripe: UInt32 = 0x9FB7CF
+        /// 信号機の柱と筐体。
+        public static let signalPole: UInt32 = 0xA9B0BA
+        /// 信号の青（進め。彩度を落とした淡い緑）。
+        public static let signalGreen: UInt32 = 0xA8D4B8
+        /// 信号の赤（止まれ。彩度を落とした淡い赤）。
+        public static let signalRed: UInt32 = 0xE2A8A0
     }
 
     /// 遠景の飾りのタイル幅（`RunnerScene.hillSpacing`）。家並み（`townHouses`）の `dx` はこの幅の中の位置。
@@ -718,6 +786,18 @@ public extension RunnerWorld {
                 "bareTree": SceneryPalette.bareTree,
                 "snowflake": SceneryPalette.snowflake,
             ]
+        case .tokyo:
+            return [
+                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
+                "cityWindow": SceneryPalette.cityWindow,
+                "tower": SceneryPalette.tower,
+                "viaduct": SceneryPalette.viaduct,
+                "train": SceneryPalette.train,
+                "trainStripe": SceneryPalette.trainStripe,
+                "signalPole": SceneryPalette.signalPole,
+                "signalGreen": SceneryPalette.signalGreen,
+                "signalRed": SceneryPalette.signalRed,
+            ]
         }
     }
 
@@ -733,6 +813,7 @@ public extension RunnerWorld {
         case .kyotoNara: return ["sky": palette.sky]
         case .onsen: return ["sky": palette.sky]
         case .snow: return ["sky": palette.sky]
+        case .tokyo: return ["sky": palette.sky]
         }
     }
 }
@@ -800,7 +881,7 @@ public extension RunnerWorld {
     }
 
     /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30・
-    /// 京都・奈良 31…36・温泉街 37…42・雪国 43…48。
+    /// 京都・奈良 31…36・温泉街 37…42・雪国 43…48・東京 49…54。
     var stageRange: ClosedRange<Int> {
         let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
         return first...(first + RunnerWorld.stagesPerWorld - 1)
@@ -808,13 +889,13 @@ public extension RunnerWorld {
 
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
-    /// 範囲外（0 以下・49 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 範囲外（0 以下・55 以上）でも落ちないよう剰余で畳むだけなので、
     /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
-    /// ワールドマップの短い表記「1-1」…「8-6」。
+    /// ワールドマップの短い表記「1-1」…「9-6」。
     ///
     /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
     /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
@@ -822,7 +903,7 @@ public extension RunnerWorld {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…48）。
+    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…54）。
     static func contains(stage number: Int) -> Bool {
         number >= 1 && number <= stagesPerWorld * allCases.count
     }
@@ -850,6 +931,9 @@ public extension RunnerWorld {
         // 雪国（#2729）は冬の夕暮れの淡い藤青（色相 257°）。空の白では朝・港町と区別が付かず、氷の水色は
         // 温泉街の青緑（174°）と 20° 離せないので、夜の青紫（226°）からも 30° 離れたこの色相にする。
         case .snow: return 0xB8A8E0
+        // 東京（#2729）はタクシーの黄（色相 47°）。朝の灰の空では朝・港町・雪国と見分けが付かない。京都・奈良の橙
+        // （16°）とは 30° 離れ、里山の緑（115°）とは 70° 離れる（`mapColorsAreDistinguishable`）。
+        case .tokyo: return 0xE2C34E
         }
     }
 }
@@ -890,6 +974,10 @@ public extension RunnerWorld {
             case yuoke
             /// 雪だるま（雪国・#2729。低い岩の 4×5）。
             case snowman
+            /// カラーコーン（東京・#2729。低い岩の 4×5）。
+            case trafficCone
+            /// 自動販売機（東京・#2729。高い岩の 4×9）。
+            case vendingMachine
         }
         /// 犬の枠（画面の右から歩いて来る動物）。
         public enum Walker: Equatable, Sendable {
@@ -909,6 +997,8 @@ public extension RunnerWorld {
             case boar
             /// フォークリフト。
             case forklift
+            /// タクシー（東京・#2729）。フォークリフトと同じ格子・同じ動きで、黒い車体に黄色い屋根の灯り。
+            case taxi
         }
         /// 台座。
         public enum Platform: Equatable, Sendable {
@@ -932,6 +1022,8 @@ public extension RunnerWorld {
             case steamColumn
             /// 地吹雪の雪柱（雪国・#2729）。雪が舞い上がる予告 → 青白い雪の柱が立つ。湯柱と同じ格子で色だけ雪。
             case snowSpout
+            /// マンホールの蒸気（東京・#2729）。蓋がカタカタ浮く予告 → 灰白の蒸気の柱が噴き上がる。湯柱と同じ格子で色だけ灰白。
+            case manholeSteam
         }
         /// 崩れる足場（#1090）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum CrumblingPlatform: Equatable, Sendable {
@@ -941,6 +1033,16 @@ public extension RunnerWorld {
             case woodenPier
             /// 薄氷の橋（雪国・#2729）。吊り橋と同じ組み立てで、板は氷・縄と柱は凍った木。
             case iceBridge
+            /// 古い歩道橋の板（東京・#2729）。桟橋と同じ組み立て（杭に載った板）で、板は色あせたコンクリート・桁と杭は緑の鉄骨。
+            case oldFootbridge
+
+            /// 桟橋の組み立て（板を載せる桁と、下へ落ちる杭）で描くか。吊り橋の組み立て（縄と袂の柱）でないもの。
+            var isPierStyle: Bool {
+                switch self {
+                case .suspensionBridge, .iceBridge: return false
+                case .woodenPier, .oldFootbridge: return true
+                }
+            }
         }
         /// 高い塀（#1091）。**当たり判定・高さは 1 つ**で、絵だけを替える。
         public enum Wall: Equatable, Sendable {
@@ -950,6 +1052,8 @@ public extension RunnerWorld {
             case containerStack
             /// 除雪の雪山（雪国・#2729）。石垣と同じ格子で、固く締まった雪を積んだ段々。
             case snowBank
+            /// 積まれた看板（東京・#2729）。コンテナと同じ格子で、閉じたシャッターのような青灰の看板を 2 段積み。
+            case signboardStack
         }
         /// 沈む床（#1089）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum SinkFloor: Equatable, Sendable {
@@ -961,6 +1065,8 @@ public extension RunnerWorld {
             case footBath
             /// 新雪（雪国・#2729）。青白い粉雪の吹き溜まりで、踏むと埋もれる。
             case freshSnow
+            /// 塗りたてのアスファルト（東京・#2729）。黒い舗装から白い湯気が立ち、踏むと沈む。
+            case freshAsphalt
         }
         /// 加速床。
         public enum BoostFloor: Equatable, Sendable {
@@ -972,6 +1078,8 @@ public extension RunnerWorld {
             case conveyor
             /// アイスバーン（雪国・#2729）。舗装の農道と同じ組み立てで、面は深い青の氷。
             case iceSheet
+            /// 動く歩道（東京・#2729）。ベルトコンベアと同じ組み立てで、黒いゴムの帯に銀の枠、白い矢印。
+            case movingWalkway
         }
 
         public let pit: Pit
@@ -1065,6 +1173,19 @@ public extension RunnerWorld {
                 dog: .fox, boar: .boar,
                 platform: .snowBlocks, boostFloor: .iceSheet, shoot: .snowSpout,
                 sinkFloor: .freshSnow, crumblingPlatform: .iceBridge, wall: .snowBank
+            )
+        case .tokyo:
+            // 東京（#2729・設計書 `docs/design/runner-60-stages/worlds-8-10.md` の着せ替え表）。新しく描くのは低い岩の
+            // **カラーコーン**・高い岩の**自動販売機**・イノシシの枠の**タクシー**（フォークリフトの格子を描き替え）・
+            // 高い塀の**積まれた看板**。穴＝工事の切れ目（元の絵）・犬＝犬（秋田犬の色）・台座＝工事の足場（元の絵）・
+            // 加速床＝動く歩道（コンベアの色替え）・突き上げ＝マンホールの蒸気（湯柱の色替え）・沈む床＝塗りたての
+            // アスファルト（足湯の色替え）・崩れる足場＝古い歩道橋の板（桟橋の色替え）。高い台座（歩道橋・`H`）は
+            // 東京にしか無いので着せ替えの枠を持たず、`RunnerScene.makeFootbridge` が描く。
+            return Dressing(
+                pit: .construction, lowBlock: .trafficCone, tallBlock: .vendingMachine,
+                dog: .dog, boar: .taxi,
+                platform: .scaffold, boostFloor: .movingWalkway, shoot: .manholeSteam,
+                sinkFloor: .freshAsphalt, crumblingPlatform: .oldFootbridge, wall: .signboardStack
             )
         }
     }
@@ -1206,5 +1327,42 @@ public extension RunnerWorld {
         public static let icePost: UInt32 = 0x3E5E74
         /// 氷のひび（揺れているあいだ板の上に出る）。板と 3:1 以上。
         public static let iceCrack: UInt32 = 0x1E3A50
+
+        // 東京（#2729）。路面は都心のアスファルト（0xB5B9BF・相対輝度 0.48）で背景も淡い灰の帯なので、
+        // 雪国と同じく **3:1 は暗い側（黒いゴム・黒い舗装・緑の鉄骨）が担う**。
+        // 動く歩道（`Dressing.BoostFloor.movingWalkway`）
+        /// 黒いゴムの帯。路面と 3:1 以上。
+        public static let walkwayBelt: UInt32 = 0x2F333A
+        /// 銀の枠（ステンレス）。
+        public static let walkwayFrame: UInt32 = 0xA7ADB5
+        /// ローラー（枠より明るい銀）。
+        public static let walkwayRoller: UInt32 = 0xCDD2D8
+        /// 帯の上の白い矢印。
+        public static let walkwayArrow: UInt32 = 0xFFFFFF
+        // 塗りたてのアスファルト（`Dressing.SinkFloor.freshAsphalt`）
+        /// 塗りたての黒い舗装（面）。路面と 3:1 以上で「乗る前に沈む床だと分かる」差はここが担う。
+        public static let freshAsphaltSurface: UInt32 = 0x2A2D33
+        /// 舗装の底（沈む先）。
+        public static let freshAsphaltDeep: UInt32 = 0x15171B
+        /// 面から立つ湯気（白。踏み込む前に読める目印）。
+        public static let freshAsphaltSteam: UInt32 = 0xF2F4F6
+        /// 面の照り（濡れた舗装の光沢）。
+        public static let freshAsphaltSheen: UInt32 = 0xD8DCE2
+        // 古い歩道橋の板（`Dressing.CrumblingPlatform.oldFootbridge`）
+        /// 色あせたコンクリートの板（乗る面。いちばん明るい）。
+        public static let footbridgeDeck: UInt32 = 0xC3CCC8
+        /// 板の下端の暗い鉄骨（板 1 枚ごとの輪郭。背景と 3:1 を担う）。
+        public static let footbridgeDeckSeam: UInt32 = 0x2E5E46
+        /// 桁と杭（緑の鉄骨。崩れても杭は残る）。
+        public static let footbridgePost: UInt32 = 0x2E5E46
+        /// 崩れる予告のひび。板と 3:1 以上。
+        public static let footbridgeCrack: UInt32 = 0x16281E
+        // 歩道橋（高い台座 `H`。`RunnerScene.makeFootbridge`）
+        /// 歩く面（コンクリートの床板。いちばん明るい——台座の床板と同じ約束で、世界の縁取りで浮かせる）。
+        public static let footbridgeWalk: UInt32 = 0xD5DAE0
+        /// 床板の下の桁（緑の鉄骨）。背景の全部と 3:1 以上。
+        public static let footbridgeGirder: UInt32 = 0x2E5E46
+        /// 鉄柵（床板の上に立つ手すり）と階段の段。桁より一段暗い緑。
+        public static let footbridgeRail: UInt32 = 0x24493A
     }
 }

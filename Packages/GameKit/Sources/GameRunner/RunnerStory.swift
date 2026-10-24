@@ -13,16 +13,17 @@ import Foundation
 /// 話は「つづく」のまま次の世界へ送る（**なぜ船が古都に着くのかも説明しない**。港町と同じ）。
 /// 温泉街（#1938）は鹿を追って着いた湯の町。サルが宝くじを横取りして走り去り、また「つづく」で締める。
 /// 雪国（#2729）はサルを追って越えた北の峠。サルが雪に足を取られて宝くじを落とし、雪ごと除雪車に持っていかれ、
-/// 荷台から飛んだ宝くじは東京行きの列車の屋根へ——世界 9（東京）はまだ無いので、また「つづく」で締める。
+/// 荷台から飛んだ宝くじは東京行きの列車の屋根へ。東京（#2729）は列車で着いた都心。ビル風に宝くじがさらわれて
+/// 西の富士山のほうへ飛んでいく——世界 10（富士山・会長決裁 2026-10-23）はまだ無いので、また「つづく」で締める。
 ///
 /// 純データなので、出す・出さないの判定も場面の中身も SwiftUI 抜きでテストできる。
 public enum RunnerStoryScene: Equatable, Hashable, Sendable {
     /// 始まり。初めてチャリンコおじさんを開いたときに 1 回だけ。
     case intro
-    /// その世界の最終面（6・12・18・24・30・36・42・48 面）を初めてクリアしたとき。
+    /// その世界の最終面（6・12・18・24・30・36・42・48・54 面）を初めてクリアしたとき。
     case ending(RunnerWorld)
 
-    /// 始まり + 世界の数だけの締め（#2729 で 8 つ）。並びは話の順。
+    /// 始まり + 世界の数だけの締め（#2729 で 9 つ）。並びは話の順。
     public static let all: [RunnerStoryScene] = [.intro] + RunnerWorld.allCases.map { .ending($0) }
 
     /// `PlayLog` に残す「見た」印の鍵。
@@ -119,6 +120,17 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
                 RunnerStoryPanel(art: .snowPlow, line: tr("雪に埋もれた……除雪車！ 持っていかんで！")),
                 RunnerStoryPanel(art: .snowTrain, line: tr("東京行きの列車やて？ ほな、行くしかないやろ")),
                 RunnerStoryPanel(art: .snowToBeContinued, line: tr("つづく")),
+            ]
+        case .ending(.tokyo):
+            // 東京（#2729）。雪国の「つづく」（宝くじが東京行きの列車の屋根に貼り付く）を受け、ビルの谷間で掴みかけた
+            // ところをビル風にさらわれる。宝くじは西へ西へ飛んで富士山のほうへ——世界 10（富士山。会長決裁 2026-10-23:
+            // 五合目→山頂・落石・60 面で初日の出）はまだ無いので、京都・奈良〜雪国と同じ 4 コマで「つづく」で終える
+            // （**なぜ宝くじが富士山まで飛ぶのかは説明しない**。実在の建物の名前は文言に出さない）。
+            return [
+                RunnerStoryPanel(art: .tokyoReach, line: tr("東京まで来てもうた。人も車も多いなあ……あった！")),
+                RunnerStoryPanel(art: .tokyoGust, line: tr("ビル風や！ 手ぇ伸ばしたら飛んでいく……！")),
+                RunnerStoryPanel(art: .tokyoFuji, line: tr("西へ西へ……あの山、富士山やないか")),
+                RunnerStoryPanel(art: .tokyoToBeContinued, line: tr("つづく")),
             ]
         }
     }
@@ -231,7 +243,7 @@ public enum RunnerStory {
     }
 
     #if DEBUG
-    /// 撮影・QA 用の起動引数（`-simulateRunner story-intro` / `story-world1`〜`story-world8`）を場面に写す。
+    /// 撮影・QA 用の起動引数（`-simulateRunner story-intro` / `story-world1`〜`story-world9`）を場面に写す。
     ///
     /// **末尾に `:N` を付けると N コマ目で止まる**（`story-intro:3`）。走るゲームと同じ理屈で、
     /// コマ送りを流したまま撮ろうとするとシャッターを切る前に次のコマへ進んでしまう
