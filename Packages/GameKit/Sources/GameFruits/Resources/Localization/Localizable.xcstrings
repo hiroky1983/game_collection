@@ -199,13 +199,13 @@
         }
       }
     },
-    "上の点線より上に盆栽が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。" : {
+    "上の点線より上に盆栽が 3 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The game ends if a bonsai stays above the dotted line at the top for 1 second or more. A bonsai crossing the line as it falls doesn't count."
+            "value" : "The game ends if a bonsai stays above the dotted line at the top for 3 seconds or more. A bonsai crossing the line as it falls doesn't count."
           }
         }
       }
