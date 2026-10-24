@@ -82,6 +82,25 @@ struct OjisanPuzzleModelTests {
         model.pause()
     }
 
+    @Test("最大連鎖は次の組を固定しても残り、始め直すと 0 に戻る（#2810）")
+    func maxChainSurvivesLockAndResets() {
+        var board = OjisanPuzzleBoard.emptyBoard()
+        for row in (OjisanPuzzleBoard.rows - 3)..<OjisanPuzzleBoard.rows { board[row][0] = 1 }
+        let pair = OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up)
+        let model = OjisanPuzzleModel(services: nil, board: board, current: pair)
+        #expect(model.maxChain == 0)
+        model.hardDrop()
+        model.tick()
+        #expect(model.maxChain == 1)
+        for _ in 0..<2 { model.tick() }   // 落下 → 次の組が出る
+        model.hardDrop()                  // 固定すると lastChain は 0 に戻る
+        #expect(model.lastChain == 0)
+        #expect(model.maxChain == 1, "固定で最大連鎖が消えた")
+        model.newGame()
+        #expect(model.maxChain == 0)
+        model.pause()
+    }
+
     /// 落下タイマーを回す代わりに `tick()` を直に叩いて、固定 → 重力 → 消去 → 次の組、の
     /// つなぎ目を確かめる（判定そのものは盤のテストが見ている）。
     @Test("4つそろえると消えて点が入り、ゲージが減って次の組が出る")
@@ -97,6 +116,7 @@ struct OjisanPuzzleModelTests {
         model.tick()    // 重力は動かないので、そのまま 4 つそろった 1 を消す
         #expect(model.score == OjisanPuzzleScoring.chainPoints(cells: 4, chain: 1))
         #expect(model.lastChain == 1)
+        #expect(model.maxChain == 1)
         #expect(model.pain == 0, "消したのにゲージが減っていない")
 
         model.tick()    // 上に残った荷物が落ちる
