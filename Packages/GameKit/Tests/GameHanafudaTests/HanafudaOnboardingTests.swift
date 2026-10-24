@@ -21,6 +21,8 @@ struct HanafudaOnboardingTests {
             let hits = HanafudaScoring.yaku(for: cards, options: options)
             #expect(hits.map(\.yaku) == [sample.yaku], "\(sample.yaku): 札の並びが役の成立条件と合わない")
             #expect(hits.first?.points == sample.yaku.basePoints)
+            // 文言は 3 つの役を同じ文数として書いている。
+            #expect(sample.yaku.basePoints == HanafudaYaku.inoshikacho.basePoints)
         }
     }
 
@@ -47,7 +49,10 @@ struct HanafudaOnboardingTests {
 
     @Test("全部の文言に英語の訳がある（訳し漏れ 0）")
     func everyTextHasEnglish() {
-        for text in HanafudaOnboarding.guide.texts {
+        // 数を埋め込む行は、表のキー（書式）の形で確かめる。
+        let key = "猪鹿蝶・赤短・三光は、どれも %lld 文です。"
+        #expect(tr.hasTranslation(key, language: .english))
+        for text in HanafudaOnboarding.guide.texts where text != tr(key, HanafudaYaku.inoshikacho.basePoints) {
             #expect(tr.hasTranslation(text, language: .english), "「\(text)」に英語の訳が無い")
         }
     }

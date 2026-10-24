@@ -2788,17 +2788,6 @@
         }
       }
     },
-    "役ごとに文（もん）の点が決まっています。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Each yaku is worth a set number of points (mon)."
-          }
-        }
-      }
-    },
     "役の一覧は、画面上の「役の早見表」で見られます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2927,6 +2916,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ (wins)"
+          }
+        }
+      }
+    },
+    "猪鹿蝶・赤短・三光は、どれも %lld 文です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inoshikachou, Akatan and Sankou are each worth %lld pts."
           }
         }
       }

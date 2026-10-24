@@ -1212,17 +1212,6 @@
         }
       }
     },
-    "同じ局面が 3 回・50 手のあいだ動きなし・駒不足も引き分けです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Three repeats of a position, 50 moves with no progress, or too few pieces are also draws."
-          }
-        }
-      }
-    },
     "ルークがキングを狙っている（王手）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1241,6 +1230,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Black is not in check but cannot move (draw)"
+          }
+        }
+      }
+    },
+    "同じ局面が 3 回・50 手のあいだポーンも駒取りも無い・駒不足も引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three repeats of a position, 50 moves with no pawn move or capture, or too few pieces are also draws."
           }
         }
       }

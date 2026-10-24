@@ -55,7 +55,7 @@ public enum HanafudaOnboarding {
                     heading: tr("主な役"),
                     lines: [
                         tr("決まった札をそろえると役ができます。"),
-                        tr("役ごとに文（もん）の点が決まっています。"),
+                        tr("猪鹿蝶・赤短・三光は、どれも %lld 文です。", HanafudaYaku.inoshikacho.basePoints),
                         tr("役の一覧は、画面上の「役の早見表」で見られます。"),
                     ],
                     figure: { AnyView(YakuListFigure()) }
