@@ -433,6 +433,7 @@ public struct ChessView: View {
                 verdict: verdict,
                 reason: result.reasonText,
                 decisiveMove: model.decisiveMoveText,
+                details: [tr("%lld手", model.moves.count)],
                 record: model.recordResult
             ) { resultCardClosed = true }
         }

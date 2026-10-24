@@ -201,11 +201,13 @@ public struct GoView: View {
                 BoardGameResultCard(
                     verdict: verdict,
                     reason: score.summary,
-                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score))],
+                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score)),
+                              tr("%lld手", model.moveCount)],
                     record: model.recordResult
                 ) { resultCardClosed = true }
             } else {
-                BoardGameResultCard(verdict: verdict, reason: tr("投了"), record: model.recordResult) {
+                BoardGameResultCard(verdict: verdict, reason: tr("投了"), details: [tr("%lld手", model.moveCount)],
+                                    record: model.recordResult) {
                     resultCardClosed = true
                 }
             }

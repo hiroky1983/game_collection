@@ -32,6 +32,17 @@ public enum GomokuAccessibility {
         tr("%@は打てません（禁じ手）", reason.label)
     }
 
+    /// 結果カードの補足行（#2799）。手数に加え、五連で終わったときは決め手（最後の石の位置）を足す。
+    public static func resultCardDetails(
+        moveCount: Int, winningLine: [GomokuPoint]?, lastMove: (row: Int, col: Int)?
+    ) -> [String] {
+        var lines = [tr("%lld手", moveCount)]
+        if winningLine != nil, let lastMove {
+            lines.append(tr("決め手 %1$lld行%2$lld列", lastMove.row + 1, lastMove.col + 1))
+        }
+        return lines
+    }
+
     /// CPU が石を置いたときの読み上げ文（#2280）。
     public static func cpuMoveAnnouncement(row: Int, col: Int) -> String {
         tr("CPUは%1$lld行%2$lld列に打ちました", row + 1, col + 1)
