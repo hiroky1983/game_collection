@@ -493,8 +493,8 @@ struct OjisanGamesHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),
-            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide)", "runner"),
+            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide", "runner"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameRunner/RunnerStartSheet.swift", "mode.setupKeyItems", "runner の開始シート"),
         ]
         for (path, expected, name) in files {
@@ -579,7 +579,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameAkariKeshi/AkariKeshiView.swift", ".howToPlay(HowToPlayGuide.akariKeshi.illustrated(AkariKeshiHowToFigures.items))", "akarikeshi"),
             ("GameTsunagi/TsunagiView.swift", ".howToPlay(HowToPlayGuide.tsunagi.illustrated(TsunagiHowToFigures.items))", "tsunagi"),
-            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))", "dicecombo"),
+            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items)", "dicecombo"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameShiritori/ShiritoriView.swift", ".howToPlay(model.mode.howToPlayGuide", "shiritori"),
             ("GameShiritori/ShiritoriView.swift", "mode.setupKeyItems", "shiritori の開始シート"),
         ]
