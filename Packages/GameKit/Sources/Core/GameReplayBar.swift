@@ -24,6 +24,9 @@ public struct GameReplayBar<Leading: View>: View {
     private let leading: Leading
     private let hasLeading: Bool
     private let verticalPadding: CGFloat
+    /// 記録の行の高さの拡大率。`RecordBadge` の文字は `.caption` 基準で最大 1.3 倍まで大きくなるので、行もそれに合わせて確保する
+    /// （標準の文字サイズでは 1.0 のまま。放っておくと大きい文字のときだけ自己ベストの決着でカードが 2〜3pt 伸びる）。
+    @ScaledMetric(relativeTo: .caption) private var leadingRowScale: CGFloat = 1
 
     /// - Parameters:
     ///   - verticalPadding: カードの縦余白。
@@ -48,7 +51,7 @@ public struct GameReplayBar<Leading: View>: View {
                 // 何も描かないので、行をそのまま置くと決着して記録が入った瞬間にカードが伸び、盤が縮む（#148）。
                 // 「自己ベスト更新！」のバッジが載る行でも伸びない高さ（`leadingRowHeight`）を透明な面で確保する。
                 ZStack(alignment: .leading) {
-                    Color.clear.frame(height: GameReplayBarMetrics.leadingRowHeight)
+                    Color.clear.frame(height: GameReplayBarMetrics.leadingRowHeight * min(leadingRowScale, 1.3))
                     leading
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
@@ -105,8 +108,9 @@ public enum GameReplayBarMetrics {
     public static let verticalPadding: CGFloat = 8
     /// 記録の行とボタンの段のあいだ。
     public static let leadingSpacing: CGFloat = 6
-    /// 記録の行の高さ（記録が無いあいだも確保する）。`RecordLabel` の「自己ベスト更新！」バッジ（12pt の文字 + 上下 4pt + 枠）が
-    /// 載っても伸びない値。記録の有無・バッジの有無でカードの外寸が変わらないことがテストで固定されている。
+    /// 記録の行の高さ（標準の文字サイズ。記録が無いあいだも確保する）。`RecordLabel` の「自己ベスト更新！」バッジ
+    /// （12pt の文字 + 上下 4pt + 枠 = 実測 23pt）が載っても伸びない値。文字を大きくした設定では `.caption` の拡大率（最大 1.3）を掛ける。
+    /// 記録の有無・バッジの有無でカードの外寸が変わらないことがテストで固定されている。
     public static let leadingRowHeight: CGFloat = 24
     /// 記録を出さない画面のカードの外寸（60pt）。
     public static var cardHeight: CGFloat { buttonHeight + verticalPadding * 2 }
