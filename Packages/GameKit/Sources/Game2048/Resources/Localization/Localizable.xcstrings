@@ -444,13 +444,24 @@
         }
       }
     },
-    "最高タイル %@" : {
+    "スコア %1$@、最高タイル %2$@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top tile %@"
+            "value" : "Score %1$@, top tile %2$@"
+          }
+        }
+      }
+    },
+    "スコア %1$@、最高タイル %2$@、ベスト %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %1$@, top tile %2$@, best %3$@"
           }
         }
       }

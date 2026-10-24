@@ -193,10 +193,10 @@ public struct Game2048View: View {
     }
 
     private var headerAccessibilityLabel: String {
-        let base = tr("スコア") + " " + RecordFormat.number(model.score)
-        let tile = tr("最高タイル %@", "\(model.highestTile)")
-        guard let best = model.liveBestScore else { return base + "、" + tile }
-        return base + "、" + tile + "、" + tr("ベスト") + " " + RecordFormat.number(best)
+        let score = RecordFormat.number(model.score)
+        let tile = "\(model.highestTile)"
+        guard let best = model.liveBestScore else { return tr("スコア %1$@、最高タイル %2$@", score, tile) }
+        return tr("スコア %1$@、最高タイル %2$@、ベスト %3$@", score, tile, RecordFormat.number(best))
     }
 
     private var boardView: some View {
