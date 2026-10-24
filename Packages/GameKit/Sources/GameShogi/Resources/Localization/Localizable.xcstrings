@@ -1256,13 +1256,13 @@
         }
       }
     },
-    "ヒントの回数は減っていません。" : {
+    "残りの回数は減っていません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your hint count has not been used."
+            "value" : "Your remaining hints have not been used."
           }
         }
       }

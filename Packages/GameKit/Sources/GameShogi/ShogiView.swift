@@ -92,7 +92,7 @@ public struct ShogiView: View {
             .alert(tr("この局面は詰みを逃れる手がありません"), isPresented: hopelessBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(tr("ヒントの回数は減っていません。"))
+                Text(tr("残りの回数は減っていません。"))
             }
         }
         // 詰ます手のヒントは、印だけでは詰みだと伝わらないので読み上げで添える（#2779）。
