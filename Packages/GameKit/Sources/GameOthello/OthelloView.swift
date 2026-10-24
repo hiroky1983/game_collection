@@ -6,7 +6,10 @@ public struct OthelloView: View {
     private let services: GameServices
     @State private var showNewGame = false
     @State private var showConfirmNewGame = false
-    @State private var showPassAlert = false
+    /// 出ている「パス」の札（#2797）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
+    @State private var passBannerID: Int?
+    /// 結果カードを閉じたか（#2797）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
     /// ヒントの広告救済（無料枠を使い切った後の1回・#2011）。
@@ -35,14 +38,14 @@ public struct OthelloView: View {
                     // ここで内側に置き直すことでオーバーレイの出現だけを演出に戻している。
                     // 修飾子は 1 つのビューに 1 つだけ置くこと（入れ子にすると打ち消し合う・#199）。
                     ZStack {
-                        if model.gameOver {
+                        if model.gameOver && !resultCardClosed {
                             resultOverlay
                                 .transition(.opacity)
                         }
                     }
                     .gameAnimation(
                         .easeOut(duration: OthelloBoardStyle.resultOverlayFadeDuration),
-                        value: model.gameOver
+                        value: model.gameOver && !resultCardClosed
                     )
                 }
             // 「⋯」の行は盤のすぐ下に付け、盤の下の余りは「⋯」の行と広告のあいだに回す（#1485）。
@@ -52,6 +55,9 @@ public struct OthelloView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: tr("オセロ"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -75,17 +81,31 @@ public struct OthelloView: View {
             } message: {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
-            .alert(tr("パス"), isPresented: $showPassAlert) {
-                Button("OK") { model.confirmPass() }
-            } message: {
-                Text(tr("打てるマスがありません。パスします。"))
-            }
         }
-        // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
-        // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
-        // パスの手段はこの案内の「OK」だけなので、出ないと着手も「待った」も塞がったまま詰む。
+        // 人間側に打てるマスが無いときは、確認を挟まず自動でパスする（#2797。ブロッキングのアラートをやめた）。
+        // `initial: true` が要る（#414）。パスが済む前に中断すると `mustPass = true` のまま保存され、
+        // 復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
+        // パスの手段はここだけなので、発火しないと着手も「待った」も塞がったまま詰む。
+        // CPU 側のパスは `performAIMoveIfNeeded` が自分で確定する。
         .onChange(of: model.mustPass, initial: true) { _, newValue in
-            if newValue && !model.isAITurn { showPassAlert = true }
+            guard newValue, !model.isAITurn else { return }
+            // 札は文字の合図なので、VoiceOver には同じ内容を読み上げで伝える。
+            AccessibilityNotification.Announcement(tr("打てるマスがありません。パスします。")).post()
+            model.confirmPass()
+        }
+        // パスした瞬間だけ札を出し、少し置いて引っ込める（囲碁 #664 と同じ機構）。
+        // 引っ込めるのは自分が出した札がまだ出ているときだけ（続けて相手もパスしたとき、
+        // 古い後始末が新しい札を消さないため）。
+        .task(id: model.passEventID) {
+            let id = model.passEventID
+            guard id > 0 else { return }
+            passBannerID = id
+            try? await Task.sleep(for: .seconds(BoardGameMotion.checkBannerHold))
+            if passBannerID == id { passBannerID = nil }
+        }
+        // 待った・新規対局・投了で盤の意味が変わったら、固定時間を待たずに札を畳む。
+        .onChange(of: model.passBannerDismissID) { _, _ in
+            passBannerID = nil
         }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
@@ -323,6 +343,16 @@ public struct OthelloView: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(resultAccessibilityLabel)
                 RecordLabel(model.recordResult)
+                // 結果を閉じて盤面を見返す（将棋・チェス・囲碁・五目並べの `BoardGameResultCard` と同じ口・#2797）。
+                Button { resultCardClosed = true } label: {
+                    Text(tr("盤を見る"))
+                        .themeBody(15, weight: .bold, maxScale: 1.5)
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 44)
+                        .background(Capsule().fill(Theme.Fill.coral))
+                }
+                .accessibilityHint(tr("結果を閉じて盤面を見返します"))
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
@@ -354,6 +384,26 @@ public struct OthelloView: View {
         } playing: {
             gameControls
         }
+        .overlay(alignment: .top) { passBanner }
+    }
+
+    /// パスの合図（#2797。囲碁 #664 と同じ札）。盤も手番も動かないパスで、唯一「何かが起きた」を示す要素。
+    /// 分岐はこの層の中に置く（呼び出し側の `if` だと `.transition` が効かない）。
+    /// 1 秒あまりで消えるので、VoiceOver のフォーカスは乗せない（読み上げは別に出す）。
+    private var passBanner: some View {
+        ZStack {
+            if passBannerID != nil {
+                Text(tr("パス"))
+                    .scaledFont(13, weight: .bold, design: .rounded)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.fillMuted))
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .gameAnimation(BoardGameMotion.checkBanner, value: passBannerID)
     }
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
