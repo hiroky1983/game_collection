@@ -23,6 +23,17 @@
         }
       }
     },
+    "1 回でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do each time"
+          }
+        }
+      }
+    },
     "1つ立派に" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -52,6 +63,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ojisan no Bonsai"
+          }
+        }
+      }
+    },
+    "おじさんの盆栽のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ojisan no Bonsai: first steps"
+          }
+        }
+      }
+    },
+    "くっつけて育てる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge to grow"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
           }
         }
       }
@@ -144,6 +188,28 @@
         }
       }
     },
+    "ゲームオーバーのあと、広告を見ると 1 回だけ続けられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After the game ends, you can watch an ad to continue once."
+          }
+        }
+      }
+    },
+    "ゲームオーバーの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the game ends"
+          }
+        }
+      }
+    },
     "ゲームオーバー後に広告を見ると、1 回だけ小さい盆栽（%@）と線より上の盆栽を片づけて続けられます。スコアはそのままです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -210,6 +276,17 @@
         }
       }
     },
+    "上の点線より上に盆栽が 3 秒以上とどまると、ゲームオーバーです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a bonsai stays above the dotted line for 3 seconds or more, the game is over."
+          }
+        }
+      }
+    },
     "上の点線より上に盆栽が 3 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -217,6 +294,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The game ends if a bonsai stays above the dotted line at the top for 3 seconds or more. A bonsai crossing the line as it falls doesn't count."
+          }
+        }
+      }
+    },
+    "出てくるのは小さい 5 種" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the 5 smallest appear"
           }
         }
       }
@@ -265,6 +353,17 @@
         }
       }
     },
+    "同じ盆栽どうしが触れるとくっついて、1 つ立派な盆栽になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two matching bonsai touch, they merge into one grander bonsai."
+          }
+        }
+      }
+    },
     "同じ盆栽をくっつけて、立派に育てよう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -272,6 +371,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Merge matching bonsai to grow them grander"
+          }
+        }
+      }
+    },
+    "同じ盆栽をくっつけて、立派に育てるゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge matching bonsai to grow them into grander ones."
+          }
+        }
+      }
+    },
+    "大きい盆栽は、くっつけて育てるしかありません。立派なほど高得点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bigger bonsai can only be grown by merging. The grander, the more points."
           }
         }
       }
@@ -375,6 +496,17 @@
         }
       }
     },
+    "指を左右に動かすと、縁側のおじさんが盆栽を持って付いてきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide your finger left and right, and Ojisan on the veranda follows, holding a bonsai."
+          }
+        }
+      }
+    },
     "指を離す" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -382,6 +514,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lift your finger"
+          }
+        }
+      }
+    },
+    "指を離すと、その真下の庭へ盆栽が落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lift your finger and the bonsai drops into the garden right below."
           }
         }
       }
@@ -464,6 +607,17 @@
         }
       }
     },
+    "盆栽は 11 種類。いちばん立派なのは金の松です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 11 kinds of bonsai. The grandest is the Golden Pine."
+          }
+        }
+      }
+    },
     "真下に落ちる" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -508,6 +662,17 @@
         }
       }
     },
+    "落ちてくるのはこの 5 種" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only these 5 drop"
+          }
+        }
+      }
+    },
     "落とす" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -526,6 +691,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bonsai you drop"
+          }
+        }
+      }
+    },
+    "落とす盆栽は、小さいほうの 5 種だけが出てきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The bonsai you drop are always one of the 5 smallest kinds."
           }
         }
       }
@@ -552,6 +728,17 @@
         }
       }
     },
+    "違う盆栽どうしは、触れてもくっつきません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different bonsai don't merge, even when they touch."
+          }
+        }
+      }
+    },
     "金の松" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -559,6 +746,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Golden Pine"
+          }
+        }
+      }
+    },
+    "金の松どうしがくっつくと、2 つとも消えて 100 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two Golden Pines merge, both vanish for 100 points."
           }
         }
       }
