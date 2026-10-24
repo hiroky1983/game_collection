@@ -631,6 +631,50 @@
         }
       }
     },
+    "こいこい あなた %1$lld回 ・ CPU %2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koi-Koi: You %1$lld · CPU %2$lld"
+          }
+        }
+      }
+    },
+    "札を無作為に選ぶ・こいこいしない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picks cards at random · never calls Koi-Koi"
+          }
+        }
+      }
+    },
+    "役を狙う・7文までこいこい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aims for yaku · calls Koi-Koi until 7 pts"
+          }
+        }
+      }
+    },
+    "相手の役も阻む・慎重にこいこい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocks your yaku · calls Koi-Koi carefully"
+          }
+        }
+      }
+    },
     "あなた %1$lld文 ・ CPU %2$lld文" : {
       "extractionState" : "manual",
       "localizations" : {

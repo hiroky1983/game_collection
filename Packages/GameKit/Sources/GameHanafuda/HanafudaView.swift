@@ -507,6 +507,9 @@ public struct HanafudaView: View {
             Text(tr("あなた %1$lld文 ・ CPU %2$lld文", model.humanTotal, model.cpuTotal))
                 .themeBody(15, weight: .semibold, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
+            Text(tr("こいこい あなた %1$lld回 ・ CPU %2$lld回", model.humanMatchKoiKoiCount, model.cpuMatchKoiKoiCount))
+                .themeBody(13, maxScale: 1.5)
+                .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
         }
         .frame(maxWidth: .infinity)
