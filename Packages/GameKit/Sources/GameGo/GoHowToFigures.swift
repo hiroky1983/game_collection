@@ -11,7 +11,7 @@ enum GoHowToFigures {
     ]
 
     /// 交点に交互に石を置く。
-    private struct PlaceFigure: View {
+    struct PlaceFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -31,7 +31,7 @@ enum GoHowToFigures {
     }
 
     /// 白の石の最後の呼吸点を黒が埋めると、白が取り上げられる。
-    private struct CaptureFigure: View {
+    struct CaptureFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -54,7 +54,7 @@ enum GoHowToFigures {
     }
 
     /// 囲んだ空点（地）の数と石の数で勝負する。
-    private struct TerritoryFigure: View {
+    struct TerritoryFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleMiniBoard(rows: 5, cols: 7, cell: 20, style: .lines) { row, col in
