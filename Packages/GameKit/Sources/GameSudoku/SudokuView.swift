@@ -586,7 +586,8 @@ public struct SudokuView: View {
     }
 
     private func digitButton(_ digit: Int) -> some View {
-        let exhausted = model.isDigitExhausted(digit)
+        let remaining = model.remainingCount(of: digit)
+        let exhausted = remaining == 0
         return Button {
             model.enter(digit: digit)
         } label: {
@@ -600,6 +601,16 @@ public struct SudokuView: View {
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(model.noteMode ? Theme.purple.opacity(0.18) : Theme.surface)
                 )
+                .overlay(alignment: .topTrailing) {
+                    // 残り個数（#2802）。使い切った数字は薄くするだけで数は出さない。
+                    if !exhausted {
+                        Text(verbatim: "\(remaining)")
+                            .scaledFont(10, weight: .semibold, design: .rounded)
+                            .foregroundStyle(Theme.inkSub)
+                            .padding(.top, 3)
+                            .padding(.trailing, 5)
+                    }
+                }
                 .foregroundStyle(exhausted ? Theme.inkSub : Theme.ink)
                 .contentShape(Rectangle())
         }

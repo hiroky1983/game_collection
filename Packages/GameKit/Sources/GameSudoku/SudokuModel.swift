@@ -207,11 +207,16 @@ public final class SudokuModel {
         return Set((0..<SudokuEngine.cellCount).filter { board[$0] == digit })
     }
 
-    /// その数字がもう 9 個すべて**正解の位置に**入っているか（数字パッドを薄く落とす判定）。
+    /// その数字があと何個、正解の位置に入る必要があるか（数字パッドの残数。#2802）。
     /// 盤上の個数で数えると誤答まで数え、まだ置く必要がある数字を使い切り扱いにする（#813）。
+    public func remainingCount(of digit: Int) -> Int {
+        SudokuEngine.size
+            - (0..<SudokuEngine.cellCount).filter { board[$0] == digit && solution[$0] == digit }.count
+    }
+
+    /// その数字がもう 9 個すべて**正解の位置に**入っているか（数字パッドを薄く落とす判定）。
     public func isDigitExhausted(_ digit: Int) -> Bool {
-        (0..<SudokuEngine.cellCount).filter { board[$0] == digit && solution[$0] == digit }.count
-            == SudokuEngine.size
+        remainingCount(of: digit) == 0
     }
 
     /// `index` のマスに `digit` のメモが付いているか。
