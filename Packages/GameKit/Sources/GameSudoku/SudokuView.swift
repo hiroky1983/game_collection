@@ -83,7 +83,7 @@ public struct SudokuView: View {
         .gameChrome(title: tr("ナンプレ"), review: services.review,
                     condition: GameChromeCondition([model.difficulty.label]) { requestNewGame() },
                     newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))
+        .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items).onboarding(SudokuOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
             SudokuNewGameSheet(playLog: services.playLog) { difficulty in
                 showNewGame = false
@@ -844,6 +844,7 @@ struct SudokuNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: SudokuOnboarding.guide,
             onStart: {
                 playLog?.saveLastStart(difficulty, gameID: "sudoku")
                 onStart(difficulty)

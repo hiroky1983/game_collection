@@ -58,7 +58,7 @@ public struct MinesweeperView: View {
         .gameChrome(title: tr("マインスイーパー"), review: services.review,
                     condition: GameChromeCondition([model.recordVariantLabel]) { requestNewGame() },
                     newGame: GameChromeNewGame(.solo) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))
+        .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items).onboarding(MinesweeperOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet(playLog: services.playLog) { rows, cols, mines in
                 // 旗モードは `newGame` がオフに戻す（#761）。
@@ -644,6 +644,7 @@ struct MinesweeperNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: MinesweeperOnboarding.guide,
             onStart: {
                 playLog?.saveLastStart(level, gameID: "minesweeper")
                 onStart(level.rows, level.cols, level.mines)

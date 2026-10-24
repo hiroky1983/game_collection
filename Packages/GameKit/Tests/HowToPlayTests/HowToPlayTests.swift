@@ -571,9 +571,9 @@ struct PuzzleOtherHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("Game2048/Game2048View.swift", ".howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items))", "2048"),
-            ("GameMinesweeper/MinesweeperView.swift", ".howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))", "minesweeper"),
-            ("GameSudoku/SudokuView.swift", ".howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))", "sudoku"),
+            ("Game2048/Game2048View.swift", ".howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items)", "2048"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameMinesweeper/MinesweeperView.swift", ".howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items)", "minesweeper"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameSudoku/SudokuView.swift", ".howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items)", "sudoku"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameBlocks/BlocksView.swift", ".howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items)", "blocks"),
             ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))", "fifteen"),
             ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),
