@@ -1622,13 +1622,13 @@
         }
       }
     },
-    "鳥にぶつかった" : {
+    "鳥にぶつかった。跳ばずに走って下を抜けよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Smacked into a bird"
+            "value" : "Smacked into a bird. Don't jump — keep running under it"
           }
         }
       }

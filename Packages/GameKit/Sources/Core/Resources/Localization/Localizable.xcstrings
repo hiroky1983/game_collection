@@ -2351,6 +2351,39 @@
         }
       }
     },
+    "鳥は近づくと飛び立ちます。跳ばずに走ったまま、下を抜けましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Birds take off as you approach. Don't jump — keep running and pass underneath."
+          }
+        }
+      }
+    },
+    "スピードアップのアイテムを取ると、しばらく速くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grab a speed-up item to go faster for a while."
+          }
+        }
+      }
+    },
+    "たこ焼きを取ると、3 秒だけ障害にぶつからなくなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grab a takoyaki to pass through obstacles for 3 seconds."
+          }
+        }
+      }
+    },
     "ポーカーの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
