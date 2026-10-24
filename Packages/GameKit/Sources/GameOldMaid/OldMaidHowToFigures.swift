@@ -13,7 +13,7 @@ enum OldMaidHowToFigures {
     ]
 
     /// 同じ数字の 2 枚を捨てる。
-    private struct PairFigure: View {
+    struct PairFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
@@ -37,7 +37,7 @@ enum OldMaidHowToFigures {
     }
 
     /// 次の CPU の伏せ札から 1 枚引き、ペアができたら捨てる。
-    private struct DrawFigure: View {
+    struct DrawFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
@@ -61,7 +61,7 @@ enum OldMaidHowToFigures {
     }
 
     /// 札に指をかけると、ジョーカーを持つ CPU の顔に出ることがある。
-    private struct FaceFigure: View {
+    struct FaceFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 20) {
                 example(face: .smile, label: tr("にやり→ジョーカーかも"), color: Theme.coralText) {
@@ -87,7 +87,7 @@ enum OldMaidHowToFigures {
     }
 
     /// 手札がなくなった人から抜け、ジョーカーを持って残った人が負け。
-    private struct LoseFigure: View {
+    struct LoseFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 14) {
                 ForEach(0..<3, id: \.self) { _ in
