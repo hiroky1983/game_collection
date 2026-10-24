@@ -6,21 +6,25 @@ import SwiftUI
 /// ツールバーの「はじめから」から開く、モード（ステージ制／エンドレス）と始める面を選ぶシート。
 ///
 /// 枠は共通の `GameSetupSheet`、モードの選び方は麻雀の東風戦／一局戦（`MahjongStartSheet`）と
-/// 同じセグメントのピッカー + 1 行の説明。ステージ制のときだけ下にワールドマップ（#798）が
+/// 同じセグメントのピッカー + 1 行の説明。ステージ制のときだけ下にステージセレクト（#798 → #2730）が
 /// 付く。選んだモードと面は `RunnerModel.newGame(startingAtStage:)` / `newGame(mode:)` で
 /// 走行に焼き込まれ、走行中に読み替えられることはない（1局=1RuleSet）。
 ///
 /// 並べ方は共通枠の 1 種類（常に `.large`。スタートボタンだけスクロール領域の外。#1415 で全ゲームに揃えた）。
-/// 6 世界 × 6 面の格子は 3 列 × 2 段を 6 つ積むので、モードの節と合わせると `.medium` には
-/// 収まらない。エンドレスを選んで格子が消えても**シートの高さは変えない**——
+/// エンドレスを選んでステージセレクトが消えても**シートの高さは変えない**——
 /// `.medium` から開く形にして開始ボタンを下端へ離す案を一度試したが、モードを切り替えるたびに
 /// シートそのものの高さが変わり、会長QA「モーダルの長さも変わってるしよ」で差し戻しになった
 /// （2026-09-16）。スクロールしないとボタンへ届かない煩わしさ自体は残っていたため
 /// （会長指摘・2026-09-22）、シートの高さ判定（`.large`固定）はそのままにボタンだけ
 /// スクロール領域の外へ出す形（現在の共通枠）にした。
+///
+/// 節の並びは **モード → ステージを選ぶ → ルール → おはなし**（#2730）。以前はルールの下にマップがあり、
+/// 9 世界 × 6 面の格子が長くて開いた直後は 1 画面ぶんスクロールしないと見えなかった。C 案の帯は
+/// 面が増えても高さが変わらないので、モードのすぐ下（開いた瞬間に見える位置）に置き、ルールはその下へ。
+/// ステージセレクトと「おはなし」はステージ制のときだけ出す（エンドレスには面も物語も無い）。
 struct RunnerStartSheet: View {
     @Binding var mode: RunnerMode
-    /// ワールドマップで選んでいる面（1 始まり）。
+    /// ステージセレクトで選んでいる面（1 始まり）。
     @Binding var selectedStage: Int
     /// 到達した最大の面。これより先は鍵付きで押せない（`RunnerModel.reachedStage`）。
     let reachedStage: Int
@@ -55,6 +59,11 @@ struct RunnerStartSheet: View {
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            if mode == .stages {
+                GameSetupSection(tr("ステージを選ぶ")) {
+                    RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
+                }
+            }
             // 選んでいるモードの遊び方の要点を、図つきでそのまま並べる（#2044。荷物運びパズルの開始シート #2132 と
             // 同じ型・会長指示「遷移リンクを貼るだけでは駄目」）。カードは「？」の遊び方シートと同じ部品。
             GameSetupSection(tr("%@のルール", mode.title)) {
@@ -75,9 +84,6 @@ struct RunnerStartSheet: View {
                 .id(mode)
             }
             if mode == .stages {
-                GameSetupSection(tr("ステージを選ぶ")) {
-                    RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
-                }
                 GameSetupSection(tr("おはなし")) {
                     RunnerStoryReplayList(playLog: playLog) { replayScene = $0 }
                 }

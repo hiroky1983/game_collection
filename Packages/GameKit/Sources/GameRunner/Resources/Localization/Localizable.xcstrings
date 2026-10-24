@@ -12,6 +12,17 @@
         }
       }
     },
+    "%1$@、%2$@、%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
     "%1$@。%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -244,6 +255,17 @@
         }
       }
     },
+    "この世界: %1$lld / %2$lld クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This world: %1$lld / %2$lld cleared"
+          }
+        }
+      }
+    },
     "こら！ カラスに持ってかれたがな" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -398,6 +420,17 @@
         }
       }
     },
+    "まだ遊べません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "locked"
+          }
+        }
+      }
+    },
     "もうちょい……もうちょいや！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -526,6 +559,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into a fox"
+          }
+        }
+      }
+    },
+    "クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared"
+          }
+        }
+      }
+    },
+    "クリア済み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cleared"
           }
         }
       }
@@ -871,6 +926,17 @@
         }
       }
     },
+    "ワールド %1$lld / %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World %1$lld / %2$lld"
+          }
+        }
+      }
+    },
     "ワールド %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -878,6 +944,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "World %lld"
+          }
+        }
+      }
+    },
+    "ワールド %lld、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World %lld, %@"
           }
         }
       }
@@ -911,6 +988,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kyoto & Nara"
+          }
+        }
+      }
+    },
+    "今ここ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You are here"
           }
         }
       }
@@ -981,13 +1069,13 @@
         }
       }
     },
-    "到達済み" : {
+    "前の世界" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "reached"
+            "value" : "Previous world"
           }
         }
       }
@@ -1179,17 +1267,6 @@
         }
       }
     },
-    "未到達" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "not reached yet"
-          }
-        }
-      }
-    },
     "東京" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1241,6 +1318,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Goes to the next panel"
+          }
+        }
+      }
+    },
+    "次の世界" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next world"
           }
         }
       }
