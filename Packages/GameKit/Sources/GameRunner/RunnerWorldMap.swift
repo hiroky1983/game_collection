@@ -185,6 +185,8 @@ struct RunnerWorldMap: View {
         .buttonStyle(.pop)
         .opacity(enabled ? 1 : 0)
         .disabled(!enabled)
+        // 見えない端の矢印を VoiceOver に読ませない。
+        .accessibilityHidden(!enabled)
         .accessibilityLabel(label)
     }
 
@@ -210,33 +212,38 @@ struct RunnerWorldMap: View {
         return Button {
             show(page: index)
         } label: {
-            VStack(spacing: 3) {
-                Group {
-                    if let world {
-                        // つまみは幅が狭い（SE で 31pt）ので、帯の縦横比は保たず枠いっぱいに伸ばして切る。
-                        RunnerWorldBandView(world: world, keepsAspectRatio: false)
-                    } else {
-                        Theme.ink.opacity(0.2)
-                    }
-                }
-                .frame(height: 22)
-                .clipShape(RoundedRectangle(cornerRadius: Self.knobCorner, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Self.knobCorner, style: .continuous)
-                        .strokeBorder(selected ? Theme.Fill.coral : Theme.inkSub.opacity(0.3), lineWidth: selected ? 2 : 1)
-                )
-                Text(verbatim: "\(index + 1)")
-                    .scaledFont(11, weight: selected ? .heavy : .bold, design: .rounded).monospacedDigit()
-                    .foregroundStyle(selected ? Theme.ink : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+            knobLabel(world, index: index, selected: selected)
         }
         .buttonStyle(.pop)
         .accessibilityLabel(
             world.map { tr("ワールド %lld、%@", $0.number, $0.displayName) } ?? tr("まだ見ぬ世界が続く予定です")
         )
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func knobLabel(_ world: RunnerWorld?, index: Int, selected: Bool) -> some View {
+        VStack(spacing: 3) {
+            Group {
+                if let world {
+                    // つまみは幅が狭い（SE で 31pt）ので、帯の縦横比は保たず枠いっぱいに伸ばして切る。
+                    RunnerWorldBandView(world: world, keepsAspectRatio: false)
+                } else {
+                    Theme.ink.opacity(0.2)
+                }
+            }
+            .frame(height: 22)
+            .clipShape(RoundedRectangle(cornerRadius: Self.knobCorner, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Self.knobCorner, style: .continuous)
+                    .strokeBorder(selected ? Theme.Fill.coral : Theme.inkSub.opacity(0.3), lineWidth: selected ? 2 : 1)
+            )
+            Text(verbatim: "\(index + 1)")
+                .scaledFont(11, weight: selected ? .heavy : .bold, design: .rounded).monospacedDigit()
+                .foregroundStyle(selected ? Theme.ink : Theme.inkSub)
+        }
+        // 絵と番号で 40pt ほどしかないので、当たりは縦に 44pt（iOS の最小のタップ寸）まで広げる。
+        .frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)
+        .contentShape(Rectangle())
     }
 
     // MARK: その世界の 6 面
@@ -387,7 +394,12 @@ private struct RunnerWorldBandView: View {
             }
             .aspectRatio(keepsAspectRatio ? RunnerWorldBandArt.aspectRatio : nil, contentMode: .fit)
             .clipped()
-            // 絵を起こすのは画面に出たときだけ（10 世界ぶんをシートを開いた瞬間にまとめては作らない）。
-            .task(id: world) { image = RunnerWorldBandArt.image(for: world) }
+            // 絵を起こすのは画面に出たときだけ。帯（いま見ている 1 枚）はすぐ描き、つまみ（最大 9 枚）は
+            // 1 枚ずつ間を空けて描く（シートを開いた瞬間にメインアクターへ 9 枚ぶんの描画を詰めない）。
+            .task(id: world) {
+                image = keepsAspectRatio
+                    ? RunnerWorldBandArt.image(for: world)
+                    : await RunnerWorldBandArt.staggeredImage(for: world)
+            }
     }
 }

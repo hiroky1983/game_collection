@@ -55,6 +55,28 @@ enum RunnerWorldBandArt {
         return image
     }
 
+    /// 控えに無い絵を続けて描くときの間隔。1 枚描くたびにメインアクターを手放し、画面の更新と操作を先に通す。
+    static let staggerInterval: Duration = .milliseconds(50)
+
+    /// 次に控えの無い絵を描いてよい時刻（`staggeredImage(for:)` が順番を決めるのに使う）。
+    private static var nextRenderSlot: ContinuousClock.Instant = .now
+
+    /// `image(for:)` と同じ絵を、控えに無いときは前の描画から `staggerInterval` 空けて描く。
+    /// つまみのように一度に何枚も出るところで使い、描画をフレームにまたがって散らす。待つ間に
+    /// 取り消されたら（画面から消えたら）描かずに nil。
+    static func staggeredImage(for world: RunnerWorld) async -> CGImage? {
+        if let cached = cache[world] { return cached }
+        let clock = ContinuousClock()
+        let slot = max(clock.now, nextRenderSlot)
+        nextRenderSlot = slot + staggerInterval
+        do {
+            try await clock.sleep(until: slot)
+        } catch {
+            return nil
+        }
+        return image(for: world)
+    }
+
     /// 背景を組むためのシーン。**1 つを使い回す**——`RunnerScene` は起動時に走者・犬・イノシシ等の
     /// テクスチャを全世界ぶん起こすので、世界ごとに作ると 10 回ぶん払う。
     /// 空・雲・遠景・丘は `applyWorld` が世界ごとに作り直し、道路は `addGround` で別に敷く（コースの中身は使わない）。
