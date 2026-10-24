@@ -725,7 +725,7 @@ private struct HanafudaRoundTitle: View {
             .scaleEffect(isBig && !reduceMotion && !popped ? 0.6 : 1)
             .onAppear {
                 guard isBig, !reduceMotion else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { popped = true }
+                withGameAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { popped = true }
             }
     }
 }
