@@ -5806,6 +5806,94 @@
           }
         }
       }
+    },
+    "取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど勝ち、取らないゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each heart you take is 1 point, and the Queen of Spades is 13. The fewest points wins — it's a game of avoiding cards."
+          }
+        }
+      }
+    },
+    "取らないゲームです。点が少ないほど勝ちで、ハートは 1 点、スペードの Q は 13 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avoid taking cards. The fewest points wins; each heart is 1 point and the Queen of Spades is 13."
+          }
+        }
+      }
+    },
+    "同じマークが無いときは、どの札でも出せます。点の札を押し付けるチャンス。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have no card of the suit led, you can play any card. A chance to dump point cards."
+          }
+        }
+      }
+    },
+    "最初に出たマークと同じマークで、いちばん強い札を出した人が 4 枚を取ります。別のマークは A でも勝てません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever plays the highest card of the suit that was led takes all 4 cards. A different suit can't win, even an Ace."
+          }
+        }
+      }
+    },
+    "最初に出たマークと同じマークのうち、数字がいちばん大きい人が 4 枚を取ります。A が最強、2 が最弱です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever plays the highest card of the suit that was led takes all 4 cards. Ace is highest, 2 is lowest."
+          }
+        }
+      }
+    },
+    "最初はクラブの 2 から。出された札と同じマークを、順に 1 枚ずつ出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the 2 of Clubs. Play one card at a time, following the suit that was led."
+          }
+        }
+      }
+    },
+    "札の強さと点数は、対局中にヘッダーのボタンから見られます。CPU の強さは「新規対局」で選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During a game, open the header button to see card strength and points. Choose the CPU strength in “New Game”."
+          }
+        }
+      }
+    },
+    "札の強さは A がいちばん強く、2 がいちばん弱い。比べるのは同じマークの中だけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ace is the highest card and 2 is the lowest. Only cards of the same suit are compared."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

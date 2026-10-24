@@ -5,6 +5,8 @@ public struct HeartsView: View {
     @State private var model: HeartsModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 対局中に開ける札の強さ・点数の早見表（#2788）。
+    @State private var showReference = false
     /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（いろリレー・CodeRabbit 指摘 PR #1339 と同じ）。
     /// ボタンから起こした非構造化タスクは View のライフサイクルで止まらないので、離れたら自分で止める。
     @State private var cpuTask: Task<Void, Never>?
@@ -49,10 +51,25 @@ public struct HeartsView: View {
         }
         // 手数・終了点・手番は、ヘッダー下の帯ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
         .gameChrome(title: tr("ハーツ"), review: services.review, fullScreen: .felt, ads: services.ads,
+                    reference: GameChromeReference(tr("札の強さと点数")) { showReference = true },
                     newGame: GameChromeNewGame(.match) { showNewGame = true }) {
             statusChips
         }
         .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items)) { HeartsRuleSheet() }
+        // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
+        .sheet(isPresented: $showReference) {
+            NavigationStack {
+                HeartsReferenceSheet()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(tr("閉じる")) { showReference = false }.fontWeight(.semibold)
+                        }
+                    }
+            }
+        }
+        .onChange(of: showReference) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
         .sheet(isPresented: $showNewGame) {
             HeartsNewGameSheet(aiLevel: model.aiLevel) { level in
                 cpuTask?.cancel()
@@ -71,9 +88,12 @@ public struct HeartsView: View {
             if let i = args.firstIndex(of: "-heartsScenario"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
             }
+            // 撮影用（#2788）: 早見表だけを開く。
+            if args.contains("-heartsReference") { showReference = true }
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
+            runCPU()
         }
     }
 
