@@ -428,9 +428,9 @@ struct MahjongHanafudaHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameMahjong/MahjongView.swift", ".howToPlay(model.gameLength.howToPlayGuide)", "mahjong"),
+            ("GameMahjong/MahjongView.swift", ".howToPlay(model.gameLength.howToPlayGuide", "mahjong"),  // 後ろに .onboarding(...)（#2825）が続く
             ("GameMahjong/MahjongStartSheet.swift", "length.setupKeyItems", "mahjong の開始シート"),
-            ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items))", "mahjongSolitaire"),
+            ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items)", "mahjongSolitaire"),  // 後ろに .onboarding(...)（#2825）が続く
             ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)", "hanafuda"),  // 後ろに .onboarding(...)（#2827）が続く
         ]
         for (path, expected, name) in files {
