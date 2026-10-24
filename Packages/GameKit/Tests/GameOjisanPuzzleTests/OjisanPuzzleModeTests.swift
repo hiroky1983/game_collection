@@ -280,7 +280,7 @@ struct OjisanPuzzleModeTests {
         let modes = spy.events.compactMap { event -> (String, AnalyticsMode?)? in
             switch event {
             case let .gameStart(_, _, mode, _, _): ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _, _, _): ("end", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _, _, _): ("end", mode)
             default: nil
             }
         }

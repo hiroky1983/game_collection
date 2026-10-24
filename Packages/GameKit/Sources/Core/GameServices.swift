@@ -294,8 +294,8 @@ public struct GameServices {
     /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの
     /// `game_end` に「最後のミスの原因」（`cause`）として載せる。イベントの種類は増やさない。
     @MainActor
-    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause) {
-        analytics?.recordMissCause(gameID: gameID, cause: cause)
+    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause, progressPercent: Int? = nil) {
+        analytics?.recordMissCause(gameID: gameID, cause: cause, progressPercent: progressPercent)
     }
 
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。
