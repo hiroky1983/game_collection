@@ -1170,6 +1170,149 @@
           }
         }
       }
+    },
+    "8 を含む組を出すと場が流れ、そのまま続けて出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing a set that includes an 8 clears the field, and you play again."
+          }
+        }
+      }
+    },
+    "ふだん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        }
+      }
+    },
+    "カードの強さとルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card strength and rules"
+          }
+        }
+      }
+    },
+    "ジョーカーは、革命中も最強です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker stays the strongest, even during a revolution."
+          }
+        }
+      }
+    },
+    "同じスートが 2 回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the same suit is played twice in a row, only that suit (or the Joker) can be played until the field clears."
+          }
+        }
+      }
+    },
+    "同じ数字を %lld 枚以上まとめて出すと革命。強さが逆になります（もう一度出すと元に戻ります）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing %lld or more cards of the same rank starts a revolution. Card strength is reversed (another revolution reverses it back)."
+          }
+        }
+      }
+    },
+    "大富豪の早見表" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daifugo Quick Reference"
+          }
+        }
+      }
+    },
+    "最後の 1 手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finishing on a 2, an 8 or a Joker is a foul. You go out but drop to Daihinmin."
+          }
+        }
+      }
+    },
+    "最後の 1 手だと大貧民" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "as your last play = Daihinmin"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "革命・8切り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution and 8-Cut"
+          }
+        }
+      }
+    },
+    "革命中（逆になる）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During a revolution (reversed)"
+          }
+        }
+      }
+    },
+    "左上がいちばん弱く、右下がいちばん強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weakest at top left, strongest at bottom right"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
