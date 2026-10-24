@@ -152,8 +152,10 @@ struct FruitsStartTests {
         #expect(feedback.impacts == [.light])
         #expect(store.saveCount == 1, "落とした瞬間に 1 回保存する")
 
+        #expect(feedback.notices.isEmpty)
         model.drop()
         #expect(model.field.count == 1, "手が空のときは落ちない")
+        #expect(feedback.notices == [.warning], "待ち時間中のタップは警告の手応えを返す")
 
         advance(model, seconds: FruitsModel.dropCooldown - 0.1)
         #expect(model.heldKind == nil, "間が開けるまでは空のまま")

@@ -170,7 +170,12 @@ public final class FruitsModel {
 
     /// 手の果物を落とす。
     public func drop() {
-        guard phase == .playing, let kind = heldKind else { return }
+        guard phase == .playing else { return }
+        guard let kind = heldKind else {
+            // 落とした直後の待ち時間。手に何も無いことを無音で無視せず、警告の手応えで伝える。
+            services?.feedback.notify(.warning)
+            return
+        }
         field.drop(kind)
         fruitCount = field.count
         heldKind = nil
