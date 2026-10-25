@@ -68,6 +68,9 @@ public final class FruitsModel {
     public private(set) var recordResult: RecordResult?
     /// このプレイで金の松を作ったか。終局の勝敗（評価リクエスト・記録の勝ち数）に使う。
     public private(set) var hasMadeKinmatsu: Bool
+    /// このプレイで育てた最高の段（#2865）。合体でできた段だけを数える（落として出てきた段は含まない）。
+    /// 1 プレイ限りの値で、記録（PlayLog）には残さない。中断データには持つ（開き直しても消えない）。
+    public private(set) var highestKind: FruitKind?
     /// このプレイで落とした数。
     public private(set) var dropCount: Int
     /// 危険線より上に果物があるか（描画の警告に使う）。
@@ -131,6 +134,9 @@ public final class FruitsModel {
             phase = .playing
             continueUsed = snap.continueUsed
             hasMadeKinmatsu = snap.hasMadeKinmatsu
+            // 古い中断データ（鍵なし）は盤の最大の段と金の松の印から復元する。
+            highestKind = snap.highestKind
+                ?? (snap.hasMadeKinmatsu ? .kinmatsu : snap.fruits.map(\.kind).filter { $0 > .mikan }.max())
             dropCount = snap.dropCount
             self.seed = snap.seed
             self.drawCount = drawCount
@@ -152,6 +158,7 @@ public final class FruitsModel {
             phase = .playing
             continueUsed = false
             hasMadeKinmatsu = false
+            highestKind = nil
             dropCount = 0
             self.seed = seed
             self.drawCount = drawCount
@@ -235,6 +242,7 @@ public final class FruitsModel {
         phase = .playing
         continueUsed = false
         hasMadeKinmatsu = false
+        highestKind = nil
         dropCount = 0
         recordResult = nil
         effects = []
@@ -307,9 +315,11 @@ public final class FruitsModel {
             score += into.points
             needsCheckpoint = true
             appendEffect(.merge(into), x: x, y: y)
+            if into > (highestKind ?? .sakura) { highestKind = into }
             if into == .kinmatsu {
                 hasMadeKinmatsu = true
-                services?.feedback.notify(.success)
+                // 金の松ができた瞬間だけ特別扱い（#2865）。触覚は成功と同じ最も強い種類で、効果音を長いファンファーレにする。
+                services?.feedback.notify(.milestone)
             } else {
                 services?.feedback.impact(into >= .icho ? .medium : .light)
             }
@@ -365,7 +375,8 @@ public final class FruitsModel {
             seed: seed,
             drawCount: drawCount,
             dropCount: dropCount,
-            hasMadeKinmatsu: hasMadeKinmatsu
+            hasMadeKinmatsu: hasMadeKinmatsu,
+            highestKind: highestKind
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }

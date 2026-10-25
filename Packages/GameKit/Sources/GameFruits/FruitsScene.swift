@@ -27,6 +27,8 @@ enum FruitsPalette {
     static let guide: UInt32 = Theme.Hex.inkSub.light
     /// 合体の輪。
     static let ring: UInt32 = 0xFFFFFF
+    /// 金の松ができた瞬間の祝いの輪と火花（#2865）。
+    static let gold: UInt32 = 0xFFC83D
 
     static func color(_ hex: UInt32, alpha: CGFloat = 1) -> SKColor {
         SKColor(
@@ -244,6 +246,43 @@ final class FruitsScene: SKScene {
             ring.zPosition = 4
             addChild(ring)
             ring.run(.sequence([.group([.scale(to: 1.6, duration: 0.3), .fadeOut(withDuration: 0.3)]), .removeFromParent()]))
+            if effect.kind == .merge(.kinmatsu) {
+                celebrateKinmatsu(at: CGPoint(x: effect.x, y: effect.y))
+            }
+        }
+    }
+
+    /// 金の松ができた瞬間だけの演出（#2865）。金色の輪を 2 重に広げ、火花を放射状に散らす。
+    /// 合体の輪（白・`zPosition` 4）より前に出す。Reduce Motion では呼ばれない（`syncEffects` が先に抜ける）。
+    private func celebrateKinmatsu(at center: CGPoint) {
+        let base = FruitKind.kinmatsu.radius
+        for (index, scale) in [2.4, 3.4].enumerated() {
+            let ring = SKShapeNode(circleOfRadius: base)
+            ring.position = center
+            ring.strokeColor = FruitsPalette.color(FruitsPalette.gold)
+            ring.lineWidth = 2.2
+            ring.fillColor = .clear
+            ring.zPosition = 5
+            addChild(ring)
+            ring.run(.sequence([
+                .wait(forDuration: 0.08 * Double(index)),
+                .group([.scale(to: scale, duration: 0.5), .fadeOut(withDuration: 0.5)]),
+                .removeFromParent(),
+            ]))
+        }
+        let sparkCount = 12
+        for index in 0..<sparkCount {
+            let angle = Double(index) / Double(sparkCount) * 2 * .pi
+            let spark = SKShapeNode(circleOfRadius: 1.4)
+            spark.position = center
+            spark.fillColor = FruitsPalette.color(FruitsPalette.gold)
+            spark.strokeColor = .clear
+            spark.zPosition = 5
+            addChild(spark)
+            let distance = base * 2.2
+            let move = SKAction.moveBy(x: cos(angle) * distance, y: sin(angle) * distance, duration: 0.6)
+            move.timingMode = .easeOut
+            spark.run(.sequence([.group([move, .fadeOut(withDuration: 0.6)]), .removeFromParent()]))
         }
     }
 
