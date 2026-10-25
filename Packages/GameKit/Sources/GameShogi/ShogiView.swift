@@ -319,7 +319,9 @@ public struct ShogiView: View {
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
     private var ladder: DifficultyLadderPrompt? {
-        DifficultyLadderPrompt(result: model.recordResult,
+        // 達人（#2698）は共通の並びの外にある最上段なので、勧める先が無い。
+        guard model.aiLevel != ShogiMasterEngine.level else { return nil }
+        return DifficultyLadderPrompt(result: model.recordResult,
                                currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
                                levelLabels: CPUStrength.labels) { index in
             model.newGame(humanSide: model.humanSide,
@@ -668,6 +670,10 @@ struct NewGameSheet: View {
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
                     tr("1手先だけ読む"), tr("2手先まで読む"), tr("3手先まで読む"), tr("定跡＋深読み"),
+                ], extras: [
+                    // 達人（#2698）は将棋だけの段。探索は `ShogiMasterEngine`。
+                    .init(level: ShogiMasterEngine.level, label: ShogiMasterEngine.label,
+                          accent: Theme.Fill.purple, detail: tr("さらに深く読む最強の段")),
                 ])
             }
         }

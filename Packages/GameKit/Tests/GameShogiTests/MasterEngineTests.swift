@@ -17,6 +17,22 @@ struct MasterEngineTests {
         #expect(ShogiMasterEngine.shippedTimeLimit <= 3)
     }
 
+    /// 達人の記録・解析は既存の段と混ざらない（確認用ビルド tf/shogi-master）。既存の段は今のまま。
+    @Test func masterRecordAndAnalyticsAreSeparate() {
+        let master = ShogiMasterEngine.level
+        #expect(ShogiMasterEngine.recordVariant(level: master, handicapVariant: nil) == "master")
+        #expect(ShogiMasterEngine.recordVariant(level: master, handicapVariant: "rook-player") == "master-rook-player")
+        #expect(ShogiMasterEngine.analyticsLevel(forLevel: master) == .expert)
+        for strength in CPUStrength.allCases {
+            #expect(ShogiMasterEngine.recordVariant(level: strength.rawValue, handicapVariant: nil) == nil)
+            #expect(ShogiMasterEngine.recordVariant(level: strength.rawValue, handicapVariant: "bishop-cpu") == "bishop-cpu")
+            #expect(ShogiMasterEngine.analyticsLevel(forLevel: strength.rawValue) == strength.analyticsLevel)
+        }
+        #expect(RecordVariantLabels.label(recordKey: "shogi#master", language: .japanese) == "達人")
+        #expect(RecordVariantLabels.label(recordKey: "shogi#master-rook-player", language: .japanese)
+                == "達人・飛車落ち・自分が落とす")
+    }
+
     /// 既存の合法手生成（`Position.legalMoves`）と同じ手を出すか。達人は歩・角・飛の不成を生成しない
     /// （成れるのに成らない手は損しかない）ので、比べる側からも外す。
     static func referenceMoves(_ pos: Position) -> Set<String> {
