@@ -96,6 +96,9 @@ public enum RecordVariantLabels {
             // ハノイの塔（#2003）。キーは `<枚数>disks`（`HanoiModel.recordVariant`）。
             guard variant.hasSuffix("disks"), let count = Int(variant.dropLast(5)) else { return nil }
             return tr("円盤%lld枚", count, language: language)
+        case "fifteen":
+            // 15パズル（#2869）の盤の大きさ。4×4 は区分なし（従来の保存先）。数字と記号だけなので言語で変わらない。
+            return ["3x3": "3×3", "5x5": "5×5"][variant]
         case "catpuzzle":
             // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
             return difficultyWord(variant, language: language)

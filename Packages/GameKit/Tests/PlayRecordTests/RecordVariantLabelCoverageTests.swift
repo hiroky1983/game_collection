@@ -19,6 +19,7 @@ import GameAnzan
 @testable import GameAkariKeshi
 @testable import GameTsunagi
 import GameHanoi
+import GameFifteen
 import GameOjisanPuzzle
 import GameSpeed
 import GameCatPuzzle
@@ -70,6 +71,7 @@ struct RecordVariantLabelCoverageTests {
         for level in AkariKeshiDifficulty.allCases { add("akarikeshi", level.rawValue) }
         for size in TsunagiSize.allCases { add("tsunagi", size.recordVariant) }
         for disks in HanoiLogic.diskRange { add("hanoi", "\(disks)disks") }
+        for size in FifteenLogic.sizes where size != FifteenLogic.defaultSize { add("fifteen", "\(size)x\(size)") }
         for size in CatPuzzleSize.allCases { add("catpuzzle", size.rawValue) }
         // 大富豪・いろリレーは CPU の強さ別（#2604）。「ふつう」は区分なし（従来の保存先）。
         for strength in CPUStrength.allCases where strength != .standard {

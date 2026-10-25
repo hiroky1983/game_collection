@@ -83,7 +83,7 @@ enum FifteenOnboarding {
         }
 
         private func board(_ tiles: [Int]) -> some View {
-            let n = FifteenLogic.size
+            let n = FifteenLogic.defaultSize
             return VStack(spacing: 2) {
                 ForEach(0..<n, id: \.self) { row in
                     HStack(spacing: 2) {

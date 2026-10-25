@@ -8,7 +8,7 @@ import Core
 struct FifteenOnboardingTests {
     /// 図の小さな盤（行の並び）を 4×4 の盤の左上に置き、残りのマスは使っていない数で埋める。
     private func embed(_ rows: [[Int]]) -> [Int] {
-        let n = FifteenLogic.size
+        let n = FifteenLogic.defaultSize
         let used = Set(rows.flatMap { $0 })
         var rest = (1..<FifteenLogic.cellCount).filter { !used.contains($0) }.makeIterator()
         var tiles = [Int](repeating: -1, count: FifteenLogic.cellCount)
@@ -21,7 +21,7 @@ struct FifteenOnboardingTests {
 
     /// 4×4 の盤から左上の `rows` 行 × `cols` 列を切り出す。
     private func crop(_ tiles: [Int], rows: Int, cols: Int) -> [[Int]] {
-        (0..<rows).map { r in (0..<cols).map { c in tiles[r * FifteenLogic.size + c] } }
+        (0..<rows).map { r in (0..<cols).map { c in tiles[r * FifteenLogic.defaultSize + c] } }
     }
 
     @Test("カードの型（4〜6 枚・各 2〜3 行）に収まっている")
@@ -70,7 +70,7 @@ struct FifteenOnboardingTests {
         // 印を付けるのは左下（1 行 0 列）のタイル。空白は右上（0 行 1 列）。
         #expect(before[0][1] == 0)
         #expect(before[1][0] != 0)
-        let index = 1 * FifteenLogic.size + 0
+        let index = 1 * FifteenLogic.defaultSize + 0
         #expect(FifteenLogic.slide(tiles, at: index) == nil)
         let model = FifteenModel(tiles: tiles)
         model.tap(at: index)

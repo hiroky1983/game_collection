@@ -563,6 +563,28 @@
           }
         }
       }
+    },
+    "盤の大きさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Size"
+          }
+        }
+      }
+    },
+    "盤の大きさ %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board size %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
