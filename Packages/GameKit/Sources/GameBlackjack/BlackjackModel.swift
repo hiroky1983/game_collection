@@ -132,6 +132,37 @@ struct BlackjackHand: Identifiable, Codable, Sendable, Equatable {
     var isBusted: Bool { value > 21 }
 }
 
+// MARK: - Match Format
+
+/// 1 回の勝負の形（#2860）。1 回目を配るときに選ぶ。勝負の記録は形ごとに別の区分へ残す。
+public enum BlackjackMatchFormat: String, Equatable, Sendable, Codable, CaseIterable {
+    /// 10 回勝負。勝ち点の合計を競う（これまでの遊び方）。
+    case tenRounds
+    /// 単発戦。1 回だけ勝負して終わる。
+    case single
+
+    /// 1 回の勝負の回数。
+    public var rounds: Int {
+        switch self {
+        case .tenRounds: return BlackjackModel.roundsPerMatch
+        case .single:    return 1
+        }
+    }
+
+    /// 記録の区分キー（`GameScore.variant`）。
+    public var recordVariant: String {
+        switch self {
+        case .tenRounds: return BlackjackModel.recordVariant
+        case .single:    return "single"
+        }
+    }
+
+    /// 解析の `mode`。10 回勝負は従来どおり送らない。
+    public var analyticsMode: AnalyticsMode? {
+        self == .single ? .singleRound : nil
+    }
+}
+
 // MARK: - Snapshot
 
 /// 10 回勝負（#2552）の中断データ。
@@ -162,6 +193,8 @@ struct BlackjackSnapshot: Codable {
     let dealerHand: [BlackjackCard]
     let deck: [BlackjackCard]
     let phase: BlackjackPhase
+    /// 勝負の形（#2860）。この項目を足す前の中断データには無いので optional（無ければ 10 回勝負）。
+    var format: BlackjackMatchFormat? = nil
 }
 
 // MARK: - Model
@@ -170,10 +203,13 @@ struct BlackjackSnapshot: Codable {
 @Observable
 public final class BlackjackModel {
     /// 1 回の勝負の回数（#2552。数値は仮置き・QA で調整）。
-    public static let roundsPerMatch = 10
+    public nonisolated static let roundsPerMatch = 10
     /// 記録の区分キー（#2552）。以前の記録（区分なしのキー）と混ざらないよう、勝ち点は別のキーへ書く。
     /// 旧キーの記録は `PlayLog` が読み込み時に捨てる（`PlayLog.retiredRecordKeys`）。
-    static let recordVariant = "match10"
+    nonisolated static let recordVariant = "match10"
+
+    /// いまの勝負の形（#2860）。`deal(format:)` で 1 回目を配るときに決まり、中断データにも載る。
+    public private(set) var format: BlackjackMatchFormat = .tenRounds
 
     /// プレイヤーの手。通常は1つで、スプリットしたときだけ2つになる（#439）。
     private(set) var hands: [BlackjackHand] = []
@@ -220,8 +256,14 @@ public final class BlackjackModel {
     /// 画面に出す「n 回目」。結果を出しているあいだはその回、それ以外はこれから・いま遊んでいる回。
     public var currentRound: Int {
         let round = (phase == .result || matchOver) ? completedRounds : completedRounds + 1
-        return min(max(round, 1), BlackjackModel.roundsPerMatch)
+        return min(max(round, 1), format.rounds)
     }
+
+    /// 最後の回の勝負か。配り〜決着後の結果画面まで続く（#2592）。単発戦は 1 回目がそのまま最後の回。
+    public var isFinalRound: Bool { currentRound >= format.rounds }
+
+    /// 「最終回」の印（帯の色・バッジ）を出すか。単発戦は最初から最後なので出さない（#2860）。
+    public var showsFinalRoundMark: Bool { isFinalRound && format == .tenRounds }
 
     /// 直近の回で入った勝ち点（手ごとの点の合計）。結果を出していなければ nil。
     public var roundPoints: Int? {
@@ -237,7 +279,7 @@ public final class BlackjackModel {
 
     /// 結果を出している回が最後の回で、まだ勝負を締めていないか（次の操作が「結果を見る」になる）。
     public var isFinalRoundResult: Bool {
-        phase == .result && !matchOver && completedRounds >= BlackjackModel.roundsPerMatch
+        phase == .result && !matchOver && completedRounds >= format.rounds
     }
 
     /// 負けた回を、リワード広告と引き換えにやり直せるか（#2552）。1 回の勝負につき 1 回。
@@ -250,7 +292,10 @@ public final class BlackjackModel {
     /// Game Center へは送らない（#2552。以前の順位表 `blackjackChips` は勝ち点と意味が違うため、
     /// `GameCenterLeaderboard` の対応表からブラックジャックを外した）。
     private var currentScore: GameScore {
-        GameScore(metric: .points, points: points, highestValue: bestStreak, variant: BlackjackModel.recordVariant)
+        GameScore(
+            metric: .points, points: points, highestValue: bestStreak, variant: format.recordVariant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: format.recordVariant)
+        )
     }
 
     public var playerValue: Int { handValue(playerHand) }
@@ -294,14 +339,16 @@ public final class BlackjackModel {
     }
 
     private func restore(_ snap: BlackjackSnapshot) {
+        let snapFormat = snap.format ?? .tenRounds
         let valid = !snap.hands.isEmpty
             && snap.phase != .ready
-            && (0...BlackjackModel.roundsPerMatch).contains(snap.completedRounds)
+            && (0...snapFormat.rounds).contains(snap.completedRounds)
             && snap.points >= 0
         guard valid else {
             services?.snapshots.clear(for: gameID)
             return
         }
+        format = snapFormat
         completedRounds = snap.completedRounds
         points = snap.points
         streak = max(0, snap.streak)
@@ -319,7 +366,7 @@ public final class BlackjackModel {
         if phase == .result {
             outcome = summaryOutcome()
             // 最後の回の結果で止まっていて、やり直しも選べないなら、その場で勝負を締める。
-            if completedRounds >= BlackjackModel.roundsPerMatch && !canRetryRound {
+            if completedRounds >= format.rounds && !canRetryRound {
                 finishMatch()
             }
         }
@@ -345,20 +392,22 @@ public final class BlackjackModel {
             activeHandIndex: activeHandIndex,
             dealerHand: dealerHand,
             deck: deck,
-            phase: phase
+            phase: phase,
+            format: format
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
 
     // MARK: - Deal
 
-    /// 1 回目を配る。2 回目以降は `nextRound()` が配る。
-    public func deal() {
-        guard phase == .ready, !matchOver, completedRounds < BlackjackModel.roundsPerMatch else { return }
-        // 10 回で 1 プレイ（`gameDidFinish` は 10 回目のあとに 1 回だけ呼ぶ）。
+    /// 1 回目を配る。形は 10 回勝負か単発戦（#2860）。2 回目以降は `nextRound()` が配る。
+    public func deal(format: BlackjackMatchFormat = .tenRounds) {
+        guard phase == .ready, !matchOver, completedRounds < format.rounds else { return }
+        // 10 回勝負は 10 回で 1 プレイ・単発戦は 1 回で 1 プレイ（`gameDidFinish` は最後の回のあとに 1 回だけ呼ぶ）。
         // 1 回目でいきなりブラックジャックの決着になっても `game_start` が先に立つよう、判定より前に数える（#158）。
         if completedRounds == 0 {
-            services?.gameDidRestart(gameID: gameID)
+            self.format = format
+            services?.gameDidRestart(gameID: gameID, mode: format.analyticsMode)
         }
         dealRound()
     }
@@ -587,7 +636,7 @@ public final class BlackjackModel {
         }
         // 10 回目を終えたら勝負を締める。負けた 10 回目でやり直しが残っていれば、選んでもらうまで締めない
         // （締めてからやり直すと、記録と `game_end` が二重になる）。
-        if completedRounds >= BlackjackModel.roundsPerMatch && !canRetryRound {
+        if completedRounds >= format.rounds && !canRetryRound {
             finishMatch()
             return
         }
@@ -674,7 +723,7 @@ public final class BlackjackModel {
     /// 次の回を配る。最後の回の結果からは、勝負を締めて記録をつける（「結果を見る」）。
     public func nextRound() {
         guard phase == .result, !matchOver else { return }
-        if completedRounds >= BlackjackModel.roundsPerMatch {
+        if completedRounds >= format.rounds {
             finishMatch()
             return
         }

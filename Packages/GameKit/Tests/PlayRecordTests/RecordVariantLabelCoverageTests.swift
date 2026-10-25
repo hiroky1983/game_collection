@@ -5,6 +5,7 @@ import GameKitTestSupport
 import GameShogi
 import GameMinesweeper
 import GamePoker
+import GameBlackjack
 import GameMahjong
 import GameSudoku
 import GameSolitaire
@@ -38,7 +39,9 @@ struct RecordVariantLabelCoverageTests {
                 add("shogi", ShogiMatchSetting(handicap: handicap, dropper: dropper).recordVariant)
             }
         }
-        add("poker", PokerModel.recordVariant)
+        // ポーカー・ブラックジャックは 10 回勝負と単発戦（#2860）。
+        for format in PokerSessionFormat.allCases { add("poker", format.recordVariant) }
+        for format in BlackjackMatchFormat.allCases { add("blackjack", format.recordVariant) }
         for length in MahjongGameLength.allCases { add("mahjong4", length.recordVariant) }
         for mode in RunnerMode.allCases { add("runner", mode.recordVariant) }
         for mode in SolitaireDrawMode.allCases { add("solitaire", mode.recordVariant) }

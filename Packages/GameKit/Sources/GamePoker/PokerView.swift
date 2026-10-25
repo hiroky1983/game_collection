@@ -5,6 +5,8 @@ public struct PokerView: View {
     @State private var model: PokerModel
     private let services: GameServices
     @State private var showStartSheet = true
+    /// 開始シートで最後に選んだ勝負の形。「もう一度」で同じ形を始め直す（#2860）。
+    @State private var lastFormat: PokerSessionFormat = .tenRounds
     @Environment(\.dismiss) private var dismiss
     @State private var revealCPU = false
     /// 広告の「もう 1 回交換」の段取り（連打ガード・失敗アラート。#526・#2551）。
@@ -36,6 +38,7 @@ public struct PokerView: View {
         // 10 回勝負の途中から戻ったときだけ開始シートを飛ばす。旧ルールの頃の中断データは
         // モデルが読み飛ばして消しているので、ここでは `.idle` になる（#2551）。
         _showStartSheet = State(initialValue: restored.phase == .idle)
+        _lastFormat = State(initialValue: restored.format)
         // 回の決着の画から戻ったときは、CPU の手札を表のまま出す（返す演出はその場で見たときだけ）。
         _revealCPU = State(initialValue: restored.phase == .result)
         _showsHowToPlayHint = State(
@@ -77,15 +80,17 @@ public struct PokerView: View {
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
         .howToPlay(PokerHowToFigures.guide) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {
-            PokerStartSheet {
+            PokerStartSheet(format: lastFormat) { format in
                 showStartSheet = false
                 revealCPU = false
-                model.startGame()
+                lastFormat = format
+                model.startGame(format: format)
             } onCancel: {
                 // 「覗いてみたけど今はやめる」の退路（#1371）。勝負は始まっていないので記録・解析の
                 // イベントは何も発生しない（それらは `startGame()` だけが送る）。
+                // 決着後に「遊び方を選ぶ」から開いたときは、シートを閉じるだけで決着の画に戻る（#2860）。
                 showStartSheet = false
-                dismiss()
+                if model.phase == .idle { dismiss() }
             }
             // スワイプで閉じると「シートだけ消えて空の卓が残る」ため引き続き無効。
             // 閉じる操作はキャンセル（ハブへ戻る）に一本化する。
@@ -199,13 +204,15 @@ public struct PokerView: View {
 
     private var scoreBar: some View {
         HStack(spacing: 8) {
-            Label(tr("%1$lld回目 / %2$lld", max(model.round, 1), PokerModel.roundsPerSession),
+            Label(model.format == .single
+                    ? tr("単発戦")
+                    : tr("%1$lld回目 / %2$lld", max(model.round, 1), PokerModel.roundsPerSession),
                   systemImage: "flag.checkered")
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(Theme.ink)
-            if model.isFinalRound { FinalRoundBadge() }
+            if model.showsFinalRoundMark { FinalRoundBadge() }
             Spacer()
             Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
                 .themeBody(14)
@@ -230,14 +237,14 @@ public struct PokerView: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
-        .finalRoundBar(model.isFinalRound)
+        .finalRoundBar(model.showsFinalRoundMark)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(FinalRoundBar.accessibilityLabel(
             PokerAccessibility.scoreboardLabel(
                 round: max(model.round, 1), playerPoints: model.playerPoints, cpuPoints: model.cpuPoints,
-                streak: model.streak
+                streak: model.streak, format: model.format
             ),
-            isFinal: model.isFinalRound
+            isFinal: model.showsFinalRoundMark
         ))
     }
 
@@ -534,7 +541,9 @@ public struct PokerView: View {
                 }
                 .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
                 .disabled(exchangeRescue.isWatching)
-                .accessibilityHint(tr("10回のうち1度だけ、広告を見るともう1回カードを交換できます"))
+                .accessibilityHint(model.format == .single
+                    ? tr("1度だけ、広告を見るともう1回カードを交換できます")
+                    : tr("10回のうち1度だけ、広告を見るともう1回カードを交換できます"))
             }
             actionButton(tr("勝負する"), role: .primary, disabled: exchangeRescue.isWatching) {
                 model.showdown()
@@ -567,7 +576,14 @@ public struct PokerView: View {
                 let winner = model.sessionWinner
                 let icon = winner == .player ? "trophy.fill" : winner == .tie ? "equal.circle.fill" : "xmark.octagon.fill"
                 let iconColor = winner == .player ? Theme.yellowText : winner == .tie ? Theme.tealText : Theme.coralText
-                let title = winner == .player ? tr("10回勝負に勝ち！") : winner == .tie ? tr("10回勝負は引き分け") : tr("10回勝負に負け")
+                let title: String = switch (model.format, winner) {
+                case (.single, .player): tr("単発戦に勝ち！")
+                case (.single, .tie):    tr("単発戦は引き分け")
+                case (.single, _):       tr("単発戦に負け")
+                case (_, .player):       tr("10回勝負に勝ち！")
+                case (_, .tie):          tr("10回勝負は引き分け")
+                default:                 tr("10回勝負に負け")
+                }
                 let titleColor = winner == .cpu ? Theme.coralText : Theme.tealText
                 Image(systemName: icon)
                     .scaledFont(24)
@@ -584,26 +600,40 @@ public struct PokerView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.inkSub)
-                    Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
-                        .themeCaption(12, weight: .semibold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
-                    Text(tr("勝ち %1$lld回・いちばん強い役 %2$@",
-                            model.playerWins, (model.bestRank ?? .highCard).description))
-                        .themeCaption(12, weight: .semibold, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
+                    if model.format == .single {
+                        Text(tr("あなたの役 %@", model.playerHandRank.description))
+                            .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                    } else {
+                        Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
+                            .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                        Text(tr("勝ち %1$lld回・いちばん強い役 %2$@",
+                                model.playerWins, (model.bestRank ?? .highCard).description))
+                            .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                    }
                 }
                 Spacer()
             }
 
             RecordLabel(model.recordResult)
 
-            actionButton(tr("もう一度 10回勝負"), role: .primary) {
-                revealCPU = false
-                model.startGame()
+            HStack(spacing: 12) {
+                // 「遊び方を選ぶ」は開始シートを開き直す（10 回勝負と単発戦を切り替えられる・#2860）。
+                actionButton(tr("遊び方を選ぶ"), role: .skip) {
+                    showStartSheet = true
+                }
+                actionButton(model.format == .single ? tr("もう一度 単発戦") : tr("もう一度 10回勝負"), role: .primary) {
+                    revealCPU = false
+                    model.startGame(format: model.format)
+                }
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 8)

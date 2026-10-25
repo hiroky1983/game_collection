@@ -1333,6 +1333,17 @@
           }
         }
       }
+    },
+    "単発戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Round"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
