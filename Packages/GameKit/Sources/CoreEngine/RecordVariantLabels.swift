@@ -176,6 +176,12 @@ public enum RecordVariantLabels {
 
     /// 将棋の駒落ち。キーは `<rook|bishop>-<player|cpu>`（平手は区分を持たない）。
     private static func shogi(_ variant: String, language: AppLanguage?) -> String? {
+        // 達人（#2698）の記録は `master`（平手）／`master-<手合い>`（駒落ち）。
+        if variant == "master" { return tr("達人", language: language) }
+        if variant.hasPrefix("master-") {
+            guard let handicap = shogi(String(variant.dropFirst("master-".count)), language: language) else { return nil }
+            return tr("%1$@・%2$@", tr("達人", language: language), handicap, language: language)
+        }
         let parts = variant.split(separator: "-").map(String.init)
         guard parts.count == 2 else { return nil }
         let handicap: String
