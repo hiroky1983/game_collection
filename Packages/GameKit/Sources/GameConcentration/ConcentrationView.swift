@@ -43,7 +43,7 @@ public struct ConcentrationView: View {
         .padding(.vertical, Self.verticalInset)
         // 得点（あなた・CPU）と手番は、ヘッダー下の帯ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
         .gameChrome(title: tr("神経衰弱"), review: services.review, fullScreen: .felt, ads: services.ads,
-                    condition: GameChromeCondition([model.cpuLevel.displayName, model.pairCount.displayName]) { requestNewGame() },
+                    condition: GameChromeCondition([model.cpuLevel.displayName, model.pairCount.displayName]),
                     newGame: GameChromeNewGame(.match) { requestNewGame() }) {
             scoreChips
         }

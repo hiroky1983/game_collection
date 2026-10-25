@@ -56,7 +56,7 @@ public struct MinesweeperView: View {
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .gameChrome(title: tr("マインスイーパー"), review: services.review,
-                    condition: GameChromeCondition([model.recordVariantLabel]) { requestNewGame() },
+                    condition: GameChromeCondition([model.recordVariantLabel]),
                     newGame: GameChromeNewGame(.solo) { requestNewGame() })
         .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items).onboarding(MinesweeperOnboarding.guide))
         .sheet(isPresented: $showNewGame) {

@@ -48,7 +48,7 @@ public struct ShiritoriView: View {
         .padding(Theme.pad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: tr("カードしりとり"), review: services.review,
-                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.solo) { requestNewGame() })
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {

@@ -44,7 +44,7 @@ public struct GoView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("囲碁"), review: services.review,
-                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide)) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {

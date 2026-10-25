@@ -81,7 +81,7 @@ public struct SudokuView: View {
         // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
         // 「広告を見たのに入らなかった」を起こさないための緩和）。
         .gameChrome(title: tr("ナンプレ"), review: services.review,
-                    condition: GameChromeCondition([model.difficulty.label]) { requestNewGame() },
+                    condition: GameChromeCondition([model.difficulty.label]),
                     newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items).onboarding(SudokuOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
