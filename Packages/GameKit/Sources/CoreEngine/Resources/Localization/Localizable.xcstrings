@@ -1401,6 +1401,39 @@
           }
         }
       }
+    },
+    "最後に遊んだのは今日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played today"
+          }
+        }
+      }
+    },
+    "最後に遊んだのは昨日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played yesterday"
+          }
+        }
+      }
+    },
+    "最後に遊んだのは%lld日前" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played %lld days ago"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
