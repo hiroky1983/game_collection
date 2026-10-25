@@ -1049,3 +1049,26 @@ struct MahjongCancelTests {
         )
     }
 }
+
+@Suite("流局の罰符の内訳（#2872）")
+@MainActor
+struct MahjongDrawPenaltyLineTests {
+    @Test("テンパイ 0〜4 人の流局で、罰符の 1 行と各家の点の動きが合う", arguments: [0, 1, 2, 3, 4])
+    func penaltyLine(tenpaiCount: Int) {
+        let model = makeModel()
+        model.startGame()
+        model.simulateDrawResultForTesting(tenpaiCount: tenpaiCount)
+        let result = try! #require(model.handResult)
+        #expect(result.kind == .exhaustiveDraw)
+        #expect(result.tenpaiPlayers.count == tenpaiCount)
+        let line = MahjongView.drawPenaltyLine(result)
+        switch tenpaiCount {
+        case 0: #expect(line == tr("全員ノーテンです"))
+        case 4: #expect(line == tr("全員テンパイです"))
+        default:
+            let gain = 3000 / tenpaiCount, loss = 3000 / (4 - tenpaiCount)
+            #expect(line == tr("ノーテン罰符（テンパイ +%1$lld点・ノーテン -%2$lld点）", gain, loss))
+        }
+        #expect(model.hands.allSatisfy { !$0.tiles.isEmpty })
+    }
+}
