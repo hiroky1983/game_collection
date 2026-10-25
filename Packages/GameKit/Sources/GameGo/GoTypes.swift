@@ -1,7 +1,7 @@
 import Foundation
 import CoreEngine
 
-/// 盤の路数。9路を既定にし、13路は後日の拡張に備えて型で持つ（#398。UI では 9 だけを出す）。
+/// 盤の路数。9路を既定にし、13路は新規対局シートで選べる（#2868。19路は出さない）。
 ///
 /// 盤の大きさを型で持つのはテストのためでもある。ルールの正誤は 5路・6路の小さな盤で書くほうが
 /// 「どの石が取られるか」を目で追えるので、参照局面をそのまま `#expect` に写せる。
@@ -10,6 +10,16 @@ public enum GoBoardSize: Int, Codable, Sendable, CaseIterable {
     case thirteen = 13
 
     public var label: String { tr("%lld路", rawValue) }
+
+    /// 記録の区分キー（`GameScore.variant`・#2868）。9路は従来の保存先（強さの区分だけ）、13路は `13` を前に付ける。
+    /// 「ふつう」の 13路は `13`、ほかの強さは `13-hard` のように強さのキーを後ろに足す。
+    /// キーと表示名の対応は `RecordVariantLabels`。
+    func recordVariant(strengthVariant: String?) -> String? {
+        switch self {
+        case .nine:     return strengthVariant
+        case .thirteen: return strengthVariant.map { "13-\($0)" } ?? "13"
+        }
+    }
 }
 
 /// 石の色。
