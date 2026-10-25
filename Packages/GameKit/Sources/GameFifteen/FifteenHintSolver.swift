@@ -74,6 +74,8 @@ enum FifteenHintSolver {
     }
 
     /// 盤の並びを 1 マス 5 ビットで詰めた鍵。5×5（25 マス）は 64 ビットに収まらないので 2 本に分ける。
+    /// `high` は 13 マスぶん（65 ビット）で最初の 1 ビットが溢れるが、盤は 0〜24 が 1 つずつの並びなので、
+    /// 溢れた 1 マスは残りの 24 マスから決まる（鍵が衝突することはない）。
     private struct BoardKey: Hashable { var low: UInt64; var high: UInt64 }
 
     private static func key(_ tiles: [Int]) -> BoardKey {
