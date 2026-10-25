@@ -163,4 +163,41 @@ struct RecordsSummaryTests {
         let summary = RecordsSummary.make(games: Self.games, playedGameIDs: [], records: [:], totalWins: 57)
         #expect(summary.milestones.map(\.progressText) == ["1/1", "10/10", "50/50", "0/3"])
     }
+
+    @Test("最後に遊んだ日は暦日で数え、今日・昨日・N 日前になる（#2871）")
+    func lastPlayedTextCountsCalendarDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: 0, minute: 30))!
+        func row(_ last: Date?, played: Bool = true) -> RecordsSummary.Row {
+            RecordsSummary.make(
+                games: [RecordsSummary.Game(id: "shogi", title: "将棋")],
+                playedGameIDs: played ? ["shogi"] : [],
+                records: [:],
+                totalWins: 0,
+                lastPlayedAt: last.map { ["shogi": $0] } ?? [:]
+            ).rows[0]
+        }
+        // 23 時間前でも暦日が違えば「昨日」。
+        let yesterdayLate = calendar.date(from: DateComponents(year: 2026, month: 10, day: 24, hour: 23, minute: 50))!
+        let threeDays = calendar.date(from: DateComponents(year: 2026, month: 10, day: 22, hour: 12))!
+        let future = calendar.date(from: DateComponents(year: 2026, month: 10, day: 27, hour: 12))!
+        #expect(row(now).lastPlayedText(now: now, calendar: calendar) == "最後に遊んだのは今日")
+        #expect(row(yesterdayLate).lastPlayedText(now: now, calendar: calendar) == "最後に遊んだのは昨日")
+        #expect(row(threeDays).lastPlayedText(now: now, calendar: calendar) == "最後に遊んだのは3日前")
+        #expect(row(future).lastPlayedText(now: now, calendar: calendar) == "最後に遊んだのは今日")
+        #expect(row(nil).lastPlayedText(now: now, calendar: calendar) == nil)
+        #expect(row(now, played: false).lastPlayedText(now: now, calendar: calendar) == nil)
+        #expect(row(now).accessibilityLabel(lastPlayedText: "最後に遊んだのは今日").contains("最後に遊んだのは今日"))
+    }
+
+    @Test("PlayLog に積んだ最終プレイ日時が行に載る（#2871）")
+    func lastPlayedAtComesFromPlayLog() {
+        let log = makeLog(suite: "lastPlayed")
+        finish(log, "shogi", .win, GameScore(metric: .winLoss))
+        let rows = log.recordsSummary(games: Self.games).rows
+        #expect(rows[0].lastPlayedAt != nil)
+        #expect(rows[1].lastPlayedAt == nil)
+        #expect(rows[0].lastPlayedText(now: Date()) == "最後に遊んだのは今日")
+    }
 }
