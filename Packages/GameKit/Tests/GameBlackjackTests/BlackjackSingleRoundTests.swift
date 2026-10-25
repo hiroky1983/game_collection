@@ -135,4 +135,16 @@ struct BlackjackSingleRoundTests {
         #expect(RecordVariantLabels.label(recordKey: "blackjack#match10", language: .japanese) == "10回勝負")
         #expect(RecordVariantLabels.label(recordKey: "blackjack#single", language: .english) == "Single Round")
     }
+
+    @Test("単発戦でスプリットして一勝一敗でも、点が入れば勝負全体は勝ち（回の結果と揃える）")
+    func splitWinLossIsWin() {
+        let model = makeBlackjackModel(
+            blackjackSnapshot(player: [], dealer: [10, 7], deck: [], hands: { table in
+                [BlackjackHand(id: 0, cards: table.cards([10, 9]), isFromSplit: true, isDone: true),
+                 BlackjackHand(id: 1, cards: table.cards([10, 5]), isFromSplit: true)]
+            }, activeHandIndex: 1, format: .single))
+        model.stand()
+        #expect(model.outcome == .win)
+        #expect(model.matchOutcome == .win)
+    }
 }

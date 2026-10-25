@@ -647,7 +647,17 @@ public final class BlackjackModel {
     private func finishMatch() {
         guard !matchOver else { return }
         matchOver = true
-        let result: GameOutcome = handsWon > handsLost ? .win : (handsWon < handsLost ? .loss : .draw)
+        let result: GameOutcome
+        if format == .single {
+            // 単発戦は 1 回の結果がそのまま勝負の結果（スプリットで一勝一敗でも、点が入れば勝ち。結果画面の見出しと揃える）。
+            switch outcome {
+            case .playerBlackjack, .win: result = .win
+            case .lose, .bust:           result = .loss
+            default:                     result = .draw
+            }
+        } else {
+            result = handsWon > handsLost ? .win : (handsWon < handsLost ? .loss : .draw)
+        }
         matchOutcome = result
         // 評価リクエストの見せ場は、ブラックジャックで勝った回を含む勝負に勝ち越したとき（#1471 の「ブラックジャックで勝った」を
         // 10 回勝負へ移したもの。普通に勝ち越しただけでは絞る）。
