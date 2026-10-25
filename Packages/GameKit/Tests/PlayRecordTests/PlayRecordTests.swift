@@ -308,6 +308,28 @@ struct RecordFormatTests {
         #expect(RecordFormat.resultLine(withLegacy, language: .japanese) == "通算 1勝1敗・平均3.0位")
     }
 
+    @Test("大富豪の記録だけ、リザルトに「大富豪n回」が出る。0 回・他のゲーム・ハブの行では出さない（#2867）")
+    func daifugoTycoonCountLine() {
+        func record(_ places: [Int], key: String) -> PlayRecord {
+            var r: PlayRecord?
+            for place in places {
+                let outcome: GameOutcome = place == 1 ? .win : (place == 4 ? .loss : .draw)
+                r = PlayRecord.applying(outcome: outcome, score: GameScore(metric: .winLoss, place: place), to: r).record
+            }
+            r?.recordKey = key
+            return r!
+        }
+        let tycoon = record([1, 2, 1], key: "daifugo")
+        #expect(RecordFormat.resultLine(tycoon, language: .japanese) == "通算 2勝0敗1分・平均1.3位・大富豪2回")
+        #expect(RecordFormat.resultLine(tycoon, language: .english) == "Overall 2W 0L 1D · Avg. place 1.3 · Tycoon 2 times")
+        #expect(RecordFormat.hubLine([tycoon], language: .japanese) == "2勝0敗1分・平均1.3位")
+        let once = record([1], key: "daifugo#strong")
+        #expect(RecordFormat.resultLine(once, language: .japanese) == "通算 1勝0敗・平均1.0位・大富豪1回")
+        #expect(RecordFormat.resultLine(once, language: .english)?.hasSuffix("Tycoon 1 time") == true)
+        #expect(RecordFormat.resultLine(record([2], key: "daifugo"), language: .japanese) == "通算 0勝0敗1分・平均2.0位")
+        #expect(RecordFormat.resultLine(record([1], key: "colorrelay"), language: .japanese) == "通算 1勝0敗・平均1.0位")
+    }
+
     @Test("ブラックジャックの最高連勝は highestValue に残り、ハブとリザルトに「最高 n 連勝」で出る。0 連勝・他のゲームでは出さない（#2591）")
     func blackjackBestStreakLines() {
         var record = PlayRecord.applying(

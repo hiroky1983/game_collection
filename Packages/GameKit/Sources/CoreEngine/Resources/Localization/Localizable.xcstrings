@@ -67,6 +67,29 @@
         }
       }
     },
+    "%1$@・大富豪%2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ · Tycoon %2$lld time"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ · Tycoon %2$lld times"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%1$@・平均%2$@位" : {
       "extractionState" : "manual",
       "localizations" : {
