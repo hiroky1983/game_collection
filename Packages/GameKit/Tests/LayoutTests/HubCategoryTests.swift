@@ -207,7 +207,7 @@ struct HubCategoryTests {
         let badges = String(source[start.lowerBound..<end.upperBound])
         #expect(badges.contains("ViewThatFits(in: .horizontal)"))
         #expect(SourceScan.matchCount(of: "countBadge\\(count\\)", in: badges) == 2, "1 段・2 段の両方に回数の印")
-        #expect(SourceScan.matchCount(of: "\n\\s+badge\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
+        #expect(SourceScan.matchCount(of: "\n\\s+badgeWithProgress\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
         // 読み上げは「残り n 回」（`HomerunHubCount.labelText`）。
         #expect(source.contains("if let count { parts.append(count.labelText()) }"), "読み上げに無い")
         // 初期値のほか、ゲームから戻ったとき・前面に戻ったとき・0:00 を越えたときに読み直す（#2208）。
