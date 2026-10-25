@@ -159,7 +159,9 @@ struct RecordsView: View {
     }
 
     private func gameRowContent(_ row: RecordsSummary.Row, module: GameModule, index: Int) -> some View {
-        HStack(spacing: 12) {
+        // 最後に遊んだ日（#2871）。開くたびに今の日付で数え直す（保存しない）。
+        let lastPlayedText = row.lastPlayedText(now: Date())
+        return HStack(spacing: 12) {
             // 差し色は設定シートと同じく並びの位置で引く。
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Theme.Fill.palette[index % Theme.Fill.palette.count].gradient)
@@ -182,6 +184,13 @@ struct RecordsView: View {
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                if let lastPlayedText {
+                    Text(verbatim: lastPlayedText)
+                        .themeCaption(12)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
                 if !row.milestones.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(row.milestones, id: \.self) { milestone in
@@ -217,6 +226,6 @@ struct RecordsView: View {
         .contentShape(Rectangle())
         // 行をばらばらに読ませず、ゲーム名から 1 行ずつ読ませる（受け入れ条件）。
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.accessibilityLabel)
+        .accessibilityLabel(row.accessibilityLabel(lastPlayedText: lastPlayedText))
     }
 }
