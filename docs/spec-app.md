@@ -158,6 +158,9 @@ v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
   「`resumesFromSnapshot` が true で `snapshots.exists` が true」。**中断データを保存するゲームは、手つかずの盤を保存しない
   （または `hasResumableSnapshot` を上書きして手つかずを除く）**。`snapshots.exists` だけを見る実装に戻すと、
   開いただけの盤が「続きから」になる（#1572・#1599・#1847 で同じ食い違いが別ゲームに繰り返し出た）
+- `resumeProgress(in:) -> String?` — 「続きから」の中断データの進み具合 1 行（#2870。`release/v1.1.14` から。既定 nil）。
+  ハブのタイルが「続きから」の印の下に出す（NEW・イベントの印が優先のときは出さない）。将棋・チェスは「N手目」、ナンプレは
+  「残りNマス」、ポーカー・ブラックジャックの 10 回勝負は「n/10回目」（単発戦は nil）。`hasResumableSnapshot` が true のときだけ読む
 
 **`AdService`**: 広告サービスの境界
 - `makeBannerView(width:) -> AnyView?` — バナー広告
