@@ -78,6 +78,10 @@ struct RecordVariantLabelCoverageTests {
             // チェス・囲碁・五目並べ・オセロも CPU の強さ別（#2617）。
             for game in ["chess", "go", "gomoku", "othello", "hearts", "oldmaid"] { add(game, strength.recordVariantKey) }
         }
+        // 囲碁の 13路は `13`（ふつう）と `13-<強さ>`（#2868）。
+        add("go", "13")
+        for strength in CPUStrength.allCases where strength != .standard { add("go", "13-\(strength.recordVariantKey)") }
+
         // いろリレーは相手の人数別（#2866）。相手 3 人は上の強さ別のキー、1・2 人は `cpu<人数>[-<強さ>]`。
         for opponents in 1...2 {
             for strength in CPUStrength.allCases {

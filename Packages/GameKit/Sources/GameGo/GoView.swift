@@ -51,9 +51,10 @@ public struct GoView: View {
             GoNewGameSheet(
                 humanSide: model.humanSide,
                 level: model.aiLevel,
-                handicap: model.ruleset.handicap
-            ) { side, level, handicap in
-                model.newGame(humanSide: side, level: level, handicap: handicap)
+                handicap: model.ruleset.handicap,
+                boardSize: model.boardSize
+            ) { side, level, handicap, boardSize in
+                model.newGame(humanSide: side, level: level, handicap: handicap, boardSize: boardSize)
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
@@ -131,6 +132,7 @@ public struct GoView: View {
     /// タイトルの下のチップに出す今の条件。強さ → 自分の石 → 置き石（ハンデがあるときだけ）。
     private var conditionParts: [String] {
         var parts = [model.aiLevel.label, model.humanSide == .black ? tr("黒・先番") : tr("白・後番")]
+        if model.boardSize != .nine { parts.append(model.boardSize.label) }
         if model.ruleset.handicap > 0 { parts.append(tr("%lld子", model.ruleset.handicap)) }
         return parts
     }
@@ -160,7 +162,7 @@ public struct GoView: View {
     private var resultControls: some View {
         GameReplayBar(
             onReplay: {
-                model.newGame(humanSide: model.humanSide, level: model.aiLevel, handicap: model.ruleset.handicap)
+                model.newGame(humanSide: model.humanSide, level: model.aiLevel, handicap: model.ruleset.handicap, boardSize: model.boardSize)
             },
             onChangeSettings: { showNewGame = true }
         )
@@ -303,7 +305,7 @@ public struct GoView: View {
         let levels = GoLevel.allCases
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
                                       levelLabels: levels.map(\.label)) { level in
-            model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap)
+            model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap, boardSize: model.boardSize)
         }
     }
 
@@ -725,19 +727,22 @@ struct GoNewGameSheet: View {
     @State private var side: GoStone
     @State private var level: GoLevel
     @State private var handicap: Int
-    let onStart: (GoStone, GoLevel, Int) -> Void
+    @State private var boardSize: GoBoardSize
+    let onStart: (GoStone, GoLevel, Int, GoBoardSize) -> Void
     let onCancel: () -> Void
 
     init(
         humanSide: GoStone,
         level: GoLevel,
         handicap: Int,
-        onStart: @escaping (GoStone, GoLevel, Int) -> Void,
+        boardSize: GoBoardSize,
+        onStart: @escaping (GoStone, GoLevel, Int, GoBoardSize) -> Void,
         onCancel: @escaping () -> Void
     ) {
         _side = State(initialValue: humanSide)
         _level = State(initialValue: level)
         _handicap = State(initialValue: handicap)
+        _boardSize = State(initialValue: boardSize)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -753,10 +758,21 @@ struct GoNewGameSheet: View {
         GameSetupSheet(
             kind: .versus, spacing: 20,
             onboarding: GoOnboarding.guide,
-            onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
+            onStart: { onStart(side, level, side == .black ? handicap : 0, boardSize) }, onCancel: onCancel
         ) {
-            Text(tr("9路盤・中国ルール（面積計算）"))
+            Text(tr("中国ルール（面積計算）"))
                 .themeBody(13).foregroundStyle(Theme.inkSub)
+
+            GameSetupSection(tr("碁盤の大きさ")) {
+                HStack(spacing: 12) {
+                    ForEach(GoBoardSize.allCases, id: \.self) { size in
+                        GameSetupChooser(title: size.label,
+                                         subtitle: size == .nine ? tr("短時間で終わる") : tr("じっくり打つ"),
+                                         selected: boardSize == size, accent: Theme.Fill.purple,
+                                         metrics: Self.metrics) { boardSize = size }
+                    }
+                }
+            }
 
             GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {

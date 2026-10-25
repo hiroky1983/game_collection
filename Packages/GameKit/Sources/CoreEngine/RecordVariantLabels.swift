@@ -109,7 +109,7 @@ public enum RecordVariantLabels {
         case "chess":
             return cpuStrengthLabel(variant, language: language)
         case "go":
-            return cpuStrengthLabel(variant, language: language)
+            return go(variant, language: language)
         case "gomoku":
             return cpuStrengthLabel(variant, language: language)
         case "othello":
@@ -199,6 +199,17 @@ public enum RecordVariantLabels {
         default:       return nil
         }
         return tr("%1$@・%2$@", handicap, dropper, language: language)
+    }
+
+    /// 囲碁。9路は強さのキーだけ（従来の保存先）、13路は `13`（ふつう）か `13-<強さ>`（#2868）。
+    private static func go(_ variant: String, language: AppLanguage?) -> String? {
+        guard variant == "13" || variant.hasPrefix("13-") else {
+            return cpuStrengthLabel(variant, language: language)
+        }
+        let board = tr("%lld路", 13, language: language)
+        guard variant != "13" else { return board }
+        guard let strength = cpuStrengthLabel(String(variant.dropFirst(3)), language: language) else { return nil }
+        return tr("%1$@・%2$@", board, strength, language: language)
     }
 
     /// CPU の強さ別の区分（`CPUStrength.recordVariantKey`）。花札と同じ「CPU◯◯」の言い方。

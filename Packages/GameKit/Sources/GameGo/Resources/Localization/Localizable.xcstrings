@@ -91,28 +91,6 @@
         }
       }
     },
-    "9路盤で CPU と対局。ルールも読める" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play the CPU on a 9x9 board. Rules included"
-          }
-        }
-      }
-    },
-    "9路盤・中国ルール（面積計算）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "9x9 board, Chinese rules (area scoring)"
-          }
-        }
-      }
-    },
     "CPU の番です" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1165,6 +1143,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "White adds komi to make 46.5 — White wins"
+          }
+        }
+      }
+    },
+    "中国ルール（面積計算）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese rules (area scoring)"
+          }
+        }
+      }
+    },
+    "碁盤の大きさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board size"
+          }
+        }
+      }
+    },
+    "短時間で終わる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick game"
+          }
+        }
+      }
+    },
+    "じっくり打つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longer game"
+          }
+        }
+      }
+    },
+    "9路・13路盤で CPU と対局。ルールも読める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play the CPU on a 9x9 or 13x13 board. Rules included"
           }
         }
       }
