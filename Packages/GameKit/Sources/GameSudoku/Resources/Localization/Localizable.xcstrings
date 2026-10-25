@@ -583,7 +583,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld left"
+            "value" : "%lld cells left"
           }
         }
       }
@@ -1079,6 +1079,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "End"
+          }
+        }
+      }
+    },
+    "残り%lldマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cells left"
           }
         }
       }

@@ -34,4 +34,10 @@ public struct ChessModule: GameModule {
         let cpuFirst = (blackFirst ? snap.black : snap.white) == .ai
         return CPUOpening.humanHasMoved(totalMoves: snap.moves.count, cpuMovesFirst: cpuFirst)
     }
+
+    /// 指した手数（#2870）。CPU の初手も数える。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return nil }
+        return tr("%lld手目", snap.moves.count)
+    }
 }
