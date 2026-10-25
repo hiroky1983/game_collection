@@ -16,7 +16,7 @@ public enum ColorRelayOnboarding {
                     heading: tr("このゲームの目的"),
                     lines: [
                         tr("配られた %lld 枚の手札を、先になくした人の勝ちです。", ColorRelayRules.initialHandCount),
-                        tr("ほかの 3 人の CPU と、順番に札を出し合います。"),
+                        tr("ほかの CPU と、順番に札を出し合います。"),
                     ],
                     figure: { AnyView(ColorRelayHowToFigures.WinFigure()) }
                 ),
