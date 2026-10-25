@@ -520,7 +520,8 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
    起動する。仕事が無ければ Claude は起動しない。
 3. 当番の手順は `Scripts/ai-duty-prompt.md` に定義: 1回1件、`ai:in-progress` 付与 → 着手宣言 →
    実装 + 触った領域のテスト → PR 作成（base: 最新の release/vX.Y.Z、`risk:*` ラベル、受け入れ条件との対応表、
-   UI 変更はスクショ添付。運用系のみの変更は main 直可）。
+   UI 変更はスクショ添付。運用系のみの変更は main 直可）。画像を追加・差し替えたら PR を出す前に
+   `env -u NODE_OPTIONS /usr/bin/python3 Scripts/compress-images.py` を回す（CI の `--check` で未圧縮が1枚でもあれば落ちる・#2913）。
 4. セッション中の Claude に「承認済み Issue を実装して」と直接頼んでもよい（当番と同じ規程で動く）。
 5. 並列実装させる場合は worktree 分離必須（同一ワークツリーでの並列編集は禁止）。
 
