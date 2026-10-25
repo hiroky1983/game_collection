@@ -42,9 +42,12 @@ public enum PokerAccessibility {
 
     /// 上の帯の読み上げ文（例: "3回目 / 10、合計12点、CPU 8点"）。画面は回数と点が別の Text で、
     /// そのままだと別々の要素に分かれて読まれる（#2162 と同じ手当て）。
-    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int, streak: Int = 0) -> String {
-        let base = tr("%1$lld回目 / %2$lld、合計%3$@、CPU %4$@",
-                      round, PokerModel.roundsPerSession, tr("%lld点", playerPoints), tr("%lld点", cpuPoints))
+    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int, streak: Int = 0,
+                                       format: PokerSessionFormat = .tenRounds) -> String {
+        let base = format == .single
+            ? tr("単発戦、合計%1$@、CPU %2$@", tr("%lld点", playerPoints), tr("%lld点", cpuPoints))
+            : tr("%1$lld回目 / %2$lld、合計%3$@、CPU %4$@",
+                 round, PokerModel.roundsPerSession, tr("%lld点", playerPoints), tr("%lld点", cpuPoints))
         guard streak > 0 else { return base }
         return tr("%@、連勝%lld", base, streak)
     }

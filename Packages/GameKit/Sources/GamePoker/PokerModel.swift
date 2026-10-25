@@ -21,6 +21,37 @@ public enum PokerWinner: String, Sendable, Codable {
     case player, cpu, tie
 }
 
+// MARK: - Session Format
+
+/// 1 回の勝負の形（#2860）。始めるときに選ぶ。勝負の記録は形ごとに別の区分へ残す。
+public enum PokerSessionFormat: String, Equatable, Sendable, Codable, CaseIterable {
+    /// 10 回勝負。合計点で CPU と競う（これまでの遊び方）。
+    case tenRounds
+    /// 単発戦。1 回だけ勝負して終わる。
+    case single
+
+    /// 1 回の勝負の回数。
+    public var rounds: Int {
+        switch self {
+        case .tenRounds: return PokerModel.roundsPerSession
+        case .single:    return 1
+        }
+    }
+
+    /// 記録の区分キー（`GameScore.variant`）。
+    public var recordVariant: String {
+        switch self {
+        case .tenRounds: return PokerModel.recordVariant
+        case .single:    return "single"
+        }
+    }
+
+    /// 解析の `mode`。10 回勝負は従来どおり送らない。
+    public var analyticsMode: AnalyticsMode? {
+        self == .single ? .singleRound : nil
+    }
+}
+
 // MARK: - Snapshot
 
 /// 10 回勝負の中断データ（#2551）。
@@ -59,6 +90,8 @@ struct PokerSnapshot: Codable {
     var cpuExchangedIndices: [Int]? = nil
     /// 自分が替えた札の位置（#2704）。この項目を足す前の中断データには無いので optional。
     var playerExchangedIndices: [Int]? = nil
+    /// 勝負の形（#2860）。この項目を足す前の中断データには無いので optional（無ければ 10 回勝負）。
+    var sessionFormat: PokerSessionFormat? = nil
 }
 
 // MARK: - Model
@@ -90,7 +123,10 @@ public final class PokerModel {
     /// 自己ベストがいつまでも旧記録のままになるので、保存先を分け、旧記録は `PlayLog` が読み飛ばす。
     public nonisolated static let recordVariant = "round10"
 
-    /// いま何回目か（1 始まり）。10 回勝負を始める前は 0。
+    /// いまの勝負の形（#2860）。`startGame(format:)` で決まり、中断データにも載る。
+    public private(set) var format: PokerSessionFormat = .tenRounds
+
+    /// いま何回目か（1 始まり）。勝負を始める前は 0。
     public private(set) var round = 0
     /// この勝負でのあなたの合計点。
     public private(set) var playerPoints = 0
@@ -117,8 +153,11 @@ public final class PokerModel {
     /// 勝負全体の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
 
-    /// 10 回目の勝負か。
-    public var isFinalRound: Bool { round >= Self.roundsPerSession }
+    /// 最後の回の勝負か。単発戦は 1 回目がそのまま最後の回。
+    public var isFinalRound: Bool { round >= format.rounds }
+
+    /// 「最終回」の印（帯の色・バッジ）を出すか。単発戦は最初から最後なので出さない（#2860）。
+    public var showsFinalRoundMark: Bool { isFinalRound && format == .tenRounds }
 
     /// 広告を見てもう 1 回交換できるか。山札は 52 枚から 2 人に配って 42 枚、1 回目の交換で多くても
     /// 5 枚減るので、もう 1 回ぶん（最大 5 枚）と CPU の交換ぶんは必ず残るが、念のため確かめる。
@@ -161,6 +200,7 @@ public final class PokerModel {
             cpuHand = snap.cpuHand
             deck = snap.deck
             phase = snap.phase
+            format = snap.sessionFormat ?? .tenRounds
             round = snap.round
             playerPoints = snap.playerPoints
             cpuPoints = snap.cpuPoints
@@ -196,7 +236,8 @@ public final class PokerModel {
             winner: winner, playerHandRank: playerHandRank, cpuHandRank: cpuHandRank,
             roundPoints: roundPoints, streak: streak, bestStreak: bestStreak,
             cpuExchangedIndices: cpuExchangedIndices.sorted(),
-            playerExchangedIndices: playerExchangedIndices.sorted()
+            playerExchangedIndices: playerExchangedIndices.sorted(),
+            sessionFormat: format
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -245,11 +286,12 @@ public final class PokerModel {
 
     // MARK: - Start
 
-    /// 10 回勝負を新しく始め、1 回目を配る。
+    /// 勝負を新しく始め、1 回目を配る。形は 10 回勝負か単発戦（#2860）。
     ///
     /// 勝負の途中では始め直さない。開始ボタンの連打で 2 回届くと `game_start` が二重に数えられる（#2416）。
-    public func startGame() {
+    public func startGame(format: PokerSessionFormat = .tenRounds) {
         guard phase == .idle || sessionOver else { return }
+        self.format = format
         outcomeNoticeTask?.cancel()
         outcomeNoticeTask = nil
         round = 0
@@ -264,9 +306,9 @@ public final class PokerModel {
         sessionOver = false
         sessionWinner = nil
         recordResult = nil
-        // 10 回で 1 プレイ（`gameDidFinish` も 10 回目の決着で 1 回だけ呼ぶ）。
+        // 10 回勝負は 10 回で 1 プレイ、単発戦は 1 回で 1 プレイ（`gameDidFinish` も最後の回の決着で 1 回だけ呼ぶ）。
         // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, mode: format.analyticsMode)
         dealRound()
     }
 
@@ -416,7 +458,7 @@ public final class PokerModel {
         }
     }
 
-    /// 10 回目の決着。合計点で勝負全体の勝ち負けを決め、記録を 1 回だけ確定する。
+    /// 最後の回の決着。合計点で勝負全体の勝ち負けを決め、記録を 1 回だけ確定する。
     private func finishSession() {
         sessionOver = true
         if playerPoints > cpuPoints {
@@ -434,8 +476,8 @@ public final class PokerModel {
                 points: playerPoints,
                 // 歴代のいちばん強い役（#2591）。`PokerHandRank` の序数で、表示は `RecordFormat` が役名にする。
                 highestValue: (bestRank ?? .highCard).rawValue,
-                variant: Self.recordVariant,
-                variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: Self.recordVariant),
+                variant: format.recordVariant,
+                variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: format.recordVariant),
                 // Game Center の順位表（旧ルールの頃の表）へは送らない（#2551）。
                 // 枚数の表に点数を混ぜると意味を成さない。ローカルの自己ベストには残す。
                 isLeaderboardEligible: false

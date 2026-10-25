@@ -72,7 +72,15 @@ public enum RecordVariantLabels {
             // `round10` は 10 回勝負（#2551）。`bonus` はチップ制の頃の区分で、記録は `PlayLog` が読み飛ばす。
             switch variant {
             case "round10": return tr("10回勝負", language: language)
+            case "single":  return tr("単発戦", language: language)
             case "bonus":   return tr("ボーナスルール", language: language)
+            default:        return nil
+            }
+        case "blackjack":
+            // `match10` は 10 回勝負（#2552）、`single` は 1 回だけの単発戦（#2860）。
+            switch variant {
+            case "match10": return tr("10回勝負", language: language)
+            case "single":  return tr("単発戦", language: language)
             default:        return nil
             }
         case "runner":

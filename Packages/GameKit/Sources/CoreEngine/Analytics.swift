@@ -221,6 +221,9 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case bishopPlayer = "bishop_player"
     /// 将棋の角落ちで、CPU が駒を落とす。
     case bishopCPU = "bishop_cpu"
+    /// ポーカー・ブラックジャックの単発戦（#2860）。1 回の勝負が 1 回きりなので `game_start` が機械的に増える。
+    /// 10 回勝負は従来どおり `mode` を持たない。
+    case singleRound = "single_round"
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
