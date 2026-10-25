@@ -147,7 +147,7 @@ struct ColorRelayModuleTests {
 
     @Test("相手 3 人のアイコンは記号も丸の色も互いに違い、丸の色は札の 4 色と重ならない")
     func opponentIconsAreDistinct() {
-        let seats = Array(1..<ColorRelayModel.playerCount)
+        let seats = Array(1..<ColorRelayModel.maxPlayerCount)
         #expect(Set(seats.map(OpponentSeatStyle.symbol(for:))).count == seats.count)
         let discs = seats.map { OpponentSeatStyle.colors(for: $0).disc }
         #expect(Set(discs).count == seats.count)

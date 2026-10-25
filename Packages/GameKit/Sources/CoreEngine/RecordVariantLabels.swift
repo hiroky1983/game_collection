@@ -95,7 +95,7 @@ public enum RecordVariantLabels {
             // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。
             return cpuStrengthLabel(variant, language: language)
         case "colorrelay":
-            return cpuStrengthLabel(variant, language: language)
+            return colorRelay(variant, language: language)
         // チェス・囲碁・五目並べ・オセロも CPU の強さ別（#2617）。「ふつう」は区分なし（これまでの記録）。
         // 走査テストが `case "<ゲームID>":` の 1 行 1 ゲームで表を読むので、まとめずに並べる。
         case "chess":
@@ -203,6 +203,17 @@ public enum RecordVariantLabels {
             level = word
         }
         return tr("CPU%@", level, language: language)
+    }
+
+    /// いろリレー。キーは相手 3 人のとき強さだけ（`CPUStrength.recordVariantKey`）、それ以外は `cpu<人数>[-<強さ>]`（#2866）。
+    private static func colorRelay(_ variant: String, language: AppLanguage?) -> String? {
+        guard variant.hasPrefix("cpu") else { return cpuStrengthLabel(variant, language: language) }
+        let parts = variant.dropFirst(3).split(separator: "-", maxSplits: 1).map(String.init)
+        guard let first = parts.first, let count = Int(first), (1...2).contains(count) else { return nil }
+        let opponents = tr("相手%lld人", count, language: language)
+        guard parts.count == 2 else { return opponents }
+        guard let strength = cpuStrengthLabel(parts[1], language: language) else { return nil }
+        return tr("%1$@・%2$@", opponents, strength, language: language)
     }
 
     private static func difficultyWord(_ raw: String, language: AppLanguage?) -> String? {
