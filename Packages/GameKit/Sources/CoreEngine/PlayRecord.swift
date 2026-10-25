@@ -454,6 +454,8 @@ public enum RecordFormat {
     /// ポーカー・ブラックジャックの ID（`PokerModel.gameID` / `BlackjackModel.gameID`）。Core からは参照できないので文字列で持つ。
     static let pokerGameID = "poker"
     static let blackjackGameID = "blackjack"
+    /// 大富豪の ID（`DaifugoModel.gameID`）。大富豪は 4 人中 1 位だけが勝ちなので、`wins` がそのまま「大富豪になった回数」（#2867）。
+    static let daifugoGameID = "daifugo"
 
     /// `PokerHandRank` の序数（`rawValue`・0 始まり）に対応する役名。食い違わないことは `GamePokerTests` が突き合わせる。
     static func pokerRankName(_ rawValue: Int, language: AppLanguage?) -> String? {
@@ -578,8 +580,14 @@ public enum RecordFormat {
                                                                      language: language),
                                                     record.bestSeconds, language: language),
                           language: language)
-            return record.bestStreak >= 2 ? tr("%1$@・最高%2$lld連勝", base, record.bestStreak, language: language) : base
+            return withBestStreak(withTycoonCount(base, record, language: language), streak: record.bestStreak, language: language)
         }
+    }
+
+    /// 大富豪の記録だけ、1 位（大富豪）になった通算回数「大富豪3回」を添える（#2867）。まだ 1 度もなっていなければそのまま。
+    private static func withTycoonCount(_ line: String, _ record: PlayRecord, language: AppLanguage?) -> String {
+        guard gameID(of: record) == daifugoGameID, record.wins > 0 else { return line }
+        return tr("%1$@・大富豪%2$lld回", line, record.wins, language: language)
     }
 
     /// 自己ベストを更新したリザルトから共有するときの文言（#1043）。記録が無ければ nil。
