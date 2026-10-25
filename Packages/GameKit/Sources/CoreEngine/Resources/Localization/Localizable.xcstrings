@@ -1334,6 +1334,17 @@
         }
       }
     },
+    "単発戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Round"
+          }
+        }
+      }
+    },
     "相手%lld人" : {
       "extractionState" : "manual",
       "localizations" : {

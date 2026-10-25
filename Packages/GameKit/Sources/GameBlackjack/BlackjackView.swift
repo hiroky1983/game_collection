@@ -146,12 +146,14 @@ public struct BlackjackView: View {
     /// 上の帯。「n 回目 / 10」「勝ち n 点」「連勝 n」を並べる。
     private func matchBar(_ metrics: BlackjackVerticalMetrics) -> some View {
         HStack(spacing: 12) {
-            Text(tr("%1$lld回目 / %2$lld", model.currentRound, BlackjackModel.roundsPerMatch))
+            Text(model.format == .single
+                    ? tr("単発戦")
+                    : tr("%1$lld回目 / %2$lld", model.currentRound, BlackjackModel.roundsPerMatch))
                 .themeBody(14)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            if isFinalRound { FinalRoundBadge() }
+            if model.showsFinalRoundMark { FinalRoundBadge() }
             Spacer(minLength: 0)
             Label(tr("勝ち %lld点", model.points), systemImage: "star.fill")
                 .themeBody(14)
@@ -166,12 +168,9 @@ public struct BlackjackView: View {
         }
         .padding(.horizontal, 14).padding(.vertical, metrics.chipsVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
-        .finalRoundBar(isFinalRound)
+        .finalRoundBar(model.showsFinalRoundMark)
         .accessibilityElement(children: .combine)
     }
-
-    /// 10 回目の勝負か。配り〜決着後の結果画面まで続く（#2592）。
-    private var isFinalRound: Bool { model.currentRound >= BlackjackModel.roundsPerMatch }
 
     // MARK: - Pre-deal Table
 
@@ -187,7 +186,7 @@ public struct BlackjackView: View {
                 BJCardPlaceholder()
             }
             VStack(spacing: 6) {
-                Text(tr("ディーラーと%lld回勝負", BlackjackModel.roundsPerMatch))
+                Text(tr("ディーラーと勝負"))
                     .themeBody(15, weight: .bold, maxScale: 1.5)
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
@@ -458,12 +457,16 @@ public struct BlackjackView: View {
         }
     }
 
-    /// 1 回目を配る前（#2552）。押せばすぐ配られる。
+    /// 1 回目を配る前（#2552）。勝負の形（10 回勝負か単発戦・#2860）を選ぶと、すぐ配られる。
     private var readyView: some View {
         VStack(spacing: 8) {
-            actionButton(tr("配る"), role: .primary) {
-                model.deal()
+            actionButton(tr("10回勝負で配る"), role: .primary) {
+                model.deal(format: .tenRounds)
             }
+            actionButton(tr("単発戦で配る"), role: .skip) {
+                model.deal(format: .single)
+            }
+            .accessibilityHint(tr("1回だけ勝負して終わります。10回勝負とは別の記録に残ります"))
         }
     }
 
@@ -500,7 +503,9 @@ public struct BlackjackView: View {
                         .minimumScaleFactor(0.65)
                 }
                 .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
-                .accessibilityHint(tr("10回の勝負につき1回だけ、広告を見るとこの回をやり直せます"))
+                .accessibilityHint(model.format == .single
+                    ? tr("1回だけ、広告を見るとこの回をやり直せます")
+                    : tr("10回の勝負につき1回だけ、広告を見るとこの回をやり直せます"))
                 .disabled(retryRescue.isWatching)
             }
             actionButton(model.isFinalRoundResult ? tr("結果を見る") : tr("次の回へ"), role: .primary,
@@ -521,7 +526,14 @@ public struct BlackjackView: View {
                 let outcome = model.matchOutcome
                 let icon = outcome == .win ? "trophy.fill" : outcome == .loss ? "xmark.octagon.fill" : "equal.circle.fill"
                 let iconColor = outcome == .win ? Theme.yellowText : outcome == .loss ? Theme.coralText : Theme.tealText
-                let title = outcome == .win ? tr("10回勝負は勝ち越し！") : outcome == .loss ? tr("10回勝負は負け越し") : tr("10回勝負は引き分け")
+                let title: String = switch (model.format, outcome) {
+                case (.single, .win):  tr("単発戦は勝ち！")
+                case (.single, .loss): tr("単発戦は負け")
+                case (.single, _):     tr("単発戦は引き分け")
+                case (_, .win):        tr("10回勝負は勝ち越し！")
+                case (_, .loss):       tr("10回勝負は負け越し")
+                default:               tr("10回勝負は引き分け")
+                }
                 let titleColor = outcome == .loss ? Theme.coralText : Theme.tealText
                 Image(systemName: icon)
                     .scaledFont(24)
@@ -533,21 +545,29 @@ public struct BlackjackView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(titleColor)
-                    Text(tr("%1$lld回勝負の結果：勝ち %2$@", BlackjackModel.roundsPerMatch, tr("%lld点", model.points)))
-                        .themeCaption(12, weight: .medium, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
-                    Text(tr("勝ち %lld回", model.handsWon))
-                        .themeCaption(12, weight: .medium, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
-                    Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
-                        .themeCaption(12, weight: .medium, maxScale: 1.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
+                    if model.format == .single {
+                        Text(tr("単発戦の結果：勝ち %@", tr("%lld点", model.points)))
+                            .themeCaption(12, weight: .medium, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                    } else {
+                        Text(tr("%1$lld回勝負の結果：勝ち %2$@", BlackjackModel.roundsPerMatch, tr("%lld点", model.points)))
+                            .themeCaption(12, weight: .medium, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                        Text(tr("勝ち %lld回", model.handsWon))
+                            .themeCaption(12, weight: .medium, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                        Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
+                            .themeCaption(12, weight: .medium, maxScale: 1.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(Theme.inkSub)
+                    }
                 }
                 Spacer()
             }
@@ -555,10 +575,17 @@ public struct BlackjackView: View {
 
             RecordLabel(model.recordResult)
 
-            actionButton(tr("もう一度%lld回勝負", BlackjackModel.roundsPerMatch), role: .primary,
-                         disabled: nextLocked) {
-                model.restartMatch()
-                model.deal()
+            HStack(spacing: 12) {
+                // 「遊び方を選ぶ」は配る前に戻る（10 回勝負と単発戦を切り替えられる・#2860）。
+                actionButton(tr("遊び方を選ぶ"), role: .skip, disabled: nextLocked) {
+                    model.restartMatch()
+                }
+                actionButton(model.format == .single ? tr("もう一度 単発戦") : tr("もう一度%lld回勝負", BlackjackModel.roundsPerMatch),
+                             role: .primary, disabled: nextLocked) {
+                    let format = model.format
+                    model.restartMatch()
+                    model.deal(format: format)
+                }
             }
         }
         .modifier(NextUnlock(locked: $nextLocked, duration: BlackjackMotion.nextButtonLockDuration,

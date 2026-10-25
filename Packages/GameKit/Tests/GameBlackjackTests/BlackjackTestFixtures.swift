@@ -36,7 +36,8 @@ func blackjackSnapshot(
     hasUsedRetry: Bool = false,
     handsWon: Int = 0,
     handsLost: Int = 0,
-    activeHandIndex: Int = 0
+    activeHandIndex: Int = 0,
+    format: BlackjackMatchFormat? = nil
 ) -> BlackjackSnapshot {
     var table = BlackjackTable()
     let playerHands = hands.map { $0(&table) } ?? [BlackjackHand(id: 0, cards: table.cards(player))]
@@ -54,7 +55,8 @@ func blackjackSnapshot(
         activeHandIndex: activeHandIndex,
         dealerHand: table.cards(dealer),
         deck: table.cards(deck),
-        phase: .playerTurn
+        phase: .playerTurn,
+        format: format
     )
 }
 

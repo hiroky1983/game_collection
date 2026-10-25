@@ -166,7 +166,8 @@ struct BlackjackMotionTests {
     func nextButtonsAreDisabledWhileLocked() throws {
         let source = try Self.viewSource()
         #expect(SourceScan.matchCount(of: #"disabled: retryRescue\.isWatching \|\| nextLocked"#, in: source) == 1)
-        #expect(SourceScan.matchCount(of: #"disabled: nextLocked\)"#, in: source) == 1)
+        // 「遊び方を選ぶ」（#2860）も「もう一度」と並ぶので、同じ待ちで押せなくする。
+        #expect(SourceScan.matchCount(of: #"disabled: nextLocked\)"#, in: source) == 2)
         #expect(SourceScan.matchCount(of: #"BlackjackMotion\.nextButtonLockDuration"#, in: source) == 2)
     }
 
