@@ -1082,6 +1082,17 @@
           }
         }
       }
+    },
+    "残り%lldマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld left"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

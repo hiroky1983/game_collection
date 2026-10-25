@@ -35,6 +35,12 @@ public struct GameRegistry {
         module(id: gameID)?.hasResumableSnapshot(in: snapshots) ?? false
     }
 
+    /// `gameID` の中断データの進み具合（#2870）。「続きから」で戻れないとき・登録外の ID・出さないゲームは nil。
+    public func resumeProgress(gameID: String, in snapshots: SnapshotStore) -> String? {
+        guard let module = module(id: gameID), module.hasResumableSnapshot(in: snapshots) else { return nil }
+        return module.resumeProgress(in: snapshots)
+    }
+
     /// `gameID` の中断データが手つかずの盤か（#2161）。登録外の ID は false。
     public func hasUntouchedSnapshot(gameID: String, in snapshots: SnapshotStore) -> Bool {
         module(id: gameID)?.hasUntouchedSnapshot(in: snapshots) ?? false

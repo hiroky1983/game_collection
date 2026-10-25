@@ -31,6 +31,11 @@ public protocol GameModule {
     /// その区別が要るのは、手つかずの盤を開き直したときに `game_start` を数え直すため。
     /// 既定は false（開いた時点で必ず Model が `game_start` を数えるゲームか、開始の契機が別にあるゲーム）。
     func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool
+    /// 「続きから」の中断データの進み具合を 1 行で（例: 「32手目」「残り45マス」「3/10回目」）。ハブのタイルに出す（#2870）。
+    ///
+    /// `hasResumableSnapshot` が true のときだけ呼ばれる。既定は nil（出さない）。単発戦のように
+    /// 進み具合が意味を持たないときも nil を返す。
+    func resumeProgress(in snapshots: SnapshotStore) -> String?
 }
 
 public extension GameModule {
@@ -41,4 +46,6 @@ public extension GameModule {
     }
 
     func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool { false }
+
+    func resumeProgress(in snapshots: SnapshotStore) -> String? { nil }
 }

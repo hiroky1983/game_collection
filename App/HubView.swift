@@ -597,6 +597,7 @@ struct HubView: View {
             GameCard(
                 module: module,
                 hasResume: hasResume,
+                resumeProgress: hasResume ? registry.resumeProgress(gameID: module.id, in: services.snapshots) : nil,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
                 isUnplayed: isUnplayed,
@@ -688,6 +689,8 @@ struct HubView: View {
 private struct GameCard: View {
     let module: GameModule
     let hasResume: Bool
+    /// 中断データの進み具合（「32手目」等・#2870）。「続きから」の印を出しているときだけ、その下に出す。
+    var resumeProgress: String?
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
@@ -753,14 +756,30 @@ private struct GameCard: View {
         if let count {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: layout.scaled(6)) {
-                    badge
+                    badgeWithProgress
                     Spacer(minLength: 0)
                     countBadge(count)
                 }
                 VStack(alignment: .leading, spacing: layout.scaled(6)) {
                     countBadge(count)
-                    badge
+                    badgeWithProgress
                 }
+            }
+        } else {
+            badgeWithProgress
+        }
+    }
+
+    /// 「続きから」の印を出す局面か（NEW・イベントが優先）。
+    private var showsResumeBadge: Bool { !isNew && !isEvent && hasResume }
+
+    /// 文字の印。「続きから」を出しているときは、その下に進み具合の印を 1 段足す（#2870）。
+    @ViewBuilder
+    private var badgeWithProgress: some View {
+        if showsResumeBadge, let resumeProgress {
+            VStack(alignment: .leading, spacing: layout.scaled(4)) {
+                badge
+                badgeCapsule(resumeProgress)
             }
         } else {
             badge
@@ -824,6 +843,7 @@ private struct GameCard: View {
     private var accessibilityLabel: String {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
+        if let resumeProgress { parts.append(resumeProgress) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
         if isUnplayed { parts.append(tr("未プレイ")) }
