@@ -2436,13 +2436,57 @@
         }
       }
     },
-    "聴牌: %@" : {
+    "テンパイ" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tenpai: %@"
+            "value" : "Tenpai"
+          }
+        }
+      }
+    },
+    "ノーテン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noten"
+          }
+        }
+      }
+    },
+    "全員テンパイです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone is tenpai"
+          }
+        }
+      }
+    },
+    "ノーテン罰符（テンパイ +%1$lld点・ノーテン -%2$lld点）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noten penalty (tenpai +%1$lld pts, noten -%2$lld pts)"
+          }
+        }
+      }
+    },
+    "%1$@。待ち牌: %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. Waiting on: %2$@"
           }
         }
       }

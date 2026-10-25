@@ -32,6 +32,9 @@ struct MahjongTableScene {
     /// 飛行中で河にまだ置かない 1 枚（家, 何枚目）。`MahjongDiscardFlight` が着地したら nil。
     var hiddenDiscardSeat: Int?
     var hiddenDiscardIndex: Int?
+    /// 流局で開けた全員の手牌（家ごと・並べ替え済み。#2872）。nil なら通常の卓（CPU は立て牌）。
+    /// 非 nil のとき CPU の立て牌は描かず、`MahjongTableLayout.openHandTile` の置き場へ表向きに並べる。
+    var openHands: [[MahjongTile]]? = nil
 
     /// 中央パネルの小さな枠に 1 字で出す風（英語は E / S / W / N）。
     static var windNames: [String] { [tr("東"), tr("南"), tr("西"), tr("北")] }
@@ -52,6 +55,9 @@ struct MahjongTableView: View {
             // CPU の手牌（奥の対面から先に、左右は奥から手前へ）
             MahjongTileBlockCanvas(blocks: standingBlocks)
                 .frame(width: layout.size.width, height: layout.size.height)
+            if let hands = scene.openHands {
+                openHandLayer(hands)
+            }
             ForEach(0..<4, id: \.self) { seat in
                 seatLayer(seat)
             }
@@ -64,11 +70,29 @@ struct MahjongTableView: View {
 
     private var standingBlocks: [(MahjongTileBlockGeometry, MahjongTileBlockFacing)] {
         var out: [(MahjongTileBlockGeometry, MahjongTileBlockFacing)] = []
+        // 流局で手牌を開けたら壁は消す（#2872）
+        guard scene.openHands == nil else { return out }
         for seat in [2, 3, 1] {
             let count = max(0, scene.handCounts[seat])
             for i in 0..<count { out.append(layout.handBlock(seat: seat, index: i, count: count)) }
         }
         return out
+    }
+
+    /// 流局で開けた手牌（#2872）。読み上げは `seatLayer` の家ごとの 1 要素に任せ、ここは見た目だけ。
+    private func openHandLayer(_ hands: [[MahjongTile]]) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(0..<min(4, hands.count), id: \.self) { seat in
+                ForEach(Array(hands[seat].enumerated()), id: \.offset) { i, tile in
+                    let slot = layout.openHandTile(seat: seat, index: i)
+                    MahjongTileView(tile: tile, width: slot.width, height: slot.width * MahjongTableLayout.tileAspect)
+                        .rotationEffect(.degrees(slot.rotation))
+                        .position(slot.center)
+                }
+            }
+        }
+        .frame(width: layout.size.width, height: layout.size.height)
+        .accessibilityHidden(true)
     }
 
     /// 1 家ぶんの河・副露・立直棒。読み上げは家ごとに 1 要素にまとめる。
