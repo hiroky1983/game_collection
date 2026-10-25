@@ -843,7 +843,7 @@ private struct GameCard: View {
     private var accessibilityLabel: String {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
-        if let resumeProgress { parts.append(resumeProgress) }
+        if showsResumeBadge, let resumeProgress { parts.append(resumeProgress) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
         if isUnplayed { parts.append(tr("未プレイ")) }

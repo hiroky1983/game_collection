@@ -583,7 +583,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld left"
+            "value" : "%lld cells left"
           }
         }
       }
@@ -1089,7 +1089,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld left"
+            "value" : "%lld cells left"
           }
         }
       }
