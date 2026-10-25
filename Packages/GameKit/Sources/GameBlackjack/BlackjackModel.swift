@@ -769,6 +769,7 @@ public final class BlackjackModel {
         isRevealingNatural = false
         recordResult = nil
         matchSerial += 1
+        format = .tenRounds  // 配る前の帯に前の形（単発戦）を残さない（次の形は `deal(format:)` が決める）
         completedRounds = 0
         points = 0
         streak = 0
