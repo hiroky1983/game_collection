@@ -49,7 +49,7 @@ public struct GomokuView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("五目並べ"), review: services.review,
-                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled)
             .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)))
