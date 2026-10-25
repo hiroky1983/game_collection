@@ -2,7 +2,7 @@
 """アプリに同梱する大きな PNG を、見た目をほぼ変えずに小さくする（#2390）。
 
 使い方:
-    python3 Scripts/compress-images.py [--dry-run] [パス...]
+    python3 Scripts/compress-images.py [--dry-run | --check] [パス...]
 パスを省略すると App/Assets.xcassets と Packages 配下の Resources を走査する。
 新しいタイル・画像を足したときも同じコマンドを回す（処理済みの画像は再実行しても変わらない）。
 
@@ -12,6 +12,8 @@
 - AppIcon は App Store 要件（1024×1024・透過なし）を守り、グラデーションの縞が出やすいので可逆の再圧縮だけ。
 - パレット PNG（P）は可逆の再圧縮だけ。
 - 結果が 5% 以上小さくならなければ書き換えない。縮小はしない（絵柄・解像度は変えない）。
+
+--check すると書き換えを行わず、書き換えが要る画像があれば一覧して終了コード 1 で終える（CI 用・#2913）。
 """
 import argparse
 import io
@@ -96,10 +98,13 @@ def replace_if_smaller(f: str, size: int, new_size: int, tmp: str, dry_run: bool
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--check", action="store_true", help="書き換えない。未圧縮の画像が1枚でもあれば一覧して終了コード1（CI 用・#2913）")
     ap.add_argument("paths", nargs="*")
     args = ap.parse_args()
     paths = args.paths or DEFAULT_PATHS
+    write = not (args.dry_run or args.check)
     before = after = 0
+    needs_fix = []
     for f in sorted(walk(paths, (".png",))):
         size = os.path.getsize(f)
         if size < MIN_BYTES:
@@ -111,8 +116,9 @@ def main():
             mode, err = compress(f, tmp)
             new = os.path.getsize(tmp)
             before += size
-            if replace_if_smaller(f, size, new, tmp, args.dry_run):
+            if replace_if_smaller(f, size, new, tmp, not write):
                 after += new
+                needs_fix.append(f)
                 print(f"{size // 1024:>6} -> {new // 1024:>5} KB  {mode:<10} rms={err:.2f}  {os.path.relpath(f, ROOT)}")
             else:
                 after += size
@@ -134,8 +140,9 @@ def main():
             im.save(tmp, "JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True, icc_profile=im.info.get("icc_profile"))
             new = os.path.getsize(tmp)
             before += size
-            if replace_if_smaller(f, size, new, tmp, args.dry_run):
+            if replace_if_smaller(f, size, new, tmp, not write):
                 after += new
+                needs_fix.append(f)
                 print(f"{size // 1024:>6} -> {new // 1024:>5} KB  jpeg q{JPEG_QUALITY}  {os.path.relpath(f, ROOT)}")
             else:
                 after += size
@@ -143,6 +150,15 @@ def main():
             if os.path.exists(tmp):
                 os.remove(tmp)
     print(f"合計 {before / 1e6:.2f} MB -> {after / 1e6:.2f} MB")
+    if args.check:
+        if needs_fix:
+            print(f"\n未圧縮の画像が {len(needs_fix)} 枚あります。直すには:")
+            print("  env -u NODE_OPTIONS /usr/bin/python3 Scripts/compress-images.py")
+            for f in needs_fix:
+                print(f"    {os.path.relpath(f, ROOT)}")
+            return 1
+        print("未圧縮の画像はありません")
+    return 0
 
 
 if __name__ == "__main__":
