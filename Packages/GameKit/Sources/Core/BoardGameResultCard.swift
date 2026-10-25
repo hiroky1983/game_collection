@@ -31,6 +31,8 @@ public struct BoardGameResultCard: View {
     private let record: RecordResult?
     private let onClose: () -> Void
     private let secondaryAction: SecondaryAction?
+    private let closeTitle: String
+    private let closeHint: String
 
     /// 「盤を見る」の上に足す、ゲーム固有の動線（五目並べの「ここで止めていれば」など・#2851）。
     public struct SecondaryAction {
@@ -51,10 +53,15 @@ public struct BoardGameResultCard: View {
     ///   - details: 補足の行（囲碁の目数の内訳など）。
     ///   - record: 自己ベストの行に使う記録。
     ///   - secondaryAction: ゲーム固有の動線。無ければ出さない。
+    ///   - closeTitle: 閉じるボタンの文言。nil なら「盤を見る」（ねこさがしの「あきらめて正解を見る」・#2904）。
+    ///   - closeHint: 閉じるボタンの VoiceOver のヒント。nil なら「結果を閉じて盤面を見返します」。
     ///   - onClose: 「盤を見る」。
     public init(verdict: Verdict, reason: String, decisiveMove: String? = nil, details: [String] = [],
-                record: RecordResult?, secondaryAction: SecondaryAction? = nil, onClose: @escaping () -> Void) {
+                record: RecordResult?, secondaryAction: SecondaryAction? = nil,
+                closeTitle: String? = nil, closeHint: String? = nil, onClose: @escaping () -> Void) {
         self.secondaryAction = secondaryAction
+        self.closeTitle = closeTitle ?? tr("盤を見る")
+        self.closeHint = closeHint ?? tr("結果を閉じて盤面を見返します")
         self.verdict = verdict
         self.reason = reason
         self.decisiveMove = decisiveMove
@@ -131,14 +138,14 @@ public struct BoardGameResultCard: View {
                     .accessibilityHint(secondaryAction.hint)
                 }
                 Button(action: onClose) {
-                    Text(tr("盤を見る"))
+                    Text(closeTitle)
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 20)
                         .frame(minHeight: 44)
                         .background(Capsule().fill(Theme.Fill.coral))
                 }
-                .accessibilityHint(tr("結果を閉じて盤面を見返します"))
+                .accessibilityHint(closeHint)
             }
             .padding(24)
             .frame(maxWidth: 320)
