@@ -1,4 +1,5 @@
 import Testing
+import SwiftUI
 import Core
 @testable import GameChess
 
@@ -60,6 +61,17 @@ struct ChessOnboardingTests {
         let pos = position("stalemate")
         #expect(!pos.isKingInCheck(.black))
         #expect(pos.legalMoves().isEmpty)
+    }
+
+    /// 花札こいこいのページ送りで画面が固まってクラッシュした不具合（#2905）の再発防止。
+    /// 同じ共通部品（`OnboardingGuideView`）を使うチェスでも、全ページの図が描けることを確かめる。
+    @Test("全ページの図が描ける")
+    func allPagesRender() throws {
+        for (index, page) in ChessOnboarding.guide.pages.enumerated() {
+            let renderer = ImageRenderer(content: page.figure().fixedSize())
+            renderer.scale = 1
+            _ = try #require(renderer.cgImage, "\(index + 1) 枚目（\(page.heading)）の図が描けない")
+        }
     }
 
     @Test("全部の文言に英語の訳がある（訳し漏れ 0）")

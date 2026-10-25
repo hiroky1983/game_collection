@@ -18,45 +18,67 @@ public struct HanafudaCardFace: View {
     /// 帯の右の種別の文字を出すか。取り札のように札を横に重ねる所では、重なる側の札が隠す札の
     /// 文字を欠けさせるので、最前面の 1 枚以外は消して月の数字だけにする（帯の色は種別を示し続ける・#2336）。
     public let showsKindLabel: Bool
+    /// 呼び出し側ですでに幅が決まっているとき（図入りの遊び方・#2044 / #2827）に渡す。渡すと内部の
+    /// `GeometryReader` を使わず、この幅で直接描く。`TabView` の「はじめての遊び方」（#2827）でページを
+    /// めくるたびに `GeometryReader` を持つ札を何枚も再計測するのが重く、花札こいこいで画面が固まって
+    /// クラッシュしていた（#2905）。トランプ（`PlayingCardFace`）は元から固定 pt で組んでおり
+    /// `GeometryReader` を持たないので、幅があらかじめ分かる所は同じ作法に合わせる。
+    /// 盤面（`LazyVGrid` で幅がレイアウトでしか決まらない手札・場・取り札）は今までどおり `nil` で
+    /// `GeometryReader` に任せる。
+    public let fixedWidth: CGFloat?
 
     public init(card: HanafudaCard, isDimmed: Bool = false, isHighlighted: Bool = false,
-                showsKindLabel: Bool = true) {
+                showsKindLabel: Bool = true, fixedWidth: CGFloat? = nil) {
         self.showsKindLabel = showsKindLabel
         self.card = card
         self.isDimmed = isDimmed
         self.isHighlighted = isHighlighted
+        self.fixedWidth = fixedWidth
     }
 
     public var body: some View {
-        GeometryReader { geo in
-            let corner = geo.size.width * 0.12
-            ZStack {
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(CardStyle.faceFill)
-                if let image = HanafudaCardImages.image(for: card) {
-                    // 画像は札と同じ 2:3 なので、札の枠いっぱいに敷けば帯の下に図案がそのまま収まる。
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geo.size.width, height: geo.size.height)
+        Group {
+            if let fixedWidth {
+                face(width: fixedWidth)
+                    .frame(width: fixedWidth, height: fixedWidth * HanafudaCardArt.aspectRatio)
+            } else {
+                GeometryReader { geo in
+                    face(width: geo.size.width)
                 }
-                Canvas { context, size in
-                    HanafudaCardFace.drawBand(card, in: &context, rect: CGRect(origin: .zero, size: size),
-                                              showsKindLabel: showsKindLabel)
-                }
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(HanafudaCardArt.ink.opacity(0.35), lineWidth: 1)
-                if isHighlighted {
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .strokeBorder(Theme.coral, lineWidth: 3)
-                }
+                .aspectRatio(1 / HanafudaCardArt.aspectRatio, contentMode: .fit)
             }
-            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-            .opacity(isDimmed ? 0.45 : 1)
         }
-        .aspectRatio(1 / HanafudaCardArt.aspectRatio, contentMode: .fit)
         .accessibilityElement()
         .accessibilityLabel(HanafudaSpeech.label(for: card))
+    }
+
+    @ViewBuilder
+    private func face(width: CGFloat) -> some View {
+        let height = width * HanafudaCardArt.aspectRatio
+        let corner = width * 0.12
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(CardStyle.faceFill)
+            if let image = HanafudaCardImages.image(for: card) {
+                // 画像は札と同じ 2:3 なので、札の枠いっぱいに敷けば帯の下に図案がそのまま収まる。
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+            }
+            Canvas { context, size in
+                HanafudaCardFace.drawBand(card, in: &context, rect: CGRect(origin: .zero, size: size),
+                                          showsKindLabel: showsKindLabel)
+            }
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(HanafudaCardArt.ink.opacity(0.35), lineWidth: 1)
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .strokeBorder(Theme.coral, lineWidth: 3)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .opacity(isDimmed ? 0.45 : 1)
     }
 
     // MARK: - 帯と図案の領域

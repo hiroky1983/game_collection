@@ -1,4 +1,5 @@
 import Testing
+import SwiftUI
 import Core
 @testable import GameHanafuda
 
@@ -45,6 +46,32 @@ struct HanafudaOnboardingTests {
         #expect(HanafudaScoring.finalScore(base: 7, opponentDeclaredKoiKoi: false) == 14)
         #expect(HanafudaScoring.finalScore(base: 5, opponentDeclaredKoiKoi: true) == 10)
         #expect(HanafudaScoring.finalScore(base: 5, opponentDeclaredKoiKoi: false) == 5)
+    }
+
+    /// ページ送りで画面が固まってクラッシュした不具合（#2905）の再発防止。原因は札の図
+    /// （`HanafudaCardFace`）が幅の分かっている所でも内部で `GeometryReader` を使っていたこと
+    /// （`TabView` の「はじめての遊び方」でページをめくるたびに札を何枚も再計測するのが重かった）。
+    /// `ImageRenderer` は固まりそのものは検知できないが、全ページの図を実際に描いて、取り落としや
+    /// クラッシュが無いことと、札に明示した幅がそのまま絵の幅に出ることを確かめる。
+    @Test("全ページの図が描ける")
+    func allPagesRender() throws {
+        for (index, page) in HanafudaOnboarding.guide.pages.enumerated() {
+            let renderer = ImageRenderer(content: page.figure().fixedSize())
+            renderer.scale = 1
+            _ = try #require(renderer.cgImage, "\(index + 1) 枚目（\(page.heading)）の図が描けない")
+        }
+    }
+
+    /// `fixedWidth` を渡すと `GeometryReader` を経由せず、指定した幅どおりに描く（#2905）。
+    @Test("fixedWidth を渡した札は、その幅そのままで描ける")
+    func fixedWidthCardRendersAtGivenWidth() throws {
+        let width: CGFloat = 60
+        let face = HanafudaCardFace(card: HanafudaCard(id: 0), fixedWidth: width)
+        let renderer = ImageRenderer(content: face)
+        renderer.scale = 1
+        let image = try #require(renderer.cgImage, "fixedWidth 指定の札が描けない")
+        #expect(CGFloat(image.width) == width)
+        #expect(abs(CGFloat(image.height) - width * HanafudaCardArt.aspectRatio) < 0.5)
     }
 
     @Test("全部の文言に英語の訳がある（訳し漏れ 0）")
