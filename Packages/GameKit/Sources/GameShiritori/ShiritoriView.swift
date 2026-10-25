@@ -28,10 +28,8 @@ public struct ShiritoriView: View {
     public var body: some View {
         VStack(spacing: 8) {
             statusBar
-            if model.phase == .result {
-                resultCard
-                    .transition(.opacity)
-            } else {
+            // 終局後は場の札の段ごと畳み、結果は上の帯へ移す（#2863。マインスイーパーの #148 と同じ）。
+            if model.phase != .result {
                 currentArea
                     .transition(.opacity)
             }
@@ -166,10 +164,20 @@ public struct ShiritoriView: View {
                 case .playing: TurnBadge(isYourTurn: model.isPlayerTurn)
                 default: TurnBadge(tr("終了"), kind: .finished)
                 }
-                Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                if model.phase == .result {
+                    // 勝敗の見出しを帯に同居させる。詳細・記録は盤に重ねる結果カードが持つ（#2863）。
+                    Label(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
+                                                            mode: model.mode),
+                          systemImage: model.didPlayerWin ? "crown.fill" : "flag.checkered")
+                        .themeBody(13, weight: .bold)
+                        .foregroundStyle(model.didPlayerWin ? Theme.tealText : Theme.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                } else {
+                    Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
+                        .themeBody(13)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
             } trailing: {
                 Text(model.mode == .endless ? model.mode.label : model.quota.label)
                     .scaledFont(12, weight: .bold, design: .rounded)
@@ -418,37 +426,6 @@ public struct ShiritoriView: View {
                                                          clearSeconds: model.quotaClearSeconds)],
             record: model.recordResult
         ) { resultCardClosed = true }
-    }
-
-    private var resultCard: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: model.didPlayerWin ? "crown.fill" : "flag.checkered")
-                    .scaledFont(20)
-                    .foregroundStyle(model.didPlayerWin ? Theme.yellowText : Theme.inkSub)
-                Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
-                                                              mode: model.mode))
-                    .scaledFont(16, weight: .black, design: .rounded)
-                    .foregroundStyle(model.didPlayerWin ? Theme.tealText : Theme.ink)
-                    .lineLimit(2).minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-            }
-            Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
-                                                          ending: model.ending ?? .timeUp, mode: model.mode,
-                                                          clearSeconds: model.quotaClearSeconds))
-                .scaledFont(12, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            // 結果カードが開いているあいだはカードが持つので出さない（二重になり、SE では高さも溢れる）。
-            if resultCardClosed {
-                RecordLabel(model.recordResult)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 
