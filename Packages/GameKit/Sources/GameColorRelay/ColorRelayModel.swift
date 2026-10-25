@@ -38,11 +38,13 @@ struct ColorRelaySnapshot: Codable {
 /// 決着後に画面を離れて開き直しても選んだ強さが残るようにする。
 struct ColorRelayPreferences: Codable {
     let aiLevel: Int
+    /// 相手（CPU）の人数（#2866）。**旧バージョンの保存データには存在しない**ため optional（欠けていたら 3 人）。
+    var opponentCount: Int? = nil
 }
 
 // MARK: - Model
 
-/// いろリレー（CPU 3 人との対戦・#1320）。プレイヤーは常に番号 0。
+/// いろリレー（CPU 1〜3 人との対戦・#1320。人数は #2866 で選べる）。プレイヤーは常に番号 0。
 ///
 /// 出せるかどうか・CPU の選択は `ColorRelayRules`（純粋関数）に寄せ、この型は**進行・永続化・演出**だけを持つ。
 /// CPU の手番の回し方は大富豪と同じ定石（`AITurnGuarded`・#531）。
@@ -51,16 +53,21 @@ struct ColorRelayPreferences: Codable {
 public final class ColorRelayModel: AITurnGuarded {
     /// 人間プレイヤーの番号。
     public static let humanIndex = 0
-    /// 参加人数（人間 1 + CPU 3）。
-    public static let playerCount = 4
+    /// 参加人数の上限（人間 1 + CPU 3）。席の ID・アイコンはこの人数ぶん用意してある。
+    public static let maxPlayerCount = 4
+    /// 相手（CPU）の人数の選べる範囲と既定（既定 3 人 = 4 人対戦が、これまでの記録の区分）。
+    public static let opponentCountRange = 1...(maxPlayerCount - 1)
+    public static let defaultOpponentCount = maxPlayerCount - 1
     /// `GameModule.id` と同じ値。`ModuleTests` が一致を確かめる。
     public static let gameID = "colorrelay"
-    public private(set) var hands: [[RelayCard]] = Array(repeating: [], count: playerCount)
+    /// 今の局の参加人数（人間 1 + 相手）。開始シートで選び、次のゲームにも引き継ぐ（#2866）。
+    public private(set) var playerCount = maxPlayerCount
+    public private(set) var hands: [[RelayCard]] = Array(repeating: [], count: maxPlayerCount)
     public private(set) var drawPile: [RelayCard] = []
     /// 捨て札。末尾が場に見えている札。
     public private(set) var discardPile: [RelayCard] = []
     public private(set) var currentPlayer: Int = humanIndex
-    /// 番の回る向き。true なら 0 → 1 → 2 → 3。
+    /// 番の回る向き。true なら 0 → 1 → 2 …（人数ぶん）。
     public private(set) var isClockwise = true
     /// いまの色（いろがえで選び直される）。
     public private(set) var activeColor: RelayColor = .red
@@ -76,7 +83,7 @@ public final class ColorRelayModel: AITurnGuarded {
     /// 何ゲーム目か（1 始まり）。
     public private(set) var gameNumber = 0
     /// 各プレイヤーの直近の動き（「とばし！」「2枚引いた」など）。画面のバッジ表示用。
-    public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
+    public private(set) var lastActions: [String] = Array(repeating: "", count: maxPlayerCount)
     /// 手札で選択中の札の ID（1 枚だけ）。
     public private(set) var selectedID: Int?
     /// このゲームで引き札の免除（広告）を使ったか。1 ゲーム 1 回。
@@ -120,11 +127,14 @@ public final class ColorRelayModel: AITurnGuarded {
         cpuRNG = SplitMix64(seed: seed.map { $0 ^ 0x5DEECE66D } ?? UInt64.random(in: 0...UInt64.max))
         if let prefs = services?.snapshots.load(ColorRelayPreferences.self, for: preferencesID) {
             aiLevel = CPUStrength.strength(for: prefs.aiLevel).rawValue
+            if let count = prefs.opponentCount, Self.opponentCountRange.contains(count) { playerCount = count + 1 }
         }
         // 手書き・壊れた中断データで落ちないよう、配列の長さと番号の範囲を見てから戻す。
         if let snap = services?.snapshots.load(ColorRelaySnapshot.self, for: gameID),
-           snap.hands.count == Self.playerCount, !snap.discardPile.isEmpty,
-           (0..<Self.playerCount).contains(snap.currentPlayer), snap.pendingDraw >= 0 {
+           Self.opponentCountRange.contains(snap.hands.count - 1), !snap.discardPile.isEmpty,
+           (0..<snap.hands.count).contains(snap.currentPlayer), snap.pendingDraw >= 0 {
+            // 人数は中断データの手札の数が正（1 局 = 1 人数）。人数を持たない旧データは 4 人。
+            playerCount      = snap.hands.count
             hands            = snap.hands
             drawPile         = snap.drawPile
             discardPile      = snap.discardPile
@@ -135,7 +145,8 @@ public final class ColorRelayModel: AITurnGuarded {
             hasDrawnThisTurn = snap.hasDrawnThisTurn
             drawnCardID      = snap.drawnCardID
             gameNumber       = snap.gameNumber
-            if snap.lastActions.count == Self.playerCount { lastActions = snap.lastActions }
+            lastActions      = snap.lastActions.count == playerCount
+                ? snap.lastActions : Array(repeating: "", count: playerCount)
             isPenaltyWaived  = snap.isPenaltyWaived
             turnSerial       = snap.turnSerial
             // 対局中の強さは中断データが正（1 局 = 1 RuleSet）。
@@ -145,6 +156,9 @@ public final class ColorRelayModel: AITurnGuarded {
     }
 
     // MARK: - 公開状態
+
+    /// 相手（CPU）の人数。
+    public var opponentCount: Int { playerCount - 1 }
 
     /// 人間の手札（並べ替え済み）。
     public var playerHand: [RelayCard] { hands[Self.humanIndex] }
@@ -213,18 +227,29 @@ public final class ColorRelayModel: AITurnGuarded {
     /// 人間の最終順位（0 始まり）。決着していなければ nil。
     public var playerPlace: Int? { ranking.firstIndex(of: Self.humanIndex) }
 
-    /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
-    /// それ以外の強さは強さ別の区分に分ける（花札と同じ「既定と違うときだけ区分する」作法・#2604）。
+    /// 決着で記録に渡す点。**CPU 3 人・「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
+    /// それ以外は人数・強さ別の区分に分ける（花札と同じ「既定と違うときだけ区分する」作法・#2604・#2866）。
+    /// 人数が違うと勝率も平均順位も別物になるので、人数ごとに記録を分ける（会長条件: 記録がブレないこと）。
     var recordScore: GameScore {
         // 順位は勝敗とは別に平均順位へ累計する（#2606）。
         let place = playerPlace.map { $0 + 1 }
-        let strength = CPUStrength.strength(for: aiLevel)
-        guard strength != .standard else { return GameScore(metric: .winLoss, place: place) }
-        let variant = strength.recordVariantKey
+        guard let variant = Self.recordVariant(opponentCount: opponentCount, strength: CPUStrength.strength(for: aiLevel)) else {
+            return GameScore(metric: .winLoss, place: place)
+        }
         return GameScore(
             metric: .winLoss, place: place, variant: variant,
             variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
         )
+    }
+
+    /// 記録の区分キー。既定（相手 3 人・ふつう）は nil。相手 3 人のときは強さだけ（従来のキー）、
+    /// それ以外は `cpu<人数>`（強さが「ふつう」でなければ `-<強さ>` を足す）。`RecordVariantLabels` が表示名を引く。
+    static func recordVariant(opponentCount: Int, strength: CPUStrength) -> String? {
+        if opponentCount == defaultOpponentCount {
+            return strength == .standard ? nil : strength.recordVariantKey
+        }
+        let base = "cpu\(opponentCount)"
+        return strength == .standard ? base : "\(base)-\(strength.recordVariantKey)"
     }
 
     /// 評価リクエスト（#53）の判定用。上がれば勝ち、それ以外は負け。
@@ -236,25 +261,32 @@ public final class ColorRelayModel: AITurnGuarded {
 
     /// 番の向きで見た、`player` の次の人。
     public func nextPlayer(after player: Int) -> Int {
-        let step = isClockwise ? 1 : Self.playerCount - 1
-        return (player + step) % Self.playerCount
+        let step = isClockwise ? 1 : playerCount - 1
+        return (player + step) % playerCount
     }
 
     // MARK: - ゲーム開始
 
     /// 新しい 1 ゲームを始める。7 枚ずつ配り、山の 1 枚目を場に置く（数字札が出るまでめくる）。
-    /// `aiLevel` を渡すとその強さで配る（開始シート・難易度の階段）。渡さなければ前のゲームの強さのまま。
-    public func startGame(aiLevel newLevel: Int? = nil) {
-        if let newLevel {
-            aiLevel = CPUStrength.strength(for: newLevel).rawValue
-            try? services?.snapshots.save(ColorRelayPreferences(aiLevel: aiLevel), for: preferencesID)
+    /// `aiLevel` を渡すとその強さで、`opponentCount` を渡すとその人数で配る（開始シート・難易度の階段）。
+    /// 渡さなければ前のゲームの強さ・人数のまま。
+    public func startGame(aiLevel newLevel: Int? = nil, opponentCount newOpponents: Int? = nil) {
+        if newLevel != nil || newOpponents != nil {
+            if let newLevel { aiLevel = CPUStrength.strength(for: newLevel).rawValue }
+            if let newOpponents {
+                let clamped = min(max(newOpponents, Self.opponentCountRange.lowerBound), Self.opponentCountRange.upperBound)
+                playerCount = clamped + 1
+            }
+            try? services?.snapshots.save(
+                ColorRelayPreferences(aiLevel: aiLevel, opponentCount: opponentCount), for: preferencesID
+            )
         }
         var deck = RelayCard.makeDeck()
         shuffle(&deck)
 
-        var dealt: [[RelayCard]] = Array(repeating: [], count: Self.playerCount)
+        var dealt: [[RelayCard]] = Array(repeating: [], count: playerCount)
         for _ in 0..<ColorRelayRules.initialHandCount {
-            for player in 0..<Self.playerCount {
+            for player in 0..<playerCount {
                 dealt[player].append(deck.removeLast())
             }
         }
@@ -279,13 +311,13 @@ public final class ColorRelayModel: AITurnGuarded {
         drawnCardID = nil
         selectedID = nil
         ranking = []
-        lastActions = Array(repeating: "", count: Self.playerCount)
+        lastActions = Array(repeating: "", count: playerCount)
         isPenaltyWaived = false
         recordResult = nil
         isUntouchedDeal = true
         gameNumber += 1
         // 親はゲームごとに 1 人ずつ回す（1 ゲーム目は人間）。
-        currentPlayer = (gameNumber - 1) % Self.playerCount
+        currentPlayer = (gameNumber - 1) % playerCount
         turnSerial += 1
         phase = .playing
 
@@ -566,6 +598,7 @@ public final class ColorRelayModel: AITurnGuarded {
         isPenaltyWaived: Bool = false,
         gameNumber: Int = 1
     ) {
+        playerCount = hands.count
         self.hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         self.discardPile = discardBelowTop + [top]
         self.drawPile = drawPile
@@ -579,7 +612,7 @@ public final class ColorRelayModel: AITurnGuarded {
         drawnCardID = nil
         selectedID = nil
         ranking = []
-        lastActions = Array(repeating: "", count: Self.playerCount)
+        lastActions = Array(repeating: "", count: playerCount)
         isUntouchedDeal = false
         turnSerial += 1
         phase = .playing
@@ -602,7 +635,7 @@ public final class ColorRelayModel: AITurnGuarded {
             card(.red, .number(3)), card(.red, .number(7)), card(.green, .number(5)), card(.green, .skip),
             card(.purple, .number(9)), card(.yellow, .drawTwo), card(nil, .wild), card(.yellow, .number(1)),
         ]
-        let cpu: [[RelayCard]] = (1..<Self.playerCount).map { index in
+        let cpu: [[RelayCard]] = (1..<Self.maxPlayerCount).map { index in
             Array(deck.filter { c in !sample.contains(c) }.dropFirst(index * 6).prefix(5))
         }
         switch name {

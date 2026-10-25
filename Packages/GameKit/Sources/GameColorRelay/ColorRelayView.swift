@@ -73,9 +73,9 @@ public struct ColorRelayView: View {
             }
         }
         .sheet(isPresented: $showNewGame) {
-            ColorRelayNewGameSheet(aiLevel: model.aiLevel) { level in
+            ColorRelayNewGameSheet(aiLevel: model.aiLevel, opponentCount: model.opponentCount) { level, opponents in
                 showNewGame = false
-                startNewGame(aiLevel: level)
+                startNewGame(aiLevel: level, opponentCount: opponents)
             } onCancel: { showNewGame = false }
         }
         // 免除の提示（#780）。自分の番で引き札を課され、免除ボタンが出ているあいだを 1 回の提示として数える。
@@ -117,8 +117,8 @@ public struct ColorRelayView: View {
     }
 
     /// 新しい 1 ゲームを配って、CPU が親なら手番を回す（右上の新規・#2370）。
-    private func startNewGame(aiLevel: Int) {
-        model.startGame(aiLevel: aiLevel)
+    private func startNewGame(aiLevel: Int, opponentCount: Int? = nil) {
+        model.startGame(aiLevel: aiLevel, opponentCount: opponentCount)
         runCPU()
     }
 
@@ -180,12 +180,12 @@ public struct ColorRelayView: View {
         ))
     }
 
-    /// 相手 3 人を横並び。あいだの `»` / `«` が番の回る向き（左から CPU1 → CPU2 → CPU3 が順回り）。
+    /// 相手（1〜3 人）を横並び。あいだの `»` / `«` が番の回る向き（左から CPU1 → CPU2 → CPU3 が順回り）。
     private var seatsRow: some View {
         HStack(alignment: .top, spacing: 0) {
-            ForEach(1..<ColorRelayModel.playerCount, id: \.self) { index in
+            ForEach(1..<model.playerCount, id: \.self) { index in
                 seat(index)
-                if index < ColorRelayModel.playerCount - 1 {
+                if index < model.playerCount - 1 {
                     CardTableInkReader { ink in
                         Image(systemName: model.isClockwise ? "chevron.right.2" : "chevron.left.2")
                             .scaledFont(15, weight: .black)
@@ -721,7 +721,7 @@ enum ColorRelayHandLayout {
 
 struct ColorRelayRuleSheet: View {
     static var rules: [(String, String)] { [
-        (tr("ゲームの流れ"), tr("CPU3人と対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです")),
+        (tr("ゲームの流れ"), tr("CPUと対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです")),
         (tr("引くとき"), tr("出せる札が無いとき（出したくないときも）は山から1枚引きます。引いた札が出せるならそのまま出せます（出さずに次へ回してもかまいません）。出せなければ自動で次の人の番になります")),
         (tr("とばし"), tr("次の人の番を飛ばします")),
         (tr("ぎゃく"), tr("番の回る向きが逆になります")),
@@ -739,14 +739,17 @@ struct ColorRelayRuleSheet: View {
 
 // MARK: - New Game Sheet
 
-/// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+/// 右上の新規で開く開始シート（相手の人数 #2866・CPU の強さ #2604 を選ぶ）。
+/// 強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
 struct ColorRelayNewGameSheet: View {
     @State private var level: Int
-    let onStart: (Int) -> Void
+    @State private var opponents: Int
+    let onStart: (Int, Int) -> Void
     let onCancel: () -> Void
 
-    init(aiLevel: Int, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
+    init(aiLevel: Int, opponentCount: Int, onStart: @escaping (Int, Int) -> Void, onCancel: @escaping () -> Void) {
         _level = State(initialValue: aiLevel)
+        _opponents = State(initialValue: opponentCount)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -755,8 +758,19 @@ struct ColorRelayNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             onboarding: ColorRelayOnboarding.guide,
-            onStart: { onStart(level) }, onCancel: onCancel
+            onStart: { onStart(level, opponents) }, onCancel: onCancel
         ) {
+            GameSetupSection(tr("相手の人数")) {
+                HStack(spacing: 12) {
+                    ForEach(Array(ColorRelayModel.opponentCountRange), id: \.self) { count in
+                        GameSetupChooser(title: tr("%lld人", count), subtitle: "",
+                                          selected: opponents == count,
+                                          accent: Theme.Fill.purple) { opponents = count }
+                    }
+                }
+                Text(tr("人数ごとに記録（勝敗・連勝・平均順位）は別々に残ります。"))
+                    .themeBody(12).foregroundStyle(Theme.inkSub)
+            }
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `ColorRelayRules.cpuPlay` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [

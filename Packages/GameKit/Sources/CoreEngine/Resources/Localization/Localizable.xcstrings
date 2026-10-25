@@ -1367,6 +1367,29 @@
           }
         }
       }
+    },
+    "相手%lld人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld opponent"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld opponents"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -167,17 +167,6 @@
         }
       }
     },
-    "CPU3人と対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play against 3 CPUs. Everyone gets 7 cards. Take turns playing a card that matches the pile's color, number or symbol. The first to empty their hand wins."
-          }
-        }
-      }
-    },
     "、" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1106,17 +1095,6 @@
         }
       }
     },
-    "ほかの 3 人の CPU と、順番に札を出し合います。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You take turns playing cards with the 3 CPUs."
-          }
-        }
-      }
-    },
     "1 回の番でやること" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1267,6 +1245,73 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "With Color Change +4, the next player draws 4 cards."
+          }
+        }
+      }
+    },
+    "CPUと対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play against CPUs. Everyone gets 7 cards. Take turns playing a card that matches the pile's color, number or symbol. The first to empty their hand wins."
+          }
+        }
+      }
+    },
+    "ほかの CPU と、順番に札を出し合います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You take turns playing cards with the CPUs."
+          }
+        }
+      }
+    },
+    "相手の人数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opponents"
+          }
+        }
+      }
+    },
+    "%lld人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld opponent"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld opponents"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "人数ごとに記録（勝敗・連勝・平均順位）は別々に残ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records (wins, streaks, average place) are kept separately for each number of opponents."
           }
         }
       }
