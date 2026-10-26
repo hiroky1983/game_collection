@@ -835,17 +835,19 @@ enum HubCountBadge {
     @MainActor static func isShown(gameID: String) -> Bool { gameID == HomerunModel.gameID }
 }
 
-/// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、
-/// 「続きから」「NEW」と「つづき・最近」の文字色に使う。値は `Scripts/generate-hub-tiles.py` の `GAMES` と同じ表
-/// （モック 01 の各タイルの `.ul` の色）。表に無いゲームは珊瑚色。
-/// ハブのタイルの「イベント開催中」の印（#2566）。柵越えおじさんは週間ランキング
-/// （`GameCenterLeaderboard.homerunWeekly`）が有効なあいだだけ。ID が nil なら出さない。
 enum HubEventBadge {
-    static func isShown(gameID: String, weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly) -> Bool {
-        gameID == "homerun" && weeklyLeaderboardID != nil
+    /// 「イベント開催中」の印を出すゲームの ID。イベントを入れ替えるときはここ 1 か所だけ直す
+    /// （#2958。v1.1.15 は将棋「将棋の達人に挑め」＝#2722。柵越えおじさんの週間ランキング自体は続く）。
+    static let eventGameID = "shogi"
+
+    static func isShown(gameID: String) -> Bool {
+        gameID == eventGameID
     }
 }
 
+/// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、
+/// 「続きから」「NEW」と「つづき・最近」の文字色に使う。値は `Scripts/generate-hub-tiles.py` の `GAMES` と同じ表
+/// （モック 01 の各タイルの `.ul` の色）。表に無いゲームは珊瑚色。
 enum HubTileStyle {
     /// モックのタイルの寸法（179 × 215pt）の比率。画像もこの比率で書き出している。
     static let aspect: CGFloat = 179.0 / 215.0
