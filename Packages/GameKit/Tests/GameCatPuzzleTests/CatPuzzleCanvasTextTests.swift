@@ -12,9 +12,10 @@ struct CatPuzzleCanvasTextTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        #expect(!code.contains(".draw(text"), "文字を GraphicsContext に描いている")
-        #expect(!code.contains("resolve(\n                Text"), "Canvas の中で Text を resolve している")
-        #expect(!code.contains("context.resolve("), "Canvas の中で resolve している")
+        // この盤は Canvas の中で図形（fill / stroke）しか描かない（床の柄の `CatPuzzleFloorPainter.draw` は図形）。文字は resolve して draw する以外に、
+        // `draw(Text(...))` で直接描くこともできるので、どちらの入口も塞ぐ。
+        #expect(!code.contains(".resolve("), "Canvas の中で文字を resolve している")
+        #expect(!code.contains("context.draw("), "文字を GraphicsContext に描いている")
     }
 
     @Test("札の文字の大きさは文字サイズに比例する")

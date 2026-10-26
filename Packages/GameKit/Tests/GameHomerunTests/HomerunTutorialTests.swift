@@ -70,6 +70,9 @@ struct HomerunTutorialTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        #expect(!code.contains("ctx.draw(Text"), "Canvas の中で Text を描いている")
+        // この図は Canvas の中で図形（fill / stroke）しか描かない。文字は resolve して draw する以外に
+        // `draw(Text(...))` で直接描くこともできるので、どちらの入口も塞ぐ。
+        #expect(!code.contains(".resolve("), "Canvas の中で文字を resolve している")
+        #expect(!code.contains(".draw("), "Canvas の中で文字を描いている")
     }
 }
