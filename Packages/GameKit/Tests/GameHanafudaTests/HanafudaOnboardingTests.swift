@@ -1,6 +1,7 @@
 import Testing
 import SwiftUI
 import Core
+import GameKitTestSupport
 @testable import GameHanafuda
 
 /// 図で見る「はじめての遊び方」（#2827）の中身が、実装のルールと食い違っていないこと。
@@ -72,6 +73,32 @@ struct HanafudaOnboardingTests {
         let image = try #require(renderer.cgImage, "fixedWidth 指定の札が描けない")
         #expect(CGFloat(image.width) == width)
         #expect(abs(CGFloat(image.height) - width * HanafudaCardArt.aspectRatio) < 0.5)
+    }
+
+    /// build 54・iOS 27 の実機で、ページ送りの途中に主スレッドが `Canvas` の `draw(Text)`（和文の代替フォント探し）で
+    /// 10 秒埋まり、監視（0x8BADF00D）に落とされた（#2905）。札の帯の文字は `Canvas` で組まず `Text` で置く。
+    @Test("札の帯の文字は Canvas で描かない（ページ送りで固まらない）")
+    func cardBandDoesNotDrawTextInCanvas() throws {
+        let code = try SourceScan.packageSource("Sources/GameHanafuda/HanafudaCardFace.swift")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(!code.contains("Canvas"), "札 1 枚の中で Canvas を使っている")
+        #expect(!code.contains(".draw(text"), "札の帯の文字を GraphicsContext に描いている")
+        #expect(code.contains("Text(verbatim: card.kind.badgeLabel)"))
+    }
+
+    @Test("帯の文字は帯の高さに収まり、月と種別が札の幅に並ぶ")
+    func bandLabelFitsTheBand() {
+        for width: CGFloat in [26, 40, 44, 60, 130] {
+            let bandHeight = width * HanafudaCardArt.aspectRatio * HanafudaCardFace.bandRatio
+            let size = HanafudaCardFace.bandFontSize(width: width, bandHeight: bandHeight)
+            #expect(size <= bandHeight)
+            // 一番長い組み合わせ（2 桁の月＋2 文字の種別）でも、左右の余白込みで幅に収まる
+            // （数字は字幅 0.6 em、かなは 1 em で見積もる）。
+            let longest = size * 0.6 * 2 + size * 2 + width * 0.1
+            #expect(longest <= width, "幅 \(width) の札で帯の文字があふれる")
+        }
     }
 
     @Test("全部の文言に英語の訳がある（訳し漏れ 0）")

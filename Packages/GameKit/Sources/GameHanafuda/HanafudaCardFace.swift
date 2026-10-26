@@ -4,7 +4,7 @@ import Core
 /// 札 1 枚の絵柄（#495・#2188）。
 ///
 /// 図案は `HanafudaCardImages` の画像（Codex の画像生成が文章の指示だけで描いた伝統図柄）を札いっぱいに敷き、
-/// その上に「月と種別の帯」（#602）を `Canvas` で重ねる。帯・角丸・暗転・強調は図形描画だった頃
+/// その上に「月と種別の帯」（#602）を重ねる。帯・角丸・暗転・強調は図形描画だった頃
 /// （v1.1.11 まで。鶴が楕円＋線、幕が赤白の縞で「全部同じに見える」と指摘された）と同じ。
 /// 画像は上端 20% に主役を置かないよう描かせているので、帯に食われる部品が出ない。
 ///
@@ -66,10 +66,7 @@ public struct HanafudaCardFace: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)
             }
-            Canvas { context, size in
-                HanafudaCardFace.drawBand(card, in: &context, rect: CGRect(origin: .zero, size: size),
-                                          showsKindLabel: showsKindLabel)
-            }
+            band(width: width, height: height)
             RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .strokeBorder(HanafudaCardArt.ink.opacity(0.35), lineWidth: 1)
             if isHighlighted {
@@ -108,26 +105,39 @@ public struct HanafudaCardFace: View {
     /// 役は種別の枚数で決まる。どちらも図案からしか読めない状態では、鶴と鶯の描き分けを
     /// 知らない人が光札とタネ札を区別できない（会長 QA・2026-09-10）。
     /// 帯の色そのものが種別を表すので、取り札の帯のように文字が潰れる小ささでも読み取れる。
-    static func drawBand(_ card: HanafudaCard, in ctx: inout GraphicsContext, rect: CGRect,
-                         showsKindLabel: Bool = true) {
+    ///
+    /// 文字は `Canvas` の `draw(Text)` ではなく普通の `Text` で置く（#2905）。`Canvas` は描き直すたびに
+    /// 文字の組版（和文の代替フォント探しまで）をやり直すので、「はじめての遊び方」のページ送りで
+    /// 札の描き直しが続くと主スレッドが 10 秒埋まり、監視（0x8BADF00D）に落とされていた。
+    private func band(width: CGFloat, height: CGFloat) -> some View {
         let backgroundHex = HanafudaCardArt.kindHex(for: card)
-        let band = bandRect(in: rect)
-        ctx.fill(Path(band), with: .color(Color(hex: backgroundHex)))
+        let bandHeight = height * Self.bandRatio
         let label = Color(hex: HanafudaCardArt.bandLabelHex(on: backgroundHex))
         // 帯の高さに収まる大きさにする。下限を設けて逃がすと、小さく描いたときに文字だけが
         // 帯からはみ出して図案に被る。
-        let size = min(rect.width * 0.30, band.height * 0.85)
-        func text(_ string: String) -> Text {
-            Text(verbatim: string)
+        let size = Self.bandFontSize(width: width, bandHeight: bandHeight)
+        return VStack(spacing: 0) {
+            ZStack {
+                Rectangle().fill(Color(hex: backgroundHex))
+                HStack(spacing: 0) {
+                    Text(verbatim: "\(card.month)").fixedSize()
+                    Spacer(minLength: 0)
+                    if showsKindLabel {
+                        Text(verbatim: card.kind.badgeLabel).fixedSize()
+                    }
+                }
                 .font(.system(size: size, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(label)
+                .padding(.horizontal, width * 0.05)
+            }
+            .frame(width: width, height: bandHeight)
+            Spacer(minLength: 0)
         }
-        let inset = band.width * 0.05
-        ctx.draw(text("\(card.month)"),
-                 at: CGPoint(x: band.minX + inset, y: band.midY), anchor: .leading)
-        if showsKindLabel {
-            ctx.draw(text(card.kind.badgeLabel),
-                     at: CGPoint(x: band.maxX - inset, y: band.midY), anchor: .trailing)
-        }
+        .frame(width: width, height: height)
+    }
+
+    /// 帯の文字の大きさ。札の幅の 30% と帯の高さの 85% の小さいほう。
+    static func bandFontSize(width: CGFloat, bandHeight: CGFloat) -> CGFloat {
+        min(width * 0.30, bandHeight * 0.85)
     }
 }
