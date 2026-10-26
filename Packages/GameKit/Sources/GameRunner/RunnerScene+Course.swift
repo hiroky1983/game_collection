@@ -87,6 +87,8 @@ extension RunnerScene {
             case .bird:                    movingHazards.append(addBird(hazard))
             case .dog:                     movingHazards.append(addDog(hazard))
             case .boar:                    movingHazards.append(addBoar(hazard))
+            // 落石（#2729）は斜面を下りて転がって来る（位置も高さも距離で決まる）。
+            case .rockfall:                movingHazards.append(addRockfall(hazard))
             // 突き上げ（#1010）は位置は動かないが**伸びた高さが距離で決まる**ので、毎フレーム
             // `frame` を写す仲間（`movingHazards`）に入れる。
             case .shoot, .geyser:          movingHazards.append(addShoot(hazard))
@@ -143,6 +145,7 @@ extension RunnerScene {
         case .strawStack: return makeStrawStack(platform)
         case .crateStack: return makeCrateStack(platform)
         case .snowBlocks: return makeSnowBlocks(platform)
+        case .stoneStack: return makeStoneStack(platform)
         }
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)

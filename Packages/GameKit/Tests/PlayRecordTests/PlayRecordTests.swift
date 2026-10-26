@@ -371,7 +371,9 @@ struct RecordFormatTests {
         #expect(RecordFormat.runnerStageLine(clearedStage: 47) == "8-6 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 48) == "9-1 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 53) == "9-6 まで到達")
-        #expect(RecordFormat.runnerStageLine(clearedStage: 54) == "全 54 面クリア")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 54) == "10-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 59) == "10-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 60) == "全 60 面クリア")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil

@@ -344,6 +344,86 @@ extension RunnerScene {
         )
     }
 
+    /// 落石（`RunnerHazardKind.rockfall`・#2729 富士山）。斜面の上から転がってくる火山岩。
+    ///
+    /// 絵は正方形のドット絵（`RunnerPixelArt.fallingRockRows`・27×27）を**当たり判定の高さ × 高さ**（9×9）で貼り、
+    /// 当たり判定（幅 8）の中央に合わせる（左右に 0.5 ずつ張り出すだけ。張り出しは走者に甘い側）。位置と高さは
+    /// `frame` の帯そのもの（`syncMovingHazard`）で、斜面を下りているあいだは帯ごと浮いて見える。転がりは
+    /// **90° ずつの回転**で見せる（ドットが崩れない。進んだ距離で刻むので時計を使わない）。
+    ///
+    /// 予告（ゴロゴロの手応えと同時）は**画面の右上を転げ落ちる小石**（`cue`）。岩がまだ斜面の上（画面の外）に
+    /// いるあいだだけ見せ、岩が画面に入ったら消す。地面には影を敷き（鳥と同じく帯が上がっても地面に残す）、
+    /// 路面を転がっているあいだだけ足元に砂ぼこりを立てる（`movingOnly`）。
+    func addRockfall(_ hazard: RunnerHazard) -> MovingHazardView {
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+        let colors = world.palette
+
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: h * 0.9, height: 0.6))
+        shadow.fillColor = RunnerPalette.color(colors.rockDark)
+        shadow.strokeColor = .clear
+        shadow.alpha = 0.35
+        shadow.position = CGPoint(x: w / 2, y: 0.3)
+        node.addChild(shadow)
+
+        let rock = SKSpriteNode(texture: fallingRockTexture(world))
+        rock.size = CGSize(width: h, height: h)
+        rock.position = CGPoint(x: w / 2, y: h / 2)
+        rock.zPosition = 1
+        rock.name = Self.fallingRockSpriteName
+        node.addChild(rock)
+
+        // 路面を転がるあいだの砂ぼこり（イノシシの土煙と同じ作り）。岩の後ろ（右）の足元に立てる。
+        let dust = SKNode()
+        for (index, spec) in [(0.0, 0.05, 0.14), (0.12, 0.12, 0.10)].enumerated() {
+            let puff = SKShapeNode(circleOfRadius: h * spec.2)
+            puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)
+            puff.strokeColor = .clear
+            puff.alpha = 0.6
+            puff.position = CGPoint(x: w + h * spec.0, y: h * spec.1)
+            puff.zPosition = -1
+            let grow = SKAction.group([.scale(to: 1.6, duration: 0.3), .fadeAlpha(to: 0, duration: 0.3)])
+            let reset = SKAction.group([.scale(to: 0.6, duration: 0), .fadeAlpha(to: 0.6, duration: 0)])
+            runAmbientLoop(.sequence([.wait(forDuration: 0.1 * Double(index)), grow, reset]), on: puff)
+            dust.addChild(puff)
+        }
+        dust.isHidden = true
+        node.addChild(dust)
+
+        // 予告の小石。3 粒が斜め左下へ転げ落ちるのを繰り返す（乱数は使わない）。位置は `syncMovingHazard` が
+        // 画面の右上へ置き直す（岩の子にしてあるので、岩が現れる前は岩ごと隠れている）。
+        let pebbles = SKNode()
+        for (index, spec) in [(0.0, 0.0, 1.3), (2.4, 1.6, 1.0), (-1.4, 3.0, 0.8)].enumerated() {
+            let pebble = SKSpriteNode(color: RunnerPalette.color(colors.rockBody), size: CGSize(width: spec.2, height: spec.2))
+            pebble.position = CGPoint(x: spec.0, y: spec.1)
+            let fall = SKAction.sequence([
+                .wait(forDuration: 0.12 * Double(index)),
+                .moveBy(x: -3.0, y: -9.0, duration: 0.4),
+                .moveBy(x: 3.0, y: 9.0, duration: 0),
+            ])
+            runAmbientLoop(fall, on: pebble)
+            pebbles.addChild(pebble)
+        }
+        pebbles.zPosition = 2
+        node.addChild(pebbles)
+
+        courseLayer.addChild(node)
+        return MovingHazardView(
+            hazard: hazard, node: node, shadow: shadow, shadowBaseY: 0.3,
+            animated: [], movingOnly: dust, cue: pebbles
+        )
+    }
+
+    /// 落石の絵のスプライトの名前（`syncMovingHazard` が回転を書き込むときに引く）。
+    static let fallingRockSpriteName = "fallingRock"
+
+    /// 落石が 90° 回る距離（岩が自分で進んだ距離）。直径 9 の岩が転がる周の 1/4。
+    static let fallingRockQuarterTurn = Double.pi * RunnerHazardKind.rockfall.height / 4
+
+    /// 予告の小石を置く高さ（地面から）。画面の右上の斜面に見える位置。
+    static let rockfallPebbleHeight: Double = 34
+
     /// 突き上げ（`RunnerHazardKind.shoot`・#1010）。里山では竹の子、港町では波しぶき。
     ///
     /// **地面の中から伸び上がるので、絵は「切り抜きの窓」の中を上へすべらせる**——伸び切った姿の
@@ -480,6 +560,24 @@ extension RunnerScene {
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.apply(frame.advance < 0 ? .moving : .stopped)
             view.applyWalkFrame(travel: hazard.boarSpawn - frame.start)
+        case .rockfall:
+            // 原点は当たり判定の左下で、帯の下端の高さに置く（斜面を下りているあいだは浮いている）。影は地面に残す。
+            view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY + frame.bottom)
+            view.shadow?.position.y = CGFloat(view.shadowBaseY - frame.bottom)
+            view.apply(frame.bottom > 0 ? .waiting : .moving)
+            // 転がり: 出現点から自分が進んだ距離で 90° ずつ回す（左へ転がるので反時計回り＝正の角度）。
+            let spawn = hazard.start + RunnerRules.rockfallAdvance * RunnerRules.rockfallCueDistance
+            let quarters = ((spawn - frame.start) / Self.fallingRockQuarterTurn).rounded(.down)
+            view.node.childNode(withName: Self.fallingRockSpriteName)?.zRotation = CGFloat(quarters * .pi / 2)
+            // 予告の小石は、岩が画面の外（斜面の上）にいるあいだだけ画面の右上に出す。
+            let screenRight = field.distance + Metrics.width - Metrics.playerX
+            if let pebbles = view.cue {
+                pebbles.isHidden = frame.start < screenRight
+                pebbles.position = CGPoint(
+                    x: screenRight - 4 - frame.start,
+                    y: Self.rockfallPebbleHeight - frame.bottom
+                )
+            }
         case .shoot, .geyser:
             // 原点は当たり判定の左下。位置は動かず、**伸びた高さだけ**が距離で決まる（#1010）。
             // 当たり判定（`frame.top`）と同じ値を絵の位置に使うので、見た目と判定は構造的にずれない。

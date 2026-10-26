@@ -14,7 +14,8 @@ import SwiftUI
 /// まだ遊べない面＝灰＋鍵。ノーミスの★は入れない（決裁が出たら別に足す）。
 ///
 /// 世界の数は `RunnerWorld.allCases` から取り、直書きしない。最後の世界の次は「？？？ つづく…」の
-/// ティザー（#1185 の考え方を引き継ぐ）で、帯・つまみに 1 枚ぶん足す（`pageCount`）。
+/// ティザー（#1185 の考え方を引き継ぐ）で、帯・つまみに 1 枚ぶん足す（`pageCount`）——**ただし物語が 60 面（10 世界）で
+/// 完結した #2729 からは出さない**（`showsTeaser`。設計書 §2.3「10 世界で消す。将来 11 以降を作るなら復活させる」）。
 /// **`RunnerWorld` には実在しない世界を足さない**（`world(forStage:)` 等に混入するため）。
 ///
 /// 世界の色（`RunnerWorld.mapColor`）は見出しの丸・マスの上端の帯・マスの薄い色味にだけ使い、
@@ -24,7 +25,7 @@ struct RunnerWorldMap: View {
     @Binding var selectedStage: Int
     let reachedStage: Int
 
-    /// 見ている帯（0 始まり。`RunnerWorld.allCases.count` はティザー）。
+    /// 見ている帯（0 始まり。ティザーを出すときは `RunnerWorld.allCases.count` がティザー）。
     @State private var page: Int?
 
     init(selectedStage: Binding<Int>, reachedStage: Int) {
@@ -42,8 +43,12 @@ struct RunnerWorldMap: View {
         _page = State(initialValue: initial)
     }
 
-    /// 帯の枚数（実在の世界 + ティザー 1 枚）。
-    static var pageCount: Int { RunnerWorld.allCases.count + 1 }
+    /// 最後の世界の次に「？？？ つづく…」のティザーを出すか（#1185）。物語は富士山（60 面）で完結した（#2729）ので
+    /// 出さない。11 番目の世界を足すときは true に戻す（ティザーの帯・札の絵はそのために残してある）。
+    static let showsTeaser = false
+
+    /// 帯の枚数（実在の世界。ティザーを出すときはさらに 1 枚）。
+    static var pageCount: Int { RunnerWorld.allCases.count + (showsTeaser ? 1 : 0) }
 
     /// 面の属する帯。範囲外は最初の世界。
     static func page(forStage number: Int) -> Int {
@@ -394,7 +399,7 @@ private struct RunnerWorldBandView: View {
             }
             .aspectRatio(keepsAspectRatio ? RunnerWorldBandArt.aspectRatio : nil, contentMode: .fit)
             .clipped()
-            // 絵を起こすのは画面に出たときだけ。帯（いま見ている 1 枚）はすぐ描き、つまみ（最大 9 枚）は
+            // 絵を起こすのは画面に出たときだけ。帯（いま見ている 1 枚）はすぐ描き、つまみ（最大 10 枚）は
             // 1 枚ずつ間を空けて描く（シートを開いた瞬間にメインアクターへ 9 枚ぶんの描画を詰めない）。
             .task(id: world) {
                 image = keepsAspectRatio

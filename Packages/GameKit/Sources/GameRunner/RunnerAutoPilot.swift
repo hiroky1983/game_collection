@@ -186,7 +186,8 @@ public enum RunnerAutoPilot {
         case .pit, .chasm:
             // 裂け目（#2729）も穴と同じ縁の手前で踏み切る。渡り切れるかは幅ではなく二段目を踏むかで決まる。
             return baseLead
-        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser:
+        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser, .rockfall:
+            // 落石（#2729）も犬・イノシシと同じ「向かって来る相手」の式（路面に着いてから踏み切る）。
             // 間欠泉（#1938）も噴き切った高さで見る（止まっている間に踏み切ることは無い——
             // 噴き切りは踏み切り地点より手前）。
             // 突き上げ（#1010）は**伸び切った高さ**（`hazard.height`）で見る——伸びかけの低い

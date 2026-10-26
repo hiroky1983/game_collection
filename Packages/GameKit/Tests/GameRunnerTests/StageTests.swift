@@ -9,13 +9,27 @@ import Testing
 @Suite("チャリンコおじさん: ステージ定義")
 struct RunnerStageTests {
 
-    @Test("受け入れ条件どおり 54 ステージある")
+    @Test("受け入れ条件どおり 60 ステージある")
     func stageCount() {
         // #494 の受け入れ条件は「最低15ステージ」。16〜18 は乗れる台座の枠（#674）、
         // 19〜30 は里山・港町の 2 世界（#1009）、31〜36 は京都・奈良（#1824）、37〜42 は温泉街（#1938）、
-        // 43〜48 は雪国・49〜54 は東京（#2729）。
-        #expect(RunnerRules.stageCount == 54)
-        #expect(RunnerStage.all.map(\.number) == Array(1...54))
+        // 43〜48 は雪国・49〜54 は東京・55〜60 は富士山（#2729）。
+        #expect(RunnerRules.stageCount == 60)
+        #expect(RunnerStage.all.map(\.number) == Array(1...60))
+    }
+
+    /// **49〜54 面のパターン文字列もリテラルで固定する**（#2729 の「1〜54 面は無変更」）。富士山（55 面以降）を
+    /// 足すときに、東京の面が意図せず書き換わっていないことを押さえる。
+    @Test("49〜54 ステージのパターン文字列が固定値どおり")
+    func tokyoStagePatternsArePinned() {
+        #expect(RunnerStage.all[48..<54].map(\.pattern) == [
+            "--PP-1n^-2t-C-t~i2t1-=-n2b1--H-^n-t1^n~1-C-t^n2-1t2ndk2n1--",
+            "--1n^2t-PH-n1~i2t1-=-b2nd-C-t1^n~1-HP-^dk2t1-C-t^n2-1t2nt--",
+            "--PP-1n^d2t-C-t~1-H-n2it1-=-b1^n~V-t2d1n-C-t^n2-1tk2n-2t1--",
+            "--1n^d2t-C-t~i1k-n2t1-=-b1d-H-n2t-w-t~2^n1-C-t^n-H-2n1t2n--",
+            "--1n^d2t-C-V-n~i1-=-H-t1^n2b-V-t2dk1n-C-t~1^n-w-t^n2-1n2---",
+            "--PH-1n^d2t-C-V-w-t~ik2t1=-n2b1-w--H-tn1^-t~2^n1t1d2n-2n1--",
+        ])
     }
 
     /// **43〜48 面のパターン文字列もリテラルで固定する**（#2729 の「1〜48 面は無変更」）。東京（49 面以降）を
@@ -169,9 +183,9 @@ struct RunnerStageTests {
     ///   （#1009 は「おおむね増える」で厳密な単調増加は求めていないが、手で組んだ 18 面は減らない並びに
     ///   してあるので、崩したときに気付けるよう固定する）
     /// - 19 面は 18 面以上（新しい世界に入って急に易しくならない）
-    /// - 各世界の最初の面（19・25・31・37・43・49）は、直前の世界の最後の面（18・24・30・36・42・48）より極端に難しくならない
+    /// - 各世界の最初の面（19・25・31・37・43・49・55）は、直前の世界の最後の面（18・24・30・36・42・48・54）より極端に難しくならない
     ///   （目安として +3 個まで。世界が変わった直後は新しい仕組みを覚える面なので数で押さない）
-    @Test("里山・港町・京都・奈良・温泉街・雪国・東京の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
+    @Test("里山・港町・京都・奈良・温泉街・雪国・東京・富士山の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
     func newWorldHazardCountsNeverDecrease() {
         // **沈む床（#1089）と崩れる足場（#1090）も 1 つで 1 個と数える。** `RunnerHazard` では
         // ないが、遊ぶ側から見れば「越えるか、連打して抜けるか」「止まらずに渡り切るか」を
@@ -180,8 +194,8 @@ struct RunnerStageTests {
         let counts = RunnerStage.all.map {
             $0.hazards.count + $0.sinkFloors.count + $0.crumblingPlatforms.count
         }
-        #expect(counts.count == 54)
-        for range in [18..<24, 24..<30, 30..<36, 36..<42, 42..<48, 48..<54] {
+        #expect(counts.count == 60)
+        for range in [18..<24, 24..<30, 30..<36, 36..<42, 42..<48, 48..<54, 54..<60] {
             let group = Array(counts[range])
             for (previous, next) in zip(group, group.dropFirst()) {
                 #expect(previous <= next, "世界の中で障害数が減っている: \(group)")
@@ -196,7 +210,9 @@ struct RunnerStageTests {
         #expect(counts[42] >= counts[41], "43 面（\(counts[42]) 個）が 42 面（\(counts[41]) 個）より少ない")
         // 東京（#2729）も雪国の締め（48 面）から易しく戻らない。
         #expect(counts[48] >= counts[47], "49 面（\(counts[48]) 個）が 48 面（\(counts[47]) 個）より少ない")
-        for (last, first) in [(17, 18), (23, 24), (29, 30), (35, 36), (41, 42), (47, 48)] {
+        // 富士山（#2729）も東京の締め（54 面）から易しく戻らない。
+        #expect(counts[54] >= counts[53], "55 面（\(counts[54]) 個）が 54 面（\(counts[53]) 個）より少ない")
+        for (last, first) in [(17, 18), (23, 24), (29, 30), (35, 36), (41, 42), (47, 48), (53, 54)] {
             #expect(
                 counts[first] <= counts[last] + 3,
                 "\(first + 1) 面（\(counts[first]) 個）が \(last + 1) 面（\(counts[last]) 個）より極端に多い"
@@ -433,7 +449,7 @@ struct RunnerStageTests {
 
     @Test("区画数と速さがステージ番号どおりに増える（速さは上限 60、区画数は上限 59 で頭打ち）")
     func rampsUp() {
-        // 長さの上限（#2729）: 48 面の 59 区画が `RunnerRules.maxSegments` そのもの。49 面以降（東京）はここで頭打ち。
+        // 長さの上限（#2729）: 48 面の 59 区画が `RunnerRules.maxSegments` そのもの。49 面以降（東京・富士山）はここで頭打ち。
         #expect(RunnerRules.baseSegments + 48 - 1 == RunnerRules.maxSegments)
         #expect(RunnerStage.all.map(\.pattern.count).max() == RunnerRules.maxSegments)
         for stage in RunnerStage.all where stage.number >= 48 {
@@ -506,8 +522,9 @@ struct RunnerStageTests {
                         range > needed + RunnerRules.tileWidth,
                         "ステージ \(stage.number) の穴（長さ \(hazard.length)）が跳び越せない"
                     )
-                case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser:
+                case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser, .rockfall:
                     // 突き上げ（#1010）・間欠泉（#1938）は走者が着く前に伸び切っているので、高い岩とまったく同じ式。
+                    // 落石（#2729）も路面に着いてから出会うので、等価な静止区間（短い高い岩）で同じ式。
                     // 当たり判定が重なるあいだ、ずっと上端より上にいられること。
                     let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
                     let overlap = (encounter.length + halfWidth * 2) / stage.speed
@@ -1161,6 +1178,10 @@ struct RunnerPlaythroughTests {
     /// 外れる（跳ぶ相手ではない）が、**その真下で跳ぶと当たる**のが鳥の本質。下手な操作でも
     /// 「跳んだ先に鳥がいる」ところでは跳ばない——鳥と横に重なる区間（`encounter`）に
     /// 空中のまま入る跳びは挟まない。
+    ///
+    /// 落石（#2729）も別に見る。斜面を下りているあいだ（頭より上）は `nextTarget` の対象から外れるが、路面に
+    /// 着いてすぐ大きく跳ぶ相手で、予告（ゴロゴロと右上の小石）は遊ぶ人に見えている。下手な操作でも、着地が
+    /// 落石の踏み切りの地点（等価な静止区間に対する余裕）を越えてしまう跳びは挟まない。
     private func shouldHopWastefully(field: RunnerField) -> Bool {
         guard field.isGrounded, let target = RunnerAutoPilot.nextTarget(field: field) else { return false }
         let jumpRange = field.stage.speed * RunnerRules.jumpAirTime
@@ -1173,6 +1194,13 @@ struct RunnerPlaythroughTests {
         guard field.distance + (1 - advance) * hop < requiredTakeoff else { return false }
         let landing = field.distance + hop
         let half = RunnerField.Metrics.playerHalfWidth
+        let speed = field.stage.speed(at: field.distance)
+        let rockTooClose = field.stage.hazards.contains { rock in
+            guard rock.kind == .rockfall else { return false }
+            let takeOff = rock.encounter.start - RunnerAutoPilot.lead(for: rock, speed: speed)
+            return field.distance < takeOff && landing >= takeOff
+        }
+        guard !rockTooClose else { return false }
         return !field.stage.hazards.contains { bird in
             bird.kind == .bird && landing > bird.encounter.start - half && field.distance < bird.encounter.end + half
         }
@@ -1200,6 +1228,8 @@ struct RunnerPlaythroughTests {
     /// ——`runningUnderClearsBirds` / `birdsPunishJumpingOnArrival` が別に固定する。
     /// 高い塀（#1091）は**一段では越えられない**のが仕様そのものなので対象外
     /// （二段で越えられることは `RunnerDoubleJumpWallTests` が固定する）。
+    /// 落石（#2729）も高さが高い岩と同じ 9 なので、高い岩と同じ理由で対象外（「大きく跳ぶ」相手。越えられることは
+    /// `RunnerFujiGimmickTests` が全弾道で固定する）。
     /// 突き上げ（#1010）は伸び切った高さが高い岩と同じなので、高い岩と同じ理由で対象外
     /// ——**「予告を読んで高く跳ぶ」を求める仕組み**そのもので、瞬間タップで越えられては困る
     /// （越えられることは `RunnerHazardMotionTests.shootsAreClearedByJumpingHigh` が全弾道で固定する）。
@@ -1208,7 +1238,7 @@ struct RunnerPlaythroughTests {
         for stage in RunnerStage.all {
             for hazard in stage.hazards
             where hazard.kind != .tallBlock && hazard.kind != .bird && hazard.kind != .shoot
-                && hazard.kind != .geyser && hazard.kind != .wall && hazard.kind != .chasm
+                && hazard.kind != .geyser && hazard.kind != .wall && hazard.kind != .chasm && hazard.kind != .rockfall
                 && !(hazard.kind == .boar && hazard.stopAt != nil) {
                 var field = RunnerField(stage: stage)
                 // 踏み切り位置へ直接置く。**測っているのは「踏み切ってからの弾道だけ」**で、
@@ -1604,8 +1634,8 @@ struct RunnerPlaythroughTests {
             let above = tap ? Self.tapTime(above: clearHeight) : RunnerRules.airTime(above: clearHeight)
             latest = hazard.start - half - speed * rise
             earliest = latest - speed * max(0, above - overlap) + RunnerRules.tileWidth / 2
-        case .bird, .dog, .boar:
-            // 動いている相手（#796/#955/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
+        case .bird, .dog, .boar, .rockfall:
+            // 動いている相手（#796/#955/#801・#2729 の落石）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
             return (safeTakeOff, false)
         case .wall, .chasm:
             // 高い塀（#1091）は二段で越える相手で、着地は高さ 18 を落ちたぶんずっと先——

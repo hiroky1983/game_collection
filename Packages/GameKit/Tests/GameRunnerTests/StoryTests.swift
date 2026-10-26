@@ -65,10 +65,10 @@ struct RunnerStoryTests {
         #expect(!keys.contains(RunnerTutorial.seenKey))
     }
 
-    @Test("締めのきっかけは 6・12・18・24・30・36・42・48・54 面で、それ以外の面では流れない")
+    @Test("締めのきっかけは 6・12・18・24・30・36・42・48・54・60 面で、それ以外の面では流れない")
     func endingsFireOnlyAtTheEndOfAWorld() {
         let triggers = RunnerStoryScene.all.compactMap(\.triggerStage)
-        #expect(triggers == [6, 12, 18, 24, 30, 36, 42, 48, 54])
+        #expect(triggers == [6, 12, 18, 24, 30, 36, 42, 48, 54, 60])
         #expect(RunnerStoryScene.intro.triggerStage == nil)
         for stage in 1...RunnerRules.stageCount {
             let scene = RunnerStory.ending(forClearedStage: stage)
@@ -80,15 +80,22 @@ struct RunnerStoryTests {
         #expect(RunnerStory.ending(forClearedStage: RunnerRules.stageCount + 1) == nil)
     }
 
-    @Test("どの場面もコマが 1 枚以上あり、尺は 7 秒以内、台詞は SE の幅に収まる長さ")
+    @Test("どの場面もコマが 1 枚以上あり、尺は 7 秒以内（物語の結末だけ 6 コマ・9.6 秒まで）、台詞は SE の幅に収まる長さ")
     func panelsAreShortEnough() {
         // 上限は元は 5 秒だったが、`panelDuration` を 1.2→1.6 秒に伸ばしたことで
         // いちばん長い港町（4コマ）が 6.4 秒になった（会長指摘・2026-09-22）。
+        // **例外は物語の結末（最後の世界＝富士山の締め・#2729）だけ**: 「当たっとる → 300 円 → 帰ろか」の間が要るので
+        // 6 コマ（9.6 秒）まで（設計書 §2.3。飛ばせるのは今までどおり）。他の締めは 4 コマのまま。
+        let finale = RunnerStoryScene.ending(RunnerWorld.allCases.last!)
         for scene in RunnerStoryScene.all {
             let panels = scene.panels
             #expect(!panels.isEmpty, "\(scene): コマが無い")
             let seconds = Double(panels.count) * RunnerStory.panelDuration
-            #expect(seconds <= 7.0, "\(scene): \(seconds) 秒（1 場面は長くても 7 秒程度）")
+            if scene == finale {
+                #expect(panels.count <= 6, "\(scene): \(panels.count) コマ（結末でも 6 コマまで）")
+            } else {
+                #expect(seconds <= 7.0, "\(scene): \(seconds) 秒（1 場面は長くても 7 秒程度）")
+            }
             #expect(!scene.title.isEmpty)
             for panel in panels {
                 #expect(!panel.line.isEmpty, "\(scene): 台詞が空のコマがある")
@@ -195,11 +202,16 @@ struct RunnerStoryTests {
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen)])
         _ = RunnerStory.endingToPlay(clearedStage: 48, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow)])
-        // 最後の世界（東京・#2729）の締めも、54 面をクリアして初めて並ぶ。
+        // 東京（#2729）の締めも、54 面をクリアして初めて並ぶ。
         _ = RunnerStory.endingToPlay(clearedStage: 53, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow)])
         _ = RunnerStory.endingToPlay(clearedStage: 54, playLog: log, arguments: [])
         #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow), .ending(.tokyo)])
+        // 最後の世界（富士山・#2729）の締め（物語の結末）も、60 面をクリアして初めて並ぶ。
+        _ = RunnerStory.endingToPlay(clearedStage: 59, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow), .ending(.tokyo)])
+        _ = RunnerStory.endingToPlay(clearedStage: 60, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.onsen), .ending(.snow), .ending(.tokyo), .ending(.fuji)])
     }
 
     // MARK: 3. 走行との結び付き
@@ -416,6 +428,11 @@ struct RunnerStoryTests {
             // 東京（#2729）。
             ("ビル街", RunnerStoryArt.cityBlock()),
             ("富士山", RunnerStoryArt.mountFuji()),
+            // 富士山（#2729）。
+            ("山頂の鳥居", RunnerStoryArt.summitTorii()),
+            ("初日の出", RunnerStoryArt.risingSun()),
+            ("ラジオ", RunnerStoryArt.radio()),
+            ("100 円玉", RunnerStoryArt.coins()),
         ]
         for (name, s) in parts {
             #expect(s.undefinedKeys.isEmpty, "\(name): パレットに無い文字 \(s.undefinedKeys)")
@@ -518,7 +535,7 @@ struct RunnerStoryTests {
 
     // MARK: 5. 撮影・QA の入口
 
-    @Test("起動引数から場面を引ける（-simulateRunner story-intro / story-world1〜9）")
+    @Test("起動引数から場面を引ける（-simulateRunner story-intro / story-world1〜10）")
     func debugScenesMapToLaunchArguments() {
         #expect(RunnerStory.debugScene(for: "story-intro") == .intro)
         for world in RunnerWorld.allCases {
@@ -529,7 +546,8 @@ struct RunnerStoryTests {
         #expect(RunnerStory.debugScene(for: "story-world7") == .ending(.onsen))
         #expect(RunnerStory.debugScene(for: "story-world8") == .ending(.snow))
         #expect(RunnerStory.debugScene(for: "story-world9") == .ending(.tokyo))
-        #expect(RunnerStory.debugScene(for: "story-world10") == nil)
+        #expect(RunnerStory.debugScene(for: "story-world10") == .ending(.fuji))
+        #expect(RunnerStory.debugScene(for: "story-world11") == nil)
         #expect(RunnerStory.debugScene(for: "cleared") == nil, "他のシナリオを横取りしている")
         #expect(RunnerStory.debugScene(for: "chasing") == nil)
     }

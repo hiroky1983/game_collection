@@ -129,6 +129,27 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     ///
     /// 解析の死因は**穴と同じ `pit`**（`AnalyticsEndCause` は増やさない）。
     case chasm
+    /// 落石（#2729・区画記号 `r`）。富士山（55〜60 面）の**斜面の上から転がってくる岩**。
+    ///
+    /// **決まった間合いで必ず来る**（会長決裁 2026-10-23「決まった間合いで来る」）: 走者の前端が出会いの地点の
+    /// `RunnerRules.rockfallCueDistance`（イノシシの予告と同じ 18 タイル）手前に入った瞬間に「ゴロゴロ」の手応え
+    /// （`RunnerEvent.rockfallRumbling`）と、画面の右上の斜面を小石が転げ落ちる予告が出る。岩はそのとき画面の外
+    /// （斜面の上）にいて、走者の `RunnerRules.rockfallAdvance`（0.5）倍の速さで左へ進みながら斜面を下り、
+    /// 出会いの地点の `RunnerRules.rockfallLandingGap` 手前で路面に着いて、そこからは路面を転がって来る。
+    /// 位置も高さも**走者の距離だけで決まる**（犬・イノシシと同じ。乱数も時計も使わない）ので、
+    /// 予告から出会いまでは毎回同じ間合いになる。
+    ///
+    /// 高さは**高い岩と同じ 9**（`tallBlock.height`）——犬・イノシシ（5）と違って軽いタップでは越えられず、
+    /// 大きく跳ぶ相手。幅 2 タイル（8）で、相対速度 1.5 で走者の体を通り抜けるので、走者から見た等価な静止区間
+    /// （`encounter`）は長さ (8 + 8) / 1.5 − 8 ≒ 2.7 の高い岩——静止した高い岩（長さ 4）より短い。
+    /// ジャンプの物理・速さの上限・ほかの障害の決まりは何も変えない。
+    ///
+    /// **岩では止まらない**（イノシシの `stopAt` は持たない）: 予告から出会うまで、岩の左端は自分の区画の中（区画の左端から
+    /// 60 → 24）を動き、次の区画にかかる（右端が区画の境を越える）のは斜面の上の頭よりずっと高いところだけなので、
+    /// 隣の区画の岩・台座とは交わらない。
+    ///
+    /// 解析の死因は**岩と同じ `rock`**（`AnalyticsEndCause` は増やさない）。
+    case rockfall
 
     /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
@@ -137,7 +158,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 止まった鳥に触れることは無い。
     public var bottom: Double {
         switch self {
-        case .pit, .chasm, .lowBlock, .tallBlock, .dog, .boar, .shoot, .geyser, .wall: return 0
+        // 落石（#2729）は路面に着いてからの値（斜面を下りているあいだは `frame` が帯を持ち上げる）。
+        case .pit, .chasm, .lowBlock, .tallBlock, .dog, .boar, .shoot, .geyser, .wall, .rockfall: return 0
         case .bird:                                                  return Self.birdLowTop - Self.birdBandHeight
         }
     }
@@ -159,6 +181,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
         case .pit, .chasm:       return 0
         case .lowBlock:          return 5
         case .tallBlock:         return 9
+        // 落石（#2729）は高い岩と同じ高さ（値を書き写さず導く。突き上げの `shootTop` と同じ作法）。
+        case .rockfall:          return Self.tallBlock.height
         case .bird, .dog, .boar: return Self.birdLowTop
         case .shoot, .geyser:    return Self.shootTop
         case .wall:              return Self.wallTop
@@ -188,7 +212,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     public var missCause: AnalyticsEndCause {
         switch self {
         case .pit, .chasm:                 return .pit
-        case .lowBlock, .tallBlock, .shoot, .geyser, .wall: return .rock
+        case .lowBlock, .tallBlock, .shoot, .geyser, .wall, .rockfall: return .rock
         case .bird:                        return .bird
         case .dog, .boar:                  return .animal
         }
@@ -346,7 +370,33 @@ public struct RunnerHazard: Equatable, Sendable {
         switch kind {
         case .pit, .chasm, .lowBlock, .tallBlock, .bird, .dog, .shoot, .geyser, .wall: return nil
         case .boar: return (boarChargeStartDistance, .boarCharging)
+        // 落石（#2729）は手応え（ゴロゴロ）と見た目（右上の小石）の両方で予告する。
+        case .rockfall: return (rockfallCueDistance, .rockfallRumbling)
         }
+    }
+
+    // MARK: 落石（#2729 富士山）
+
+    /// 落石の予告（ゴロゴロの手応えと小石）が出る走者の距離（中心 x）。**前端**が出会いの地点 `start` の
+    /// `RunnerRules.rockfallCueDistance` 手前に入った瞬間（イノシシの `boarChargeStartDistance` と同じ作法）。
+    public var rockfallCueDistance: Double {
+        start - RunnerRules.rockfallCueDistance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// 走者の前端から出会いの地点までの間合い（前方が正）。落石の位置と高さはこの値だけで決まる。
+    public func rockfallGap(atRunnerDistance distance: Double) -> Double {
+        start - distance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// 落石の帯の下端（地面から）。予告の瞬間は `RunnerRules.rockfallDropHeight`、そこから一定の傾きで下りて
+    /// 間合い `RunnerRules.rockfallLandingGap` で路面（0）に着き、以後は 0。当たり判定（`frame`）と
+    /// 見た目（`RunnerScene.syncMovingHazard`）は**両方ここを読む**。
+    public func rockfallDrop(atRunnerDistance distance: Double) -> Double {
+        let gap = rockfallGap(atRunnerDistance: distance)
+        let landing = RunnerRules.rockfallLandingGap
+        guard gap > landing else { return 0 }
+        let span = RunnerRules.rockfallCueDistance - landing
+        return RunnerRules.rockfallDropHeight * min(1, (gap - landing) / span)
     }
 
     // MARK: 突き上げ（#1010 竹の子・波しぶき）
@@ -466,6 +516,17 @@ public struct RunnerHazard: Equatable, Sendable {
                 start: charging, end: charging + length, bottom: 0, top: height,
                 advance: -RunnerRules.boarAdvance
             )
+        case .rockfall:
+            // 予告の前は斜面の上（画面の外）にいて当たり判定を持たない。予告からは左へ `rockfallAdvance` で進みながら
+            // 斜面を下り（帯ごと持ち上げて返す——見た目と当たり判定が一致する）、路面に着いたら転がって来る。
+            // 出会う瞬間（間合い 0）に左端が `start` に着く（犬・イノシシと同じ）。
+            guard distance >= rockfallCueDistance else { return nil }
+            let x = start + RunnerRules.rockfallAdvance * rockfallGap(atRunnerDistance: distance)
+            let drop = rockfallDrop(atRunnerDistance: distance)
+            return RunnerHazardFrame(
+                start: x, end: x + length, bottom: drop, top: drop + height,
+                advance: -RunnerRules.rockfallAdvance
+            )
         case .geyser:
             // 噴いていない間も**帯の高さ 0 の枠として返す**（描画が泡立ちの合図を出し続けるため）。
             // 高さ 0 の帯は接地した足（`footY` = 地面）には当たらない。自動操縦の踏み切りは
@@ -523,6 +584,15 @@ public struct RunnerHazard: Equatable, Sendable {
                 length: (length + playerWidth) / (1 - k) - playerWidth,
                 height: height
             )
+        case .rockfall:
+            // 落石（#2729）は路面に着いてから出会うので、犬・イノシシと同じ「前から `k` で向かって来る相手」の式。
+            // 幅 8・`k` = 0.5 なら `(8 + 8) / 1.5 − 8` ≒ 2.7 で、置いた位置の短い高い岩。
+            let k = RunnerRules.rockfallAdvance
+            return RunnerHazardEncounter(
+                start: start,
+                length: (length + playerWidth) / (1 + k) - playerWidth,
+                height: height
+            )
         case .boar:
             if let stopAt {
                 return RunnerHazardEncounter(start: stopAt, length: length, height: height)
@@ -552,6 +622,9 @@ public struct RunnerHazard: Equatable, Sendable {
             return dogAppearDistance...(encounter.end + half)
         case .boar:
             return boarChargeStartDistance...(max(encounter.end, boarSpawn) + half)
+        case .rockfall:
+            // 予告（ゴロゴロ）から、すれ違って後端が抜けるまで（#2729）。斜面を下りている最中から再開させない。
+            return rockfallCueDistance...(encounter.end + half)
         case .geyser:
             // 画面に入って最初に噴くところから、後端が抜けるまで（#1938）。
             return geyserCueDistance...(end + half)
@@ -766,13 +839,15 @@ public enum RunnerEvent: Equatable, Sendable {
     /// イノシシの突進が始まった（#801）。土煙と「ドドド」の手応えの発火点。決着ではない。
     /// 犬（#955）は前から歩いて来るのが見えるので予告のできごとを持たない。
     case boarCharging
+    /// 落石（#2729）の予告が出た。「ゴロゴロ」の手応えと、画面の右上を小石が転げ落ちる見た目の発火点。決着ではない。
+    case rockfallRumbling
 
     /// このできごとでコースが終わるか（ミスかゴール）。
     public var isTerminal: Bool {
         switch self {
         case .fell, .crashed, .reachedGoal:
             return true
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .rockfallRumbling:
             return false
         }
     }

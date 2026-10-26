@@ -79,6 +79,7 @@ extension RunnerScene {
             case .onsen:      addOnsen(to: tile, index: i)
             case .snow:       addSnow(to: tile, index: i)
             case .tokyo:      addTokyo(to: tile, index: i)
+            case .fuji:       addFuji(to: tile, index: i)
             }
             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
             hillLayer.addChild(tile)
@@ -91,11 +92,21 @@ extension RunnerScene {
     /// 丘の後ろ（`backdropLayer`）に置くので、丘の切れ目からだけ覗く。
     private func buildBackdrop() {
         // 東京（#2729）も地平線に帯を敷く（茜の名残。夕方の帯と同じ組み立てで色だけが違う）。
+        // 富士山（#2729）は御来光の帯と、その上に昇りかけの朝日（動かない遠景なので丘の切れ目から覗く）。
         let glowColor: UInt32
         switch world.scenery {
         case .riverside: glowColor = RunnerWorld.SceneryPalette.sunsetGlow
         case .tokyo:     glowColor = RunnerWorld.SceneryPalette.duskGlow
+        case .fuji:      glowColor = RunnerWorld.SceneryPalette.sunriseGlow
         default:         return
+        }
+        if world.scenery == .fuji {
+            let sun = SKShapeNode(circleOfRadius: Self.fujiSunRadius)
+            sun.fillColor = RunnerPalette.color(RunnerWorld.SceneryPalette.sun)
+            sun.strokeColor = .clear
+            sun.position = CGPoint(x: Metrics.width * 0.72, y: Metrics.groundY + 34)
+            sun.zPosition = 1
+            backdropLayer.addChild(sun)
         }
         let glow = SKSpriteNode(
             color: RunnerPalette.color(glowColor),
@@ -1056,6 +1067,110 @@ extension RunnerScene {
                 tile.addChild(lamp)
             }
         }
+    }
+
+    /// 富士山の昇りかけの朝日の半径（`buildBackdrop`）。丘の稜線（地面 + 34）の上に半分ほど顔を出す大きさ。
+    static let fujiSunRadius: Double = 6
+
+    /// 富士山（`RunnerWorld.Scenery.fuji`・#2729）。丘の 2 つの山（`palette.hillFar` / `hillNear`）は**火山の斜面**そのもので、
+    /// その裾に**雲海**（白い雲の帯と、上へ盛り上がる雲の丸）を全タイルに流し、タイルの番号で山小屋（3 で割り切れる番号。
+    /// 石積みの壁にトタン屋根）・山頂の鳥居（余り 1）・斜面に張り付くハイマツ（余り 2）を立てる。道の奥には全タイルに
+    /// 登山道のロープ柵（杭と縄）が続く（乱数は使わない。撮影・QA で毎回同じ画）。色は `RunnerWorld.SceneryPalette`
+    /// （どれも空と 2:1 未満・手前の暗い火山岩・カモシカ・ブルドーザーと 3:1 以上・`WorldTests`）。
+    private func addFuji(to tile: SKNode, index: Int) {
+        typealias P = RunnerWorld.SceneryPalette
+        let width = Self.hillSpacing
+        let base = Metrics.groundY
+
+        // 雲海。丘の裾を覆う白い帯（高さ 5）と、その上に盛り上がる雲の丸（6 おき・大きさを 2 通りで交互に）。1 本のパス。
+        let clouds = CGMutablePath()
+        clouds.addRect(CGRect(x: 0, y: base, width: width, height: 5))
+        var cx = 3.0, big = true
+        while cx < width {
+            let r = big ? 3.4 : 2.4
+            clouds.addEllipse(in: CGRect(x: cx - r, y: base + 5 - r * 0.6, width: r * 2, height: r * 1.6))
+            cx += 6
+            big.toggle()
+        }
+        let cloudNode = SKShapeNode(path: clouds)
+        cloudNode.fillColor = RunnerPalette.color(P.seaOfClouds)
+        cloudNode.strokeColor = .clear
+        cloudNode.zPosition = SceneryZ.back
+        tile.addChild(cloudNode)
+
+        switch index % 3 {
+        case 0:
+            // 山小屋。石積みの壁（窓を 2 つ空けた形は壁の色の段差で見せる）に、浅い片流れのトタン屋根。
+            let x0 = 18.0, w = 22.0, h = 7.0
+            let wall = SKSpriteNode(color: RunnerPalette.color(P.hutWall), size: CGSize(width: w, height: h))
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: x0, y: base)
+            wall.zPosition = SceneryZ.middle
+            tile.addChild(wall)
+            let roof = CGMutablePath()
+            roof.addLines(between: [
+                CGPoint(x: x0 - 1.4, y: base + h), CGPoint(x: x0 + w + 1.4, y: base + h),
+                CGPoint(x: x0 + w + 1.4, y: base + h + 1.2), CGPoint(x: x0 + 2, y: base + h + 3.4),
+            ])
+            roof.closeSubpath()
+            let roofNode = SKShapeNode(path: roof)
+            roofNode.fillColor = RunnerPalette.color(P.hutRoof)
+            roofNode.strokeColor = .clear
+            roofNode.zPosition = SceneryZ.middle
+            tile.addChild(roofNode)
+            // 窓と戸（屋根と同じ色の小さな四角。暗くはしない——背景なので空と 2:1 未満に留める）。
+            let openings = CGMutablePath()
+            openings.addRect(CGRect(x: x0 + 3, y: base + 3, width: 3, height: 2))
+            openings.addRect(CGRect(x: x0 + 14, y: base + 3, width: 3, height: 2))
+            openings.addRect(CGRect(x: x0 + 9, y: base, width: 3, height: 4.4))
+            let openingNode = SKShapeNode(path: openings)
+            openingNode.fillColor = RunnerPalette.color(P.hutRoof)
+            openingNode.strokeColor = .clear
+            openingNode.zPosition = SceneryZ.front
+            tile.addChild(openingNode)
+        case 1:
+            // 山頂の鳥居。2 本の柱に、両端が反った笠木と貫。1 本のパス。
+            let torii = CGMutablePath()
+            let cx = 40.0
+            torii.addRect(CGRect(x: cx - 5.2, y: base, width: 1.3, height: 11))
+            torii.addRect(CGRect(x: cx + 3.9, y: base, width: 1.3, height: 11))
+            torii.addRect(CGRect(x: cx - 6.4, y: base + 8.0, width: 12.8, height: 1.0))
+            torii.addLines(between: [
+                CGPoint(x: cx - 8.4, y: base + 11.8), CGPoint(x: cx + 8.4, y: base + 11.8),
+                CGPoint(x: cx + 7.6, y: base + 10.6), CGPoint(x: cx - 7.6, y: base + 10.6),
+            ])
+            torii.closeSubpath()
+            let toriiNode = SKShapeNode(path: torii)
+            toriiNode.fillColor = RunnerPalette.color(P.summitTorii)
+            toriiNode.strokeColor = .clear
+            toriiNode.zPosition = SceneryZ.middle
+            tile.addChild(toriiNode)
+        default:
+            // ハイマツ。斜面に低く張り付く緑灰の塊を 3 つ（大きさ違い）。
+            let pines = CGMutablePath()
+            for (x, w, h) in [(8.0, 9.0, 3.4), (27.0, 6.0, 2.6), (47.0, 11.0, 3.8)] {
+                pines.addEllipse(in: CGRect(x: x - w / 2, y: base, width: w, height: h * 2))
+            }
+            let pineNode = SKShapeNode(path: pines)
+            pineNode.fillColor = RunnerPalette.color(P.haimatsu)
+            pineNode.strokeColor = .clear
+            pineNode.zPosition = SceneryZ.middle
+            tile.addChild(pineNode)
+        }
+
+        // 登山道のロープ柵。10 おきの杭と、杭の上を渡す縄（細い帯）。全タイル続く。1 本のパス。
+        let fence = CGMutablePath()
+        var px = 5.0
+        while px < width {
+            fence.addRect(CGRect(x: px - 0.4, y: base, width: 0.8, height: 3.6))
+            px += 10
+        }
+        fence.addRect(CGRect(x: 0, y: base + 2.8, width: width, height: 0.4))
+        let fenceNode = SKShapeNode(path: fence)
+        fenceNode.fillColor = RunnerPalette.color(P.ropePost)
+        fenceNode.strokeColor = .clear
+        fenceNode.zPosition = SceneryZ.front
+        tile.addChild(fenceNode)
     }
 
     /// 塔のてっぺんの航空灯（東京・#2729）。赤い点がゆっくり点滅する。

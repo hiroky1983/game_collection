@@ -34,7 +34,7 @@ public enum RunnerAccessibility {
     }
 
     /// ステージセレクト（#2730）の世界の帯とつまみ。「ワールド 8 / 10、雪国」。`total` は
-    /// つまみの数（実在の世界 + 「つづく」のティザー 1 つ）。
+    /// つまみの数（`RunnerWorldMap.pageCount`。物語が完結した #2729 からは実在の世界の数そのもの）。
     public static func worldBandLabel(world: RunnerWorld, total: Int) -> String {
         tr("%1$@、%2$@", tr("ワールド %1$lld / %2$lld", world.number, total), world.displayName)
     }

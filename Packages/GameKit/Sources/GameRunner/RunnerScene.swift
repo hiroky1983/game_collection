@@ -63,6 +63,7 @@ final class RunnerScene: SKScene {
         .snowman: RunnerScene.makeTexture(RunnerPixelArt.snowman(), name: "雪だるま"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         .trafficCone: RunnerScene.makeTexture(RunnerPixelArt.trafficCone(), name: "カラーコーン"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
         .vendingMachine: RunnerScene.makeTexture(RunnerPixelArt.vendingMachine(), name: "自動販売機"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        .signpost: RunnerScene.makeTexture(RunnerPixelArt.signpost(), name: "道標"),  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
     ]
     /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
     ///
@@ -112,6 +113,18 @@ final class RunnerScene: SKScene {
 
     /// テスト用: いま作ってキャッシュしてある高い塀のテクスチャの種類。
     var cachedWallStyles: Set<RunnerWorld.Dressing.Wall> { Set(wallTextureCache.keys) }
+
+    /// 落石（#2729 富士山）のテクスチャ。高い塀と同じく**その世界で最初に使うときに作ってキャッシュする**
+    /// （落石が出るのは 55 面以降なので、そこまで遊ばない人のぶんは 1 枚も起こさない）。
+    private var fallingRockTextureCache: [RunnerWorld: SKTexture] = [:]
+
+    /// 落石の絵。初回だけ作る。色は世界の岩の 3 階調（`RunnerPixelArt.fallingRock(world:)`）。
+    func fallingRockTexture(_ world: RunnerWorld) -> SKTexture {
+        if let cached = fallingRockTextureCache[world] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.fallingRock(world: world), name: "落石 \(world)")  // i18n-keep: テクスチャのデバッグ名（ユーザーには出ない）
+        fallingRockTextureCache[world] = texture
+        return texture
+    }
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが

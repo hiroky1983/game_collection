@@ -17,8 +17,8 @@ import SwiftUI
 /// 使い回すもの（同 B「既存の絵は使い回す」）: 走者のコマと正面顔（`OjisanPixel`）・
 /// ゴールの宝くじ（`RunnerPixelArt.lotteryTicket`）・世界の配色（`RunnerWorld`）。
 /// 新しく描き起こすのは、この話にしか出てこない**福引きのガラガラ・カラス・配達トラック・貨物船**の 4 つだけ
-/// （#2729 の雪国で**除雪車・列車・雪の吹き溜まり**の 3 つ、東京で**ビル街・富士山**の 2 つが増えた。
-/// 除雪車は配達トラックの型の使い回し）。
+/// （#2729 の雪国で**除雪車・列車・雪の吹き溜まり**の 3 つ、東京で**ビル街・富士山**の 2 つ、富士山で
+/// **山頂の鳥居・初日の出・ラジオ・100 円玉**の 4 つが増えた。除雪車は配達トラックの型の使い回し）。
 enum RunnerStoryArt {
     /// 1 コマの格子（ドット）。16:9 より少し縦長にして、走者（40×37）と台詞の両方が収まる比にする。
     ///
@@ -116,6 +116,19 @@ enum RunnerStoryArt {
         case tokyoFuji
         /// 東京: 「つづく」。富士山の上の空に小さくなった宝くじ。
         case tokyoToBeContinued
+
+        /// 富士山（#2729）: 山頂の鳥居に引っかかった宝くじに手を伸ばす（構図は「あと一歩」と同じ）。
+        case fujiSummit
+        /// 富士山: 雲海から昇る初日の出（おじさんは `smile`）。
+        case fujiSunrise
+        /// 富士山: ラジオで当選番号を聞く（おじさんは `smile`）。
+        case fujiRadio
+        /// 富士山: 当たっていたのは 300 円——100 円玉 3 枚（おじさんは `gaze`）。
+        case fujiThreeHundred
+        /// 富士山: 「ほな、帰ろか」。初日の出のほうへママチャリで走り出す。
+        case fujiHomeward
+        /// 富士山: 「おしまい」。朝日の昇る富士山だけ（おじさんは出さない）。
+        case fujiTheEnd
     }
 
     // MARK: 1 コマを組む
@@ -291,7 +304,49 @@ enum RunnerStoryArt {
             return backdrop(.tokyo)
                 .overlaying(fit(mountFuji()), x: 72, y: groundY - 58)
                 .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 118, y: 10)
+
+        case .fujiSummit:
+            // 山頂の鳥居。宝くじは鳥居の笠木に引っかかっていて、おじさんは「あと一歩」と同じ構図で跳んで手を伸ばす。
+            return backdrop(.fuji)
+                .overlaying(fit(summitTorii(), times: 2), x: 120, y: groundY - 72)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 150, y: groundY - 78)
+                .overlaying(fit(OjisanPixel.rider(.jump)), x: 52, y: groundY - 80)
+        case .fujiSunrise:
+            // 雲海から昇る初日の出。地平線を雲海の白で塗り、朝日を大きく半分だけ出す。おじさんは左で `smile`。
+            return fujiDawn(sunX: 128, sunTimes: 2)
+                .overlaying(bust(.smile), x: 0, y: bustY)
+        case .fujiRadio:
+            // ラジオで当選番号を聞く。朝日は小さく右奥、ラジオを大きく。
+            return fujiDawn(sunX: 176, sunTimes: 1)
+                .overlaying(fit(radio(), times: 2), x: 112, y: groundY - 56)
+                .overlaying(bust(.smile), x: 0, y: bustY)
+        case .fujiThreeHundred:
+            // 当たっていたのは 300 円。100 円玉 3 枚と宝くじ。おじさんは左で `gaze`（ぽかん）。
+            return fujiDawn(sunX: 176, sunTimes: 1)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 120, y: 18)
+                .overlaying(fit(coins(), times: 2), x: 112, y: groundY - 32)
+                .overlaying(bust(.gaze), x: 0, y: bustY)
+        case .fujiHomeward:
+            // 「ほな、帰ろか」。朝日のほうへママチャリで走り出す（始まりの追いかける構図と同じ向き）。
+            return fujiDawn(sunX: 150, sunTimes: 2)
+                .overlaying(fit(OjisanPixel.rider(.ride0)), x: 40, y: groundY - 74)
+        case .fujiTheEnd:
+            // 「おしまい」。朝日の昇る富士山だけ（おじさんは出さない）。
+            return backdrop(.fuji)
+                .overlaying(fit(risingSun()), x: 100, y: groundY - 78)
+                .overlaying(fit(mountFuji()), x: 72, y: groundY - 58)
         }
+    }
+
+    /// 富士山の夜明けのコマの土台（#2729）。地平線（丘の上端）に雲海の白い帯を敷き、その上に朝日を半分だけ出す。
+    private static func fujiDawn(sunX: Int, sunTimes: Int) -> PixelSprite {
+        let sun = fit(risingSun(), times: sunTimes)
+        return backdrop(.fuji)
+            .overlaying(sun, x: sunX, y: groundY - 28 - sun.height)
+            .overlaying(
+                PixelSprite.solid(width: panelWidth, height: 8, color: RunnerWorld.SceneryPalette.seaOfClouds),
+                x: 0, y: groundY - 30
+            )
     }
 
     /// 温泉街のサル（コースの絵 `RunnerPixelArt.monkey` の歩きのコマ）。色はその世界の `Creatures` から写す。
@@ -440,6 +495,9 @@ enum RunnerStoryArt {
         "I": 0xDDEDF6, "L": 0x4E7CA3,
         // 東京（#2729）。富士山の裾野の青灰 2 階調（面・陰）。雪の冠は生成りの白 `W`、ビル街は船体の灰 `H` と窓の暗い灰 `T`。
         "Z": 0x6E82A8, "z": 0x55688C,
+        // 富士山（#2729）。朝日の金 `S`・照り `s`（`RunnerWorld.SceneryPalette.sun`）、100 円玉の銀 `g`・陰 `e`。
+        // 鳥居の朱はママチャリと同じ赤 `R`/`r`、ラジオは運転席の紺 `C`・タイヤの暗い灰 `T`/`t`・金のダイヤル `Y`。
+        "S": 0xFFC86A, "s": 0xFFE3B8, "g": 0xC8CCD2, "e": 0x8A9098,
     ]
 
     /// 福引きのガラガラ（24×20）。八角のドラムに小窓、下は木の台、右にハンドル。
@@ -652,6 +710,82 @@ enum RunnerStoryArt {
         ".KZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZzzzzzK.",
         "KZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZzzzzzK",
         "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    /// 山頂の鳥居（20×18）。朱の笠木（`R`・下の陰 `r`）と貫、2 本の柱（右の陰 `r`）、黒い根巻き（`T`）。富士山の締めの
+    /// 1 コマ目で、宝くじが笠木に引っかかっている。
+    static func summitTorii() -> PixelSprite { PixelSprite(rows: summitToriiRows, palette: palette) }
+
+    static let summitToriiRows: [String] = [
+        "KKKKKKKKKKKKKKKKKKKK",
+        "KRRRRRRRRRRRRRRRRRRK",
+        ".KrrrrrrrrrrrrrrrrK.",
+        "..KKKKKKKKKKKKKKKK..",
+        "...KRRK......KRRK...",
+        "KKKKRRKKKKKKKKRRKKKK",
+        "KRRRRRRRRRRRRRRRRRRK",
+        "KKKKRRKKKKKKKKRRKKKK",
+        "...KRRK......KRRK...",
+        "...KRrK......KRrK...",
+        "...KRrK......KRrK...",
+        "...KRrK......KRrK...",
+        "...KRrK......KRrK...",
+        "...KRrK......KRrK...",
+        "...KRrK......KRrK...",
+        "...KRrK......KRrK...",
+        "..KTTTTK....KTTTTK..",
+        "..KKKKKK....KKKKKK..",
+    ]
+
+    /// 初日の出（24×12）。地平線から半分だけ顔を出した朝日（縁の金 `S`・中の淡い照り `s`）。下端は雲海の帯で隠す。
+    static func risingSun() -> PixelSprite { PixelSprite(rows: risingSunRows, palette: palette) }
+
+    static let risingSunRows: [String] = [
+        "..........SSSS..........",
+        ".......SSSSSSSSSS.......",
+        ".....SSSSSSSSSSSSSS.....",
+        "....SSSSssSSSSSSSSSS....",
+        "...SSSssssSSSSSSSSSSS...",
+        "..SSSsssssssssssSSSSSS..",
+        "..SSsssssssssssssSSSSS..",
+        ".SSSSSssssssssssssSSSSS.",
+        ".SSSSssssssssssssssSSSS.",
+        ".SSSSssssssssssssssSSSS.",
+        "SSSSSssssssssssssssSSSSS",
+        "SSSSSssssssssssssssSSSSS",
+    ]
+
+    /// 携帯ラジオ（22×14）。紺の筐体（`C`）にスピーカーの網（`t`/`T`）、金の周波数の窓とつまみ（`Y`）、斜めのアンテナ。
+    static func radio() -> PixelSprite { PixelSprite(rows: radioRows, palette: palette) }
+
+    static let radioRows: [String] = [
+        "..................K...",
+        ".................K....",
+        "................K.....",
+        "...............K......",
+        "..KKKKKKKKKKKKKKKKKK..",
+        ".KCCCCCCCCCCCCCCCCCCK.",
+        "KCCKKKKKKKKCCCKKKKKCCK",
+        "KCKttttttttKCKYYYYYKCK",
+        "KCKtTtTtTtTKCKYKYKYKCK",
+        "KCKttttttttKCKYYYYYKCK",
+        "KCKtTtTtTtTKCCKKKKKCCK",
+        "KCKttttttttKCCKYKCKYCK",
+        "KCCKKKKKKKKCCCCKKCKKCK",
+        "KKKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    /// 100 円玉 3 枚（28×7）。銀（`g`）に刻印の陰（`e`）。宝くじの当たりは 300 円。
+    static func coins() -> PixelSprite { PixelSprite(rows: coinRows, palette: palette) }
+
+    static let coinRows: [String] = [
+        "..KKKK......KKKK......KKKK..",
+        ".KggggK....KggggK....KggggK.",
+        "KgeggegK..KgeggegK..KgeggegK",
+        "KggeeggK..KggeeggK..KggeeggK",
+        "KgeggegK..KgeggegK..KgeggegK",
+        ".KggggK....KggggK....KggggK.",
+        "..KKKK......KKKK......KKKK..",
     ]
 
     // MARK: 表示用のビットマップ

@@ -622,7 +622,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .rockfallRumbling:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
