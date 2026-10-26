@@ -50,7 +50,7 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "App/Assets.xcassets/HubTiles")
-CORE_RES = os.path.join(ROOT, "Packages/GameKit/Sources/Core/Resources")
+CORE_RES = os.path.join(ROOT, "Packages/GameKit/Sources/CoreOjisanPixel/Resources")
 PUZZLE_RES = os.path.join(ROOT, "Packages/GameKit/Sources/GameOjisanPuzzle/Resources")
 HANAFUDA_CARDS = os.path.join(ROOT, "Packages/GameKit/Sources/GameHanafuda/Resources/Cards")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"

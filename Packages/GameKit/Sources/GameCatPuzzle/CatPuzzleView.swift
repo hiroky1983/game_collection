@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreOjisanPixel
 
 /// おじさんちのねこさがし（#2250）のプレイ画面。家の間取りのマスをタップで ×（いない）を付け外しし、ダブルタップで猫を見つける。
 public struct CatPuzzleView: View {

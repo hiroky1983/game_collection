@@ -1,4 +1,5 @@
 import Core
+import CoreOjisanPixel
 import Foundation
 
 /// コースに置く障害の種類（#494）。

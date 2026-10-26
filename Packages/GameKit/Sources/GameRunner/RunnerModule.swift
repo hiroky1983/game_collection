@@ -1,4 +1,5 @@
 import Core
+import CoreOjisanPixel
 import SwiftUI
 
 /// チャリンコおじさんの `GameModule` 登録口（#494）。
