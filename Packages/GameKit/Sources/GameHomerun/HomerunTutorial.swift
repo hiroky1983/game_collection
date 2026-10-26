@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreOjisan
 import HomerunCore
 
 // MARK: - 操作の説明（#1763）

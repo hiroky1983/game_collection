@@ -1,6 +1,7 @@
 import SwiftUI
 import ImageIO
 import Core
+import CoreOjisan
 
 /// 打席前・結果画面のおじさん（構えの正面）。3D（RealityKit）は描かず、書き出した透明 PNG を出す（#1772）。
 /// 以前は画面を開くたびに `ARView` を作って USDZ を主スレッドで読んでいたため、表示までが遅かった。

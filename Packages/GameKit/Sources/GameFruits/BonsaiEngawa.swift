@@ -1,5 +1,6 @@
 import Core
 import CoreGraphics
+import CoreOjisan
 import CoreOjisanPixel
 import Foundation
 import ImageIO
