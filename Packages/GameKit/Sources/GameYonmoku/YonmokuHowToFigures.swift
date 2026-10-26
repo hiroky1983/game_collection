@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の四目並べの図。文言は `HowToPlayGuide.yonmoku.items`（Core）と同じ順。

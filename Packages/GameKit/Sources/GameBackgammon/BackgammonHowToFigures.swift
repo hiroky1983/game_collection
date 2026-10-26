@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2386）のバックギャモンの図。文言は `HowToPlayGuide.backgammon.items`（Core）と同じ順。

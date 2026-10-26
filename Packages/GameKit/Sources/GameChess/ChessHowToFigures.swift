@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のチェスの図。文言は `HowToPlayGuide.chess.items`（Core）と同じ順。

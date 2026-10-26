@@ -74,6 +74,10 @@ let package = Package(
         // 絵を描き足しても他のゲームのテストを走らせない（#2953）。
         .target(name: "CoreObjectArt",      dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
+        // 盤ゲームの遊び方の図（#2044）で共通に使う小さな盤。将棋・五目並べ・囲碁・チェス・オセロ・バックギャモン・四目並べだけが使うので
+        // Core から切り出し、盤を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreMiniBoard",      dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
         // ソリティア・フリーセル・スパイダーの遊び方の図（#2044）。3 本だけが使うので Core から切り出し、
         // 図を直しても他のゲームのテストを走らせない（#2953）。
         .target(name: "CoreSolitaireFigures", dependencies: ["Core"],
@@ -90,19 +94,19 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         .target(name: "Game2048",           dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameShogi",          dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameShogi",          dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameGomoku",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameGomoku",         dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // 囲碁（#398）。ルール・終局計算・MCTS はすべて純粋ロジックなので Core だけに依存する。
-        .target(name: "GameGo",             dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameGo",             dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // チェス（#462）。ルール・探索は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameChess",          dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameChess",          dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameMinesweeper",    dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameOthello",        dependencies: ["Core"],
+        .target(name: "GameOthello",        dependencies: ["Core", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GamePoker",          dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -156,7 +160,7 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         // バックギャモン（#1322・企画倉庫）。移動・叩き・ベアオフの判定と CPU の手順選びは純粋ロジックで、
         // サイコロの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
-        .target(name: "GameBackgammon",     dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameBackgammon",     dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // マンカラ（#1626・企画倉庫）。種まき・取り・終局の回収と CPU の αβ 探索は純粋ロジックで、
         // 入門の無作為選択に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
@@ -240,7 +244,7 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         // 四目並べ（#1738・企画倉庫）。落下・勝ちの判定と CPU の αβ 探索（ビットボード）は純粋ロジックで、
         // 弱い段の外しの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は五目並べと同じ `AITurnGuarded` の定石。
-        .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // おじさんちのねこさがし（#2250・v1.1.14 でハブに公開）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・
         // 矛盾の判定は純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。

@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の将棋の図。文言は `HowToPlayGuide.shogi.items`（Core）と同じ順。
