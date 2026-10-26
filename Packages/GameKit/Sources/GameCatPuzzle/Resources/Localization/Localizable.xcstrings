@@ -981,7 +981,7 @@
         }
       }
     },
-    "あきらめて答えを見る" : {
+    "あきらめて正解を見る" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1003,25 +1003,13 @@
         }
       }
     },
-    "ミスが%lld回になりました" : {
+    "負けを確定して、猫のいる場所を盤に表示します" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You've made %lld mistake"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You've made %lld mistakes"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends the game and shows where the cats are on the board"
           }
         }
       }
