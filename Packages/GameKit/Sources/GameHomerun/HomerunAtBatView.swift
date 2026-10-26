@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreOjisan
 import HomerunCore
 
 /// 打席（`31-at-bat-3D` の 2D 仮絵）。

@@ -90,6 +90,10 @@ let package = Package(
                             .copy("Resources/OjisanFace_smile.png"),
                             .copy("Resources/OjisanFace_cheer.png"),
                             .copy("Resources/OjisanFace_frown.png")]),
+        // 共通キャラクター「おじさん」のベクター版の図案（#700）。柵越えおじさん・盆栽縁側だけが使うので
+        // Core から切り出し、図案を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreOjisan",         dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
         .target(name: "Core",               dependencies: ["CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "Game2048",           dependencies: ["Core"],
@@ -144,7 +148,7 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         // おじさんの盆栽（#2361。もとは くっつきフルーツ #1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない
         // 純粋ロジックで、落とす盆栽の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
-        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine", "CoreOjisanPixel"],
+        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine", "CoreOjisan", "CoreOjisanPixel"],
                 resources: [.copy("Resources/Localization"),
                             // 盆栽 11 段の絵（会長提供・ChatGPT 生成。出どころは docs/design/bonsai/assets-license.md）。
                             .copy("Resources/Bonsai"),
@@ -193,7 +197,7 @@ let package = Package(
         // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
         // 広告での回数回復・解析・Game Center への送信も入っている。
         // 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）を同梱する。
-        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"],
+        .target(name: "GameHomerun",        dependencies: ["Core", "CoreOjisan", "HomerunCore"],
                 resources: [.copy("Resources/Localization"),
                             .copy("Resources/HomerunBatter.usdz"),
                             // ハブの特別枠の絵（#1761。会長提供・ロゴ入り横長 1206×804）。
@@ -304,7 +308,7 @@ let package = Package(
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameChromeTests",   dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "OjisanTests",       dependencies: ["Core"]),
+        .testTarget(name: "OjisanTests",       dependencies: ["Core", "CoreOjisan"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
