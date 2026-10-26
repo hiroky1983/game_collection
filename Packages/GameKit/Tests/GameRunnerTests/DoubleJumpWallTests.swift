@@ -1,5 +1,6 @@
 import CoreEngine
 import Foundation
+import GameKitTestSupport
 import Testing
 @testable import GameRunner
 
@@ -164,7 +165,10 @@ struct RunnerDoubleJumpWallTests {
     /// （＝弾道が切り詰められる）場合の両方**で見る。
     @Test("二段目の押し始めの猶予が、置いた面の速さすべてで 0.2 秒以上ある")
     func doubleJumpWindowIsGenerousOnEveryStage() {
-        for speed in Self.wallStageSpeeds {
+        // 1 つの速さにつき 3 秒前後（Debug）。CI は塀のある面のいちばん遅い・速い速さだけ、夜間は全部（#2952）
+        let all = Self.wallStageSpeeds
+        let speeds = NightlyScale.isNightly ? all : [all.min(), all.max()].compactMap { $0 }
+        for speed in speeds {
             for tap in [false, true] {
                 let window = Self.widestWindow(speed: speed, tapFirstJump: tap)
                 #expect(

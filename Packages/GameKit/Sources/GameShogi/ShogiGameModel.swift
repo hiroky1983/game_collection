@@ -585,6 +585,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
     /// 探索の所要時間に依存せず決定論的に作れる（#172）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
+    /// ヒントの考える時間にかける倍率（テスト用。広告の回数の検査で探索を実時間で待たない・#2952）。出荷は 1。
+    @ObservationIgnored var hintThinkingScaleForTesting: Double = 1
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー。
     /// 手数だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
@@ -660,11 +662,12 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard canUseHint else { return }
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
             let sfen = position.toSFEN()
+            let scale = hintThinkingScaleForTesting
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 先に詰みを探し、詰ます手・詰みを避ける手を選ぶ（#2779）。
-                SimpleMinimaxEngine.hint().hintAnswer(sfen: sfen)
+                SimpleMinimaxEngine.hint(thinkingScale: scale).hintAnswer(sfen: sfen)
             }.value
         } commit: { answer in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
@@ -699,8 +702,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard canUseHint, needsAdForHint else { return .unavailable }
         // 受けが無い局面では広告を流さない（#2779）。詰み探索は短いので、広告の前に確かめる。
         let sfenBeforeAd = position.toSFEN()
+        let scale = hintThinkingScaleForTesting
         if await Task.detached(priority: .userInitiated, operation: {
-            SimpleMinimaxEngine.hint().hasNoDefense(sfen: sfenBeforeAd)
+            SimpleMinimaxEngine.hint(thinkingScale: scale).hasNoDefense(sfen: sfenBeforeAd)
         }).value {
             guard canUseHint, position.toSFEN() == sfenBeforeAd else { return .unavailable }
             showsHintHopeless = true
@@ -716,9 +720,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         var outcome: RewardedModelOutcome = .unavailable
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
             let sfen = position.toSFEN()
+            let scale = hintThinkingScaleForTesting
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                SimpleMinimaxEngine.hint().hintAnswer(sfen: sfen)
+                SimpleMinimaxEngine.hint(thinkingScale: scale).hintAnswer(sfen: sfen)
             }.value
         } commit: { answer in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,

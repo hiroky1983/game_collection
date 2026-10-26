@@ -1,4 +1,5 @@
 import Testing
+import GameKitTestSupport
 import Foundation
 import CoreEngine
 @testable import GameCatPuzzle
@@ -29,7 +30,7 @@ struct CatPuzzleLogicTests {
         #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 3) == 1)
     }
 
-    @Test("生成した問題は形が正しく、解がちょうど 1 つ（7×7）", arguments: 0..<12)
+    @Test("生成した問題は形が正しく、解がちょうど 1 つ（7×7）", arguments: NightlyScale.range(ci: 0..<4, nightly: 0..<12))
     func normalPuzzlesHaveUniqueSolution(seed: Int) {
         var generator = SplitMix64(seed: UInt64(1000 + seed))
         let puzzle = CatPuzzleLogic.generate(size: .normal, using: &generator)
@@ -38,7 +39,7 @@ struct CatPuzzleLogicTests {
         #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 3) == 1)
     }
 
-    @Test("生成した問題は形が正しく、解がちょうど 1 つ（8×8）", arguments: 0..<8)
+    @Test("生成した問題は形が正しく、解がちょうど 1 つ（8×8）", arguments: NightlyScale.range(ci: 0..<3, nightly: 0..<8))
     func hardPuzzlesHaveUniqueSolution(seed: Int) {
         var generator = SplitMix64(seed: UInt64(2000 + seed))
         let puzzle = CatPuzzleLogic.generate(size: .hard, using: &generator)
@@ -86,7 +87,8 @@ struct CatPuzzleLogicTests {
     @Test("部屋と答えの行・列の対応に偏りが無い", arguments: [CatPuzzleSize.easy, .normal])
     func roomToRowIsNotBiased(size: CatPuzzleSize) {
         let n = size.side
-        let trials = 25 * n
+        // 偏りの割合を見るので試行数が要る。CI は 18 倍、夜間は 25 倍（#2952）
+        let trials = NightlyScale.value(ci: 18, nightly: 25) * n
         var rowCounts = Array(repeating: Array(repeating: 0, count: n), count: n)
         var colCounts = Array(repeating: Array(repeating: 0, count: n), count: n)
         for seed in 0..<trials {

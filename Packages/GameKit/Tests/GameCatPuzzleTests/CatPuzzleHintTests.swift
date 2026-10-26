@@ -1,4 +1,5 @@
 import Testing
+import GameKitTestSupport
 import Foundation
 import Core
 import CoreEngine
@@ -177,7 +178,7 @@ struct CatPuzzleHintTests {
 
     // MARK: - 生成した盤
 
-    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（6×6）", arguments: 0..<30)
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（6×6）", arguments: NightlyScale.range(ci: 0..<4, nightly: 0..<30))
     func freshEasy(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed))
         let puzzle = CatPuzzleLogic.generate(size: .easy, using: &generator)
@@ -185,7 +186,7 @@ struct CatPuzzleHintTests {
         Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "easy \(seed)")
     }
 
-    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（7×7）", arguments: 0..<24)
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（7×7）", arguments: NightlyScale.range(ci: 0..<3, nightly: 0..<24))
     func freshNormal(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed))
         let puzzle = CatPuzzleLogic.generate(size: .normal, using: &generator)
@@ -193,7 +194,7 @@ struct CatPuzzleHintTests {
         Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "normal \(seed)")
     }
 
-    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（8×8）", arguments: 0..<10)
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（8×8）", arguments: NightlyScale.range(ci: 0..<2, nightly: 0..<10))
     func freshHard(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed))
         let puzzle = CatPuzzleLogic.generate(size: .hard, using: &generator)
@@ -205,7 +206,11 @@ struct CatPuzzleHintTests {
     func deductionCoversGeneratedPuzzles() {
         var forcedTotal = 0, puzzles = 0
         var seen = Set<String>()
-        for (size, seeds) in [(CatPuzzleSize.easy, 0..<20), (.normal, 0..<16), (.hard, 0..<6)] {
+        // 問題作りと推理は Debug で 1 問 1 秒前後。CI は各サイズ数問、夜間は 42 問（#2952）
+        for (size, seeds) in NightlyScale.value(
+            ci: [(CatPuzzleSize.easy, 0..<4), (.normal, 0..<3), (.hard, 0..<2)],
+            nightly: [(CatPuzzleSize.easy, 0..<20), (.normal, 0..<16), (.hard, 0..<6)]
+        ) {
             for seed in seeds {
                 var generator = SplitMix64(seed: UInt64(seed) &+ 7000)
                 let puzzle = CatPuzzleLogic.generate(size: size, using: &generator)
@@ -223,7 +228,7 @@ struct CatPuzzleHintTests {
 
     // MARK: - ランダムな途中局面
 
-    @Test("ランダムな途中局面（違う猫・答えのマスの ×・余分な猫を含む）: ヒントは毎回必ず進み、答えと矛盾せず、最後は解ける", arguments: 0..<60)
+    @Test("ランダムな途中局面（違う猫・答えのマスの ×・余分な猫を含む）: ヒントは毎回必ず進み、答えと矛盾せず、最後は解ける", arguments: NightlyScale.range(ci: 0..<9, nightly: 0..<60))
     func randomStatesAlwaysProgress(seed: Int) {
         var generator = SplitMix64(seed: UInt64(seed) &+ 1000)
         let size = CatPuzzleSize.allCases[seed % CatPuzzleSize.allCases.count]
@@ -252,7 +257,7 @@ struct CatPuzzleHintTests {
 
     // MARK: - 中断から再開・難易度切り替え・新規ゲーム（Model 経由）
 
-    @Test("中断から再開・難易度切り替え・新規ゲームのあとも、ヒントは今の盤の答えと矛盾せず、ヒントの印は残る", arguments: 0..<8)
+    @Test("中断から再開・難易度切り替え・新規ゲームのあとも、ヒントは今の盤の答えと矛盾せず、ヒントの印は残る", arguments: NightlyScale.range(ci: 0..<2, nightly: 0..<8))
     @MainActor
     func hintAfterFlows(seed: Int) {
         let store = MemorySnapshotStore()

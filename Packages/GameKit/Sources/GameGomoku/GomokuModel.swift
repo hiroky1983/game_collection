@@ -396,6 +396,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var isHintThinking: Bool = false
     /// ヒントの読みの待ち合わせ点（テスト専用。本番では nil のまま。将棋の `thinkingGate` と同じ）。
     @ObservationIgnored var hintThinkingGate: (@MainActor () async -> Void)?
+    /// ヒントの考える時間にかける倍率（テスト用。広告の回数の検査で探索を実時間で待たない・#2952）。出荷は 1。
+    @ObservationIgnored var hintThinkingScaleForTesting: Double = 1
 
     /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
@@ -419,11 +421,12 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            let scale = hintThinkingScaleForTesting
             await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 五目並べの level 0（弱）は探索せず確率で見逃すので、合わせると最善手にならない（#665）。
-                await SimpleGomokuEngine.hint(forbiddenMoves: renju)
+                await SimpleGomokuEngine.hint(forbiddenMoves: renju, thinkingScale: scale)
                     .bestMove(board: b, stone: stone)
             }.value
         } commit: { move in
@@ -458,9 +461,10 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            let scale = hintThinkingScaleForTesting
             await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleGomokuEngine.hint(forbiddenMoves: renju)
+                await SimpleGomokuEngine.hint(forbiddenMoves: renju, thinkingScale: scale)
                     .bestMove(board: b, stone: stone)
             }.value
         } commit: { move in
