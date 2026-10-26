@@ -63,6 +63,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # PR は base との差分（HEAD^1..HEAD）から走らせるテストを選ぶ（#2953）ので 2 世代要る
+          fetch-depth: 2
+
+      - name: テスト選別スクリプトの検証（#2953）
+        run: bash Scripts/tests/test-select-gamekit-tests.sh
 
       - name: 訳し漏れの検査（#2402）
         run: python3 Scripts/check-untranslated-ja.py
@@ -78,9 +83,33 @@ jobs:
       # skip は "GameShogiTests.SelfPlayTests/" の完全一致で絞る。単純な "SelfPlayTests" だと
       # 別ファイル（DifficultyTests.swift）の ShogiWeakLevelSelfPlayTests も部分一致で巻き込み、
       # 意図せず弱さ調整のテストまでCIから外れてしまう（実測で確認済み）。
-      - name: GameKit 全テスト
+      # PR は変更ファイルから影響を受けるテストターゲットだけを回す（#2953。選び方は Scripts/select-gamekit-tests.py）。
+      # push（main・release）と、選別が失敗したときは全部回す。
+      - name: GameKit テスト
         if: needs.changes.outputs.gamekit == 'true'
-        run: swift test --package-path Packages/GameKit --skip '^GameShogiTests\.SelfPlayTests/'
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          filter=all
+          if [ "$EVENT" = "pull_request" ]; then
+            if files=$(git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD) && filter=$(printf '%s\n' "$files" | python3 Scripts/select-gamekit-tests.py --explain); then
+              :
+            else
+              echo "選別に失敗したため全部回す"; filter=all
+            fi
+          fi
+          echo "選別結果: $filter"
+          if [ "$filter" = "all" ]; then
+            swift test --package-path Packages/GameKit --skip '^GameShogiTests\.SelfPlayTests/'
+          elif [ "$filter" = "none" ]; then
+            echo "GameKit のテストに関係する変更が無いため回さない"
+          else
+            # --filter は 0 件マッチでも緑になるため、1 件も走らなかったら落とす
+            swift test --package-path Packages/GameKit --filter "$filter" --skip '^GameShogiTests\.SelfPlayTests/' 2>&1 | tee "$RUNNER_TEMP/gamekit-test.log"
+            [ "${PIPESTATUS[0]}" -eq 0 ] || exit 1
+            grep -Eq 'Test run with [1-9][0-9]* tests?|Executed [1-9][0-9]* tests?' "$RUNNER_TEMP/gamekit-test.log" \
+              || { echo "選別したテストが 1 件も走らなかった"; exit 1; }
+          fi
 
   build:
     runs-on: macos-latest
