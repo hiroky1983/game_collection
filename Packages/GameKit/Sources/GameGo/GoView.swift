@@ -44,21 +44,17 @@ public struct GoView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("囲碁"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.gameOver || model.moveCount == 0 {
-                            showNewGame = true
-                        } else {
-                            showConfirmNewGame = true
-                        }
-                    })
-        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items)) { GoRuleDetails() }
+                    condition: GameChromeCondition(conditionParts),
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
+        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide)) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
                 level: model.aiLevel,
-                handicap: model.ruleset.handicap
-            ) { side, level, handicap in
-                model.newGame(humanSide: side, level: level, handicap: handicap)
+                handicap: model.ruleset.handicap,
+                boardSize: model.boardSize
+            ) { side, level, handicap, boardSize in
+                model.newGame(humanSide: side, level: level, handicap: handicap, boardSize: boardSize)
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
@@ -104,6 +100,11 @@ public struct GoView: View {
         }
         .task {
             #if DEBUG
+            // 撮影用（#2360）: 終局後レイアウト（「もう一回」の段）を即再現する（将棋・チェスの -xxxAutoResign と同じ）。
+            if ProcessInfo.processInfo.arguments.contains("-goAutoResign") {
+                model.resign()
+                showNewGame = false   // 中断データが無い起動では開始シートが結果を隠す（CodeRabbit 指摘）
+            }
             // 撮影用（#398）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
             if ProcessInfo.processInfo.arguments.contains("-goScoring") {
                 await model.applyPreviewScoringForTesting()
@@ -119,13 +120,30 @@ public struct GoView: View {
         }
     }
 
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.gameOver || model.moveCount == 0 {
+            showNewGame = true
+        } else {
+            showConfirmNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 自分の石 → 置き石（ハンデがあるときだけ）。
+    private var conditionParts: [String] {
+        var parts = [model.aiLevel.label, model.humanSide == .black ? tr("黒・先番") : tr("白・後番")]
+        if model.boardSize != .nine { parts.append(model.boardSize.label) }
+        if model.ruleset.handicap > 0 { parts.append(tr("%lld子", model.ruleset.handicap)) }
+        return parts
+    }
+
     // MARK: - 盤の下の操作エリア
 
     /// 対局中（投了・パス・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148 の横展開）。
-    /// 対局中（パス・投了）/ 死活確認中 / 終局後（もう一度）で中身が入れ替わるが、どれも
-    /// 同じ余白の1行なので高さは変わらない（決着で盤が縮まない契約）。レコメンドの常時高さ予約は
-    /// 盤を狭くしていたため撤廃し、盤の下端へのオーバーレイに移した（将棋 #405 と同じ手当て。
+    /// 対局中（パス・投了）/ 死活確認中 / 終局後（もう一回）で中身が入れ替わる。終局後の段（`GameReplayBar`・60pt・#2360）が
+    /// 対局中の操作列（46pt）より高いので、最低の高さを終局後の段に揃えて決着で盤が縮まないようにする（#139）。
+    /// レコメンドの常時高さ予約は盤を狭くしていたため撤廃し、盤の下端へのオーバーレイに移した（将棋 #405 と同じ手当て。
     /// 会長指摘 2026-09-02「碁盤が小さい」）。
     private var controlArea: some View {
         ZStack(alignment: .top) {
@@ -138,12 +156,13 @@ public struct GoView: View {
                 resultControls
             }
         }
+        .frame(minHeight: GameReplayBarMetrics.cardHeight)
     }
 
     private var resultControls: some View {
         GameReplayBar(
             onReplay: {
-                model.newGame(humanSide: model.humanSide, level: model.aiLevel, handicap: model.ruleset.handicap)
+                model.newGame(humanSide: model.humanSide, level: model.aiLevel, handicap: model.ruleset.handicap, boardSize: model.boardSize)
             },
             onChangeSettings: { showNewGame = true }
         )
@@ -201,11 +220,13 @@ public struct GoView: View {
                 BoardGameResultCard(
                     verdict: verdict,
                     reason: score.summary,
-                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score))],
+                    details: [tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", score.blackArea, score.whiteArea, komiText(score)),
+                              tr("%lld手", model.moveCount)],
                     record: model.recordResult
                 ) { resultCardClosed = true }
             } else {
-                BoardGameResultCard(verdict: verdict, reason: tr("投了"), record: model.recordResult) {
+                BoardGameResultCard(verdict: verdict, reason: tr("投了"), details: [tr("%lld手", model.moveCount)],
+                                    record: model.recordResult) {
                     resultCardClosed = true
                 }
             }
@@ -235,6 +256,7 @@ public struct GoView: View {
                     board: model.board,
                     lastMove: model.lastMove,
                     dead: model.endgame?.dead ?? [],
+                    territory: model.endgame?.territory ?? [],
                     moveCount: model.moveCount,
                     pad: pad,
                     revealedMoves: Double(model.moveCount)
@@ -283,7 +305,7 @@ public struct GoView: View {
         let levels = GoLevel.allCases
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
                                       levelLabels: levels.map(\.label)) { level in
-            model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap)
+            model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap, boardSize: model.boardSize)
         }
     }
 
@@ -408,7 +430,7 @@ public struct GoView: View {
         GameStatusBar {
             switch model.phase {
             case .finished:
-                Label(resultText, systemImage: "flag.checkered")
+                Label(resultVerdict.title, systemImage: resultVerdict.bandSymbol)
                     .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .scoring:
@@ -419,7 +441,7 @@ public struct GoView: View {
                 TurnBadge(isYourTurn: model.state.sideToMove == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
             passBanner
@@ -436,7 +458,7 @@ public struct GoView: View {
             isHumanTurn: model.state.sideToMove == model.humanSide,
             capturedByHuman: model.capturedByHuman,
             capturedByCPU: model.capturedByCPU,
-            result: model.phase == .playing ? nil : model.endgame?.score.summary ?? resultText
+            result: model.phase == .playing ? nil : model.endgame?.score.summary ?? resultVerdict.title
         ))
     }
 
@@ -471,9 +493,9 @@ public struct GoView: View {
         .gameAnimation(BoardGameMotion.checkBanner, value: passBannerID)
     }
 
-    private var resultText: String {
-        guard let winner = model.winner else { return tr("引き分け") }
-        return winner == model.humanSide ? tr("あなたの勝ち！") : tr("CPUの勝ち")
+    private var resultVerdict: BoardGameResultCard.Verdict {
+        guard let winner = model.winner else { return .draw }
+        return winner == model.humanSide ? .win : .loss
     }
 
     private var gameControls: some View {
@@ -502,6 +524,8 @@ private struct GoBoardCanvas: View, Animatable {
     nonisolated let board: GoBoard
     nonisolated let lastMove: GoPoint?
     nonisolated let dead: Set<GoPoint>
+    /// 終局時の地の持ち主（空なら色分けしない）。
+    nonisolated let territory: [GoStone?]
     nonisolated let moveCount: Int
     nonisolated let pad: CGFloat
     nonisolated var revealedMoves: Double
@@ -562,6 +586,26 @@ private struct GoBoardCanvas: View, Animatable {
                 let r: CGFloat = 3
                 ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)),
                          with: dotColor)
+            }
+
+            // 地（終局のとき）: 黒地は黒、白地は白の小さな角丸。石より先に描いて死に石の下にも敷く。
+            if territory.count == size * size {
+                let half = s * 0.19
+                for row in 0..<size {
+                    for col in 0..<size {
+                        guard let owner = territory[row * size + col] else { continue }
+                        let cx = pad + CGFloat(col) * s
+                        let cy = pad + CGFloat(row) * s
+                        let rect = CGRect(x: cx - half, y: cy - half, width: half * 2, height: half * 2)
+                        let mark = Path(roundedRect: rect, cornerRadius: half * 0.3)
+                        if owner == .black {
+                            ctx.fill(mark, with: .color(Color(hex: 0x1C1812).opacity(0.85)))
+                        } else {
+                            ctx.fill(mark, with: .color(Color(hex: 0xFFFCF0)))
+                            ctx.stroke(mark, with: .color(Color(hex: 0x7A5810).opacity(0.7)), lineWidth: 1)
+                        }
+                    }
+                }
             }
 
             // 石
@@ -683,19 +727,22 @@ struct GoNewGameSheet: View {
     @State private var side: GoStone
     @State private var level: GoLevel
     @State private var handicap: Int
-    let onStart: (GoStone, GoLevel, Int) -> Void
+    @State private var boardSize: GoBoardSize
+    let onStart: (GoStone, GoLevel, Int, GoBoardSize) -> Void
     let onCancel: () -> Void
 
     init(
         humanSide: GoStone,
         level: GoLevel,
         handicap: Int,
-        onStart: @escaping (GoStone, GoLevel, Int) -> Void,
+        boardSize: GoBoardSize,
+        onStart: @escaping (GoStone, GoLevel, Int, GoBoardSize) -> Void,
         onCancel: @escaping () -> Void
     ) {
         _side = State(initialValue: humanSide)
         _level = State(initialValue: level)
         _handicap = State(initialValue: handicap)
+        _boardSize = State(initialValue: boardSize)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -710,10 +757,22 @@ struct GoNewGameSheet: View {
         // ハンデ以降がはみ出て操作できない）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
             kind: .versus, spacing: 20,
-            onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
+            onboarding: GoOnboarding.guide,
+            onStart: { onStart(side, level, side == .black ? handicap : 0, boardSize) }, onCancel: onCancel
         ) {
-            Text(tr("9路盤・中国ルール（面積計算）"))
+            Text(tr("中国ルール（面積計算）"))
                 .themeBody(13).foregroundStyle(Theme.inkSub)
+
+            GameSetupSection(tr("碁盤の大きさ")) {
+                HStack(spacing: 12) {
+                    ForEach(GoBoardSize.allCases, id: \.self) { size in
+                        GameSetupChooser(title: size.label,
+                                         subtitle: size == .nine ? tr("短時間で終わる") : tr("じっくり打つ"),
+                                         selected: boardSize == size, accent: Theme.Fill.purple,
+                                         metrics: Self.metrics) { boardSize = size }
+                    }
+                }
+            }
 
             GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {

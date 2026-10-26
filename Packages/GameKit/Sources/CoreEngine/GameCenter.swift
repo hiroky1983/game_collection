@@ -152,9 +152,6 @@ public enum GameCenterLeaderboard {
     /// 局数は 6 / 12 から選べるが、区分は分けない（12 局のほうが伸びるのは
     /// 「長く打った」ぶんで、同じ土俵の上位を狙う指標として成り立つ）。
     public static let hanafudaPoints = "asobiba.hanafuda.points"
-    /// ルーレット（#1318・企画倉庫）。ブラックジャックと同じく精算後のチップ残高（High to Low）。
-    /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
-    public static let rouletteChips  = "asobiba.roulette.chips"
     /// くっつきフルーツ（#1319・企画倉庫）。2048 と同じくスコア（High to Low）。
     /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
     public static let fruitsScore    = "asobiba.fruits.score"
@@ -193,7 +190,7 @@ public enum GameCenterLeaderboard {
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blocksScore, runnerStage,
-        runnerDistance, hanafudaPoints, rouletteChips, fruitsScore,
+        runnerDistance, hanafudaPoints, fruitsScore,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
@@ -257,9 +254,6 @@ public enum GameCenterLeaderboard {
         // 花札こいこい（#495）。試合の合計文数を送る。既定ルール（6 局・酒の役あり・普通）以外の試合は
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる（#827）。
         case "hanafuda":  return hanafudaPoints
-        // ルーレット（#1318）。復活（リワード広告）を使ったセッションは `isLeaderboardEligible` が
-        // false になり、この対応表に来る前に弾かれる（ブラックジャックと同じ）。
-        case "roulette":  return rouletteChips
         // くっつきフルーツ（#1319）。広告コンティニューを使った回は `isLeaderboardEligible` が
         // false になり、この対応表に来る前に弾かれる（ブロック崩しと同じ）。
         case "fruits":    return fruitsScore

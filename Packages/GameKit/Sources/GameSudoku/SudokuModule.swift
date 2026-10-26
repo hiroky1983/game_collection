@@ -35,4 +35,10 @@ public struct SudokuModule: GameModule {
         let noted = snap.notes.contains { $0 != 0 }
         return !(entered || noted || snap.hintsUsed > 0 || (snap.mistakes ?? 0) > 0)
     }
+
+    /// 空いているマスの数（#2870）。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(SudokuSnapshot.self, for: id) else { return nil }
+        return tr("残り%lldマス", snap.board.filter { $0 == 0 }.count)
+    }
 }

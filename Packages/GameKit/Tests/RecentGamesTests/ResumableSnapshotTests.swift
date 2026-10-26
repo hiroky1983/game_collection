@@ -123,6 +123,13 @@ struct ResumableSnapshotTests {
         #expect(!Self.registry.hasResumableSnapshot(gameID: "chess", in: store))
     }
 
+    @Test("削除したゲーム（ルーレット #2545）の中断データが残っていても途中扱いにしない")
+    func removedRouletteSnapshotIsNotResumable() throws {
+        let store = MemorySnapshotStore()
+        try store.save(["x": 1], for: "roulette")
+        #expect(!Self.registry.hasResumableSnapshot(gameID: "roulette", in: store))
+    }
+
     @Test("登録外の ID は途中扱いにしない")
     func unknownGameIsNotResumable() throws {
         let store = MemorySnapshotStore()

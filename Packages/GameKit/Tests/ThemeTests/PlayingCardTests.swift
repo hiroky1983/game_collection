@@ -57,12 +57,12 @@ struct PlayingCardTests {
         #expect(PlayingCardMetrics.standard.rankFont == 22)
         #expect(PlayingCardMetrics.standard.suitFont == 24)
         #expect(PlayingCardMetrics.standard.backMotifFont == 26)
-        // 大富豪の手札（`DaifugoCardView.Size.small`。タップ判定 #190 がこの幅を前提にしている）。
+        // 大富豪の手札（`PlayingCardMetrics.compact`。大富豪 A（#2531）は列幅から相似拡大する）。
         #expect(PlayingCardMetrics.compact.width == 42)
         #expect(PlayingCardMetrics.compact.height == 60)
         #expect(PlayingCardMetrics.compact.rankFont == 16)
         #expect(PlayingCardMetrics.compact.suitFont == 15)
-        // 大富豪の場札（`DaifugoCardView.Size.large`）。
+        // 大富豪の場札（大富豪の場札の元の寸法（A では手札と同じ倍率で拡大））。
         #expect(PlayingCardMetrics.medium.width == 56)
         #expect(PlayingCardMetrics.medium.height == 78)
         #expect(PlayingCardMetrics.medium.rankFont == 22)

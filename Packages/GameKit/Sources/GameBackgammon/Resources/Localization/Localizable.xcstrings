@@ -287,7 +287,7 @@
         }
       }
     },
-    "もう一度" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

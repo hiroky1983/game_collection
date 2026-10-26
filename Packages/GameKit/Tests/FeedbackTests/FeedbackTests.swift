@@ -215,7 +215,12 @@ private func playMinesweeper(_ services: GameServices) {
     let model = MinesweeperModel(services: services)
     model.newGame(rows: 9, cols: 9, mines: 10)
     model.tap(row: 0, col: 0)  // 成立（初手は必ず安全マス）
-    model.tap(row: 0, col: 0)  // 拒否（開き済み）
+    // 拒否（旗数が合わない開き済みの数字マス）。周囲 0 の開き済みマスは黙って無視する（#2719）。
+    if let number = model.cells.indices.flatMap({ r in
+        model.cells[r].indices.map { (r, $0) }
+    }).first(where: { model.cells[$0.0][$0.1].isRevealed && model.cells[$0.0][$0.1].adjacentMines > 0 }) {
+        model.tap(row: number.0, col: number.1)
+    }
 
     if let flagTarget = model.cells.indices.flatMap({ r in
         model.cells[r].indices.map { (r, $0) }
@@ -434,7 +439,7 @@ struct FeedbackEnabledTests {
     func shogi() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playShogi(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.shogiPiece)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) > 0, "指せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -443,7 +448,7 @@ struct FeedbackEnabledTests {
     func gomoku() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playGomoku(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.goStone)), "着手で駒・石の音（#2767）が発火する")
         // 埋まっているマス（1回）と盤外（1回）で 2 回。無反応で済ませていた盤外を #202 で追加した。
         #expect(spy.notices(of: .warning) >= 2, "埋まっているマス・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
@@ -453,7 +458,7 @@ struct FeedbackEnabledTests {
     func go() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playGo(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.goStone)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) >= 2, "石のある交点・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -462,7 +467,7 @@ struct FeedbackEnabledTests {
     func chess() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playChess(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.chessPiece)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) > 0, "指せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -473,7 +478,7 @@ struct FeedbackEnabledTests {
         playSolitaire(services)
         playFreeCell(services)
         playSpider(services)
-        #expect(spy.impacts.contains(.light), "山めくりで発火する")
+        #expect(spy.impacts.contains(.card(.deal)), "山めくりで発火する")
         #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
         #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
     }
@@ -534,7 +539,7 @@ struct FeedbackEnabledTests {
     func othello() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playOthello(services)
-        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.impacts.contains(.board(.othelloDisc)), "着手で駒・石の音（#2767）が発火する")
         #expect(spy.notices(of: .warning) > 0, "石を返せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
@@ -543,7 +548,7 @@ struct FeedbackEnabledTests {
     func poker() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playPoker(services)
-        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
+        #expect(spy.impacts.contains(.card(.shuffle)), "カードを切って配ると発火する")
         #expect(spy.impacts.contains(.rigid), "交換札の選択で発火する")
         // 決着は「最後の notify が勝敗と一致するか」で見る（件数だけだと拒否の発火で常に真になる）。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
@@ -560,7 +565,7 @@ struct FeedbackEnabledTests {
     func concentration() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playConcentration(services)
-        #expect(spy.impacts.contains(.light), "カードをめくると発火する")
+        #expect(spy.impacts.contains(.card(.flip)), "カードをめくると発火する")
         #expect(spy.impacts.contains(.medium), "ペア成立で発火する")
         #expect(spy.notices(of: .warning) > 0, "めくり済みのカードは拒否として発火する")
         #expect(spy.notices(of: .success) > 0, "全ペア成立（勝ち）で発火する")
@@ -570,7 +575,7 @@ struct FeedbackEnabledTests {
     func blackjack() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playBlackjack(services)
-        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
+        #expect(spy.impacts.contains(.card(.deal)), "カードを配ると発火する")
         // ポーカーと同じ理由で、件数ではなく最後の notify を結果と突き合わせる。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
         let expected: FeedbackNotice
@@ -587,7 +592,7 @@ struct FeedbackEnabledTests {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = await playDaifugo(services)
         #expect(spy.impacts.contains(.rigid), "カードを選ぶと発火する")
-        #expect(spy.impacts.contains(.medium), "配り・カードを出すと発火する")
+        #expect(spy.impacts.contains(.card(.place)), "カードを出すと発火する")
         #expect(spy.notices(of: .warning) > 0, "出せない組は拒否として発火する")
         #expect(model.phase == .result, "手順の最後は必ず決着している")
         let expected: FeedbackNotice
@@ -690,6 +695,112 @@ struct FeedbackCPUSilentTests {
         await model.performAIMoveIfNeeded()
         #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
     }
+
+    @Test("チェス: CPU の着手では impact が増えない")
+    func chess() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ChessGameModel(services: services)
+        model.newGame(humanSide: .white, aiLevel: 1)
+        guard let move = model.legalMovesCache.first else { return }
+        model.apply(move)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("囲碁: CPU の着手では impact が増えない")
+    func go() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = GoModel(services: services)
+        model.newGame(humanSide: .black)
+        model.tap(row: 4, col: 4)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("花札こいこい: CPU の出し札・めくり札では impact が増えない")
+    func hanafuda() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 1))
+        var cpuSteps = 0
+        for _ in 0..<200 where model.phase == .playing {
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { break }
+                let before = spy.impacts.count
+                model.play(card)
+                #expect(spy.impacts.count > before, "人間の着手では鳴る")
+            } else {
+                let before = spy.impacts.count
+                model.stepCPU()
+                cpuSteps += 1
+                #expect(spy.impacts.count == before, "CPU の着手では鳴らない")
+            }
+        }
+        #expect(cpuSteps > 0, "CPU の手番が 1 度は回る")
+    }
+
+    @Test("神経衰弱: CPU の手番では impact が増えない")
+    func concentration() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ConcentrationModel(services: services)
+        model.newGame(pairCount: .medium, cpuLevel: .normal)
+        let first = 0
+        guard let second = model.cards.indices.first(where: {
+            $0 != first && model.cards[$0].symbol != model.cards[first].symbol
+        }) else { return }
+        model.tap(index: first)
+        model.tap(index: second)   // 不一致 → 手番が CPU に移る
+        #expect(spy.impacts.count > 0, "人間のめくりでは鳴る")
+        model.clearMismatch()
+        let afterHuman = spy.impacts.count
+        await model.performCPUMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU のめくりでは鳴らない")
+    }
+
+    @Test("しりとり: CPU の手番では impact が増えない")
+    func shiritori() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame()
+        guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { return }
+        model.select(move.slot)
+        #expect(spy.impacts.count > 0, "人間の選択では鳴る")
+        let afterHuman = spy.impacts.count
+        await model.runCPUTurnIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の選択では鳴らない")
+    }
+
+    @Test("大富豪: CPU の手番では impact が増えない")
+    func daifugo() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = DaifugoModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame()
+        var cpuRuns = 0
+        for _ in 0..<500 where model.phase == .playing {
+            let before = spy.impacts.count
+            await model.runCPUTurnsIfNeeded()
+            cpuRuns += 1
+            #expect(spy.impacts.count == before, "CPU の手番では鳴らない")
+            guard model.phase == .playing, model.isPlayerTurn else { continue }
+            if let play = DaifugoRules.greedyPlay(
+                hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+            ) {
+                for card in play { model.toggleSelection(card) }
+                model.playSelected()
+            } else {
+                model.pass()
+            }
+        }
+        #expect(cpuRuns > 0 && spy.impacts.count > 0, "CPU の手番が回り、人間の操作では鳴る")
+    }
+
+    // 麻雀（四人打ち）は対象外: CPU の立直は「相手が脅威を作った合図」として `impact(.rigid)` を意図的に残している（#714・#2539）。
 }
 
 // MARK: - オフ: どの契機でも 1 度も発火しない（受け入れ条件）

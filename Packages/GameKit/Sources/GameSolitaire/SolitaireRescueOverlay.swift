@@ -55,6 +55,10 @@ struct SolitaireRescueOverlay: View {
                 model.newGame()
             }
 
+            GameDeadEndDismissButton(tr("同じ配札でやり直す"), isDisabled: isBusy) {
+                model.restartSameDeal()
+            }
+
             // どちらの告知でも盤には触れる手が残っている。宣告で操作を奪わない（#491）。
             GameDeadEndDismissButton(tr("このまま続ける"), isDisabled: isBusy) {
                 model.dismissRescuePrompt()

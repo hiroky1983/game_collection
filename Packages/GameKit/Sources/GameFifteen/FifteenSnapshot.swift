@@ -1,4 +1,5 @@
 /// 15 パズルの中断スナップショット。盤面そのものと手数を保存する（乱数シードの再現は不要）。
+/// 盤の大きさ（#2869）は `tiles` の長さで決まる（16 枚 = 4×4 の従来の中断データはそのまま読める）。
 public struct FifteenSnapshot: Codable, Equatable, Sendable {
     public var tiles: [Int]
     public var moves: Int

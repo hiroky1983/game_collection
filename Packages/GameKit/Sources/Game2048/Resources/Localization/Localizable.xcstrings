@@ -68,7 +68,7 @@
         }
       }
     },
-    "もう一度" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -141,6 +141,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Merge tiles and reach 2048"
+          }
+        }
+      }
+    },
+    "ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
           }
         }
       }
@@ -374,6 +385,292 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, your current board and score will be lost."
+          }
+        }
+      }
+    },
+    "その方向には動かせません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't move that way"
+          }
+        }
+      }
+    },
+    "得点 +%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score +%lld"
+          }
+        }
+      }
+    },
+    "%1$lld行%2$lld列に %3$lld が出ました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%3$lld appeared at row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
+    },
+    "最高" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top tile"
+          }
+        }
+      }
+    },
+    "スコア %1$@、最高タイル %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %1$@, top tile %2$@"
+          }
+        }
+      }
+    },
+    "スコア %1$@、最高タイル %2$@、ベスト %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %1$@, top tile %2$@, best %3$@"
+          }
+        }
+      }
+    },
+    "2048 のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2048: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "同じ数字のタイルを合体させて、大きな数字を作るゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge tiles with the same number to build bigger numbers."
+          }
+        }
+      }
+    },
+    "2048 のタイルを作れたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a 2048 tile to clear the game."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "上下左右のどれかへスワイプします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe up, down, left or right."
+          }
+        }
+      }
+    },
+    "すべてのタイルが、その向きへ寄ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every tile slides that way."
+          }
+        }
+      }
+    },
+    "同じ数字で合体" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same numbers merge"
+          }
+        }
+      }
+    },
+    "同じ数字どうしがぶつかると、合体して 2 倍になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When two tiles with the same number meet, they merge into one with double the value."
+          }
+        }
+      }
+    },
+    "合体してできた数字が、スコアに入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The number you make by merging is added to your score."
+          }
+        }
+      }
+    },
+    "新しいタイル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New tiles"
+          }
+        }
+      }
+    },
+    "動かすたびに、空いたマスに新しいタイルが 1 枚出ます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each move adds one new tile to an empty square."
+          }
+        }
+      }
+    },
+    "新しいタイルは 2 か 4 です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new tile is a 2 or a 4."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "2048 を作ったらクリア。そのまま続けることもできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make 2048 to clear. You can also keep going."
+          }
+        }
+      }
+    },
+    "どこにも動かせなくなったら、ゲームオーバーです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When no tile can move in any direction, the game is over."
+          }
+        }
+      }
+    },
+    "広告を見ると、1 回だけ続きから遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to continue, once per game."
+          }
+        }
+      }
+    },
+    "新しいタイルが 1 枚出る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One new tile appears"
+          }
+        }
+      }
+    },
+    "どこにも動かせない → ゲームオーバー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't move anywhere → game over"
           }
         }
       }

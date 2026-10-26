@@ -48,6 +48,22 @@ public enum CardTableStyle {
     public static let feltDividerAlpha: Double = 0.65
     public static let feltLabelAlpha: Double = 1
     public static let feltLabelSubAlpha: Double = 0.9
+    /// 出せない札を沈めるときに札の上へ重ねる白の不透明度（`View.tableDimmed`・#2531）。
+    /// 札の不透明度を落とす（0.4〜0.5）と、フェルトの上では紙が緑に濁って出せる札との差が付きにくい
+    /// （#2431・#2432 のモックの読み取り）。紙は不透明のまま白を重ね、インクと色の面だけを薄くする。
+    public static let dimAlpha: Double = 0.55
+}
+
+public extension View {
+    /// 出せない札を沈める（#2531）。フェルトの上で使うための落とし方で、札の不透明度は変えず白を重ねる。
+    /// `cornerRadius` は札の外形の角丸（重ねる白を札の形に合わせる）。当たり判定は変えない。
+    func tableDimmed(_ isDimmed: Bool, cornerRadius: CGFloat) -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.white.opacity(isDimmed ? CardTableStyle.dimAlpha : 0))
+                .allowsHitTesting(false)
+        )
+    }
 }
 
 /// 卓の上に乗る「札・牌ではないもの」の色（空き枠の破線と印・上段の仕切り・盤の場所に出す文字）。

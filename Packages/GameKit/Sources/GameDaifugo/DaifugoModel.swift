@@ -2,6 +2,12 @@ import Foundation
 import Observation
 import Core
 
+/// 革命の切り替わり・8切りが起きた合図（#2713）。`serial` が変わるたびに場を弾ませ、`byHuman` なら一段強く弾ませる。
+public struct FieldImpact: Equatable, Sendable {
+    public let serial: Int
+    public let byHuman: Bool
+}
+
 // MARK: - Phase
 
 public enum DaifugoPhase: String, Equatable, Sendable, Codable {
@@ -30,6 +36,23 @@ struct DaifugoSnapshot: Codable {
     /// **旧バージョンの保存データには存在しない**ため optional にして、欠けていても復元を失敗させない
     /// （`JSONDecoder` は非 optional のキーが無いと丸ごと復号に失敗し、中断データが消える）。
     let lastActions: [String]?
+    /// この局に焼き込んだローカルルール（#2605）。旧データには無いので optional（欠けていれば標準 = すべてオフ）。
+    let ruleSet: DaifugoRuleSet?
+    /// しばり中のスート（#2605）。旧データには無いので optional。
+    let bindSuits: [DaifugoSuit]?
+    /// CPU の強さ（`CPUStrength.rawValue`・#2604）。**旧バージョンの保存データには存在しない**ため optional
+    /// （欠けていたら「ふつう」＝それまでの挙動で再開する）。1 局 = 1 RuleSet なので再開で変わらない。
+    var aiLevel: Int? = nil
+
+    /// 人間がこの局で一度でも動いた（札を出した・パスした・投了した）か（#2774）。
+    ///
+    /// 親が CPU の局は CPU の 1 枚目で中断データが保存されるが、人間は何もしていないので「続き」ではない。
+    /// 人間の動きは `lastActions[humanIndex]` に必ず残る（局が変わるまで消えない）ので、それを見る。
+    /// 旧データ（`lastActions` が無い・壊れている）は判定できないため、従来どおり「動いた」側に倒す。
+    static func humanHasActed(lastActions: [String]?) -> Bool {
+        guard let actions = lastActions, actions.count == DaifugoModel.playerCount else { return true }
+        return !actions[DaifugoModel.humanIndex].isEmpty
+    }
 }
 
 // MARK: - CarryOver
@@ -52,6 +75,12 @@ struct DaifugoCarryOver: Codable {
     let isExchangeWaived: Bool
 }
 
+/// 次のゲームにも引き継ぐ CPU の強さ（#2604）。中断データ・持ち越しは「配りが確定したとき」にしか書かれない
+/// （#1103）ので、シートで選んだ直後に閉じても残るよう、専用のキーに選んだ時点で書く。
+struct DaifugoPreferences: Codable {
+    let aiLevel: Int
+}
+
 // MARK: - Model
 
 /// 大富豪（CPU 3人との対戦）。プレイヤーは常に番号 0。
@@ -61,9 +90,9 @@ struct DaifugoCarryOver: Codable {
 @Observable
 public final class DaifugoModel: AITurnGuarded {
     /// 人間プレイヤーの番号。
-    public static let humanIndex = 0
+    public nonisolated static let humanIndex = 0
     /// 参加人数（人間1 + CPU3）。
-    public static let playerCount = 4
+    public nonisolated static let playerCount = 4
     /// 山札の枚数（52 + ジョーカー2）。「配ったばかりか」の判定に使う（#240）。
     /// 定数で持たず `makeDeck()` から導くので、山札の構成を変えても取り違えない。
     private static let deckCount = DaifugoCard.makeDeck().count
@@ -74,6 +103,13 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var currentPlayer: Int = humanIndex
     public private(set) var passedPlayers: Set<Int> = []
     public private(set) var isRevolution = false
+    /// この局に焼き込んだローカルルール（#2605。1 局 = 1 RuleSet）。配った時点の `preferredRuleSet` で決まる。
+    public private(set) var ruleSet = DaifugoRuleSet.standard
+    /// 次のゲームから使うローカルルールの選択（#2605）。開始シートで変え、アプリを閉じても引き継ぐ。
+    /// 対局中に変えても今の局（`ruleSet`）は変わらない。
+    public private(set) var preferredRuleSet = DaifugoRuleSet.standard
+    /// しばり中のスート（#2605）。空ならしばりなし。場が流れたら解ける。
+    public private(set) var bindSuits: Set<DaifugoSuit> = []
     public private(set) var phase: DaifugoPhase = .idle
     /// 手札が尽きた順のプレイヤー番号（反則上がりを含む）。
     public private(set) var finishOrder: [Int] = []
@@ -89,6 +125,13 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var lastRanking: [Int] = []
     /// 直前に行ったカード交換の内訳（リザルト直後の説明に使う）。
     public private(set) var lastTransfers: [DaifugoTransfer] = []
+    /// 配った直後に卓へ出す交換の帯の中身（#2607）。**中断データには載せない**ので、再開した直後は出し直さない。
+    public private(set) var exchangeNotice: DaifugoExchangeNotice?
+    /// 帯を出すたびに進める番号。表示側の `.task(id:)` で数秒後に閉じる・読み上げるのに使う。
+    public private(set) var exchangeNoticeRun = 0
+
+    /// 交換の帯を閉じる（タップ・時間切れ）。
+    public func dismissExchangeNotice() { exchangeNotice = nil }
     /// 次のゲームの大富豪⇔大貧民の交換を、広告で免除済みか（#1048）。
     ///
     /// 順位（`lastRanking`）と一緒に `DaifugoCarryOver` へ書き、画面を離れて開き直しても
@@ -100,15 +143,25 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var recordResult: RecordResult?
     /// 各プレイヤーの直近の動き（「パス」「8切り！」など）。画面のバッジ表示用。
     public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
+    /// 直近の「革命の切り替わり・8切り」（#2713）。画面が場を弾ませる合図で、保存はしない。
+    public private(set) var fieldImpact: FieldImpact?
     /// 手札から選択中のカード ID。
     public private(set) var selected: Set<Int> = []
+    /// CPU の強さ（`CPUStrength.rawValue`・#2604）。開始シートで選び、次のゲームにも引き継ぐ。
+    public private(set) var aiLevel = CPUStrength.standard.rawValue
 
     private let services: GameServices?
     let gameID = "daifugo"
     /// 次のゲームへの持ち越し（#1066）の置き場。中断データ（`gameID`）とは別のキーにする。
     private var carryOverID: String { "\(gameID)-carryover" }
+    /// ローカルルールの選択（#2605）の置き場。中断データ（`gameID`）とは別のキーなので、ハブの「続きから」には影響しない。
+    private var ruleSetID: String { "\(gameID)-rules" }
+    /// 引き継ぐ強さの置き場。中断データ・持ち越しとは別のキーにする（#2604）。
+    private var preferencesID: String { "\(gameID)-prefs" }
     private let cpuDelay: Duration
     private var seed: UInt64?
+    /// CPU の強さによる「ぶれ」（かんたんの次善手・入門のでたらめ）用の乱数。配りの種とは別に持つ。
+    private var cpuRNG: SplitMix64
     /// ヒント表示のオン / オフ（#190）。設定画面はハブ側にしか無く**対局中には変わらない**ため、
     /// `@Observable` の追跡対象にはせず参照のたびに読む。
     private let hints: FeedbackPreference
@@ -121,6 +174,8 @@ public final class DaifugoModel: AITurnGuarded {
 
     /// 自分が上がった後の消化試合で使う間合い（#191）。自分の操作が無い区間なので短くする。
     static let finishedCPUDelay: Duration = .milliseconds(120)
+    /// 直前の手番も CPU だったときの間合い（#2714）。CPU が続く間の待ち時間を詰める。
+    static let chainedCPUDelay: Duration = .milliseconds(400)
     /// 自分が上がった後に消化した CPU の手番数（#191）。
     /// 手番数 × `finishedCPUDelay` が消化試合の待ち時間になるため、テストで上限を見張る。
     private(set) var cpuTurnsAfterPlayerFinished = 0
@@ -135,6 +190,13 @@ public final class DaifugoModel: AITurnGuarded {
         self.cpuDelay = cpuDelay
         self.seed = seed
         self.hints = hints
+        cpuRNG = SplitMix64(seed: seed.map { $0 ^ 0x5DEECE66D } ?? UInt64.random(in: 0...UInt64.max))
+        if let saved = services?.snapshots.load(DaifugoRuleSet.self, for: ruleSetID) {
+            preferredRuleSet = saved
+        }
+        if let prefs = services?.snapshots.load(DaifugoPreferences.self, for: preferencesID) {
+            aiLevel = CPUStrength.strength(for: prefs.aiLevel).rawValue
+        }
         var loaded = services?.snapshots.load(DaifugoSnapshot.self, for: gameID)
         // 人数・添字が合わない中断データは、`playerHand` などの配列参照で開くたびに落ちる（#1913。
         // #1384 と同じ作法）。消して新規開始に倒す。
@@ -149,6 +211,8 @@ public final class DaifugoModel: AITurnGuarded {
             currentPlayer = snap.currentPlayer
             passedPlayers = Set(snap.passedPlayers)
             isRevolution  = snap.isRevolution
+            ruleSet       = snap.ruleSet ?? .standard
+            bindSuits     = ruleSet.isBindEnabled ? Set(snap.bindSuits ?? []) : []
             finishOrder   = snap.finishOrder
             fouls         = Set(snap.fouls)
             gameNumber    = snap.gameNumber
@@ -158,6 +222,7 @@ public final class DaifugoModel: AITurnGuarded {
             if let actions = snap.lastActions, actions.count == Self.playerCount {
                 lastActions = actions
             }
+            aiLevel       = CPUStrength.strength(for: snap.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             phase         = .playing
         } else if let carry = services?.snapshots.load(DaifugoCarryOver.self, for: carryOverID) {
             // 中断中の対局が無いときだけ持ち越しを読む（#1066）。対局中の中断データは順位を
@@ -183,6 +248,23 @@ public final class DaifugoModel: AITurnGuarded {
 
     /// 人間の手札（画面に並べる順にソート済み）。
     public var playerHand: [DaifugoCard] { hands[Self.humanIndex] }
+
+    /// 画面に並べる人間の手札。革命中は強さが逆になるので、左（弱い）→右（強い）の並びも
+    /// 革命後の強さで組み直す（ジョーカーは革命中も最強なので右端のまま）。
+    /// 表示順だけで、`hands` の持ち方・配り・交換・強さ判定は変えない。
+    public var displayHand: [DaifugoCard] {
+        guard isRevolution else { return playerHand }
+        return playerHand.sorted {
+            Self.displayKey($0, isRevolution: true) < Self.displayKey($1, isRevolution: true)
+        }
+    }
+
+    private static func displayKey(_ card: DaifugoCard, isRevolution: Bool) -> Int {
+        DaifugoRules.strength(rank: card.rank, isRevolution: isRevolution) * 10 + (card.suit?.rawValue ?? 0)
+    }
+
+    /// 「新規対局」で失われる進行があるか（1 手でも進んだ未決着のゲーム。ColorRelayModel と同じ）。
+    public var hasProgressToLose: Bool { phase == .playing && !isUntouchedDeal }
 
     /// 人間がもう上がっているか。
     public var isPlayerFinished: Bool { hands[Self.humanIndex].isEmpty && phase != .idle }
@@ -215,11 +297,20 @@ public final class DaifugoModel: AITurnGuarded {
     /// 選択中のカードを今の場に出せるか。
     public var canPlaySelection: Bool {
         guard isPlayerTurn, !selected.isEmpty else { return false }
-        return DaifugoRules.isValidPlay(selectedCards, field: field, isRevolution: isRevolution)
+        return DaifugoRules.isValidPlay(selectedCards, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
     }
 
     /// 人間がパスできるか（親のときはパスできない = 場を流せないため）。
     public var canPass: Bool { isPlayerTurn && !field.isEmpty }
+
+    /// 出せる手が1つも無く、パスするしかないか（#2693）。パスボタンを主役の色にする判定。
+    /// 手札ヒントの設定（`hints`）に関係なく、ルール判定（`playableCardIDs`）だけで決める。
+    public var mustPass: Bool {
+        guard canPass else { return false }
+        return DaifugoRules.playableCardIDs(
+            hand: playerHand, field: field, isRevolution: isRevolution, bindSuits: bindSuits
+        ).isEmpty
+    }
 
     /// 手札のヒント（#190）。強調するものが無いときは nil。
     ///
@@ -230,7 +321,7 @@ public final class DaifugoModel: AITurnGuarded {
     public var handHint: DaifugoHandHint? {
         guard hints.isEnabled, isPlayerTurn, !playerHand.isEmpty else { return nil }
         let playable = DaifugoRules.playableCardIDs(
-            hand: playerHand, field: field, isRevolution: isRevolution
+            hand: playerHand, field: field, isRevolution: isRevolution, bindSuits: bindSuits
         )
         guard playable.count < playerHand.count else { return nil }
         return DaifugoHandHint(
@@ -242,7 +333,21 @@ public final class DaifugoModel: AITurnGuarded {
     /// 選択中の組を出せない理由の1行表示（#190）。出せるとき・未選択・ヒントがオフなら nil。
     public var selectionIssue: String? {
         guard hints.isEnabled, isPlayerTurn else { return nil }
-        return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution)
+        return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution, bindSuits: bindSuits)
+    }
+
+    /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
+    /// それ以外の強さは強さ別の区分に分ける（花札と同じ「既定と違うときだけ区分する」作法・#2604）。
+    var recordScore: GameScore {
+        // 順位は勝敗とは別に平均順位へ累計する（#2606）。
+        let place = playerPlace.map { $0 + 1 }
+        let strength = CPUStrength.strength(for: aiLevel)
+        guard strength != .standard else { return GameScore(metric: .winLoss, place: place) }
+        let variant = strength.recordVariantKey
+        return GameScore(
+            metric: .winLoss, place: place, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
     }
 
     /// 評価リクエスト（#53）の判定用。大富豪なら勝ち、大貧民なら負け、間は引き分け扱い。
@@ -296,7 +401,13 @@ public final class DaifugoModel: AITurnGuarded {
     // MARK: - ゲーム開始
 
     /// 新しい1ゲームを始める。2ゲーム目以降は前ゲームの階級に応じてカード交換を行う。
-    public func startGame() {
+    /// `aiLevel` を渡すとその強さで配る（開始シート・難易度の階段）。渡さなければ前のゲームの強さのまま。
+    public func startGame(aiLevel newLevel: Int? = nil) {
+        if let newLevel {
+            aiLevel = CPUStrength.strength(for: newLevel).rawValue
+            // 配った直後に閉じても選んだ強さが残るよう、持ち越しとは別に書く。
+            try? services?.snapshots.save(DaifugoPreferences(aiLevel: aiLevel), for: preferencesID)
+        }
         var deck = DaifugoCard.makeDeck()
         if var generator = makeGenerator() {
             deck.shuffle(using: &generator)
@@ -315,12 +426,17 @@ public final class DaifugoModel: AITurnGuarded {
         dealt = dealt.map { $0.sorted { $0.sortKey < $1.sortKey } }
 
         lastTransfers = []
+        exchangeNotice = nil
         if lastRanking.count == Self.playerCount {
             let exchanged = DaifugoRules.applyExchange(
                 hands: dealt, ranking: lastRanking, waivingTopPair: isExchangeWaived
             )
             dealt = exchanged.hands
             lastTransfers = exchanged.transfers
+            if let notice = DaifugoExchangeNotice(transfers: exchanged.transfers, human: Self.humanIndex) {
+                exchangeNotice = notice
+                exchangeNoticeRun += 1
+            }
         }
         // 持ち越し（順位・免除）は配った時点では**一切触らない**（#1103・#1146）。消えるのは
         // この局の1手目が保存されたとき（`persist()`）と決着したとき（`concludeGame()`）の2か所だけ。
@@ -335,6 +451,8 @@ public final class DaifugoModel: AITurnGuarded {
         fieldOwner = nil
         passedPlayers = []
         isRevolution = false
+        ruleSet = preferredRuleSet
+        bindSuits = []
         finishOrder = []
         fouls = []
         resigned = []
@@ -348,13 +466,20 @@ public final class DaifugoModel: AITurnGuarded {
         cpuTurnsAfterPlayerFinished = 0
         phase = .playing
 
-        services?.feedback.impact(.medium)   // カードが配られた
+        services?.feedback.impact(.card(.shuffle))   // カードが切られて配られた
         // 配ったばかりの局は `persist()` 側のガードで保存されず、前局の中断データが消えるだけになる
         // （#240。1 手目を出した時点で改めて保存される）。
         persist()
         // 1 ゲーム = 1 プレイ（`gameDidFinish` もゲームごとに呼んでいる）。
         // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
+    }
+
+    /// 次のゲームから使うローカルルールを選ぶ（#2605）。保存して次回起動にも引き継ぐ。
+    /// 今の局には効かない（1 局 = 1 RuleSet）。
+    public func choosePreferredRuleSet(_ ruleSet: DaifugoRuleSet) {
+        preferredRuleSet = ruleSet
+        try? services?.snapshots.save(ruleSet, for: ruleSetID)
     }
 
     /// 親（最初の手番）。初回は♦3を持つ人、2ゲーム目以降は前回の大貧民。
@@ -390,12 +515,12 @@ public final class DaifugoModel: AITurnGuarded {
     public func playSelected() {
         guard isPlayerTurn else { return }
         let cards = selectedCards
-        guard DaifugoRules.isValidPlay(cards, field: field, isRevolution: isRevolution) else {
+        guard DaifugoRules.isValidPlay(cards, field: field, isRevolution: isRevolution, bindSuits: bindSuits) else {
             services?.feedback.notify(.warning)
             return
         }
         selected = []
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.place))
         play(cards, by: Self.humanIndex)
     }
 
@@ -459,8 +584,8 @@ public final class DaifugoModel: AITurnGuarded {
     private func play(_ cards: [DaifugoCard], by player: Int) {
         let ids = Set(cards.map(\.id))
         hands[player] = hands[player].filter { !ids.contains($0.id) }
-        // 札が出た = 捨てたら途中離脱として数える局面（#500。`isUntouchedDeal` の否定と同じ境目）。
-        services?.gameDidProgress(gameID: gameID)
+        // 人間が札を出した = 捨てたら途中離脱として数える局面（#500）。CPU が親で先に出しただけでは数えない（#2774）。
+        if player == Self.humanIndex { services?.gameDidProgress(gameID: gameID) }
 
         var note = cards.map(\.rankLabel).joined(separator: " ")
         if DaifugoRules.triggersRevolution(cards) {
@@ -468,6 +593,9 @@ public final class DaifugoModel: AITurnGuarded {
             note += isRevolution ? " 革命！" : " 革命返し！"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         }
 
+        bindSuits = DaifugoRules.nextBindSuits(
+            current: bindSuits, field: field, played: cards, ruleSet: ruleSet
+        )
         field = cards
         fieldOwner = player
 
@@ -483,6 +611,11 @@ public final class DaifugoModel: AITurnGuarded {
         }
 
         let clears = DaifugoRules.clearsField(cards)
+        if clears || DaifugoRules.triggersRevolution(cards) {
+            fieldImpact = FieldImpact(serial: (fieldImpact?.serial ?? 0) + 1, byHuman: player == Self.humanIndex)
+            // 自分が起こしたときだけ一段強い手応え（CPU の着手は無音のまま）。
+            if player == Self.humanIndex { services?.feedback.impact(.medium) }
+        }
         if clears { note += finished ? "（8切り）" : " 8切り！" }  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         lastActions[player] = note
 
@@ -503,6 +636,7 @@ public final class DaifugoModel: AITurnGuarded {
 
     private func passTurn(by player: Int) {
         passedPlayers.insert(player)
+        if player == Self.humanIndex { services?.gameDidProgress(gameID: gameID) }
         lastActions[player] = "パス"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
         advanceTurn(from: player)
         persist()
@@ -526,6 +660,7 @@ public final class DaifugoModel: AITurnGuarded {
         field = []
         fieldOwner = nil
         passedPlayers = []
+        bindSuits = []
         if !hands[preferredLeader].isEmpty {
             currentPlayer = preferredLeader
         } else if let next = nextActivePlayer(after: preferredLeader) {
@@ -572,6 +707,7 @@ public final class DaifugoModel: AITurnGuarded {
         field = []
         fieldOwner = nil
         passedPlayers = []
+        bindSuits = []
         phase = .result
 
         switch reviewOutcome {
@@ -579,7 +715,11 @@ public final class DaifugoModel: AITurnGuarded {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(
+            gameID: gameID, outcome: reviewOutcome, score: recordScore,
+            // 「入門」「かんたん」に勝っても評価を頼むほどの手応えとは言えない（#1471）。
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
+        )
         services?.snapshots.clear(for: gameID)
         // 決着した = 免除を乗せた配りが終わった（#1146）。1手も出さずに投了した局は `persist()` を
         // 通らないので、消費をあちらだけに任せると免除が次の階級と一緒に持ち越され、
@@ -599,13 +739,15 @@ public final class DaifugoModel: AITurnGuarded {
         // 走者不在になり手番が止まりうるため、麻雀（#311）と同じく先行タスクの終了を
         // 待ってから引き継ぐ。待機中に自分もキャンセルされたら次のタスクに譲って抜ける（#531 で共通化）。
         await withAITurnRunner(running: \.isRunningCPUTurns) {
+            // このループで CPU が1手でも指したか。2手目以降だけ間合いを詰める（#2714）。
+            var isChained = false
             while phase == .playing, currentPlayer != Self.humanIndex {
                 // 間合いが 0 の手番（早送り中など）には suspend が無く、下の sleep 後の判定を
                 // 通らない。ループ先頭でも見て、どの経路でもキャンセル後は進めないようにする（#287）。
                 guard !Task.isCancelled else { return }
                 // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
                 // 待たずに済むようにするため（#191）。
-                let delay = currentCPUDelay
+                let delay = currentCPUDelay(isChained: isChained)
                 if delay > .zero {
                     // キャンセルを見ないと、画面を離れた瞬間に残りの CPU 手番が遅延ゼロで走り抜けてしまう（#287）。
                     // 下の状態 guard は状態しか見ないので、これの代わりにはならない。
@@ -613,22 +755,31 @@ public final class DaifugoModel: AITurnGuarded {
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
                 performCPUTurn(currentPlayer)
+                isChained = true
             }
         }
     }
 
     /// この手番で取る間合い（#191）。自分が上がった後は短くし、早送り中は取らない。
     /// `cpuDelay` が 0 のテストでは常に 0 のまま（`min` で頭打ちにしているため）。
-    private var currentCPUDelay: Duration {
-        guard isPlayerFinished else { return cpuDelay }
+    private func currentCPUDelay(isChained: Bool) -> Duration {
+        guard isPlayerFinished else {
+            return isChained ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
+        }
         return isSkippingToResult ? .zero : min(cpuDelay, Self.finishedCPUDelay)
     }
 
     /// CPU の1手。CPU の着手では触覚を鳴らさない（人間の操作と区別するため）。
     private func performCPUTurn(_ player: Int) {
         if isPlayerFinished { cpuTurnsAfterPlayerFinished += 1 }
-        if let play = DaifugoRules.greedyPlay(
-            hand: hands[player], field: field, isRevolution: isRevolution
+        // 手札が残っている他のプレイヤーの最少枚数（「むずかしい」が温存するかの判断）。
+        let minOpponentHandCount = hands.indices
+            .filter { $0 != player && !hands[$0].isEmpty }
+            .map { hands[$0].count }.min() ?? .max
+        if let play = DaifugoRules.cpuPlay(
+            hand: hands[player], field: field, isRevolution: isRevolution,
+            strength: CPUStrength.strength(for: aiLevel),
+            minOpponentHandCount: minOpponentHandCount, bindSuits: bindSuits, using: &cpuRNG
         ) {
             self.play(play, by: player)
         } else {
@@ -648,13 +799,17 @@ public final class DaifugoModel: AITurnGuarded {
         isRevolution: Bool = false,
         passedPlayers: Set<Int> = [],
         gameNumber: Int = 1,
-        finishOrder: [Int] = []
+        finishOrder: [Int] = [],
+        ruleSet: DaifugoRuleSet = .standard,
+        bindSuits: Set<DaifugoSuit> = []
     ) {
         self.hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         self.field = field
         self.fieldOwner = fieldOwner
         self.currentPlayer = currentPlayer
         self.isRevolution = isRevolution
+        self.ruleSet = ruleSet
+        self.bindSuits = bindSuits
         self.passedPlayers = passedPlayers
         self.gameNumber = gameNumber
         self.finishOrder = finishOrder
@@ -698,7 +853,10 @@ public final class DaifugoModel: AITurnGuarded {
             fouls: Array(fouls).sorted(),
             gameNumber: gameNumber,
             lastRanking: lastRanking,
-            lastActions: lastActions
+            lastActions: lastActions,
+            ruleSet: ruleSet,
+            bindSuits: Array(bindSuits).sorted { $0.rawValue < $1.rawValue },
+            aiLevel: aiLevel
         )
         do {
             try services?.snapshots.save(snap, for: gameID)

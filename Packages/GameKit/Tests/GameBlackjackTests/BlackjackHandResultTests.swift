@@ -21,7 +21,7 @@ struct BlackjackHandResultTests {
         #expect(model.handResult == nil)
     }
 
-    @Test("勝つと点数の対比と +1 点が理由に出る。枚数の行は出さない")
+    @Test("勝つと点数の対比が理由に、入った 1 点は大きい増減欄（点）に出る")
     func win() throws {
         let model = makeModel(player: [10, 9], dealer: [10, 7], deck: [])
         model.stand()
@@ -29,9 +29,10 @@ struct BlackjackHandResultTests {
 
         #expect(result.kind == .win)
         #expect(result.headline == "勝ち！")
-        #expect(result.reason == "あなた19 対 ディーラー17（+1点）")
-        #expect(result.chipDelta == nil)
-        #expect(result.chipText == nil)
+        #expect(result.reason == "あなた19 対 ディーラー17")
+        #expect(result.chipDelta == 1)
+        #expect(result.unit == .points)
+        #expect(result.chipText == "+1点")
     }
 
     @Test("バストすると負け。理由に点数が出て、勝ち点は添えない")
@@ -52,7 +53,7 @@ struct BlackjackHandResultTests {
         let result = try #require(model.handResult)
 
         #expect(result.kind == .win)
-        #expect(result.reason == "ディーラーがバスト（26）（+1点）")
+        #expect(result.reason == "ディーラーがバスト（26）")
     }
 
     @Test("同点は引き分け")
@@ -63,6 +64,7 @@ struct BlackjackHandResultTests {
 
         #expect(result.kind == .draw)
         #expect(result.reason == "あなた18 対 ディーラー18")
+        #expect(result.chipDelta == nil, "点が入らない回は増減欄を出さない")
         #expect(result.chipText == nil)
     }
 
@@ -79,7 +81,8 @@ struct BlackjackHandResultTests {
 
         #expect(model.points == 1)
         #expect(result.kind == .win, "勝ち点が入った回は勝ちとして見せる")
-        #expect(result.reason == "ハンド1 勝ち / ハンド2 負け（+1点）")
+        #expect(result.reason == "ハンド1 勝ち / ハンド2 負け")
+        #expect(result.chipText == "+1点")
     }
 
     @Test("次の回へ進むと結果は消える")
@@ -95,11 +98,11 @@ struct BlackjackHandResultTests {
         }
     }
 
-    @Test("読み上げに枚数の増減を含めない")
-    func spokenTextHasNoChipCount() throws {
+    @Test("読み上げに入った点を含める（チップの枚数ではなく点）")
+    func spokenTextHasPoints() throws {
         let model = makeModel(player: [10, 9], dealer: [10, 7], deck: [])
         model.stand()
         let result = try #require(model.handResult)
-        #expect(result.spokenText == "勝ちです。あなた19 対 ディーラー17（+1点）")
+        #expect(result.spokenText == "勝ちです。あなた19 対 ディーラー17。1点入りました")
     }
 }

@@ -25,9 +25,23 @@ public final class FifteenModel {
     let gameID = "fifteen"
     private var generator: SplitMix64?
 
+    /// 盤の一辺のマス数（3・4・5）。盤の長さから決まる。
+    public var size: Int { FifteenLogic.size(ofCellCount: tiles.count) ?? FifteenLogic.defaultSize }
+
+    /// 記録の区分キー（#2869）。4×4 は従来の保存先（区分なし）、3×3 と 5×5 は大きさで分ける（`RecordVariantLabels` の `fifteen`）。
+    public static func recordVariant(size: Int) -> String? {
+        size == FifteenLogic.defaultSize ? nil : "\(size)x\(size)"
+    }
+
+    /// ヘッダーに出す保存済みの自己ベスト手数（#2615）。盤の大きさごとの記録を引く。記録が無いときは nil（出さない）。
+    var savedBestMoves: Int? {
+        services?.playLog?.record(gameID: gameID, variant: Self.recordVariant(size: size))?.fewestMoves
+    }
+
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     /// `seed` を渡すと配置を種から決める（テスト用。省略時はシステム乱数）。
-    public init(services: GameServices? = nil, seed: UInt64? = nil) {
+    /// `size` は新規開始する盤の一辺（3〜5。範囲外は 4）。中断データがあればその大きさで復元する。
+    public init(services: GameServices? = nil, seed: UInt64? = nil, size: Int = FifteenLogic.defaultSize) {
         self.services = services
         generator = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(FifteenSnapshot.self, for: gameID),
@@ -40,7 +54,7 @@ public final class FifteenModel {
             tiles = []
             moves = 0
             isSolved = false
-            tiles = makeBoard()
+            tiles = makeBoard(size: FifteenLogic.sizes.contains(size) ? size : FifteenLogic.defaultSize)
             // 中断からの復元は「新しいプレイ」ではないので開始は数えない。
             services?.gameDidStart(gameID: gameID)
         }
@@ -76,7 +90,12 @@ public final class FifteenModel {
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: .win,
-                score: GameScore(metric: .fewestMoves, moves: moves, isLeaderboardEligible: !hints.wasUsed)
+                score: GameScore(
+                    metric: .fewestMoves, moves: moves,
+                    variant: Self.recordVariant(size: size),
+                    variantLabel: Self.recordVariant(size: size).map { RecordVariantLabels.stored(gameID: gameID, variant: $0) },
+                    isLeaderboardEligible: !hints.wasUsed
+                )
             )
             services?.snapshots.clear(for: gameID)
         } else {
@@ -88,9 +107,9 @@ public final class FifteenModel {
     /// 「リセット」で失われる進行があるか（#1011）。1 手も動かしていない盤と解き終えた盤は捨てて構わない。
     public var hasProgressToLose: Bool { moves > 0 && !isSolved }
 
-    /// 新規ゲーム。
-    public func newGame() {
-        tiles = makeBoard()
+    /// 新規ゲーム。`size` を渡すとその大きさで始める（盤の大きさの切り替え・#2869）。
+    public func newGame(size newSize: Int? = nil) {
+        tiles = makeBoard(size: newSize.flatMap { FifteenLogic.sizes.contains($0) ? $0 : nil } ?? size)
         moves = 0
         isSolved = false
         recordResult = nil
@@ -134,13 +153,13 @@ public final class FifteenModel {
         persist()
     }
 
-    private func makeBoard() -> [Int] {
+    private func makeBoard(size: Int) -> [Int] {
         if var seeded = generator {
             defer { generator = seeded }
-            return FifteenLogic.shuffled(using: &seeded)
+            return FifteenLogic.shuffled(size: size, using: &seeded)
         }
         var system = SystemRandomNumberGenerator()
-        return FifteenLogic.shuffled(using: &system)
+        return FifteenLogic.shuffled(size: size, using: &system)
     }
 
     private func persist() {

@@ -1,4 +1,5 @@
 import Testing
+import CoreGraphics
 import Core
 import CoreEngine
 @testable import GameSpeed
@@ -46,7 +47,15 @@ struct SpeedModuleTests {
         let code = SourceScan.strippingComments(source)
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
         #expect(code.contains("RecommendationSlot("))
-        #expect(code.contains("BannerSlot("))
+        // レイアウトパターン A（全画面・#2531）: バナーは枠が最下部に置くので、ゲーム側に BannerSlot を書かない。
+        #expect(code.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠にバナーの取得元を渡していない")
+        #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
+        #expect(code.contains("FullScreenGameLayoutMetrics.sideInset"), "左右の余白は全画面の枠の値")
+        // 会長 QA 2026-10-23「＋ともう一個ボタンあるけど、これ同じじゃね？」: 新規は「＋」1 つで、速さのシートから始める。
+        #expect(!code.contains("slider.horizontal.3"), "ヘッダーに「速さ」のボタンが残っている")
+        #expect(code.contains("GameChromeNewGame(.match, isDisabled: timeoutRescue.isWatching)"), "広告の視聴中に＋を塞いでいない")
+        #expect(code.contains("Button(tr(\"終了して新規対局\"), role: .destructive) { showSetup = true }"),
+                "途中の確認のあとは速さのシートから始める")
         #expect(code.contains("HowToPlayHint(.speed"))
         #expect(code.contains("GameSetupSheet(") && code.contains("GameSetupChooser("), "速さのシートは共通枠から組む")
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口はタイムの 1 面だけ")
@@ -97,8 +106,74 @@ struct SpeedModuleTests {
     @Test("手札 4 枚と山札は iPhone SE の幅に収まり、札は 44pt 以上の押し幅を持つ")
     func handFits() {
         #expect(SpeedHandLayout.fits(screenWidth: 375))
-        #expect(PlayingCardMetrics.standard.width >= 44)
-        #expect(PlayingCardMetrics.standard.height >= 44)
+        #expect(SpeedHandLayout.cardWidth(contentWidth: 375 - FullScreenGameLayoutMetrics.sideInset * 2) >= 44)
+    }
+
+    /// 会長 QA 2026-10-23「スピードの画面がチカチカフラッシュする」の再発防止。補充された札は `.transition(.scale)` で
+    /// ほぼ 0 倍から出てくるので、札の側で枠を測ると幅 0.0007pt の枠が残り、台札へ飛ぶ札が 14 万倍に拡大されて
+    /// 札の面が画面全体を白く覆っていた。
+    @Test("台札へ飛ぶ札の倍率は、測った手札の枠が潰れていても台札の大きさの上限を超えない")
+    func flightScaleIsBounded() {
+        // 実際に記録された潰れた枠（幅 0.0007pt）と台札の幅 98pt。
+        #expect(SpeedFlight.pileScale(handWidth: 0.0007, pileWidth: 98) == SpeedTableLayout.maxPileRatio)
+        #expect(SpeedFlight.pileScale(handWidth: 70, pileWidth: 98) == 1.4)
+        #expect(SpeedFlight.pileScale(handWidth: 70, pileWidth: 70) == 1)
+        #expect(SpeedFlight.pileScale(handWidth: 0, pileWidth: 98) == 1)
+        #expect(SpeedFlight.pileScale(handWidth: nil, pileWidth: 98) == 1)
+        // どの画面の寸法でも、台札 ÷ 手札は 1〜maxPileRatio に収まる（上限で切っても見た目は変わらない）。
+        for size in [CGSize(width: 375, height: 667), CGSize(width: 402, height: 874), CGSize(width: 1024, height: 1366), .zero] {
+            let metrics = SpeedTableLayout.metrics(contentSize: size)
+            let ratio = metrics.pileCard.width / metrics.handCard.width
+            #expect(ratio >= 1 && ratio <= SpeedTableLayout.maxPileRatio + 0.0001)
+        }
+    }
+
+    @Test("手札の枠は、拡大縮小の出入りをする札の外（動かない枠）で測る")
+    func handFrameIsMeasuredOutsideTransition() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains(".cardDropTarget(SpeedSlot.hand(id), in: Self.tableSpace)"))
+        #expect(!code.contains(".cardDropTarget(SpeedSlot.hand(card.id)"), "出入りで縮む札の側で枠を測っている")
+        #expect(code.contains("SpeedFlight.pileScale(handWidth: metrics.width"), "飛ぶ札の倍率を寸法の幅から上限つきで決めていない")
+    }
+
+    /// 会長 QA 2026-10-23「相手が出したアニメーションが無く、急に札が入れ替わったように感じる」。
+    @Test("CPU が出した札も CPU の手札の位置から台札へ飛び、台札は下の札を重ねて見せる")
+    func cpuPlayFlies() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains("flyCPUPlay(hand: hand, tops: tops)"), "CPU の着手のあとに飛ぶ札を出していない")
+        #expect(code.contains(".cardDropTarget(SpeedSlot.cpu(card.id), in: Self.tableSpace)"), "CPU の札の位置を測っていない")
+        #expect(code.contains("fromScale: SpeedTableLayout.cpuCardRatio"), "CPU の札の大きさから飛び始めていない")
+        #expect(code.contains("ForEach(model.piles[index].suffix(3))"), "台札が 1 枚だけで、飛んでくるあいだ空いて見える")
+        // CPU の着手は無音・触覚なし（#2726 の効果音も CPU では鳴らさない）。飛ぶ演出の側で鳴らさない。
+        let body = try #require(code.range(of: "private func flyCPUPlay").map { String(code[$0.lowerBound...].prefix(700)) })
+        #expect(!body.contains("feedback"), "CPU の札を飛ばすときに音・触覚を鳴らしている")
+    }
+
+    /// 柵越えおじさんで、モデルのテストは緑なのに実際の `DragGesture` で動かなかった事故（時刻の扱い）の再発防止。
+    /// 払いの判定は離した瞬間の動いた量と OS の速さだけを読み、時刻は読まない。タップ・VoiceOver の入口も残す。
+    @Test("手札の払いは DragGesture の動いた量と速さを SpeedSwipe に渡し、時刻を読まない")
+    func swipeIsWiredFromGesture() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains("DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.tableSpace))"))
+        #expect(code.contains(".gesture(swipeGesture(card))"), "手札に払いのジェスチャがついていない")
+        #expect(code.contains("SpeedSwipe.resolve("))
+        #expect(code.contains("translation: value.translation") && code.contains("velocity: value.velocity"))
+        #expect(!code.contains("value.time"), "ジェスチャの時刻を読まない")
+        #expect(code.components(separatedBy: "if let lifted, lifted.card.id != card.id { return }").count - 1 == 2,
+                "ほかの札を持ち上げているあいだの 2 本目の指（onChanged・onEnded）を無視していない")
+        #expect(code.contains("model.swipeCard(card, onto: pile)"), "判定の結果を Model に渡していない")
+        #expect(code.contains(".cardDropTarget(SpeedSlot.pile(index)"), "台札の枠を測っていない")
+        #expect(code.contains(".accessibilityAction { tapHandCard(card) }"), "VoiceOver の操作（ダブルタップで出す）が残っていない")
+        // 通常の操作ではタップで札を出さない（会長 QA 2026-10-24・build 52）。支援機能のときだけ今までのタップの操作に渡す。
+        let tapCase = try #require(code.range(of: "case .tap:").map { String(code[$0.upperBound...].prefix(80)) })
+        #expect(tapCase.contains("fingerTapHandCard(card)"), "指のタップを、札を出さない入口に通していない")
+        #expect(code.contains("Button { fingerTapPile(index) }"), "台札の指のタップを、通常時は止める入口に通していない")
+        #expect(code.contains("model.fingerTapHandCard(card, assistive: false)"))
+        #expect(code.contains("model.fingerTapPile(index, assistive: assistive)"))
+        #expect(code.contains("@Environment(\\.accessibilityVoiceOverEnabled)")
+                && code.contains("@Environment(\\.accessibilitySwitchControlEnabled)"),
+                "VoiceOver・スイッチコントロールの使用を読んでいない")
+        #expect(code.contains("private var assistive: Bool { voiceOverEnabled || switchControlEnabled }"))
     }
 }
 
@@ -141,6 +216,9 @@ struct SpeedAccessibilityTests {
                 == "どちらも出せません。めくってください")
         #expect(SpeedAccessibility.statusLabel(phase: .playing, isStuck: false, hasSelection: true, winner: nil, isDraw: false)
                 == "どちらの台札に置くか選んでください")
+        // 盤の下の 1 行はスワイプ前提の言い方（会長 QA 2026-10-23）。
+        #expect(SpeedAccessibility.statusLabel(phase: .playing, isStuck: false, hasSelection: false, winner: nil, isDraw: false)
+                == "1つ違いの札を台札のほうへ払ってください")
         #expect(SpeedAccessibility.statusLabel(phase: .result, isStuck: false, hasSelection: false, winner: .human, isDraw: false)
                 == "あなたの勝ち")
         #expect(SpeedAccessibility.statusLabel(phase: .result, isStuck: false, hasSelection: false, winner: nil, isDraw: true)

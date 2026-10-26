@@ -16,10 +16,17 @@ public enum PokerAccessibility {
     /// 手札 1 枚の読み上げ文（例: "ハートの7、捨てる札に選択中"）。
     ///
     /// 選択の状態は交換フェーズでだけ読む。ほかのフェーズでは選べないので、札の名前だけにする。
-    public static func handCardLabel(card: PokerCard, isSelected: Bool, phase: PokerPhase) -> String {
+    public static func handCardLabel(card: PokerCard, isSelected: Bool, phase: PokerPhase, wasExchanged: Bool = false) -> String {
         let name = card.figure.spokenLabel
-        guard acceptsSelection(phase: phase), isSelected else { return name }
+        guard acceptsSelection(phase: phase) else { return wasExchanged ? tr("%@、引いた札", name) : name }
+        guard isSelected else { return name }
         return tr("%@、捨てる札に選択中", name)
+    }
+
+    /// 決着で表になった CPU の札 1 枚の読み上げ文（例: "ハートの7、引いた札"）。替えなかった札は名前だけ（#2594）。
+    public static func cpuCardLabel(card: PokerCard, wasExchanged: Bool) -> String {
+        let name = card.figure.spokenLabel
+        return wasExchanged ? tr("%@、引いた札", name) : name
     }
 
     /// 役一覧の見本 5 枚の読み上げ文（例: "スペードのA、スペードのK、…"）。役名と説明は
@@ -35,8 +42,29 @@ public enum PokerAccessibility {
 
     /// 上の帯の読み上げ文（例: "3回目 / 10、合計12点、CPU 8点"）。画面は回数と点が別の Text で、
     /// そのままだと別々の要素に分かれて読まれる（#2162 と同じ手当て）。
-    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int) -> String {
-        tr("%1$lld回目 / %2$lld、合計%3$lld点、CPU %4$lld点",
-           round, PokerModel.roundsPerSession, playerPoints, cpuPoints)
+    public static func scoreboardLabel(round: Int, playerPoints: Int, cpuPoints: Int, streak: Int = 0,
+                                       format: PokerSessionFormat = .tenRounds) -> String {
+        let base = format == .single
+            ? tr("単発戦、合計%1$@、CPU %2$@", tr("%lld点", playerPoints), tr("%lld点", cpuPoints))
+            : tr("%1$lld回目 / %2$lld、合計%3$@、CPU %4$@",
+                 round, PokerModel.roundsPerSession, tr("%lld点", playerPoints), tr("%lld点", cpuPoints))
+        guard streak > 0 else { return base }
+        return tr("%@、連勝%lld", base, streak)
+    }
+
+    /// 決着時の役名の行の読み上げ文（例: "あなた、スリーカード、勝ち！"）。画面は見出し・役名・勝敗の印が
+    /// 別々の Text で、役名だけが順に読まれると誰の役か分からない（#2589）。
+    /// `winner` が nil（勝敗の印を出さない `.showdown`）のときは主体と役名だけにする。
+    public static func handRankLabel(subject: String, rank: PokerHandRank, side: PokerWinner, winner: PokerWinner?) -> String {
+        var label = tr("%@、%@", subject, rank.description)
+        guard let winner else { return label }
+        let verdict: String
+        switch winner {
+        case .tie: verdict = tr("引き分け")
+        case side: verdict = tr("勝ち！")
+        default: verdict = tr("負け")
+        }
+        label = tr("%@、%@", label, verdict)
+        return label
     }
 }

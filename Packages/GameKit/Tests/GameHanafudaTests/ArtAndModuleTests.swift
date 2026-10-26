@@ -183,6 +183,15 @@ struct HanafudaSpeechTests {
             .hasSuffix("場の2枚と合う"))
     }
 
+    @Test("場の札は選択待ちのときだけ、取れるかどうかまで読む")
+    func fieldLabelMentionsCandidateOnlyWhileSelecting() {
+        let card = HanafudaCard.named("松に鶴")
+        let base = HanafudaSpeech.label(for: card)
+        #expect(HanafudaSpeech.fieldLabel(for: card, isSelecting: false, isCandidate: false) == base)
+        #expect(HanafudaSpeech.fieldLabel(for: card, isSelecting: true, isCandidate: true).hasSuffix("取れます"))
+        #expect(HanafudaSpeech.fieldLabel(for: card, isSelecting: true, isCandidate: false).hasSuffix("合いません"))
+    }
+
     @Test("取り札は種別ごとの枚数で要約する")
     func capturedSummaryCountsByKind() {
         #expect(HanafudaSpeech.capturedSummary([]) == "取り札なし")
@@ -266,5 +275,21 @@ struct HanafudaModuleTests {
         #expect(related?.isEmpty == false)
         // 自分自身を勧めない。
         #expect(related?.contains(HanafudaModel.gameID) == false)
+    }
+}
+
+@Suite("大きなあがりの判定（#2804）")
+struct HanafudaBigWinTests {
+    private func result(_ winner: HanafudaPlayer?, score: Int) -> HanafudaRoundResult {
+        HanafudaRoundResult(winner: winner, hits: [], basePoints: score, score: score, reasons: [])
+    }
+
+    @Test("自分が 6 文以上であがったときだけ大きなあがり")
+    func threshold() {
+        #expect(result(.human, score: 6).isBigHumanWin)
+        #expect(result(.human, score: 10).isBigHumanWin)
+        #expect(!result(.human, score: 5).isBigHumanWin)
+        #expect(!result(.cpu, score: 10).isBigHumanWin, "CPU のあがりは祝わない")
+        #expect(!HanafudaRoundResult.drawn.isBigHumanWin)
     }
 }

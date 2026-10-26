@@ -42,10 +42,20 @@ public final class OjisanPuzzleModel {
     /// 次に落ちてくる組。
     public private(set) var next: OjisanPuzzlePair
     public private(set) var score: Int = 0
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。パズルモードだけ。保存済みの自己ベスト
+    /// （モードごとの区分）と今の得点の大きい方。荷運びモードの自己ベストはタイムなので出さない。0 のときは nil。
+    var liveBestScore: Int? {
+        guard !mode.isCleanup else { return nil }
+        let saved = services?.playLog?.record(gameID: Self.gameID, variant: mode.recordVariant)?.bestPoints ?? 0
+        let best = max(saved, score)
+        return best > 0 ? best : nil
+    }
     /// 腰痛ゲージ（0...100）。
     public private(set) var pain: Int = 0
     /// 直前の 1 手で何連鎖したか。次に固定するまで出したままにする。
     public private(set) var lastChain: Int = 0
+    /// この局で起きた最大の連鎖数（結果に出す・#2810）。始め直すと 0 に戻り、広告で続けた局は引き継ぐ。
+    public private(set) var maxChain: Int = 0
     /// 連鎖が起きるたびに増える通し番号。表示側のトランジションを毎回再生させるための nonce。
     public private(set) var chainEventID: Int = 0
     /// 決着。nil なら進行中。
@@ -403,6 +413,7 @@ public final class OjisanPuzzleModel {
         score = 0
         pain = mode.hasGauge ? OjisanPuzzlePain.initial(board: board) : 0
         lastChain = 0
+        maxChain = 0
         chainDepth = 0
         phase = .dropping
         outcome = nil
@@ -495,6 +506,7 @@ public final class OjisanPuzzleModel {
             if mode.hasGauge { pain = OjisanPuzzlePain.afterChain(pain, cells: cells, chain: chainDepth) }
             board = OjisanPuzzleBoard.removing(board, groups: groups)
             lastChain = chainDepth
+            maxChain = max(maxChain, chainDepth)
             chainEventID += 1
             services?.feedback.impact(.medium)
             return

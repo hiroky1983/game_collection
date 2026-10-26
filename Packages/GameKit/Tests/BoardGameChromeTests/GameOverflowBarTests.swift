@@ -114,7 +114,10 @@ struct GameOverflowBarTests {
         let board = try #require(body.range(of: boardMark), "\(path) の body に盤が無い")
         let control = try #require(body.range(of: controlMark, range: board.upperBound..<body.endIndex),
                                    "\(path) の「⋯」の行が盤より下に無い")
-        let banner = try #require(body.range(of: "BannerSlot(", range: control.upperBound..<body.endIndex),
+        // レイアウトパターン A（全画面・#2531）の画面は、バナーを全画面の枠が中身の下に置く。中身の最後（枠を付ける手前）を
+        // 広告の位置と見なす。
+        let bannerMark = body.contains("fullScreen: .felt") ? ".gameChrome(" : "BannerSlot("
+        let banner = try #require(body.range(of: bannerMark, range: control.upperBound..<body.endIndex),
                                   "\(path) の広告が「⋯」の行より下に無い")
         #expect(!body[board.upperBound..<control.lowerBound].contains("Spacer("),
                 "\(path) の盤と「⋯」の行のあいだに Spacer がある（「⋯」が盤から離れて浮く）")
@@ -158,16 +161,16 @@ struct GameOverflowBarTests {
         #expect(badge.contains("TurnBadge(isYourTurn:"))
     }
 
-    @Test("花札: 試合の結果の「もう一度」は結果カードのすぐ下に置く（下の操作エリアに置くと広告の直上へ押し下げられる・#1519）")
+    @Test("花札: 試合の結果の「もう一回」は結果カードのすぐ下に置く（下の操作エリアに置くと広告の直上へ押し下げられる・#1519）")
     func hanafudaMatchResultButtonSitsUnderTheCard() throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHanafuda/HanafudaView.swift"))
         let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source))
         let card = try #require(body.range(of: "matchResultCard"))
-        let button = try #require(body.range(of: #"actionButton(tr("もう一度")"#, range: card.upperBound..<body.endIndex))
+        let button = try #require(body.range(of: "GameReplayBar(", range: card.upperBound..<body.endIndex))
         let hint = try #require(body.range(of: "HowToPlayHint("))
-        #expect(button.upperBound < hint.lowerBound, "「もう一度」が結果カードの枠の外（広告側）に出ている")
+        #expect(button.upperBound < hint.lowerBound, "「もう一回」の段が結果カードの枠の外（広告側）に出ている")
         let actionArea = try #require(SourceScan.declaration(of: "private var actionArea: some View", in: source))
-        #expect(!actionArea.contains("もう一度"), "操作エリアに「もう一度」が残っている（広告の直上へ押し下げられる）")
+        #expect(!actionArea.contains("もう一回"), "操作エリアに「もう一回」が残っている（広告の直上へ押し下げられる）")
     }
 
     @Test("あきらめるは確認付きで「⋯」メニューに入っている（ナンプレ・マインスイーパー）",

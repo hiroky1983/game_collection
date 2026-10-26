@@ -11,10 +11,15 @@ enum Game2048HowToFigures {
         { AnyView(GoalFigure()) },
     ]
 
-    private static let tile: CGFloat = 28
+    static let tile: CGFloat = 28
+
+    /// スライドの図の 1 行（左へスワイプする前 → 後）。はじめての遊び方（#2826）のテストが `Game2048Logic` で確かめる。
+    static let slideRow = (before: [0, 2, 0, 4], after: [2, 4, 0, 0])
+    /// 合体の図の 1 行（左へスワイプする前 → 後）。
+    static let mergeRow = (before: [2, 2, 8, 8], after: [4, 16, 0, 0])
 
     /// 1 行ぶんの盤（0 は空き）。
-    private struct Row: View {
+    struct Row: View {
         let values: [Int]
         var body: some View {
             HStack(spacing: 4) {
@@ -29,11 +34,11 @@ enum Game2048HowToFigures {
     }
 
     /// 左へスワイプ → 全部が左へ寄る。
-    private struct SlideFigure: View {
+    struct SlideFigure: View {
         var body: some View {
             VStack(spacing: 6) {
                 RuleFrames(count: 2, spacing: 8) { index in
-                    Row(values: index == 0 ? [0, 2, 0, 4] : [2, 4, 0, 0])
+                    Row(values: index == 0 ? Game2048HowToFigures.slideRow.before : Game2048HowToFigures.slideRow.after)
                 }
                 HStack(spacing: 4) {
                     Image(systemName: "hand.draw.fill")
@@ -46,16 +51,16 @@ enum Game2048HowToFigures {
     }
 
     /// 同じ数字がぶつかると合体して 2 倍。
-    private struct MergeFigure: View {
+    struct MergeFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 8) { index in
-                Row(values: index == 0 ? [2, 2, 8, 8] : [4, 16, 0, 0])
+                Row(values: index == 0 ? Game2048HowToFigures.mergeRow.before : Game2048HowToFigures.mergeRow.after)
             }
         }
     }
 
     /// 2048 を作ればクリア。
-    private struct GoalFigure: View {
+    struct GoalFigure: View {
         var body: some View {
             HStack(spacing: 10) {
                 TileView(value: 1024, size: 40)

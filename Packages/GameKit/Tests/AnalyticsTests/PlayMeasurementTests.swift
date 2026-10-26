@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _, _, _, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _, _, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -97,7 +97,7 @@ struct QuitTrackingTests {
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
             case let .gameStart(_, _, mode, _, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _, _, _): return ("end", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -612,6 +612,8 @@ struct RewardOfferWiringTests {
         "GameSolitaire.hintRescue",
         // 神経衰弱のヒント（無料1回を使い切った後・#2026）も同じ形。
         "GameConcentration.hintRescue",
+        // おじさんちのねこさがしのヒント（無料3回を使い切った後・#2250）も同じ形。
+        "GameCatPuzzle.hintRescue",
     ]
 
     @Test("各ゲームの救済は、提示の結線を持つか Core の部品（待った・コンティニューの幕）へ渡している")
@@ -757,13 +759,15 @@ struct RewardAdCallSiteTests {
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
         // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        // 麻雀の最終局延長（#1201）で 1 か所増えて 17。ルーレットのチップ切れ復活（#1318）で 18。
+        // 麻雀の最終局延長（#1201）で 1 か所増えて 17。
         // いろリレーの引き札の免除（#1320）で 19。ぱっと暗算の見直し（#1321）で 20。スピードのタイム（#1323）で 21。柵越えおじさんの挑戦回数（#1348）で 22。
         // 将棋・チェス・五目並べのヒント（無料枠を使い切った後の広告・#1500）で3か所増えて25。しりとりの時間切れ延長（#1717）で 26。
         // 麻雀ソリティア・ナンプレの「戻す」の補充（#1855）で2か所増えて28。オセロのヒント（#2011）で29。2048 の「戻す」の補充（#2023）で30。マインスイーパーのヒント（#2024）で31。15パズルのヒント（#1975）で32。神経衰弱のヒント（#2026）で33。囲碁のヒント（#2027）で34。フリーセルのヒント（#2025）で35。スパイダーのヒント（#2025）で36。ソリティアのヒント（#2025）で37。バックギャモンのヒント（#2302）で1か所増える（現在値は下の期待値）。
         // フリーセル・スパイダー・ソリティアのヒントの広告は Core の `BoardHintReader` に寄せた（#2125）ので 3 か所減って34。
-        // おじさんの荷物運びパズルの負けから続ける救済（#2013）で 1 か所増えて 36（現在値は下の期待値）。
-        #expect(counts.values.reduce(0, +) == 36, "リワード広告の面は36箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
+        // おじさんの荷物運びパズルの負けから続ける救済（#2013）で 1 か所増えて 36。企画倉庫ゲームの削除（#2545）で 1 か所減って 35。
+        // おじさんちのねこさがしのヒント（#2250）で 1 か所増えて 36。
+        // ねこさがしのコンティニューを Core の幕から結果カードへ移した（#2904）ので 1 か所増えて 37（現在値は下の期待値）。
+        #expect(counts.values.reduce(0, +) == 37, "リワード広告の面は37箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
     }
 }
 
@@ -791,7 +795,7 @@ struct PlayMeasurementCallSiteTests {
     }
 
     /// プレイを数えているモジュール（= ハブに並ぶ 24 本のゲーム（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ハブから外しているブロックならべ #493
-    /// + 企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323・明かり消しパズル #1883・マンカラ #1626・ハーツ #1884）。
+    /// + 企画倉庫のくっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323・明かり消しパズル #1883・マンカラ #1626・ハーツ #1884）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -801,7 +805,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 38, "企画倉庫の四目並べ（#1738）・線つなぎ（#2235）・明かり消しパズル（#1883）・ハーツ（#1884）・ババ抜き（#1577）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
+        #expect(games.count == 38, "v1.1.14 で公開したおじさんちのねこさがし（#2250）・スピード（#1323）・ババ抜き（#1577）・ハーツ（#1884）+ 企画倉庫の四目並べ（#1738）・線つなぎ（#2235）・明かり消しパズル（#1883）・マンカラ（#1626）+ ハブに並ぶゲーム24本（柵越えおじさん #1348・おじさんの荷物運びパズル #1904 を含む）+ ブロックならべ（#493）+ 企画倉庫のくっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・サイコロ役づくり（#1752）・ハノイの塔（#2003）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -820,8 +824,11 @@ struct PlayMeasurementCallSiteTests {
             "GameAnzan",         // 桁数・個数・速さの段の和を 4 段階へ丸める（#1321・企画倉庫）
             "GameBackgammon",    // CPU の強さ 4 段階（#1322・企画倉庫）
             "GameBlocks",        // 面番号 1〜12
+            "GameCatPuzzle",     // 盤の大きさ 6×6 / 7×7 / 8×8（#2250・企画倉庫）
             "GameChess",         // CPU の強さ 3 段階
+            "GameColorRelay",    // CPU の強さ 4 段階（#2604）
             "GameConcentration", // CPU の強さ 3 段階
+            "GameDaifugo",       // CPU の強さ 4 段階（#2604）
             "GameGo",            // CPU の強さ 3 段階
             "GameGomoku",        // CPU の強さ 3 段階
             "GameHanafuda",      // CPU の強さ 3 段階

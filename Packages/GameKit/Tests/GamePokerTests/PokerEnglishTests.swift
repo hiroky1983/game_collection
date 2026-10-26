@@ -45,6 +45,18 @@ struct PokerEnglishTests {
         #expect(GamePoker.tr("合計 %lld点", 12) == "合計 12点")
     }
 
+    @Test("上の帯の読み上げ文も点を単数と複数で言い分ける（#2574）")
+    func scoreboardLabelPlurals() {
+        let en = { (total: Int, cpu: Int) in
+            GamePoker.tr("%1$lld回目 / %2$lld、合計%3$@、CPU %4$@", 3, 10,
+                         GamePoker.tr("%lld点", total, language: .english),
+                         GamePoker.tr("%lld点", cpu, language: .english), language: .english)
+        }
+        #expect(en(1, 1) == "Round 3 of 10, total 1 pt, CPU 1 pt")
+        #expect(en(12, 0) == "Round 3 of 10, total 12 pts, CPU 0 pts")
+        #expect(PokerAccessibility.scoreboardLabel(round: 3, playerPoints: 1, cpuPoints: 8) == "3回目 / 10、合計1点、CPU 8点")
+    }
+
     @Test("CPU の行動は中断データに原文で残し、表示の境目で訳す")
     func cpuActionKeys() {
         #expect(GamePoker.tr.hasTranslation("カード交換なし", language: .english))
@@ -53,8 +65,8 @@ struct PokerEnglishTests {
 
     @Test("決着の理由は語順を英語に合わせる")
     func resultReason() {
-        #expect(GamePoker.tr("%1$@ 対 %2$@・+%3$lld点", "Flush", "Two Pair", 12, language: .english)
-                == "Flush vs. Two Pair · +12 pts")
+        #expect(GamePoker.tr("%1$@ 対 %2$@", "Flush", "Two Pair", language: .english)
+                == "Flush vs. Two Pair")
         #expect(GamePoker.tr("どちらも%@", "One Pair", language: .english) == "Both have One Pair")
     }
 }

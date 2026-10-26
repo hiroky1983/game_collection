@@ -10,13 +10,13 @@ enum ChessHowToFigures {
         { AnyView(MateFigure()) },
     ]
 
-    private static func piece(_ type: ChessPieceType, _ color: ChessColor = .white, size: CGFloat = 26) -> some View {
+    static func piece(_ type: ChessPieceType, _ color: ChessColor = .white, size: CGFloat = 26) -> some View {
         ChessPieceView(piece: ChessPiece(type: type, color: color), size: size, style: .flat)
             .frame(width: size, height: size)
     }
 
     /// 駒をタップ → 動けるマスが光る → 移動。
-    private struct SelectMoveFigure: View {
+    struct SelectMoveFigure: View {
         private let moves: Set<[Int]> = [[0, 0], [0, 4], [1, 1], [1, 3], [3, 1], [3, 3], [4, 0], [4, 4]]
 
         var body: some View {
@@ -37,7 +37,7 @@ enum ChessHowToFigures {
     }
 
     /// ナイト（L 字）・ビショップ（ななめ）・ルーク（たてよこ）の動き。
-    private struct MovesFigure: View {
+    struct MovesFigure: View {
         private let knight: Set<[Int]> = [[0, 1], [0, 3], [1, 0], [1, 4], [3, 0], [3, 4], [4, 1], [4, 3]]
 
         var body: some View {
@@ -63,7 +63,7 @@ enum ChessHowToFigures {
     }
 
     /// バックランクメイト: キングの逃げ場がない。
-    private struct MateFigure: View {
+    struct MateFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleMiniBoard(rows: 2, cols: 4, cell: 30, style: .checker) { row, col in

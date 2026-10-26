@@ -244,13 +244,13 @@
         }
       }
     },
-    "どちらも出せる札が無くなったら「めくる」。両方の山札から1枚ずつ台札に置きます。山札が無いときは、自分側の台札を切り直して山札にします" : {
+    "どちらも出せる札が無くなったら「めくる」。山札が残っている側が、山札から1枚ずつ台札に置きます。山札が無くなったら、めくらずに手札を出し切れば勝ちです。両方とも山札が無いときは、台札を切り直して一番上の札を入れ替えます" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When neither side can play, tap Flip. One card from each stock goes onto the piles. If your stock is empty, your side's pile is shuffled into a new stock."
+            "value" : "When neither side can play, tap Flip. Each side that still has a stock turns one card onto its pile. Once your stock runs out, you no longer flip: play out your hand to win. If both stocks are empty, the piles are reshuffled to show new top cards."
           }
         }
       }
@@ -299,6 +299,28 @@
         }
       }
     },
+    "めくる（台札を切り直す）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip (reshuffle the piles)"
+          }
+        }
+      }
+    },
+    "めくる（山札が残っている側だけ）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip (only stocks with cards left)"
+          }
+        }
+      }
+    },
     "めくる（両方の山札から1枚ずつ）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -310,7 +332,7 @@
         }
       }
     },
-    "もう一度" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -431,6 +453,17 @@
         }
       }
     },
+    "出し方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play a card"
+          }
+        }
+      }
+    },
     "出せます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -486,13 +519,35 @@
         }
       }
     },
-    "台札と1つ違いの札を出してください" : {
+    "1つ違いの札を台札のほうへ払ってください" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Play a card one up or down from a pile"
+            "value" : "Flick a card one up or down toward a pile"
+          }
+        }
+      }
+    },
+    "台札のほうへ払って出します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card toward a pile to play it"
+          }
+        }
+      }
+    },
+    "台札のほうへ払う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick toward a pile"
           }
         }
       }
@@ -596,6 +651,17 @@
         }
       }
     },
+    "手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。出せない札は手札に戻ります（ペナルティはありません）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card from your hand toward the pile you want. You can also drag it onto the pile and let go. A card that can't be played slides back (no penalty)"
+          }
+        }
+      }
+    },
     "最速" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -641,35 +707,35 @@
         }
       }
     },
-    "約0.75秒で出す" : {
+    "約1.2秒で出す" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays in about 0.75s"
+            "value" : "Plays in about 1.2s"
           }
         }
       }
     },
-    "約1.4秒で出す" : {
+    "約1.9秒で出す" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays in about 1.4s"
+            "value" : "Plays in about 1.9s"
           }
         }
       }
     },
-    "約2.6秒で出す" : {
+    "約3.2秒で出す" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plays in about 2.6s"
+            "value" : "Plays in about 3.2s"
           }
         }
       }
@@ -912,6 +978,215 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "0 in stock"
+          }
+        }
+      }
+    },
+    "スピードのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speed: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "手札と山札を、CPU より先に出し切ったほうの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Be the first to play out your hand and your stock."
+          }
+        }
+      }
+    },
+    "順番はなく、CPU も同時に出してきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no turns; the CPU plays at the same time as you."
+          }
+        }
+      }
+    },
+    "札の出し方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing cards"
+          }
+        }
+      }
+    },
+    "手札の札を、出したい台札のほうへ払います。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card from your hand toward the pile you want to play it on."
+          }
+        }
+      }
+    },
+    "出せない札は、手札に戻るだけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card that can't be played just goes back to your hand."
+          }
+        }
+      }
+    },
+    "台札の数字と、1 つ違いの札が出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play a card one rank away from the pile's top card."
+          }
+        }
+      }
+    },
+    "台札が 7 なら、6 か 8 です。マークは関係ありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On a 7, that's a 6 or an 8. The suit doesn't matter."
+          }
+        }
+      }
+    },
+    "A と K もつながる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ace and King connect"
+          }
+        }
+      }
+    },
+    "K の上に A、A の上に K も出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play an A on a K, or a K on an A."
+          }
+        }
+      }
+    },
+    "K の次は、A にもどると考えましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Think of it as wrapping around: after K comes A again."
+          }
+        }
+      }
+    },
+    "手札の補充" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refilling your hand"
+          }
+        }
+      }
+    },
+    "手札は、最大 %lld 枚です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your hand holds up to %lld cards."
+          }
+        }
+      }
+    },
+    "山札が残っているあいだは、1 枚出すごとに補充されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While your stock has cards, each card you play is refilled."
+          }
+        }
+      }
+    },
+    "どちらも出せないとき" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When neither side can play"
+          }
+        }
+      }
+    },
+    "「めくる」を押すと、山札が残っている側が 1 枚ずつ台札に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Flip, and each side that still has a stock turns one card onto its pile."
+          }
+        }
+      }
+    },
+    "めくるだけが続いて場が動かないときは、引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If only flips keep happening and nothing moves, the game is a draw."
+          }
+        }
+      }
+    },
+    "両方の山札が空なら、台札を切り直します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If both stocks are empty, the piles are reshuffled."
           }
         }
       }

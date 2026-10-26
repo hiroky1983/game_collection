@@ -45,7 +45,7 @@ public struct SpiderView: View {
             return
         }
         #endif
-        var rules = SpiderRuleSet.standard
+        var rules: SpiderRuleSet?
         #if DEBUG
         // 撮影用: `-spiderSuits 2` のように起動引数でスート数を指定できる（中断データが無いときだけ効く）。
         if let suits = SpiderSuitCount(rawValue: UserDefaults.standard.integer(forKey: "spiderSuits")) {
@@ -57,33 +57,37 @@ public struct SpiderView: View {
 
     public var body: some View {
         // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
-        // 帯・ヒント・ボタン・バナーは従来どおり `Theme.pad`（16pt）。フリーセルと同じ。
+        // 帯・ヒント・ボタンは全画面の枠の左右の余白（8pt）。ソリティア・フリーセルと同じ。
         VStack(spacing: 8) {
             statusBar
-                .padding(.horizontal, Theme.pad)
-            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // レイアウトパターン A（全画面・#2531）: 卓のフェルトは全画面の枠が画面全体に敷くので、盤に `.cardTable()`
+            // （木枠付きの卓）は付けない。札の大きさは盤の幅から決まるので、木枠の分だけ大きくなる。
+            // 札が帯に張り付いて見えないよう、卓の中の上の余白（`cardTopInset`・ソリティア系で共通）は残す。
             board
-                .cardTable(topInset: CardTableStyle.cardTopInset)
+                .padding(.top, CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
                                details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea
-                .padding(.horizontal, Theme.pad)
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
             HowToPlayHint(.spider, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // 余りの高さは「⋯」の行とバナーの帯のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
-                .padding(.horizontal, Theme.pad)
         }
-        .padding(.vertical, Theme.pad)
-        .gameChrome(title: tr("スパイダーソリティア"), review: services.review,
+        // 上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.vertical, 4)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-22・#2111 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・スパイダーソリティア・？・＋）、バナーは画面最下部。手数・スート・配札・時計はソリティア・フリーセルと
+        // 同じくヘッダーの下に低い 1 行の札で残す。
+        .gameChrome(title: tr("スパイダーソリティア"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
-        .howToPlay(HowToPlayGuide.spider.illustrated(SpiderHowToFigures.items)) { SpiderRuleSheet() }
+        .howToPlay(HowToPlayGuide.spider.illustrated(SpiderHowToFigures.items).onboarding(SpiderOnboarding.guide)) { SpiderRuleSheet() }
         .sheet(isPresented: $showSetup) {
             SpiderSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
                 showSetup = false
@@ -184,8 +188,10 @@ public struct SpiderView: View {
     // MARK: - ステータスバー
 
     /// 帯には表示だけを置く。拡大の切り替えは右下の「⋯」へ（#1468）。
+    /// 全画面（A・#2531）ではモックどおり 44pt の帯より低い 1 行の札にする（`GameStatusBarStyle.compactMinHeight`）。
     private var statusBar: some View {
-        GameStatusBar {
+        GameStatusBar(verticalPadding: GameStatusBarStyle.compactVerticalPadding,
+                      minHeight: GameStatusBarStyle.compactMinHeight) {
             statusReadout
         } trailing: {
             EmptyView()
@@ -319,7 +325,9 @@ public struct SpiderView: View {
             }
             .onEnded { value in
                 guard let current = drag else { return }
-                drag = nil
+                // 置けなかったとき、指の下の札が消えて元の札が「パッ」と濃くなるのを避け、
+                // 薄さが戻る様子を見せる（#2707）。成功時の移動（0.2 秒）より少し短く。
+                withGameAnimation(.easeOut(duration: 0.15)) { drag = nil }
                 resolveDrop(of: current, at: value.location)
             }
     }
@@ -407,13 +415,10 @@ public struct SpiderView: View {
         return Group {
             if slot < completed.count {
                 let suit = completed[slot]
+                let kingID = model.board.completedKingIDs.indices.contains(slot)
+                    ? model.board.completedKingIDs[slot] : nil
                 // 取り除いた組は K の面で示す。
-                ZStack {
-                    PlayingCardSurface(cornerRadius: metrics.cornerRadius)
-                    PlayingCardFace(figure: .pip(suit: suit.playingCardSuit, rank: 13), metrics: metrics)
-                        .frame(width: metrics.width, height: metrics.height)
-                }
-                .frame(width: metrics.width, height: metrics.height)
+                foundationKing(suit: suit, kingID: kingID, metrics: metrics)
             } else {
                 CardSlot(metrics: metrics, systemImage: "checkmark")
             }
@@ -421,6 +426,21 @@ public struct SpiderView: View {
         .accessibilityHidden(slot != 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.completedLabel(count: completed.count))
+    }
+
+    /// 完成枠の K。場の K と同じ ID で補間を付け、組がそろった瞬間に場から枠へ滑らせる（#2708）。
+    @ViewBuilder private func foundationKing(suit: SpiderSuit, kingID: Int?, metrics: PlayingCardMetrics) -> some View {
+        let face = ZStack {
+            PlayingCardSurface(cornerRadius: metrics.cornerRadius)
+            PlayingCardFace(figure: .pip(suit: suit.playingCardSuit, rank: 13), metrics: metrics)
+                .frame(width: metrics.width, height: metrics.height)
+        }
+        .frame(width: metrics.width, height: metrics.height)
+        if let kingID {
+            face.matchedGeometryEffect(id: CardMotionID(deal: model.dealSerial, card: kingID), in: cardMotion)
+        } else {
+            face
+        }
     }
 
     // MARK: - 場札
@@ -552,8 +572,17 @@ public struct SpiderView: View {
 
     // MARK: - 盤の下の操作エリア
 
+    /// クリアが続いたら一段上のスート数を勧める（#2599）。始め直しは開始シートの「配る」と同じ経路。
+    private var ladder: DifficultyLadderPrompt? {
+        let counts = SpiderSuitCount.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: counts.firstIndex(of: model.rules.suitCount),
+                                      levelLabels: counts.map(\.label)) { level in
+            model.newGame(rules: SpiderRuleSet(suitCount: counts[level]))
+        }
+    }
+
     private var controlArea: some View {
-        GameControlArea(isFinished: model.phase == .won, services: services) {
+        GameControlArea(isFinished: model.phase == .won, services: services, ladder: ladder) {
             resultControls
         } playing: {
             gameControls
@@ -568,9 +597,14 @@ public struct SpiderView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
+                Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
+
+            Button { model.restartSameDeal() } label: {
+                Text(tr("同じ配札で"))
+            }
+            .buttonStyle(.game(.skip))
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -633,7 +667,8 @@ public struct SpiderView: View {
 
     private var hintNudge: HintNudge {
         HintNudge(
-            isEligible: model.canUseHint && !hintRescue.isWatching,
+            isEligible: HintNudgePolicy.isEligible(
+                canUseHint: model.canUseHint, isWatchingAd: hintRescue.isWatching, showsBlockingPanel: model.showsDeadEndPrompt),
             game: model.dealSerial,
             activity: [model.moveCount, model.hints.used]
         )
@@ -682,8 +717,13 @@ public struct SpiderView: View {
                     canUndo: model.canUndo, remaining: model.undosRemaining))
             }
 
+            // ソリティア・フリーセルと同じく今のスート数のまま即配り直す。変えたいときはナビバーの「新規ゲーム」から（#2600）。
             GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: undoRescue.isWatching) {
-                openSetup()
+                model.newGame()
+            }
+
+            GameDeadEndDismissButton(tr("同じ配札でやり直す"), isDisabled: undoRescue.isWatching) {
+                model.restartSameDeal()
             }
 
             GameDeadEndDismissButton(tr("盤面を見る"), isDisabled: undoRescue.isWatching) {
@@ -736,6 +776,7 @@ struct SpiderSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo, discardsProgress: discardsProgress,
+            onboarding: SpiderOnboarding.guide,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("スートの数")) {

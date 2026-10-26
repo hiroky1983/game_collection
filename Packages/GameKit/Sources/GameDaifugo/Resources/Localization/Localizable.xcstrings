@@ -774,13 +774,13 @@
         }
       }
     },
-    "次のゲーム" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Next Game"
+            "value" : "Play Again"
           }
         }
       }
@@ -958,6 +958,611 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : " (8-Stop)"
+          }
+        }
+      }
+    },
+    "CPUの強さ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU strength"
+          }
+        }
+      }
+    },
+    "出せる手からでたらめに選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays any legal move at random"
+          }
+        }
+      }
+    },
+    "ときどき最善でない手を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sometimes picks a weaker move"
+          }
+        }
+      }
+    },
+    "出せる最弱の手を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays the weakest legal move"
+          }
+        }
+      }
+    },
+    "強い札を温存し、革命も狙う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves strong cards and aims for a revolution"
+          }
+        }
+      }
+    },
+    "新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn it on in the new game setup sheet. When the same suit is played twice in a row, only that suit (and Jokers) can be played until the table is cleared"
+          }
+        }
+      }
+    },
+    "あり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "しばり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock"
+          }
+        }
+      }
+    },
+    "しばり %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lock %@"
+          }
+        }
+      }
+    },
+    "しばり中、%@のカードだけ出せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock is on, only %@ cards can be played"
+          }
+        }
+      }
+    },
+    "しばり中です。%@のカードだけ出せます（ジョーカーは使えます）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locked to %@. Only that suit can be played (Jokers still work)"
+          }
+        }
+      }
+    },
+    "しばり（任意）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suit lock (optional)"
+          }
+        }
+      }
+    },
+    "なし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "ふつうのルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard rules"
+          }
+        }
+      }
+    },
+    "同じ柄が2回続くとその柄だけ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same suit twice locks the suit"
+          }
+        }
+      }
+    },
+    "%1$@から %2$@ を受け取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Received %2$@ from %1$@"
+          }
+        }
+      }
+    },
+    "%1$@へ %2$@ を渡しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gave %2$@ to %1$@"
+          }
+        }
+      }
+    },
+    "タップで閉じます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to dismiss"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
+    },
+    "8 を含む組を出すと場が流れ、そのまま続けて出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing a set that includes an 8 clears the field, and you play again."
+          }
+        }
+      }
+    },
+    "ふだん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        }
+      }
+    },
+    "カードの強さとルール" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card strength and rules"
+          }
+        }
+      }
+    },
+    "ジョーカーは、革命中も最強です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker stays the strongest, even during a revolution."
+          }
+        }
+      }
+    },
+    "同じスートが 2 回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the same suit is played twice in a row, only that suit (or the Joker) can be played until the field clears."
+          }
+        }
+      }
+    },
+    "同じ数字を %lld 枚以上まとめて出すと革命。強さが逆になります（もう一度出すと元に戻ります）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing %lld or more cards of the same rank starts a revolution. Card strength is reversed (another revolution reverses it back)."
+          }
+        }
+      }
+    },
+    "大富豪の早見表" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daifugo Quick Reference"
+          }
+        }
+      }
+    },
+    "最後の 1 手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finishing on a 2, an 8 or a Joker is a foul. You go out but drop to Daihinmin."
+          }
+        }
+      }
+    },
+    "最後の 1 手だと大貧民" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "as your last play = Daihinmin"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "革命・8切り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution and 8-Cut"
+          }
+        }
+      }
+    },
+    "革命中（逆になる）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During a revolution (reversed)"
+          }
+        }
+      }
+    },
+    "左上がいちばん弱く、右下がいちばん強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weakest at top left, strongest at bottom right"
+          }
+        }
+      }
+    },
+    "大富豪のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tycoon: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "手札を、だれよりも早く出し切るゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get rid of all your cards before anyone else."
+          }
+        }
+      }
+    },
+    "早く上がるほど、上の階級になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sooner you go out, the higher your rank."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "場に組があるときは、同じ枚数で、より強い組を出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When there is a set on the table, play a stronger set with the same number of cards."
+          }
+        }
+      }
+    },
+    "場が空なら、1 枚・ペア・3 枚…を好きに出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the table is empty, you can lead anything: one card, a pair, three cards..."
+          }
+        }
+      }
+    },
+    "3 がいちばん弱く、K・A・2 の順に強くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 is the weakest; it gets stronger through K, A, then 2."
+          }
+        }
+      }
+    },
+    "ジョーカーが最強で、どの札の代わりにもなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker is the strongest and can stand in for any card."
+          }
+        }
+      }
+    },
+    "出せないとき、出したくないときは、パスします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pass when you cannot play, or do not want to."
+          }
+        }
+      }
+    },
+    "全員がパスすると、場が流れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When everyone passes, the table is cleared."
+          }
+        }
+      }
+    },
+    "革命と 8 切り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revolution and 8-Stop"
+          }
+        }
+      }
+    },
+    "同じ数字を %lld 枚以上まとめて出すと「革命」。強さが逆になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play %lld or more cards of the same number for a Revolution: the strength order flips."
+          }
+        }
+      }
+    },
+    "8 を含む組を出すと「8 切り」。場が流れて、続けて出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a set that includes an 8 for an 8-Stop: the table clears and you lead again."
+          }
+        }
+      }
+    },
+    "同じ数字 4 枚\n革命で強さが逆に" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 of a number\nRevolution flips strength"
+          }
+        }
+      }
+    },
+    "8 を出すと\n場が流れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play an 8\nand the table clears"
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "上がった順に、大富豪・富豪・貧民・大貧民になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In order of going out, you become Tycoon, Rich, Poor, then Beggar."
+          }
+        }
+      }
+    },
+    "最後の 1 手が 2・8・ジョーカーだと反則。大貧民に落ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Going out with a 2, an 8 or the Joker as your last play is a foul. You drop to Beggar."
+          }
+        }
+      }
+    },
+    "次のゲームの前に、階級に応じてカードを交換します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before the next game, you swap cards according to rank."
+          }
+        }
+      }
+    },
+    "%lld 番目に上がる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goes out No. %lld"
+          }
+        }
+      }
+    },
+    "手札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
+          }
+        }
+      }
+    },
+    "0 枚で上がり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 cards: you win"
           }
         }
       }

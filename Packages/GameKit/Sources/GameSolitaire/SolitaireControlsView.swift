@@ -17,9 +17,11 @@ struct SolitaireControlsView: View {
     let isWatchingHintAd: Bool
     /// ヒントの入口。無料か広告かの振り分けは画面本体が持つ。
     let onHint: () -> Void
+    /// クリアが続いたら 3 枚めくりを勧める「階段」（#2599）。
+    var ladder: DifficultyLadderPrompt?
 
     var body: some View {
-        GameControlArea(isFinished: model.phase == .won, services: services) {
+        GameControlArea(isFinished: model.phase == .won, services: services, ladder: ladder) {
             resultControls
         } playing: {
             gameControls
@@ -34,9 +36,14 @@ struct SolitaireControlsView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
+                Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
+
+            Button { model.restartSameDeal() } label: {
+                Text(tr("同じ配札で"))
+            }
+            .buttonStyle(.game(.skip))
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -85,7 +92,8 @@ struct SolitaireControlsView: View {
 
     private var hintNudge: HintNudge {
         HintNudge(
-            isEligible: model.canUseHint && !isWatchingHintAd && !model.showsRescuePrompt,
+            isEligible: HintNudgePolicy.isEligible(
+                canUseHint: model.canUseHint, isWatchingAd: isWatchingHintAd, showsBlockingPanel: model.showsRescuePrompt),
             game: model.dealSerial,
             activity: [model.moveCount, model.hints.used]
         )

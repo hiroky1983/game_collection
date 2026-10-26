@@ -747,6 +747,35 @@ public final class MahjongModel: AITurnGuarded {
         phase = .handResult
     }
 
+    /// 撮影・動作確認用（DEBUG 限定）: 流局のリザルト（全員の手牌を卓の上で開ける #2872）を、テンパイが
+    /// `tenpaiCount` 人（0〜4）の状態でその場で作る。テンパイの家は [1, 0, 2, 3] の順に埋め、自分（0）が
+    /// テンパイのときは 9 面待ち（待ち牌が最も多い手）にする。河は 4 家とも 18 枚（最も混む場合）。
+    /// 流局は牌山を引き切るまで打たないと到達できず、シミュレータは自動タップができない。
+    func simulateDrawResultForTesting(tenpaiCount: Int) {
+        let tenpaiSeats = Set([1, 0, 2, 3].prefix(max(0, min(4, tenpaiCount))))
+        let nineGates = MahjongHand(tiles: [1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9].map { .characters($0) })
+        let tenpai = MahjongHand(tiles: [
+            .characters(1), .characters(2), .characters(3), .characters(4), .characters(5), .characters(6),
+            .circles(7), .circles(8), .circles(9), .bamboos(2), .bamboos(3), .bamboos(7), .bamboos(7),
+        ])
+        let noten = MahjongHand(tiles: [
+            .characters(1), .characters(4), .characters(7), .circles(2), .circles(5), .circles(8),
+            .bamboos(3), .bamboos(6), .bamboos(9), .wind(0), .wind(1), .wind(2), .wind(3),
+        ])
+        let river: [MahjongTile] = (0..<18).map { i in
+            i % 2 == 0 ? .circles(i / 2 % 9 + 1) : .bamboos(i / 2 % 9 + 1)
+        }
+        configureForTesting(
+            hands: (0..<Self.playerCount).map { seat in
+                tenpaiSeats.contains(seat) ? (seat == Self.humanIndex ? nineGates : tenpai) : noten
+            },
+            wall: [],
+            discards: Array(repeating: river, count: Self.playerCount),
+            dealer: 2
+        )
+        exhaustWallForTesting()
+    }
+
     /// 撮影・動作確認用（DEBUG 限定）: 打ち切りで終わったリザルト（見出し + 順位表）をその場で作る。
     /// 見出しは対局の長さで変わる（#639）が、実プレイで到達するには最後まで打つしかなく、
     /// シミュレータは自動タップができない（`simulateBustResultForTesting` と同じ理由）。

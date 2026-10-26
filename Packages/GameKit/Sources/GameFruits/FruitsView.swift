@@ -39,7 +39,7 @@ public struct FruitsView: View {
                     newGame: GameChromeNewGame(.restart) {
                         startNewGame()
                     })
-        .howToPlay(HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items)) { FruitsRuleSheet() }
+        .howToPlay(HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items).onboarding(FruitsOnboarding.guide)) { FruitsRuleSheet() }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateFruits <stack|kinmatsu|gameover>`（#1319）。
@@ -105,11 +105,15 @@ public struct FruitsView: View {
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: RecordFormat.number(model.score))
                     .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             HStack(spacing: 8) {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(tr("つぎ"))
@@ -163,9 +167,16 @@ public struct FruitsView: View {
                     .accessibilityElement()
                     .accessibilityLabel(tr("庭"))
                     .accessibilityValue(accessibilityValue)
-                    .accessibilityAction(named: tr("左へ")) { nudge(-Self.accessibilityNudge) }
-                    .accessibilityAction(named: tr("右へ")) { nudge(Self.accessibilityNudge) }
-                    .accessibilityAction(named: tr("落とす")) { model.drop() }
+                    // 実行しても何も起きない局面（終局中・果物を持っていない待機中）では出さない（#2688）。
+                    .accessibilityActions {
+                        if model.phase == .playing {
+                            Button(tr("左へ")) { nudge(-Self.accessibilityNudge) }
+                            Button(tr("右へ")) { nudge(Self.accessibilityNudge) }
+                        }
+                        if model.canDrop {
+                            Button(tr("落とす")) { model.drop() }
+                        }
+                    }
                 if model.phase == .gameOver {
                     gameOverOverlay
                 }
@@ -214,6 +225,11 @@ public struct FruitsView: View {
             cornerRadius: Theme.cornerSmall,
             detail: VStack(spacing: 6) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+                if let highest = model.highestKind {
+                    Text(tr("最高の段: %@", highest.name))
+                        .scaledFont(14, weight: .bold, design: .rounded)
+                        .foregroundStyle(.white)
+                }
                 if !model.continueUsed {
                     Text(tr("広告を見ると、小さい盆栽と線より上の盆栽を片づけて続けられます"))
                         .scaledFont(12, weight: .medium, design: .rounded)
@@ -226,7 +242,7 @@ public struct FruitsView: View {
             rescue: continueRescue, services: services, gameID: FruitsModel.gameID,
             serial: model.gameSerial,
             grant: { game in model.continueAfterAd(forGame: game) },
-            secondaryTitle: tr("もう一度"),
+            secondaryTitle: tr("もう一回"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }
@@ -244,7 +260,7 @@ struct FruitsRuleSheet: View {
             (tr("得点"), tr("%1$@。金の松どうしがくっつくと 2 つとも消えて %2$lld 点。",
                           FruitKind.allCases.dropFirst().map { "\($0.name) \($0.points)" }.joined(separator: tr("・")),
                           FruitKind.kinmatsuVanishPoints)),
-            (tr("ゲームオーバー"), tr("上の点線より上に盆栽が 1 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
+            (tr("ゲームオーバー"), tr("上の点線より上に盆栽が 3 秒以上とどまると終わりです。落としている途中で線をまたぐぶんは数えません。")),
             (tr("コンティニュー"), tr("ゲームオーバー後に広告を見ると、1 回だけ小さい盆栽（%@）と線より上の盆栽を片づけて続けられます。スコアはそのままです。",
                                  FruitKind.allCases.prefix(FruitField.Metrics.continueRemovedKinds).map(\.name).joined(separator: tr("・")))),
         ])

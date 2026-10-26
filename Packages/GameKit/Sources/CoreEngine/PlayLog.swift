@@ -119,8 +119,16 @@ public final class PlayLog {
     /// Game Center 側の解除済みが端末へ戻る）。
     public static let homerunKeys = ["homerun_records_v1", "homerun_achievements_v1"]
 
+    /// ゲームごとの「最後に選んだ開始条件」（#2611）。gameID → JSON の辞書を**1キー**に入れる。
+    /// 中断データ（`SnapshotStore`）とは別で、終局しても消えない。端末内のみ・サーバ送信なし・
+    /// 件数はゲーム数で頭打ち・「プレイ記録を消去」で消える。
+    public static let lastStartKey = "playLog_lastStart_v1"
+
+    /// 開始条件の記憶（#2611）が書き込むキー。
+    public static let lastStartKeys = [lastStartKey]
+
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + playDayKeys + homerunKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + playDayKeys + homerunKeys + lastStartKeys
 
     private let defaults: UserDefaults
 
@@ -360,6 +368,15 @@ public final class PlayLog {
         return result
     }
 
+    /// そのゲームを一度でも決着まで遊んだか（ハブのタイルの「未プレイ」の印・#2849）。
+    /// 「きろく」の `isPlayed` と同じ規則で、`playedGameIDs` か記録のどちらかがあれば遊んだとみなす。
+    /// 区分があるゲームの記録キー（`gameID#区分`）も見る。新しく何も保存しない。
+    public func hasPlayed(gameID: String) -> Bool {
+        playedGameIDs.contains(gameID) || records.keys.contains { key in
+            key == gameID || key.hasPrefix(gameID + "#")
+        }
+    }
+
     /// ゲームごとの通算プレイ回数（再エンゲージメント通知 #1193）。区分があるゲームは合算する。
     public var totalPlaysByGame: [String: Int] {
         var result: [String: Int] = [:]
@@ -424,6 +441,8 @@ public final class PlayLog {
         guard var record = records[key], record.plays > 0, record.losses > 0 else { return }
         record.plays -= 1
         record.losses -= 1
+        // 取り消した負けは連敗にも数えない（コンティニューで続きを遊ぶので、負けは確定していない）。
+        record.currentLossStreak = record.lossStreak > 1 ? record.lossStreak - 1 : nil
         records[key] = record
         persistRecords()
     }
@@ -487,6 +506,20 @@ public final class PlayLog {
         defaults.set(Set(registeredIDs).sorted(), forKey: Self.knownGameIDsKey)
         sessionNewGameIDs = result
         return result
+    }
+
+    /// 最後に選んだ開始条件（#2611）。記録が無い・読めない（旧形式など）ときは nil で、呼び側が既定値に倒す。
+    public func lastStart<T: Decodable>(_ type: T.Type = T.self, gameID: String) -> T? {
+        guard let data = (defaults.dictionary(forKey: Self.lastStartKey) as? [String: Data])?[gameID] else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// 開始条件を覚える（#2611）。ゲームを始めた時点で呼ぶ。同じ gameID は上書き。
+    public func saveLastStart<T: Encodable>(_ value: T, gameID: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        var all = (defaults.dictionary(forKey: Self.lastStartKey) as? [String: Data]) ?? [:]
+        all[gameID] = data
+        defaults.set(all, forKey: Self.lastStartKey)
     }
 
     private func persistRecords() {

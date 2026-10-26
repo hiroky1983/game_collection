@@ -88,7 +88,7 @@ public enum RunnerAccessibility {
         case .falling, .failed: return tr("%lldメートルでミスしました", max(0, distance))
         // 締め（`.story`・#1092）もステージ制だけの局面なので、同じくここには来ない。
         case .chasing, .story, .cleared, .allCleared: return distanceLabel(distance)
-        case .paused:     return tr("一時停止中")
+        case .paused:     return tr("一時停止")
         case .ready:      return tr("エンドレス。タップでスタート")
         case .running:    return tr("走行中")
         }
@@ -121,7 +121,7 @@ public enum RunnerAccessibility {
         case .story:      return tr("ステージ %lld クリア", stageNumber)
         case .cleared:    return tr("ステージ %lld クリア", stageNumber)
         case .allCleared: return tr("全ステージクリア")
-        case .paused:     return tr("一時停止中")
+        case .paused:     return tr("一時停止")
         case .ready:      return tr("タップでスタート")
         case .running:    return tr("走行中")
         }

@@ -211,6 +211,88 @@ public struct SimpleMinimaxEngine: ShogiEngine {
                   timeLimit: base.timeLimit + BoardHintBudget.extraThinkingTime)
     }
 
+    /// ヒントの答え（#2779）。
+    enum HintAnswer: Equatable {
+        /// ふつうの最善手（詰まされる手は除いてある）。
+        case move(Move)
+        /// 詰ます手（王手の連続で詰む筋の最初の手）。
+        case mate(Move)
+        /// どの手を指しても詰まされる。ヒントは出さない。
+        case hopeless
+
+        var isMate: Bool {
+            if case .mate = self { return true }
+            return false
+        }
+
+        var move: Move? {
+            switch self {
+            case let .move(m), let .mate(m): return m
+            case .hopeless: return nil
+            }
+        }
+    }
+
+    /// ヒントで確かめる詰みの手数の上限（自分の詰み: 5 手詰まで、相手の詰み: 3 手詰まで）。
+    static let hintMyMatePlies = 5
+    static let hintOpponentMatePlies = 3
+    /// 詰み探索に使ってよい考える時間の割合。超えたら今の探索の答えに戻る（考える時間の上限は変えない）。
+    static let hintMateShare = 0.4
+
+    /// ヒントの 1 手を決める（#2779）。詰みを先に探し、自分に詰みがあればその手、相手に詰みがあれば
+    /// それを防ぐ手、受けが無ければ `.hopeless`。詰み探索が時間内に終わらなければ従来どおり探索の最善手。
+    /// 全体の考える時間は `timeLimit` のまま（詰み探索に使った分は探索から引く）。
+    func hintAnswer(sfen: String) -> HintAnswer? {
+        guard var pos = Position.fromSFEN(sfen) else { return nil }
+        let moves = pos.legalMoves()
+        guard !moves.isEmpty else { return nil }
+        let startedAt = Date()
+        let mateDeadline = timeLimit.isFinite
+            ? startedAt.addingTimeInterval(timeLimit * Self.hintMateShare) : Date.distantFuture
+        var mateSearch = ShogiMateSearch(deadline: mateDeadline)
+
+        if let mine = mateSearch.shortestMate(&pos, maxPlies: Self.hintMyMatePlies) { return .mate(mine) }
+
+        // 各手のあとに相手へ詰みが無いか（詰みを防ぐ手か）。
+        let safe = Self.movesAvoidingMate(&pos, moves: moves, using: &mateSearch)
+        let scanned = !mateSearch.timedOut
+        if scanned, safe.isEmpty { return .hopeless }
+
+        var ctx = SearchContext(
+            maxDepth: depth, usePositional: usePositional, useQuiescence: useQuiescence,
+            timeLimit: Self.searchTime(limit: timeLimit, elapsed: Date().timeIntervalSince(startedAt)),
+            nodeLimit: nodeLimit)
+        let restrict = scanned && safe.count < moves.count
+        guard let best = ctx.search(&pos, rootMoves: restrict ? safe : nil) else { return nil }
+        return .move(best)
+    }
+
+    /// 指したあと、相手に `hintOpponentMatePlies` 手以内の詰みが無い手。時間切れで走査が終わらなければ、
+    /// 呼び出し側が `mateSearch.timedOut` で見分ける（その場合の戻り値は途中までなので使わない）。
+    static func movesAvoidingMate(_ pos: inout Position, moves: [Move], using mateSearch: inout ShogiMateSearch) -> [Move] {
+        var safe: [Move] = []
+        for move in moves {
+            let undo = pos.make(move)
+            let refuted = mateSearch.shortestMate(&pos, maxPlies: hintOpponentMatePlies) != nil
+            pos.unmake(undo)
+            if mateSearch.timedOut { break }
+            if !refuted { safe.append(move) }
+        }
+        return safe
+    }
+
+    /// どの手を指しても相手に詰まされると、時間内に読み切れたか（広告を見せる前の確認用・#2779）。
+    /// 読み切れなかったときは `false`（断らない）。
+    func hasNoDefense(sfen: String) -> Bool {
+        guard var pos = Position.fromSFEN(sfen) else { return false }
+        let moves = pos.legalMoves()
+        guard !moves.isEmpty else { return false }
+        var mateSearch = ShogiMateSearch(deadline: timeLimit.isFinite
+            ? Date().addingTimeInterval(timeLimit * Self.hintMateShare) : .distantFuture)
+        let safe = Self.movesAvoidingMate(&pos, moves: moves, using: &mateSearch)
+        return !mateSearch.timedOut && safe.isEmpty
+    }
+
     /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
     /// 下の段は `depth` に 3 / 2 / 1 手先の上限を持つ（会長決裁 2026-09-27）。
     static let maxDepth = 32
@@ -250,7 +332,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         let moves = pos.legalMoves()
         guard !moves.isEmpty else { return nil }
 
-        if useBook, let booked = OpeningBook.move(for: sfen),
+        if useBook, let booked = OpeningBook.move(for: sfen, seed: seed),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
         let startedAt = Date()
@@ -424,8 +506,9 @@ private struct SearchContext {
 
     // MARK: 反復深化
 
-    mutating func search(_ pos: inout Position) -> Move? {
-        var orderedMoves = orderMoves(pos.legalMoves(), pos: pos, killers: [nil, nil], ttMove: nil)
+    /// `rootMoves` を渡すと、最初の手をその中から選ぶ（ヒントが詰まされる手を除くため・#2779）。
+    mutating func search(_ pos: inout Position, rootMoves: [Move]? = nil) -> Move? {
+        var orderedMoves = orderMoves(rootMoves ?? pos.legalMoves(), pos: pos, killers: [nil, nil], ttMove: nil)
         var best: Move? = orderedMoves.first
 
         for d in 1...maxDepth {

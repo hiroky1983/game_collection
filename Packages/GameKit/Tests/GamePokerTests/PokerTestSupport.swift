@@ -57,13 +57,17 @@ func pokerSnapshot(
     playerWins: Int = 0,
     cpuWins: Int = 0,
     bestRank: PokerHandRank? = nil,
-    extraExchangeUsed: Bool = false
+    extraExchangeUsed: Bool = false,
+    streak: Int? = nil,
+    bestStreak: Int? = nil,
+    sessionFormat: PokerSessionFormat? = nil
 ) -> PokerSnapshot {
     PokerSnapshot(
         playerHand: player, cpuHand: cpu, deck: deck, phase: phase, round: round,
         playerPoints: playerPoints, cpuPoints: cpuPoints, playerWins: playerWins, cpuWins: cpuWins,
         bestRank: bestRank, extraExchangeUsed: extraExchangeUsed, cpuAction: "",
-        winner: nil, playerHandRank: .highCard, cpuHandRank: .highCard, roundPoints: 0
+        winner: nil, playerHandRank: .highCard, cpuHandRank: .highCard, roundPoints: 0,
+        streak: streak, bestStreak: bestStreak, sessionFormat: sessionFormat
     )
 }
 

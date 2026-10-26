@@ -29,7 +29,7 @@ import GameKitTestSupport
     @Test func shapeSymbolsAreDistinct() {
         let shapes = RelayColor.allCases.map(\.shapeSymbol)
         #expect(Set(shapes).count == RelayColor.allCases.count)
-        let opponentSymbols = Set((1...3).map(ColorRelayOpponentStyle.symbol(for:)))
+        let opponentSymbols = Set((1...3).map(OpponentSeatStyle.symbol(for:)))
         #expect(opponentSymbols.isDisjoint(with: shapes))
     }
 }

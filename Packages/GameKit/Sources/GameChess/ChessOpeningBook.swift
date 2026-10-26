@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// 簡易定跡ブック。代表的な出だし手順を「局面(FEN) → 次の一手(UCI)」として持つ。
 ///
@@ -6,8 +7,17 @@ import Foundation
 /// （将棋の `OpeningBook` と同じ作り）。定跡そのものは何百年も公知の手順で、
 /// 特定の実装から取り込んだデータではない（#462 の権利確認）。
 enum ChessOpeningBook {
-    /// 局面 FEN に対する定跡手（無ければ nil）。
-    static func move(for fen: String) -> String? { table[key(for: fen)] }
+    /// 局面 FEN に対する定跡手の候補（登録順・重複なし。無ければ空）。
+    static func moves(for fen: String) -> [String] { table[key(for: fen)] ?? [] }
+
+    /// 局面 FEN に対する定跡手（無ければ nil）。`seed` が無ければ最初に登録した手。
+    /// 同じ局面に候補が複数あるときは、`seed`（対局ごとの種）と局面から 1 つに決める。
+    /// 同じ種・同じ局面なら常に同じ手（テストと、1 局の中での一貫性のため）。
+    static func move(for fen: String, seed: UInt64? = nil) -> String? {
+        let candidates = moves(for: fen)
+        guard let seed, candidates.count > 1 else { return candidates.first }
+        return candidates[BookPicker.index(count: candidates.count, seed: seed, key: key(for: fen))]
+    }
 
     /// 引き当てのキー。**手数（FEN の 5・6 番目）は落とす**。同じ局面へ別の手順で
     /// 合流したときにも定跡が効くようにするため。
@@ -35,15 +45,15 @@ enum ChessOpeningBook {
         ["c2c4", "e7e5", "b1c3", "g8f6", "g1f3", "b8c6", "g2g3", "d7d5"],
     ]
 
-    private static let table: [String: String] = {
-        var dict: [String: String] = [:]
+    private static let table: [String: [String]] = {
+        var dict: [String: [String]] = [:]
         for line in lines {
             var pos = ChessPosition.start()
             for uci in line {
                 guard let move = ChessMove.fromUCI(uci),
                       pos.legalMoves().contains(move) else { break }
                 let k = key(for: pos.toFEN())
-                if dict[k] == nil { dict[k] = uci } // 先に登録した手を優先
+                if !(dict[k]?.contains(uci) ?? false) { dict[k, default: []].append(uci) }
                 pos.make(move)
             }
         }

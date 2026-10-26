@@ -55,8 +55,10 @@ struct ColorRelayModuleTests {
         let source = try SourceScan.moduleSources("GameColorRelay")
         let code = SourceScan.strippingComments(source)
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
+        // レイアウトパターン A（#2531）: バナーは全画面の枠が最下部に置くので、ゲーム側には `BannerSlot` を書かない。
+        #expect(code.contains("fullScreen: .felt, ads: services.ads"), "全画面の枠にバナーの取得元を渡していない")
+        #expect(!code.contains("BannerSlot("), "バナーを枠と二重に置いている")
         #expect(code.contains("RecommendationSlot("))
-        #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.colorRelay"))
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口は引き札の免除 1 面だけ")
         #expect(code.contains("guardedBy: .checkedByGrant"))
@@ -64,7 +66,7 @@ struct ColorRelayModuleTests {
         #expect(code.contains("unavailable: RewardUnavailableAlert("))
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由でしか出さない")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
-        #expect(!code.contains("level: "), "難易度は持たないので game_start に level を載せない")
+        #expect(code.contains("level: CPUStrength.analyticsLevel(forLevel: aiLevel)"), "CPU の強さを game_start の level に載せる（#2604）")
         #expect(code.contains("gameDidRestart(") && code.contains("gameDidProgress(") && code.contains("gameDidFinish("),
                 "解析は 1 ゲーム 1 組 + 進行の 3 点で接続する")
     }
@@ -83,7 +85,7 @@ struct ColorRelayModuleTests {
         }
         let release = releaseLines.joined(separator: "\n")
         #expect(!release.contains("applyDebugScenario"))
-        #expect(release.contains("public func startGame()"), "走査そのものが機能している")
+        #expect(release.contains("public func startGame(aiLevel"), "走査そのものが機能している")
     }
 
     @Test("手札の 1 枚あたりの見える幅（タップ判定）は、何枚になっても 44pt 以上", arguments: [375.0, 393.0, 402.0, 440.0])
@@ -123,26 +125,37 @@ struct ColorRelayModuleTests {
         #expect(ColorRelayHandLayout.field(size: CGSize(width: 1000, height: 1000), maxTopWidth: 96).topWidth == 96)
     }
 
-    @Test("卓はアプリ共通の卓（cardTable）に載せ、茶色の独自の卓やおじさんの顔を使わない")
+    @Test("卓はアプリ共通のフェルト（全画面の枠）に載せ、茶色の独自の卓やおじさんの顔を使わない")
     func tableUsesTheSharedSurface() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameColorRelay"))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: code) == 1)
+        // レイアウトパターン A（会長決裁 2026-10-19・#2531）: フェルトは `gameChrome(fullScreen: .felt)` が画面全体に敷く。
+        // 盤にもう一度 `.cardTable()` を付けると、フェルトの上に木枠付きの卓が二重に乗る。
+        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: code) == 0, "全画面のフェルトの上に卓を二重に敷いている")
+        #expect(code.contains("fullScreen: .felt"))
         #expect(!code.contains("CardTableSurface("), "卓の面を直接組み立てない")
         #expect(!code.contains("rimMiddle") && !code.contains("rimBottom"), "木枠の色で独自の茶色の卓を塗らない")
         #expect(!code.contains("OjisanPixel"), "相手のアイコンにおじさんの絵を使わない（会長決裁 2026-10-18）")
     }
 
+    @Test("相手の席は共通部品（OpponentSeat）を使い、大富豪と同じ見た目にする（#2531）")
+    func seatsUseTheSharedPart() throws {
+        let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameColorRelay"))
+        #expect(code.contains("OpponentSeat("), "相手の席を自前で組んでいる")
+        #expect(code.contains("OpponentCardFan("), "裏向きの束を自前で組んでいる")
+        #expect(!code.contains("ColorRelayBackFan"), "いろリレー専用の束が残っている")
+    }
+
     @Test("相手 3 人のアイコンは記号も丸の色も互いに違い、丸の色は札の 4 色と重ならない")
     func opponentIconsAreDistinct() {
-        let seats = Array(1..<ColorRelayModel.playerCount)
-        #expect(Set(seats.map(ColorRelayOpponentStyle.symbol(for:))).count == seats.count)
-        let discs = seats.map { ColorRelayOpponentStyle.colors(for: $0).disc }
+        let seats = Array(1..<ColorRelayModel.maxPlayerCount)
+        #expect(Set(seats.map(OpponentSeatStyle.symbol(for:))).count == seats.count)
+        let discs = seats.map { OpponentSeatStyle.colors(for: $0).disc }
         #expect(Set(discs).count == seats.count)
         let faces = Set(RelayColor.allCases.map(\.faceHex))
         for disc in discs { #expect(!faces.contains(disc)) }
         // 記号は丸の上で読める（非テキストの 3:1）。
         for seat in seats {
-            let c = ColorRelayOpponentStyle.colors(for: seat)
+            let c = OpponentSeatStyle.colors(for: seat)
             #expect(WCAG.contrast(c.mark, c.disc) >= 3, "CPU\(seat)")
         }
     }

@@ -45,4 +45,13 @@ struct DaifugoEnglishTests {
             #expect(GameDaifugo.tr.hasTranslation(key, language: .english), "\(key) に英訳が無い")
         }
     }
+
+    @Test("CPU の席の読み上げは手番のときだけ「〜の番」を足す（#2495）")
+    func seatLabelAnnouncesTurn() {
+        let turn = DaifugoAccessibility.seatLabel(name: "CPU1", remaining: 5, action: "パス", isTurn: true)
+        #expect(turn == "CPU1、残り5枚、パス、CPU1の番")
+        let idle = DaifugoAccessibility.seatLabel(name: "CPU1", remaining: 5, action: "", isTurn: false)
+        #expect(idle == "CPU1、残り5枚")
+        #expect(GameDaifugo.tr("%@の番", "CPU1", language: .english) == "CPU1's turn")
+    }
 }

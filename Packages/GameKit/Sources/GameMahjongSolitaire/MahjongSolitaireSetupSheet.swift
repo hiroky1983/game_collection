@@ -19,6 +19,7 @@ struct MahjongSolitaireSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo, discardsProgress: discardsProgress,
+            onboarding: MahjongSolitaireOnboarding.guide,
             onStart: onStart, onCancel: onCancel
         ) {
             sections

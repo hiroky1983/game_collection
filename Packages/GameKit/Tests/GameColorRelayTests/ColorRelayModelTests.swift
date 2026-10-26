@@ -141,6 +141,24 @@ struct ColorRelayPlayTests {
         #expect(model.lastActions[0] == "3")
     }
 
+    @Test("出せる札が無いときだけ「引く」を主役にする（mustDraw・#2693）")
+    func mustDrawOnlyWhenNothingPlayable() {
+        let (model, _) = makeModel()
+        let quiet = quietOpponents()
+        model.configureForTesting(hands: [[card(.green, .number(5))]] + quiet.hands,
+                                  top: card(.red, .number(7)), drawPile: quiet.drawPile)
+        #expect(model.mustDraw)
+
+        model.configureForTesting(hands: [[card(.red, .number(3)), card(.green, .number(5))]] + quiet.hands,
+                                  top: card(.red, .number(7)), drawPile: quiet.drawPile)
+        #expect(!model.mustDraw)
+
+        // 相手の番では引けないので主役にしない。
+        model.configureForTesting(hands: [[card(.green, .number(5))]] + quiet.hands,
+                                  top: card(.red, .number(7)), drawPile: quiet.drawPile, currentPlayer: 1)
+        #expect(!model.mustDraw)
+    }
+
     @Test("色も数字も違う札は出せず、手札も番も動かない")
     func rejectsMismatch() {
         let (model, _) = makeModel()

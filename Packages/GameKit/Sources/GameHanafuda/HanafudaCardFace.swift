@@ -4,7 +4,7 @@ import Core
 /// 札 1 枚の絵柄（#495・#2188）。
 ///
 /// 図案は `HanafudaCardImages` の画像（Codex の画像生成が文章の指示だけで描いた伝統図柄）を札いっぱいに敷き、
-/// その上に「月と種別の帯」（#602）を `Canvas` で重ねる。帯・角丸・暗転・強調は図形描画だった頃
+/// その上に「月と種別の帯」（#602）を重ねる。帯・角丸・暗転・強調は図形描画だった頃
 /// （v1.1.11 まで。鶴が楕円＋線、幕が赤白の縞で「全部同じに見える」と指摘された）と同じ。
 /// 画像は上端 20% に主役を置かないよう描かせているので、帯に食われる部品が出ない。
 ///
@@ -18,45 +18,64 @@ public struct HanafudaCardFace: View {
     /// 帯の右の種別の文字を出すか。取り札のように札を横に重ねる所では、重なる側の札が隠す札の
     /// 文字を欠けさせるので、最前面の 1 枚以外は消して月の数字だけにする（帯の色は種別を示し続ける・#2336）。
     public let showsKindLabel: Bool
+    /// 呼び出し側ですでに幅が決まっているとき（図入りの遊び方・#2044 / #2827）に渡す。渡すと内部の
+    /// `GeometryReader` を使わず、この幅で直接描く。`TabView` の「はじめての遊び方」（#2827）でページを
+    /// めくるたびに `GeometryReader` を持つ札を何枚も再計測するのが重く、花札こいこいで画面が固まって
+    /// クラッシュしていた（#2905）。トランプ（`PlayingCardFace`）は元から固定 pt で組んでおり
+    /// `GeometryReader` を持たないので、幅があらかじめ分かる所は同じ作法に合わせる。
+    /// 盤面（`LazyVGrid` で幅がレイアウトでしか決まらない手札・場・取り札）は今までどおり `nil` で
+    /// `GeometryReader` に任せる。
+    public let fixedWidth: CGFloat?
 
     public init(card: HanafudaCard, isDimmed: Bool = false, isHighlighted: Bool = false,
-                showsKindLabel: Bool = true) {
+                showsKindLabel: Bool = true, fixedWidth: CGFloat? = nil) {
         self.showsKindLabel = showsKindLabel
         self.card = card
         self.isDimmed = isDimmed
         self.isHighlighted = isHighlighted
+        self.fixedWidth = fixedWidth
     }
 
     public var body: some View {
-        GeometryReader { geo in
-            let corner = geo.size.width * 0.12
-            ZStack {
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(CardStyle.faceFill)
-                if let image = HanafudaCardImages.image(for: card) {
-                    // 画像は札と同じ 2:3 なので、札の枠いっぱいに敷けば帯の下に図案がそのまま収まる。
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geo.size.width, height: geo.size.height)
+        Group {
+            if let fixedWidth {
+                face(width: fixedWidth)
+                    .frame(width: fixedWidth, height: fixedWidth * HanafudaCardArt.aspectRatio)
+            } else {
+                GeometryReader { geo in
+                    face(width: geo.size.width)
                 }
-                Canvas { context, size in
-                    HanafudaCardFace.drawBand(card, in: &context, rect: CGRect(origin: .zero, size: size),
-                                              showsKindLabel: showsKindLabel)
-                }
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(HanafudaCardArt.ink.opacity(0.35), lineWidth: 1)
-                if isHighlighted {
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .strokeBorder(Theme.coral, lineWidth: 3)
-                }
+                .aspectRatio(1 / HanafudaCardArt.aspectRatio, contentMode: .fit)
             }
-            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-            .opacity(isDimmed ? 0.45 : 1)
         }
-        .aspectRatio(1 / HanafudaCardArt.aspectRatio, contentMode: .fit)
         .accessibilityElement()
         .accessibilityLabel(HanafudaSpeech.label(for: card))
+    }
+
+    @ViewBuilder
+    private func face(width: CGFloat) -> some View {
+        let height = width * HanafudaCardArt.aspectRatio
+        let corner = width * 0.12
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(CardStyle.faceFill)
+            if let image = HanafudaCardImages.image(for: card) {
+                // 画像は札と同じ 2:3 なので、札の枠いっぱいに敷けば帯の下に図案がそのまま収まる。
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+            }
+            band(width: width, height: height)
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(HanafudaCardArt.ink.opacity(0.35), lineWidth: 1)
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .strokeBorder(Theme.coral, lineWidth: 3)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .opacity(isDimmed ? 0.45 : 1)
     }
 
     // MARK: - 帯と図案の領域
@@ -86,26 +105,39 @@ public struct HanafudaCardFace: View {
     /// 役は種別の枚数で決まる。どちらも図案からしか読めない状態では、鶴と鶯の描き分けを
     /// 知らない人が光札とタネ札を区別できない（会長 QA・2026-09-10）。
     /// 帯の色そのものが種別を表すので、取り札の帯のように文字が潰れる小ささでも読み取れる。
-    static func drawBand(_ card: HanafudaCard, in ctx: inout GraphicsContext, rect: CGRect,
-                         showsKindLabel: Bool = true) {
+    ///
+    /// 文字は `Canvas` の `draw(Text)` ではなく普通の `Text` で置く（#2905）。`Canvas` は描き直すたびに
+    /// 文字の組版（和文の代替フォント探しまで）をやり直すので、「はじめての遊び方」のページ送りで
+    /// 札の描き直しが続くと主スレッドが 10 秒埋まり、監視（0x8BADF00D）に落とされていた。
+    private func band(width: CGFloat, height: CGFloat) -> some View {
         let backgroundHex = HanafudaCardArt.kindHex(for: card)
-        let band = bandRect(in: rect)
-        ctx.fill(Path(band), with: .color(Color(hex: backgroundHex)))
+        let bandHeight = height * Self.bandRatio
         let label = Color(hex: HanafudaCardArt.bandLabelHex(on: backgroundHex))
         // 帯の高さに収まる大きさにする。下限を設けて逃がすと、小さく描いたときに文字だけが
         // 帯からはみ出して図案に被る。
-        let size = min(rect.width * 0.30, band.height * 0.85)
-        func text(_ string: String) -> Text {
-            Text(verbatim: string)
+        let size = Self.bandFontSize(width: width, bandHeight: bandHeight)
+        return VStack(spacing: 0) {
+            ZStack {
+                Rectangle().fill(Color(hex: backgroundHex))
+                HStack(spacing: 0) {
+                    Text(verbatim: "\(card.month)").fixedSize()
+                    Spacer(minLength: 0)
+                    if showsKindLabel {
+                        Text(verbatim: card.kind.badgeLabel).fixedSize()
+                    }
+                }
                 .font(.system(size: size, weight: .bold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
                 .foregroundStyle(label)
+                .padding(.horizontal, width * 0.05)
+            }
+            .frame(width: width, height: bandHeight)
+            Spacer(minLength: 0)
         }
-        let inset = band.width * 0.05
-        ctx.draw(text("\(card.month)"),
-                 at: CGPoint(x: band.minX + inset, y: band.midY), anchor: .leading)
-        if showsKindLabel {
-            ctx.draw(text(card.kind.badgeLabel),
-                     at: CGPoint(x: band.maxX - inset, y: band.midY), anchor: .trailing)
-        }
+        .frame(width: width, height: height)
+    }
+
+    /// 帯の文字の大きさ。札の幅の 30% と帯の高さの 85% の小さいほう。
+    static func bandFontSize(width: CGFloat, bandHeight: CGFloat) -> CGFloat {
+        min(width * 0.30, bandHeight * 0.85)
     }
 }

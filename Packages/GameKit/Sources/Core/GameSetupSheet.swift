@@ -19,6 +19,7 @@ public struct GameSetupSheet<Content: View>: View {
     private let spacing: CGFloat
     private let onStart: () -> Void
     private let onCancel: () -> Void
+    private let onboarding: OnboardingGuide?
     private let content: Content
 
     /// - Parameters:
@@ -27,11 +28,13 @@ public struct GameSetupSheet<Content: View>: View {
     ///     「終了してスタート」のような確認の文言になる（誤って押して進行を失わないため）。
     ///   - startTint: 開始ボタンの面色。上に載る文字は `Theme.onAccent` 固定（#220）。
     ///   - spacing: 節と節の間隔。
+    ///   - onboarding: 図で見る「はじめての遊び方」（#2827）。渡したゲームだけ、中身の先頭に小さな入口が出る。
     public init(
         kind: GameSetupKind,
         discardsProgress: Bool = false,
         startTint: Color = Theme.Fill.coral,
         spacing: CGFloat = 24,
+        onboarding: OnboardingGuide? = nil,
         onStart: @escaping () -> Void,
         onCancel: @escaping () -> Void,
         @ViewBuilder content: () -> Content
@@ -42,6 +45,7 @@ public struct GameSetupSheet<Content: View>: View {
         self.spacing = spacing
         self.onStart = onStart
         self.onCancel = onCancel
+        self.onboarding = onboarding
         self.content = content()
     }
 
@@ -91,7 +95,10 @@ public struct GameSetupSheet<Content: View>: View {
         // 直接の子のまま、下にボタンの場所を安全に確保できる。
         ScrollViewReader { proxy in
         ScrollView {
-            VStack(alignment: .leading, spacing: spacing) { content }
+            VStack(alignment: .leading, spacing: spacing) {
+                OnboardingEntry(onboarding, style: .compact)
+                content
+            }
                 .padding(Theme.pad)
                 .background(alignment: .bottom) { Color.clear.frame(height: 1).id(SetupScrollEnd.end) }
         }
@@ -243,7 +250,7 @@ public struct GameSetupChooser: View {
     }
 
     public var body: some View {
-        Button(action: action) {
+        Button(action: action) { // a11y-ok: 読み上げ名は titleText が持つ（Image は飾り）
             VStack(spacing: 4) {
                 if let icon {
                     Image(systemName: icon)

@@ -6,16 +6,17 @@ import SwiftUI
 @MainActor
 enum HeartsHowToFigures {
     static let items: [@MainActor @Sendable () -> AnyView] = [
-        { AnyView(PassFigure()) },
-        { AnyView(FollowFigure()) },
+        { AnyView(StrengthFigure()) },
         { AnyView(TakeFigure()) },
         { AnyView(PointsFigure()) },
+        { AnyView(PassFigure()) },
+        { AnyView(FollowFigure()) },
         { AnyView(DumpFigure()) },
         { AnyView(FinishFigure()) },
     ]
 
     /// 札と、その下の名前（誰が出したか）。
-    private struct Played: View {
+    struct Played: View {
         let rank: String
         let suit: RuleMiniCard.Suit
         let who: String
@@ -31,7 +32,7 @@ enum HeartsHowToFigures {
     }
 
     /// 手札から 3 枚を選んで、左どなり（CPU1）へ渡す。
-    private struct PassFigure: View {
+    struct PassFigure: View {
         var body: some View {
             HStack(spacing: 10) {
                 RuleMiniCardRow(overlap: 10) {
@@ -55,7 +56,7 @@ enum HeartsHowToFigures {
     }
 
     /// クラブの 2 から、同じスートを順に出す。
-    private struct FollowFigure: View {
+    struct FollowFigure: View {
         var body: some View {
             RuleFrames(count: 4, spacing: 4) { index in
                 let plays: [(String, String)] = [("2", tr("あなた")), ("9", "CPU1"), ("K", "CPU2"), ("5", "CPU3")]
@@ -64,8 +65,24 @@ enum HeartsHowToFigures {
         }
     }
 
-    /// 最初のスートで数字がいちばん大きい人が 4 枚を取る（ほかのスートの A は勝てない）。
-    private struct TakeFigure: View {
+    /// 札の強さ。A がいちばん強く 2 がいちばん弱い（13 枚を重ねて 1 行に並べる）。早見表（#2788）でも使う。
+    struct StrengthFigure: View {
+        var body: some View {
+            VStack(spacing: 6) {
+                let order = HeartsReference.strengthOrder
+                RuleMiniCardWrap(count: order.count, perRow: 7) { index in
+                    RuleMiniCard(HeartsReference.rankLabel(order[index]), suit: .spade, isHighlighted: index == 0)
+                }
+                RuleFigureLabel(tr("左上がいちばん強く、右下がいちばん弱い"))
+            }
+            .padding(.top, 4)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tr("強い順に A K Q J 10 9 8 7 6 5 4 3 2"))
+        }
+    }
+
+    /// 最初のスートで数字がいちばん大きい人が 4 枚を取る（ほかのスートの A は勝てない）。早見表（#2788）でも使う。
+    struct TakeFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 8) {
                 Played(rank: "7", suit: .diamond, who: tr("あなた"), dimmed: true)
@@ -76,13 +93,17 @@ enum HeartsHowToFigures {
         }
     }
 
-    /// ハートは 1 点、スペードの Q は 13 点。
-    private struct PointsFigure: View {
+    /// ハートは 1 点、スペードの Q は 13 点。早見表（#2788）でも使う。
+    struct PointsFigure: View {
         var body: some View {
             HStack(spacing: 22) {
-                pointCard(RuleMiniCard("5", suit: .heart), text: tr("1枚1点"))
-                pointCard(RuleMiniCard("Q", suit: .spade), text: tr("13点"))
-                pointCard(RuleMiniCard("K", suit: .club, isDimmed: true), text: tr("0点"))
+                let entries = HeartsReference.pointEntries
+                ForEach(entries.indices, id: \.self) { index in
+                    let entry = entries[index]
+                    pointCard(RuleMiniCard(HeartsReference.rankLabel(entry.rank), suit: .init(entry.suit),
+                                           isDimmed: entry.points == 0),
+                              text: index == 0 ? tr("1枚%lld点", entry.points) : tr("%lld点", entry.points))
+                }
             }
         }
 
@@ -107,7 +128,7 @@ enum HeartsHowToFigures {
     }
 
     /// 50 点に届いたら終わり。合計の少ない人が勝ち。
-    private struct FinishFigure: View {
+    struct FinishFigure: View {
         private let rows: [(String, Int)] = [(tr("あなた"), 21), ("CPU1", 53), ("CPU2", 26), ("CPU3", 41)]
 
         var body: some View {

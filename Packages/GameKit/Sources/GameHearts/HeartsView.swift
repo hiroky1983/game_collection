@@ -5,10 +5,14 @@ public struct HeartsView: View {
     @State private var model: HeartsModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 対局中に開ける札の強さ・点数の早見表（#2788）。
+    @State private var showReference = false
+    /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2827）。
+    @State private var isHowToPlayOpen = false
     /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（いろリレー・CodeRabbit 指摘 PR #1339 と同じ）。
     /// ボタンから起こした非構造化タスクは View のライフサイクルで止まらないので、離れたら自分で止める。
     @State private var cpuTask: Task<Void, Never>?
-    /// 画面の広さ（#458）。札と同じ倍率で場の枠を拡大するために読む。
+    /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
     @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
@@ -17,32 +21,63 @@ public struct HeartsView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 8) {
-            statusBar
-            cpuRow
-            // 手の終わり・決着では場も手札も要らないので、代わりに点の一覧を出す。
-            // 縦の余りは `Spacer` ではなく手札 / 点の一覧のカード自身に吸わせる（大富豪 #193 と同じ）。
-            switch model.phase {
-            case .handResult, .result:
-                scoreCard
-                    .transition(.opacity)
-            case .idle, .passing, .playing:
-                trickArea
-                    .transition(.opacity)
-                handArea
-                    .transition(.opacity)
+        // レイアウトパターン A（全画面・会長 QA 2026-10-23・#2531）: 大富豪・いろリレーと同じく、フェルトを画面全体に敷き、
+        // ヘッダーは 1 行（戻る・ハーツ・手数と終了点と手番の札・？・＋）、バナーは画面最下部。
+        // 白い札（ステータスの帯・CPU・場・手札・操作欄）はやめてフェルトに直に置き、CPU の席は共通部品（`OpponentSeat`）。
+        GeometryReader { geometry in
+            let metrics = HeartsLayoutA.metrics(screenWidth: geometry.size.width, elementScale: layout.elementScale)
+            VStack(spacing: HeartsLayoutA.spacing) {
+                cpuRow(metrics)
+                // 手の終わり・決着では場も手札も要らないので、代わりに点の一覧を出す。
+                // 縦の余りは `Spacer` ではなく場 / 点の一覧自身に吸わせる（大富豪 #193 と同じ）。
+                switch model.phase {
+                case .handResult, .result:
+                    scoreCard
+                        .transition(.opacity)
+                case .idle, .passing, .playing:
+                    trickArea(metrics)
+                        .transition(.opacity)
+                    handArea(metrics)
+                        .transition(.opacity)
+                }
+                HowToPlayHint(.hearts, playLog: services.playLog)
+                actionArea
+                RecommendationSlot(services: services, isFinished: model.phase == .result)
             }
-            HowToPlayHint(.hearts, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
-            BannerSlot(ads: services.ads)
+            // 局面 → 点の一覧の差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
+            .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
+            // 左右 8pt（全画面の枠の値）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+            .padding(.horizontal, HeartsLayoutA.sideInset)
+            .padding(.vertical, HeartsLayoutA.verticalInset)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        // 局面 → 点の一覧の差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
-        .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
-        .padding(Theme.pad)
-        .gameChrome(title: tr("ハーツ"), review: services.review,
-                    newGame: GameChromeNewGame(.match) { showNewGame = true })
-        .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items)) { HeartsRuleSheet() }
+        // 手数・終了点・手番は、ヘッダー下の帯ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
+        .gameChrome(title: tr("ハーツ"), review: services.review, fullScreen: .felt, ads: services.ads,
+                    reference: GameChromeReference(tr("札の強さと点数")) { showReference = true },
+                    newGame: GameChromeNewGame(.match) { showNewGame = true }) {
+            statusChips
+        }
+        .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items).onboarding(HeartsOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true; cpuTask?.cancel() },
+                   onDismiss: { isHowToPlayOpen = false; runCPU() }) { HeartsRuleSheet() }
+        // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
+        .sheet(isPresented: $showReference) {
+            NavigationStack {
+                HeartsReferenceSheet()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(tr("閉じる")) { showReference = false }.fontWeight(.semibold)
+                        }
+                    }
+            }
+        }
+        .onChange(of: showReference) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
+        // 新規対局シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2827）。
+        .onChange(of: showNewGame) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
         .sheet(isPresented: $showNewGame) {
             HeartsNewGameSheet(aiLevel: model.aiLevel) { level in
                 cpuTask?.cancel()
@@ -61,9 +96,12 @@ public struct HeartsView: View {
             if let i = args.firstIndex(of: "-heartsScenario"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
             }
+            // 撮影用（#2788）: 早見表だけを開く。
+            if args.contains("-heartsReference") { showReference = true }
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
+            runCPU()
         }
     }
 
@@ -73,23 +111,58 @@ public struct HeartsView: View {
         cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
-    // MARK: - ステータス
+    // MARK: - ステータス（ヘッダーの行の札）
 
-    private var statusBar: some View {
-        HStack(spacing: 8) {
-            Label(tr("%lld手目", max(model.handNumber, 1)), systemImage: "number")
-                .themeBody(13)
-                .foregroundStyle(Theme.inkSub)
-            Text(tr("%lld点で終了", HeartsRules.targetScore))
-                .scaledFont(11, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
-            Spacer()
-            Text(turnLabel)
-                .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(model.isPlayerTurn || model.phase == .passing ? Theme.tealText : Theme.inkSub)
+    /// 手数・終了点・手番。ヘッダーの残りの幅に収まらないとき（英語の iPhone SE など）は終了点、次に手数を落とす。
+    /// 文字色（白）は全画面の枠が配る。手番の札（`TurnBadge`）は対戦ゲーム共通の色（#1419）。
+    private var statusChips: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                handNumberLabel
+                targetLabel
+                turnChip
+            }
+            HStack(spacing: 8) {
+                handNumberLabel
+                turnChip
+            }
+            turnChip
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var handNumberLabel: some View {
+        Label(tr("%lld手目", max(model.handNumber, 1)), systemImage: "number")
+            .themeBody(13, maxScale: Self.seatTextMaxScale)
+    }
+
+    private var targetLabel: some View {
+        Text(tr("%lld点で終了", HeartsRules.targetScore))
+            .scaledFont(11, weight: .semibold, design: .rounded)
+    }
+
+    /// いま動いている（または場を取る）CPU。手番の札にその席のアイコンを添える（席に名前を出さないため）。
+    private var activeCPU: Int? {
+        guard model.phase == .playing else { return nil }
+        let player = model.isTrickComplete ? model.trickLeader : model.currentPlayer
+        guard let player, player != HeartsModel.humanIndex else { return nil }
+        return player
+    }
+
+    private var turnChip: some View {
+        HStack(spacing: 4) {
+            if let cpu = activeCPU {
+                OpponentSeatIcon(index: cpu, diameter: layout.scaled(22))
+            }
+            TurnBadge(turnLabel, kind: turnKind)
+        }
+    }
+
+    private var turnKind: TurnBadge.Kind {
+        switch model.phase {
+        case .idle, .handResult, .result: return .finished
+        case .passing: return .you
+        case .playing: return activeCPU == nil ? .you : .cpu
+        }
     }
 
     private var turnLabel: String {
@@ -108,49 +181,47 @@ public struct HeartsView: View {
 
     // MARK: - CPU
 
-    private var cpuRow: some View {
-        HStack(spacing: 8) {
+    /// CPU の席・手札の見出しが文字サイズ設定で拡大する上限倍率（大富豪 #1782 と同じ）。
+    private static let seatTextMaxScale: CGFloat = 1.6
+
+    /// CPU 3 人の席（左から 左どなり・向かい・右どなり。場の十字の並びと同じ向き）。見せ方は大富豪・いろリレーと同じ
+    /// 共通部品（`OpponentSeat`・#2531）: 色と記号の丸いアイコン・手番の黄色い輪・裏向きのトランプの束・残り枚数・吹き出し。
+    private func cpuRow(_ metrics: HeartsLayoutA.Metrics) -> some View {
+        HStack(alignment: .top, spacing: 8) {
             ForEach(1..<HeartsModel.playerCount, id: \.self) { index in
-                cpuCard(index)
+                cpuSeat(index, metrics)
             }
         }
     }
 
-    private func cpuCard(_ index: Int) -> some View {
+    private func cpuSeat(_ index: Int, _ metrics: HeartsLayoutA.Metrics) -> some View {
         let isCurrent = model.phase == .playing && !model.isTrickComplete && model.currentPlayer == index
-        return VStack(spacing: 3) {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                    .scaledFont(12, weight: .bold)
-                    .foregroundStyle(isCurrent ? Theme.coralText : Theme.inkSub)
-                Text(model.playerName(index))
-                    .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.ink)
-                Text(seatLabel(index))
-                    .scaledFont(10, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
-            }
-            Text(tr("この手 %lld点", model.takenPoints[index]))
-                .scaledFont(11, weight: .bold, design: .rounded)
-                .foregroundStyle(model.takenPoints[index] > 0 ? Theme.coralText : Theme.inkSub)
-            Text(tr("合計 %lld点", model.totals[index]))
-                .scaledFont(11, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.ink)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8).padding(.horizontal, 6)
-        .popCard(corner: Theme.cornerSmall)
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                .strokeBorder(isCurrent ? Theme.coral : Color.clear, lineWidth: 2)
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(HeartsAccessibility.scoreLabel(
+        let count = model.hands[index].count
+        // ハーツは場の札が直前の手を見せるので、吹き出しにはこの手の点と合計点を出す（以前の白い札の 2・3 行目）。
+        let handPoints = tr("この手 %lld点", model.takenPoints[index])
+        let totalPoints = tr("合計 %lld点", model.totals[index])
+        let points = "\(handPoints) / \(totalPoints)"
+        var spoken = [HeartsAccessibility.scoreLabel(
             name: model.playerName(index), handPoints: model.takenPoints[index], total: model.totals[index]
-        ))
+        ), seatLabel(index)]
+        // 手番は輪の色でしか示さないので、読み上げに「〜の番」まで入れる（大富豪 #2495 と同じ）。
+        if isCurrent { spoken.append(tr("%@の番", model.playerName(index))) }
+        let back = metrics.seatCardMetrics
+        return OpponentSeat(
+            index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent, cardCount: count, lastAction: points,
+            accessibilityLabel: spoken.joined(separator: " ")
+        ) {
+            OpponentCardFan(count: count, cardWidth: back.width, cardHeight: back.height) {
+                // トランプの裏（藍の面 + 白い内枠 + スート印）。外形と面は共通基盤（#397）。
+                ZStack {
+                    PlayingCardSurface(faceUp: false, cornerRadius: back.cornerRadius, shadowRadius: 1)
+                    PlayingCardBack(metrics: back)
+                }
+            }
+        }
     }
 
-    /// 席の向き（1 = 左・2 = 向かい・3 = 右）。渡す相手（左）が分かるように出す。
+    /// 席の向き（1 = 左・2 = 向かい・3 = 右）。渡す相手（左）が分かるように、場の十字の札に添える。
     private func seatLabel(_ index: Int) -> String {
         switch index {
         case 1:  return tr("左")
@@ -161,26 +232,28 @@ public struct HeartsView: View {
 
     // MARK: - 場
 
-    /// 場。自分を下に、左（CPU1）・向かい（CPU2）・右（CPU3）が出した札を十字に並べる。
-    private var trickArea: some View {
-        let metrics = PlayingCardMetrics.compact.scaled(by: layout.elementScale)
-        let complete = model.isTrickComplete
+    /// 場。自分を下に、左（CPU1）・向かい（CPU2）・右（CPU3）が出した札を十字に並べる。白い札は使わずフェルトに直に置く。
+    /// 縦の余りはここが吸い、十字はその真ん中に置く（大富豪の場と同じ）。札は手札と同じ大きさまでで、
+    /// 縦の短い画面（iPhone SE）では残りの高さに収まるよう小さくする。
+    private func trickArea(_ metrics: HeartsLayoutA.Metrics) -> some View {
+        // 札が 1 枚でも出ていれば、その時点で最も強い人を強調する（4 枚そろう前は暫定）。
         let leader = model.trickLeader
-        return ZStack {
-            heartsChip
-            trickSlot(2, metrics: metrics, highlighted: complete && leader == 2)
-                .offset(y: -metrics.height * 0.62)
-            trickSlot(1, metrics: metrics, highlighted: complete && leader == 1)
-                .offset(x: -metrics.width * 1.6)
-            trickSlot(3, metrics: metrics, highlighted: complete && leader == 3)
-                .offset(x: metrics.width * 1.6)
-            trickSlot(0, metrics: metrics, highlighted: complete && leader == 0)
-                .offset(y: metrics.height * 0.62)
+        return GeometryReader { proxy in
+            let card = HeartsLayoutA.trickCard(hand: metrics.handCard, height: proxy.size.height)
+            ZStack {
+                heartsChip
+                trickSlot(2, metrics: card, highlighted: leader == 2)
+                    .offset(y: -card.height * HeartsLayoutA.trickVerticalOffset)
+                trickSlot(1, metrics: card, highlighted: leader == 1)
+                    .offset(x: -card.width * HeartsLayoutA.trickHorizontalOffset)
+                trickSlot(3, metrics: card, highlighted: leader == 3)
+                    .offset(x: card.width * HeartsLayoutA.trickHorizontalOffset)
+                trickSlot(0, metrics: card, highlighted: leader == 0)
+                    .offset(y: card.height * HeartsLayoutA.trickVerticalOffset)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: metrics.height * 2.35)
-        .padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
+        .frame(maxWidth: .infinity, minHeight: HeartsLayoutA.trickMinHeight, maxHeight: .infinity)
         .gameAnimation(.easeInOut(duration: 0.18), value: model.currentTrick)
         // 場は「誰が何を出したか」「いま誰が取りそうか」が分かればよいので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .ignore)
@@ -189,13 +262,21 @@ public struct HeartsView: View {
 
     @ViewBuilder
     private func trickSlot(_ player: Int, metrics: PlayingCardMetrics, highlighted: Bool) -> some View {
-        if let card = model.trickCard(of: player) {
-            HeartsCardView(card: card, metrics: metrics, selected: highlighted)
-                .transition(.scale.combined(with: .opacity))
-        } else {
-            RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
-                .strokeBorder(Theme.inkSub.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                .frame(width: metrics.width, height: metrics.height)
+        Group {
+            if let card = model.trickCard(of: player) {
+                HeartsCardView(card: card, metrics: metrics, selected: highlighted)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                // 空き枠（破線の色は卓の上の色・`cardTableInk`）。
+                CardSlot(metrics: metrics)
+            }
+        }
+        // 席に名前を出さないので、CPU の札には席と同じアイコンを添えて、誰の札かを席と結ぶ（以前の「左・向かい・右」の代わり）。
+        .overlay(alignment: .topLeading) {
+            if player != HeartsModel.humanIndex {
+                OpponentSeatIcon(index: player, diameter: HeartsLayoutA.trickIconDiameter)
+                    .offset(x: -HeartsLayoutA.trickIconDiameter / 3, y: -HeartsLayoutA.trickIconDiameter / 3)
+            }
         }
     }
 
@@ -205,35 +286,40 @@ public struct HeartsView: View {
             Image(systemName: model.heartsBroken ? "suit.heart.fill" : "suit.heart")
                 .scaledFont(16, weight: .bold)
                 .foregroundStyle(PlayingCardInk.red)
-            Text(model.heartsBroken ? tr("ハート解禁") : tr("ハートまだ"))
-                .scaledFont(10, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+            CardTableInkReader { ink in
+                Text(model.heartsBroken ? tr("ハート解禁") : tr("ハートまだ"))
+                    .scaledFont(10, weight: .bold, design: .rounded)
+                    .foregroundStyle(ink.label)
+            }
         }
+        .padding(.horizontal, 6).padding(.vertical, 3)
     }
 
     // MARK: - 手札
 
-    private var handArea: some View {
+    private func handArea(_ metrics: HeartsLayoutA.Metrics) -> some View {
         // 1 枚ごとに引くと合法手の探索が手札の枚数ぶん走るので、ここで 1 回だけ求める（#190）。
         let playable = model.playableCardIDs
         let isPassing = model.phase == .passing
+        let human = HeartsModel.humanIndex
         return VStack(spacing: 6) {
-            HStack {
-                Text(tr("あなた"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.ink)
-                Text(tr("この手 %lld点", model.takenPoints[HeartsModel.humanIndex]))
-                    .scaledFont(11, weight: .bold, design: .rounded)
-                    .foregroundStyle(model.takenPoints[HeartsModel.humanIndex] > 0 ? Theme.coralText : Theme.inkSub)
-                Spacer()
-                Text(tr("合計 %lld点", model.totals[HeartsModel.humanIndex]))
-                    .scaledFont(11, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.ink)
+            CardTableInkReader { ink in
+                HStack {
+                    Text(tr("あなた"))
+                        .themeBody(13, maxScale: Self.seatTextMaxScale)
+                        .foregroundStyle(ink.label)
+                    Text(tr("この手 %lld点", model.takenPoints[human]))
+                        .scaledFont(11, weight: .bold, design: .rounded)
+                        .foregroundStyle(model.takenPoints[human] > 0 ? ink.label : ink.labelSub)
+                    Spacer()
+                    Text(tr("合計 %lld点", model.totals[human]))
+                        .scaledFont(11, weight: .semibold, design: .rounded)
+                        .foregroundStyle(ink.label)
+                }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(HeartsAccessibility.scoreLabel(
-                name: model.playerName(HeartsModel.humanIndex),
-                handPoints: model.takenPoints[HeartsModel.humanIndex], total: model.totals[HeartsModel.humanIndex]
+                name: model.playerName(human), handPoints: model.takenPoints[human], total: model.totals[human]
             ))
             LazyVGrid(
                 columns: Array(
@@ -246,13 +332,11 @@ public struct HeartsView: View {
                     let isSelected = isPassing ? model.passSelection.contains(card.id) : model.selectedID == card.id
                     let hint = model.hint(for: card, playable: playable)
                     let isReceived = model.receivedIDs.contains(card.id)
-                    HeartsCardView(
-                        card: card, metrics: PlayingCardMetrics.compact.scaled(by: layout.elementScale),
-                        selected: isSelected, hint: hint, received: isReceived
-                    )
+                    HeartsCardView(card: card, metrics: metrics.handCard,
+                                   selected: isSelected, hint: hint, received: isReceived)
                     .offset(y: isSelected ? -6 : 0)
                     .gameAnimation(.spring(response: 0.2), value: isSelected)
-                    // 見える札は 42pt のまま、タップ判定だけを列いっぱいに広げて 44pt 以上にする（#195）。
+                    // 札は列幅 − 4pt。タップ判定は列いっぱい（44pt 以上・#195）。
                     .frame(maxWidth: .infinity, minHeight: HeartsHandLayout.minimumTapTarget)
                     .contentShape(Rectangle())
                     .onTapGesture { tap(card) }
@@ -267,15 +351,10 @@ public struct HeartsView: View {
                     .disabled(!(isPassing || model.isPlayerTurn))
                 }
             }
-            .frame(maxWidth: .infinity)
             // 出した札が消える / 受け取った札が増える変化を演出する（#195）。
             .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
-            Spacer(minLength: 0)
             hintLine(playable: playable)
         }
-        .padding(.horizontal, HeartsHandLayout.horizontalPadding).padding(.vertical, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private func tap(_ card: HeartsCard) {
@@ -286,8 +365,8 @@ public struct HeartsView: View {
         }
     }
 
-    /// 手札の下に出す 1 行の案内（#190）。
-    @ViewBuilder
+    /// 手札の下に出す 1 行の案内（#190）。フェルトの上なので赤系ではなく卓の上の文字色（白系）で出す（大富豪と同じ）。
+    /// CPU の番は案内が無くなるが、行の高さは取っておく（出すたびに手札が上下に跳ねないように）。
     private func hintLine(playable: Set<Int>) -> some View {
         let message: String? = {
             switch model.phase {
@@ -301,25 +380,32 @@ public struct HeartsView: View {
                 if let lead = model.currentTrick.first?.card.suit, model.playerHand.contains(where: { $0.suit == lead }) {
                     return tr("出された札と同じスートを出します")
                 }
-                if !model.currentTrick.isEmpty { return tr("同じスートが無いので、どの札でも出せます") }
+                if !model.currentTrick.isEmpty {
+                    // 1 巡目だけは点の札（ハート・スペードの Q）を避ける（HeartsRules.legalPlays）。
+                    return model.trickNumber == 0
+                        ? tr("1巡目はハート・スペードのQを出せません（それしか無ければ出せます）")
+                        : tr("同じスートが無いので、どの札でも出せます")
+                }
                 return nil
             default:
                 return nil
             }
         }()
-        if let message {
+        return CardTableInkReader { ink in
             HStack(spacing: 4) {
                 Image(systemName: "info.circle.fill")
                     .scaledFont(11, weight: .bold)
-                Text(message)
+                Text(message ?? " ")
                     .scaledFont(11, weight: .bold, design: .rounded)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .foregroundStyle(Theme.coralText)
+            .foregroundStyle(ink.label)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
+            .opacity(message == nil ? 0 : 1)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityHidden(message == nil)
     }
 
     // MARK: - 操作
@@ -351,7 +437,7 @@ public struct HeartsView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton(tr("もう一度"), role: .primary) {
+            actionButton(tr("もう一回"), role: .primary) {
                 model.startMatch()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -401,6 +487,7 @@ public struct HeartsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        // 縦の余りをここで吸い、点の一覧の下にフェルトの空白を残さない（大富豪 #193 と同じ）。
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
@@ -417,6 +504,10 @@ public struct HeartsView: View {
                     .frame(width: 44)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
+            }
+            // 卓では席をアイコンで見分けているので、点の一覧にも同じアイコンを添える（大富豪・いろリレーと同じ）。
+            if player != HeartsModel.humanIndex {
+                OpponentSeatIcon(index: player, diameter: layout.scaled(24))
             }
             Text(model.playerName(player))
                 .scaledFont(13, weight: .bold, design: .rounded)
@@ -459,23 +550,108 @@ public struct HeartsView: View {
     }
 }
 
+// MARK: - 全画面（A）の寸法
+
+/// レイアウトパターン A でのハーツの寸法（#2531。大富豪の `DaifugoLayoutA` と同じ考え方）。
+/// View を組まずに札の大きさ・SE での収まりをテストできるよう純関数にする（`HeartsModuleTests`）。
+///
+/// 手札は 7 列のまま、**札を列幅いっぱい（列幅 − 4pt）まで大きくする**（`PlayingCardMetrics.compact` の相似拡大）。
+/// 広い画面（iPad）では倍率に上限（`maxCardScale` × `elementScale`）を掛ける。場の十字の札は手札と同じ大きさまでで、
+/// 場に使える高さが足りないとき（iPhone SE）は高さに合わせて小さくする（`trickCard`）。
+enum HeartsLayoutA {
+    /// 画面の左右の余白（全画面の枠の値）。
+    static let sideInset: CGFloat = FullScreenGameLayoutMetrics.sideInset
+    /// 中身の上下の余白（ヘッダーの余白 4 / バナーの帯の余白 8 に足す分）。
+    static let verticalInset: CGFloat = 2
+    /// 段のあいだの間隔（大富豪と同じ）。
+    static let spacing: CGFloat = 6
+    /// 手札の列のあいだに残す隙間（札の幅 = 列幅 − これ）。
+    static let handGap: CGFloat = 4
+    /// 札の拡大率の上限（狭い画面の倍率。iPad ではさらに `elementScale` 倍）。
+    static let maxCardScale: CGFloat = 1.5
+    /// 席のアイコンを小さい段に切り替える画面の幅（大富豪・いろリレーと同じ）。
+    static let compactBreakpoint: CGFloat = 390
+    /// 場の十字: 上下の札を真ん中からずらす量（札の高さに対する比）と、左右の札をずらす量（札の幅に対する比）。
+    static let trickVerticalOffset: CGFloat = 0.72
+    static let trickHorizontalOffset: CGFloat = 1.6
+    /// 場の十字に要る高さ（札の高さに対する比。上下の札 + あいだ + 余白）。
+    static let trickHeightRatio: CGFloat = 2.55
+    /// 場の札の高さの下限（SE で初回のミニガイドが出ていても収まる大きさ）。
+    static let minTrickCardHeight: CGFloat = 42
+    /// 場の高さの下限。
+    static var trickMinHeight: CGFloat { minTrickCardHeight * trickHeightRatio }
+    /// 場の CPU の札に添える席のアイコンの直径。
+    static let trickIconDiameter: CGFloat = 18
+
+    struct Metrics: Equatable {
+        /// 手札の札。
+        let handCard: PlayingCardMetrics
+        /// CPU の席のアイコンの直径。
+        let seatDiameter: CGFloat
+        /// CPU の席の裏向きの札。
+        let seatCardMetrics: PlayingCardMetrics
+    }
+
+    /// 手札 1 列の幅（＝タップ判定の幅）。
+    static func columnWidth(screenWidth: CGFloat) -> CGFloat {
+        max(0, screenWidth - sideInset * 2) / CGFloat(HeartsHandLayout.columns)
+    }
+
+    /// 手札の札の拡大率（`PlayingCardMetrics.compact` に掛ける）。
+    static func cardScale(screenWidth: CGFloat, elementScale: CGFloat = 1) -> CGFloat {
+        let fit = (columnWidth(screenWidth: screenWidth) - handGap) / PlayingCardMetrics.compact.width
+        return max(0, min(fit, maxCardScale * elementScale))
+    }
+
+    static func metrics(screenWidth: CGFloat, elementScale: CGFloat = 1) -> Metrics {
+        let compact = screenWidth < compactBreakpoint
+        let seatCardWidth = OpponentSeatStyle.cardWidth(compact: compact) * elementScale
+        return Metrics(
+            handCard: PlayingCardMetrics.compact.scaled(by: cardScale(screenWidth: screenWidth, elementScale: elementScale)),
+            seatDiameter: OpponentSeatStyle.iconDiameter(compact: compact) * elementScale,
+            seatCardMetrics: PlayingCardMetrics.compact.scaled(by: seatCardWidth / PlayingCardMetrics.compact.width)
+        )
+    }
+
+    /// 場の十字の札。手札と同じ大きさまでで、場の高さ `height` に十字が収まらなければ小さくする（下限 `minTrickCardHeight`）。
+    static func trickCard(hand: PlayingCardMetrics, height: CGFloat) -> PlayingCardMetrics {
+        let fitHeight = max(minTrickCardHeight, height / trickHeightRatio)
+        guard fitHeight < hand.height, hand.height > 0 else { return hand }
+        return hand.scaled(by: fitHeight / hand.height)
+    }
+
+    /// 手札の段の高さ（13 枚 = 2 段ぶん。タップ判定の 44pt を下回らない）。
+    static func handGridHeight(_ metrics: Metrics) -> CGFloat {
+        let row = max(metrics.handCard.height, HeartsHandLayout.minimumTapTarget)
+        return row * 2 + HeartsHandLayout.rowSpacing
+    }
+
+    /// 初回のミニガイドが出ているときの、中身に要る高さの見積もり（場は下限の高さ）。
+    /// 席（アイコン + 束 + 枚数の札 18 + 吹き出し 20）+ 場の下限 + 手札（見出し 16 + 6 + 2 段 + 6 + 案内 14）+
+    /// ミニガイド 22 + 操作欄 60 + 間隔 + 上下の余白。`HeartsModuleTests` が SE の使える高さと突き合わせる。
+    static func estimatedMinimumHeight(screenWidth: CGFloat) -> CGFloat {
+        let m = metrics(screenWidth: screenWidth)
+        let seat = m.seatDiameter + OpponentSeatStyle.spacing * 3 + m.seatCardMetrics.height + 18 + 20
+        let hand = 16 + 6 + handGridHeight(m) + 6 + 14
+        let rows: [CGFloat] = [seat, trickMinHeight, hand, 22, 60]
+        return rows.reduce(0, +) + spacing * CGFloat(rows.count - 1) + verticalInset * 2
+    }
+}
+
 // MARK: - 手札グリッドの寸法
 
 /// 手札グリッドの寸法（大富豪 #195・いろリレーと同じ考え方）。13 枚を 7 列 × 2 段に並べる。
-/// 見た目の札は 42pt のまま、タップ判定だけを列いっぱいに広げる。
+/// 札は列幅 − 4pt（`HeartsLayoutA`）、タップ判定は列いっぱい。
 enum HeartsHandLayout {
     static let columns = 7
     static let columnSpacing: CGFloat = 0
     static let rowSpacing: CGFloat = 8
-    /// 手札カード（`popCard`）の内側の左右余白。
-    static let horizontalPadding: CGFloat = 12
     /// Apple HIG の最小タップ標的。
     static let minimumTapTarget: CGFloat = 44
 
-    /// 画面幅 `screenWidth` のときの、手札 1 枚あたりのタップ判定の幅。
+    /// 画面幅 `screenWidth` のときの、手札 1 枚あたりのタップ判定の幅（= 列幅）。
     static func tapWidth(screenWidth: CGFloat) -> CGFloat {
-        let available = screenWidth - Theme.pad * 2 - horizontalPadding * 2
-        return (available - columnSpacing * CGFloat(columns - 1)) / CGFloat(columns)
+        HeartsLayoutA.columnWidth(screenWidth: screenWidth)
     }
 }
 
@@ -549,7 +725,8 @@ struct HeartsCardView: View {
             }
         }
         .frame(width: metrics.width, height: metrics.height)
-        .opacity(isDimmed ? 0.4 : 1)
+        // フェルトの上なので、不透明度を落とす（緑に濁る）のではなく白を重ねて沈める（大富豪 #2531 と同じ）。
+        .tableDimmed(isDimmed, cornerRadius: metrics.cornerRadius)
     }
 }
 
@@ -570,6 +747,7 @@ struct HeartsNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             discardsProgress: true,
+            onboarding: HeartsOnboarding.guide,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {

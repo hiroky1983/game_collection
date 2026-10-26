@@ -10,10 +10,10 @@ enum OthelloHowToFigures {
         { AnyView(CountFigure()) },
     ]
 
-    private static let cell: CGFloat = 28
+    static let cell: CGFloat = 28
 
     /// 置けるマスの半透明の○。
-    private struct HintFigure: View {
+    struct HintFigure: View {
         private let hints: Set<[Int]> = [[0, 1], [1, 0], [2, 3], [3, 2]]
 
         var body: some View {
@@ -33,7 +33,7 @@ enum OthelloHowToFigures {
     }
 
     /// 黒ではさむと、あいだの白が黒に裏返る。
-    private struct FlipFigure: View {
+    struct FlipFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -58,7 +58,7 @@ enum OthelloHowToFigures {
     }
 
     /// 石の数で勝負が決まる。
-    private struct CountFigure: View {
+    struct CountFigure: View {
         var body: some View {
             HStack(spacing: 22) {
                 tally(.black, tr("黒 36"), isWinner: true)

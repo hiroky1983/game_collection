@@ -542,3 +542,46 @@ struct AnzanModelTests {
         #expect(AnzanModel.canResumeDisplay(isActive: true, showHowToPlay: false, showSetup: false))
     }
 }
+
+@MainActor
+@Suite("ぱっと暗算: まちがえた問題の見返し（#2855）")
+struct AnzanMissesTests {
+
+    private func play(_ model: AnzanModel, answerOffset: Int) {
+        model.next()
+        _ = flashThrough(model)
+        for ch in String(model.sum + answerOffset) { model.tapDigit(Int(String(ch))!) }
+        model.submit()
+    }
+
+    @Test("間違えた問題だけが、式・自分の答え・正解つきで残る")
+    func recordsOnlyWrongAnswers() {
+        let model = AnzanModel(seed: 7)
+        model.start(.standard)
+        _ = flashThrough(model)
+        let firstNumbers = model.numbers
+        let wrong = model.sum + 1
+        for ch in String(wrong) { model.tapDigit(Int(String(ch))!) }
+        model.submit()
+        #expect(model.misses == [AnzanMiss(numbers: firstNumbers, answer: wrong)])
+        #expect(model.misses[0].correct == firstNumbers.reduce(0, +))
+
+        play(model, answerOffset: 0)   // 正解は残さない
+        #expect(model.misses.count == 1)
+        play(model, answerOffset: 1)
+        #expect(model.misses.count == 2)
+    }
+
+    @Test("上限を超えたら古いものから捨てる")
+    func capsAtMaxMisses() {
+        let model = AnzanModel(seed: 3)
+        model.start(.standard)
+        _ = flashThrough(model)
+        for ch in String(model.sum + 1) { model.tapDigit(Int(String(ch))!) }
+        model.submit()
+        let first = model.misses[0]
+        for _ in 0..<AnzanModel.maxMisses { play(model, answerOffset: 1) }
+        #expect(model.misses.count == AnzanModel.maxMisses)
+        #expect(!model.misses.contains(first))
+    }
+}

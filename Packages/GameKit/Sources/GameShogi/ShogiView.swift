@@ -33,6 +33,10 @@ public struct ShogiView: View {
         _showNewGame = State(initialValue: showSheet)
     }
 
+    private var hopelessBinding: Binding<Bool> {
+        Binding(get: { model.showsHintHopeless }, set: { if !$0 { model.dismissHintHopeless() } })
+    }
+
     /// 人間が後手なら盤を反転して表示する。
     private var flipped: Bool { model.humanSide == .white }
 
@@ -59,15 +63,10 @@ public struct ShogiView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("将棋"), review: services.review,
-                    newGame: GameChromeNewGame(.match) {
-                        if model.phase == .playing && !model.moves.isEmpty {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts),
+                    newGame: GameChromeNewGame(.match) { requestNewGame() })
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
-        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items)) { ShogiPieceGuideSheet() }
+        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide)) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(
                 initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.matchSetting
@@ -85,6 +84,15 @@ public struct ShogiView: View {
             } message: {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
+            .alert(tr("この局面は詰みを逃れる手がありません"), isPresented: hopelessBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(tr("残りの回数は減っていません。"))
+            }
+        }
+        // 詰ます手のヒントは、印だけでは詰みだと伝わらないので読み上げで添える（#2779）。
+        .onChange(of: model.hintIsMate) { _, isMate in
+            if isMate { AccessibilityNotification.Announcement(tr("詰みがあります")).post() }
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }
@@ -198,8 +206,15 @@ public struct ShogiView: View {
                     Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
                         .foregroundStyle(Theme.inkSub)
+                        // 押せる範囲を 44pt にする（#2487）。増えた高さ（文字 1 行ぶん ≒ 26pt）は
+                        // 上の隙間と下の余白から半分ずつ引いて、札の外寸を変えない。
+                        // 上は VStack の中（隙間 20 pt 以内）に収まるので当たり判定は枠の外へ出ない。
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .padding(.top, -13)
                 }
-                .padding(28)
+                .padding([.top, .horizontal], 28)
+                .padding(.bottom, 15)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
                 .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
                 // 札を盤の後ろ扱いにせず、VoiceOver を札の中だけで動かす（#1641。FreeCell の暗幕パネルと同じ形）。
@@ -253,7 +268,8 @@ public struct ShogiView: View {
                                 isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx),
                                 isCheckedKing: checkedKing == idx,
-                                isHint: model.hintSquares.contains(idx)
+                                isHint: model.hintSquares.contains(idx),
+                                hintDrop: model.hintSquares.contains(idx) ? model.hintDropType.map { Piece(type: $0, color: model.humanSide) } : nil
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -409,6 +425,14 @@ public struct ShogiView: View {
                         .position(x: slot * (CGFloat(spot.col) + 0.5),
                                   y: slot * (CGFloat(spot.row) + 0.5))
                 }
+                // 打つ手のヒントは、打つ駒の薄い影を打つ先に出す（#2768）。何をどこへ打つかが一目で分かる。
+                if let type = model.hintDropType, let to = model.hintSquares.first {
+                    let spot = Sq.displayPosition(of: to, flipped: flipped)
+                    KomaView(piece: Piece(type: type, color: model.humanSide), size: cell, pointsUp: true)
+                        .opacity(0.45)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
             }
         }
         .allowsHitTesting(false)
@@ -467,6 +491,7 @@ public struct ShogiView: View {
                 verdict: verdict,
                 reason: kind.reasonText,
                 decisiveMove: model.decisiveMoveText,
+                details: [tr("%lld手", model.moves.count)],
                 record: model.recordResult
             ) { resultCardClosed = true }
         }
@@ -477,7 +502,7 @@ public struct ShogiView: View {
     private var statusBar: some View {
         GameStatusBar {
             if let result = model.resultText {
-                Label(result, systemImage: "flag.checkered")
+                Label(result, systemImage: model.endVerdict?.bandSymbol ?? "flag.checkered")
                     .themeBody(16).foregroundStyle(Theme.coralText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
@@ -506,6 +531,22 @@ public struct ShogiView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.phase == .playing && !model.moves.isEmpty {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。強さ → 手合い（駒落ちは落とす側まで・平手は先後）。
+    private var conditionParts: [String] {
+        let handicap = model.matchSetting.displayName
+        return [CPUStrength.strength(for: model.aiLevel).label,
+                handicap ?? (model.humanSide == .black ? tr("先手") : tr("後手"))]
     }
 
     // MARK: - 盤の下の操作エリア
@@ -576,6 +617,7 @@ struct NewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: ShogiOnboarding.guide,
             onStart: { onStart(side, level, ShogiMatchSetting(handicap: handicap, dropper: dropper)) },
             onCancel: onCancel
         ) {
@@ -649,6 +691,8 @@ struct ShogiCell: View {
     let size: CGFloat
     let isSelected: Bool
     let isLastMove: Bool
+    /// 「色なしで区別」の設定。ON のとき、直前手・選択中に色以外の印を足す（#2486）。
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         // 盤の木地は盤全体に敷いたテクスチャ（#366）が担うため、マスは
@@ -659,6 +703,9 @@ struct ShogiCell: View {
             }
             if isSelected {
                 Rectangle().fill(Theme.yellow.opacity(0.6))
+            }
+            if differentiateWithoutColor {
+                BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
             }
         }
         .frame(width: size, height: size)
@@ -705,11 +752,13 @@ private struct HandAreaView: View {
                     // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
                     // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
                     let koma     = layout.scaled(32)
+                    let komaPlateCorner: CGFloat = 8 // 駒の板の角丸（背景の fill と同じ値）
                     let tapWidth = max(44, koma + 10)
                     HStack(spacing: max(0, 6 - (tapWidth - (koma + 10)))) {
                         ForEach(owned, id: \.rawValue) { type in
                             let selected = model.selectedHand == type && color == pos.sideToMove
                             let count    = hand[type.rawValue]
+                            let isHint   = isYou && model.hintDropType == type
                             Button { model.tapHand(type, color: color) } label: {
                                 VStack(spacing: 2) {
                                     KomaView(piece: Piece(type: type, color: color),
@@ -719,6 +768,13 @@ private struct HandAreaView: View {
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                                 .fill(selected ? Theme.yellow : BoardStyle.komaWoodLight)
                                         )
+                                        // ヒントが打つ手のとき、打つ駒にも盤と同じ紫の印を付ける（#2768）。
+                                        .overlay {
+                                            if isHint {
+                                                RoundedRectangle(cornerRadius: komaPlateCorner, style: .continuous)
+                                                    .stroke(BoardGameHintColor.color, lineWidth: 3)
+                                            }
+                                        }
                                     Text("×\(count)")
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
                                         .foregroundStyle(selected ? Theme.coralText : Theme.inkSub)
@@ -728,7 +784,7 @@ private struct HandAreaView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(ShogiAccessibility.handLabel(
-                                type: type, color: color, count: count, isSelected: selected
+                                type: type, color: color, count: count, isSelected: selected, isHint: isHint
                             ))
                         }
                     }

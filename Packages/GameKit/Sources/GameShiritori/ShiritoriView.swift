@@ -8,6 +8,11 @@ public struct ShiritoriView: View {
     @State private var extendRescue = RewardedRescue()
     @State private var resultCardClosed = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.adaptiveLayout) private var layout
+    /// 盤札の読み（10pt・`.caption` 基準）の 1 行の高さ。文字を拡大すると札の絵をそのぶん縮めて 5 行を収める（#2847）。
+    @ScaledMetric(relativeTo: .caption) private var readingLineHeight: CGFloat = ShiritoriBoardLayout.baseReadingHeight
+    /// 盤の下の操作（ヒント・もう一回／延長・レコメンド）の実測の高さ。盤の絵の大きさはこれを引いた残りから決める。
+    @State private var controlsHeight: CGFloat = 0
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -23,21 +28,16 @@ public struct ShiritoriView: View {
     public var body: some View {
         VStack(spacing: 8) {
             statusBar
-            if model.phase == .result {
-                resultCard
-                    .transition(.opacity)
-            } else {
+            // 終局後は場の札の段ごと畳み、結果は上の帯へ移す（#2863。マインスイーパーの #148 と同じ）。
+            if model.phase != .result {
                 currentArea
                     .transition(.opacity)
             }
-            boardArea
-                .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
-            HowToPlayHint(.shiritori, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
-            // 札の盤は札の枚数ぶんの高さしか取らないため、余りをここで吸って広告を画面の下端に置く。
-            // 吸わないと画面全体が縦に伸びず、背景色が中身の範囲にしか塗られない（ヘッダーまわりと広告の下が白く残る）
-            Spacer(minLength: 0)
+            // 盤とその下の操作（ヒント・もう一回・レコメンド）は残りの高さをまとめて受け取り（`GeometryReader`）、
+            // 札の絵を「残りの高さ − 下の操作の高さ」に収まる大きさで描く（#2847）。固定 pt のまま積むと
+            // iPhone SE（中身 571pt）で溢れ、最上段のカードがナビバーの裏に入っていた。
+            // 余りは操作の下・広告の上に残る（以前の `Spacer` と同じ場所。操作が盤から離れて広告の直上へ沈まない・#1485）。
+            boardAndControls
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -48,14 +48,8 @@ public struct ShiritoriView: View {
         .padding(Theme.pad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: tr("カードしりとり"), review: services.review,
-                    newGame: GameChromeNewGame(.solo) {
-                        model.pause()
-                        if model.hasProgressToLose {
-                            showConfirmNewGame = true
-                        } else {
-                            showSetup = true
-                        }
-                    })
+                    condition: GameChromeCondition(conditionParts),
+                    newGame: GameChromeNewGame(.solo) { requestNewGame() })
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { showSetup = true }
@@ -66,7 +60,7 @@ public struct ShiritoriView: View {
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         // 「？」は遊んでいる遊び方（ノルマ・とことん）に合わせて出し分ける（#2044）。
-        .howToPlay(model.mode.howToPlayGuide, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
+        .howToPlay(model.mode.howToPlayGuide.onboarding(ShiritoriOnboarding.guide(mode: model.mode)), onPresent: { model.pause() }) { ShiritoriRuleSheet() }
         .sheet(isPresented: $showSetup) {
             ShiritoriSetupSheet(quota: model.quota, mode: model.mode) { quota, mode in
                 model.startGame(quota: quota, mode: mode)
@@ -102,9 +96,28 @@ public struct ShiritoriView: View {
                 model.startGame(mode: .endless)
                 return
             }
+            if ProcessInfo.processInfo.arguments.contains("-shiritoriResultProbe") {
+                // 撮影用（#2360・#2847）: 時間切れの結果画面（延長ボタン + もう一回の段）を開始シートを出さずに再現する。
+                model.startGame(quota: .normal, mode: .quota)
+                model.tick(ShiritoriTime.initial + 1)
+                return
+            }
             #endif
             // 開いた直後は難易度を選ばせる。
             if model.phase == .idle { showSetup = true }
+        }
+        // CPU の手番の開始と取った札を VoiceOver へ伝える（#2610）。カーソルの途中経過は読まない。
+        .onChange(of: model.isPlayerTurn) { _, isPlayerTurn in
+            if model.phase == .playing, !isPlayerTurn {
+                AccessibilityNotification.Announcement(ShiritoriPresentation.cpuThinkingAnnouncement()).post()
+            }
+        }
+        .onChange(of: model.lastEvent) { _, event in
+            if case let .played(by: .cpu, reading, _) = event {
+                AccessibilityNotification.Announcement(
+                    ShiritoriPresentation.cpuPlayedAnnouncement(reading: reading, continues: model.phase == .playing)
+                ).post()
+            }
         }
         .task(id: model.isPlayerTurn) {
             // CPU の手番。画面を離れたらこのタスクごと取り消される（非構造化の Task にすると、
@@ -126,6 +139,21 @@ public struct ShiritoriView: View {
         }
     }
 
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        model.pause()
+        if model.hasProgressToLose {
+            showConfirmNewGame = true
+        } else {
+            showSetup = true
+        }
+    }
+
+    /// タイトルの下のチップに出す今の条件。遊び方（ノルマ / とことん）→ ノルマのときだけ難易度。
+    private var conditionParts: [String] {
+        model.mode == .quota ? [model.mode.label, model.quota.label] : [model.mode.label]
+    }
+
     // MARK: - ステータス
 
     private var statusBar: some View {
@@ -136,10 +164,20 @@ public struct ShiritoriView: View {
                 case .playing: TurnBadge(isYourTurn: model.isPlayerTurn)
                 default: TurnBadge(tr("終了"), kind: .finished)
                 }
-                Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                if model.phase == .result {
+                    // 勝敗の見出しを帯に同居させる。詳細・記録は盤に重ねる結果カードが持つ（#2863）。
+                    Label(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
+                                                            mode: model.mode),
+                          systemImage: model.didPlayerWin ? "crown.fill" : "flag.checkered")
+                        .themeBody(13, weight: .bold)
+                        .foregroundStyle(model.didPlayerWin ? Theme.tealText : Theme.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                } else {
+                    Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
+                        .themeBody(13)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
             } trailing: {
                 Text(model.mode == .endless ? model.mode.label : model.quota.label)
                     .scaledFont(12, weight: .bold, design: .rounded)
@@ -189,7 +227,7 @@ public struct ShiritoriView: View {
                     RoundedRectangle(cornerRadius: 10).fill(Theme.inkSub.opacity(0.15))
                 }
             }
-            .frame(width: 84, height: 96)
+            .frame(width: layout.scaled(84), height: layout.scaled(96))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(ShiritoriPresentation.currentLabel(card: model.currentCard, reading: model.currentReading))
 
@@ -232,15 +270,49 @@ public struct ShiritoriView: View {
 
     // MARK: - 盤
 
-    private var boardArea: some View {
+    /// 盤と、その下の操作（初回ガイド・もう一回／延長・レコメンド）。
+    ///
+    /// 札の絵の一辺は、幅から決まる値と「残りの高さ − 下の操作の高さ」から決まる値の小さい方（`ShiritoriBoardLayout.artSide`）。
+    /// iPhone 17 では幅で決まり従来と同じ大きさ、iPhone SE では高さで決まって 5 行が画面に収まる（#2847）。
+    /// `LazyVGrid` は提案された高さに札を合わせてくれないので、絵の一辺を先に決めて渡す。下の操作の高さは
+    /// `background` の `GeometryReader` で測る（配置に干渉しない。`onGeometryChange` は iOS 18 以降のため使わない）。
+    /// 下の操作は盤のすぐ下に付き、余りはその下（広告の上）に残る。全部が収まらないときは下端側へはみ出す。
+    private var boardAndControls: some View {
+        GeometryReader { geo in
+            let artSide = ShiritoriBoardLayout.artSide(
+                availableWidth: geo.size.width,
+                availableHeight: geo.size.height - controlsHeight - 8,
+                count: model.slots.count, readingHeight: readingLineHeight * layout.elementScale
+            )
+            VStack(spacing: 8) {
+                boardCard(artSide: artSide)
+                    .boardGameResultCard(isPresented: model.phase == .result && !resultCardClosed) { endCard }
+                VStack(spacing: 8) {
+                    HowToPlayHint(.shiritori, playLog: services.playLog)
+                    actionArea
+                    RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
+                }
+                .background {
+                    GeometryReader { below in
+                        Color.clear.task(id: below.size.height) { controlsHeight = below.size.height }
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+        }
+    }
+
+    private func boardCard(artSide: CGFloat) -> some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: ShiritoriBoardLayout.columns),
-            spacing: 6
+            columns: Array(repeating: GridItem(.flexible(), spacing: ShiritoriBoardLayout.tileSpacing),
+                           count: ShiritoriBoardLayout.columns),
+            spacing: ShiritoriBoardLayout.tileSpacing
         ) {
             ForEach(Array(model.slots.enumerated()), id: \.element.card.id) { index, slot in
                 ShiritoriCardTile(card: slot.card, reading: slot.displayReading,
                                   style: .board(owner: slot.owner, selectable: model.isSelectable(index),
-                                                isCPUCursor: model.cpuCursorSlot == index))
+                                                isCPUCursor: model.cpuCursorSlot == index),
+                                  artSide: artSide)
                     .contentShape(Rectangle())
                     .onTapGesture { select(index) }
                     .accessibilityElement(children: .ignore)
@@ -249,7 +321,8 @@ public struct ShiritoriView: View {
                     .accessibilityAction { select(index) }
             }
         }
-        .padding(.horizontal, 8).padding(.vertical, 10)
+        .padding(.horizontal, ShiritoriBoardLayout.cardHorizontalPadding)
+        .padding(.vertical, ShiritoriBoardLayout.cardVerticalPadding)
         .frame(maxWidth: .infinity)
         .popCard(corner: Theme.cornerSmall)
         // slots と cpuCursorSlot を1つの Equatable にまとめて modifier を1つだけ掛ける
@@ -327,6 +400,16 @@ public struct ShiritoriView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// ノルマ戦で勝ちが続いたら一段上のノルマを勧める（#2599）。とことんは段が無いので勧めない。
+    private var ladder: DifficultyLadderPrompt? {
+        let quotas = ShiritoriQuota.allCases
+        return DifficultyLadderPrompt(result: model.recordResult,
+                                      currentLevel: model.mode == .quota ? quotas.firstIndex(of: model.quota) : nil,
+                                      levelLabels: quotas.map(\.label)) { level in
+            model.startGame(quota: quotas[level], mode: .quota)
+        }
+    }
+
     // MARK: - リザルト
 
     /// 終局を盤に重ねて大きく示す結果カード（#1876。盤ゲームと同じ部品）。
@@ -339,39 +422,10 @@ public struct ShiritoriView: View {
             verdict: model.didPlayerWin ? .win : .loss,
             reason: ShiritoriPresentation.resultReason(ending: ending),
             details: [ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount,
-                                                         quota: model.quota, ending: ending, mode: model.mode)],
+                                                         quota: model.quota, ending: ending, mode: model.mode,
+                                                         clearSeconds: model.quotaClearSeconds)],
             record: model.recordResult
         ) { resultCardClosed = true }
-    }
-
-    private var resultCard: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: model.didPlayerWin ? "crown.fill" : "flag.checkered")
-                    .scaledFont(20)
-                    .foregroundStyle(model.didPlayerWin ? Theme.yellowText : Theme.inkSub)
-                Text(ShiritoriPresentation.resultTitle(ending: model.ending ?? .timeUp, didWin: model.didPlayerWin,
-                                                              mode: model.mode))
-                    .scaledFont(16, weight: .black, design: .rounded)
-                    .foregroundStyle(model.didPlayerWin ? Theme.tealText : Theme.ink)
-                    .lineLimit(2).minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-            }
-            Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
-                                                          ending: model.ending ?? .timeUp, mode: model.mode))
-                .scaledFont(12, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            // 結果カードが開いているあいだはカードが持つので出さない（二重になり、SE では高さも溢れる）。
-            if resultCardClosed {
-                RecordLabel(model.recordResult)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 
@@ -386,13 +440,54 @@ private struct ShiritoriBoardAnimationState: Equatable {
 // MARK: - 盤の寸法
 
 enum ShiritoriBoardLayout {
-    /// 30 枚が 6 列 × 5 行にぴったり収まる（#1660: 29 枚の頃は右下が歯抜けだった）。iPhone SE でも広告枠を含めて縦に収まる本数。
+    /// 30 枚が 6 列 × 5 行にぴったり収まる（#1660: 29 枚の頃は右下が歯抜けだった）。
     static let columns = 6
+    /// 札のあいだ（列・行とも）。
+    static let tileSpacing: CGFloat = 6
+    /// 盤のカードの内側の余白。
+    static let cardHorizontalPadding: CGFloat = 8
+    static let cardVerticalPadding: CGFloat = 10
+    /// 札の内側の余白（`ShiritoriCardTile`）。
+    static let tileHorizontalPadding: CGFloat = 2
+    static let tileVerticalPadding: CGFloat = 3
+    /// 盤札の絵のまわりの余白と、絵と読みのあいだ。
+    static let artPadding: CGFloat = 3
+    static let artSpacing: CGFloat = 2
+    /// 絵の一辺の下限。これより小さくすると何の絵か読めないので、ここで止めて溢れるほうを取る。
+    static let minArtSide: CGFloat = 16
+    /// 読みの 1 行の高さの目安（10pt の太字・標準の文字サイズ）。Dynamic Type の拡大は呼び出し側が `@ScaledMetric` で掛ける。
+    static let baseReadingHeight: CGFloat = 13
+
+    static func rows(for count: Int) -> Int { max(1, (count + columns - 1) / columns) }
+
+    /// 盤札の絵の一辺（#2847）。幅から決まる値（6 列が横に収まる）と、残りの高さから決まる値（全行が縦に収まる）の小さい方。
+    /// iPhone 17（中身 702pt）では幅で決まり、iPhone SE（中身 571pt）では高さで決まる。
+    static func artSide(availableWidth: CGFloat, availableHeight: CGFloat, count: Int, readingHeight: CGFloat) -> CGFloat {
+        let rows = CGFloat(rows(for: count))
+        let tileWidth = (availableWidth - cardHorizontalPadding * 2 - tileSpacing * CGFloat(columns - 1)) / CGFloat(columns)
+        let byWidth = tileWidth - tileHorizontalPadding * 2 - artPadding * 2
+        let tileHeight = (availableHeight - cardVerticalPadding * 2 - tileSpacing * (rows - 1)) / rows
+        let byHeight = tileHeight - tileVerticalPadding * 2 - artPadding * 2 - artSpacing - readingHeight
+        return max(minArtSide, min(byWidth, byHeight))
+    }
+
+    /// 絵の一辺から逆算した札 1 枚の高さ。
+    static func tileHeight(artSide: CGFloat, readingHeight: CGFloat) -> CGFloat {
+        artSide + artPadding * 2 + artSpacing + readingHeight + tileVerticalPadding * 2
+    }
+
+    /// 絵の一辺から逆算した盤のカードの高さ。`artSide(...)` が高さで決めた値を戻すと、余りを除いて `availableHeight` 以下になる。
+    static func boardHeight(artSide: CGFloat, count: Int, readingHeight: CGFloat) -> CGFloat {
+        let rows = CGFloat(rows(for: count))
+        return tileHeight(artSide: artSide, readingHeight: readingHeight) * rows + tileSpacing * (rows - 1) + cardVerticalPadding * 2
+    }
 }
 
 // MARK: - 札
 
 struct ShiritoriCardTile: View {
+    @Environment(\.adaptiveLayout) private var layout
+
     enum Style: Equatable {
         case current
         case board(owner: ShiritoriOwner?, selectable: Bool, isCPUCursor: Bool)
@@ -401,6 +496,8 @@ struct ShiritoriCardTile: View {
     let card: ShiritoriCard
     let reading: String
     let style: Style
+    /// 絵の一辺。盤札は `ShiritoriBoardLayout.artSide` で決めた値を受け取る（nil なら幅なりに描く・場の札）。
+    var artSide: CGFloat? = nil
 
     private var owner: ShiritoriOwner? {
         if case let .board(owner, _, _) = style { return owner }
@@ -422,19 +519,21 @@ struct ShiritoriCardTile: View {
     private var showsReading: Bool { isCurrent || owner != nil }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: ShiritoriBoardLayout.artSpacing) {
             ObjectCardArt(card.kind)
-                .padding(isCurrent ? 6 : 3)
+                .frame(width: artSide, height: artSide)
+                .padding(isCurrent ? 6 : ShiritoriBoardLayout.artPadding)
             // 常に描画して高さを確保する（グリッドの行の高さが札ごとにばらつかないように）。
             // 隠すときは不透明度だけ0にする（VoiceOver は `boardArea` 側の `accessibilityLabel` が別に持つ）。
             Text(reading)
-                .scaledFont(isCurrent ? 14 : 10, weight: .bold, design: .rounded)
+                .scaledFont(layout.scaled(isCurrent ? 14 : 10), weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .opacity(showsReading ? 1 : 0)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 2).padding(.vertical, 3)
+        .padding(.horizontal, ShiritoriBoardLayout.tileHorizontalPadding)
+        .padding(.vertical, ShiritoriBoardLayout.tileVerticalPadding)
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -497,6 +596,7 @@ struct ShiritoriSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            onboarding: ShiritoriOnboarding.guide(mode: mode),
             onStart: { onStart(quota, mode) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あそびかた")) {

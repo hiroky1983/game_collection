@@ -494,6 +494,32 @@ struct DaifugoHandHintTests {
         #expect(hint.unplayable == [card(3).id, card(4).id])
     }
 
+    @Test("出せる手が無いときだけ mustPass になる。ヒント設定には依存しない（#2693）")
+    func mustPassOnlyWhenNothingPlayable() {
+        for enabled in [true, false] {
+            let model = makeModel(hintsEnabled: enabled)
+            model.configureForTesting(
+                hands: [[card(3), card(4)], [card(5)], [card(6)], [card(7)]],
+                field: [card(2)],
+                fieldOwner: 1
+            )
+            #expect(model.mustPass)
+
+            // 1枚でも出せる札があれば通常のパス。
+            model.configureForTesting(
+                hands: [[card(3), card(13)], [card(5)], [card(6)], [card(7)]],
+                field: [card(9, .hearts)],
+                fieldOwner: 1
+            )
+            #expect(model.canPass)
+            #expect(!model.mustPass)
+
+            // 親（場が空）のときはパスできないので対象外。
+            model.configureForTesting(hands: [[card(3), card(4)], [card(5)], [card(6)], [card(7)]])
+            #expect(!model.mustPass)
+        }
+    }
+
     @Test("CPU の手番ではヒントを出さない")
     func noHintOnCPUTurn() {
         let model = makeModel()
@@ -1235,4 +1261,24 @@ struct DaifugoCancelTests {
 /// 上の局面注入で使う決定的な乱数。配りを固定してテストを再現可能にするだけの用途。
 private enum SeededGeneratorBox {
     @MainActor static var shared = SeededGenerator(seed: 191)
+}
+
+// MARK: - 革命中の手札の並び
+
+@MainActor
+struct DaifugoRevolutionHandOrderTests {
+
+    private func ranks(_ cards: [DaifugoCard]) -> [Int] { cards.map(\.rank) }
+
+    @Test("革命前は弱い順、革命中は3が右端・2が左端に並び、ジョーカーは常に右端")
+    func displayHandFollowsRevolution() {
+        let (model, _) = makeModel(seed: 7)
+        let hand = [card(3), card(9), card(2), card(1), joker()]
+        let others: [[DaifugoCard]] = [[card(4)], [card(5)], [card(6)]]
+        model.configureForTesting(hands: [hand] + others, currentPlayer: 0)
+        #expect(ranks(model.displayHand) == [3, 9, 1, 2, DaifugoRules.jokerRank])
+
+        model.configureForTesting(hands: [hand] + others, currentPlayer: 0, isRevolution: true)
+        #expect(ranks(model.displayHand) == [2, 1, 9, 3, DaifugoRules.jokerRank])
+    }
 }

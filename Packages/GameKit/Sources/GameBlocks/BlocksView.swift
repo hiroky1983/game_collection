@@ -49,7 +49,7 @@ public struct BlocksView: View {
                     newGame: GameChromeNewGame(.restart, isDisabled: continueRescue.isWatching) {
                         startNewGame()
                     })
-        .howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items), onPresent: {
+        .howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items).onboarding(BlocksOnboarding.guide), onPresent: {
             // 読んでいる間に落球しないよう止める。発射前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
             if model.phase == .playing { model.pause() }
@@ -137,6 +137,9 @@ public struct BlocksView: View {
                     .contentTransition(.numericText())
             }
             Spacer(minLength: 0)
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             VStack(alignment: .trailing, spacing: 4) {
                 Text(tr("ステージ %1$lld / %2$lld", model.stageNumber, BlocksRules.stageCount))
                     .themeCaption(12)
@@ -439,6 +442,9 @@ public struct BlocksView: View {
             }
             .padding(20)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(title)
     }
 
     /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。

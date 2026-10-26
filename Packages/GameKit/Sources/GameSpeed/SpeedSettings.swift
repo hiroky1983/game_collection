@@ -27,18 +27,18 @@ public enum SpeedLevel: String, CaseIterable, Codable, Sendable {
     /// CPU が出せる札を見つけてから置くまでの基準（ミリ秒）。実際は ±20% の揺らぎが乗る。
     public var reactionMilliseconds: Int {
         switch self {
-        case .slow:   return 2600
-        case .normal: return 1400
-        case .fast:   return 750
+        case .slow:   return 3200
+        case .normal: return 1900
+        case .fast:   return 1200
         }
     }
 
-    /// 開始シートの副題（「約2.6秒」など）。
+    /// 開始シートの副題（「約3.2秒」など）。
     public var subtitle: String {
         switch self {
-        case .slow:   return tr("約2.6秒で出す")
-        case .normal: return tr("約1.4秒で出す")
-        case .fast:   return tr("約0.75秒で出す")
+        case .slow:   return tr("約3.2秒で出す")
+        case .normal: return tr("約1.9秒で出す")
+        case .fast:   return tr("約1.2秒で出す")
         }
     }
 

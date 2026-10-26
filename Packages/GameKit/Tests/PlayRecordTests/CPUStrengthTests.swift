@@ -80,4 +80,30 @@ struct CPUStrengthTests {
             }
         }
     }
+
+    @Test("盤ゲームの成績は「ふつう」だけ区分なし、ほかの強さは強さ別の区分になる（#2617）")
+    func boardWinLossScoreVariantPerStrength() {
+        let hints = BoardHintBudget()
+        for game in ["chess", "go", "gomoku", "othello"] {
+            #expect(hints.winLossScore(gameID: game, aiLevel: CPUStrength.normal.rawValue).variant == nil)
+            // 知らない番号は既定（ふつう）に倒れるので区分なし。
+            #expect(hints.winLossScore(gameID: game, aiLevel: 99).variant == nil)
+            for strength in CPUStrength.allCases where strength != .normal {
+                let score = hints.winLossScore(gameID: game, aiLevel: strength.rawValue)
+                #expect(score.variant == strength.recordVariantKey)
+                #expect(score.variantLabel == RecordVariantLabels.label(
+                    recordKey: "\(game)#\(strength.recordVariantKey)", language: .japanese))
+                #expect(score.metric == .winLoss)
+            }
+        }
+    }
+
+    @Test("ヒントを使った局は強さ別でも順位表の資格を落とす（#2617）")
+    func boardWinLossScoreKeepsLeaderboardFlag() {
+        var hints = BoardHintBudget()
+        #expect(hints.winLossScore(gameID: "chess", aiLevel: 2).isLeaderboardEligible)
+        _ = hints.consume()
+        #expect(!hints.winLossScore(gameID: "chess", aiLevel: 2).isLeaderboardEligible)
+        #expect(!hints.winLossScore(gameID: "chess", aiLevel: 1).isLeaderboardEligible)
+    }
 }

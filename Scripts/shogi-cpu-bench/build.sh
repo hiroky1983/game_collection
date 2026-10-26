@@ -10,8 +10,8 @@ G=Packages/GameKit
 WORK="$(mktemp -d "${DUTY_SCRATCH_DIR:-${TMPDIR:-/tmp}}/shogi-bench-build.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 # 単一モジュールにまとめるため、モジュール間の import を外したコピーを作る。
-for f in $G/Sources/CoreEngine/{MMIXRandom,SplitMix64,CPUStrength,BoardHintBudget}.swift \
-         $G/Sources/GameShogi/{Move,MoveGenerator,OpeningBook,Position,ShogiSquare,ShogiTypes,ShogiEngine}.swift \
+for f in $G/Sources/CoreEngine/{MMIXRandom,SplitMix64,BookPicker,CPUStrength,BoardHintBudget}.swift \
+         $G/Sources/GameShogi/{Move,MoveGenerator,OpeningBook,Position,ShogiSquare,ShogiTypes,ShogiEngine,ShogiMateSearch}.swift \
          $G/Tests/GameShogiTests/CPUBenchLadder.swift; do
   grep -v '^import CoreEngine$' "$f" >"$WORK/$(basename "$f")"
 done
@@ -21,6 +21,8 @@ cp Scripts/shogi-cpu-bench/main.swift "$WORK/main.swift"
 # ヒントの回数制（BoardHintBudget）が成績の型として参照する GameScore（本物の PlayRecord.swift は AppLanguage 等を引くので写せない）。
 echo 'public enum AnalyticsLevel { case novice, beginner, normal, hard }' >"$WORK/AnalyticsLevelStub.swift"
 echo 'func tr(_ s: String, _ args: CVarArg...) -> String { s }' >>"$WORK/AnalyticsLevelStub.swift"
-echo 'public enum RecordMetric { case winLoss }; public struct GameScore { public init(metric: RecordMetric, isLeaderboardEligible: Bool) {} }' >>"$WORK/AnalyticsLevelStub.swift"
+echo 'public enum RecordMetric { case winLoss }; public struct GameScore { public var variant: String?; public var variantLabel: String?; public init(metric: RecordMetric, isLeaderboardEligible: Bool) {} }' >>"$WORK/AnalyticsLevelStub.swift"
+# BoardHintBudget が段階の表示名を引く RecordVariantLabels（本物は AppLanguage 等を引くので、計測には要らない文字列を返す写し）。
+echo 'enum RecordVariantLabels { static func stored(gameID: String, variant: String) -> String { variant } }' >>"$WORK/AnalyticsLevelStub.swift"
 swiftc -O -wmo -D SHOGI_BENCH_STANDALONE -parse-as-library -o "$OUT" "$WORK"/*.swift 2>"$WORK/swiftc.log" \
   || { grep -v "warning:" "$WORK/swiftc.log" >&2; echo "ビルドに失敗しました" >&2; exit 1; }

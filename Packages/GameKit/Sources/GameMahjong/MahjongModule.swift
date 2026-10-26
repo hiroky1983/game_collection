@@ -17,4 +17,26 @@ public struct MahjongModule: GameModule {
     public func makeView(services: GameServices) -> AnyView {
         AnyView(MahjongView(services: services))
     }
+
+    /// 配牌のまま 1 枚も切っていない 1 局目は「続き」ではない（#2542）。開始シートで東風戦・一局戦を選んだ
+    /// 直後に配牌を保存するので、そのままハブへ戻ると手つかずの盤が続きになってしまう。
+    /// 1 局目は必ず自分が親（`dealer == 0`）で、CPU も自分が切るまで河に何も出さない。
+    /// 親が回った 2 局目以降は前の局の結果があるので続きとして扱う。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(MahjongSnapshot.self, for: id) else { return false }
+        return !Self.isUntouched(snap)
+    }
+
+    /// 保存はあるが 1 枚も切っていない 1 局目（#2542）。
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(MahjongSnapshot.self, for: id) else { return false }
+        return Self.isUntouched(snap)
+    }
+
+    private static func isUntouched(_ snap: MahjongSnapshot) -> Bool {
+        snap.roundNumber == 1 && snap.honba == 0 && snap.dealer == 0
+            && snap.handResult == nil
+            && snap.discards.allSatisfy(\.isEmpty)
+            && (snap.melds ?? []).allSatisfy(\.isEmpty)
+    }
 }

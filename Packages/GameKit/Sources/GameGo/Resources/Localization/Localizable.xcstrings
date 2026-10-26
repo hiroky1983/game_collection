@@ -91,28 +91,6 @@
         }
       }
     },
-    "9路盤で CPU と対局。ルールも読める" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play the CPU on a 9x9 board. Rules included"
-          }
-        }
-      }
-    },
-    "9路盤・中国ルール（面積計算）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "9x9 board, Chinese rules (area scoring)"
-          }
-        }
-      }
-    },
     "CPU の番です" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -542,13 +520,13 @@
         }
       }
     },
-    "思考中…" : {
+    "CPU思考中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thinking…"
+            "value" : "CPU thinking…"
           }
         }
       }
@@ -956,6 +934,270 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CPU played at row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
+    "囲碁のはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "黒と白が交互に石を置いて、陣地を取り合うゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black and white take turns placing stones to claim territory."
+          }
+        }
+      }
+    },
+    "盤上の自分の石と、自分だけが囲んだ地の合計が多い方が勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever has more stones plus territory only they surround wins."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do on your turn"
+          }
+        }
+      }
+    },
+    "線が交わる交点をタップして、石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a point where lines cross to place a stone."
+          }
+        }
+      }
+    },
+    "置いた石は動かせません。黒と白が交互に置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placed stones don't move. Black and white alternate."
+          }
+        }
+      }
+    },
+    "石のまわりのたて・よこの空点を「呼吸点」といいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The empty points above, below and beside a stone are its \"liberties\"."
+          }
+        }
+      }
+    },
+    "打てない場所" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where you can't play"
+          }
+        }
+      }
+    },
+    "自分の石の呼吸点が無くなる場所には打てません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't play where your stone would have no liberties."
+          }
+        }
+      }
+    },
+    "ただし、その手で相手の石を取れるなら打てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "But you can if that move captures an opponent stone."
+          }
+        }
+      }
+    },
+    "コウ: 取り返すと同じ形がくり返す場所は、すぐには打ち返せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ko: where recapturing would repeat the same shape, you can't play back right away."
+          }
+        }
+      }
+    },
+    "パスと勝ち負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passing and winning"
+          }
+        }
+      }
+    },
+    "打つところが無くなったら「パス」。両者が続けてパスすると終局です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When there is nowhere left to play, pass. The game ends when both players pass in a row."
+          }
+        }
+      }
+    },
+    "白にはコミ 6.5 目が加算されます（置き石の対局は別の数え方です）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White gets 6.5 points of komi (games with handicap stones are counted differently)."
+          }
+        }
+      }
+    },
+    "黒は ✕ に打てない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black can't play on the ✕"
+          }
+        }
+      }
+    },
+    "黒 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black %lld"
+          }
+        }
+      }
+    },
+    "白 %lld ＋ コミ 6.5" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White %lld + 6.5 komi"
+          }
+        }
+      }
+    },
+    "白はコミを足して 46.5。白の勝ち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White adds komi to make 46.5 — White wins"
+          }
+        }
+      }
+    },
+    "中国ルール（面積計算）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese rules (area scoring)"
+          }
+        }
+      }
+    },
+    "碁盤の大きさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board size"
+          }
+        }
+      }
+    },
+    "短時間で終わる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick game"
+          }
+        }
+      }
+    },
+    "じっくり打つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longer game"
+          }
+        }
+      }
+    },
+    "9路・13路盤で CPU と対局。ルールも読める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play the CPU on a 9x9 or 13x13 board. Rules included"
           }
         }
       }

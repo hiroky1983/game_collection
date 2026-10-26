@@ -44,6 +44,35 @@ struct ShogiHintTests {
         #expect(model.hintsRemaining == BoardHintBudget.adRefillMax, "無料専用の requestHint() で回数が動いている")
     }
 
+    @Test("打つ手のヒントは、打つ先のマスと打つ駒の種類（持ち駒の欄の印）を示す（#2768）")
+    func dropHintNamesThePieceToDrop() throws {
+        let model = ShogiGameModel(services: nil)
+        let to = try #require(Sq.fromUSI(Substring("5e")))
+        model.hintMove = .drop(type: .silver, to: to)
+        #expect(model.hintSquares == [to])
+        #expect(model.hintDropType == .silver)
+
+        model.hintMove = .board(from: try #require(Sq.fromUSI(Substring("7g"))), to: to, promote: false)
+        #expect(model.hintDropType == nil, "盤上の手では持ち駒に印を付けない")
+        model.hintMove = nil
+        #expect(model.hintDropType == nil)
+    }
+
+    @Test("打つ手のヒントの読み上げは、打つ駒の名前と打つ先を読む（#2768）")
+    func dropHintAnnouncement() throws {
+        let to = try #require(Sq.fromUSI(Substring("5e")))
+        let cell = ShogiAccessibility.squareLabel(
+            index: to, piece: nil, isSelected: false, isTarget: false, isLastMove: false,
+            isHint: true, hintDrop: Piece(type: .silver, color: .black), language: .japanese)
+        #expect(cell.contains("5五") && cell.contains("銀を打つ"))
+        let hand = ShogiAccessibility.handLabel(type: .silver, color: .black, count: 1, isSelected: false,
+                                                isHint: true, language: .japanese)
+        #expect(hand.contains("ヒントの駒"))
+        let plain = ShogiAccessibility.handLabel(type: .silver, color: .black, count: 1, isSelected: false,
+                                                 language: .japanese)
+        #expect(!plain.contains("ヒント"))
+    }
+
     @Test("CPU の手番ではヒントを押せない")
     func cannotUseHintOnTheCPUTurn() throws {
         let model = ShogiGameModel(services: nil)

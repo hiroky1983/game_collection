@@ -163,7 +163,7 @@ public struct MahjongView: View {
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
         // 「？」は打っている対局の長さ（東風戦・一局戦）に合わせて出し分ける（#2044）。
-        .howToPlay(model.gameLength.howToPlayGuide) { MahjongRuleSheet() }
+        .howToPlay(model.gameLength.howToPlayGuide.onboarding(MahjongOnboarding.guide(length: model.gameLength))) { MahjongRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { MahjongYakuSheet() }
         .sheet(isPresented: $showStartSheet) {
             MahjongStartSheet(length: $selectedLength) {
@@ -192,6 +192,15 @@ public struct MahjongView: View {
             if ProcessInfo.processInfo.arguments.contains("-mahjongWinResult") {
                 showStartSheet = false
                 model.simulateWinResultForTesting()
+                return
+            }
+            // 撮影・動作確認用（DEBUG 限定）: 流局リザルトの手牌開示（#2872）。`-mahjongDrawResult <テンパイの人数>`。
+            let launchArgs = ProcessInfo.processInfo.arguments
+            if let flag = launchArgs.firstIndex(of: "-mahjongDrawResult") {
+                showStartSheet = false
+                let value = launchArgs.indices.contains(flag + 1) ? Int(launchArgs[flag + 1]) : nil
+                model.startGame()
+                model.simulateDrawResultForTesting(tenpaiCount: value ?? 0)
                 return
             }
             // 撮影・動作確認用（DEBUG 限定）: 一局戦の終了リザルト（見出しが「一局戦終了」に
@@ -438,8 +447,18 @@ public struct MahjongView: View {
             remainingTiles: model.remainingTiles,
             doraIndicators: model.doraIndicators,
             hiddenDiscardSeat: discardFlight?.seat,
-            hiddenDiscardIndex: discardFlight?.index
+            hiddenDiscardIndex: discardFlight?.index,
+            openHands: openHandsForDraw
         )
+    }
+
+    /// 流局のリザルト中だけ、全員の手牌（並べ替え済み）。卓の上で開けて見せる（#2872）。
+    /// テンパイ・ノーテンに関係なく全員ぶん（CPU 相手の一人遊びなので見せても不利はなく、振り返りに役立つ）。
+    private var openHandsForDraw: [[MahjongTile]]? {
+        guard model.phase == .handResult, model.handResult?.kind == .exhaustiveDraw else { return nil }
+        return model.hands.map { hand in
+            hand.tiles.sorted { MahjongTileOrder.index(of: $0) < MahjongTileOrder.index(of: $1) }
+        }
     }
 
     /// 対局中（決着していない）か。「切る牌をタップしよう」のヒントや手牌一覧など、
@@ -580,7 +599,7 @@ public struct MahjongView: View {
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
             // 復活・延長の広告を読み込んでいる間は局を捨てさせない（#1381）。
-            actionButton(tr("もう一度"), role: .primary, disabled: isWatchingRescueAd) {
+            actionButton(tr("もう一回"), role: .primary, disabled: isWatchingRescueAd) {
                 model.startGame()
                 runCPU()
             }

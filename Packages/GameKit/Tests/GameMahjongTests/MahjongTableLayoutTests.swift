@@ -608,4 +608,33 @@ struct MahjongTableLayoutTests {
             }
         }
     }
+
+    @Test("流局で開ける手牌は 13 枚（副露 4 組で 1 枚）まで、フェルトの内側で河・中央パネル・副露・互いに重ならない（#2872）",
+          arguments: [320, 343, 361, 393, 700] as [CGFloat])
+    func openHandsClearEverything(width: CGFloat) {
+        let l = MahjongTableLayout(size: CGSize(width: width, height: width * MahjongTableLayout.aspect))
+        for groups in 0...4 {
+            let count = 13 - 3 * groups
+            for seat in 0..<4 {
+                let rects = (0..<count).map { l.openHandTile(seat: seat, index: $0).rect }
+                for (i, r) in rects.enumerated() {
+                    for corner in Self.corners(r) {
+                        #expect(l.feltContains(corner), "seat \(seat) の \(i) 枚目の角がフェルトの外（副露 \(groups) 組）")
+                    }
+                    for other in 0..<4 { for k in 0..<18 {
+                        #expect(!r.intersects(l.riverRect(seat: other, index: k)), "seat \(seat) の \(i) 枚目が seat \(other) の河 \(k) に重なる")
+                    } }
+                    #expect(!r.intersects(l.centerPanel))
+                    for j in 0..<i { #expect(!r.intersects(rects[j]), "seat \(seat) の \(j) と \(i) が重なる") }
+                }
+                guard groups > 0 else { continue }
+                // 副露の置き場とも重ならない（自分・対面は手牌の行の横、上家・下家は壁の列の反対の端）
+                for meld in l.meldTileRects(seat: seat, groups: groups, tiles: 3 * groups) {
+                    // 副露の枚数が 3 枚ずつなら手牌は 13 − 3 × 組数。`meldTileRects` の想定（ツモ番の 14 枚）より 1 枚少ない
+                    // ので、行が広い側にだけ余裕がある。ここでは重なりのみ縛る。
+                    for r in rects { #expect(!r.intersects(meld), "seat \(seat) の開けた手牌が副露に重なる（\(groups) 組）") }
+                }
+            }
+        }
+    }
 }

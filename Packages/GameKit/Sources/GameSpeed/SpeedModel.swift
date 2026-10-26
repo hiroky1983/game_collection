@@ -59,6 +59,19 @@ public final class SpeedModel {
     /// `nextCPUWait()` は nil を返し、すべて解くと反応の間を数え直してから動く（止めていたぶん CPU が有利にならない）。
     public private(set) var cpuHolds: CPUHold = []
     public var isCPUHeld: Bool { !cpuHolds.isEmpty }
+    /// 出せる札の案内（`SpeedRules.playableNavigationDelay` 何もしなかったら光らせる）を出しているか。
+    /// あなたが操作する・場が動く・CPU を止める / 解くと消え、そこから数え直す。
+    public private(set) var isShowingPlayableNavigation = false
+    /// 案内の数え直しの番号。View はこれを `.task(id:)` の鍵にし、`playableNavigationWait()` だけ待って
+    /// `updatePlayableNavigation()` を呼ぶ（CPU の待ちと同じく、Model は時計を持たない）。
+    public private(set) var navigationEpoch = 0
+    /// 「台札のほうへ払って出します」の一言を出しているか（指のタップでは札を出さない・会長 QA 2026-10-24）。
+    /// View が少し待って `dismissSwipeTip()` で消す（Model は時計を持たない）。
+    public private(set) var isShowingSwipeTip = false
+    /// この局で一言を出したか。1 局に 1 回まで。
+    private var swipeTipUsed = false
+    /// この局で払って札を出したか。払い方が分かっている人には一言を出さない（初めのうちだけ）。
+    private var hasSwipedThisGame = false
 
     /// CPU を止めている理由。理由ごとに独立して数えるので、広告が終わってもシートが開いていれば止まったまま。
     public struct CPUHold: OptionSet, Sendable {
@@ -94,6 +107,8 @@ public final class SpeedModel {
     private var cpuReaction: Duration = .zero
     /// どちらも出せなくなった時刻。
     private var stuckSince: Date?
+    /// 案内の 5 秒を数え始めた時刻（最後の操作か、場が動いた時刻）。
+    private var navigationSince: Date?
     /// タイムが終わる時刻。
     private var timeoutEndsAt: Date?
     /// 勝利タイムの計時。CPU を止めている間（シート・背面・広告）は進めないので、止める前までを `playedBefore` に積み、
@@ -154,6 +169,17 @@ public final class SpeedModel {
 
     /// 手札のヒント（#190）。設定でオフのときは出さない。
     public var showsHints: Bool { hints.isEnabled }
+
+    /// 案内で光らせる台札（あなたの出せる札のどれかを置ける台札）。案内を出していなければ空。
+    public var playableNavigationPiles: Set<Int> {
+        guard isShowingPlayableNavigation else { return [] }
+        return Set(SpeedRules.placements(hand: humanHand, tops: tops).map(\.pile))
+    }
+
+    /// 案内で光らせる手札の ID。案内を出していなければ空。
+    public var playableNavigationCardIDs: Set<Int> {
+        isShowingPlayableNavigation ? humanPlayableIDs : []
+    }
 
     /// 選択中の札。
     public var selectedCard: SpeedCard? {
@@ -216,9 +242,52 @@ public final class SpeedModel {
 
     // MARK: - あなたの操作
 
-    /// 手札をタップ。置ける台札が 1 つならそこへ出し、2 つなら選択して台札のタップを待つ。
+    /// 指のタップへの反応。
+    public enum TapResponse: Equatable, Sendable {
+        /// 支援機能の操作として扱った（`tapHandCard` と同じ）。
+        case acted
+        /// 札は出さない。札を持ち上げて戻す反応だけ返す。`showsTip` は一言を出すか。
+        case nudged(showsTip: Bool)
+    }
+
+    /// 手札を指でタップした（会長 QA 2026-10-24・build 52「タップで押せると『はやい』でも勝てる」）。
+    /// 通常の操作では札を出さず、持ち上げて戻す反応と、1 局に 1 回の一言だけ返す。札を出す手段は払いだけ。
+    /// - Parameter assistive: VoiceOver・スイッチコントロールを使っているか。使っていればタップで出す（`tapHandCard`）。
+    @discardableResult
+    public func fingerTapHandCard(_ card: SpeedCard, assistive: Bool) -> TapResponse {
+        if assistive {
+            tapHandCard(card)
+            return .acted
+        }
+        guard phase == .playing, humanHand.contains(card) else { return .nudged(showsTip: false) }
+        // 札は動いていないので、出せる札の案内（5 秒）は数え直さない（タップを続ける人にも案内が出る）。
+        services?.feedback.impact(.light)
+        guard !swipeTipUsed, !hasSwipedThisGame else { return .nudged(showsTip: false) }
+        swipeTipUsed = true
+        isShowingSwipeTip = true
+        return .nudged(showsTip: true)
+    }
+
+    /// 台札を指でタップした。通常の操作では何もしない（選んだ札・置けるただ 1 枚を置く操作も止める）。
+    /// 支援機能を使っているとき、または札を選んであるとき（選択は支援機能の操作でしか作られない）だけ `tapPile` する。
+    /// - Returns: `tapPile` に渡したか。
+    @discardableResult
+    public func fingerTapPile(_ index: Int, assistive: Bool) -> Bool {
+        guard assistive || selectedID != nil else { return false }
+        tapPile(index)
+        return true
+    }
+
+    /// 一言を消す。
+    public func dismissSwipeTip() {
+        isShowingSwipeTip = false
+    }
+
+    /// 手札をタップ（支援機能の操作・アクション）。置ける台札が 1 つならそこへ出し、2 つなら選択して台札のタップを待つ。
+    /// 指のタップは `fingerTapHandCard` を通す（通常の操作では出さない）。
     public func tapHandCard(_ card: SpeedCard) {
         guard phase == .playing, humanHand.contains(card) else { return }
+        restartPlayableNavigation()
         let targets = playableTargets(for: card)
         switch targets.count {
         case 0:
@@ -236,6 +305,7 @@ public final class SpeedModel {
     /// 台札をタップ。選択中の札があればそこへ出す。無ければ、その台札に置ける手札がちょうど 1 枚のときに出す。
     public func tapPile(_ index: Int) {
         guard phase == .playing, piles.indices.contains(index) else { return }
+        restartPlayableNavigation()
         if let card = selectedCard {
             guard SpeedRules.canPlay(card, onto: tops[index]) else {
                 services?.feedback.notify(.warning)
@@ -253,8 +323,67 @@ public final class SpeedModel {
         play(candidates[0], onto: index, by: .human)
     }
 
+    /// 手札を払って台札 `index` に出す（会長 QA 2026-10-23・スワイプ前提）。出せなければ警告を鳴らして何もしない
+    /// （ペナルティは無い。タップで出せない札を選んだときと同じ）。
+    /// - Returns: 出せたか。
+    @discardableResult
+    public func swipeCard(_ card: SpeedCard, onto index: Int) -> Bool {
+        guard phase == .playing, humanHand.contains(card), piles.indices.contains(index) else { return false }
+        restartPlayableNavigation()
+        guard SpeedRules.canPlay(card, onto: tops[index]) else {
+            selectedID = nil
+            services?.feedback.notify(.warning)
+            return false
+        }
+        play(card, onto: index, by: .human)
+        hasSwipedThisGame = true
+        isShowingSwipeTip = false
+        return true
+    }
+
     public func clearSelection() {
         selectedID = nil
+    }
+
+    // MARK: - 出せる札の案内
+
+    /// 札に触れた（払い始めた）ことを伝える。案内を消して 5 秒を数え直す。
+    public func noteHumanActivity() {
+        guard phase == .playing else { return }
+        restartPlayableNavigation()
+    }
+
+    /// 案内を出すまでの残り。出す条件（ゲーム中・CPU を止めていない・ヒントがオン・あなたに出せる札がある・まだ出していない）を
+    /// 満たさなければ nil（出せる札が無いときは案内しない。そのときは CPU が速くなる #2690 のまま）。
+    public func playableNavigationWait() -> Duration? {
+        guard isPlayableNavigationEligible, !isShowingPlayableNavigation else { return nil }
+        let current = now()
+        let since = navigationSince ?? current
+        if navigationSince == nil { navigationSince = current }
+        let elapsed = Duration.seconds(current.timeIntervalSince(since))
+        return max(.zero, SpeedRules.playableNavigationDelay - elapsed)
+    }
+
+    /// `playableNavigationWait()` の待ちを終えたあとに呼ぶ。5 秒が過ぎていて条件を満たしていれば案内を出す。
+    public func updatePlayableNavigation() {
+        guard isPlayableNavigationEligible, let since = navigationSince else {
+            isShowingPlayableNavigation = false
+            return
+        }
+        // 待ち終えた直後の呼び出しでは、丸めで数ミリ秒足りないことがある（CPU の待ちと同じ）。
+        let elapsed = Duration.seconds(now().timeIntervalSince(since)) + .milliseconds(5)
+        if elapsed >= SpeedRules.playableNavigationDelay { isShowingPlayableNavigation = true }
+    }
+
+    private var isPlayableNavigationEligible: Bool {
+        phase == .playing && !isCPUHeld && hints.isEnabled && humanHasPlayable
+    }
+
+    /// 案内を消し、いまから数え直す。あなたの操作・場が動いたとき・CPU を止める / 解くときに呼ぶ。
+    private func restartPlayableNavigation() {
+        isShowingPlayableNavigation = false
+        navigationSince = now()
+        navigationEpoch += 1
     }
 
     /// どちらも出せないとき、両方の山札から 1 枚ずつ台札に置く（「めくる」）。
@@ -270,7 +399,7 @@ public final class SpeedModel {
 
     /// 次に CPU が動くまでの待ち。ゲーム中でなければ nil。
     ///
-    /// - 出せる札があれば、見つけた時刻からの反応の残り。
+    /// - 出せる札があれば、見つけた時刻からの反応の残り（あなたが出せないあいだは半分の間。#2690）。
     /// - 出せる札が無く、あなたが出せるなら、場を見直す間隔（あなたを待つ）。
     /// - どちらも出せなければ、「めくる」までの残り。
     /// - タイム中なら、タイムの残り。
@@ -290,7 +419,7 @@ public final class SpeedModel {
                 cpuReaction = makeReaction()
             }
             let elapsed = Duration.seconds(current.timeIntervalSince(cpuArmedAt ?? current))
-            return max(.zero, cpuReaction - elapsed)
+            return max(.zero, effectiveReaction - elapsed)
         }
         cpuArmedAt = nil
         if humanHasPlayable {
@@ -324,7 +453,7 @@ public final class SpeedModel {
             }
             // 待ち終えた直後の呼び出しでは、丸めで数ミリ秒足りないことがある。
             let elapsed = Duration.seconds(current.timeIntervalSince(armedAt)) + .milliseconds(5)
-            guard elapsed >= cpuReaction, let card = cpuHand.first(where: { $0.id == choice.cardID }) else { return }
+            guard elapsed >= effectiveReaction, let card = cpuHand.first(where: { $0.id == choice.cardID }) else { return }
             play(card, onto: choice.pile, by: .cpu)
             return
         }
@@ -347,6 +476,8 @@ public final class SpeedModel {
         cpuHolds = next
         cpuArmedAt = nil
         stuckSince = nil
+        // 止めているあいだは数えない。解いたらそこから 5 秒を数え直す（広告・シート・背面の時間で案内を出さない）。
+        restartPlayableNavigation()
         if !wasHeld && isCPUHeld { pausePlayClock() }
         if wasHeld && !isCPUHeld {
             if phase == .playing { playClock = ElapsedClock(now: elapsedNow) }
@@ -386,13 +517,17 @@ public final class SpeedModel {
         recordResult = nil
         cpuArmedAt = nil
         stuckSince = nil
+        restartPlayableNavigation()
         hasProgressed = false
+        swipeTipUsed = false
+        hasSwipedThisGame = false
+        isShowingSwipeTip = false
         timingMultiplier = slowMode.isEnabled ? SpeedRules.slowModeMultiplier : 1
         playedBefore = .zero
         playClock = isCPUHeld ? nil : ElapsedClock(now: elapsedNow)
         phase = .playing
         cpuRun += 1
-        services?.feedback.impact(.medium)   // 札が配られた
+        services?.feedback.impact(.card(.shuffle))   // 札が切られて配られた
         if hasCountedStart {
             services?.gameDidRestart(gameID: Self.gameID, level: settings.level.analyticsLevel)
         } else {
@@ -441,8 +576,16 @@ public final class SpeedModel {
         return .milliseconds(Int((base * (1 + jitter) * timingMultiplier).rounded()))
     }
 
+    /// 見つけた時点で決めた反応の間。あなたが出せる札を持たないあいだだけ縮める（#2690）。
+    /// 待つたびに判定するので、あなたが出せるようになった瞬間に元の長さへ戻る。
+    private var effectiveReaction: Duration {
+        humanHasPlayable ? cpuReaction : cpuReaction * SpeedRules.humanStuckReactionRatio
+    }
+
+    /// めくるまでの間。めくった直後にまためくる（2 回目以降）は短い間にする。
     private var stuckDelay: Duration {
-        .milliseconds(Int((Double(SpeedRules.stuckDelayMilliseconds) * timingMultiplier).rounded()))
+        let base = consecutiveFlips > 0 ? SpeedRules.stuckRepeatDelayMilliseconds : SpeedRules.stuckDelayMilliseconds
+        return .milliseconds(Int((Double(base) * timingMultiplier).rounded()))
     }
 
     private func play(_ card: SpeedCard, onto pile: Int, by player: Player) {
@@ -451,7 +594,7 @@ public final class SpeedModel {
             guard let index = humanHand.firstIndex(of: card) else { return }
             humanHand.remove(at: index)
             if let next = humanStock.popLast() { humanHand.insert(next, at: index) }
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.card(.place))
         case .cpu:
             guard let index = cpuHand.firstIndex(of: card) else { return }
             cpuHand.remove(at: index)
@@ -460,6 +603,7 @@ public final class SpeedModel {
         }
         piles[pile].append(card)
         consecutiveFlips = 0
+        restartPlayableNavigation()
         // CPU が出したら反応の間を数え直す。あなたが出しただけなら、CPU が見つけていた札の間は持ち越す
         // （出せなくなっていれば `nextCPUWait()` が捨てる）。連打で CPU を先送りし続けられないようにするため。
         if player == .cpu { cpuArmedAt = nil }
@@ -481,23 +625,22 @@ public final class SpeedModel {
             concludeDraw()
             return
         }
-        // 山札が尽きていれば、自分側の台札を切り直して山札にする。
-        if humanStock.isEmpty {
-            humanStock = piles[0]
-            shuffle(&humanStock)
-            piles[0] = []
-        }
-        if cpuStock.isEmpty {
-            cpuStock = piles[1]
-            shuffle(&cpuStock)
-            piles[1] = []
+        // 山札が尽きた人はめくらない（手札を出し切れば勝ち）。めくるのは山札が残っている側だけ（会長 QA 2026-10-24）。
+        // 以前は尽きた人が自分側の台札を切り直して山札に抱え直していたため、出し切りかけた人の残りが 20 枚近くへ
+        // 戻り、後半が 1 局の 6 割を占めていた（計測は `SpeedPacingTests`・PR の表）。
+        // 両方とも尽きてどちらも出せないときだけ、台札をそれぞれ切り直して一番上を入れ替える。札は台札に残したまま
+        // 手札へは戻さない（山札へ戻す形だと、両方の残りがまた 20 枚近くへ戻り同じ間延びになるため）。
+        if humanStock.isEmpty && cpuStock.isEmpty {
+            shuffle(&piles[0])
+            shuffle(&piles[1])
         }
         if let card = humanStock.popLast() { piles[0].append(card) }
         if let card = cpuStock.popLast() { piles[1].append(card) }
         cpuArmedAt = nil
         stuckSince = nil
         selectedID = nil
-        services?.feedback.impact(.light)
+        restartPlayableNavigation()
+        services?.feedback.impact(.card(.flip))
         markProgress()
         cpuRun += 1
     }
@@ -519,6 +662,7 @@ public final class SpeedModel {
     private func concludeGame(winner: Player) {
         self.winner = winner
         phase = .result
+        isShowingPlayableNavigation = false
         selectedID = nil
         cpuArmedAt = nil
         stuckSince = nil
@@ -535,6 +679,7 @@ public final class SpeedModel {
         isDraw = true
         winner = nil
         phase = .result
+        isShowingPlayableNavigation = false
         selectedID = nil
         cpuArmedAt = nil
         stuckSince = nil
@@ -597,6 +742,7 @@ public final class SpeedModel {
         consecutiveFlips = 0
         cpuArmedAt = nil
         stuckSince = nil
+        restartPlayableNavigation()
         cpuRun += 1
     }
 

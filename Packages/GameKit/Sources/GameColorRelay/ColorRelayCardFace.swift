@@ -62,6 +62,8 @@ struct ColorRelayCardView: View {
     let width: CGFloat
     var selected: Bool = false
     var hint: RelayCardHint = .none
+    /// 出せる札に薄く光る枠を付ける（#2805）。ヒント設定とは独立で、手札の描き手がルール判定から渡す。
+    var glows: Bool = false
 
     private var size: ColorRelayCardSize { ColorRelayCardSize(width: width) }
 
@@ -99,7 +101,15 @@ struct ColorRelayCardView: View {
             RoundedRectangle(cornerRadius: s.corner, style: .continuous)
                 .strokeBorder(selected ? Theme.Fixed.ink : Color.black.opacity(0.28), lineWidth: selected ? 3 : 1)
         )
-        .opacity(isDimmed ? 0.5 : 1)
+        // 出せる札は黄色の枠と薄い光で浮かせる（#2805）。選択中は墨の太枠が主役なので重ねない。
+        .overlay(
+            RoundedRectangle(cornerRadius: s.corner, style: .continuous)
+                .strokeBorder(Theme.Fill.yellow, lineWidth: glows && !selected ? 2.5 : 0)
+                .shadow(color: Theme.Fill.yellow.opacity(glows && !selected ? 0.6 : 0), radius: 4)
+                .allowsHitTesting(false)
+        )
+        // 出せない札はフェルトの上なので、不透明度ではなく白を重ねて沈める（緑に濁らない・#2531）。
+        .tableDimmed(isDimmed, cornerRadius: s.corner)
         // 面の文字を外しても読み上げは落とさない（#2387）。手札・場は親が状態つきの文で上書きする。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ColorRelayAccessibility.cardName(card))
@@ -216,81 +226,5 @@ struct ColorRelayCardBack: View {
             RoundedRectangle(cornerRadius: s.corner, style: .continuous)
                 .strokeBorder(Color.black.opacity(0.28), lineWidth: 1)
         )
-    }
-}
-
-/// 裏向きの札を横に重ねた束（相手の手札）。枚数が多いときは `maxShown` 枚で止める（枚数は文字で出す）。
-struct ColorRelayBackFan: View {
-    let count: Int
-    let cardWidth: CGFloat
-    var maxShown: Int = 5
-
-    var body: some View {
-        let shown = max(1, min(count, maxShown))
-        let step = cardWidth * 0.42
-        let height = ColorRelayCardSize(width: cardWidth).height
-        ZStack(alignment: .leading) {
-            ForEach(0..<shown, id: \.self) { i in
-                ColorRelayCardBack(width: cardWidth)
-                    .offset(x: CGFloat(i) * step)
-            }
-        }
-        .frame(width: cardWidth + step * CGFloat(shown - 1), height: height, alignment: .leading)
-        .opacity(count == 0 ? 0 : 1)
-    }
-}
-
-// MARK: - 相手のアイコン
-
-/// 相手 3 人のアイコン（#2369 会長決裁: おじさんの絵は使わず、シンプルな印で見分ける）。
-///
-/// **色違いの丸 + 形の違う記号**の 2 つで見分ける（色だけに頼らない）。丸の色は札の 4 色（あか・みどり・
-/// むらさき・きいろ）と取り違えないよう、札に無い色（桃・墨・生成り）にしている。
-enum ColorRelayOpponentStyle {
-    /// `index`（1〜3）の人の記号（SF Symbols）。
-    static func symbol(for index: Int) -> String {
-        switch index {
-        case 1:  return "star.fill"
-        case 2:  return "moon.fill"
-        default: return "cloud.fill"
-        }
-    }
-
-    /// 丸の色と記号の色（`0xRRGGBB`）。卓の上に置くのでライト / ダークで変えない。
-    static func colors(for index: Int) -> (disc: UInt32, mark: UInt32) {
-        switch index {
-        case 1:  return (Theme.Hex.Fill.pink, Theme.Hex.onAccent)
-        case 2:  return (Theme.Hex.ink.light, 0xFFFFFF)
-        default: return (Theme.Hex.background.light, Theme.Hex.onAccent)
-        }
-    }
-}
-
-/// 相手 1 人のアイコン。手番の人は黄色の太い輪で囲む。
-struct ColorRelayOpponentIcon: View {
-    let index: Int
-    let diameter: CGFloat
-    var isCurrent: Bool = false
-
-    var body: some View {
-        let colors = ColorRelayOpponentStyle.colors(for: index)
-        ZStack {
-            Circle()
-                .fill(Color(hex: colors.disc))
-                .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
-            Image(systemName: ColorRelayOpponentStyle.symbol(for: index))
-                .font(.system(size: diameter * 0.46, weight: .bold)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                .foregroundStyle(Color(hex: colors.mark))
-            Circle()
-                .strokeBorder(isCurrent ? Theme.Fill.yellow : Color.white.opacity(0.75),
-                              lineWidth: isCurrent ? max(3, diameter * 0.08) : 2)
-            if isCurrent {
-                Circle()
-                    .strokeBorder(Theme.Fill.yellow.opacity(0.45), lineWidth: max(3, diameter * 0.09))
-                    .padding(-max(3, diameter * 0.09))
-            }
-        }
-        .frame(width: diameter, height: diameter)
-        .accessibilityHidden(true)
     }
 }

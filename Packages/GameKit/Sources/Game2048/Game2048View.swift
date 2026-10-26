@@ -34,6 +34,7 @@ public struct Game2048View: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        .operationResultAnnouncement(model.lastResult)
         .gameChrome(title: "2048", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         if model.hasProgressToLose {
@@ -42,7 +43,7 @@ public struct Game2048View: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items))
+        .howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items).onboarding(Game2048Onboarding.guide))
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }
@@ -175,10 +176,27 @@ public struct Game2048View: View {
                     .contentTransition(.numericText())
             }
             Spacer()
+            HStack(alignment: .top, spacing: 16) {
+                // 今回の最高タイル（#2812）。
+                HeaderBestStat(title: tr("最高"), value: "\(model.highestTile)")
+                if let best = model.liveBestScore {
+                    HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+                }
+            }
         }
+        // VoiceOver では「スコア n、最高タイル n、ベスト n」の 1 要素で読む（#2615・#2812）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(headerAccessibilityLabel)
         // 縦の余白は 10。スコアの文字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var headerAccessibilityLabel: String {
+        let score = RecordFormat.number(model.score)
+        let tile = "\(model.highestTile)"
+        guard let best = model.liveBestScore else { return tr("スコア %1$@、最高タイル %2$@", score, tile) }
+        return tr("スコア %1$@、最高タイル %2$@、ベスト %3$@", score, tile, RecordFormat.number(best))
     }
 
     private var boardView: some View {
@@ -271,11 +289,14 @@ public struct Game2048View: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Fill.coral)
-                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
+                Button(tr("もう一回")) { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)
                     .tint(.white)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .announcesResultAppearance(tr("2048 達成！"))
     }
 
     private var gameOverOverlay: some View {
@@ -287,7 +308,7 @@ public struct Game2048View: View {
             rescue: continueRescue, services: services, gameID: model.gameID,
             serial: model.gameSerial,
             grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
-            secondaryTitle: tr("もう一度"),
+            secondaryTitle: tr("もう一回"),
             secondaryAction: { withGameAnimation { model.newGame() } }
         )
     }

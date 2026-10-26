@@ -111,6 +111,34 @@ struct FreeCellHintSearchTests {
         #expect(FreeCellHint.promisingMove(in: board) == .tableauToFoundation(pile: 0))
     }
 
+    @Test("筋の続きだけでも、検証済みの配りを勝ち切れる（#2602）")
+    func trailWinsWithoutResolving() throws {
+        let seed = FreeCellDealer.verifiedSeeds[0]
+        var board = FreeCellDealer.deal(seed: seed)
+        var trail: FreeCellHintTrail?
+        var searches = 0
+        var steps = 0
+        while !board.isWon {
+            steps += 1
+            try #require(steps <= 400, "往復している")
+            var answer = trail?.answer(at: board)
+            if answer == nil {
+                searches += 1
+                answer = try #require(FreeCellHint.findPlan(in: board))
+            }
+            let a = try #require(answer)
+            trail = FreeCellHintTrail.after(a, from: board)
+            guard case .move(let move) = a.result else {
+                Issue.record("\(steps) 手目で勝てないと言われた")
+                break
+            }
+            let applied = board.apply(move)
+            #expect(applied, "合法でない手 \(move)")
+        }
+        #expect(board.isWon)
+        #expect(searches < steps, "筋を使えば解き直しは手数より少ない: 探索 \(searches) / \(steps) 手")
+    }
+
     @Test("取り消されたら nil（印を出さない）")
     func cancelledReturnsNil() {
         let board = FreeCellDealer.deal(seed: FreeCellDealer.verifiedSeeds[0])
@@ -168,6 +196,61 @@ struct FreeCellHintModelTests {
         #expect(f.model.hintSource != nil)
         #expect(f.model.hintDestination != nil)
         #expect(!f.model.isHintThinking)
+    }
+
+    @Test("ヒントの手を指した直後のヒントは探索しない。回数は 1 回ずつ減る（#2602）")
+    func secondHintAfterFollowingTheFirstDoesNotSearch() async throws {
+        let f = makeFixture()
+        var searches = 0
+        f.model.hintSearchDidFinishForTesting = { searches += 1 }
+
+        await f.model.requestHint()
+        let first = try #require(f.model.hintMove)
+        #expect(searches == 1)
+        var next = f.model.board
+        let appliedfirst = next.apply(first)
+        #expect(appliedfirst)
+        f.model.replaceBoardForTesting(next)
+
+        await f.model.requestHint()
+        let second = try #require(f.model.hintMove, "2 回目も手を示す")
+        #expect(searches == 1, "2 回目は解き直さない")
+        #expect(next.isLegal(second))
+        #expect(f.model.hints.used == 2)
+    }
+
+    @Test("ヒントと違う手を指したら、次のヒントは解き直す（#2602）")
+    func differentMoveSearchesAgain() async throws {
+        let f = makeFixture()
+        var searches = 0
+        f.model.hintSearchDidFinishForTesting = { searches += 1 }
+
+        await f.model.requestHint()
+        let first = try #require(f.model.hintMove)
+        let other = try #require(FreeCellSolver.successors(of: f.model.board).first { $0 != first })
+        var next = f.model.board
+        let appliedother = next.apply(other)
+        #expect(appliedother)
+        f.model.replaceBoardForTesting(next)
+
+        await f.model.requestHint()
+        #expect(searches == 2)
+    }
+
+    @Test("新規配札で筋を捨てる（#2602）")
+    func newGameDropsTheTrail() async throws {
+        let f = makeFixture()
+        await f.model.requestHint()
+        let first = try #require(f.model.hintMove)
+        var next = f.model.board
+        let appliedfirst = next.apply(first)
+        #expect(appliedfirst)
+        f.model.replaceBoardForTesting(next)
+        f.model.newGame()
+        var searches = 0
+        f.model.hintSearchDidFinishForTesting = { searches += 1 }
+        await f.model.requestHint()
+        #expect(searches == 1)
     }
 
     @Test("札を動かすと印は消える")

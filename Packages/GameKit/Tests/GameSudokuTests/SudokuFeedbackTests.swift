@@ -226,6 +226,32 @@ struct SudokuFeedbackTests {
         #expect(model.isDigitExhausted(digit))
     }
 
+    @Test("数字パッドの残数は、正解の個数だけ減り、誤答では減らず、0 で使い切りになる（#2802）")
+    func remainingCountFollowsCorrectPlacements() async throws {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let digit = try #require((1...SudokuEngine.size).first { digit in
+            (0..<SudokuEngine.cellCount).contains { model.board[$0] == 0 && model.solution[$0] == digit }
+        })
+        let targets = (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 && model.solution[$0] == digit }
+        let initial = model.remainingCount(of: digit)
+        #expect(initial == targets.count)
+
+        place(model, digit, at: targets[0])
+        #expect(model.remainingCount(of: digit) == initial - 1)
+
+        let wrongCell = try #require((0..<SudokuEngine.cellCount).first {
+            model.board[$0] == 0 && model.solution[$0] != digit
+        })
+        place(model, digit, at: wrongCell)
+        #expect(model.remainingCount(of: digit) == initial - 1)
+
+        model.erase()
+        for index in targets.dropFirst() { place(model, digit, at: index) }
+        #expect(model.remainingCount(of: digit) == 0)
+        #expect(model.isDigitExhausted(digit))
+    }
+
     @Test("誤答の同じ数字は使い切りに数えず、消せば戻り、9 個目の正解で初めて使い切りになる（#813）")
     func wrongEntryDoesNotExhaustDigit() async throws {
         let (model, _) = makeModel()

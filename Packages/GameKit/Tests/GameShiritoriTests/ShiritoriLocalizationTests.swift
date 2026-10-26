@@ -19,7 +19,18 @@ struct ShiritoriLocalizationTests {
 
     @Test("記録に保存する区分名と札の読みは表示言語によらず日本語のまま")
     func gameContentStaysJapanese() {
-        #expect(ShiritoriMode.endless.scoreVariant?.label == "とことん")
+        #expect(ShiritoriMode.endless.scoreVariant(quota: .normal)?.label == "とことん")
         #expect(ShiritoriCard.deck.first?.primaryReading == "りんご")
+    }
+
+    @Test("ノルマの記録は難易度で分かれ、「ふつう」だけ従来の保存先（区分なし）のまま（#2608）")
+    func quotaRecordVariantsSplitByDifficulty() {
+        #expect(ShiritoriMode.quota.scoreVariant(quota: .normal) == nil)
+        #expect(ShiritoriMode.quota.scoreVariant(quota: .easy)?.key == "quota-easy")
+        #expect(ShiritoriMode.quota.scoreVariant(quota: .easy)?.label == "かんたん")
+        #expect(ShiritoriMode.quota.scoreVariant(quota: .hard)?.key == "quota-hard")
+        #expect(ShiritoriMode.quota.scoreVariant(quota: .hard)?.label == "むずかしい")
+        #expect(ShiritoriMode.endless.scoreVariant(quota: .hard)?.key == "endless")
+        #expect(RecordVariantLabels.label(recordKey: "shiritori#quota-hard", language: .english) == "Hard")
     }
 }

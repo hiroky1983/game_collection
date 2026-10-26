@@ -158,3 +158,29 @@ public struct RuleVerdictMark: View {
             .foregroundStyle(isOK ? Color(hex: 0x2E9D6B) : Theme.coralText)
     }
 }
+
+/// 札を重ねずに `perRow` 枚ずつ折り返して並べる列。13 枚以上の強さの順など、重ねると数字が隠れる図に使う（#2788）。
+/// 並びは左から右、上から下。
+public struct RuleMiniCardWrap<Content: View>: View {
+    private let count: Int
+    private let perRow: Int
+    private let content: (Int) -> Content
+
+    public init(count: Int, perRow: Int, @ViewBuilder content: @escaping (Int) -> Content) {
+        self.count = count
+        self.perRow = max(perRow, 1)
+        self.content = content
+    }
+
+    public var body: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<((count + perRow - 1) / perRow), id: \.self) { row in
+                HStack(spacing: 4) {
+                    ForEach(row * perRow..<min(count, (row + 1) * perRow), id: \.self) { index in
+                        content(index)
+                    }
+                }
+            }
+        }
+    }
+}

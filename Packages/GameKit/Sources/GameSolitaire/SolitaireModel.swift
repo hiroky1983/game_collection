@@ -96,6 +96,13 @@ public final class SolitaireModel {
     private var moves: [SolitaireMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。`isDeadEnd` と同じ理由で控えておく。
     private var autoFinishPlan: [SolitaireMove]?
+    /// 「自動で上がる」で、まだ適用していない手（#2706）。空でなければ自動で上がっている最中。
+    private var autoFinishQueue: [SolitaireMove] = []
+    private var autoFinishInterval: Duration = .zero
+    /// 「自動で上がる」を始めるたびに増える通し番号。View の `.task(id:)` の鍵。
+    public private(set) var autoFinishRun: Int = 0
+    /// 自動で上がっている最中か。この間は盤への入力を受け付けない。
+    public var isAutoFinishing: Bool { !autoFinishQueue.isEmpty }
     /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
     private let stopwatch = GameStopwatch(persistInterval: SolitaireModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
@@ -103,6 +110,10 @@ public final class SolitaireModel {
         get { stopwatch.now }
         set { stopwatch.now = newValue }
     }
+    /// 直前にタップした札と時刻（ダブルタップの判定用・#2598）。
+    private var lastCardTap: (selection: SolitaireSelection, at: ContinuousClock.Instant)?
+    /// この間隔に同じ札を 2 回タップしたらダブルタップ（組札へ直接送る）。仮置きの値で、会長 QA で調整する。
+    static let doubleTapInterval: Duration = .milliseconds(350)
     /// この局でもらったジョーカーの累計枚数（`SolitaireSnapshot.jokerGrants`）。
     private var jokerGrants: Int
     /// 敗北確定の探索。盤面が動くたびに作り直す。
@@ -199,16 +210,16 @@ public final class SolitaireModel {
     /// - Parameters:
     ///   - seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
     ///   - rules: 開始時に焼き込むルール（#498）。中断データがあればそちらが優先される
-    ///     （進行中の局のルールを外から差し替えない）。
+    ///     （進行中の局のルールを外から差し替えない）。nil なら最後に選んだルール（#2611）、記録が無ければ 1 枚めくり。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
-        rules: SolitaireRuleSet = .standard
+        rules: SolitaireRuleSet? = nil
     ) {
         self.services = services
 
-        var startRules = rules
-        var startSeed = seed ?? Self.pickSeed(for: rules.drawMode)
+        var startRules = rules ?? services?.playLog?.lastStart(SolitaireRuleSet.self, gameID: "solitaire") ?? .standard
+        var startSeed = seed ?? Self.pickSeed(for: startRules.drawMode)
         var startMoves: [SolitaireMove] = []
         var startElapsed = 0
         var startGrants = Self.initialJokerGrants
@@ -299,7 +310,7 @@ public final class SolitaireModel {
 
     /// 山札（伏せた束）をタップ。1 枚めくる。空なら捨て札を戻して循環させる。
     public func tapStock() {
-        guard phase == .playing else { return }
+        guard phase == .playing, !isAutoFinishing else { return }
         if isPlacingJoker { return cancelPlacingJoker() }
         selection = nil
         guard board.isLegal(.draw) else { return reject() }
@@ -308,8 +319,9 @@ public final class SolitaireModel {
 
     /// 捨て札の一番上をタップ。持ち上げる / 置く。
     public func tapWaste() {
-        guard phase == .playing else { return }
+        guard phase == .playing, !isAutoFinishing else { return }
         if isPlacingJoker { return cancelPlacingJoker() }
+        if registerCardTap(.waste), sendToFoundation(.waste) { return }
         if selection == .waste { return deselect() }
         guard board.waste.last != nil else { return reject() }
         selection = .waste
@@ -320,7 +332,7 @@ public final class SolitaireModel {
     public func tapFoundation(_ suit: SolitaireSuit) {
         // 決着後は無音で無視する（`tapStock` / `tapWaste` / `tapPile` と同じ規約）。
         // ここを拒否に倒すと、クリア画面に残った組札に触るたび警告の振動と音が鳴る。
-        guard phase == .playing else { return }
+        guard phase == .playing, !isAutoFinishing else { return }
         if isPlacingJoker { return cancelPlacingJoker() }
         guard let selection else { return reject() }
         guard let card = card(at: selection), card.suit == suit,
@@ -336,7 +348,7 @@ public final class SolitaireModel {
     ///
     /// - Parameter cardIndex: タップした `faceUp` の添字。nil なら一番上の札。
     public func tapPile(_ pile: Int, cardIndex: Int? = nil) {
-        guard phase == .playing, board.tableau.indices.contains(pile) else { return }
+        guard phase == .playing, !isAutoFinishing, board.tableau.indices.contains(pile) else { return }
 
         // ジョーカーの置き先を選んでいる最中は、この列に置くことだけを試す。
         // 置けない列（空列・上がジョーカー）を選んでも**選択モードから抜けない**。
@@ -353,6 +365,8 @@ public final class SolitaireModel {
 
         let index = cardIndex ?? (board.tableau[pile].faceUp.count - 1)
         guard board.tableau[pile].faceUp.indices.contains(index) else { return reject() }
+        if registerCardTap(.tableau(pile: pile, cardIndex: index)),
+           sendToFoundation(.tableau(pile: pile, cardIndex: index)) { return }
         if selection == .tableau(pile: pile, cardIndex: index) { return deselect() }
         // 途中で切れている並び（降順・交互色でない）は動かせないので持ち上げさせない。
         guard board.isMovableRun(pile: pile, from: index) else { return reject() }
@@ -423,6 +437,8 @@ public final class SolitaireModel {
 
     public func deselect() {
         selection = nil
+        // ドラッグの落とし先は deselect → 合成タップで処理される。ダブルタップと取り違えない（#2598）。
+        lastCardTap = nil
         services?.feedback.impact(.rigid)
     }
 
@@ -518,7 +534,7 @@ public final class SolitaireModel {
     /// ジョーカーを置いた手を戻す場合も消費は通常どおり 1 回（#476 仕様5）。
     @discardableResult
     public func undo() -> Bool {
-        guard canUndo, hasUndoCredit else {
+        guard canUndo, hasUndoCredit, !isAutoFinishing else {
             reject()
             return false
         }
@@ -555,25 +571,62 @@ public final class SolitaireModel {
 
     // MARK: - 自動で上がる
 
-    /// 組札へ送る手だけで勝ち切れるなら、まとめて送って決着させる。
+    /// 組札へ送る手だけで勝ち切れるなら、1 手ずつ順に送って決着させる（#2706）。
+    ///
+    /// ここでは手順を控えて `autoFinishRun` を進めるだけ。実際に 1 手ずつ適用するのは
+    /// View の `.task(id: autoFinishRun)` が `advanceAutoFinish()` を呼び続ける形（待ち時間は戻り値で返す）。
     @discardableResult
     public func autoFinish() -> Bool {
-        guard phase == .playing, let plan = autoFinishPlan else { return false }
-        let before = board
-        for move in plan {
-            board.apply(move)
-            moves.append(move)
-        }
-        revealedCardIDs = SolitaireBoard.revealedCardIDs(before: before, after: board)
-        lastMoveWasDraw = plan.last == .draw
-        // 一気に上がる手順は複数の山めくりをまたぐので、1 回ぶんの差分では数えられない。
-        // 上がりきった時点で捨て札は空になり、返す札そのものが無くなるので空でよい。
-        drawnCardIDs = []
+        guard phase == .playing, !isAutoFinishing, let plan = autoFinishPlan else { return false }
+        autoFinishQueue = plan
+        autoFinishInterval = AutoFinishPacing.interval(moveCount: plan.count)
+        autoFinishRun += 1
         selection = nil
         isPlacingJoker = false
+        return true
+    }
+
+    /// `advanceAutoFinish()` の run 指定版。**task の持ち主の run が今の run と違えば何もしない**
+    /// （取り消された古い task が、次の「自動で上がる」の手順を巻き込まないため）。
+    public func advanceAutoFinish(for run: Int) -> Duration? {
+        guard run == autoFinishRun else { return nil }
+        return advanceAutoFinish()
+    }
+
+    /// `finishAutoFinishNow()` の run 指定版。
+    public func finishAutoFinishNow(for run: Int) {
+        guard run == autoFinishRun else { return }
+        finishAutoFinishNow()
+    }
+
+    /// 控えた手順を待たずに最後まで適用する（画面を離れたとき・テスト用）。
+    public func finishAutoFinishNow() {
+        while advanceAutoFinish() != nil {}
+    }
+
+    /// 控えた手順を 1 手適用し、次の手までの待ち時間を返す。最後の 1 手で決着させて nil を返す。
+    /// 取り消された（新規ゲーム・戻す）・手順が空なら nil。
+    /// Reduce Motion が ON のときも待ちを飛ばすだけで、手は同じ順に適用する。
+    public func advanceAutoFinish() -> Duration? {
+        guard phase == .playing, !autoFinishQueue.isEmpty else {
+            autoFinishQueue = []
+            return nil
+        }
+        let before = board
+        let move = autoFinishQueue.removeFirst()
+        board.apply(move)
+        moves.append(move)
+        revealedCardIDs = SolitaireBoard.revealedCardIDs(before: before, after: board)
+        lastMoveWasDraw = move == .draw
+        // 山めくりの差分は 1 手ずつ数えない。上がりきった時点で捨て札は空になるので空でよい。
+        drawnCardIDs = []
+        guard autoFinishQueue.isEmpty else {
+            services?.feedback.impact(.card(.place))
+            return Motion.isReduceMotionEnabled ? .zero : autoFinishInterval
+        }
         refreshDerivedState()
         finish()
-        return true
+        return nil
     }
 
     // MARK: - 新規配札
@@ -593,11 +646,24 @@ public final class SolitaireModel {
     ///   ルールを変えられるのは開始シートを通したときだけで、**進行中の局には効かない**
     ///   （1 局 = 1 RuleSet。ここで焼き直した瞬間に手順がリセットされるので前後で混ざらない）。
     public func newGame(rules: SolitaireRuleSet? = nil) {
+        deal(rules: rules, sameDeal: false)
+    }
+
+    /// 今と同じ配札（同じ種・同じルール）を最初から配り直す（#2603）。記録の扱いは `newGame` と同じ。
+    public func restartSameDeal() {
+        deal(rules: nil, sameDeal: true)
+    }
+
+    private func deal(rules: SolitaireRuleSet?, sameDeal: Bool) {
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         self.rules = rules ?? self.rules
-        seed = Self.pickSeed(for: self.rules.drawMode)
+        services?.playLog?.saveLastStart(self.rules, gameID: "solitaire")
+        if !sameDeal {
+            seed = Self.pickSeed(for: self.rules.drawMode)
+        }
+        autoFinishQueue = []
         moves = []
         jokerGrants = Self.initialJokerGrants
         undosRemaining = SolitaireUndoBudget.free
@@ -620,7 +686,7 @@ public final class SolitaireModel {
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         stopwatch.stop()
         startTimer()
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.shuffle))
         services?.snapshots.clear(for: gameID)
         services?.gameDidRestart(gameID: gameID)
     }
@@ -666,6 +732,24 @@ public final class SolitaireModel {
         }
     }
 
+    /// 札のタップを控え、直前に同じ札をタップしてから `doubleTapInterval` 以内ならダブルタップとして true を返す。
+    ///
+    /// 1 回目のタップは今までどおり選択に使うので、シングルタップの反応は遅らせない。
+    private func registerCardTap(_ target: SolitaireSelection) -> Bool {
+        let now = clockNow()
+        defer { lastCardTap = (target, now) }
+        guard let last = lastCardTap, last.selection == target else { return false }
+        return now - last.at <= Self.doubleTapInterval
+    }
+
+    /// 札を選択なしで組札へ送る。送れなければ何もせず false（拒否の演出も出さない）。
+    private func sendToFoundation(_ target: SolitaireSelection) -> Bool {
+        guard let move = foundationMove(from: target), board.isLegal(move) else { return false }
+        lastCardTap = nil
+        perform(move)
+        return true
+    }
+
     private func foundationMove(from selection: SolitaireSelection) -> SolitaireMove? {
         switch selection {
         case .waste:
@@ -688,6 +772,7 @@ public final class SolitaireModel {
     }
 
     private func perform(_ move: SolitaireMove) {
+        lastCardTap = nil
         let before = board
         guard board.apply(move) else { return reject() }
         noteFlips(from: before, move: move)
@@ -697,7 +782,7 @@ public final class SolitaireModel {
         // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
         services?.gameDidProgress(gameID: gameID)
         selection = nil
-        services?.feedback.impact(move == .draw ? .light : .medium)
+        services?.feedback.impact(move == .draw ? .card(.deal) : .card(.place))
         refreshDerivedState()
 
         if board.isWon {

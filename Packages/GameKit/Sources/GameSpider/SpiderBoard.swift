@@ -56,11 +56,18 @@ public struct SpiderBoard: Equatable, Sendable {
     public var stock: [[SpiderCard]]
     /// 取り除いた並びのスート（取り除いた順）。
     public var completed: [SpiderSuit]
+    /// 取り除いた並びの K の札 id（`completed` と同じ順）。View が場の K から完成枠へ滑らせる
+    /// 移動の補間（`matchedGeometryEffect`）に使う。局面を直接組んだ盤では `completed` より短いことがある。
+    public var completedKingIDs: [Int]
 
-    public init(piles: [SpiderPile], stock: [[SpiderCard]] = [], completed: [SpiderSuit] = []) {
+    public init(
+        piles: [SpiderPile], stock: [[SpiderCard]] = [],
+        completed: [SpiderSuit] = [], completedKingIDs: [Int] = []
+    ) {
         self.piles = piles
         self.stock = stock
         self.completed = completed
+        self.completedKingIDs = completedKingIDs
     }
 
     // MARK: - 数え上げ
@@ -140,8 +147,10 @@ public struct SpiderBoard: Equatable, Sendable {
     /// 列の後始末: 上に K〜A の同スート並びが揃っていれば取り除き、一番上が伏せ札なら表にする。
     private mutating func settle(pile: Int) {
         if let suit = completedRunSuit(pile: pile) {
+            let king = piles[pile].cards[piles[pile].cards.count - Self.sequenceLength]
             piles[pile].cards.removeLast(Self.sequenceLength)
             completed.append(suit)
+            if completedKingIDs.count == completed.count - 1 { completedKingIDs.append(king.id) }
         }
         if piles[pile].faceDownCount > 0, piles[pile].faceDownCount == piles[pile].cards.count {
             piles[pile].faceDownCount -= 1

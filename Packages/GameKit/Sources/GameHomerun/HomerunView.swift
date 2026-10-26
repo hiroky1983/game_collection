@@ -37,7 +37,7 @@ public struct HomerunView: View {
                         hidesBackButton: model.phase == .pitching || model.phase == .ballResult || model.phase == .finale,
                         hidesHowToPlay: model.phase == .pitching || model.phase == .ballResult || model.phase == .finale)
             // 遊び方を読んでいるあいだは投球を止め、閉じたらその球を投げ直す。
-            .howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items), onPresent: { model.hold(.sheet, true, now: Date()) },
+            .howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items).onboarding(HomerunOnboarding.guide), onPresent: { model.hold(.sheet, true, now: Date()) },
                        onDismiss: { model.hold(.sheet, false, now: Date()) }) {
                 HomerunRuleSheet()
             }
@@ -325,7 +325,7 @@ struct HomerunResultView: View {
                 HStack(spacing: 6) {
                     chip(tr("柵越え %lld 本", homers), systemImage: "flag.checkered", fill: Theme.Fill.yellow)
                     if model.isNewBest {
-                        chip(tr("ベスト更新！"), systemImage: nil, fill: Theme.Fill.pink)
+                        chip(tr("自己ベスト更新！"), systemImage: nil, fill: Theme.Fill.pink)
                     }
                 }
             }

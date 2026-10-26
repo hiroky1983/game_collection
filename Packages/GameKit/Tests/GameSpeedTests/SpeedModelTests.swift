@@ -52,6 +52,16 @@ private func makeSlowMode(_ name: String, enabled: Bool) -> FeedbackPreference {
     return preference
 }
 
+/// ヒント表示（#190）の設定を使い捨ての suite で作る。
+private func makeHints(_ name: String, enabled: Bool) -> FeedbackPreference {
+    let suite = "asobiba.speed.tests.hints.\(name)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
+    let preference = FeedbackPreference(key: "hints", defaults: defaults, defaultValue: true)
+    preference.isEnabled = enabled
+    return preference
+}
+
 private func card(_ suit: SpeedSuit, _ rank: Int) -> SpeedCard {
     SpeedCard(id: suit.rawValue * 13 + rank - 1, suit: suit, rank: rank)
 }
@@ -127,7 +137,7 @@ struct SpeedModelTests {
                 "出した位置（先頭）に山札の一番上が入る")
         #expect(model.humanStock == [card(.diamonds, 3)])
         #expect(model.cpuRun == run + 1, "場が動いたので CPU の待ちが組み直される")
-        #expect(feedback.impacts == [.medium])
+        #expect(feedback.impacts == [.card(.place)])
     }
 
     @Test("出せない手札をタップしても何も起きず、警告の触覚だけ鳴る")
@@ -206,7 +216,7 @@ struct SpeedModelTests {
         #expect(model.humanStock == [card(.diamonds, 3)] && model.cpuStock == [card(.clubs, 4)])
         #expect(model.consecutiveFlips == 1)
         #expect(model.cpuRun == run + 1)
-        #expect(feedback.impacts == [.light])
+        #expect(feedback.impacts == [.card(.flip)])
         // めくった結果 ♥9 が左（♦10）と右（♣8）に、♥11 が左（♦10）に出せるようになった。
         #expect(!model.isStuck)
         #expect(model.humanPlayableIDs == [card(.hearts, 9).id, card(.hearts, 11).id])
@@ -229,26 +239,68 @@ struct SpeedModelTests {
         #expect(feedback.notices(of: .warning) == 1)
     }
 
-    @Test("山札が尽きていたら、めくる前に自分側の台札を切り直して山札にする")
-    func recycleOwnPile() {
+    @Test("山札が尽きた人はめくらない。台札を山札に抱え直さず、めくるのは山札が残っている側だけ")
+    func exhaustedSideDoesNotFlip() {
         let model = SpeedModel(services: makeServices(), seed: 3)
+        let leftPile = [card(.diamonds, 1), card(.diamonds, 6), card(.spades, 6)]
         model.configureForTesting(
             humanHand: [card(.hearts, 9), card(.hearts, 11)],
             humanStock: [],
             cpuHand: [card(.spades, 9), card(.spades, 12)],
             cpuStock: [card(.clubs, 4)],
-            piles: [[card(.diamonds, 1), card(.diamonds, 6), card(.spades, 6)], [card(.clubs, 3)]]
+            piles: [leftPile, [card(.clubs, 3)]]
         )
         #expect(model.isStuck)
         model.flipStocks()
-        // 左の台札 3 枚が切り直されて山札になり、その 1 枚が台札へ。
-        #expect(model.piles[0].count == 1)
-        #expect(model.humanStock.count == 2)
-        let recycled = Set((model.piles[0] + model.humanStock).map(\.id))
-        #expect(recycled == Set([card(.diamonds, 1), card(.diamonds, 6), card(.spades, 6)].map(\.id)))
+        // あなたの側（山札なし）は台札もそのまま。残りは手札の 2 枚のまま増えない。
+        #expect(model.piles[0] == leftPile)
+        #expect(model.humanStock.isEmpty)
+        #expect(model.remaining(of: .human) == 2, "出し切りかけた人の残りが台札のぶん戻らない")
         // CPU 側は山札があるので普通にめくる。
         #expect(model.piles[1] == [card(.clubs, 3), card(.clubs, 4)])
         #expect(model.cpuStock.isEmpty)
+        #expect(model.consecutiveFlips == 1)
+    }
+
+    @Test("両方の山札が尽きてどちらも出せなければ、台札をそれぞれ切り直すだけで、手札・山札の枚数は変えない")
+    func bothExhaustedReshufflesPilesInPlace() {
+        let model = SpeedModel(services: makeServices(), seed: 11)
+        let left = [card(.diamonds, 1), card(.diamonds, 6), card(.spades, 6), card(.hearts, 2), card(.clubs, 7)]
+        let right = [card(.clubs, 3), card(.spades, 13), card(.hearts, 4), card(.diamonds, 9), card(.clubs, 12)]
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9)], humanStock: [],
+            cpuHand: [card(.spades, 2)], cpuStock: [],
+            piles: [left, right]
+        )
+        // 台札は 7 と Q。♥9・♠2 はどちらにも出せない。
+        #expect(model.isStuck)
+        model.flipStocks()
+        #expect(model.humanStock.isEmpty && model.cpuStock.isEmpty, "台札を山札へ戻さない")
+        #expect(model.remaining(of: .human) == 1 && model.remaining(of: .cpu) == 1)
+        #expect(Set(model.piles[0].map(\.id)) == Set(left.map(\.id)), "左の台札の札はそのまま左に残る")
+        #expect(Set(model.piles[1].map(\.id)) == Set(right.map(\.id)))
+        #expect(model.consecutiveFlips == 1)
+    }
+
+    @Test("続けてめくるとき（2 回目以降）は、CPU がめくるまでの間が短い")
+    func repeatFlipIsQuicker() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 3, now: { clock.current },
+                               slowMode: makeSlowMode("repeatFlip", enabled: false))
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9)], humanStock: [card(.diamonds, 7), card(.diamonds, 3)],
+            cpuHand: [card(.spades, 12)], cpuStock: [card(.spades, 8), card(.clubs, 3)],
+            piles: [[card(.diamonds, 1)], [card(.clubs, 5)]]
+        )
+        #expect(model.isStuck)
+        #expect(model.nextCPUWait() == .milliseconds(SpeedRules.stuckDelayMilliseconds))
+        clock.advance(.milliseconds(SpeedRules.stuckDelayMilliseconds))
+        model.performCPUAction()
+        #expect(model.consecutiveFlips == 1)
+        // めくった台札は 3 と 3。♥9・♠Q はまだ出せない。
+        #expect(model.isStuck)
+        #expect(model.nextCPUWait() == .milliseconds(SpeedRules.stuckRepeatDelayMilliseconds))
+        #expect(SpeedRules.stuckRepeatDelayMilliseconds < SpeedRules.stuckDelayMilliseconds)
     }
 
     @Test("めくるだけが 20 回続いて場が動かなければ引き分け")
@@ -409,7 +461,7 @@ struct SpeedModelTests {
         )
         let wait = model.nextCPUWait()
         #expect(wait != nil)
-        #expect(reactionRange(.normal).contains(wait!), "反応は基準 ±20%: \(String(describing: wait))")
+        #expect(reactionRange(.normal, multiplier: SpeedRules.humanStuckReactionRatio).contains(wait!), "あなたが出せないので反応は半分の間 ±20%: \(String(describing: wait))")
         // 半分だけ進めても出さない。残りは縮む。
         clock.advance(wait! / 2)
         model.performCPUAction()
@@ -514,7 +566,7 @@ struct SpeedModelTests {
         let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now,
                                slowMode: makeSlowMode("on", enabled: true))
         model.configureForTesting(
-            humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 5)],
+            humanHand: [card(.hearts, 4)], cpuHand: [card(.spades, 5)],
             piles: [[card(.spades, 6)], [card(.clubs, 3)]],
             settings: SpeedSettings(level: .fast)
         )
@@ -599,10 +651,72 @@ struct SpeedModelTests {
         #expect(!model.isTimeoutActive)
         #expect(model.piles[0].last == card(.spades, 6), "終わった直後も、反応の間を数え直してから出す")
         let wait = model.nextCPUWait()!
-        #expect(reactionRange(.fast).contains(wait))
+        #expect(reactionRange(.fast, multiplier: SpeedRules.humanStuckReactionRatio).contains(wait))
         clock.advance(wait)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
+    }
+
+    // MARK: - あなたが出せないあいだの CPU（#2690）
+
+    @Test("あなたが出せる札を持たないあいだだけ、CPU の反応の間が半分になり、出せるようになったら元に戻る")
+    func cpuFasterWhileHumanHasNoPlayable() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5), card(.spades, 12)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .normal)
+        )
+        #expect(!model.humanHasPlayable && model.cpuHasPlayable)
+        let fast = model.nextCPUWait()!
+        #expect(reactionRange(.normal, multiplier: SpeedRules.humanStuckReactionRatio).contains(fast), "半分の間: \(fast)")
+
+        // 台札が変わってあなたが出せるようになると、同じ見つけ方のまま元の長さに戻る。
+        model.configureForTesting(
+            humanHand: [card(.hearts, 4), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5), card(.spades, 12)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .normal)
+        )
+        #expect(model.humanHasPlayable && model.cpuHasPlayable)
+        let normal = model.nextCPUWait()!
+        #expect(reactionRange(.normal).contains(normal), "満額: \(normal)")
+        #expect(normal > .milliseconds(Int(Double(SpeedLevel.normal.reactionMilliseconds) * 0.6)), "半分の上限より長い")
+    }
+
+    @Test("見つけたあとにあなたが出せなくなると、残りの待ちも半分の長さで数え直す")
+    func cpuSpeedsUpWhenHumanBecomesStuckMidWait() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 4)],
+            humanStock: [card(.diamonds, 12)],
+            cpuHand: [card(.spades, 5), card(.spades, 12)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .normal)
+        )
+        let full = model.nextCPUWait()!
+        // あなたが ♥4 を出すと、補充された ♦12 は出せず、あなたは詰まる。CPU の ♠5 は出せるまま。
+        model.tapHandCard(card(.hearts, 4))
+        #expect(!model.humanHasPlayable && model.cpuHasPlayable)
+        let remaining = model.nextCPUWait()!
+        #expect(remaining <= full / 2 + .milliseconds(1), "見つけた間の半分まで縮む: \(remaining) / \(full)")
+    }
+
+    @Test("両方つまったときの「めくる」までの間は、あなたが出せなくても短くならない")
+    func stuckFlipDelayIsUnchanged() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9)], cpuHand: [card(.spades, 9)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        #expect(model.isStuck)
+        #expect(model.nextCPUWait() == .milliseconds(SpeedRules.stuckDelayMilliseconds))
     }
 
     @Test("CPU を止めているあいだ（広告の視聴中・バックグラウンド）は待ちも動きも無く、解くと反応の間を数え直す")
@@ -630,7 +744,7 @@ struct SpeedModelTests {
         #expect(!model.isCPUHeld)
         #expect(model.cpuRun == run + 1, "解いたら View の待ちを組み直す")
         let restarted = model.nextCPUWait()!
-        #expect(reactionRange(.fast).contains(restarted), "反応の間は満額から数え直す: \(restarted)")
+        #expect(reactionRange(.fast, multiplier: SpeedRules.humanStuckReactionRatio).contains(restarted), "反応の間は満額から数え直す: \(restarted)")
         clock.advance(restarted)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
@@ -666,7 +780,7 @@ struct SpeedModelTests {
         #expect(!model.isCPUHeld)
         #expect(model.cpuRun == run + 1, "すべて解いたら View の待ちを組み直す")
         let wait = model.nextCPUWait()!
-        #expect(reactionRange(.fast).contains(wait), "反応の間は満額から数え直す: \(wait)")
+        #expect(reactionRange(.fast, multiplier: SpeedRules.humanStuckReactionRatio).contains(wait), "反応の間は満額から数え直す: \(wait)")
         clock.advance(wait)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
@@ -802,5 +916,274 @@ struct SpeedModelTests {
                 + model.piles[0].count + model.piles[1].count
             #expect(total == 52, "seed \(seed): 札が増減していない")
         }
+    }
+}
+
+// MARK: - 出せる札の案内（会長 QA 2026-10-24「5 秒ぐらいでナビゲーションを出したい」）
+
+@MainActor
+@Suite("スピードの出せる札の案内")
+struct SpeedPlayableNavigationTests {
+    /// ♥5 は左（♠6）に、♥2 は右（♣3）に出せる。CPU は出せない（あなたを待っている）。
+    private func makeModel(_ name: String, clock: ManualClock, hints: Bool = true) -> SpeedModel {
+        let model = SpeedModel(services: makeServices(), seed: 3, now: { clock.current },
+                               hints: makeHints(name, enabled: hints), slowMode: makeSlowMode(name, enabled: false))
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5), card(.hearts, 9), card(.diamonds, 12), card(.hearts, 2)],
+            humanStock: [card(.diamonds, 11), card(.diamonds, 7)],
+            cpuHand: [card(.spades, 9), card(.clubs, 11)],
+            cpuStock: [card(.clubs, 7)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        return model
+    }
+
+    /// View の `.task(id: navigationEpoch)` と同じ手順で、待ちを進めて案内を更新する。
+    private func waitAndUpdate(_ model: SpeedModel, clock: ManualClock) {
+        guard let wait = model.playableNavigationWait() else { return }
+        clock.advance(wait)
+        model.updatePlayableNavigation()
+    }
+
+    @Test("出せる札があるのに 5 秒何もしなければ、出せる手札と台札を全部光らせる")
+    func showsAfterIdleDelay() {
+        let clock = ManualClock()
+        let model = makeModel("show", clock: clock)
+        #expect(!model.cpuHasPlayable && model.humanHasPlayable)
+        #expect(model.playableNavigationWait() == SpeedRules.playableNavigationDelay)
+        #expect(SpeedRules.playableNavigationDelay == .seconds(5))
+        clock.advance(4.9)
+        model.updatePlayableNavigation()
+        #expect(!model.isShowingPlayableNavigation, "5 秒より前には出さない")
+        #expect(model.playableNavigationCardIDs.isEmpty && model.playableNavigationPiles.isEmpty)
+        waitAndUpdate(model, clock: clock)
+        #expect(model.isShowingPlayableNavigation)
+        #expect(model.playableNavigationCardIDs == [card(.hearts, 5).id, card(.hearts, 2).id], "出せる札が複数なら全部")
+        #expect(model.playableNavigationPiles == [0, 1])
+        #expect(model.playableNavigationWait() == nil, "出したあとは待たない")
+    }
+
+    @Test("出せる札が無いときは案内しない")
+    func noNavigationWithoutPlayable() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 3, now: { clock.current },
+                               hints: makeHints("none", enabled: true), slowMode: makeSlowMode("none", enabled: false))
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            cpuHand: [card(.spades, 7)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        #expect(!model.humanHasPlayable)
+        #expect(model.playableNavigationWait() == nil)
+        clock.advance(10)
+        model.updatePlayableNavigation()
+        #expect(!model.isShowingPlayableNavigation)
+    }
+
+    @Test("ヒント表示をオフにしていれば案内しない")
+    func respectsHintSetting() {
+        let clock = ManualClock()
+        let model = makeModel("hintsOff", clock: clock, hints: false)
+        #expect(model.playableNavigationWait() == nil)
+        clock.advance(10)
+        model.updatePlayableNavigation()
+        #expect(!model.isShowingPlayableNavigation)
+    }
+
+    @Test("札に触れる・出せない札を払うと案内が消え、そこから 5 秒を数え直す")
+    func humanActivityRestarts() {
+        let clock = ManualClock()
+        let model = makeModel("activity", clock: clock)
+        waitAndUpdate(model, clock: clock)
+        #expect(model.isShowingPlayableNavigation)
+        var epoch = model.navigationEpoch
+        model.noteHumanActivity()
+        #expect(!model.isShowingPlayableNavigation)
+        #expect(model.navigationEpoch == epoch + 1, "View の待ちが組み直される")
+        #expect(model.playableNavigationWait() == SpeedRules.playableNavigationDelay)
+        clock.advance(3)
+        // 出せない札（♥9）を払っても操作として数える。
+        epoch = model.navigationEpoch
+        #expect(!model.swipeCard(card(.hearts, 9), onto: 0))
+        #expect(model.navigationEpoch == epoch + 1)
+        #expect(model.playableNavigationWait() == SpeedRules.playableNavigationDelay)
+    }
+
+    @Test("あなたが出す・CPU が出す・めくる、で場が動くと案内が消えて数え直す")
+    func boardMovesRestart() {
+        let clock = ManualClock()
+        let model = makeModel("board", clock: clock)
+        waitAndUpdate(model, clock: clock)
+        #expect(model.isShowingPlayableNavigation)
+        // あなたが ♥5 を左に出す。
+        model.tapHandCard(card(.hearts, 5))
+        #expect(!model.isShowingPlayableNavigation)
+        #expect(model.playableNavigationCardIDs.isEmpty)
+
+        // CPU が出す: ♠9 を、あなたの出せる札が残る局面で出させる。
+        let cpuModel = SpeedModel(services: makeServices(), seed: 3, now: { clock.current },
+                                  hints: makeHints("board.cpu", enabled: true), slowMode: makeSlowMode("board.cpu", enabled: false))
+        cpuModel.configureForTesting(
+            humanHand: [card(.hearts, 2), card(.hearts, 11)],
+            cpuHand: [card(.spades, 9)],
+            cpuStock: [card(.clubs, 7)],
+            piles: [[card(.diamonds, 8)], [card(.clubs, 3)]]
+        )
+        #expect(cpuModel.humanHasPlayable && cpuModel.cpuHasPlayable)
+        // CPU の反応（ふつうで最大 2.28 秒）より案内の 5 秒が長いので、先に CPU が出して数え直しになる。
+        let cpuWait = cpuModel.nextCPUWait()!
+        clock.advance(cpuWait)
+        let epoch = cpuModel.navigationEpoch
+        cpuModel.performCPUAction()
+        #expect(cpuModel.piles[0].last == card(.spades, 9))
+        #expect(cpuModel.navigationEpoch == epoch + 1)
+        #expect(cpuModel.playableNavigationWait() == SpeedRules.playableNavigationDelay)
+
+        // めくる。
+        let flipModel = SpeedModel(services: makeServices(), seed: 3, now: { clock.current },
+                                   hints: makeHints("board.flip", enabled: true), slowMode: makeSlowMode("board.flip", enabled: false))
+        flipModel.configureForTesting(
+            humanHand: [card(.hearts, 9)], humanStock: [card(.diamonds, 10)],
+            cpuHand: [card(.spades, 12)], cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        let flipEpoch = flipModel.navigationEpoch
+        flipModel.flipStocks()
+        #expect(flipModel.navigationEpoch == flipEpoch + 1)
+        // めくった ♦10 に ♥9 が出せる。ここから 5 秒。
+        #expect(flipModel.humanHasPlayable)
+        #expect(flipModel.playableNavigationWait() == SpeedRules.playableNavigationDelay)
+    }
+
+    @Test("広告の視聴中・シートの表示中・背面では数えず、解いたところから 5 秒を数え直す")
+    func holdsPauseCounting() {
+        for reason in [SpeedModel.CPUHold.ad, .sheet, .inactive] {
+            let clock = ManualClock()
+            let model = makeModel("hold.\(reason.rawValue)", clock: clock)
+            clock.advance(4)
+            model.holdCPU(reason, true)
+            #expect(model.playableNavigationWait() == nil, "止めているあいだは数えない")
+            clock.advance(30)
+            model.updatePlayableNavigation()
+            #expect(!model.isShowingPlayableNavigation)
+            model.holdCPU(reason, false)
+            #expect(model.playableNavigationWait() == SpeedRules.playableNavigationDelay, "止める前の 4 秒は持ち越さない")
+            waitAndUpdate(model, clock: clock)
+            #expect(model.isShowingPlayableNavigation)
+            // 出ているあいだに止めたら消す。
+            model.holdCPU(reason, true)
+            #expect(!model.isShowingPlayableNavigation)
+        }
+    }
+
+    @Test("決着したら案内は消える")
+    func clearsOnResult() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 3, now: { clock.current },
+                               hints: makeHints("result", enabled: true), slowMode: makeSlowMode("result", enabled: false))
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5)], humanStock: [],
+            cpuHand: [card(.spades, 9)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]]
+        )
+        waitAndUpdate(model, clock: clock)
+        #expect(model.isShowingPlayableNavigation)
+        model.tapHandCard(card(.hearts, 5))
+        #expect(model.phase == .result)
+        #expect(!model.isShowingPlayableNavigation)
+        #expect(model.playableNavigationWait() == nil)
+    }
+}
+
+/// 通常の操作ではタップで札を出せない（会長 QA 2026-10-24・build 52「タップで押せると『はやい』でも割と勝てる」）。
+/// 札を出す手段は払いだけ。VoiceOver・スイッチコントロールを使っているときだけ、タップ・アクションで出せる。
+@MainActor
+@Suite("スピード: タップでは出さない")
+struct SpeedTapOnlyAssistiveTests {
+    /// ♥5 は左（♠6）にだけ出せる。♥9 は右（♥10）にだけ出せる。
+    private func model(feedback: SpyFeedbackService = SpyFeedbackService()) -> SpeedModel {
+        let model = SpeedModel(services: makeServices(feedback: feedback), seed: 3)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5), card(.hearts, 9), card(.diamonds, 12)],
+            humanStock: [card(.diamonds, 3)],
+            cpuHand: [card(.spades, 2)],
+            piles: [[card(.spades, 6)], [card(.hearts, 10)]]
+        )
+        return model
+    }
+
+    @Test("通常時は、出せる手札をタップしても台札に出ない（軽い触覚と一言だけ）")
+    func fingerTapDoesNotPlay() {
+        let feedback = SpyFeedbackService()
+        let m = model(feedback: feedback)
+        let before = (m.humanHand, m.piles, m.cpuRun)
+        feedback.reset()
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: false) == .nudged(showsTip: true))
+        #expect(m.humanHand == before.0 && m.piles == before.1 && m.cpuRun == before.2, "場が動いた")
+        #expect(m.selectedID == nil, "タップで札を選ばない")
+        #expect(m.isShowingSwipeTip)
+        #expect(feedback.impacts == [.light] && feedback.notices.isEmpty)
+    }
+
+    @Test("通常時は、台札をタップしても置けるただ 1 枚を出さない")
+    func fingerTapPileDoesNotPlay() {
+        let m = model()
+        let before = (m.humanHand, m.piles)
+        #expect(m.fingerTapPile(0, assistive: false) == false)
+        #expect(m.humanHand == before.0 && m.piles == before.1)
+    }
+
+    @Test("一言は 1 局に 1 回まで。新しい局ではまた出る")
+    func tipOncePerGame() {
+        let m = model()
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: false) == .nudged(showsTip: true))
+        m.dismissSwipeTip()
+        #expect(!m.isShowingSwipeTip)
+        #expect(m.fingerTapHandCard(card(.hearts, 9), assistive: false) == .nudged(showsTip: false))
+        #expect(!m.isShowingSwipeTip, "同じ局で 2 回目は出さない")
+        m.start(SpeedSettings(level: .normal))
+        #expect(m.fingerTapHandCard(m.humanHand[0], assistive: false) == .nudged(showsTip: true))
+    }
+
+    @Test("払って出したあとの局では一言を出さない（初めのうちだけ）")
+    func noTipAfterSwipe() {
+        let m = model()
+        #expect(m.swipeCard(card(.hearts, 5), onto: 0))
+        #expect(m.fingerTapHandCard(card(.hearts, 9), assistive: false) == .nudged(showsTip: false))
+        #expect(!m.isShowingSwipeTip)
+    }
+
+    @Test("払って出すと、出ている一言は消える")
+    func swipeDismissesTip() {
+        let m = model()
+        m.fingerTapHandCard(card(.diamonds, 12), assistive: false)
+        #expect(m.isShowingSwipeTip)
+        #expect(m.swipeCard(card(.hearts, 5), onto: 0))
+        #expect(!m.isShowingSwipeTip)
+    }
+
+    @Test("VoiceOver・スイッチコントロールの使用中は、タップ（アクション）で出せる")
+    func assistiveTapPlays() {
+        let m = model()
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: true) == .acted)
+        #expect(m.piles[0].last == card(.hearts, 5))
+        #expect(!m.isShowingSwipeTip, "支援機能では一言を出さない")
+        // 台札のタップ: 右（♥10）に置けるのは ♥9 だけなので出す。
+        #expect(m.fingerTapPile(1, assistive: true))
+        #expect(m.piles[1].last == card(.hearts, 9))
+    }
+
+    @Test("支援機能で選んだ札は、台札のタップで置ける")
+    func assistiveSelectionThenPile() {
+        let m = SpeedModel(services: makeServices(), seed: 3)
+        m.configureForTesting(
+            humanHand: [card(.hearts, 5), card(.hearts, 9)],
+            cpuHand: [card(.spades, 2)],
+            piles: [[card(.spades, 4)], [card(.clubs, 6)]]
+        )
+        #expect(m.fingerTapHandCard(card(.hearts, 5), assistive: true) == .acted)
+        #expect(m.selectedID == card(.hearts, 5).id, "両方に置けるので選択")
+        #expect(m.fingerTapPile(1, assistive: false), "選択は支援機能でしか作られないので、台札のタップで置く")
+        #expect(m.piles[1].last == card(.hearts, 5))
     }
 }

@@ -148,6 +148,56 @@ struct PokerScoreTests {
         #expect(!spy.scores.contains { $0.leaderboardID == GameCenterLeaderboard.pokerChips })
     }
 
+    @Test("連勝: 勝つたびに +1、負け・引き分けで 0 に戻り、最高連勝は残る（#2590）")
+    func streakCountsWinsAndResets() {
+        let win = makePokerModel(pokerSnapshot(player: PokerHands.fullHouse, cpu: PokerHands.straight, streak: 2, bestStreak: 2))
+        win.showdown()
+        #expect(win.streak == 3)
+        #expect(win.bestStreak == 3)
+
+        let lose = makePokerModel(pokerSnapshot(player: PokerHands.highCard, cpu: PokerHands.flush, streak: 2, bestStreak: 2))
+        lose.showdown()
+        #expect(lose.streak == 0)
+        #expect(lose.bestStreak == 2)
+
+        let tie = makePokerModel(pokerSnapshot(player: PokerHands.straight, cpu: PokerHands.sameStraight, streak: 2, bestStreak: 2))
+        tie.showdown()
+        #expect(tie.streak == 0)
+        #expect(tie.bestStreak == 2)
+    }
+
+    @Test("連勝は中断→再開で保たれ、連勝の項目が無い旧い中断データでも続きが消えない（#2590）")
+    func streakSurvivesResume() {
+        let store = MemorySnapshotStore()
+        let model = makePokerModel(
+            pokerSnapshot(round: 3, player: PokerHands.fullHouse, cpu: PokerHands.straight, streak: 1, bestStreak: 4),
+            store: store
+        )
+        model.showdown()
+        let reopened = PokerModel(services: GameServices(snapshots: store, ads: PokerStubAdService()))
+        #expect(reopened.streak == 2)
+        #expect(reopened.bestStreak == 4)
+
+        let legacy = MemorySnapshotStore()
+        try? legacy.save(pokerSnapshot(round: 3, player: PokerHands.fullHouse, cpu: PokerHands.straight), for: "poker")
+        let old = PokerModel(services: GameServices(snapshots: legacy, ads: PokerStubAdService()))
+        #expect(old.round == 3)
+        #expect(old.streak == 0)
+    }
+
+    @Test("新しい勝負を始めると連勝は 0 から数え直す（#2590）")
+    func newSessionResetsStreak() {
+        let model = makePokerModel(
+            pokerSnapshot(round: 10, player: PokerHands.fullHouse, cpu: PokerHands.straight, streak: 3, bestStreak: 3)
+        )
+        model.showdown()
+        #expect(model.sessionOver)
+        #expect(model.bestStreak == 4)
+        model.startGame()
+        #expect(model.streak == 0)
+        #expect(model.bestStreak == 0)
+    }
+
     @Test("途中の回の決着は中断データに残り、開き直すと同じ回の結果から続く")
     func resultBetweenRoundsIsResumable() {
         let store = MemorySnapshotStore()
@@ -182,7 +232,7 @@ struct PokerScoreTests {
         #expect(used.phase == .result, "使い切った勝負では交換したらそのまま勝負になる")
     }
 
-    @Test("決着の表示: 見出し・役の対比・その回の点。持ち点の増減は出さない")
+    @Test("決着の表示: 見出し・役の対比。勝った回の点は大きい増減欄（点）に出す")
     func handResult() throws {
         let model = makePokerModel(pokerSnapshot(player: PokerHands.fullHouse, cpu: PokerHands.straight))
         #expect(model.handResult == nil, "決着するまでは出さない")
@@ -190,18 +240,34 @@ struct PokerScoreTests {
         let result = try #require(model.handResult)
         #expect(result.kind == .win)
         #expect(result.headline == "勝ち！")
-        #expect(result.reason == "フルハウス 対 ストレート・+18点")
-        #expect(result.chipDelta == nil)
-        #expect(result.chipText == nil)
+        #expect(result.reason == "フルハウス 対 ストレート")
+        #expect(result.chipDelta == 18)
+        #expect(result.chipText == "+18点")
 
         let lose = makePokerModel(pokerSnapshot(player: PokerHands.highCard, cpu: PokerHands.flush))
         lose.showdown()
-        #expect(lose.handResult?.reason == "ハイカード 対 フラッシュ・CPUに+12点")
+        #expect(lose.handResult?.reason == "ハイカード 対 フラッシュ・CPUに+12点", "負けの点は CPU に入るので理由に残す")
+        #expect(lose.handResult?.chipDelta == nil)
 
         let tie = makePokerModel(pokerSnapshot(player: PokerHands.straight, cpu: PokerHands.sameStraight))
         tie.showdown()
         #expect(tie.handResult?.reason == "どちらもストレート")
         #expect(tie.handResult?.kind == .draw)
+    }
+
+    @Test("決着の幕の強調（#2593）: スリーカード以上の勝ちだけ。ワンペア以下の勝ち・強い役での負け・引き分けは強めない")
+    func handResultEmphasis() throws {
+        let pair = [pc(30, 12, .spades), pc(31, 12, .hearts), pc(32, 9, .diamonds), pc(33, 5, .clubs), pc(34, 3, .spades)]
+        func result(player: [PokerCard], cpu: [PokerCard]) throws -> HandResult {
+            let model = makePokerModel(pokerSnapshot(player: player, cpu: cpu))
+            model.showdown()
+            return try #require(model.handResult)
+        }
+        #expect(try result(player: PokerHands.fullHouse, cpu: PokerHands.straight).isEmphasized)
+        #expect(try result(player: PokerHands.flush, cpu: PokerHands.highCard).isEmphasized)
+        #expect(try !result(player: pair, cpu: PokerHands.highCard).isEmphasized, "ワンペアの勝ちは今のまま")
+        #expect(try !result(player: PokerHands.highCard, cpu: PokerHands.flush).isEmphasized, "CPU が強い役で勝っても強めない")
+        #expect(try !result(player: PokerHands.straight, cpu: PokerHands.sameStraight).isEmphasized)
     }
 
     @Test("開始の連打は 1 回ぶん（#2416）・勝負の途中では始め直さない")

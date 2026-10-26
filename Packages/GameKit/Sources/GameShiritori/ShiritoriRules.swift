@@ -69,6 +69,15 @@ public enum ShiritoriQuota: Int, CaseIterable, Codable, Sendable {
         }
     }
 
+    /// ノルマモードの成績の区分のキー。「ふつう」は区分なし（それまでの記録を引き継ぐ）。
+    var scoreVariantKey: String? {
+        switch self {
+        case .easy:   return "quota-easy"
+        case .normal: return nil
+        case .hard:   return "quota-hard"
+        }
+    }
+
     public var analyticsLevel: AnalyticsLevel {
         switch self {
         case .easy:   return .beginner
@@ -107,12 +116,17 @@ public enum ShiritoriMode: Int, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 成績を分ける区分（`GameScore.variant`）。従来のモードは nil のまま（自己ベストの保存先を変えない）。
-    var scoreVariant: (key: String, label: String)? {
+    /// 成績を分ける区分（`GameScore.variant`）。ノルマは難易度で分け、「ふつう」は nil のまま
+    /// （従来の自己ベストの保存先を変えない・#2608）。
+    func scoreVariant(quota: ShiritoriQuota) -> (key: String, label: String)? {
+        let key: String
         switch self {
-        case .quota:   return nil
-        case .endless: return ("endless", RecordVariantLabels.stored(gameID: "shiritori", variant: "endless"))
+        case .quota:
+            guard let quotaKey = quota.scoreVariantKey else { return nil }
+            key = quotaKey
+        case .endless: key = "endless"
         }
+        return (key, RecordVariantLabels.stored(gameID: "shiritori", variant: key))
     }
 }
 

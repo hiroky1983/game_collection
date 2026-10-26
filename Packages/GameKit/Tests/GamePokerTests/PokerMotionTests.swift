@@ -119,10 +119,10 @@ struct PokerMotionTests {
             SourceScan.matchCount(of: #"if phase == \.result \{ revealCPU = true \}"#, in: source) == 1,
             "公開の合図が onChange から立っていない"
         )
-        // 役名は「返り終わってから」出す遅延付き。定数ごと外れていないか見る。
+        // 役名と「○枚交換」バッジは「返り終わってから」出す遅延付き（2 か所）。定数ごと外れていないか見る。
         #expect(
-            SourceScan.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 1,
-            "役名のフェードから、カードが返り終わるまでの遅延が外れている"
+            SourceScan.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 2,
+            "役名かバッジのフェードから、カードが返り終わるまでの遅延が外れている"
         )
     }
 
@@ -142,6 +142,22 @@ struct PokerMotionTests {
         #expect(view.contains(
             "showdownRevealDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay"
         ))
+    }
+
+    // MARK: - 「次の勝負へ」の待ち（#2701）
+
+    @Test("次への待ちは、めくりと役名の出現が終わるまで（約0.85秒）")
+    func nextButtonLockCoversReveal() {
+        let lock = PokerMotion.nextButtonLockDuration
+        #expect(lock >= PokerMotion.showdownTotalDuration + PokerMotion.pointsChangeDuration)
+        #expect(lock < 0.9)
+    }
+
+    @Test("「次の勝負へ」は待ちが終わるまで押せない")
+    func nextButtonIsDisabledWhileLocked() throws {
+        let source = try Self.viewSource()
+        #expect(SourceScan.matchCount(of: #"disabled: nextLocked"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"PokerMotion\.nextButtonLockDuration"#, in: source) == 1)
     }
 
     // MARK: - ヘルパー

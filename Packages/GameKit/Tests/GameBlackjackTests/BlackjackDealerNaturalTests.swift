@@ -44,4 +44,23 @@ struct BlackjackDealerNaturalTests {
         let model = try #require(found)
         #expect(model.phase == .playerTurn)
     }
+
+    @Test("画面用の間があるときは、21 が出た回も一度プレイヤーの手番のまま伏せ札を残し、待ってから決着する（#2700）")
+    func naturalHoldsHoleCardBeforeResolving() async throws {
+        let seed = try #require((0..<5000 as Range<UInt64>).first { seed in
+            let m = BlackjackModel(seed: seed)
+            m.deal()
+            return isBlackjack(m.dealerHand) && !isBlackjack(m.playerHand)
+        })
+        let model = BlackjackModel(seed: seed, dealerDrawInterval: .milliseconds(1))
+        model.deal()
+        #expect(model.phase == .playerTurn)
+        #expect(model.isRevealingNatural)
+        model.hit()
+        #expect(model.playerHand.count == 2) // 待ちのあいだは操作を受けない
+        await model.dealerTask?.value
+        #expect(model.phase == .result)
+        #expect(!model.isRevealingNatural)
+        #expect(model.outcome == .lose)
+    }
 }

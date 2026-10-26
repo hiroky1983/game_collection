@@ -61,13 +61,24 @@ public enum ShiritoriPresentation {
     /// ノルマが勝敗に絡むのは時間切れと到達の決着だけなので、ノルマの説明もそのときだけ添える。
     /// とことんモードにはノルマが無いので、ノルマの説明は添えない。
     public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota, ending: ShiritoriEnding,
-                                    mode: ShiritoriMode = .quota) -> String {
-        let base = tr("あなた%1$lld枚・CPU%2$lld枚", player, cpu)
+                                    mode: ShiritoriMode = .quota, clearSeconds: Int? = nil) -> String {
+        var base = tr("あなた%1$lld枚・CPU%2$lld枚", player, cpu)
+        if let clearSeconds { base += tr("・今回%lld秒", clearSeconds) }
         guard mode == .quota else { return base }
         return ending == .timeUp || ending == .quotaReached ? base + tr("／ノルマ: %@", quota.summary) : base
     }
 
     // MARK: - VoiceOver
+
+    /// CPU の手番が始まったときの読み上げ文（#2610）。検討中のカーソルの途中経過は読まない。
+    public static func cpuThinkingAnnouncement() -> String {
+        tr("CPUが考えています")
+    }
+
+    /// CPU が札を取ったときの読み上げ文。対局が続くなら自分の番に戻ったことも添える（#2610）。
+    public static func cpuPlayedAnnouncement(reading: String, continues: Bool) -> String {
+        continues ? tr("CPUが「%@」を取りました。あなたの番です", reading) : tr("CPUが「%@」を取りました", reading)
+    }
 
     /// 盤の札 1 枚の読み上げ文。取れるかどうかはゲームの中身なので、読み上げでも教えない。
     /// 絵の名前は表示言語に従い、読み（しりとりの中身）は日本語のまま添える。

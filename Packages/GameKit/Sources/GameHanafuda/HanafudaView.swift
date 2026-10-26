@@ -2,6 +2,12 @@ import Foundation
 import SwiftUI
 import Core
 
+/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
+private struct PausableTurn: Equatable {
+    let key: AITurnKey
+    let paused: Bool
+}
+
 public struct HanafudaView: View {
     @State private var model: HanafudaModel
     private let services: GameServices
@@ -13,6 +19,10 @@ public struct HanafudaView: View {
     @State private var extendRescue = RewardedRescue()
     /// 開始前の設定（局数・酒の役・強さ）。局が始まったら焼き込まれる（1 局 = 1 RuleSet）。
     @State private var draft = HanafudaOptions()
+    /// 試合の後に「設定を変える」で設定シートを開き直しているか（#2612）。初回は `.idle` で開く。
+    @State private var showChangeSettings = false
+    /// 「？」（図で見る遊び方を含む）を開いているあいだ CPU の手番を止める（#2827）。
+    @State private var isHowToPlayOpen = false
 
     public init(services: GameServices) {
         self.services = services
@@ -30,9 +40,16 @@ public struct HanafudaView: View {
                 if model.phase == .matchResult {
                     // 「もう一度」は結果カードのすぐ下に置き、余りの高さは広告との間に残す（#1519）。
                     // 下の操作エリアに置くと、この枠が残り高さを取るぶんボタンが広告の直上へ押し下げられて誤タップを招く。
+                    // 他のゲームと同じ共通部品（同じ条件でもう一回／設定を変える・#2612）。ヘッダーの新規は付けない（投了せずに記録を抜ける経路を作らない）。
                     VStack(spacing: 8) {
                         matchResultCard
-                        actionButton(tr("もう一度"), role: .primary) { model.restartMatch() }
+                        GameReplayBar(
+                            onReplay: { model.restartMatch() },
+                            onChangeSettings: {
+                                draft = model.options
+                                showChangeSettings = true
+                            }
+                        )
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .transition(.opacity)
@@ -68,11 +85,23 @@ public struct HanafudaView: View {
         // 早見表を置く（#495 の仕様）。
         .gameChrome(title: tr("花札こいこい"), review: services.review,
                     reference: GameChromeReference { showYakuSheet = true })
-        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)) { HanafudaRuleSheet() }
+        .howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items).onboarding(HanafudaOnboarding.guide),
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
             HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
                 .interactiveDismissDisabled()
+        }
+        // 試合の後の選び直し。閉じても結果カードに戻るだけ。
+        .sheet(isPresented: $showChangeSettings) {
+            HanafudaSetupSheet(
+                draft: $draft,
+                onStart: {
+                    showChangeSettings = false
+                    model.restartMatch(options: draft)
+                },
+                onCancel: { showChangeSettings = false }
+            )
         }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
@@ -93,7 +122,9 @@ public struct HanafudaView: View {
                 message: tr("広告を見ているあいだに試合が終わったため、延長できませんでした。")
             )
         )
-        .task(id: model.aiTurnKey) {
+        // 閉じたら鍵（paused）が変わって再起動し、止めていた手番の続きを回す。
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen)) {
+            guard !isHowToPlayOpen else { return }
             await model.runCPUTurnIfNeeded()
         }
         // CPU の手番の締めに 1 回だけ読み上げる（#2280）。
@@ -297,6 +328,9 @@ public struct HanafudaView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!isCandidate(card))
+                    .accessibilityLabel(HanafudaSpeech.fieldLabel(
+                        for: card, isSelecting: model.selection != nil, isCandidate: isCandidate(card)
+                    ))
                 }
             }
         }
@@ -445,10 +479,11 @@ public struct HanafudaView: View {
     private var roundResultCard: some View {
         VStack(spacing: 6) {
             if let result = model.roundResult {
-                Text(roundResultTitle(result.winner))
-                    .themeBody(18, weight: .heavy)
-                    .fitOneLine()
-                    .foregroundStyle(result.winner == .human ? Theme.tealText : Theme.ink)
+                HanafudaRoundTitle(
+                    text: roundResultTitle(result.winner),
+                    color: result.winner == .human ? Theme.tealText : Theme.ink,
+                    isBig: result.isBigHumanWin
+                )
                 if !result.hits.isEmpty {
                     Text(result.hits.map { tr("%@ %lld文", $0.name, $0.points) }.joined(separator: tr("・")))
                         .themeCaption(13, weight: .semibold, maxScale: 1.5)
@@ -483,6 +518,9 @@ public struct HanafudaView: View {
                 .foregroundStyle(matchTitleColor)
             Text(tr("あなた %1$lld文 ・ CPU %2$lld文", model.humanTotal, model.cpuTotal))
                 .themeBody(15, weight: .semibold, maxScale: 1.5)
+                .foregroundStyle(Theme.inkSub)
+            Text(tr("こいこい あなた %1$lld回 ・ CPU %2$lld回", model.humanMatchKoiKoiCount, model.cpuMatchKoiKoiCount))
+                .themeBody(13, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
         }
@@ -558,6 +596,12 @@ enum HanafudaFit {
     static let minScale: CGFloat = 0.4
     /// 取り札（と めくり札）の縮小率の下限。月の数字が読めなくならないよう、場・手札より縮めない（#2336）。
     static let minStripScale: CGFloat = 0.85
+    /// 低い画面（iPhone SE など）での取り札の縮小率の下限。押せる場・手札の札を優先して、取り札はここまで縮める（#2452）。
+    /// 残りの高さが `shortScreenHeight` 以下で下限になり、`tallScreenHeight` 以上では `minStripScale` のまま
+    /// （iPhone 17 の取り札は変わらない）。そのあいだは線形に移るので、高さが減るほど札が大きくなるような逆転は起きない。
+    static let shortScreenMinStripScale: CGFloat = 0.6
+    static let shortScreenHeight: CGFloat = 380
+    static let tallScreenHeight: CGFloat = 480
     /// 札の並べ方の候補（列数）。空いた高さがある局は 4・5 列で大きく、広い画面は 6 列 2 段、
     /// 狭い画面は 8 列 1 段のほうが大きく取れる（#2336）。
     static let columnChoices = [4, 5, 6, 8]
@@ -595,6 +639,7 @@ enum HanafudaFit {
         // 縮小の下限は札の幅で揃える（6 列の自然な幅の `minScale` 倍）。列ごとの比率で下限を持つと、
         // 列が少ないほど下限の札が大きくなり、高さに収まらない並べ方が選ばれてしまう（#2336）。
         let floorWidth = minScale * (innerWidth - 5 * gap) / 6
+        let stripFloor = stripFloor(availableHeight: availableHeight)
         for columns in columnChoices {
             let naturalWidth = (innerWidth - CGFloat(columns - 1) * gap) / CGFloat(columns)
             let floorScale = naturalWidth > 0 ? min(1, floorWidth / naturalWidth) : minScale
@@ -611,8 +656,8 @@ enum HanafudaFit {
             var cardScale = scale
             var stripScale = scale
             // 取り札は月の数字が読める大きさを下限にして、足りない高さは場・手札の札で受ける（#2336）。
-            if scale < minStripScale, cardsNaturalHeight > 0 {
-                stripScale = minStripScale
+            if scale < stripFloor, cardsNaturalHeight > 0 {
+                stripScale = stripFloor
                 cardScale = min(1, max(floorScale, (availableHeight - fixedHeight - rowGaps - 2 * stripHeight * stripScale)
                                        / cardsNaturalHeight))
             }
@@ -626,6 +671,12 @@ enum HanafudaFit {
             }
         }
         return best
+    }
+
+    /// 残りの高さに応じた取り札の縮小率の下限（#2452）。
+    static func stripFloor(availableHeight: CGFloat) -> CGFloat {
+        let t = min(1, max(0, (availableHeight - shortScreenHeight) / (tallScreenHeight - shortScreenHeight)))
+        return shortScreenMinStripScale + (minStripScale - shortScreenMinStripScale) * t
     }
 
     /// 取り札の 4 列の幅。札の重なりが多い列（カス）ほど広く取り、どの列も札 1 枚ぶんは確保する。
@@ -667,5 +718,28 @@ private extension View {
     /// 文字サイズ設定で拡大しても、帯・見出しを折り返さず 1 行に縮めて収める（#1469）。
     func fitOneLine() -> some View {
         lineLimit(1).minimumScaleFactor(0.5)
+    }
+}
+
+
+/// 局結果の見出し。大きなあがり（#2804）のときだけ一回り大きくし、出た瞬間に弾ませる。
+/// Reduce Motion のときは弾ませず、大きさだけで強調する。
+private struct HanafudaRoundTitle: View {
+    let text: String
+    let color: Color
+    let isBig: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var popped = false
+
+    var body: some View {
+        Text(text)
+            .themeBody(isBig ? 26 : 18, weight: .heavy)
+            .fitOneLine()
+            .foregroundStyle(color)
+            .scaleEffect(isBig && !reduceMotion && !popped ? 0.6 : 1)
+            .onAppear {
+                guard isBig, !reduceMotion else { return }
+                withGameAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { popped = true }
+            }
     }
 }

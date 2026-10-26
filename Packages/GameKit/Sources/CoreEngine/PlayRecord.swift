@@ -30,6 +30,9 @@ public struct GameScore: Equatable, Sendable {
     public var seconds: Int?
     /// クリアまでの手数。少ないほど良い。**勝ち / クリアのときだけ記録する**。
     public var moves: Int?
+    /// 多人数対戦での最終順位（1 始まり。1 = 一番）。大富豪・いろリレーが載せる（#2606）。
+    /// 勝敗（`GameOutcome`）とは別に、4 人中の 2 位と 3 位の違いを通算の平均順位に残すためのもの。
+    public var place: Int?
     /// 記録を分けたい区分のキー（マインスイーパーの難易度）。nil ならゲーム単位で 1 件。
     public var variant: String?
     /// 区分の表示名（「初級」など）。ハブの 1 行に添える。
@@ -48,6 +51,7 @@ public struct GameScore: Equatable, Sendable {
         highestValue: Int? = nil,
         seconds: Int? = nil,
         moves: Int? = nil,
+        place: Int? = nil,
         variant: String? = nil,
         variantLabel: String? = nil,
         isLeaderboardEligible: Bool = true
@@ -57,6 +61,7 @@ public struct GameScore: Equatable, Sendable {
         self.highestValue = highestValue
         self.seconds = seconds
         self.moves = moves
+        self.place = place
         self.variant = variant
         self.variantLabel = variantLabel
         self.isLeaderboardEligible = isLeaderboardEligible
@@ -85,6 +90,11 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     public var currentStreak: Int
     /// 過去最高の連勝数。
     public var bestStreak: Int
+    /// 現在の連敗数（#2614）。負けで +1、勝ち・引き分けで 0 に戻る。難易度の「階段」が一段やさしい段を勧める材料。
+    ///
+    /// **必ず Optional にする**（`lastPlayedAt` と同じ理由。旧データには鍵が無い）。nil は 0 連敗と同じ意味で、
+    /// 連敗していない記録には鍵ごと書かない。読むときは `lossStreak` を使う。
+    public var currentLossStreak: Int?
     /// 自己ベストのスコア・チップ。
     public var bestPoints: Int?
     /// 到達した最大値（2048 の最大タイル）。
@@ -93,6 +103,13 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     public var bestSeconds: Int?
     /// 最少クリア手数。
     public var fewestMoves: Int?
+    /// 順位（1 始まり）の累計と、その順位を記録した回数（#2606）。平均順位 = 累計 ÷ 回数。
+    ///
+    /// **必ず Optional にする**（`lastPlayedAt` と同じ理由。旧データには鍵が無い）。順位を載せない決着
+    /// （旧版の記録・順位を持たないゲーム）は回数に数えず、平均から外れる。2 つの整数だけなので、
+    /// プレイ回数が増えても保存サイズは増えない。
+    public var placeTotal: Int?
+    public var placeCount: Int?
     /// 最後に決着した日時。レコメンドの「久しぶり枠」（#335）が使う。
     ///
     /// **必ず Optional にする**。旧データ（この項目が入る前に保存された JSON）には鍵が無く、
@@ -103,8 +120,8 @@ public struct PlayRecord: Codable, Equatable, Sendable {
 
     /// `recordKey` は保存しない（`PlayLog` の保存形式は変えない）。
     private enum CodingKeys: String, CodingKey {
-        case metric, variantLabel, plays, wins, losses, draws, currentStreak, bestStreak
-        case bestPoints, highestValue, bestSeconds, fewestMoves, lastPlayedAt
+        case metric, variantLabel, plays, wins, losses, draws, currentStreak, bestStreak, currentLossStreak
+        case bestPoints, highestValue, bestSeconds, fewestMoves, placeTotal, placeCount, lastPlayedAt
     }
 
     public init(
@@ -117,10 +134,13 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         draws: Int = 0,
         currentStreak: Int = 0,
         bestStreak: Int = 0,
+        currentLossStreak: Int? = nil,
         bestPoints: Int? = nil,
         highestValue: Int? = nil,
         bestSeconds: Int? = nil,
         fewestMoves: Int? = nil,
+        placeTotal: Int? = nil,
+        placeCount: Int? = nil,
         lastPlayedAt: Date? = nil
     ) {
         self.metric = metric
@@ -132,11 +152,23 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         self.draws = draws
         self.currentStreak = currentStreak
         self.bestStreak = bestStreak
+        self.currentLossStreak = currentLossStreak
         self.bestPoints = bestPoints
         self.highestValue = highestValue
         self.bestSeconds = bestSeconds
         self.fewestMoves = fewestMoves
+        self.placeTotal = placeTotal
+        self.placeCount = placeCount
         self.lastPlayedAt = lastPlayedAt
+    }
+
+    /// 現在の連敗数（記録が無ければ 0）。
+    public var lossStreak: Int { currentLossStreak ?? 0 }
+
+    /// 平均順位（1 始まり）。順位を記録した決着が 1 回も無ければ nil。
+    public var averagePlace: Double? {
+        guard let total = placeTotal, let count = placeCount, count > 0 else { return nil }
+        return Double(total) / Double(count)
     }
 
     /// 何か 1 つでも記録があるか。何も無いゲームはハブに 1 行も出さない。
@@ -205,6 +237,10 @@ public extension PlayRecord {
         result.highestValue = Self.better(highestValue, newer.highestValue, by: >)
         result.bestSeconds  = Self.better(bestSeconds, newer.bestSeconds, by: <)
         result.fewestMoves  = Self.better(fewestMoves, newer.fewestMoves, by: <)
+        if let count = placeCount, count > 0 {
+            result.placeTotal = (newer.placeTotal ?? 0) + (placeTotal ?? 0)
+            result.placeCount = (newer.placeCount ?? 0) + count
+        }
         if let mine = lastPlayedAt, mine > (newer.lastPlayedAt ?? .distantPast) {
             result.lastPlayedAt = mine
         }
@@ -248,6 +284,7 @@ public extension PlayRecord {
         case .win:
             record.wins += 1
             record.currentStreak += 1
+            record.currentLossStreak = nil
             if record.currentStreak > record.bestStreak {
                 record.bestStreak = record.currentStreak
                 // 初勝利（1 連勝）も「更新」ではあるが、演出としては煩いので 2 連勝以上に絞る。
@@ -256,10 +293,18 @@ public extension PlayRecord {
         case .loss:
             record.losses += 1
             record.currentStreak = 0
+            record.currentLossStreak = record.lossStreak + 1
         case .draw:
             record.draws += 1
             // 引き分けは「連勝」ではないため連勝は途切れる。
             record.currentStreak = 0
+            record.currentLossStreak = nil
+        }
+
+        // 順位は勝敗とは別に累計する（1 位未満は不正値として取り込まない）。
+        if let place = score.place, place >= 1 {
+            record.placeTotal = (record.placeTotal ?? 0) + place
+            record.placeCount = (record.placeCount ?? 0) + 1
         }
 
         // 初回は記録として残すが、0 点では「更新」と言わない（#1067）。言うと共有ボタン（#1043）が
@@ -373,7 +418,9 @@ public enum RecordFormat {
             if let label = best.1 {
                 return tr("最短 %1$@（%2$@）", time(best.0), label, language: language)
             }
-            return tr("最短 %@", time(best.0), language: language)
+            // 1 行（SE・最大文字サイズでも折り返さない長さ）に収めるため、手数は出さず連勝だけ添える（#2597）。
+            return withBestStreak(tr("最短 %@", time(best.0), language: language),
+                                  streak: played.map(\.bestStreak).max() ?? 0, language: language)
         case .points:
             // 区分が複数あるときは**区分なし（本編）の記録を代表**にする。チャリンコおじさんは
             // 本編＝到達ステージ数（区分なし）、エンドレス＝走行距離 m（区分あり）で桁が違い、
@@ -382,18 +429,62 @@ public enum RecordFormat {
             if let base = played.first(where: { $0.variantLabel == nil }), let points = base.bestPoints {
                 // チャリンコおじさんの本編は「どこまで到達したか」が記録の主役（#931。秒数は廃止）。
                 if gameID == runnerGameID { return runnerStageLine(clearedStage: points, language: language) }
-                return tr("ベスト %@", number(points), language: language)
+                return bestLine(points, highlight: highlight(gameID: gameID, value: base.highestValue, language: language),
+                                language: language)
             }
             guard let best = played.compactMap(\.bestPoints).max() else { return nil }
-            return tr("ベスト %@", number(best), language: language)
+            return bestLine(best, highlight: highlight(gameID: gameID, value: played.compactMap(\.highestValue).max(),
+                                                       language: language), language: language)
         case .fewestMoves:
             guard let best = played.compactMap(\.fewestMoves).min() else { return nil }
             return tr("最少 %@手", number(best), language: language)
         case .winLoss:
             let streak = played.map(\.currentStreak).max() ?? 0
-            let base = winLossText(played, language: language)
+            let base = withBestSeconds(withAveragePlace(winLossText(played, language: language), played, language: language),
+                                       played.compactMap(\.bestSeconds).min(), language: language)
             return streak >= 2 ? tr("%1$@・%2$lld連勝中", base, streak, language: language) : base
         }
+    }
+
+    /// 最高連勝を末尾に添える。`.winLoss` と同じ閾値（2 連勝以上）に満たなければ行をそのまま返す。
+    private static func withBestStreak(_ line: String, streak: Int, language: AppLanguage?) -> String {
+        streak >= 2 ? tr("%1$@・最高%2$lld連勝", line, streak, language: language) : line
+    }
+
+    /// ポーカー・ブラックジャックの ID（`PokerModel.gameID` / `BlackjackModel.gameID`）。Core からは参照できないので文字列で持つ。
+    static let pokerGameID = "poker"
+    static let blackjackGameID = "blackjack"
+    /// 大富豪の ID（`DaifugoModel.gameID`）。大富豪は 4 人中 1 位だけが勝ちなので、`wins` がそのまま「大富豪になった回数」（#2867）。
+    static let daifugoGameID = "daifugo"
+
+    /// `PokerHandRank` の序数（`rawValue`・0 始まり）に対応する役名。食い違わないことは `GamePokerTests` が突き合わせる。
+    static func pokerRankName(_ rawValue: Int, language: AppLanguage?) -> String? {
+        let names = [tr("ハイカード", language: language), tr("ワンペア", language: language), tr("ツーペア", language: language),
+                     tr("スリーカード", language: language), tr("ストレート", language: language), tr("フラッシュ", language: language),
+                     tr("フルハウス", language: language), tr("フォーカード", language: language),
+                     tr("ストレートフラッシュ", language: language), tr("ロイヤルフラッシュ", language: language)]
+        return names.indices.contains(rawValue) ? names[rawValue] : nil
+    }
+
+    /// 記録の保存先のキー（`sudoku#normal` 形式）から、ゲーム ID を取り出す。キーが無ければ nil。
+    static func gameID(of record: PlayRecord) -> String? {
+        record.recordKey.map { String($0.prefix { $0 != "#" }) }
+    }
+
+    /// ポーカーの「いちばん強い役」・ブラックジャックの「最高連勝」を、`PlayRecord.highestValue` から読んだ短い表記（#2591）。
+    /// 対象外のゲーム・値が無い／連勝 0 のときは nil（見た目を変えない）。
+    static func highlight(gameID: String?, value: Int?, language: AppLanguage?) -> String? {
+        guard let value else { return nil }
+        switch gameID {
+        case pokerGameID: return pokerRankName(value, language: language)
+        case blackjackGameID: return value >= 1 ? tr("最高%lld連勝", value, language: language) : nil
+        default: return nil
+        }
+    }
+
+    private static func bestLine(_ points: Int, highlight: String?, language: AppLanguage?) -> String {
+        guard let highlight else { return tr("ベスト %@", number(points), language: language) }
+        return tr("ベスト %1$@・%2$@", number(points), highlight, language: language)
     }
 
     /// チャリンコおじさんの ID（`RunnerModel.gameID`）。Core からは GameRunner を参照できないので
@@ -434,6 +525,23 @@ public enum RecordFormat {
             : tr("%1$lld勝%2$lld敗", wins, losses, language: language)
     }
 
+    /// 順位を記録した決着があれば、勝敗の後ろに「平均2.1位」を添える（#2606）。無ければそのまま。
+    ///
+    /// 区分が複数ある記録は累計を足してから割る（区分ごとの平均を平均しない）。
+    private static func withAveragePlace(_ line: String, _ records: [PlayRecord], language: AppLanguage?) -> String {
+        let count = records.reduce(0) { $0 + ($1.placeCount ?? 0) }
+        guard count > 0 else { return line }
+        let total = records.reduce(0) { $0 + ($1.placeTotal ?? 0) }
+        let average = String(format: "%.1f", Double(total) / Double(count))
+        return tr("%1$@・平均%2$@位", line, average, language: language)
+    }
+
+    /// ノルマ到達までの最速秒数を記録しているゲーム（カードしりとり・#2609）だけ、勝敗の後ろに「最速42秒」を添える。無ければそのまま。
+    private static func withBestSeconds(_ line: String, _ seconds: Int?, language: AppLanguage?) -> String {
+        guard let seconds else { return line }
+        return tr("%1$@・最速%2$lld秒", line, seconds, language: language)
+    }
+
     /// リザルトに出す 1 行（そのゲームの自己ベスト）。記録が無ければ nil。
     public static func resultLine(_ record: PlayRecord, language: AppLanguage? = nil) -> String? {
         guard record.hasAnyRecord else { return nil }
@@ -443,9 +551,23 @@ public enum RecordFormat {
                 // まだ一度もクリアしていない。挑戦した回数だけを出す（「記録なし」で終わらせない）。
                 return tr("クリア記録なし（%lld回挑戦）", record.plays, language: language)
             }
-            return tr("最短タイム %1$@・%2$lld回クリア", time(best), record.wins, language: language)
+            var line = tr("最短タイム %1$@・%2$lld回クリア", time(best), record.wins, language: language)
+            // 手数を記録しているゲームだけ「最少 n手」、2 連勝以上なら「最高n連勝」を添える（#2597）。
+            if let moves = record.fewestMoves {
+                line = tr("%1$@・最少 %2$@手", line, number(moves), language: language)
+            }
+            return withBestStreak(line, streak: record.bestStreak, language: language)
         case .points:
             guard let best = record.bestPoints else { return nil }
+            // ポーカー・ブラックジャックの highestValue は「役」「連勝」で、数としての「最大」ではない。
+            // 出せない値（連勝 0）のときも「最大 0」には倒さない。
+            let id = gameID(of: record)
+            if id == pokerGameID || id == blackjackGameID {
+                guard let text = highlight(gameID: id, value: record.highestValue, language: language) else {
+                    return tr("自己ベスト %@", number(best), language: language)
+                }
+                return tr("自己ベスト %1$@（%2$@）", number(best), text, language: language)
+            }
             if let highest = record.highestValue {
                 return tr("自己ベスト %1$@（最大 %2$@）", number(best), number(highest), language: language)
             }
@@ -454,9 +576,18 @@ public enum RecordFormat {
             guard let best = record.fewestMoves else { return nil }
             return tr("最少手数 %@手", number(best), language: language)
         case .winLoss:
-            let base = tr("通算 %@", winLossText([record], language: language), language: language)
-            return record.bestStreak >= 2 ? tr("%1$@・最高%2$lld連勝", base, record.bestStreak, language: language) : base
+            let base = tr("通算 %@", withBestSeconds(withAveragePlace(winLossText([record], language: language), [record],
+                                                                     language: language),
+                                                    record.bestSeconds, language: language),
+                          language: language)
+            return withBestStreak(withTycoonCount(base, record, language: language), streak: record.bestStreak, language: language)
         }
+    }
+
+    /// 大富豪の記録だけ、1 位（大富豪）になった通算回数「大富豪3回」を添える（#2867）。まだ 1 度もなっていなければそのまま。
+    private static func withTycoonCount(_ line: String, _ record: PlayRecord, language: AppLanguage?) -> String {
+        guard gameID(of: record) == daifugoGameID, record.wins > 0 else { return line }
+        return tr("%1$@・大富豪%2$lld回", line, record.wins, language: language)
     }
 
     /// 自己ベストを更新したリザルトから共有するときの文言（#1043）。記録が無ければ nil。

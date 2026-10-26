@@ -249,6 +249,56 @@ public struct MahjongTableLayout: Sendable {
         }
     }
 
+    // MARK: 流局で開ける手牌（#2872）
+
+    /// 流局のとき全員の手牌を卓の上で開ける。開ける家は立て牌（壁）を消し、壁の足元の空き
+    /// （対面は奥の木枠と河の間、上家・下家は壁の列と河の外側の間、自分は手牌一覧の位置）へ札を表向きに並べる。
+    /// 置き方は壁と同じ片側固定で、副露の置き場（`inlineMelds`・`sideMeldSlot`）とは重ならない
+    /// （牌の歩幅は壁の 1 枚ぶんと同じ。対面は画面の右端、下家は手前、上家は奥から。自分は一覧の左詰め）。
+    public struct OpenHandTile: Sendable, Equatable {
+        public var center: CGPoint
+        /// 牌の幅（向きを回す前の値）。
+        public var width: CGFloat
+        /// 度。自分 0、下家 -90、対面 180、上家 90。
+        public var rotation: Double
+        /// 回した後に画面上で占める矩形。
+        public var rect: CGRect {
+            let h = width * Self.aspect
+            let sideways = rotation == 90 || rotation == -90
+            let rw = sideways ? h : width, rh = sideways ? width : h
+            return CGRect(x: center.x - rw / 2, y: center.y - rh / 2, width: rw, height: rh)
+        }
+        private static var aspect: CGFloat { MahjongTableLayout.tileAspect }
+    }
+
+    /// 開けた手牌の `index` 枚目（0 始まり。各家から見て左から右の並び順）の置き場。
+    public func openHandTile(seat: Int, index: Int) -> OpenHandTile {
+        let i = CGFloat(max(0, index))
+        let pitch = Self.farWallStepU * feltWidth
+        let width = pitch - 1
+        switch seat {
+        case 2:
+            // 対面は画面の右端から左へ（対面から見て左→右）。上端は副露の行と同じくフェルトの奥の辺の 1pt 下。
+            let x = project(u: Self.farWallRightU, v: 0).x - (i + 0.5) * pitch
+            let y = feltTop + 1 + width * Self.tileAspect / 2
+            return OpenHandTile(center: CGPoint(x: x, y: y), width: width, rotation: 180)
+        case 1:
+            // 下家は手前の端（壁と同じ v 0.88）から奥へ。列は副露の列と同じ u。
+            let x = project(u: Self.sideMeldU(seat: 1), v: 0).x
+            let y = project(u: 0, v: 0.88).y - (i + 0.5) * pitch
+            return OpenHandTile(center: CGPoint(x: x, y: y), width: width, rotation: -90)
+        case 3:
+            // 上家は奥の端（壁と同じ v 0.13）から手前へ。
+            let x = project(u: Self.sideMeldU(seat: 3), v: 0).x
+            let y = project(u: 0, v: 0.13).y + (i + 0.5) * pitch
+            return OpenHandTile(center: CGPoint(x: x, y: y), width: width, rotation: 90)
+        default:
+            let o = handOverview
+            return OpenHandTile(
+                center: handOverviewTileCenter(index: Int(i), count: 14), width: o.tileWidth, rotation: 0)
+        }
+    }
+
     // MARK: 副露・立直棒・中央・ドラ
 
     /// 副露の置き場の基準点。実物どおり**各家から見て右側**: 下家（右）＝右上の角、上家（左）＝左下の角、
