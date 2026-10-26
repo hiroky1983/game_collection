@@ -496,6 +496,7 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   - 切り出し済み（2 本目）: ソリティア・フリーセル・スパイダーだけが使う遊び方の図 `RuleSolitaireFigures` を `CoreSolitaireFigures` へ出した（#2953）。札・空き枠・ラベル（`RuleMiniCard` ほか）は 9 ゲーム共用なので Core に残す。
   - 切り出し済み（3 本目）: ランナー・ねこパズル・盆栽縁側だけが使うおじさんのドット絵 `OjisanPixel`（顔 PNG 3 枚込み）を `CoreOjisanPixel` へ出した（#2953）。文言は持たないが、規約（全モジュールに表と `tr`）のため空の表を置いている。
   - 切り出し済み（4 本目）: 盤ゲームの遊び方の図で使う小さな盤 `RuleMiniBoard`（`RuleStone`・`RuleBoardMark` 込み）を `CoreMiniBoard` へ出した（#2953）。使うのは将棋・五目並べ・囲碁・チェス・オセロ・バックギャモン・四目並べの 7 本だけ。同じファイルでも `RuleMiniCard` は `RuleFigureLabel`・`RuleVerdictMark` を含み約 40 ゲームが使う汎用部品なので Core に残す（`CoreUI`（仮）の対象）。
+  - 切り出し済み（5 本目）: 柵越えおじさんだけが使うおじさんのベクター版の図案 `Ojisan`（`OjisanArt`・`OjisanCanvas` ほか）を `CoreOjisan` へ出した（#2953・PR #2976）。ドット絵の `CoreOjisanPixel` とは利用者が違う（柵越えおじさんだけ）ので別モジュールにした。空の文言表を置く点は 3 本目と同じ。
 - **選別の仕組み**: `Scripts/select-gamekit-tests.py`（PR の `git diff --name-only HEAD^1 HEAD` を入力）が、変更ファイル → 所属ターゲット → `Package.swift` の依存を逆にたどって、影響を受けるテストターゲットを `swift test --filter '^(A|B)\.'` の形で出す。次の 3 つは依存に加わる:
   - テストのソースに別ターゲット名が語として出てくるもの（`Sources/GameX/…` を名指しで読む走査テスト）
   - `SourceScan.packageRoot.appendingPathComponent("Sources")` を丸ごと走査するテスト（ThemeTests・AnalyticsTests 等）は全モジュールに依存するとみなす
