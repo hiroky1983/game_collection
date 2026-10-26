@@ -13,6 +13,37 @@ struct HomerunSprayChart: View {
     var numbered = true
 
     var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                chartCanvas
+                if numbered {
+                    // 位置が決まったラベルは Canvas の外の Text で置く（Canvas は描き直すたびに文字を組み直し、
+                    // 和文のフォント探しで主スレッドが埋まる。#2905・#2946）。
+                    let layout = HomerunSprayGeometry.layout(in: geo.size, inset: 16)
+                    ForEach(Array(Self.fixedLabels(layout: layout).enumerated()), id: \.offset) { _, label in
+                        Text(verbatim: label.text)
+                            .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 図の座標・寸法と一体の目盛りで、文字だけ拡大すると柵や印に重なる
+                            .foregroundStyle(Theme.inkSub)
+                            .fixedSize()
+                            .position(label.at)
+                    }
+                    .accessibilityHidden(true)
+                }
+            }
+        }
+    }
+
+    /// 柵の距離（m）と「場外」の、枠の中での位置。
+    static func fixedLabels(layout: HomerunSprayGeometry.Layout) -> [(text: String, at: CGPoint)] {
+        var labels = [(-45.0, "100"), (0.0, "122"), (45.0, "100")].map { deg, text in
+            (text: text, at: layout.map(HomerunSprayGeometry.point(direction: deg, distance: HomerunJudge.fence(atDirection: deg) + 9)))
+        }
+        labels.append((text: tr("場外"),
+                       at: layout.map(HomerunSprayGeometry.point(direction: -22, distance: HomerunBallChase.outOfParkDistance(atDirection: -22) + 8))))
+        return labels
+    }
+
+    private var chartCanvas: some View {
         Canvas { ctx, size in
             // 扇は ±45°・半径 180m。★（18pt）と番号の札が縁で切れない余白を残す。
             let layout = HomerunSprayGeometry.layout(in: size, inset: numbered ? 16 : 10)
@@ -68,18 +99,6 @@ struct HomerunSprayChart: View {
             diamond.addLine(to: map(HomerunSprayGeometry.point(direction: -45, distance: base)))
             diamond.closeSubpath()
             ctx.stroke(diamond, with: .color(Theme.inkSub.opacity(0.6)), lineWidth: 1)
-
-            // 柵の距離と「場外」（場外の線の外）。
-            if numbered {
-                for (deg, label) in [(-45.0, "100"), (0.0, "122"), (45.0, "100")] {
-                    let p = map(HomerunSprayGeometry.point(direction: deg, distance: HomerunJudge.fence(atDirection: deg) + 9))
-                    ctx.draw(Text(verbatim: label).font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                        .foregroundStyle(Theme.inkSub), at: p)
-                }
-                let outLabel = map(HomerunSprayGeometry.point(direction: -22, distance: HomerunBallChase.outOfParkDistance(atDirection: -22) + 8))
-                ctx.draw(Text(verbatim: tr("場外")).font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                    .foregroundStyle(Theme.inkSub), at: outLabel)
-            }
 
             // 打球。
             let marks = balls.map { ball -> CGPoint in

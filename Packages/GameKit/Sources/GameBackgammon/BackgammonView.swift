@@ -495,6 +495,58 @@ private struct BackgammonBoardCanvas: View {
     let hint: BackgammonMove?
 
     var body: some View {
+        ZStack {
+            canvas
+            // 積みの枚数は Canvas の外の Text で置く（Canvas は描き直すたびに文字を組み直す。#2905・#2946）。
+            ForEach(countLabels) { label in
+                Text(verbatim: "\(label.count)")
+                    .font(.system(size: layout.checkerDiameter * 0.5, weight: .bold, design: .rounded)) // fixed-size: 駒の直径に比例させる盤の部品で、駒（盤の寸法）と一体
+                    .foregroundColor(label.side == .white ? Color(hex: 0x2B2624) : .white)
+                    .fixedSize()
+                    .position(label.center)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// 駒の厚み（`drawChecker` の `rim`）ぶん上にずれる駒の面の中心。
+    private func faceCenter(of center: CGPoint) -> CGPoint {
+        CGPoint(x: center.x, y: center.y - layout.checkerDiameter / 2 * 0.16 / 2)
+    }
+
+    private struct CountLabel: Identifiable {
+        let id: String
+        let count: Int
+        let side: BackgammonSide
+        let center: CGPoint
+    }
+
+    /// 積みきれない枚数（点は `maxDrawn` 枚超、バーは 3 枚超）を、一番上の駒に重ねて出すラベル。
+    private var countLabels: [CountLabel] {
+        var labels: [CountLabel] = []
+        for index in 0..<BackgammonBoard.pointCount {
+            guard let owner = board.owner(at: index) else { continue }
+            let count = board.count(at: index)
+            let drawn = min(count, BackgammonBoardLayout.maxDrawn)
+            guard count > drawn else { continue }
+            let (_, isTop) = layout.position(of: index)
+            let center = CGPoint(x: layout.centerX(of: index), y: layout.checkerCenterY(k: drawn - 1, isTop: isTop))
+            labels.append(CountLabel(id: "p\(index)", count: count, side: owner, center: faceCenter(of: center)))
+        }
+        let barX = (layout.barMinX + layout.barMaxX) / 2
+        let d = layout.checkerDiameter
+        for side in BackgammonSide.allCases {
+            let count = board.bar(for: side)
+            let drawn = min(count, 3)
+            guard count > drawn else { continue }
+            let k = CGFloat(drawn - 1)
+            let y = side == .white ? layout.height / 2 + d * (k + 0.6) : layout.height / 2 - d * (k + 0.6)
+            labels.append(CountLabel(id: "b\(side)", count: count, side: side, center: faceCenter(of: CGPoint(x: barX, y: y))))
+        }
+        return labels
+    }
+
+    private var canvas: some View {
         Canvas { ctx, _ in
             let u = layout.unit
             let h = layout.height
@@ -563,7 +615,7 @@ private struct BackgammonBoardCanvas: View {
             }
 
             // 駒。
-            func drawChecker(center: CGPoint, side: BackgammonSide, label: String?, highlighted: Bool, hinted: Bool = false) {
+            func drawChecker(center: CGPoint, side: BackgammonSide, highlighted: Bool, hinted: Bool = false) {
                 let r = d / 2
                 let rim = r * 0.16
                 let face = CGRect(x: center.x - r, y: center.y - r - rim / 2, width: d, height: d)
@@ -581,11 +633,6 @@ private struct BackgammonBoardCanvas: View {
                     ctx.stroke(Path(ellipseIn: face.insetBy(dx: -2.5, dy: -2.5)),
                                with: .color(BoardGameHintColor.color), lineWidth: 3)
                 }
-                if let label {
-                    ctx.draw(Text(label).font(.system(size: d * 0.5, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                        .foregroundColor(side == .white ? Color(hex: 0x2B2624) : .white),
-                             at: CGPoint(x: face.midX, y: face.midY))
-                }
             }
 
             for index in 0..<BackgammonBoard.pointCount {
@@ -597,7 +644,6 @@ private struct BackgammonBoardCanvas: View {
                 for k in 0..<drawn {
                     let isLast = k == drawn - 1
                     drawChecker(center: CGPoint(x: cx, y: layout.checkerCenterY(k: k, isTop: isTop)), side: owner,
-                                label: isLast && count > drawn ? "\(count)" : nil,
                                 highlighted: isLast && (selected == index || lastMove?.to == index),
                                 hinted: isLast && hint?.from == index)
                 }
@@ -611,7 +657,6 @@ private struct BackgammonBoardCanvas: View {
                 for k in 0..<drawn {
                     let y = side == .white ? h / 2 + d * (CGFloat(k) + 0.6) : h / 2 - d * (CGFloat(k) + 0.6)
                     drawChecker(center: CGPoint(x: barX, y: y), side: side,
-                                label: k == drawn - 1 && count > drawn ? "\(count)" : nil,
                                 highlighted: k == drawn - 1 && side == .white && selected == BackgammonBoard.bar,
                                 hinted: k == drawn - 1 && side == .white && hint?.from == BackgammonBoard.bar)
                 }
