@@ -148,7 +148,7 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         // おじさんの盆栽（#2361。もとは くっつきフルーツ #1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない
         // 純粋ロジックで、落とす盆栽の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
-        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine", "CoreOjisan", "CoreOjisanPixel"],
+        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine", "CoreOjisanPixel"],
                 resources: [.copy("Resources/Localization"),
                             // 盆栽 11 段の絵（会長提供・ChatGPT 生成。出どころは docs/design/bonsai/assets-license.md）。
                             .copy("Resources/Bonsai"),
