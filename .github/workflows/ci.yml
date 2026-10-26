@@ -92,7 +92,7 @@ jobs:
         run: |
           filter=all
           if [ "$EVENT" = "pull_request" ]; then
-            if files=$(git diff --name-only HEAD^1 HEAD) && filter=$(printf '%s\n' "$files" | python3 Scripts/select-gamekit-tests.py --explain); then
+            if files=$(git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD) && filter=$(printf '%s\n' "$files" | python3 Scripts/select-gamekit-tests.py --explain); then
               :
             else
               echo "選別に失敗したため全部回す"; filter=all
