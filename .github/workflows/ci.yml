@@ -84,14 +84,59 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: 訳し漏れの検査（#2402）
         run: python3 Scripts/check-untranslated-ja.py
 
+      # main には release 取り込み待ちの未圧縮画像が残ることがある（#2913。release/v1.1.14 取り込みで直る予定）。
+      # リポジトリ全体を検査すると取り込みが済むまで main への push CI が落ち続けるため、
+      # この PR / push で実際に追加・変更された PNG だけを検査する。差分が取れないときは
+      # 見逃しを避けて全件検査にフォールバックする。
       - name: 画像の圧縮漏れの検査（#2913）
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           python3 -m pip install --quiet Pillow || python3 -m pip install --quiet --break-system-packages Pillow
-          python3 Scripts/compress-images.py --check
+
+          if [ "$EVENT" = "pull_request" ]; then
+            if ! git fetch --quiet origin "$BASE_REF:refs/remotes/origin/$BASE_REF"; then
+              echo "base ブランチ（$BASE_REF）の取得に失敗したため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+            if ! pngs="$(git diff --name-only --diff-filter=AM "origin/$BASE_REF...HEAD" -- '*.png')"; then
+              echo "差分の取得に失敗したため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+          elif [ "$EVENT" = "push" ]; then
+            if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              echo "新規ブランチへの最初の push のため画像の圧縮検査を飛ばす"
+              exit 0
+            fi
+            if ! git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+              echo "push 前の commit（$BEFORE_SHA）が取得できないため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+            if ! pngs="$(git diff --name-only --diff-filter=AM "$BEFORE_SHA" "$GITHUB_SHA" -- '*.png')"; then
+              echo "差分の取得に失敗したため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+          else
+            echo "画像の圧縮検査の対象外イベント（$EVENT）のため飛ばす"
+            exit 0
+          fi
+
+          if [ -z "$pngs" ]; then
+            echo "変更された PNG が無いため画像の圧縮検査を飛ばす"
+            exit 0
+          fi
+
+          echo "検査対象:"
+          echo "$pngs"
+          readarray -t png_array <<< "$pngs"
+          python3 Scripts/compress-images.py --check "${png_array[@]}"
 
       # 将棋の自己対戦テスト（SelfPlayTests）は決定的だがCIの中で最も重い1本（実測304秒）で、
       # 将棋AI強化は中止済み（2026-08-10決裁）のためソースが変わる見込みが低い。
